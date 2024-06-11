@@ -279,6 +279,7 @@ bool ChannelScanTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t i
 {
     switch (cmdu_rx.getMessageType()) {
     case ieee1905_1::eMessageType::CHANNEL_SCAN_REQUEST_MESSAGE: {
+        LOG(DEBUG) << "Received CHANNEL_SCAN_REQUEST_MESSAGE";
         if (!m_on_boot_scan_enabled) {
             return handle_channel_scan_request(cmdu_rx, src_mac);
         }
@@ -291,12 +292,14 @@ bool ChannelScanTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t i
         break;
     }
     case ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE: {
+        LOG(DEBUG) << "Received VENDOR_SPECIFIC_MESSAGE";
         // Retrive the radio_src_mac from the CMDU's header
         // This variable will replace the src_mac address which will be empty
         auto radio_src_mac = beerocks_header->actionhdr()->radio_mac();
         return handle_vendor_specific(cmdu_rx, radio_src_mac, fd, beerocks_header);
     }
     default: {
+        LOG(ERROR) << "Received not handled message";
         // Message was not handled, therefore return false.
         return false;
     }
