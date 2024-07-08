@@ -120,7 +120,7 @@
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringRequest.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
-#include <tlvf/wfa_map/tlvTIDtoLinkMappingPolicy.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 #include <tlvf/wfa_map/tlvTimestamp.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 #include <tlvf/wfa_map/tlvTriggerChannelSwitchAnnouncement.h>
@@ -572,7 +572,7 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
         return msg.addClass<wfa_map::tlvSpatialReuseReport>();
     }
     case (wfa_map::eTlvTypeMap::TLV_TID_TO_LINK_MAPPING_POLICY): {
-        return msg.addClass<wfa_map::tlvTIDtoLinkMappingPolicy>();
+        return msg.addClass<wfa_map::tlvTidToLinkMappingPolicy>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
