@@ -1290,7 +1290,7 @@ bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
         std::string data;
         event_data->read_child(data, "PeerMacAddress");
         msg->params.mac = tlvf::mac_from_string(data);
-        int32_t status_code(UINT32_MAX);
+        uint8_t status_code(UINT8_MAX);
         event_data->read_child(status_code, "StatusCode");
 
         auto vap_id = get_vap_id_with_bss(interface);
