@@ -166,41 +166,45 @@ void ServicePrioritizationTask::gather_iface_details(
     auto db                                                  = AgentDB::get();
     bpl::ServicePrioritizationUtils::sInterfaceTagInfo iface = {};
 
-    // bridge interface is configured as Primary VLAN ID untagged Port with primary VLAN ID
-    iface.iface_name = db->bridge.iface_name;
-    iface.tag_info   = bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
-    iface_tag_info_list->push_back(iface);
+    // Helper function to add VLAN interfaces to the list
+    auto add_vlan_interfaces = [&](const std::string &base_iface_name) {
+        if (base_iface_name.empty()) {
+            LOG(WARNING) << "Base interface name is empty!";
+            return;
+        }
+
+        // Add primary VLAN interface
+        iface.iface_name =
+            base_iface_name + "." + std::to_string(db->traffic_separation.primary_vlan_id);
+        iface.tag_info = bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
+        iface_tag_info_list->emplace_back(iface);
+
+        // Add secondary VLAN interfaces
+        for (const auto &vid : db->traffic_separation.secondary_vlans_ids) {
+            iface.iface_name = base_iface_name + "." + std::to_string(vid);
+            iface.tag_info =
+                bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
+            iface_tag_info_list->emplace_back(iface);
+        }
+    };
+
+    // Add VLAN interfaces for bridge
+    add_vlan_interfaces(db->bridge.iface_name);
 
     // Update WAN and LAN Ports.
     LOG(DEBUG) << "Update WAN and LAN Ports | local_gateway=" << !db->device_conf.local_gw
                << " | WAN iface name: " << db->ethernet.wan.iface_name
                << " | LAN count: " << db->ethernet.lan.size();
 
-    // Add WAN interface to list
+    // Add VLAN interfaces for WAN
     if (!db->device_conf.local_gw) {
-        if (db->ethernet.wan.iface_name.empty()) {
-            LOG(WARNING) << "WAN interface name is empty!";
-        } else {
-            LOG(DEBUG) << "WAN interface name: " << db->ethernet.wan.iface_name;
-            iface.iface_name = db->ethernet.wan.iface_name;
-            iface.tag_info =
-                bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
-            iface_tag_info_list->push_back(iface);
-        }
+        add_vlan_interfaces(db->ethernet.wan.iface_name);
     }
 
-    // Add LAN interfaces to list
+    // Add VLAN interfaces for LAN
     for (const auto &lan_iface_info : db->ethernet.lan) {
-        if (lan_iface_info.iface_name.empty()) {
-            LOG(WARNING) << "LAN interface name is empty!";
-        } else {
-            iface            = {};
-            iface.iface_name = lan_iface_info.iface_name;
-            iface.tag_info =
-                bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
-            iface_tag_info_list->push_back(iface);
-            LOG(DEBUG) << "Added LAN interface: " << lan_iface_info.iface_name;
-        }
+        add_vlan_interfaces(lan_iface_info.iface_name);
+        LOG(DEBUG) << "Added LAN interface: " << lan_iface_info.iface_name;
     }
 
     // Wireless Backhaul
