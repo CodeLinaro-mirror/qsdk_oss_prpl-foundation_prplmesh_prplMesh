@@ -1399,8 +1399,10 @@ std::string network_utils::create_vlan_interface(const std::string &iface, uint1
     }
 
     // Command example:
-    // ip link add <iface>.<vid> link <iface> type vlan id <vid>
-    // ip link add <iface>.<suffix> ip link add <iface> type vlan id <vid>
+    // ip link add <iface>.<vid> link <iface> type vlan id <vid> egress-qos-map <map>
+    // ip link add <iface>.<suffix> link <iface> type vlan id <vid> egress-qos-map <map>
+
+    const auto EGRESS_QOS_MAP = "0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7";
 
     std::string cmd;
     // Reserve 80 bytes for appended data to prevent reallocations.
@@ -1416,7 +1418,9 @@ std::string network_utils::create_vlan_interface(const std::string &iface, uint1
         .append(" link ")
         .append(iface)
         .append(" type vlan id ")
-        .append(vid_str);
+        .append(vid_str)
+        .append(" egress-qos-map ")
+        .append(EGRESS_QOS_MAP);
 
     beerocks::os_utils::system_call(cmd);
     return new_iface_name;

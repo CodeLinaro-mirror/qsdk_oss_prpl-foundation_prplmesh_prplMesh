@@ -42,6 +42,7 @@ public:
 #define DSCP_MAP_LENGTH 64
     struct sDscpMap {
         uint8_t dscp[DSCP_MAP_LENGTH];
+        uint8_t precendence; // [0;63] dscp value that will be mapped to UP and applied
     };
 
     virtual bool flush_rules() { return false; }

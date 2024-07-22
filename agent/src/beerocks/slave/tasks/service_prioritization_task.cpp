@@ -166,115 +166,27 @@ void ServicePrioritizationTask::gather_iface_details(
     auto db                                                  = AgentDB::get();
     bpl::ServicePrioritizationUtils::sInterfaceTagInfo iface = {};
 
-    // bridge interface is configured as Primary VLAN ID untagged Port with primary VLAN ID
+    if (db->bridge.iface_name.empty()) {
+        LOG(ERROR) << "db->bridge.iface_name is empty";
+        return;
+    }
+
+    // Add bridge interface
     iface.iface_name = db->bridge.iface_name;
     iface.tag_info   = bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
-    iface_tag_info_list->push_back(iface);
+    iface_tag_info_list->emplace_back(iface);
 
-    // Update WAN and LAN Ports.
-    LOG(DEBUG) << "Update WAN and LAN Ports | local_gateway=" << !db->device_conf.local_gw
-               << " | WAN iface name: " << db->ethernet.wan.iface_name
-               << " | LAN count: " << db->ethernet.lan.size();
+    // Add primary VLAN interface
+    iface.iface_name =
+        db->bridge.iface_name + "." + std::to_string(db->traffic_separation.primary_vlan_id);
+    iface.tag_info = bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
+    iface_tag_info_list->emplace_back(iface);
 
-    // Add WAN interface to list
-    if (!db->device_conf.local_gw) {
-        if (db->ethernet.wan.iface_name.empty()) {
-            LOG(WARNING) << "WAN interface name is empty!";
-        } else {
-            LOG(DEBUG) << "WAN interface name: " << db->ethernet.wan.iface_name;
-            iface.iface_name = db->ethernet.wan.iface_name;
-            iface.tag_info =
-                bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
-            iface_tag_info_list->push_back(iface);
-        }
-    }
-
-    // Add LAN interfaces to list
-    for (const auto &lan_iface_info : db->ethernet.lan) {
-        if (lan_iface_info.iface_name.empty()) {
-            LOG(WARNING) << "LAN interface name is empty!";
-        } else {
-            iface            = {};
-            iface.iface_name = lan_iface_info.iface_name;
-            iface.tag_info =
-                bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
-            iface_tag_info_list->push_back(iface);
-            LOG(DEBUG) << "Added LAN interface: " << lan_iface_info.iface_name;
-        }
-    }
-
-    // Wireless Backhaul
-    LOG(DEBUG) << "Wireless Backhaul | local_gateway=" << !db->device_conf.local_gw
-               << " | Selected iface: " << db->backhaul.selected_iface_name
-               << " | Connection type: " << db->backhaul.connection_type;
-    if (!db->device_conf.local_gw && !db->backhaul.selected_iface_name.empty() &&
-        db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
-        iface      = {};
-        auto radio = db->radio(db->backhaul.selected_iface_name);
-        if (!radio) {
-            LOG(ERROR) << "Could not find Backhaul Radio interface!";
-            return;
-        }
-        iface.iface_name = radio->back.iface_name;
-        iface.tag_info =
-            db->backhaul.bssid_multi_ap_profile > 1
-                ? bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_TAGGED
-                : bpl::ServicePrioritizationUtils::ePortMode::UNTAGGED_PORT;
-        iface_tag_info_list->push_back(iface);
-    }
-
-    for (auto radio : db->get_radios_list()) {
-        if (!radio) {
-            continue;
-        }
-
-        for (const auto &bss : radio->front.bssids) {
-            // Skip unconfigured BSS.
-            if (bss.ssid.empty()) {
-                continue;
-            }
-            iface = {};
-
-            LOG(DEBUG) << "BSS " << bss.mac << ", ssid:" << bss.ssid;
-
-            std::string bss_iface;
-
-            if (!network_utils::linux_iface_get_name(bss.mac, bss_iface)) {
-                LOG(WARNING) << "Interface with MAC " << bss.mac << " does not exist";
-                continue;
-            }
-
-            if (bss.fronthaul_bss && !bss.backhaul_bss) { // fBSS
-                iface.iface_name = bss_iface;
-                iface.tag_info   = bpl::ServicePrioritizationUtils::ePortMode::UNTAGGED_PORT;
-                iface_tag_info_list->push_back(iface);
-            } else if (!bss.fronthaul_bss && bss.backhaul_bss) { // bBSS
-                auto bss_iface_netdevs =
-                    network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
-
-                for (const auto &bss_iface_netdev : bss_iface_netdevs) {
-                    iface.iface_name = bss_iface_netdev;
-                    iface.tag_info =
-                        bss.backhaul_bss_disallow_profile1_agent_association
-                            ? bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_TAGGED
-                            : bpl::ServicePrioritizationUtils::ePortMode::UNTAGGED_PORT;
-                    iface_tag_info_list->push_back(iface);
-                }
-            } else { // Combined fBSS & bBSS - Currently Support only Profile-1 (PPM-1418)
-                iface.iface_name = bss_iface;
-                iface.tag_info   = bpl::ServicePrioritizationUtils::ePortMode::UNTAGGED_PORT;
-                iface_tag_info_list->push_back(iface);
-
-                auto bss_iface_netdevs =
-                    network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
-
-                for (const auto &bss_iface_netdev : bss_iface_netdevs) {
-                    iface.iface_name = bss_iface_netdev;
-                    iface.tag_info   = bpl::ServicePrioritizationUtils::ePortMode::UNTAGGED_PORT;
-                    iface_tag_info_list->push_back(iface);
-                }
-            }
-        }
+    // Add secondary VLAN interfaces
+    for (const auto &vid : db->traffic_separation.secondary_vlans_ids) {
+        iface.iface_name = db->bridge.iface_name + "." + std::to_string(vid);
+        iface.tag_info   = bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
+        iface_tag_info_list->emplace_back(iface);
     }
 }
 
@@ -304,7 +216,7 @@ bool ServicePrioritizationTask::qos_apply_active_rule()
         beerocks::ServicePrioritizationTask::send_service_prio_config(request);
         switch (active->second.output) {
         case QOS_USE_DSCP_MAP:
-            return qos_setup_dscp_map();
+            return qos_setup_dscp_map(active->second.precedence);
         case QOS_USE_UP:
             return qos_setup_up_map();
         default:
@@ -342,7 +254,7 @@ bool ServicePrioritizationTask::qos_setup_single_value_map(uint8_t pcp)
     return service_prio_utils->apply_single_value_map(&iface_list, pcp);
 }
 
-bool ServicePrioritizationTask::qos_setup_dscp_map()
+bool ServicePrioritizationTask::qos_setup_dscp_map(uint8_t precendence)
 {
     uint8_t pcp = 0;
     std::list<bpl::ServicePrioritizationUtils::sInterfaceTagInfo> iface_list;
@@ -353,6 +265,8 @@ bool ServicePrioritizationTask::qos_setup_dscp_map()
 
     pcp = db->traffic_separation.default_pcp;
     LOG(DEBUG) << "Default PCP = " << pcp;
+
+    dscp_map.precendence = precendence;
 
     ServicePrioritizationTask::gather_iface_details(&iface_list);
     std::copy(db->service_prioritization.dscp_mapping_table.begin(),
