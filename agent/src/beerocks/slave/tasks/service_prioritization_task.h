@@ -47,7 +47,7 @@ private:
     bool qos_apply_active_rule();
     bool qos_flush_setup();
     bool qos_setup_single_value_map(uint8_t pcp);
-    bool qos_setup_dscp_map();
+    bool qos_setup_dscp_map(uint8_t precendence);
     bool qos_setup_up_map();
 
     slave_thread &m_btl_ctx;
