@@ -768,6 +768,11 @@ bool base_wlan_hal_nl80211::refresh_radio_info()
     return true;
 } // namespace nl80211
 
+bool base_wlan_hal_nl80211::get_vap_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    return true;
+}
 bool base_wlan_hal_nl80211::refresh_vaps_info(int id)
 {
     LOG(TRACE) << __func__ << " - id = " << id;

@@ -364,9 +364,10 @@ bool mon_wlan_hal_whm::channel_scan_trigger(int dwell_time_msec,
         AmbiorixVariant args_abort(AMXC_VAR_ID_HTABLE);
         //scan is already active, as per spec, cancel the old one and start new one
         if (!m_ambiorix_cl.call(m_radio_path, "stopScan", args_abort, result_abort)) {
-            LOG(INFO) << " remote function stopScan startScan Failed!";
+            LOG(INFO) << " remote function stopScan startScan Failed! ";
         }
         m_scan_active = false; // optimistically reset m_scan_active
+        LOG(DEBUG) << "Badhri m_scan_active: " << m_scan_active;
     }
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
@@ -379,6 +380,7 @@ bool mon_wlan_hal_whm::channel_scan_trigger(int dwell_time_msec,
     }
     event_queue_push(Event::Channel_Scan_Triggered);
     m_scan_active = true;
+    LOG(DEBUG) << "Badhri m_scan_active: " << m_scan_active;
     return true;
 }
 
@@ -520,13 +522,19 @@ bool mon_wlan_hal_whm::pre_generate_connected_clients_events()
 
 bool mon_wlan_hal_whm::channel_scan_abort()
 {
+    if (!m_scan_active) {
+        LOG(DEBUG) << "No channel scan(s) are active";
+        return true;
+    }
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     if (!m_ambiorix_cl.call(m_radio_path, "stopScan", args, result)) {
-        LOG(ERROR) << " remote function call stopScan Failed!";
+        LOG(ERROR) << "remote function call stopScan Failed!";
         return false;
     }
+    m_scan_active = false;
     event_queue_push(Event::Channel_Scan_Aborted);
+    LOG(DEBUG) << "Channel Scan Aborted";
     return true;
 }
 
@@ -823,16 +831,17 @@ bool mon_wlan_hal_whm::process_scan_complete_event(const std::string &result)
 {
     if (result == "error") {
         LOG(DEBUG) << " received ScanComplete event with Error indication!";
-        m_scan_active = false;
         event_queue_push(Event::Channel_Scan_Aborted);
+        m_scan_active = false;
         return false;
     }
     if (result == "done" && m_scan_active) {
         m_scan_results.clear();
         event_queue_push(Event::Channel_Scan_New_Results_Ready);
-        m_scan_active = false;
         channel_scan_dump_results();
         event_queue_push(Event::Channel_Scan_Finished);
+        m_scan_active = false;
+        LOG(DEBUG) << "Badhri m_scan_active: " << m_scan_active;
     } else if (!m_scan_active) {
         LOG(INFO) << "results from a scan not requested by bwl";
     }

@@ -60,6 +60,8 @@ public:
     virtual bool reassociate() override;
     virtual bool refresh_radio_info() override;
     virtual bool refresh_vaps_info(int id) override;
+    virtual bool
+    get_vap_status(const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list) override;
     virtual bool process_ext_events(int fd = 0) override;
     virtual bool process_nl_events() override;
     virtual std::string get_radio_mac() override;

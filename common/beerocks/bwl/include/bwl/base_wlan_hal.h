@@ -96,6 +96,8 @@ public:
      * @return true on success or false on error.
      */
     virtual bool refresh_vaps_info(int id = beerocks::IFACE_RADIO_ID) = 0;
+    virtual bool
+    get_vap_status(const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list) = 0;
 
     /*!
      * Process incoming events from the underlying hardware/middleware.

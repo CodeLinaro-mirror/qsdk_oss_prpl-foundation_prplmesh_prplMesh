@@ -1126,6 +1126,12 @@ bool ap_wlan_hal_whm::process_radio_channel_change_event(const AmbiorixVariant *
     return true;
 }
 
+bool ap_wlan_hal_whm::refresh_vap_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    return get_vap_status(bss_info_conf_list);
+}
+
 bool ap_wlan_hal_whm::process_ap_event(const std::string &interface, const std::string &key,
                                        const AmbiorixVariant *value)
 {
