@@ -23,6 +23,7 @@
 
 #include "tlvf/wfa_map/tlvClientInfo.h"
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
+#include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
 #include <tlvf/wfa_map/tlvBssid.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 #include <tlvf/wfa_map/tlvClientCapabilityReport.h>
@@ -2675,6 +2676,31 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         }
 
         auto mgmt_frame = static_cast<bwl::sMGMT_FRAME_NOTIFICATION *>(data);
+
+        if (mgmt_frame->type == bwl::eManagementFrameType::RADIO_MEASUREMENT_REPORT) {
+            LOG(DEBUG) << "Received RADIO_MEASUREMENT_REPORT from " << mgmt_frame->mac;
+
+            auto cmdu_tx_header =
+                cmdu_tx.create(0, ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE);
+
+            if (!cmdu_tx_header) {
+                LOG(ERROR) << "cmdu creation of type BEACON_METRICS_RESPONSE_MESSAGE failed!";
+                return false;
+            }
+
+            auto tlvBeaconMetricsResponse = cmdu_tx.addClass<wfa_map::tlvBeaconMetricsResponse>();
+            if (!tlvBeaconMetricsResponse) {
+                LOG(ERROR) << "addClass tlvBeaconMetricsResponse failed!";
+                return false;
+            }
+
+            tlvBeaconMetricsResponse->associated_sta_mac() = mgmt_frame->mac;
+
+            // TODO: PPM-2971
+            LOG(DEBUG) << "Sending BEACON_METRICS_RESPONSE_MESSAGE";
+            send_cmdu(cmdu_tx);
+            return true;
+        }
 
         // Convert the BWL type to a tunnelled message type
         wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType tunnelled_proto_type;

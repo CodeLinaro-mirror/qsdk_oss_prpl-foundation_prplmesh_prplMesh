@@ -415,11 +415,12 @@ constexpr char BSS_IFNAME_PREFIX[]    = "wlan";
  * @brief Supported 802.11 management frame types.
  */
 enum class eManagementFrameType {
-    ASSOCIATION_REQUEST   = 0x00, /**< Association Request */
-    REASSOCIATION_REQUEST = 0x01, /**< Re-association Request */
-    BTM_QUERY             = 0x02, /**< BSS transition query */
-    WNM_REQUEST           = 0x03, /**< 802.11v transition request */
-    ANQP_REQUEST          = 0x04  /**< Access Network Query Protocol request */
+    ASSOCIATION_REQUEST      = 0x00, /**< Association Request */
+    REASSOCIATION_REQUEST    = 0x01, /**< Re-association Request */
+    BTM_QUERY                = 0x02, /**< BSS transition query */
+    WNM_REQUEST              = 0x03, /**< 802.11v transition request */
+    ANQP_REQUEST             = 0x04, /**< Access Network Query Protocol request */
+    RADIO_MEASUREMENT_REPORT = 0x05  /**< Radio measurement report */
 };
 
 /**
