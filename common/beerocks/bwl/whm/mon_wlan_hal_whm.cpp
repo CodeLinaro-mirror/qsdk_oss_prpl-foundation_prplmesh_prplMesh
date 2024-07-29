@@ -367,6 +367,7 @@ bool mon_wlan_hal_whm::channel_scan_trigger(int dwell_time_msec,
             LOG(INFO) << " remote function stopScan startScan Failed!";
         }
         m_scan_active = false; // optimistically reset m_scan_active
+        LOG(INFO) << "m_scan_active: " << m_scan_active;
     }
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
@@ -379,6 +380,7 @@ bool mon_wlan_hal_whm::channel_scan_trigger(int dwell_time_msec,
     }
     event_queue_push(Event::Channel_Scan_Triggered);
     m_scan_active = true;
+    LOG(INFO) << "m_scan_active: " << m_scan_active;
     return true;
 }
 
@@ -520,13 +522,20 @@ bool mon_wlan_hal_whm::pre_generate_connected_clients_events()
 
 bool mon_wlan_hal_whm::channel_scan_abort()
 {
+    if (!m_scan_active) {
+        LOG(DEBUG) << "No active channel scan found";
+        return true;
+    }
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     if (!m_ambiorix_cl.call(m_radio_path, "stopScan", args, result)) {
         LOG(ERROR) << " remote function call stopScan Failed!";
         return false;
     }
+    m_scan_active = false;
+    LOG(INFO) << "m_scan_active: " << m_scan_active;
     event_queue_push(Event::Channel_Scan_Aborted);
+    LOG(DEBUG) << "Channel Scan Aborted";
     return true;
 }
 
@@ -824,6 +833,7 @@ bool mon_wlan_hal_whm::process_scan_complete_event(const std::string &result)
     if (result == "error") {
         LOG(DEBUG) << " received ScanComplete event with Error indication!";
         m_scan_active = false;
+        LOG(INFO) << "m_scan_active: " << m_scan_active;
         event_queue_push(Event::Channel_Scan_Aborted);
         return false;
     }
@@ -831,6 +841,7 @@ bool mon_wlan_hal_whm::process_scan_complete_event(const std::string &result)
         m_scan_results.clear();
         event_queue_push(Event::Channel_Scan_New_Results_Ready);
         m_scan_active = false;
+        LOG(INFO) << "m_scan_active: " << m_scan_active;
         channel_scan_dump_results();
         event_queue_push(Event::Channel_Scan_Finished);
     } else if (!m_scan_active) {
