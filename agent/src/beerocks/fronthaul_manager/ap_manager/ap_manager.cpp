@@ -60,6 +60,8 @@ constexpr auto fsm_timer_period = std::chrono::milliseconds(1000);
  */
 constexpr auto vbss_deauth_unknown_stas_grace_period = std::chrono::milliseconds(2000);
 
+constexpr auto wait_for_vaps_enable_timeout_sec = std::chrono::seconds(10);
+
 #define SELECT_TIMEOUT_MSC 1000
 #define ACS_READ_SLEEP_USC 1000
 #define READ_ACS_ATTEMPT_MAX 5
@@ -1906,6 +1908,21 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
                                                 backhaul_wps_passphrase, bridge_name);
 
+            auto vap_timeout = std::chrono::steady_clock::now() + wait_for_vaps_enable_timeout_sec;
+            bool all_vaps_enabled = false;
+            while (std::chrono::steady_clock::now() < vap_timeout) {
+                LOG(INFO) << "Checking vap status";
+                if (ap_wlan_hal->get_vap_status(bss_info_conf_list)) {
+                    LOG(INFO) << "All vaps are enabled, break";
+                    all_vaps_enabled = true;
+                    break;
+                }
+                UTILS_SLEEP_MSEC(500);
+            }
+            if (all_vaps_enabled == false) {
+                LOG(ERROR) << "All the vaps are not yet enabled";
+                return;
+            }
             // hostapd is enabled and started radio beaconing after autoconfiguration
             // then radio tx power is updated, so to keep agent DB updated send CSA notification
             // like it is handled in cACTION_APMANAGER_ENABLE_APS_REQUEST.
