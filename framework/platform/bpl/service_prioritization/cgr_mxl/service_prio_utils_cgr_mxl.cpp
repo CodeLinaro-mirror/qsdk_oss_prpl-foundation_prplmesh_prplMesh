@@ -24,6 +24,7 @@ void create_custom_ebtable_chains(const std::string &prerouting_chain_name,
 {
     std::string cmd_preset;
     std::string cmd;
+    std::cerr << "Error:create_custom_ebtable_chains1" << std::endl;
 
     // create custom chains
     cmd_preset = "ebtables -t nat -N ";
@@ -31,6 +32,7 @@ void create_custom_ebtable_chains(const std::string &prerouting_chain_name,
     beerocks::os_utils::system_call(cmd);
     cmd = cmd_preset + postrouting_chain_name;
     beerocks::os_utils::system_call(cmd);
+    std::cerr << "Error:create_custom_ebtable_chains2" << std::endl;
 
     // Append custom chains in PREROUTING and POSTROUTING NAT tables
     cmd_preset = "ebtables -t nat -A ";
@@ -38,6 +40,7 @@ void create_custom_ebtable_chains(const std::string &prerouting_chain_name,
     beerocks::os_utils::system_call(cmd);
     cmd = cmd_preset + "POSTROUTING -j " + postrouting_chain_name;
     beerocks::os_utils::system_call(cmd);
+    std::cerr << "Error:create_custom_ebtable_chains3" << std::endl;
 }
 
 void apply_ebtables_rules(const std::string &prerouting_chain_name,
@@ -48,6 +51,7 @@ void apply_ebtables_rules(const std::string &prerouting_chain_name,
     std::string cmd;
     LOG(DEBUG) << "Apply rules for " << iface_name;
     cmd.reserve(200);
+    std::cerr << "Error:apply_ebtables_rules1" << std::endl;
 
     /* Below are the example commands for different tagged modes
 TAGGED_PORT_PRIMARY_TAGGED
@@ -66,13 +70,14 @@ UNTAGGED_PORT
 	ebtables -t nat -A service_prio_in -i wlan0.0 -j prio --set-prio 0
 	ebtables -t nat -A service_prio_in -i wlan0.0 -p IPv4 -j prio --set-dscp-prio
 */
-
+    
+    std::cerr << "Error:apply_ebtables_rules2" << std::endl;
     if (tag_mode == ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_TAGGED) {
         //ingress rule
         cmd = cmd_preset + prerouting_chain_name + " -i " + iface_name +
               "  -p 802_1Q -j --set-pcp-prio";
         beerocks::os_utils::system_call(cmd);
-
+        std::cerr << "Error:apply_ebtables_rules3" << std::endl;
         //egress rule
         cmd = cmd_preset + postrouting_chain_name + " -o " + iface_name +
               " -p 802_1Q -j prio --set-prio-pcp";
@@ -82,6 +87,7 @@ UNTAGGED_PORT
         //ingress rules
         cmd = cmd_preset + prerouting_chain_name + " -i " + iface_name + " -j prio --set-prio " +
               std::to_string(default_pcp);
+        std::cerr << "Error:apply_ebtables_rules4" << std::endl;				  
 
         beerocks::os_utils::system_call(cmd);
 
@@ -96,28 +102,46 @@ void remove_ebtables_rules(const std::string &custom_chain_name, bool flush_rule
 {
     std::string cmd;
 
-    LOG(DEBUG) << "Remove " << custom_chain_name << " rules";
+    LOG(DEBUG) << "Removeeee " << custom_chain_name << " rules";
+    LOG(DEBUG) << cmd;
+    LOG(DEBUG) << "CALLING";
+    std::cerr << "Error:remove_ebtables_rules1" << std::endl;
     cmd.reserve(150);
+    LOG(DEBUG) << flush_rule;
     if (flush_rule) {
+        LOG(DEBUG) << "FLUSH_RULE";
         cmd.assign("ebtables -t nat ").append("-F ");
         cmd.append(custom_chain_name);
-        beerocks::os_utils::system_call(cmd);
+        LOG(DEBUG) << cmd;
+       // beerocks::os_utils::system_call(cmd);
+        std::cerr << "Error:remove_ebtables_rules2" << std::endl;
     }
+    LOG(DEBUG) << delete_rule;
     if (delete_rule) {
+        LOG(DEBUG) << "delete_rule";
         cmd.assign("ebtables -t nat ").append("-D ");
         if (route == PREROUTING) {
+            LOG(DEBUG) << "if delete rule";
             cmd.append("PREROUTING -j ");
+            std::cerr << "Error:remove_ebtables_rules3" << std::endl;
         } else if (route == POSTROUTING) {
+            LOG(DEBUG) << "else if delete_rule";
             cmd.append("POSTROUTING -j ");
         }
+        LOG(DEBUG) << "else delete_rule";
         cmd.append(custom_chain_name);
-        beerocks::os_utils::system_call(cmd);
+        LOG(DEBUG) << cmd;
+       // beerocks::os_utils::system_call(cmd);
+        std::cerr << "Error:remove_ebtables_rules4" << std::endl;
     }
-
+    LOG(DEBUG) << delete_chain;
     if (delete_chain) {
+        LOG(DEBUG) << "delete_chain";
         cmd.assign("ebtables -t nat ").append("-X ");
         cmd.append(custom_chain_name);
-        beerocks::os_utils::system_call(cmd);
+        std::cerr << "Error:remove_ebtables_rules5" << std::endl;
+        LOG(DEBUG) << cmd;
+       // beerocks::os_utils::system_call(cmd);
     }
 }
 
@@ -143,6 +167,7 @@ bool write_dscp_map_to_proc(uint8_t *dscp, const std::string &filename)
 bool ServicePrioritizationUtils_cgr_mxl::flush_rules()
 {
     LOG(ERROR) << "Flushing ebtable rules";
+    std::cerr << "Error:flush_rules1" << std::endl;
     remove_ebtables_rules(PREROUTING_CHAIN_NAME, true, true, true, PREROUTING);
     remove_ebtables_rules(POSTROUTING_CHAIN_NAME, true, true, true, POSTROUTING);
     return true;
@@ -159,6 +184,7 @@ bool ServicePrioritizationUtils_cgr_mxl::apply_dscp_map(
     std::list<struct sInterfaceTagInfo> *iface_list, struct sDscpMap *map, uint8_t default_pcp)
 {
     LOG(DEBUG) << "Applying Ebtables";
+    std::cerr << "Error:apply_dscp_map1" << std::endl;
 
     if (map == NULL) {
         LOG(ERROR) << "DSCP map value is null";
