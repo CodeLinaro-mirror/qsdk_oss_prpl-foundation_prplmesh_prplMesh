@@ -328,6 +328,7 @@ bool ap_wlan_hal_whm::sta_deny(const sMacAddr &mac, const sMacAddr &bssid)
             mode = "BlackList";
         }
     }
+    LOG(DEBUG) << "steer_debug : Going to add/del entry in sta_deny";
     if (!sta_found && mode == "BlackList") {
         ret = m_ambiorix_cl.call(mac_filter_path, "addEntry", args, result);
     } else if (sta_found && mode == "WhiteList") {
@@ -356,7 +357,23 @@ bool ap_wlan_hal_whm::set_macacl_type(const eMacACLType &acl_type, const sMacAdd
 
 bool ap_wlan_hal_whm::sta_disassoc(int8_t vap_id, const std::string &mac, uint32_t reason)
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    //LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "invalid vap_id " << vap_id;
+        return false;
+    }
+    std::string ifname = m_radio_info.available_vaps[vap_id].bss;
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("macaddress", mac);
+    args.add_child("reason", reason);
+    std::string wifi_ap_path = wbapi_utils::search_path_ap_by_iface(ifname);
+    bool ret                 = m_ambiorix_cl.call(wifi_ap_path, "kickStationReason", args, result);
+
+    if (!ret) {
+        LOG(ERROR) << "sta_deauth() failed!";
+        return false;
+    }
     return true;
 }
 
@@ -401,7 +418,9 @@ bool ap_wlan_hal_whm::sta_bss_steer(int8_t vap_id, const std::string &mac, const
     args.add_child("disassoc", disassoc_timer_btt);
     args.add_child("transitionReason", reason);
     auto wifi_ap_path = wbapi_utils::search_path_ap_by_iface(ifname);
-    bool ret          = m_ambiorix_cl.call(wifi_ap_path, "sendBssTransferRequest", args, result);
+    //UTILS_SLEEP_MSEC(3000);
+    LOG(DEBUG) << "steer_debug : Going to call sendBssTransferRequest";
+    bool ret = m_ambiorix_cl.call(wifi_ap_path, "sendBssTransferRequest", args, result);
 
     if (!ret) {
         LOG(ERROR) << "sta_bss_steer() failed!";
