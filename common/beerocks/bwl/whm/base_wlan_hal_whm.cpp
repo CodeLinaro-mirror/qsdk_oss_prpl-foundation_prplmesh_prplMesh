@@ -632,6 +632,57 @@ bool base_wlan_hal_whm::check_enabled_vap(const std::string &bss) const
     return (vap_it != m_vapsExtInfo.end() && vap_it->second.status == "Enabled");
 }
 
+bool base_wlan_hal_whm::get_vap_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    bool ret             = true;
+    bool all_teared_down = true;
+
+    for (const auto &bss_info_conf : bss_info_conf_list) {
+        if (bss_info_conf.teardown) {
+            LOG(DEBUG) << "Teardown is true for BSSID: " << bss_info_conf.bssid;
+            continue;
+        }
+        all_teared_down = false;
+
+        const auto &vap_info =
+            m_radio_info
+                .available_vaps[get_vap_id_with_mac(tlvf::mac_to_string(bss_info_conf.bssid))];
+        const auto &vap_it = m_vapsExtInfo.find(vap_info.bss);
+
+        if (vap_it == m_vapsExtInfo.end()) {
+            LOG(ERROR) << "Failed to get ifname for BSS: " << vap_info.bss;
+            ret = false;
+            continue;
+        }
+
+        const auto &wifi_vap_path = vap_it->second.path;
+        LOG(DEBUG) << "VAP: " << vap_info.bss << " Path: " << wifi_vap_path;
+
+        std::string status;
+        if (!m_ambiorix_cl.get_param(status, wifi_vap_path, "Status")) {
+            LOG(ERROR) << "Failed to get status for path: " << wifi_vap_path;
+            return false;
+        }
+
+        LOG(DEBUG) << "Status of BSS: " << vap_info.bss << " from path: " << wifi_vap_path << " is "
+                   << status;
+
+        if (status != "Enabled") {
+            LOG(DEBUG) << "Status is 'Disabled' for BSS: " << vap_info.bss;
+            ret = false;
+            break;
+        }
+    }
+
+    if (all_teared_down) {
+        LOG(DEBUG) << "Detected all vaps teared down. Maybe dev_reset_default is called";
+        return true;
+    }
+
+    return ret;
+}
+
 bool base_wlan_hal_whm::refresh_vaps_info(int id)
 {
     bool ret = false;
