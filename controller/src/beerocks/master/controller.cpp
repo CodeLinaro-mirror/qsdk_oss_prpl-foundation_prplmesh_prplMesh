@@ -3042,7 +3042,7 @@ bool Controller::handle_cmdu_control_message(
         int vap_id = notification->vap_id();
         LOG(INFO) << "received ACTION_CONTROL_HOSTAP_AP_ENABLED_NOTIFICATION from " << radio_mac
                   << " vap_id=" << vap_id;
-
+        LOG(DEBUG) << "Pooja interface name: -->controller.cpp" << bss.iface_name;
         auto bssid = notification->vap_info().mac;
         auto ssid  = std::string((char *)notification->vap_info().ssid);
 
@@ -3053,15 +3053,15 @@ bool Controller::handle_cmdu_control_message(
             break;
         }
 
-        auto bss = database.add_bss(*radio, bssid, ssid, vap_id);
+        auto bss = database.add_bss(*radio, bssid, ssid, vap_id, iface_name);
         // update BSS vap_id if still undefined
         bss->update_vap_id(vap_id);
         LOG_IF(bss->get_vap_id() != vap_id, ERROR)
             << "BSS " << bssid << " changed vap_id " << bss->get_vap_id() << " -> " << vap_id;
-        bss->enabled   = true;
-        bss->fronthaul = notification->vap_info().fronthaul_vap;
-        bss->backhaul  = notification->vap_info().backhaul_vap;
-
+        bss->enabled    = true;
+        bss->fronthaul  = notification->vap_info().fronthaul_vap;
+        bss->backhaul   = notification->vap_info().backhaul_vap;
+        bss->iface_name = iface_name;
         // update bml listeners
         bml_task::connection_change_event new_event;
         new_event.mac = tlvf::mac_to_string(database.get_radio_parent_agent(radio_mac));
@@ -3422,7 +3422,7 @@ bool Controller::handle_cmdu_control_message(
             new_event.snr        = notification->params().rx_snr;
             new_event.client_mac = notification->params().result.mac;
             new_event.bssid      = database.get_radio_bss_mac(tlvf::mac_from_string(ap_mac),
-                                                         notification->params().vap_id);
+                                                              notification->params().vap_id);
             m_task_pool.push_event(database.get_pre_association_steering_task_id(),
                                    pre_association_steering_task::eEvents::
                                        STEERING_EVENT_RSSI_MEASUREMENT_SNR_NOTIFICATION,

@@ -291,8 +291,8 @@ public:
 
     class link_metrics_data {
     public:
-        link_metrics_data(){};
-        ~link_metrics_data(){};
+        link_metrics_data() {};
+        ~link_metrics_data() {};
 
         std::vector<ieee1905_1::tlvTransmitterLinkMetric::sInterfacePairInfo>
             transmitterLinkMetrics;
@@ -306,8 +306,8 @@ public:
 
     class ap_metrics_data {
     public:
-        ap_metrics_data(){};
-        ~ap_metrics_data(){};
+        ap_metrics_data() {};
+        ~ap_metrics_data() {};
 
         sMacAddr bssid                               = beerocks::net::network_utils::ZERO_MAC;
         uint8_t channel_utilization                  = 0;
@@ -354,7 +354,7 @@ public:
         settings.rdkb_extensions &= config_.load_rdkb_extensions;
         settings.daisy_chaining_disabled &= config_.daisy_chaining_disabled;
     }
-    ~db(){};
+    ~db() {};
 
     //static
 
@@ -1297,7 +1297,8 @@ public:
 
     std::shared_ptr<Agent::sRadio::sBss>
     add_bss(Agent::sRadio &radio, const sMacAddr &bssid, const std::string &ssid,
-            int vap_id = beerocks::eBeeRocksIfaceIds::IFACE_ID_INVALID);
+            int vap_id                    = beerocks::eBeeRocksIfaceIds::IFACE_ID_INVALID,
+            const std::string &iface_name = "");
     /** Update VAP information
      *
      * Add or update the VAP information for the given BSSID on the

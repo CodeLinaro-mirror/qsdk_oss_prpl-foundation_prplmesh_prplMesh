@@ -2368,6 +2368,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         auto iface          = notification->iface_name();
         auto &radio_manager = m_radio_managers[iface];
+        LOG(DEBUG) << "Pooja interface name --> ACTION_APMANAGER_UP_NOTIFICATION" << iface;
         LOG(INFO) << "Received ACTION_APMANAGER_UP_NOTIFICATION from fronthaul " << iface;
         if (radio_manager.ap_manager_fd != beerocks::net::FileDescriptor::invalid_descriptor) {
             LOG(FATAL) << "AP manager opened new socket altough there is already open socket to it";
@@ -5407,7 +5408,8 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             bss.backhaul_bss_disallow_profile2_agent_association = false;
             continue;
         }
-        bss.iface_name    = vaps[vap_idx].iface_name;
+        bss.iface_name = vaps[vap_idx].iface_name;
+        LOG(DEBUG) << "Pooja interface name: -->update_vaps_info" << bss.iface_name;
         bss.mac           = vaps[vap_idx].mac;
         bss.ssid          = vaps[vap_idx].ssid;
         bss.fronthaul_bss = vaps[vap_idx].fronthaul_vap;

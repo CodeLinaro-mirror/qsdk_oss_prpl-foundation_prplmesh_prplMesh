@@ -56,6 +56,7 @@ public:
                     std::string bssid;
                     int vap_id;
                     bool backhaul_vap;
+                    std::string iface_name;
                 };
 
                 std::list<std::shared_ptr<vap_t>> vap;
@@ -73,7 +74,7 @@ public:
     void disconnect() override;
     bool is_connected() override;
     bool start() override { return true; };
-    void stop() override{};
+    void stop() override {};
     void print_help(bool print_header = true) { help(print_header); }
     int get_onboarding_status();
     bool is_pending_response();

@@ -2417,11 +2417,13 @@ void db::update_node_11v_responsiveness(Station &station, bool success)
 bool db::get_node_11v_capability(const Station &station) { return station.m_supports_11v; }
 
 std::shared_ptr<Agent::sRadio::sBss> db::add_bss(Agent::sRadio &radio, const sMacAddr &bssid,
-                                                 const std::string &ssid, int vap_id)
+                                                 const std::string &ssid, int vap_id,
+                                                 const std::string &iface_name)
 {
-    std::shared_ptr<Agent::sRadio::sBss> bss = radio.bsses.add(bssid, radio, vap_id);
+    std::shared_ptr<Agent::sRadio::sBss> bss = radio.bsses.add(bssid, radio, vap_id, iface_name);
     if (bss) {
         bss->ssid                    = ssid;
+        bss->iface_name              = iface_name;
         std::shared_ptr<Agent> agent = get_agent_by_radio_uid(radio.radio_uid);
         if (agent) {
             dm_set_radio_bss(agent->al_mac, radio.radio_uid, bssid);

@@ -913,7 +913,7 @@ void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
                 .key_idx = 0,
                 .mac     = virtual_bss_creation_tlv->client_mac(),
                 .key     = {virtual_bss_creation_tlv->ptk(),
-                        virtual_bss_creation_tlv->ptk() + virtual_bss_creation_tlv->key_length()},
+                            virtual_bss_creation_tlv->ptk() + virtual_bss_creation_tlv->key_length()},
                 .key_seq = pw_key_seq,
 
                 // TODO: PPM-2368: We need to know the pairwise cipher. For now, use CCMP
@@ -937,7 +937,7 @@ void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
                 .key_idx = 1,
                 .mac     = beerocks::net::network_utils::ZERO_MAC,
                 .key     = {virtual_bss_creation_tlv->gtk(),
-                        virtual_bss_creation_tlv->gtk() + virtual_bss_creation_tlv->key_length()},
+                            virtual_bss_creation_tlv->gtk() + virtual_bss_creation_tlv->key_length()},
                 .key_seq = group_key_seq,
 
                 // TODO: PPM-2368: We need to know the groupwise cipher. For now, use CCMP
@@ -2959,7 +2959,7 @@ void ApManager::handle_hostapd_attached()
         LOG(ERROR) << "Failed building message!";
         return;
     }
-
+    LOG(DEBUG) << "Pooja new interface:" << notification->params().iface_name;
     string_utils::copy_string(notification->params().iface_name,
                               ap_wlan_hal->get_iface_name().c_str(), message::IFACE_NAME_LENGTH);
 
@@ -3002,6 +3002,7 @@ void ApManager::handle_hostapd_attached()
 
     LOG(INFO) << "send ACTION_APMANAGER_JOINED_NOTIFICATION";
     LOG(INFO) << " iface = " << ap_wlan_hal->get_iface_name();
+    LOG(DEBUG) << "Pooja new interface:" << notification->params().iface_name;
     LOG(INFO) << " mac = " << ap_wlan_hal->get_radio_mac();
     LOG(INFO) << " ant_num = " << ap_wlan_hal->get_radio_info().ant_num;
     LOG(INFO) << " tx_power = " << ap_wlan_hal->get_radio_info().tx_power;
@@ -3096,7 +3097,7 @@ bool ApManager::handle_ap_enabled(int vap_id)
     }
 
     notification->vap_id() = vap_id;
-
+    LOG(DEBUG) << "Pooja vapid new interface: " << notification->vap_info().iface_name;
     // Copy the VAP MAC and SSID
     string_utils::copy_string(notification->vap_info().iface_name, vap_info.bss.c_str(),
                               beerocks::message::IFACE_NAME_LENGTH);
@@ -3105,12 +3106,11 @@ bool ApManager::handle_ap_enabled(int vap_id)
                               beerocks::message::WIFI_SSID_MAX_LENGTH);
     notification->vap_info().fronthaul_vap = vap_info.fronthaul;
     notification->vap_info().backhaul_vap  = vap_info.backhaul;
-
     notification->vap_info().profile1_backhaul_sta_association_disallowed =
         vap_info.profile1_backhaul_sta_association_disallowed;
     notification->vap_info().profile2_backhaul_sta_association_disallowed =
         vap_info.profile2_backhaul_sta_association_disallowed;
-
+    LOG(DEBUG) << "Pooja vapid new interface: " << notification->vap_info().iface_name;
     send_cmdu(cmdu_tx);
 
     return true;
