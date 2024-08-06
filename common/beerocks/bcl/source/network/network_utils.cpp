@@ -42,6 +42,7 @@ using namespace beerocks::net;
 #define MAC_ADDR_CHAR_SIZE 17
 #define IPV4_ADDR_CHAR_SIZE 15
 
+static bool IS_BACHAUL_VLAN_TAGS_STRIPPED = false;
 struct route_info {
     struct in_addr dstAddr;
     struct in_addr srcAddr;
@@ -1611,6 +1612,17 @@ bool network_utils::set_vlan_packet_filter(bool set, const std::string &bss_ifac
     // Filter double-tagged packets that are encapsulated with an S-Tag.
     cmd.append(" --vlan-encap 802_1Q");
     os_utils::system_call(cmd);
+
+    if (!IS_BACHAUL_VLAN_TAGS_STRIPPED) {
+        os_utils::system_call("ebtables -t nat -A POSTROUTING -o eth0_5 -p 802_1Q "
+                              "--vlan-id " +
+                              std::to_string(vid) + " -j strip-vlan");
+        os_utils::system_call("ebtables -t nat -A POSTROUTING -o wlan2.3 -p 802_1Q "
+                              "--vlan-id " +
+                              std::to_string(vid) + " -j strip-vlan");
+        IS_BACHAUL_VLAN_TAGS_STRIPPED = true;
+    }
+
     return true;
 }
 
