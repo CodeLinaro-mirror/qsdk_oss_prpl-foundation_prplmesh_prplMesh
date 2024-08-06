@@ -17,6 +17,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <memory>
+#include <openssl/core_names.h>
+#include <openssl/param_build.h>
+
 namespace mapf {
 
 /**
@@ -59,6 +63,17 @@ public:
     ~diffie_hellman();
 
     diffie_hellman &operator=(const diffie_hellman &) = delete;
+
+    /**
+     * @brief Creates remote EVP key from a public_key string
+     *
+     * @param[in] remote_pubkey The remote public key
+     * @param[in] remote_pubkey_length Length of the remote public key
+     * @param[out] peerPubKey The generated public key of the peer
+     * @return true if successful, false if not.
+     */
+    bool create_peer_EVPKey(const uint8_t *remote_pubkey, size_t remote_pubkey_length,
+                            std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> *peerPubKey) const;
 
     /**
      * @brief Compute the shared secret key
