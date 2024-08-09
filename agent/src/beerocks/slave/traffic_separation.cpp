@@ -398,8 +398,8 @@ void TrafficSeparation::set_vlan_policy(const std::string &iface, ePortMode port
         pvid      = true;
         untagged  = true;
         is_bridge = false; // Untagged Port cannot be a bridge interface.
-        network_utils::set_iface_vid_policy(iface, del, untagged_port_vid, is_bridge, pvid,
-                                            untagged);
+        // network_utils::set_iface_vid_policy(iface, del, untagged_port_vid, is_bridge, pvid,
+        //                                     untagged);
 
         // Filter packets containing the VID of the Untagged Port.
         network_utils::set_vlan_packet_filter(true, iface, untagged_port_vid);
