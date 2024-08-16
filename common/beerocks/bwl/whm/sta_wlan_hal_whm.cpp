@@ -553,7 +553,7 @@ bool sta_wlan_hal_whm::reassociate()
             }
 
             // Multi-AP Primary VLAN ID - Not mandatory
-            if (!endpoint.multi_ap_primary_vlanid) {
+            if (endpoint.multi_ap_primary_vlanid) {
                 msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
@@ -830,7 +830,7 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             }
 
             // Multi-AP Primary VLAN ID - Not mandatory
-            if (!endpoint.multi_ap_primary_vlanid) {
+            if (endpoint.multi_ap_primary_vlanid) {
                 msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
