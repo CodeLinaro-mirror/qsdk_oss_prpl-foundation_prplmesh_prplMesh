@@ -22,6 +22,7 @@ rather than getting paid for implementing it
 - Minim
 - prpl Foundation (project coordinator)
 - SoftAtHome
+- Tata Elxsi Ltd
 
 Individuals:
 - Adam Dov (MaxLinear via Devalore)
@@ -60,9 +61,11 @@ Individuals:
 - Ran Regev (prpl Foundation and MaxLinear via Devalore)
 - Raphaël Mélotte (prpl Foundation via Essensium/Mind)
 - Rudolf Svanda (GlobalLogic)
+- Sangeetha S (Tata Elxsi)
 - Segev Ravgad (Intel Corporation)
 - Semyon Barenboym (Intel Corporation)
 - Sinan Akpolat (Lifemote)
+- Sundram Patel (Tata Elxsi)
 - Tomer Eliyahu (Intel Corporation)
 - Tucker Polomik (CableLabs)
 - Victor Pushkarev (prpl Foundation via Inango)

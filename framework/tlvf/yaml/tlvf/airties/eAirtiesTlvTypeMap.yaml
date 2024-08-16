@@ -1,0 +1,9 @@
+
+#
+---
+_namespace: airties
+
+eAirtiesTlvTypeMap:
+  _type: enum_class
+  _enum_storage: uint8_t
+  TLV_VENDOR_SPECIFIC: 0x0B

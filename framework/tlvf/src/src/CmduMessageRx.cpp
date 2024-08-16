@@ -8,6 +8,8 @@
 
 #include <tlvf/AttrList.h>
 #include <tlvf/CmduMessageRx.h>
+#include <tlvf/airties/eAirtiesTlvTypeMap.h>
+#include <tlvf/airties/tlvVersionReporting.h>
 #include <tlvf/ieee_1905_1/eTlvType.h>
 #include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
@@ -29,6 +31,8 @@
 #include <tlvf/ieee_1905_1/tlvUnknown.h>
 #include <tlvf/ieee_1905_1/tlvVendorSpecific.h>
 #include <tlvf/ieee_1905_1/tlvWsc.h>
+#include <tlvf/sample_vendor/eSampleVendorTlvTypeMap.h>
+#include <tlvf/sample_vendor/tlvSampleVendor.h>
 #include <tlvf/swap.h>
 #include <tlvf/wfa_map/eTlvTypeMap.h>
 #include <tlvf/wfa_map/eVirtualBssSubtype.h>
@@ -615,6 +619,32 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     return msg.addClass<tlvUnknown>();
 }
 
+//Vendor specific constants has to be incldued here. Create a new parseTlv for the
+//Vendor specific TLVs
+std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(airties::eAirtiesTlvTypeMap tlv_type)
+{
+    switch (tlv_type) {
+    case (airties::eAirtiesTlvTypeMap::TLV_VENDOR_SPECIFIC): {
+        return msg.addClass<airties::tlvVersionReporting>();
+    }
+    }
+    LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
+    return msg.addClass<tlvUnknown>();
+}
+// Instruction for New Vendors:**
+// - Follow the structure of this function to implement your own TLV parsing.
+std::shared_ptr<BaseClass>
+CmduMessageRx::parseNextTlv(sample_vendor::eSampleVendorTlvTypeMap tlv_type)
+{
+    switch (tlv_type) {
+    case (sample_vendor::eSampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC): {
+        return msg.addClass<sample_vendor::tlvSampleVendor>();
+    }
+    }
+    LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
+    return msg.addClass<tlvUnknown>();
+}
+
 std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv()
 {
     auto tlv_type = getNextTlvType();
@@ -623,6 +653,10 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv()
         return parseNextTlv(ieee1905_1::eTlvType(tlv_type));
     } else if (wfa_map::eTlvTypeMapValidate::check(tlv_type)) {
         return parseNextTlv(wfa_map::eTlvTypeMap(tlv_type));
+    } else if (airties::eAirtiesTlvTypeMapValidate::check(tlv_type)) {
+        return parseNextTlv(airties::eAirtiesTlvTypeMap(tlv_type));
+    } else if (sample_vendor::eSampleVendorTlvTypeMapValidate::check(tlv_type)) {
+        return parseNextTlv(sample_vendor::eSampleVendorTlvTypeMap(tlv_type));
     } else {
         LOG(INFO) << "Unknown TLV type: " << tlv_type;
         return msg.addClass<tlvUnknown>();
