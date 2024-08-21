@@ -1044,8 +1044,33 @@ bool ap_wlan_hal_whm::set_radio_mbo_assoc_disallow(bool enable)
 
 bool ap_wlan_hal_whm::set_primary_vlan_id(uint16_t primary_vlan_id)
 {
-    // Networking is responsible of handling vlanId, so pwhm does not interfere with vlans.
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    LOG(DEBUG) << __func__ << " called VLAN ID = " << primary_vlan_id;
+    std::string wifi_vap_path, ifname;
+    auto vaps = m_radio_info.available_vaps;
+    for (auto vap_it = vaps.begin(); vap_it != vaps.end(); vap_it++) {
+        // only applicable for Backhaul BSS interfaces
+        if (vap_it->second.backhaul == false) {
+            LOG(DEBUG) << __func__ << " : " << vap_it->second.bss
+                       << " ifname skipped for set_vlan ";
+            continue;
+        }
+        ifname       = vap_it->second.bss;
+        auto vap_ext = m_vapsExtInfo.find(ifname);
+        if (vap_ext == m_vapsExtInfo.end()) {
+            LOG(ERROR) << "fail to get ifname " << ifname;
+            continue;
+        }
+        LOG(DEBUG) << __func__ << " : " << ifname << " ifname setting vlan " << primary_vlan_id;
+        wifi_vap_path = vap_ext->second.path;
+        LOG(DEBUG) << __func__ << " : " << "wifi_vap_path = " << wifi_vap_path;
+        AmbiorixVariant vlan(AMXC_VAR_ID_HTABLE);
+        vlan.add_child("MultiAPVlanId", primary_vlan_id);
+        bool ret = m_ambiorix_cl.update_object(wifi_vap_path, vlan);
+        if (!ret) {
+            LOG(ERROR) << __func__ << " failed for ifname " << ifname;
+        }
+        LOG(DEBUG) << __func__ << " : " << "vlan setted for wifi_vap_path = " << wifi_vap_path;
+    }
     return true;
 }
 
