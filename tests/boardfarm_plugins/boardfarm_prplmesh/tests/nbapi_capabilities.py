@@ -184,7 +184,25 @@ class NbapiCapabilities(PrplMeshBaseTest):
                         )
                 if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_PROFILE2_CAC_CAPABILITIES']:
                     debug("Checking Profile-2 CAC Capabilities TLV")
-                    # TODO: Check Profile-2 CAC Capabilities TLV and related DM objects (PPM-2289).
+                    radio = repeater.radios[tlv.radio[0].radio_id]
+                    cac_caps = controller.nbapi_get(
+                        radio.path + ".CACCapability.CACMethod"
+                    )
+                    if not cac_caps:
+                        debug("CAC capabilities are empty")
+                    else:
+                        self.assertEqualInt(
+                            "Method",
+                            cac_caps["Method"],
+                            tlv.cac_caps_tree["ieee1905.cac_request.flags.cac_method"],
+                        )
+                        self.assertEqualInt(
+                            "NumberOfSeconds",
+                            cac_caps["NumberOfSeconds"],
+                            tlv.cac_caps_tree[
+                                "ieee1905.cac_capabilities.seconds_required_to_complete_cac"
+                            ],
+                        )
                 if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_CHANNEL_SCAN_CAPABILITIES']:
                     debug("Checking Profile-2 Scan Capabilities TLV")
                     # TODO: Check Profile-2 Scan Capabilities TLV and related DM objects (PPM-2293).
