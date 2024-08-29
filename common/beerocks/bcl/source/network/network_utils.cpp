@@ -1402,7 +1402,8 @@ std::string network_utils::create_vlan_interface(const std::string &iface, uint1
     // ip link add <iface>.<vid> link <iface> type vlan id <vid> egress-qos-map <map>
     // ip link add <iface>.<suffix> link <iface> type vlan id <vid> egress-qos-map <map>
 
-    const auto EGRESS_QOS_MAP = "0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7";
+    const auto EGRESS_QOS_MAP =
+        "0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7 256:0 257:1 258:2 259:3 260:4 261:5 262:6 263:7";
 
     std::string cmd;
     // Reserve 80 bytes for appended data to prevent reallocations.
