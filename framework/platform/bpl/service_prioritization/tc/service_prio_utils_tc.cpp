@@ -88,7 +88,7 @@ void ServicePrioritizationUtils_tc::apply_rules(const std::list<sInterfaceTagInf
             beerocks::os_utils::system_call(cmd);
             cmd = "tc filter add dev " + iface.iface_name +
                   " egress protocol ip u32 match ip protocol 1 0xff action skbedit priority " +
-                  std::to_string(pcp);
+                  std::to_string(3);
             beerocks::os_utils::system_call(cmd);
             break;
         default:
