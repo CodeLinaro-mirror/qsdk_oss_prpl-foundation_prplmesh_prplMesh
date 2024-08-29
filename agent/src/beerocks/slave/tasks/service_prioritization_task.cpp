@@ -272,6 +272,12 @@ bool ServicePrioritizationTask::qos_setup_dscp_map(uint8_t precendence)
     std::copy(db->service_prioritization.dscp_mapping_table.begin(),
               db->service_prioritization.dscp_mapping_table.end(), dscp_map.dscp);
 
+    std::string line{};
+    for (int i = 0; i < 64; ++i) {
+        line += "[" + std::to_string(i) + " : " + std::to_string(dscp_map.dscp[i]) + "] ";
+    }
+    LOG(DEBUG) << "DSCP MAP: " << line;
+
     qos_flush_setup();
 
     //TODO: PPM-2389, drive ebtables or external software
