@@ -3033,7 +3033,12 @@ std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_selected_backhaul_sta_wl
         LOG(DEBUG) << "Empty or wired backhaul";
         return nullptr;
     }
-    auto backhaulStr          = tlvf::mac_from_string(m_selected_backhaul);
+    LOG(INFO) << "BHAUL: " << m_selected_backhaul;
+    auto backhaulStr = tlvf::mac_from_string(m_selected_backhaul);
+    for (auto it = m_radios_info.begin(); it != m_radios_info.end(); ++it) {
+        auto radio_info = (const std::shared_ptr<sRadioInfo>)*it;
+        LOG(INFO) << "Found radioMAC: " << radio_info->radio_mac;
+    }
     auto selected_backhaul_it = std::find_if(m_radios_info.begin(), m_radios_info.end(),
                                              [&](const std::shared_ptr<sRadioInfo> &radio_info) {
                                                  return backhaulStr == radio_info->radio_mac;
