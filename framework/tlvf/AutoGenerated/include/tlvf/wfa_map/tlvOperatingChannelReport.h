@@ -53,9 +53,19 @@ class tlvOperatingChannelReport : public BaseClass
         //The field is coded as a 2's complement signed integer in units of decibels relative to 1 mW (dBm).
         //This value is less than or equal to the Maximum Transmit Power specified in the AP Radio Basic Capabilities TLV for the current operating class.    
         int8_t& current_transmit_power();
+        // Getter and Setter for disabled_subchannel_bitmap
+        uint16_t& disabled_subchannel_bitmap() { return *m_disabled_subchannel_bitmap; }
+        bool set_disabled_subchannel_bitmap(uint16_t bitmap) {
+        if (!m_disabled_subchannel_bitmap) {
+            return false;
+        }
+        *m_disabled_subchannel_bitmap = bitmap;
+        return true;
+        }
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
+        uint16_t disabled_subchannel_bitmap;
 
     private:
         bool init();

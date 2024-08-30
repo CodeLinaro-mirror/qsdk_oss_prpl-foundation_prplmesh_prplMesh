@@ -72,6 +72,8 @@ public:
                                       const std::string &client_mac) override;
     virtual bool switch_channel(int chan, beerocks::eWiFiBandwidth bw, int vht_center_frequency,
                                 int csa_beacon_count) override;
+    virtual bool apply_preamble_channel_puncturing(int chan, int vht_center_frequency,
+                                                   uint16_t disabled_subchannel_bitmap) override;
     virtual bool cancel_cac(int chan, beerocks::eWiFiBandwidth bw, int vht_center_frequency,
                             int secondary_chan_offset) override;
     virtual bool failsafe_channel_set(int chan, int bw, int vht_center_frequency) override;

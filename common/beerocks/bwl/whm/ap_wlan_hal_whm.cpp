@@ -691,6 +691,34 @@ bool ap_wlan_hal_whm::switch_channel(int chan, beerocks::eWiFiBandwidth bw,
     return status;
 }
 
+bool ap_wlan_hal_whm::apply_preamble_channel_puncturing(int chan, int vht_center_frequency,
+                                                        uint16_t disabled_subchannel_bitmap)
+{
+    LOG(TRACE) << "Channel: " << chan
+               << ", VHT Center Frequency: " << vht_center_frequency
+               << ", Disabled Subchannel Bitmap: " << disabled_subchannel_bitmap;
+
+    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+    bool amx_ret, status = true;
+
+    // Apply channel puncturing by disabling specific subchannels
+    if (disabled_subchannel_bitmap > 0) {
+        new_obj.add_child("DisabledSubchannelBitmap", disabled_subchannel_bitmap);
+    } else {
+        LOG(WARN) << "No subchannels are specified for puncturing. Skipping update.";
+        return false;
+    }
+
+    // Update the radio object with the new settings
+    amx_ret = m_ambiorix_cl.update_object(m_radio_path, new_obj);
+    if (!amx_ret) {
+        LOG(ERROR) << "Failed to apply DisabledSubchannelBitmap for " << m_radio_path;
+        status = false;
+    }
+
+    return status;
+}
+
 bool ap_wlan_hal_whm::cancel_cac(int chan, beerocks::eWiFiBandwidth bw, int vht_center_frequency,
                                  int secondary_chan)
 {

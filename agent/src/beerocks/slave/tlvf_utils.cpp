@@ -13,7 +13,7 @@
 #include <bcl/beerocks_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
-
+#include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvApRadioBasicCapabilities.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
@@ -279,6 +279,49 @@ bool tlvf_utils::create_operating_channel_report(ieee1905_1::CmduMessageTx &cmdu
             radio->spatial_reuse_params.neighbor_bss_color_in_use_bitmap;
     }
 
+    auto eht_operations_tlv = cmdu_tx.addClass<wfa_map::tlvEHTOperations>();
+    if (!eht_operations_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvEHTOperations has failed";
+        return false;
+    }
+
+    const auto num_radio = eht_operations_tlv->num_radio();
+    for (size_t i = 0; i < num_radio; ++i) {
+        auto [valid, radio_entry] = eht_operations_tlv->radio_entries(i);
+        if (!valid) {
+            LOG(ERROR) << "Failed to retrieve radio entry at index " << i;
+            return false;
+        }
+
+        const auto &radio_mac = radio_entry.ruid();
+
+        // Access BSS entries from the radio entry
+        for (size_t j = 0; j < radio_entry.num_bss(); ++j) {
+            auto [bss_valid, bss_entry] = radio_entry.bss_entries(j);
+            if (!bss_valid) {
+                LOG(ERROR) << "Failed to retrieve BSS entry at index " << j;
+                continue;
+            }
+
+            // Set EHT operation fields
+            bss_entry.flags().eht_operation_information_valid      = 0; // Set EHT operation information valid
+            bss_entry.flags().disabled_subchannel_valid            = 1; // Set disabled subchannel valid
+            bss_entry.flags().eht_default_pe_duration              = 0; // Set EHT default PE duration to default
+            bss_entry.flags().group_addressed_bu_indication_limit  = 0; // Set group addressed BU indication limit to default
+            bss_entry.flags().group_addressed_bu_indication_exponent = 0; // Set group addressed BU indication exponent to default
+
+            if (bss_entry.flags().disabled_subchannel_valid!= 0) {
+                bss_entry.disabled_subchannel_bitmap() = current_puncturing_pattern;
+            }
+
+            // Set basic_eht_mcs_and_nss_set to default
+            std::fill_n(bss_entry.basic_eht_mcs_and_nss_set(0), 32, 0);
+
+            bss_entry.control() = 0; // Set control to default
+            bss_entry.ccfs0()    = 0; // Set CCFS0 to default
+            bss_entry.ccfs1()    = 0; // Set CCFS1 to default
+        }
+    }
     LOG(DEBUG) << "Created Operating Channel Report TLV";
     return true;
 }

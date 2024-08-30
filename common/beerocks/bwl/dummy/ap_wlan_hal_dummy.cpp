@@ -347,6 +347,14 @@ bool ap_wlan_hal_dummy::switch_channel(int chan, beerocks::eWiFiBandwidth bw,
     return set_channel(chan, bw, vht_center_frequency);
 }
 
+bool ap_wlan_hal_dummy::apply_preamble_channel_puncturing(int chan, int vht_center_frequency,
+                                               uint16_t disabled_subchannel_bitmap)
+{
+    // Indicate that channel puncturing is not implemented in this class.
+    LOG(ERROR) << "apply_preamble_channel_puncturing is not implemented in ap_wlan_hal_dummy";
+    return false;
+}
+
 bool ap_wlan_hal_dummy::cancel_cac(int chan, beerocks::eWiFiBandwidth bw, int vht_center_frequency,
                                    int secondary_chan)
 {

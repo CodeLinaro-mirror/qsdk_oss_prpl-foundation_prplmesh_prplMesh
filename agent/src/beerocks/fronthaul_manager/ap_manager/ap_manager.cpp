@@ -1405,27 +1405,56 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             return;
         }
 
-        // Set AP channel
-        if (!ap_wlan_hal->switch_channel(request->cs_params().channel,
-                                         (beerocks::eWiFiBandwidth)request->cs_params().bandwidth,
-                                         request->cs_params().vht_center_frequency,
-                                         request->cs_params().csa_count)) { //error
-            std::string error("Failed to set AP channel!");
-            LOG(ERROR) << error;
+        // Handle EHT Operations TLV for channel puncturing
+        if (request->disabled_subchannel_bitmap() != 0) { // Check if puncturing is needed
+            LOG(INFO) << "Channel puncturing required. Applying disabled subchannel bitmap.";
 
-            ap_wlan_hal->refresh_radio_info();
+            // Apply channel puncturing logic here
+            if (!ap_wlan_hal->apply_preamble_channel_puncturing(
+                    request->cs_params().channel,
+                    request->cs_params().vht_center_frequency,
+                    request->disabled_subchannel_bitmap())) {
+                std::string error("Failed to apply preamble channel puncturing!");
+                LOG(ERROR) << error;
 
-            // Send the error reponse
-            auto notification = message_com::create_vs_message<
-                beerocks_message::cACTION_APMANAGER_HOSTAP_CSA_ERROR_NOTIFICATION>(
-                cmdu_tx, beerocks_header->id());
-            if (notification == nullptr) {
-                LOG(ERROR) << "Failed building message!";
+                ap_wlan_hal->refresh_radio_info();
+
+                // Send error response
+                auto notification = message_com::create_vs_message<
+                    beerocks_message::cACTION_APMANAGER_HOSTAP_CSA_ERROR_NOTIFICATION>(
+                    cmdu_tx, beerocks_header->id());
+                if (notification == nullptr) {
+                    LOG(ERROR) << "Failed building message!";
+                    return;
+                }
+                fill_cs_params(notification->cs_params());
+                send_cmdu(cmdu_tx);
                 return;
+             } else {
+                // Handle channel switch without puncturing
+                if (!ap_wlan_hal->switch_channel(
+                        request->cs_params().channel,
+                        (beerocks::eWiFiBandwidth)request->cs_params().bandwidth,
+                        request->cs_params().vht_center_frequency,
+                        request->cs_params().csa_count)) {
+                    std::string error("Failed to set AP channel!");
+                    LOG(ERROR) << error;
+
+                    ap_wlan_hal->refresh_radio_info();
+
+                    // Send error response
+                    auto notification = message_com::create_vs_message<
+                        beerocks_message::cACTION_APMANAGER_HOSTAP_CSA_ERROR_NOTIFICATION>(
+                        cmdu_tx, beerocks_header->id());
+                    if (notification == nullptr) {
+                        LOG(ERROR) << "Failed building message!";
+                        return;
+                    }
+                    fill_cs_params(notification->cs_params());
+                    send_cmdu(cmdu_tx);
+                    return;
+                }
             }
-            fill_cs_params(notification->cs_params());
-            send_cmdu(cmdu_tx);
-            return;
         }
         break;
     }

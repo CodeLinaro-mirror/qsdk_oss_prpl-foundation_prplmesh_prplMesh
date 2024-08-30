@@ -1808,6 +1808,14 @@ bool ap_wlan_hal_dwpal::switch_channel(int chan, beerocks::eWiFiBandwidth bw,
     return true;
 }
 
+bool ap_wlan_hal_dwpald::apply_preamble_channel_puncturing(int chan, int vht_center_frequency,
+                                                           uint16_t disabled_subchannel_bitmap)
+{
+    // Indicate that channel puncturing is not implemented in this class.
+    LOG(ERROR) << "apply_preamble_channel_puncturing is not implemented in ap_wlan_hal_dwpald";
+    return false;
+}
+
 bool ap_wlan_hal_dwpal::cancel_cac(int chan, beerocks::eWiFiBandwidth bw, int vht_center_frequency,
                                    int secondary_chan_offset)
 {

@@ -1072,6 +1072,10 @@ uint8_t& cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START::spatial_reuse_valid(
     return (uint8_t&)(*m_spatial_reuse_valid);
 }
 
+uint16_t& cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START::disabled_subchannel_bitmap() {
+    return *m_disabled_subchannel_bitmap;
+}
+
 void cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
@@ -1148,6 +1152,11 @@ bool cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START::init()
     m_spatial_reuse_valid = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_disabled_subchannel_bitmap = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

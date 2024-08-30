@@ -84,6 +84,20 @@ private:
         bool spatial_reuse_request_received = false;
         bool is_zwdfs_needed                = false;
         bool manually_send_operating_report = false;
+        uint16_t disabled_subchannel_bitmap;
+
+        struct sEhtOperationsParams {
+        bool eht_operation_information_valid;
+        bool disabled_subchannel_valid;
+        uint8_t eht_default_pe_duration      = 0;
+        uint8_t group_addressed_bu_indication_limit = 0;
+        uint8_t group_addressed_bu_indication_exponent = 0;
+        std::array<uint8_t, 32> basic_eht_mcs_and_nss_set = {0};
+        uint8_t control                       = 0;
+        uint8_t ccfs0                        = 0;
+        uint8_t ccfs1                        = 0;
+        uint16_t disabled_subchannel_bitmap;
+        } eht_operations_request;
     };
 
     struct sPendingChannelPreferenceReport {

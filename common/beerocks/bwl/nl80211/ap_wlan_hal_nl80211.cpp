@@ -1160,6 +1160,14 @@ bool ap_wlan_hal_nl80211::switch_channel(int chan, beerocks::eWiFiBandwidth bw,
     return true;
 }
 
+bool ap_wlan_hal_nl80211::apply_preamble_channel_puncturing(int chan, int vht_center_frequency,
+                                               uint16_t disabled_subchannel_bitmap)
+{
+    // Indicate that channel puncturing is not implemented in this class.
+    LOG(ERROR) << "apply_preamble_channel_puncturing is not implemented in ap_wlan_hal_nl80211";
+    return false;
+}
+
 bool ap_wlan_hal_nl80211::cancel_cac(int chan, beerocks::eWiFiBandwidth bw,
                                      int vht_center_frequency, int secondary_chan)
 {

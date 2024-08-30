@@ -20,7 +20,7 @@
 #include <tlvf/wfa_map/tlvProfile2CacStatusReport.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
-
+#include <tlvf/wfa_map/tlvEHTOperations.h>
 #include "task_messages.h"
 #include <bcl/beerocks_utils.h>
 #include <bcl/beerocks_wifi_channel.h>
@@ -349,6 +349,38 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
         }
     }
 
+    // Handle EHT Operations TLV for static puncturing
+    for (const auto &eht_operations_tlv : cmdu_rx.getClassList<wfa_map::tlvEHTOperations>()) {
+        for (size_t i = 0; i < eht_operations_tlv->num_radio(); ++i) {
+            auto [valid, radio_entry] = eht_operations_tlv->radio_entries(i);
+            if (!valid) {
+                LOG(ERROR) << "Failed to retrieve radio entry at index " << i;
+                continue;
+            }
+
+            const auto &radio_mac = radio_entry.ruid();
+            auto &radio_request   = m_pending_selection.requests[radio_mac];
+
+            for (size_t j = 0; j < radio_entry.num_bss(); ++j) {
+                auto [bss_valid, bss_entry] = radio_entry.bss_entries(j);
+                if (!bss_valid) {
+                    LOG(ERROR) << "Failed to retrieve BSS entry at index " << j;
+                    continue;
+                }
+
+                if (bss_entry.flags().disabled_subchannel_valid) {
+                LOG(DEBUG) << "Static puncturing requested for radio: " << radio_mac;
+                uint16_t current_puncturing_pattern = bss_entry.disabled_subchannel_bitmap();
+                radio_request.eht_operations_request.disabled_subchannel_bitmap = current_puncturing_pattern;
+                }
+            }
+
+            if (!handle_eht_operations_tlv(*eht_operations_tlv)) {
+            LOG(ERROR) << "Failed to handle EHT Operations TLV params";
+            }
+        }
+    }
+
     // build and send channel response message
     if (!m_cmdu_tx.create(mid, ieee1905_1::eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE)) {
         LOG(ERROR) << "cmdu creation of type CHANNEL_SELECTION_RESPONSE_MESSAGE, has failed";
@@ -449,7 +481,17 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
             LOG(INFO) << "ZWDFS is needed but disabled. performing a "
                          "regular Channel-Switch request";
         }
-        // Perform a channel switch.
+        // Check if channel puncturing is required based on the EHT Operations TLV
+        bool puncturing_required = request.eht_operations_request.disabled_subchannel_valid;
+        if (puncturing_required) {
+            LOG(INFO) << "Channel puncturing required. Applying disabled subchannel bitmap.";
+
+        // Handle the channel puncturing logic by setting the disabled subchannel bitmap
+        // in the channel switch request or related structure.
+        request.selected_channel.disabled_subchannel_bitmap =
+        request.eht_operations_request.disabled_subchannel_bitmap;
+        }
+        //Perform a channel switch.
         if (!send_channel_switch_request(radio_mac, request)) {
             LOG(ERROR) << "Failed to send Channel-Switch request.";
         }
@@ -478,14 +520,33 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
         // trigger sending the operating channel report.
         // If neither channel switch nor power limit change is required,
         // we need to explicitly send the event.
-        if (request_iter == m_pending_selection.requests.end() ||
+        auto eht_operations_tlv = m_cmdu_tx.addClass<wfa_map::tlvEHTOperations>();
+        if (!eht_operations_tlv) {
+            LOG(ERROR) << "Failed to add class wfa_map::tlvEHTOperations";
+            continue;
+        }
+
+        const auto num_radio = eht_operations_tlv->num_radio();
+        for (size_t i = 0; i < num_radio; ++i) {
+            auto [valid, radio_entry] = eht_operations_tlv->radio_entries(i);
+            if (!valid) {
+                LOG(ERROR) << "Failed to retrieve radio entry at index " << i;
+                continue; // Skip to the next radio entry if retrieval fails
+            }
+
+            // Get the MAC address from cRadioEntry
+            const auto &radio_mac = radio_entry.ruid();
+            auto &radio_request   = m_pending_selection.requests[radio_mac];
+
+            uint16_t current_puncturing_pattern = radio_request.eht_operations_request.disabled_subchannel_bitmap;
+            if (request_iter == m_pending_selection.requests.end() ||
             request_iter->second.manually_send_operating_report) {
-            if (!tlvf_utils::create_operating_channel_report(m_cmdu_tx, radio_mac)) {
-                LOG(ERROR) << "Failed creating Operating Channel Report";
-                continue;
+                if (!tlvf_utils::create_operating_channel_report(m_cmdu_tx, radio_mac, current_puncturing_pattern)) {
+                    LOG(ERROR) << "Failed creating Operating Channel Report";
+                    continue;
+                }
             }
         }
-    }
     // Send response back to the sender.
     LOG(DEBUG) << "Sending Operating-Channel-Report to broker";
     m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
@@ -1533,6 +1594,64 @@ bool ChannelSelectionTask::handle_spatial_reuse_tlv(
     return true;
 }
 
+bool ChannelSelectionTask::handle_eht_operations_tlv(
+    wfa_map::tlvEHTOperations &eht_operations_tlv)
+{
+    // Iterate over the radio entries
+    for (size_t i = 0; i < eht_operations_tlv.num_radio(); ++i) {
+        auto [valid, radio_entry] = eht_operations_tlv.radio_entries(i);
+        if (!valid) {
+            LOG(ERROR) << "Failed to retrieve radio entry at index " << i;
+            return false;
+        }
+
+        const auto &radio_mac = radio_entry.ruid(); // Get the MAC address from cRadioEntry
+        auto &radio_request = m_pending_selection.requests[radio_mac];
+
+        // Access BSS entries from the radio entry
+        for (size_t j = 0; j < radio_entry.num_bss(); ++j) {
+            auto [bss_valid, bss_entries] = radio_entry.bss_entries(j);
+            if (!bss_valid) {
+                LOG(ERROR) << "Failed to retrieve BSS entry at index " << j;
+                continue; // Skip to the next BSS entry if one fails
+            }
+
+            const auto &flags = bss_entries.flags(); // Access flags directly
+            radio_request.eht_operations_request.eht_operation_information_valid =
+                flags.eht_operation_information_valid;
+            radio_request.eht_operations_request.disabled_subchannel_valid =
+                flags.disabled_subchannel_valid;
+            radio_request.eht_operations_request.eht_default_pe_duration =
+                flags.eht_default_pe_duration;
+            radio_request.eht_operations_request.group_addressed_bu_indication_limit =
+                flags.group_addressed_bu_indication_limit;
+            radio_request.eht_operations_request.group_addressed_bu_indication_exponent =
+                flags.group_addressed_bu_indication_exponent;
+
+            // Handle basic_eht_mcs_and_nss_set correctly
+            uint8_t* mcs_nss_set_ptr = bss_entries.basic_eht_mcs_and_nss_set(0);
+            if (mcs_nss_set_ptr) {
+                // Copy the array into the request
+                std::copy_n(mcs_nss_set_ptr, 32, radio_request.eht_operations_request.basic_eht_mcs_and_nss_set.begin());
+            } else {
+                LOG(ERROR) << "Failed to retrieve basic_eht_mcs_and_nss_set at index 0";
+                return false;
+            }
+
+            radio_request.eht_operations_request.control =
+                bss_entries.control();
+            radio_request.eht_operations_request.ccfs0 =
+                bss_entries.ccfs0();
+            radio_request.eht_operations_request.ccfs1 =
+                bss_entries.ccfs1();
+            radio_request.eht_operations_request.disabled_subchannel_bitmap =
+                bss_entries.disabled_subchannel_bitmap();
+        }
+    }
+
+    return true;
+}
+
 ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel(
     const sMacAddr &radio_mac,
     const AgentDB::sRadio::channel_preferences_map &controller_preferences)
@@ -1798,6 +1917,15 @@ bool ChannelSelectionTask::send_channel_switch_request(
 
     request_msg->spatial_reuse_valid() = request.spatial_reuse_request_received;
 
+    // Handle EHT operations TLV subchannel puncturing
+    request.eht_operations_request.eht_operation_information_valid =
+                flags.eht_operation_information_valid;
+    request.eht_operations_request.disabled_subchannel_valid =
+                flags.disabled_subchannel_valid;
+    if (request.eht_operations_request.disabled_subchannel_valid) {
+        request_msg->cs_params().disabled_subchannel_bitmap =
+            request.eht_operations_request.disabled_subchannel_bitmap;
+    }
     auto agent_fd = m_btl_ctx.get_agent_fd();
     if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
         LOG(ERROR) << "socket to Agent not found";

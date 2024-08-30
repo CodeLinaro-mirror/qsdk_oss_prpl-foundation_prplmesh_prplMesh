@@ -290,6 +290,20 @@ public:
      * @return true if everything went well or false on error.
      * note: returns true if there was no active cac.
      */
+    virtual bool apply_preamble_channel_puncturing(int chan, int vht_center_frequency,
+                                               uint16_t disabled_subchannel_bitmap) = 0;
+    /**
+    * @brief Applies channel puncturing by disabling specific subchannels.
+    *
+    * This method applies channel puncturing by updating the radio configuration with a bitmap indicating
+	 * which subchannels should be disabled. This is part of the channel management and radio configuration.
+    *
+    * @param [in] chan The channel to apply the puncturing on.
+    * @param [in] vht_center_frequency VHT center frequency.
+    * @param [in] disabled_subchannel_bitmap A bitmap indicating which subchannels should be disabled (punctured).
+    *
+    * @return true if the channel puncturing was successfully applied or false on error.
+    */
     virtual bool cancel_cac(int chan, beerocks::eWiFiBandwidth bw, int vht_center_frequency,
                             int secondary_channel_offset) = 0;
 
