@@ -545,6 +545,19 @@ bool sta_wlan_hal_whm::reassociate()
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
+            if (!endpoint.multi_ap_profile) {
+                msg->multi_ap_profile = endpoint.multi_ap_profile;
+            } else {
+                msg->multi_ap_profile = 1;
+                LOG(ERROR) << "Failed reading 'multi_ap_profile' parameter!";
+            }
+
+            // Multi-AP Primary VLAN ID - Not mandatory
+            if (!endpoint.multi_ap_primary_vlanid) {
+                msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
+            } else {
+                msg->multi_ap_primary_vlan_id = 0;
+            }
             event_queue_push(Event::Connected, msg_buff);
         } else {
             LOG(TRACE) << "reassociate: - Toggle EP";
@@ -735,6 +748,8 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
         }
         ssid_obj->read_child(endpoint.bssid, "BSSID");
         ssid_obj->read_child(endpoint.ssid, "SSID");
+        ssid_obj->read_child(endpoint.multi_ap_profile, "Multi_ap_profile");
+        ssid_obj->read_child(endpoint.multi_ap_primary_vlanid, "Multi_ap_primary_vlanid");
         std::string radio_path;
         if (ssid_obj->read_child(radio_path, "LowerLayers")) {
             m_radio_path = radio_path;
@@ -807,6 +822,19 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
+            if (!endpoint.multi_ap_profile) {
+                msg->multi_ap_profile = endpoint.multi_ap_profile;
+            } else {
+                msg->multi_ap_profile = 1;
+                LOG(ERROR) << "Failed reading 'multi_ap_profile' parameter!";
+            }
+
+            // Multi-AP Primary VLAN ID - Not mandatory
+            if (!endpoint.multi_ap_primary_vlanid) {
+                msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
+            } else {
+                msg->multi_ap_primary_vlan_id = 0;
+            }
             event_queue_push(Event::Connected, msg_buff);
         } else if (is_connected(old_status)) {
             auto msg_buff =
