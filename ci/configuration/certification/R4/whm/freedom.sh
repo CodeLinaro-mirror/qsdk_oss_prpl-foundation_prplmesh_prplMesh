@@ -12,6 +12,14 @@ rm -f /var/log/messages && syslog-ng-ctl reload
 sh /etc/init.d/tr181-upnp stop || true
 rm -f /etc/rc.d/S*tr181-upnp
 
+sh /etc/init.d/obuspa stop || true
+rm -f /etc/rc.d/S*obuspa
+
+# Stop the default ssh server on the lan-bridge
+sh /etc/init.d/ssh-server stop || true
+rm -f /etc/rc.d/S*ssh-server
+
+
 ubus wait_for IP.Interface
 
 # Stop and disable the DHCP clients and servers:
@@ -21,6 +29,32 @@ fi
 if ubus call DHCPv6 _list >/dev/null ; then
   ubus call DHCPv6.Server _set '{"parameters": { "Enable": False }}'
 fi
+
+ubus call WiFi.SSID _get '{ "rel_path": ".[Alias == \"ep5g0\"]." }' || {
+  echo "Adding SSID for 5G endpoint"
+  ubus-cli WiFi.SSID.+{Alias="ep5g0"}
+}
+ubus call WiFi.SSID _get '{ "rel_path": ".[Alias == \"ep2g0\"]." }' || {
+  echo "Adding SSID for 2.4G endpoint"
+  ubus-cli WiFi.SSID.+{Alias="ep2g0"}
+}
+
+ubus call WiFi.EndPoint _get '{ "rel_path": ".[Alias == \"ep5g0\"]." }' || {
+  ubus-cli WiFi.EndPoint.+{Alias="ep5g0", BridgeInterface="br-lan", Enable=1, IntfName="wlan2", RadioReference="WiFi.Radio.radio2", SSIDReference="WiFi.SSID.11."}
+}
+ubus call WiFi.EndPoint _get '{ "rel_path": ".[Alias == \"ep2g0\"]." }' || {
+  ubus-cli WiFi.EndPoint.+{Alias="ep2g0", BridgeInterface="br-lan", Enable=1, IntfName="wlan1", RadioReference="WiFi.Radio.radio0", SSIDReference="WiFi.SSID.12."}
+  sleep 5
+  /etc/init.d/prplmesh_whm restart
+  sleep 15
+}
+
+
+# Fix overlapping MACs in 6GHz radio
+ubus-cli WiFi.SSID.DEFAULT_RADIO2.MACAddress="58:E4:03:D2:70:16"
+ubus-cli WiFi.SSID.DEFAULT_RADIO2.BSSID="58:e4:03:d2:70:16"
+ubus-cli WiFi.SSID.GUEST_RADIO2.MACAddress="58:E4:03:D2:70:17"
+ubus-cli WiFi.SSID.GUEST_RADIO2.BSSID="58:e4:03:d2:70:17"
 
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
@@ -69,6 +103,13 @@ ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "
 ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
 ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
 
+ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
+ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
+
+# Set multiAP profile for primary_vlan_id support
+ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
+
+
 # Enable when hostapd on this target supports it
 # ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
@@ -90,6 +131,9 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 # Stop the default ssh server on the lan-bridge
 sh /etc/init.d/ssh-server stop || true
 sleep 5
+
+# Copy generated SSH host keys
+cp /etc/config/ssh_server/*_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 BOOTSCRIPT="/etc/rc.local"

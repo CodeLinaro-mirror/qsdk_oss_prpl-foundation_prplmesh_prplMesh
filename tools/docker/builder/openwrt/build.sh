@@ -160,9 +160,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
     elif [[ "freedom" == "$TARGET_DEVICE" ]] ; then
-        dbg "Freedom platform prplOS + pWHM 6.26.1"
-        OPENWRT_TOOLCHAIN_VERSION='4578ad1e7c65cfaa3f993e7d664c0f8385f46dfc'
-        OPENWRT_VERSION='4578ad1e7c65cfaa3f993e7d664c0f8385f46dfc'
+        dbg "Freedom platform, prplOS mainline + pWHM latest + new networklayout + prio support"
+        OPENWRT_TOOLCHAIN_VERSION='19b4cc16ea2d51ef1c9c178b1b10cfc611fedf49'
+        OPENWRT_VERSION='19b4cc16ea2d51ef1c9c178b1b10cfc611fedf49'
     else
         dbg "Building on prplOS-next"
     fi
