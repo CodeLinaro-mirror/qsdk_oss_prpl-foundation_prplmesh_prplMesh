@@ -64,6 +64,7 @@ public:
     virtual bool clear_non_associated_devices() override;
 
     std::string get_ssid() override;
+    std::string get_mac() override;
     std::string get_bssid() override;
     std::string get_wireless_backhaul_mac() override;
 
@@ -108,6 +109,7 @@ private:
 
     struct Endpoint {
         std::string bssid;
+        std::string mac;
         std::string ssid;
         std::string connection_status;
         int channel;
@@ -141,6 +143,7 @@ private:
     std::string m_ep_path;
     // Active profile parameters
     std::string m_active_ssid;
+    std::string m_active_mac;
     std::string m_active_bssid;
     std::string m_active_pass;
     std::string m_active_connection_status;

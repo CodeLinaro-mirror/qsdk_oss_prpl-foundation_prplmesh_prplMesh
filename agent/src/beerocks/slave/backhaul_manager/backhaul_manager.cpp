@@ -1173,8 +1173,11 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                     continue;
                 }
                 // Update the backhaul interface mac.
-                radio->back.iface_mac =
-                    tlvf::mac_from_string(radio_info->sta_wlan_hal->get_wireless_backhaul_mac());
+                // Update endpoint status.
+                radio_info->sta_wlan_hal->update_status();
+                // Rewrite set back.iface_mac from STA MACAddress.
+                radio->back.iface_mac = tlvf::mac_from_string(radio_info->sta_wlan_hal->get_mac());
+                LOG(DEBUG) << "set back.iface_mac : " << radio->back.iface_mac;
 
             } else if (attach_state == bwl::HALState::Failed) {
                 // Delete the HAL instance

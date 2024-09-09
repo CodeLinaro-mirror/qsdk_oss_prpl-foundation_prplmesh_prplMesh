@@ -576,6 +576,8 @@ int sta_wlan_hal_whm::get_channel() { return m_active_channel; }
 
 std::string sta_wlan_hal_whm::get_ssid() { return m_active_ssid; }
 
+std::string sta_wlan_hal_whm::get_mac() { return m_active_mac; }
+
 std::string sta_wlan_hal_whm::get_bssid() { return m_active_bssid; }
 
 std::string sta_wlan_hal_whm::get_wireless_backhaul_mac()
@@ -734,6 +736,7 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
             return false;
         }
         ssid_obj->read_child(endpoint.bssid, "BSSID");
+        ssid_obj->read_child(endpoint.mac, "MACAddress");
         ssid_obj->read_child(endpoint.ssid, "SSID");
         std::string radio_path;
         if (ssid_obj->read_child(radio_path, "LowerLayers")) {
@@ -757,6 +760,7 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
 void sta_wlan_hal_whm::update_status(const Endpoint &endpoint)
 {
     m_active_bssid             = endpoint.bssid;
+    m_active_mac               = endpoint.mac;
     m_active_ssid              = endpoint.ssid;
     m_active_connection_status = endpoint.connection_status;
     m_active_profile_id        = endpoint.active_profile_id;
