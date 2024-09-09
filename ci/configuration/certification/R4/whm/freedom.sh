@@ -12,6 +12,14 @@ rm -f /var/log/messages && syslog-ng-ctl reload
 sh /etc/init.d/tr181-upnp stop || true
 rm -f /etc/rc.d/S*tr181-upnp
 
+sh /etc/init.d/obuspa stop || true
+rm -f /etc/rc.d/S*obuspa
+
+# Stop the default ssh server on the lan-bridge
+sh /etc/init.d/ssh-server stop || true
+rm -f /etc/rc.d/S*ssh-server
+
+
 ubus wait_for IP.Interface
 
 # Stop and disable the DHCP clients and servers:
@@ -21,6 +29,15 @@ fi
 if ubus call DHCPv6 _list >/dev/null ; then
   ubus call DHCPv6.Server _set '{"parameters": { "Enable": False }}'
 fi
+
+# Fix overlapping MACs in 6GHz radio
+# ubus-cli WiFi.SSID.DEFAULT_RADIO2.MACAddress="58:E4:03:D2:70:16"
+# ubus-cli WiFi.SSID.DEFAULT_RADIO2.BSSID="58:e4:03:d2:70:16"
+# ubus-cli WiFi.SSID.GUEST_RADIO2.MACAddress="58:E4:03:D2:70:17"
+# ubus-cli WiFi.SSID.GUEST_RADIO2.BSSID="58:e4:03:d2:70:17"
+ubus-cli Device.Ethernet.Link.ethernet_wan.MACAddress="58:E4:03:D2:10:04"
+ubus-cli Device.WiFi.SSID.GUEST_RADIO3.MACAddress="58:E4:03:D2:10:50"
+
 
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
@@ -69,6 +86,13 @@ ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "
 ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
 ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
 
+ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
+ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
+
+# Set multiAP profile for primary_vlan_id support
+ubus-cli WiFi.AccessPoint.*.MultiAPProfile=0
+
+
 # Enable when hostapd on this target supports it
 # ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
@@ -90,6 +114,9 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 # Stop the default ssh server on the lan-bridge
 sh /etc/init.d/ssh-server stop || true
 sleep 5
+
+# Copy generated SSH host keys
+cp /etc/config/ssh_server/*_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 BOOTSCRIPT="/etc/rc.local"
