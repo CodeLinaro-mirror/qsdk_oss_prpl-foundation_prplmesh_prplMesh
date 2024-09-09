@@ -79,6 +79,8 @@ int sta_wlan_hal_dummy::get_channel() { return m_active_channel; }
 
 std::string sta_wlan_hal_dummy::get_ssid() { return m_active_ssid; }
 
+std::string sta_wlan_hal_dummy::get_mac() { return m_active_mac; }
+
 std::string sta_wlan_hal_dummy::get_bssid() { return m_active_bssid; }
 
 std::string sta_wlan_hal_dummy::get_wireless_backhaul_mac()
