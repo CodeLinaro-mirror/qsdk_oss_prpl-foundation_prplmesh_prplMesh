@@ -14,6 +14,7 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 namespace beerocks {
 namespace bpl {
@@ -38,6 +39,7 @@ public:
     struct sInterfaceTagInfo {
         std::string iface_name;
         enum ePortMode tag_info;
+        std::unordered_set<uint16_t> vlan_ids;
     };
 #define DSCP_MAP_LENGTH 64
     struct sDscpMap {
