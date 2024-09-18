@@ -166,6 +166,11 @@ void ServicePrioritizationTask::gather_iface_details(
     auto db                                                  = AgentDB::get();
     bpl::ServicePrioritizationUtils::sInterfaceTagInfo iface = {};
 
+    // vlan ids for all ifaces
+    iface.vlan_ids.insert(db->traffic_separation.primary_vlan_id);
+    iface.vlan_ids.insert(db->traffic_separation.secondary_vlans_ids.begin(),
+                          db->traffic_separation.secondary_vlans_ids.end());
+
     // bridge interface is configured as Primary VLAN ID untagged Port with primary VLAN ID
     iface.iface_name = db->bridge.iface_name;
     iface.tag_info   = bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED;
