@@ -149,13 +149,13 @@ main() {
     esac
 
     if [[ "haze" == "$TARGET_DEVICE" ]] ; then
-        dbg "Haze platform, build on mainline prplOS + pWHM 6.26.1"
-        OPENWRT_TOOLCHAIN_VERSION='94f0379e2aa67f2da38393079aeca6982e9a996b'
-        OPENWRT_VERSION='94f0379e2aa67f2da38393079aeca6982e9a996b'
+        dbg "Haze platform, build on mainline prplOS + pWHM latest"
+        OPENWRT_TOOLCHAIN_VERSION='8c4c858ed560d8f5d3e503f9b7edc9a238f58b07'
+        OPENWRT_VERSION='8c4c858ed560d8f5d3e503f9b7edc9a238f58b07'
     elif [[ "urx_osp" == "$TARGET_DEVICE" ]] ; then
-        dbg "OSP platform, build on mainline prplOS + UPDK 9.1.60.2 + pWHM 6.26.1"
-        OPENWRT_TOOLCHAIN_VERSION='94f0379e2aa67f2da38393079aeca6982e9a996b'
-        OPENWRT_VERSION='94f0379e2aa67f2da38393079aeca6982e9a996b'
+        dbg "OSP platform, build on mainline prplOS + UPDK 9.1.60.2 + pWHM latest"
+        OPENWRT_TOOLCHAIN_VERSION='8c4c858ed560d8f5d3e503f9b7edc9a238f58b07'
+        OPENWRT_VERSION='8c4c858ed560d8f5d3e503f9b7edc9a238f58b07'
     else
         dbg "Building on prplOS-next"
     fi
