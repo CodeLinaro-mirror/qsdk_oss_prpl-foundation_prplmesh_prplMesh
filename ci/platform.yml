@@ -10,6 +10,7 @@ variables:
   TURRIS_OMNIA_FULLIMAGE: "openwrt-mvebu-cortexa9-cznic_turris-omnia-sysupgrade.img.gz"
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
   HAZE_FULLIMAGE: "openwrt-ipq807x-generic-prpl_haze-squashfs-sysupgrade.bin"
+  FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
   OSP_PACKAGE_ID: 13754300
 
 workflow:
@@ -48,6 +49,11 @@ build-for-haze:
   extends: .build-for-openwrt
   variables:
     TARGET_DEVICE: "haze"
+
+build-for-freedom:
+  extends: .build-for-openwrt
+  variables:
+    TARGET_DEVICE: "freedom"
 
 build-for-osp:
   stage: build

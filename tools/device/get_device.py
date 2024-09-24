@@ -16,6 +16,7 @@ import device.turris_prplos
 import device.turris_rdk_b
 import device.haze
 import device.urx_osp
+import device.freedom
 
 
 def device_from_name(name: str, target_name: str, image: Union[str, None] = None
@@ -39,6 +40,8 @@ def device_from_name(name: str, target_name: str, image: Union[str, None] = None
         dev = device.haze.Haze(name, target_name, image)
     elif name == "urx_osp":
         dev = device.urx_osp.URXOSP(name, target_name, image)
+    elif name == "freedom":
+        dev = device.freedom.Freedom(name, target_name, image)
     else:
         # if no device matched, try the generic prplOS (sysupgrade)
         print("No specific device matched, using GenericPrplOS.")
