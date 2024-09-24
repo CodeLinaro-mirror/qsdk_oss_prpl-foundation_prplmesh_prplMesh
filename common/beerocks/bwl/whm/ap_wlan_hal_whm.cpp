@@ -1634,15 +1634,18 @@ bool ap_wlan_hal_whm::set_no_deauth_unknown_sta(const std::string &ifname, bool 
 bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
 {
     unsigned char i = 0, j = 0, k = 0;
+
     struct range_t {
-        int start;
-        int end;
-        int pcp;
+        uint8_t pcp;
+        int8_t start;
+        int8_t end;
     } range[8] = {};
+
     struct map_t {
-        int dscp;
-        int pcp;
+        uint8_t dscp;
+        uint8_t pcp;
     } exception[64] = {};
+
     std::stringstream ss;
 
     for (i = 0; i < 8; i++) {
@@ -1699,12 +1702,16 @@ bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
     for (i = 0; i < 8; i++) {
         ss << +range[i].start << "," << +range[i].end << ",";
     }
-    ss.seekp(-1, std::ios_base::end);
 
-    std::string qos_map = std::move(ss).str();
+    std::string qos_map = ss.str();
+    if (!qos_map.empty() && qos_map.back() == ',')
+        qos_map.pop_back();
+
     LOG(DEBUG) << "Setting QOS_MAP_SET " << qos_map;
 
-    auto search_path = wbapi_utils::search_path_ap_by_iface(get_iface_name());
+    // It seems that for now Aliases for VAPs can't be resolved
+    // auto search_path = wbapi_utils::search_path_ap_by_iface(get_iface_name());
+    const auto search_path = "WiFi.AccessPoint.*.";
 
     std::vector<std::string> paths;
     if (!m_ambiorix_cl.resolve_path_multi(search_path, paths)) {
