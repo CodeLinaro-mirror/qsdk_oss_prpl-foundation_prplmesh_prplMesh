@@ -284,13 +284,14 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     auto multiap_profile_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
     if (multiap_profile_tlv) {
-        db->controller_info.profile_support = multiap_profile_tlv->profile();
-        if (db->controller_info.profile_support ==
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-            db->controller_info.profile_support =
-                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
+        if (db->controller_info.bridge_mac == src_mac) {
+            db->controller_info.profile_support = multiap_profile_tlv->profile();
+            if (db->controller_info.profile_support ==
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
+                db->controller_info.profile_support =
+                    wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
+            }
         }
-
         auto tlvProfile2MultiApProfile = m_cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
         if (!tlvProfile2MultiApProfile) {
             LOG(ERROR) << "addClass wfa_map::tlvProfile2MultiApProfile failed";
@@ -303,9 +304,10 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
             tlvProfile2MultiApProfile->profile() = db->device_conf.certification_profile;
         }
     } else {
-        // If the controller didn't add the MultiAp Profile TLV assume that the controller is Profile1
-        db->controller_info.profile_support =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+        if (db->controller_info.bridge_mac == src_mac) {
+            db->controller_info.profile_support =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+        }
     }
 
     LOG(DEBUG) << "Sending topology response message, mid=" << std::hex << mid;
