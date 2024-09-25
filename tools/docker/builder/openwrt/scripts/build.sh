@@ -33,7 +33,7 @@ TARGET_SYSTEM=${TARGET_SYSTEM//qca_ipq95xx/ipq95xx}
 
 find bin -name 'prplmesh_*.ipk' -exec cp -v {} "artifacts/prplmesh.ipk" \;
 find bin/targets/"$TARGET_SYSTEM"/*/ -type f -maxdepth 1 -exec cp -v {} "artifacts/" \;
-# Rename the prplos image
-find artifacts/ -type f -name 'prplos-*' -exec bash -c 'mv $0 ${0/\prplos/openwrt}' {} \;
+# Remove the prplos image
+rm -rf /home/openwrt/openwrt/bin/targets/intel_x86/lgm/prplos-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img
 cp .config artifacts/openwrt.config
 cp files/etc/prplwrt-version artifacts/
