@@ -822,6 +822,8 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
+            LOG(DEBUG) << "EndPoint multi_ap_profile: " << endpoint.multi_ap_profile
+                       << ", multi_ap_primary_vlanid: " << endpoint.multi_ap_primary_vlanid;
             if (!endpoint.multi_ap_profile) {
                 msg->multi_ap_profile = endpoint.multi_ap_profile;
             } else {
