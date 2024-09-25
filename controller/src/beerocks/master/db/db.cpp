@@ -8508,14 +8508,18 @@ void db::update_unassociated_station_stats(const sMacAddr &mac_address,
                     new_station_path.append(".");
                     LOG(DEBUG) << "Successfully added object with path : " << new_station_path;
                 }
+                m_ambiorix_datamodel->set(new_station_path, "MACAddress", mac_address);
+                m_ambiorix_datamodel->set(new_station_path, " SignalStrength",
+                                          new_stats.uplink_rcpi_dbm_enc);
+                m_ambiorix_datamodel->set_time(new_station_path, new_stats.time_stamp);
             } else {
-                new_station_path.append(".");
-                new_station_path.append(std::to_string(index));
+                unassociated_sta_path.append(".");
+                unassociated_sta_path.append(std::to_string(index));
+                m_ambiorix_datamodel->set(unassociated_sta_path, "MACAddress", mac_address);
+                m_ambiorix_datamodel->set(unassociated_sta_path, "SignalStrength",
+                                          new_stats.uplink_rcpi_dbm_enc);
+                m_ambiorix_datamodel->set_time(unassociated_sta_path, new_stats.time_stamp);
             }
-            m_ambiorix_datamodel->set(new_station_path, "MACAddress", mac_address);
-            m_ambiorix_datamodel->set(new_station_path, " SignalStrength",
-                                      new_stats.uplink_rcpi_dbm_enc);
-            m_ambiorix_datamodel->set_time(new_station_path, new_stats.time_stamp);
             LOG(DEBUG) << "Setting MACAddress " << mac_address
                        << "SignalStrength: " << new_stats.uplink_rcpi_dbm_enc << " TimeStamp"
                        << new_stats.time_stamp;
