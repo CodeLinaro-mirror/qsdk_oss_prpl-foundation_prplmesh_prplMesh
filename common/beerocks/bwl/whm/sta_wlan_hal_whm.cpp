@@ -824,19 +824,10 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
             LOG(DEBUG) << "EndPoint multi_ap_profile: " << endpoint.multi_ap_profile
                        << ", multi_ap_primary_vlanid: " << endpoint.multi_ap_primary_vlanid;
-            if (!endpoint.multi_ap_profile) {
-                msg->multi_ap_profile = endpoint.multi_ap_profile;
-            } else {
-                msg->multi_ap_profile = 1;
-                LOG(ERROR) << "Failed reading 'multi_ap_profile' parameter!";
-            }
+            msg->multi_ap_profile = endpoint.multi_ap_profile;
 
             // Multi-AP Primary VLAN ID - Not mandatory
-            if (!endpoint.multi_ap_primary_vlanid) {
-                msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
-            } else {
-                msg->multi_ap_primary_vlan_id = 0;
-            }
+            msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
             event_queue_push(Event::Connected, msg_buff);
         } else if (is_connected(old_status)) {
             auto msg_buff =

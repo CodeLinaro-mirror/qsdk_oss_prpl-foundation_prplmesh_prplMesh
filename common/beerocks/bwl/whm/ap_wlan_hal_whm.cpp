@@ -1074,7 +1074,7 @@ bool ap_wlan_hal_whm::set_primary_vlan_id(uint16_t primary_vlan_id)
         wifi_vap_path = vap_ext->second.path;
         LOG(DEBUG) << __func__ << " : " << "wifi_vap_path = " << wifi_vap_path;
         AmbiorixVariant vlan(AMXC_VAR_ID_HTABLE);
-        vlan.add_child("MultiAPVLanId", primary_vlan_id);
+        vlan.add_child("MultiAPVlanId", primary_vlan_id);
         bool ret = m_ambiorix_cl.update_object(wifi_vap_path, vlan);
         if (!ret) {
             LOG(ERROR) << __func__ << " failed for ifname " << ifname;
