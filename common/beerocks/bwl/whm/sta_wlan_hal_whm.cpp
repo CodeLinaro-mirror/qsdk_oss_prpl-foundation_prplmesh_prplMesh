@@ -545,7 +545,7 @@ bool sta_wlan_hal_whm::reassociate()
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
-            if (!endpoint.multi_ap_profile) {
+            if (endpoint.multi_ap_profile) {
                 msg->multi_ap_profile = endpoint.multi_ap_profile;
             } else {
                 msg->multi_ap_profile = 1;
@@ -553,7 +553,7 @@ bool sta_wlan_hal_whm::reassociate()
             }
 
             // Multi-AP Primary VLAN ID - Not mandatory
-            if (!endpoint.multi_ap_primary_vlanid) {
+            if (endpoint.multi_ap_primary_vlanid) {
                 msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
@@ -737,6 +737,8 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
     }
 
     endpoint_obj->read_child(endpoint.connection_status, "ConnectionStatus");
+    endpoint_obj->read_child(endpoint.multi_ap_profile, "MultiAPProfile");
+    endpoint_obj->read_child(endpoint.multi_ap_primary_vlanid, "MultiAPVlanId");
 
     std::string ssid_ref, ssid_path;
     if (endpoint_obj->read_child(ssid_ref, "SSIDReference") &&
@@ -748,8 +750,6 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
         }
         ssid_obj->read_child(endpoint.bssid, "BSSID");
         ssid_obj->read_child(endpoint.ssid, "SSID");
-        ssid_obj->read_child(endpoint.multi_ap_profile, "Multi_ap_profile");
-        ssid_obj->read_child(endpoint.multi_ap_primary_vlanid, "Multi_ap_primary_vlanid");
         std::string radio_path;
         if (ssid_obj->read_child(radio_path, "LowerLayers")) {
             m_radio_path = radio_path;
