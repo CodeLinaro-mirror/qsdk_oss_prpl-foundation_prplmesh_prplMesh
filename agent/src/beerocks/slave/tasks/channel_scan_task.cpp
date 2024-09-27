@@ -374,6 +374,7 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         if (!response->success()) {
             LOG(ERROR) << "Failed to trigger scan on radio (" << src_mac << ")";
             // Expand the response reason to give a better scan status in the report as part of PPM-1324.
+            m_current_scan_info.is_scan_currently_running = response->success();
             set_radio_scan_status(m_current_scan_info.radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
             FSM_MOVE_STATE(m_current_scan_info.radio_scan, eState::SCAN_FAILED);
             return true;
@@ -506,6 +507,7 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             return false;
         }
 
+        m_current_scan_info.is_scan_currently_running = false;
         set_radio_scan_status(m_current_scan_info.radio_scan, eScanStatus::SCAN_ABORTED);
         FSM_MOVE_STATE(m_current_scan_info.radio_scan, eState::SCAN_ABORTED);
         break;
@@ -541,7 +543,17 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE: {
-        LOG(TRACE) << "ACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE from mac " << src_mac;
+
+        auto response =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE>();
+        if (!response) {
+            LOG(ERROR) << "addClass ACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE failed";
+            return false;
+        }
+        LOG(TRACE) << "ACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE: " << response->success()
+                   << " from mac " << src_mac;
+        m_current_scan_info.is_scan_currently_running = response->success();
         break;
     }
     default: {
@@ -572,7 +584,7 @@ bool ChannelScanTask::is_scan_request_finished(const std::shared_ptr<sScanReques
 
 bool ChannelScanTask::abort_scan_request(const std::shared_ptr<sScanRequest> request)
 {
-    for (auto radio_scan : request->radio_scans) {
+    for (const auto &radio_scan : request->radio_scans) {
         const auto &radio_iface = radio_scan.first;
         LOG(TRACE) << "Request scan abort on " << radio_iface;
 
@@ -765,7 +777,7 @@ bool ChannelScanTask::trigger_radio_scan(const std::string &radio_iface,
 
 bool ChannelScanTask::store_radio_scan_result(const std::shared_ptr<sScanRequest> request,
                                               const sMacAddr &radio_mac,
-                                              beerocks_message::sChannelScanResults results)
+                                              const beerocks_message::sChannelScanResults &results)
 {
     LOG(TRACE) << "Handling scan result from " << radio_mac;
     auto db    = AgentDB::get();
@@ -1467,7 +1479,7 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
         // Total values will be used to calculate averages
         int total_noise       = 0;
         int total_utilization = 0;
-        for (auto stored_neighbor : results) {
+        for (const auto &stored_neighbor : results) {
             auto tlv_neighbor_ptr = results_tlv->create_neighbors_list();
             if (!tlv_neighbor_ptr) {
                 LOG(ERROR) << "Failed to create neighbor list";

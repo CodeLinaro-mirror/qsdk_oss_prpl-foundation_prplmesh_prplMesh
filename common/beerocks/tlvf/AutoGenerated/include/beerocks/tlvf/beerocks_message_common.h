@@ -48,11 +48,15 @@ typedef struct sVapInfo {
     uint8_t profile1_backhaul_sta_association_disallowed;
     //boolean
     uint8_t profile2_backhaul_sta_association_disallowed;
+    int8_t link_id;
+    sMacAddr ap_mld_mac;
     void struct_swap(){
         mac.struct_swap();
+        ap_mld_mac.struct_swap();
     }
     void struct_init(){
         mac.struct_init();
+        ap_mld_mac.struct_init();
     }
 } __attribute__((packed)) sVapInfo;
 

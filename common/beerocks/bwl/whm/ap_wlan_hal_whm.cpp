@@ -248,11 +248,6 @@ bool ap_wlan_hal_whm::sta_allow(const sMacAddr &mac, const sMacAddr &bssid)
         return false;
     }
 
-    if (mode.empty() || mode == "Off") {
-        LOG(TRACE) << "MACFiltering mode is off, sta allowed";
-        return true;
-    }
-
     // check if the sta is included in accesslist entries
     std::string entry_path =
         wbapi_utils::search_path_mac_filtering_entry_by_mac(ifname, tlvf::mac_to_string(mac));
@@ -301,11 +296,6 @@ bool ap_wlan_hal_whm::sta_deny(const sMacAddr &mac, const sMacAddr &bssid)
     if (!m_ambiorix_cl.get_param(mode, mac_filter_path, "Mode")) {
         LOG(ERROR) << "failed to get MACFiltering object";
         return false;
-    }
-
-    if (mode.empty() || mode == "Off") {
-        LOG(TRACE) << "MACFiltering mode is off, sta allowed";
-        return true;
     }
 
     // check if the sta is included in accesslist entries
@@ -1054,8 +1044,30 @@ bool ap_wlan_hal_whm::set_radio_mbo_assoc_disallow(bool enable)
 
 bool ap_wlan_hal_whm::set_primary_vlan_id(uint16_t primary_vlan_id)
 {
-    // Networking is responsible of handling vlanId, so pwhm does not interfere with vlans.
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    LOG(DEBUG) << "set_primary_vlan_id " << primary_vlan_id;
+    std::string wifi_vap_path, ifname;
+    auto vaps = m_radio_info.available_vaps;
+    for (auto vap_it = vaps.begin(); vap_it != vaps.end(); vap_it++) {
+        // only applicable for Backhaul BSS interfaces
+        if (vap_it->second.backhaul == false) {
+            LOG(DEBUG) << __func__ << " : " << vap_it->second.bss
+                       << " ifname skipped for set_vlan ";
+            continue;
+        }
+        ifname       = vap_it->second.bss;
+        auto vap_ext = m_vapsExtInfo.find(ifname);
+        if (vap_ext == m_vapsExtInfo.end()) {
+            LOG(ERROR) << "fail to get ifname " << ifname;
+            continue;
+        }
+        wifi_vap_path = vap_ext->second.path;
+        AmbiorixVariant vlan(AMXC_VAR_ID_HTABLE);
+        vlan.add_child("MultiAPVlanId", primary_vlan_id);
+        bool ret = m_ambiorix_cl.update_object(wifi_vap_path, vlan);
+        if (!ret) {
+            LOG(ERROR) << __func__ << " failed for ifname " << ifname;
+        }
+    }
     return true;
 }
 
@@ -1609,15 +1621,18 @@ bool ap_wlan_hal_whm::set_no_deauth_unknown_sta(const std::string &ifname, bool 
 bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
 {
     unsigned char i = 0, j = 0, k = 0;
+
     struct range_t {
-        int start;
-        int end;
-        int pcp;
+        uint8_t pcp;
+        int8_t start;
+        int8_t end;
     } range[8] = {};
+
     struct map_t {
-        int dscp;
-        int pcp;
+        uint8_t dscp;
+        uint8_t pcp;
     } exception[64] = {};
+
     std::stringstream ss;
 
     for (i = 0; i < 8; i++) {
@@ -1674,12 +1689,16 @@ bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
     for (i = 0; i < 8; i++) {
         ss << +range[i].start << "," << +range[i].end << ",";
     }
-    ss.seekp(-1, std::ios_base::end);
 
-    std::string qos_map = std::move(ss).str();
+    std::string qos_map = ss.str();
+    if (!qos_map.empty() && qos_map.back() == ',')
+        qos_map.pop_back();
+
     LOG(DEBUG) << "Setting QOS_MAP_SET " << qos_map;
 
-    auto search_path = wbapi_utils::search_path_ap_by_iface(get_iface_name());
+    // It seems that for now Aliases for VAPs can't be resolved
+    // auto search_path = wbapi_utils::search_path_ap_by_iface(get_iface_name());
+    const auto search_path = "WiFi.AccessPoint.*.";
 
     std::vector<std::string> paths;
     if (!m_ambiorix_cl.resolve_path_multi(search_path, paths)) {

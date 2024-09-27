@@ -35,6 +35,9 @@
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
 #include <tlvf/wfa_map/tlv1905EncapEapol.h>
 #include <tlvf/wfa_map/tlv1905LayerSecurityCapability.h>
+#include <tlvf/wfa_map/tlvAffiliatedApMetrics.h>
+#include <tlvf/wfa_map/tlvAffiliatedStaMetrics.h>
+#include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvAgentList.h>
 #include <tlvf/wfa_map/tlvAkmSuiteCapabilities.h>
 #include <tlvf/wfa_map/tlvAnticipatedChannelPreference.h>
@@ -53,9 +56,12 @@
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
 #include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
+#include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvAssociatedWiFi6StaStatusReport.h>
+#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.h>
 #include <tlvf/wfa_map/tlvBackhaulBssConfiguration.h>
+#include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringRequest.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
@@ -81,11 +87,13 @@
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
 #include <tlvf/wfa_map/tlvDppMessage.h>
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
+#include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvEncryptedPayload.h>
 #include <tlvf/wfa_map/tlvErrorCode.h>
 #include <tlvf/wfa_map/tlvHigherLayerData.h>
 #include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
 #include <tlvf/wfa_map/tlvMic.h>
+#include <tlvf/wfa_map/tlvMldStructure.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
 #include <tlvf/wfa_map/tlvProfile2ApRadioAdvancedCapabilities.h>
@@ -120,6 +128,7 @@
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringRequest.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 #include <tlvf/wfa_map/tlvTimestamp.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 #include <tlvf/wfa_map/tlvTriggerChannelSwitchAnnouncement.h>
@@ -132,6 +141,7 @@
 #include <tlvf/wfa_map/tlvVirtualBssCreation.h>
 #include <tlvf/wfa_map/tlvVirtualBssDestruction.h>
 #include <tlvf/wfa_map/tlvVirtualBssEvent.h>
+#include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 
 using namespace ieee1905_1;
 
@@ -568,6 +578,36 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
         return msg.addClass<wfa_map::tlvSpatialReuseRequest>();
     }
     case (wfa_map::eTlvTypeMap::TLV_SPATIAL_REUSE_REPORT): {
+        return msg.addClass<wfa_map::tlvSpatialReuseReport>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_WIFI_7_AGENT_CAPABILITIES): {
+        return msg.addClass<wfa_map::tlvWifi7AgentCapabilities>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_AGENT_AP_MLD_CONFIGURATION): {
+        return msg.addClass<wfa_map::tlvAgentApMldConfiguration>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_BACKHAUL_STA_MLD_CONFIGURATION): {
+        return msg.addClass<wfa_map::tlvBackhaulStaMldConfiguration>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_ASSOCIATED_STA_MLD_CONFIGURATION_REPORT): {
+        return msg.addClass<wfa_map::tlvAssociatedStaMldConfigurationReport>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_MLD_STRUCTURE): {
+        return msg.addClass<wfa_map::tlvMldStructure>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_AFFILIATED_AP_METRICS): {
+        return msg.addClass<wfa_map::tlvAffiliatedApMetrics>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_AFFILIATED_STA_METRICS): {
+        return msg.addClass<wfa_map::tlvAffiliatedStaMetrics>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_TID_TO_LINK_MAPPING_POLICY): {
+        return msg.addClass<wfa_map::tlvTidToLinkMappingPolicy>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_EHT_OPERATIONS): {
+        return msg.addClass<wfa_map::tlvEHTOperations>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST): {
         return msg.addClass<wfa_map::tlvSpatialReuseReport>();
     }
     }

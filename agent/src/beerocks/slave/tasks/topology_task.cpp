@@ -21,6 +21,7 @@
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvMacAddress.h>
 
+#include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
@@ -261,16 +262,36 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
     }
 
     auto db = AgentDB::get();
+    for (size_t i = 0; i < db->mld_configurations.size(); ++i) {
+        // Next step, registering callback to avoid "get" method
+        for (auto affiliated_ap : db->mld_configurations[i].affiliated_aps) {
+            if (affiliated_ap.ruid != net::network_utils::ZERO_MAC &&
+                affiliated_ap.bssid != net::network_utils::ZERO_MAC) {
+                auto radio = db->get_radio_by_mac(affiliated_ap.ruid);
+                for (const auto &bss : radio->front.bssids) {
+                    if (bss.mac == affiliated_ap.bssid) {
+                        affiliated_ap.link_id = bss.link_id;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!add_agent_ap_mld_configuration_tlv()) {
+        LOG(ERROR) << "Failed to add Agent AP MLD Configuration TLV";
+        return;
+    }
 
     auto multiap_profile_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
     if (multiap_profile_tlv) {
-        db->controller_info.profile_support = multiap_profile_tlv->profile();
-        if (db->controller_info.profile_support ==
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-            db->controller_info.profile_support =
-                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
+        if (db->controller_info.bridge_mac == src_mac) {
+            db->controller_info.profile_support = multiap_profile_tlv->profile();
+            if (db->controller_info.profile_support ==
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
+                db->controller_info.profile_support =
+                    wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
+            }
         }
-
         auto tlvProfile2MultiApProfile = m_cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
         if (!tlvProfile2MultiApProfile) {
             LOG(ERROR) << "addClass wfa_map::tlvProfile2MultiApProfile failed";
@@ -283,9 +304,10 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
             tlvProfile2MultiApProfile->profile() = db->device_conf.certification_profile;
         }
     } else {
-        // If the controller didn't add the MultiAp Profile TLV assume that the controller is Profile1
-        db->controller_info.profile_support =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+        if (db->controller_info.bridge_mac == src_mac) {
+            db->controller_info.profile_support =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+        }
     }
 
     LOG(DEBUG) << "Sending topology response message, mid=" << std::hex << mid;
@@ -505,9 +527,9 @@ bool TopologyTask::add_device_information_tlv()
 
         // Iterate on front radio iface and then switch to back radio iface
         auto fill_radio_iface_info = [&](ieee1905_1::eMediaType media_type, bool front_iface) {
-            LOG(DEBUG) << "filling " << (front_iface ? "fronthaul" : "backhaul")
-                       << " information on radio="
-                       << (front_iface ? radio->front.iface_name : radio->back.iface_name);
+            LOG(DEBUG) << "adding " << (front_iface ? "fronthaul" : "backhaul ") << " interface "
+                       << (front_iface ? radio->front.iface_name : radio->back.iface_name)
+                       << " to local interface list";
 
             if ((front_iface && radio->front.iface_mac == network_utils::ZERO_MAC) ||
                 (!front_iface && radio->back.iface_mac == network_utils::ZERO_MAC)) {
@@ -855,5 +877,61 @@ bool TopologyTask::add_vs_tlv_bssid_iface_mapping()
             filled++;
         }
     }
+    return true;
+}
+
+bool TopologyTask::add_agent_ap_mld_configuration_tlv()
+{
+    auto db(AgentDB::get());
+
+    if (!db->mld_configurations.empty()) {
+        auto tlvAgentApMldConfiguration = m_cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
+        if (!tlvAgentApMldConfiguration) {
+            LOG(ERROR) << "addClass wfa_map::tlvAgentAPMLDConfiguration failed";
+            return false;
+        }
+
+        for (const auto &mld_conf : db->mld_configurations) {
+
+            auto ap_mld(tlvAgentApMldConfiguration->create_ap_mld());
+            ap_mld->ap_mld_mac_addr_valid().is_valid =
+                (mld_conf.mac != net::network_utils::ZERO_MAC);
+            ap_mld->set_ssid(mld_conf.ssid);
+            ap_mld->ap_mld_mac_addr() = mld_conf.mac;
+            ap_mld->modes().str       = mld_conf.str;
+            ap_mld->modes().nstr      = mld_conf.nstr;
+            ap_mld->modes().emlsr     = mld_conf.emlsr;
+            ap_mld->modes().emlmr     = mld_conf.emlmr;
+
+            LOG(DEBUG) << "Sending MLD configuration for " << mld_conf.ssid
+                       << "\n[ MAC  : " << mld_conf.mac << "]\n[ STR  : " << mld_conf.str
+                       << "]\n[ NSTR : " << mld_conf.nstr << "]\n[ EMLSR: " << mld_conf.emlsr
+                       << "]\n[ EMLMR: " << mld_conf.emlmr << "]";
+
+            for (const auto &affiliated_ap_conf : mld_conf.affiliated_aps) {
+
+                auto affiliated_ap(ap_mld->create_affiliated_ap());
+                affiliated_ap->affiliated_ap_fields_valid().affiliated_ap_mac_addr_valid =
+                    (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
+                affiliated_ap->affiliated_ap_fields_valid().linkid_valid =
+                    (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
+                affiliated_ap->ruid()                   = affiliated_ap_conf.ruid;
+                affiliated_ap->affiliated_ap_mac_addr() = affiliated_ap_conf.bssid;
+                affiliated_ap->linkid()                 = affiliated_ap_conf.link_id;
+
+                if (!ap_mld->add_affiliated_ap(affiliated_ap)) {
+                    LOG(ERROR)
+                        << "add_affiliated_ap() failed in tlvAgentApMldConfiguration.affiliated_ap";
+                    return false;
+                }
+            }
+
+            if (!tlvAgentApMldConfiguration->add_ap_mld(ap_mld)) {
+                LOG(ERROR) << "add_ap_mld() failed in tlvAgentApMldConfiguration";
+                return false;
+            }
+        }
+    }
+
     return true;
 }

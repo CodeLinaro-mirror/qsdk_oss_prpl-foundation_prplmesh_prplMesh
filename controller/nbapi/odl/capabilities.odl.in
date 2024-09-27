@@ -73,6 +73,7 @@
 
             %read-only bool ULMUMIMO;                   /* UL MU-MIMO support. */
             %read-only bool ULOFDMA;                    /* UL OFDMA support. */
+            %read-only bool DLOFDMA;                    /* Downlink (DL) OFDMA support. */
 
             /* Maximum number of users supported per DL MU-MIMO TX in an AP role. */
             %read-only uint32 MaxDLMUMIMO = 0 {
@@ -119,6 +120,7 @@
 
             %read-only bool ULMUMIMO;                   /* UL MU-MIMO support. */
             %read-only bool ULOFDMA;                    /* UL OFDMA support. */
+            %read-only bool DLOFDMA;                    /* Downlink (DL) OFDMA support. */
 
             /* Maximum number of users supported per DL MU-MIMO TX in an AP role. */
             %read-only uint32 MaxDLMUMIMO = 0 {

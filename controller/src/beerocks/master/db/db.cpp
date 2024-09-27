@@ -284,6 +284,19 @@ std::shared_ptr<Agent> db::add_gateway(const sMacAddr &mac)
         LOG(ERROR) << "Failed to set Manufacturer OUI";
     }
 
+    /*
+    When we are here it means that a local agent
+    (running in same platform as controller), has
+    joined the controller which means controller
+    is also running. This is effective in field
+    where a GW is running both the controller and agent.
+    */
+
+    m_ambiorix_datamodel->set(agent->dm_path + ".MultiAPDevice", "EasyMeshControllerOperationMode",
+                              std::string{"Running"});
+    m_ambiorix_datamodel->set(agent->dm_path + ".MultiAPDevice", "EasyMeshAgentOperationMode",
+                              std::string{"Running"});
+
     return agent;
 }
 
@@ -322,17 +335,36 @@ std::shared_ptr<Agent> db::add_agent(const sMacAddr &mac, const sMacAddr &parent
     }
 
     m_ambiorix_datamodel->set(agent->dm_path + ".MultiAPDevice", "EasyMeshAgentOperationMode",
-                              std::string{"RUNNING"});
+                              std::string{"Running"});
 
     return agent;
 }
 
-std::shared_ptr<Station> db::add_backhaul_station(const sMacAddr &mac, const sMacAddr &parent_mac)
+bool db::remove_agent(const sMacAddr &mac)
+{
+    if (mac == network_utils::ZERO_MAC) {
+        LOG(ERROR) << "mac supplied for add_agent is zero_mac";
+        return false;
+    }
+    auto agent = m_agents.get(mac);
+    if (!agent) {
+        LOG(ERROR) << "Failed to get Agent " << mac;
+        return false;
+    }
+
+    m_agents.erase(mac);
+
+    return dm_remove_device_element(mac);
+}
+
+std::shared_ptr<Station> db::add_backhaul_station(const sMacAddr &mac, const sMacAddr &parent_mac,
+                                                  const sMacAddr &al_mac)
 {
     auto station = m_stations.add(mac);
     if (!station) {
         return {};
     }
+    LOG(TRACE) << "Setting bSta for: " << mac;
     station->set_bSta(true);
 
     // Save stations's parent
@@ -344,6 +376,9 @@ std::shared_ptr<Station> db::add_backhaul_station(const sMacAddr &mac, const sMa
         if (parent_switch) {
             station->set_eth_switch(parent_switch);
         }
+    }
+    if (al_mac != beerocks::net::network_utils::ZERO_MAC) {
+        station->al_mac = al_mac;
     }
 
     // TODO: Add instance for Radio.BackhaulSta element from the Data Elements
@@ -650,6 +685,8 @@ bool db::set_radio_channel_scan_capabilites(
        << std::endl;
 
     auto operating_classes_list_length = radio_capabilities.operating_classes_list_length();
+    auto &operating_classes            = radio.scan_capabilities.operating_classes;
+    operating_classes.clear();
 
     for (uint8_t oc_idx = 0; oc_idx < operating_classes_list_length; oc_idx++) {
         auto operating_class_tuple = radio_capabilities.operating_classes_list(oc_idx);
@@ -671,8 +708,6 @@ bool db::set_radio_channel_scan_capabilites(
             ss << "}";
         }
 
-        auto &operating_classes = radio.scan_capabilities.operating_classes;
-        operating_classes.clear();
         for (int ch_idx = 0; ch_idx < channel_list_length; ch_idx++) {
             auto channel = operating_class_struct.channel_list(ch_idx);
             if (!channel) {
@@ -1188,18 +1223,15 @@ std::list<sMacAddr> db::get_1905_1_neighbors(const sMacAddr &al_mac)
 {
     std::list<sMacAddr> neighbors_al_macs;
 
-    // According to IEEE 1905.1 a neighbor is defined as a first circle only, so we need to filter
-    // out the childrens from second circle and above.
-    for (const auto &agent : m_agents) {
-        if (get_agent_parent(agent.first) == al_mac) {
-            neighbors_al_macs.push_back(agent.first);
+    auto agent = m_agents.get(al_mac);
+    if (agent) {
+        for (const auto &interface : agent->interfaces) {
+            for (const auto &neighbor : interface.second->m_neighbors) {
+                if (neighbor.second->ieee1905_flag) {
+                    neighbors_al_macs.push_back(neighbor.first);
+                }
+            }
         }
-    }
-
-    // Add the parent bridge as well to the neighbors list
-    auto parent_bridge = get_agent_parent(al_mac);
-    if (parent_bridge != network_utils::ZERO_MAC) {
-        neighbors_al_macs.push_back(parent_bridge);
     }
 
     return neighbors_al_macs;
@@ -1311,67 +1343,6 @@ bool db::dm_add_ap_operating_classes(const std::string &radio_mac, uint8_t max_t
     }
 
     return return_value;
-}
-
-bool db::set_ap_he_capabilities(wfa_map::tlvApHeCapabilities &he_caps_tlv)
-{
-    auto radio = get_radio_by_uid(he_caps_tlv.radio_uid());
-
-    if (!radio) {
-        LOG(ERROR) << "Fail get radio, mac:" << he_caps_tlv.radio_uid();
-        return false;
-    }
-
-    auto path_to_obj = radio->dm_path;
-    if (path_to_obj.empty()) {
-        return true;
-    }
-
-    path_to_obj += ".Capabilities.";
-    if (!m_ambiorix_datamodel->add_optional_subobject(path_to_obj, "WiFi6Capabilities")) {
-        LOG(ERROR) << "Failed to add sub-object " << path_to_obj << "WiFi6Capabilities";
-        return false;
-    }
-
-    bool ret_val = true;
-    path_to_obj += "WiFi6Capabilities.";
-
-    auto flags1 = he_caps_tlv.flags1();
-    auto flags2 = he_caps_tlv.flags2();
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams",
-                                         flags1.max_num_of_supported_tx_spatial_streams + 1);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams",
-                                         flags1.max_num_of_supported_rx_spatial_streams + 1);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE8080",
-                                         static_cast<bool>(flags1.he_support_80_80mhz));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
-                                         static_cast<bool>(flags1.he_support_160mhz));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(flags2.su_beamformer_capable));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(flags2.mu_beamformer_capable));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "ULMUMIMO",
-                                         static_cast<bool>(flags2.ul_mu_mimo_capable));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "ULOFDMA",
-                                         static_cast<bool>(flags2.ul_ofdm_capable));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "DLOFDMA",
-                                         static_cast<bool>(flags2.dl_ofdm_capable));
-
-    uint8_t supported_he_mcs_length = he_caps_tlv.supported_he_mcs_length();
-    path_to_obj += "MCSNSS";
-    for (int i = 0; i < supported_he_mcs_length; i++) {
-        auto path_to_obj_instance = m_ambiorix_datamodel->add_instance(path_to_obj);
-        if (path_to_obj_instance.empty()) {
-            LOG(ERROR) << "Failed to add " << path_to_obj;
-            ret_val = false;
-            continue;
-        }
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj_instance + '.', "MCSNSSSet",
-                                             *he_caps_tlv.supported_he_mcs(i));
-    }
-
-    return ret_val;
 }
 
 bool db::set_software_version(std::shared_ptr<Agent> agent, const std::string &sw_version)
@@ -1506,22 +1477,20 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
         }
 
         //TODO: Need to set the value for MCS_NSS and OFDMA (PPM-2288)
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "AgentRole", flags1.agent_role);
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
                                              static_cast<bool>(flags1.he_support_160mhz));
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE8080",
                                              static_cast<bool>(flags1.he_support_80_80mhz));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MCSNSSLength", flags1.mcs_nss_length);
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
                                              static_cast<bool>(flags2.su_beamformer));
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformee",
                                              static_cast<bool>(flags2.su_beamformee));
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
                                              static_cast<bool>(flags2.mu_Beamformer_status));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "BeamformeeStsLess80",
+        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "Beamformee80orLess",
                                              static_cast<bool>(flags2.beamformee_sts_less_80mhz));
         ret_val &=
-            m_ambiorix_datamodel->set(path_to_obj, "BeamformeeStsGreater80",
+            m_ambiorix_datamodel->set(path_to_obj, "BeamformeeAbove80",
                                       static_cast<bool>(flags2.beamformee_sts_greater_80mhz));
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "ULMUMIMO",
                                              static_cast<bool>(flags2.ul_mu_mimo));
@@ -1529,10 +1498,10 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
             m_ambiorix_datamodel->set(path_to_obj, "ULOFDMA", static_cast<bool>(flags2.ul_ofdma));
         ret_val &=
             m_ambiorix_datamodel->set(path_to_obj, "DLOFDMA", static_cast<bool>(flags2.dl_ofdma));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfUsersSupportedTX",
-                                             flags3.max_dl_mu_mimo_tx);
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfUsersSupportedRX",
-                                             flags3.max_ul_mu_mimo_rx);
+        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLMUMIMO", flags3.max_dl_mu_mimo_tx);
+        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULMUMIMO", flags3.max_ul_mu_mimo_rx);
+        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLOFDMA", role.max_dl_ofdma_tx());
+        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULOFDMA", role.max_ul_ofdma_rx());
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "RTS", static_cast<bool>(flags4.rts));
         ret_val &=
             m_ambiorix_datamodel->set(path_to_obj, "MURTS", static_cast<bool>(flags4.mu_rts));
@@ -1540,9 +1509,9 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
                                              static_cast<bool>(flags4.multi_bssid));
         ret_val &=
             m_ambiorix_datamodel->set(path_to_obj, "MUEDCA", static_cast<bool>(flags4.mu_edca));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TwtRequester",
+        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTRequestor",
                                              static_cast<bool>(flags4.twt_requester));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TwtResponder",
+        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTResponder",
                                              static_cast<bool>(flags4.twt_responder));
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SpatialReuse",
                                              static_cast<bool>(flags4.spatial_reuse));
@@ -2737,9 +2706,6 @@ bool db::set_radar_hit_stats(const sMacAddr &mac, uint8_t channel, uint8_t bw, b
         }
         return true;
     }
-    //CSA exit channel
-    radio->Radar_stats.front().csa_exit_timestamp = std::chrono::steady_clock::now();
-
     return true;
 }
 
@@ -5479,10 +5445,26 @@ void db::disable_periodic_link_metrics_requests()
 bool db::dm_set_sta_link_metrics(const sMacAddr &sta_mac, uint32_t downlink_est_mac_data_rate,
                                  uint32_t uplink_est_mac_data_rate, uint8_t signal_strength)
 {
+    bool ret_val = true;
     auto station = get_station(sta_mac);
     if (!station) {
         LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
         return false;
+    }
+
+    if (station->is_bSta() && station->al_mac != beerocks::net::network_utils::ZERO_MAC) {
+        //The sta is a backhaul sta and its al_mac is not empty
+        auto agent = m_agents.get(station->al_mac);
+        if (!agent) {
+            LOG(ERROR) << "Cannot get agent from sta_mac: " << sta_mac;
+        } else {
+            std::string multiap_backhaul_path = agent->dm_path + ".MultiAPDevice.Backhaul.Stats";
+            //Device.WiFi.DataElements.Network.Device.{i}.MultiAPDevice.Backhaul.Stats
+            ret_val &=
+                m_ambiorix_datamodel->set(multiap_backhaul_path, "SignalStrength", signal_strength);
+            ret_val &= m_ambiorix_datamodel->set_current_time(multiap_backhaul_path);
+            LOG(TRACE) << multiap_backhaul_path + ".SignalStrength is updated";
+        }
     }
 
     // Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.
@@ -5490,7 +5472,6 @@ bool db::dm_set_sta_link_metrics(const sMacAddr &sta_mac, uint32_t downlink_est_
         return true;
     }
 
-    bool ret_val = true;
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "EstMACDataRateDownlink",
                                          downlink_est_mac_data_rate);
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "EstMACDataRateUplink",
@@ -6207,6 +6188,23 @@ std::string db::dm_add_device_element(const sMacAddr &mac)
     }
 
     return device_path;
+}
+
+bool db::dm_remove_device_element(const sMacAddr &mac)
+{
+    auto index = m_ambiorix_datamodel->get_instance_index(
+        CONTROLLER_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(mac));
+    if (!index) {
+        LOG(ERROR) << "Failed to get Network.Device index for mac: " << mac;
+        return false;
+    }
+
+    if (!m_ambiorix_datamodel->remove_instance(CONTROLLER_ROOT_DM ".Network.Device", index)) {
+        LOG(ERROR) << "Failed to remove Network.Device." << index << " instance.";
+        return false;
+    }
+
+    return true;
 }
 
 bool db::add_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8_t op_channel,
@@ -6926,10 +6924,28 @@ bool db::dm_remove_interface_neighbor(const std::string &dm_path)
 bool db::dm_set_sta_extended_link_metrics(
     const sMacAddr &sta_mac, const wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics &metrics)
 {
+    bool ret_val = true;
     auto station = get_station(sta_mac);
     if (!station) {
         LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
         return false;
+    }
+
+    if (station->is_bSta() && station->al_mac != beerocks::net::network_utils::ZERO_MAC) {
+        //The sta is a backhaul sta and its al_mac is not empty.
+        auto agent = m_agents.get(station->al_mac);
+        if (!agent) {
+            LOG(ERROR) << "Cannot get agent from sta_mac: " << sta_mac;
+        } else {
+            std::string multiap_backhaul_path = agent->dm_path + ".MultiAPDevice.Backhaul.Stats";
+            //Device.WiFi.DataElements.Network.Device.{i}.MultiAPDevice.Backhaul.Stats.
+            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "LastDataDownlinkRate",
+                                                 metrics.last_data_down_link_rate);
+            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "LastDataUplinkRate",
+                                                 metrics.last_data_up_link_rate);
+            ret_val &= m_ambiorix_datamodel->set_current_time(multiap_backhaul_path);
+            LOG(DEBUG) << multiap_backhaul_path << " updated";
+        }
     }
 
     // Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.
@@ -6937,7 +6953,6 @@ bool db::dm_set_sta_extended_link_metrics(
         return true;
     }
 
-    bool ret_val = true;
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "LastDataDownlinkRate",
                                          metrics.last_data_down_link_rate);
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "LastDataUplinkRate",
@@ -6952,10 +6967,36 @@ bool db::dm_set_sta_extended_link_metrics(
 
 bool db::dm_set_sta_traffic_stats(const sMacAddr &sta_mac, sAssociatedStaTrafficStats &stats)
 {
+    bool ret_val = true;
     auto station = get_station(sta_mac);
     if (!station) {
         LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
         return false;
+    }
+
+    if (station->is_bSta() && station->al_mac != beerocks::net::network_utils::ZERO_MAC) {
+        //The sta is a backhaul sta and its al_mac is not empty.
+        auto agent = m_agents.get(station->al_mac);
+        if (!agent) {
+            LOG(ERROR) << "Cannot get agent from sta_mac: " << sta_mac;
+        } else {
+            std::string multiap_backhaul_path = agent->dm_path + ".MultiAPDevice.Backhaul.Stats";
+            ret_val &=
+                m_ambiorix_datamodel->set(multiap_backhaul_path, "BytesSent", stats.m_byte_sent);
+            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "BytesReceived",
+                                                 stats.m_byte_received);
+            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "PacketsSent",
+                                                 stats.m_packets_sent);
+            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "PacketsReceived",
+                                                 stats.m_packets_received);
+            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "ErrorsSent",
+                                                 stats.m_tx_packets_error);
+            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "ErrorsReceived",
+                                                 stats.m_rx_packets_error);
+            ret_val &= m_ambiorix_datamodel->set_current_time(multiap_backhaul_path);
+
+            LOG(DEBUG) << multiap_backhaul_path << " updated";
+        }
     }
 
     // Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.
@@ -6963,7 +7004,6 @@ bool db::dm_set_sta_traffic_stats(const sMacAddr &sta_mac, sAssociatedStaTraffic
         return true;
     }
 
-    bool ret_val = true;
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "BytesSent", stats.m_byte_sent);
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "BytesReceived", stats.m_byte_received);
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "PacketsSent", stats.m_packets_sent);
@@ -7756,15 +7796,10 @@ bool db::dm_add_radio_scan_capabilities(const Agent::sRadio &radio)
     }
 
     auto scan_capability_path = radio.dm_path + ".ScanCapability";
+    auto &scan_capabilities   = radio.scan_capabilities;
+    bool ret_val              = true;
 
-    // Clearing ScanCapability data model object and its sub-objects.
-    if (!m_ambiorix_datamodel->remove_all_instances(scan_capability_path)) {
-        return false;
-    }
-
-    auto &scan_capabilities = radio.scan_capabilities;
-    bool ret_val            = true;
-
+    // Update the ScanCapability data model parameters.
     ret_val &= m_ambiorix_datamodel->set(scan_capability_path, "OnBootOnly",
                                          scan_capabilities.on_boot_only);
     ret_val &=
@@ -7777,6 +7812,12 @@ bool db::dm_add_radio_scan_capabilities(const Agent::sRadio &radio)
         return false;
     }
 
+    // Remove any existing instances of the OpClassChannels sub-object.
+    if (!m_ambiorix_datamodel->remove_all_instances(scan_capability_path + ".OpClassChannels")) {
+        return false;
+    }
+
+    // Add new instances of the OpClassChannels sub-object.
     for (auto &oc_ch : scan_capabilities.operating_classes) {
         auto oc_channels_path =
             m_ambiorix_datamodel->add_instance(scan_capability_path + ".OpClassChannels");

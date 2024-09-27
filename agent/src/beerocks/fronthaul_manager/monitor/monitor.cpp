@@ -606,8 +606,10 @@ bool Monitor::monitor_fsm()
             }
 
             // NOTE: Radio & VAP statistics are updated only on last poll cycle
-            if (mon_db.get_radio_stats_enable() && mon_db.is_last_poll())
-                update_ap_stats();
+            if (mon_db.get_radio_stats_enable() && mon_db.is_last_poll()) {
+                if (!update_ap_stats())
+                    return false;
+            }
 
             send_heartbeat();
 
@@ -1922,6 +1924,8 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
     } break;
 
+    case Event::Interface_Connected_OK:
+    case Event::Interface_Reconnected_OK:
     case Event::AP_Enabled: {
         if (!data) {
             LOG(ERROR) << "AP_Enabled without data";
@@ -1933,6 +1937,7 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         update_vaps_in_db();
     } break;
 
+    case Event::Interface_Disconnected:
     case Event::AP_Disabled: {
         if (!data) {
             LOG(ERROR) << "AP_Disabled without data!";

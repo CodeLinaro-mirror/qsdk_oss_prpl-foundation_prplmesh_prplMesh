@@ -191,7 +191,7 @@ bool dynamic_channel_selection_r2_task::is_agent_idle_with_pending_radio_scans(
     // If continuous radio scan requests is not empty and there's
     // a continuous scan that its interval between scans passed
     if (!agent_scan_status.continuous_radio_scans.empty()) {
-        for (auto continuous_scan : agent_scan_status.continuous_radio_scans) {
+        for (const auto &continuous_scan : agent_scan_status.continuous_radio_scans) {
             if (continuous_scan.second.status == eRadioScanStatus::PENDING &&
                 sAgentScanStatus::is_continuous_scan_interval_passed(continuous_scan.second)) {
                 return true;

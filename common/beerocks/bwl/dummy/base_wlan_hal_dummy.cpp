@@ -433,6 +433,11 @@ bool base_wlan_hal_dummy::refresh_radio_info()
 bool base_wlan_hal_dummy::refresh_vap_info(int vap_id) { return true; }
 
 bool base_wlan_hal_dummy::refresh_vaps_info(int id) { return true; }
+bool base_wlan_hal_dummy::get_vap_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    return true;
+}
 
 /**
  * @brief process simulated events

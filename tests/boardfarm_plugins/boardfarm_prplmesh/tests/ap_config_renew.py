@@ -40,7 +40,10 @@ class ApConfigRenew(PrplMeshBaseTest):
                                      "{" + f"""0x{self.ieee1905['tlvSupportedFreqBand']
                                      ['eValue']['BAND_2_4G']:02x}""" + "}"))
 
-        time.sleep(5)
+        time.sleep(10)
+
+        agent.radios[0].update_vap_list()
+        agent.radios[1].update_vap_list()
 
         ssid_1 = 'Boardfarm-Tests-24G-1'
         radio_0_vap_0 = agent.radios[0].get_vap(ssid_1)

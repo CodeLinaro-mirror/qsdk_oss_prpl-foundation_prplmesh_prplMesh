@@ -43,6 +43,9 @@ sVapInfo:
   profile2_backhaul_sta_association_disallowed:
     _type: uint8_t
     _comment: boolean
+  link_id:
+    _type: int8_t
+  ap_mld_mac: sMacAddr
 
 sSonConfig:
   _type: struct

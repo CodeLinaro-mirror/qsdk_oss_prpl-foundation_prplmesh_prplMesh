@@ -623,17 +623,29 @@ public:
               const sMacAddr &parent_mac = beerocks::net::network_utils::ZERO_MAC);
 
     /**
+     * @brief remove IRE node and Agent object.
+     *
+     * Removes an IRE node and an Agent object if they exist.
+     *
+     * @param mac AL MAC of the gateway.
+     * @return True if success otherwise false.
+     */
+    bool remove_agent(const sMacAddr &mac);
+
+    /**
      * @brief add wireless backhaul node and Station object.
      *
      * Adds a wireless backhaul node and a Station object if they don't exist.
      *
      * @param mac MAC address of the wireless backhaul station.
      * @param parent_mac MAC address of the parent node in the legacy node structure.
+     * @param al_mac MAC address of the agent where the station is connected.
      * @return the existing Station if it was already there or the newly added Station otherwise.
      */
     std::shared_ptr<Station>
     add_backhaul_station(const sMacAddr &mac,
-                         const sMacAddr &parent_mac = beerocks::net::network_utils::ZERO_MAC);
+                         const sMacAddr &parent_mac = beerocks::net::network_utils::ZERO_MAC,
+                         const sMacAddr &al_mac     = beerocks::net::network_utils::ZERO_MAC);
     bool add_eth_switch(const sMacAddr &mac,
                         const sMacAddr &parent_mac = beerocks::net::network_utils::ZERO_MAC);
     bool add_radio(const sMacAddr &mac,
@@ -1104,19 +1116,6 @@ public:
     //
     // Capabilities
     //
-
-    /**
-     * @brief Add optional sub-object of AP HE Capabilities data element,
-     * set values for its parameters.
-     * Example of full path to object:
-     * "Device.WiFi.DataElements.Netwok.Device.1.Radio.1.Capabilities.WiFi6Capabilities"
-     *
-     * @param he_caps_tlv TLV with AP HE Capabilities included in
-     * 'AP Capability Report' message
-     * @return True if sub-object was successfully added
-     * and values for its parameters set, false otherwise.
-     */
-    bool set_ap_he_capabilities(wfa_map::tlvApHeCapabilities &he_caps_tlv);
 
     /**
      * @brief Add optional sub-object of AP WIFI6 Capabilities data element,
@@ -2910,6 +2909,14 @@ private:
      * @return Path of device instance on success or empty string otherwise.
      */
     std::string dm_add_device_element(const sMacAddr &mac);
+
+    /**
+     * @brief Removes instance from the datamodel for the unique MAC
+     *
+     * @param[in] mac Mac address of the device
+     * @return True on success, false otherwise.
+     */
+    bool dm_remove_device_element(const sMacAddr &mac);
 
     /**
      * @brief Add station 'WiFi6Capabilities' data element, set values to its parameters.

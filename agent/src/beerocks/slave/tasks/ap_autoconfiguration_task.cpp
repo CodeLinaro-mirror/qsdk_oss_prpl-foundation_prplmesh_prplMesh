@@ -29,6 +29,7 @@
 #include <tlvf/ieee_1905_1/tlvSearchedRole.h>
 #include <tlvf/ieee_1905_1/tlvSupportedFreqBand.h>
 #include <tlvf/ieee_1905_1/tlvSupportedRole.h>
+#include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvApRadioIdentifier.h>
 #include <tlvf/wfa_map/tlvChannelScanReportingPolicy.h>
 #include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
@@ -1091,6 +1092,10 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_wsc_m2_tlv has failed!";
         return;
     }
+    if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, configs)) {
+        LOG(ERROR) << "handle_agent_ap_mld_configuration_tlv has failed!";
+        return;
+    }
 
     if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
         validate_reconfiguration(radio->front.iface_name, configs);
@@ -1598,6 +1603,78 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     return true;
 }
 
+bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::configData::config> &configs)
+{
+    auto db(AgentDB::get());
+
+    auto agent_ap_mld_configuration(cmdu_rx.getClass<wfa_map::tlvAgentApMldConfiguration>());
+    if (!agent_ap_mld_configuration) {
+        LOG(DEBUG) << "No tlvAgentApMldConfiguration TLV received";
+        return true;
+    }
+
+    for (uint8_t ap_mld_it = 0; ap_mld_it < agent_ap_mld_configuration->num_ap_mld(); ++ap_mld_it) {
+
+        std::tuple<bool, wfa_map::cApMld &> ap_mld_tuple(
+            agent_ap_mld_configuration->ap_mld(ap_mld_it));
+        if (!std::get<0>(ap_mld_tuple)) {
+            LOG(ERROR) << "Couldn't get AP MLD from tlvAgentApMldConfiguration";
+            return false;
+        }
+        wfa_map::cApMld &ap_mld = std::get<1>(ap_mld_tuple);
+
+        std::string ssid(ap_mld.ssid_str());
+        if (ssid.empty()) {
+            LOG(ERROR) << "SSID is empty in tlvAgentApMldConfiguration";
+            return false;
+        }
+
+        int mld_id(-1);
+        for (size_t mld_confs_it = 0; mld_confs_it != db->mld_configurations.size();
+             ++mld_confs_it) {
+            if (ssid == db->mld_configurations[mld_confs_it].ssid) {
+                mld_id = mld_confs_it;
+                break;
+            }
+        }
+        if (mld_id == -1) {
+            mld_id = db->mld_configurations.size();
+            db->mld_configurations.push_back(AgentDB::sMLDConfiguration());
+            db->mld_configurations[mld_id].ssid = ssid;
+        }
+
+        AgentDB::sMLDConfiguration &mld_conf(db->mld_configurations[mld_id]);
+        mld_conf.str   = ap_mld.modes().str;
+        mld_conf.nstr  = ap_mld.modes().nstr;
+        mld_conf.emlsr = ap_mld.modes().emlsr;
+        mld_conf.emlmr = ap_mld.modes().emlmr;
+        mld_conf.affiliated_aps.clear();
+
+        for (uint8_t affiliated_ap_it = 0; affiliated_ap_it < ap_mld.num_affiliated_ap();
+             ++affiliated_ap_it) {
+            std::tuple<bool, wfa_map::cAffiliatedAp &> affiliated_ap_tuple(
+                ap_mld.affiliated_ap(affiliated_ap_it));
+            if (!std::get<0>(affiliated_ap_tuple)) {
+                LOG(ERROR) << "Couldn't get Affiliated AP from APMLD SSID : " << ssid;
+                return false;
+            }
+
+            AgentDB::sMLDConfiguration::sAffiliatedAP affiliated_conf;
+            affiliated_conf.ruid = std::get<1>(affiliated_ap_tuple).ruid();
+            mld_conf.affiliated_aps.push_back(affiliated_conf);
+        }
+
+        for (auto &config : configs) {
+            if (config.ssid == ssid) {
+                config.mld_id = mld_id;
+            }
+        }
+    }
+
+    return true;
+}
+
 void ApAutoConfigurationTask::handle_vs_wifi_credentials_update_response(
     ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
 {
@@ -1787,8 +1864,14 @@ bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_authenticate(
                 WSC::cWscAttrAuthenticator::get_initial_size()];
     auto next = std::copy_n(radio_conf_params.m1_auth_buf, radio_conf_params.m1_auth_buf_len, buf);
     m2.swap(); // swap to get network byte order
-    std::copy_n(m2.getMessageBuff(),
-                m2.getMessageLength() - WSC::cWscAttrAuthenticator::get_initial_size(), next);
+
+    if (m2.getMessageLength() > WSC::cWscAttrAuthenticator::get_initial_size()) {
+        std::copy_n(m2.getMessageBuff(),
+                    m2.getMessageLength() - WSC::cWscAttrAuthenticator::get_initial_size(), next);
+    } else {
+        LOG(ERROR) << "Error: m2.getMessageLength() is less than "
+                      "WSC::cWscAttrAuthenticator::get_initial_size()";
+    }
     m2.swap(); // swap back
 
     uint8_t kwa[WSC::WSC_AUTHENTICATOR_LENGTH];
@@ -2174,6 +2257,7 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
         c->set_network_key(config.network_key);
         c->authentication_type_attr().data = config.auth_type;
         c->encryption_type_attr().data     = config.encr_type;
+        c->mld_id()                        = config.mld_id;
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

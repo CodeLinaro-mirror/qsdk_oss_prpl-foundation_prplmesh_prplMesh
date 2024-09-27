@@ -19,6 +19,13 @@ using namespace wbapi;
 namespace bwl {
 namespace whm {
 
+static struct {
+    std::mutex m_mutex;
+    const sta_wlan_hal_whm *owner;
+    std::set<sta_wlan_hal_whm const *> instances;
+    std::vector<int> empty_vector;
+} call_once_impl;
+
 sta_wlan_hal_whm::sta_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t callback,
                                    const bwl::hal_conf_t &hal_conf)
     : base_wlan_hal(bwl::HALType::Station, iface_name, IfaceType::Intel, callback, hal_conf),
@@ -38,6 +45,10 @@ sta_wlan_hal_whm::sta_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t
         m_ambiorix_cl.resolve_path(radRef + ".", m_radio_path);
     }
 
+    if (!m_ambiorix_cl.get_param(m_radio_info.iface_name, m_radio_path, "Name")) {
+        LOG(ERROR) << "Failed to update m_radio_info interface name";
+    }
+
     if (!m_ep_path.empty() && hal_conf.is_repeater) {
         // Enable the endpoint instance
         AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
@@ -51,7 +62,49 @@ sta_wlan_hal_whm::sta_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t
     subscribe_to_scan_complete_events();
 }
 
-sta_wlan_hal_whm::~sta_wlan_hal_whm() { sta_wlan_hal_whm::detach(); }
+const std::vector<int> &sta_wlan_hal_whm::get_ext_events_fds() const
+{
+
+    std::lock_guard<std::mutex> lock(call_once_impl.m_mutex);
+
+    if (call_once_impl.owner == nullptr) {
+        call_once_impl.owner = this;
+    }
+
+    if (call_once_impl.instances.find(this) == call_once_impl.instances.end()) {
+        call_once_impl.instances.insert(this);
+        LOG(DEBUG) << "add " << this << " to instance list";
+    } else {
+        LOG(DEBUG) << "second call for " << this;
+    }
+
+    if (call_once_impl.owner == this) {
+        LOG(DEBUG) << "first call return good values";
+        return (m_fds_ext_events);
+    } else {
+        LOG(DEBUG) << "return empty vector";
+        return call_once_impl.empty_vector;
+    }
+}
+
+sta_wlan_hal_whm::~sta_wlan_hal_whm()
+{
+    std::lock_guard<std::mutex> lock(call_once_impl.m_mutex);
+
+    if (call_once_impl.owner == this) {
+        LOG(DEBUG) << "reset owner " << this;
+        call_once_impl.owner = nullptr;
+    }
+
+    auto it = call_once_impl.instances.find(this);
+
+    if (it != call_once_impl.instances.end()) {
+        call_once_impl.instances.erase(it);
+    } else {
+        LOG(INFO) << "should not happen";
+    }
+    sta_wlan_hal_whm::detach();
+}
 
 void sta_wlan_hal_whm::subscribe_to_ep_events()
 {
@@ -348,7 +401,7 @@ bool sta_wlan_hal_whm::set_profile(Profile &profile)
     int profile_id = find_profile_by_alias(profile.alias);
     if (profile_id <= 0) {
         // Add a new profile
-        profile_id = add_profile();
+        profile_id = add_profile(profile.alias);
         if (profile_id <= 0) {
             LOG(ERROR) << "Failed (" << profile_id
                        << ") adding new profile to interface: " << get_iface_name();
@@ -492,6 +545,19 @@ bool sta_wlan_hal_whm::reassociate()
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
+            if (endpoint.multi_ap_profile) {
+                msg->multi_ap_profile = endpoint.multi_ap_profile;
+            } else {
+                msg->multi_ap_profile = 1;
+                LOG(ERROR) << "Failed reading 'multi_ap_profile' parameter!";
+            }
+
+            // Multi-AP Primary VLAN ID - Not mandatory
+            if (endpoint.multi_ap_primary_vlanid) {
+                msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
+            } else {
+                msg->multi_ap_primary_vlan_id = 0;
+            }
             event_queue_push(Event::Connected, msg_buff);
         } else {
             LOG(TRACE) << "reassociate: - Toggle EP";
@@ -548,12 +614,13 @@ bool sta_wlan_hal_whm::update_status()
     return true;
 }
 
-int sta_wlan_hal_whm::add_profile()
+int sta_wlan_hal_whm::add_profile(const std::string &alias)
 {
     // Path example: WiFi.EndPoint.[IntfName == 'wlan0'].Profile+
     std::string profiles_path = m_ep_path + "Profile.";
     int profile_id            = -1;
-    AmbiorixVariant obj_data(nullptr, false);
+    AmbiorixVariant obj_data(AMXC_VAR_ID_HTABLE);
+    obj_data.add_child("Alias", alias);
     bool ret = m_ambiorix_cl.add_instance(profiles_path, obj_data, profile_id);
     if (!ret) {
         LOG(ERROR) << "Failed to add profile instance " << get_iface_name();
@@ -591,8 +658,6 @@ bool sta_wlan_hal_whm::set_profile_params(const Profile &profile)
     std::string profile_path = m_ep_path + "Profile." + std::to_string(profile.id) + ".";
     AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
 
-    // Set Alias
-    params.add_child("Alias", profile.alias);
     // Set SSID
     params.add_child("SSID", profile.ssid);
     bool ret = m_ambiorix_cl.update_object(profile_path, params);
@@ -672,6 +737,8 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
     }
 
     endpoint_obj->read_child(endpoint.connection_status, "ConnectionStatus");
+    endpoint_obj->read_child(endpoint.multi_ap_profile, "MultiAPProfile");
+    endpoint_obj->read_child(endpoint.multi_ap_primary_vlanid, "MultiAPVlanId");
 
     std::string ssid_ref, ssid_path;
     if (endpoint_obj->read_child(ssid_ref, "SSIDReference") &&
@@ -755,6 +822,19 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
+            if (endpoint.multi_ap_profile) {
+                msg->multi_ap_profile = endpoint.multi_ap_profile;
+            } else {
+                msg->multi_ap_profile = 1;
+                LOG(ERROR) << "Failed reading 'multi_ap_profile' parameter!";
+            }
+
+            // Multi-AP Primary VLAN ID - Not mandatory
+            if (endpoint.multi_ap_primary_vlanid) {
+                msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
+            } else {
+                msg->multi_ap_primary_vlan_id = 0;
+            }
             event_queue_push(Event::Connected, msg_buff);
         } else if (is_connected(old_status)) {
             auto msg_buff =

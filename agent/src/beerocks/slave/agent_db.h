@@ -11,6 +11,7 @@
 #include "cac_capabilities.h"
 #include "tasks/task_messages.h"
 #include <bcl/beerocks_defines.h>
+#include <bcl/beerocks_mac_map.h>
 #include <bcl/beerocks_wifi_channel.h>
 #include <bcl/network/network_utils.h>
 #include <bcl/son/son_wireless_utils.h>
@@ -263,7 +264,8 @@ public:
                 bool backhaul_bss;
                 bool backhaul_bss_disallow_profile1_agent_association;
                 bool backhaul_bss_disallow_profile2_agent_association;
-                bool active = false;
+                bool active    = false;
+                int8_t link_id = -1;
             };
             uint8_t radio_max_bss = 0;
             std::array<sBssid, eBeeRocksIfaceIds::IFACE_TOTAL_VAPS> bssids{};
@@ -583,6 +585,30 @@ public:
      * we update the time stamp in which the message is received.
      */
     std::unordered_map<sMacAddr, std::unordered_map<sMacAddr, sNeighborDevice>> neighbor_devices;
+
+    /**
+     * Internal structure to keep MLO configuration configured
+     * Vector index corresponds to the MLDUnit they are linked to
+     */
+    typedef struct {
+        std::string ssid;
+        sMacAddr mac;
+
+        bool str;
+        bool nstr;
+        bool emlsr;
+        bool emlmr;
+
+        typedef struct {
+            std::string alias;
+            sMacAddr ruid;
+            sMacAddr bssid;
+            int8_t link_id;
+        } sAffiliatedAP;
+
+        std::vector<sAffiliatedAP> affiliated_aps;
+    } sMLDConfiguration;
+    std::vector<sMLDConfiguration> mld_configurations;
 
 private:
     std::list<sRadio> m_radios;

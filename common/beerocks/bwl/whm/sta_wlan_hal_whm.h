@@ -67,6 +67,9 @@ public:
     std::string get_bssid() override;
     std::string get_wireless_backhaul_mac() override;
 
+    const std::vector<int> &get_ext_events_fds() const;
+    bool unique_file_descriptors() const { return false; }
+
 protected:
     // Overload for Monitor events
     bool event_queue_push(sta_wlan_hal::Event event, std::shared_ptr<void> data = {})
@@ -107,6 +110,8 @@ private:
         std::string bssid;
         std::string ssid;
         std::string connection_status;
+        uint8_t multi_ap_profile;
+        uint16_t multi_ap_primary_vlanid;
         int channel;
         int active_profile_id;
     };
@@ -124,7 +129,7 @@ private:
     };
 
     bool set_profile(Profile &profile);
-    int add_profile();
+    int add_profile(const std::string &alias);
     int find_profile_by_alias(const std::string &alias);
     int remove_profile(int profile_id);
     bool set_profile_params(const Profile &profile);

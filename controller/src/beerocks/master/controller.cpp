@@ -832,7 +832,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
         }
     }
 
-    return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
+    return son_actions::send_cmdu_to_agent(al_mac, cmdu_tx, database);
 }
 
 /**
@@ -1681,19 +1681,6 @@ bool Controller::handle_tlv_ap_wifi6_capabilities(ieee1905_1::CmduMessageRx &cmd
     return ret_val;
 }
 
-bool Controller::handle_tlv_ap_he_capabilities(ieee1905_1::CmduMessageRx &cmdu_rx)
-{
-    bool ret_val = true;
-
-    for (const auto &ap_he_caps_tlv : cmdu_rx.getClassList<wfa_map::tlvApHeCapabilities>()) {
-        if (!database.set_ap_he_capabilities(*ap_he_caps_tlv)) {
-            LOG(ERROR) << "Couldn't set values for AP WiFi6Capabilities data model";
-            ret_val = false;
-        }
-    }
-    return ret_val;
-}
-
 bool Controller::handle_tlv_apCapability(ieee1905_1::CmduMessageRx &cmdu_rx,
                                          std::shared_ptr<Agent> agent)
 {
@@ -1990,10 +1977,6 @@ bool Controller::handle_cmdu_1905_ap_capability_report(const sMacAddr &src_mac,
         LOG(ERROR) << "Couldn't handle TLV AP HT Capabilities";
         return false;
     }
-    if (!handle_tlv_ap_he_capabilities(cmdu_rx)) {
-        LOG(ERROR) << "Couldn't handle TLV AP HE Capabilities";
-        return false;
-    }
     if (!handle_tlv_ap_vht_capabilities(cmdu_rx)) {
         LOG(ERROR) << "Couldn't handle TLV AP VHTCapabilities";
         return false;
@@ -2227,7 +2210,8 @@ bool Controller::handle_cmdu_1905_backhaul_sta_capability_report_message(
     const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto mid = cmdu_rx.getMessageId();
-    LOG(DEBUG) << "Received BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE, mid=" << std::hex << mid;
+    LOG(DEBUG) << "Received BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE, mid=" << std::hex << mid
+               << " from " << src_mac;
 
     for (auto bh_sta_radio_cap_tlv :
          cmdu_rx.getClassList<wfa_map::tlvBackhaulStaRadioCapabilities>()) {
@@ -2248,9 +2232,14 @@ bool Controller::handle_cmdu_1905_backhaul_sta_capability_report_message(
             radio->backhaul_station_mac = beerocks::net::network_utils::ZERO_MAC;
         }
 
+        auto sta_parent = database.get_sta_parent(tlvf::mac_to_string(radio->backhaul_station_mac));
         LOG(DEBUG) << "Backhaul STA of radio with ruid=" << bh_sta_radio_cap_tlv->ruid()
-                   << " is sta_mac=" << radio->backhaul_station_mac;
+                   << " is sta_mac=" << radio->backhaul_station_mac << " parent_mac=" << sta_parent;
 
+        if (radio->backhaul_station_mac != beerocks::net::network_utils::ZERO_MAC) {
+            database.add_backhaul_station(radio->backhaul_station_mac,
+                                          tlvf::mac_from_string(sta_parent), src_mac);
+        }
         database.dm_set_radio_bh_sta(*radio, radio->backhaul_station_mac);
     }
     return true;
@@ -2305,7 +2294,7 @@ bool Controller::handle_cmdu_1905_failed_connection_message(const sMacAddr &src_
     }
     if (status_code != 0) {
         if (!database.dm_add_failed_connection_event(bssid_tlv->bssid(), sta_mac_tlv->sta_mac(),
-                                                     status_code, reason_code)) {
+                                                     reason_code, status_code)) {
             LOG(ERROR) << "Failed to add FailedConnectionEvent.";
             return false;
         }
@@ -2437,8 +2426,10 @@ bool Controller::handle_intel_slave_join(
         if (parent_bssid_mac != beerocks::net::network_utils::ZERO_MAC) {
             //add a placeholder
             LOG(DEBUG) << "add a placeholder backhaul_mac = " << backhaul_mac
-                       << ", parent_bssid_mac = " << parent_bssid_mac;
-            database.add_backhaul_station(tlvf::mac_from_string(backhaul_mac), parent_bssid_mac);
+                       << ", parent_bssid_mac = " << parent_bssid_mac
+                       << ", bridge_mac = " << bridge_mac;
+            database.add_backhaul_station(tlvf::mac_from_string(backhaul_mac), parent_bssid_mac,
+                                          bridge_mac);
         } else if (database.get_sta_state(backhaul_mac) != beerocks::STATE_CONNECTED) {
             /* if the backhaul node doesn't exist, or is not already marked as connected,
             * we assume it is connected to the GW's LAN switch
@@ -3156,7 +3147,7 @@ bool Controller::handle_cmdu_control_message(
                   << "vaps_list:" << std::endl
                   << vaps_list;
 
-        for (auto vap : vaps_info) {
+        for (const auto &vap : vaps_info) {
             if (!database.update_bss(src_mac, radio_mac, tlvf::mac_from_string(vap.second.mac),
                                      vap.second.ssid)) {
                 LOG(ERROR) << "Failed to update VAP for radio " << radio_mac << " BSS "
@@ -4811,8 +4802,8 @@ bool Controller::send_unassociated_sta_link_metrics_query_message(
             son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
             LOG(DEBUG) << "removed  non_associated stations from  agent with mac_address "
                        << tlvf::mac_to_string(agent->al_mac);
-            return true;
         }
+        return true;
     }
 
     //now loop over all agents  and send a specific telemtry for each operating_class

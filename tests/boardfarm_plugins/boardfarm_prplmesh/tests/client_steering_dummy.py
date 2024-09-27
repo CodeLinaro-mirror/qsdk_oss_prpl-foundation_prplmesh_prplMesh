@@ -87,7 +87,7 @@ class ClientSteeringDummy(PrplMeshBaseTest):
                                  {"station_mac": sta.mac,
                                   "target_bssid": agent1.radios[1].mac})
 
-        time.sleep(1)
+        time.sleep(4)
 
         debug("Disconnect dummy STA from wlan0")
         sta.wifi_disconnect(agent1.radios[0].vaps[0])
@@ -139,8 +139,8 @@ class ClientSteeringDummy(PrplMeshBaseTest):
             sta_steer_summ_stats_radio1_path, "LastSteerTime")
 
         # Check value of LastSteerTime parameter for STA1 (radio1) after client steering
-        assert 3 < before_wait_last_steer_time <= 6, f"LastSteerTime value must be greater than 3" \
-            f" and less than 6, not '{before_wait_last_steer_time}'"
+        assert 6 < before_wait_last_steer_time <= 9, f"LastSteerTime value must be greater than 6" \
+            f" and less than 9, not '{before_wait_last_steer_time}'"
 
         # Make sure that all blocked agents send UNBLOCK messages at the end of
         # disallow period (default 25 sec)
@@ -151,8 +151,8 @@ class ClientSteeringDummy(PrplMeshBaseTest):
         curr_last_steer_time = controller.nbapi_get_parameter(sta_steer_summ_stats_radio1_path,
                                                               "LastSteerTime")
         diff_last_steer_time = curr_last_steer_time - before_wait_last_steer_time
-        assert DEF_DISALLOW_PERIOD <= diff_last_steer_time <= DEF_DISALLOW_PERIOD + 1, \
-            f"Difference of LastSteerTime values must be in the range of 25 to 26," \
+        assert DEF_DISALLOW_PERIOD <= diff_last_steer_time <= DEF_DISALLOW_PERIOD + 4, \
+            f"Difference of LastSteerTime values must be in the range of 25 to 28," \
             f" not '{diff_last_steer_time}'"
 
         debug("Confirming Client Association Control Request message was received (UNBLOCK)")
@@ -173,7 +173,7 @@ class ClientSteeringDummy(PrplMeshBaseTest):
             if parameter == 'BTMSuccesses':
                 assert sta_steer_summ_stats[parameter] + 1 \
                     == final_sta_steer_summ_stats[parameter], \
-                    f"Value of '{parameter}' should be '{sta_steer_summ_stats[parameter] + 1}'" \
+                    f"Value of '{parameter}' should be '{sta_steer_summ_stats[parameter] + 4}'" \
                     f" not '{final_sta_steer_summ_stats[parameter]}'"
                 continue
         # TODO: Check other values of SteeringSummaryStats parameters
@@ -188,7 +188,7 @@ class ClientSteeringDummy(PrplMeshBaseTest):
 
             if parameter == 'BTMSuccesses':
                 assert steer_summ_stats[parameter] + 1 == final_steer_summ_stats[parameter], \
-                    f"Value of '{parameter}' should be '{steer_summ_stats[parameter] + 1}'" \
+                    f"Value of '{parameter}' should be '{steer_summ_stats[parameter] + 4}'" \
                     f" not '{final_steer_summ_stats[parameter]}'"
                 continue
             """

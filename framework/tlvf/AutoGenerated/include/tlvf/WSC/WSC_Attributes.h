@@ -227,6 +227,7 @@ class cConfigData : public BaseClass
         bool alloc_network_key(size_t count = 1);
         sWscAttrBssid& bssid_attr();
         uint8_t& bss_type();
+        int8_t& mld_id();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -246,6 +247,7 @@ class cConfigData : public BaseClass
         size_t m_network_key_idx__ = 0;
         sWscAttrBssid* m_bssid_attr = nullptr;
         uint8_t* m_bss_type = nullptr;
+        int8_t* m_mld_id = nullptr;
 };
 
 class cWscAttrEncryptedSettings : public BaseClass

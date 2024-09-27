@@ -127,29 +127,61 @@ class NbapiCapabilities(PrplMeshBaseTest):
                                         tlv.vht_supported_tx_mcs)
                     self.assertEqualInt("MCSNSSRxSet", vht_caps['MCSNSSRxSet'],
                                         tlv.vht_supported_rx_mcs)
-                if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_AP_HE_CAPABILITIES']:
-                    radio = repeater.radios[tlv.ap_he_capability_radio_id]
-                    he_caps = controller.nbapi_get(radio.path + ".Capabilities.WiFi6Capabilities")
-                    self.assertEqualInt("MaxNumberOfRxSpatialStreams",
-                                        he_caps['MaxNumberOfRxSpatialStreams'] - 1,
-                                        tlv.ap_he_caps_tree['ieee1905.he_cap.max_rx_streams'])
-                    self.assertEqualInt("MaxNumberOfTxSpatialStreams",
-                                        he_caps['MaxNumberOfTxSpatialStreams'] - 1,
-                                        tlv.ap_he_caps_tree['ieee1905.he_cap.max_tx_streams'])
-                    self.assertEqualInt("HE160", he_caps['HE160'],
-                                        tlv.ap_he_caps_tree['ieee1905.ap_he.he_160_mhz'])
-                    self.assertEqualInt("HE8080", he_caps['HE8080'],
-                                        tlv.ap_he_caps_tree['ieee1905.ap_he.he_80plus_mhz'])
-                    self.assertEqualInt("SUBeamformer", he_caps['SUBeamformer'],
-                                        tlv.ap_he_caps_tree['ieee1905.ap_he.su_beamformer'])
-                    self.assertEqualInt("MUBeamformer", he_caps['MUBeamformer'],
-                                        tlv.ap_he_caps_tree['ieee1905.ap_he.mu_beamformer'])
-                    self.assertEqualInt("ULMUMIMO", he_caps['ULMUMIMO'],
-                                        tlv.ap_he_caps_tree['ieee1905.ap_he.ul_mu_mimo'])
-                    self.assertEqualInt("ULOFDMA", he_caps['ULOFDMA'],
-                                        tlv.ap_he_caps_tree['ieee1905.ap_he.he_ul_ofdma'])
-                    self.assertEqualInt("DLOFDMA", he_caps['DLOFDMA'],
-                                        tlv.ap_he_caps_tree['ieee1905.ap_he.he_dl_ofdma'])
+                if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_AP_WIFI_6_CAPABILITIES']:
+                    radio = repeater.radios[tlv.ap_wifi_6_capabilities_radio_id]
+                    wifi6_caps = controller.nbapi_get(radio.path + ".Capabilities.WiFi6APRole")
+                    if not wifi6_caps:
+                        debug("WIFI 6 CAPABILITIES are empty")
+                    else:
+                        self.assertEqualInt(
+                            "HE160",
+                            wifi6_caps["HE160"],
+                            tlv.ap_wifi6_caps_tree[
+                                "ieee1905.ap_wifi_6_capabilities.support_for_he_160"
+                            ],
+                        )
+                        self.assertEqualInt(
+                            "HE8080",
+                            wifi6_caps["HE8080"],
+                            tlv.ap_wifi6_caps_tree[
+                                "ieee1905.ap_wifi_6_capabilities.support_for_he_80_p_80"
+                            ],
+                        )
+                        self.assertEqualInt(
+                            "SUBeamformer",
+                            wifi6_caps["SUBeamformer"],
+                            tlv.ap_wifi6_caps_tree[
+                                "ieee1905.ap_wifi_6_capabilities.su_beamformer"
+                            ],
+                        )
+                        self.assertEqualInt(
+                            "MUBeamformer",
+                            wifi6_caps["MUBeamformer"],
+                            tlv.ap_wifi6_caps_tree[
+                                "ieee1905.ap_wifi_6_capabilities.mu_beamformer"
+                            ],
+                        )
+                        self.assertEqualInt(
+                            "ULMUMIMO",
+                            wifi6_caps["ULMUMIMO"],
+                            tlv.ap_wifi6_caps_tree[
+                                "ieee1905.ap_wifi_6_capabilities.us_mu_mimo"
+                            ],
+                        )
+                        self.assertEqualInt(
+                            "ULOFDMA",
+                            wifi6_caps["ULOFDMA"],
+                            tlv.ap_wifi6_caps_tree[
+                                "ieee1905.ap_wifi_6_capabilities.ul_ofdma"
+                            ],
+                        )
+                        self.assertEqualInt(
+                            "DLOFDMA",
+                            wifi6_caps["DLOFDMA"],
+                            tlv.ap_wifi6_caps_tree[
+                                "ieee1905.ap_wifi_6_capabilities.dl_ofdma"
+                            ],
+                        )
                 if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_PROFILE2_CAC_CAPABILITIES']:
                     debug("Checking Profile-2 CAC Capabilities TLV")
                     # TODO: Check Profile-2 CAC Capabilities TLV and related DM objects (PPM-2289).

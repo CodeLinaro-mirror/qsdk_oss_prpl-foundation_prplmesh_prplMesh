@@ -27,10 +27,10 @@ option (BUILD_AGENT "Build EasyMesh agent" ON)
 option (BUILD_CONTROLLER "Build EasyMesh controller" ON)
 
 option(BUILD_SHARED_LIBS "Build shared libraries (.so) instead of static ones (.a)" ON)
-option (ENABLE_NBAPI "Build the northbound (high-level) API" OFF)
+option (ENABLE_NBAPI "Build the northbound (high-level) API" ON)
 option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
-option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" OFF)
+option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
 ## Generic checks and defaults
 
@@ -74,8 +74,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # Default Compiler flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror -pthread -Wno-comment -Wno-unused-parameter -Wno-missing-field-initializers")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s -O2 -Wformat -Wformat-security -Wl,-S -fPIC -fPIE")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror -pthread -Wno-comment -Wno-unused-parameter -Wno-missing-field-initializers -fno-exceptions")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s -O2 -Wformat -Wformat-security -Wl,-S -fPIC -fPIE -fno-exceptions")
 
 # Compiler specific flags
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.1)
@@ -214,14 +214,6 @@ if (BUILD_CONTROLLER)
     add_subdirectory(controller)
 endif()
 
-## ACL
-if (BUILD_CONTROLLER AND ENABLE_NBAPI)
-    set(ACL_DIR etc/acl/admin)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/acl/admin/prplmesh.json.in ${CMAKE_CURRENT_SOURCE_DIR}/acl/admin/prplmesh.json)
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/acl/admin/prplmesh.json DESTINATION ${ACL_DIR})
-    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/acl/admin/prplmesh.json DESTINATION "${CMAKE_MULTIAP_OUTPUT_DIRECTORY}/${ACL_DIR}}")
-endif()
-
 ## Version
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/version.in"
@@ -229,3 +221,15 @@ configure_file(
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/version DESTINATION config)
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/version DESTINATION "${CMAKE_MULTIAP_OUTPUT_DIRECTORY}/config")
+
+## ACL file path in the final prplOS image
+set(ACL_DIR /etc/acl/admin)
+
+if (BUILD_CONTROLLER AND ENABLE_NBAPI)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/acl/admin/prplmesh.json.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/prplmesh.json"
+    )
+
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/prplmesh.json DESTINATION ${ACL_DIR})
+endif()

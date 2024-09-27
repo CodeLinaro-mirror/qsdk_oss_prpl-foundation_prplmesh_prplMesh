@@ -5394,8 +5394,9 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         return false;
     }
     for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
-        auto &bss  = radio->front.bssids[vap_idx];
-        bss.active = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
+        auto &bss   = radio->front.bssids[vap_idx];
+        bss.link_id = vaps[vap_idx].link_id;
+        bss.active  = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
         if (!bss.active) {
             // Set all values to their default state
             bss.iface_name                                       = "";
@@ -5421,6 +5422,19 @@ bool slave_thread::update_vaps_info(const std::string &iface,
                    << ", fBSS: " << bss.fronthaul_bss << ", bBSS: " << bss.backhaul_bss
                    << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
                    << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association;
+
+        for (auto &mld_conf : db->mld_configurations) {
+            if (mld_conf.ssid == bss.ssid) {
+                mld_conf.mac = vaps[vap_idx].ap_mld_mac;
+                for (auto &affiliated_ap : mld_conf.affiliated_aps) {
+                    if (affiliated_ap.ruid == radio->front.iface_mac) {
+                        affiliated_ap.bssid = bss.mac;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
     }
     return true;
 }

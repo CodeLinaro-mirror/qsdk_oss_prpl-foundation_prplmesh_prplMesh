@@ -144,6 +144,9 @@ cConfigData:
   bss_type:
     _type: uint8_t
     _value: TEARDOWN
+  mld_id:
+    _type: int8_t
+    _value: 0
 
 cWscAttrEncryptedSettings:
   _type: class

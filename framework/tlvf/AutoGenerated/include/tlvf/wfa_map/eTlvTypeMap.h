@@ -114,6 +114,16 @@ enum class eTlvTypeMap : uint8_t {
     TLV_VIRTUAL_BSS = 0xde,
     TLV_SPATIAL_REUSE_REQUEST = 0xd8,
     TLV_SPATIAL_REUSE_REPORT = 0xd9,
+    TLV_WIFI_7_AGENT_CAPABILITIES = 0xdf,
+    TLV_AGENT_AP_MLD_CONFIGURATION = 0xe0,
+    TLV_BACKHAUL_STA_MLD_CONFIGURATION = 0xe1,
+    TLV_ASSOCIATED_STA_MLD_CONFIGURATION_REPORT = 0xe2,
+    TLV_MLD_STRUCTURE = 0xe3,
+    TLV_AFFILIATED_STA_METRICS = 0xe4,
+    TLV_AFFILIATED_AP_METRICS = 0xe5,
+    TLV_TID_TO_LINK_MAPPING_POLICY = 0xe6,
+    TLV_EHT_OPERATIONS = 0xe7,
+    TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST = 0xe8,
     TLV_AP_WIFI_6_CAPABILITIES = 0xaa,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
@@ -213,6 +223,16 @@ static const char *eTlvTypeMap_str(eTlvTypeMap enum_value) {
     case eTlvTypeMap::TLV_VIRTUAL_BSS:                              return "eTlvTypeMap::TLV_VIRTUAL_BSS";
     case eTlvTypeMap::TLV_SPATIAL_REUSE_REQUEST:                    return "eTlvTypeMap::TLV_SPATIAL_REUSE_REQUEST";
     case eTlvTypeMap::TLV_SPATIAL_REUSE_REPORT:                     return "eTlvTypeMap::TLV_SPATIAL_REUSE_REPORT";
+    case eTlvTypeMap::TLV_WIFI_7_AGENT_CAPABILITIES:                return "eTlvTypeMap::TLV_WIFI_7_AGENT_CAPABILITIES";
+    case eTlvTypeMap::TLV_AGENT_AP_MLD_CONFIGURATION:               return "eTlvTypeMap::TLV_AGENT_AP_MLD_CONFIGURATION";
+    case eTlvTypeMap::TLV_BACKHAUL_STA_MLD_CONFIGURATION:           return "eTlvTypeMap::TLV_BACKHAUL_STA_MLD_CONFIGURATION";
+    case eTlvTypeMap::TLV_ASSOCIATED_STA_MLD_CONFIGURATION_REPORT:  return "eTlvTypeMap::TLV_ASSOCIATED_STA_MLD_CONFIGURATION_REPORT";
+    case eTlvTypeMap::TLV_MLD_STRUCTURE:                            return "eTlvTypeMap::TLV_MLD_STRUCTURE";
+    case eTlvTypeMap::TLV_AFFILIATED_STA_METRICS:                   return "eTlvTypeMap::TLV_AFFILIATED_STA_METRICS";
+    case eTlvTypeMap::TLV_AFFILIATED_AP_METRICS:                    return "eTlvTypeMap::TLV_AFFILIATED_AP_METRICS";
+    case eTlvTypeMap::TLV_TID_TO_LINK_MAPPING_POLICY:               return "eTlvTypeMap::TLV_TID_TO_LINK_MAPPING_POLICY";
+    case eTlvTypeMap::TLV_EHT_OPERATIONS:                           return "eTlvTypeMap::TLV_EHT_OPERATIONS";
+    case eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST:       return "eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST";
     case eTlvTypeMap::TLV_AP_WIFI_6_CAPABILITIES:                   return "eTlvTypeMap::TLV_AP_WIFI_6_CAPABILITIES";
     }
     static std::string out_str = std::to_string(int(enum_value));
@@ -319,6 +339,16 @@ public:
         case 0xde:
         case 0xd8:
         case 0xd9:
+        case 0xdf:
+        case 0xe0:
+        case 0xe1:
+        case 0xe2:
+        case 0xe3:
+        case 0xe4:
+        case 0xe5:
+        case 0xe6:
+        case 0xe7:
+        case 0xe8:
         case 0xaa:
                 ret = true;
                 break;

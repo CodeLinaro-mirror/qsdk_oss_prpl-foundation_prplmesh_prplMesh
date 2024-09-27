@@ -1239,7 +1239,7 @@ void channel_selection_task::ccl_fill_supported_channels()
 
     /*1. Fill active channel list with the suppoted channels and
         2. Initialize all the supported channels as available in active list to start with*/
-    for (auto hostap_channel : hostap_supported_channels) {
+    for (const auto &hostap_channel : hostap_supported_channels) {
         if (hostap_channel.get_bandwidth() == beerocks::BANDWIDTH_20 &&
             hostap_channel.get_channel() > 0) {
             sCandidateChannel cc;

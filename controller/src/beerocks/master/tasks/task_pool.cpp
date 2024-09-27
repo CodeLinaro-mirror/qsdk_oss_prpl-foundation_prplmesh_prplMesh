@@ -61,7 +61,7 @@ void task_pool::push_event(int task_id, int event_type, void *obj)
 void task_pool::pending_task_ended(int task_id)
 {
     //TODO find a more efficient way for this
-    for (auto t : m_scheduled_tasks) {
+    for (const auto &t : m_scheduled_tasks) {
         t.second->pending_task_ended(task_id);
     }
 }

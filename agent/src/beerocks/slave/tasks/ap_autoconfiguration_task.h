@@ -169,6 +169,8 @@ private:
                            const std::vector<WSC::m2> &m2_list,
                            std::vector<WSC::configData::config> &configs,
                            std::unordered_set<std::string> &misconfigured_ssids);
+    bool handle_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                               std::vector<WSC::configData::config> &configs);
 
     bool handle_ap_autoconfiguration_wsc_vs_extension_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                           const std::string &radio_iface);

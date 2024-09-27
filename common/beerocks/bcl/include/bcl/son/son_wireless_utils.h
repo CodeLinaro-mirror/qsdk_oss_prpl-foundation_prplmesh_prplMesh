@@ -115,6 +115,7 @@ public:
         bool backhaul                                     = false;
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
+        int8_t mld_id                                     = -1;
     } sBssInfoConf;
 
     typedef struct {

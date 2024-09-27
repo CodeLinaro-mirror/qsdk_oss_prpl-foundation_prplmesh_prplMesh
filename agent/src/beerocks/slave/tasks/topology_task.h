@@ -136,6 +136,13 @@ private:
      */
     bool add_vs_tlv_bssid_iface_mapping();
 
+    /**
+     * @brief Add and fill agent_ap_mld_configuration tlv.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_agent_ap_mld_configuration_tlv();
+
     std::chrono::steady_clock::time_point m_periodic_discovery_timestamp;
 
     bool m_pending_to_send_topology_notification = false;

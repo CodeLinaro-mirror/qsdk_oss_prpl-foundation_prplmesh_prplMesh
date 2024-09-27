@@ -387,6 +387,7 @@ bool cConfigData::alloc_ssid(size_t count) {
     m_network_key = (char *)((uint8_t *)(m_network_key) + len);
     m_bssid_attr = (sWscAttrBssid *)((uint8_t *)(m_bssid_attr) + len);
     m_bss_type = (uint8_t *)((uint8_t *)(m_bss_type) + len);
+    m_mld_id = (int8_t *)((uint8_t *)(m_mld_id) + len);
     m_ssid_idx__ += count;
     *m_ssid_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -472,6 +473,7 @@ bool cConfigData::alloc_network_key(size_t count) {
     }
     m_bssid_attr = (sWscAttrBssid *)((uint8_t *)(m_bssid_attr) + len);
     m_bss_type = (uint8_t *)((uint8_t *)(m_bss_type) + len);
+    m_mld_id = (int8_t *)((uint8_t *)(m_mld_id) + len);
     m_network_key_idx__ += count;
     *m_network_key_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -487,6 +489,10 @@ sWscAttrBssid& cConfigData::bssid_attr() {
 
 uint8_t& cConfigData::bss_type() {
     return (uint8_t&)(*m_bss_type);
+}
+
+int8_t& cConfigData::mld_id() {
+    return (int8_t&)(*m_mld_id);
 }
 
 void cConfigData::class_swap()
@@ -538,6 +544,7 @@ size_t cConfigData::get_initial_size()
     class_size += sizeof(uint16_t); // network_key_length
     class_size += sizeof(sWscAttrBssid); // bssid_attr
     class_size += sizeof(uint8_t); // bss_type
+    class_size += sizeof(int8_t); // mld_id
     return class_size;
 }
 
@@ -609,6 +616,12 @@ bool cConfigData::init()
     if (!m_parse__) *m_bss_type = TEARDOWN;
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_mld_id = reinterpret_cast<int8_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_mld_id = 0x0;
+    if (!buffPtrIncrementSafe(sizeof(int8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(int8_t) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

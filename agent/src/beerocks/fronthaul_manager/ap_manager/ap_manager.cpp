@@ -23,6 +23,7 @@
 
 #include "tlvf/wfa_map/tlvClientInfo.h"
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
+#include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
 #include <tlvf/wfa_map/tlvBssid.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 #include <tlvf/wfa_map/tlvClientCapabilityReport.h>
@@ -59,6 +60,8 @@ constexpr auto fsm_timer_period = std::chrono::milliseconds(1000);
  * unknown stations on a new VBSS.
  */
 constexpr auto vbss_deauth_unknown_stas_grace_period = std::chrono::milliseconds(2000);
+
+constexpr auto wait_for_vaps_enable_timeout_sec = std::chrono::seconds(10);
 
 #define SELECT_TIMEOUT_MSC 1000
 #define ACS_READ_SLEEP_USC 1000
@@ -121,6 +124,8 @@ static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
             curr_vap.profile1_backhaul_sta_association_disallowed;
         vaps[i].profile2_backhaul_sta_association_disallowed =
             curr_vap.profile2_backhaul_sta_association_disallowed;
+        vaps[i].ap_mld_mac = tlvf::mac_from_string(curr_vap.ap_mld_mac);
+        vaps[i].link_id    = curr_vap.link_id;
     }
 }
 
@@ -1880,6 +1885,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.authentication_type = config_data.authentication_type_attr().data;
             bss_info_conf.encryption_type     = config_data.encryption_type_attr().data;
             bss_info_conf.network_key         = config_data.network_key_str();
+            bss_info_conf.mld_id              = config_data.mld_id();
 
             bss_info_conf_list.push_back(bss_info_conf);
         }
@@ -1906,6 +1912,21 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
                                                 backhaul_wps_passphrase, bridge_name);
 
+            auto vap_timeout = std::chrono::steady_clock::now() + wait_for_vaps_enable_timeout_sec;
+            bool all_vaps_enabled = false;
+            while (std::chrono::steady_clock::now() < vap_timeout) {
+                LOG(INFO) << "Checking vap status";
+                if (ap_wlan_hal->get_vap_status(bss_info_conf_list)) {
+                    LOG(INFO) << "All vaps are enabled, break";
+                    all_vaps_enabled = true;
+                    break;
+                }
+                UTILS_SLEEP_MSEC(500);
+            }
+            if (all_vaps_enabled == false) {
+                LOG(ERROR) << "All the vaps are not yet enabled";
+                return;
+            }
             // hostapd is enabled and started radio beaconing after autoconfiguration
             // then radio tx power is updated, so to keep agent DB updated send CSA notification
             // like it is handled in cACTION_APMANAGER_ENABLE_APS_REQUEST.
@@ -2675,6 +2696,31 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         }
 
         auto mgmt_frame = static_cast<bwl::sMGMT_FRAME_NOTIFICATION *>(data);
+
+        if (mgmt_frame->type == bwl::eManagementFrameType::RADIO_MEASUREMENT_REPORT) {
+            LOG(DEBUG) << "Received RADIO_MEASUREMENT_REPORT from " << mgmt_frame->mac;
+
+            auto cmdu_tx_header =
+                cmdu_tx.create(0, ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE);
+
+            if (!cmdu_tx_header) {
+                LOG(ERROR) << "cmdu creation of type BEACON_METRICS_RESPONSE_MESSAGE failed!";
+                return false;
+            }
+
+            auto tlvBeaconMetricsResponse = cmdu_tx.addClass<wfa_map::tlvBeaconMetricsResponse>();
+            if (!tlvBeaconMetricsResponse) {
+                LOG(ERROR) << "addClass tlvBeaconMetricsResponse failed!";
+                return false;
+            }
+
+            tlvBeaconMetricsResponse->associated_sta_mac() = mgmt_frame->mac;
+
+            // TODO: PPM-2971
+            LOG(DEBUG) << "Sending BEACON_METRICS_RESPONSE_MESSAGE";
+            send_cmdu(cmdu_tx);
+            return true;
+        }
 
         // Convert the BWL type to a tunnelled message type
         wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType tunnelled_proto_type;
