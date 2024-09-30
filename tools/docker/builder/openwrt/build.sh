@@ -102,7 +102,7 @@ main() {
 
     eval set -- "$OPTS"
 
-    SUPPORTED_TARGETS="turris-omnia haze urx_osp freedom"
+    SUPPORTED_TARGETS="turris-omnia haze urx_osp urx_ospv2 freedom"
 
     while true; do
         case "$1" in
@@ -138,6 +138,9 @@ main() {
         urx_osp)
             TARGET_SYSTEM=mxl_x86_osp_tb341
             ;;
+        urx_ospv2)
+            TARGET_SYSTEM=mxl_x86_osp_tb341_v2
+            ;;
         freedom)
             TARGET_SYSTEM=qca_ipq95xx
             ;;
@@ -155,10 +158,10 @@ main() {
         dbg "Haze platform, build on prplos master + pWHM 5.34.0"
         OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
-    elif [[ "urx_osp" == "$TARGET_DEVICE" ]] ; then
-        dbg "OSP platform, build on prplos UPDK 9.1.50 + pWHM 5.34.0"
-        OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
-        OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+    elif [[ "urx_osp" == "$TARGET_DEVICE" ]] || [[ "urx_ospv2" == "$TARGET_DEVICE" ]] ; then
+        dbg "OSP platform, build on mainline prplOS 3.2 + UPDK 9.1.70"
+        OPENWRT_TOOLCHAIN_VERSION='9ebab872507a68cefd49b4ed2b1eb8b774d2d14d'
+        OPENWRT_VERSION='9ebab872507a68cefd49b4ed2b1eb8b774d2d14d'
     elif [[ "freedom" == "$TARGET_DEVICE" ]] ; then
         dbg "Freedom platform, prplOS mainline + pWHM latest + endpoints"
         OPENWRT_TOOLCHAIN_VERSION='f039941c153f774188107cfc98850703e4725322'
