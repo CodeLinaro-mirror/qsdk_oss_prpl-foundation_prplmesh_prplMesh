@@ -1,0 +1,79 @@
+diff --git a/ci/platform.yml b/ci/platform.yml
+index 2d7137292..ede326dd5 100644
+--- a/ci/platform.yml
++++ b/ci/platform.yml
+@@ -258,7 +258,7 @@ run-certification-tests-R4-platform-essensium:
+     - echo "$TESTS_TO_RUN_R4_ESSENSIUM" > .tests-to-run
+     - echo "$DEVICE_UNDER_TEST_R4_ESSENSIUM" > .device-under-test
+   rules:
+-    - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp"'
++    - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
+     - when: manual
+       allow_failure: true
+   tags:
+diff --git a/tools/deploy_firmware.py b/tools/deploy_firmware.py
+index d6b3aef05..05cd8dcd5 100755
+--- a/tools/deploy_firmware.py
++++ b/tools/deploy_firmware.py
+@@ -23,7 +23,7 @@ def main():
+                                      or using sysupgrade, depending on the target device.""")
+     parser.add_argument('-d', '--device',
+                         help="""Device to upgrade. Currently supported targets are:
+-                        turris-omnia haze urx_osp""", required=True)
++                        turris-omnia haze urx_osp urx_ospv2""", required=True)
+     parser.add_argument(
+         '-t',
+         '--target-name',
+diff --git a/tools/device/get_device.py b/tools/device/get_device.py
+index bd586a798..0ee6e111d 100644
+--- a/tools/device/get_device.py
++++ b/tools/device/get_device.py
+@@ -16,6 +16,7 @@ import device.turris_prplos
+ import device.turris_rdk_b
+ import device.haze
+ import device.urx_osp
++import device.urx_ospv2
+ import device.freedom
+ 
+ 
+@@ -38,7 +39,7 @@ def device_from_name(name: str, target_name: str, image: Union[str, None] = None
+         dev = device.turris_prplos.TurrisPrplOS(name, target_name, image)
+     elif name == "haze":
+         dev = device.haze.Haze(name, target_name, image)
+-    elif name == "urx_osp":
++    elif name == "urx_osp" or name == "urx_ospv2":
+         dev = device.urx_osp.URXOSP(name, target_name, image)
+     elif name == "freedom":
+         dev = device.freedom.Freedom(name, target_name, image)
+diff --git a/tools/docker/builder/openwrt/build.sh b/tools/docker/builder/openwrt/build.sh
+index 33477495a..773acb862 100755
+--- a/tools/docker/builder/openwrt/build.sh
++++ b/tools/docker/builder/openwrt/build.sh
+@@ -102,7 +102,7 @@ main() {
+ 
+     eval set -- "$OPTS"
+ 
+-    SUPPORTED_TARGETS="turris-omnia haze urx_osp freedom"
++    SUPPORTED_TARGETS="turris-omnia haze urx_osp urx_ospv2 freedom"
+ 
+     while true; do
+         case "$1" in
+@@ -138,6 +138,9 @@ main() {
+         urx_osp)
+             TARGET_SYSTEM=mxl_x86_osp_tb341
+             ;;
++        urx_ospv2)
++            TARGET_SYSTEM=mxl_x86_osp_tb341_v2
++            ;;
+         freedom)
+             TARGET_SYSTEM=qca_ipq95xx
+             ;;
+@@ -155,7 +158,7 @@ main() {
+         dbg "Haze platform, build on prplos master + pWHM 5.34.0"
+         OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+-    elif [[ "urx_osp" == "$TARGET_DEVICE" ]] ; then
++    elif [[ "urx_osp" == "$TARGET_DEVICE" ] || [ "urx_ospv2" == "$TARGET_DEVICE" ]] ; then
+         dbg "OSP platform, build on prplos UPDK 9.1.50 + pWHM 5.34.0"
+         OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
