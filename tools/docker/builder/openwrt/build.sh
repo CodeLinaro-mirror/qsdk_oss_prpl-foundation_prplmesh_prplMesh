@@ -102,7 +102,7 @@ main() {
 
     eval set -- "$OPTS"
 
-    SUPPORTED_TARGETS="turris-omnia haze urx_osp freedom"
+    SUPPORTED_TARGETS="turris-omnia haze urx_osp urx_ospv2 freedom"
 
     while true; do
         case "$1" in
@@ -137,6 +137,9 @@ main() {
             ;;
         urx_osp)
             TARGET_SYSTEM=mxl_x86_osp_tb341
+            ;;
+        urx_ospv2)
+            TARGET_SYSTEM=mxl_x86_osp_tb341_v2
             ;;
         freedom)
             TARGET_SYSTEM=qca_ipq95xx

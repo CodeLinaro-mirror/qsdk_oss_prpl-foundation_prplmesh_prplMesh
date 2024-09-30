@@ -23,7 +23,7 @@ def main():
                                      or using sysupgrade, depending on the target device.""")
     parser.add_argument('-d', '--device',
                         help="""Device to upgrade. Currently supported targets are:
-                        turris-omnia haze urx_osp""", required=True)
+                        turris-omnia haze urx_osp urx_ospv2""", required=True)
     parser.add_argument(
         '-t',
         '--target-name',
