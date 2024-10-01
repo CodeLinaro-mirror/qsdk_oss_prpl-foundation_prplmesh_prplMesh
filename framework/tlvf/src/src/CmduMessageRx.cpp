@@ -60,6 +60,7 @@
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvAssociatedWiFi6StaStatusReport.h>
 #include <tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.h>
+#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryResponse.h>
 #include <tlvf/wfa_map/tlvBackhaulBssConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
@@ -609,6 +610,9 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     }
     case (wfa_map::eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST): {
         return msg.addClass<wfa_map::tlvSpatialReuseReport>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_RESPONSE): {
+        return msg.addClass<wfa_map::tlvAvailableSpectrumInquiryResponse>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
