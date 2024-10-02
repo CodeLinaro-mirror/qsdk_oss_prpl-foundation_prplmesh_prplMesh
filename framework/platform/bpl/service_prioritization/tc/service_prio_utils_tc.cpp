@@ -53,7 +53,8 @@ bool ServicePrioritizationUtils_tc::apply_single_value_map(std::list<sInterfaceT
 
         // --- Filter for WiFi QoS Control priority ---
         std::string cmd = "tc filter add dev " + iface.iface_name +
-                          " protocol ip matchall action skbedit priority " + std::to_string(pcp);
+                          " protocol ip matchall action skbedit priority " +
+                          std::to_string(pcp + 100);
         beerocks::os_utils::system_call(cmd);
 
         // --- Filter for VLAN tag priority ---
@@ -112,7 +113,7 @@ bool ServicePrioritizationUtils_tc::apply_dscp_map(std::list<sInterfaceTagInfo> 
             std::string cmd = "tc filter add dev " + iface.iface_name +
                               " protocol ip u32 match ip dsfield 0x" +
                               string_utils::int_to_hex_string(dscp_value, 2) +
-                              " 0xFC action skbedit priority " + std::to_string(prio_value);
+                              " 0xFC action skbedit priority " + std::to_string(prio_value + 100);
             beerocks::os_utils::system_call(cmd);
 
             // --- Filter for VLAN tag priority ---
