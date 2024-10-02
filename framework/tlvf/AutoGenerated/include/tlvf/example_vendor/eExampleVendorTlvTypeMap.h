@@ -10,32 +10,32 @@
  * See LICENSE file for more details.
  */
 
-#ifndef _TLVF_SAMPLE_VENDOR_ESAMPLEVENDORTLVTYPEMAP_H_
-#define _TLVF_SAMPLE_VENDOR_ESAMPLEVENDORTLVTYPEMAP_H_
+#ifndef _TLVF_EXAMPLE_VENDOR_EEXAMPLEVENDORTLVTYPEMAP_H_
+#define _TLVF_EXAMPLE_VENDOR_EEXAMPLEVENDORTLVTYPEMAP_H_
 
 #include <cstddef>
 #include <stdint.h>
 #include <tlvf/swap.h>
 #include <ostream>
 
-namespace sample_vendor {
+namespace example_vendor {
 
-enum class eSampleVendorTlvTypeMap : uint8_t {
+enum class eExampleVendorTlvTypeMap : uint8_t {
     TLV_VENDOR_SPECIFIC = 0xb,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
-static const char *eSampleVendorTlvTypeMap_str(eSampleVendorTlvTypeMap enum_value) {
+static const char *eExampleVendorTlvTypeMap_str(eExampleVendorTlvTypeMap enum_value) {
     switch (enum_value) {
-    case eSampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC: return "eSampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC";
+    case eExampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC: return "eExampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
 }
-inline std::ostream &operator<<(std::ostream &out, eSampleVendorTlvTypeMap value) { return out << eSampleVendorTlvTypeMap_str(value); }
+inline std::ostream &operator<<(std::ostream &out, eExampleVendorTlvTypeMap value) { return out << eExampleVendorTlvTypeMap_str(value); }
 // clang-format on
 // Enum AutoPrint generated code snippet end
-class eSampleVendorTlvTypeMapValidate {
+class eExampleVendorTlvTypeMapValidate {
 public:
     static bool check(uint8_t value) {
         bool ret = false;
@@ -52,6 +52,6 @@ public:
 };
 
 
-}; // close namespace: sample_vendor
+}; // close namespace: example_vendor
 
-#endif //_TLVF/SAMPLE_VENDOR_ESAMPLEVENDORTLVTYPEMAP_H_
+#endif //_TLVF/EXAMPLE_VENDOR_EEXAMPLEVENDORTLVTYPEMAP_H_

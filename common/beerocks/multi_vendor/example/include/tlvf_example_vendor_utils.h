@@ -6,27 +6,25 @@
  * See LICENSE file for more details.
  */
 
-#ifndef __TLVF_SAMPLE_VENDOR_UTILS_H__
-#define __TLVF_SAMPLE_VENDOR_UTILS_H__
+#ifndef __TLVF_EXAMPLE_VENDOR_UTILS_H__
+#define __TLVF_EXAMPLE_VENDOR_UTILS_H__
 
 #include <tlvf/CmduMessageTx.h>
 
-#include <beerocks/tlvf/beerocks_message.h>
+namespace example_vendor {
 
-namespace sample_vendor {
-
-class tlvf_sample_vendor_utils {
+class tlvf_example_vendor_utils {
 public:
     /**
-     * @brief Adds a new Sample vendor TLV to given message.
+     * @brief Adds a new Example vendor TLV to given message.
      *
      * @param[in,out] cmdu_tx CDMU message.
      *
      * @return True on success and false otherwise.
      */
-    static bool add_sample_vendor_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+    static bool add_example_vendor_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 };
 
-} // namespace sample_vendor
+} // namespace example_vendor
 
-#endif // __TLVF_AIRTIES_UTILS_H__
+#endif // __TLVF_EXAMPLE_UTILS_H__

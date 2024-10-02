@@ -1,26 +1,26 @@
 #
 ---
 
-_namespace: sample_vendor
+_namespace: example_vendor
 
 _include:
   {
     tlvf/ieee_1905_1/sVendorOUI.h,
-    tlvf/sample_vendor/eSampleVendorTlvTypeMap.h,
+    tlvf/example_vendor/eExampleVendorTlvTypeMap.h,
   }
 
-tlvSampleVendor:
+tlvExampleVendor:
   _type: class
   _is_tlv_class: True
   type:
-    _type: eSampleVendorTlvTypeMap
+    _type: eExampleVendorTlvTypeMap
     _value_const: TLV_VENDOR_SPECIFIC
   length: uint16_t
   vendor_oui:
     _type: sVendorOUI
 
-sampleVendorOUI:
+exampleVendorOUI:
   _type: enum
   _enum_storage: uint32_t
   OUI_BYTES: 3
-  SAMPLE_OUI: 0x563412
+  EXAMPLE_OUI: 0x563412

@@ -1,9 +1,0 @@
-
-#
----
-_namespace: sample_vendor
-
-eSampleVendorTlvTypeMap:
-  _type: enum_class
-  _enum_storage: uint8_t
-  TLV_VENDOR_SPECIFIC: 0x0B

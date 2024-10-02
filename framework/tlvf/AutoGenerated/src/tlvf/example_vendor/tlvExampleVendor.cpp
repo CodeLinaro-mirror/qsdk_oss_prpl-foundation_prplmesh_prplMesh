@@ -10,40 +10,40 @@
  * See LICENSE file for more details.
  */
 
-#include <tlvf/sample_vendor/tlvSampleVendor.h>
+#include <tlvf/example_vendor/tlvExampleVendor.h>
 #include <tlvf/tlvflogging.h>
 
-using namespace sample_vendor;
+using namespace example_vendor;
 
-tlvSampleVendor::tlvSampleVendor(uint8_t* buff, size_t buff_len, bool parse) :
+tlvExampleVendor::tlvExampleVendor(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();
 }
-tlvSampleVendor::tlvSampleVendor(std::shared_ptr<BaseClass> base, bool parse) :
+tlvExampleVendor::tlvExampleVendor(std::shared_ptr<BaseClass> base, bool parse) :
 BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
     m_init_succeeded = init();
 }
-tlvSampleVendor::~tlvSampleVendor() {
+tlvExampleVendor::~tlvExampleVendor() {
 }
-const eSampleVendorTlvTypeMap& tlvSampleVendor::type() {
-    return (const eSampleVendorTlvTypeMap&)(*m_type);
+const eExampleVendorTlvTypeMap& tlvExampleVendor::type() {
+    return (const eExampleVendorTlvTypeMap&)(*m_type);
 }
 
-const uint16_t& tlvSampleVendor::length() {
+const uint16_t& tlvExampleVendor::length() {
     return (const uint16_t&)(*m_length);
 }
 
-sVendorOUI& tlvSampleVendor::vendor_oui() {
+sVendorOUI& tlvExampleVendor::vendor_oui() {
     return (sVendorOUI&)(*m_vendor_oui);
 }
 
-void tlvSampleVendor::class_swap()
+void tlvExampleVendor::class_swap()
 {
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_length));
     m_vendor_oui->struct_swap();
 }
 
-bool tlvSampleVendor::finalize()
+bool tlvExampleVendor::finalize()
 {
     if (m_parse__) {
         TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
@@ -71,25 +71,25 @@ bool tlvSampleVendor::finalize()
     return true;
 }
 
-size_t tlvSampleVendor::get_initial_size()
+size_t tlvExampleVendor::get_initial_size()
 {
     size_t class_size = 0;
-    class_size += sizeof(eSampleVendorTlvTypeMap); // type
+    class_size += sizeof(eExampleVendorTlvTypeMap); // type
     class_size += sizeof(uint16_t); // length
     class_size += sizeof(sVendorOUI); // vendor_oui
     return class_size;
 }
 
-bool tlvSampleVendor::init()
+bool tlvExampleVendor::init()
 {
     if (getBuffRemainingBytes() < get_initial_size()) {
         TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
         return false;
     }
-    m_type = reinterpret_cast<eSampleVendorTlvTypeMap*>(m_buff_ptr__);
-    if (!m_parse__) *m_type = eSampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC;
-    if (!buffPtrIncrementSafe(sizeof(eSampleVendorTlvTypeMap))) {
-        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eSampleVendorTlvTypeMap) << ") Failed!";
+    m_type = reinterpret_cast<eExampleVendorTlvTypeMap*>(m_buff_ptr__);
+    if (!m_parse__) *m_type = eExampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC;
+    if (!buffPtrIncrementSafe(sizeof(eExampleVendorTlvTypeMap))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eExampleVendorTlvTypeMap) << ") Failed!";
         return false;
     }
     m_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
@@ -107,8 +107,8 @@ bool tlvSampleVendor::init()
     if (!m_parse__) { m_vendor_oui->struct_init(); }
     if (m_parse__) { class_swap(); }
     if (m_parse__) {
-        if (*m_type != eSampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC) {
-            TLVF_LOG(ERROR) << "TLV type mismatch. Expected value: " << int(eSampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC) << ", received value: " << int(*m_type);
+        if (*m_type != eExampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC) {
+            TLVF_LOG(ERROR) << "TLV type mismatch. Expected value: " << int(eExampleVendorTlvTypeMap::TLV_VENDOR_SPECIFIC) << ", received value: " << int(*m_type);
             return false;
         }
     }

@@ -42,7 +42,7 @@ endif()
 
 add_executable(${PROJECT_NAME} ${beerocks_agent_sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
-target_link_libraries(${PROJECT_NAME} rt dl bcl btl tlvf elpp btlvf bwl bpl nbapi ${LIBS})
+target_link_libraries(${PROJECT_NAME} rt dl bcl btl tlvf elpp btlvf bwl bpl nbapi multi_vendor ${LIBS})
 
 if (ENABLE_NBAPI)
     # Include AMBIORIX in the build

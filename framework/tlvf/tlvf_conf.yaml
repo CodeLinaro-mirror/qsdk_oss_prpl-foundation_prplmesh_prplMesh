@@ -138,17 +138,9 @@ include_yaml_path: {
     "tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.yaml",
 
     #
-    # "airties/",
-    "tlvf/airties/eAirtiesTLVId.yaml",
-    "tlvf/airties/eAirtiesTlvTypeMap.yaml",
-    "tlvf/airties/tlvVersionReporting.yaml",
-    "tlvf/airties/supported_features.yaml",
-    "tlvf/airties/tlvAirtiesMsgType.yaml",
-
-    #
-    # "sample_vendor/",
-    "tlvf/sample_vendor/tlvSampleVendor.yaml",
-    "tlvf/sample_vendor/eSampleVendorTlvTypeMap.yaml",
+    # "example_vendor/",
+    "tlvf/example_vendor/tlvExampleVendor.yaml",
+    "tlvf/example_vendor/eExampleVendorTlvTypeMap.yaml",
 }
 
 # Relative to tlvf.py src_path variable

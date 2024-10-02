@@ -29,9 +29,9 @@
  */
 
 #include "capability_reporting_task.h"
-#include "../multi_vendor.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
+#include "multi_vendor.h"
 
 #include <tlvf/wfa_map/tlvApCapability.h>
 #include <tlvf/wfa_map/tlvApHeCapabilities.h>
@@ -179,16 +179,11 @@ void CapabilityReportingTask::handle_ap_capability_query(ieee1905_1::CmduMessage
         return;
     }
 
-    // Loop through each vendor OUI in the vector of vendors_oui.
-    for (auto oui : multi_vendor::tlvf_handler::vendors_oui) {
-        //For each vendor, attempt to add the appropriate TLV to the CMDU message.
-        // and the function add_tlv will use the vendor's OUI and
-        // msg_type(AP_CAPABILITY_REPORT_MESSAGE), to determine the correct TLV handler to invoke.
-        if (!multi_vendor::tlvf_handler::add_tlv(
-                oui, m_cmdu_tx, ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE)) {
-            LOG(ERROR) << "Failed invoking tlvf_handler";
-            return;
-        }
+    // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
+    // AP_CAPABILITY_REPORT_MESSAGE.
+    if (!multi_vendor::tlvf_handler::add_vs_tlv(
+            m_cmdu_tx, ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE)) {
+        LOG(ERROR) << "Failed adding few TLVs in AP_CAPABILITY_REPORT_MESSAGE";
     }
 
     auto ap_capability_tlv = m_cmdu_tx.addClass<wfa_map::tlvApCapability>();

@@ -9,9 +9,9 @@
 #include "ap_autoconfiguration_task.h"
 
 #include "../agent_db.h"
-#include "../multi_vendor.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
+#include "multi_vendor.h"
 
 #include "../traffic_separation.h"
 
@@ -50,7 +50,6 @@
 #include <bpl/bpl_cfg.h>
 
 #include <easylogging++.h>
-#include <vector>
 
 using namespace beerocks;
 using namespace net;
@@ -567,18 +566,11 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
         auto beerocks_header                      = message_com::get_beerocks_header(m_cmdu_tx);
         beerocks_header->actionhdr()->direction() = beerocks::BEEROCKS_DIRECTION_CONTROLLER;
 
-        // Loop through each vendor OUI in the vector of vendors_oui.
-        for (auto oui : multi_vendor::tlvf_handler::vendors_oui) {
-            // For each vendor, attempt to add the appropriate TLV to the CMDU message.
-            // and the function add_tlv will use the vendor's OUI and
-            // msg_type(AP_AUTOCONFIGURATION_SEARCH_MESSAGE),to determine the correct
-            // TLV handler to invoke.
-            if (!multi_vendor::tlvf_handler::add_tlv(
-                    oui, m_cmdu_tx,
-                    ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE)) {
-                LOG(ERROR) << "Failed invoking tlvf_handler for AP Search Message";
-                return false;
-            }
+        // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
+        // WSC search message.
+        if (!multi_vendor::tlvf_handler::add_vs_tlv(
+                m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE)) {
+            LOG(ERROR) << "Failed adding few TLVs in AP Search Message";
         }
         return true;
     };
@@ -698,18 +690,7 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     }
 
     if (!db->controller_info.prplmesh_controller) {
-        // Loop through each vendor OUI in the vector of vendors_oui.
-        for (auto oui : multi_vendor::tlvf_handler::vendors_oui) {
-            // For each vendor, attempt to add the appropriate TLV to the CMDU message.
-            // and the function add_tlv will use the vendor's OUI and
-            // msg_type(AP_AUTOCONFIGURATION_WSC_MESSAGE),to determine the correct
-            // TLV handler to invoke.
-            if (!multi_vendor::tlvf_handler::add_tlv(
-                    oui, m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE)) {
-                LOG(ERROR) << "Failed invoking tlvf_handler for M1 message";
-                return false;
-            }
-        }
+
         LOG(INFO) << "Configured as non-prplMesh, not sending SLAVE_JOINED_NOTIFICATION";
         m_btl_ctx.send_cmdu_to_controller(radio_iface, m_cmdu_tx);
         LOG(DEBUG) << "sending WSC M1 Size=" << m_cmdu_tx.getMessageLength();
@@ -841,19 +822,6 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
         radio->wifi_channel.get_ext_above_primary();
     notification->cs_params().vht_center_frequency = radio->wifi_channel.get_center_frequency();
     notification->cs_params().tx_power             = radio->tx_power_dB;
-
-    // Loop through each vendor OUI in the vector of vendors_oui.
-    for (auto oui : multi_vendor::tlvf_handler::vendors_oui) {
-        // For each vendor, attempt to add the appropriate TLV to the CMDU message.
-        // and the function add_tlv will use the vendor's OUI and
-        // msg_type(AP_AUTOCONFIGURATION_WSC_MESSAGE),to determine the correct
-        // TLV handler to invoke.
-        if (!multi_vendor::tlvf_handler::add_tlv(
-                oui, m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE)) {
-            LOG(ERROR) << "Failed invoking tlvf_handler for M1 message";
-            return false;
-        }
-    }
 
     m_btl_ctx.send_cmdu_to_controller(radio_iface, m_cmdu_tx);
     LOG(DEBUG) << "sending WSC M1 Size=" << m_cmdu_tx.getMessageLength();
