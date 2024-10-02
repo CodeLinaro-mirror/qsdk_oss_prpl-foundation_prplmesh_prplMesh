@@ -167,9 +167,10 @@ void ServicePrioritizationTask::gather_iface_details(
     bpl::ServicePrioritizationUtils::sInterfaceTagInfo iface = {};
 
     // vlan ids for all ifaces
-    iface.vlan_ids.insert(db->traffic_separation.primary_vlan_id);
-    iface.vlan_ids.insert(db->traffic_separation.secondary_vlans_ids.begin(),
-                          db->traffic_separation.secondary_vlans_ids.end());
+    std::unordered_set<uint16_t> common_vlan_ids;
+    common_vlan_ids.insert(db->traffic_separation.primary_vlan_id);
+    common_vlan_ids.insert(db->traffic_separation.secondary_vlans_ids.begin(),
+                           db->traffic_separation.secondary_vlans_ids.end());
 
     // bridge interface is configured as Primary VLAN ID untagged Port with primary VLAN ID
     iface.iface_name = db->bridge.iface_name;
@@ -280,6 +281,11 @@ void ServicePrioritizationTask::gather_iface_details(
                 }
             }
         }
+    }
+
+    // Setting common vlan_ids for all interfacesg
+    for (auto &interface : *iface_tag_info_list) {
+        interface.vlan_ids.insert(common_vlan_ids.begin(), common_vlan_ids.end());
     }
 }
 
