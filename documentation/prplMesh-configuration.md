@@ -1,7 +1,7 @@
 # Introduction
 
 prplMesh can be configured through different options.
-Depending on the platform, those options are set in different ways (see [Platform-specific files](#Platform-specific-files)).
+Depending on the platform, those options are set in different ways (see [Platform-specific files](#platform-specific-files)).
 
 For most platforms, changes in options are only taken into account after prplMesh is restarted.
 
