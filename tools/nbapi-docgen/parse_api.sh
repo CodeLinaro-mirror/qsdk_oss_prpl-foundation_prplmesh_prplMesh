@@ -20,5 +20,5 @@ amxo-xml-to -x html\
                   -o sub-title="Northbound API"\
                   -o version="$VERSION"\
                   -o stylesheet="prpl_style.css"\
-                  -o copyrights="Prpl"\
+                  -o copyrights="prpl Foundation"\
                   "${rootdir}/build/controller.odl.xml"
