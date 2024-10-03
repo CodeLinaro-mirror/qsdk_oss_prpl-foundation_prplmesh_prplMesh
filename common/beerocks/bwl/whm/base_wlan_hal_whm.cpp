@@ -499,6 +499,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
         (struct beerocks::net::sVHTCapabilities *)(&m_radio_info.vht_capability);
 
     m_radio_info.wifi6_capability = supported_standards.find("ax") != std::string::npos ? 1 : 0;
+    m_radio_info.he_supported     = m_radio_info.wifi6_capability;
 
     if (radio->read_child(s_val, "TxBeamformingCapsAvailable")) {
         m_radio_info.vht_capability  = 0;
