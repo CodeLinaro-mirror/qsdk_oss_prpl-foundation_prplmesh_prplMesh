@@ -184,7 +184,7 @@ main() {
     export WHM_ENABLE
     export PRPLMESH_VARIANT
 
-    build_directory="$rootdir/build"
+    build_directory="$rootdir/buildWHM"
 
     build_image "$build_directory/$TARGET_DEVICE"
     [ $IMAGE_ONLY = true ] && exit $?
