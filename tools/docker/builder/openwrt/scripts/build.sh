@@ -33,6 +33,6 @@ TARGET_SYSTEM=${TARGET_SYSTEM//mxl_x86_osp_tb341/intel_x86}
 find bin -name 'prplmesh_*.ipk' -exec cp -v {} "artifacts/prplmesh.ipk" \;
 find bin/targets/"$TARGET_SYSTEM"/*/ -type f -maxdepth 1 -exec cp -v {} "artifacts/" \;
 rm -rf /home/openwrt/openwrt/bin/targets/intel_x86/lgm/prplos-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img
-# mv artifacts/prplos-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img artifacts/openwrt-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img || true
+mv artifacts/prplos-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img artifacts/openwrt-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img || true
 cp .config artifacts/openwrt.config
 cp files/etc/prplwrt-version artifacts/
