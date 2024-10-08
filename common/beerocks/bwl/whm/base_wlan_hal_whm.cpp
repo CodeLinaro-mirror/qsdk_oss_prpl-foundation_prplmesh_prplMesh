@@ -486,44 +486,154 @@ bool base_wlan_hal_whm::refresh_radio_info()
             }
         }
     }
+
+    //Capabilities
     std::string supported_standards;
     radio->read_child(supported_standards, "SupportedStandards");
 
-    //Ht capabilities
-    //pwhm does not provide any info about HT Capabilities for radios
-    // m_radio_info.ht_capability = 0;
+    //HT capabilities
     m_radio_info.ht_supported = supported_standards.find("n") != std::string::npos ? 1 : 0;
+    if (m_radio_info.ht_supported) {
+        struct beerocks::net::sHTCapabilities *ht_caps_ptr =
+            (struct beerocks::net::sHTCapabilities *)(&m_radio_info.ht_capability);
 
-    //VHt capabilities
-    struct beerocks::net::sVHTCapabilities *vht_caps_ptr =
-        (struct beerocks::net::sVHTCapabilities *)(&m_radio_info.vht_capability);
-
-    m_radio_info.wifi6_capability = supported_standards.find("ax") != std::string::npos ? 1 : 0;
-
-    if (radio->read_child(s_val, "TxBeamformingCapsAvailable")) {
-        m_radio_info.vht_capability  = 0;
-        auto vht_mcs_set_pwhm_tx_vec = beerocks::string_utils::str_split(s_val, ',');
-        if (std::find(vht_mcs_set_pwhm_tx_vec.begin(), vht_mcs_set_pwhm_tx_vec.end(),
-                      "VHT_MU_BF") != vht_mcs_set_pwhm_tx_vec.end()) {
-            vht_caps_ptr->mu_beamformer_capable = true;
+        if (radio->read_child(s_val, "RadCapabilitiesHTStr")) {
+            m_radio_info.ht_capability = 0;
+            auto ht_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "SHORT_GI_20") !=
+                ht_pwhm_vec.end()) {
+                ht_caps_ptr->short_gi_support_20mhz = 1;
+            }
+            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "SHORT_GI_40") !=
+                ht_pwhm_vec.end()) {
+                ht_caps_ptr->short_gi_support_40mhz = 1;
+            }
+            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "CAP_40") != ht_pwhm_vec.end()) {
+                ht_caps_ptr->ht_support_40mhz = 1;
+            }
         }
-        if (std::find(vht_mcs_set_pwhm_tx_vec.begin(), vht_mcs_set_pwhm_tx_vec.end(),
-                      "VHT_SU_BF") != vht_mcs_set_pwhm_tx_vec.end()) {
-            vht_caps_ptr->su_beamformer_capable = true;
-        }
+        //SupportedHtMCS
+        //seems like pwhm supports HtMCS now. Need to check.
+        //m_radio_info.ht_mcs_set.
     }
 
-    vht_caps_ptr->vht_support_160mhz     = m_radio_info.max_bandwidth == BANDWIDTH_160 ? 1 : 0;
-    vht_caps_ptr->short_gi_support_80mhz = 0;
+    //VHt capabilities
     m_radio_info.vht_supported = supported_standards.find("ac") != std::string::npos ? 1 : 0;
+    if (m_radio_info.vht_supported) {
+        struct beerocks::net::sVHTCapabilities *vht_caps_ptr =
+            (struct beerocks::net::sVHTCapabilities *)(&m_radio_info.vht_capability);
 
-    //SupportedHtMCS
-    //pwhm does not provide any info about HT MCS for radios
-    //m_radio_info.he_mcs_set.
+        if (radio->read_child(s_val, "RadCapabilitiesVHTStr")) {
+            m_radio_info.vht_capability = 0;
+            auto vht_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SGI_80") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->short_gi_support_80mhz = 1;
+            }
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SGI_160") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->short_gi_support_160mhz_and_80_80mhz = 1;
+                vht_caps_ptr->vht_support_160mhz                   = 1;
+            }
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SU_BFR") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->su_beamformer_capable = 1;
+            }
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "MU_BFR") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->mu_beamformer_capable = 1;
+            }
+        }
+        //SupportedVHtMCS
+        //seems like pwhm supports VHtMCS now. Need to check.
+        //m_radio_info.vht_mcs_set.
+    }
 
-    //SupportedVHtMCS
-    //pwhm does not provide any info about VHT MCS for radios
-    //m_radio_info.vht_mcs_set.
+    //HE capabilities
+    m_radio_info.he_supported = supported_standards.find("ax") != std::string::npos ? 1 : 0;
+    if (m_radio_info.he_supported) {
+        struct beerocks::net::sHECapabilities *he_caps_ptr =
+            (struct beerocks::net::sHECapabilities *)(&m_radio_info.he_capability);
+
+        if (radio->read_child(s_val, "RadCapabilitiesHePhysStr")) {
+            m_radio_info.he_capability = 0;
+            auto he_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "SU_BEAMFORMER") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->su_beamformer_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "160MHZ_5GHZ") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->he_support_160mhz = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "160_80_80_MHZ_5GHZ") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->he_support_80_80mhz = 1;
+            }
+        }
+        if (radio->read_child(s_val, "HeCapsSupported")) {
+            auto he_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "DL_OFDMA") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->dl_ofdm_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "UL_OFDMA") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->ul_ofdm_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "DL_MUMIMO") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->dl_mu_mimo_and_ofdm_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "UL_MUMIMO") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->ul_mu_mimo_and_ofdm_capable = 1;
+            }
+        }
+        //SupportedHeMCS
+        //seems like pwhm supports HeMCS now. Need to check.
+        //m_radio_info.he_mcs_set.
+
+        //Wi-Fi 6 capabilities
+        struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
+            (struct beerocks::net::sWIFI6Capabilities *)(&m_radio_info.wifi6_capability);
+
+        if (radio->find_child_deep("IEEE80211ax.BssColor")) {
+            wifi6_caps_ptr->spatial_reuse = 1;
+        }
+
+        bool twt_enable = false;
+        if (radio->read_child(twt_enable, "TargetWakeTimeEnable") && twt_enable) {
+            wifi6_caps_ptr->twt_responder = 1;
+            wifi6_caps_ptr->twt_requester = 1;
+        }
+
+        wifi6_caps_ptr->dl_ofdma            = he_caps_ptr->dl_ofdm_capable;
+        wifi6_caps_ptr->ul_ofdma            = he_caps_ptr->ul_ofdm_capable;
+        wifi6_caps_ptr->ul_mu_mimo          = he_caps_ptr->ul_mu_mimo_and_ofdm_capable;
+        wifi6_caps_ptr->he_support_160mhz   = he_caps_ptr->he_support_160mhz;
+        wifi6_caps_ptr->he_support_80_80mhz = he_caps_ptr->he_support_80_80mhz;
+
+        if (radio->read_child(s_val, "RadCapabilitiesHePhysStr")) {
+            auto wifi6_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(),
+                          "BEAMFORMEE_STS_LE_80MHZ") != wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->beamformee_sts_less_80mhz = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(),
+                          "BEAMFORMEE_STD_GT_80MHZ") != wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->beamformee_sts_greater_80mhz = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "SU_BEAMFORMER") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->su_beamformer = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "SU_BEAMFORMEE") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->su_beamformee = 1;
+            }
+        }
+    }
 
     if (radio->read_child(s_val, "ExtensionChannel")) {
         bool channel_ext_above = (s_val == "AboveControlChannel");
