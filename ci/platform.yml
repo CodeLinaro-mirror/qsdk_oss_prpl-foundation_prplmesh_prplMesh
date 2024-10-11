@@ -22,6 +22,7 @@ stages:
   - test
   - certification-R1-haze
   - certification-R1-turris-omnia
+  - certification-R4-freedom
   - certification-R4-haze
   - certification-R4-turris-omnia
   - upload

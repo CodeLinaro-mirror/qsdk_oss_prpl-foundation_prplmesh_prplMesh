@@ -54,11 +54,26 @@
     - certs-tests-R4
     - haze
 
+.certification:R4:freedom:
+  stage: certification-R4-freedom
+  extends: .certification-generic-R4
+  variables:
+    RUN_ON_DEVICE: "freedom"
+  before_script:
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/whm/freedom.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-freedom
+  tags:
+    - certs-tests-R4
+    - freedom
+
 include:
   - local: "ci/certification/R1/turris-omnia.yml"
   - local: "ci/certification/R1/haze.yml"
   - local: "ci/certification/R4/turris-omnia.yml"
   - local: "ci/certification/R4/haze.yml"
+  - local: "ci/certification/R4/freedom.yml"
 
 # Merge train tests
 ##################
