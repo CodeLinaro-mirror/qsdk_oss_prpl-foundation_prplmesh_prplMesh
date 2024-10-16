@@ -11,9 +11,8 @@
 #include "../agent_db.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
-#include "multi_vendor.h"
-
 #include "../traffic_separation.h"
+#include "multi_vendor.h"
 
 #include <bcl/beerocks_utils.h>
 #include <bcl/beerocks_version.h>
@@ -562,7 +561,6 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
             LOG(ERROR) << "Failed adding cACTION_CONTROL_SLAVE_HANDSHAKE_REQUEST";
             return false;
         }
-
         auto beerocks_header                      = message_com::get_beerocks_header(m_cmdu_tx);
         beerocks_header->actionhdr()->direction() = beerocks::BEEROCKS_DIRECTION_CONTROLLER;
 
@@ -690,7 +688,6 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     }
 
     if (!db->controller_info.prplmesh_controller) {
-
         LOG(INFO) << "Configured as non-prplMesh, not sending SLAVE_JOINED_NOTIFICATION";
         m_btl_ctx.send_cmdu_to_controller(radio_iface, m_cmdu_tx);
         LOG(DEBUG) << "sending WSC M1 Size=" << m_cmdu_tx.getMessageLength();

@@ -52,20 +52,23 @@ public:
      */
     static std::map<uint32_t, std::map<ieee1905_1::eMessageType, std::vector<tlv_function_t>>>
         tlv_function_table;
+
     /**
      * @brief Adds a vendor-specific TLV to a CMDU message.
      *
      * This static method looks up the vendor-specific TLV handler functions
      * for the given OUI and message type, and applies them to the CMDU message.
      *
-     * @param[in] vendor_oui The vendor OUI to use for the TLV.
+     * @param[in] inner map of tlv_function_table this will have message type and 
+     * vector of handlers
      * @param[in,out] cmdu_tx The CMDU message to which the TLV will be added.
      * @param[in] msg_type The message type for which the TLV should be added.
      *
      * @return True if the TLV was successfully added, false otherwise.
      */
-    static bool add_vs_tlv(uint32_t oui, ieee1905_1::CmduMessageTx &cmdu_tx,
-                           ieee1905_1::eMessageType msg_type);
+    static bool add_vs_tlv(
+        const std::map<ieee1905_1::eMessageType, std::vector<tlv_function_t>> &function_table,
+        ieee1905_1::CmduMessageTx &cmdu_tx, ieee1905_1::eMessageType msg_type);
 
     /**
      * @brief Adds TLVs for all vendors based on the message type.

@@ -25,13 +25,11 @@ bool multi_vendor::tlvf_handler::add_vs_tlv(ieee1905_1::CmduMessageTx &cmdu_tx,
 
     // Iterate over all entries (vendor OUI) in the function table.
     for (const auto &first_entry : tlv_function_table) {
-        // Extract the vendor OUI.
-        const uint32_t vendors_oui = first_entry.first;
 
         // Attempt to add TLVs for the current vendor
-        if (!add_vs_tlv(vendors_oui, cmdu_tx, msg_type)) {
-            LOG(ERROR) << "Failed invoking add_vs_tlv for Vendor OUI: " << std::hex << vendors_oui
-                       << " in message type " << msg_type;
+        if (!add_vs_tlv(first_entry.second, cmdu_tx, msg_type)) {
+            LOG(ERROR) << "Failed invoking add_vs_tlv for Vendor OUI: " << std::hex
+                       << first_entry.first << " in message type " << msg_type;
             success = false;
         }
     }
@@ -39,29 +37,23 @@ bool multi_vendor::tlvf_handler::add_vs_tlv(ieee1905_1::CmduMessageTx &cmdu_tx,
     return success;
 }
 
-bool multi_vendor::tlvf_handler::add_vs_tlv(uint32_t oui, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                            ieee1905_1::eMessageType msg_type)
+bool multi_vendor::tlvf_handler::add_vs_tlv(
+    const std::map<ieee1905_1::eMessageType,
+                   std::vector<multi_vendor::tlvf_handler::tlv_function_t>> &function_table,
+    ieee1905_1::CmduMessageTx &cmdu_tx, ieee1905_1::eMessageType msg_type)
 {
-    // Find the map of message types for the given OUI.
-    auto outer_it = tlv_function_table.find(oui);
-    if (outer_it != tlv_function_table.end()) {
-        // Find the vector of functions registered for the given message type.
-        auto inner_it = outer_it->second.find(msg_type);
-        if (inner_it != outer_it->second.end()) {
-            bool success = true;
-            // Execute all functions registered for this vendor OUI and message type.
-            for (const auto &func : inner_it->second) {
-                // Invoke the handler function and accumulate success.
-                success &= func(cmdu_tx);
-            }
-            return success;
-        } else {
-            LOG(WARNING) << "Vendor OUI '" << std::hex << oui
-                         << "' registered, but no TLV for message type " << msg_type;
-            return true;
+    // Find the message type that will have the vector of functions.
+    auto inner_it = function_table.find(msg_type);
+    if (inner_it != function_table.end()) {
+        bool success = true;
+        // Execute all functions registered for this message type.
+        for (const auto &func : inner_it->second) {
+            // Invoke the handler function and accumulate success.
+            success &= func(cmdu_tx);
         }
+        return success;
     } else {
-        LOG(WARNING) << "Vendor OUI '" << std::hex << oui << "' not registered for any TLVs.";
+        LOG(WARNING) << "No TLV found for this message type : " << std::hex << msg_type;
         return true;
     }
 }
