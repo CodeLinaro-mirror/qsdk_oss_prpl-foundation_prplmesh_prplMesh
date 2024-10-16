@@ -260,6 +260,11 @@ const std::shared_ptr<Agent> db::get_local_agent()
 
 std::shared_ptr<Agent> db::add_gateway(const sMacAddr &mac)
 {
+    if (mac == network_utils::ZERO_MAC) {
+        LOG(ERROR) << "mac supplied for add_gateway is zero_mac";
+        return {};
+    }
+
     auto agent = m_agents.add(mac);
 
     agent->is_gateway = true;
@@ -306,6 +311,7 @@ std::shared_ptr<Agent> db::add_agent(const sMacAddr &mac, const sMacAddr &parent
         LOG(ERROR) << "mac supplied for add_agent is zero_mac";
         return {};
     }
+
     auto agent = m_agents.add(mac);
     if (!agent) {
         LOG(ERROR) << "Failed to add Agent " << mac;
