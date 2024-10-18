@@ -55,6 +55,16 @@ ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"br-lan\"].IPv4Address.
 
 # Wired backhaul interface:
 uci set prplmesh.config.backhaul_wire_iface='lan4'
+
+uci batch << 'EOF'
+set prplmesh.radio0.hostap_iface='wlan0'
+set prplmesh.radio0.hostap_iface_steer_vaps='wlan0.1'
+set prplmesh.radio0.sta_iface='wlan0'
+set prplmesh.radio1.hostap_iface='wlan1'
+set prplmesh.radio1.hostap_iface_steer_vaps='wlan1.1'
+set prplmesh.radio1.sta_iface='wlan1'
+EOF
+
 uci commit
 
 # enable Wi-Fi radios
@@ -83,18 +93,16 @@ ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "KeyPassPhrase":
 ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
 ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
 ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
 
 ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
 ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
 # Set multiAP profile for primary_vlan_id support
-ubus-cli WiFi.AccessPoint.*.MultiAPProfile=0
+ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
 
 
 # Enable when hostapd on this target supports it
-# ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
