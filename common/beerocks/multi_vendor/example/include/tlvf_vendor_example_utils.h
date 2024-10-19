@@ -6,14 +6,14 @@
  * See LICENSE file for more details.
  */
 
-#ifndef __TLVF_EXAMPLE_VENDOR_UTILS_H__
-#define __TLVF_EXAMPLE_VENDOR_UTILS_H__
+#ifndef __TLVF_VENDOR_EXAMPLE_UTILS_H__
+#define __TLVF_VENDOR_EXAMPLE_UTILS_H__
 
 #include <tlvf/CmduMessageTx.h>
 
-namespace example_vendor {
+namespace vendor_example {
 
-class tlvf_example_vendor_utils {
+class tlvf_vendor_example_utils {
 public:
     /**
      * @brief Adds a new Example vendor TLV to given message.
@@ -22,9 +22,9 @@ public:
      *
      * @return True on success and false otherwise.
      */
-    static bool add_example_vendor_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+    static bool add_vendor_example_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 };
 
-} // namespace example_vendor
+} // namespace vendor_example
 
 #endif // __TLVF_EXAMPLE_UTILS_H__

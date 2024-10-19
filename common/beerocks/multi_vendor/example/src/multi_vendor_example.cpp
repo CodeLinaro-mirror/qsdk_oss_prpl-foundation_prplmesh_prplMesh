@@ -7,19 +7,19 @@
  */
 
 #include "multi_vendor.h"
-#include "tlvf_example_vendor_utils.h"
+#include "tlvf_vendor_example_utils.h"
 #include <iomanip>
 #include <type_traits>
 #include <vector>
 
-using namespace example_vendor;
+using namespace vendor_example;
 using namespace ieee1905_1;
 
 // Define a OUI with your <vendor-oui> like EXAMPLE_OUI.
 #define EXAMPLE_OUI 0x123456
 
 /**
- * @class multi_example_vendor
+ * @class multi_vendor_example
  * @brief Example implementation for handling vendor-specific TLVs in IEEE 1905.1 messages.
  *
  * This class demonstrates how a vendor can register their OUI and associate vendor-specific TLV
@@ -30,7 +30,7 @@ using namespace ieee1905_1;
  * **Instructions for New Vendors:**
  * 1. **Define a unique OUI** for your vendor.
  * 2. **Implement your vendor-specific TLV functions**:
- *    - Create a utility class similar to `tlvf_example_vendor_utils` that contains your TLV functions.
+ *    - Create a utility class similar to `tlvf_vendor_example_utils` that contains your TLV functions.
  *    - Inherit from both `multi_vendor::tlvf_handler` and your utility class.
  * 3. **Register your TLV functions** for each relevant message type by adding them to the
  *    `tlv_function_table`, which is a nested map.
@@ -41,11 +41,11 @@ using namespace ieee1905_1;
  *    - If additional message types require TLV functions, update the m_message_types vector and constructor
  *      with the necessary `case` statements to register the functions accordingly.
  */
-class multi_example_vendor : public multi_vendor::tlvf_handler,
-                             public example_vendor::tlvf_example_vendor_utils {
+class multi_vendor_example : public multi_vendor::tlvf_handler,
+                             public vendor_example::tlvf_vendor_example_utils {
 public:
     /**
-     * @brief Constructor for the multi_example_vendor class.
+     * @brief Constructor for the multi_vendor_example class.
      *
      * The constructor registers the vendor's OUI and associates vendor-specific TLV handlers
      * with specific IEEE 1905.1 message types using a nested map structure.
@@ -53,12 +53,12 @@ public:
      * **Note for New Vendors:**
      * To extend this class for your vendor, you need to:
      * - Add your TLV functions to the `tlv_function_table` in the nested map format.
-     * - Ensure to inherit from a utility class similar to `tlvf_example_vendor_utils` that defines
+     * - Ensure to inherit from a utility class similar to `tlvf_vendor_example_utils` that defines
      *   your TLV functions.
      */
-    multi_example_vendor()
+    multi_vendor_example()
     {
-        LOG(INFO) << "Constructor called of class multi_example_vendor";
+        LOG(INFO) << "Constructor called of class multi_vendor_example";
 
         // Step 1: Loop through each message type the vendor will handle and register the
         // appropriate TLV handlers.
@@ -69,7 +69,7 @@ public:
 
                 tlv_function_table[EXAMPLE_OUI]
                                   [ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE]
-                                      .push_back(add_example_vendor_tlv);
+                                      .push_back(add_vendor_example_tlv);
 
                 break;
             }
@@ -78,7 +78,7 @@ public:
 
                 tlv_function_table[EXAMPLE_OUI]
                                   [ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE]
-                                      .push_back(add_example_vendor_tlv);
+                                      .push_back(add_vendor_example_tlv);
 
                 break;
             }
@@ -112,4 +112,4 @@ private:
 //Step 3: Create a static instance of the vendor class.
 //This ensures that the vendor's handlers are registered automatically when the program starts.
 //New vendor should create a similar static object for their class to ensure proper initialization.
-static multi_example_vendor example_vendor_obj;
+static multi_vendor_example vendor_example_obj;

@@ -10,8 +10,8 @@
  * See LICENSE file for more details.
  */
 
-#ifndef _TLVF_EXAMPLE_VENDOR_TLVEXAMPLEVENDOR_H_
-#define _TLVF_EXAMPLE_VENDOR_TLVEXAMPLEVENDOR_H_
+#ifndef _TLVF_VENDOR_EXAMPLE_TLVVENDOREXAMPLE_H_
+#define _TLVF_VENDOR_EXAMPLE_TLVVENDOREXAMPLE_H_
 
 #include <cstddef>
 #include <stdint.h>
@@ -22,25 +22,25 @@
 #include <tlvf/ClassList.h>
 #include <ostream>
 #include "tlvf/ieee_1905_1/sVendorOUI.h"
-#include "tlvf/example_vendor/eExampleVendorTlvTypeMap.h"
+#include "tlvf/vendor_example/eVendorExampleTlvTypeMap.h"
 
-namespace example_vendor {
+namespace vendor_example {
 
 
-class tlvExampleVendor : public BaseClass
+class tlvVendorExample : public BaseClass
 {
     public:
-        tlvExampleVendor(uint8_t* buff, size_t buff_len, bool parse = false);
-        explicit tlvExampleVendor(std::shared_ptr<BaseClass> base, bool parse = false);
-        ~tlvExampleVendor();
+        tlvVendorExample(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit tlvVendorExample(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~tlvVendorExample();
 
-        enum exampleVendorOUI: uint32_t {
+        enum vendorExampleOUI: uint32_t {
             OUI_BYTES = 0x3,
             EXAMPLE_OUI = 0x563412,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off
-        static const char *exampleVendorOUI_str(exampleVendorOUI enum_value) {
+        static const char *vendorExampleOUI_str(vendorExampleOUI enum_value) {
             switch (enum_value) {
             case OUI_BYTES:   return "OUI_BYTES";
             case EXAMPLE_OUI: return "EXAMPLE_OUI";
@@ -48,11 +48,11 @@ class tlvExampleVendor : public BaseClass
             static std::string out_str = std::to_string(int(enum_value));
             return out_str.c_str();
         }
-        friend inline std::ostream &operator<<(std::ostream &out, exampleVendorOUI value) { return out << exampleVendorOUI_str(value); }
+        friend inline std::ostream &operator<<(std::ostream &out, vendorExampleOUI value) { return out << vendorExampleOUI_str(value); }
         // clang-format on
         // Enum AutoPrint generated code snippet end
         
-        const eExampleVendorTlvTypeMap& type();
+        const eVendorExampleTlvTypeMap& type();
         const uint16_t& length();
         sVendorOUI& vendor_oui();
         void class_swap() override;
@@ -61,11 +61,11 @@ class tlvExampleVendor : public BaseClass
 
     private:
         bool init();
-        eExampleVendorTlvTypeMap* m_type = nullptr;
+        eVendorExampleTlvTypeMap* m_type = nullptr;
         uint16_t* m_length = nullptr;
         sVendorOUI* m_vendor_oui = nullptr;
 };
 
-}; // close namespace: example_vendor
+}; // close namespace: vendor_example
 
-#endif //_TLVF/EXAMPLE_VENDOR_TLVEXAMPLEVENDOR_H_
+#endif //_TLVF/VENDOR_EXAMPLE_TLVVENDOREXAMPLE_H_

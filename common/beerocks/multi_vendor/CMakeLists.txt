@@ -15,7 +15,7 @@ set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 # New Vendor has to set the path of their cpp file like example.
 # Note: Add the path of utils files first.
 list(APPEND multi_vendor_sources ${MODULE_PATH}/multi_vendor.cpp)
-list(APPEND multi_vendor_sources ${MODULE_PATH}/example/src/tlvf_example_vendor_utils.cpp)
+list(APPEND multi_vendor_sources ${MODULE_PATH}/example/src/tlvf_vendor_example_utils.cpp)
 list(APPEND multi_vendor_sources ${MODULE_PATH}/example/src/multi_vendor_example.cpp)
 
 find_package(amxb REQUIRED)
