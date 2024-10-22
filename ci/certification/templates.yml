@@ -62,11 +62,27 @@
   before_script:
     - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/whm/freedom.sh
     - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+    - echo "Setting no on-boot scan for prplMesh"
+    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
   needs:
     - job: build-for-freedom
   tags:
     - certs-tests-R4
     - freedom
+
+.certification:R4:freedom_on_boot_24:
+  extends: .certification:R4:freedom
+  before_script:
+    - !reference [.certification:R4:freedom, before_script]
+    - echo "Setting 2.4GHz on-boot scan for prplMesh"
+    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:freedom_on_boot_5:
+  extends: .certification:R4:freedom
+  before_script:
+    - !reference [.certification:R4:freedom, before_script]
+    - echo "Setting 5GHz on-boot scan for prplMesh"
+    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
 
 include:
   - local: "ci/certification/R1/turris-omnia.yml"
