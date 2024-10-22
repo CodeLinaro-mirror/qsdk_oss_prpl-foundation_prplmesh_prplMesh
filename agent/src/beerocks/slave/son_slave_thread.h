@@ -10,7 +10,6 @@
 #define _SON_SLAVE_THREAD_H
 
 #include "agent_db.h"
-#include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
 
 #include <bcl/beerocks_backport.h>
@@ -439,8 +438,6 @@ public:
      * Broker client to exchange CMDU messages with broker server running in transport process.
      */
     std::shared_ptr<btl::BrokerClient> m_broker_client;
-
-    std::shared_ptr<ServicePrioritizationTask> m_service_prioritization_task_configurator;
 
 private:
     /**

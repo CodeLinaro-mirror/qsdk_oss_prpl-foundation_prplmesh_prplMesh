@@ -139,9 +139,9 @@ void remove_ebtables_rules(std::string custom_chain_name, bool flush_rule, bool 
     if (delete_rule) {
         cmd.assign("ebtables -t nat ").append("-D ");
         if (route == PREROUTING) {
-            cmd.append("PREROUTING -j ");
+            cmd.append("prerouting ");
         } else if (route == POSTROUTING) {
-            cmd.append("POSTROUTING -j ");
+            cmd.append("postrouting ");
         }
         cmd.append(custom_chain_name);
         beerocks::os_utils::system_call(cmd);
