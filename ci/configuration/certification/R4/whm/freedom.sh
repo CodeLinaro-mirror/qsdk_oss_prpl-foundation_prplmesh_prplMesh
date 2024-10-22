@@ -71,20 +71,6 @@ sh /etc/init.d/ssh-server restart
 # Required for config_foreach:
 . /lib/functions.sh
 
-# add private vaps to lan to workaround Netmodel missing wlan mib
-# this must be reverted once Netmodel version is integrated
-# brctl addif br-lan wlan0 > /dev/null 2>&1 || true
-# brctl addif br-lan wlan1 > /dev/null 2>&1 || true
-
-# configure private vaps
-ubus call "WiFi.SSID.1" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.SSID.2" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
 
 ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
 ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
@@ -94,7 +80,7 @@ ubus-cli WiFi.AccessPoint.*.MultiAPProfile=0
 
 
 # Enable when hostapd on this target supports it
-# ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
