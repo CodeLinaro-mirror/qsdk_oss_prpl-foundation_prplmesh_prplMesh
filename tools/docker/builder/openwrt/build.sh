@@ -160,8 +160,8 @@ main() {
         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
     elif [[ "urx_osp" == "$TARGET_DEVICE" ]] || [[ "urx_ospv2" == "$TARGET_DEVICE" ]] ; then
         dbg "OSP platform, build on mainline prplOS"
-        OPENWRT_TOOLCHAIN_VERSION='f039941c153f774188107cfc98850703e4725322'
-        OPENWRT_VERSION='f039941c153f774188107cfc98850703e4725322'
+        OPENWRT_TOOLCHAIN_VERSION='149b6b1e8783a5bcb0343b135128234c435de78e'
+        OPENWRT_VERSION='149b6b1e8783a5bcb0343b135128234c435de78e'
     elif [[ "freedom" == "$TARGET_DEVICE" ]] ; then
         dbg "Freedom platform, prplOS mainline + pWHM latest + endpoints"
         OPENWRT_TOOLCHAIN_VERSION='f039941c153f774188107cfc98850703e4725322'
