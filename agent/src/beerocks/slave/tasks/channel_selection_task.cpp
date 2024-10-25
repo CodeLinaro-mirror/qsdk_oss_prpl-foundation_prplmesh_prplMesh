@@ -1618,6 +1618,12 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
                 continue;
             }
 
+            // In certification mode, select only 20MHz channels
+            auto db = AgentDB::get();
+            if (db->device_conf.certification_mode && bandwidth != eWiFiBandwidth::BANDWIDTH_20) {
+                continue;
+            }
+
             auto channel = channel_number;
             if (son::wireless_utils::is_operating_class_using_central_channel(operating_class)) {
                 auto source_channel_it =
