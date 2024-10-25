@@ -90,7 +90,7 @@ ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
 ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
 # Set multiAP profile for primary_vlan_id support
-ubus-cli WiFi.AccessPoint.*.MultiAPProfile=0
+ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
 
 
 # Enable when hostapd on this target supports it
