@@ -1036,7 +1036,7 @@ AmbiorixImpl::~AmbiorixImpl()
 {
     remove_event_loop();
     remove_signal_loop();
-    amxb_free(&m_bus_ctx);
+    //amxb_free(&m_bus_ctx);
 }
 
 } // namespace nbapi
