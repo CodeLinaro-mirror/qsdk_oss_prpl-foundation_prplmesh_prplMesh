@@ -49,6 +49,11 @@ fi
 # run it again. Remove this workaround once PPM-2279 is fixed.
 make defconfig
 
+# Disabling stripping in prplOS
+sed -i '/CONFIG_SSTRIP_ARGS/d' .config
+sed -i '/CONFIG_USE_SSTRIP/d' .config
+echo "CONFIG_NO_STRIP=y" >> .config
+
 for profile in "${args[@]}" ; do
     printf "\nProfile %s:\n" "${profile}" >> files/etc/prplwrt-version
     cat "profiles/${profile}.yml" >> files/etc/prplwrt-version
