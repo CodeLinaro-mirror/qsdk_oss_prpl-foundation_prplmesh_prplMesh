@@ -489,6 +489,29 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         if (!check_vap_id(vap_id) || (bssid == beerocks::net::network_utils::WILD_MAC_STRING)) {
             LOG(DEBUG) << "create new vap for wildcard bssid";
 
+            // If we are going to create new BH VAP, then remove old BH VAP for the radio
+            if (bss_info_conf.backhaul) {
+                for (auto &vap_info : m_radio_info.available_vaps) {
+                    if (vap_info.second.backhaul) {
+                        if (!vap_info.second.fronthaul) {
+                            // Pure BH VAP: Remove it
+                            LOG(INFO) << "Removing BH-only VAP: " << vap_info.second.bss;
+                            if (!remove_bss(vap_info.second.bss))
+                                LOG(ERROR)
+                                    << "Failed to remove BH-only VAP: " << vap_info.second.bss;
+                        } else {
+                            // FH+BH VAP: Convert to FH-only
+                            LOG(INFO) << "Converting FH+BH VAP to FH-only: " << vap_info.second.bss;
+                            AmbiorixVariant update_obj(AMXC_VAR_ID_HTABLE);
+                            update_obj.add_child("MultiAPType", "FronthaulBSS");
+                            if (!m_ambiorix_cl.update_object(vap_info.second.path, update_obj))
+                                LOG(ERROR) << "Failed to update FH+BH VAP to FH-only: "
+                                           << vap_info.second.bss;
+                        }
+                    }
+                }
+            }
+
             auto freq_name = wbapi_utils::band_short_name(m_radio_info.frequency_band);
 
             std::string new_vap_name = "vap" + freq_name + std::to_string(new_vap_index++);
