@@ -61,3 +61,14 @@ echo "Capturing the prplMesh logs..."
 scp -r "$TARGET:/tmp/beerocks/logs/*" "$LOG_DIR"
 
 scp "$TARGET:/var/run/hostapd-phy*.conf" "$LOG_DIR"
+
+if ssh "$TARGET" "[ -f /bin/getDebugInformation ]"; then
+    echo "Collecting getDebugInformation..."
+
+    script --quiet --command "ssh -t $TARGET /bin/getDebugInformation --all"
+    scp "$TARGET:/tmp/debug_all.tar.gz" "$LOG_DIR"
+    cd "$LOG_DIR"
+    mkdir "getDebugInformation"
+    tar xf "debug_all.tar.gz" -C "getDebugInformation"
+    rm "debug_all.tar.gz"
+fi
