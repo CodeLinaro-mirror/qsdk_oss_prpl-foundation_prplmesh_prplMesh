@@ -7,6 +7,7 @@
  */
 
 #include <bpl/bpl.h>
+#include <cstdlib>
 
 #include <mapf/common/logger.h>
 
@@ -21,11 +22,14 @@ namespace bpl {
 
 beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
 
+void m_ambiorix_cl_destructor() { m_ambiorix_cl.~AmbiorixClient(); }
+
 int bpl_init()
 {
     LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_USP_BACKEND_PATH, AMBIORIX_PWHM_USP_BACKEND_URI), FATAL)
         << "Unable to connect to the ambiorix backend!";
 
+    std::atexit(m_ambiorix_cl_destructor);
     return RETURN_OK;
 }
 
