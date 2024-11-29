@@ -6,6 +6,25 @@
  * See LICENSE file for more details.
  */
 
+// to guarantee the Amxrt destructor, which destory a connections list,
+// be called after AmbiorixImpl/AmbiorixConnection etc, which
+// destory one entry in that list.
+//   amxb_be_remove_connections(&fns->connections)
+// by C++ spec, the destruction follows FILO principle, but we have
+// many shared_ptr usages to make things complicate:
+//   in beerocks_master_main.cpp it's the son::db
+// they are constructed before Amxrt, and holding reference count to
+// AmbiorixImpl/AmbiorixConnection.
+// the hazard will cause double free, cause free all the list happens
+// before free one entry in the list.
+#ifdef ENABLE_NBAPI
+#include <memory>
+namespace beerocks::nbapi {
+class Amxrt;
+}
+static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
+#endif
+
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_event_loop_impl.h>
@@ -598,6 +617,8 @@ int main(int argc, char *argv[])
                   << "amxrt_config_init returned : " << init << " shutting down!" << std::endl;
         return init;
     }
+    guarantee = amxrt;
+    (void)guarantee.use_count();
 
 #else
     int opt;
