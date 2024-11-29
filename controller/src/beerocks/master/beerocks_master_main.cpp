@@ -6,6 +6,17 @@
  * See LICENSE file for more details.
  */
 
+#ifdef ENABLE_NBAPI
+#include <memory>
+namespace beerocks::nbapi {
+class Amxrt;
+}
+// to guarantee the Amxrt destructor, which destory a connections list,
+// be called after AmbiorixImpl/AmbiorixConnection etc, which
+// destory one entry in that list.
+static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
+#endif
+
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_event_loop_impl.h>
@@ -601,6 +612,8 @@ int main(int argc, char *argv[])
                   << "amxrt_config_init returned : " << init << " shutting down!" << std::endl;
         return init;
     }
+    guarantee = amxrt;
+    (void)guarantee.use_count();
 
 #else
     int opt;
