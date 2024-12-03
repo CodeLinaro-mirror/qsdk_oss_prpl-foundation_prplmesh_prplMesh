@@ -344,6 +344,41 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
     }
 }
 
+void TrafficSeparation::apply_policy_for_new_interface(const std::string &bss_iface)
+{
+    auto db        = AgentDB::get();
+    bool is_bridge = false;
+
+    // If the primary VID has changed to zero, vlan filtering is disabled, so there is no point
+    // modifying the VLAN policy on the platform interfaces.
+    if (db->traffic_separation.primary_vlan_id == 0) {
+        return;
+    }
+
+    auto bss_iface_netdevs = network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
+
+    for (const auto &bss_iface_netdev : bss_iface_netdevs) {
+        // Apply rules only to the new interface
+        if (bss_iface_netdev == bss_iface) {
+            continue;
+        }
+        if (!beerocks::net::network_utils::linux_add_iface_to_bridge(db->bridge.iface_name,
+                                                                     bss_iface_netdev)) {
+            LOG(INFO) << "The wireless interface " << bss_iface_netdev
+                      << " is already in the bridge";
+        }
+        // Profile-2 Backhaul BSS
+        if (m_profile_x_disallow_override_unsupported_configuration == 1) {
+            set_vlan_policy(bss_iface_netdev, ePortMode::TAGGED_PORT_PRIMARY_TAGGED, is_bridge);
+        }
+        // Profile-1 Backhaul BSS
+        else {
+            set_vlan_policy(bss_iface_netdev, ePortMode::UNTAGGED_PORT, is_bridge,
+                            db->traffic_separation.primary_vlan_id);
+        }
+    }
+}
+
 void TrafficSeparation::set_vlan_policy(const std::string &iface, ePortMode port_mode,
                                         bool is_bridge, uint16_t untagged_port_vid)
 {

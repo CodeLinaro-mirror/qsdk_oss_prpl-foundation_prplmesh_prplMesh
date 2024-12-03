@@ -12,6 +12,7 @@
 #include "agent_db.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
+#include "traffic_separation.h"
 
 #include <bcl/beerocks_backport.h>
 #include <bcl/beerocks_cmdu_client.h>
@@ -441,6 +442,8 @@ public:
     std::shared_ptr<btl::BrokerClient> m_broker_client;
 
     std::shared_ptr<ServicePrioritizationTask> m_service_prioritization_task_configurator;
+
+    std::unique_ptr<net::TrafficSeparation> m_traffic_separation_configurator;
 
 private:
     /**

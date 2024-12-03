@@ -76,6 +76,12 @@ public:
     void apply_policy(const std::string &radio_iface = {});
 
     /**
+     * @brief Apply traffic separation rules on the new interface that are created when a
+     * newly onboarding agent associates with the BH VAP.
+     */
+    void apply_policy_for_new_interface(const std::string &bss_iface);
+
+    /**
      * @brief Clear the traffic separation configuration from the Agent and the platform.
      * 
      */
