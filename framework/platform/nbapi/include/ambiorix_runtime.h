@@ -25,8 +25,8 @@ public:
     Amxrt() { amxrt_new(); }
     ~Amxrt()
     {
-        //amxrt_stop();
-        //amxrt_delete();
+        amxrt_stop();
+        amxrt_delete();
     }
 
     /**
