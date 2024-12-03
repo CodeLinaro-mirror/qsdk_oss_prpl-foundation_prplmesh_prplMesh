@@ -46,7 +46,7 @@ killall_program() {
 
     # `-R` option is not always available for `start-stop-daemon`, we need to imitate it
     for _ in $(seq 1 "$TIMEOUT"); do
-        if ! pgrep "$PROGRAM_NAME" > /dev/null; then
+        if ! pgrep -f "$PROGRAM_NAME" > /dev/null; then
            return
         fi
         sleep 1
@@ -160,7 +160,7 @@ prplmesh_delete_logs() {
 
 prplmesh_watchdog() {
     # Store PIDs of the Controller and Agents
-    CURR_PIDS="$(pgrep 'beerocks_(agent|controller)' | wc -l)"
+    CURR_PIDS="$(pgrep -f 'beerocks_(agent|controller)' | wc -l)"
     PREV_PIDS="$CURR_PIDS"
 
     # Make sure there's at least one PID to monitor
@@ -172,7 +172,7 @@ prplmesh_watchdog() {
     # Monitor the number of running processes
     while [ "$CURR_PIDS" -ge "$PREV_PIDS" ]; do
         sleep 5
-        CURR_PIDS="$(pgrep 'beerocks_(agent|controller)' | wc -l)"
+        CURR_PIDS="$(pgrep -f 'beerocks_(agent|controller)' | wc -l)"
         if [ "$CURR_PIDS" -gt "$PREV_PIDS" ]; then
             PREV_PIDS=$CURR_PIDS
         fi
