@@ -29,7 +29,6 @@ AmbiorixImpl::AmbiorixImpl(std::shared_ptr<EventLoop> event_loop,
 {
     LOG_IF(!m_event_loop, FATAL) << "Event loop is a null pointer!";
     amxo_parser_init(Amxrt::getParser());
-    amxd_dm_init(Amxrt::getDatamodel());
 }
 
 bool AmbiorixImpl::init(const std::string &amxb_backend, const std::string &bus_uri,
