@@ -335,11 +335,11 @@ void CapabilityReportingTask::handle_backhaul_sta_capability_query(
             backhaul_sta_radio_cap_tlv->sta_mac_included() =
                 wfa_map::tlvBackhaulStaRadioCapabilities::eStaMacIncluded::FIELD_PRESENT;
             backhaul_mac = radio->back.iface_mac;
-        }
 
-        if (!backhaul_sta_radio_cap_tlv->set_sta_mac(backhaul_mac)) {
-            LOG(ERROR) << "Setting sta_mac for tlvBackhaulStaRadioCapabilities has failed";
-            return;
+            if (!backhaul_sta_radio_cap_tlv->set_sta_mac(backhaul_mac)) {
+                LOG(ERROR) << "Setting sta_mac for tlvBackhaulStaRadioCapabilities has failed";
+                return;
+            }
         }
 
         LOG(DEBUG) << "Backhaul STA Radio Capabilities, ruid=" << radio->front.iface_mac
