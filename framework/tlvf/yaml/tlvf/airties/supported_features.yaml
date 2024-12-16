@@ -1,0 +1,36 @@
+#
+---
+_namespace: airties
+
+eAirtiesFeatureIDs:
+  _type: enum_class
+  _enum_storage: uint16_t
+  AIRTIES_FEATURE_DEVICE_METRICS: 0x0001
+  AIRTIES_FEATURE_IEEE1905_1_14: 0x0002
+  AIRTIES_FEATURE_DEVICE_INFO: 0x0003
+  AIRTIES_FEATURE_ETH_STATS: 0x0004
+  AIRTIES_FEATURE_REBOOT_RESET: 0x0006
+  AIRTIES_FEATURE_WIFI6_CAP: 0x0007
+  AIRTIES_FEATURE_DPP_ONBOARD: 0x0008
+  AIRTIES_FEATURE_STP: 0x0009
+  AIRTIES_FEATURE_LED: 0x000b
+  AIRTIES_FEATURE_SERVICE_STATUS_WIFI_ON_OFF: 0x000c
+  AIRTIES_FEATURE_HIDDEN_SSID: 0x000e
+  AIRTIES_FEATURE_RADIO_CAPABILITY: 0x0010
+  AIRTIES_FEATURE_END: 0x0011
+
+eAirtiesFeatureVersion:
+  _type: enum
+  _enum_storage: uint16_t
+  feature_version: 0x0001
+
+#Agent Version
+eMasterVersion:
+  _type: enum
+  _enum_storage: uint16_t
+  master_version: 4
+
+eSubVersion:
+  _type: enum
+  _enum_storage: uint16_t
+  sub_version: 0

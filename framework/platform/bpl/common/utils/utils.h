@@ -23,6 +23,8 @@ void trim(std::string &str, const std::string &additional_chars = std::string())
 int64_t stoi(std::string str);
 std::string int_to_hex_string(const unsigned int integer, const uint8_t number_of_digits);
 
+bool is_stp_enabled(const std::string &bridge_name);
+
 } // namespace utils
 } // namespace bpl
 } // namespace beerocks
