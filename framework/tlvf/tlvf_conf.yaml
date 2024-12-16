@@ -147,6 +147,14 @@ include_yaml_path: {
     "tlvf/airties/tlvAirtiesMsgType.yaml",
 
     #
+    # "airties/",
+    "tlvf/airties/eAirtiesTLVId.yaml",
+    "tlvf/airties/eAirtiesTlvTypeMap.yaml",
+    "tlvf/airties/tlvVersionReporting.yaml",
+    "tlvf/airties/supported_features.yaml",
+    "tlvf/airties/tlvAirtiesMsgType.yaml",
+
+    #
     # "vendor_example/",
     "tlvf/vendor_example/tlvVendorExample.yaml",
     "tlvf/vendor_example/eVendorExampleTlvTypeMap.yaml",

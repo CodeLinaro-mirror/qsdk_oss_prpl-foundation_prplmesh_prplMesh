@@ -71,11 +71,14 @@ create_and_add_feature_to_list(std::shared_ptr<airties::tlvVersionReporting> tlv
     auto version_members = tlv_version_reporting->create_em_agent_feature_list();
 
     // Set the feature info by combining the feature ID and version
+<<<<<<< HEAD
     // EM+ features supported shall be reported as a big endian 4-octet value, where the 2 lowest
     // octets shall represent the version (iteration) of a feature and where the
     // 2 highest octets shall represent the ID of a feature
     // Below is the value for 2 highest octets of EM+ features supported feature ID.
     // shifting 16 bits(2 octets) and combining with the feature version.
+=======
+>>>>>>> ba2cb0b6f (PPM-3070 Airties EasyMeshPlus Agent Version Reporting)
     version_members->feature_info() =
         (static_cast<int>(feature_id) << 16) | airties::eAirtiesFeatureVersion::feature_version;
 
@@ -115,11 +118,14 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
         static_cast<int>(airties::eAirtiesTlVId::AIRTIES_FEATURE_PROFILE);
 
     // Set the em agent version
+<<<<<<< HEAD
     // EM+ features supported shall be reported as a big endian 4-octet value, where the 2 lowest
     // octets shall represent the version (iteration) of a feature and where the
     // 2 highest octets shall represent the ID of a feature
     // Below is the value for 2 lowest octets of EM+ features supported version.
     // shifting 16 bits(2 octets) and combining with the subversion.
+=======
+>>>>>>> ba2cb0b6f (PPM-3070 Airties EasyMeshPlus Agent Version Reporting)
     tlv_version_reporting->em_agent_version() =
         (airties::eMasterVersion::master_version << 16) | airties::eSubVersion::sub_version;
 
@@ -155,7 +161,11 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
 
         // Special case: STP feature is added only if STP is enabled on the platform
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_STP: {
+<<<<<<< HEAD
             if (utils_instance.is_airties_platform_common_stp_enabled()) {
+=======
+            if (utils_instance.airties_platform_common_stp_enabled()) {
+>>>>>>> ba2cb0b6f (PPM-3070 Airties EasyMeshPlus Agent Version Reporting)
                 LOG(INFO) << "Airties Feature STP is enabled";
                 create_and_add_feature_to_list(tlv_version_reporting, feature_id_enum);
             }
