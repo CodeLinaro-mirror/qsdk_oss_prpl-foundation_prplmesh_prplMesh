@@ -8,8 +8,12 @@
 
 #include "utils.h"
 
+#include <arpa/inet.h>
 #include <cstring>
+#include <linux/if_bridge.h>
+#include <net/if.h>
 #include <stdio.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -66,6 +70,37 @@ std::string int_to_hex_string(const unsigned int integer, const uint8_t number_o
     ss_hex_string << std::setw(number_of_digits) << std::setfill('0') << std::hex << integer;
 
     return ss_hex_string.str();
+}
+
+bool is_stp_enabled(const std::string &bridge_name)
+{
+    int g_ioctl_sockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    if (g_ioctl_sockfd < 0) {
+        MAPF_ERR("Socket not initialized");
+        return false;
+    }
+
+    struct ifreq ifr        = {0};
+    struct __bridge_info bi = {0};
+    unsigned long args[4];
+
+    strncpy(ifr.ifr_name, bridge_name.c_str(), sizeof(ifr.ifr_name) - 1);
+
+    args[0] = BRCTL_GET_BRIDGE_INFO;
+    args[1] = (unsigned long)&bi;
+    args[2] = 0;
+    args[3] = 0;
+
+    ifr.ifr_data = (char *)args;
+
+    if (ioctl(g_ioctl_sockfd, SIOCDEVPRIVATE, &ifr) < 0) {
+        MAPF_ERR("ioctl error");
+        close(g_ioctl_sockfd);
+        return false;
+    }
+
+    close(g_ioctl_sockfd);
+    return bi.stp_enabled;
 }
 
 } // namespace utils

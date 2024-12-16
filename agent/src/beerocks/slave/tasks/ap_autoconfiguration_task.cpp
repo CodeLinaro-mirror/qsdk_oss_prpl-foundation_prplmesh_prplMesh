@@ -703,6 +703,13 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     }
 
     if (!db->controller_info.prplmesh_controller) {
+        // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
+        // AP_AUTOCONFIGURATION_WSC_MESSAGE.
+        if (!multi_vendor::tlvf_handler::add_vs_tlv(
+                m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE)) {
+            LOG(ERROR) << "Failed adding few TLVs in AP_AUTOCONFIGURATION_WSC_MESSAGE";
+        }
+
         LOG(INFO) << "Configured as non-prplMesh, not sending SLAVE_JOINED_NOTIFICATION";
         m_btl_ctx.send_cmdu_to_controller(radio_iface, m_cmdu_tx);
         LOG(DEBUG) << "sending WSC M1 Size=" << m_cmdu_tx.getMessageLength();
@@ -834,6 +841,13 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
         radio->wifi_channel.get_ext_above_primary();
     notification->cs_params().vht_center_frequency = radio->wifi_channel.get_center_frequency();
     notification->cs_params().tx_power             = radio->tx_power_dB;
+
+    // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
+    // AP_AUTOCONFIGURATION_WSC_MESSAGE.
+    if (!multi_vendor::tlvf_handler::add_vs_tlv(
+            m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE)) {
+        LOG(ERROR) << "Failed adding few TLVs in AP_AUTOCONFIGURATION_WSC_MESSAGE";
+    }
 
     m_btl_ctx.send_cmdu_to_controller(radio_iface, m_cmdu_tx);
     LOG(DEBUG) << "sending WSC M1 Size=" << m_cmdu_tx.getMessageLength();

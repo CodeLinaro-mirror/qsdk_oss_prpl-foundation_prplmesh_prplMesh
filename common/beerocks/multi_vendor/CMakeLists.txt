@@ -17,6 +17,8 @@ set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 list(APPEND multi_vendor_sources ${MODULE_PATH}/multi_vendor.cpp)
 list(APPEND multi_vendor_sources ${MODULE_PATH}/example/src/tlvf_vendor_example_utils.cpp)
 list(APPEND multi_vendor_sources ${MODULE_PATH}/example/src/multi_vendor_example.cpp)
+list(APPEND multi_vendor_sources ${MODULE_PATH}/airties/src/tlvf_airties_utils.cpp)
+list(APPEND multi_vendor_sources ${MODULE_PATH}/airties/src/multi_vendor_airties.cpp)
 
 find_package(amxb REQUIRED)
 find_package(amxc REQUIRED)
@@ -30,13 +32,14 @@ add_library(${PROJECT_NAME} ${multi_vendor_sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
-target_link_libraries(${PROJECT_NAME} PRIVATE ${MULTI_VENDOR_LIBS} bcl bwl btlvf tlvf nbapi)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${MULTI_VENDOR_LIBS} bcl bwl btlvf tlvf nbapi bpl mapfcommon)
 
 # Install
 # New Vendor has to add the path of header files like example.
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/example/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/airties/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../agent/src/beerocks/slave/>
     )
