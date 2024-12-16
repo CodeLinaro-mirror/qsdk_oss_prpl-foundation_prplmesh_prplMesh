@@ -370,6 +370,69 @@ bool controller_ucc_listener::handle_custom_command(
     return true;
 }
 
+bool controller_ucc_listener::handle_dev_send_1905_internally(
+    const std::unordered_map<std::string, std::string> &params, uint16_t m_id)
+{
+    auto dest_alid = params.at("destalid");
+    std::transform(dest_alid.begin(), dest_alid.end(), dest_alid.begin(), ::tolower);
+
+    const auto message_type_str = params.at("messagetypevalue");
+    const auto message_type =
+        static_cast<ieee1905_1::eMessageType>(std::strtoul(message_type_str.c_str(), nullptr, 16));
+
+    if (message_type == ieee1905_1::eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE) {
+        if (params.size() > 2) { // skip if we have concrete info about required TLVs
+            LOG(DEBUG)
+                << "There is info about required TLVs. Dev send 1905 will be handled in a general "
+                   "ucc_listener way";
+            return false;
+        }
+
+        const auto agent_mac = tlvf::mac_from_string(dest_alid);
+        const auto agent     = m_database.get_agent(agent_mac);
+        if (!agent) {
+            LOG(ERROR) << "Agent with MAC " << agent_mac << " not found in database.";
+            return false;
+        }
+        const auto &agent_radios = agent->radios;
+
+        // Build 1905.1 message CMDU to send to the agent.
+        if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE)) {
+            LOG(ERROR) << "CMDU creation of type CHANNEL_SELECTION_REQUEST_MESSAGE, has failed";
+            return false;
+        }
+
+        // setting message id
+        m_cmdu_tx.setMessageId(m_id);
+
+        for (const auto &radio_iter : agent_radios) {
+            const auto &radio_mac        = radio_iter.first;
+            const auto &radio_preference = m_database.get_radio_channel_preference(radio_mac);
+
+            const auto &preference_report =
+                convert_preference_report_map_to_tlv_format(radio_preference);
+
+            // Create Channel-Preference TLV.
+            if (!create_channel_preference_tlv(radio_mac, preference_report)) {
+                LOG(ERROR) << "Failed to create Channel Preference TLV!";
+                return false;
+            }
+        }
+
+        // Send CMDU to agent.
+        LOG(INFO) << "Send CHANNEL_SELECTION_REQUEST_MESSAGE to agent: " << agent_mac;
+        if (send_cmdu_to_destination(m_cmdu_tx, dest_alid)) {
+            LOG(ERROR) << "Failed sending message!";
+            m_cmdu_tx.reset();
+            return false;
+        }
+        m_cmdu_tx.reset();
+        return true;
+    }
+    m_cmdu_tx.reset();
+    return false; // Let message sending with message_type to be handled in a general ucc_listener way
+}
+
 void controller_ucc_listener::handle_dev_reset_default(
     int fd, const std::unordered_map<std::string, std::string> &params)
 {
@@ -594,4 +657,48 @@ controller_ucc_listener::parse_bss_info(const std::string &bss_info_str,
 
     bss_info_conf.teardown = false;
     return al_mac;
+}
+
+radio_preference_tlv_format controller_ucc_listener::convert_preference_report_map_to_tlv_format(
+    const Agent::sRadio::PreferenceReportMap &radio_preference)
+{
+    radio_preference_tlv_format map;
+    for (const auto &iter : radio_preference) {
+        map[std::make_pair(iter.first.first, iter.second)].insert(iter.first.second);
+    }
+    return map;
+}
+
+bool controller_ucc_listener::create_channel_preference_tlv(
+    const sMacAddr &radio_mac, const radio_preference_tlv_format &formatted_preference)
+{
+    auto channel_preference_tlv = m_cmdu_tx.addClass<wfa_map::tlvChannelPreference>();
+    if (!channel_preference_tlv) {
+        LOG(ERROR) << "addClass ieee1905_1::tlvChannelPreference has failed";
+        return false;
+    }
+
+    channel_preference_tlv->radio_uid() = radio_mac;
+
+    for (const auto &iter : formatted_preference) {
+        const auto operating_class     = iter.first.first;
+        const auto reported_preference = iter.first.second;
+        const auto &channel_set        = iter.second;
+
+        std::vector<uint8_t> ch_list(channel_set.begin(), channel_set.end());
+
+        auto operating_classes_list = channel_preference_tlv->create_operating_classes_list();
+        operating_classes_list->operating_class()  = operating_class;
+        operating_classes_list->flags().preference = reported_preference;
+        if (!operating_classes_list->set_channel_list(ch_list.data(), ch_list.size())) {
+            LOG(ERROR) << "set_channel_list() failed";
+            return false;
+        }
+
+        if (!channel_preference_tlv->add_operating_classes_list(operating_classes_list)) {
+            LOG(ERROR) << "add_operating_classes_list() has failed!";
+            return false;
+        }
+    }
+    return true;
 }

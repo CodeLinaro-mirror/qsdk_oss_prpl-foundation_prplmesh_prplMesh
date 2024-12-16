@@ -243,3 +243,9 @@ bool agent_ucc_listener::handle_custom_command(
     err_string = "handle_custom_command is not supported in agent mode";
     return false;
 }
+
+bool agent_ucc_listener::handle_dev_send_1905_internally(
+    const std::unordered_map<std::string, std::string> &params, uint16_t m_id)
+{
+    return false;
+}

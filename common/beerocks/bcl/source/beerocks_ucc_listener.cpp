@@ -593,12 +593,25 @@ void beerocks_ucc_listener::handle_wfa_ca_command(int fd, const std::string &com
             break;
         }
 
+        /* --- Handle case that is depended on internal controller/agent logic, like tasks --- */
+        if (handle_dev_send_1905_internally(params, g_mid)) {
+            LOG(DEBUG) << "DEV_SEND_1905 was handled according to internal workflow";
+            std::string description = "mid,0x" + string_utils::int_to_hex_string(g_mid++, 4);
+
+            // Send back second reply
+            reply_ucc(fd, eWfaCaStatus::COMPLETE, description);
+            break;
+        }
+
+        /* --- General case (generate) --- */
         // Input check
         auto &dest_alid = params["destalid"];
         std::transform(dest_alid.begin(), dest_alid.end(), dest_alid.begin(), ::tolower);
 
         auto &message_type_str = params["messagetypevalue"];
-        auto message_type      = (uint16_t)(std::strtoul(message_type_str.c_str(), nullptr, 16));
+        auto message_type =
+            static_cast<uint16_t>(std::strtoul(message_type_str.c_str(), nullptr, 16));
+
         if (!ieee1905_1::eMessageTypeValidate::check(message_type)) {
             err_string = "invalid param value '" + message_type_str +
                          "' for param name 'MessageTypeValue', message type not found";

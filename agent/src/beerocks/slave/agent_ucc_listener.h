@@ -40,6 +40,18 @@ private:
     bool handle_custom_command(const std::unordered_map<std::string, std::string> &params,
                                std::string &err_string) override;
 
+    /**
+     * @brief Handle spesific DEV_SEND_1905 that require internal workflow logic (like tasks)
+     *
+     * @param[in] params Command parameters.
+     * @param[in] m_id Message id.
+     * 
+     * @return true if case was handled and false if case was not handled and general handling is required.
+     */
+    virtual bool
+    handle_dev_send_1905_internally(const std::unordered_map<std::string, std::string> &params,
+                                    uint16_t m_id) override;
+
     BackhaulManager &m_btl_ctx;
 };
 

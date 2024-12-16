@@ -398,7 +398,7 @@ bool db::add_eth_switch(const sMacAddr &mac, const sMacAddr &parent_mac)
         return false;
     }
     agent->eth_switches.add(mac);
-    LOG(ERROR) << "TMP add eth switch " << mac << " with parent " << parent_mac;
+    LOG(INFO) << "TMP add eth switch " << mac << " with parent " << parent_mac;
 
     // TODO: Add node to the controller data model via m_ambiorix_datamodel for Wired BH agent
     return true;

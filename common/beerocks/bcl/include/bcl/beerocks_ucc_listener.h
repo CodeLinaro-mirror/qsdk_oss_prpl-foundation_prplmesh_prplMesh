@@ -192,6 +192,19 @@ protected:
     virtual bool handle_custom_command(const std::unordered_map<std::string, std::string> &params,
                                        std::string &err_string) = 0;
 
+    /**
+     * @brief Lets controller/agent to handle case DEV_SEND_1905 internally 
+     * (by task or some  different internal logic) 
+     *
+     * @param[in] params Command parameters.
+     * @param[in] m_id Message id.
+     * 
+     * @return true if case was handled and false if case is not and general handling is required.
+     */
+    virtual bool
+    handle_dev_send_1905_internally(const std::unordered_map<std::string, std::string> &param,
+                                    uint16_t m_id) = 0;
+
     enum class eUccListenerRunOn : uint8_t {
         CONTROLLER,
         AGENT,
