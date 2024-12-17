@@ -156,9 +156,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
     elif [[ "urx_osp" == "$TARGET_DEVICE" ]] ; then
-        dbg "OSP platform, build on prplos UPDK 9.1.50 + pWHM 5.34.0"
-        OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
-        OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+        dbg "OSP platform, prplOS mainline 3.2 + WHM stable + patched updk"
+        OPENWRT_TOOLCHAIN_VERSION='816256cb523c880ca39c7132c0a5e95e38565d33'
+        OPENWRT_VERSION='816256cb523c880ca39c7132c0a5e95e38565d33'
     elif [[ "freedom" == "$TARGET_DEVICE" ]] ; then
         dbg "Freedom platform, prplOS mainline + pWHM latest + endpoints"
         OPENWRT_TOOLCHAIN_VERSION='f039941c153f774188107cfc98850703e4725322'
