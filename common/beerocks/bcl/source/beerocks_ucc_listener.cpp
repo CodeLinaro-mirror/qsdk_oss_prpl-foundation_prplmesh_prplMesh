@@ -592,7 +592,7 @@ void beerocks_ucc_listener::handle_wfa_ca_command(int fd, const std::string &com
             reply_ucc(fd, eWfaCaStatus::INVALID, err_string);
             break;
         }
-
+        sleep(0.5);
         // Input check
         auto &dest_alid = params["destalid"];
         std::transform(dest_alid.begin(), dest_alid.end(), dest_alid.begin(), ::tolower);
