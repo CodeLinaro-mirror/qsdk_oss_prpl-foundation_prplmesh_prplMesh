@@ -19,6 +19,8 @@ rm -f /etc/rc.d/S*obuspa
 sh /etc/init.d/ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
 
+# Disable restarting failing serivces by default
+sh /etc/init.d/amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 
@@ -76,25 +78,17 @@ sh /etc/init.d/ssh-server restart
 # brctl addif br-lan wlan0 > /dev/null 2>&1 || true
 # brctl addif br-lan wlan1 > /dev/null 2>&1 || true
 
-# configure private vaps
-ubus call "WiFi.SSID.1" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.SSID.2" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-
 ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
 ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
+ba-cli WiFi.Radio.*.RegulatoryDomain="US"
+
 # Set multiAP profile for primary_vlan_id support
-ubus-cli WiFi.AccessPoint.*.MultiAPProfile=0
+ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
 
 
 # Enable when hostapd on this target supports it
-# ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
