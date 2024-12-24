@@ -14,8 +14,28 @@
 
 #include <bcl/son/son_wireless_utils.h>
 
+#ifndef USE_PRPLMESH_WHM
+#include <amxc/amxc.h>
+#include <amxp/amxp.h>
+#endif
+
 #include <stdint.h>
 #include <string>
+
+#ifndef USE_PRPLMESH_WHM
+#include <amxc/amxc.h>
+#include <amxd/amxd_action.h>
+#include <amxd/amxd_dm.h>
+#include <amxd/amxd_object.h>
+#include <amxd/amxd_object_event.h>
+#include <amxd/amxd_transaction.h>
+
+#include <amxb/amxb.h>
+#include <amxb/amxb_register.h>
+
+#include <amxo/amxo.h>
+#include <amxo/amxo_save.h>
+#endif
 
 namespace beerocks {
 namespace bpl {
@@ -1073,6 +1093,15 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
  * @return true on success, otherwise false.
  */
 bool get_serial_number(std::string &serial_number);
+
+/**
+ * @brief Get a string identifying the software version
+ *
+ * @param [out] software_version  current running software version on the device.
+ * @return true on success, otherwise false.
+ */
+
+bool get_software_version(std::string &software_version);
 
 /**
  * @brief Get a string identifying the Wi-Fi chip vendor a radio.
