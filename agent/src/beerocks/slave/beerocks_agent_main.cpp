@@ -196,7 +196,9 @@ static void fill_son_slave_config(const beerocks::config_file::sConfigSlave &bee
     auto db = beerocks::AgentDB::get();
 
     db->device_conf.operating_system = beerocks::os_utils::get_os_name();
-    db->device_conf.software_version = beerocks::version::get_module_version();
+    //Get the Serial number of the device and current running software version
+    //using Ambiorix dm.
+    beerocks::bpl::get_software_version(db->device_conf.software_version);
     beerocks::bpl::get_serial_number(db->device_conf.device_serial_number);
 }
 

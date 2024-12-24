@@ -5,7 +5,8 @@
  * This code is subject to the terms of the BSD+Patent license.
  * See LICENSE file for more details.
  */
-
+#include "../prplMesh_WHM/bpl_cfg_pwhm.h"
+#include <bcl/beerocks_version.h>
 #include <bpl/bpl_cfg.h>
 #include <mapf/common/utils.h>
 
@@ -13,10 +14,35 @@ using namespace mapf;
 
 namespace beerocks {
 namespace bpl {
+bool get_string_value_dm(std::string attr, std::string &value)
+{
+    std::string dm       = "DeviceInfo.";
+    std::string attr_val = "";
+    auto det             = m_ambiorix_cl.get_object(dm);
+    if (!det) {
+        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm;
+        return false;
+    }
+    det->read_child<>(attr_val, attr);
+    value.assign(attr_val);
+    return true;
+}
 
 bool get_serial_number(std::string &serial_number)
 {
-    serial_number.assign("prplmesh12345");
+    std::string attr = "SerialNumber";
+    if (!get_string_value_dm(attr, serial_number)) {
+        serial_number.assign("prplmesh12345");
+    }
+    return true;
+}
+bool get_software_version(std::string &software_version)
+{
+    std::string attr = "SoftwareVersion";
+    if (!get_string_value_dm(attr, software_version)) {
+        std::string version_string = beerocks::version::get_module_version();
+        software_version.assign(version_string);
+    }
     return true;
 }
 

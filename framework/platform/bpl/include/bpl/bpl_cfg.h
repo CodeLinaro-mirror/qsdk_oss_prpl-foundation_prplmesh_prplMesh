@@ -1075,6 +1075,15 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
 bool get_serial_number(std::string &serial_number);
 
 /**
+ * @brief Get a string identifying the software version
+ *
+ * @param [out] software_version  current running software version on the device.
+ * @return true on success, otherwise false.
+ */
+
+bool get_software_version(std::string &software_version);
+
+/**
  * @brief Get a string identifying the Wi-Fi chip vendor a radio.
  *
  * @note It is the manufacturer responsibility to override implementation of this function and
