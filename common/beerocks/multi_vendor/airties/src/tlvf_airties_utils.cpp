@@ -7,6 +7,7 @@
  */
 
 #include "tlvf_airties_utils.h"
+#include "agent_db.h"
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/son/son_wireless_utils.h>
@@ -19,11 +20,19 @@
 #include <sys/ioctl.h>
 #include <tlvf/airties/eAirtiesTLVId.h>
 #include <tlvf/airties/supported_features.h>
+#include <tlvf/airties/tlvAirtiesDeviceInfo.h>
 #include <tlvf/airties/tlvAirtiesMsgType.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
 using namespace airties;
 
+using namespace beerocks;
+#if (USE_PRPLMESH_WHM)
+using namespace wbapi;
+#endif
+
+#define AIRTIES_ENABLE 0x1
+#define AIRTIES_DISABLE 0x0
 /**
  * @brief Check if the Spanning Tree Protocol (STP) is enabled.
  *
@@ -71,14 +80,11 @@ create_and_add_feature_to_list(std::shared_ptr<airties::tlvVersionReporting> tlv
     auto version_members = tlv_version_reporting->create_em_agent_feature_list();
 
     // Set the feature info by combining the feature ID and version
-<<<<<<< HEAD
     // EM+ features supported shall be reported as a big endian 4-octet value, where the 2 lowest
     // octets shall represent the version (iteration) of a feature and where the
     // 2 highest octets shall represent the ID of a feature
     // Below is the value for 2 highest octets of EM+ features supported feature ID.
     // shifting 16 bits(2 octets) and combining with the feature version.
-=======
->>>>>>> ba2cb0b6f (PPM-3070 Airties EasyMeshPlus Agent Version Reporting)
     version_members->feature_info() =
         (static_cast<int>(feature_id) << 16) | airties::eAirtiesFeatureVersion::feature_version;
 
@@ -118,14 +124,11 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
         static_cast<int>(airties::eAirtiesTlVId::AIRTIES_FEATURE_PROFILE);
 
     // Set the em agent version
-<<<<<<< HEAD
     // EM+ features supported shall be reported as a big endian 4-octet value, where the 2 lowest
     // octets shall represent the version (iteration) of a feature and where the
     // 2 highest octets shall represent the ID of a feature
     // Below is the value for 2 lowest octets of EM+ features supported version.
     // shifting 16 bits(2 octets) and combining with the subversion.
-=======
->>>>>>> ba2cb0b6f (PPM-3070 Airties EasyMeshPlus Agent Version Reporting)
     tlv_version_reporting->em_agent_version() =
         (airties::eMasterVersion::master_version << 16) | airties::eSubVersion::sub_version;
 
@@ -161,11 +164,7 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
 
         // Special case: STP feature is added only if STP is enabled on the platform
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_STP: {
-<<<<<<< HEAD
             if (utils_instance.is_airties_platform_common_stp_enabled()) {
-=======
-            if (utils_instance.airties_platform_common_stp_enabled()) {
->>>>>>> ba2cb0b6f (PPM-3070 Airties EasyMeshPlus Agent Version Reporting)
                 LOG(INFO) << "Airties Feature STP is enabled";
                 create_and_add_feature_to_list(tlv_version_reporting, feature_id_enum);
             }
@@ -180,6 +179,62 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
         feature_id++;
     }
     LOG(INFO) << "Added the airties-specific version reporting TLV";
+    return true;
+}
+
+bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
+{
+    std::string client_id     = "SampleClientID";
+    std::string client_secret = "SamplePwD123";
+    uint32_t randomBootid;
+    auto db = beerocks::AgentDB::get();
+
+    srand((unsigned)time(NULL));
+    randomBootid = rand();
+
+    auto tlvAirtiesDeviceInfo = m_cmdu_tx.addClass<airties::tlvAirtiesDeviceInfo>();
+    if (!tlvAirtiesDeviceInfo) {
+        LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
+        return false;
+    }
+    tlvAirtiesDeviceInfo->vendor_oui() =
+        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
+    tlvAirtiesDeviceInfo->tlv_id()  = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_INFO);
+    tlvAirtiesDeviceInfo->boot_id() = randomBootid;
+
+#if (USE_PRPLMESH_WHM)
+    std::string dm_path = "X_AIRTIES_Obj.CloudComm.";
+    auto cli_det        = tlvf_air_utils.m_ambiorix_cl.get_object(dm_path);
+    if (!cli_det) {
+        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
+    }
+    //Retrieve the Client ID from DM
+    if (cli_det) {
+        cli_det->read_child<>(client_id, "ClientID");
+    }
+#endif
+
+    tlvAirtiesDeviceInfo->set_client_id(client_id);
+    LOG(INFO) << "DeviceInfoTlv: Client id successfully set ";
+
+#ifdef USE_PRPLMESH_WHM
+    //Retrieve the Client Secret from DM
+    if (cli_det) {
+        cli_det->read_child<>(client_secret, "ClientPassword");
+    }
+#endif
+
+    tlvAirtiesDeviceInfo->set_client_secret(client_secret);
+    LOG(INFO) << "DeviceInfoTlv: Client Secret Length set";
+
+    if (db->device_conf.local_gw) { //its a controller
+        tlvAirtiesDeviceInfo->flags1().gateway_product_class  = AIRTIES_ENABLE;
+        tlvAirtiesDeviceInfo->flags2().device_role_indication = AIRTIES_ENABLE;
+    } else {
+        tlvAirtiesDeviceInfo->flags1().extender_product_class = AIRTIES_ENABLE;
+        tlvAirtiesDeviceInfo->flags2().device_role_indication = AIRTIES_DISABLE;
+    }
+    LOG(INFO) << "Added Device Info TLV";
     return true;
 }
 

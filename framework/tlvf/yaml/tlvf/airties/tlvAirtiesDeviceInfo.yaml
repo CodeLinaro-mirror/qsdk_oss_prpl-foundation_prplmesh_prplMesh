@@ -1,0 +1,59 @@
+#
+---
+
+_namespace: airties
+_include:
+  {
+    tlvf/ieee_1905_1/sVendorOUI.h,
+    tlvf/airties/eAirtiesTlvTypeMap.h,
+  }
+
+tlvAirtiesDeviceInfo:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eAirtiesTlvTypeMap
+    _value_const: TLV_VENDOR_SPECIFIC
+  length: uint16_t
+  vendor_oui:
+    _type: sVendorOUI
+  tlv_id:
+    _type: uint16_t
+  boot_id:
+    _type: uint32_t
+  client_id_length:
+     _type: uint8_t
+     _length_var: True
+  client_id:
+     _type: char
+     _length: [ client_id_length ]       
+  client_secret_length:
+     _type: uint8_t
+     _length_var: True
+  client_secret:
+    _type: char
+    _length: [ client_secret_length ]
+  flags1: sFlags1
+  flags2: sFlags2
+
+sFlags1:
+  _type: struct
+  _bit_field: uint8_t
+  gateway_product_class:
+    _bit_range: [7,7]
+  extender_product_class:
+    _bit_range: [6,6]
+  stb_product_class:
+    _bit_range: [5,5]
+  reserved:
+    _bit_range: [4,0]
+
+sFlags2:
+  _type: struct
+  _bit_field: uint8_t
+  device_role_indication:
+    _bit_range: [7,7]
+  reserved:
+    _bit_range: [6,0]
+
+
