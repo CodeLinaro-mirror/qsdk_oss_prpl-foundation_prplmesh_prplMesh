@@ -7,6 +7,7 @@
  */
 
 #include "tlvf_airties_utils.h"
+#include "agent_db.h"
 #include <../../../../../framework/platform/bpl/common/utils/utils.h>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_utils.h>
@@ -19,11 +20,19 @@
 #include <sys/ioctl.h>
 #include <tlvf/airties/eAirtiesTLVId.h>
 #include <tlvf/airties/supported_features.h>
+#include <tlvf/airties/tlvAirtiesDeviceInfo.h>
 #include <tlvf/airties/tlvAirtiesMsgType.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
 using namespace airties;
 
+using namespace beerocks;
+#if (USE_PRPLMESH_WHM)
+using namespace wbapi;
+#endif
+
+#define AIRTIES_ENABLE 0x1
+#define AIRTIES_DISABLE 0x0
 /**
  * @brief Check if the Spanning Tree Protocol (STP) is enabled.
  *
@@ -161,6 +170,62 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
         feature_id++;
     }
     LOG(INFO) << "Added the airties-specific version reporting TLV";
+    return true;
+}
+
+bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
+{
+    std::string client_id     = "SampleClientID";
+    std::string client_secret = "SamplePwD123";
+    uint32_t randomBootid;
+    auto db = beerocks::AgentDB::get();
+
+    srand((unsigned)time(NULL));
+    randomBootid = rand();
+
+    auto tlvAirtiesDeviceInfo = m_cmdu_tx.addClass<airties::tlvAirtiesDeviceInfo>();
+    if (!tlvAirtiesDeviceInfo) {
+        LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
+        return false;
+    }
+    tlvAirtiesDeviceInfo->vendor_oui() =
+        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
+    tlvAirtiesDeviceInfo->tlv_id()  = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_INFO);
+    tlvAirtiesDeviceInfo->boot_id() = randomBootid;
+
+#if (USE_PRPLMESH_WHM)
+    std::string dm_path = "X_AIRTIES_Obj.CloudComm.";
+    auto cli_det        = tlvf_air_utils.m_ambiorix_cl.get_object(dm_path);
+    if (!cli_det) {
+        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
+    }
+    //Retrieve the Client ID from DM
+    if (cli_det) {
+        cli_det->read_child<>(client_id, "ClientID");
+    }
+#endif
+
+    tlvAirtiesDeviceInfo->set_client_id(client_id);
+    LOG(INFO) << "DeviceInfoTlv: Client id successfully set ";
+
+#ifdef USE_PRPLMESH_WHM
+    //Retrieve the Client Secret from DM
+    if (cli_det) {
+        cli_det->read_child<>(client_secret, "ClientPassword");
+    }
+#endif
+
+    tlvAirtiesDeviceInfo->set_client_secret(client_secret);
+    LOG(INFO) << "DeviceInfoTlv: Client Secret Length set";
+
+    if (db->device_conf.local_gw) { //its a controller
+        tlvAirtiesDeviceInfo->flags1().gateway_product_class  = AIRTIES_ENABLE;
+        tlvAirtiesDeviceInfo->flags2().device_role_indication = AIRTIES_ENABLE;
+    } else {
+        tlvAirtiesDeviceInfo->flags1().extender_product_class = AIRTIES_ENABLE;
+        tlvAirtiesDeviceInfo->flags2().device_role_indication = AIRTIES_DISABLE;
+    }
+    LOG(INFO) << "Added Device Info TLV";
     return true;
 }
 

@@ -26,6 +26,12 @@ find_package(amxd REQUIRED)
 find_package(amxp REQUIRED)
 list(APPEND MULTI_VENDOR_LIBS amxd amxp amxb amxc)
 
+if (USE_PRPLMESH_WHM)
+    list(APPEND BWL_LIBS wbapi)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_PRPLMESH_WHM")
+endif()
+
 # Build the library
 add_library(${PROJECT_NAME} ${multi_vendor_sources})
 

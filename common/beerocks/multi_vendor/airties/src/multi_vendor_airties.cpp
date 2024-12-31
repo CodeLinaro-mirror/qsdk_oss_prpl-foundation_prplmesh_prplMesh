@@ -51,6 +51,10 @@ public:
                 tlv_function_table[AIRTIES_OUI]
                                   [ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE]
                                       .push_back(add_airties_version_reporting_tlv);
+                tlv_function_table[AIRTIES_OUI]
+                                  [ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE]
+                                      .push_back(add_airties_deviceinfo_tlv);
+
             } break;
             case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE: {
                 // Add Airties vendor-specific TLV function for
