@@ -14,7 +14,7 @@
 #include "../helpers/media_type.h"
 #include "../son_slave_thread.h"
 #include "../traffic_separation.h"
-
+#include "multi_vendor.h"
 #include <beerocks/tlvf/beerocks_message_monitor.h>
 
 #include <tlvf/ieee_1905_1/tlvLinkMetricQuery.h>
@@ -37,6 +37,8 @@
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
 
 #include "../gate/1905_beacon_query_to_vs.h"
+
+using namespace multi_vendor;
 
 namespace beerocks {
 
@@ -1146,6 +1148,12 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
         out_radio_metrics_tlv->transmit()      = response.transmit;
         out_radio_metrics_tlv->receive_self()  = response.receive_self;
         out_radio_metrics_tlv->receive_other() = response.receive_other;
+    }
+    // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
+    // AP Metrics Response message.
+    if (!multi_vendor::tlvf_handler::add_vs_tlv(
+            m_cmdu_tx, ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE)) {
+        LOG(ERROR) << "Failed adding few TLVs in AP_METRICS_RESPONSE_MESSAGE";
     }
 
     // Clear m_radio_ap_metric_response and m_ap_metric_response vectors

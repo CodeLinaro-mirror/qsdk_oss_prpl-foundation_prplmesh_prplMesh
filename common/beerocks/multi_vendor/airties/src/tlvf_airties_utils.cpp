@@ -21,6 +21,7 @@
 #include <tlvf/airties/eAirtiesTLVId.h>
 #include <tlvf/airties/supported_features.h>
 #include <tlvf/airties/tlvAirtiesDeviceInfo.h>
+#include <tlvf/airties/tlvAirtiesDeviceMetrics.h>
 #include <tlvf/airties/tlvAirtiesMsgType.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
@@ -35,6 +36,16 @@ using namespace wbapi;
  */
 #define TLV_BIT_ENABLE 0x1
 #define TLV_BIT_DISABLE 0x0
+
+#define CPU_TEMP_FILE "/sys/devices/virtual/thermal/thermal_zone0/temp"
+#define MEMINFO_FILE "/proc/meminfo"
+#define STAT_FILE "/proc/stat"
+#define STAT_CPU_TXT "cpu "
+#define MEMCACHED_TXT "Cached:"
+#define MEMTOTAL_TXT "MemTotal:"
+#define MEMFREE_TXT "MemFree:"
+#define MEMBUFFER_TXT "Buffers:"
+#define STAT_IDLE_IND 3
 
 /**
  * @brief Check if the Spanning Tree Protocol (STP) is enabled.
@@ -240,6 +251,257 @@ bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m
         tlvAirtiesDeviceInfo->flags2().device_role_indication = TLV_BIT_DISABLE;
     }
     LOG(INFO) << "Added Device Info TLV";
+    return true;
+}
+
+//Global declarations for keeping previous cpu values and meminfo
+uint32_t cpu_idle_prev = 0, cpu_total_prev = 1;
+
+//Function to get the CPU temperature
+bool devicemetrics_get_cpu_temp(uint8_t &cpu_temp)
+{
+    char buf[32] = {0};
+    /* Open ACPI thermal zone sysfs file to read temperature. */
+    FILE *fd = fopen(CPU_TEMP_FILE, "r");
+    if (fd == NULL) {
+        LOG(ERROR) << "cannot open file" << CPU_TEMP_FILE;
+        return false;
+    }
+
+    if (fgets(buf, sizeof(buf), fd)) {
+        /* Temperature resides as milidegree Celcius as denoted in Linux ACPI docs. */
+        cpu_temp = atoi(buf) / 1000;
+    } else {
+        cpu_temp = 0;
+    }
+    fclose(fd);
+    return true;
+}
+
+//Function to get the CPU Load
+bool devicemetrics_get_cpu_load(uint8_t &cpu_load)
+{
+    uint8_t cpu_total = 0, cpu_idle = 0;
+    char buf[256] = {0};
+
+    FILE *fp = fopen(STAT_FILE, "r");
+    if (fp == NULL) {
+        LOG(ERROR) << "cannot open file" << STAT_FILE;
+        return false;
+    }
+
+    /* Get the first line of CPU stats. */
+    if (fgets(buf, sizeof(buf), fp)) {
+        int i = 0;
+        char *token, *ctx;
+
+        /* Check if we have expected string in read buffer. */
+        if (strncmp(buf, STAT_CPU_TXT, strlen(STAT_CPU_TXT)) != 0) {
+            LOG(ERROR) << "Incorrect string read in CPU stats.";
+            fclose(fp);
+            return false;
+        }
+        /* Point empty spaces and parse to get CPU stats: user nice system idle .. */
+        token = strtok_r(buf, " ", &ctx);
+        while (token != NULL) {
+            token = strtok_r(NULL, " ", &ctx);
+            if (token != NULL) {
+                cpu_total += atoi(token);
+                /* IDLE ticks are stored in 4th column according to Linux documentation. */
+                if (i == STAT_IDLE_IND) {
+                    cpu_idle = atoi(token);
+                }
+                i++;
+            }
+        }
+    }
+
+    LOG(INFO) << "cpu_idle_prev " << cpu_idle_prev << "cpu_idle " << cpu_idle << "cpu_total_prev "
+              << cpu_total_prev << "cpu_total " << cpu_total;
+
+    if (cpu_total > 0 && cpu_idle > 0 && cpu_total != cpu_total_prev) {
+        cpu_load = (1 - ((double)(cpu_idle - cpu_idle_prev) / (cpu_total - cpu_total_prev))) * 100;
+    }
+    /* Keep previous data to get delta between cpu load changes. */
+    cpu_idle_prev  = cpu_idle;
+    cpu_total_prev = cpu_total;
+    fclose(fp);
+    return true;
+}
+
+bool devicemetrics_get_meminfo(int32_t &memtotal, int32_t &memfree, int32_t &memcached)
+{
+    FILE *fp        = NULL;
+    char buf[32]    = {0};
+    int32_t membufs = -1;
+
+    fp = fopen(MEMINFO_FILE, "r");
+    if (fp == NULL) {
+        LOG(ERROR) << "cannot open file" << MEMINFO_FILE;
+        goto out;
+    }
+    /* Read meminfo file line by line to fetch free, cached and total sizes. */
+    while (fgets(buf, sizeof(buf), fp) != NULL) {
+        char *ctx = NULL, *fld = NULL, *val = NULL;
+        fld = strtok_r(buf, " ", &ctx);
+        if (fld == NULL) {
+            continue;
+        }
+        /* Point empty spaces and parse to get mem info. */
+        val = strtok_r(NULL, " ", &ctx);
+        if (val == NULL) {
+            continue;
+        }
+        if (strcmp(fld, MEMCACHED_TXT) == 0) {
+            memcached = atoi(val);
+        } else if (strcmp(fld, MEMFREE_TXT) == 0) {
+            memfree = atoi(val);
+        } else if (strcmp(fld, MEMTOTAL_TXT) == 0) {
+            memtotal = atoi(val);
+        } else if (strcmp(fld, MEMBUFFER_TXT) == 0) {
+            membufs = atoi(val);
+        }
+        if (memcached >= 0 && memfree >= 0 && memtotal >= 0 && membufs >= 0) {
+            /* We got all we need, break the loop. */
+            break;
+        }
+    }
+    if ((memcached < 0) || (memtotal < 0) || (memfree < 0) || (membufs < 0)) {
+        LOG(INFO) << "Failed to read meminfo fields memcache: " << memcached
+                  << "memtotal:  " << memtotal << "memfree: " << memfree << "membuffs: " << membufs;
+        goto out;
+    }
+    memcached = memcached + membufs;
+    fclose(fp);
+    return true;
+out:
+    if (fp != NULL) {
+        fclose(fp);
+    }
+    return false;
+}
+
+//Function to get the Device Uptime
+bool devicemetrics_get_uptime(struct timespec &ts)
+{
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return false;
+    }
+    return true;
+}
+
+bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetrics> &tlvDevMetrics)
+{
+    std::string dm_path      = "Device.WiFi.Radio.";
+    std::string stats_string = "Stats.";
+    std::string rad_details_path;
+
+    auto db           = AgentDB::get();
+    int num_of_radios = 0;
+
+    num_of_radios = db->get_radios_list().size();
+    LOG(INFO) << "Device Metrics TLV: Number of radios  " << num_of_radios;
+
+    for (int radio_index = 1; radio_index <= num_of_radios; radio_index++) {
+        auto rad_list = tlvDevMetrics->create_radio_list();
+
+        //Radio ID
+        rad_details_path = dm_path + std::to_string(radio_index) + ".";
+
+        auto dev = tlvf_air_utils.m_ambiorix_cl.get_object(rad_details_path);
+        if (!dev) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << rad_details_path;
+            return false;
+        }
+
+        std::string radio_id = "";
+        dev->read_child<>(radio_id, "BaseMACAddress");
+        rad_list->radio_id() = tlvf::mac_from_string(radio_id);
+
+        //Temperature
+        rad_details_path = dm_path + std::to_string(radio_index) + "." + stats_string;
+
+        auto temp_obj = tlvf_air_utils.m_ambiorix_cl.get_object(rad_details_path);
+        if (!temp_obj) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path for temp "
+                       << rad_details_path;
+            return false;
+        }
+
+        uint8_t radio_temp = 0;
+        temp_obj->read_child<>(radio_temp, "Temperature");
+        rad_list->radio_temperature() = radio_temp;
+
+        tlvDevMetrics->add_radio_list(rad_list);
+    }
+    return true;
+}
+
+/*
+ * Function to add Device Metrics TLV.
+ */
+bool tlvf_airties_utils::add_device_metrics(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    struct timespec ts = {.tv_sec = 0, .tv_nsec = 0};
+    int32_t memcached = -1, memtotal = -1, memfree = -1;
+    uint8_t cpu_load = 0, cpu_temp = 0;
+
+    auto tlvAirtiesDeviceMetrics = cmdu_tx.addClass<airties::tlvAirtiesDeviceMetrics>();
+    if (!tlvAirtiesDeviceMetrics) {
+        LOG(ERROR) << "Failed adding tlvAirtiesDeviceMetrics";
+        return false;
+    }
+
+    tlvAirtiesDeviceMetrics->vendor_oui() =
+        sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES);
+    tlvAirtiesDeviceMetrics->tlv_id() =
+        static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_METRICS);
+
+    /*
+     * If any of the following fields like cpu lod, meminfo returns
+     * error, the TLV will still be added except the respective values
+     * which threw error.
+     */
+    if (devicemetrics_get_uptime(ts)) {
+        tlvAirtiesDeviceMetrics->uptime_to_boot() = ts.tv_sec;
+    } else {
+        LOG(INFO) << "Unable to fetch the clock time for"
+                  << "updating the Device Metrics TLV";
+        tlvAirtiesDeviceMetrics->uptime_to_boot() = 0;
+    }
+
+    if (devicemetrics_get_cpu_load(cpu_load)) {
+        tlvAirtiesDeviceMetrics->cpu_loadtime_platform() = cpu_load;
+    } else {
+        LOG(INFO) << "Unable to fetch the CPU load for"
+                  << "updating the Device Metrics TLV";
+        tlvAirtiesDeviceMetrics->cpu_loadtime_platform() = 0;
+    }
+
+    if (devicemetrics_get_cpu_temp(cpu_temp)) {
+        tlvAirtiesDeviceMetrics->cpu_temperature() = cpu_temp;
+    } else {
+        LOG(INFO) << "Unable to fetch the CPU Temp for"
+                  << "updating the Device Metrics TLV";
+        tlvAirtiesDeviceMetrics->cpu_temperature() = 0;
+    }
+
+    if (devicemetrics_get_meminfo(memtotal, memfree, memcached)) {
+        tlvAirtiesDeviceMetrics->platform_totalmemory()  = memtotal;
+        tlvAirtiesDeviceMetrics->platform_freememory()   = memfree;
+        tlvAirtiesDeviceMetrics->platform_cachedmemory() = memcached;
+    } else {
+        LOG(INFO) << "Unable to fetch the Memory Info for"
+                  << "updating the Device Metrics TLV";
+        tlvAirtiesDeviceMetrics->platform_totalmemory()  = 0;
+        tlvAirtiesDeviceMetrics->platform_freememory()   = 0;
+        tlvAirtiesDeviceMetrics->platform_cachedmemory() = 0;
+    }
+    if (!devicemetrics_get_radio_info(tlvAirtiesDeviceMetrics)) {
+        LOG(INFO) << "Unable to fetch the radio Info for"
+                  << "updating the Device Metrics TLV";
+    }
+
     return true;
 }
 

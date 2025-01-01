@@ -17,6 +17,7 @@ class tlvf_airties_utils {
 public:
     static bool add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx);
     static bool add_airties_version_reporting_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+    static bool add_device_metrics(ieee1905_1::CmduMessageTx &cmdu_tx);
 };
 } // namespace airties
 

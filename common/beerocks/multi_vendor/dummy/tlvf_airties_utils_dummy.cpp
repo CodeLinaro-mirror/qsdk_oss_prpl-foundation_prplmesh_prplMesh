@@ -21,3 +21,9 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
     LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
     return false;
 }
+
+bool tlvf_airties_utils::add_device_metrics(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return false;
+}

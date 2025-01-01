@@ -70,6 +70,13 @@ public:
                                   [ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE]
                                       .push_back(add_airties_version_reporting_tlv);
             } break;
+            case ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE: {
+                // Add Airties vendor-specific  TLV function for
+                // AP_METRICS_RESPONSE_MESSAGE
+                tlv_function_table[AIRTIES_OUI]
+                                  [ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE]
+                                      .push_back(add_device_metrics);
+            } break;
             default: {
                 // Log an error for unrecognized message types
                 LOG(WARNING) << "This msg type " << msg_type
@@ -85,7 +92,8 @@ private:
     const std::vector<ieee1905_1::eMessageType> m_message_types = {
         ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE,
         ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE,
-        ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE};
+        ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE,
+        ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE};
 };
 
 // Static object of the Airties vendor object. This ensures the airties vendor's handlers are
