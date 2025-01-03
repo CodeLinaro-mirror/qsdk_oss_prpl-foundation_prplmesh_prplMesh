@@ -273,7 +273,12 @@ int main(int argc, char *argv[])
     son::ApManager ap_manager(fronthaul_iface, *g_logger_ap_mananger, slave_cmdu_client_factory,
                               timer_manager, event_loop);
 
-    LOG_IF(!ap_manager.start(), FATAL) << "Unable to start AP manager!";
+    if (!ap_manager.start()) {
+        // if is a fatal error except for when the user explicitly terminate the process
+        if (s_signal == SIGTERM)
+            return 0;
+        LOG(FATAL) << "Unable to start AP manager!";
+    }
 
     // Create Monitor
     son::Monitor monitor(fronthaul_iface, beerocks_slave_conf, *g_logger_monitor);
