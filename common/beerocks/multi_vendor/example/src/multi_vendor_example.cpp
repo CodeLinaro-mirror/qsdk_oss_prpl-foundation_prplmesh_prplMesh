@@ -71,8 +71,7 @@ public:
                                   [ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE]
                                       .push_back(add_vendor_example_tlv);
 
-                break;
-            }
+            } break;
             // Register the TLV handler for the AP_CAPABILITY_REPORT_MESSAGE.
             case ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE: {
 
@@ -80,14 +79,12 @@ public:
                                   [ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE]
                                       .push_back(add_vendor_example_tlv);
 
-                break;
-            }
+            } break;
             default: {
                 LOG(WARNING) << "This msg type " << msg_type
                              << " is not added in the m_message_types vector of this OUI :"
                              << std::hex << EXAMPLE_OUI;
-                break;
-            }
+            } break;
             }
         }
     }

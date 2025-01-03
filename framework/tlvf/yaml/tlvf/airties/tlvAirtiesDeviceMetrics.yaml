@@ -1,0 +1,49 @@
+#
+---
+
+_include:
+  {
+    tlvf/ieee_1905_1/sVendorOUI.h,
+    tlvf/airties/eAirtiesTlvTypeMap.h,
+    tlvf/common/sMacAddr.h,
+  }
+
+_namespace: airties
+
+tlvAirtiesDeviceMetrics:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eAirtiesTlvTypeMap
+    _value_const: TLV_VENDOR_SPECIFIC
+  length: uint16_t
+  vendor_oui:
+    _type: sVendorOUI
+  tlv_id:
+    _type: uint16_t
+  uptime_to_boot:
+    _type: uint32_t
+  cpu_loadtime_platform: uint8_t
+  cpu_temperature: uint8_t
+  platform_totalmemory:
+    _type: uint32_t
+  platform_freememory:
+    _type: uint32_t
+  platform_cachedmemory:
+    _type: uint32_t
+  num_of_radios:
+    _type: uint8_t
+    _length_var: True
+  radio_list:
+    _type: cRadioInfo
+    _length: [num_of_radios]
+
+cRadioInfo:
+  _type: class
+  radio_id:
+    _type: sMacAddr
+  radio_temperature: #uint8
+    _type: uint8_t
+
+
+
