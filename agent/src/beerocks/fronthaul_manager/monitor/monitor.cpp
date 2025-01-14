@@ -2035,6 +2035,7 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             out_result.signal_strength_dBm = in_result.signal_strength_dBm;
             out_result.beacon_period_ms    = in_result.beacon_period_ms;
             out_result.noise_dBm           = in_result.noise_dBm;
+            out_result.utilization         = in_result.utilization;
             out_result.dtim_period         = in_result.dtim_period;
             out_result.channel_utilization = in_result.channel_utilization;
             out_result.station_count       = in_result.station_count;

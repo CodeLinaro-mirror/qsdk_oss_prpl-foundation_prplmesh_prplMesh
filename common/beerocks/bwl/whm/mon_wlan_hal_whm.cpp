@@ -465,10 +465,14 @@ bool mon_wlan_hal_whm::channel_scan_dump_cached_results()
         auto results_notif = std::make_shared<sCHANNEL_SCAN_RESULTS_NOTIFICATION>();
         auto &results      = results_notif->channel_scan_results;
 
-        string_utils::copy_string(results.ssid, map["SSID"].c_str(),
-                                  beerocks::message::WIFI_SSID_MAX_LENGTH);
+        if (map.find("SSID") != map.end()) {
+            string_utils::copy_string(results.ssid, map["SSID"].c_str(),
+                                      beerocks::message::WIFI_SSID_MAX_LENGTH);
+        }
 
-        results.bssid = tlvf::mac_from_string(map["BSSID"]);
+        if (map.find("BSSID") != map.end()) {
+            results.bssid = tlvf::mac_from_string(map["BSSID"]);
+        }
 
         int32_t center_channel = std::stoi(map["CentreChannel"]);
 
@@ -482,7 +486,9 @@ bool mon_wlan_hal_whm::channel_scan_dump_cached_results()
         results.operating_frequency_band =
             utils_wlan_hal_whm::eFreqType_to_eCh_scan_Op_Fr_Ba(wifi_channel.get_freq_type());
 
-        results.signal_strength_dBm = std::stoi(map["RSSI"]);
+        if (map.find("RSSI") != map.end()) {
+            results.signal_strength_dBm = std::stoi(map["RSSI"]);
+        }
 
         if (map.find("Noise") != map.end()) {
             results.noise_dBm = std::stoi(map["Noise"]);
@@ -505,6 +511,20 @@ bool mon_wlan_hal_whm::channel_scan_dump_cached_results()
             results.supported_standards =
                 utils_wlan_hal_whm::get_scan_result_operating_standards_from_str(
                     supported_standards);
+        }
+
+        if (map.find("ChannelUtilization") != map.end()) {
+            results.channel_utilization = std::stoi(map["ChannelUtilization"]);
+            results.load_bss_ie_present = 1;
+        }
+
+        if (map.find("StationCount") != map.end()) {
+            results.station_count = std::stoi(map["StationCount"]);
+            results.load_bss_ie_present = 1;
+        }
+
+        if (map.find("Utilization") != map.end()) {
+            results.utilization = std::stoi(map["Utilization"]);
         }
 
         LOG(DEBUG) << "Processing results for BSSID:" << results.bssid
@@ -961,18 +981,12 @@ bool mon_wlan_hal_whm::get_scan_results_from_pwhm()
         if (map.find("BSSID") != map.end()) {
             map["BSSID"].get(bssid);
             map_cach_bssid["BSSID"] = bssid;
-        } else {
-            LOG(DEBUG) << "BSSID is missing,skipping";
-            continue;
         }
 
         if (map.find("SSID") != map.end()) {
             std::string ssid;
             map["SSID"].get(ssid);
             map_cach_bssid["SSID"] = ssid;
-        } else {
-            LOG(DEBUG) << "SSID is missing,skipping";
-            continue;
         }
 
         if (map.find("CentreChannel") != map.end()) {
@@ -1005,9 +1019,6 @@ bool mon_wlan_hal_whm::get_scan_results_from_pwhm()
             std::string rssi;
             map["RSSI"].get(rssi);
             map_cach_bssid["RSSI"] = rssi;
-        } else {
-            LOG(DEBUG) << "RSSI is missing,skipping";
-            continue;
         }
 
         if (map.find("Noise") != map.end()) {
@@ -1032,6 +1043,24 @@ bool mon_wlan_hal_whm::get_scan_results_from_pwhm()
             std::string operating_standards;
             map["OperatingStandards"].get(operating_standards);
             map_cach_bssid["OperatingStandards"] = operating_standards;
+        }
+
+        if (map.find("Utilization") != map.end()) {
+            std::string utilization;
+            map["Utilization"].get(utilization);
+            map_cach_bssid["Utilization"] = utilization;
+        }
+
+        if (map.find("ChannelUtilization") != map.end()) {
+            std::string ChannelUtilization;
+            map["ChannelUtilization"].get(ChannelUtilization);
+            map_cach_bssid["ChannelUtilization"] = ChannelUtilization;
+        }
+
+        if (map.find("StationCount") != map.end()) {
+            std::string StationCount;
+            map["StationCount"].get(StationCount);
+            map_cach_bssid["StationCount"] = StationCount;
         }
 
         m_scan_results.push_back(map_cach_bssid);

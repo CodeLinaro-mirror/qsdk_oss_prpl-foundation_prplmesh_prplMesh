@@ -1275,6 +1275,8 @@ typedef struct sChannelScanResults {
     eChannelScanResultMode mode;
     //The current radio channel used by the neighboring WiFi radio.
     uint32_t channel;
+    //Indicates the channel is in the fraction of the time AP senses that use by the AP for transmissions.
+    uint32_t utilization;
     //An indicator of radio signal strength (RSSI) of the neighboring WiFi radio measured in dBm, as an average of the last 100 packets received.
     int32_t signal_strength_dBm;
     //The type of encryption the neighboring WiFi SSID advertises. Enumerate List.

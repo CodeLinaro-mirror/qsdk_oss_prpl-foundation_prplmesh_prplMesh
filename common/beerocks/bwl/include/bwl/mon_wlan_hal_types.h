@@ -392,6 +392,9 @@ typedef struct sChannelScanResults {
     //Indicator of average noise strength (indBm) received from the neighboring WiFi radio.
     int32_t noise_dBm = 0;
 
+    //Indicates the channel is in the fraction of the time AP senses that use by the AP for transmissions.
+    uint32_t utilization = 0;
+
     //Basic data transmit rates (in Kbps) for the SSID.
     std::vector<uint32_t> basic_data_transfer_rates_kbps;
 

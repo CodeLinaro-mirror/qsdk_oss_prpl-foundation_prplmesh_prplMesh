@@ -157,13 +157,15 @@ private:
         uint8_t channel;
         eScanStatus status;
         std::chrono::system_clock::time_point timestamp;
+        uint32_t utilization;
+        int32_t noise;
         std::vector<beerocks_message::sChannelScanResults> results;
         explicit sStoredScanResults(
             sMacAddr _ruid, uint8_t _operating_class, uint8_t _channel, eScanStatus _status,
-            std::chrono::system_clock::time_point _timestamp,
+            std::chrono::system_clock::time_point _timestamp, uint32_t _utilization, int32_t _noise,
             const std::vector<beerocks_message::sChannelScanResults> &_results)
             : ruid(_ruid), operating_class(_operating_class), channel(_channel), status(_status),
-              timestamp(_timestamp), results(_results)
+              timestamp(_timestamp), utilization(_utilization), noise(_noise), results(_results)
         {
         }
     };

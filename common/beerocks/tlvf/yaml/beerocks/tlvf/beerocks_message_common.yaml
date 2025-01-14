@@ -917,6 +917,9 @@ sChannelScanResults:
   channel:
     _comment: The current radio channel used by the neighboring WiFi radio.
     _type: uint32_t
+  utilization:
+    _comment: Indicates the channel is in the fraction of the time AP senses that use by the AP for transmissions.
+    _type: uint32_t
   signal_strength_dBm:
     _type: int32_t
     _comment: An indicator of radio signal strength (RSSI) of the neighboring WiFi radio measured in dBm, as an average of the last 100 packets received.
