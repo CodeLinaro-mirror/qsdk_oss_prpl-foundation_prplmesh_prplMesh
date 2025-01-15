@@ -1339,6 +1339,19 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
         return true;
     };
 
+    auto find_neighbor_al_mac_by_iface_mac = [&](const sMacAddr &iface_mac, sMacAddr &al_mac) {
+        for (const auto &neighbors_on_local_iface : db->neighbor_devices) {
+            auto &neighbors = neighbors_on_local_iface.second;
+            for (const auto &neighbor_entry : neighbors) {
+                if (neighbor_entry.second.transmitting_iface_mac == iface_mac) {
+                    al_mac = neighbor_entry.first;
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
     // Add WAN interface
     if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
         if (!add_eth_neighbor(db->ethernet.wan.iface_name, db->ethernet.wan.mac)) {
@@ -1375,8 +1388,16 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
         }
 
         for (const auto &associated_client : radio->associated_clients) {
-            auto &bssid = associated_client.second.bssid;
+            sMacAddr al_mac;
+            /**
+             * Skip clients that are not present in the neighbor devices list populated
+             * by topology discovery messages.
+             */
+            if (!find_neighbor_al_mac_by_iface_mac(associated_client.first, al_mac)) {
+                continue;
+            }
 
+            auto &bssid = associated_client.second.bssid;
             sLinkInterface interface;
 
             interface.iface_name = radio->front.iface_name;
@@ -1391,11 +1412,9 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
             LOG(TRACE) << "Getting neighbors connected to interface " << interface.iface_name
                        << " with BSSID " << bssid;
 
-            // TODO: This is not correct... We actually have to get this from the topology
-            // discovery message, which will give us the neighbor interface and AL MAC addresses.
             sLinkNeighbor neighbor;
             neighbor.iface_mac = associated_client.first;
-            neighbor.al_mac    = neighbor.iface_mac;
+            neighbor.al_mac    = al_mac;
 
             if ((neighbor_mac_filter == net::network_utils::ZERO_MAC) ||
                 (neighbor_mac_filter == neighbor.al_mac)) {
