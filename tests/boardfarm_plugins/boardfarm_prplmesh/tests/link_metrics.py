@@ -71,11 +71,14 @@ class LinkMetrics(PrplMeshBaseTest):
         map_sta2 = map_vap2.clients[sta2.mac]
         debug("Found sta2 in topology: {}".format(map_sta2.path))
 
+        # Allow time for Topology Discovery to be received
+        time.sleep(61)
+
         debug("Send 1905 Link metric query to agent 1 (neighbor STA)")
         mid = controller.dev_send_1905(agent1.mac,
                                        self.ieee1905['eMessageType']['LINK_METRIC_QUERY_MESSAGE'],
                                        tlv(self.ieee1905['eTlvType']['TLV_LINK_METRIC_QUERY'],
-                                           "0x01 {%s} 0x02" % sta1.mac))
+                                           "0x01 {%s} 0x02" % agent2.mac))
         time.sleep(1)
         response = self.check_cmdu_type_single("Link metrics response",
                                                self.ieee1905['eMessageType']
@@ -88,6 +91,8 @@ class LinkMetrics(PrplMeshBaseTest):
         self.check_cmdu_has_tlv_single(response, 9)
         debug("Check link metrics response has receiver link metrics")
         self.check_cmdu_has_tlv_single(response, 10)
+
+        # TODO: Ensure that no station are present in the Link Metric Response
 
         sta1.wifi_disconnect(vap1)
         sta2.wifi_disconnect(vap2)
