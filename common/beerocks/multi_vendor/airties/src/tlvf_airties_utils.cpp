@@ -7,10 +7,10 @@
  */
 
 #include "tlvf_airties_utils.h"
-#include <../../../../../framework/platform/bpl/common/utils/utils.h>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/son/son_wireless_utils.h>
+#include <bpl/common/utils/utils.h>
 #include <cstring>
 #include <easylogging++.h>
 #include <linux/if_bridge.h>
@@ -32,7 +32,7 @@ using namespace airties;
  *
  * @return Returns 1 if STP is enabled, 0 otherwise.
  */
-int tlvf_airties_utils::airties_platform_common_stp_enabled() const
+bool tlvf_airties_utils::is_airties_platform_common_stp_enabled() const
 {
     std::string slave_config_file_path =
         CONF_FILES_WRITABLE_PATH + std::string(BEEROCKS_AGENT) +
@@ -49,7 +49,7 @@ int tlvf_airties_utils::airties_platform_common_stp_enabled() const
             return 0;
         }
     }
-    return beerocks::bpl::utils::is_stp_enabled(beerocks_slave_conf.bridge_iface) ? 1 : 0;
+    return beerocks::bpl::utils::is_stp_enabled(beerocks_slave_conf.bridge_iface) ? true : false;
 }
 
 /**
@@ -71,6 +71,11 @@ create_and_add_feature_to_list(std::shared_ptr<airties::tlvVersionReporting> tlv
     auto version_members = tlv_version_reporting->create_em_agent_feature_list();
 
     // Set the feature info by combining the feature ID and version
+    // EM+ features supported shall be reported as a big endian 4-octet value, where the 2 lowest
+    // octets shall represent the version (iteration) of a feature and where the
+    // 2 highest octets shall represent the ID of a feature
+    // Below is the value for 2 highest octets of EM+ features supported feature ID.
+    // shifting 16 bits(2 octets) and combining with the feature version.
     version_members->feature_info() =
         (static_cast<int>(feature_id) << 16) | airties::eAirtiesFeatureVersion::feature_version;
 
@@ -110,6 +115,11 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
         static_cast<int>(airties::eAirtiesTlVId::AIRTIES_FEATURE_PROFILE);
 
     // Set the em agent version
+    // EM+ features supported shall be reported as a big endian 4-octet value, where the 2 lowest
+    // octets shall represent the version (iteration) of a feature and where the
+    // 2 highest octets shall represent the ID of a feature
+    // Below is the value for 2 lowest octets of EM+ features supported version.
+    // shifting 16 bits(2 octets) and combining with the subversion.
     tlv_version_reporting->em_agent_version() =
         (airties::eMasterVersion::master_version << 16) | airties::eSubVersion::sub_version;
 
@@ -145,7 +155,7 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
 
         // Special case: STP feature is added only if STP is enabled on the platform
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_STP: {
-            if (utils_instance.airties_platform_common_stp_enabled()) {
+            if (utils_instance.is_airties_platform_common_stp_enabled()) {
                 LOG(INFO) << "Airties Feature STP is enabled";
                 create_and_add_feature_to_list(tlv_version_reporting, feature_id_enum);
             }

@@ -32,7 +32,7 @@ add_library(${PROJECT_NAME} ${multi_vendor_sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
-target_link_libraries(${PROJECT_NAME} PRIVATE ${MULTI_VENDOR_LIBS} bcl bwl btlvf tlvf nbapi bpl mapfcommon)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${MULTI_VENDOR_LIBS} bcl bwl bpl btlvf tlvf nbapi mapfcommon)
 
 # Install
 # New Vendor has to add the path of header files like example.
@@ -42,6 +42,7 @@ target_include_directories(${PROJECT_NAME}
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/airties/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../agent/src/beerocks/slave/>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../framework/platform>
     )
 
 install(TARGETS ${PROJECT_NAME}

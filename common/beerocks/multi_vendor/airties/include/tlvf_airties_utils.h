@@ -17,7 +17,7 @@ namespace airties {
 
 class tlvf_airties_utils {
 public:
-    int airties_platform_common_stp_enabled() const;
+    bool is_airties_platform_common_stp_enabled() const;
 
     /**
      * @brief Adds a new Airties Version Reporting TLV to given message.
