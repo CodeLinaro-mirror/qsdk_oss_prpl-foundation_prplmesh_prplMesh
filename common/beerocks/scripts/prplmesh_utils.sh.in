@@ -351,6 +351,29 @@ usage() {
     echo "usage: $(basename "$0") {start|stop|restart|status|roll_logs} [-hvpmdCD]"
 }
 
+add_processmonitor_entry(){
+    (ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_$1'].?" | grep -q "No data found") &&
+    echo "Adding processmonitor entry for PrplMesh $1" &&
+    ba-cli -l "ProcessMonitor.Test.+(
+        Name='prplmesh', 
+        Type='Process', 
+        Subject='/tmp/beerocks/pid/beerocks_$1', 
+        MaxFailNum=0, 
+        FailAction='RESTART', 
+        TestInterval=5
+        )"
+}
+
+remove_processmonitor_entries(){
+    (ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_agent'].?" | grep -q "prplmesh") &&
+    echo "Removing processmonitor entry for PrplMesh Agent" &&
+    ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_agent'].-"
+
+    (ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_controller'].?" | grep -q "prplmesh") &&
+    echo "Removing processmonitor entry for PrplMesh Controller" &&
+    ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_controller'].-"
+}
+
 main() {
     if ! OPTS=$(getopt -o 'hvm:pdC:D:'  -n 'parse-options' \
         --long 'verbose,help,mode:,platform-init,delete-logs,iface-ctrl,iface-data' \
@@ -383,6 +406,12 @@ main() {
     case $1 in
         "start")
             start_function
+            if [[ "$PRPLMESH_MODE" == "CA" || "$PRPLMESH_MODE" == "C" ]]; then
+                add_processmonitor_entry "controller"
+            fi
+            if [[ "$PRPLMESH_MODE" == "CA" || "$PRPLMESH_MODE" == "A" ]]; then
+                add_processmonitor_entry "agent"
+            fi
             ;;
         "start_wait")
             start_function
@@ -390,6 +419,7 @@ main() {
             stop_function
             ;;
         "stop")
+            remove_processmonitor_entries
             stop_function
             ;;
         "restart")
