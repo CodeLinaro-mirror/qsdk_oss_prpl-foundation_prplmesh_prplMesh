@@ -351,6 +351,66 @@ usage() {
     echo "usage: $(basename "$0") {start|stop|restart|status|roll_logs} [-hvpmdCD]"
 }
 
+check_processmonitor_entry() {
+    ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_$1'].?" | grep -Eq "No data found|ERROR"
+}
+
+add_processmonitor_entry() {
+    echo "Adding ProcessMonitor entry for prplMesh $1" &&
+    ba-cli -l "ProcessMonitor.Test.+(
+        Name='prplmesh', 
+        Type='Process', 
+        Subject='/tmp/beerocks/pid/beerocks_$1', 
+        MaxFailNum=0, 
+        FailAction='RESTART', 
+        TestInterval=5
+        )" > /dev/null
+}
+
+remove_processmonitor_entry() {
+    echo "Removing ProcessMonitor entry for prplMesh $1" &&
+    (ba-cli -l "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_$1'].-" > /dev/null || true)
+    check_processmonitor_entry "$1"
+    statusCode=$?
+    if [ $statusCode -eq 0 ]; then
+        echo "ProcessMonitor entry has been removed successfully"
+    else
+        echo "Failed to remove the ProcessMonitor entry"
+    fi
+}
+
+remove_processmonitor_entries() {
+    (check_processmonitor_entry "agent") ||
+    remove_processmonitor_entry "agent"
+
+    (check_processmonitor_entry "controller") ||
+    remove_processmonitor_entry "controller"
+}
+
+add_processmonitor() {
+    retries=10
+    statusCode=0
+
+    echo "Checking if ProcessMonitor entry for '$1' exists..."
+    if ! check_processmonitor_entry "$1"; then
+        echo "ProcessMonitor entry for '$1' already exists. Skipping..."
+    else
+        while [ $retries -gt 0 ] && [ $statusCode -ne 1 ]; do
+            echo "Trying to add ProcessMonitor entry for '$1'..."
+            add_processmonitor_entry "$1"
+            sleep 1
+            check_processmonitor_entry "$1"
+            statusCode=$?
+            if [ $statusCode -eq 1 ]; then
+                echo "ProcessMonitor entry has been added successfully"
+            else
+                echo "Failed to add the ProcessMonitor entry"
+            fi
+            retries=$((retries - 1))
+        done
+    fi
+}
+
 main() {
     if ! OPTS=$(getopt -o 'hvm:pdC:D:'  -n 'parse-options' \
         --long 'verbose,help,mode:,platform-init,delete-logs,iface-ctrl,iface-data' \
@@ -383,6 +443,13 @@ main() {
     case $1 in
         "start")
             start_function
+            if [ "$PRPLMESH_MODE" = "CA" ] || [ "$PRPLMESH_MODE" = "C" ]; then
+                add_processmonitor "controller"
+            fi
+
+            if [ "$PRPLMESH_MODE" = "CA" ] || [ "$PRPLMESH_MODE" = "A" ]; then
+                add_processmonitor "agent"
+            fi
             ;;
         "start_wait")
             start_function
@@ -390,6 +457,7 @@ main() {
             stop_function
             ;;
         "stop")
+            remove_processmonitor_entries
             stop_function
             ;;
         "restart")
