@@ -205,12 +205,17 @@ else()
     message(STATUS "Coverage support is not enabled")
 endif()
 
+add_definitions(-DBEEROCKS_VERSION="${prplmesh_VERSION}")
+add_definitions(-DBEEROCKS_BUILD_DATE="${BUILD_DATE}")
+add_definitions(-DBEEROCKS_REVISION="${PRPLMESH_REVISION}")
+
 ## Components
 
 add_subdirectory(framework)
 add_subdirectory(common)
 if (BUILD_AGENT)
     add_subdirectory(agent)
+    add_subdirectory(vendor_message)
 endif()
 if (BUILD_CONTROLLER)
     add_subdirectory(controller)

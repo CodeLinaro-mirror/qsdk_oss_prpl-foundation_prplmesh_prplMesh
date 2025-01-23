@@ -18,6 +18,7 @@ constexpr char BEEROCKS_AGENT[]      = "beerocks_agent";
 constexpr char BEEROCKS_BACKHAUL[]   = "beerocks_backhaul";
 constexpr char BEEROCKS_FRONTHAUL[]  = "beerocks_fronthaul";
 constexpr char BEEROCKS_AP_MANAGER[] = "beerocks_ap_manager";
+constexpr char BEEROCKS_V_MESSAGE[]  = "beerocks_vendor_message";
 constexpr char BEEROCKS_MONITOR[]    = "beerocks_monitor";
 constexpr char BEEROCKS_CLI[]        = "beerocks_cli";
 
