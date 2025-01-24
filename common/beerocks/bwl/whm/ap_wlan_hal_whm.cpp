@@ -588,6 +588,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         } else {
             new_obj.add_child("EncryptionMode", encryption_mode);
             new_obj.add_child("KeyPassPhrase", bss_info_conf.network_key);
+            new_obj.add_child("SAEPassphrase", bss_info_conf.network_key);
         }
         ret = m_ambiorix_cl.update_object(wifi_ap_sec_path, new_obj);
 
