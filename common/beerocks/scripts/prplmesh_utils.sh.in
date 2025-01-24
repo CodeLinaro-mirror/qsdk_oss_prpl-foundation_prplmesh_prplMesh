@@ -351,8 +351,11 @@ usage() {
     echo "usage: $(basename "$0") {start|stop|restart|status|roll_logs} [-hvpmdCD]"
 }
 
+check_processmonitor_entry(){
+    ba-cli -l "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_$1'].?" | grep -q "No data found"
+}
+
 add_processmonitor_entry(){
-    (ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_$1'].?" | grep -q "No data found") &&
     echo "Adding processmonitor entry for PrplMesh $1" &&
     ba-cli -l "ProcessMonitor.Test.+(
         Name='prplmesh', 
@@ -364,14 +367,31 @@ add_processmonitor_entry(){
         )"
 }
 
-remove_processmonitor_entries(){
-    (ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_agent'].?" | grep -q "prplmesh") &&
-    echo "Removing processmonitor entry for PrplMesh Agent" &&
-    ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_agent'].-"
+remove_processmonitor_entry(){
+    echo "Removing processmonitor entry for PrplMesh $1" &&
+    (ba-cli -l "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_$1'].-" || true)
+}
 
-    (ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_controller'].?" | grep -q "prplmesh") &&
-    echo "Removing processmonitor entry for PrplMesh Controller" &&
-    ba-cli "ProcessMonitor.Test.[Subject=='/tmp/beerocks/pid/beerocks_controller'].-"
+remove_processmonitor_entries(){
+    (check_processmonitor_entry "agent") ||
+    remove_processmonitor_entry "agent"
+
+    (check_processmonitor_entry "controller") ||
+    remove_processmonitor_entry "controller"
+}
+
+add_processmonitor(){
+    retries=10
+    check_processmonitor_entry "$1"
+    statusCode=$?
+    while [ $retries -ne 0 ] || [ $statusCode -eq 0 ]
+    do
+      add_processmonitor_entry "$1"
+      sleep 1
+      check_processmonitor_entry "$1"
+      statusCode=$?
+      retries=$((retries-1))
+    done
 }
 
 main() {
@@ -406,11 +426,12 @@ main() {
     case $1 in
         "start")
             start_function
-            if [[ "$PRPLMESH_MODE" == "CA" || "$PRPLMESH_MODE" == "C" ]]; then
-                add_processmonitor_entry "controller"
+            if [ "$PRPLMESH_MODE" = "CA" ] || [ "$PRPLMESH_MODE" = "C" ]; then
+                add_processmonitor "controller"
             fi
-            if [[ "$PRPLMESH_MODE" == "CA" || "$PRPLMESH_MODE" == "A" ]]; then
-                add_processmonitor_entry "agent"
+
+            if [ "$PRPLMESH_MODE" = "CA" ] || [ "$PRPLMESH_MODE" = "A" ]; then
+                add_processmonitor "agent"
             fi
             ;;
         "start_wait")
