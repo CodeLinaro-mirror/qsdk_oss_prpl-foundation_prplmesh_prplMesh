@@ -35,7 +35,6 @@ deploy() {
     echo "BOARD_TYPE=$BOARD_TYPE"
 
     eval ssh "$SSH_OPTIONS" "$TARGET" <<EOF
-
 # we don't want opkg to stay locked with a previous failed invocation.
 # when using this, make sure no one is using opkg in the meantime!
 pgrep opkg | xargs kill -s INT
@@ -45,6 +44,12 @@ pgrep opkg | xargs kill -s INT
 opkg remove --force-depends prplmesh prplmesh-dwpal prplmesh-nl80211
 # currently opkg remove does not remove everything from /opt/prplmesh:
 rm -rf /opt/prplmesh
+EOF
+
+# The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.
+# Therefore, set up a new connection just to install the prplMesh ipk
+
+    eval ssh "$SSH_OPTIONS" "$TARGET" <<EOF
 # rdkb platforms require --force-dependencies
 if [ "$BOARD_TYPE" = "rdk" ]; then 
     opkg install -V2 --force-depends "$DEST_FOLDER/$IPK_FILENAME"; 
