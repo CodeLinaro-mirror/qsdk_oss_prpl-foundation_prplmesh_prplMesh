@@ -19,8 +19,16 @@ rm -f /etc/rc.d/S*obuspa
 sh /etc/init.d/ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
 
+# Stop and disable the firewall:
+sh /etc/init.d/tr181-firewall stop
+rm -f /etc/rc.d/S22tr181-firewall
+
 # Disable restarting failing serivces by default
 sh /etc/init.d/amx-processmonitor stop || true
+sh /etc/init.d/amx-processmonitor start || true
+sleep 5
+ba-cli -l "ProcessMonitor.Test.[Name=='cwmp_plugin'].-" > /dev/null || true
+ba-cli -l "ProcessMonitor.Test.[Name=='tr181-firewall'].-" > /dev/null || true
 
 ubus wait_for IP.Interface
 
@@ -65,8 +73,6 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
-# Restart the ssh server
-sh /etc/init.d/ssh-server restart
 
 # Required for config_load:
 . /lib/functions/system.sh
@@ -116,10 +122,6 @@ cp /etc/config/ssh_server/*_key /etc/dropbear/
 BOOTSCRIPT="/etc/rc.local"
 SERVER_CMD="sleep 20 && sh /etc/init.d/ssh-server stop && dropbear -F -T 10 -p192.168.250.150:22 &"
 if ! grep -q "$SERVER_CMD" "$BOOTSCRIPT"; then { head -n -2 "$BOOTSCRIPT"; echo "$SERVER_CMD"; tail -2 "$BOOTSCRIPT"; } >> btscript.tmp; mv btscript.tmp "$BOOTSCRIPT"; fi
-
-# Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop
-rm -f /etc/rc.d/S22tr181-firewall
 
 # Start an ssh server on the control interfce
 dropbear -F -T 10 -p192.168.250.150:22 &
