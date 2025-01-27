@@ -578,9 +578,8 @@ bool TopologyTask::add_device_information_tlv()
                 media_info.role =
                     front_iface ? ieee1905_1::eRole::AP : ieee1905_1::eRole::NON_AP_NON_PCP_STA;
 
-                media_info.ap_channel_bandwidth = radio->wifi_channel.get_bandwidth();
-                media_info.ap_channel_center_frequency_index1 =
-                    radio->wifi_channel.get_center_frequency();
+                media_info.ap_channel_bandwidth               = radio->wifi_channel.get_bandwidth();
+                media_info.ap_channel_center_frequency_index1 = radio->wifi_channel.get_channel();
                 media_info.ap_channel_center_frequency_index2 =
                     radio->wifi_channel.get_center_frequency_2();
 
