@@ -153,17 +153,17 @@ main() {
 
     legacy_platforms=("glinet-b1300" "axepoint" "intel_mips" "nec-wx3000hp")
     if [[ " ${legacy_platforms[*]} " =~ " $TARGET_DEVICE " ]] ; then
-        dbg "Legacy platform, building on prplOS(-old)"
-        OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
-        OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
+        dbg "Legacy platform, building on prplOS(-old) -> release"
+        OPENWRT_TOOLCHAIN_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
+        OPENWRT_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
     elif [[ "haze" == "$TARGET_DEVICE" ]] || [[ "turris-omnia" == "$TARGET_DEVICE" ]] ; then
-        dbg "Haze platform, build on prplos master + pWHM 5.34.0"
-        OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
-        OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+        dbg "Haze platform, build on prplos master + pWHM 5.34.0 -> release"
+        OPENWRT_TOOLCHAIN_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
+        OPENWRT_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
     else
-        dbg "$TARGET_DEVICE platform, building on prplos mainline-3.2 + pWHM 6.34.0"
-        OPENWRT_TOOLCHAIN_VERSION='3fcfb9500d5d022d29cfa97f0e3f8e6cdf7e5203'
-        OPENWRT_VERSION='3fcfb9500d5d022d29cfa97f0e3f8e6cdf7e5203'
+        dbg "$TARGET_DEVICE platform, building on prplos mainline-3.2 + pWHM 6.34.0 -> release"
+        OPENWRT_TOOLCHAIN_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
+        OPENWRT_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -202,9 +202,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplOS 3.1
-OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
-OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+# prplOS 3.2 release
+OPENWRT_TOOLCHAIN_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
+OPENWRT_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
