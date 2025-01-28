@@ -57,5 +57,5 @@ done
 printf '\033[1;35m%s Building prplWrt\n\033[0m' "$(date --iso-8601=seconds --universal)"
 make -j"$(nproc)" V=sc
 
-printf '\033[1;35m%s Cleaning prplMesh\n\033[0m' "$(date --iso-8601=seconds --universal)"
-make package/prplmesh/clean
+printf '\033[1;35m%s Build Finished\n\033[0m' "$(date --iso-8601=seconds --universal)"
+#make package/prplmesh/clean
