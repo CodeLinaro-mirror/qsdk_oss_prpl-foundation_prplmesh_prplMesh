@@ -8,24 +8,47 @@
 ####
 ## OpenWrt pre-requisites and "openwrt" user
 ####
-FROM ubuntu:bionic-20210930 as openwrt-prerequisites
+FROM debian:bookworm-slim as openwrt-prerequisites
 
-RUN apt-get update \
-    && apt-get -y install --no-install-recommends \
-    autoconf-archive build-essential libncurses5 libncurses5-dev python3.7 python3.7-distutils libelf-dev libdw-dev \
-    unzip git ca-certificates gawk wget file bash fakeroot \
-    python-yaml python3-yaml rsync less vim gnupg software-properties-common openssh-client \
-    #   yq is available in a separate ppa (needs gnupg and software-properties-common):
-    && if [ -n "$HTTP_PROXY" ]; then KEYSERVER_OPTIONS="--keyserver-options http-proxy=$HTTP_PROXY"; fi \
-    && (for n in `seq 1 10`; do sleep 2 && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 $KEYSERVER_OPTIONS --recv-keys CC86BB64 && break; done) \
-    && add-apt-repository ppa:rmescandon/yq \
-    && apt-get -y install --no-install-recommends yq \
-    && rm -rf /var/lib/apt/lists/* \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
-# Building tlvfs currently uses the docker
-# container's python (not the one from OpenWrt)
-# python-yaml is needed to build the tlvfs
-# vim and less are there to debug builds at run time
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN \
+    apt-get update && \
+    apt-get install --yes --no-install-recommends \
+    build-essential \
+    curl \
+    file \
+    gawk \
+    git-core \
+    gosu \
+    iproute2 \
+    iputils-ping \
+    libdw-dev \
+    libelf-dev \
+    libncurses5-dev \
+    locales \
+    nmap \
+    openssh-client \
+    pwgen \
+    python3 \
+    python3-distlib \
+    python3-jira \
+    python3-jwt \
+    python3-pip \
+    python3-setuptools \
+    python3-yaml \
+    rsync \
+    signify-openbsd \
+    subversion \
+    sudo \
+    unzip \
+    wget && \
+    apt-get -y autoremove && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+ENV LANG=en_US.utf8
 
 RUN useradd -ms /bin/bash openwrt
 
