@@ -8,20 +8,12 @@
 
 #include "vendor_message_slave.h"
 #include "agent_db.h"
-#include "multi_vendor.h"
+#include "common_utility.h"
 
-#include <bcl/beerocks_cmdu_client_factory.h>
-#include <bcl/beerocks_cmdu_server_factory.h>
-#include <bcl/beerocks_eventloop_thread.h>
-#include <beerocks/tlvf/beerocks_message.h>
 #include <btl/broker_client_factory_factory.h>
 
-#define AIRTIES_OUI 0X8841FC
-
-using namespace multi_vendor;
-using namespace beerocks;
+using namespace vendor_message;
 using namespace net;
-using namespace son;
 
 VendorMessageSlave::VendorMessageSlave(sVendorMessageConfig conf, beerocks::logging &logger_)
     : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), config(conf), logger(logger_)
@@ -46,7 +38,7 @@ bool VendorMessageSlave::handle_cmdu_from_broker(uint32_t iface_index, const sMa
         if (!network_utils::linux_iface_get_mac(db->bridge.iface_name, iface_mac)) {
             LOG(ERROR) << "Failed reading addresses from the bridge!";
         }
-        bridge_mac = tlvf::mac_from_string(iface_mac);
+        bridge_mac = tlvf::generate_ieee1905_al_mac(iface_mac);
 
         // Filter messages which are not destined to this agent
         if (dst_mac != beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR &&
@@ -58,7 +50,7 @@ bool VendorMessageSlave::handle_cmdu_from_broker(uint32_t iface_index, const sMa
     }
 
     if (!handle_cmdu(src_mac, cmdu_rx)) {
-        LOG(DEBUG) << "multi_vendor handle_cmdu failed";
+        LOG(DEBUG) << "handle_cmdu failed";
         return false;
     }
     return true;
@@ -66,18 +58,10 @@ bool VendorMessageSlave::handle_cmdu_from_broker(uint32_t iface_index, const sMa
 
 bool VendorMessageSlave::handle_cmdu(const sMacAddr &dst_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-
     if (cmdu_rx.getMessageType() == ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE) {
-        //The Vendor-Specific TLV will be handle here so each vendor has to register under
-        //multi_vendor::tlvf_handler::tlv_function_table this table.
-        for (const auto &first_entry : multi_vendor::tlvf_handler::tlv_function_table) {
-            switch (first_entry.first) {
-            case AIRTIES_OUI:
-                //Placeholder for airties tlv parsing
-                break;
-            default:
-                break;
-            }
+        if (!vendor_message::parse_vendor_message_type(*this, dst_mac, cmdu_rx, cmdu_tx)) {
+            LOG(ERROR) << "No TLV found";
+            return false;
         }
     }
     return true;
@@ -128,7 +112,6 @@ bool VendorMessageSlave::thread_init()
         })) {
         LOG(FATAL) << "Failed subscribing to the Bus";
     }
-
     return true;
 }
 

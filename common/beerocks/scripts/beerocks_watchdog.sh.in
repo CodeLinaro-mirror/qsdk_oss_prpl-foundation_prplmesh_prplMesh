@@ -56,7 +56,7 @@ while true :
 do
     sleep "$WATCHDOG_CYCLE_SECONDS"
     #check beerocks
-    for FILE in beerocks_controller beerocks_agent; do
+    for FILE in beerocks_controller beerocks_agent beerocks_vendor_message; do
         BEEROCKS_FILE="$BEEROCKS_PATH/bin/$FILE"
         PID_FILE="$BEEROCKS_TMP_PATH/pid/$FILE"
         if [ -f "$BEEROCKS_FILE" ] && [ -f "$PID_FILE" ]; then

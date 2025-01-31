@@ -10,20 +10,20 @@
 
 #include <bcl/beerocks_event_loop_impl.h>
 #include <bcl/beerocks_logging.h>
-#include <bcl/beerocks_os_utils.h>
 #include <bcl/beerocks_version.h>
 
 #include <easylogging++.h>
 #include <mapf/common/utils.h>
 #include <sys/types.h>
 
+#include "ambiorix_impl.h"
 #include "vendor_message_slave.h"
 
 // Do not use this macro anywhere else in ire process
 // It should only be there in one place in each executable module
 BEEROCKS_INIT_BEEROCKS_VERSION
 
-using namespace multi_vendor;
+using namespace vendor_message;
 using namespace beerocks;
 
 static bool g_running = true;
@@ -91,7 +91,7 @@ static void init_signals()
 
 static void
 fill_son_slave_config(const beerocks::config_file::sConfigSlave &beerocks_vendor_message_slave_conf,
-                      multi_vendor::VendorMessageSlave::sVendorMessageConfig &vendor_message_conf)
+                      vendor_message::VendorMessageSlave::sVendorMessageConfig &vendor_message_conf)
 {
     vendor_message_conf.temp_path    = beerocks_vendor_message_slave_conf.temp_path;
     vendor_message_conf.bridge_iface = beerocks_vendor_message_slave_conf.bridge_iface;
@@ -122,7 +122,7 @@ init_logger(const std::string &file_name, const beerocks::config_file::SConfigLo
     return logger;
 }
 
-static std::shared_ptr<multi_vendor::VendorMessageSlave> start_vendor_message_thread(
+static std::shared_ptr<vendor_message::VendorMessageSlave> start_vendor_message_thread(
     const beerocks::config_file::sConfigSlave &beerocks_vendor_message_slave_conf, int argc,
     char *argv[])
 {
@@ -137,11 +137,11 @@ static std::shared_ptr<multi_vendor::VendorMessageSlave> start_vendor_message_th
     }
     g_loggers.push_back(vendor_message_logger);
 
-    multi_vendor::VendorMessageSlave::sVendorMessageConfig vendor_message_conf;
+    vendor_message::VendorMessageSlave::sVendorMessageConfig vendor_message_conf;
 
     fill_son_slave_config(beerocks_vendor_message_slave_conf, vendor_message_conf);
 
-    auto vendor_message_slave = std::make_shared<multi_vendor::VendorMessageSlave>(
+    auto vendor_message_slave = std::make_shared<vendor_message::VendorMessageSlave>(
         vendor_message_conf, *vendor_message_logger);
     if (!vendor_message_slave) {
         CLOG(ERROR, vendor_message_logger->get_logger_id())
@@ -200,24 +200,6 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
     vendor_message->stop();
     LOG(DEBUG) << "Bye Bye!";
     return 0;
-}
-
-void os_utils::kill_pid(const std::string &path, const std::string &file_name)
-{
-    int pid_out;
-    if (is_pid_running(path, file_name, &pid_out)) {
-        LOG(DEBUG) << __FUNCTION__ << " SIGTERM pid=" << pid_out << std::endl;
-        kill(pid_out, SIGTERM);
-        auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-        // wait until the process is down or timeout expires
-        while (getpgid(pid_out) >= 0 && std::chrono::steady_clock::now() < timeout)
-            ;
-
-        if (getpgid(pid_out) >= 0) {
-            LOG(DEBUG) << __FUNCTION__ << " SIGKILL pid=" << pid_out << std::endl;
-            kill(pid_out, SIGKILL);
-        }
-    }
 }
 
 int main(int argc, char *argv[])

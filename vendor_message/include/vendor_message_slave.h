@@ -8,17 +8,13 @@
 #ifndef VENDOR_MESSAGE_SLAVE_H
 #define VENDOR_MESSAGE_SLAVE_H
 
-#include "task_pool.h"
-#include <bcl/beerocks_cmdu_server.h>
 #include <bcl/beerocks_eventloop_thread.h>
 #include <bcl/beerocks_logging.h>
-#include <bcl/network/sockets_impl.h>
-#include <btl/broker_client.h>
 #include <btl/broker_client_factory.h>
 
 using namespace beerocks;
 
-namespace multi_vendor {
+namespace vendor_message {
 
 class VendorMessageSlave : public EventLoopThread {
 public:
@@ -93,5 +89,5 @@ private:
      */
     bool handle_cmdu(const sMacAddr &dst_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
 };
-} // namespace multi_vendor
+} // namespace vendor_message
 #endif // VENDOR_MESSAGE_SLAVE_H

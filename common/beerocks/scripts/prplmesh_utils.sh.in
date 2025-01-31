@@ -170,7 +170,7 @@ prplmesh_delete_logs() {
 
 prplmesh_watchdog() {
     # Store PIDs of the Controller and Agents
-    CURR_PIDS="$(pgrep -f 'beerocks_(agent|controller)' | wc -l)"
+    CURR_PIDS="$(pgrep -f 'beerocks_(agent|controller|vendor_message)' | wc -l)"
     PREV_PIDS="$CURR_PIDS"
 
     # Make sure there's at least one PID to monitor
@@ -182,7 +182,7 @@ prplmesh_watchdog() {
     # Monitor the number of running processes
     while [ "$CURR_PIDS" -ge "$PREV_PIDS" ]; do
         sleep 5
-        CURR_PIDS="$(pgrep -f 'beerocks_(agent|controller)' | wc -l)"
+        CURR_PIDS="$(pgrep -f 'beerocks_(agent|controller|vendor_message)' | wc -l)"
         if [ "$CURR_PIDS" -gt "$PREV_PIDS" ]; then
             PREV_PIDS=$CURR_PIDS
         fi
@@ -413,6 +413,9 @@ remove_processmonitor_entries() {
     (check_processmonitor_entry "agent") ||
     remove_processmonitor_entry "agent"
 
+    (check_processmonitor_entry "vendor_message") ||
+    remove_processmonitor_entry "vendor_message"
+
     (check_processmonitor_entry "controller") ||
     remove_processmonitor_entry "controller"
 }
@@ -479,6 +482,7 @@ main() {
 
             if [ "$PRPLMESH_MODE" = "CA" ] || [ "$PRPLMESH_MODE" = "A" ]; then
                 add_processmonitor "agent"
+                add_processmonitor "vendor_message"
             fi
             ;;
         "start_wait")
