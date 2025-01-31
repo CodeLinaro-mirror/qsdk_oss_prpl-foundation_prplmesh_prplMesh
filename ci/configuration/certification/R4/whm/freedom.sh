@@ -19,41 +19,38 @@ rm -f /etc/rc.d/S*obuspa
 sh /etc/init.d/ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
 
+# Stop and disable the firewall:
+sh /etc/init.d/tr181-firewall stop || true
+rm -f /etc/rc.d/S*tr181-firewall
+
 # Disable restarting failing serivces by default
 sh /etc/init.d/amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 
 # Stop and disable the DHCP clients and servers:
-if ubus call DHCPv4 _list >/dev/null ; then
-  ubus call DHCPv4.Server _set '{"parameters": { "Enable": False }}'
-fi
-if ubus call DHCPv6 _list >/dev/null ; then
-  ubus call DHCPv6.Server _set '{"parameters": { "Enable": False }}'
-fi
+ba-cli DHCPv4Client.Client.wan.Enable=0
+ba-cli DHCPv6Client.Client.wan.Enable=0
+ba-cli DHCPv4Server.Enable=0
+ba-cli DHCPv6Server.Enable=0
 
 # Fix overlapping MACs in 6GHz radio
-# ubus-cli WiFi.SSID.DEFAULT_RADIO2.MACAddress="58:E4:03:D2:70:16"
-# ubus-cli WiFi.SSID.DEFAULT_RADIO2.BSSID="58:e4:03:d2:70:16"
-# ubus-cli WiFi.SSID.GUEST_RADIO2.MACAddress="58:E4:03:D2:70:17"
-# ubus-cli WiFi.SSID.GUEST_RADIO2.BSSID="58:e4:03:d2:70:17"
-ubus-cli Device.Ethernet.Link.ethernet_wan.MACAddress="58:E4:03:D2:10:04"
-ubus-cli Device.WiFi.SSID.GUEST_RADIO3.MACAddress="58:E4:03:D2:10:50"
-
+ba-cli Device.Ethernet.Link.ethernet_wan.MACAddress="58:E4:03:D2:10:04"
+ba-cli Device.WiFi.SSID.GUEST_RADIO3.MACAddress="58:E4:03:D2:10:50"
 
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
-ubus call IP.Interface _get '{ "rel_path": ".[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"]." }' || {
+ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" && {
     echo "Adding IP address $IP"
-    ubus call "IP.Interface" _add '{ "rel_path": ".[Alias == \"wan\"].IPv4Address.", "parameters": { "Alias": "wan", "AddressingType": "Static" } }'
+    ba-cli 'IP.Interface.wan.IPv4Address.+{Alias="primary", AddressingType="Static"}'
 }
 # Configure it:
-ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].IPv4Address.1", "parameters": { "IPAddress": "192.168.250.150", "SubnetMask": "255.255.255.0", "AddressingType": "Static", "Enable" : true } }'
+ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.150", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
 # Enable it:
-ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].", "parameters": { "IPv4Enable": true } }'
+ba-cli IP.Interface.wan.IPv4Enable=1
 
 # Set the LAN bridge IP:
-ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].", "parameters": { "IPAddress": "192.165.100.150" } }'
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
 # Wired backhaul interface:
 uci set prplmesh.config.backhaul_wire_iface='lan4'
@@ -65,27 +62,14 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
-# Restart the ssh server
-sh /etc/init.d/ssh-server restart
-
-# Required for config_load:
-. /lib/functions/system.sh
-# Required for config_foreach:
-. /lib/functions.sh
-
-# add private vaps to lan to workaround Netmodel missing wlan mib
-# this must be reverted once Netmodel version is integrated
-# brctl addif br-lan wlan0 > /dev/null 2>&1 || true
-# brctl addif br-lan wlan1 > /dev/null 2>&1 || true
-
-ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
-ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
+# Add all VAPs to br-lan by default
+#ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
+#ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
 # Set multiAP profile for primary_vlan_id support
 ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
-
 
 # Enable when hostapd on this target supports it
 ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
@@ -102,24 +86,20 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "OperatingChannelBandwidth": "20MHz" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "OperatingChannelBandwidth": "20MHz" } }'
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
-# Stop the default ssh server on the lan-bridge
-sh /etc/init.d/ssh-server stop || true
+# Commands to start a new SSH server on the control port
+start_ssh_commands="killall -9 dropbear
+dropbear -F -T 10 -p192.168.250.150:22 &"
+
 sleep 5
 
 # Copy generated SSH host keys
 cp /etc/config/ssh_server/*_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
-BOOTSCRIPT="/etc/rc.local"
-SERVER_CMD="sleep 20 && sh /etc/init.d/ssh-server stop && dropbear -F -T 10 -p192.168.250.150:22 &"
-if ! grep -q "$SERVER_CMD" "$BOOTSCRIPT"; then { head -n -2 "$BOOTSCRIPT"; echo "$SERVER_CMD"; tail -2 "$BOOTSCRIPT"; } >> btscript.tmp; mv btscript.tmp "$BOOTSCRIPT"; fi
-
-# Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop
-rm -f /etc/rc.d/S22tr181-firewall
-
-# Start an ssh server on the control interfce
-dropbear -F -T 10 -p192.168.250.150:22 &
+bootscript="/etc/rc.local"
+boot_cmd="sleep 60 && $start_ssh_commands"
+if ! grep -q "$boot_cmd" "$bootscript"; then { head -n -2 "$bootscript"; echo "$boot_cmd"; tail -2 "$bootscript"; } >> btscript.tmp; mv btscript.tmp "$bootscript"; fi
+set +e && eval "$start_ssh_commands"
