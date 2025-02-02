@@ -22,6 +22,7 @@
 #include <tlvf/airties/supported_features.h>
 #include <tlvf/airties/tlvAirtiesDeviceInfo.h>
 #include <tlvf/airties/tlvAirtiesDeviceMetrics.h>
+#include <tlvf/airties/tlvAirtiesEthernetInterface.h>
 #include <tlvf/airties/tlvAirtiesMsgType.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
@@ -46,6 +47,236 @@ using namespace wbapi;
 #define MEMFREE_TXT "MemFree:"
 #define MEMBUFFER_TXT "Buffers:"
 #define STAT_IDLE_IND 3
+/*
+ * Enum contains the different Link Types
+ */
+enum link_types_enum {
+    UNDEFINED = 0,
+    TYPE_10MBPS,
+    TYPE_100MBPS,
+    TYPE_1GBPS,
+    TYPE_2_5GBPS,
+    TYPE_5GBPS,
+    TYPE_10GBPS
+};
+
+//Macros for different Link Speed Types
+#define BITRATE_10 10
+#define BITRATE_100 100
+#define BITRATE_1K 1000
+#define BITRATE_2K 2000
+#define BITRATE_2_5K 2500
+#define BITRATE_5K 5000
+#define BITRATE_10K 10000
+
+/*
+ * Following function returns the link speed.
+ * This is based on the requirement,
+ * Bit 7:4 Supported Link Type Link type (0=undefined, 1=10Mbps, 2=100Mbps,
+                                          3=1Gbps, 4=2,5Gbps, 5=5Gpbs, 6=10Gbps)
+ * Bit 3:0 Current Link Type Link type (0=undefined, 1=10Mbps, 2=100Mbps,
+                                          3=1Gbps, 4=2,5Gbps, 5=5Gpbs, 6=10Gbps
+ */
+uint8_t get_bitvalue(uint32_t bit_rate)
+{
+    uint8_t value;
+    switch (bit_rate) {
+    case BITRATE_10:
+        value = TYPE_10MBPS;
+        break;
+    case BITRATE_100:
+        value = TYPE_100MBPS;
+        break;
+    case BITRATE_1K:
+        value = TYPE_1GBPS;
+        break;
+    case BITRATE_2K:
+    case BITRATE_2_5K:
+        value = TYPE_2_5GBPS;
+        break;
+    case BITRATE_5K:
+        value = TYPE_5GBPS;
+        break;
+    case BITRATE_10K:
+        value = TYPE_10GBPS;
+        break;
+    default:
+        value = UNDEFINED;
+        LOG(INFO) << "Invalid value in Current Link Type " << bit_rate;
+        break;
+    }
+    return value;
+}
+
+static AmbiorixVariantSmartPtr get_eth_intf_object(const std::string &path)
+{
+    return (tlvf_air_utils.m_ambiorix_cl.get_object(path));
+}
+
+/*
+ * Check if its WAN or LAN interface.
+ * If its WAN, then dont add it to the TLV.
+ */
+bool check_wan_interface(AmbiorixVariantSmartPtr &eth_interface)
+{
+    uint8_t upstream_val = 0;
+    if (!eth_interface->read_child(upstream_val, "Upstream")) {
+        LOG(INFO) << "Failed to read Upstream value from DM";
+    }
+    return upstream_val;
+}
+
+/*
+ * Utility function to read string from DM.
+ */
+std::string get_string_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string &param)
+{
+    std::string read_str = "";
+    if (!eth_interface->read_child<>(read_str, param.c_str())) {
+        LOG(INFO) << "Failed to read string from DM for " << param;
+    }
+    return read_str;
+}
+
+/*
+ * Utility function read uint8_t integer from DM.
+ */
+uint8_t get_uint8_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string &param)
+{
+    uint8_t value = 0;
+    if (!eth_interface->read_child<>(value, param.c_str())) {
+        LOG(INFO) << "Failed to read integer from DM for " << param;
+    }
+    return value;
+}
+
+/*
+ * Utility function read uint32_t integer from DM.
+ */
+uint32_t get_uint32_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string &param)
+{
+    uint32_t value = 0;
+    if (!eth_interface->read_child<>(value, param.c_str())) {
+        LOG(INFO) << "Failed to read integer from DM for " << param;
+    }
+    return value;
+}
+
+/*
+ * Function to update the Ethernet Interface TLV
+ */
+bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
+{
+
+    auto tlvAirtiesEthIntf = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetInterface>();
+    if (!tlvAirtiesEthIntf) {
+        LOG(ERROR) << "addClass wfa_map::tlvDeviceEthernetInterface failed";
+        return false;
+    }
+
+    tlvAirtiesEthIntf->vendor_oui() =
+        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
+    tlvAirtiesEthIntf->tlv_id() =
+        static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_INTERFACE);
+
+    std::string dm_path   = "Device.Ethernet.";
+    std::string intf_path = "Interface.";
+    std::string link_path = "Link.";
+    std::string int_details_path, link_details_path;
+    uint8_t num_ports = 0;
+
+    //Get the Ambiorix object
+    auto eth_intf = get_eth_intf_object(dm_path);
+    if (!eth_intf) {
+        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
+        return false;
+    }
+
+    //Number of Ethernet Interfaces present
+    num_ports = get_uint8_from_dm(eth_intf, "LinkNumberOfEntries");
+    if (!num_ports) {
+        LOG(ERROR) << "Failed to populate Ethernet Interface TLV as "
+                      "LinkNumberOfEntries is not valid";
+        return false;
+    }
+
+    for (uint8_t port_id = 1; port_id <= num_ports; port_id++) {
+
+        int_details_path = dm_path + intf_path + std::to_string(port_id) + ".";
+
+        auto eth_interface = get_eth_intf_object(int_details_path);
+        if (!eth_interface) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << int_details_path;
+            continue;
+        }
+
+        //Check if its a wan interface.
+        if (check_wan_interface(eth_interface)) {
+            continue;
+        }
+
+        auto intf_list = tlvAirtiesEthIntf->create_interface_list();
+
+        /*
+         * As of now, store the i value itself to the port id.
+         * Once the community concludes the method to fetch
+         * the port id, the implementation will be done here.
+         */
+        intf_list->port_id() = port_id;
+
+        intf_list->eth_mac() =
+            tlvf::mac_from_string(get_string_from_dm(eth_interface, "MACAddress"));
+
+        intf_list->set_eth_intf_name(get_string_from_dm(eth_interface, "Name"));
+
+        /*
+         * Port State Bitwise
+         * Bit 7 - eth_port_admin_state - Device.Ethernet.Interface.1.Status
+         * Bit 6 - eth_port_link_state - Device.Ethernet.Link.1.Status
+         * Bit 5 - eth_port_duplex_mode - Device.Ethernet.Interface.1.DuplexMode
+         * Bit 4 - 0 - Reserved
+         */
+
+        std::string port_admin_state             = "";
+        port_admin_state                         = get_string_from_dm(eth_interface, "Status");
+        intf_list->flags1().eth_port_admin_state = (port_admin_state == "Up" ? 1 : 0);
+
+        std::string port_dup_mode = "";
+        port_dup_mode             = get_string_from_dm(eth_interface, "DuplexMode");
+        intf_list->flags1().eth_port_duplex_mode =
+            (((port_dup_mode == "Auto") || (port_dup_mode == "Full")) ? 1 : 0);
+
+        /*
+         * Next octet updation for Link Type
+         * Bits 7 - 4 : Supported Link Type
+         * Bits 3 - 0 : Current Link Type
+         */
+        uint32_t supp_link_type = 0, cur_link_type = 0;
+        supp_link_type                          = get_uint32_from_dm(eth_interface, "MaxBitRate");
+        intf_list->flags2().supported_link_type = get_bitvalue(supp_link_type);
+
+        cur_link_type                         = get_uint32_from_dm(eth_interface, "CurrentBitRate");
+        intf_list->flags2().current_link_type = get_bitvalue(cur_link_type);
+
+        /*
+         * Link state need to be fetched from Link path.
+         * So, change the ambiorix path.
+         */
+        link_details_path = dm_path + link_path + std::to_string(port_id) + ".";
+
+        std::string port_link_state = "";
+        auto eth_link               = get_eth_intf_object(link_details_path);
+        if (eth_link) {
+            port_link_state = get_string_from_dm(eth_link, "Status");
+        } else {
+            LOG(INFO) << "Unable to get the Ambiorix object for " << link_details_path;
+        }
+        intf_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
+
+        tlvAirtiesEthIntf->add_interface_list(intf_list);
+    }
+    return true;
+}
 
 /**
  * @brief Check if the Spanning Tree Protocol (STP) is enabled.

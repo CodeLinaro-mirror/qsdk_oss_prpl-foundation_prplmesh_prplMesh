@@ -10,6 +10,7 @@
 #include "../agent_db.h"
 #include "../backhaul_manager/backhaul_manager.h"
 #include "../helpers/media_type.h"
+#include "multi_vendor.h"
 
 #include <bcl/network/network_utils.h>
 
@@ -34,6 +35,7 @@
 using namespace beerocks;
 using namespace net;
 using namespace son;
+using namespace multi_vendor;
 
 constexpr uint8_t TOPOLOGY_DISCOVERY_TX_CYCLE_SEC = 60;
 
@@ -308,6 +310,11 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
             db->controller_info.profile_support =
                 wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
         }
+    }
+
+    if (!multi_vendor::tlvf_handler::add_vs_tlv(
+            m_cmdu_tx, ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE)) {
+        LOG(ERROR) << "Failed adding few TLVs in TOPOLOGY_RESPONSE_MESSAGE";
     }
 
     LOG(DEBUG) << "Sending topology response message, mid=" << std::hex << mid;

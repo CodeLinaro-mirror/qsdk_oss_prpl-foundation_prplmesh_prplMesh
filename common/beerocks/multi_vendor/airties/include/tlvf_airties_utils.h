@@ -45,6 +45,10 @@ public:
     static bool add_device_metrics(ieee1905_1::CmduMessageTx &cmdu_tx);
 
     static bool add_airties_msgtype_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
+    static bool add_airties_ethernet_interface_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
+    static uint64_t get_value_from_dm(std::string param, std::string cntr_path);
 };
 static tlvf_airties_utils tlvf_air_utils;
 } // namespace airties

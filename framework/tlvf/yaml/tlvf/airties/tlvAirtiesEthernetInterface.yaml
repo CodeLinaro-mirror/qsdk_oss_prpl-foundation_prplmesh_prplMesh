@@ -1,0 +1,63 @@
+#
+---
+
+_namespace: airties
+_include:
+  {
+    tlvf/ieee_1905_1/sVendorOUI.h,
+    tlvf/airties/eAirtiesTlvTypeMap.h,
+    tlvf/common/sMacAddr.h,
+  }
+
+tlvAirtiesEthernetInterface:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eAirtiesTlvTypeMap
+    _value_const: TLV_VENDOR_SPECIFIC
+  length: uint16_t
+  vendor_oui:
+    _type: sVendorOUI
+  tlv_id:
+    _type: uint16_t
+  number_of_eth_phy:
+    _type: uint8_t
+    _length_var: True
+  interface_list:
+    _type: cInterfaceList
+    _length: [number_of_eth_phy]
+
+cInterfaceList:
+  _type: class
+  port_id:
+     _type: uint8_t
+  eth_mac:
+     _type: sMacAddr
+  eth_intf_name_len:
+    _type: uint8_t
+    _length_var: True                         
+  eth_intf_name:
+    _type: char
+    _length: [ eth_intf_name_len ]                
+  flags1: sFlags1
+  flags2: sFlags2
+
+sFlags1:
+  _type: struct
+  _bit_field: uint8_t
+  eth_port_admin_state:
+    _bit_range: [7,7]
+  eth_port_link_state:
+    _bit_range: [6,6]
+  eth_port_duplex_mode:
+    _bit_range: [5,5]
+  reserved:
+    _bit_range: [4,0]
+
+sFlags2:
+  _type: struct
+  _bit_field: uint8_t
+  supported_link_type:
+    _bit_range: [7,4]
+  current_link_type:
+    _bit_range: [3,0]
