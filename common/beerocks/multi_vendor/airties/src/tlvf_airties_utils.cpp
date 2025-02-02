@@ -23,6 +23,7 @@
 #include <tlvf/airties/tlvAirtiesDeviceInfo.h>
 #include <tlvf/airties/tlvAirtiesDeviceMetrics.h>
 #include <tlvf/airties/tlvAirtiesEthernetInterface.h>
+#include <tlvf/airties/tlvAirtiesEthernetStats.h>
 #include <tlvf/airties/tlvAirtiesMsgType.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
@@ -70,6 +71,31 @@ enum link_types_enum {
 #define BITRATE_10K 10000
 
 /*
+ * This enum contains all the optional counters.
+ * Values are assigned based on whether the corresponding
+ * counter support is present in Ethernet.Interface.Stats. data model
+ *
+ * If the DM has this counter, the value is assigned 1.
+ * If the DM doesnt have this counter, the value is assigned 0.
+ */
+enum supported_stats_enum {
+    BCAST_BYTES_SENT  = 0,
+    BCAST_BYTES_RECVD = 0,
+    BCAST_PKTS_SENT   = 1,
+    BCAST_PKTS_RECVD  = 1,
+    MCAST_BYTES_SENT  = 0,
+    MCAST_BYTES_RECVD = 0,
+    MCAST_PKTS_SENT   = 1,
+    MCAST_PKTS_RECVD  = 1
+};
+
+#define BYTES_IN_KB 1024
+#define COUNTERS_SIZE 6 // Size of the counter is 6 octets.
+
+#define BCAST_BYTES_SUPPORTED (BCAST_BYTES_SENT && BCAST_BYTES_RECVD)
+#define MCAST_BYTES_SUPPORTED (MCAST_BYTES_SENT && MCAST_BYTES_RECVD)
+
+/*
  * Following function returns the link speed.
  * This is based on the requirement,
  * Bit 7:4 Supported Link Type Link type (0=undefined, 1=10Mbps, 2=100Mbps,
@@ -106,6 +132,35 @@ uint8_t get_bitvalue(uint32_t bit_rate)
         break;
     }
     return value;
+}
+
+/*
+ * Function to set the 2 byte supported_stats_val field in
+ * Ethernet Stats TLV. Based on the counter support available in the data model,
+ * this 2 octet field is set.
+ * Bit15: BcastBytesSentPresent
+ * Bit14: BcastBytesReceivedPresent
+ * Bit13: BcastPacketsSentPresent
+ * Bit12: BcastPacketsReceivedPresent
+ * Bit11: McastBytesSentPresent
+ * Bit10: McastBytesReceivedPresent
+ * Bit9 : McastPacketsSentPresent
+ * Bit8 : McastPacketsReceivedPresent
+ * Bit 7:0 FutureStatsPresent.
+ */
+uint16_t set_supp_stats_val()
+{
+    uint16_t var = 0x0000;
+
+    std::vector<supported_stats_enum> macros = {
+        BCAST_BYTES_SENT, BCAST_BYTES_RECVD, BCAST_PKTS_SENT, BCAST_PKTS_RECVD,
+        MCAST_BYTES_SENT, MCAST_BYTES_RECVD, MCAST_PKTS_SENT, MCAST_PKTS_RECVD};
+
+    for (size_t i = 0; i < macros.size(); ++i) {
+        var |= (macros[i] << (15 - i));
+    }
+
+    return var;
 }
 
 static AmbiorixVariantSmartPtr get_eth_intf_object(const std::string &path)
@@ -274,6 +329,301 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
         intf_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
 
         tlvAirtiesEthIntf->add_interface_list(intf_list);
+    }
+    return true;
+}
+
+/*
+ * Function to convert the counter to
+ * Big Endian format, so that when sent over the transport
+ * layer, the counters wont get swapped.
+ * This workaround is needed because, non-native integers are not supported
+ * in TLVF framework as of now. Hence, a list of 6 integers is used to
+ * to store 48-bit integer. This will get swapped when sent over
+ * transport layer. To avoid this, we are converting and sending the values.
+ * This will be a temporaray workaround untill complete support
+ * for non-native integer is implemented in TLVF.
+ */
+uint64_t swap_and_convert_counter(uint64_t val)
+{
+    val &= 0xFFFFFFFFFFFF;
+
+    uint64_t byte1 = (val & 0x0000000000FF) << 40;
+    uint64_t byte2 = (val & 0x00000000FF00) << 24;
+    uint64_t byte3 = (val & 0x000000FF0000) << 8;
+    uint64_t byte4 = (val & 0x0000FF000000) >> 8;
+    uint64_t byte5 = (val & 0x00FF00000000) >> 24;
+    uint64_t byte6 = (val & 0xFF0000000000) >> 40;
+
+    uint64_t swapped = (byte1 | byte2 | byte3 | byte4 | byte5 | byte6);
+
+    return swapped;
+}
+
+/*
+ * Function to return byte value converted
+ * to KB value.
+ */
+uint64_t convertBytes_to_Kb(uint64_t bytes_val) { return (bytes_val / BYTES_IN_KB); }
+
+uint64_t tlvf_airties_utils::get_value_from_dm(std::string param, std::string cntr_path)
+{
+    uint64_t output = 0, value = 0;
+
+    auto eth_interface = get_eth_intf_object(cntr_path);
+    if (!eth_interface) {
+        LOG(ERROR) << "failed to get radio Stats object " << cntr_path;
+        return output;
+    }
+    if (!eth_interface->read_child<>(value, param.c_str())) {
+        LOG(INFO) << "Failed to read " << cntr_path << " " << param;
+        return output;
+    }
+
+    /*
+     * As per the requirement, only bytes counter need
+     * to be be converted to KiloByte. As of now, only
+     * BytesSent and Received are supported in DM.
+     */
+    if ((param == "BytesSent") || (param == "BytesReceived")) {
+        if (value) {
+            value = convertBytes_to_Kb(value);
+        }
+    }
+
+    output = swap_and_convert_counter(value);
+    return output;
+}
+
+template <typename T> void populate_cntrs_info(std::shared_ptr<T> &port_list, std::string cntr_path)
+{
+    uint64_t value = 0;
+    value          = tlvf_air_utils.get_value_from_dm("BytesSent", cntr_path);
+    port_list->set_bytes_sent(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("BytesReceived", cntr_path);
+    port_list->set_bytes_recvd(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("PacketsSent", cntr_path);
+    port_list->set_packets_sent(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("PacketsReceived", cntr_path);
+    port_list->set_packets_recvd(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("ErrorsSent", cntr_path);
+    port_list->set_tx_pkt_errors(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("ErrorsReceived", cntr_path);
+    port_list->set_rx_pkt_errors(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("BroadcastPacketsSent", cntr_path);
+    port_list->set_bcast_pkts_sent(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("BroadcastPacketsReceived", cntr_path);
+    port_list->set_bcast_pkts_recvd(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("MulticastPacketsSent", cntr_path);
+    port_list->set_mcast_pkts_sent(&value, COUNTERS_SIZE);
+
+    value = tlvf_air_utils.get_value_from_dm("MulticastPacketsReceived", cntr_path);
+    port_list->set_mcast_pkts_recvd(&value, COUNTERS_SIZE);
+}
+
+/*
+ * Function to populate the Ethernet Stats TLV
+ * for all the counters present.
+ */
+bool tlvf_airties_utils::get_all_counters_info(
+    std::shared_ptr<airties::tlvAirtiesEthernetStatsallcntr> &tlvEthStats)
+{
+    tlvEthStats->vendor_oui() =
+        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
+    tlvEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
+
+    //Start filling the fields
+
+    tlvEthStats->supported_extra_stats() = set_supp_stats_val();
+
+    std::string dm_path    = "Device.Ethernet.";
+    std::string intf_path  = "Interface.";
+    std::string stats_path = "Stats.";
+    std::string cntr_path  = "";
+    std::string path = "", get_path = "", int_details_path = "";
+    std::string param = "";
+    uint8_t num_ports = 0;
+
+    auto eth_interf = get_eth_intf_object(dm_path);
+    if (!eth_interf) {
+        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
+        return false;
+    }
+    /*
+     * Get the number of Ethernet ports
+     * for the loop count
+     */
+    num_ports = get_uint8_from_dm(eth_interf, "InterfaceNumberOfEntries");
+    if (!num_ports) {
+        LOG(ERROR) << "Failed to populate Ethernet Stats TLV as "
+                      "InterfaceNumberOfEntries is not valid";
+        return false;
+    }
+
+    for (uint8_t port_id = 1; port_id <= num_ports; port_id++) {
+
+        int_details_path = dm_path + intf_path + std::to_string(port_id) + ".";
+
+        auto eth_interface = tlvf_air_utils.m_ambiorix_cl.get_object(int_details_path);
+        if (!eth_interface) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << int_details_path;
+            return false;
+        }
+
+        /*
+         * Check if its WAN or LAN interface.
+         * If its WAN, then dont add it to the TLV.
+         */
+        if (check_wan_interface(eth_interface)) {
+            continue;
+        }
+
+        auto port_list = tlvEthStats->create_port_list();
+
+        cntr_path = dm_path + intf_path + std::to_string(port_id) + "." + stats_path;
+        /*
+         * As of now, store the i value itself to the port id.
+         * Once the community concludes the method to fetch
+         * the port id, the implementation will be done here.
+         */
+        port_list->port_id() = port_id;
+
+        //Populate the counters
+        populate_cntrs_info(port_list, cntr_path);
+        /*
+         * TODO:
+         * Broadcast/Multicast Byte counters are not supported in Data model
+         * for which community bug has raised.
+         * This is a placeholder for fetching those counters.
+         * As of now, for all the ports, the hard coded values will be
+         * populated in the TLV fields.
+         * In future, if the solution to fetch these counters are
+         * available, it can be implemented in separate function and called
+         * here or implementented in populate_cntrs_info() itself.
+         */
+        uint64_t c_bbytes_sent = swap_and_convert_counter(100);
+        port_list->set_bcast_bytes_sent(&c_bbytes_sent, 6);
+
+        uint64_t c_bbytes_recvd = swap_and_convert_counter(200);
+        port_list->set_bcast_pkts_recvd(&c_bbytes_recvd, 6);
+
+        uint64_t c_mbytes_sent = swap_and_convert_counter(300);
+        port_list->set_mcast_bytes_sent(&c_mbytes_sent, 6);
+
+        uint64_t c_mbytes_recvd = swap_and_convert_counter(400);
+        port_list->set_mcast_bytes_recvd(&c_mbytes_recvd, 6);
+
+        tlvEthStats->add_port_list(port_list);
+    }
+    return true;
+}
+
+bool tlvf_airties_utils::get_counters_info(
+    std::shared_ptr<airties::tlvAirtiesEthernetStats> &tlvEthStats)
+{
+    tlvEthStats->vendor_oui() =
+        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
+    tlvEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
+
+    //Start filling the fields
+
+    tlvEthStats->supported_extra_stats() = set_supp_stats_val();
+
+    std::string dm_path    = "Device.Ethernet.";
+    std::string intf_path  = "Interface.";
+    std::string stats_path = "Stats.";
+    std::string cntr_path  = "";
+    std::string path = "", get_path = "", int_details_path = "";
+    std::string param = "";
+    uint8_t num_ports = 0;
+
+    auto eth_interf = tlvf_air_utils.m_ambiorix_cl.get_object(dm_path);
+    if (!eth_interf) {
+        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
+        return false;
+    }
+
+    /*
+     * Get the number of Ethernet ports
+     * for the loop count
+     */
+    num_ports = get_uint8_from_dm(eth_interf, "InterfaceNumberOfEntries");
+    if (!num_ports) {
+        LOG(ERROR) << "Failed to populate Ethernet Stats TLV as "
+                      "InterfaceNumberOfEntries is not valid";
+        return false;
+    }
+
+    for (uint8_t port_id = 1; port_id <= num_ports; port_id++) {
+
+        int_details_path = dm_path + intf_path + std::to_string(port_id) + ".";
+
+        auto eth_interface = tlvf_air_utils.m_ambiorix_cl.get_object(int_details_path);
+        if (!eth_interface) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << int_details_path;
+            return false;
+        }
+
+        /*
+         * Check if its WAN or LAN interface.
+         * If its WAN, then dont add it to the TLV.
+         */
+        if (check_wan_interface(eth_interface)) {
+            continue;
+        }
+
+        auto port_list = tlvEthStats->create_port_list();
+
+        cntr_path = dm_path + intf_path + std::to_string(port_id) + "." + stats_path;
+
+        /*
+         * As of now, store the i value itself to the port id.
+         * Once the community concludes the method to fetch
+         * the port id, the implementation will be done here.
+         */
+        port_list->port_id() = port_id;
+
+        populate_cntrs_info(port_list, cntr_path);
+
+        tlvEthStats->add_port_list(port_list);
+    }
+    return true;
+}
+
+/*
+ * Function to add the Ethernet Statistics TLV
+ * to AP Metrics Response Message
+ */
+bool tlvf_airties_utils::add_airties_ethernet_stats_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
+{
+    /*
+     * If the optional counters support is present
+     * in the DM, then populate TLV: tlvAirtiesEthernetStatsallcntr
+     * else populate all the counters TLV:tlvAirtiesEthernetStats
+     */
+    if (BCAST_BYTES_SUPPORTED) {
+        auto tlvAirtiesEthStatsall = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStatsallcntr>();
+        if (!tlvAirtiesEthStatsall) {
+            LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
+            return false;
+        }
+        get_all_counters_info(tlvAirtiesEthStatsall);
+
+    } else {
+        auto tlvAirtiesEthStats = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStats>();
+        if (!tlvAirtiesEthStats) {
+            LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
+            return false;
+        }
+        get_counters_info(tlvAirtiesEthStats);
     }
     return true;
 }

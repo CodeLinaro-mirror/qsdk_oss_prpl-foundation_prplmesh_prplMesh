@@ -1156,6 +1156,13 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
         LOG(ERROR) << "Failed adding few TLVs in AP_METRICS_RESPONSE_MESSAGE";
     }
 
+    // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
+    // AP Metrics Response message.
+    if (!multi_vendor::tlvf_handler::add_vs_tlv(
+            m_cmdu_tx, ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE)) {
+        LOG(ERROR) << "Failed adding few TLVs in AP_METRICS_RESPONSE_MESSAGE";
+    }
+
     // Clear m_radio_ap_metric_response and m_ap_metric_response vectors
     // after preparing response to the controller
     m_ap_metric_response.clear();

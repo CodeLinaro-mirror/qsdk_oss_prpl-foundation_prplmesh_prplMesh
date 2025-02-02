@@ -148,6 +148,7 @@ include_yaml_path: {
     "tlvf/airties/tlvAirtiesMsgType.yaml",
     "tlvf/airties/tlvAirtiesDeviceMetrics.yaml",
     "tlvf/airties/tlvAirtiesEthernetInterface.yaml",
+    "tlvf/airties/tlvAirtiesEthernetStats.yaml",
 
     #
     # "vendor_example/",

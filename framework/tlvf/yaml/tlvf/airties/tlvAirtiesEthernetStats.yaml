@@ -1,0 +1,132 @@
+#
+---
+
+_namespace: airties
+_include:
+  {
+    tlvf/ieee_1905_1/sVendorOUI.h,
+    tlvf/airties/eAirtiesTlvTypeMap.h,
+  }
+
+tlvAirtiesEthernetStats:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eAirtiesTlvTypeMap
+    _value_const: TLV_VENDOR_SPECIFIC
+  length: uint16_t
+  vendor_oui:
+    _type: sVendorOUI
+  tlv_id:
+    _type: uint16_t
+  supported_extra_stats:
+    _type: uint16_t
+  num_of_ports:
+    _type: uint8_t
+    _length_var: True                 
+  port_list: 
+    _type: cPortList
+    _length: [ num_of_ports ]                 
+
+cPortList: 
+  _type: class
+  port_id:
+    _type: uint8_t              
+  bytes_sent:
+    _type: uint8_t
+    _length: [6]
+  bytes_recvd:
+    _type: uint8_t
+    _length: [6]
+  packets_sent:
+    _type: uint8_t
+    _length: [6]
+  packets_recvd:
+    _type: uint8_t
+    _length: [6]
+  tx_pkt_errors:
+    _type: uint8_t
+    _length: [6]
+  rx_pkt_errors:
+    _type: uint8_t
+    _length: [6]
+  bcast_pkts_sent:
+    _type: uint8_t
+    _length: [6]
+  bcast_pkts_recvd:
+    _type: uint8_t
+    _length: [6]
+  mcast_pkts_sent:
+    _type: uint8_t
+    _length: [6]
+  mcast_pkts_recvd:
+    _type: uint8_t
+    _length: [6]
+
+
+tlvAirtiesEthernetStatsallcntr:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eAirtiesTlvTypeMap
+    _value_const: TLV_VENDOR_SPECIFIC
+  length: uint16_t
+  vendor_oui:
+    _type: sVendorOUI
+  tlv_id:
+    _type: uint16_t
+  supported_extra_stats:
+    _type: uint16_t                 
+  num_of_ports:
+    _type: uint8_t
+    _length_var: True                 
+  port_list: 
+    _type: cPortList_ext
+    _length: [ num_of_ports ]                 
+
+cPortList_ext: 
+  _type: class
+  port_id:
+    _type: uint8_t              
+  bytes_sent:
+    _type: uint8_t
+    _length: [6]
+  bytes_recvd:
+    _type: uint8_t
+    _length: [6]
+  packets_sent:
+    _type: uint8_t
+    _length: [6]
+  packets_recvd:
+    _type: uint8_t
+    _length: [6]
+  tx_pkt_errors:
+    _type: uint8_t
+    _length: [6]
+  rx_pkt_errors:
+    _type: uint8_t
+    _length: [6]
+  bcast_bytes_sent:
+    _type: uint8_t
+    _length: [6]
+  bcast_bytes_recvd:
+    _type: uint8_t
+    _length: [6]
+  bcast_pkts_sent:
+    _type: uint8_t
+    _length: [6]
+  bcast_pkts_recvd:
+    _type: uint8_t
+    _length: [6]
+  mcast_bytes_sent:
+    _type: uint8_t
+    _length: [6]
+  mcast_bytes_recvd:
+    _type: uint8_t
+    _length: [6]
+  mcast_pkts_sent:
+    _type: uint8_t
+    _length: [6]
+  mcast_pkts_recvd:
+    _type: uint8_t
+    _length: [6]
