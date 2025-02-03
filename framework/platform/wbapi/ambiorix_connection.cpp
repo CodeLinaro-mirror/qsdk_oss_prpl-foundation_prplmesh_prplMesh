@@ -9,6 +9,7 @@
 #include <easylogging++.h>
 
 #include <bcl/beerocks_backport.h>
+#include <mapf/common/utils.h>
 
 #include "include/ambiorix_connection.h"
 
@@ -199,6 +200,7 @@ int AmbiorixConnection::read_signal()
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     int ret;
     do {
+        std::lock_guard<std::mutex> guard(amxp_signal_read_mutex);
         ret = amxp_signal_read();
     } while (ret == 0);
     return ret;
