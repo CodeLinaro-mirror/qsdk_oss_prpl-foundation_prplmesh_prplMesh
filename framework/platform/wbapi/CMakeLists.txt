@@ -32,7 +32,7 @@ add_library(${PROJECT_NAME} ${wbapi_sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
-target_link_libraries(${PROJECT_NAME} PRIVATE ${WBAPI_LIBS} elpp bcl tlvf)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${WBAPI_LIBS} mapfcommon elpp bcl tlvf)
 
 # Install
 target_include_directories(${PROJECT_NAME}

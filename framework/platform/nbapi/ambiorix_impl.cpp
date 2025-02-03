@@ -15,6 +15,7 @@
 #include <amxd/amxd_transaction.h>
 
 #include <bcl/network/network_utils.h>
+#include <mapf/common/utils.h>
 #include <tlvf/tlvftypes.h>
 
 namespace beerocks {
@@ -188,6 +189,7 @@ bool AmbiorixImpl::init_signal_loop()
         .name = "ambiorix_signal",
         .on_read =
             [&](int fd, EventLoop &loop) {
+                std::lock_guard<std::mutex> guard(amxp_signal_read_mutex);
                 amxp_signal_read();
                 return true;
             },
