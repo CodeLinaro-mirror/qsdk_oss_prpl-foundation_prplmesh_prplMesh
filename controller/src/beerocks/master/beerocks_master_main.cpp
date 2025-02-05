@@ -775,12 +775,13 @@ int main(int argc, char *argv[])
     }
 
 #ifdef USE_PRPLMESH_WHM
+    std::shared_ptr<prplmesh::controller::whm::WifiManager> wifi_manager = nullptr;
     if (master_conf.use_dataelements_vap_configs) {
         LOG(INFO) << "use dataelements input as vap config";
     } else {
         LOG(INFO) << "legacy behavior: use Device.Wifi.";
 
-        auto wifi_manager =
+        wifi_manager =
             std::make_shared<prplmesh::controller::whm::WifiManager>(event_loop, &master_db);
         LOG_IF(!wifi_manager, FATAL) << "Unable to create controller WifiManager!";
 
