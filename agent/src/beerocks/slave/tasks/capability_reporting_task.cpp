@@ -55,6 +55,8 @@ using namespace multi_vendor;
 
 namespace beerocks {
 
+constexpr uint8_t MINIMUM_SCAN_INTERVAL_SEC = 2;
+
 CapabilityReportingTask::CapabilityReportingTask(slave_thread &btl_ctx,
                                                  ieee1905_1::CmduMessageTx &cmdu_tx)
     : Task(eTaskType::CAPABILITY_REPORTING), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx)
@@ -1002,6 +1004,8 @@ bool CapabilityReportingTask::add_channel_scan_capabilities(
     // Time slicing impairment (Radio may go off channel for a series of short intervals)
     radio_channel_scan_capabilities->capabilities().scan_impact = wfa_map::
         cRadiosWithScanCapabilities::eScanImpact::SCAN_IMPACT_REDUCED_NUMBER_OF_SPATIAL_STREAM;
+
+    radio_channel_scan_capabilities->minimum_scan_interval() = MINIMUM_SCAN_INTERVAL_SEC;
 
     // Fill values for operating classes and channels (PPM-2294).
     const std::vector<uint8_t> &supported_op_classes =

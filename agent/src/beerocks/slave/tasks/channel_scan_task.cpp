@@ -39,6 +39,8 @@ constexpr int PREFERRED_DWELLTIME_MS                       = 103; // 103 Millise
 constexpr std::chrono::seconds SCAN_TRIGGERED_WAIT_TIME    = std::chrono::seconds(20);  // 20 Sec
 constexpr std::chrono::seconds SCAN_RESULTS_DUMP_WAIT_TIME = std::chrono::seconds(210); // 3.5 Min
 constexpr std::chrono::seconds SCAN_REQUEST_TIMEOUT_SEC    = std::chrono::seconds(300); // 5 Min
+constexpr std::chrono::seconds MINIMUM_SCAN_INTERVAL_SEC   = std::chrono::seconds(2);   // 2 Sec
+
 /**
  * To allow for CMDU & TLV fragmentation a proximation of the size we need to keep free in the
  * Channel Scan Report Message building process is needed.
@@ -94,59 +96,53 @@ ChannelScanTask::ChannelScanTask(BackhaulManager &btl_ctx, ieee1905_1::CmduMessa
 
 void ChannelScanTask::work()
 {
-    // Handle currently running scan.
-    if (m_current_scan_info.is_scan_currently_running) {
-        auto current_scan_request = m_current_scan_info.scan_request;
-        auto current_radio_scan   = m_current_scan_info.radio_scan;
 
-        if ((current_scan_request->scan_start_timestamp + SCAN_REQUEST_TIMEOUT_SEC) <
-            std::chrono::system_clock::now()) {
-            LOG(INFO) << "Aborted scan as scan request exceeds the SCAN_REQUEST_TIMEOUT_SEC";
-            abort_scan_request(current_scan_request);
+    auto db = AgentDB::get();
+    for (auto radio : db->get_radios_list()) {
+        if (!radio) {
+            LOG(ERROR) << "radio does not exist in the db";
+            continue;
         }
+        if (m_current_scan_info[radio->front.iface_name].is_scan_currently_running) {
+            auto current_scan_request = m_current_scan_info[radio->front.iface_name].scan_request;
+            auto current_radio_scan   = m_current_scan_info[radio->front.iface_name].radio_scan;
 
-        // Handle current radio-scan's state
-        switch (current_radio_scan->current_state) {
-        case eState::PENDING_TRIGGER: {
-            // Wait until Current-Scan resource is free.
-            break;
-        }
-        case eState::WAIT_FOR_SCAN_TRIGGERED: {
-            if (current_radio_scan->timeout < std::chrono::system_clock::now()) {
-                LOG(ERROR) << "Reached timeout for PENDING_TRIGGER";
-                set_radio_scan_status(current_radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
-                FSM_MOVE_STATE(current_radio_scan, eState::SCAN_FAILED);
+            if ((current_scan_request->scan_start_timestamp + SCAN_REQUEST_TIMEOUT_SEC) <
+                std::chrono::system_clock::now()) {
+                LOG(INFO) << "Aborted scan as scan request exceeds the SCAN_REQUEST_TIMEOUT_SEC";
+                abort_scan_request(current_scan_request);
             }
-            break;
-        }
-        case eState::WAIT_FOR_RESULTS_READY: {
-            if (current_radio_scan->timeout < std::chrono::system_clock::now()) {
-                LOG(ERROR) << "Reached timeout for WAIT_FOR_RESULTS_READY";
-                set_radio_scan_status(current_radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
-                FSM_MOVE_STATE(current_radio_scan, eState::SCAN_FAILED);
+            // Handle current radio-scan's state
+            switch (current_radio_scan->current_state) {
+            case eState::PENDING_TRIGGER: {
+                // Wait until Current-Scan resource is free.
+                break;
             }
-            break;
-        }
-        case eState::WAIT_FOR_RESULTS_DUMP: {
-            if (current_radio_scan->timeout < std::chrono::system_clock::now()) {
-                LOG(ERROR) << "Reached timeout for WAIT_FOR_RESULTS_DUMP";
-                set_radio_scan_status(current_radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
-                FSM_MOVE_STATE(current_radio_scan, eState::SCAN_FAILED);
-            }
-            break;
-        }
-        case eState::SCAN_DONE: {
-            if (!is_scan_request_finished(current_scan_request)) {
-                LOG(INFO) << "Wait for other scans to complete";
-                trigger_next_radio_scan(current_scan_request);
-            } else {
-                auto db    = AgentDB::get();
-                auto radio = db->get_radio_by_mac(current_radio_scan->radio_mac);
-                if (!radio) {
-                    LOG(ERROR) << "Failed to get radio info from Agent DB for "
-                               << current_radio_scan->radio_mac;
-                    return;
+            case eState::WAIT_FOR_SCAN_TRIGGERED: {
+                if (current_radio_scan->timeout < std::chrono::system_clock::now()) {
+                    LOG(ERROR) << "Reached timeout for PENDING_TRIGGER";
+                    set_radio_scan_status(current_radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
+                    FSM_MOVE_STATE(current_radio_scan, eState::SCAN_FAILED);
                 }
+                break;
+            }
+            case eState::WAIT_FOR_RESULTS_READY: {
+                if (current_radio_scan->timeout < std::chrono::system_clock::now()) {
+                    LOG(ERROR) << "Reached timeout for WAIT_FOR_RESULTS_READY";
+                    set_radio_scan_status(current_radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
+                    FSM_MOVE_STATE(current_radio_scan, eState::SCAN_FAILED);
+                }
+                break;
+            }
+            case eState::WAIT_FOR_RESULTS_DUMP: {
+                if (current_radio_scan->timeout < std::chrono::system_clock::now()) {
+                    LOG(ERROR) << "Reached timeout for WAIT_FOR_RESULTS_DUMP";
+                    set_radio_scan_status(current_radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
+                    FSM_MOVE_STATE(current_radio_scan, eState::SCAN_FAILED);
+                }
+                break;
+            }
+            case eState::SCAN_DONE: {
                 // Once the scan is done we want to update the AgentDB with the cached results.
                 // If no neighbours are found on some channel, the cached result for that channel
                 // will simply not exist. But a cached result also doesn't exist if that channel
@@ -172,52 +168,48 @@ void ChannelScanTask::work()
                 }
                 if (m_on_boot_scan_enabled) {
                     LOG(DEBUG) << "AgentDB is updated with the OnBootScan Results";
-                    m_current_scan_info.is_scan_currently_running = false;
+                    m_current_scan_info[radio->front.iface_name].is_scan_currently_running = false;
                 } else {
                     current_scan_request->ready_to_send_report = true;
                 }
+                break;
             }
-            break;
-        }
-        case eState::SCAN_FAILED: {
-            if (!is_scan_request_finished(current_scan_request)) {
-                LOG(INFO) << "Wait for other scans to complete";
-                trigger_next_radio_scan(current_scan_request);
-            } else if (!m_on_boot_scan_enabled) {
-                current_scan_request->ready_to_send_report = true;
+            case eState::SCAN_FAILED: {
+                if (!m_on_boot_scan_enabled) {
+                    current_scan_request->ready_to_send_report = true;
+                }
+                break;
             }
-            break;
-        }
-        case eState::SCAN_ABORTED: {
-            if (!is_scan_request_finished(current_scan_request)) {
-                LOG(INFO) << "Wait for other scans to complete";
-            } else if (!m_on_boot_scan_enabled) {
-                current_scan_request->ready_to_send_report = true;
+            case eState::SCAN_ABORTED: {
+                if (!m_on_boot_scan_enabled) {
+                    current_scan_request->ready_to_send_report = true;
+                }
+                break;
             }
-            break;
-        }
-        default:
-            break;
-        }
+            default:
+                break;
+            }
 
-        // Handle finished requests.
-        if (!m_on_boot_scan_enabled && current_scan_request->ready_to_send_report) {
-            // Report was sent back, clear any remaining scan info.
-            m_current_scan_info.radio_scan                = nullptr;
-            m_current_scan_info.scan_request              = nullptr;
-            m_current_scan_info.is_scan_currently_running = false;
-            if (!send_channel_scan_report_to_controller(current_scan_request)) {
-                LOG(ERROR) << "Failed to send channel scan report!";
-                return;
+            // Handle finished requests.
+            if (!m_on_boot_scan_enabled && current_scan_request->ready_to_send_report) {
+                // Report was sent back, clear any remaining scan info.
+                m_current_scan_info[radio->front.iface_name].radio_scan                = nullptr;
+                m_current_scan_info[radio->front.iface_name].scan_request              = nullptr;
+                m_current_scan_info[radio->front.iface_name].is_scan_currently_running = false;
+                if (!send_channel_scan_report_to_controller(current_scan_request)) {
+                    LOG(ERROR) << "Failed to send channel scan report!";
+                    return;
+                }
             }
-        }
-    } else {
-        // Handle pending requests.
-        if (!m_pending_requests.empty()) {
-            if (!trigger_next_radio_scan(m_pending_requests.front())) {
-                LOG(ERROR) << "Failed to trigger the radio scan on top request in queue";
+        } else {
+            // Handle pending requests.
+            auto it = m_pending_requests.find(radio->front.iface_name);
+            if (it != m_pending_requests.end()) {
+                if (!trigger_next_radio_scan(it->first, it->second)) {
+                    LOG(ERROR) << "Failed to trigger the radio scan for radio: " << it->first;
+                }
+                m_pending_requests.erase(it);
             }
-            m_pending_requests.pop_front();
         }
     }
 }
@@ -308,31 +300,39 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         return false;
     }
 
-    auto is_current_scan_running = [this]() -> bool {
-        if (!m_current_scan_info.is_scan_currently_running) {
+    auto is_current_scan_running = [this](std::string ifname) -> bool {
+        if (!m_current_scan_info[ifname].is_scan_currently_running) {
             return false;
         }
         return true;
     };
-    auto does_current_scan_match_incoming_src = [this](const sMacAddr &src_mac) -> bool {
-        if (m_current_scan_info.radio_scan->radio_mac != src_mac) {
+    auto does_current_scan_match_incoming_src = [this](std::string ifname,
+                                                       const sMacAddr &src_mac) -> bool {
+        if (m_current_scan_info[ifname].radio_scan->radio_mac != src_mac) {
             LOG(ERROR) << "Currently running scan radio MAC does not match incoming response's. "
-                       << m_current_scan_info.radio_scan->radio_mac << " != " << src_mac;
+                       << m_current_scan_info[ifname].radio_scan->radio_mac << " != " << src_mac;
             return false;
         }
         return true;
     };
-    auto is_current_scan_in_state = [this](eState scan_expected_state) -> bool {
-        if (m_current_scan_info.radio_scan->current_state != scan_expected_state) {
+    auto is_current_scan_in_state = [this](std::string ifname, eState scan_expected_state) -> bool {
+        if (m_current_scan_info[ifname].radio_scan->current_state != scan_expected_state) {
             LOG(ERROR) << "Currently running scan is not in "
                        << m_states_string.at(scan_expected_state)
                        << " state, current scan is in state: "
-                       << m_states_string.at(m_current_scan_info.radio_scan->current_state);
+                       << m_states_string.at(m_current_scan_info[ifname].radio_scan->current_state);
             return false;
         }
         return true;
     };
-    auto db = AgentDB::get();
+
+    auto db    = AgentDB::get();
+    auto radio = db->get_radio_by_mac(src_mac);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio entry for MAC: " << src_mac;
+        return false;
+    }
+    auto ifname = radio->front.iface_name;
 
     /**
      * Since currently we handle only action_ops of action type "ACTION_BACKHAUL", use a single
@@ -366,22 +366,24 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             return false;
         }
 
-        if (!is_current_scan_running() || !does_current_scan_match_incoming_src(src_mac) ||
-            !is_current_scan_in_state(eState::PENDING_TRIGGER)) {
+        if (!is_current_scan_running(ifname) ||
+            !does_current_scan_match_incoming_src(ifname, src_mac) ||
+            !is_current_scan_in_state(ifname, eState::PENDING_TRIGGER)) {
             return false;
         }
 
         if (!response->success()) {
             LOG(ERROR) << "Failed to trigger scan on radio (" << src_mac << ")";
             // Expand the response reason to give a better scan status in the report as part of PPM-1324.
-            m_current_scan_info.is_scan_currently_running = response->success();
-            set_radio_scan_status(m_current_scan_info.radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
-            FSM_MOVE_STATE(m_current_scan_info.radio_scan, eState::SCAN_FAILED);
+            m_current_scan_info[ifname].is_scan_currently_running = response->success();
+            set_radio_scan_status(m_current_scan_info[ifname].radio_scan,
+                                  eScanStatus::SCAN_NOT_COMPLETED);
+            FSM_MOVE_STATE(m_current_scan_info[ifname].radio_scan, eState::SCAN_FAILED);
             return true;
         }
 
-        FSM_MOVE_TIMEOUT_STATE(m_current_scan_info.radio_scan, eState::WAIT_FOR_SCAN_TRIGGERED,
-                               SCAN_TRIGGERED_WAIT_TIME);
+        FSM_MOVE_TIMEOUT_STATE(m_current_scan_info[ifname].radio_scan,
+                               eState::WAIT_FOR_SCAN_TRIGGERED, SCAN_TRIGGERED_WAIT_TIME);
         LOG(INFO) << "scan request was successful for radio (" << src_mac
                   << "). Wait for SCAN_TRIGGERED notification";
         break;
@@ -395,20 +397,20 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             return false;
         }
 
-        if (!is_current_scan_running()) {
+        if (!is_current_scan_running(ifname)) {
             LOG(INFO) << "No channel scan is currently running, ignore channel scan notifications "
                          "gracefully.";
             return true;
         }
 
-        if (!does_current_scan_match_incoming_src(src_mac) ||
-            !is_current_scan_in_state(eState::WAIT_FOR_SCAN_TRIGGERED)) {
+        if (!does_current_scan_match_incoming_src(ifname, src_mac) ||
+            !is_current_scan_in_state(ifname, eState::WAIT_FOR_SCAN_TRIGGERED)) {
             return false;
         }
 
         LOG(INFO) << "Scan was triggered successfully, wait for RESULTS_READY_NOTIFICATION.";
-        FSM_MOVE_TIMEOUT_STATE(m_current_scan_info.radio_scan, eState::WAIT_FOR_RESULTS_READY,
-                               SCAN_RESULTS_DUMP_WAIT_TIME);
+        FSM_MOVE_TIMEOUT_STATE(m_current_scan_info[ifname].radio_scan,
+                               eState::WAIT_FOR_RESULTS_READY, SCAN_RESULTS_DUMP_WAIT_TIME);
 
         break;
     }
@@ -422,35 +424,35 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             return false;
         }
 
-        if (!is_current_scan_running()) {
+        if (!is_current_scan_running(ifname)) {
             return true;
         }
 
-        if (!does_current_scan_match_incoming_src(src_mac)) {
+        if (!does_current_scan_match_incoming_src(ifname, src_mac)) {
             return false;
         }
 
         if (notification->is_dump() == 0) {
-            if (!is_current_scan_in_state(eState::WAIT_FOR_RESULTS_READY)) {
+            if (!is_current_scan_in_state(ifname, eState::WAIT_FOR_RESULTS_READY)) {
                 return false;
             }
 
             LOG(INFO) << "Scan results are ready, wait for RESULTS_DUMP_NOTIFICATION.";
-            FSM_MOVE_TIMEOUT_STATE(m_current_scan_info.radio_scan, eState::WAIT_FOR_RESULTS_DUMP,
-                                   SCAN_RESULTS_DUMP_WAIT_TIME);
+            FSM_MOVE_TIMEOUT_STATE(m_current_scan_info[ifname].radio_scan,
+                                   eState::WAIT_FOR_RESULTS_DUMP, SCAN_RESULTS_DUMP_WAIT_TIME);
         } else {
-            if (!is_current_scan_in_state(eState::WAIT_FOR_RESULTS_DUMP)) {
+            if (!is_current_scan_in_state(ifname, eState::WAIT_FOR_RESULTS_DUMP)) {
                 return false;
             }
-            if (!store_radio_scan_result(m_current_scan_info.scan_request, src_mac,
+            if (!store_radio_scan_result(m_current_scan_info[ifname].scan_request, src_mac,
                                          notification->scan_results())) {
                 LOG(ERROR) << "Failed to store radio scan result!";
                 return false;
             }
             LOG(INFO) << "Scan result received, wait for another RESULTS_DUMP_NOTIFICATION or "
                          "SCAN_FINISHED_NOTIFICATION.";
-            FSM_MOVE_TIMEOUT_STATE(m_current_scan_info.radio_scan, eState::WAIT_FOR_RESULTS_DUMP,
-                                   SCAN_RESULTS_DUMP_WAIT_TIME);
+            FSM_MOVE_TIMEOUT_STATE(m_current_scan_info[ifname].radio_scan,
+                                   eState::WAIT_FOR_RESULTS_DUMP, SCAN_RESULTS_DUMP_WAIT_TIME);
         }
         break;
     }
@@ -466,22 +468,18 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
 
         // to support both certification flow and DCS old flow this code segment should be done on each
         // SCAN_FINISHED event for this src-mac
-        auto radio = db->get_radio_by_mac(src_mac);
-        if (!radio) {
-            return false;
-        }
         radio->statuses.channel_scan_in_progress = false;
 
-        if (!is_current_scan_running()) {
+        if (!is_current_scan_running(ifname)) {
             return true;
         }
 
-        if (!does_current_scan_match_incoming_src(src_mac) ||
-            !is_current_scan_in_state(eState::WAIT_FOR_RESULTS_DUMP)) {
+        if (!does_current_scan_match_incoming_src(ifname, src_mac) ||
+            !is_current_scan_in_state(ifname, eState::WAIT_FOR_RESULTS_DUMP)) {
             return false;
         }
 
-        FSM_MOVE_STATE(m_current_scan_info.radio_scan, eState::SCAN_DONE);
+        FSM_MOVE_STATE(m_current_scan_info[ifname].radio_scan, eState::SCAN_DONE);
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_CHANNEL_SCAN_ABORTED_NOTIFICATION: {
@@ -497,19 +495,16 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
 
         // to support both certification flow and DCS old flow this code segment should be done on each
         // SCAN_ABORTED event for this src-mac
-        auto radio = db->get_radio_by_mac(src_mac);
-        if (!radio) {
-            return false;
-        }
         radio->statuses.channel_scan_in_progress = false;
 
-        if (!is_current_scan_running() || !does_current_scan_match_incoming_src(src_mac)) {
+        if (!is_current_scan_running(ifname) ||
+            !does_current_scan_match_incoming_src(ifname, src_mac)) {
             return false;
         }
 
-        m_current_scan_info.is_scan_currently_running = false;
-        set_radio_scan_status(m_current_scan_info.radio_scan, eScanStatus::SCAN_ABORTED);
-        FSM_MOVE_STATE(m_current_scan_info.radio_scan, eState::SCAN_ABORTED);
+        m_current_scan_info[ifname].is_scan_currently_running = false;
+        set_radio_scan_status(m_current_scan_info[ifname].radio_scan, eScanStatus::SCAN_ABORTED);
+        FSM_MOVE_STATE(m_current_scan_info[ifname].radio_scan, eState::SCAN_ABORTED);
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_CHANNEL_SCAN_DUMP_RESULTS_RESPONSE: {
@@ -523,23 +518,25 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             return false;
         }
 
-        if (!is_current_scan_running() || !does_current_scan_match_incoming_src(src_mac) ||
-            !is_current_scan_in_state(eState::PENDING_TRIGGER)) {
+        if (!is_current_scan_running(ifname) ||
+            !does_current_scan_match_incoming_src(ifname, src_mac) ||
+            !is_current_scan_in_state(ifname, eState::PENDING_TRIGGER)) {
             return false;
         }
 
         if (!response->success()) {
             LOG(ERROR) << "Failed to trigger dump results on radio (" << src_mac << ")";
             // Expand the response reason to give a better scan status in the report as part of PPM-1324.
-            set_radio_scan_status(m_current_scan_info.radio_scan, eScanStatus::SCAN_NOT_COMPLETED);
-            FSM_MOVE_STATE(m_current_scan_info.radio_scan, eState::SCAN_FAILED);
+            set_radio_scan_status(m_current_scan_info[ifname].radio_scan,
+                                  eScanStatus::SCAN_NOT_COMPLETED);
+            FSM_MOVE_STATE(m_current_scan_info[ifname].radio_scan, eState::SCAN_FAILED);
             return true;
         }
 
         LOG(INFO) << "Scan results dump request received successfully, wait for "
                      "RESULTS_READY_NOTIFICATION.";
-        FSM_MOVE_TIMEOUT_STATE(m_current_scan_info.radio_scan, eState::WAIT_FOR_RESULTS_READY,
-                               SCAN_RESULTS_DUMP_WAIT_TIME);
+        FSM_MOVE_TIMEOUT_STATE(m_current_scan_info[ifname].radio_scan,
+                               eState::WAIT_FOR_RESULTS_READY, SCAN_RESULTS_DUMP_WAIT_TIME);
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE: {
@@ -553,7 +550,7 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         }
         LOG(TRACE) << "ACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE: " << response->success()
                    << " from mac " << src_mac;
-        m_current_scan_info.is_scan_currently_running = response->success();
+        m_current_scan_info[ifname].is_scan_currently_running = response->success();
         break;
     }
     default: {
@@ -566,89 +563,59 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
 
 /* Helper functions */
 
-bool ChannelScanTask::is_scan_request_finished(const std::shared_ptr<sScanRequest> request)
-{
-    auto radio_scans = request->radio_scans;
-    auto radio_scan_not_finished =
-        [](std::pair<std::string, std::shared_ptr<sRadioScan>> radio_scan_iter) -> bool {
-        return radio_scan_iter.second->current_state != eState::SCAN_DONE &&
-               radio_scan_iter.second->current_state != eState::SCAN_FAILED &&
-               radio_scan_iter.second->current_state != eState::SCAN_ABORTED;
-    };
-    auto unfinished_radio_scan_in_request =
-        std::find_if(radio_scans.begin(), radio_scans.end(), radio_scan_not_finished);
-
-    // Returns "True" if no unfinished scans were found
-    return unfinished_radio_scan_in_request == radio_scans.end();
-}
-
 bool ChannelScanTask::abort_scan_request(const std::shared_ptr<sScanRequest> request)
 {
-    for (const auto &radio_scan : request->radio_scans) {
-        const auto &radio_iface = radio_scan.first;
-        LOG(TRACE) << "Request scan abort on " << radio_iface;
-
-        auto agent_fd = m_btl_ctx.get_agent_fd();
-        if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
-            LOG(DEBUG) << "socket to Agent not found";
-            return false;
-        }
-
-        auto abort_request = beerocks::message_com::create_vs_message<
-            beerocks_message::cACTION_BACKHAUL_CHANNEL_SCAN_ABORT_REQUEST>(m_cmdu_tx);
-        if (!abort_request) {
-            LOG(ERROR) << "Failed to build cACTION_BACKHAUL_CHANNEL_SCAN_ABORT_REQUEST";
-            return false;
-        }
-
-        // Filling the radio mac. This is temporary the task will be moved to the agent (PPM-1679).
-        auto db    = AgentDB::get();
-        auto radio = db->radio(radio_iface);
-        if (!radio) {
-            return false;
-        }
-        auto action_header         = message_com::get_beerocks_header(m_cmdu_tx)->actionhdr();
-        action_header->radio_mac() = radio->front.iface_mac;
-
-        if (!m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx)) {
-            LOG(ERROR) << "Failed to send cACTION_BACKHAUL_CHANNEL_SCAN_ABORT_REQUEST for "
-                       << radio_iface;
-            return false;
-        }
-
-        LOG(TRACE) << "Sent ABORT_CHANNEL_SCAN for radio " << radio_iface;
+    auto db    = AgentDB::get();
+    auto radio = db->get_radio_by_mac(request->radio_scans->radio_mac, AgentDB::eMacType::RADIO);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio entry for MAC: " << request->radio_scans->radio_mac;
+        return false;
     }
+    auto radio_iface = radio->front.iface_name;
+    LOG(TRACE) << "Request scan abort on " << radio_iface;
+    auto agent_fd = m_btl_ctx.get_agent_fd();
+    if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(DEBUG) << "socket to Agent not found";
+        return false;
+    }
+    auto abort_request = beerocks::message_com::create_vs_message<
+        beerocks_message::cACTION_BACKHAUL_CHANNEL_SCAN_ABORT_REQUEST>(m_cmdu_tx);
+    if (!abort_request) {
+        LOG(ERROR) << "Failed to build cACTION_BACKHAUL_CHANNEL_SCAN_ABORT_REQUEST";
+        return false;
+    }
+
+    auto action_header         = message_com::get_beerocks_header(m_cmdu_tx)->actionhdr();
+    action_header->radio_mac() = radio->front.iface_mac;
+    if (!m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx)) {
+        LOG(ERROR) << "Failed to send cACTION_BACKHAUL_CHANNEL_SCAN_ABORT_REQUEST for "
+                   << radio_iface;
+        return false;
+    }
+    LOG(TRACE) << "Sent ABORT_CHANNEL_SCAN for radio " << radio_iface;
 
     return true;
 }
 
-bool ChannelScanTask::trigger_next_radio_scan(const std::shared_ptr<sScanRequest> request)
+bool ChannelScanTask::trigger_next_radio_scan(const std::string &ifname,
+                                              const std::shared_ptr<sScanRequest> request)
 {
-    /**
-     * Currently only one Channel Scan per radio is supported.
-     * When PPM-711 is resolved we need to rework the trigger mechanism to support multiple
-     * simultaneous radio scans.
-     * https://jira.prplfoundation.org/browse/PPM-711
-     */
-    auto &radio_scans = request->radio_scans;
-    auto radio_scan_is_pending =
-        [](std::pair<std::string, std::shared_ptr<sRadioScan>> radio_scan_iter) -> bool {
-        return radio_scan_iter.second->current_state == eState::PENDING_TRIGGER;
-    };
-    auto next_pending_radio_scan =
-        std::find_if(radio_scans.begin(), radio_scans.end(), radio_scan_is_pending);
-    if (next_pending_radio_scan == radio_scans.end()) {
+    const auto &radio_scans = request->radio_scans;
+    auto pending_radio_scan = radio_scans->current_state;
+
+    if (pending_radio_scan != eState::PENDING_TRIGGER) {
         LOG(TRACE) << "Unable to find the next pending radio scan in request.";
         return false;
     }
-    if (!trigger_radio_scan(next_pending_radio_scan->first, next_pending_radio_scan->second)) {
+
+    if (!trigger_radio_scan(ifname, radio_scans)) {
         LOG(ERROR) << "Failed to send radio scan trigger request";
         return false;
     }
 
-    m_current_scan_info.scan_request              = request;
-    m_current_scan_info.radio_scan                = next_pending_radio_scan->second;
-    m_current_scan_info.is_scan_currently_running = true;
+    m_current_scan_info[ifname].scan_request              = request;
+    m_current_scan_info[ifname].radio_scan                = radio_scans;
+    m_current_scan_info[ifname].is_scan_currently_running = true;
 
     return true;
 }
@@ -786,15 +753,9 @@ bool ChannelScanTask::store_radio_scan_result(const std::shared_ptr<sScanRequest
         LOG(ERROR) << "Failed to get radio info from Agent DB for " << radio_mac;
         return false;
     }
-    auto radio_scan_info_iter = request->radio_scans.find(radio->front.iface_name);
-    if (radio_scan_info_iter == request->radio_scans.end()) {
-        LOG(ERROR) << "Could not find radio: " << radio->front.iface_name << ", MAC: " << radio_mac
-                   << " in the current scan request.";
-        return false;
-    }
 
     // Iterate over the radio scan's operating class
-    for (const auto &op_cls : radio_scan_info_iter->second->operating_classes) {
+    for (const auto &op_cls : request->radio_scans->operating_classes) {
         for (const auto &ch_elem : op_cls.channel_list) {
             std::unordered_set<uint8_t> _20MHz_channels;
             son::wireless_utils::get_subset_20MHz_channels(
@@ -807,8 +768,7 @@ bool ChannelScanTask::store_radio_scan_result(const std::shared_ptr<sScanRequest
              */
             if (_20MHz_channels.find(results.channel) != _20MHz_channels.end()) {
                 LOG(DEBUG) << "Setting result in channel " << ch_elem.channel_number;
-                radio_scan_info_iter->second->cached_results[ch_elem.channel_number].push_back(
-                    results);
+                request->radio_scans->cached_results[ch_elem.channel_number].push_back(results);
                 // Move on to next operating class in radio scan
                 break;
             }
@@ -1006,30 +966,22 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
         return false;
     }
 
-    if (perform_fresh_scan && m_current_scan_info.is_scan_currently_running) {
-        // Check if current scan can be aborted.
-        auto current_request_info = m_current_scan_info.scan_request;
-        if (!abort_scan_request(current_request_info)) {
-            LOG(ERROR) << "Failed to abort current scan request!";
-            return false;
-        }
-    }
-
-    sRequestInfo request_info;
-    request_info.src_mac            = src_mac;
-    request_info.perform_fresh_scan = perform_fresh_scan;
-
-    auto new_request = std::shared_ptr<sScanRequest>(new sScanRequest(), [](sScanRequest *ptr) {
-        LOG(TRACE) << "Deleting scan request: " << std::hex << ptr << ".";
-        delete ptr;
-    });
-    new_request->request_info         = std::make_shared<sRequestInfo>(request_info);
-    new_request->scan_start_timestamp = scan_start_timestamp;
-    new_request->ready_to_send_report = false;
-
     const auto &radio_list_length = channel_scan_request_tlv->radio_list_length();
     // Iterate over the incoming radio list
     for (int radio_i = 0; radio_i < radio_list_length; ++radio_i) {
+
+        sRequestInfo request_info;
+        request_info.src_mac            = src_mac;
+        request_info.perform_fresh_scan = perform_fresh_scan;
+
+        auto new_request = std::shared_ptr<sScanRequest>(new sScanRequest(), [](sScanRequest *ptr) {
+            LOG(TRACE) << "Deleting scan request: " << std::hex << ptr << ".";
+            delete ptr;
+        });
+        new_request->request_info         = std::make_shared<sRequestInfo>(request_info);
+        new_request->scan_start_timestamp = scan_start_timestamp;
+        new_request->ready_to_send_report = false;
+
         const auto &radio_list_tuple = channel_scan_request_tlv->radio_list(radio_i);
         if (!std::get<0>(radio_list_tuple)) {
             LOG(ERROR) << "Failed to get radio_list[" << radio_i << "]. Continuing...";
@@ -1049,6 +1001,24 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
             return false;
         }
         const auto radio_iface = radio->front.iface_name;
+
+        if (perform_fresh_scan && m_current_scan_info[radio_iface].scan_request != NULL &&
+            m_current_scan_info[radio_iface].scan_request->scan_start_timestamp +
+                    MINIMUM_SCAN_INTERVAL_SEC >
+                std::chrono::system_clock::now()) {
+            LOG(ERROR) << "Scan request ignored: Received a new scan request before the minimum "
+                          "scan interval elapsed";
+            return false;
+        }
+
+        if (perform_fresh_scan && m_current_scan_info[radio_iface].is_scan_currently_running) {
+            // Check if current scan can be aborted.
+            auto current_request_info = m_current_scan_info[radio_iface].scan_request;
+            if (!abort_scan_request(current_request_info)) {
+                LOG(ERROR) << "Failed to abort current scan request!";
+                return false;
+            }
+        }
 
         LOG(TRACE) << "radio_list[" << radio_i << "]:" << std::endl
                    << "\tRadio iface: " << radio_iface << std::endl
@@ -1082,72 +1052,71 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
         }
 
         // Add radio scan info to radio scans map in the request
-        new_request->radio_scans.emplace(radio_iface, new_radio_scan);
-    }
+        new_request->radio_scans = new_radio_scan;
 
-    auto handle_scan_request_extension_tlv = [this, &new_request,
-                                              &db](ieee1905_1::CmduMessageRx &cmdu_rx) -> bool {
-        auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
-        if (!beerocks_header) {
-            LOG(ERROR) << "expecting beerocks_message::tlvVsChannelScanRequestExtension";
-            return false;
-        }
-        auto channel_scan_request_extension_vs_tlv =
-            beerocks_header->addClass<beerocks_message::tlvVsChannelScanRequestExtension>();
-        if (!channel_scan_request_extension_vs_tlv) {
-            LOG(ERROR) << "addClass beerocks_message::tlvVsChannelScanRequestExtension failed";
-            return false;
-        }
-
-        const auto &extension_list_length =
-            channel_scan_request_extension_vs_tlv->scan_requests_list_length();
-        for (int extention_list_i = 0; extention_list_i < extension_list_length;
-             ++extention_list_i) {
-            const auto &extension_tuple =
-                channel_scan_request_extension_vs_tlv->scan_requests_list(extention_list_i);
-            if (!std::get<0>(extension_tuple)) {
-                LOG(ERROR) << "Failed to get scan request extention[" << extention_list_i
-                           << "]. Continuing...";
-                continue;
-            }
-            auto &extension_entry = std::get<1>(extension_tuple);
-
-            LOG(DEBUG) << "Found scan request extention for radio: " << extension_entry.radio_mac;
-
-            const auto radio = db->get_radio_by_mac(extension_entry.radio_mac);
-            if (!radio) {
-                LOG(ERROR) << "Failed to get radio entry for MAC: " << extension_entry.radio_mac;
+        auto handle_scan_request_extension_tlv = [this, &new_request,
+                                                  &db](ieee1905_1::CmduMessageRx &cmdu_rx) -> bool {
+            auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
+            if (!beerocks_header) {
+                LOG(ERROR) << "expecting beerocks_message::tlvVsChannelScanRequestExtension";
                 return false;
             }
-            auto radio_scan_info_iter = new_request->radio_scans.find(radio->front.iface_name);
-            if (radio_scan_info_iter == new_request->radio_scans.end()) {
-                LOG(ERROR) << "Could not find radio: " << radio->front.iface_name
-                           << ", MAC: " << extension_entry.radio_mac
-                           << " in the current scan request.";
-                continue;
+            auto channel_scan_request_extension_vs_tlv =
+                beerocks_header->addClass<beerocks_message::tlvVsChannelScanRequestExtension>();
+            if (!channel_scan_request_extension_vs_tlv) {
+                LOG(ERROR) << "addClass beerocks_message::tlvVsChannelScanRequestExtension failed";
+                return false;
             }
 
-            radio_scan_info_iter->second->dwell_time = extension_entry.dwell_time_ms;
-            LOG(DEBUG) << "Set Dwell-time " << extension_entry.dwell_time_ms
-                       << " ms for radio: " << radio->front.iface_name;
-        }
-        return true;
-    };
+            const auto &extension_list_length =
+                channel_scan_request_extension_vs_tlv->scan_requests_list_length();
+            for (int extention_list_i = 0; extention_list_i < extension_list_length;
+                 ++extention_list_i) {
+                const auto &extension_tuple =
+                    channel_scan_request_extension_vs_tlv->scan_requests_list(extention_list_i);
+                if (!std::get<0>(extension_tuple)) {
+                    LOG(ERROR) << "Failed to get scan request extention[" << extention_list_i
+                               << "]. Continuing...";
+                    continue;
+                }
+                auto &extension_entry = std::get<1>(extension_tuple);
 
-    // For prplmesh controller, we wish to support a custome Dwell-Time parameter.
-    if (db->controller_info.prplmesh_controller) {
-        if (!handle_scan_request_extension_tlv(cmdu_rx)) {
-            LOG(WARNING) << "Failed to handle tlvVsChannelScanRequestExtension!";
+                LOG(DEBUG) << "Found scan request extention for radio: "
+                           << extension_entry.radio_mac;
+
+                const auto radio = db->get_radio_by_mac(extension_entry.radio_mac);
+                if (!radio) {
+                    LOG(ERROR) << "Failed to get radio entry for MAC: "
+                               << extension_entry.radio_mac;
+                    return false;
+                }
+
+                if (new_request->radio_scans->radio_mac == extension_entry.radio_mac) {
+                    new_request->radio_scans->dwell_time = extension_entry.dwell_time_ms;
+                    LOG(DEBUG) << "Set Dwell-time " << extension_entry.dwell_time_ms
+                               << " ms for radio: " << radio->front.iface_name;
+                }
+            }
+            return true;
+        };
+
+        // For prplmesh controller, we wish to support a custome Dwell-Time parameter.
+        if (db->controller_info.prplmesh_controller) {
+            if (!handle_scan_request_extension_tlv(cmdu_rx)) {
+                LOG(WARNING) << "Failed to handle tlvVsChannelScanRequestExtension!";
+            }
         }
+
+        // Should return all the currently stored results in the DB for the requested radios
+        // There is no need to add it to the request queue, since there is no need to perform a scan.
+        if (!perform_fresh_scan) {
+            new_request->ready_to_send_report = true;
+            return send_channel_scan_report_to_controller(new_request);
+        }
+
+        m_pending_requests[radio_iface] = new_request;
     }
 
-    // Should return all the currently stored results in the DB for the requested radios
-    // There is no need to add it to the request queue, since there is no need to perform a scan.
-    if (!perform_fresh_scan) {
-        new_request->ready_to_send_report = true;
-        return send_channel_scan_report_to_controller(new_request);
-    }
-    m_pending_requests.emplace_back(new_request);
     return true;
 }
 
@@ -1339,14 +1308,14 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
                 create_fresh_operating_class(class_entry, radio));
         }
     }
-    new_request->radio_scans.emplace(radio_iface, new_radio_scan);
+    new_request->radio_scans = new_radio_scan;
     if (send_results) {
         LOG(DEBUG) << "Sending On Boot Scan results to the controller";
-        m_current_scan_info.radio_scan   = nullptr;
-        m_current_scan_info.scan_request = nullptr;
+        m_current_scan_info[radio_iface].radio_scan   = nullptr;
+        m_current_scan_info[radio_iface].scan_request = nullptr;
         return send_channel_scan_report_to_controller(new_request);
     }
-    m_pending_requests.emplace_back(new_request);
+    m_pending_requests[radio_iface] = new_request;
     return true;
 }
 
@@ -1753,25 +1722,20 @@ ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest
     auto db                 = AgentDB::get();
     const auto request_info = std::static_pointer_cast<sRequestInfo>(request->request_info);
 
-    for (const auto &radio_scan_iter : request->radio_scans) {
-        auto radio = db->radio(radio_scan_iter.first);
-        if (!radio) {
-            LOG(ERROR) << "No radio with iface '" << radio_scan_iter.first << "' found!";
-            continue;
-        }
-        const auto &stored_scan_results_map = radio->channel_scan_results;
-        const bool fresh_scan_requested =
-            request_info->perform_fresh_scan ==
-            wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan::
-                PERFORM_A_FRESH_SCAN_AND_RETURN_RESULTS;
-        const auto &radio_scan_element = radio_scan_iter.second;
-        for (const auto &operating_class_iter : radio_scan_element->operating_classes) {
-            get_results_for_channel_list(fresh_scan_requested, radio_scan_element->radio_mac,
-                                         operating_class_iter.operating_class,
-                                         operating_class_iter.bw, request->scan_start_timestamp,
-                                         operating_class_iter.channel_list,
-                                         stored_scan_results_map);
-        }
+    auto radio = db->get_radio_by_mac(request->radio_scans->radio_mac, AgentDB::eMacType::RADIO);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio entry for MAC:" << request->radio_scans->radio_mac;
+    }
+    const auto &stored_scan_results_map = radio->channel_scan_results;
+    const bool fresh_scan_requested     = request_info->perform_fresh_scan ==
+                                      wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan::
+                                          PERFORM_A_FRESH_SCAN_AND_RETURN_RESULTS;
+    const auto &radio_scan_element = request->radio_scans;
+    for (const auto &operating_class_iter : radio_scan_element->operating_classes) {
+        get_results_for_channel_list(fresh_scan_requested, radio_scan_element->radio_mac,
+                                     operating_class_iter.operating_class, operating_class_iter.bw,
+                                     request->scan_start_timestamp,
+                                     operating_class_iter.channel_list, stored_scan_results_map);
     }
     return final_results;
 }
