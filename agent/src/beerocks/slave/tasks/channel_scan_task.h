@@ -128,7 +128,7 @@ private:
     struct sScanRequest {
         std::shared_ptr<sRequestInfo> request_info;
         std::chrono::system_clock::time_point scan_start_timestamp;
-        std::unordered_map<std::string, std::shared_ptr<sRadioScan>> radio_scans;
+        std::shared_ptr<sRadioScan> radio_scans;
         bool ready_to_send_report;
     };
     /**
@@ -137,7 +137,6 @@ private:
      * Value: Channel List
      */
     std::unordered_map<uint8_t, std::unordered_set<uint8_t>> m_previous_scans;
-    std::deque<std::shared_ptr<sScanRequest>> m_pending_requests;
 
     /**
      * Currently only one Channel Scan per radio is supported.
@@ -149,7 +148,21 @@ private:
         bool is_scan_currently_running             = false;
         std::shared_ptr<sScanRequest> scan_request = nullptr;
         std::shared_ptr<sRadioScan> radio_scan     = nullptr;
-    } m_current_scan_info;
+    };
+
+    /**
+     * Map containing current scans info
+     * Key: ifname
+     * Value: sCurrentScan
+     */
+    std::unordered_map<std::string, sCurrentScan> m_current_scan_info;
+
+    /**
+     * Map containing scan requests
+     * Key: ifname
+     * Value: sScanRequest
+     */
+    std::unordered_map<std::string, std::shared_ptr<sScanRequest>> m_pending_requests;
 
     struct sStoredScanResults {
         sMacAddr ruid;
@@ -178,15 +191,6 @@ private:
     /* Request handling helper functions */
 
     /**
-     * @brief Check if given request has finished all its radio scans.
-     * 
-     * @param request A shared pointer to the request info.
-     *
-     * @return True if all Radio Scans are finished, otherwise false.
-     */
-    bool is_scan_request_finished(const std::shared_ptr<sScanRequest> request);
-
-    /**
      * @brief Abort the unfinished Radio Scans for the given request.
      * 
      * @param request A shared pointer to the request info.
@@ -202,7 +206,8 @@ private:
      *
      * @return True if a Trigger Scan request was sent, otherwise false.
      */
-    bool trigger_next_radio_scan(const std::shared_ptr<sScanRequest> request);
+    bool trigger_next_radio_scan(const std::string &ifname,
+                                 const std::shared_ptr<sScanRequest> request);
 
     /* Radio Scan handling helper functions */
 
