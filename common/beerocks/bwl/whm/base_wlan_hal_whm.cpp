@@ -563,6 +563,10 @@ bool base_wlan_hal_whm::refresh_radio_info()
                 he_pwhm_vec.end()) {
                 he_caps_ptr->su_beamformer_capable = 1;
             }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "MU_BEAMFORMEE") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->mu_beamformer_capable = 1;
+            }
             if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "160MHZ_5GHZ") !=
                 he_pwhm_vec.end()) {
                 he_caps_ptr->he_support_160mhz = 1;
@@ -606,7 +610,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
         bool twt_enable = false;
         if (radio->read_child(twt_enable, "TargetWakeTimeEnable") && twt_enable) {
             wifi6_caps_ptr->twt_responder = 1;
-            wifi6_caps_ptr->twt_requester = 1;
         }
 
         wifi6_caps_ptr->dl_ofdma            = he_caps_ptr->dl_ofdm_capable;
@@ -632,6 +635,10 @@ bool base_wlan_hal_whm::refresh_radio_info()
             if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "SU_BEAMFORMEE") !=
                 wifi6_pwhm_vec.end()) {
                 wifi6_caps_ptr->su_beamformee = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "MU_BEAMFORMEE") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->mu_Beamformer_status = 1;
             }
         }
     }
