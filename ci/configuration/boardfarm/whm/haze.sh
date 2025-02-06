@@ -12,29 +12,29 @@ rm -f /var/log/messages && syslog-ng-ctl reload
 sh /etc/init.d/tr181-upnp stop || true
 rm -f /etc/rc.d/S*tr181-upnp
 
-# Stop obuspa client
 sh /etc/init.d/obuspa stop || true
 rm -f /etc/rc.d/S*obuspa
 
+# Stop the default ssh server on the lan-bridge
+sh /etc/init.d/ssh-server stop || true
+rm -f /etc/rc.d/S*ssh-server
+
+# Stop and disable the firewall:
+sh /etc/init.d/tr181-firewall stop || true
+rm -f /etc/rc.d/S*tr181-firewall
+
+# Disable restarting failing serivces by default
+sh /etc/init.d/amx-processmonitor stop || true
+
 ubus wait_for IP.Interface
 
-# Stop the DHCP server on wan, since it's used through br-lan
-ubus-cli DHCPv4Client.Client.wan.Enable=0
-ubus-cli DHCPv6Client.Client.wan.Enable=0
-
 # Stop and disable the DHCP clients and servers:
-# if ubus call DHCPv4 _list >/dev/null ; then
-#   ubus call DHCPv4.Server _set '{"parameters": { "Enable": False }}'
-# else
-#     echo "DHCPv4 service not active!"
-# fi
-# if ubus call DHCPv6 _list >/dev/null ; then
-#   ubus call DHCPv6.Server _set '{"parameters": { "Enable": False }}'
-# else
-#     echo "DHCPv6 service not active!"
-# fi
-
-sleep 5
+if ubus call DHCPv4 _list >/dev/null ; then
+  ubus call DHCPv4.Server _set '{"parameters": { "Enable": False }}'
+fi
+if ubus call DHCPv6 _list >/dev/null ; then
+  ubus call DHCPv6.Server _set '{"parameters": { "Enable": False }}'
+fi
 
 # IP for device upgrades, operational tests, Boardfarm data network, ...
 # Note that this device uses the WAN interface (as on some Omnias the
@@ -61,27 +61,16 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
-# Stop and disable the firewall:
-/etc/init.d/tr181-firewall stop
-rm -f /etc/rc.d/S22tr181-firewall
-
-# Restart the ssh server
-/etc/init.d/ssh-server restart
-
-# add private vaps to lan to workaround Netmodel missing wlan mib
-# this must be reverted once Netmodel version is integrated
-brctl addif br-lan wlan0 > /dev/null 2>&1 || true
-brctl addif br-lan wlan1 > /dev/null 2>&1 || true
 
 # configure private vaps
-ubus call "WiFi.SSID.1" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.SSID.2" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
+# ubus call "WiFi.SSID.1" _set '{ "parameters": { "SSID": "prplmesh" } }'
+# ubus call "WiFi.SSID.2" _set '{ "parameters": { "SSID": "prplmesh" } }'
+# ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
+# ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
+# ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
+# ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
+# ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
+# ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
@@ -93,21 +82,6 @@ ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Channel": "1" } }'
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Channel": "48" } }'
 
-# Remove the default lan/wan SSH servers if they exist
-# ubus call "SSH.Server" _del '{ "rel_path": ".[Alias == \"lan\"]" }' || true
-# ubus call "SSH.Server" _del '{ "rel_path": ".[Alias == \"wan\"]" }' || true
-
-# Trigger the startup of the SSH server
-# The SSH server on eth0 has some problems starting through the server component
-# Launch a server on the control IP later
-# ubus call "SSH.Server" _set '{ "rel_path": ".[Alias == \"control\"].", "parameters": { "Enable": false } }'
-# sleep 5
-# ubus call "SSH.Server" _set '{ "rel_path": ".[Alias == \"control\"].", "parameters": { "Enable": true } }'
-
-# Restart the ssh server
-#/etc/init.d/ssh-server restart
-#sleep 5
-
 # Add the WAN port to br-lan
 brctl addif br-lan wan || true
 
@@ -118,14 +92,8 @@ ip link set up dev wan.200
 
 sleep 10
 
-# Try to work around PCF-681: if we don't have a connectivity, restart
-# tr181-bridging
-# Check the status of the LAN bridge
-ip a |grep "br-lan:" |grep "state UP" >/dev/null || (echo "LAN Bridge DOWN, restarting bridge manager" && /etc/init.d/tr181-bridging restart && sleep 15)
-
-# If we still can't ping the UCC, restart the IP manager
-ping -i 1 -c 2 192.168.1.2 || (/etc/init.d/ip-manager restart && sleep 15)
-ping -i 1 -c 2 192.168.1.2 || (/etc/init.d/ip-manager restart && sleep 15)
+# Copy generated SSH host keys
+cp /etc/config/ssh_server/*_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 BOOTSCRIPT="/etc/rc.local"
