@@ -14,28 +14,8 @@
 
 #include <bcl/son/son_wireless_utils.h>
 
-#ifndef USE_PRPLMESH_WHM
-#include <amxc/amxc.h>
-#include <amxp/amxp.h>
-#endif
-
 #include <stdint.h>
 #include <string>
-
-#ifndef USE_PRPLMESH_WHM
-#include <amxc/amxc.h>
-#include <amxd/amxd_action.h>
-#include <amxd/amxd_dm.h>
-#include <amxd/amxd_object.h>
-#include <amxd/amxd_object_event.h>
-#include <amxd/amxd_transaction.h>
-
-#include <amxb/amxb.h>
-#include <amxb/amxb_register.h>
-
-#include <amxo/amxo.h>
-#include <amxo/amxo_save.h>
-#endif
 
 namespace beerocks {
 namespace bpl {

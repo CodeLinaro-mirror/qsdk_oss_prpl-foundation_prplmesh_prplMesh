@@ -158,7 +158,15 @@ else()
 
 endif()
 
+find_package(amxb REQUIRED)
+find_package(amxc REQUIRED)
+find_package(amxd REQUIRED)
+find_package(amxp REQUIRED)
+list(APPEND BPL_LIBS amxb amxc amxd amxp)
+
 if (USE_PRPLMESH_WHM)
+    include_directories(${MODULE_PATH}/cfg/prplMesh_WHM)
+
     foreach (item ${bpl_platform_sources})
         if (item MATCHES "bpl.cpp$")
             list(REMOVE_ITEM bpl_platform_sources ${item})
@@ -173,18 +181,13 @@ if (USE_PRPLMESH_WHM)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
 
-    find_package(amxb REQUIRED)
-    find_package(amxc REQUIRED)
-    find_package(amxd REQUIRED)
-    find_package(amxp REQUIRED)
-    list(APPEND BPL_LIBS amxb amxc amxd amxp)
     list(APPEND BPL_LIBS wbapi)
 else ()
-    find_package(amxb REQUIRED)
-    find_package(amxc REQUIRED)
-    find_package(amxd REQUIRED)
-    find_package(amxp REQUIRED)
-    list(APPEND BPL_LIBS amxb amxc amxd amxp)
+    file(GLOB_RECURSE bpl_platform_sources
+        ${MODULE_PATH}/*/linux/*.c*
+	${MODULE_PATH}/service_prioritization/dummy/service_prio_utils_dummy.c*
+        ${MODULE_PATH}/cfg/dummy/*.c*
+    )
 endif()
 
 list(APPEND BPL_LIBS bcl)
