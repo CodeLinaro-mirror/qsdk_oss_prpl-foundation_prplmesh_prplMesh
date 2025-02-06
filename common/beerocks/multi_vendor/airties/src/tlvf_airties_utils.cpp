@@ -25,14 +25,17 @@
 #include <tlvf/airties/tlvVersionReporting.h>
 
 using namespace airties;
-
 using namespace beerocks;
-#if (USE_PRPLMESH_WHM)
 using namespace wbapi;
-#endif
 
-#define AIRTIES_ENABLE 0x1
-#define AIRTIES_DISABLE 0x0
+/*
+ * This Macro is to enable or disable
+ * a bit in an octet. This is used for setting 
+ * Gateway/Extender information in Device Info TLV.
+ */
+#define TLV_BIT_ENABLE 0x1
+#define TLV_BIT_DISABLE 0x0
+
 /**
  * @brief Check if the Spanning Tree Protocol (STP) is enabled.
  *
@@ -182,10 +185,35 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
     return true;
 }
 
+/*
+ * Function to update the Client details.
+ * If the client details are not present, 
+ * then the hard coded values will be saved in TLV.
+ */
+void update_client_details(std::shared_ptr<airties::tlvAirtiesDeviceInfo> &tlvDevinfo)
+{
+    std::string client_id     = "";
+    std::string client_secret = "";
+    std::string dm_path       = "X_AIRTIES_Obj.CloudComm.";
+
+    auto cli_det = tlvf_air_utils.m_ambiorix_cl.get_object(dm_path);
+    if (!cli_det) {
+        LOG(ERROR) << "Failed to get the ambiorix object for path,"
+                      " Setting default values "
+                   << dm_path;
+    }
+    //Retrieve the Client ID from DM
+    if (cli_det) {
+        cli_det->read_child<>(client_id, "ClientID");
+        cli_det->read_child<>(client_secret, "ClientPassword");
+    }
+
+    tlvDevinfo->set_client_id(client_id);
+    tlvDevinfo->set_client_secret(client_secret);
+}
+
 bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
-    std::string client_id     = "SampleClientID";
-    std::string client_secret = "SamplePwD123";
     uint32_t randomBootid;
     auto db = beerocks::AgentDB::get();
 
@@ -202,37 +230,14 @@ bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m
     tlvAirtiesDeviceInfo->tlv_id()  = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_INFO);
     tlvAirtiesDeviceInfo->boot_id() = randomBootid;
 
-#if (USE_PRPLMESH_WHM)
-    std::string dm_path = "X_AIRTIES_Obj.CloudComm.";
-    auto cli_det        = tlvf_air_utils.m_ambiorix_cl.get_object(dm_path);
-    if (!cli_det) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
-    }
-    //Retrieve the Client ID from DM
-    if (cli_det) {
-        cli_det->read_child<>(client_id, "ClientID");
-    }
-#endif
+    update_client_details(tlvAirtiesDeviceInfo);
 
-    tlvAirtiesDeviceInfo->set_client_id(client_id);
-    LOG(INFO) << "DeviceInfoTlv: Client id successfully set ";
-
-#ifdef USE_PRPLMESH_WHM
-    //Retrieve the Client Secret from DM
-    if (cli_det) {
-        cli_det->read_child<>(client_secret, "ClientPassword");
-    }
-#endif
-
-    tlvAirtiesDeviceInfo->set_client_secret(client_secret);
-    LOG(INFO) << "DeviceInfoTlv: Client Secret Length set";
-
-    if (db->device_conf.local_gw) { //its a controller
-        tlvAirtiesDeviceInfo->flags1().gateway_product_class  = AIRTIES_ENABLE;
-        tlvAirtiesDeviceInfo->flags2().device_role_indication = AIRTIES_ENABLE;
+    if (db->device_conf.local_gw) { //it's a controller
+        tlvAirtiesDeviceInfo->flags1().gateway_product_class  = TLV_BIT_ENABLE;
+        tlvAirtiesDeviceInfo->flags2().device_role_indication = TLV_BIT_ENABLE;
     } else {
-        tlvAirtiesDeviceInfo->flags1().extender_product_class = AIRTIES_ENABLE;
-        tlvAirtiesDeviceInfo->flags2().device_role_indication = AIRTIES_DISABLE;
+        tlvAirtiesDeviceInfo->flags1().extender_product_class = TLV_BIT_ENABLE;
+        tlvAirtiesDeviceInfo->flags2().device_role_indication = TLV_BIT_DISABLE;
     }
     LOG(INFO) << "Added Device Info TLV";
     return true;
