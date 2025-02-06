@@ -156,14 +156,10 @@ main() {
         dbg "Legacy platform, building on prplOS(-old)"
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
-    elif [[ "haze" == "$TARGET_DEVICE" ]] || [[ "turris-omnia" == "$TARGET_DEVICE" ]] ; then
-        dbg "Haze platform, build on prplos master + pWHM 5.34.0"
-        OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
-        OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
     else
-        dbg "$TARGET_DEVICE platform, building on prplos mainline-3.2 + pWHM 6.34.0"
-        OPENWRT_TOOLCHAIN_VERSION='3fcfb9500d5d022d29cfa97f0e3f8e6cdf7e5203'
-        OPENWRT_VERSION='3fcfb9500d5d022d29cfa97f0e3f8e6cdf7e5203'
+        dbg "$TARGET_DEVICE platform, building on prplos-v3.2.0 + mainline-3.2_v0.0.3"
+        OPENWRT_TOOLCHAIN_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
+        OPENWRT_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -202,9 +198,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplOS 3.1
-OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
-OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
+# prplos-v3.2.0
+OPENWRT_TOOLCHAIN_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
+OPENWRT_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
