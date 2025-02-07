@@ -9,42 +9,30 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-data_overlay_not_initialized()
-{
-  grep -q overlayfs:/tmp/root /proc/mounts || test -f /tmp/.switch_jffs2 || pgrep 'mount_root done'
-}
-
-if data_overlay_not_initialized; then
-  logger -t prplmesh -p daemon.info "Waiting for data overlay initialization..."
-  while data_overlay_not_initialized; do
-    sleep 2
-  done
-  logger -t prplmesh -p daemon.info "Data overlay is initialized."
-  sleep 20
-fi
-
 sh /etc/init.d/tr181-upnp stop || true
 rm -f /etc/rc.d/S*tr181-upnp
 
-# Save the IP settings persistently (PPM-2351):
-sed -ri 's/(dm-save.*) = false/\1 = true/g' /etc/amx/ip-manager/ip-manager.odl
-sh /etc/init.d/ip-manager restart && sleep 15
+sh /etc/init.d/obuspa stop || true
+rm -f /etc/rc.d/S*obuspa
+
+# Stop the default ssh server on the lan-bridge
+sh /etc/init.d/ssh-server stop || true
+rm -f /etc/rc.d/S*ssh-server
+
+# Stop and disable the firewall:
+sh /etc/init.d/tr181-firewall stop || true
+rm -f /etc/rc.d/S*tr181-firewall
+
+# Disable restarting failing serivces by default
+sh /etc/init.d/amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 
 # Stop and disable the DHCP clients and servers:
-if ubus call DHCPv4 _list >/dev/null ; then
-  ubus call DHCPv4.Client.1 _set '{"parameters": { "Enable": False }}'
-  ubus call DHCPv4.Server _set '{"parameters": { "Enable": False }}'
-else
-    echo "DHCPv4 service not active!"
-fi
-if ubus call DHCPv6 _list >/dev/null ; then
-  ubus call DHCPv6.Client.1 _set '{"parameters": { "Enable": False }}'
-  ubus call DHCPv6.Server _set '{"parameters": { "Enable": False }}'
-else
-    echo "DHCPv6 service not active!"
-fi
+ba-cli DHCPv4Client.Client.wan.Enable=0
+ba-cli DHCPv6Client.Client.wan.Enable=0
+ba-cli DHCPv4Server.Enable=0
+ba-cli DHCPv6Server.Enable=0
 
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
@@ -70,26 +58,6 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
-# Required for config_load:
-. /lib/functions/system.sh
-# Required for config_foreach:
-. /lib/functions.sh
-
-# add private vaps to lan to workaround Netmodel missing wlan mib
-# this must be reverted once Netmodel version is integrated
-#brctl addif br-lan wlan0 > /dev/null 2>&1 || true
-#brctl addif br-lan wlan2 > /dev/null 2>&1 || true
-
-# configure private vaps
-ubus call "WiFi.SSID.1" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.SSID.2" _set '{ "parameters": { "SSID": "prplmesh" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-
 # Enable when hostapd on this target supports it
 # ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
@@ -103,45 +71,17 @@ ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Channel": "1" } }'
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Channel": "48" } }'
 
-# Restrict channel bandwidth or the certification test could miss beacons
-# (see PPM-258)
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "OperatingChannelBandwidth": "20MHz" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "OperatingChannelBandwidth": "20MHz" } }'
+# Commands to start a new SSH server on the control port
+start_ssh_commands="killall -9 dropbear
+dropbear -F -T 10 -p192.168.250.170:22 &"
 
-sleep 10
-
-# Try to work around PCF-681: if we don't have a connectivity, restart
-# tr181-bridging
-# Check the status of the LAN bridge
-ip a |grep "br-lan:" |grep "state UP" >/dev/null || (echo "LAN Bridge DOWN, restarting bridge manager" && sh /etc/init.d/tr181-bridging restart && sleep 15)
-
-# If we still can't ping the UCC, restart the IP manager
-ping -i 1 -c 2 192.168.250.199 || (sh /etc/init.d/ip-manager restart && sleep 15)
-ping -i 1 -c 2 192.168.250.199 || (sh /etc/init.d/ip-manager restart && sleep 15)
-
-# Remove the default lan/wan SSH servers if they exist
-ubus call "SSH.Server" _del '{ "rel_path": ".[Alias == \"lan\"]" }' || true
-ubus call "SSH.Server" _del '{ "rel_path": ".[Alias == \"wan\"]" }' || true
-
-# Trigger the startup of the SSH server
-# The SSH server on eth0 has some problems starting through the server component
-# Launch a server on the control IP later
-# ubus call "SSH.Server" _set '{ "rel_path": ".[Alias == \"control\"].", "parameters": { "Enable": false } }'
-# sleep 5
-# ubus call "SSH.Server" _set '{ "rel_path": ".[Alias == \"control\"].", "parameters": { "Enable": true } }'
-
-# Stop the default ssh server on the lan-bridge
-sh /etc/init.d/ssh-server stop || true
 sleep 5
 
+# Copy generated SSH host keys
+cp /etc/config/ssh_server/*_key /etc/dropbear/
+
 # Add command to start dropbear to rc.local to allow SSH access after reboot
-BOOTSCRIPT="/etc/rc.local"
-SERVER_CMD="sleep 20 && dropbear -F -T 10 -p192.168.250.170:22 &"
-if ! grep -q "$SERVER_CMD" "$BOOTSCRIPT"; then { head -n -2 "$BOOTSCRIPT"; echo "$SERVER_CMD"; tail -2 "$BOOTSCRIPT"; } >> btscript.tmp; mv btscript.tmp "$BOOTSCRIPT"; fi
-
-# Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop
-rm -f /etc/rc.d/S22tr181-firewall
-
-# Start an ssh server on the control interfce
-dropbear -F -T 10 -p192.168.250.170:22 &
+bootscript="/etc/rc.local"
+boot_cmd="sleep 20 && $start_ssh_commands"
+if ! grep -q "$boot_cmd" "$bootscript"; then { head -n -2 "$bootscript"; echo "$boot_cmd"; tail -2 "$bootscript"; } >> btscript.tmp; mv btscript.tmp "$bootscript"; fi
+set +e && eval "$start_ssh_commands"

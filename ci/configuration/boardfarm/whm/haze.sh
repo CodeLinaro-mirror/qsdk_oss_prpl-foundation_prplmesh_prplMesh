@@ -29,25 +29,10 @@ sh /etc/init.d/amx-processmonitor stop || true
 ubus wait_for IP.Interface
 
 # Stop and disable the DHCP clients and servers:
-if ubus call DHCPv4 _list >/dev/null ; then
-  ubus call DHCPv4.Server _set '{"parameters": { "Enable": False }}'
-fi
-if ubus call DHCPv6 _list >/dev/null ; then
-  ubus call DHCPv6.Server _set '{"parameters": { "Enable": False }}'
-fi
-
-# IP for device upgrades, operational tests, Boardfarm data network, ...
-# Note that this device uses the WAN interface (as on some Omnias the
-# others don't work in the bootloader):
-# Add the IP address if there is none yet:
-# ubus call IP.Interface _get '{ "rel_path": ".[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"]." }' || {
-#     echo "Adding IP address $IP"
-#     ubus call "IP.Interface" _add '{ "rel_path": ".[Alias == \"wan\"].IPv4Address.", "parameters": { "Alias": "wan", "AddressingType": "Static" } }'
-# }
-# # Configure it:
-# ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].IPv4Address.1", "parameters": { "IPAddress": "192.168.1.150", "SubnetMask": "255.255.255.0", "AddressingType": "Static", "Enable" : true } }'
-# # Enable it:
-# ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].", "parameters": { "IPv4Enable": true } }'
+ba-cli DHCPv4Client.Client.wan.Enable=0
+ba-cli DHCPv6Client.Client.wan.Enable=0
+ba-cli DHCPv4Server.Enable=0
+ba-cli DHCPv6Server.Enable=0
 
 # Set the LAN bridge IP:
 ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].", "parameters": { "IPAddress": "192.168.1.150" } }'
@@ -61,16 +46,8 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
-
-# configure private vaps
-# ubus call "WiFi.SSID.1" _set '{ "parameters": { "SSID": "prplmesh" } }'
-# ubus call "WiFi.SSID.2" _set '{ "parameters": { "SSID": "prplmesh" } }'
-# ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-# ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "KeyPassPhrase": "prplmesh_pass" } }'
-# ubus call "WiFi.AccessPoint.1.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-# ubus call "WiFi.AccessPoint.2.Security" _set '{ "parameters": { "ModeEnabled": "WPA2-Personal" } }'
-# ubus call "WiFi.AccessPoint.1.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
-# ubus call "WiFi.AccessPoint.2.WPS" _set '{ "parameters": { "ConfigMethodsEnabled": "PushButton" } }'
+# Enable when hostapd on this target supports it
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
@@ -83,23 +60,21 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Channel": "48" } }'
 
 # Add the WAN port to br-lan
-brctl addif br-lan wan || true
-
 # Add a control interface to Haze on the WAN port, with vlan 200
-ip link add link wan name wan.200 type vlan id 200 || true
-ip addr add 192.168.200.150/24 dev wan.200 || true
+start_ssh_commands="brctl addif br-lan wan
+ip link add link wan name wan.200 type vlan id 200
+ip addr add 192.168.200.150/24 dev wan.200
 ip link set up dev wan.200
+killall -9 dropbear
+dropbear -F -T 10 -p192.168.200.150:22 &"
 
-sleep 10
+sleep 5
 
 # Copy generated SSH host keys
 cp /etc/config/ssh_server/*_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
-BOOTSCRIPT="/etc/rc.local"
-SERVER_CMD="sleep 20 && /etc/init.d/ssh-server stop && dropbear -F -T 10 -p192.168.200.150:22 &"
-if ! grep -q "$SERVER_CMD" "$BOOTSCRIPT"; then { head -n -2 "$BOOTSCRIPT"; echo "$SERVER_CMD"; tail -2 "$BOOTSCRIPT"; } >> btscript.tmp; mv btscript.tmp "$BOOTSCRIPT"; fi
-
-# Stop the default ssh server on the lan-bridge
-/etc/init.d/ssh-server stop
-dropbear -F -T 10 -p192.168.200.150:22 &
+bootscript="/etc/rc.local"
+boot_cmd="sleep 20 && $start_ssh_commands"
+if ! grep -q "$boot_cmd" "$bootscript"; then { head -n -2 "$bootscript"; echo "$boot_cmd"; tail -2 "$bootscript"; } >> btscript.tmp; mv btscript.tmp "$bootscript"; fi
+set +e && eval "$start_ssh_commands"
