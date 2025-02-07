@@ -1896,7 +1896,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         auto timeout = std::chrono::steady_clock::now() +
                        std::chrono::seconds(WAIT_FOR_RADIO_ENABLE_TIMEOUT_SEC);
         auto perform_update = false;
-        while (std::chrono::steady_clock::now() < timeout) {
+        while ((std::chrono::steady_clock::now() < timeout) && !radio_state_lock) {
             if (!ap_wlan_hal->refresh_radio_info()) {
                 break;
             }
@@ -1989,14 +1989,41 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
     }
     case beerocks_message::ACTION_APMANAGER_RADIO_DISABLE_REQUEST: {
         LOG(DEBUG) << "Got ACTION_APMANAGER_RADIO_DISABLE_REQUEST";
+        if (ap_wlan_hal->get_radio_info().radio_state == bwl::eRadioState::DISABLED) {
+            return;
+        }
+
         // Disable the radio interface
         if (!ap_wlan_hal->disable()) {
             LOG(ERROR) << "Failed disabling radio on iface: " << ap_wlan_hal->get_iface_name();
             return;
         }
+        radio_state_lock = true;
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_RADIO_ENABLE_REQUEST: {
+        LOG(DEBUG) << "Got ACTION_APMANAGER_RADIO_ENABLE_REQUEST";
+        if (ap_wlan_hal->get_radio_info().radio_state == bwl::eRadioState::ENABLED) {
+            return;
+        }
 
+        // Enable the radio interface
+        if (!ap_wlan_hal->enable()) {
+            LOG(ERROR) << "Failed enabling radio on iface: " << ap_wlan_hal->get_iface_name();
+            return;
+        }
+        radio_state_lock = false;
+        auto timeout     = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (std::chrono::steady_clock::now() < timeout) {
+            UTILS_SLEEP_MSEC(500);
+        }
+
+        if (!ap_wlan_hal->refresh_radio_info()) {
+            LOG(DEBUG) << "refresh_radio_info error!";
+            return;
+        }
+        break;
+    }
     case beerocks_message::ACTION_APMANAGER_STEERING_CLIENT_SET_REQUEST: {
         auto request =
             beerocks_header

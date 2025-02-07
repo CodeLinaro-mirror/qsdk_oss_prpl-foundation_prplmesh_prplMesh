@@ -27,6 +27,9 @@
 #include <beerocks/tlvf/beerocks_message_platform.h>
 
 #include <tlvf/WSC/m1.h>
+#include <tlvf/airties/eAirtiesTLVId.h>
+#include <tlvf/airties/tlvAirtiesMsgType.h>
+#include <tlvf/airties/tlvAirtiesServiceStatus.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvAutoconfigFreqBand.h>
 #include <tlvf/ieee_1905_1/tlvSearchedRole.h>
@@ -1139,6 +1142,14 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
     LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE for iface " << radio->front.iface_name;
+
+    if (db->em_ap_controller_found) {
+        LOG(DEBUG) << "EM+ controller is found. Check for Service Status";
+        if (!airties_vs_ap_autoconfiguration_wsc_parse_service_status(cmdu_rx,
+                                                                      radio->front.iface_name)) {
+            LOG(INFO) << "Service Status is not found in Vendor Specific TLV";
+        }
+    }
 
     std::vector<WSC::m2> m2_list;
     for (auto tlv : cmdu_rx.getClassList<ieee1905_1::tlvWsc>()) {
@@ -2422,6 +2433,70 @@ bool ApAutoConfigurationTask::send_ap_connected_sta_notifications_request(
     }
     auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio_iface);
     m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx);
+    return true;
+}
+
+bool ApAutoConfigurationTask::airties_vs_ap_autoconfiguration_wsc_parse_service_status(
+    ieee1905_1::CmduMessageRx &cmdu_rx, const std::string &radio_iface)
+{
+    if (!cmdu_rx.getMessageLength()) {
+        LOG(ERROR) << "cmdu is not initialized";
+        return false;
+    }
+
+    auto tlv = cmdu_rx.getClass<ieee1905_1::tlvVendorSpecific>();
+    if (!tlv) {
+        LOG(ERROR) << "Error creating tlvVendorSpecific";
+        return false;
+    }
+
+    if (tlv->vendor_oui() != airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES) {
+        LOG(ERROR) << "Mismatch OUI!";
+        return false;
+    }
+
+    auto vendor_tlv =
+        std::make_shared<airties::tlvAirtiesServiceStatus>(tlv->payload(), tlv->payload_length());
+    if (!vendor_tlv) {
+        LOG(ERROR) << "Error creating tlvAirtiesServiceStatus";
+        return false;
+    }
+
+    vendor_tlv->class_swap(); // swap to get network byte order
+    if (vendor_tlv->tlv_id() != static_cast<int>(airties::eAirtiesTlVId::AIRTIES_SERVICE_STATUS)) {
+        LOG(ERROR) << "Mismatch tlv_id!";
+        return false;
+    }
+
+    auto radio_state = (static_cast<int>(vendor_tlv->payload().reason) == 1 ? false : true);
+    vendor_tlv->class_swap(); // swap back
+
+    auto change_radio_state = [this](bool enable, const std::string &radio_iface) -> bool {
+        if (enable) {
+            auto request = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_RADIO_ENABLE_REQUEST>(m_cmdu_tx);
+            if (!request) {
+                LOG(ERROR) << "Failed building cACTION_APMANAGER_RADIO_ENABLE_REQUEST message!";
+                return false;
+            }
+        } else {
+            auto request = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_RADIO_DISABLE_REQUEST>(m_cmdu_tx);
+            if (!request) {
+                LOG(ERROR) << "Failed building cACTION_APMANAGER_RADIO_DISABLE_REQUEST message!";
+                return false;
+            }
+        }
+        auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio_iface);
+        m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx);
+        return true;
+    };
+
+    if (!change_radio_state(radio_state, radio_iface)) {
+        LOG(ERROR) << "Error changing radio state!";
+        return false;
+    }
+
     return true;
 }
 

@@ -179,21 +179,33 @@ void ap_wlan_hal_whm::subscribe_to_ap_mgmt_frame_events()
 
 bool ap_wlan_hal_whm::enable()
 {
-    // API enable is not required with "PWHM",
-    // it's usage is only during WPS (some propietary use-case) in non PWHM scenario.
-    // WPS functionality in with PWHM scenario works as expected.
-    // Conclusion: API usuage during WPS (propietary use-case), not needed with PWHM.
-    // Hence no implementation is required.
+    if (m_radio_path.empty()) {
+        m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name),
+                                   m_radio_path);
+    }
+
+    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+    new_obj.add_child("Enable", true);
+    if (!m_ambiorix_cl.update_object(m_radio_path, new_obj)) {
+        return false;
+    }
+
     return true;
 }
 
 bool ap_wlan_hal_whm::disable()
 {
-    // API disable is not required with "PWHM",
-    // it's usage is only during WPS (some propietary use-case) in non PWHM scenario.
-    // WPS functionality in with PWHM scenario works as expected.
-    // Conclusion: API usuage during WPS (propietary use-case), not needed with PWHM.
-    // Hence no implementation is required.
+    if (m_radio_path.empty()) {
+        m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name),
+                                   m_radio_path);
+    }
+
+    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+    new_obj.add_child("Enable", false);
+    if (!m_ambiorix_cl.update_object(m_radio_path, new_obj)) {
+        return false;
+    }
+
     return true;
 }
 

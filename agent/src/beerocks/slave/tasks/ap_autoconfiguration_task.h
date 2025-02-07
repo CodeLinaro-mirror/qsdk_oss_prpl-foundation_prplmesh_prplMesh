@@ -288,6 +288,18 @@ private:
      */
     bool airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(WSC::m2 &m2,
                                                                WSC::configData::config &config);
+    /**
+     * @brief Parse the vendor extension from m2 for Service Status
+     *
+     * This Service Status TLV will be used to change radio state.
+     *
+     * @param[in] cmdu_rx Received CMDU.
+     * @param radio_iface Radio interface name.
+     * @return true on success, otherwise false.
+     */
+    bool
+    airties_vs_ap_autoconfiguration_wsc_parse_service_status(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                                             const std::string &radio_iface);
     bool add_wsc_m1_tlv(const std::string &radio_iface);
 };
 

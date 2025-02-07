@@ -322,6 +322,7 @@ private:
     std::unique_ptr<beerocks::CmduClient> m_slave_client;
 
     bool certification_mode = false;
+    bool radio_state_lock   = false;
 };
 
 } // namespace son
