@@ -91,6 +91,8 @@ std::string sta_wlan_hal_dummy::get_wireless_backhaul_mac()
     return mac;
 }
 
+bool sta_wlan_hal_dummy::enable_disable_ep(bool enable) { return true; }
+
 bool sta_wlan_hal_dummy::process_dummy_data(parsed_obj_map_t &parsed_obj) { return true; }
 
 bool sta_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj) { return true; }

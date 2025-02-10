@@ -66,6 +66,8 @@ public:
     std::string get_bssid() override;
     std::string get_wireless_backhaul_mac() override;
 
+    virtual bool enable_disable_ep(bool enable) override;
+
 protected:
     virtual bool process_dummy_data(parsed_obj_map_t &parsed_obj) override;
     virtual bool process_dummy_event(parsed_obj_map_t &parsed_obj) override;

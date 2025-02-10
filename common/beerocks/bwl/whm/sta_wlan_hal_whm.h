@@ -67,6 +67,8 @@ public:
     std::string get_bssid() override;
     std::string get_wireless_backhaul_mac() override;
 
+    virtual bool enable_disable_ep(bool enable) override;
+
     const std::vector<int> &get_ext_events_fds() const;
     bool unique_file_descriptors() const { return false; }
 

@@ -604,6 +604,12 @@ std::string sta_wlan_hal_whm::get_wireless_backhaul_mac()
     return mac;
 }
 
+bool sta_wlan_hal_whm::enable_disable_ep(bool enable)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return true;
+}
+
 bool sta_wlan_hal_whm::update_status()
 {
     Endpoint endpoint;

@@ -251,6 +251,7 @@ private:
     clear_radio_handlers(const std::shared_ptr<beerocks::BackhaulManager::sRadioInfo> &radio_info);
 
     std::shared_ptr<bwl::sta_wlan_hal> get_wireless_hal(std::string iface = "");
+    std::shared_ptr<bwl::sta_wlan_hal> get_wireless_hal(const sMacAddr &radio_mac);
 
     /**
      * Buffer to hold CMDU to be transmitted.
