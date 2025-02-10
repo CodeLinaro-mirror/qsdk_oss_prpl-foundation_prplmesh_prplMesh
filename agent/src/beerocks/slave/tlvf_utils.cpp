@@ -84,6 +84,24 @@ std::vector<uint8_t> get_operating_class_non_oper_channels(
                 }
                 if (son::wireless_utils::is_operating_class_using_central_channel(
                         operating_class)) {
+                    auto is_there_any_unavailable_overlapping_channel = [&]() -> bool {
+                        auto overlapping_beacon_channels =
+                            son::wireless_utils::get_overlapping_beacon_channels(
+                                channel, son::wireless_utils::which_freq_op_cls(operating_class),
+                                bw_info.bandwidth);
+
+                        return std::any_of(overlapping_beacon_channels.cbegin(),
+                                           overlapping_beacon_channels.cend(),
+                                           [&channels_list](uint8_t overlap_ch) {
+                                               return channels_list.find(overlap_ch) ==
+                                                      channels_list.end();
+                                           });
+                    };
+
+                    if (is_there_any_unavailable_overlapping_channel()) {
+                        break;
+                    }
+
                     channel = son::wireless_utils::get_center_channel(
                         channel, son::wireless_utils::which_freq_op_cls(operating_class),
                         bw_info.bandwidth);
