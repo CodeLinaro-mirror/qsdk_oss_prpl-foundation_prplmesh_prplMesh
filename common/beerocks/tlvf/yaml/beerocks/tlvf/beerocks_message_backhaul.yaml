@@ -161,6 +161,12 @@ cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST:
   wifi_credentials:
     _type: WSC::cConfigData
 
+cACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT:
+  _type: class
+  radio_mac:
+    _type: sMacAddr
+  enable : uint8_t #bool
+
 ################################################
 # CHANNEL SCAN REQUESTS/RESPONSES
 ################################################

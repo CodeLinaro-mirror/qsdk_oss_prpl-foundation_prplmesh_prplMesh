@@ -94,6 +94,8 @@ public:
      * Returns the Backhaul Mac address.
      */
     virtual std::string get_wireless_backhaul_mac() = 0;
+
+    virtual bool enable_disable_ep(bool enable) = 0;
 };
 
 // STA HAL factory types

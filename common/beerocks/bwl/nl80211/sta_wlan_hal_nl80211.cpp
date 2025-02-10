@@ -285,6 +285,8 @@ std::string sta_wlan_hal_nl80211::get_wireless_backhaul_mac()
     return mac;
 }
 
+bool sta_wlan_hal_nl80211::enable_disable_ep(bool enable) { return true; }
+
 bool sta_wlan_hal_nl80211::process_nl80211_event(parsed_obj_map_t &parsed_obj)
 {
     auto opcode = parsed_obj["_opcode"];
