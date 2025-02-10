@@ -79,7 +79,11 @@ enum class WiFiSec {
     WPA2_PSK,
     WPA_WPA2_PSK,
     WPA2_WP3_PSK,
-    WPA3_PSK
+    WPA3_PSK,
+    WPA_ENTERPRISE,
+    WPA2_ENTERPRISE,
+    WPA_WPA2_ENTERPRISE,
+    OWE
 };
 
 inline std::ostream &operator<<(std::ostream &out, const bwl::WiFiSec &sec)
@@ -111,6 +115,18 @@ inline std::ostream &operator<<(std::ostream &out, const bwl::WiFiSec &sec)
         break;
     case bwl::WiFiSec::WPA3_PSK:
         out << "WPA3-Personal";
+        break;
+    case bwl::WiFiSec::WPA_ENTERPRISE:
+        out << "WPA-Enterprise";
+        break;
+    case bwl::WiFiSec::WPA2_ENTERPRISE:
+        out << "WPA2-Enterprise";
+        break;
+    case bwl::WiFiSec::WPA_WPA2_ENTERPRISE:
+        out << "WPA-WPA2-Enterprise";
+        break;
+    case bwl::WiFiSec::OWE:
+        out << "OWE";
         break;
     }
     return out;

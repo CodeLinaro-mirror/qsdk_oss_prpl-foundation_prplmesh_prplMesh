@@ -1524,6 +1524,40 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
     return (true);
 }
 
+bwl::WiFiSec BackhaulManager::wsc_to_bwl_authentication(WSC::eWscAuth authtype)
+{
+    switch (authtype) {
+    case WSC::eWscAuth::WSC_AUTH_WPAPSK:
+        if (authtype & WSC::eWscAuth::WSC_AUTH_WPA2PSK) {
+            return bwl::WiFiSec::WPA_WPA2_PSK;
+        }
+        return bwl::WiFiSec::WPA_PSK;
+    case WSC::eWscAuth::WSC_AUTH_WPA2PSK:
+        if (authtype & WSC::eWscAuth::WSC_AUTH_SAE) {
+            return bwl::WiFiSec::WPA2_WP3_PSK;
+        }
+        return bwl::WiFiSec::WPA2_PSK;
+    case WSC::eWscAuth::WSC_AUTH_WPA:
+        if (authtype & WSC::eWscAuth::WSC_AUTH_WPA2) {
+            return bwl::WiFiSec::WPA_WPA2_ENTERPRISE;
+        }
+        return bwl::WiFiSec::WPA_ENTERPRISE;
+    case WSC::eWscAuth::WSC_AUTH_WPA2:
+        if (authtype & WSC::eWscAuth::WSC_AUTH_SAE) {
+            return bwl::WiFiSec::OWE;
+        }
+        return bwl::WiFiSec::WPA2_ENTERPRISE;
+    case WSC::eWscAuth::WSC_AUTH_SAE:
+        return bwl::WiFiSec::WPA3_PSK;
+    case WSC::eWscAuth::WSC_AUTH_OPEN:
+        return bwl::WiFiSec::None;
+    case WSC::eWscAuth::WSC_AUTH_INVALID:
+        return bwl::WiFiSec::Invalid;
+    default:
+        return bwl::WiFiSec::Invalid;
+    }
+}
+
 bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto beerocks_header = message_com::parse_intel_vs_message(cmdu_rx);
@@ -1810,6 +1844,46 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         } else {
             FSM_MOVE_STATE(RESTART);
         }
+        break;
+    }
+    case beerocks_message::ACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST: {
+        LOG(TRACE) << "received ACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST";
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass ACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST failed";
+            return false;
+        }
+
+        const sMacAddr &radio_mac = request->radio_mac();
+
+        LOG(DEBUG) << "handle cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST for bsta "
+                   << radio_mac;
+        auto sta_wlan_hal = get_wireless_hal(radio_mac);
+        if (!sta_wlan_hal) {
+            return false;
+        }
+
+        son::wireless_utils::sBssInfoConf bss_info_conf;
+        auto config_data = request->wifi_credentials();
+        if (!config_data) {
+            LOG(ERROR) << "getting config data entry has failed!";
+            return false;
+        }
+
+        bwl::WiFiSec sec = wsc_to_bwl_authentication(config_data->authentication_type_attr().data);
+        if (sec == bwl::WiFiSec::Invalid) {
+            LOG(ERROR) << "Failed to get a valid WiFi security protocol";
+            return false;
+        }
+
+        // This parameter is unused in connect function for a STA, which is our case.
+        // We just create a valid parameter for compilation purpose.
+        std::pair<uint8_t, beerocks::eFreqType> channel =
+            std::make_pair(0, beerocks::eFreqType::FREQ_24G);
+        sta_wlan_hal->connect(config_data->ssid_str(), config_data->network_key_str(), sec, false,
+                              tlvf::mac_to_string(config_data->bssid_attr().data), channel, false);
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT: {
@@ -2329,7 +2403,7 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
     }
 
     return true;
-} // namespace beerocks
+}
 
 bool BackhaulManager::select_bssid()
 {
@@ -2627,10 +2701,9 @@ std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_wireless_hal(std::string
 
 std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_wireless_hal(const sMacAddr &radio_mac)
 {
-    auto radio_it = std::find_if(m_radios_info.begin(), m_radios_info.end(),
-                                 [&radio_mac](const std::shared_ptr<sRadioInfo> radio_info) {
-                                     return radio_info->radio_mac == radio_mac;
-                                 });
+    auto radio_it = std::find_if(
+        m_radios_info.begin(), m_radios_info.end(),
+        [&radio_mac](const auto &radio_info) { return radio_info->radio_mac == radio_mac; });
 
     if (radio_it == m_radios_info.end()) {
         LOG(ERROR) << "Invalid radio " << radio_mac;
