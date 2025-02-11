@@ -633,6 +633,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               int8_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -654,6 +655,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               int16_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -675,6 +677,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               int32_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -696,6 +699,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               int64_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -717,6 +721,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               uint8_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -737,6 +742,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               uint16_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -758,6 +764,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               uint32_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -779,6 +786,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               uint64_t *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -800,6 +808,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               double *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -821,6 +830,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               bool *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
@@ -842,6 +852,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
                               std::string *param_val)
 {
     amxc_var_t ret_val;
+    amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
     if (!obj) {
         LOG(ERROR) << "Failed to find \"" << obj_path << "\"";
