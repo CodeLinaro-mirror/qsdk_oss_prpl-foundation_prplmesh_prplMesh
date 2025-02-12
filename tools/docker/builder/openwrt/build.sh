@@ -165,16 +165,16 @@ main() {
         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
     elif [[ "urx_osp" == "$TARGET_DEVICE" ]] || [[ "urx_ospv2" == "$TARGET_DEVICE" ]] ; then
         dbg "OSP platform, build on mainline prplOS, OSPv2 platform"
-        OPENWRT_TOOLCHAIN_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
-        OPENWRT_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
+        OPENWRT_TOOLCHAIN_VERSION='825687f916259544343cb3d315f393fff0b8ad65'
+        OPENWRT_VERSION='825687f916259544343cb3d315f393fff0b8ad65'
     elif [[ "freedom" == "$TARGET_DEVICE" ]] ; then
         dbg "Freedom platform, prplOS mainline + pWHM latest + endpoints"
-        OPENWRT_TOOLCHAIN_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
-        OPENWRT_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
+        OPENWRT_TOOLCHAIN_VERSION='825687f916259544343cb3d315f393fff0b8ad65'
+        OPENWRT_VERSION='825687f916259544343cb3d315f393fff0b8ad65'
     else
         dbg "$TARGET_DEVICE platform, building on prplos mainline-3.2 + pWHM 6.34.0"
-        OPENWRT_TOOLCHAIN_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
-        OPENWRT_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
+        OPENWRT_TOOLCHAIN_VERSION='825687f916259544343cb3d315f393fff0b8ad65'
+        OPENWRT_VERSION='825687f916259544343cb3d315f393fff0b8ad65'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
