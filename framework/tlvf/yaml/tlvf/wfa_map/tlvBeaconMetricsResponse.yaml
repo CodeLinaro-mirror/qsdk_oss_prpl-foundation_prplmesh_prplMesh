@@ -15,8 +15,62 @@ tlvBeaconMetricsResponse:
     _type: uint8_t
     _length_var: True
   measurement_report_list:
-    _type: uint8_t
+    _type: cMeasurementReportElement
     _length: [ measurement_report_list_length ]
     _comment: |
       Contains a Measurement Report element that was received from the STA
       since the corresponding Beacon Metrics Query message was received by the Multi-AP Agent
+cMeasurementReportElement:
+  _type: class
+  element_id:
+    _type: eElementID
+    _value_const: ID_MEASUREMENT_REPORT
+  length:
+    _type: uint8_t
+  measurement_token:
+    _type: uint8_t
+  measurement_req_mode:
+    _type: uint8_t
+  measurement_type:
+    _type: eMeasurementType
+    _value_const: TYPE_BEACON
+  _comment: |
+    802.11-2020 9.4.2.21.7 Beacon report
+  op_class:
+    _type: uint8_t
+  channel:
+    _type: uint8_t
+  start_time:
+    _type: uint64_t
+  duration:
+    _type: uint16_t
+  phy_type:
+    _type: uint8_t
+  rcpi:
+    _type: uint8_t
+  rsni:
+    _type: uint8_t
+  bssid:
+    _type: sMacAddr
+  antenna_id:
+    _type: uint8_t
+  parent_tsf:
+    _type: uint32_t
+
+eElementID:
+  _type: enum
+  _enum_storage: uint8_t
+  ID_MEASUREMENT_REPORT: 39
+
+eMeasurementType:
+  _type: enum
+  _enum_storage: uint8_t
+  TYPE_BEACON: 5
+
+eBeaconReportStatusCode:
+  _type: enum
+  _enum_storage: uint8_t
+  BEACON_REPORT_RESP_SUCCESS    : 0x00
+  BEACON_REPORT_RESP_NO_REPORT  : 0x40
+  BEACON_REPORT_RESP_NO_SUPPORT : 0x80
+  BEACON_REPORT_RESP_UNSPECIFIED: 0xC0

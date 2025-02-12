@@ -381,6 +381,7 @@ bool mon_wlan_hal_whm::sta_beacon_11k_request(const std::string &vap_iface_name,
     args.add_child("ssid", std::string((const char *)req.ssid));
     args.add_child("mode", int(req.measurement_mode));
     args.add_child("neighbor", false);
+    args.add_child("duration", uint16_t(req.duration));
 
     if (req.use_optional_ap_ch_report) {
         std::stringstream optionalElements;
@@ -732,6 +733,10 @@ bool mon_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVar
 
     switch (event) {
     case Event::RRM_Beacon_Request_Status: {
+        /* TODO: The AP Manager already handles all the related stuff for
+         * Beacon Metrics, remove this case.
+         */
+        break;
 
         // Allocate response object
         auto resp_buff = ALLOC_SMART_BUFFER(sizeof(SBeaconRequestStatus11k));
@@ -748,6 +753,10 @@ bool mon_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVar
 
     } break;
     case Event::RRM_Beacon_Response: {
+        /* TODO: The AP Manager already handles all the related stuff for
+         * Beacon Metrics, remove this case.
+         */
+        break;
 
         // Allocate response object
         auto resp_buff = ALLOC_SMART_BUFFER(sizeof(SBeaconResponse11k));

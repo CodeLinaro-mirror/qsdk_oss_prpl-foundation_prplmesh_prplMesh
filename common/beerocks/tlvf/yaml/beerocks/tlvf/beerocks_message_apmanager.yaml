@@ -299,3 +299,8 @@ cACTION_APMANAGER_STATE_NOTIFICATION:
   maxstate:
     _type: char
     _length: [32]
+
+cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST:
+  _type: class
+  sta_mac: sMacAddr
+  timeout: uint16_t

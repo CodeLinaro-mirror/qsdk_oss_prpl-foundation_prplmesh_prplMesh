@@ -11,13 +11,17 @@
 
 #include "task.h"
 
+#include <beerocks/tlvf/beerocks_message_monitor.h>
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/ieee_1905_1/eLinkMetricsType.h>
 #include <tlvf/ieee_1905_1/eMediaType.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
+#include <tlvf/wfa_map/tlvBeaconMetricsQuery.h>
 
 #include "bcl/network/network_utils.h"
+#include <bcl/beerocks_timer_manager.h>
+#include <bcl/network/file_descriptor.h>
 
 #include "../helpers/link_metrics/link_metrics.h"
 
@@ -28,7 +32,8 @@ class slave_thread;
 
 class LinkMetricsCollectionTask : public Task {
 public:
-    LinkMetricsCollectionTask(slave_thread &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx);
+    LinkMetricsCollectionTask(slave_thread &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx,
+                              std::shared_ptr<beerocks::TimerManager> timer_manager);
 
     bool handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index,
                      const sMacAddr &dst_mac, const sMacAddr &src_mac, int fd,
@@ -50,6 +55,7 @@ public:
 private:
     slave_thread &m_btl_ctx;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
+    std::shared_ptr<beerocks::TimerManager> m_timer_manager;
 
     void handle_link_metric_query(ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac);
     void handle_combined_infrastructure_metrics(ieee1905_1::CmduMessageRx &cmdu_rx,
@@ -270,6 +276,27 @@ private:
         uint8_t receive_other;
     };
     std::vector<sRadioMetrics> m_radio_ap_metric_response;
+
+    struct sBeaconMetricsQuery {
+        uint16_t mid;
+        std::string iface_name;
+        beerocks_message::sBeaconRequest11k params;
+        struct sChanReport {
+            uint8_t op_class;
+            uint8_t channel;
+        };
+        std::vector<sChanReport> chan_report_list;
+        uint8_t curr_chan_idx;
+        int req_timer = beerocks::net::FileDescriptor::invalid_descriptor;
+    };
+
+    /* To store the Beacon Metrics Queries to be sent */
+    std::vector<sBeaconMetricsQuery> m_beacon_metrics_query;
+
+    /* Timer callback for scheduled Beacon Metrics Queries */
+    bool beacon_metrics_query_cb(int fd);
+    bool schedule_beacon_metrics_query(wfa_map::tlvBeaconMetricsQuery &beacon_metrics_query,
+                                       uint16_t mid, const std::string &iface_name);
 };
 
 } // namespace beerocks

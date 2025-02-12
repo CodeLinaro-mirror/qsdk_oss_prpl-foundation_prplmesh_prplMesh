@@ -1864,6 +1864,10 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
     } break;
 
     case Event::RRM_Beacon_Response: {
+        /* TODO: The AP Manager already handles all the related stuff for
+         * Beacon Metrics Response, remove this case.
+         */
+        break;
 
         auto hal_data = static_cast<bwl::SBeaconResponse11k *>(data);
         LOG(INFO) << "Received beacon measurement response on BSSID: "

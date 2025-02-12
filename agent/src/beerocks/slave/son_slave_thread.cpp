@@ -370,7 +370,8 @@ bool slave_thread::thread_init()
     m_task_pool.add_task(std::make_shared<ProxyAgentDppTask>(*this, cmdu_tx));
     m_task_pool.add_task(std::make_shared<ControllerConnectivityTask>(*this, cmdu_tx));
     m_task_pool.add_task(std::make_shared<CapabilityReportingTask>(*this, cmdu_tx));
-    m_task_pool.add_task(std::make_shared<LinkMetricsCollectionTask>(*this, cmdu_tx));
+    m_task_pool.add_task(
+        std::make_shared<LinkMetricsCollectionTask>(*this, cmdu_tx, m_timer_manager));
     m_task_pool.add_task(std::make_shared<VbssTask>(*this, cmdu_tx));
 
     m_agent_state = STATE_INIT;

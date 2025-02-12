@@ -2150,11 +2150,125 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         ap_wlan_hal->configure_service_priority(msg->cs_params().data);
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST: {
+        LOG(DEBUG) << "Received ACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST";
+
+        auto msg =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST>();
+        if (!msg) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
+
+        std::chrono::milliseconds timer_interval(msg->timeout());
+        sBeaconMetricsResponse beacon_metrics_response = {};
+
+        beacon_metrics_response.sta_mac = msg->sta_mac();
+
+        /* Set a timer to send the stored beacon reports for target STA */
+        beacon_metrics_response.resp_timer = m_timer_manager->add_timer(
+            tlvf::mac_to_string(msg->sta_mac()) + " - Beacon Metrics Response", timer_interval,
+            timer_interval, [&](int fd, beerocks::EventLoop &loop) {
+                beacon_metrics_response_cb(fd);
+                return true;
+            });
+
+        if (beacon_metrics_response.resp_timer ==
+            beerocks::net::FileDescriptor::invalid_descriptor) {
+            LOG(ERROR) << "Failed to create the beacon metrics response timer";
+            return;
+        }
+
+        m_beacon_metrics_response.push_back(beacon_metrics_response);
+
+        LOG(DEBUG) << "Beacon Metrics Response scheduled, sta_mac: "
+                   << beacon_metrics_response.sta_mac;
+
+        break;
+    }
     default: {
         LOG(ERROR) << "Unsupported header action_op: " << int(beerocks_header->action_op());
         break;
     }
     }
+}
+
+void ApManager::beacon_metrics_response_cb(int fd)
+{
+    auto it = std::find_if(
+        m_beacon_metrics_response.begin(), m_beacon_metrics_response.end(),
+        [&fd](const sBeaconMetricsResponse &response) { return response.resp_timer == fd; });
+
+    m_timer_manager->remove_timer(fd);
+
+    if (it == m_beacon_metrics_response.end()) {
+        LOG(DEBUG) << "Queued beacon response not found!";
+        return;
+    }
+
+    sBeaconMetricsResponse &response = *it;
+
+    auto cmdu_tx_header =
+        cmdu_tx.create(0, ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE);
+    if (!cmdu_tx_header) {
+        LOG(ERROR) << "cmdu creation of type BEACON_METRICS_RESPONSE_MESSAGE failed!";
+        m_beacon_metrics_response.erase(it);
+        return;
+    }
+
+    auto tlvBeaconMetricsResponse = cmdu_tx.addClass<wfa_map::tlvBeaconMetricsResponse>();
+    if (!tlvBeaconMetricsResponse) {
+        LOG(ERROR) << "addClass tlvBeaconMetricsResponse failed!";
+        m_beacon_metrics_response.erase(it);
+        return;
+    }
+
+    tlvBeaconMetricsResponse->associated_sta_mac() = response.sta_mac;
+
+    for (const auto &report : response.beacon_report) {
+        auto beacon_report = tlvBeaconMetricsResponse->create_measurement_report_list();
+        if (!beacon_report) {
+            LOG(ERROR) << "Failed to create beacon report!";
+            m_beacon_metrics_response.erase(it);
+            return;
+        }
+
+        beacon_report->length()               = report.length;
+        beacon_report->measurement_token()    = report.params.measurement_token;
+        beacon_report->measurement_req_mode() = report.params.rep_mode;
+        beacon_report->op_class()             = report.params.op_class;
+        beacon_report->channel()              = report.params.channel;
+        beacon_report->start_time()           = report.params.start_time;
+        beacon_report->duration()             = report.params.duration;
+        beacon_report->phy_type()             = report.params.phy_type;
+        beacon_report->rcpi()                 = report.params.rcpi;
+        beacon_report->rsni()                 = report.params.rsni;
+        beacon_report->bssid()                = report.params.bssid;
+        beacon_report->antenna_id()           = report.params.ant_id;
+        beacon_report->parent_tsf()           = report.params.parent_tsf;
+
+        if (!tlvBeaconMetricsResponse->add_measurement_report_list(beacon_report)) {
+            LOG(ERROR) << "Failed to add beacon report!";
+            m_beacon_metrics_response.erase(it);
+            return;
+        }
+    }
+
+    if (response.beacon_report.size() == 0) {
+        LOG(DEBUG) << "No beacon report available to be sent for " << response.sta_mac;
+        /* EM spec mentions "reserved" but this seems to be a status code */
+        tlvBeaconMetricsResponse->reserved() =
+            wfa_map::cMeasurementReportElement::BEACON_REPORT_RESP_NO_REPORT;
+    } else {
+        LOG(DEBUG) << response.beacon_report.size() << " beacon report(s) available for "
+                   << response.sta_mac;
+    }
+
+    m_beacon_metrics_response.erase(it);
+
+    LOG(DEBUG) << "Sending BEACON_METRICS_RESPONSE_MESSAGE";
+    send_cmdu(cmdu_tx);
 }
 
 void ApManager::fill_cs_params(beerocks_message::sApChannelSwitch &params)
@@ -2701,25 +2815,103 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         if (mgmt_frame->type == bwl::eManagementFrameType::RADIO_MEASUREMENT_REPORT) {
             LOG(DEBUG) << "Received RADIO_MEASUREMENT_REPORT from " << mgmt_frame->mac;
 
-            auto cmdu_tx_header =
-                cmdu_tx.create(0, ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE);
-
-            if (!cmdu_tx_header) {
-                LOG(ERROR) << "cmdu creation of type BEACON_METRICS_RESPONSE_MESSAGE failed!";
-                return false;
+            auto it =
+                std::find_if(m_beacon_metrics_response.begin(), m_beacon_metrics_response.end(),
+                             [&](const sBeaconMetricsResponse &response) {
+                                 return response.sta_mac == mgmt_frame->mac;
+                             });
+            if (it == m_beacon_metrics_response.end()) {
+                LOG(DEBUG) << "No scheduled Beacon Metrics Response found";
+                return true;
             }
 
-            auto tlvBeaconMetricsResponse = cmdu_tx.addClass<wfa_map::tlvBeaconMetricsResponse>();
-            if (!tlvBeaconMetricsResponse) {
-                LOG(ERROR) << "addClass tlvBeaconMetricsResponse failed!";
-                return false;
+            sBeaconMetricsResponse &response = *it;
+
+            size_t idx = 0;
+
+            /* to extract data from management frame */
+            auto extract_data = [&mgmt_frame, &idx](auto &&target) {
+                using T = std::decay_t<decltype(target)>;
+                target  = *reinterpret_cast<T *>(&mgmt_frame->data[idx]);
+                idx += sizeof(T);
+            };
+
+            /* Skip first 3 bytes(action frame category + action frame code + dialog token) */
+            idx += 3;
+
+            /* Since element_id and length are not included in the element's length, 2 bytes are subtracted */
+            size_t min_measurement_length =
+                wfa_map::cMeasurementReportElement::get_initial_size() - 2;
+
+            /* Return true in case of an invalid management frame, no reason to terminate the AP Manager */
+            while (idx < mgmt_frame->data.size()) {
+                sBeaconMetricsResponse::sBeaconReport beacon_report = {};
+
+                auto &params = beacon_report.params;
+
+                params.sta_mac = mgmt_frame->mac;
+
+                uint8_t element_id = 0;
+                extract_data(element_id);
+
+                if (element_id != wfa_map::cMeasurementReportElement::ID_MEASUREMENT_REPORT) {
+                    LOG(ERROR) << "Incorrect element ID: " << element_id;
+                    return true;
+                }
+
+                uint8_t element_length = 0;
+                extract_data(element_length);
+
+                if (element_length < min_measurement_length) {
+                    LOG(ERROR) << "Invalid measurement element length: " << element_length;
+                    return true;
+                }
+
+                /* 802.11-2020 9.4.2.21.7 Beacon report->Optional_Subelements are ignored */
+                beacon_report.length = min_measurement_length;
+
+                extract_data(params.measurement_token);
+                extract_data(params.rep_mode);
+
+                uint8_t measurement_type = 0;
+                extract_data(measurement_type);
+
+                if (measurement_type != wfa_map::cMeasurementReportElement::TYPE_BEACON) {
+                    LOG(ERROR) << "Incorrect measurement type: " << measurement_type;
+                    return true;
+                }
+
+                /* use tmp values to avoid packet field bind errors */
+                uint64_t start_time = 0;
+                uint16_t duration   = 0;
+                uint32_t parent_tsf = 0;
+
+                extract_data(params.op_class);
+                extract_data(params.channel);
+                extract_data(start_time);
+                extract_data(duration);
+                extract_data(params.phy_type);
+                extract_data(params.rcpi);
+                extract_data(params.rsni);
+                extract_data(params.bssid);
+                extract_data(params.ant_id);
+                extract_data(parent_tsf);
+
+                params.start_time = start_time;
+                params.duration   = duration;
+                params.parent_tsf = parent_tsf;
+
+                params.struct_swap();
+
+                response.beacon_report.push_back(beacon_report);
+
+                /* Jump to the next beacon */
+                idx = idx + element_length - min_measurement_length;
+
+                LOG(DEBUG) << "Added beacon report for " << params.sta_mac
+                           << ", bssid: " << params.bssid << ", channel: " << params.channel;
             }
 
-            tlvBeaconMetricsResponse->associated_sta_mac() = mgmt_frame->mac;
-
-            // TODO: PPM-2971
-            LOG(DEBUG) << "Sending BEACON_METRICS_RESPONSE_MESSAGE";
-            send_cmdu(cmdu_tx);
             return true;
         }
 

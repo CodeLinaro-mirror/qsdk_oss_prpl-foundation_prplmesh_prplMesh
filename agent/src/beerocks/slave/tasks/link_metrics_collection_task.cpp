@@ -15,6 +15,7 @@
 #include "../son_slave_thread.h"
 #include "../traffic_separation.h"
 
+#include <beerocks/tlvf/beerocks_message_apmanager.h>
 #include <beerocks/tlvf/beerocks_message_monitor.h>
 
 #include <tlvf/ieee_1905_1/tlvLinkMetricQuery.h>
@@ -38,11 +39,22 @@
 
 #include "../gate/1905_beacon_query_to_vs.h"
 
+/* Multi chan beacon request duration (in ms) */
+#define MULTI_CHAN_BCN_REQ_DURATION 10
+
+/* Minimum delay between consecutive Beacon Metrics Queries (in ms) */
+#define MULTI_CHAN_MIN_BCN_REQ_DELAY 400
+
+/* Minimum timeout to send the Beacon Metrics Response (in ms) */
+#define MULTI_CHAN_MIN_BCN_RESP_TIMEOUT 1000
+
 namespace beerocks {
 
-LinkMetricsCollectionTask::LinkMetricsCollectionTask(slave_thread &btl_ctx,
-                                                     ieee1905_1::CmduMessageTx &cmdu_tx)
-    : Task(eTaskType::LINK_METRICS_COLLECTION), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx)
+LinkMetricsCollectionTask::LinkMetricsCollectionTask(
+    slave_thread &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx,
+    std::shared_ptr<beerocks::TimerManager> timer_manager)
+    : Task(eTaskType::LINK_METRICS_COLLECTION), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx),
+      m_timer_manager(timer_manager)
 {
 }
 
@@ -342,6 +354,188 @@ void LinkMetricsCollectionTask::handle_combined_infrastructure_metrics(
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 
+bool LinkMetricsCollectionTask::beacon_metrics_query_cb(int fd)
+{
+    auto it =
+        std::find_if(m_beacon_metrics_query.begin(), m_beacon_metrics_query.end(),
+                     [&fd](const sBeaconMetricsQuery &query) { return query.req_timer == fd; });
+
+    if (it == m_beacon_metrics_query.end()) {
+        LOG(DEBUG) << "Queued beacon query not found!";
+        m_timer_manager->remove_timer(fd);
+        return false;
+    }
+
+    sBeaconMetricsQuery &query = *it;
+
+    const auto &mid = query.mid;
+
+    /* create vs message */
+    auto request_out =
+        message_com::create_vs_message<beerocks_message::cACTION_MONITOR_CLIENT_BEACON_11K_REQUEST>(
+            m_cmdu_tx, mid);
+    if (request_out == nullptr) {
+        LOG(ERROR) << "Failed building ACTION_MONITOR_CLIENT_BEACON_11K_REQUEST message!";
+        m_timer_manager->remove_timer(fd);
+        m_beacon_metrics_query.erase(it);
+        return false;
+    }
+
+    auto &params_out = request_out->params();
+
+    params_out = query.params;
+
+    /* single channel: Send query and remove the timer */
+    if (query.chan_report_list.size() == 0) {
+        LOG(DEBUG) << "[single] Sending beacon metrics query - sta_mac: " << params_out.sta_mac
+                   << ", channel: " << params_out.channel;
+
+        /* Forward to the monitor thread */
+        auto monitor_fd = m_btl_ctx.get_monitor_fd(query.iface_name);
+        m_btl_ctx.send_cmdu(monitor_fd, m_cmdu_tx);
+
+        if (query.req_timer != beerocks::net::FileDescriptor::invalid_descriptor) {
+            m_timer_manager->remove_timer(query.req_timer);
+        }
+
+        m_beacon_metrics_query.erase(it);
+        return true;
+    }
+
+    /* multi channel: Send queries for the channels one by one,
+     * and remove the timer when no channels are left.
+     */
+    params_out.channel  = query.chan_report_list.at(query.curr_chan_idx).channel;
+    params_out.op_class = query.chan_report_list.at(query.curr_chan_idx).op_class;
+
+    LOG(DEBUG) << "[multi " << query.curr_chan_idx + 1 << "/" << query.chan_report_list.size()
+               << "] Sending beacon metrics query - sta_mac: " << params_out.sta_mac
+               << ", channel: " << params_out.channel;
+
+    /* Forward to the monitor thread */
+    auto monitor_fd = m_btl_ctx.get_monitor_fd(query.iface_name);
+    m_btl_ctx.send_cmdu(monitor_fd, m_cmdu_tx);
+
+    /* If the last query has been sent, remove the timer. */
+    if (int(query.curr_chan_idx + 1) >= int(query.chan_report_list.size())) {
+        if (query.req_timer != beerocks::net::FileDescriptor::invalid_descriptor) {
+            m_timer_manager->remove_timer(query.req_timer);
+        }
+        m_beacon_metrics_query.erase(it);
+        return true;
+    }
+
+    query.curr_chan_idx++;
+
+    return true;
+}
+
+bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
+    wfa_map::tlvBeaconMetricsQuery &beacon_metrics_query, uint16_t mid,
+    const std::string &iface_name)
+{
+    sBeaconMetricsQuery beacon_params = {};
+
+    beacon_params.mid           = mid;
+    beacon_params.curr_chan_idx = 0;
+    beacon_params.iface_name    = iface_name;
+
+    auto &params = beacon_params.params;
+
+    params.bssid                  = beacon_metrics_query.bssid();
+    params.channel                = beacon_metrics_query.channel_number();
+    params.measurement_mode       = beerocks::MEASURE_MODE_ACTIVE;
+    params.duration               = MULTI_CHAN_BCN_REQ_DURATION;
+    params.expected_reports_count = 1;
+    params.rand_ival              = beerocks::BEACON_MEASURE_DEFAULT_RANDOMIZATION_INTERVAL;
+    params.sta_mac                = beacon_metrics_query.associated_sta_mac();
+    params.op_class               = beacon_metrics_query.operating_class();
+    params.reporting_detail       = beacon_metrics_query.reporting_detail_value();
+    /* values based on https://github.com/prplfoundation/prplMesh/pull/1114#discussion_r406326546 */
+    params.repeats            = 0;
+    params.parallel           = 0;
+    params.enable             = 0;
+    params.request            = 1;
+    params.mandatory_duration = 0;
+    params.use_optional_ssid  = 0;
+
+    string_utils::copy_string(params.ssid, beacon_metrics_query.ssid_str().c_str(),
+                              beerocks::message::WIFI_SSID_MAX_LENGTH);
+
+    auto ap_channel_reports_list_length = beacon_metrics_query.ap_channel_reports_list_length();
+
+    if (ap_channel_reports_list_length != 0 && params.channel != 255) {
+        LOG(ERROR) << "inconsistency between channel report length and channel number. please take "
+                      "look at the specification. v1 17.2.27";
+        return false;
+    }
+
+    /* multi channel: parse channel report list */
+    for (size_t i = 0; i < static_cast<size_t>(ap_channel_reports_list_length); i++) {
+        auto channel_report = beacon_metrics_query.ap_channel_reports_list(i);
+        if (!std::get<0>(channel_report)) {
+            LOG(ERROR) << "there should be a structure at index 0, but it wasn't found";
+            return false;
+        }
+
+        /* The first index(0) is op_class, and the rest contains the channels */
+        auto op_class       = *std::get<1>(channel_report).ap_channel_report_list(0);
+        auto tmp_chan_count = std::get<1>(channel_report).ap_channel_report_list_length() - 1;
+
+        for (size_t j = 0; j < static_cast<size_t>(tmp_chan_count); j++) {
+            sBeaconMetricsQuery::sChanReport new_report = {};
+
+            new_report.op_class = op_class;
+            new_report.channel  = *std::get<1>(channel_report).ap_channel_report_list(j + 1);
+
+            beacon_params.chan_report_list.push_back(new_report);
+        }
+    }
+
+    auto request_out = message_com::create_vs_message<
+        beerocks_message::cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST>(m_cmdu_tx, mid);
+    if (request_out == nullptr) {
+        LOG(ERROR) << "Failed building cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST message!";
+        return false;
+    }
+
+    request_out->sta_mac() = beacon_params.params.sta_mac;
+
+    /* Timeout to send the Beacon Metrics Response. */
+    if (ap_channel_reports_list_length != 0) {
+        request_out->timeout() =
+            (beacon_params.chan_report_list.size() *
+                 (MULTI_CHAN_MIN_BCN_REQ_DELAY + beacon_params.params.duration) +
+             MULTI_CHAN_MIN_BCN_RESP_TIMEOUT);
+    } else {
+        request_out->timeout() = MULTI_CHAN_MIN_BCN_RESP_TIMEOUT;
+    }
+
+    /* Inform the AP Manager to catch the beacon metrics responses */
+    auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(beacon_params.iface_name);
+    m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx);
+
+    /* Delay between consecutive beacon metrics queries. */
+    std::chrono::milliseconds timer_interval(MULTI_CHAN_MIN_BCN_REQ_DELAY +
+                                             beacon_params.params.duration);
+
+    /* Create a timer to send consecutive beacon metrics queries. */
+    beacon_params.req_timer = m_timer_manager->add_timer(
+        tlvf::mac_to_string(beacon_params.params.sta_mac) + " - Beacon Metrics Query",
+        std::chrono::milliseconds(100), timer_interval, [&](int fd, beerocks::EventLoop &loop) {
+            beacon_metrics_query_cb(fd);
+            return true;
+        });
+    if (beacon_params.req_timer == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "Failed to create the beacon metrics query timer";
+        return false;
+    }
+
+    m_beacon_metrics_query.push_back(beacon_params);
+
+    return true;
+}
+
 void LinkMetricsCollectionTask::handle_beacon_metrics_query(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                             const sMacAddr &src_mac)
 {
@@ -405,28 +599,25 @@ void LinkMetricsCollectionTask::handle_beacon_metrics_query(ieee1905_1::CmduMess
     LOG(DEBUG) << "Found the radio that has the sation. radio: " << radio->front.iface_mac
                << "; station: " << requested_sta_mac;
 
+    auto it = std::find_if(m_beacon_metrics_query.begin(), m_beacon_metrics_query.end(),
+                           [&requested_sta_mac](const sBeaconMetricsQuery &query) {
+                               return query.params.sta_mac == requested_sta_mac;
+                           });
+    if (it != m_beacon_metrics_query.end()) {
+        LOG(WARNING) << "Ignored, there is already an ongoing beacon metrics query for "
+                     << requested_sta_mac;
+        return;
+    }
+
     LOG(DEBUG) << "BEACON METRICS QUERY: sending ACK message to the originator mid: " << std::hex
                << mid; // USED IN TESTS
 
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 
-    // create vs message
-    auto request_out =
-        message_com::create_vs_message<beerocks_message::cACTION_MONITOR_CLIENT_BEACON_11K_REQUEST>(
-            m_cmdu_tx, mid);
-    if (request_out == nullptr) {
-        LOG(ERROR) << "Failed building ACTION_MONITOR_CLIENT_BEACON_11K_REQUEST message!";
+    if (!schedule_beacon_metrics_query(*tlvBeaconMetricsQuery, mid, radio->front.iface_name)) {
+        LOG(ERROR) << "Failed to schedule Beacon Metrics Query for " << requested_sta_mac;
         return;
     }
-
-    if (!gate::load(request_out, cmdu_rx)) {
-        LOG(ERROR) << "failed translating 1905 message to vs message";
-        return;
-    }
-
-    // Forward only to the desired destination
-    auto monitor_fd = m_btl_ctx.get_monitor_fd(radio->front.iface_name);
-    m_btl_ctx.send_cmdu(monitor_fd, m_cmdu_tx);
 }
 
 void LinkMetricsCollectionTask::handle_associated_sta_link_metrics_query(

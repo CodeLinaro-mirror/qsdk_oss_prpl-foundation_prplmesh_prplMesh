@@ -322,6 +322,22 @@ private:
     std::unique_ptr<beerocks::CmduClient> m_slave_client;
 
     bool certification_mode = false;
+
+    struct sBeaconMetricsResponse {
+        sMacAddr sta_mac;
+        struct sBeaconReport {
+            uint8_t length;
+            beerocks_message::sBeaconResponse11k params;
+        };
+        std::vector<sBeaconReport> beacon_report;
+        int resp_timer = beerocks::net::FileDescriptor::invalid_descriptor;
+    };
+
+    /* To store scheduled Beacon Metrics Responses */
+    std::vector<sBeaconMetricsResponse> m_beacon_metrics_response;
+
+    /* Timer callback for scheduled Beacon Metrics Responses */
+    void beacon_metrics_response_cb(int fd);
 };
 
 } // namespace son
