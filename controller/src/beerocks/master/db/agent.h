@@ -442,6 +442,29 @@ public:
             /** Stations (backhaul or fronthaul) connected to this BSS. */
             beerocks::mac_map<Station> connected_stations;
 
+            struct sEhtOperations {
+                uint32_t basic_eht_mcs_and_nss_set;
+
+                struct sEhtOperationInformations {
+                    uint8_t control;
+                    uint8_t ccfs0;
+                    uint8_t ccfs1;
+                    bool valid = false;
+                } eht_operation_informations;
+
+                struct sSubChannelBitmap {
+                    uint8_t disabled_subchannel_bitmap;
+                    bool valid = false;
+                } sub_channel_bitmap;
+
+                struct sGroupAddressBU {
+                    uint8_t indication_exponent;
+                    bool indication_limit;
+                } group_address_bu;
+
+                bool eht_default_pe_duration = false;
+            } eht_operations;
+
             /**
              * @brief Updates vap_id with valid value, if is was undefined
              * @param[in] vap_id_ : new vap_id value, only applied when valid

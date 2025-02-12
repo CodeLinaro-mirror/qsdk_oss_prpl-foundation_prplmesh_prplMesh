@@ -1760,7 +1760,10 @@ bool Controller::handle_tlv_eht_operations(ieee1905_1::CmduMessageRx &cmdu_rx,
         return true;
     }
 
-    // placeholder //
+    if (!database.set_eht_operations(*eht_operations_tlv, al_mac)) {
+        LOG(ERROR) << "Couldn't set values for eht operations data model";
+        return false;
+    }
 
     return true;
 }
