@@ -1405,7 +1405,19 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
             auto &bssid = associated_client.second.bssid;
             sLinkInterface interface;
 
-            interface.iface_name = radio->front.iface_name;
+            std::string bssid_str = tlvf::mac_to_string(bssid);
+            for (auto &it : radio->front.bssids) {
+                if (tlvf::mac_to_string(it.mac) == bssid_str) {
+                    interface.iface_name = it.iface_name;
+                    break;
+                }
+            }
+
+            if (interface.iface_name.empty()) {
+                LOG(ERROR) << "No interface found for BSSID " << bssid_str;
+                continue;
+            }
+
             interface.iface_mac  = bssid;
             interface.media_type = MediaType::get_802_11_media_type(*radio);
 
