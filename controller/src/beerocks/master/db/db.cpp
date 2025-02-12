@@ -1798,6 +1798,82 @@ bool db::set_wifi7_agent_capabilities(wfa_map::tlvWifi7AgentCapabilities &wifi7_
     return ret_val;
 }
 
+void db::set_internal_eht_operations(wfa_map::cBssEntry &eht_operations_bss,
+                                     Agent::sRadio::sBss::sEhtOperations &eht_operations)
+{
+    eht_operations.eht_operation_informations.valid =
+        static_cast<bool>(eht_operations_bss.flags().eht_operation_information_valid);
+    eht_operations.sub_channel_bitmap.valid =
+        static_cast<bool>(eht_operations_bss.flags().disabled_subchannel_valid);
+    eht_operations.eht_default_pe_duration =
+        static_cast<bool>(eht_operations_bss.flags().eht_default_pe_duration);
+
+    eht_operations.group_address_bu.indication_limit =
+        static_cast<bool>(eht_operations_bss.flags().group_addressed_bu_indication_limit);
+    eht_operations.group_address_bu.indication_exponent =
+        static_cast<uint8_t>(eht_operations_bss.flags().group_addressed_bu_indication_exponent);
+
+    eht_operations.basic_eht_mcs_and_nss_set =
+        static_cast<uint32_t>(eht_operations_bss.basic_eht_mcs_and_nss_set());
+
+    if (eht_operations.eht_operation_informations.valid) {
+        eht_operations.eht_operation_informations.control =
+            static_cast<uint8_t>(eht_operations_bss.control());
+        eht_operations.eht_operation_informations.ccfs0 =
+            static_cast<uint8_t>(eht_operations_bss.ccfs0());
+        eht_operations.eht_operation_informations.ccfs1 =
+            static_cast<uint8_t>(eht_operations_bss.ccfs1());
+    }
+
+    if (eht_operations.sub_channel_bitmap.valid) {
+        eht_operations.sub_channel_bitmap.disabled_subchannel_bitmap =
+            static_cast<uint8_t>(eht_operations_bss.disabled_subchannel_bitmap());
+    }
+}
+
+bool db::set_external_eht_operations(Agent::sRadio::sBss &bss)
+{
+    bool ret_val(true);
+
+    // Needs DM node to be used
+
+    // Device.x.APMLD.x.AffiliatedAP.x.
+    // std::string path_to_obj_affiliated_ap = "TBD";
+    // if (bss.eht_operations.sub_channel_bitmap.valid) {
+    //     ret_val &= m_ambiorix_datamodel->set(
+    //         path_to_obj_affiliated_ap, "DisabledSubChannels",
+    //         bss.eht_operations.sub_channel_bitmap.disabled_subchannel_bitmap);
+    // }
+
+    return ret_val;
+}
+
+bool db::set_eht_operations(wfa_map::tlvEHTOperations &eht_ops_tlv, const sMacAddr &al_mac)
+{
+    bool ret_val(true);
+
+    for (auto radio_idx = 0; radio_idx < eht_ops_tlv.num_radio(); ++radio_idx) {
+        auto eht_operations_radio = std::get<1>(eht_ops_tlv.radio_entries(radio_idx));
+
+        for (auto bss_idx = 0; bss_idx < eht_operations_radio.num_bss(); ++bss_idx) {
+            auto eht_operations_bss = std::get<1>(eht_operations_radio.bss_entries(bss_idx));
+            auto bss                = get_bss(eht_operations_bss.bssid(), al_mac);
+
+            if (!bss || bss->dm_path.empty()) {
+                LOG(DEBUG) << "EHT Operations early storage for BSSID "
+                           << eht_operations_bss.bssid();
+                Agent::sRadio::sBss::sEhtOperations eht_operations;
+                set_internal_eht_operations(eht_operations_bss, eht_operations);
+            } else {
+                set_internal_eht_operations(eht_operations_bss, bss->eht_operations);
+                ret_val &= set_external_eht_operations(*bss);
+            }
+        }
+    }
+
+    return ret_val;
+}
+
 bool db::dm_set_sta_ht_capabilities(const std::string &path_to_sta,
                                     const beerocks::message::sRadioCapabilities &sta_cap)
 {
