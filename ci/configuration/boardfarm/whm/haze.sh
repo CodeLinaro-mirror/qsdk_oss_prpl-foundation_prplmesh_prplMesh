@@ -47,6 +47,8 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Enable=1"
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
+ba-cli WiFi.Radio.*.RegulatoryDomain="US"
+
 # Enable when hostapd on this target supports it
 ba-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
@@ -62,8 +64,8 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Channel=48"
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
+#ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
+#ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
 # Add the WAN port to br-lan
 # Add a control interface to Haze on the WAN port, with vlan 200
