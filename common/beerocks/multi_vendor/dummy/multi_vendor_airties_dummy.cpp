@@ -62,6 +62,7 @@ public:
                 tlv_function_table[AIRTIES_OUI]
                                   [ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE]
                                       .push_back(add_device_metrics);
+            } break;
             case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE: {
                 tlv_function_table[AIRTIES_OUI][ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE]
                     .push_back(add_airties_ethernet_interface_tlv);
@@ -72,7 +73,7 @@ public:
                              << AIRTIES_OUI;
             } break;
             }
-        }
+        } //End of for loop
     }
 
 private:
@@ -81,7 +82,7 @@ private:
         ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE,
         ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE,
         ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE,
-        ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE};
+        ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE,
         ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE};
 };
 
