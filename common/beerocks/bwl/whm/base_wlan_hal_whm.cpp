@@ -434,8 +434,11 @@ bool base_wlan_hal_whm::refresh_radio_info()
     radio->read_child(m_radio_info.wifi_ctrl_enabled, "Enable");
 
     if (radio->read_child(s_val, "CurrentOperatingChannelBandwidth")) {
-        auto bandwidth         = wbapi_utils::bandwith_from_string(s_val);
-        m_radio_info.bandwidth = beerocks::utils::convert_bandwidth_to_int(bandwidth);
+        auto bandwidth = wbapi_utils::bandwith_from_string(s_val);
+        //m_radio_info.bandwidth = beerocks::utils::convert_bandwidth_to_int(bandwidth);
+        // hotfix PPW-385 clip bandwdith to 160
+        m_radio_info.bandwidth =
+            std::min(beerocks::utils::convert_bandwidth_to_int(bandwidth), 160);
     }
     radio->read_child(m_radio_info.channel, "Channel");
     m_radio_info.is_dfs_channel = son::wireless_utils::is_dfs_channel(m_radio_info.channel);
@@ -475,6 +478,9 @@ bool base_wlan_hal_whm::refresh_radio_info()
 
             if (radio->read_child(s_val, "MaxChannelBandwidth")) {
                 m_radio_info.max_bandwidth = wbapi_utils::bandwith_from_string(s_val);
+                if (beerocks::utils::convert_bandwidth_to_int(m_radio_info.max_bandwidth) > 160) {
+                    m_radio_info.max_bandwidth = beerocks::utils::convert_bandwidth_to_enum(160);
+                } // hotfix PPW-385 clip bandwidth to 160
                 auto max_bandwidth =
                     beerocks::utils::convert_bandwidth_to_int(m_radio_info.max_bandwidth);
                 for (auto &bandw_iter : bandwidths) {

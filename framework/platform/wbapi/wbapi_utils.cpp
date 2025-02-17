@@ -16,6 +16,9 @@ const std::map<std::string, beerocks::eWiFiBandwidth> wbapi_utils::band_width_ta
     {"40MHz", beerocks::eWiFiBandwidth::BANDWIDTH_40},
     {"80MHz", beerocks::eWiFiBandwidth::BANDWIDTH_80},
     {"160MHz", beerocks::eWiFiBandwidth::BANDWIDTH_160},
+    {"320MHz", beerocks::eWiFiBandwidth::BANDWIDTH_320},
+    {"320MHz-1", beerocks::eWiFiBandwidth::BANDWIDTH_320},
+    {"320MHz-2", beerocks::eWiFiBandwidth::BANDWIDTH_320},
 };
 
 beerocks::eWiFiBandwidth wbapi_utils::bandwith_from_string(const std::string &bandwidth)

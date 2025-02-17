@@ -197,6 +197,8 @@ beerocks::eWiFiBandwidth utils::convert_bandwidth_to_enum(int bandwidth_int)
         return beerocks::BANDWIDTH_80;
     case 160:
         return beerocks::BANDWIDTH_160;
+    case 320:
+        return beerocks::BANDWIDTH_320;
     default:
         return beerocks::BANDWIDTH_80;
     }
@@ -214,6 +216,8 @@ int utils::convert_bandwidth_to_int(beerocks::eWiFiBandwidth bandwidth)
     case beerocks::BANDWIDTH_80_80:
     case beerocks::BANDWIDTH_160:
         return 160;
+    case beerocks::BANDWIDTH_320:
+        return 320;
     default:
         LOG(ERROR) << "Failed to convert eWiFiBandwidth: " << bandwidth << " to integer";
         return bandwidth;
