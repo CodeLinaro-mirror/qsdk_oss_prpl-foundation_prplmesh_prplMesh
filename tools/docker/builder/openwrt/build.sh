@@ -162,8 +162,8 @@ main() {
         OPENWRT_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
     else
         dbg "$TARGET_DEVICE platform, building on prplos mainline-3.2 + pWHM 6.34.0 -> release"
-        OPENWRT_TOOLCHAIN_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
-        OPENWRT_VERSION='d5d8ad4da4d70232bc42da23ff4bfbe361e5e320'
+        OPENWRT_TOOLCHAIN_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
+        OPENWRT_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
