@@ -2469,6 +2469,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
 
+        radio->chipset_vendor = notification->params().chipset_vendor;
+
         // cac
         save_cac_capabilities_params_to_db(fronthaul_iface);
 

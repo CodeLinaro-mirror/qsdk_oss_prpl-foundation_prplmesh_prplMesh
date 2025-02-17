@@ -426,6 +426,11 @@ bool base_wlan_hal_whm::refresh_radio_info()
         LOG(ERROR) << " cannot refresh radio info, radio object missing ";
         return false;
     }
+
+    std::string s_chipset_vendor;
+    radio->read_child(s_chipset_vendor, "ChipsetVendor");
+    m_radio_info.chipset_vendor = s_chipset_vendor;
+
     std::string s_val;
     if (radio->read_child(s_val, "OperatingFrequencyBand")) {
         m_radio_info.frequency_band = wbapi_utils::band_to_freq(s_val);

@@ -3253,6 +3253,10 @@ void ApManager::handle_hostapd_attached()
 
     notification->params().zwdfs = m_ap_support_zwdfs;
 
+    string_utils::copy_string(notification->params().chipset_vendor,
+                              ap_wlan_hal->get_radio_info().chipset_vendor.c_str(),
+                              beerocks::message::CHIPSET_VENDOR_LENGTH);
+
     notification->params().hybrid_mode_supported = ap_wlan_hal->hybrid_mode_supported();
 
     notification->radio_max_bss() = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
@@ -3284,6 +3288,7 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " eht_supported = " << ap_wlan_hal->get_radio_info().eht_supported;
     LOG(INFO) << " zwdfs = " << m_ap_support_zwdfs;
     LOG(INFO) << " radio_max_bss = " << ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
 
     copy_vaps_info(ap_wlan_hal, notification->vap_list().vaps);
 

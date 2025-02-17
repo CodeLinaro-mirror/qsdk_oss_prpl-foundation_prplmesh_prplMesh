@@ -264,6 +264,9 @@ sNodeHostap:
   hybrid_mode_supported:
     _type: uint8_t
     _comment: Boolean
+  chipset_vendor:
+    _type: char
+    _length: ["beerocks::message::CHIPSET_VENDOR_LENGTH"]
 
 sNodeHostapVendorSpec:
   _type: struct

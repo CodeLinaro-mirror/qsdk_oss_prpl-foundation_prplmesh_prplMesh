@@ -360,6 +360,7 @@ typedef struct sNodeHostap {
     uint8_t zwdfs;
     //Boolean
     uint8_t hybrid_mode_supported;
+    char chipset_vendor[beerocks::message::CHIPSET_VENDOR_LENGTH];
     void struct_swap(){
         iface_mac.struct_swap();
         tlvf_swap(8*sizeof(beerocks::eFreqType), reinterpret_cast<uint8_t*>(&frequency_band));
