@@ -18,7 +18,22 @@
 #include <string>
 #include <vector>
 
+#include <amxc/amxc.h>
+#include <amxp/amxp.h>
 #include <netinet/ether.h>
+
+#include <amxc/amxc.h>
+#include <amxd/amxd_action.h>
+#include <amxd/amxd_dm.h>
+#include <amxd/amxd_object.h>
+#include <amxd/amxd_object_event.h>
+#include <amxd/amxd_transaction.h>
+
+#include <amxb/amxb.h>
+#include <amxb/amxb_register.h>
+
+#include <amxo/amxo.h>
+#include <amxo/amxo_save.h>
 
 #define ETH_HDRLEN 14 // Ethernet header length
 #define IP4_HDRLEN 20 // IPv4 header length
@@ -28,6 +43,17 @@
 #define ARPOP_REQUEST 1 // Taken from <linux/if_arp.h>
 #define ARPOP_REPLY 2
 #endif
+
+/* In order to avoid the circular dependency between linux/if_bridge.h (this uses linux/ether.h)
+* and agent_db.h (linux/if_ether.h is reffered internally via network_utils.h).
+* For utill, required the structure to store the data, so defined struct below.
+* And also added the macro BRCTL_GET_BRIDGE_INFO above for ioctl usage.
+*/
+struct fdb_entry {
+    uint8_t mac_addr[6];
+    uint16_t port_no;
+    unsigned char is_local;
+};
 
 namespace beerocks {
 namespace net {
@@ -166,6 +192,9 @@ public:
     static bool linux_iface_get_name(const sMacAddr &mac, std::string &iface);
 
     static bool linux_iface_get_ip(const std::string &iface, std::string &ip);
+    static std::unordered_map<sMacAddr, std::vector<sMacAddr>>
+    linux_iface_get_pci_info(std::string iface, bool is_local_gw);
+
     static bool linux_iface_get_pci_info(const std::string &iface, std::string &pci_id);
     static bool linux_iface_exists(const std::string &iface);
     static bool linux_iface_is_up(const std::string &iface);

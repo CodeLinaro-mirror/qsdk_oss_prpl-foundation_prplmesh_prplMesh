@@ -6,15 +6,18 @@
  * See LICENSE file for more details.
  */
 
+#include <amxc/amxc.h>
 #include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_string_utils.h>
 #include <bcl/network/network_utils.h>
 #include <bcl/network/swap.h>
 
 #include <arpa/inet.h>
+#include <bitset>
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
+#include <limits>
 #include <linux/ethtool.h>
 #include <linux/if_bridge.h>
 #include <linux/if_ether.h>  // ETH_P_ARP = 0x0806
@@ -838,6 +841,187 @@ bool network_utils::linux_iface_get_ip(const std::string &iface, std::string &ip
     uint32_t ip_uint = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
     ip               = network_utils::ipv4_to_string(ip_uint);
     return true;
+}
+#define SYSFS_CLASS_NET "/sys/class/net/br-lan"
+#define SYSFS_PATH_MAX 256
+#define MAX_BR_ENTRIES 256
+
+static inline void __copy_fdb(struct fdb_entry *ent, const struct __fdb_entry *f)
+{
+    memcpy(ent->mac_addr, f->mac_addr, 6);
+    ent->port_no  = f->port_no;
+    ent->is_local = f->is_local;
+}
+int br_read_fdb(struct fdb_entry *fdbs, unsigned long offset, int num)
+{
+    FILE *f;
+    int i, n = 0;
+    struct __fdb_entry fe[num];
+    char path[SYSFS_PATH_MAX] = "/sys/class/net/br-lan/brforward";
+    f                         = fopen(path, "r");
+    if (f) {
+        fseek(f, offset * sizeof(struct __fdb_entry), SEEK_SET);
+        n = fread(fe, sizeof(struct __fdb_entry), num, f);
+        fclose(f);
+    }
+
+    for (i = 0; i < n; i++)
+        __copy_fdb(fdbs + i, fe + i);
+
+    return n;
+}
+
+/// @brief
+/// @return
+std::unordered_map<sMacAddr, std::vector<sMacAddr>>
+beerocks::net::network_utils::linux_iface_get_pci_info(std::string iface, bool is_local_gw)
+{
+    std::unordered_map<sMacAddr, std::vector<sMacAddr>> non1905NeighborList;
+    int port = 0;
+    if ((!is_local_gw) && (!iface.empty())) {
+        std::ifstream phy_device_file("/sys/class/net/" + iface + "/brport/port_no", std::ios::in);
+
+        if (!phy_device_file.is_open()) {
+            LOG(ERROR) << "can't open port_no file for interface " << iface;
+            return {};
+        }
+        std::string device;
+        std::getline(phy_device_file, device);
+        device.erase(0, 2);
+        port = string_utils::stoi(device);
+    }
+    // Read bridge entries
+    static std::unique_ptr<fdb_entry[]> bridge_entries(new fdb_entry[MAX_BR_ENTRIES]);
+    int ret;
+    if ((ret = br_read_fdb(bridge_entries.get(), 0, MAX_BR_ENTRIES)) <= 0) {
+        LOG(ERROR) << "Failed reading brdige '"
+                   << "' entries: " << ((ret < 0) ? strerror(errno) : "0");
+    }
+
+    std::vector<fdb_entry> bss_ifaces;
+    for (int i = 0; i < ret; i++) {
+        if ((bridge_entries[i].is_local == 0)) {
+            if ((!is_local_gw) && (bridge_entries[i].port_no == port)) {
+                continue;
+            }
+            bss_ifaces.push_back(bridge_entries[i]);
+        }
+    }
+
+    amxc_var_t get_var1;
+    amxb_bus_ctx_t *bus_ctx               = NULL;
+    int32_t host_entries                  = 0;
+    static constexpr int amxb_get_timeout = 5;
+
+    amxc_var_init(&get_var1);
+    bus_ctx = amxb_be_who_has("Device.");
+
+    const std::string radpath = "Device.Hosts.HostNumberOfEntries";
+    if (amxb_get(bus_ctx, radpath.c_str(), 0, &get_var1, amxb_get_timeout) != AMXB_STATUS_OK) {
+        LOG(DEBUG) << "AMX failed";
+    }
+    std::string get_path("0.'Device.Hosts.'.HostNumberOfEntries");
+    if (!amxc_var_is_null(&get_var1)) {
+
+        host_entries = GETP_INT32(&get_var1, get_path.c_str());
+    }
+    amxc_var_clean(&get_var1);
+    for (int i = 1; i <= (int)host_entries; i++) {
+        std::string host_mac            = "";
+        std::string local_mac_interface = "";
+        std::string local_mac           = "";
+        int32_t active                  = 0;
+        std::string host_path           = "Device.Hosts.Host." + std::to_string(i);
+
+        std::string active_host      = ".Active";
+        const std::string activepath = host_path + active_host;
+        if (amxb_get(bus_ctx, activepath.c_str(), 0, &get_var1, amxb_get_timeout) !=
+            AMXB_STATUS_OK) {
+            LOG(DEBUG) << "AMX failed";
+        }
+
+        const std::string activeHost = "0.'" + host_path + ".'" + active_host;
+        if (!amxc_var_is_null(&get_var1)) {
+            active = GETP_INT32(&get_var1, activeHost.c_str());
+        }
+
+        if (active != 1) {
+            continue;
+        }
+
+        std::string host_macAddress = ".PhysAddress";
+
+        const std::string radpath_mac = host_path + host_macAddress;
+        if (amxb_get(bus_ctx, radpath_mac.c_str(), 0, &get_var1, amxb_get_timeout) !=
+            AMXB_STATUS_OK) {
+            LOG(DEBUG) << "AMX failed";
+        }
+
+        const std::string radpath0 = "0.'" + host_path + ".'" + host_macAddress;
+        if (!amxc_var_is_null(&get_var1)) {
+            const char *host_mac1 = GETP_CHAR(&get_var1, radpath0.c_str());
+            if (host_mac1 == NULL) {
+                LOG(ERROR) << "Hosts.Host is providing an empty value, host MAC will be empty";
+            }
+            host_mac.assign(host_mac1);
+        }
+
+        amxc_var_clean(&get_var1);
+        std::string layer1_interface = ".Layer1Interface";
+        const std::string radpath1   = host_path + layer1_interface;
+        amxb_get(bus_ctx, radpath1.c_str(), 0, &get_var1, amxb_get_timeout);
+        std::string rad_path = "0.'" + host_path + ".'" + layer1_interface;
+        if (!amxc_var_is_null(&get_var1)) {
+            const char *local_mac_interface1 = GETP_CHAR(&get_var1, rad_path.c_str());
+            local_mac_interface              = local_mac_interface1;
+        }
+
+        amxc_var_clean(&get_var1);
+        if (!local_mac_interface.empty()) {
+
+            std::string local_inteface = local_mac_interface;
+            std::string Local_mac_path = ".MACAddress";
+            const std::string radpath2 = local_inteface + Local_mac_path;
+
+            amxb_get(bus_ctx, radpath2.c_str(), 0, &get_var1, amxb_get_timeout);
+            std::string rad_path1 = "0.'" + local_inteface + ".'" + Local_mac_path;
+            if (!amxc_var_is_null(&get_var1)) {
+                const char *local_mac1 = GETP_CHAR(&get_var1, rad_path1.c_str());
+                local_mac              = local_mac1;
+            }
+        } else {
+            local_mac = "";
+            LOG(ERROR)
+                << "Hosts.Host is providing an empty value, Local interface MAC will be empty";
+        }
+        amxc_var_clean(&get_var1);
+
+        for (auto &bss_entries : bss_ifaces) {
+            std::string macAd = tlvf::mac_to_string(bss_entries.mac_addr);
+            std::transform(host_mac.begin(), host_mac.end(), host_mac.begin(), ::toupper);
+            std::transform(macAd.begin(), macAd.end(), macAd.begin(), ::toupper);
+            sMacAddr macAdd      = tlvf::mac_from_string(macAd);
+            sMacAddr localMacAdd = tlvf::mac_from_string(local_mac);
+
+            if (host_mac == macAd) {
+                bool is_present = false;
+                for (auto neighbor_entries : non1905NeighborList) {
+                    for (auto &neighbour_mac : neighbor_entries.second) {
+                        if (neighbour_mac == macAdd) {
+                            is_present = true;
+                        }
+                    }
+                }
+                if (!is_present) {
+                    non1905NeighborList[localMacAdd].push_back(macAdd);
+                } else {
+                    LOG(DEBUG) << "mac address already present, hence skipping" << macAdd;
+                }
+            }
+        }
+    }
+
+    return non1905NeighborList;
 }
 
 bool network_utils::linux_iface_get_pci_info(const std::string &iface, std::string &pci_id)
