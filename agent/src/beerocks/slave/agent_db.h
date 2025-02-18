@@ -39,6 +39,7 @@
 
 #endif // ENABLE_NBAPI
 
+extern std::mutex mtx;
 namespace beerocks {
 
 /**

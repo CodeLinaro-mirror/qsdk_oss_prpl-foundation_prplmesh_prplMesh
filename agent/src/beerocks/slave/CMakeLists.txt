@@ -24,6 +24,14 @@ endif()
 if (USE_PRPLMESH_WHM)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_PRPLMESH_WHM ${WBAPI_SOCK}")
     list(APPEND LIBS wbapi)
+    list(APPEND beerocks_agent_sources ${MODULE_PATH}/tasks/topology_task_utils.cpp)
+else ()
+    foreach (item ${beerocks_agent_sources})
+        if (item MATCHES "topology_task_utils.cpp$")
+            list(REMOVE_ITEM beerocks_agent_sources ${item})
+        endif()
+    endforeach()
+    list(APPEND beerocks_agent_sources ${MODULE_PATH}/tasks/dummy/topology_task_utils_dummy.cpp)
 endif()
 
 # UGW
@@ -50,7 +58,7 @@ if (ENABLE_NBAPI)
     find_package(amxc REQUIRED)
     find_package(amxd REQUIRED)
     find_package(libamxrt REQUIRED)
-    target_link_libraries(${PROJECT_NAME} amxc amxd libamxrt)
+    target_link_libraries(${PROJECT_NAME} amxc amxd libamxrt rt)
 endif()
 
 # Install

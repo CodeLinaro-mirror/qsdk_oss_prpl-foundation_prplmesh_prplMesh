@@ -11,8 +11,13 @@
 #include "../backhaul_manager/backhaul_manager.h"
 #include "../helpers/media_type.h"
 #include "multi_vendor.h"
+#include "topology_task_utils.h"
 
 #include <bcl/network/network_utils.h>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 
 #include <beerocks/tlvf/beerocks_message_backhaul.h>
 
@@ -206,10 +211,9 @@ void TopologyTask::handle_topology_discovery(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     // Add/Update the device on our list.
     AgentDB::sNeighborDevice neighbor_device;
-    neighbor_device.transmitting_iface_mac = tlvMac->mac();
-    neighbor_device.timestamp              = std::chrono::steady_clock::now();
-    neighbor_device.receiving_iface_name   = local_receiving_iface_name;
-
+    neighbor_device.transmitting_iface_mac      = tlvMac->mac();
+    neighbor_device.timestamp                   = std::chrono::steady_clock::now();
+    neighbor_device.receiving_iface_name        = local_receiving_iface_name;
     auto &neighbor_devices_by_al_mac            = db->neighbor_devices[local_receiving_iface_mac];
     neighbor_devices_by_al_mac[tlvAlMac->mac()] = neighbor_device;
 
@@ -226,6 +230,15 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
 {
     const auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "Received TOPOLOGY_QUERY_MESSAGE, mid=" << std::hex << mid;
+    auto db = AgentDB::get();
+
+    if (!db->device_conf.local_controller) {
+        if (db->backhaul.selected_iface_name.empty()) {
+            LOG(ERROR) << "Backhaul is not connected";
+            return;
+        }
+    }
+
     auto cmdu_tx_header =
         m_cmdu_tx.create(mid, ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE);
     if (!cmdu_tx_header) {
@@ -240,6 +253,10 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     if (!add_1905_neighbor_device_tlv()) {
         LOG(ERROR) << "Failed to add neighbor device TLV";
+        return;
+    }
+    if (!add_non_1905_neighbor_device_tlv()) {
+        LOG(ERROR) << "Failed to add non-1905 neighbor device TLV";
         return;
     }
 
@@ -263,7 +280,6 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
         return;
     }
 
-    auto db = AgentDB::get();
     for (size_t i = 0; i < db->mld_configurations.size(); ++i) {
         // Next step, registering callback to avoid "get" method
         for (auto affiliated_ap : db->mld_configurations[i].affiliated_aps) {
@@ -700,6 +716,13 @@ bool TopologyTask::add_1905_neighbor_device_tlv()
         }
     }
     return true;
+}
+
+bool TopologyTask::add_non_1905_neighbor_device_tlv()
+{
+    topology_task_utils topo_task_utils;
+
+    return topo_task_utils.fetch_and_populate_non_1905_neighbor_device_tlv(m_cmdu_tx);
 }
 
 bool TopologyTask::add_supported_service_tlv()

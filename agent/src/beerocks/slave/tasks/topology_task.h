@@ -11,6 +11,11 @@
 
 #include "task.h"
 
+#include <fcntl.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
 #include <tlvf/CmduMessageTx.h>
 
@@ -39,6 +44,17 @@ public:
 
 private:
     /* 1905.1 message handlers: */
+
+    /**
+    * @brief Handles 1905 Topology Notification message.
+    *
+    * @param[in] cmdu_rx Received CMDU.
+    * @param iface_index Index of the network interface that the CMDU message was received on.
+    * @param dst_mac Destination MAC address.
+    * @param[in] src_mac MAC address of the message sender.
+    */
+    void handle_topology_notification(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index,
+                                      const sMacAddr &dst_mac, const sMacAddr &src_mac);
 
     /**
     * @brief Handles 1905 Topology Discovery message.
@@ -107,6 +123,14 @@ private:
      * @return true on success, otherwise false.
      */
     bool add_1905_neighbor_device_tlv();
+
+    /**
+     * @brief Add and fill non_1905_neighbor_device tlv for each know neighbor.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_non_1905_neighbor_device_tlv();
+    //  static bool linux_iface_get_list(const std::string &iface);
 
     /**
      * @brief Add and fill supported service tlv.
