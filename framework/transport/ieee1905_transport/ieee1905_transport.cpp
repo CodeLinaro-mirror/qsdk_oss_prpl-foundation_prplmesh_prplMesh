@@ -28,6 +28,15 @@ bool Ieee1905Transport::start()
 {
     LOG(INFO) << "Starting 1905 transport...";
 
+    const char *shm_name = "/neighbors";
+    shm_fd               = shm_open(shm_name, O_CREAT | O_RDWR, 0666);
+    if (ftruncate(shm_fd, sizeof(SharedData)) != 0) {
+        LOG(ERROR) << "ftruncate failed : " << std::strerror(errno);
+    }
+    if (shm_fd)
+        LOG(INFO) << "Shared memory created";
+    else
+        LOG(INFO) << "Shared memory not created";
     // Register broker handlers for internal and external messages
     m_broker->register_external_message_handler(
         [&](std::unique_ptr<messages::Message> &msg, broker::BrokerServer &broker) -> bool {
@@ -60,6 +69,7 @@ bool Ieee1905Transport::stop()
     m_interface_state_manager->clear_handler();
     m_bridge_state_manager->clear_handler();
 
+    close(shm_fd);
     return true;
 }
 

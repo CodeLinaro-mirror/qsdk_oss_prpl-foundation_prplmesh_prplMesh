@@ -5,6 +5,12 @@ add_library(ieee1905_transport_lib
     ieee1905_transport_local_bus.cpp 
     ieee1905_transport_packet_processing.cpp)
 
+if (USE_PRPLMESH_WHM)
+    target_sources(ieee1905_transport_lib PRIVATE non_1905_neighbor_list.cpp)
+else()
+    target_sources(ieee1905_transport_lib PRIVATE dummy/non_1905_neighbor_list_dummy.cpp)
+endif()
+
 set_target_properties(ieee1905_transport_lib PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 target_link_libraries(ieee1905_transport_lib 
     PUBLIC bpl bcl tlvf btlvf ieee1905_transport_messages mapfcommon
@@ -24,7 +30,7 @@ if (TARGET_PLATFORM STREQUAL "rdkb")
     list(APPEND LINKED_LIBS breakpadwrapper)
 endif()
 
-target_link_libraries(ieee1905_transport PUBLIC ieee1905_transport_lib ${LINKED_LIBS} PRIVATE elpp)
+target_link_libraries(ieee1905_transport PUBLIC ieee1905_transport_lib ${LINKED_LIBS} PRIVATE elpp rt)
 
 
 

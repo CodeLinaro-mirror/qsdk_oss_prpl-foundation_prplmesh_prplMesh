@@ -20,6 +20,11 @@
 
 #include <tlvf/tlvftypes.h>
 
+#include <fcntl.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include <arpa/inet.h>
 #include <chrono>
 #include <map>
@@ -264,7 +269,13 @@ private:
         unsigned int if_index;
         std::chrono::steady_clock::time_point last_seen;
     };
+    struct SharedData {
+        size_t size;
+        pthread_mutex_t mutex;
+        char neighbourslist[];
+    };
 
+    int shm_fd;
     std::unordered_map<sMacAddr, ieee1905_neighbor> neighbors_map_;
 
     std::chrono::steady_clock::time_point removed_aged_neighbors_timeout_ =
@@ -274,7 +285,8 @@ private:
     // transmit a topology discovery message *at least* once every 60 seconds. Since any message from
     // the neighbor will update it's last_seen, in practice it should be safe to consider it dead and
     // delete it if 70 seconds have passed.
-    const std::chrono::seconds kMaximumNeighbourAge = std::chrono::seconds(70);
+    // considering one topology discovery miss then it will bettwr to listen to one more message with 10 second offset
+    const std::chrono::seconds kMaximumNeighbourAge = std::chrono::seconds(130);
 
     // de-duplication internal data structures
 
@@ -426,6 +438,7 @@ private:
     //
     void handle_packet(Packet &packet);
     void update_neighbours(const Packet &packet);
+    void update_non1905_neighbours();
     bool verify_packet(const Packet &packet);
     bool de_duplicate_packet(Packet &packet);
     void remove_packet_from_de_duplication_map(const Packet &packet);
