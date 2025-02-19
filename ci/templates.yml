@@ -80,7 +80,7 @@
     - when: manual
       allow_failure: true
   tags:
-    - targets
+    - targets2
   timeout: 20m
 
 .test-on-target:
@@ -116,7 +116,7 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - targets
+    - targets2
   timeout: 20m
   # remove once PCF-695 is fixed:
   retry: 2
@@ -140,7 +140,7 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - targets
+    - targets2
   timeout: 20m
   # remove once PCF-695 is fixed:
   retry: 2

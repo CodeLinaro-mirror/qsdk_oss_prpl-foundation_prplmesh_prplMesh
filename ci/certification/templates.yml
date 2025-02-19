@@ -9,7 +9,7 @@
   needs:
     - job: build-for-turris-omnia
   tags:
-    - certs-tests
+    - certs-tests2
     - turris-omnia
 
 .certification:R1:haze:
@@ -23,7 +23,7 @@
   needs:
     - job: build-for-haze
   tags:
-    - certs-tests
+    - certs-tests2
     - haze
 
 .certification:R4:turris-omnia:
