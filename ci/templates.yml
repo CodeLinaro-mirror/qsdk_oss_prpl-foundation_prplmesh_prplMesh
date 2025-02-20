@@ -8,7 +8,7 @@
 .image-build:
   stage: containers
   tags:
-    - shell
+    - shell5
     - docker-build
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
@@ -45,7 +45,7 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - shell
+    - shell5
     - docker-build
   needs: []
 
@@ -67,7 +67,7 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - shell
+    - shell5
     - docker-build
   needs: []
 
