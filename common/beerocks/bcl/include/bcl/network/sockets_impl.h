@@ -235,7 +235,7 @@ public:
 
 class TcpSocket : public SocketAbstractImpl {
 public:
-    TcpSocket() : SocketAbstractImpl(socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) {}
+    TcpSocket() : SocketAbstractImpl(socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_IP)) {}
 };
 
 class UdsSocket : public SocketAbstractImpl {
