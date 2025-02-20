@@ -223,19 +223,19 @@ public:
 class RawSocket : public SocketAbstractImpl {
 public:
     explicit RawSocket(uint16_t protocol = ETH_P_ALL)
-        : SocketAbstractImpl(socket(AF_PACKET, SOCK_RAW, htons(protocol)))
+        : SocketAbstractImpl(socket(AF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(protocol)))
     {
     }
 };
 
 class UdpSocket : public SocketAbstractImpl {
 public:
-    UdpSocket() : SocketAbstractImpl(socket(AF_INET, SOCK_DGRAM, IPPROTO_IP)) {}
+    UdpSocket() : SocketAbstractImpl(socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, IPPROTO_IP)) {}
 };
 
 class TcpSocket : public SocketAbstractImpl {
 public:
-    TcpSocket() : SocketAbstractImpl(socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) {}
+    TcpSocket() : SocketAbstractImpl(socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_IP)) {}
 };
 
 class UdsSocket : public SocketAbstractImpl {
@@ -273,13 +273,16 @@ public:
      *
      * @param type Socket type (i.e.: communication style).
      */
-    explicit UdsSocket(int type = SOCK_STREAM) : SocketAbstractImpl(socket(AF_UNIX, type, 0)) {}
+    explicit UdsSocket(int type = SOCK_STREAM)
+        : SocketAbstractImpl(socket(AF_UNIX, type | SOCK_CLOEXEC, 0))
+    {
+    }
 };
 
 class NetlinkSocket : public SocketAbstractImpl {
 protected:
     explicit NetlinkSocket(uint16_t protocol)
-        : SocketAbstractImpl(socket(AF_NETLINK, SOCK_RAW, protocol))
+        : SocketAbstractImpl(socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, protocol))
     {
     }
 };
