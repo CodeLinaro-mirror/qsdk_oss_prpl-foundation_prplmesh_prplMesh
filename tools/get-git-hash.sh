@@ -25,8 +25,8 @@ usage() {
 # <reponame>=<url>^<hash>
 repos() {
     cat <<EOF
-meta-prplmesh=https://gitlab.com/prpl-foundation/prplmesh/meta-prplmesh.git^b36b92c672fc10a7c472626ee32c4422ef926ea8
-meta-amx=https://gitlab.com/prpl-foundation/prplrdkb/metalayers/meta-amx.git^20e18211cfcf6f19a4dc8e48895ccd6408a9b786
+meta-prplmesh=https://gitlab.com/prpl-foundation/prplmesh/meta-prplmesh.git^262317bffcb8423a02905ab037c467eae6552ba4
+meta-amx=https://gitlab.com/prpl-foundation/prplrdkb/metalayers/meta-amx.git^b57f04e0e44072f0dd0fcaf407dd0d4243cd5272
 EOF
 }
 
