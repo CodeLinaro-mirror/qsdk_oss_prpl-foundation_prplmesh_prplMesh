@@ -225,6 +225,13 @@ bool sta_wlan_hal_whm::start_wps_pbc()
         LOG(WARNING) << "failed to enable multi ap mode for" << m_ep_path;
     }
 
+    // AmbiorixVariant enable_radio_map(AMXC_VAR_ID_HTABLE);
+    // enable_radio_map.add_child("Enable", true);
+    // ret = m_ambiorix_cl.update_object(m_radio_path, enable_map);
+    // if (!ret) {
+    //     LOG(WARNING) << "failed to enable radio " << m_radio_path << " before triggering WPS";
+    // }
+
     AmbiorixVariant args, result;
     std::string wps_path = m_ep_path + "WPS.";
     ret                  = m_ambiorix_cl.call(wps_path, "pushButton", args, result);
