@@ -82,8 +82,8 @@ WORKDIR /home/rdk/rdk-b
 FROM rdk-b-builder as rdk-b-prplmesh-builder
 
 RUN printf '\033[1;35m%s Cloning RDK-B\n\033[0m' "$(date --iso-8601=seconds --universal)" \
-    && yes | repo init -u https://code.rdkcentral.com/r/rdkcmf/manifests \
-    -m rdkb-turris-extsrc.xml -b rdkb-2023q2-dunfell \
+    && yes | repo init -u https://gitlab.com/prpl-foundation/prplrdkb/prplrdkb \
+    -m rdkb-turris-extsrc.xml -b mainline-3.2 \
     && repo sync
 
 # Fix a bug in "current" turris setup with meta-rdk-ext
