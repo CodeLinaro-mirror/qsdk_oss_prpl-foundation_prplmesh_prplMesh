@@ -220,11 +220,12 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(ieee1905_1::eTlvType tlv_
          * field (MAC address of neighbor device) is present or not and then create an instance of
          * either tlvLinkMetricQuery or tlvLinkMetricQueryAllNeighbors respectively.
          */
-        const uint16_t all_neighbors_tlv_length = 2;
-        uint16_t tlv_length                     = getNextTlvLength();
+        auto buff_ptr = msg.prevClass()->getBuffPtr();
 
-        if (all_neighbors_tlv_length == tlv_length) {
-            return msg.addClass<tlvLinkMetricQueryAllNeighbors>();
+        /* 0-2: TLV header, 3: Link metric query type */
+        if (buff_ptr[3] == eLinkMetricNeighborType::ALL_NEIGHBORS) {
+            //return msg.addClass<tlvLinkMetricQueryAllNeighbors>();
+            return msg.addClass<tlvLinkMetricQuery>();
         } else {
             return msg.addClass<tlvLinkMetricQuery>();
         }
