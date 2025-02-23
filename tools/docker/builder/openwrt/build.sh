@@ -164,17 +164,17 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
         OPENWRT_VERSION='538cd93744bc16f4b826143d959b548cf572df4a'
     elif [[ "urx_osp" == "$TARGET_DEVICE" ]] || [[ "urx_ospv2" == "$TARGET_DEVICE" ]] ; then
-        dbg "OSP platform, build on mainline prplOS"
-        OPENWRT_TOOLCHAIN_VERSION='f039941c153f774188107cfc98850703e4725322'
-        OPENWRT_VERSION='f039941c153f774188107cfc98850703e4725322'
+        dbg "OSP platform, build on mainline prplOS, OSPv2 platform"
+        OPENWRT_TOOLCHAIN_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
+        OPENWRT_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
     elif [[ "freedom" == "$TARGET_DEVICE" ]] ; then
         dbg "Freedom platform, prplOS mainline + pWHM latest + endpoints"
-        OPENWRT_TOOLCHAIN_VERSION='f039941c153f774188107cfc98850703e4725322'
-        OPENWRT_VERSION='f039941c153f774188107cfc98850703e4725322'
+        OPENWRT_TOOLCHAIN_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
+        OPENWRT_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
     else
-        dbg "$TARGET_DEVICE platform, building on prplos-v3.2.0 + mainline-3.2_v0.0.3"
-        OPENWRT_TOOLCHAIN_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
-        OPENWRT_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
+        dbg "$TARGET_DEVICE platform, building on prplos mainline-3.2 + pWHM 6.34.0"
+        OPENWRT_TOOLCHAIN_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
+        OPENWRT_VERSION='9e608aa883b19dada55a2e0c664259d7ff9e3fb7'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -213,9 +213,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos-v3.2.0
-OPENWRT_TOOLCHAIN_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
-OPENWRT_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
+# prplOS 3.1
+OPENWRT_TOOLCHAIN_VERSION='e4813185c9724bdfea7093d4c85a8570c241f0b4'
+OPENWRT_VERSION='e4813185c9724bdfea7093d4c85a8570c241f0b4'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
