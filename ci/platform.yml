@@ -67,7 +67,7 @@ build-for-osp-ospv2:
     - |
       trigger_details=$(curl -X POST --retry 3 -s -f -F \
       token=${OSP_PIPELINE_TRIGGER_TOKEN_2} \
-      -F ref="prplmesh/UPDK-9.1.50-v3-build-ospv2" \
+      -F ref="mainline-3.2-UPDK-9.1.80" \
       -F variables[PRPLMESH_REVISION]="$CI_COMMIT_SHA" \
       -F variables[PARENT_PIPELINE_ID]="$CI_PIPELINE_ID" \
       -F variables[PARENT_PROJECT_ID]="$CI_PROJECT_ID" \
