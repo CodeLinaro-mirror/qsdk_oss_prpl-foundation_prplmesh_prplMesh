@@ -67,8 +67,7 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - shell
-    - docker-build
+    - rdkb-build2
   needs: []
 
 .test-upgrade-image:
