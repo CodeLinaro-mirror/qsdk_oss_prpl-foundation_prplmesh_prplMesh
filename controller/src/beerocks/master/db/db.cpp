@@ -8487,7 +8487,8 @@ bool db::dm_configure_service_prioritization()
 
         agent->service_prioritization.rules.clear();
 
-        wfa_map::tlvServicePrioritizationRule::sServicePrioritizationRule rule;
+        wfa_map::tlvServicePrioritizationRule::sServicePrioritizationRule rule = {};
+
         rule.id                       = 1;
         rule.precedence               = 1;
         rule.output                   = static_cast<uint8_t>(ruleOutput);

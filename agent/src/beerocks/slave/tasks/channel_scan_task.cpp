@@ -1287,8 +1287,8 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
         }
     }
 
-    sRequestInfo request_info;
-    request_info.src_mac = src_mac;
+    sRequestInfo request_info = {};
+    request_info.src_mac      = src_mac;
 
     new_request->request_info         = std::make_shared<sRequestInfo>(request_info);
     new_request->scan_start_timestamp = std::chrono::system_clock::now();

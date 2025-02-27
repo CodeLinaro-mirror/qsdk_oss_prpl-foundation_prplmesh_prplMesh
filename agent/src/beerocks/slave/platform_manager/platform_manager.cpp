@@ -779,7 +779,7 @@ bool PlatformManager::handle_arp_monitor()
     }
 
     // Process the message
-    bpl::BPL_ARP_MON_ENTRY entry;
+    bpl::BPL_ARP_MON_ENTRY entry = {};
     if (bpl::arp_mon_process(m_ctxArpMon, &entry) != 0) {
         LOG(ERROR) << "Failed processing ARP monitor message!";
         return (false);
