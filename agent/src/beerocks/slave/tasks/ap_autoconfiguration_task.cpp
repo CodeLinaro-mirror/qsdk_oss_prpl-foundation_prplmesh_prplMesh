@@ -1843,7 +1843,7 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
                 return false;
             }
 
-            AgentDB::sMLDConfiguration::sAffiliatedAP affiliated_conf;
+            AgentDB::sMLDConfiguration::sAffiliatedAP affiliated_conf = {};
             affiliated_conf.ruid = std::get<1>(affiliated_ap_tuple).ruid();
             mld_conf.affiliated_aps.push_back(affiliated_conf);
         }

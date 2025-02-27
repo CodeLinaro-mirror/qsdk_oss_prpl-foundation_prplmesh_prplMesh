@@ -2754,9 +2754,9 @@ int bml_internal::device_oper_radios_query(BML_DEVICE_DATA *device_data)
     m_prmDeviceDataGet = &prmDeviceDataGet;
     int timeout        = RESPONSE_TIMEOUT; // Default timeout
 
-    beerocks_message::sDeviceData DeviceData;
-    m_device_data         = &DeviceData;
-    m_device_data->al_mac = tlvf::mac_from_string(device_data->al_mac);
+    beerocks_message::sDeviceData DeviceData = {};
+    m_device_data                            = &DeviceData;
+    m_device_data->al_mac                    = tlvf::mac_from_string(device_data->al_mac);
 
     register_topology_discovery_response();
 
@@ -3223,8 +3223,8 @@ int bml_internal::get_wifi_credentials(int vap_id, char *ssid, char *pass, int *
     int iOpTimeout          = RESPONSE_TIMEOUT; // Default timeout
 
     //CMDU message
-    beerocks_message::sWifiCredentials sWifiCredentials;
-    m_wifi_credentials = &sWifiCredentials;
+    beerocks_message::sWifiCredentials sWifiCredentials = {};
+    m_wifi_credentials                                  = &sWifiCredentials;
 
     auto request = message_com::create_vs_message<
         beerocks_message::cACTION_PLATFORM_WIFI_CREDENTIALS_GET_REQUEST>(cmdu_tx);
