@@ -119,6 +119,18 @@ public:
     }
 
     /**
+    * @brief
+    * Scan backend directories for available backends.
+    *
+    * When auto-detection (configuration option "auto-detect") is enabled, all directories
+    * in the configuration option "backend-dir" are scanned for valid shared object files.
+    * Each found shared object file is added to the list of possible backends that can be used.
+    *
+    * When auto-detection is disabled this function will do nothing.
+    */
+    static void ConfigScanBackendDirs() { amxrt_config_scan_backend_dirs(); }
+
+    /**
     * @brief Enables system signals that should be monitored by the eventloop.
     * 
     * The default implementation of the event loop will only monitor

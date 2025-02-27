@@ -46,14 +46,6 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include "ambiorix_impl.h"
 #include "on_action.h"
 
-#ifndef AMBIORIX_BACKEND_PATH
-#define AMBIORIX_BACKEND_PATH "/usr/bin/mods/amxb/mod-amxb-ubus.so"
-#endif // AMBIORIX_BACKEND_PATH
-
-#ifndef AMBIORIX_BUS_URI
-#define AMBIORIX_BUS_URI "ubus:"
-#endif // AMBIORIX_BUS_URI
-
 #ifndef CONTROLLER_DATAMODEL_PATH
 #define CONTROLLER_DATAMODEL_PATH "config/controller/odl/master_config.odl"
 #endif
@@ -749,8 +741,7 @@ int main(int argc, char *argv[])
         event_loop, on_action_handlers, events_list, funcs_list);
     LOG_IF(!amb_dm_obj, FATAL) << "Unable to create Ambiorix!";
 
-    LOG_IF(!amb_dm_obj->init(AMBIORIX_BACKEND_PATH, AMBIORIX_BUS_URI, controller_dm_path), FATAL)
-        << "Unable to init ambiorix object!";
+    LOG_IF(!amb_dm_obj->init(controller_dm_path), FATAL) << "Unable to init ambiorix object!";
 #else
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI

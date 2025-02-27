@@ -70,16 +70,13 @@ public:
     ~AmbiorixImpl() override;
 
     /**
-     * @brief Initialize the ambiorix library: load backend, connect to the bus, load data model,
-     *        register data model in the bus.
-     *
-     * @param amxb_backend Path to the ambiorix backend (ex: "/usr/bin/mods/amxb/mod-amxb-ubus.so").
-     * @param bus_uri Path to the bus in uri form (ex: "ubus:/var/run/ubus/ubus.sock").
+     * @brief Initialize the ambiorix library: load all available backends, connect to all 
+     *        available bus, load data model, register data model in the bus.
+     *        
      * @param datamodel_path Path to the data model definition ODL file.
      * @return True on success and false otherwise.
      */
-    bool init(const std::string &amxb_backend, const std::string &bus_uri,
-              const std::string &datamodel_path);
+    bool init(const std::string &datamodel_path);
 
     bool set(const std::string &relative_path, const std::string &parameter,
              const std::string &value) override;
@@ -234,6 +231,13 @@ private:
     bool remove_signal_loop();
 
     /**
+     * @brief Connect to the bus and register datamodel.
+     *
+     * @return True on success and false otherwise.
+     */
+    bool connect_and_register();
+
+    /**
      * @brief Find object by relative path.
      *
      * @param relative_path Path to the object in datamodel (ex: "Device.WiFi.DataElements.Network.ID").
@@ -242,7 +246,7 @@ private:
     amxd_object_t *find_object(const std::string &relative_path);
 
     // Variables
-    amxb_bus_ctx_t *m_bus_ctx = nullptr;
+    std::vector<amxb_bus_ctx_t *> m_bus_ctx_vect;
     std::shared_ptr<EventLoop> m_event_loop;
     //std::unordered_map<std::string, actions_callback> m_on_action_handlers;
     std::vector<sActionsCallback> m_on_action_handlers;

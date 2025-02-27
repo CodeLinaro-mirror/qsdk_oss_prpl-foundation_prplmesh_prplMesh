@@ -42,14 +42,6 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 
 #include "ambiorix_impl.h"
 
-#ifndef AMBIORIX_BACKEND_PATH
-#define AMBIORIX_BACKEND_PATH "/usr/bin/mods/amxb/mod-amxb-ubus.so"
-#endif // AMBIORIX_BACKEND_PATH
-
-#ifndef AMBIORIX_BUS_URI
-#define AMBIORIX_BUS_URI "ubus:"
-#endif // AMBIORIX_BUS_URI
-
 #ifndef AGENT_DATAMODEL_PATH
 #define AGENT_DATAMODEL_PATH "config/agent/odl/slave_config.odl"
 #endif // AGENT_DATAMODEL_PATH
@@ -410,8 +402,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
         event_loop, std::vector<beerocks::nbapi::sActionsCallback>(),
         std::vector<beerocks::nbapi::sEvents>(), std::vector<beerocks::nbapi::sFunctions>());
     LOG_IF(!amb_dm_obj, FATAL) << "Unable to create Ambiorix!";
-    LOG_IF(!amb_dm_obj->init(AMBIORIX_BACKEND_PATH, AMBIORIX_BUS_URI, agent_dm_path), FATAL)
-        << "Unable to init ambiorix object!";
+    LOG_IF(!amb_dm_obj->init(agent_dm_path), FATAL) << "Unable to init ambiorix object!";
 #else
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI
