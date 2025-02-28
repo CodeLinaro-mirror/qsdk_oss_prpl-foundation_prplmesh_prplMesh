@@ -6,8 +6,6 @@
  * See LICENSE file for more details.
  */
 
-#include <fcntl.h>
-
 #include <bcl/beerocks_ucc_server_impl.h>
 
 #include <bcl/network/network_utils.h>
@@ -30,15 +28,6 @@ UccServerImpl::UccServerImpl(std::unique_ptr<beerocks::net::ServerSocket> server
     LOG_IF(!m_ucc_parser, FATAL) << "UCC parser is a null pointer!";
     LOG_IF(!m_ucc_serializer, FATAL) << "UCC serializer is a null pointer!";
     LOG_IF(!m_event_loop, FATAL) << "Event loop is a null pointer!";
-
-    int sfd = m_server_socket->socket()->fd();
-    // Prevent the child process to inherit the server_socket
-    // which may lead to re-bind failure
-    int sfd_flags = fcntl(sfd, F_GETFD);
-    LOG_IF(sfd_flags == -1, FATAL) << "fcntl syscall failed!";
-    LOG_IF(sfd_flags & FD_CLOEXEC, INFO) << "things changed, this piece of code can be cleaned!";
-    sfd_flags |= FD_CLOEXEC;
-    LOG_IF(fcntl(sfd, F_SETFD, sfd_flags) == -1, FATAL) << "fcntl syscall failed!";
 
     // Register event handlers for the server socket
     beerocks::EventLoop::EventHandlers handlers{
@@ -68,7 +57,7 @@ UccServerImpl::UccServerImpl(std::unique_ptr<beerocks::net::ServerSocket> server
             },
     };
 
-    LOG_IF(!m_event_loop->register_handlers(sfd, handlers), FATAL)
+    LOG_IF(!m_event_loop->register_handlers(m_server_socket->socket()->fd(), handlers), FATAL)
         << "Failed registering event handlers for the server socket!";
 }
 
