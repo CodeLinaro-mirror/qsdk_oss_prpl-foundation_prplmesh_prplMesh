@@ -9,8 +9,8 @@
   needs:
     - job: build-for-turris-omnia
   tags:
-    - certs-tests
-    - turris-omnia
+    - certs-tests4
+    - turris-omnia4
 
 .certification:R1:haze:
   stage: certification-R1-haze
@@ -23,8 +23,8 @@
   needs:
     - job: build-for-haze
   tags:
-    - certs-tests
-    - haze
+    - certs-tests4
+    - haze4
 
 .certification:R4:turris-omnia:
   stage: certification-R4-turris-omnia
