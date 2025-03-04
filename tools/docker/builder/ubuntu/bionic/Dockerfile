@@ -116,10 +116,10 @@ RUN \
     make install -C libraries/libamxc && \
     make install -C libraries/libamxp && \
     make install -C libraries/libamxd && \
-    make install -C libraries/libamxj && \
     make install -C libraries/libamxb && \
     make install -C libraries/libamxs && \
     make install -C libraries/libamxo && \
+    make install -C libraries/libamxj && \
     make install -C libraries/libamxrt && \
     make install -C applications/amxb-inspect && \
     make install -C applications/amxo-cg && \
