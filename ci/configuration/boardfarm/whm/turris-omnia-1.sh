@@ -62,7 +62,7 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Enable=1"
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
 # Enable when hostapd on this target supports it
-ba-cli "WiFi.AccessPoint.*.MBOEnable=1"
+# ba-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
