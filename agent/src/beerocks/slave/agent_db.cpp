@@ -146,8 +146,8 @@ bool AgentDB::dm_set_agent_mac(const std::string &mac)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
 
-    // Set MACAddress, Data model path: X_PRPL-ORG.prplMeshAgent.MACAddress
-    if (!m_ambiorix_datamodel->set("X_PRPL-ORG.prplMeshAgent", "MACAddress", mac)) {
+    // Set MACAddress, Data model path: X_PRPLWARE-COM_Agent.Info.MACAddress
+    if (!m_ambiorix_datamodel->set("X_PRPLWARE-COM_Agent.Info", "MACAddress", mac)) {
         LOG(ERROR) << "Failed to set Agent with mac: " << mac;
         return false;
     }
@@ -158,38 +158,38 @@ void AgentDB::dm_set_fronthaul_interfaces(const std::string &interfaces)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
 
-    m_ambiorix_datamodel->set("X_PRPL-ORG.prplMeshAgent", "FronthaulIfaces", interfaces);
+    m_ambiorix_datamodel->set("X_PRPLWARE-COM_Agent.Info", "FronthaulIfaces", interfaces);
 }
 
 void AgentDB::dm_set_agent_state(const std::string &cur, const std::string &max)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
 
-    m_ambiorix_datamodel->set("X_PRPL-ORG.prplMeshAgent", "CurrentState", cur);
-    m_ambiorix_datamodel->set("X_PRPL-ORG.prplMeshAgent", "BestState", max);
+    m_ambiorix_datamodel->set("X_PRPLWARE-COM_Agent.Info", "CurrentState", cur);
+    m_ambiorix_datamodel->set("X_PRPLWARE-COM_Agent.Info", "BestState", max);
 }
 
 void AgentDB::dm_set_management_mode(const std::string &mode)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
 
-    m_ambiorix_datamodel->set("X_PRPL-ORG.prplMeshAgent", "ManagementMode", mode);
+    m_ambiorix_datamodel->set("X_PRPLWARE-COM_Agent.Info", "ManagementMode", mode);
 }
 
 std::string AgentDB::dm_create_fronthaul_object(const std::string &iface)
 {
     auto idx = m_ambiorix_datamodel->get_instance_index(
-        "X_PRPL-ORG.prplMeshAgent.Fronthaul.[Iface == '%s']", iface);
+        "X_PRPLWARE-COM_Agent.Info.Fronthaul.[Iface == '%s']", iface);
 
     if (idx) {
-        m_ambiorix_datamodel->remove_instance("X_PRPL-ORG.prplMeshAgent.Fronthaul", idx);
+        m_ambiorix_datamodel->remove_instance("X_PRPLWARE-COM_Agent.Info.Fronthaul", idx);
     }
 #ifndef ENABLE_NBAPI
     return "";
 #else
-    auto inst = m_ambiorix_datamodel->add_instance("X_PRPL-ORG.prplMeshAgent.Fronthaul");
+    auto inst = m_ambiorix_datamodel->add_instance("X_PRPLWARE-COM_Agent.Info.Fronthaul");
     LOG_IF(!inst.size(), FATAL)
-        << "Could not create X_PRPL-ORG.prplMeshAgent.Fronthaul instance for " << iface;
+        << "Could not create X_PRPLWARE-COM_Agent.Info.Fronthaul instance for " << iface;
 
     m_ambiorix_datamodel->set(inst, "Iface", iface);
     m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));

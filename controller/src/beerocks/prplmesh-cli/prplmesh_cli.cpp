@@ -277,7 +277,7 @@ bool prplmesh_cli::prpl_conn_map()
 
 operating_mode prplmesh_cli::get_operating_mode(bool &agt_timed_out, bool &ctl_timed_out)
 {
-    std::string agent_path = "X_PRPL-ORG.prplMeshAgent.";
+    std::string agent_path = "X_PRPLWARE-COM_Agent.Info.";
     bool agent_dm_found    = m_amx_client->get_object(agent_path, agt_timed_out);
 
     std::string network_path = CONTROLLER_ROOT_DM ".Network.";
@@ -354,7 +354,7 @@ bool prplmesh_cli::print_status(const std::string &format)
     }
 
     if (state.mode & PPM_OPMODE_AGENT_ONLY) {
-        string agent_path = "X_PRPL-ORG.prplMeshAgent.";
+        string agent_path = "X_PRPLWARE-COM_Agent.Info.";
         auto agent_obj    = m_amx_client->get_object(agent_path);
 
         state.agent_mac           = GET_CHAR(agent_obj, "MACAddress");
