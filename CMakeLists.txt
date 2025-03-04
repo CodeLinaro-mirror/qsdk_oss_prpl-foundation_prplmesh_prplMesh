@@ -14,6 +14,11 @@ if (NOT DEFINED CONTROLLER_ROOT_DM)
     set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_Controller")
 endif()
 
+if (NOT DEFINED AGENT_ROOT_DM)
+    set(AGENT_ROOT_DM "X_PRPLWARE-COM_Agent")
+    add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
+endif()
+
 string(REPLACE "." "\\." CONTROLLER_ROOT_DM_literal ${CONTROLLER_ROOT_DM})
 set(CONTROLLER_ROOT_DM_Header "")
 set(CONTROLLER_ROOT_DM_Footer "")
@@ -22,6 +27,8 @@ foreach(object IN LISTS CONTROLLER_ROOT_DM_SPLIT)
     set(CONTROLLER_ROOT_DM_Header "${CONTROLLER_ROOT_DM_Header}object ${object} {   ")
     set(CONTROLLER_ROOT_DM_Footer "${CONTROLLER_ROOT_DM_Footer}} ")
 endforeach()
+
+## Build options
 
 option (BUILD_AGENT "Build EasyMesh agent" ON)
 option (BUILD_CONTROLLER "Build EasyMesh controller" ON)
