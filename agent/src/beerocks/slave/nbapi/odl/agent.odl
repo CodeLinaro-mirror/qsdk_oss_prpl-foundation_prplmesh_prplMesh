@@ -10,8 +10,8 @@
 %define {
 
     // Define main data model
-    object X_PRPL-ORG {
-        %read-only object prplMeshAgent {
+    object X_PRPLWARE-COM_Agent {
+        %read-only object Info {
             %read-only string MACAddress = "00:00:00:00:00:00";
             %read-only string FronthaulIfaces = "";
             %read-only string CurrentState = "";
