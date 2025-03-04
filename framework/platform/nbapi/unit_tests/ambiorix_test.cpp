@@ -47,7 +47,15 @@ constexpr auto g_param_value_foo       = "Foo";
 constexpr auto g_param_value_bar       = "Bar";
 constexpr auto g_param_value_baz       = "Baz";
 constexpr auto g_odl_filename_template = "ambiorix_test.odl.XXXXXX";
-constexpr auto g_odl_contents          = "%define {\n"
+constexpr auto g_odl_contents          = "%config {\n"
+                                "    backends = ["
+                                "        \"/fake/backend.so\"\n"
+                                "    ];\n"
+                                "    uris = ["
+                                "        \"mockbe:/path\"\n"
+                                "    ];\n"
+                                "}\n"
+                                "%define {\n"
                                 "    object Test {\n"
                                 "        object Container {\n"
                                 "            %read-only string String = \"\";\n"
@@ -94,6 +102,7 @@ public:
         : m_odl_file(std::string(g_odl_filename_template), std::string(g_odl_contents)){};
 
 protected:
+    std::shared_ptr<beerocks::nbapi::Amxrt> amxrt;
     std::shared_ptr<beerocks::nbapi::AmbiorixImpl> m_ambiorix;
 
     amxd_object_t *find_object(const std::string &relative_path)
@@ -109,6 +118,8 @@ private:
 
     void SetUp() override
     {
+        // init amxrt struct used by AmbiorixImpl
+        amxrt        = std::make_shared<beerocks::nbapi::Amxrt>();
         m_event_loop = std::make_shared<StrictMock<beerocks::EventLoopMock>>();
         m_ambiorix   = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
             m_event_loop, std::vector<beerocks::nbapi::sActionsCallback>(),
@@ -122,8 +133,7 @@ private:
         EXPECT_CALL(m_amxb_mock, amxb_get_fd(_)).WillRepeatedly(Return(42));
 
         EXPECT_CALL(*m_event_loop, register_handlers(_, _)).WillRepeatedly(Return(true));
-        EXPECT_TRUE(m_ambiorix->init("/fake/backend.so", "mockbe:/path",
-                                     std::string(m_odl_file.get_odl_filename())));
+        EXPECT_TRUE(m_ambiorix->init(std::string(m_odl_file.get_odl_filename())));
         ASSERT_TRUE(m_datamodel != nullptr);
     }
 
@@ -138,6 +148,7 @@ private:
         // thus manually release pointer managed by shared_ptr
         // Calling reset() in turn calls the object's destructor so previous expectations are satisfied.
         m_ambiorix.reset();
+        amxrt.reset();
     }
 };
 
