@@ -10,6 +10,11 @@ set(DATAMODELS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/odl)
 
 message(STATUS "Test agent data model:")
 
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/odl/agent.odl.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/odl/agent.odl"
+)
+
 # Parse agent.odl file
 execute_process(COMMAND amxo-cg ${DATAMODELS_PATH}/agent.odl RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
 
