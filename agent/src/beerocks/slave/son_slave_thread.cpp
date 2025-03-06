@@ -264,6 +264,8 @@ bool slave_thread::thread_init()
             ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::VIRTUAL_BSS_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE,
+            ieee1905_1::eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE,
+            ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE,
             // Controller's messages which are used to update connectivity
             ieee1905_1::eMessageType::ACK_MESSAGE,
             ieee1905_1::eMessageType::LINK_METRIC_QUERY_MESSAGE,
@@ -915,6 +917,10 @@ bool slave_thread::handle_cmdu_from_broker(uint32_t iface_index, const sMacAddr 
                                 beerocks::net::FileDescriptor::invalid_descriptor, beerocks_header);
         return true;
     }
+    case ieee1905_1::eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE:
+        return handle_client_association_request(cmdu_rx);
+    case ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE:
+        return handle_client_steering_request(cmdu_rx);
     default: {
         m_task_pool.handle_cmdu(cmdu_rx, iface_index, dst_mac, src_mac,
                                 beerocks::net::FileDescriptor::invalid_descriptor);
@@ -939,10 +945,6 @@ bool slave_thread::handle_cmdu_control_ieee1905_1_message(int fd,
         return handle_ap_metrics_query(fd, cmdu_rx);
     case ieee1905_1::eMessageType::BEACON_METRICS_QUERY_MESSAGE:
         return handle_beacon_metrics_query(fd, cmdu_rx);
-    case ieee1905_1::eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE:
-        return handle_client_association_request(fd, cmdu_rx);
-    case ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE:
-        return handle_client_steering_request(fd, cmdu_rx);
     case ieee1905_1::eMessageType::HIGHER_LAYER_DATA_MESSAGE:
         return handle_1905_higher_layer_data_message(fd, cmdu_rx);
     case ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE:
@@ -4901,7 +4903,7 @@ bool slave_thread::forward_cmdu_to_controller(ieee1905_1::CmduMessageRx &cmdu_rx
     return m_broker_client->forward_cmdu(cmdu_rx, dst_addr, db->bridge.mac);
 }
 
-bool slave_thread::handle_client_association_request(int fd, ieee1905_1::CmduMessageRx &cmdu_rx)
+bool slave_thread::handle_client_association_request(ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     const auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "Received CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE, mid=" << std::dec
@@ -5067,7 +5069,7 @@ bool slave_thread::handle_ack_message(int fd, ieee1905_1::CmduMessageRx &cmdu_rx
     return true;
 }
 
-bool slave_thread::handle_client_steering_request(int fd, ieee1905_1::CmduMessageRx &cmdu_rx)
+bool slave_thread::handle_client_steering_request(ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     const auto mid = cmdu_rx.getMessageId();
 
@@ -5090,6 +5092,67 @@ bool slave_thread::handle_client_steering_request(int fd, ieee1905_1::CmduMessag
         // TODO Handle 0 or more then 1 sta in list, currenlty cli steers only 1 client
         LOG(DEBUG) << "Request Mode bit is set - Steering Mandate";
 
+        sMacAddr sta_mac = steering_request_tlv_profile2
+                               ? std::get<1>(steering_request_tlv_profile2->sta_list(0))
+                               : std::get<1>(steering_request_tlv->sta_list(0));
+
+        sMacAddr source_bssid = steering_request_tlv_profile2
+                                    ? steering_request_tlv_profile2->bssid()
+                                    : steering_request_tlv->bssid();
+
+        auto db    = AgentDB::get();
+        auto radio = db->get_radio_by_mac(source_bssid, AgentDB::eMacType::BSSID);
+        if (!radio) {
+            LOG(ERROR) << "Radio with BSSID " << source_bssid
+                       << " as requested on steering request, not found ";
+            return false;
+        }
+
+        auto associated_sta = radio->associated_clients.find(sta_mac);
+        if (associated_sta == radio->associated_clients.end()) {
+            if (!cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {
+                LOG(ERROR) << "cmdu creation of type ACK_MESSAGE, has failed";
+                return false;
+            }
+            auto error_code_tlv = cmdu_tx.addClass<wfa_map::tlvErrorCode>();
+            if (!error_code_tlv) {
+                LOG(ERROR) << "addClass wfa_map::tlvErrorCode has failed";
+                return false;
+            }
+            error_code_tlv->reason_code() =
+                wfa_map::tlvErrorCode::STA_NOT_ASSOCIATED_WITH_ANY_BSS_OPERATED_BY_THE_AGENT;
+            error_code_tlv->sta_mac() = sta_mac;
+            LOG(DEBUG) << "sending ACK message back to controller with mid: " << std::hex << mid;
+            return send_cmdu_to_controller({}, cmdu_tx);
+        }
+
+        auto btm = db->steering_policy.btm_steering_disallowed.find(sta_mac);
+        if (btm != db->steering_policy.btm_steering_disallowed.end()) {
+
+            auto request_out = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_CLIENT_DISCONNECT_REQUEST>(cmdu_tx, mid);
+            if (request_out == nullptr) {
+                LOG(ERROR) << "Failed building ACTION_APMANAGER_CLIENT_DISCONNECT_REQUEST message!";
+                return false;
+            }
+
+            auto it = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
+                                   [&](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
+                                       return bssid.mac == source_bssid;
+                                   });
+
+            int8_t index =
+                (it != radio->front.bssids.end()) ? it - radio->front.bssids.begin() : -1;
+
+            request_out->mac()    = sta_mac;
+            request_out->vap_id() = index;
+            request_out->type()   = beerocks_message::eDisconnect_Type_Deauth;
+            request_out->reason() = beerocks_message::eWifi_Steering_Event_Client_Disconnect;
+            request_out->src()    = beerocks_message::eClient_Disconnect_Source_Ignore;
+
+            return send_cmdu(m_radio_managers[radio->front.iface_name].ap_manager_fd, cmdu_tx);
+        }
+
         auto request_out = message_com::create_vs_message<
             beerocks_message::cACTION_APMANAGER_CLIENT_BSS_STEER_REQUEST>(cmdu_tx, mid);
         if (!request_out) {
@@ -5097,10 +5160,11 @@ bool slave_thread::handle_client_steering_request(int fd, ieee1905_1::CmduMessag
             return false;
         }
 
+        request_out->params().mac       = sta_mac;
+        request_out->params().cur_bssid = source_bssid;
+
         if (steering_request_tlv_profile2) {
-            auto bssid_list                 = steering_request_tlv_profile2->target_bssid_list(0);
-            request_out->params().cur_bssid = steering_request_tlv_profile2->bssid();
-            request_out->params().mac = std::get<1>(steering_request_tlv_profile2->sta_list(0));
+            auto bssid_list = steering_request_tlv_profile2->target_bssid_list(0);
             request_out->params().disassoc_timer_ms =
                 steering_request_tlv_profile2->btm_disassociation_timer_ms();
             request_out->params().target.bssid = std::get<1>(bssid_list).target_bssid;
@@ -5112,9 +5176,7 @@ bool slave_thread::handle_client_steering_request(int fd, ieee1905_1::CmduMessag
                 steering_request_tlv_profile2->request_flags().btm_disassociation_imminent_bit;
             request_out->params().target.reason = std::get<1>(bssid_list).target_bss_reason_code;
         } else {
-            auto bssid_list                 = steering_request_tlv->target_bssid_list(0);
-            request_out->params().cur_bssid = steering_request_tlv->bssid();
-            request_out->params().mac       = std::get<1>(steering_request_tlv->sta_list(0));
+            auto bssid_list = steering_request_tlv->target_bssid_list(0);
             request_out->params().disassoc_timer_ms =
                 steering_request_tlv->btm_disassociation_timer_ms();
             request_out->params().target.bssid = std::get<1>(bssid_list).target_bssid;
@@ -5125,15 +5187,6 @@ bool slave_thread::handle_client_steering_request(int fd, ieee1905_1::CmduMessag
             request_out->params().disassoc_imminent =
                 steering_request_tlv->request_flags().btm_disassociation_imminent_bit;
             request_out->params().target.reason = -1; // Mark that reason is not added
-        }
-
-        auto db = AgentDB::get();
-        auto radio =
-            db->get_radio_by_mac(request_out->params().cur_bssid, AgentDB::eMacType::BSSID);
-        if (!radio) {
-            LOG(ERROR) << "Radio with BSSID " << request_out->params().cur_bssid
-                       << " as requested on steering request, not found ";
-            return false;
         }
 
         send_cmdu(m_radio_managers[radio->front.iface_name].ap_manager_fd, cmdu_tx);

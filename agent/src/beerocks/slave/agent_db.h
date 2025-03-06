@@ -427,6 +427,10 @@ public:
         uint32_t number_of_reports_in_last_minute = 0;
     } link_metrics_policy;
 
+    struct {
+        std::unordered_set<sMacAddr> btm_steering_disallowed;
+    } steering_policy;
+
     struct sChannelPreference {
         sChannelPreference(uint8_t oper_class,
                            wfa_map::cPreferenceOperatingClasses::ePreference preference,

@@ -1391,7 +1391,19 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
     /** Steering Policy **/
     auto steering_policy_tlv = cmdu_rx.getClass<wfa_map::tlvSteeringPolicy>();
     if (steering_policy_tlv) {
-        // For the time being, agent doesn't do steering so steering policy is ignored.
+        //BTM Steering Disallowed list
+        std::unordered_set<sMacAddr> new_disallowed_stas;
+        for (size_t i = 0; i < steering_policy_tlv->btm_steering_disallowed_sta_list_length();
+             i++) {
+            auto tuple = steering_policy_tlv->btm_steering_disallowed_sta_list(i);
+            if (!std::get<0>(tuple)) {
+                LOG(ERROR) << "Failed to get btm_steering_disallowed_sta[" << i
+                           << "] from TLV_STEERING_POLICY";
+                return;
+            }
+            new_disallowed_stas.insert(std::get<1>(tuple));
+        }
+        db->steering_policy.btm_steering_disallowed = std::move(new_disallowed_stas);
     }
 
     /** Link Metrics Policy **/

@@ -479,9 +479,9 @@ private:
     bool handle_ap_metrics_query(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_monitor_ap_metrics_response(const std::string &fronthaul_iface, int fd,
                                             ieee1905_1::CmduMessageRx &cmdu_rx);
-    bool handle_client_association_request(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool handle_client_association_request(ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_1905_higher_layer_data_message(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
-    bool handle_client_steering_request(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool handle_client_steering_request(ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_beacon_metrics_query(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_ack_message(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_unassoc_sta_link_metric_query(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
