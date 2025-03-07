@@ -523,6 +523,18 @@ void sta_wlan_hal_nl80211::update_status(const ConnectionStatus &connection_stat
 
 bool sta_wlan_hal_nl80211::clear_non_associated_devices() { return true; }
 
+bool sta_wlan_hal_nl80211::update_mld_mode(uint8_t mld_mode)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return true;
+}
+
+bool sta_wlan_hal_nl80211::update_mld_unit(int8_t mld_unit)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return true;
+}
+
 } // namespace nl80211
 
 std::shared_ptr<sta_wlan_hal> sta_wlan_hal_create(const std::string &iface_name,

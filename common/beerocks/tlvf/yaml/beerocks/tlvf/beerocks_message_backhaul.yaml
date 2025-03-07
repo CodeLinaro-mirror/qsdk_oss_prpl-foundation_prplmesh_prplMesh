@@ -172,6 +172,15 @@ cACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT:
     _type: sMacAddr
   enable : uint8_t #bool
 
+cACTION_BACKHAUL_MLD_UPDATE_REQUEST:
+  _type: class
+  radio_mac:
+    _type: sMacAddr
+  mld_unit:
+    _type: int8_t
+  mld_mode:
+    _type: uint8_t
+
 ################################################
 # CHANNEL SCAN REQUESTS/RESPONSES
 ################################################

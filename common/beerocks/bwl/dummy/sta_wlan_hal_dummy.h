@@ -61,6 +61,8 @@ public:
     virtual int get_channel() override;
     virtual bool update_status() override;
     virtual bool clear_non_associated_devices() override;
+    virtual bool update_mld_mode(uint8_t mld_mode) override;
+    virtual bool update_mld_unit(int8_t mld_unit) override;
 
     std::string get_ssid() override;
     std::string get_bssid() override;

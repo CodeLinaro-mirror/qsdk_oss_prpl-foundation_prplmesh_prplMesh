@@ -1884,6 +1884,26 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
                               tlvf::mac_to_string(config_data->bssid_attr().data), channel, false);
         break;
     }
+    case beerocks_message::ACTION_BACKHAUL_MLD_UPDATE_REQUEST: {
+        auto request =
+            beerocks_header->addClass<beerocks_message::cACTION_BACKHAUL_MLD_UPDATE_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass ACTION_BACKHAUL_MLD_UPDATE_REQUEST failed";
+            return false;
+        }
+
+        const sMacAddr &radio_mac = request->radio_mac();
+
+        LOG(DEBUG) << "handle ACTION_BACKHAUL_MLD_UPDATE_REQUEST for bsta on radio " << radio_mac;
+        auto sta_wlan_hal = get_wireless_hal(radio_mac);
+        if (!sta_wlan_hal) {
+            LOG(ERROR) << "Failed to get wireless hal for radio " << radio_mac;
+            return false;
+        }
+        sta_wlan_hal->update_mld_mode(request->mld_mode());
+        sta_wlan_hal->update_mld_unit(request->mld_unit());
+        break;
+    }
     case beerocks_message::ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT: {
         LOG(TRACE) << "received ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT";
         auto request =
@@ -1896,9 +1916,11 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
 
         const sMacAddr &radio_mac = request->radio_mac();
 
-        LOG(DEBUG) << "handle ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT for bsta " << radio_mac;
+        LOG(DEBUG) << "handle ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT for bsta on radio "
+                   << radio_mac;
         auto sta_wlan_hal = get_wireless_hal(radio_mac);
         if (!sta_wlan_hal) {
+            LOG(ERROR) << "Failed to get wireless hal for radio " << radio_mac;
             return false;
         }
 
@@ -2122,6 +2144,11 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             }
             LOG(INFO) << "Multi-AP-Profile: " << msg->multi_ap_profile
                       << ", Multi-AP Primary VLAN ID: " << msg->multi_ap_primary_vlan_id;
+
+            if (db->bsta_mld_configuration) {
+                LOG(INFO) << "Fill AP MLD MAC Address with " << msg->mac_address;
+                db->bsta_mld_configuration->ap_mld_mac = msg->mac_address;
+            }
 
             db->traffic_separation.primary_vlan_id = msg->multi_ap_primary_vlan_id;
             db->backhaul.bssid_multi_ap_profile    = msg->multi_ap_profile;

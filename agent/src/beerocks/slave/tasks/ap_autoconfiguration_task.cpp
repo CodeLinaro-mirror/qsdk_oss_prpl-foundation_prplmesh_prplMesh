@@ -39,6 +39,7 @@
 #include <tlvf/ieee_1905_1/tlvSupportedRole.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvApRadioIdentifier.h>
+#include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvChannelScanReportingPolicy.h>
 #include <tlvf/wfa_map/tlvControllerCapability.h>
 #include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
@@ -1297,6 +1298,10 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_wsc_m8_tlv has failed!";
         return;
     }
+    if (!handle_bsta_mld_configuration_tlv(cmdu_rx, configs, ruid->radio_uid(), true)) {
+        LOG(ERROR) << "handle_bsta_mld_configuration_tlv has failed!";
+        return;
+    }
     if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, configs)) {
         LOG(ERROR) << "handle_agent_ap_mld_configuration_tlv has failed!";
         return;
@@ -1353,6 +1358,13 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_ap_autoconfiguration_wsc_vs_extension_tlv has failed";
         return;
     }
+
+    // Send MLD requests after sending BSS configuration
+    for (auto &bsta_mld_request : bsta_mld_requests_infos) {
+        send_bsta_mld_configuration(bsta_mld_request.first, bsta_mld_request.second.first,
+                                    bsta_mld_request.second.second);
+    }
+    bsta_mld_requests_infos.clear();
 
     // Initialize for next state
     auto &radio_conf_params = m_radios_conf_params[radio->front.iface_name];
@@ -2048,6 +2060,146 @@ bool ApAutoConfigurationTask::send_bsta_configuration(const sMacAddr &radio_mac,
 
     LOG(INFO) << "Sending ACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST to BH manager";
     return backhaul_manager_cmdu_client->send_cmdu(m_cmdu_tx);
+}
+
+bool ApAutoConfigurationTask::send_bsta_mld_configuration(const sMacAddr &ruid, int8_t mld_unit,
+                                                          uint8_t mld_mode, bool initialization)
+{
+    // Save temporarily bSTA MLD configuration to send it later
+    if (initialization) {
+        bsta_mld_requests_infos[ruid] = {mld_unit, mld_mode};
+        return true;
+    }
+
+    auto request =
+        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_MLD_UPDATE_REQUEST>(
+            m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed building message cACTION_BACKHAUL_MLD_UPDATE_REQUEST!";
+        return false;
+    }
+    auto backhaul_manager_cmdu_client = m_btl_ctx.get_backhaul_manager_cmdu_client();
+    if (!backhaul_manager_cmdu_client) {
+        LOG(ERROR) << "Failed to get backhaul manager cmdu client";
+        return false;
+    }
+    request->radio_mac() = ruid;
+    request->mld_unit()  = mld_unit;
+    request->mld_mode()  = mld_mode;
+
+    if (!backhaul_manager_cmdu_client->send_cmdu(m_cmdu_tx)) {
+        LOG(ERROR) << "Can't send ACTION_BACKHAUL_MLD_UPDATE_REQUEST";
+        return false;
+    }
+    return true;
+}
+
+bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::configData::config> &configs,
+    const sMacAddr &ruid, bool initialization)
+{
+    bool ret_code = true;
+
+    auto db(AgentDB::get());
+
+    // In case bsta mld configuration TLV isn't received, disable MLO.
+    // It handles controller change cases with no WiFi 7 support
+    auto bsta_mld_configuration(cmdu_rx.getClass<wfa_map::tlvBackhaulStaMldConfiguration>());
+    if (!bsta_mld_configuration) {
+        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, "
+                   << "send ACTION_BACKHAUL_MLD_UPDATE_REQUEST to BH manager with -1";
+        return send_bsta_mld_configuration(
+            ruid, DISABLED_MLD_UNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE),
+            initialization);
+    }
+
+    if (!db->bsta_mld_configuration) {
+        db->bsta_mld_configuration = std::make_unique<AgentDB::sBStaMLDConfiguration>();
+    }
+    // Find new MLD Unit
+    if (db->bsta_mld_configuration->mld_config.mld_unit == DISABLED_MLD_UNIT) {
+        std::unordered_set<int8_t> used_mld_units;
+        if (db->bsta_mld_configuration) {
+            used_mld_units.insert(db->bsta_mld_configuration->mld_config.mld_unit);
+        }
+        for (auto ap_mld_conf : db->ap_mld_configurations) {
+            used_mld_units.insert(ap_mld_conf.mld_config.mld_unit);
+        }
+        for (int8_t mld_unit = 0; mld_unit < db->max_mlds; ++mld_unit) {
+            if (used_mld_units.find(mld_unit) == used_mld_units.end()) {
+                db->bsta_mld_configuration->mld_config.mld_unit = mld_unit;
+                LOG(DEBUG) << "MLD Unit " << mld_unit << " has been assigned to bSTA MLD ";
+                break;
+            }
+        }
+    }
+
+    db->bsta_mld_configuration->mld_config.mld_mac = bsta_mld_configuration->bsta_mld_mac_addr();
+    if (bsta_mld_configuration->modes().str) {
+        db->bsta_mld_configuration->mld_config.mld_mode =
+            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
+                                             AgentDB::sMLDConfiguration::mode::STR);
+    }
+    if (bsta_mld_configuration->modes().nstr) {
+        db->bsta_mld_configuration->mld_config.mld_mode =
+            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
+                                             AgentDB::sMLDConfiguration::mode::NSTR);
+    }
+    if (bsta_mld_configuration->modes().emlsr) {
+        db->bsta_mld_configuration->mld_config.mld_mode =
+            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
+                                             AgentDB::sMLDConfiguration::mode::EMLSR);
+    }
+    if (bsta_mld_configuration->modes().emlmr) {
+        db->bsta_mld_configuration->mld_config.mld_mode =
+            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
+                                             AgentDB::sMLDConfiguration::mode::EMLMR);
+    }
+
+    LOG(DEBUG) << "Storing MLD configuration for bSTA MLD "
+               << ": [MLD_Unit=" << db->bsta_mld_configuration->mld_config.mld_unit
+               << ", MLD_Mode=" << std::hex << db->bsta_mld_configuration->mld_config.mld_mode
+               << "]";
+
+    // If no MLO configuration, set -1 for MLDUnit
+    if (db->bsta_mld_configuration->mld_config.mld_mode == AgentDB::sMLDConfiguration::mode::NONE) {
+        LOG(DEBUG) << "All MLO modes are disabled, "
+                   << "send ACTION_BACKHAUL_MLD_UPDATE_REQUEST to BH manager with -1";
+        return send_bsta_mld_configuration(
+            ruid, DISABLED_MLD_UNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE),
+            initialization);
+    }
+
+    for (uint8_t affiliated_bsta_it = 0;
+         affiliated_bsta_it < bsta_mld_configuration->num_affiliated_bsta(); ++affiliated_bsta_it) {
+        std::tuple<bool, wfa_map::cAffiliatedBhSta &> affiliated_bsta_tuple(
+            bsta_mld_configuration->affiliated_bsta(affiliated_bsta_it));
+        if (!std::get<0>(affiliated_bsta_tuple)) {
+            LOG(ERROR) << "Couldn't get Affiliated bSTA from bSTA MLD SSID : "
+                       << db->bsta_mld_configuration->mld_config.mld_ssid;
+            ret_code = false;
+            continue;
+        }
+
+        sMacAddr bsta_ruid = std::get<1>(affiliated_bsta_tuple).ruid();
+        bool ruid_found(false);
+        for (const auto &affiliated_bsta : db->bsta_mld_configuration->affiliated_bstas) {
+            if (affiliated_bsta.ruid == bsta_ruid) {
+                ruid_found = true;
+            }
+        }
+        if (!ruid_found) {
+            db->bsta_mld_configuration->affiliated_bstas.push_back(
+                AgentDB::sBStaMLDConfiguration::sAffiliatedBSta());
+            db->bsta_mld_configuration->affiliated_bstas.back().ruid = bsta_ruid;
+        }
+
+        ret_code &= send_bsta_mld_configuration(
+            bsta_ruid, db->bsta_mld_configuration->mld_config.mld_unit,
+            static_cast<uint8_t>(db->bsta_mld_configuration->mld_config.mld_mode), initialization);
+    }
+
+    return ret_code;
 }
 
 bool ApAutoConfigurationTask::send_enable_disable_endpoint(const sMacAddr &radio_mac,
