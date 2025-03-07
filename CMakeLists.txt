@@ -11,11 +11,11 @@ endif()
 
 ## PrplMesh Controller datamodel root path
 if (NOT DEFINED CONTROLLER_ROOT_DM)
-    set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_Controller")
+    set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_prplMesh.Controller")
 endif()
 
 if (NOT DEFINED AGENT_ROOT_DM)
-    set(AGENT_ROOT_DM "X_PRPLWARE-COM_Agent")
+    set(AGENT_ROOT_DM "X_PRPLWARE-COM_prplMesh.Agent")
     add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
 endif()
 

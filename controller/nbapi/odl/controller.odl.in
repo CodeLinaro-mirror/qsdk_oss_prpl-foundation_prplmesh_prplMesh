@@ -117,79 +117,132 @@
 
 %define {
 
-    // Define main data model
     %persistent @CONTROLLER_ROOT_DM_Header@
+                /* Configuration options for the controller */
                 %persistent object Configuration {
-                    // Used in channel_selection_task and optimal_path_task
+
+                    /* Enables the persistent database to store clients persistently. Requires platform support */
+                    %persistent bool PersistentDatabaseEnabled {
+                        default false;
+                    }
+
+                    /* Maximum number of clients to store in the persistent database */
+                    %persistent uint32 ClientsPersistentDatabaseMaxSize {
+                        default 256;
+                    }
+
+                    /* Maximum lifetime (in minutes) of clients in the persistent database */
+                    %persistent uint32 MaxTimeLifeDelayMinutes {
+                        default 525600;
+                    }
+
+                    /* Maximum lifetime (in minutes) of "unfriendly" clients in the persistent database */
+                    %persistent uint32 UnfriendlyDeviceMaxTimeLifeDelayMinutes {
+                        default 1440;
+                    }
+
+                    /* Interval (in seconds) to run the persistent DB aging mechanism */
+                    %persistent uint32 PersistentDatabaseAgingIntervalSec {
+                        default 3600;
+                    }
+
+                    /* If enabled, band steering will be used to optimize STA connection */
                     %persistent bool BandSteeringEnabled {
                         userflags %upc;
                         default false;
                     }
 
-                    // Used in optimal_path_task
-                    %persistent bool ClientRoamingEnabled { 
+                    /* If enabled, client roaming is active in the optimal path task */
+                    %persistent bool ClientRoamingEnabled {
                         userflags %upc;
                         default false;
                     }
 
-                    // Used in optimal_path_task to compute new BSS for the STA based on 11k measurements by STA
-                    bool Client_11kRoaming = true;
+                    /* Used in optimal_path_task to compute new BSS for the STA based on 11k measurements by STA */
+                    %persistent bool Client11kRoamingEnabled {
+                        default true;
+                    }
 
-                    // Used in optimal_path_task; applies bonus to current BSS {phy_rate or rssi};
-                    // choice of parameter is based on prefer_signal_strength flag
-                    %persistent uint32 SteeringCurrentBonus = 0 {
+                    /* Used in optimal_path_task; applies bonus to current BSS {phy_rate or rssi}; 
+                    choice of parameter is based on prefer_signal_strength flag */
+                    %persistent uint32 SteeringCurrentBonus {
                         on action validate call check_range [0, 10000];
                     }
-                     // Used in client_steering_task to format the 1905 Client Steering Request packet sent to the steering source agent
-                    %persistent uint32 SteeringDisassociationTimer = 0;
 
-                    // Link Metric Request Interval in Seconds
-                    %persistent uint32 LinkMetricsRequestInterval = 0;
+                    /* Used in client_steering_task to format the 1905 Client Steering Request 
+                    packet sent to the steering source agent */
+                    %persistent uint32 SteeringDisassociationTimer {
+                        default 0;
+                    }
 
-                    // Used by controller to start / stop channel_select_task
-                    %persistent bool ChannelSelectionTaskEnabled { 
+                    /* Link Metric Request Interval in Seconds */
+                    %persistent uint32 LinkMetricsRequestInterval {
+                        default 0;
+                    }
+
+                    /* Used by controller to start / stop channel selection task */
+                    %persistent bool ChannelSelectionTaskEnabled {
                         userflags %upc;
                         default false;
                     }
                     
-                    // Used by controller to start / stop dynamic_channel_selection_task_r2
-                    %persistent bool DynamicChannelSelectionTaskEnabled  { 
+                    /* Used by controller to start / stop dynamic channel selection task */
+                    %persistent bool DynamicChannelSelectionTaskEnabled {
                         userflags %upc;
                         default false;
                     }
 
-                    // Used to start ire_network_optimization_task
-                    %persistent bool BackhaulOptimizationEnabled = false;
+                    /* Used to start IRE network optimization task */
+                    %persistent bool BackhaulOptimizationEnabled {
+                        default false;
+                    }
 
-                    // load_balancer_task will use (currently TODO?) client_steering_task to move a STA between agents
-                    %persistent bool LoadBalancingTaskEnabled = false;
+                    /* Load balancer task will use client steering task to move a STA between agents */
+                    %persistent bool LoadBalancingTaskEnabled {
+                        default false;
+                    }
 
-                    // Used by optimal_path_task;
-                    // chooses best BSS based on `rssi` if prefer_signal_strength is TRUE, `phy_rate` otherwise
-                    %persistent bool OptimalPathPreferSignalStrength = false;
+                    /* Used by optimal_path_task; chooses best BSS based on `rssi` 
+                    if prefer_signal_strength is TRUE, `phy_rate` otherwise */
+                    %persistent bool OptimalPathPreferSignalStrength {
+                        default false;
+                    }
 
-                    // Used by controller to start / stop the health_check_task
-                    %persistent bool HealthCheckTaskEnabled = false;
+                    /* Used by controller to start / stop the health check task */
+                    %persistent bool HealthCheckTaskEnabled {
+                        default false;
+                    }
 
-                    // Used by controller to start / stop statistics_polling_task
-                    %persistent bool StatisticsPollingTaskEnabled = false;
+                    /* Used by controller to start / stop statistics polling task */
+                    %persistent bool StatisticsPollingTaskEnabled {
+                        default false;
+                    }
 
-                    %persistent uint32 StatisticsPollingRateSec = 1 {
+                    /* Interval (in seconds) for statistics polling task */
+                    %persistent uint32 StatisticsPollingRateSec {
                         on action validate call check_range [1, 10000];
                     }
-                    // Used by channel_selection_task; currently (03.2024) does nothing
-                    // as the task never goes to the state where this flag is checked
-                    %persistent bool DFSReentry = false;
+                    
+                    /* Used by channel selection task; currently (03.2024) does nothing 
+                    as the task never goes to the state where this flag is checked */
+                    %persistent bool DFSReentryEnabled {
+                        default false;
+                    }
 
-                    // Used by handle_cmdu_1905_autoconfiguration_WSC;
-                    // don`t send credentials to extenders if enabled
-                    %persistent bool DaisyChainingDisabled = false;
+                    /* Used by handle_cmdu_1905_autoconfiguration_WSC; don`t send credentials to extenders if enabled */
+                    %persistent bool DaisyChainingDisabled {
+                        default false;
+                    }
 
+                    /* QoS configuration */
                     %persistent object QoS {
-                        %persistent uint32 SPRuleOutput = 0 {
+                        /* Output queue priority mapping */
+                        %persistent uint32 QoSRuleOutput {
                             on action validate call check_range [0, 9];
                         }
-                        %persistent string DSCPMap {
+
+                        /* DSCP to QoS mapping */
+                        %persistent string DSCPMapping {
                             on action validate call check_range [0, 64];
                         }
                     }
