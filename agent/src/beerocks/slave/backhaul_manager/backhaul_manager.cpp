@@ -15,6 +15,7 @@
 #include "../tasks/coordinated_cac_task.h"
 #include "../tasks/switch_channel_task.h"
 #include "../tasks/topology_task.h"
+#include "../tasks/wps_button_poll_task.h"
 #include <bcl/beerocks_cmdu_client_factory_factory.h>
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_timer_factory_impl.h>
@@ -120,6 +121,7 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     // Need add TopologyTask to the dummy Agent workflow, for the
     // handling TOPOLOGY_QUERY messages from the easyMesh Agents
     m_task_pool.add_task(std::make_shared<TopologyTask>(*this, cmdu_tx));
+    m_task_pool.add_task(std::make_shared<WpsButtonPollTask>(*this));
 
     if (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
 

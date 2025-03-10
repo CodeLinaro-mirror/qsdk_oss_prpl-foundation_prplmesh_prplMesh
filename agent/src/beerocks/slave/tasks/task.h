@@ -36,6 +36,7 @@ enum eTaskType : uint8_t {
     PROXY_AGENT_DPP,
     CONTROLLER_CONNECTIVITY,
     VBSS,
+    WPS_BUTTON_POLL,
 };
 
 class Task {
