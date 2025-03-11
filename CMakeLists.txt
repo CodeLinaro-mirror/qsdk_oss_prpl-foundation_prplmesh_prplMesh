@@ -10,6 +10,19 @@ if(NOT DEFINED TARGET_PLATFORM)
 endif()
 
 ## PrplMesh Controller datamodel root path
+function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT_DM_FOOTER_VAR)
+    string(REPLACE "." "\\." ${ROOT_DM_LITERAL_VAR} ${${ROOT_DM_VAR}})
+    set(${ROOT_DM_HEADER_VAR} "" PARENT_SCOPE)
+    set(${ROOT_DM_FOOTER_VAR} "" PARENT_SCOPE)
+    
+    string(REPLACE "." ";" ROOT_DM_SPLIT ${${ROOT_DM_VAR}})
+    foreach(object IN LISTS ROOT_DM_SPLIT)
+        set(${ROOT_DM_HEADER_VAR} "${${ROOT_DM_HEADER_VAR}}object ${object} {   " PARENT_SCOPE)
+        set(${ROOT_DM_FOOTER_VAR} "${${ROOT_DM_FOOTER_VAR}}} " PARENT_SCOPE)
+    endforeach()
+endfunction()
+
+## PrplMesh Controller datamodel root path
 if (NOT DEFINED CONTROLLER_ROOT_DM)
     set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_prplMesh.Controller")
 endif()
@@ -19,14 +32,8 @@ if (NOT DEFINED AGENT_ROOT_DM)
     add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
 endif()
 
-string(REPLACE "." "\\." CONTROLLER_ROOT_DM_literal ${CONTROLLER_ROOT_DM})
-set(CONTROLLER_ROOT_DM_Header "")
-set(CONTROLLER_ROOT_DM_Footer "")
-string(REPLACE "." ";" CONTROLLER_ROOT_DM_SPLIT ${CONTROLLER_ROOT_DM})
-foreach(object IN LISTS CONTROLLER_ROOT_DM_SPLIT)
-    set(CONTROLLER_ROOT_DM_Header "${CONTROLLER_ROOT_DM_Header}object ${object} {   ")
-    set(CONTROLLER_ROOT_DM_Footer "${CONTROLLER_ROOT_DM_Footer}} ")
-endforeach()
+process_root_dm(CONTROLLER_ROOT_DM CONTROLLER_ROOT_DM_literal CONTROLLER_ROOT_DM_Header CONTROLLER_ROOT_DM_Footer)
+process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_ROOT_DM_Footer)
 
 ## Build options
 

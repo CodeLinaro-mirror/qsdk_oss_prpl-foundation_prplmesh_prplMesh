@@ -117,7 +117,7 @@
 
 %define {
 
-    %persistent @CONTROLLER_ROOT_DM_Header@
+    @CONTROLLER_ROOT_DM_Header@
                 /* Configuration options for the controller */
                 %persistent object Configuration {
 

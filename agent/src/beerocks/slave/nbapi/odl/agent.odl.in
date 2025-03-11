@@ -7,11 +7,12 @@
  */
 
 %define {
+    /* The prplMesh Agent object. It contains all parameters and status related 
+    to the Wi-Fi Easymesh implementation, on the client ('Agent') side. */
     
-    /* The prplMesh Agent object. It contains all parameters and status related to 
-    the Wi-Fi Easymesh implementation, on the client ('Agent') side. */
-    object @AGENT_ROOT_DM@ {
-        
+    
+    @CONTROLLER_ROOT_DM_Header@
+
         /* Configuration options for the agent */
         %persistent object Configuration {
             
@@ -89,5 +90,6 @@
                 %read-only string BestState = "";
             }
         }
-    }
+
+    @CONTROLLER_ROOT_DM_Footer@
 }

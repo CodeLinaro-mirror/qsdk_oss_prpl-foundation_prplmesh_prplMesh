@@ -61,14 +61,14 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
             link_directories(${LIBBRIDGE_INCLUDE_DIR})
             set(bridge-ugw "bridge")
         endif()
-
-        # UCI BPL
+        
+        # DM BPL
         file(GLOB_RECURSE bpl_platform_sources 
             ${MODULE_PATH}/arp/linux/*.c*
             ${MODULE_PATH}/board/uci/*.c*
-            ${MODULE_PATH}/cfg/uci/*.c*
-            ${MODULE_PATH}/common/uci/*.c*
-            ${MODULE_PATH}/db/uci/*.c*
+            ${MODULE_PATH}/cfg/dm/*.c*
+            ${MODULE_PATH}/common/uci/*.c* 
+            ${MODULE_PATH}/db/uci/*.c* 
             ${MODULE_PATH}/dhcp/uci/*.c*
             ${MODULE_PATH}/cfg/vendor/*.c*
             ${MODULE_PATH}/service_prioritization/osp_mxl/service_prio_utils_osp_mxl.cpp
@@ -79,7 +79,7 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
         find_package(safec REQUIRED)
 
         link_directories(${PLATFORM_STAGING_DIR}/usr/lib)
-        list(APPEND BPL_LIBS ubus nl-3 nl-route-3 ${bridge-ugw} dl uci ubox safec)
+        list(APPEND BPL_LIBS ubus nl-3 nl-route-3 ${bridge-ugw} dl ubox safec)
 
         # Signal libsafec that we support the C99 standard
         add_definitions(-DHAVE_C99)
@@ -98,6 +98,15 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
           ${MODULE_PATH}/board/system_ubus/*.c*
           ${MODULE_PATH}/service_prioritization/tc/service_prio_utils_tc.cpp
         )
+
+        # file(GLOB_RECURSE bpl_platform_sources
+        #   ${MODULE_PATH}/arp/linux/*.c*
+        #   ${MODULE_PATH}/dhcp/luci_rpc/*.c*
+        #   ${MODULE_PATH}/cfg/dm/*.c*
+        #   ${MODULE_PATH}/cfg/vendor/*.c*
+        #   ${MODULE_PATH}/board/system_ubus/*.c*
+        #   ${MODULE_PATH}/service_prioritization/tc/service_prio_utils_tc.cpp
+        # )
 
         find_package(ubus REQUIRED)
 
@@ -165,7 +174,7 @@ find_package(amxp REQUIRED)
 list(APPEND BPL_LIBS amxb amxc amxd amxp)
 
 if (USE_PRPLMESH_WHM)
-    include_directories(${MODULE_PATH}/cfg/prplMesh_WHM)
+    include_directories(${MODULE_PATH}/cfg/dm)
 
     foreach (item ${bpl_platform_sources})
         if (item MATCHES "bpl.cpp$")
@@ -176,8 +185,8 @@ if (USE_PRPLMESH_WHM)
         endif()
     endforeach()
 
-    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/prplMesh_WHM/bpl.cpp)
-    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/prplMesh_WHM/bpl_cfg_wifi.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_wifi.cpp)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
 
@@ -185,7 +194,7 @@ if (USE_PRPLMESH_WHM)
 else ()
     file(GLOB_RECURSE bpl_platform_sources
         ${MODULE_PATH}/*/linux/*.c*
-	${MODULE_PATH}/service_prioritization/dummy/service_prio_utils_dummy.c*
+	    ${MODULE_PATH}/service_prioritization/dummy/service_prio_utils_dummy.c*
         ${MODULE_PATH}/cfg/dummy/*.c*
     )
 endif()

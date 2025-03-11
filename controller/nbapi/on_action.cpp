@@ -1121,7 +1121,7 @@ bool send_ap_config_renew()
  * @brief Event handler for controller configuration change.
  *
  * event_configuration_changed is invoked when value of parameter
- * in Device.WiFi.DataElements.Configuration object changes with set command.
+ * in CONTROLLER_ROOT_DM.Configuration object changes with set command.
  */
 static void event_configuration_changed(const char *const sig_name, const amxc_var_t *const data,
                                         void *const priv)
