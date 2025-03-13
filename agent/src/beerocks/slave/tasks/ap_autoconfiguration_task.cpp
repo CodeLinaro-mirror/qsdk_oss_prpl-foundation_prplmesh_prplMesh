@@ -820,8 +820,6 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
         db->device_conf.load_balancing_enabled;
     notification->platform_settings().service_fairness_enabled =
         db->device_conf.service_fairness_enabled;
-    notification->platform_settings().rdkb_extensions_enabled =
-        db->device_conf.rdkb_extensions_enabled;
 
     notification->platform_settings().local_master = db->device_conf.local_controller;
 

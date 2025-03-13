@@ -154,7 +154,6 @@ public:
         bool client_11k_roaming_enabled;
         bool load_balancing_enabled;
         bool service_fairness_enabled;
-        bool rdkb_extensions_enabled;
         int zwdfs_flag;
         uint32_t best_channel_rank_threshold;
 

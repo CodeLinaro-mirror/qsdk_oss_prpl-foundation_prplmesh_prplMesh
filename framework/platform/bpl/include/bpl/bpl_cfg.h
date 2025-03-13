@@ -120,7 +120,6 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 
 /* Default values */
 constexpr int DEFAULT_STOP_ON_FAILURE_ATTEMPTS            = 1;
-constexpr int DEFAULT_RDKB_EXTENSIONS                     = 0;
 constexpr int DEFAULT_DFS_REENTRY                         = 1;
 constexpr int DEFAULT_BAND_STEERING                       = 0;
 constexpr int DEFAULT_CLIENT_ROAMING                      = 0;
@@ -442,15 +441,6 @@ int cfg_get_stop_on_failure_attempts();
  * @return -1 Error.
  */
 int cfg_is_onboarding();
-
-/**
- * Checks the state of the RDKB Extensions feature.
- *
- * @return 1 Enabled.
- * @return 0 Disabled.
- * @return -1 Error.
- */
-int cfg_get_rdkb_extensions();
 
 /**
  * @brief Returns whether Band Steering feature is enabled or not.

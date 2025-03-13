@@ -91,7 +91,6 @@ typedef struct sPlatformSettings {
     uint8_t client_11k_roaming_enabled;
     uint8_t load_balancing_enabled;
     uint8_t service_fairness_enabled;
-    uint8_t rdkb_extensions_enabled;
     void struct_swap(){
     }
     void struct_init(){

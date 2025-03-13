@@ -543,12 +543,6 @@ bool slave_thread::read_platform_configuration()
 
     int temp_int;
 
-    if ((temp_int = bpl::cfg_get_rdkb_extensions()) < 0) {
-        LOG(ERROR) << "Failed reading 'rdkb_extensions'";
-        return false;
-    }
-    db->device_conf.rdkb_extensions_enabled = static_cast<bool>(temp_int);
-
     if (!bpl::cfg_get_band_steering(db->device_conf.client_band_steering_enabled)) {
         LOG(DEBUG) << "Failed to read cfg_get_band_steering, setting to default value: "
                    << beerocks::bpl::DEFAULT_BAND_STEERING;
@@ -702,7 +696,6 @@ bool slave_thread::read_platform_configuration()
     LOG(DEBUG) << "local_controller: " << db->device_conf.local_controller;
     LOG(DEBUG) << "backhaul_preferred_radio_band: "
                << db->device_conf.back_radio.backhaul_preferred_radio_band;
-    LOG(DEBUG) << "rdkb_extensions: " << db->device_conf.rdkb_extensions_enabled;
     LOG(DEBUG) << beerocks::utils::get_zwdfs_string(db->device_conf.zwdfs_flag);
     LOG(DEBUG) << "best_channel_rank_threshold: " << db->device_conf.best_channel_rank_threshold;
     LOG(DEBUG) << "max_prioritization_rules: " << db->device_conf.max_prioritization_rules;

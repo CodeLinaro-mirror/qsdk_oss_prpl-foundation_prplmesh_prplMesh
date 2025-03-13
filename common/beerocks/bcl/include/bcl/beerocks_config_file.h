@@ -44,7 +44,6 @@ public:
         std::string load_backhaul_measurements;
         std::string load_front_measurements;
         std::string load_monitor_on_vaps;
-        std::string load_rdkb_extensions;
         std::string global_restricted_channels;
         std::string ire_rssi_report_rate_sec;
         std::string roaming_unconnected_client_rssi_compensation_db;

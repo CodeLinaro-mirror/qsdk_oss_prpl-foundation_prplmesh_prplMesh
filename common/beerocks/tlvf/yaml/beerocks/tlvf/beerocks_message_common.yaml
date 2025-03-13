@@ -76,8 +76,6 @@ sPlatformSettings:
   load_balancing_enabled: uint8_t
   service_fairness_enabled: uint8_t
 
-  rdkb_extensions_enabled: uint8_t
-
 sWlanSettings:
   _type: struct
   band_enabled:
