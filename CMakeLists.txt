@@ -9,31 +9,59 @@ if(NOT DEFINED TARGET_PLATFORM)
     set(TARGET_PLATFORM "linux")
 endif()
 
-## PrplMesh Controller datamodel root path
+## Function to generate defines for ODLs
 function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT_DM_FOOTER_VAR)
     string(REPLACE "." "\\." ${ROOT_DM_LITERAL_VAR} ${${ROOT_DM_VAR}})
-    set(${ROOT_DM_HEADER_VAR} "" PARENT_SCOPE)
-    set(${ROOT_DM_FOOTER_VAR} "" PARENT_SCOPE)
-    
+    set(${ROOT_DM_HEADER_VAR} "")
+    set(${ROOT_DM_FOOTER_VAR} "")
+
     string(REPLACE "." ";" ROOT_DM_SPLIT ${${ROOT_DM_VAR}})
+    
+    set(indent "")
+    set(header "")
+    set(footer "")
+
     foreach(object IN LISTS ROOT_DM_SPLIT)
-        set(${ROOT_DM_HEADER_VAR} "${${ROOT_DM_HEADER_VAR}}object ${object} {   " PARENT_SCOPE)
-        set(${ROOT_DM_FOOTER_VAR} "${${ROOT_DM_FOOTER_VAR}}} " PARENT_SCOPE)
+        set(header "${header}${indent}object ${object} {\n")
+        set(footer "}\n${footer}")
+        set(indent "    ${indent}")
     endforeach()
+
+    set(${ROOT_DM_HEADER_VAR} "${header}" PARENT_SCOPE)
+    set(${ROOT_DM_FOOTER_VAR} "${footer}" PARENT_SCOPE)
 endfunction()
+
+## Device.WiFi.DataElements
+if (NOT DEFINED DATAELEMENTS_ROOT_DM)
+    set(DATAELEMENTS_ROOT_DM "Device.WiFi.DataElements")
+endif()
 
 ## PrplMesh Controller datamodel root path
 if (NOT DEFINED CONTROLLER_ROOT_DM)
     set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_prplMesh.Controller")
 endif()
 
+## PrplMesh Agent datamodel root path
 if (NOT DEFINED AGENT_ROOT_DM)
     set(AGENT_ROOT_DM "X_PRPLWARE-COM_prplMesh.Agent")
-    add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
 endif()
 
+add_definitions(-DDATAELEMENTS_ROOT_DM="${DATAELEMENTS_ROOT_DM}")
+add_definitions(-DCONTROLLER_ROOT_DM="${CONTROLLER_ROOT_DM}")
+add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
+
+process_root_dm(DATAELEMENTS_ROOT_DM DATAELEMENTS_ROOT_DM_literal DATAELEMENTS_ROOT_DM_Header DATAELEMENTS_ROOT_DM_Footer)
 process_root_dm(CONTROLLER_ROOT_DM CONTROLLER_ROOT_DM_literal CONTROLLER_ROOT_DM_Header CONTROLLER_ROOT_DM_Footer)
 process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_ROOT_DM_Footer)
+
+message(STATUS "VOLODYMYR DATAELEMENTS_ROOT_DM: ${DATAELEMENTS_ROOT_DM}")
+message(STATUS "VOLODYMYR DATAELEMENTS_ROOT_DM_Header:\n${DATAELEMENTS_ROOT_DM_Header}")
+message(STATUS "VOLODYMYR DATAELEMENTS_ROOT_DM_Footer:\n${DATAELEMENTS_ROOT_DM_Footer}")
+
+message(STATUS "VOLODYMYR CONTROLLER_ROOT_DM: ${CONTROLLER_ROOT_DM}")
+message(STATUS "VOLODYMYR CONTROLLER_ROOT_DM_Header:\n${CONTROLLER_ROOT_DM_Header}")
+message(STATUS "VOLODYMYR CONTROLLER_ROOT_DM_Footer:\n${CONTROLLER_ROOT_DM_Footer}")
+
 
 ## Build options
 

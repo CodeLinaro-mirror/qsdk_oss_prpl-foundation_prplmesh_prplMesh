@@ -14,7 +14,7 @@
 }
 
 %define {
-    select @CONTROLLER_ROOT_DM@.Network.Device.Radio.BSS {
+    select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.BSS {
 
         /* macaddress */
         %read-only string BSSID = "0";

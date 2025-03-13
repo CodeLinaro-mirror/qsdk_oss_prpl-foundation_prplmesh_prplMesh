@@ -8,7 +8,7 @@
  */
 
 %define {
-    select @CONTROLLER_ROOT_DM@.AgentDisconnectedEvent {
+    select @DATAELEMENTS_ROOT_DM@.AgentDisconnectedEvent {
         %read-only object AgentDisconnected [] {
             counted with AgentDisconnectedNumberOfEntries;
             %read-only string ID = "00:00:00:00:00:00";

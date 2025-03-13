@@ -9,8 +9,6 @@
 #ifndef _DB_H_
 #define _DB_H_
 
-#include "config.h"
-
 #include "agent.h"
 #include "station.h"
 #include "unassociatedStation.h"

@@ -186,7 +186,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
 bool prplmesh_cli::print_device_info(std::string agent_mac, std::string skip_mac)
 {
     std::string backhaul_device_id;
-    std::string device_ht_path     = CONTROLLER_ROOT_DM ".Network.Device.*.";
+    std::string device_ht_path     = DATAELEMENTS_ROOT_DM ".Network.Device.*.";
     const amxc_htable_t *ht_device = m_amx_client->get_htable_object(device_ht_path);
 
     amxc_htable_iterate(device_it, ht_device)
@@ -237,7 +237,7 @@ bool prplmesh_cli::prpl_conn_map()
 
     std::cout << "Start conn map" << std::endl;
 
-    std::string network_path = CONTROLLER_ROOT_DM ".Network.";
+    std::string network_path = DATAELEMENTS_ROOT_DM ".Network.";
     amxc_var_t *network_obj  = m_amx_client->get_object(network_path);
     conn_map.controller_id   = GET_CHAR(network_obj, "ControllerID");
     conn_map.device_number   = GET_UINT32(network_obj, "DeviceNumberOfEntries");
@@ -280,7 +280,7 @@ operating_mode prplmesh_cli::get_operating_mode(bool &agt_timed_out, bool &ctl_t
     std::string agent_path = AGENT_ROOT_DM ".Info.";
     bool agent_dm_found    = m_amx_client->get_object(agent_path, agt_timed_out);
 
-    std::string network_path = CONTROLLER_ROOT_DM ".Network.";
+    std::string network_path = DATAELEMENTS_ROOT_DM ".Network.";
     bool controller_dm_found = m_amx_client->get_object(network_path, ctl_timed_out);
 
     return static_cast<operating_mode>(agent_dm_found | (controller_dm_found << 1));
@@ -347,7 +347,7 @@ bool prplmesh_cli::print_status(const std::string &format)
     bool ret   = state.mode && !state.agt_timed_out && !state.ctl_timed_out;
 
     if (state.mode & PPM_OPMODE_CONTROLLER_ONLY) {
-        string network_path     = CONTROLLER_ROOT_DM ".Network.";
+        string network_path     = DATAELEMENTS_ROOT_DM ".Network.";
         amxc_var_t *network_obj = m_amx_client->get_object(network_path);
         state.bridge_mac        = GET_CHAR(network_obj, "ControllerID");
         state.num_devices       = GET_UINT32(network_obj, "DeviceNumberOfEntries");
@@ -528,7 +528,7 @@ void prplmesh_cli::print_version()
 std::string prplmesh_cli::get_ap_path(std::string ap)
 {
     std::stringstream path;
-    path << CONTROLLER_ROOT_DM << ".Network.AccessPoint.";
+    path << DATAELEMENTS_ROOT_DM << ".Network.AccessPoint.";
 
     if (ap[0] == '.' and ap[1] != '.') {
         path << ap.substr(1) << '.';
@@ -558,7 +558,7 @@ std::string prplmesh_cli::get_ap_path(std::string ap)
 void prplmesh_cli::show_ap()
 {
     std::cout << "Show AccessPoints:" << std::endl;
-    std::string ap_ht_path     = CONTROLLER_ROOT_DM ".Network.AccessPoint.*.";
+    std::string ap_ht_path     = DATAELEMENTS_ROOT_DM ".Network.AccessPoint.*.";
     const amxc_htable_t *ht_ap = m_amx_client->get_htable_object(ap_ht_path);
     if (!ht_ap) {
         // No access points defined?

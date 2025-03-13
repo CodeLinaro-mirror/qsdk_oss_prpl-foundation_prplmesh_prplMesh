@@ -342,8 +342,9 @@ void optimal_path_task::work()
             TASK_LOG(WARNING) << "Candidates list is empty, aborting optimal path task";
             database.dm_uint64_param_one_up(station->dm_path + ".MultiAPSTA.SteeringSummaryStats",
                                             "NoCandidateAPFailures");
-            database.dm_uint64_param_one_up(
-                CONTROLLER_ROOT_DM ".Network.MultiAPSteeringSummaryStats", "NoCandidateAPFailures");
+            database.dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM
+                                            ".Network.MultiAPSteeringSummaryStats",
+                                            "NoCandidateAPFailures");
             finish();
             break;
         }
@@ -354,8 +355,9 @@ void optimal_path_task::work()
                 << "is the only steering candidate left on the list, aborting optimal path task";
             database.dm_uint64_param_one_up(station->dm_path + ".MultiAPSTA.SteeringSummaryStats",
                                             "NoCandidateAPFailures");
-            database.dm_uint64_param_one_up(
-                CONTROLLER_ROOT_DM ".Network.MultiAPSteeringSummaryStats", "NoCandidateAPFailures");
+            database.dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM
+                                            ".Network.MultiAPSteeringSummaryStats",
+                                            "NoCandidateAPFailures");
             finish();
             break;
         }
@@ -799,8 +801,9 @@ void optimal_path_task::work()
                                << " could not find a better path for sta " << sta_mac << std::endl);
             database.dm_uint64_param_one_up(station->dm_path + ".MultiAPSTA.SteeringSummaryStats",
                                             "NoCandidateAPFailures");
-            database.dm_uint64_param_one_up(
-                CONTROLLER_ROOT_DM ".Network.MultiAPSteeringSummaryStats", "NoCandidateAPFailures");
+            database.dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM
+                                            ".Network.MultiAPSteeringSummaryStats",
+                                            "NoCandidateAPFailures");
             finish();
         } else {
             chosen_bssid =
@@ -1236,8 +1239,9 @@ void optimal_path_task::work()
             TASK_LOG(WARNING) << "Candidates list is empty, aborting optimal path task";
             database.dm_uint64_param_one_up(station->dm_path + ".MultiAPSTA.SteeringSummaryStats",
                                             "NoCandidateAPFailures");
-            database.dm_uint64_param_one_up(
-                CONTROLLER_ROOT_DM ".Network.MultiAPSteeringSummaryStats", "NoCandidateAPFailures");
+            database.dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM
+                                            ".Network.MultiAPSteeringSummaryStats",
+                                            "NoCandidateAPFailures");
             finish();
             break;
         }
@@ -1248,8 +1252,9 @@ void optimal_path_task::work()
                 << "is the only steering candidate left on the list, aborting optimal path task";
             database.dm_uint64_param_one_up(station->dm_path + ".MultiAPSTA.SteeringSummaryStats",
                                             "NoCandidateAPFailures");
-            database.dm_uint64_param_one_up(
-                CONTROLLER_ROOT_DM ".Network.MultiAPSteeringSummaryStats", "NoCandidateAPFailures");
+            database.dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM
+                                            ".Network.MultiAPSteeringSummaryStats",
+                                            "NoCandidateAPFailures");
             finish();
             break;
         }
@@ -1529,8 +1534,9 @@ void optimal_path_task::work()
                                                 << sta_mac << std::endl);
             database.dm_uint64_param_one_up(station->dm_path + ".MultiAPSTA.SteeringSummaryStats",
                                             "NoCandidateAPFailures");
-            database.dm_uint64_param_one_up(
-                CONTROLLER_ROOT_DM ".Network.MultiAPSteeringSummaryStats", "NoCandidateAPFailures");
+            database.dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM
+                                            ".Network.MultiAPSteeringSummaryStats",
+                                            "NoCandidateAPFailures");
             finish();
         } else {
             if (!database.settings_client_optimal_path_roaming_prefer_signal_strength()) {

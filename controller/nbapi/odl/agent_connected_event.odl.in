@@ -8,7 +8,7 @@
  */
 
 %define {
-    select @CONTROLLER_ROOT_DM@.AgentConnectedEvent {
+    select @DATAELEMENTS_ROOT_DM@.AgentConnectedEvent {
         %read-only object AgentConnected [] {
             counted with AgentConnectedNumberOfEntries;
             %read-only string ID = "00:00:00:00:00:00";

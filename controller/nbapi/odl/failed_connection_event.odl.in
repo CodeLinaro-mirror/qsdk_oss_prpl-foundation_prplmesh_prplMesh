@@ -14,7 +14,7 @@
 }
 
 %define {
-    select @CONTROLLER_ROOT_DM@ {
+    select @DATAELEMENTS_ROOT_DM@ {
         object FailedConnectionEvent {
             object FailedConnectionEventData[] {
                 counted with FailedConnectionEventDataNumberOfEntries;

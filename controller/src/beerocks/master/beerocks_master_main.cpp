@@ -757,14 +757,14 @@ int main(int argc, char *argv[])
 #endif //ENABLE_NBAPI
 
     // Set Network.ID to the Data Model
-    if (!amb_dm_obj->set(CONTROLLER_ROOT_DM ".Network", "ID",
+    if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ID",
                          tlvf::mac_to_string(tlvf::generate_ieee1905_al_mac(bridge_info.mac)))) {
         LOG(ERROR) << "Failed to add Network.ID, mac: "
                    << tlvf::mac_to_string(tlvf::generate_ieee1905_al_mac(bridge_info.mac));
         return false;
     }
 
-    if (!amb_dm_obj->set(CONTROLLER_ROOT_DM ".Network", "ControllerID",
+    if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ControllerID",
                          tlvf::mac_to_string(tlvf::generate_ieee1905_al_mac(bridge_info.mac)))) {
         LOG(ERROR) << "Failed to add Network.ControllerID, mac: "
                    << tlvf::mac_to_string(tlvf::generate_ieee1905_al_mac(bridge_info.mac));
@@ -830,7 +830,7 @@ int main(int argc, char *argv[])
     son::Controller controller(master_db, std::move(broker_client_factory), std::move(ucc_server),
                                std::move(cmdu_server), timer_manager, event_loop);
 
-    if (!amb_dm_obj->set_current_time(CONTROLLER_ROOT_DM ".Network")) {
+    if (!amb_dm_obj->set_current_time(DATAELEMENTS_ROOT_DM ".Network")) {
         return false;
     };
 

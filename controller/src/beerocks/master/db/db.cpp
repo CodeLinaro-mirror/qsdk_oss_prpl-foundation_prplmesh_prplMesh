@@ -5002,7 +5002,7 @@ bool db::notify_sta_disconnection(const std::string &client_mac, const uint16_t 
     }
 
     std::string path_to_disassoc_event_data =
-        CONTROLLER_ROOT_DM ".DisassociationEvent.DisassociationEventData";
+        DATAELEMENTS_ROOT_DM ".DisassociationEvent.DisassociationEventData";
 
     if (!dm_check_objects_limit(m_disassoc_events, MAX_EVENT_HISTORY_SIZE)) {
         return false;
@@ -6414,10 +6414,10 @@ std::string db::dm_add_steer_event()
         return {};
     }
 
-    std::string event_path = m_ambiorix_datamodel->add_instance(CONTROLLER_ROOT_DM ".SteerEvent");
+    std::string event_path = m_ambiorix_datamodel->add_instance(DATAELEMENTS_ROOT_DM ".SteerEvent");
 
     if (event_path.empty() && NBAPI_ON) {
-        LOG(ERROR) << "Failed to add instance " CONTROLLER_ROOT_DM ".SteerEvent";
+        LOG(ERROR) << "Failed to add instance " DATAELEMENTS_ROOT_DM ".SteerEvent";
         return {};
     }
     m_steer_events.push(event_path);
@@ -6454,13 +6454,14 @@ bool db::dm_restore_steering_summary_stats(Station &station)
 
 void db::dm_increment_steer_summary_stats(const std::string &param_name)
 {
-    dm_uint64_param_one_up(CONTROLLER_ROOT_DM ".Network.MultiAPSteeringSummaryStats", param_name);
+    dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM ".Network.MultiAPSteeringSummaryStats", param_name);
 }
 
 bool db::dm_add_failed_connection_event(const sMacAddr &bssid, const sMacAddr &sta_mac,
                                         const uint16_t reason_code, const uint16_t status_code)
 {
-    std::string event_path = CONTROLLER_ROOT_DM ".FailedConnectionEvent.FailedConnectionEventData";
+    std::string event_path =
+        DATAELEMENTS_ROOT_DM ".FailedConnectionEvent.FailedConnectionEventData";
 
     event_path = m_ambiorix_datamodel->add_instance(event_path);
 
@@ -6482,7 +6483,7 @@ std::string db::dm_add_association_event(const sMacAddr &bssid, const sMacAddr &
                                          const std::string &assoc_ts)
 {
     std::string path_association_event =
-        CONTROLLER_ROOT_DM ".AssociationEvent.AssociationEventData";
+        DATAELEMENTS_ROOT_DM ".AssociationEvent.AssociationEventData";
 
     if (!dm_check_objects_limit(m_assoc_events, MAX_EVENT_HISTORY_SIZE)) {
         return {};
@@ -6525,13 +6526,13 @@ std::string db::dm_add_association_event(const sMacAddr &bssid, const sMacAddr &
 std::string db::dm_add_device_element(const sMacAddr &mac)
 {
     auto index = m_ambiorix_datamodel->get_instance_index(
-        CONTROLLER_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(mac));
+        DATAELEMENTS_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(mac));
     if (index) {
         LOG(WARNING) << "Device with ID: " << mac << " exists in the data model!";
         return {};
     }
 
-    auto device_path = m_ambiorix_datamodel->add_instance(CONTROLLER_ROOT_DM ".Network.Device");
+    auto device_path = m_ambiorix_datamodel->add_instance(DATAELEMENTS_ROOT_DM ".Network.Device");
     if (device_path.empty()) {
         LOG(ERROR) << "Failed to add instance " << device_path << ". Device mac: " << mac;
         return {};
@@ -6548,13 +6549,13 @@ std::string db::dm_add_device_element(const sMacAddr &mac)
 bool db::dm_remove_device_element(const sMacAddr &mac)
 {
     auto index = m_ambiorix_datamodel->get_instance_index(
-        CONTROLLER_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(mac));
+        DATAELEMENTS_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(mac));
     if (!index) {
         LOG(ERROR) << "Failed to get Network.Device index for mac: " << mac;
         return false;
     }
 
-    if (!m_ambiorix_datamodel->remove_instance(CONTROLLER_ROOT_DM ".Network.Device", index)) {
+    if (!m_ambiorix_datamodel->remove_instance(DATAELEMENTS_ROOT_DM ".Network.Device", index)) {
         LOG(ERROR) << "Failed to remove Network.Device." << index << " instance.";
         return false;
     }
