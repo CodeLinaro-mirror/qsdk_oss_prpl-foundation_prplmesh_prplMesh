@@ -21,3 +21,4 @@ ipkg-*/
 /rdk
 .dccache
 .vscode/**
+agent/src/beerocks/slave/nbapi/odl/*.odl

@@ -117,7 +117,10 @@
 
 %define {
 
+    /* --- PRPL Controller DM --- */
+
     @CONTROLLER_ROOT_DM_Header@
+
                 /* Configuration options for the controller */
                 %persistent object Configuration {
 
@@ -247,6 +250,12 @@
                         }
                     }
                 }
+    @CONTROLLER_ROOT_DM_Footer@ 
+
+
+    /* --- TR-181 DataElements DM --- */
+
+    @DATAELEMENTS_ROOT_DM_Header@
 
                 // Define controller.Network element
                 object Network {
@@ -344,7 +353,9 @@
                 }
                 %read-only object AgentConnectedEvent[];
                 %read-only object AgentDisconnectedEvent[];
-    @CONTROLLER_ROOT_DM_Footer@ 
+
+    @DATAELEMENTS_ROOT_DM_Footer@ 
+
 }
 
 %populate {
@@ -352,10 +363,10 @@
         filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Configuration\."';
 
     on event "dm:object-changed" call event_network_enable_changed                                                                                             
-        filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")'; 
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")'; 
 
     on event "*" call event_network_group_changed                                                                                             
-        filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Network\.X-PRPL_ORG_Group\."'; 
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X-PRPL_ORG_Group\."'; 
 }
 
 include "device.odl";

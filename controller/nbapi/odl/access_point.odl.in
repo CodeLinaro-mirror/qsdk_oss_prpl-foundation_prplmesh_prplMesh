@@ -7,7 +7,7 @@
  */
 
 %define {
-    select @CONTROLLER_ROOT_DM@.Network.AccessPoint {
+    select @DATAELEMENTS_ROOT_DM@.Network.AccessPoint {
         string SSID = "prplMesh";
         object Security {
             string PreSharedKey;

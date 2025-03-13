@@ -9,9 +9,7 @@
 %define {
     /* The prplMesh Agent object. It contains all parameters and status related 
     to the Wi-Fi Easymesh implementation, on the client ('Agent') side. */
-    
-    
-    @CONTROLLER_ROOT_DM_Header@
+    @AGENT_ROOT_DM_Header@
 
         /* Configuration options for the agent */
         %persistent object Configuration {
@@ -91,5 +89,5 @@
             }
         }
 
-    @CONTROLLER_ROOT_DM_Footer@
+    @AGENT_ROOT_DM_Footer@
 }

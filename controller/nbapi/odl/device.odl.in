@@ -14,7 +14,7 @@
 }
 
 %define {
-    select @CONTROLLER_ROOT_DM@.Network.Device {
+    select @DATAELEMENTS_ROOT_DM@.Network.Device {
         
         /*
         ** A unique identifier for this particular device
