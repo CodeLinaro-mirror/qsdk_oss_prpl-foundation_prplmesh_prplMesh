@@ -568,12 +568,6 @@ bool slave_thread::read_platform_configuration()
     bpl::cfg_get_management_mode(mgmt_mode);
     db->dm_set_management_mode(mgmt_mode);
 
-    if ((temp_int = bpl::cfg_get_operating_mode()) < 0) {
-        LOG(ERROR) << "Failed reading 'operating_mode'";
-        return false;
-    }
-    db->device_conf.operating_mode = uint8_t(temp_int);
-
     if ((temp_int = bpl::cfg_get_certification_mode()) < 0) {
         LOG(ERROR) << "Failed reading 'certification_mode'";
         return false;
@@ -662,8 +656,9 @@ bool slave_thread::read_platform_configuration()
     }
 
     // Set local_gw flag
-    db->device_conf.local_gw = (db->device_conf.operating_mode == BPL_OPER_MODE_GATEWAY ||
-                                db->device_conf.operating_mode == BPL_OPER_MODE_GATEWAY_WISP);
+    db->device_conf.local_gw =
+        (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT ||
+         db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER);
 
     db->device_conf.client_optimal_path_roaming_prefer_signal_strength_enabled =
         0; // TODO add platform DB flag

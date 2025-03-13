@@ -1024,7 +1024,7 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                     return false;
                 }
 
-                if (beerocks::bpl::cfg_get_operating_mode() == BPL_OPER_MODE_WDS_REPEATER) {
+                if (beerocks::bpl::cfg_get_management_mode() == BPL_MGMT_MODE_MULTIAP_AGENT) {
                     hal_conf.is_repeater = true;
                 }
 

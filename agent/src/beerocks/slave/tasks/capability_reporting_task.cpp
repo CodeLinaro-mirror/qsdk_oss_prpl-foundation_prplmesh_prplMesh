@@ -885,8 +885,8 @@ bool CapabilityReportingTask::add_ap_wifi6_capabilities(const std::string &iface
 
     tlv->radio_uid() = radio->front.iface_mac;
     int number_of_role;
-    //Check Operating mode, if Repeater then number of role for agent will be 2.
-    if (db->device_conf.operating_mode == OPER_MODE_WDS_REPEATER) {
+    //Check Management mode, if Repeater then number of role for agent will be 2.
+    if (db->device_conf.management_mode == BPL_OPER_MODE_WDS_REPEATER) {
         number_of_role = 2;
     } else {
         number_of_role = 1;

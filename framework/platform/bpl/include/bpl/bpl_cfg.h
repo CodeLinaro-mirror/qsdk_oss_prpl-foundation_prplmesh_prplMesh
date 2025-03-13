@@ -76,13 +76,6 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 #define BPL_RADIO_BAND_2G 2
 #define BPL_RADIO_BAND_6G 6
 
-/* Platform Operating Mode */
-#define BPL_OPER_MODE_GATEWAY 0
-#define BPL_OPER_MODE_GATEWAY_WISP 1
-#define BPL_OPER_MODE_WDS_EXTENDER 2
-#define BPL_OPER_MODE_WDS_REPEATER 3
-#define BPL_OPER_MODE_L2NAT_CLIENT 4
-
 /* Platform Management Mode */
 #define BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT 0 /* EasyMesh controller and agent */
 #define BPL_MGMT_MODE_MULTIAP_CONTROLLER 1       /* EasyMesh controller */
@@ -116,7 +109,6 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 
 /* Gateway database */
 #define BPL_GW_DB_MANAGE_MODE_LEN (127 + 1) /* Maximal length of MANAGEMENT MODE string */
-#define BPL_GW_DB_OPER_MODE_LEN (127 + 1)   /* Maximal length of OPERATING MODE string */
 
 /* Default values */
 constexpr int DEFAULT_STOP_ON_FAILURE_ATTEMPTS            = 1;
@@ -367,19 +359,6 @@ int cfg_is_enabled();
  * @return -1 Error.
  */
 int cfg_is_master();
-
-/**
- * Returns whether the current platform is configured as Gateway.
- *
- * @return valid possibilities:
- *   BPL_OPER_MODE_GATEWAY,
- *   BPL_OPER_MODE_GATEWAY_WISP,
- *   BPL_OPER_MODE_WDS_EXTENDER,
- *   BPL_OPER_MODE_WDS_REPEATER,
- *   BPL_OPER_MODE_L2NAT_CLIENT
- * @return -1 Error.
- */
-int cfg_get_operating_mode();
 
 /**
  * Returns the current management mode configuration.
