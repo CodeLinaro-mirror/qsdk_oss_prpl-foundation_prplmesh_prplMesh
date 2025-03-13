@@ -151,14 +151,13 @@ enum eBeeRocksMessageDirection : uint8_t {
     BEEROCKS_DIRECTION_AGENT      = 1,
 };
 
-enum eOperatingMode : int8_t {
+enum eManagementMode : int8_t {
     // same as on bpl_cfg.h
-    OPER_MODE_UNDEFINED    = -1,
-    OPER_MODE_GATEWAY      = 0,
-    OPER_MODE_GATEWAY_WISP = 1,
-    OPER_MODE_WDS_EXTENDER = 2,
-    OPER_MODE_WDS_REPEATER = 3,
-    OPER_MODE_L2NAT_CLIENT = 4,
+    MGMT_MODE_UNDEFINED                = -1,
+    MGMT_MODE_MULTIAP_CONTROLLER_AGENT = 0,
+    MGMT_MODE_MULTIAP_CONTROLLER       = 1,
+    MGMT_MODE_MULTIAP_AGENT            = 2,
+    MGMT_MODE_NOT_MULTIAP              = 3,
 };
 
 enum eProtocolPorts {
