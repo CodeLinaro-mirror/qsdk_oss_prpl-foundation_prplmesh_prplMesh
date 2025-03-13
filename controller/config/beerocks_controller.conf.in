@@ -23,9 +23,6 @@ load_monitor_on_vaps=1
 #   service fairness feature:
 load_service_fairness=0
 
-#RDKB extensions
-load_rdkb_extensions=1
-
 # Config Parameters
 ire_rssi_report_rate_sec=30
 global_restricted_channels=

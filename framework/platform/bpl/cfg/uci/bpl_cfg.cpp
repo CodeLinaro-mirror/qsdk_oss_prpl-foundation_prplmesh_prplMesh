@@ -213,17 +213,6 @@ int cfg_is_onboarding()
     return retVal;
 }
 
-int cfg_get_rdkb_extensions()
-{
-    int retVal = -1;
-    if (cfg_get_prplmesh_param_int_default("rdkb_extensions", &retVal, DEFAULT_RDKB_EXTENSIONS) ==
-        RETURN_ERR) {
-        MAPF_INFO("cfg_get_rdkb_extensions: Failed to read RDKB Extensions parameter\n");
-        return RETURN_ERR;
-    }
-    return retVal;
-}
-
 bool cfg_get_band_steering(bool &band_steering)
 {
     int retVal = -1;

@@ -158,7 +158,6 @@ static void fill_master_config(son::db::sDbMasterConfig &master_conf,
     master_conf.ucc_listener_port =
         beerocks::string_utils::stoi(main_master_conf.ucc_listener_port);
     master_conf.load_service_fairness      = (main_master_conf.load_service_fairness == "1");
-    master_conf.load_rdkb_extensions       = (main_master_conf.load_rdkb_extensions == "1");
     master_conf.load_legacy_client_roaming = (main_master_conf.load_legacy_client_roaming == "1");
     master_conf.load_backhaul_measurements = (main_master_conf.load_backhaul_measurements == "1");
     master_conf.load_front_measurements    = (main_master_conf.load_front_measurements == "1");

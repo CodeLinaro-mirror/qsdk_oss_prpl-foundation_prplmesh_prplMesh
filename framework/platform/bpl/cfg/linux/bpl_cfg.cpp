@@ -302,8 +302,6 @@ int cfg_get_stop_on_failure_attempts()
 
 int cfg_is_onboarding() { return 0; }
 
-int cfg_get_rdkb_extensions() { return 0; }
-
 bool cfg_get_band_steering(bool &band_steering)
 {
     int retVal = -1;

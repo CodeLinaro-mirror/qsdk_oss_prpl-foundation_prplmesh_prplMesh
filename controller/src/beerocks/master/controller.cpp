@@ -2595,13 +2595,6 @@ bool Controller::handle_intel_slave_join(
 
     bool local_master = (bool)notification->platform_settings().local_master;
     if (local_master) {
-#ifdef BEEROCKS_RDKB
-        LOG(DEBUG) << "platform rdkb_extensions_enabled="
-                   << int(notification->platform_settings().rdkb_extensions_enabled);
-
-        database.settings_rdkb_extensions(
-            notification->platform_settings().rdkb_extensions_enabled);
-#endif
 #ifdef FEATURE_PRE_ASSOCIATION_STEERING
         int prev_task_id = database.get_pre_association_steering_task_id();
         if (!m_task_pool.is_task_running(prev_task_id)) {
