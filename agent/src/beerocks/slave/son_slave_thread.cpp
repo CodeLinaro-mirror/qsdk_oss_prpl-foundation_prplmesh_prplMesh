@@ -566,12 +566,6 @@ bool slave_thread::read_platform_configuration()
     bpl::cfg_get_management_mode(mgmt_mode);
     db->dm_set_management_mode(mgmt_mode);
 
-    if ((temp_int = bpl::cfg_get_operating_mode()) < 0) {
-        LOG(ERROR) << "Failed reading 'operating_mode'";
-        return false;
-    }
-    db->device_conf.operating_mode = uint8_t(temp_int);
-
     if ((temp_int = bpl::cfg_get_certification_mode()) < 0) {
         LOG(ERROR) << "Failed reading 'certification_mode'";
         return false;

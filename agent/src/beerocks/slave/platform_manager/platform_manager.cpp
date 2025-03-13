@@ -75,9 +75,9 @@ std::string PlatformManager::query_db(const std::string &parameter)
         if (parameter == "is_master") {
             ret = (bpl::cfg_is_master() > 0 ? "true" : "false");
         } else if (parameter == "is_gateway") {
-            auto operating_mode = bpl::cfg_get_operating_mode();
-            ret                 = (operating_mode == BPL_OPER_MODE_GATEWAY ||
-                           operating_mode == BPL_OPER_MODE_GATEWAY_WISP
+            auto management_mode = bpl::cfg_get_management_mode();
+            ret                  = (management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
+                           management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT
                        ? "true"
                        : "false");
         } else if (parameter == "is_onboarding") {

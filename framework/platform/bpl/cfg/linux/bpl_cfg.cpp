@@ -164,8 +164,6 @@ int cfg_is_master()
         return 1;
     case BPL_MGMT_MODE_MULTIAP_AGENT:
         return 0;
-    case BPL_MGMT_MODE_NOT_MULTIAP:
-        return (cfg_get_operating_mode() == BPL_OPER_MODE_GATEWAY) ? 1 : 0;
     default:
         return RETURN_ERR;
     }
@@ -194,30 +192,6 @@ int cfg_get_management_mode()
 }
 
 int cfg_get_management_mode(std::string &mode) { return cfg_get_param("management_mode", mode); }
-
-int cfg_get_operating_mode()
-{
-    std::string op_mode;
-    if (!cfg_get_param("operating_mode", op_mode)) {
-        MAPF_ERR("cfg_get_operating_mode: Failed to read operating_mode");
-        return RETURN_ERR;
-    }
-
-    if (op_mode == "Gateway") {
-        return BPL_OPER_MODE_GATEWAY;
-    } else if (op_mode == "Gateway-WISP") {
-        return BPL_OPER_MODE_GATEWAY_WISP;
-    } else if (op_mode == "WDS-Extender") {
-        return BPL_OPER_MODE_WDS_EXTENDER;
-    } else if (op_mode == "WDS-Repeater") {
-        return BPL_OPER_MODE_WDS_REPEATER;
-    } else if (op_mode == "L2NAT-Client") {
-        return BPL_OPER_MODE_L2NAT_CLIENT;
-    }
-
-    MAPF_ERR("cfg_get_operating_mode: Unexpected operating_mode");
-    return RETURN_ERR;
-}
 
 int cfg_get_certification_mode()
 {

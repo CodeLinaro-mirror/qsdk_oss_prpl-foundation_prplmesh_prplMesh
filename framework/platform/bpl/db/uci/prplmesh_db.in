@@ -1,6 +1,5 @@
 config prplmesh 'config'
     option management_mode 'Multi-AP-Controller-and-Agent'
-    option operating_mode 'Gateway'
     option enable '1'
     option onboarding '0'
     option master '1'
