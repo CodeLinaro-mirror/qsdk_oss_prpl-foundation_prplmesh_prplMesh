@@ -6,24 +6,29 @@
 # See LICENSE file for more details.
 
 # Set agent data model path
-set(DATAMODELS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/odl)
+set(DATAMODELS_PATH ${CMAKE_CURRENT_BINARY_DIR}/odl)
+message(STATUS "Using CMake version: ${CMAKE_VERSION}")
 
-message(STATUS "Test agent data model:")
+# configure_file_odl func 
+include("${CMAKE_SOURCE_DIR}/cmake/ConfigureOdl.cmake")
 
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/odl/agent.odl.in"
-    "${CMAKE_CURRENT_SOURCE_DIR}/odl/agent.odl"
-)
+# Process all .odl.in files dynamically
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/odl/*.odl.in")
+foreach(file ${files})
+    configure_file_odl(${file})
+endforeach()
 
 # Parse agent.odl file
-execute_process(COMMAND amxo-cg ${DATAMODELS_PATH}/agent.odl RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
+message(STATUS "Parsing ODL using amxo: slave_config.odl")
+execute_process(COMMAND amxo-cg ${DATAMODELS_PATH}/slave_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
 
-# If parser find errors - generate FATAL_ERROR
+# Check for parser errors
 if(${DATAMODEL_PARSE_RESULT})
     message(FATAL_ERROR "Failed to parse agent data model!")
 endif()
+message(STATUS "Agent data model tested successfully!")
 
 install(DIRECTORY ${DATAMODELS_PATH} DESTINATION config)
-file(COPY ${DATAMODELS_PATH} DESTINATION "${CMAKE_MULTIAP_OUTPUT_DIRECTORY}/config/odl")
-
-message(STATUS "Agent data model tested successfully!")
+if(IS_DIRECTORY ${DATAMODELS_PATH}/defaults.d)
+    install(DIRECTORY ${DATAMODELS_PATH}/defaults.d DESTINATION config/odl)
+endif()

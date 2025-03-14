@@ -9,15 +9,15 @@
 #!/usr/bin/amxrt
 
 %config {
-    name = "prplmesh";
-    prplmesh = {
-        mod-dir = "$@@{prefix}$@@{plugin-dir}/$@@{name}/modules",
+    name = "controller";
+    controller = {
+        mod-dir = "$@@{prefix}$@@{plugin-dir}/prplmesh/modules",
         external-mod-dir = "$@@{prefix}$@@{plugin-dir}/modules"
     };
     silent = false;
     import-dbg = true;
     dm-eventing-enabled = true;
-    storage-path = "/opt/$@@{name}/share";
+    storage-path = "/opt/prplmesh/share";
     storage-type = "odl";
     odl = {
         dm-load = true,
@@ -30,15 +30,15 @@
     cfg-dir = "/etc/amx";
     include-dirs = [
         ".",
-        "$@@{cfg-dir}/$@@{name}",
+        "$@@{cfg-dir}/prplmesh",
         "$@@{cfg-dir}/modules",
         "/opt/prplmesh/config/odl"
     ];
     import-dirs = [
         ".",
-        "$@@{prefix}$@@{plugin-dir}/$@@{name}",
+        "$@@{prefix}$@@{plugin-dir}/prplmesh",
         "$@@{prefix}$@@{plugin-dir}/modules",
-        "$@@{prefix}/usr/lib/amx/$@@{name}",
+        "$@@{prefix}/usr/lib/amx/prplmesh",
         "$@@{prefix}/usr/lib/amx/modules"
     ];
     //main files
@@ -46,7 +46,7 @@
 
     //persistent storage
     pcm_svc_config = {
-        "Objects" = "@CONTROLLER_ROOT_DM_Header@"
+        "Objects" = "@AGENT_ROOT_DM_Header@"
     };
 }
 include "$@@{definition_file}";

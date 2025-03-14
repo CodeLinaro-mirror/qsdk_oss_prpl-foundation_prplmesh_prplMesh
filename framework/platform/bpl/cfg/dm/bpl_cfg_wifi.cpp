@@ -372,6 +372,12 @@ int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN])
     return RETURN_ERR;
 }
 
+int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
+                                    char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
+{
+    return 0;
+}
+
 bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
                                                std::set<std::string> &monitored_BSSs)
 {

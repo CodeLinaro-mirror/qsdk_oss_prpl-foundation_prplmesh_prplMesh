@@ -91,7 +91,7 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
           ${MODULE_PATH}/arp/linux/*.c*
           ${MODULE_PATH}/dhcp/luci_rpc/*.c*
           ${MODULE_PATH}/db/uci/*.c*
-          ${MODULE_PATH}/cfg/uci/*.c*
+          ${MODULE_PATH}/cfg/dm/*.c*
           ${MODULE_PATH}/cfg/vendor/*.c*
           ${MODULE_PATH}/common/uci/*.c*
           ${MODULE_PATH}/board/system_ubus/*.c*

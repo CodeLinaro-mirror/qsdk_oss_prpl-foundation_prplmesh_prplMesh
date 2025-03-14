@@ -373,7 +373,7 @@ int cfg_is_master();
 int cfg_get_management_mode();
 
 /**
- * Returns the current management mode configuration
+ * @param reference to set the current management mode str
  * 
  * @returns <0 on error
  */

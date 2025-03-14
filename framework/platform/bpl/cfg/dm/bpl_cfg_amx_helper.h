@@ -9,9 +9,11 @@
 #ifndef _BPL_CFG_AMX_HELPER_H_
 #define _BPL_CFG_AMX_HELPER_H_
 
-#include "ambiorix_impl.h"
-
 #include "bpl_cfg_pwhm.h"
+
+#include <ambiorix_variant.h>
+
+using beerocks::wbapi::AmbiorixVariantSmartPtr;
 
 namespace beerocks {
 namespace bpl {

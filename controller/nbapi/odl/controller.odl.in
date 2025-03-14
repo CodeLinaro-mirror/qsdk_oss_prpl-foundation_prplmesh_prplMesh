@@ -223,6 +223,7 @@
 
                     /* Interval (in seconds) for statistics polling task */
                     %persistent uint32 StatisticsPollingRateSec {
+                        default 1;
                         on action validate call check_range [1, 10000];
                     }
                     

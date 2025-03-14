@@ -6,34 +6,39 @@
  * See LICENSE file for more details.
  */
 
-#include "bpl_cfg.h"
+#include <bpl/bpl_cfg.h>
 
-#include "bpl_cfg_amx_wrapper.h"
+#include <mapf/common/logger.h>
+
+#include "bpl_cfg_amx_helper.h"
 
 namespace beerocks {
 namespace bpl {
 
-int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
-                                    char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
+int cfg_is_enabled() { return 1; }
+
+int cfg_set_onboarding(int enable) { return 0; }
+
+int cfg_is_master()
 {
-    return 0;
+    switch (cfg_get_management_mode()) {
+    case BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT:
+        return 1;
+    case BPL_MGMT_MODE_MULTIAP_CONTROLLER:
+        return 1;
+    case BPL_MGMT_MODE_MULTIAP_AGENT:
+        return 0;
+    default:
+        return -1;
+    }
 }
-
-int cfg_is_enabled() { return 0; }
-
-int cfg_is_master() { return 0; }
 
 int cfg_get_management_mode()
 {
     int management_mode{BPL_MGMT_MODE_MULTIAP_AGENT}; // Agent by default
 
-    auto agent_dm = get_agent_dm();
-    if (!agent_dm) {
-        MAPF_ERR("cfg_get_management_mode: agent_dm does not exist");
-    }
-
     std::string management_mode_str{};
-    agent_dm->read_child(management_mode_str, "ManagementMode");
+    cfg_get_management_mode(mode);
 
     if (management_mode_str == "Controller+Agent") {
         management_mode = BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT;
@@ -48,7 +53,19 @@ int cfg_get_management_mode()
     return management_mode;
 }
 
-int cfg_get_management_mode(std::string &mode) { return 0; }
+int cfg_get_management_mode(std::string &mode)
+{
+    auto agent_dm = get_agent_dm();
+    if (!agent_dm) {
+        MAPF_ERR("cfg_get_management_mode: agent_dm does not exist");
+    }
+
+    agent_dm->read_child(mode, "ManagementMode");
+
+    MAPF_INFO("cfg_get_management_mode: " + management_mode_str);
+
+    return 0;
+}
 
 int cfg_get_operating_mode() { return 0; }
 
@@ -63,7 +80,7 @@ int cfg_get_certification_mode()
 
     agent_dm->read_child(certification_mode, "CertificationMode");
 
-    return management_mode;
+    return certification_mode;
 }
 
 int cfg_get_load_steer_on_vaps(int num_of_interfaces,
@@ -230,7 +247,11 @@ bool cfg_set_unsuccessful_assoc_max_reporting_rate(int &unsuccessful_assoc_max_r
 
 bool bpl_get_lan_interfaces(std::vector<std::string> &lan_iface_list) { return false; }
 
-bool bpl_cfg_get_backhaul_wire_iface(std::string &iface) { return false; }
+bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
+{
+    iface = "wan";
+    return true;
+}
 
 bool cfg_get_roaming_hysteresis_percent_bonus(int &roaming_hysteresis_percent_bonus)
 {

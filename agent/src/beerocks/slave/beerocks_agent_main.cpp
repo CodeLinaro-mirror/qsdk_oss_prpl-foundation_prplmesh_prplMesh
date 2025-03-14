@@ -49,7 +49,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif // AMBIORIX_BUS_URI
 
 #ifndef AGENT_DATAMODEL_PATH
-#define AGENT_DATAMODEL_PATH "config/odl/agent.odl"
+#define AGENT_DATAMODEL_PATH "config/odl/slave_config.odl"
 #endif // AGENT_DATAMODEL_PATH
 
 #endif
@@ -62,6 +62,8 @@ BEEROCKS_INIT_BEEROCKS_VERSION
 
 static bool g_running = true;
 static int s_signal   = 0;
+
+#define PLACE_HUESOS std::cout << "Huesos: " << __LINE__ << std::endl;
 
 // Pointer to logger instance
 static std::vector<std::shared_ptr<beerocks::logging>> g_loggers;
@@ -294,6 +296,7 @@ start_agent_thread(const std::unordered_map<int, std::string> &interfaces_map,
                    char *argv[])
 {
     std::string base_agent_name(BEEROCKS_AGENT);
+    PLACE_HUESOS
 
     // Init logger
     auto logger =
@@ -324,6 +327,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
                               const std::unordered_map<int, std::string> &interfaces_map, int argc,
                               char *argv[])
 {
+    PLACE_HUESOS
     // Init logger
     auto agent_logger = init_logger(BEEROCKS_BACKHAUL, beerocks_slave_conf.sLog, argc, argv);
     if (!agent_logger) {
@@ -331,6 +335,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     }
     g_loggers.push_back(agent_logger);
 
+    PLACE_HUESOS
     // Write pid file
     beerocks::os_utils::write_pid_file(beerocks_slave_conf.temp_path, BEEROCKS_AGENT);
     std::string pid_file_path =
@@ -343,6 +348,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
         LOG(ERROR) << "profile value is invalid, accept only values 0 <= profile <= 2";
         return 1;
     }
+    PLACE_HUESOS
     LOG(DEBUG) << "Set profile_x_disallow_override_unsupported_configuration to " << profile;
     beerocks::net::TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration =
         profile;
@@ -353,7 +359,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             slave_ap_ifaces.insert(elm.second);
         }
     }
-
+    PLACE_HUESOS
     // Create application event loop to wait for blocking I/O operations.
     auto event_loop = std::make_shared<beerocks::EventLoopImpl>();
     LOG_IF(!event_loop, FATAL) << "Unable to create event loop!";
@@ -366,6 +372,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     auto timer_manager = std::make_shared<beerocks::TimerManagerImpl>(timer_factory, event_loop);
     LOG_IF(!timer_manager, FATAL) << "Unable to create timer manager!";
 
+    PLACE_HUESOS
     // Create UDS address where the server socket will listen for incoming connection requests.
     std::string platform_manager_uds_path =
         beerocks_slave_conf.temp_path + std::string(BEEROCKS_PLATFORM_UDS);
@@ -380,6 +387,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     LOG_IF(!platform_manager_cmdu_server, FATAL)
         << "Unable to create CMDU server for platform manager!";
 
+    PLACE_HUESOS
 #ifdef ENABLE_NBAPI
     auto amxrt = std::make_shared<beerocks::nbapi::Amxrt>();
     if (auto init = (amxrt->Initialize(argc, argv, nullptr) != 0)) {
@@ -400,6 +408,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI
 
+    PLACE_HUESOS
     {
         auto db           = beerocks::AgentDB::get();
         auto on_boot_scan = beerocks::string_utils::stoi(beerocks_slave_conf.on_boot_scan);
@@ -416,7 +425,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     beerocks::PlatformManager platform_manager(beerocks_slave_conf, interfaces_map, *agent_logger,
                                                std::move(platform_manager_cmdu_server),
                                                timer_manager, event_loop);
-
+    PLACE_HUESOS
     // Start platform manager
     LOG_IF(!platform_manager.start(), FATAL) << "Unable to start platform manager!";
 
@@ -438,17 +447,22 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
         }
     }
 
+    PLACE_HUESOS
     beerocks::BackhaulManager backhaul_manager(beerocks_slave_conf, slave_ap_ifaces,
                                                slave_sta_ifaces, stop_on_failure_attempts);
 
     // Start backhaul manager
     LOG_IF(!backhaul_manager.start(), FATAL) << "Unable to start backhaul manager!";
 
+    PLACE_HUESOS
+
     auto agent = start_agent_thread(interfaces_map, beerocks_slave_conf, argc, argv);
     if (!agent) {
         LOG(ERROR) << "Failed to start Agent thread";
         return 1;
     }
+
+    PLACE_HUESOS
 
     auto touch_time_stamp_timeout = std::chrono::steady_clock::now();
     while (g_running) {
@@ -476,7 +490,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             break;
         }
     }
-
+    PLACE_HUESOS
     agent->stop();
 
     LOG(DEBUG) << "backhaul_manager.stop()";
@@ -498,6 +512,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
  */
 static void remove_residual_agent_files(const std::string &path, const std::string &file_name)
 {
+    PLACE_HUESOS
     int pid_out = -1;
     // If the PID not provided by is-pid-running check.
     if (!beerocks::os_utils::read_pid_file(path, file_name, pid_out)) {
@@ -523,17 +538,17 @@ static void remove_residual_agent_files(const std::string &path, const std::stri
  *
  * @return management mode in agent database
  */
-static uint8_t read_management_mode()
-{
-    auto db              = beerocks::AgentDB::get();
-    auto management_mode = beerocks::bpl::cfg_get_management_mode();
+// static uint8_t read_management_mode()
+// {
+//     auto db              = beerocks::AgentDB::get();
+//     auto management_mode = beerocks::bpl::cfg_get_management_mode();
 
-    if (management_mode >= 0) {
-        db->device_conf.management_mode = management_mode;
-    }
+//     if (management_mode >= 0) {
+//         db->device_conf.management_mode = management_mode;
+//     }
 
-    return db->device_conf.management_mode;
-}
+//     return db->device_conf.management_mode;
+// }
 
 int main(int argc, char *argv[])
 {
@@ -546,19 +561,19 @@ int main(int argc, char *argv[])
     if (beerocks::version::handle_version_query(argc, argv, module_description)) {
         return 0;
     }
-
+    PLACE_HUESOS
     //get command line options
     if (!parse_arguments(argc, argv)) {
         std::cout << "Usage: " << argv[0] << std::endl;
         return 1;
     }
-
+    PLACE_HUESOS
     // Initialize the BPL (Beerocks Platform Library)
     if (beerocks::bpl::bpl_init() < 0) {
         LOG(ERROR) << "Failed to initialize BPL!";
         return false;
     }
-
+    PLACE_HUESOS
     // read slave config file
     std::string slave_config_file_path =
         CONF_FILES_WRITABLE_PATH + std::string(BEEROCKS_AGENT) +
@@ -575,7 +590,7 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
-
+    PLACE_HUESOS
     // beerocks system hang tester
     if (beerocks_slave_conf.enable_system_hang_test == "1") {
 
@@ -585,7 +600,7 @@ int main(int argc, char *argv[])
             return system_hang_test(beerocks_slave_conf, argc, argv);
         }
     }
-
+    PLACE_HUESOS
     // Create unordered_map of interfaces.
     // This map contains all the radios that we expect to be there.
     // We don't go to operational until the slaves for these interfaces are operational.
@@ -593,48 +608,46 @@ int main(int argc, char *argv[])
 
     // Controller only mode does not take care of interfaces
     // TODO: MaxLinear DHCP monitoring may need to fill interfaces (PPM-1777)
-    if (read_management_mode() != BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
-
-        beerocks::bpl::BPL_WLAN_IFACE interfaces[beerocks::MAX_RADIOS_PER_AGENT] = {0};
-        int num_of_interfaces = beerocks::MAX_RADIOS_PER_AGENT;
-        if (beerocks::bpl::cfg_get_all_prplmesh_wifi_interfaces(interfaces, &num_of_interfaces)) {
-            std::cout << "ERROR: Failed to read interfaces map" << std::endl;
-            return 1;
-        }
-
-        std::string mandatory_interfaces;
-        std::vector<std::string> mandatory_interfaces_vec;
-        // Read the mandatory interfaces list from config and parse it if not empty
-        if (beerocks::bpl::bpl_cfg_get_mandatory_interfaces(mandatory_interfaces)) {
-            if (!mandatory_interfaces.empty()) {
-                mandatory_interfaces_vec =
-                    beerocks::string_utils::str_split(mandatory_interfaces, ',');
-            }
-        }
-
-        for (int i = 0; i < num_of_interfaces; i++) {
-            // If interface is mandatory
-            if (std::find(mandatory_interfaces_vec.begin(), mandatory_interfaces_vec.end(),
-                          interfaces[i].ifname) != mandatory_interfaces_vec.end()) {
-                interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
-            } else if (beerocks::net::network_utils::linux_iface_exists(interfaces[i].ifname)) {
-                // if interface is not mandatory and exists
-                interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
-            }
-        }
-
-        if (interfaces_map.empty()) {
-            std::cout << "INFO: No radio interfaces are available" << std::endl;
-            return 0;
+    PLACE_HUESOS
+    beerocks::bpl::BPL_WLAN_IFACE interfaces[beerocks::MAX_RADIOS_PER_AGENT] = {0};
+    int num_of_interfaces = beerocks::MAX_RADIOS_PER_AGENT;
+    if (beerocks::bpl::cfg_get_all_prplmesh_wifi_interfaces(interfaces, &num_of_interfaces)) {
+        std::cout << "ERROR: Failed to read interfaces map" << std::endl;
+        return 1;
+    }
+    PLACE_HUESOS
+    std::string mandatory_interfaces;
+    std::vector<std::string> mandatory_interfaces_vec;
+    // Read the mandatory interfaces list from config and parse it if not empty
+    if (beerocks::bpl::bpl_cfg_get_mandatory_interfaces(mandatory_interfaces)) {
+        if (!mandatory_interfaces.empty()) {
+            mandatory_interfaces_vec = beerocks::string_utils::str_split(mandatory_interfaces, ',');
         }
     }
+    PLACE_HUESOS
+    for (int i = 0; i < num_of_interfaces; i++) {
+        // If interface is mandatory
+        if (std::find(mandatory_interfaces_vec.begin(), mandatory_interfaces_vec.end(),
+                      interfaces[i].ifname) != mandatory_interfaces_vec.end()) {
+            interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
+        } else if (beerocks::net::network_utils::linux_iface_exists(interfaces[i].ifname)) {
+            // if interface is not mandatory and exists
+            interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
+        }
+    }
+    PLACE_HUESOS
+    if (interfaces_map.empty()) {
+        std::cout << "INFO: No radio interfaces are available" << std::endl;
+        return 0;
+    }
+    PLACE_HUESOS
     // killall running slave
     beerocks::os_utils::kill_pid(beerocks_slave_conf.temp_path + "pid/",
                                  std::string(BEEROCKS_AGENT));
-
+    PLACE_HUESOS
     // Remove any residual agent files not cleared by previous instance
     remove_residual_agent_files(beerocks_slave_conf.temp_path, std::string(BEEROCKS_AGENT));
-
+    PLACE_HUESOS
     // backhaul/platform manager slave
     return run_beerocks_slave(beerocks_slave_conf, interfaces_map, argc, argv);
 }
