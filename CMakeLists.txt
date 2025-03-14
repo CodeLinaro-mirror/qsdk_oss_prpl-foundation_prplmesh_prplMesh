@@ -22,7 +22,7 @@ function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT
     set(footer "")
 
     foreach(object IN LISTS ROOT_DM_SPLIT)
-        set(header "${header}${indent}object ${object} {\n")
+        set(header "${header}${indent}%persistent object ${object} {\n")
         set(footer "}\n${footer}")
         set(indent "    ${indent}")
     endforeach()
@@ -53,14 +53,6 @@ add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
 process_root_dm(DATAELEMENTS_ROOT_DM DATAELEMENTS_ROOT_DM_literal DATAELEMENTS_ROOT_DM_Header DATAELEMENTS_ROOT_DM_Footer)
 process_root_dm(CONTROLLER_ROOT_DM CONTROLLER_ROOT_DM_literal CONTROLLER_ROOT_DM_Header CONTROLLER_ROOT_DM_Footer)
 process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_ROOT_DM_Footer)
-
-message(STATUS "VOLODYMYR DATAELEMENTS_ROOT_DM: ${DATAELEMENTS_ROOT_DM}")
-message(STATUS "VOLODYMYR DATAELEMENTS_ROOT_DM_Header:\n${DATAELEMENTS_ROOT_DM_Header}")
-message(STATUS "VOLODYMYR DATAELEMENTS_ROOT_DM_Footer:\n${DATAELEMENTS_ROOT_DM_Footer}")
-
-message(STATUS "VOLODYMYR CONTROLLER_ROOT_DM: ${CONTROLLER_ROOT_DM}")
-message(STATUS "VOLODYMYR CONTROLLER_ROOT_DM_Header:\n${CONTROLLER_ROOT_DM_Header}")
-message(STATUS "VOLODYMYR CONTROLLER_ROOT_DM_Footer:\n${CONTROLLER_ROOT_DM_Footer}")
 
 
 ## Build options

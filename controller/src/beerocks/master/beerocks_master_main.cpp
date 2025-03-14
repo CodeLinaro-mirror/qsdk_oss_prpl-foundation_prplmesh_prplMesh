@@ -53,7 +53,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif // AMBIORIX_BUS_URI
 
 #ifndef CONTROLLER_DATAMODEL_PATH
-#define CONTROLLER_DATAMODEL_PATH "config/odl/prplmesh.odl"
+#define CONTROLLER_DATAMODEL_PATH "config/odl/master_config.odl"
 #endif
 
 #endif //#else // ENABLE_NBAPI

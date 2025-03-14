@@ -21,7 +21,19 @@ int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
 
 int cfg_is_enabled() { return 0; }
 
-int cfg_is_master() { return 0; }
+int cfg_is_master()
+{
+    switch (cfg_get_management_mode()) {
+    case BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT:
+        return 1;
+    case BPL_MGMT_MODE_MULTIAP_CONTROLLER:
+        return 1;
+    case BPL_MGMT_MODE_MULTIAP_AGENT:
+        return 0;
+    default:
+        return -1;
+    }
+}
 
 int cfg_get_management_mode()
 {
@@ -44,6 +56,8 @@ int cfg_get_management_mode()
     } else {
         MAPF_ERR("cfg_get_management_mode: unexpected management_mode");
     }
+
+    MAPF_INFO("cfg_get_management_mode: " + management_mode_str);
 
     return management_mode;
 }
