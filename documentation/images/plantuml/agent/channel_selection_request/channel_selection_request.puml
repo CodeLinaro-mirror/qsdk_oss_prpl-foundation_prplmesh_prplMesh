@@ -1,0 +1,63 @@
+@startuml
+
+participant channel_selection_task
+participant backhaul_manager_task_pool
+participant backhaul_manager
+participant son_slave_thread
+participant ap_manager
+participant bwl_whm
+participant pwhm
+
+== After parsing Channel Selection Request, any change is required ==
+
+channel_selection_task -> son_slave_thread : ACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START
+
+son_slave_thread -> ap_manager : ACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START
+
+
+== Channel and Operating Class ==
+
+group if 1905 Channel Selection Request instructs agent to change the Channel / Bandwidth
+	ap_manager -> bwl_whm : switch_channel()
+	bwl_whm -> pwhm : WiFi.Radio.x. set("OperatingChannelBandwidth", "Channel")
+	pwhm -> bwl_whm : WiFi.Radio.x. process_radio_channel_change_event()
+	bwl_whm -> ap_manager : Event:CSA_Finished
+	ap_manager -> son_slave_thread : ACTION_APMANAGER_HOSTAP_CSA_NOTIFICATION
+	son_slave_thread -> backhaul_manager : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+	backhaul_manager -> backhaul_manager_task_pool : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+	backhaul_manager_task_pool -> channel_selection_task : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+end
+
+== Spatial Reuse Config ==
+
+group if 1905 Channel Selection Request contains Spatial Reuse Request TLVs
+	ap_manager -> ap_manager : start 5[s] timer
+	ap_manager -> bwl_whm : set_spatial_reuse_config()
+	bwl_whm -> pwhm : WiFi.Radio.x.IEEE80211ax. set ("A lot of parameters")
+	ap_manager -> ap_manager : timer elapsed
+	bwl_whm -> ap_manager : get_spatial_reuse_config()
+	ap_manager -> son_slave_thread : ACTION_APMANAGER_HOSTAP_CSA_NOTIFICATION
+	son_slave_thread -> backhaul_manager : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+	backhaul_manager -> backhaul_manager_task_pool : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+	backhaul_manager_task_pool -> channel_selection_task : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+end
+
+== Set TX Power ==
+
+group if 1905 Channel Selection Request contains Transmit Power Limit TLVs
+	ap_manager -> bwl_whm : set_tx_power_limit()
+	bwl_whm -> pwhm : WiFi.Radio.x. set ("TransmitPower")
+	bwl_whm -> pwhm : using outdated conversion from EasyMesh[dBm] to pwhm[% of chip MaxPower]
+	ap_manager -> son_slave_thread : ACTION_APMANAGER_HOSTAP_CSA_NOTIFICATION
+	son_slave_thread -> backhaul_manager : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+	backhaul_manager -> backhaul_manager_task_pool : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+	backhaul_manager_task_pool -> channel_selection_task : ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION
+end
+	
+
+== EHTOperations ==
+
+group ! ! ! tlvEHTOperations is not handled yet ! ! !
+end
+
+@enduml

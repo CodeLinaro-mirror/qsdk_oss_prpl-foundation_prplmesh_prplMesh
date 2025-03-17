@@ -1928,6 +1928,10 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                 LOG(ERROR) << "All the vaps are not yet enabled";
                 return;
             }
+
+#ifndef USE_PRPLMESH_WHM
+            // this artificial CSA is useless when using pwhm
+
             // hostapd is enabled and started radio beaconing after autoconfiguration
             // then radio tx power is updated, so to keep agent DB updated send CSA notification
             // like it is handled in cACTION_APMANAGER_ENABLE_APS_REQUEST.
@@ -1940,6 +1944,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             ap_wlan_hal->refresh_radio_info();
             fill_cs_params(csa_notification->cs_params());
             send_cmdu(cmdu_tx);
+#endif
 
             // The 'available_vaps' container is cleared and filled inside update_vap_credentials()
             auto response = message_com::create_vs_message<
@@ -3228,11 +3233,6 @@ void ApManager::handle_hostapd_attached()
     notification->params().iface_mac  = tlvf::mac_from_string(ap_wlan_hal->get_radio_mac());
     notification->params().ant_num    = ap_wlan_hal->get_radio_info().ant_num;
     notification->params().tx_power   = ap_wlan_hal->get_radio_info().tx_power;
-    notification->cs_params().channel = ap_wlan_hal->get_radio_info().channel;
-    notification->cs_params().channel_ext_above_primary =
-        ap_wlan_hal->get_radio_info().channel_ext_above;
-    notification->cs_params().vht_center_frequency = ap_wlan_hal->get_radio_info().vht_center_freq;
-    notification->cs_params().bandwidth            = ap_wlan_hal->get_radio_info().bandwidth;
 
     notification->params().frequency_band = ap_wlan_hal->get_radio_info().frequency_band;
     notification->params().max_bandwidth  = ap_wlan_hal->get_radio_info().max_bandwidth;
@@ -3256,6 +3256,8 @@ void ApManager::handle_hostapd_attached()
     notification->params().hybrid_mode_supported = ap_wlan_hal->hybrid_mode_supported();
 
     notification->radio_max_bss() = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+
+    fill_cs_params(notification->cs_params());
 
     auto channel_list_class = notification->create_channel_list();
     build_channels_list(cmdu_tx, ap_wlan_hal->get_radio_info().channels_list, channel_list_class);

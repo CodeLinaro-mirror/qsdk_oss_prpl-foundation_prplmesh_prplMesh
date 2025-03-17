@@ -40,6 +40,10 @@ namespace beerocks {
 constexpr int8_t ChannelSelectionTask::ZWDFS_FLOW_MAX_RETRIES;
 constexpr int16_t ChannelSelectionTask::ZWDFS_FLOW_DELAY_BETWEEN_RETRIES_MSEC;
 
+constexpr std::chrono::milliseconds timeout_op_chan_rep_on_chan_sel(5500);
+// see /documentation/images/plantuml/agent/channel_selection_request/channel_selection_request.svg
+// for value justification (need to cover spatial reuse config procedure)
+
 /**
  * @brief Returns the preference score of a given channel.
  * 
@@ -163,6 +167,10 @@ void ChannelSelectionTask::work()
     if (zwdfs_in_process()) {
         zwdfs_fsm();
     }
+
+    if (pending_operating_channel_report()) {
+        send_operating_channel_report_if_ready();
+    }
 }
 
 void ChannelSelectionTask::handle_event(uint8_t event_enum_value, const void *event_obj)
@@ -275,7 +283,11 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
 
     LOG(DEBUG) << "Received CHANNEL_SELECTION_REQUEST for src_mac " << src_mac
                << ", mid = " << std::hex << mid;
-
+    if (m_pending_selection.mid) {
+        LOG(ERROR) << "still handling previous CHANNEL_SELECTION_REQUEST from << " << src_mac
+                   << " mid[" << std::hex << m_pending_selection.mid << "]";
+        return;
+    }
     // Clear previous request, if any.
     m_pending_selection.mid = mid;
     m_pending_selection.requests.clear();
@@ -403,13 +415,12 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
                     wfa_map::tlvSpatialReuseConfigResponse::ACCEPT;
             }
         }
+        m_pending_selection.requests[radio_mac].chan_sel_state = NO_CHANNEL_SWITCH;
     }
     // Send response back to the sender.
     LOG(DEBUG) << "Sending Channel-Selection-Response to broker";
     m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
-    m_pending_selection.mid = 0;
 
-    bool manually_send_operating_report = false;
     // Handle pending Outgoing requests.
     for (auto &request_iter : m_pending_selection.requests) {
         auto &request         = request_iter.second;
@@ -426,7 +437,6 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
             !request.spatial_reuse_request_received) {
             LOG(DEBUG) << "No Channel Switch needed for radio " << radio_mac;
             request.manually_send_operating_report = true;
-            manually_send_operating_report         = true;
             continue;
         }
 
@@ -453,42 +463,22 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
         if (!send_channel_switch_request(radio_mac, request)) {
             LOG(ERROR) << "Failed to send Channel-Switch request.";
         }
+        request.chan_sel_state            = eRadioChanSwitchState::ACS_SENT;
+        m_pending_selection.last_chan_sel = std::chrono::steady_clock::now();
     }
 
-    if (manually_send_operating_report) {
-        // No need to manually send operating channel report message.
-        // If a Channel-Switch was requested, a CSA notification
-        // will be received, and an operating channel report will
-        // be send from it's handler.
+    auto it_req =
+        std::find_if(m_pending_selection.requests.begin(), m_pending_selection.requests.end(),
+                     [&](const std::pair<sMacAddr, sIncomingChannelSelectionRequest> &it) {
+                         return it.second.chan_sel_state == eRadioChanSwitchState::ACS_SENT;
+                     });
+    if (it_req != m_pending_selection.requests.end()) {
+        // we are waiting for 1 or more ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION or ACTION_APMANAGER_HOSTAP_CSA_ERROR_NOTIFICATION
         return;
     }
-    // build and send operating channel report message
-    if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::OPERATING_CHANNEL_REPORT_MESSAGE)) {
-        LOG(ERROR) << "cmdu creation of type OPERATING_CHANNEL_REPORT_MESSAGE, has failed";
-        return;
-    }
-    for (const auto radio : db->get_radios_list()) {
-        const auto &radio_mac    = radio->front.iface_mac;
-        const auto &request_iter = m_pending_selection.requests.find(radio_mac);
-        // Normally, when a channel switch is required, a CSA notification
-        // will be received with the new channel setting which is when
-        // the agent will send the operating channel report.
-        // In case of only a tx power limit change, there will still be
-        // a CSA notification which will hold the new power limit and also
-        // trigger sending the operating channel report.
-        // If neither channel switch nor power limit change is required,
-        // we need to explicitly send the event.
-        if (request_iter == m_pending_selection.requests.end() ||
-            request_iter->second.manually_send_operating_report) {
-            if (!tlvf_utils::create_operating_channel_report(m_cmdu_tx, radio_mac)) {
-                LOG(ERROR) << "Failed creating Operating Channel Report";
-                continue;
-            }
-        }
-    }
-    // Send response back to the sender.
-    LOG(DEBUG) << "Sending Operating-Channel-Report to broker";
-    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+
+    // all radios show NO_CHANNEL_SWITCH, it will send the OPERATING_CHANNEL_REPORT
+    send_operating_channel_report_if_ready();
 }
 
 bool ChannelSelectionTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
@@ -562,6 +552,11 @@ void ChannelSelectionTask::handle_vs_csa_notification(
     const auto &sender_iface_name = radio->front.iface_name;
 
     LOG(TRACE) << "received ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION from " << sender_iface_name;
+
+    if (!is_waiting_for_csa_notification(radio->front.iface_mac)) {
+        send_operating_channel_report(radio->front.iface_mac);
+        // unsolicited OPERATING_CHANNEL_REPORT
+    }
 
     // send inner task message
     auto switch_channel_notification = std::make_shared<sSwitchChannelNotification>();
@@ -663,8 +658,12 @@ void ChannelSelectionTask::handle_vs_csa_error_notification(
 
     const auto &sender_iface_name = radio->front.iface_name;
 
-    LOG(TRACE) << "received ACTION_APMANAGER_HOSTAP_DFS_CSA_ERROR_NOTIFICATION from "
+    LOG(TRACE) << "received ACTION_APMANAGER_HOSTAP_CSA_ERROR_NOTIFICATION from "
                << sender_iface_name;
+
+    is_waiting_for_csa_notification(radio->front.iface_mac);
+    // contrary to CSA_NOTIFICATION,
+    // do not check retval and do not send unsolicited OPERATING_CHANNEL_REPORT
 
     // send inner task message
     auto switch_channel_notification = std::make_shared<sSwitchChannelNotification>();
@@ -809,8 +808,18 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
 
     const auto &sender_iface_name = radio->front.iface_name;
 
-    LOG(TRACE) << "received ACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION from "
+    LOG(TRACE) << "received ACTION_BACKHAUL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION from "
                << sender_iface_name << ", status=" << notification->params().success;
+
+    /**
+     * The Controller is not familiar with ZWDFS radio interface, so
+     * avoid sending CMDU to the controller when the radio
+     * interface is a ZWDFS radio interface.
+     */
+    if (!radio->front.zwdfs) {
+        send_operating_channel_report(radio->front.iface_mac);
+        // unsolicited OPERATING_CHANNEL_REPORT
+    }
 
     // send inner task message
     auto cac_completed_notification = std::make_shared<sCacCompletedNotification>();
@@ -2472,6 +2481,84 @@ bool ChannelSelectionTask::initialize_zwdfs_interface_name()
         }
     }
     return false;
+}
+
+bool ChannelSelectionTask::is_waiting_for_csa_notification(const sMacAddr radio_mac)
+{
+    auto req_it = m_pending_selection.requests.find(radio_mac);
+    if (req_it != m_pending_selection.requests.end() &&
+        req_it->second.chan_sel_state == eRadioChanSwitchState::ACS_SENT) {
+
+        // channel selection task was waiting for an CSA notification;
+        // regardless if it is a CSA_ERROR or CSA_NOTIFICATION, move the state variable towards
+        // the end of channel selection logic
+        // operating channel report will contain 'previous channel' if CSA_ERROR and 'new channel' if CSA_NOTIFICATION
+        req_it->second.chan_sel_state = eRadioChanSwitchState::CSA_NOTIF_RECEIVED;
+        if (pending_operating_channel_report()) {
+            send_operating_channel_report_if_ready();
+        }
+        return true;
+    }
+    return false;
+}
+
+void ChannelSelectionTask::send_operating_channel_report_if_ready()
+{
+    if (!m_pending_selection.mid) {
+        return;
+    }
+    std::size_t count_ready = std::count_if(
+        m_pending_selection.requests.begin(), m_pending_selection.requests.end(),
+        [&](const std::pair<sMacAddr, sIncomingChannelSelectionRequest> &it) {
+            return (it.second.chan_sel_state == eRadioChanSwitchState::CSA_NOTIF_RECEIVED) ||
+                   (it.second.chan_sel_state == eRadioChanSwitchState::NO_CHANNEL_SWITCH);
+        });
+
+    bool ready   = (count_ready == m_pending_selection.requests.size());
+    bool timeout = std::chrono::steady_clock::now() >
+                   m_pending_selection.last_chan_sel + timeout_op_chan_rep_on_chan_sel;
+
+    if (!ready && !timeout) {
+        return;
+    }
+    // reset context
+    m_pending_selection.mid = 0;
+    for (auto it : m_pending_selection.requests) {
+        it.second.chan_sel_state = eRadioChanSwitchState::INVALID;
+    }
+
+    send_operating_channel_report(beerocks::net::network_utils::ZERO_MAC);
+}
+
+bool ChannelSelectionTask::send_operating_channel_report(const sMacAddr &radio_mac)
+{
+    auto db = AgentDB::get();
+
+    // build and send operating channel report message
+    if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::OPERATING_CHANNEL_REPORT_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type OPERATING_CHANNEL_REPORT_MESSAGE, has failed";
+        return false;
+    }
+
+    std::vector<sMacAddr> radio_list;
+    if (radio_mac == beerocks::net::network_utils::ZERO_MAC) {
+        for (const auto radio : db->get_radios_list()) {
+            radio_list.push_back(radio->front.iface_mac);
+        }
+        LOG(DEBUG) << "OPERATING_CHANNEL_REPORT message";
+    } else {
+        LOG(DEBUG) << "unsolicited OPERATING_CHANNEL_REPORT message";
+        radio_list.push_back(radio_mac);
+    }
+
+    for (auto radio : radio_list) {
+        if (!tlvf_utils::create_operating_channel_report(m_cmdu_tx, radio)) {
+            LOG(ERROR) << "Failed adding Operating Channel Report TLV";
+            return false;
+        }
+    }
+
+    return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
 }
 
 } // namespace beerocks

@@ -63,12 +63,22 @@ private:
         uint8_t preference_score              = 0;
     } m_selected_channel;
 
+    enum eRadioChanSwitchState : uint8_t {
+        INVALID,
+        NO_CHANNEL_SWITCH,
+        ACS_SENT,
+        CSA_NOTIF_RECEIVED
+    };
+    // task sends ACS_START but reply from base_bwl_hal is CSA_NOTIFICATION
+
     struct sIncomingChannelSelectionRequest {
         // Assume response will be successful
         wfa_map::tlvChannelSelectionResponse::eResponseCode response_code =
             wfa_map::tlvChannelSelectionResponse::eResponseCode::ACCEPT;
 
         AgentDB::sRadio::channel_preferences_map controller_preferences;
+
+        eRadioChanSwitchState chan_sel_state = INVALID;
         struct sChannelSelectionParams {
             uint8_t channel                    = 0;
             beerocks::eFreqType freq_type      = beerocks::eFreqType::FREQ_UNKNOWN;
@@ -92,7 +102,8 @@ private:
     };
 
     struct sPendingChannelSelection {
-        uint16_t mid;
+        uint16_t mid = 0;
+        std::chrono::steady_clock::time_point last_chan_sel;
         std::unordered_map<sMacAddr, sIncomingChannelSelectionRequest> requests;
     };
 
@@ -273,6 +284,16 @@ private:
     /* Class members */
 
     sPendingChannelSelection m_pending_selection;
+    bool pending_operating_channel_report() { return m_pending_selection.mid != 0; }
+    void send_operating_channel_report_if_ready();
+    bool send_operating_channel_report(const sMacAddr &radio_mac);
+
+    /**
+     * @brief if channel selection context is waiting for a channel selection notification,
+     * consume the event and return true;
+     * else return false
+     */
+    bool is_waiting_for_csa_notification(const sMacAddr radio_mac);
 
     sPendingChannelPreferenceReport m_pending_preference;
 
