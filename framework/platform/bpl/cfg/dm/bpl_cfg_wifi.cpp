@@ -8,13 +8,17 @@
 
 #include "../common/utils/utils.h"
 #include "../common/utils/utils_net.h"
+
 #include <bcl/beerocks_string_utils.h>
 #include <bpl/bpl_cfg.h>
+
 #include <mapf/common/logger.h>
 #include <mapf/common/utils.h>
 
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
+
+#include "wbapi_utils.h"
 
 #include "bpl_cfg_pwhm.h"
 
@@ -200,6 +204,27 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
     return true;
 }
 
+int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
+                                 char pass[BPL_PASS_LEN], char sec[BPL_SEC_LEN])
+{
+    // TODO implement dynamic conf
+
+    // prplmesh.config.ssid                        = 'test_ssid' prplmesh.config.mode_enabled =
+    //     'WPA2-Personal' prplmesh.config.wep_key = '123456789a' prplmesh.config.key_passphrase =
+    //         'test_passphrase'
+
+    memset(ssid, 0, BPL_SSID_LEN);
+    strncpy(ssid, "test_ssid", BPL_SSID_LEN - 1);
+
+    memset(pass, 0, BPL_PASS_LEN);
+    strncpy(pass, "123456789a", BPL_PASS_LEN - 1);
+
+    memset(sec, 0, BPL_SEC_LEN);
+    strncpy(sec, "WPA2-Personal", BPL_SEC_LEN - 1);
+
+    return 0;
+}
+
 bool bpl_cfg_set_wifi_credentials(const std::string &iface,
                                   const son::wireless_utils::sBssInfoConf &configuration)
 {
@@ -378,10 +403,54 @@ int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
     return 0;
 }
 
+int cfg_get_load_steer_on_vaps(int num_of_interfaces,
+                               char load_steer_on_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
+{
+    if (num_of_interfaces < 1) {
+        MAPF_ERR("invalid input: max num_of_interfaces value < 1");
+        return RETURN_ERR;
+    }
+
+    if (!load_steer_on_vaps) {
+        MAPF_ERR("invalid input: load_steer_on_vaps is NULL");
+        return RETURN_ERR;
+    }
+
+    std::string load_steer_on_vaps_str;
+    char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN] = {0};
+    for (int index = 0; index < num_of_interfaces; index++) {
+        if (cfg_get_hostap_iface_steer_vaps(index, hostap_iface_steer_vaps) == RETURN_OK) {
+            if (std::string(hostap_iface_steer_vaps).length() > 0) {
+                if (!load_steer_on_vaps_str.empty()) {
+                    load_steer_on_vaps_str.append(",");
+                }
+                load_steer_on_vaps_str.append(std::string(hostap_iface_steer_vaps));
+                MAPF_DBG("adding interface " << hostap_iface_steer_vaps
+                                             << " to the steer on vaps list");
+            }
+        }
+    }
+
+    if (load_steer_on_vaps_str.empty()) {
+        MAPF_DBG("steer on vaps list is not configured");
+        return RETURN_OK;
+    }
+
+    mapf::utils::copy_string(load_steer_on_vaps, load_steer_on_vaps_str.c_str(),
+                             BPL_LOAD_STEER_ON_VAPS_LEN);
+
+    return RETURN_OK;
+}
+
 bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
                                                std::set<std::string> &monitored_BSSs)
 {
     return true;
+}
+
+int cfg_get_dcs_channel_pool(int radio_num, char channel_pool[BPL_DCS_CHANNEL_POOL_LEN])
+{
+    return 0;
 }
 
 bool bpl_cfg_get_wpa_supplicant_ctrl_path(const std::string &iface, std::string &wpa_ctrl_path)

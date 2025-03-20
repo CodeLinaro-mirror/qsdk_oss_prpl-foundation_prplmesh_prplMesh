@@ -9,18 +9,22 @@
 #ifndef _BPL_CFG_AMX_HELPER_H_
 #define _BPL_CFG_AMX_HELPER_H_
 
-#include "bpl_cfg_pwhm.h"
+#include <string>
 
-#include <ambiorix_variant.h>
-
-using beerocks::wbapi::AmbiorixVariantSmartPtr;
+#include <ambiorix.h>
 
 namespace beerocks {
 namespace bpl {
 
-AmbiorixVariantSmartPtr get_controller_dm();
+extern std::shared_ptr<beerocks::nbapi::Ambiorix> amb_ptr;
 
-AmbiorixVariantSmartPtr get_agent_dm();
+template <typename T> bool set_controller_config_param(const std::string &name, const T &value);
+
+template <typename T> bool set_agent_config_param(const std::string &name, const T &value);
+
+template <typename T> bool read_controller_config_param(const std::string &name, T &value);
+
+template <typename T> bool read_agent_config_param(const std::string &name, T &value);
 
 } // namespace bpl
 } // namespace beerocks

@@ -24,6 +24,8 @@ using namespace mapf;
 namespace beerocks {
 namespace bpl {
 
+#ifndef KEEP_UCI_GENERAL_OPTIONS
+
 static bool bpl_cfg_get_bss_configuration(const std::string &section_name,
                                           son::wireless_utils::sBssInfoConf &configuration)
 {
@@ -532,6 +534,8 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
     return true;
     // break monitor vaps to vector
 }
+
+#endif
 
 } // namespace bpl
 } // namespace beerocks

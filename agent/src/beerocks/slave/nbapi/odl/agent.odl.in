@@ -13,25 +13,6 @@
 
         /* Configuration options for the agent */
         %persistent object Configuration {
-            
-            /* ----- General options ----- */
-
-            /* Defines the Multi-AP mode for the agent. Possible values: Agent, Controller, Controller+Agent */
-            %persistent string ManagementMode {
-                default "Agent";
-                on action validate call check_enum [
-                            "Agent", 
-                            "Controller",   
-                            "Controller+Agent"
-                        ];
-            }
-
-            /* Enables certification-specific features, such as the UCC listener */
-            %persistent bool CertificationMode {
-                default false;
-            }
-
-            /* ----- Agent specific options ----- */
 
             /* Threshold for the best channel rank, used in the channel selection task */
             %persistent uint32 BestChannelRankThreshold {
@@ -45,7 +26,7 @@
 
             /* Specifies the network interface to use for wired backhaul */
             %persistent string BackhaulWireInterface {
-                default "none";
+                default "wan";
             }
 
             /* Number of retry attempts before the agent stops due to failures. 0 disables retries */
@@ -71,6 +52,11 @@
             /* Excludes dummy radio interfaces from credential propagation in the controller */
             %persistent bool ExcludeHostapInterface {
                 default false;
+            }
+
+            /* Excludes dummy radio interfaces from credential propagation in the controller */
+            %persistent bool RadioStatsEnable {
+                default true;
             }
         }
 

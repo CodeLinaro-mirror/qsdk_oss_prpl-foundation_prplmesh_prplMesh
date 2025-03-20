@@ -679,7 +679,7 @@ bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     return true;
 }
 
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int &unsuccessful_assoc_max_reporting_rate)
+bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_reporting_rate)
 {
     return true;
 }
@@ -728,7 +728,7 @@ bool cfg_get_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_di
     return true;
 }
 
-bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_disassoc_timer_msec)
+bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds steering_disassoc_timer_msec)
 {
     return true;
 }

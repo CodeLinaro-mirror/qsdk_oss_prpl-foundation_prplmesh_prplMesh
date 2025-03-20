@@ -9,7 +9,14 @@
 #ifndef _BPL_H_
 #define _BPL_H_
 
+#include <memory>
+
 namespace beerocks {
+
+namespace nbapi {
+class Ambiorix;
+}
+
 namespace bpl {
 
 /**
@@ -19,6 +26,8 @@ namespace bpl {
  * @return 0 on success or a negative value on error.
  */
 int bpl_init();
+
+void set_ambiorix_impl_ptr(const std::shared_ptr<beerocks::nbapi::Ambiorix> &ptr);
 
 /**
  * Un-initialize the BPL.

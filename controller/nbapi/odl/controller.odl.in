@@ -174,13 +174,13 @@
 
                     /* Used in client_steering_task to format the 1905 Client Steering Request 
                     packet sent to the steering source agent */
-                    %persistent uint32 SteeringDisassociationTimer {
-                        default 0;
+                    %persistent uint32 SteeringDisassociationTimerMSec {
+                        default 200;
                     }
 
                     /* Link Metric Request Interval in Seconds */
-                    %persistent uint32 LinkMetricsRequestInterval {
-                        default 0;
+                    %persistent uint32 LinkMetricsRequestIntervalSec {
+                        default 60;
                     }
 
                     /* Used by controller to start / stop channel selection task */
@@ -233,10 +233,96 @@
                         default false;
                     }
 
+                    /* Used by channel selection task; currently (03.2024) does nothing 
+                    as the task never goes to the state where this flag is checked */
+                    %persistent bool DFSTaskEnabled {
+                        default false;
+                    }
+
                     /* Used by handle_cmdu_1905_autoconfiguration_WSC; don`t send credentials to extenders if enabled */
                     %persistent bool DaisyChainingDisabled {
                         default false;
                     }
+
+                    /* used by controller to start / stop statistics_polling_task */
+                    %persistent bool DiagnosticsMeasurements {
+                        default true;
+                    }
+
+                    /* used by statistics_polling_task as interval for sending 
+                    beerocks_message::cACTION_CONTROL_HOSTAP_STATS_MEASUREMENT_REQUEST to known agents */
+                    %persistent uint32 DiagnosticsMeasurementsRate {
+                        default 10;
+                    }
+
+                    /* If set to 1, enable reporting for unsuccessful associations. */
+                    %persistent bool UnsuccessfulAssocReportPolicy {
+                        default true;
+                    }
+
+                    /* Maximum rate for reporting unsuccessful association in attempts per minute. */
+                    %persistent uint32 UnsuccessfulAssocMaxReportingRate {
+                        default 30;
+                    }
+
+                    /* optimal_path_task; applies bonus to current BSS {phy_rate or rssi}; 
+                    choice of parameter is based on prefer_signal_strength flag */
+                    %persistent uint32 RoamingHysteresisPercentBonus {
+                        default 10;
+                    }
+
+                    /* RSSI measurements responses timeout */
+                    %persistent uint32 RSSIMeasurementsTimeout {
+                        default 10000;
+                    }
+                    
+                    /* used by controller to start / stop statistics_polling_task */
+                    %persistent uint32 BeaconMeasurementsTimeout {
+                        default 6000;
+                    }
+
+                    /* RCPI (Received Channel Power Indicator) threshold in dB.
+                    If a station's RCPI drops below this value, a metrics report is triggered.
+                    Value is encoded per IEEE 802.11 Table 9-176. Default 0 disables reporting. */
+                    %persistent uint32 STAReportingRCPIThreshold {
+                        default 0;
+                    }
+
+                    /* Override value for RCPI hysteresis margin in dB.
+                    Adds a margin before RCPI changes trigger a report to reduce report noise.
+                    Set to 0 to use system default margin. Default is 0 (no override). */
+                    %persistent uint32 STAReportingRCPIHystMarginOverrideThreshold {
+                        default 0;
+                    }
+
+                    /* Channel Utilization threshold (%) for triggering AP Metrics reports.
+                    If channel usage exceeds this value, a report is sent.
+                    Helps detect overloaded environments. Default is 0 (disabled). */
+                    %persistent uint32 APReportingChannelUtilizationThreshold {
+                        default 0;
+                    }
+
+                    /* Controls whether Associated STA Link Metrics TLV is included in reports.
+                    If true, per-client metrics like RSSI and PHY rate are reported.
+                    Default is false (not included). */
+                    %persistent bool AssocSTALinkMetricsInclusionPolicy {
+                        default false;
+                    }
+
+                    /* Controls whether Associated STA Traffic Stats TLV is included in reports.
+                    If true, includes data such as bytes transmitted/received per STA.
+                    Default is false (not included). */
+                    %persistent bool AssocSTATrafficStatsInclusionPolicy {
+                        default false;
+                    }
+
+                    /* Controls whether Wi-Fi 6 STA Status Report TLV is included in reports.
+                    If true, reports include Wi-Fi 6 features like BSS color and HE capabilities.
+                    Default is false (not included). */
+                    %persistent bool AssocWiFi6STAStatusReportInclusionPolicy {
+                        default false;
+                    }
+
 
                     /* QoS configuration */
                     %persistent object QoS {

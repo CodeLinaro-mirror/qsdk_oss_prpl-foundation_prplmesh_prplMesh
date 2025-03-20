@@ -1138,15 +1138,15 @@ static void event_configuration_changed(const char *const sig_name, const amxc_v
     nbapi_config.client_band_steering =
         amxd_object_get_bool(configuration, "BandSteeringEnabled", nullptr);
     nbapi_config.client_11k_roaming =
-        amxd_object_get_bool(configuration, "Client_11kRoaming", nullptr);
+        amxd_object_get_bool(configuration, "Client11kRoamingEnabled", nullptr);
     nbapi_config.client_optimal_path_roaming =
         amxd_object_get_bool(configuration, "ClientRoamingEnabled", nullptr);
     nbapi_config.roaming_hysteresis_percent_bonus =
         amxd_object_get_int32_t(configuration, "SteeringCurrentBonus", nullptr);
     nbapi_config.steering_disassoc_timer_msec = std::chrono::milliseconds{
-        amxd_object_get_int32_t(configuration, "SteeringDisassociationTimer", nullptr)};
+        amxd_object_get_int32_t(configuration, "SteeringDisassociationTimerMSec", nullptr)};
     nbapi_config.link_metrics_request_interval_seconds = std::chrono::seconds{
-        amxd_object_get_int32_t(configuration, "LinkMetricsRequestInterval", nullptr)};
+        amxd_object_get_int32_t(configuration, "LinkMetricsRequestIntervalSec", nullptr)};
 
     nbapi_config.channel_select_task =
         amxd_object_get_bool(configuration, "ChannelSelectionTaskEnabled", nullptr);
@@ -1172,7 +1172,8 @@ static void event_configuration_changed(const char *const sig_name, const amxc_v
     nbapi_config.diagnostics_measurements_polling_rate_sec =
         amxd_object_get_int32_t(configuration, "StatisticsPollingRateSec", nullptr);
 
-    nbapi_config.enable_dfs_reentry = amxd_object_get_bool(configuration, "DFSReentry", nullptr);
+    nbapi_config.enable_dfs_reentry =
+        amxd_object_get_bool(configuration, "DFSReentryEnabled", nullptr);
 
     nbapi_config.daisy_chaining_disabled =
         amxd_object_get_bool(configuration, "DaisyChainingDisabled", nullptr);

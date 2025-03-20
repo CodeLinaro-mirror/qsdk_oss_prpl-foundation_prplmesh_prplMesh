@@ -1009,7 +1009,7 @@ bool cfg_get_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_di
  * @param[in] steering_disassoc_timer_msec  steering disassociation timer in milliseconds.
  * @return true on success, otherwise false
  */
-bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_disassoc_timer_msec);
+bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds steering_disassoc_timer_msec);
 
 /**
  * @brief Reads Clients stats/measurements mode.

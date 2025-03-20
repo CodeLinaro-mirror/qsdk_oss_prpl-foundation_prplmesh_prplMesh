@@ -22,6 +22,8 @@ namespace bpl {
 
 beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
 
+std::shared_ptr<beerocks::nbapi::Ambiorix> amb_ptr = nullptr;
+
 void m_ambiorix_cl_destructor() { m_ambiorix_cl.~AmbiorixClient(); }
 
 int bpl_init()
@@ -32,6 +34,8 @@ int bpl_init()
     std::atexit(m_ambiorix_cl_destructor);
     return RETURN_OK;
 }
+
+void set_ambiorix_impl_ptr(const std::shared_ptr<beerocks::nbapi::Ambiorix> &ptr) { amb_ptr = ptr; }
 
 void bpl_close()
 {

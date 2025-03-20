@@ -9,17 +9,19 @@
 #ifndef _BPL_CFG_PRIVATE_H_
 #define _BPL_CFG_PRIVATE_H_
 
+#include <memory>
 #include <stdint.h>
 #include <string>
 
 #include "ambiorix_client.h"
-#include "wbapi_utils.h"
 
 #define RETURN_OK 0
 #define RETURN_ERR -1
 
 namespace beerocks {
 namespace bpl {
+
+constexpr char DEFAULT_DM_LAN_INTERFACE_NAMES[] = "eth0_1 eth0_2 eth0_3 eth0_4 lan0 lan1 lan2 lan3";
 
 extern beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
 

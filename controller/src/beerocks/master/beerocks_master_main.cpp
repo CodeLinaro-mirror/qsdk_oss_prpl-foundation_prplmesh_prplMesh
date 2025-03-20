@@ -611,6 +611,7 @@ int main(int argc, char *argv[])
                   << "amxrt_config_init returned : " << init << " shutting down!" << std::endl;
         return init;
     }
+
     guarantee = amxrt;
     (void)guarantee.use_count();
 
@@ -708,10 +709,6 @@ int main(int argc, char *argv[])
     std::string pid_file_path =
         beerocks_master_conf.temp_path + "pid/" + base_master_name; // for file touching
 
-    // fill master configuration
-    son::db::sDbMasterConfig master_conf;
-    fill_master_config(master_conf, beerocks_master_conf);
-
     // Create application event loop to wait for blocking I/O operations.
     auto event_loop = std::make_shared<beerocks::EventLoopImpl>();
     LOG_IF(!event_loop, FATAL) << "Unable to create event loop!";
@@ -755,6 +752,10 @@ int main(int argc, char *argv[])
 #else
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI
+
+    // fill master configuration
+    son::db::sDbMasterConfig master_conf;
+    fill_master_config(master_conf, beerocks_master_conf);
 
     // Set Network.ID to the Data Model
     if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ID",

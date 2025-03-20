@@ -24,6 +24,8 @@ using namespace mapf;
 namespace beerocks {
 namespace bpl {
 
+#ifndef KEEP_UCI_GENERAL_OPTIONS
+
 int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                     char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
 {
@@ -65,6 +67,8 @@ int cfg_is_master()
     }
 }
 
+#endif
+
 int cfg_get_management_mode()
 {
     int retVal                                = 0;
@@ -105,6 +109,8 @@ int cfg_get_certification_mode()
     }
     return retVal;
 }
+
+#ifndef KEEP_UCI_GENERAL_OPTIONS
 
 int cfg_get_load_steer_on_vaps(int num_of_interfaces,
                                char load_steer_on_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
@@ -721,7 +727,7 @@ bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     return true;
 }
 
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int &unsuccessful_assoc_max_reporting_rate)
+bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_reporting_rate)
 {
     std::string option = "unsuccessful_assoc_max_reporting_rate";
     std::string value  = std::to_string(unsuccessful_assoc_max_reporting_rate);
@@ -785,7 +791,7 @@ bool cfg_get_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_di
     return true;
 }
 
-bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_disassoc_timer_msec)
+bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds steering_disassoc_timer_msec)
 {
     std::string option = "steering_disassoc_timer_msec";
     std::string value  = std::to_string(steering_disassoc_timer_msec.count());
@@ -1099,6 +1105,8 @@ bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
     client_unicast_measurements = bool(val == 1);
     return true;
 }
+
+#endif
 
 bool cfg_commit_changes() { return uci_commit_changes("prplmesh"); }
 
