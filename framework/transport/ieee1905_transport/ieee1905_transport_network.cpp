@@ -400,43 +400,43 @@ void Ieee1905Transport::activate_interface(NetworkInterface &interface)
     socket_name.append(interface.ifname).append(" Socket");
 
     // Handle network events
-	EventLoop::EventHandlers handlers = {
-		// Handlers name
-		.name = socket_name,
+    EventLoop::EventHandlers handlers = {
+        // Handlers name
+        .name = socket_name,
 
-		// Accept incoming connections
-		.on_read =
-			[&](int fd, EventLoop &loop) {
-				LOG(DEBUG) << "Incoming message on interface " << interface.ifname << " FD ("
-							<< fd << ")";
-				handle_interface_pollin_event(fd);
-				return true;
-			},
+        // Accept incoming connections
+        .on_read =
+            [&](int fd, EventLoop &loop) {
+                LOG(DEBUG) << "Incoming message on interface " << interface.ifname << " FD (" << fd
+                           << ")";
+                handle_interface_pollin_event(fd);
+                return true;
+            },
 
-		// Not implemented
-		.on_write      = nullptr,
-		.on_disconnect = nullptr,
+        // Not implemented
+        .on_write      = nullptr,
+        .on_disconnect = nullptr,
 
-		// Handle interface errors
-		.on_error =
-			[&](int fd, EventLoop &loop) {
-				std::string error_message;
+        // Handle interface errors
+        .on_error =
+            [&](int fd, EventLoop &loop) {
+                std::string error_message;
 
-				int error        = 0;
-				socklen_t errlen = sizeof(error);
-				if (0 == getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&error, &errlen)) {
-					error_message = ": \"" + std::string(strerror(error)) + "\" (" +
-									std::to_string(error) + ")";
-				}
+                int error        = 0;
+                socklen_t errlen = sizeof(error);
+                if (0 == getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&error, &errlen)) {
+                    error_message = ": \"" + std::string(strerror(error)) + "\" (" +
+                                    std::to_string(error) + ")";
+                }
 
-				LOG(ERROR) << "Error on FD (" << fd << ")" << error_message
-							<< ". Disabling interface " << interface.ifname;
+                LOG(ERROR) << "Error on FD (" << fd << ")" << error_message
+                           << ". Disabling interface " << interface.ifname;
 
-				deactivate_interface(interface, false);
-				return true;
-			},
-	};
-	m_event_loop->register_handlers(interface.fd->getSocketFd(), handlers);
+                deactivate_interface(interface, false);
+                return true;
+            },
+    };
+    m_event_loop->register_handlers(interface.fd->getSocketFd(), handlers);
 }
 
 void Ieee1905Transport::handle_interface_pollin_event(int fd)
