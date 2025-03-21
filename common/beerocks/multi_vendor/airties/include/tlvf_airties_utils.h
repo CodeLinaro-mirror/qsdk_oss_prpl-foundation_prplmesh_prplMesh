@@ -58,7 +58,11 @@ public:
     static bool get_all_counters_info(
         std::shared_ptr<airties::tlvAirtiesEthernetStatsallcntr> &tlvAirtiesEthStats);
 };
-static tlvf_airties_utils tlvf_air_utils;
+
+// TODO: coverity defects
+// list of coverity defects related to this `global static variable in header`:
+// CID: 457565, 457579, 457580, 457602
+static tlvf_airties_utils &tlvf_air_utils = *new tlvf_airties_utils;
 } // namespace airties
 
 #endif // __TLVF_AIRTIES_UTILS_H__
