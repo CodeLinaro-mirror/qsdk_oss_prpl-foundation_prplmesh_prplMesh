@@ -61,7 +61,7 @@ fi
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
 # Enable when hostapd on this target supports it
-# ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
