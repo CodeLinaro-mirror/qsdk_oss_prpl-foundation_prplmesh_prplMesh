@@ -49,8 +49,8 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.130"
 
 # Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='lan3'
-uci commit
+sed -i "s/BackhaulWireInterface = 'wan'/BackhaulWireInterface = 'lan3'/" /opt/prplmesh/config/odl/default.d/02_slave_configuration.odl
+
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 

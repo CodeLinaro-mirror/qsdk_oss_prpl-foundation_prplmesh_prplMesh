@@ -38,8 +38,7 @@ ba-cli DHCPv6Server.Enable=0
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.1.150"
 
 # Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='wan'
-uci commit
+sed -i "s/BackhaulWireInterface = 'wan'/BackhaulWireInterface = 'eth1'/" /opt/prplmesh/config/odl/default.d/02_slave_configuration.odl
 
 # Enable Wi-Fi radios
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].Enable=1"
