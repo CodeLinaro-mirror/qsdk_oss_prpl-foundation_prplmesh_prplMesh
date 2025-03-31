@@ -91,7 +91,7 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
         find_package(safec REQUIRED)
 
         link_directories(${PLATFORM_STAGING_DIR}/usr/lib)
-        list(APPEND BPL_LIBS ubus nl-3 nl-route-3 ${bridge-ugw} dl ubox safec)
+        list(APPEND BPL_LIBS ubus nl-3 nl-route-3 ${bridge-ugw} dl ubox uci safec)
 
         # Signal libsafec that we support the C99 standard
         add_definitions(-DHAVE_C99)
