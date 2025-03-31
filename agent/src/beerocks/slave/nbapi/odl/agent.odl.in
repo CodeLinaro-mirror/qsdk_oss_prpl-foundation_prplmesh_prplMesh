@@ -88,13 +88,13 @@
         /* Read-only information about the agent's state and interfaces */
         %read-only object Info {
             %read-only string MACAddress = "00:00:00:00:00:00";
-            %read-only string FronthaulInterfaces = "";
+            %read-only string FronthaulIfaces = "";
             %read-only string CurrentState = "";
             %read-only string BestState = "";
             %read-only string ManagementMode = "";
             %read-only object Fronthaul [] {
                 counted with FronthaulNumberOfEntries;
-                %read-only string Interface = "";
+                %read-only string Iface = "";
                 %read-only string CurrentState = "";
                 %read-only string BestState = "";
             }

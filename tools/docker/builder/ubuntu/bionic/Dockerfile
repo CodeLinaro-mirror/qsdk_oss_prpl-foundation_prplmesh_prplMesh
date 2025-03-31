@@ -111,19 +111,24 @@ RUN \
 # them in specific order.
 RUN \
     repo init -u https://gitlab.com/prpl-foundation/components/ambiorix/ambiorix.git \
-    -b refs/tags/v6.5.3 < /dev/null && \
+    -b refs/tags/v7.1.0 < /dev/null && \
     repo sync && \
     make install -C libraries/libamxc && \
     make install -C libraries/libamxp && \
     make install -C libraries/libamxd && \
     make install -C libraries/libamxj && \
-    make install -C libraries/libamxo && \
     make install -C libraries/libamxb && \
+    make install -C libraries/libamxs && \
+    make install -C libraries/libamxo && \
     make install -C libraries/libamxrt && \
     make install -C applications/amxb-inspect && \
     make install -C applications/amxo-cg && \
     make install -C applications/amxo-xml-to && \
     make -C bus_adaptors/amxb_ubus && \
     make install -C bus_adaptors/amxb_ubus
+
+RUN \
+    git clone https://gitlab.com/prpl-foundation/components/core/modules/mod-dmext.git && \
+    cd mod-dmext && make && make install
 
 ADD start-prplmesh.sh /root/
