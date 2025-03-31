@@ -34,6 +34,8 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <bcl/network/network_utils.h>
 #include <mapf/common/utils.h>
 
+#include <bpl/bpl_amx.h>
+
 #include <easylogging++.h>
 
 #ifdef ENABLE_NBAPI

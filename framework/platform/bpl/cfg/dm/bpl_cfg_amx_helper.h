@@ -11,14 +11,12 @@
 
 #include <string>
 
-#include <ambiorix.h>
-
 #include <mapf/common/logger.h>
+
+#include "bpl_amb_ptr.h"
 
 namespace beerocks {
 namespace bpl {
-
-extern std::shared_ptr<beerocks::nbapi::Ambiorix> amb_ptr;
 
 constexpr const char *CONTROLLER_CONFIG_PATH = CONTROLLER_ROOT_DM ".Configuration";
 constexpr const char *AGENT_CONFIG_PATH      = AGENT_ROOT_DM ".Configuration";
