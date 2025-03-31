@@ -27,9 +27,11 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
 #include <bcl/network/sockets_impl.h>
-#include <bpl/bpl_cfg.h>
 #include <btl/broker_client_factory_factory.h>
 #include <mapf/common/utils.h>
+
+#include <bpl/bpl_amx.h>
+#include <bpl/bpl_cfg.h>
 
 #include <easylogging++.h>
 
@@ -862,6 +864,8 @@ int main(int argc, char *argv[])
 
     s_pLogger = nullptr;
     controller.stop();
+
+    beerocks::bpl::bpl_close();
 
     return 0;
 }

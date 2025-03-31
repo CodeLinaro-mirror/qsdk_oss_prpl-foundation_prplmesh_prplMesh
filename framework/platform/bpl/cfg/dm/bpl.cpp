@@ -11,6 +11,7 @@
 
 #include <mapf/common/logger.h>
 
+#include "bpl_amb_ptr.h"
 #include "bpl_cfg_pwhm.h"
 
 //////////////////////////////////////////////////////////////////////////////
@@ -21,8 +22,6 @@ namespace beerocks {
 namespace bpl {
 
 beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
-
-std::shared_ptr<beerocks::nbapi::Ambiorix> amb_ptr = nullptr;
 
 void m_ambiorix_cl_destructor() { m_ambiorix_cl.~AmbiorixClient(); }
 
@@ -35,11 +34,11 @@ int bpl_init()
     return RETURN_OK;
 }
 
-void set_ambiorix_impl_ptr(const std::shared_ptr<beerocks::nbapi::Ambiorix> &ptr) { amb_ptr = ptr; }
-
 void bpl_close()
 {
-    // Do nothing
+    if (amb_ptr) {
+        amb_ptr.reset();
+    }
 }
 
 } // namespace bpl

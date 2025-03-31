@@ -23,8 +23,6 @@ int bpl_init()
     return 0;
 }
 
-void set_ambiorix_impl_ptr(const std::shared_ptr<beerocks::nbapi::Ambiorix> &ptr) {}
-
 void bpl_close()
 {
     // Do nothing
