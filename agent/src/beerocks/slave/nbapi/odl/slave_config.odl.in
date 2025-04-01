@@ -45,7 +45,7 @@
 
     //persistent storage
     pcm_svc_config = {
-        "Objects" = "@AGENT_ROOT_DM_Header@"
+        "Objects" = "@AGENT_ROOT_DM@"
     };
 }
 

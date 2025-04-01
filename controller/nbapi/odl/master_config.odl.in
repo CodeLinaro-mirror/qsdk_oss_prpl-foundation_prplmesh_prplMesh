@@ -46,7 +46,7 @@
 
     //persistent storage
     pcm_svc_config = {
-        "Objects" = "@CONTROLLER_ROOT_DM_Header@"
+        "Objects" = "@CONTROLLER_ROOT_DM@"
     };
 }
 include "$@@{definition_file}";
