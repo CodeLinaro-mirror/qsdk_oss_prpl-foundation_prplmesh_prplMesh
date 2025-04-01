@@ -48,7 +48,8 @@ ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].", "parameters
 ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].", "parameters": { "IPAddress": "192.165.100.170" } }'
 
 # Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='lan0'
+ubus wait_for X_PRPLWARE-COM_Agent.Configuration
+ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
 
 # Stop and disable the firewall:
 /etc/init.d/tr181-firewall stop

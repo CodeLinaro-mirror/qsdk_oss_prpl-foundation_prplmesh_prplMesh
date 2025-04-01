@@ -51,7 +51,8 @@ ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].", "parameters
 ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].", "parameters": { "IPAddress": "192.165.100.190" } }'
 
 # Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='lan0'
+ubus wait_for X_PRPLWARE-COM_Agent.Configuration
+ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
 
 # For now there is no way to disable the firewall (see PCF-590).
 # Instead, wait for it in the datamodel, then set the whole INPUT

@@ -73,7 +73,8 @@ ubus call IP.Interface _get '{ "rel_path": ".[Name == \"eth0_4\"].IPv4Address.[A
 ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"eth0_4\"].", "parameters": { "IPv4Enable": true } }'
 
 # Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='eth1'
+ubus wait_for X_PRPLWARE-COM_Agent.Configuration
+ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth1"
 
 # Stop and disable the firewall:
 /etc/init.d/tr181-firewall stop
