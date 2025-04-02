@@ -51,7 +51,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif // AMBIORIX_BUS_URI
 
 #ifndef AGENT_DATAMODEL_PATH
-#define AGENT_DATAMODEL_PATH "config/odl/slave_config.odl"
+#define AGENT_DATAMODEL_PATH "config/agent/odl/slave_config.odl"
 #endif // AGENT_DATAMODEL_PATH
 
 #endif
