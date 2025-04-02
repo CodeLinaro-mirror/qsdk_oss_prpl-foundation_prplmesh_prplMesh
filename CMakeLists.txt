@@ -36,9 +36,9 @@ function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT
     set(${ROOT_DM_FOOTER_VAR} "${footer}" PARENT_SCOPE)
 endfunction()
 
-## Device.WiFi.DataElements
+## Prplmesh Datamodel path
 if (NOT DEFINED DATAELEMENTS_ROOT_DM)
-    set(DATAELEMENTS_ROOT_DM "Device.WiFi.DataElements")
+    set(DATAELEMENTS_ROOT_DM "X_PRPLWARE-COM_WiFiController")
 endif()
 
 ## PrplMesh Controller datamodel root path
