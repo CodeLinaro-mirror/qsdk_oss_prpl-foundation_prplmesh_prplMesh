@@ -2219,6 +2219,21 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_PLATFORM_ACS: {
+        auto request =
+            beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_PLATFORM_ACS>();
+        if (!request) {
+            LOG(ERROR) << "addClass cACTION_APMANAGER_PLATFORM_ACS failed";
+            return;
+        }
+
+        if (!ap_wlan_hal->start_platform_acs(request->acs_params())) {
+            LOG(ERROR) << "start_platform_acs failed!";
+            return;
+        }
+
+        break;
+    }
     default: {
         LOG(ERROR) << "Unsupported header action_op: " << int(beerocks_header->action_op());
         break;

@@ -413,6 +413,8 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
         auto db           = beerocks::AgentDB::get();
         auto on_boot_scan = beerocks::string_utils::stoi(beerocks_slave_conf.on_boot_scan);
         db->device_conf.on_boot_scan = on_boot_scan;
+        db->device_conf.enable_auto_chansel_handling =
+            beerocks_slave_conf.enable_auto_chansel_handling == "1";
         db->init_data_model(amb_dm_obj);
 
         auto management_mode = beerocks::bpl::cfg_get_management_mode();

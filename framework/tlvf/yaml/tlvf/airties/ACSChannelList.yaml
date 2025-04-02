@@ -1,0 +1,26 @@
+#
+---
+
+_namespace: airties
+
+cACSChannelList:
+  _type: class
+  _is_tlv_class : False
+  acs_list_length:
+    _type: uint8_t
+    _length_var: True
+  acs_list:
+    _type: cExcludeList
+    _length: [ acs_list_length ]
+
+cExcludeList:
+  _type: class
+  _is_tlv_class : False
+  opclass:
+    _type: uint8_t
+  exclude_channels_length:
+    _type: uint8_t
+    _length_var: True
+  exclude_channels:
+    _type: uint8_t
+    _length: [ exclude_channels_length ]

@@ -1937,6 +1937,38 @@ void ap_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
     }
 }
 
+bool ap_wlan_hal_whm::start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list)
+{
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    AmbiorixVariant args_list(AMXC_VAR_ID_LIST);
+
+    for (size_t i = 0; i < acs_list->acs_list_length(); ++i) {
+        auto acs_list_tuple_entry = acs_list->acs_list(i);
+        if (!std::get<0>(acs_list_tuple_entry)) {
+            LOG(ERROR) << "Failed to get ACS list";
+            return false;
+        }
+        auto &acs_list_entry = std::get<1>(acs_list_tuple_entry);
+
+        if (!args_list.add(acs_list_entry.opclass(), acs_list_entry.exclude_channels_length(),
+                           acs_list_entry.exclude_channels(0))) {
+            return false;
+        }
+    }
+
+    args.add_child<AmbiorixVariant &>("acs_list", args_list);
+
+    std::string wifi_ap_path = wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name);
+    bool ret                 = m_ambiorix_cl.call(wifi_ap_path, "startPlatformACS", args, result);
+    if (!ret) {
+        LOG(ERROR) << "startPlatformACS() failed!";
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace whm
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,

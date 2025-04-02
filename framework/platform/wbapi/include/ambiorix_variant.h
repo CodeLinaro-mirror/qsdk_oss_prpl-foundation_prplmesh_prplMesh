@@ -138,6 +138,7 @@ public:
     bool set(uint64_t value);
     bool set(double value);
     bool set(float value);
+    bool set(AmbiorixVariant &obj);
 
     /**
      * @brief methods to get Ambiorix variant value
@@ -350,6 +351,13 @@ public:
      * Valid type values are among AMXC_VAR_ID_XXX
      */
     uint32_t get_type() const;
+
+    /**
+     * @brief Add custom variables to list
+     *
+     * @return return true when add successfully
+     */
+    bool add(uint8_t opclass, uint8_t exclude_channels_length, uint8_t *exclude_channels);
 
     /**
      * @brief Returns pointer to ambiorix variant context

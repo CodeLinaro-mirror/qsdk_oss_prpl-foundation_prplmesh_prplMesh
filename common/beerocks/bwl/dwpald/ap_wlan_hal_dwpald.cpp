@@ -4032,6 +4032,13 @@ bool ap_wlan_hal_dwpal::get_spatial_reuse_config(
     return true;
 }
 
+bool ap_wlan_hal_dwpal::start_platform_acs(
+    const std::shared_ptr<airties::cACSChannelList> &acs_list)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace dwpal
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, hal_conf_t hal_conf,
