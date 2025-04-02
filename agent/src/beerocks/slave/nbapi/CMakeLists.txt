@@ -5,28 +5,35 @@
 # This code is subject to the terms of the BSD+Patent license.
 # See LICENSE file for more details.
 
-# Set agent data model path
-set(DATAMODELS_PATH ${CMAKE_CURRENT_BINARY_DIR}/odl)
-
 # configure_file_odl func 
 include("${CMAKE_SOURCE_DIR}/cmake/ConfigureOdl.cmake")
 
-# Process all .odl.in files dynamically
+#search for all available .odl.in files in the odl folder and parse them
+set(ODL_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/agent)
+
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/odl/*.odl.in")
 foreach(file ${files})
-    configure_file_odl(${file})
+    configure_file_odl(${file} ${ODL_OUTPUT_DIR})
+endforeach()
+
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/odl/defaults.d/*.odl.in")
+foreach(file ${files})
+  configure_file_odl(${file} ${ODL_OUTPUT_DIR})
 endforeach()
 
 # Parse agent.odl file
-execute_process(COMMAND amxo-cg ${DATAMODELS_PATH}/slave_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
+message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : slave_config.odl")
+execute_process(COMMAND amxo-cg ${ODL_OUTPUT_DIR}/odl/slave_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
 
 # Check for parser errors
 if(${DATAMODEL_PARSE_RESULT})
     message(FATAL_ERROR "Failed to parse agent data model!")
 endif()
-message(STATUS "Agent data model tested successfully!")
+message(STATUS "${BoldGreen}Agent data model parsed successfully!${ColourReset}")
 
-install(DIRECTORY ${DATAMODELS_PATH} DESTINATION config)
-if(IS_DIRECTORY ${DATAMODELS_PATH}/defaults.d)
-    install(DIRECTORY ${DATAMODELS_PATH}/defaults.d DESTINATION config/odl)
+# Install ODL files
+install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/agent)
+
+if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d)
+    install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d DESTINATION config/agent/odl)
 endif()
