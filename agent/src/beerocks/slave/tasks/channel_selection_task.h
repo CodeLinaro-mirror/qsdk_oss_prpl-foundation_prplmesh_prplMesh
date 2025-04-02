@@ -303,6 +303,11 @@ private:
     uint8_t m_retry_counter = 0;
     std::chrono::steady_clock::time_point m_next_retry_time =
         std::chrono::steady_clock::time_point::min(); // way in the past;
+
+    std::pair<sMacAddr, std::map<uint8_t, std::vector<uint8_t>>> m_acs_list;
+    bool build_acs_list(const sMacAddr &radio_mac,
+                        const sIncomingChannelSelectionRequest &radio_request);
+    bool send_acs_list_to_platform(const sMacAddr &radio_mac);
 };
 
 } // namespace beerocks

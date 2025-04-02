@@ -2173,6 +2173,94 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
         send_cmdu(radio_manager.monitor_fd, cmdu_tx);
         break;
     }
+
+    case beerocks_message::ACTION_BACKHAUL_PLATFORM_ACS: {
+        auto &radio_mac = beerocks_header->actionhdr()->radio_mac();
+        auto db         = AgentDB::get();
+        auto radio      = db->get_radio_by_mac(radio_mac, AgentDB::eMacType::RADIO);
+        if (!radio) {
+            break;
+        }
+        auto &radio_manager = m_radio_managers[radio->front.iface_name];
+
+        auto request_in =
+            beerocks_header->addClass<beerocks_message::cACTION_BACKHAUL_PLATFORM_ACS>();
+        if (!request_in) {
+            LOG(ERROR) << "addClass ACTION_BACKHAUL_PLATFORM_ACS failed";
+            return false;
+        }
+
+        auto request_out =
+            message_com::create_vs_message<beerocks_message::cACTION_APMANAGER_PLATFORM_ACS>(
+                cmdu_tx);
+        if (!request_out) {
+            LOG(ERROR) << "Failed building message!";
+            return false;
+        }
+
+        auto params_in = request_in->acs_params();
+        if (!params_in) {
+            LOG(ERROR) << "Failed to get ACS params";
+            return false;
+        }
+
+        auto params_out = request_out->create_acs_params();
+        if (!params_out) {
+            LOG(ERROR) << "Failed to create ACS params";
+            return false;
+        }
+
+        for (size_t i = 0; i < params_in->acs_list_length(); ++i) {
+            auto exclude_list = params_out->create_acs_list();
+            if (!exclude_list) {
+                LOG(ERROR) << "Failed to create exclude list";
+                return false;
+            }
+
+            auto acs_list_entry_tuple_in = params_in->acs_list(i);
+            if (!std::get<0>(acs_list_entry_tuple_in)) {
+                LOG(ERROR) << "Failed to get ACS list";
+                return false;
+            }
+
+            auto &acs_list_entry_in = std::get<1>(acs_list_entry_tuple_in);
+
+            if (!exclude_list->alloc_exclude_channels(
+                    acs_list_entry_in.exclude_channels_length())) {
+                LOG(ERROR) << "Failed to allocate exclude list";
+                return false;
+            }
+
+            if (!params_out->add_acs_list(exclude_list)) {
+                LOG(ERROR) << "Failed to add exclude list";
+                return false;
+            }
+
+            auto acs_list_entry_tuple_out = params_out->acs_list(i);
+            if (!std::get<0>(acs_list_entry_tuple_out)) {
+                LOG(ERROR) << "Failed to get ACS list";
+                return false;
+            }
+
+            auto &acs_list_entry_out = std::get<1>(acs_list_entry_tuple_out);
+
+            acs_list_entry_out.opclass() = acs_list_entry_in.opclass();
+
+            for (size_t j = 0; j < acs_list_entry_in.exclude_channels_length(); ++j) {
+                *acs_list_entry_out.exclude_channels(j) = *acs_list_entry_in.exclude_channels(j);
+            }
+        }
+
+        if (!request_out->add_acs_params(params_out)) {
+            LOG(ERROR) << "Failed to add ACS params";
+            return false;
+        }
+
+        if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+            LOG(ERROR) << "Failed to send cmdu!";
+        }
+        break;
+    }
     default: {
         LOG(ERROR) << "Unknown BACKHAUL_MANAGER message, action_op: "
                    << int(beerocks_header->action_op());

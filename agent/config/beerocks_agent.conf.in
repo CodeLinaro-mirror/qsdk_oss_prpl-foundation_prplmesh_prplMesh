@@ -16,6 +16,7 @@ enable_arp_monitor=0
 bridge_iface=@BEEROCKS_BRIDGE_IFACE@
 enable_system_hang_test=0 # 0 - disabled
 monitor_polling_rate_msec=@BEEROCKS_MONITOR_POLLING_RATE_MSEC@
+enable_auto_chansel_handling=0 # 0 - disabled
 
 # This variable is a workaround that turn on the profile_x_disallow flag when configuring the
 # traffic separation, if the Controller sent unsupported configuration on the profile disallow

@@ -3,7 +3,8 @@
 _include: {
   beerocks/tlvf/beerocks_message_common.h,
   structs/sCacStartedNotificationParams.h,
-  tlvf/WSC/WSC_Attributes.h
+  tlvf/WSC/WSC_Attributes.h,
+  tlvf/airties/ACSChannelList.h
 }
 _namespace: beerocks_message
 _multi_class: True
@@ -96,6 +97,10 @@ cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START:
   tx_limit_valid: uint8_t #bool
   sr_params: sSpatialReuseParams
   spatial_reuse_valid: uint8_t #bool
+
+cACTION_BACKHAUL_PLATFORM_ACS:
+  _type: class
+  acs_params: airties::cACSChannelList
 
 cACTION_BACKHAUL_HOSTAP_CANCEL_ACTIVE_CAC_REQUEST:
   _type: class
