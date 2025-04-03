@@ -90,7 +90,14 @@ static void handle_signal()
         }
         break;
     }
-
+#ifdef ENABLE_NBAPI
+    // Handle SIGALRM signal indicating that one of amxp's timers is expired.
+    case SIGALRM:
+        LOG(INFO) << "LOG amxp Tik tak!";
+        amxp_timers_calculate();
+        amxp_timers_check();
+        break;
+#endif //ENABLE_NBAPI
     default:
         LOG(WARNING) << "Unhandled Signal: '" << strsignal(s_signal) << "' Ignoring...";
         break;
@@ -121,6 +128,14 @@ static void init_signals()
     sigemptyset(&sigusr1_action.sa_mask);
     sigusr1_action.sa_flags = 0;
     sigaction(SIGUSR1, &sigusr1_action, NULL);
+
+#ifdef ENABLE_NBAPI
+    struct sigaction sigalrm_action;
+    sigalrm_action.sa_handler = signal_handler;
+    sigemptyset(&sigalrm_action.sa_mask);
+    sigalrm_action.sa_flags = 0;
+    sigaction(SIGALRM, &sigalrm_action, NULL);
+#endif //ENABLE_NBAPI
 }
 
 static bool parse_arguments(int argc, char *argv[])
