@@ -48,10 +48,6 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.190"
 
-# Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='lan0'
-uci commit
-
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
 # Enable when hostapd on this target supports it
@@ -71,6 +67,17 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 # (see PPM-258)
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
+
+# Set the wired backhaul interface:
+if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
+  # Prplmesh agent is not running
+  echo "Setting prplMesh BackhaulWireInterface over ODL file"
+  sed -i "s/BackhaulWireInterface.*/BackhaulWireInterface\' = \"lan0\"/g" /opt/prplmesh/share/odl/agent.odl
+else
+  # Prplmesh agent is running, configure it over the bus
+  echo "Setting prplMesh BackhaulWireInterface over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
+fi
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="killall -9 dropbear
