@@ -424,7 +424,7 @@ bool cfg_get_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_di
 
 bool cfg_get_radio_stats_enable(bool &radio_stats_enable)
 {
-    return read_controller_config_param("RadioStatsEnable", radio_stats_enable);
+    return read_agent_config_param("RadioStatsEnable", radio_stats_enable);
 }
 
 bool cfg_get_rssi_measurements_timeout(int &rssi_measurements_timeout_msec)
