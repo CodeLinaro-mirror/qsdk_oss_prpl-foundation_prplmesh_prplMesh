@@ -8,8 +8,8 @@
 .image-build:
   stage: containers
   tags:
-    - shell
-    - docker-build
+    - shell4
+    - docker-build4
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - if [ "$CI_COMMIT_BRANCH" = "master" ]; then latest_tag="--tag latest"; fi
@@ -21,7 +21,7 @@
     name: $CI_REGISTRY_IMAGE/prplmesh-builder-ubuntu-bionic:$CI_PIPELINE_ID
     entrypoint: [""]
   tags:
-    - docker
+    - docker4
   needs: ["image-build-builder/ubuntu/bionic"]
 
 .run-test-in-docker:
@@ -45,8 +45,8 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - shell
-    - docker-build
+    - shell4
+    - docker-build4
   needs: []
 
 .build-for-rdkb:
@@ -67,9 +67,9 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - shell
-    - docker-build
-    - rdkb-build
+    - shell4
+    - docker-build4
+    - rdkb-build4
   needs: []
 
 .test-upgrade-image:
