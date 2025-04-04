@@ -52,10 +52,6 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
-# Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='lan4'
-uci commit
-
 # enable Wi-Fi radios
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Enable": "true" } }'
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Enable": "true" } }'
@@ -88,6 +84,17 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 # (see PPM-258)
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
+
+# Set the wired backhaul interface:
+if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
+  # Prplmesh agent is not running
+  echo "Setting prplMesh BackhaulWireInterface over ODL file"
+  sed -i "s/BackhaulWireInterface.*/BackhaulWireInterface\' = \"lan4\"/g" /opt/prplmesh/share/agent/odl/agent.odl
+else
+  # Prplmesh agent is running, configure it over the bus
+  echo "Setting prplMesh BackhaulWireInterface over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan4"
+fi
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="killall -9 dropbear
