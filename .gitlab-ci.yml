@@ -103,7 +103,7 @@ cppcheck:
       - cppcheck_results.txt
     when: always
   tags:
-    - docker
+    - docker4
   needs: ["image-build-cppcheck"]
 
 cppcheck-diff:
@@ -118,7 +118,7 @@ cppcheck-diff:
     expire_in: 4 weeks
     when: always
   tags:
-    - docker
+    - docker4
   needs: ["image-build-cppcheck"]
 
 flake8:
@@ -272,7 +272,7 @@ test-gw-repeater:
   needs:
     - job: build-in-docker-legacy
   tags:
-    - docker-test
+    - docker-test4
   retry: 2
 
 boardfarm-tests:
@@ -288,7 +288,7 @@ boardfarm-tests:
     - job: build-in-docker-legacy
     - job: image-build-boardfarm-ci
   tags:
-    - boardfarm-compose
+    - boardfarm-compose4
   timeout: 30m
   retry: 2
 
