@@ -43,7 +43,10 @@ pgrep opkg | xargs kill -s INT
 # to fail without this:
 opkg remove --force-depends prplmesh prplmesh-dwpal prplmesh-nl80211
 # currently opkg remove does not remove everything from /opt/prplmesh:
-rm -rf /opt/prplmesh
+rm -rf /opt/prplmesh/bin
+rm -rf /opt/prplmesh/config
+rm -rf /opt/prplmesh/scripts
+#rm -rf /opt/prplmesh
 EOF
 
 # The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.
