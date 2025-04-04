@@ -45,8 +45,9 @@
     expire_in: 4 weeks
     when: always
   tags:
-    - shell
+    - shell2
     - docker-build
+    - external
   needs: []
 
 .build-for-rdkb:
