@@ -8,6 +8,7 @@ _include:
     tlvf/WSC/WSC_Attributes.h,
     tlvf/wfa_map/tlvProfile2MultiApProfile.h,
     tlvf/airties/ACSChannelList.h,
+    tlvf/airties/tlvAirtiesRadioCapability.h,
   }
 
 _namespace: beerocks_message
@@ -284,6 +285,10 @@ cACTION_APMANAGER_RADIO_DISABLE_REQUEST:
 
 cACTION_APMANAGER_RADIO_ENABLE_REQUEST:
   _type: class
+
+cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST:
+  _type: class
+  operating_standards: airties::tlvAirtiesRadioCapability::sStandards
 
 cACTION_APMANAGER_HEARTBEAT_NOTIFICATION:
   _type: class

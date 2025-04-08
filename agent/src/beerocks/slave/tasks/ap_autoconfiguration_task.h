@@ -316,6 +316,16 @@ private:
     bool
     airties_vs_ap_autoconfiguration_wsc_parse_service_status(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                              const std::string &radio_iface);
+    /**
+     * @brief Parse the vendor extension from m2 for Radio Operational Mode
+     *
+     * @param [in] radio_iface Radio interface name.
+     * @param [in] m2 WSC M2 TLV from the Controller.
+     * @return true on success, otherwise false.
+     */
+    bool airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
+        const std::string &radio_iface, const WSC::m2 &m2);
+
     bool add_wsc_m1_tlv(const std::string &radio_iface);
 };
 

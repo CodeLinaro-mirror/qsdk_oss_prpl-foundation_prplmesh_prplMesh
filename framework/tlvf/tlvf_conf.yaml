@@ -151,6 +151,7 @@ include_yaml_path: {
     "tlvf/airties/tlvAirtiesEthernetStats.yaml",
     "tlvf/airties/tlvAirtiesServiceStatus.yaml",
     "tlvf/airties/ACSChannelList.yaml",
+    "tlvf/airties/tlvAirtiesRadioCapability.yaml",
 
     #
     # "vendor_example/",

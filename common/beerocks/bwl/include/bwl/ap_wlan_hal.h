@@ -13,6 +13,7 @@
 #include <bcl/beerocks_string_utils.h>
 #include <tlvf/AssociationRequestFrame/AssocReqFrame.h>
 #include <tlvf/airties/ACSChannelList.h>
+#include <tlvf/airties/tlvAirtiesRadioCapability.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsQuery.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
 
@@ -612,6 +613,15 @@ public:
      * @return true on success or false on error.
      */
     virtual bool start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) = 0;
+
+    /**
+     * @brief Change radio operating standards parameter
+     *
+     * @param [in] operating_standards The operating standards value of a radio
+     * @return true if the operating standards parameter was successfully set, false otherwise.
+     */
+    virtual bool change_radio_mode_config(
+        const airties::tlvAirtiesRadioCapability::sStandards &operating_standards) = 0;
 
 private:
     static const int frame_body_idx = (sizeof(s80211MgmtFrame::sHeader) * 2);

@@ -2000,6 +2000,49 @@ bool ap_wlan_hal_whm::start_platform_acs(const std::shared_ptr<airties::cACSChan
     return true;
 }
 
+bool ap_wlan_hal_whm::change_radio_mode_config(
+    const airties::tlvAirtiesRadioCapability::sStandards &operating_standards)
+{
+    if (m_radio_path.empty()) {
+        m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name),
+                                   m_radio_path);
+    }
+
+    auto op_std_str =
+        [](const airties::tlvAirtiesRadioCapability::sStandards &op_std) -> std::string {
+        if (op_std.s_80211be) {
+            return std::string{"be"};
+        } else if (op_std.s_80211ax) {
+            return std::string{"ax"};
+        } else if (op_std.s_80211ac) {
+            return std::string{"ac"};
+        } else if (op_std.s_80211n) {
+            return std::string{"n"};
+        } else if (op_std.s_80211g) {
+            return std::string{"g"};
+        } else if (op_std.s_80211b) {
+            return std::string{"b"};
+        } else if (op_std.s_80211a) {
+            return std::string{"a"};
+        } else {
+            return std::string{};
+        }
+    }(operating_standards);
+
+    if (op_std_str.empty()) {
+        return false;
+    }
+
+    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+    new_obj.add_child("OperatingStandards", op_std_str);
+    if (!m_ambiorix_cl.update_object(m_radio_path, new_obj)) {
+        LOG(ERROR) << "Could not set OperatingStandards for " << m_radio_path;
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace whm
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,
