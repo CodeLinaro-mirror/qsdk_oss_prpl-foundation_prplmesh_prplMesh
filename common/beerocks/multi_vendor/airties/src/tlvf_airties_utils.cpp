@@ -25,6 +25,7 @@
 #include <tlvf/airties/tlvAirtiesEthernetInterface.h>
 #include <tlvf/airties/tlvAirtiesEthernetStats.h>
 #include <tlvf/airties/tlvAirtiesMsgType.h>
+#include <tlvf/airties/tlvAirtiesRadioCapability.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
 using namespace airties;
@@ -1111,5 +1112,64 @@ bool tlvf_airties_utils::add_airties_msgtype_tlv(ieee1905_1::CmduMessageTx &cmdu
     tlv_airties_msg_type->vendor_oui() =
         (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
     LOG(INFO) << "Added Airties Msg Type TLV";
+    return true;
+}
+
+/**
+ * @brief Add Airties Radio Capability TLV to the CMDU message.
+ *
+ * This function constructs a Radio Capability TLV, populates it with
+ * supported standards, and adds it to the outgoing CMDU message.
+ *
+ * @param cmdu_tx The CMDU message to which the TLV will be added.
+ * @return Returns true if the TLV was successfully added, false otherwise.
+ */
+bool tlvf_airties_utils::add_radio_capability(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto db = beerocks::AgentDB::get();
+    for (const auto &radio : db->get_radios_list()) {
+        auto tlvAirtiesRadioCapability = cmdu_tx.addClass<airties::tlvAirtiesRadioCapability>();
+        if (!tlvAirtiesRadioCapability) {
+            LOG(ERROR) << "addClass airties::tlvAirtiesRadioCapability failed";
+            return false;
+        }
+
+        tlvAirtiesRadioCapability->vendor_oui() =
+            (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
+        tlvAirtiesRadioCapability->tlv_id() =
+            static_cast<int>(airties::eAirtiesTlVId::AIRTIES_RADIO_CAPABILITY);
+
+        std::string radio_path;
+        beerocks::bpl::m_ambiorix_cl.resolve_path(
+            wbapi_utils::search_path_radio_by_iface(radio->front.iface_name), radio_path);
+
+        auto radio_obj = beerocks::bpl::m_ambiorix_cl.get_object(radio_path);
+        if (!radio_obj) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << radio_path;
+            return false;
+        }
+
+        std::string supported_standards;
+        radio_obj->read_child(supported_standards, "SupportedStandards");
+
+        auto str_vec = beerocks::string_utils::str_split(supported_standards, ',');
+
+        tlvAirtiesRadioCapability->radio_id() = radio->front.iface_mac;
+        tlvAirtiesRadioCapability->standards().s_80211a =
+            std::find(str_vec.begin(), str_vec.end(), "a") != str_vec.end() ? 1 : 0;
+        tlvAirtiesRadioCapability->standards().s_80211b =
+            std::find(str_vec.begin(), str_vec.end(), "b") != str_vec.end() ? 1 : 0;
+        tlvAirtiesRadioCapability->standards().s_80211g =
+            std::find(str_vec.begin(), str_vec.end(), "g") != str_vec.end() ? 1 : 0;
+        tlvAirtiesRadioCapability->standards().s_80211n =
+            std::find(str_vec.begin(), str_vec.end(), "n") != str_vec.end() ? 1 : 0;
+        tlvAirtiesRadioCapability->standards().s_80211ac =
+            std::find(str_vec.begin(), str_vec.end(), "ac") != str_vec.end() ? 1 : 0;
+        tlvAirtiesRadioCapability->standards().s_80211ax =
+            std::find(str_vec.begin(), str_vec.end(), "ax") != str_vec.end() ? 1 : 0;
+        tlvAirtiesRadioCapability->standards().s_80211be =
+            std::find(str_vec.begin(), str_vec.end(), "be") != str_vec.end() ? 1 : 0;
+    }
+
     return true;
 }

@@ -864,6 +864,13 @@ bool ap_wlan_hal_dummy::start_platform_acs(
     return false;
 }
 
+bool ap_wlan_hal_dummy::change_radio_mode_config(
+    const airties::tlvAirtiesRadioCapability::sStandards &operating_standards)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace dummy
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,

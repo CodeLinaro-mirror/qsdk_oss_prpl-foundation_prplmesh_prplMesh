@@ -28,6 +28,7 @@
 #include "tlvf/WSC/WSC_Attributes.h"
 #include "tlvf/wfa_map/tlvProfile2MultiApProfile.h"
 #include "tlvf/airties/ACSChannelList.h"
+#include "tlvf/airties/tlvAirtiesRadioCapability.h"
 
 namespace beerocks_message {
 
@@ -1208,6 +1209,27 @@ class cACTION_APMANAGER_RADIO_ENABLE_REQUEST : public BaseClass
     private:
         bool init();
         eActionOp_APMANAGER* m_action_op = nullptr;
+};
+
+class cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST);
+        }
+        airties::tlvAirtiesRadioCapability::sStandards& operating_standards();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        airties::tlvAirtiesRadioCapability::sStandards* m_operating_standards = nullptr;
 };
 
 class cACTION_APMANAGER_HEARTBEAT_NOTIFICATION : public BaseClass

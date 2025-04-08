@@ -69,6 +69,9 @@ public:
                 tlv_function_table[AIRTIES_OUI]
                                   [ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE]
                                       .push_back(add_airties_version_reporting_tlv);
+                tlv_function_table[AIRTIES_OUI]
+                                  [ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE]
+                                      .push_back(add_radio_capability);
             } break;
             case ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE: {
                 // Add Airties vendor-specific  TLV function for
