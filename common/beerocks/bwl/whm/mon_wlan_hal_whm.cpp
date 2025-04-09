@@ -309,6 +309,26 @@ bool mon_wlan_hal_whm::update_vap_stats(const std::string &vap_iface_name, SVapS
     ssid_stats_obj->read_child(vap_stats.errors_received, "ErrorsReceived");
     ssid_stats_obj->read_child(vap_stats.retrans_count, "RetransCount");
 
+    // update MLO stats
+    std::string ap_mlostats_path =
+        wbapi_utils::search_path_ap_by_iface(vap_iface_name) + "MLOStats.";
+
+    auto ap_mlostats_obj = m_ambiorix_cl.get_object(ap_mlostats_path);
+    if (!ap_mlostats_obj) {
+        LOG(ERROR) << "failed to get AP MLOStats object, path:" << ap_mlostats_path;
+        return true;
+    }
+
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_packets_cnt, "PacketsSent");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_packets_cnt, "PacketsReceived");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_packets_err_cnt, "ErrorsSent");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_ucast_bytes, "UnicastBytesSent");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_ucast_bytes, "UnicastBytesReceived");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_mcast_bytes, "MulticastBytesSent");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_mcast_bytes, "MulticastBytesReceived");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_bcast_bytes, "BroadcastBytesSent");
+    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_bcast_bytes, "BroadcastBytesReceived");
+
     return true;
 }
 

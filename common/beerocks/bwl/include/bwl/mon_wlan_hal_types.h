@@ -45,6 +45,18 @@ struct SRadioStats {
     // uint8_t  channel_load_tot_is_above_hi_th;
 };
 
+struct sMloStats {
+    uint32_t tx_packets_cnt     = 0;
+    uint32_t rx_packets_cnt     = 0;
+    uint32_t tx_packets_err_cnt = 0;
+    uint32_t tx_ucast_bytes     = 0;
+    uint32_t rx_ucast_bytes     = 0;
+    uint32_t tx_mcast_bytes     = 0;
+    uint32_t rx_mcast_bytes     = 0;
+    uint32_t tx_bcast_bytes     = 0;
+    uint32_t rx_bcast_bytes     = 0;
+};
+
 struct SVapStats {
     uint64_t tx_bytes_cnt;
     uint64_t tx_packets_cnt;
@@ -70,6 +82,7 @@ struct SVapStats {
     uint64_t rx_mcast_bytes;
     uint64_t tx_bcast_bytes;
     uint64_t rx_bcast_bytes;
+    sMloStats mlo_stats;
 };
 
 struct SStaStats {

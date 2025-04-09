@@ -842,6 +842,11 @@ bool Monitor::create_ap_metrics_response(uint16_t mid, const std::vector<sMacAdd
                 }
             }
         }
+
+        if (!mon_stats.add_affiliated_ap_metrics(cmdu_tx, *vap_node)) {
+            LOG(ERROR) << "Failed to add affiliated ap metrics.";
+            return false;
+        }
     }
 
     if (!mon_stats.add_radio_metrics(cmdu_tx, m_radio_mac, *mon_db.get_radio_node())) {

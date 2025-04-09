@@ -13,6 +13,7 @@
 
 #include <beerocks/tlvf/beerocks_message.h>
 #include <beerocks/tlvf/beerocks_message_monitor.h>
+#include <tlvf/wfa_map/tlvAffiliatedApMetrics.h>
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
@@ -613,6 +614,31 @@ bool monitor_stats::add_radio_metrics(ieee1905_1::CmduMessageTx &cmdu_tx, const 
     radio_metrics_tlv->transmit()      = radio_metrics.transmit;
     radio_metrics_tlv->receive_self()  = radio_metrics.receive_self;
     radio_metrics_tlv->receive_other() = radio_metrics.receive_other;
+
+    return true;
+}
+
+bool monitor_stats::add_affiliated_ap_metrics(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                              monitor_vap_node &vap_node) const
+{
+    auto affiliated_ap_metrics_tlv = cmdu_tx.addClass<wfa_map::tlvAffiliatedApMetrics>();
+    if (!affiliated_ap_metrics_tlv) {
+        LOG(ERROR) << "Failed to add tlvAffiliatedApMetrics";
+        return false;
+    }
+
+    // populate Affiliated AP metrics TLV
+    affiliated_ap_metrics_tlv->bssid()                  = tlvf::mac_from_string(vap_node.get_mac());
+    const auto &mlo_stats                               = vap_node.get_stats().hal_stats.mlo_stats;
+    affiliated_ap_metrics_tlv->packets_sent()           = mlo_stats.tx_packets_cnt;
+    affiliated_ap_metrics_tlv->packets_received()       = mlo_stats.rx_packets_cnt;
+    affiliated_ap_metrics_tlv->packets_sent_errors()    = mlo_stats.tx_packets_err_cnt;
+    affiliated_ap_metrics_tlv->unicast_bytes_sent()     = mlo_stats.tx_ucast_bytes;
+    affiliated_ap_metrics_tlv->unicast_bytes_received() = mlo_stats.rx_ucast_bytes;
+    affiliated_ap_metrics_tlv->multicast_bytes_sent()   = mlo_stats.tx_mcast_bytes;
+    affiliated_ap_metrics_tlv->multicast_bytes_received() = mlo_stats.rx_mcast_bytes;
+    affiliated_ap_metrics_tlv->broadcast_bytes_sent()     = mlo_stats.tx_bcast_bytes;
+    affiliated_ap_metrics_tlv->broadcast_bytes_received() = mlo_stats.rx_bcast_bytes;
 
     return true;
 }

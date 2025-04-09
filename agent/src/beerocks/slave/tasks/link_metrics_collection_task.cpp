@@ -23,6 +23,7 @@
 #include <tlvf/ieee_1905_1/tlvLinkMetricResultCode.h>
 #include <tlvf/ieee_1905_1/tlvReceiverLinkMetric.h>
 #include <tlvf/ieee_1905_1/tlvTransmitterLinkMetric.h>
+#include <tlvf/wfa_map/tlvAffiliatedApMetrics.h>
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetricQuery.h>
 #include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
@@ -973,6 +974,12 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
         LOG(WARNING) << "got empty ap extended metrics response for mid=" << std::hex << mid;
     }
 
+    // Affiliated AP Metrics
+    auto affiliated_ap_metrics_tlv_list = cmdu_rx.getClassList<wfa_map::tlvAffiliatedApMetrics>();
+    if (affiliated_ap_metrics_tlv_list.empty()) {
+        LOG(WARNING) << "got empty affiliated ap metrics response for mid=" << std::hex << mid;
+    }
+
     uint16_t mid_index = mid ?: UINT16_MAX; // UINT16_MAX used for internal AP_METRICS requests
     auto ap_metric_queries_map = m_ap_metric_query.find(mid_index);
     if (ap_metric_queries_map == m_ap_metric_query.end()) {
@@ -984,7 +991,8 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
     LOG(INFO) << "Found AP_Metrics_Query map for MID : " << std::hex << mid_index;
 
     for (const auto &ap_metrics_tlv : ap_metrics_tlv_list) {
-        wfa_map::tlvApExtendedMetrics *ap_extended_metrics_tlv = 0;
+        wfa_map::tlvApExtendedMetrics *ap_extended_metrics_tlv     = 0;
+        wfa_map::tlvAffiliatedApMetrics *affiliated_ap_metrics_tlv = 0;
 
         if (!ap_metrics_tlv) {
             LOG(WARNING) << "found null ap_metrics_tlv in response, skipping. mid=" << std::hex
@@ -999,6 +1007,14 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 break;
             }
         }
+
+        for (const auto &tmp : affiliated_ap_metrics_tlv_list) {
+            if (tmp->bssid() == bssid_tlv) {
+                affiliated_ap_metrics_tlv = &*tmp;
+                break;
+            }
+        }
+
         auto mac = std::find_if(
             ap_metric_queries_map->second.begin(), ap_metric_queries_map->second.end(),
             [&](sApMetricsQuery const &query) {
@@ -1111,6 +1127,29 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
             }
         }
 
+        // Fill Affiliated Ap Metrics
+        sAffiliatedApMetrics affiliated_ap_metrics = {};
+        affiliated_ap_metrics.bssid                = ap_metrics_tlv->bssid();
+
+        if (affiliated_ap_metrics_tlv) {
+            affiliated_ap_metrics.packets_sent     = affiliated_ap_metrics_tlv->packets_sent();
+            affiliated_ap_metrics.packets_received = affiliated_ap_metrics_tlv->packets_received();
+            affiliated_ap_metrics.packet_sent_errors =
+                affiliated_ap_metrics_tlv->packets_sent_errors();
+            affiliated_ap_metrics.unicast_bytes_sent =
+                affiliated_ap_metrics_tlv->unicast_bytes_sent();
+            affiliated_ap_metrics.unicast_bytes_received =
+                affiliated_ap_metrics_tlv->unicast_bytes_received();
+            affiliated_ap_metrics.multicast_bytes_sent =
+                affiliated_ap_metrics_tlv->multicast_bytes_sent();
+            affiliated_ap_metrics.multicast_bytes_received =
+                affiliated_ap_metrics_tlv->multicast_bytes_received();
+            affiliated_ap_metrics.broadcast_bytes_sent =
+                affiliated_ap_metrics_tlv->broadcast_bytes_sent();
+            affiliated_ap_metrics.broadcast_bytes_received =
+                affiliated_ap_metrics_tlv->broadcast_bytes_received();
+        }
+
         // Fill a response vector
         m_ap_metric_response.push_back({
             metric,
@@ -1118,6 +1157,7 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
             traffic_stats_response,
             link_metrics_response,
             qos_ctrl_response,
+            affiliated_ap_metrics,
         });
 
         // Remove an entry from the processed query
@@ -1259,6 +1299,48 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 ap_assoc_wifi_6_sta_status_report.tid        = n;
                 ap_assoc_wifi_6_sta_status_report.queue_size = qos_control_params.tid_queue_size[n];
             }
+        }
+
+        // Add Affiliated AP Metrics TLV only for Affiliated APs
+        bool affiliated_ap = 0;
+        for (auto &ApMld : db->mld_configurations) {
+            for (auto &AffiliatedAp : ApMld.affiliated_aps) {
+                if (AffiliatedAp.bssid == response.affiliated_ap_metrics.bssid) {
+                    affiliated_ap = 1;
+                    break;
+                }
+            }
+            if (affiliated_ap) {
+                break;
+            }
+        }
+
+        if (affiliated_ap) {
+            auto affiliated_ap_metrics_tlv = m_cmdu_tx.addClass<wfa_map::tlvAffiliatedApMetrics>();
+            if (!affiliated_ap_metrics_tlv) {
+                LOG(ERROR) << "Failed addClass<wfa_map::tlvAffiliatedApMetrics>";
+                return;
+            }
+
+            // populate Affiliated AP metrics TLV
+            affiliated_ap_metrics_tlv->bssid()        = response.affiliated_ap_metrics.bssid;
+            affiliated_ap_metrics_tlv->packets_sent() = response.affiliated_ap_metrics.packets_sent;
+            affiliated_ap_metrics_tlv->packets_received() =
+                response.affiliated_ap_metrics.packets_received;
+            affiliated_ap_metrics_tlv->packets_sent_errors() =
+                response.affiliated_ap_metrics.packet_sent_errors;
+            affiliated_ap_metrics_tlv->unicast_bytes_sent() =
+                response.affiliated_ap_metrics.unicast_bytes_sent;
+            affiliated_ap_metrics_tlv->unicast_bytes_received() =
+                response.affiliated_ap_metrics.unicast_bytes_received;
+            affiliated_ap_metrics_tlv->multicast_bytes_sent() =
+                response.affiliated_ap_metrics.multicast_bytes_sent;
+            affiliated_ap_metrics_tlv->multicast_bytes_received() =
+                response.affiliated_ap_metrics.multicast_bytes_received;
+            affiliated_ap_metrics_tlv->broadcast_bytes_sent() =
+                response.affiliated_ap_metrics.broadcast_bytes_sent;
+            affiliated_ap_metrics_tlv->broadcast_bytes_received() =
+                response.affiliated_ap_metrics.broadcast_bytes_received;
         }
     }
 

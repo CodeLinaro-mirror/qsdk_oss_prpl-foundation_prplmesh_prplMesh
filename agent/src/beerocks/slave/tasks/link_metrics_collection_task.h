@@ -276,12 +276,26 @@ private:
         uint32_t multicast_bytes_received = 0;
     };
 
+    struct sAffiliatedApMetrics {
+        sMacAddr bssid;
+        uint32_t packets_sent             = 0;
+        uint32_t packets_received         = 0;
+        uint32_t packet_sent_errors       = 0;
+        uint32_t unicast_bytes_sent       = 0;
+        uint32_t unicast_bytes_received   = 0;
+        uint32_t multicast_bytes_sent     = 0;
+        uint32_t multicast_bytes_received = 0;
+        uint32_t broadcast_bytes_sent     = 0;
+        uint32_t broadcast_bytes_received = 0;
+    };
+
     struct sApMetricsResponse {
         sApMetrics metric;
         sApExtendedMetrics extended_metric;
         std::vector<sStaTrafficStats> sta_traffic_stats;
         std::vector<sStaLinkMetrics> sta_link_metrics;
         std::vector<sStaQosCtrlParams> sta_wifi_6_status;
+        sAffiliatedApMetrics affiliated_ap_metrics;
     };
 
     std::vector<sApMetricsResponse> m_ap_metric_response;
