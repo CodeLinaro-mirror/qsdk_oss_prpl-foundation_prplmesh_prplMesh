@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 . tools/scripts/feedata.sh
 package="prplMesh"
 # tokens should be set as CI environment variables
@@ -12,7 +11,7 @@ tToken="glptt-d1ff739fd61af24c3d1a01feef072fdafbcab0a7"
 function create() {
   local feed="${feeds[${package}]}"
   local project="${pids[${feed}]}"
-  local branch="bot/$1"
+  local branch="${package}/$1"
   local encoded
   local status
   encoded=$(printf "%s" "$branch" | jq -sRr @uri)
@@ -31,7 +30,7 @@ function create() {
 # example:
 #   update "${merge_request_id}" "${merge_request_commit_id}"
 function update() {
-  local branch="bot/$1"
+  local branch="${package}/$1"
   local commit="$2"
   local feed="${feeds[${package}]}"
   local repo="${repos[${feed}]}"
@@ -44,8 +43,7 @@ function update() {
   git clone -b "${branch}" --depth 1 "${repo}" repo
   sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${commit}/" "repo/${makefile}"
   sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${phash}/" "repo/${makefile}"
-  git config --global user.name "bot"
-  git config --global user.email "bot@mind.be"
+  (cd repo && git config --local user.name "bot" && git config --global user.email "bot@mind.be")
   (cd repo && git add -u && git commit -m "update" && git push https://bot:${pToken}@gitlab.com/ludai/autoy.git "${branch}")
 }
 
@@ -59,7 +57,6 @@ function main() {
   create "${mriid}"
   sleep 10
   update "${mriid}" "${cid}"
-  sleep 10
   poll
 }
 
