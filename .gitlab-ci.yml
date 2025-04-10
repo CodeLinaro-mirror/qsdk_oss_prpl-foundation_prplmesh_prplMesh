@@ -2,6 +2,7 @@ variables:
   PYTHONUNBUFFERED: "1"
   ARTIFACT_DOWNLOAD_ATTEMPTS: 3
   GET_SOURCES_ATTEMPTS: 3
+  DEMO_BRANCH: "demo/ci-feed-automation"
 
 default:
   interruptible: true
@@ -19,6 +20,7 @@ stages:
   - build
   - platform
   - test
+  - feed
   - certification-dummy
   - upload
 
@@ -47,6 +49,21 @@ image-build-cppcheck:
 
 image-build-scripts:
   extends: .image-build
+
+autofeed:
+  stage: feed
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $DEMO_BRANCH
+      allow_failure: true
+  image:
+    name: $CI_REGISTRY_IMAGE/prplmesh-builder-ubuntu-bionic
+    entrypoint: [""]
+  before_script:
+    - env
+  script:
+    - echo "$CI_MERGE_REQUEST_IID" 
+
 
 platform:
   stage: platform
