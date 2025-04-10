@@ -50,10 +50,10 @@ image-build-cppcheck:
 image-build-scripts:
   extends: .image-build
 
-autofeed:
+feed:
   stage: feed
   image:
-    name: debian:bookworm
+    name: alpine/git
     entrypoint: [""]
   needs: []
   rules:
@@ -61,10 +61,10 @@ autofeed:
       allow_failure: true
   before_script:
     - env
-    - apt-get update
-    - apt-get install -y jq curl
+    - apk update
+    - apk add bash jq curl
   script:
-    - ./tools/scripts/autofeed.sh "68433016" "$CI_MERGE_REQUEST_IID" "prplmesh" "$CI_COMMIT_SHA"
+    - bash tools/scripts/feed.sh "$CI_MERGE_REQUEST_IID" "$CI_COMMIT_SHA"
 
 
 platform:
