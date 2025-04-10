@@ -52,6 +52,7 @@ image-build-scripts:
 
 autofeed:
   stage: feed
+  needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $DEMO_BRANCH
       allow_failure: true
