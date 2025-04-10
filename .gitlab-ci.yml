@@ -64,7 +64,7 @@ autofeed:
     - apt-get update
     - apt-get install -y jq curl
   script:
-    - ./tools/scripts/autofeed.sh "68433016" "$CI_MERGE_REQUEST_IID" "prplmesh" "CI_COMMIT_SHA"
+    - ./tools/scripts/autofeed.sh "68433016" "$CI_MERGE_REQUEST_IID" "prplmesh" "$CI_COMMIT_SHA"
 
 
 platform:
