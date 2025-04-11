@@ -15,6 +15,7 @@ workflow:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 stages:
+  - push
   - containers
   - build
   - platform
@@ -73,6 +74,24 @@ platform:
   trigger:
     include: "ci/platform.yml"
     strategy: depend
+
+ci_push_test:
+  stage: push
+  needs: []
+  script:
+    - echo $CI_JOB_URL
+    - echo $CI_OPEN_MERGE_REQUESTS
+  tags:
+    - CI_pusher
+
+fail:
+  stage: push
+  needs:
+    - ci_push_test
+  script:
+    - exit 1
+  tags:
+    - CI_pusher
 
 dco:
   stage: build
