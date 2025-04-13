@@ -19,6 +19,7 @@
 #include "tasks/dhcp_task.h"
 #include "tasks/load_balancer_task.h"
 #include "tasks/optimal_path_task.h"
+#include "tasks/service_prioritization_task.h"
 #include "tasks/topology_task.h"
 #ifdef FEATURE_PRE_ASSOCIATION_STEERING
 #include "tasks/pre_association_steering/pre_association_steering_task.h"
@@ -386,6 +387,10 @@ void Controller::start_mandatory_tasks()
 
     LOG_IF(!m_task_pool.add_task(std::make_shared<DhcpTask>(database, m_timer_manager)), FATAL)
         << "Failed adding dhcp task!";
+
+    LOG_IF(!m_task_pool.add_task(std::make_shared<service_prioritization_task>(database, cmdu_tx)),
+           FATAL)
+        << "Failed adding service_prioritization_task!";
 }
 
 void Controller::start_optional_tasks()
@@ -607,8 +612,6 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
         return handle_cmdu_1905_failed_connection_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE:
         return handle_cmdu_1905_associated_sta_link_metrics_response_message(src_mac, cmdu_rx);
-    case ieee1905_1::eMessageType::QOS_MANAGEMENT_NOTIFICATION_MESSAGE:
-        return handle_cmdu_1905_qos_management_notification_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE:
         return handle_cmdu_1905_early_ap_capability_report_message(src_mac, cmdu_rx);
 
@@ -4666,72 +4669,6 @@ bool Controller::handle_tlv_profile3_device_inventory(Agent &agent,
 
     LOG(DEBUG) << ss.str();
     return true;
-}
-
-bool Controller::handle_cmdu_1905_qos_management_notification_message(
-    const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
-{
-    auto mid = cmdu_rx.getMessageId();
-    LOG(DEBUG) << "Received QOS_MANAGEMENT_NOTIFICATION_MESSAGE, mid=" << std::hex << mid;
-
-    for (auto const &qos_management_descriptor_tlv :
-         cmdu_rx.getClassList<wfa_map::tlvQoSManagementDescriptor>()) {
-        if (!qos_management_descriptor_tlv) {
-            LOG(DEBUG) << "getClass wfa_map::tlvQoSManagementDescriptor has failed";
-            return false;
-        }
-
-        LOG(DEBUG) << "QoS Management Descriptor TLV is received:" << std::endl
-                   << "Rule ID: " << qos_management_descriptor_tlv->qmid() << std::endl
-                   << "BSSID: " << qos_management_descriptor_tlv->bssid() << std::endl
-                   << "Client MAC: " << qos_management_descriptor_tlv->client_mac() << std::endl;
-
-        // TODO: Implement handling of QoS Management Descriptor TLV (PPM-2364)
-    }
-
-    auto agent = database.m_agents.get(src_mac);
-    if (!agent) {
-        LOG(ERROR) << "Agent with mac is not found in database mac=" << src_mac;
-        return false;
-    }
-
-    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE)) {
-        LOG(ERROR) << "cmdu creation of type SERVICE_PRIORITIZATION_REQUEST_MESSAGE has failed";
-        return false;
-    }
-
-    for (const auto &rule : agent->service_prioritization.rules) {
-
-        auto service_prioritization_rule_tlv =
-            cmdu_tx.addClass<wfa_map::tlvServicePrioritizationRule>();
-        if (!service_prioritization_rule_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvServicePrioritizationRule has failed";
-            return false;
-        }
-
-        service_prioritization_rule_tlv->rule_params() = rule.second;
-    }
-
-    auto dscp_mapping_table_tlv = cmdu_tx.addClass<wfa_map::tlvDscpMappingTable>();
-    if (!dscp_mapping_table_tlv) {
-        LOG(ERROR) << "addClass wfa_map::tlvDscpMappingTable has failed";
-        return false;
-    }
-
-    if (!dscp_mapping_table_tlv->set_dscp_pcp_mapping(
-            agent->service_prioritization.dscp_mapping_table.data(),
-            agent->service_prioritization.dscp_mapping_table.size())) {
-        LOG(ERROR) << "Failed to set DSCP mapping list in tlvDscpMappingTable!";
-        return false;
-    }
-
-    if (!database.dm_set_service_prioritization_rules(*agent)) {
-        LOG(ERROR) << "Failed to set service prioritization rules in DM for Agent" << agent->al_mac;
-        return false;
-    }
-
-    // TODO: Implement sending of remaining TLVs of Service Prioritization Request message (PPM-2366)
-    return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
 }
 
 bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,

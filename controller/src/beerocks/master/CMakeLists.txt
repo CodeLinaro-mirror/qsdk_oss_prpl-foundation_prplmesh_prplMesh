@@ -71,6 +71,7 @@ endif()
 target_link_libraries(${PROJECT_NAME} ${LINKED_LIBS})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${MODULE_PATH}/../bml
     if (ENABLE_NBAPI)
         ${ACTION_PATH}
