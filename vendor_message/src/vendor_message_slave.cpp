@@ -38,7 +38,7 @@ bool VendorMessageSlave::handle_cmdu_from_broker(uint32_t iface_index, const sMa
         if (!network_utils::linux_iface_get_mac(db->bridge.iface_name, iface_mac)) {
             LOG(ERROR) << "Failed reading addresses from the bridge!";
         }
-        bridge_mac = tlvf::generate_ieee1905_al_mac(iface_mac);
+        bridge_mac = db->bridge.mac;
 
         // Filter messages which are not destined to this agent
         if (dst_mac != beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR &&
