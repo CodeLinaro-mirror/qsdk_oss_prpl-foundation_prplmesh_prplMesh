@@ -104,16 +104,6 @@ sMacAddr mac_from_string(const std::string &mac)
     return ret;
 }
 
-sMacAddr generate_ieee1905_al_mac(const std::string &mac)
-{
-    sMacAddr al_mac = mac_from_string(mac);
-    //set 2nd bit of first octet for locally administrated
-    al_mac.oct[0] |= 2;
-    //increament 5th octet
-    al_mac.oct[4]++;
-    return al_mac;
-}
-
 void mac_to_array(const sMacAddr &mac, uint8_t array[sizeof(sMacAddr::oct)])
 {
     std::copy_n(mac.oct, sizeof(sMacAddr::oct), array);

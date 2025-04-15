@@ -1628,7 +1628,10 @@ sMacAddr network_utils::get_eth_sw_mac_from_bridge_mac(const sMacAddr &bridge_ma
      * (as OUI is not relevant here anyway)
      */
     if (mac.oct[0] & 0x2) {
-        mac.oct[4] -= 1;
+        size_t size = sizeof(mac.oct);
+        for (size_t i = 0; i < size / 2; i++) {
+            std::swap(mac.oct[i], mac.oct[size - 1 - i]);
+        }
     }
     //then force the locally administrated mac address flag
     mac.oct[0] |= 0x2;

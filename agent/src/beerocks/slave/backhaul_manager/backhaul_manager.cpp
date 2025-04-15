@@ -114,7 +114,7 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     if (!beerocks::net::network_utils::linux_iface_get_mac(config.bridge_iface, bridge_mac)) {
         LOG(ERROR) << "Failed getting MAC address for interface: " << config.bridge_iface;
     } else {
-        db->dm_set_agent_mac(tlvf::mac_to_string(tlvf::generate_ieee1905_al_mac(bridge_mac)));
+        db->dm_set_agent_mac(bridge_mac);
     }
 
     // Need add TopologyTask to the dummy Agent workflow, for the

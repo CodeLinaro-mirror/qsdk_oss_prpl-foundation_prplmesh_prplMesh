@@ -78,19 +78,6 @@ bool mac_from_string(uint8_t *buf, const std::string &mac);
 sMacAddr mac_from_string(const std::string &mac);
 
 /**
- * @brief Generate al mac from bridge mac string to sMacAddr
- *
- * The string may be in one of the following formats (X is an upper or lower case hex digit):
- * @li XX:XX:XX:XX:XX:XX
- * @li 0xXXXXXXXXXX
- * @li XXXXXXXXXX
- *
- * @param mac mac std::string to convert
- * @return sMacAddr generated al mac address
- */
-sMacAddr generate_ieee1905_al_mac(const std::string &mac);
-
-/**
  * @brief Copy a MAC address from a sMacAddr object into an array.
  * @param mac sMacAddr object to copy
  * @param array Destination array

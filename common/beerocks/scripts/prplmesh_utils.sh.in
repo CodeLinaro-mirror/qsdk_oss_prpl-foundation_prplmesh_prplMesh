@@ -311,22 +311,6 @@ status_function() {
     else
         BRIDGE_MAC="$(ip link show dev @BEEROCKS_BRIDGE_IFACE@ | awk '/^ *link\/ether / {print $2}')"
     fi
-    # Extract octets of the MAC address
-    O1=$(echo "$BRIDGE_MAC" | cut -d ':' -f1)
-    O2=$(echo "$BRIDGE_MAC" | cut -d ':' -f2)
-    O3=$(echo "$BRIDGE_MAC" | cut -d ':' -f3)
-    O4=$(echo "$BRIDGE_MAC" | cut -d ':' -f4)
-    O5=$(echo "$BRIDGE_MAC" | cut -d ':' -f5)
-    O6=$(echo "$BRIDGE_MAC" | cut -d ':' -f6)
-    # Modify the first octet to set the locally administered bit
-    O1=$(printf "%02x" $((0x$O1 | 0x02)))
-    # Increment the 5th octet and handle overflow
-    O5=$((0x$O5 + 1))
-    if [ $O5 -gt 255 ]; then
-        O5=0
-    fi
-    O5=$(printf "%02x" $O5)
-    BRIDGE_MAC="$O1:$O2:$O3:$O4:$O5:$O6"
 
     bml_cmd="bml_get_device_operational_radios $BRIDGE_MAC"
 

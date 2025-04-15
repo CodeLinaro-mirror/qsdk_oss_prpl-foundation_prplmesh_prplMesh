@@ -4250,7 +4250,6 @@ bool slave_thread::agent_fsm()
             agent_reset();
             break;
         }
-        iface_mac = tlvf::mac_to_string(tlvf::generate_ieee1905_al_mac(iface_mac));
 
         // Update bridge parameters on AgentDB.
         db->bridge.mac = tlvf::mac_from_string(iface_mac);
