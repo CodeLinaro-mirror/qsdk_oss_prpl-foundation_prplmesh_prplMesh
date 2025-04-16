@@ -20,7 +20,7 @@ stages:
   - build
   - platform
   - test
-  - feed
+  - integration 
   - certification-dummy
   - upload
 
@@ -50,22 +50,27 @@ image-build-cppcheck:
 image-build-scripts:
   extends: .image-build
 
-feed:
-  stage: feed
-  image:
-    name: alpine/git
-    entrypoint: [""]
+update-feed:
+  stage: integration
+# set needs empty, for quicker test
   needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $DEMO_BRANCH
       allow_failure: true
-  before_script:
-    - env
-    - apk update
-    - apk add bash jq curl
+# comment out after we set up the runner
+# tags:
+#   - CI_FEED_BOT
   script:
-    - bash tools/scripts/feed.sh "$CI_MERGE_REQUEST_IID" "$CI_COMMIT_SHA"
+    - echo 'bot updated branch ${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID} in feed and profile'
 
+component-verification:
+  stage: integration
+  needs:
+    - update-feed
+  trigger:
+    project: 'ludai/autoz'
+    branch: '${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID}'
+    strategy: depend
 
 platform:
   stage: platform
