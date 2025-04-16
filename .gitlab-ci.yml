@@ -61,7 +61,7 @@ update-feed:
 # tags:
 #   - CI_FEED_BOT
   script:
-    - echo 'bot updated branch ${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID} in feed and profile'
+    - echo "bot updated branch ${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID} in feed and profile"
 
 component-verification:
   stage: integration
@@ -69,7 +69,7 @@ component-verification:
     - update-feed
   trigger:
     project: 'ludai/autoz'
-    branch: '${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID}'
+    branch: "${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID}"
     strategy: depend
 
 platform:
