@@ -69,6 +69,10 @@ component-verification:
     project: 'ludai/autoz'
     branch: "${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID}"
     strategy: depend
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $DEMO_BRANCH
+      when: always 
+    - when: never
 
 platform:
   stage: platform
