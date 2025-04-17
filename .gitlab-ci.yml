@@ -26,6 +26,7 @@ stages:
 
 include:
   - local: "/ci/templates.yml"
+  - remote: 'https://gitlab.com/ludai/autoz/-/raw/main/ci/components/component_feed_trigger.yml'
 
 .rules-for-expensive-job: &expensive-job
   rules:
@@ -50,23 +51,10 @@ image-build-cppcheck:
 image-build-scripts:
   extends: .image-build
 
-update-feed:
-  stage: integration
-# set needs empty, for quicker test
-  needs: []
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $DEMO_BRANCH
-      allow_failure: true
-# comment out after we set up the runner
-# tags:
-#   - CI_FEED_BOT
-  script:
-    - echo "bot updated branch ${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID} in feed and profile"
-
 component-verification:
   stage: integration
   needs:
-    - update-feed
+    - component-feed
   trigger:
     project: 'ludai/autoz'
     branch: "${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID}"
