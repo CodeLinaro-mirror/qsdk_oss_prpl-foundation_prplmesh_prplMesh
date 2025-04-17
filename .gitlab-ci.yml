@@ -2,7 +2,7 @@ variables:
   PYTHONUNBUFFERED: "1"
   ARTIFACT_DOWNLOAD_ATTEMPTS: 3
   GET_SOURCES_ATTEMPTS: 3
-  DEMO_BRANCH: "demo/ci-feed-automation"
+  AUTOFEED_BRANCH: "demo/ci-feed-automation"
 
 default:
   interruptible: true
