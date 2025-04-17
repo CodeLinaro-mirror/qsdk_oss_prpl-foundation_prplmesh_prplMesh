@@ -211,6 +211,7 @@ clang-format:
     paths:
       - build/install
       - build/controller
+      - build/agent/src/beerocks/slave/nbapi/agent/odl
 
 pytest:
   extends: .build-in-docker

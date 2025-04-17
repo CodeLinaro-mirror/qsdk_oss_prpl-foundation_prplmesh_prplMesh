@@ -34,16 +34,23 @@ deploy() {
     BOARD_TYPE=$(eval ssh "$SSH_OPTIONS" "$TARGET" \""grep '^ID' -- /etc/os-release | cut -d '=' -f 2"\")
     echo "BOARD_TYPE=$BOARD_TYPE"
 
-    eval ssh "$SSH_OPTIONS" "$TARGET" <<EOF
-# we don't want opkg to stay locked with a previous failed invocation.
-# when using this, make sure no one is using opkg in the meantime!
-pgrep opkg | xargs kill -s INT
-# remove any previously installed prplmesh. Use force-depends in case
-# there are packages depending on prplmesh which will cause opkg remove
-# to fail without this:
-opkg remove --force-depends prplmesh prplmesh-dwpal prplmesh-nl80211
-# currently opkg remove does not remove everything from /opt/prplmesh:
-rm -rf /opt/prplmesh
+    eval ssh "$SSH_OPTIONS" "$TARGET" 'sh -s' <<'EOF'
+    # we don't want opkg to stay locked with a previous failed invocation.
+    # when using this, make sure no one is using opkg in the meantime!
+    pgrep opkg | xargs kill -s INT
+
+    # remove any previously installed prplmesh. Use force-depends in case
+    # there are packages depending on prplmesh which will cause opkg remove
+    # to fail without this:
+    opkg remove --force-depends prplmesh prplmesh-dwpal prplmesh-nl80211
+
+    # currently opkg remove does not remove everything from /opt/prplmesh.
+    # we want to keep /opt/prplmesh/share/agent for agent configuration.
+    find /opt/prplmesh -mindepth 1 \
+      ! -path "/opt/prplmesh/share" \
+      ! -path "/opt/prplmesh/share/agent" \
+      ! -path "/opt/prplmesh/share/agent/*" \
+      -exec rm -rf {} +
 EOF
 
 # The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.

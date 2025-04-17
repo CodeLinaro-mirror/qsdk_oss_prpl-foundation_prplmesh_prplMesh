@@ -38,7 +38,7 @@ def device_from_name(name: str, target_name: str, image: Union[str, None] = None
         dev = device.turris_prplos.TurrisPrplOS(name, target_name, image)
     elif name == "haze":
         dev = device.haze.Haze(name, target_name, image)
-    elif name == "urx_osp":
+    elif name == "urx_osp" or name == "urx_ospv2":
         dev = device.urx_osp.URXOSP(name, target_name, image)
     elif name == "freedom":
         dev = device.freedom.Freedom(name, target_name, image)

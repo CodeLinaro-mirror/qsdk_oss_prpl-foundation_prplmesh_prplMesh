@@ -102,7 +102,7 @@ main() {
 
     eval set -- "$OPTS"
 
-    SUPPORTED_TARGETS="turris-omnia haze urx_osp freedom"
+    SUPPORTED_TARGETS="turris-omnia haze urx_osp urx_ospv2 freedom"
 
     while true; do
         case "$1" in
@@ -138,6 +138,9 @@ main() {
         urx_osp)
             TARGET_SYSTEM=mxl_x86_osp_tb341
             ;;
+        urx_ospv2)
+            TARGET_SYSTEM=mxl_x86_osp_tb341_v2
+            ;;
         freedom)
             TARGET_SYSTEM=qca_ipq95xx
             ;;
@@ -157,9 +160,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE platform, building on prplos-v3.2.0 + mainline-3.2_v0.0.3"
-        OPENWRT_TOOLCHAIN_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
-        OPENWRT_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplos mainline-23.05"
+        OPENWRT_TOOLCHAIN_VERSION='5e45aa5594ddc3a429a36b3652c3f0e354bd6ac8'
+        OPENWRT_VERSION='5e45aa5594ddc3a429a36b3652c3f0e354bd6ac8'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -199,8 +202,8 @@ VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos-v3.2.0
-OPENWRT_TOOLCHAIN_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
-OPENWRT_VERSION='28225176aa17646caa9c9ca4ef47dfe9223afc27'
+OPENWRT_TOOLCHAIN_VERSION='5e45aa5594ddc3a429a36b3652c3f0e354bd6ac8'
+OPENWRT_VERSION='5e45aa5594ddc3a429a36b3652c3f0e354bd6ac8'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false

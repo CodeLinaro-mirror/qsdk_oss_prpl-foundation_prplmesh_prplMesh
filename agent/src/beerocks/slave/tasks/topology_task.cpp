@@ -38,6 +38,29 @@ using namespace multi_vendor;
 
 constexpr uint8_t TOPOLOGY_DISCOVERY_TX_CYCLE_SEC = 60;
 
+// Convert beerocks bw to 802_11 bw
+uint8_t convert_bandwidth(eWiFiBandwidth bw)
+{
+    // IEEE P802.11be/D6.0, May 2024 -> page 989
+    // cbw20(0), cbw40(1), cbw80(2), cbw160(3), cbw320-1(4), cbw320-1(5)
+    switch (bw) {
+    case eWiFiBandwidth::BANDWIDTH_20:
+        return 0;
+    case eWiFiBandwidth::BANDWIDTH_40:
+        return 1;
+    case eWiFiBandwidth::BANDWIDTH_80:
+        return 2;
+    case eWiFiBandwidth::BANDWIDTH_160:
+        return 3;
+    case eWiFiBandwidth::BANDWIDTH_320_1:
+        return 4;
+    case eWiFiBandwidth::BANDWIDTH_320_2:
+        return 5;
+    default:
+        return 0; // Safe default
+    }
+}
+
 TopologyTask::TopologyTask(BackhaulManager &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx)
     : Task(eTaskType::TOPOLOGY), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx)
 {
@@ -589,7 +612,8 @@ bool TopologyTask::add_device_information_tlv()
                 media_info.role =
                     front_iface ? ieee1905_1::eRole::AP : ieee1905_1::eRole::NON_AP_NON_PCP_STA;
 
-                media_info.ap_channel_bandwidth               = radio->wifi_channel.get_bandwidth();
+                media_info.ap_channel_bandwidth =
+                    convert_bandwidth(radio->wifi_channel.get_bandwidth());
                 media_info.ap_channel_center_frequency_index1 = radio->wifi_channel.get_channel();
                 media_info.ap_channel_center_frequency_index2 =
                     radio->wifi_channel.get_center_frequency_2();
