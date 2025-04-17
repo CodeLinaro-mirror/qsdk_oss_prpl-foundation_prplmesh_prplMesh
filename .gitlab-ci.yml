@@ -51,29 +51,6 @@ image-build-cppcheck:
 image-build-scripts:
   extends: .image-build
 
-component-feed:
-  extends: .component-feed
-  variables:
-    COMPONENT: $CI_PROJECT_NAME
-    COMPONENTURL: $CI_PROJECT_URL
-    MRIID: $CI_MERGE_REQUEST_IID
-    COMMITID: $CI_COMMIT_SHA
-    TARGETSHA: $CI_MERGE_REQUEST_TARGET_BRANCH_SHA
-    SRCSHA: $CI_MERGE_REQUEST_SOURCE_BRANCH_SHA
-
-component-verification:
-  stage: integration
-  needs:
-    - component-feed
-  trigger:
-    project: 'ludai/autoz'
-    branch: "${CI_PROJECT_NAME}/${CI_MERGE_REQUEST_IID}"
-    strategy: depend
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $DEMO_BRANCH
-      when: always 
-    - when: never
-
 platform:
   stage: platform
   needs:
