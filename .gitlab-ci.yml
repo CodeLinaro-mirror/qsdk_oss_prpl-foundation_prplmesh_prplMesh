@@ -51,6 +51,16 @@ image-build-cppcheck:
 image-build-scripts:
   extends: .image-build
 
+component-feed:
+  extends: .component-feed
+  variables:
+    COMPONENT: $CI_PROJECT_NAME
+    COMPONENTURL: $CI_PROJECT_URL
+    MRIID: $CI_MERGE_REQUEST_IID
+    COMMITID: $CI_COMMIT_SHA
+    TARGETSHA: $CI_MERGE_REQUEST_TARGET_BRANCH_SHA
+    SRCSHA: $CI_MERGE_REQUEST_SOURCE_BRANCH_SHA
+
 component-verification:
   stage: integration
   needs:
