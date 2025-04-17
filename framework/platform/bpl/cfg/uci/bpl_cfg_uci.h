@@ -79,7 +79,8 @@ extern "C" {
 #define RETURN_OK 0
 
 // Default UCI Lan interface names. It needs to be space separeted.
-constexpr char DEFAULT_UCI_LAN_INTERFACE_NAMES[] = "eth0_1 eth0_2 eth0_3 eth0_4";
+constexpr char DEFAULT_UCI_LAN_INTERFACE_NAMES[] =
+    "eth0_1 eth0_2 eth0_3 eth0_4 lan0 lan1 lan2 lan3 lan4";
 
 namespace beerocks {
 namespace bpl {

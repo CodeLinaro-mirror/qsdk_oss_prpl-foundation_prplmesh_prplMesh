@@ -51,9 +51,15 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.0.100"
 
-# Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='eth2'
-uci commit
+# Set the wired backhaul interface:
+if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
+  # Prplmesh agent is not running. Data model isn't up.
+  echo "Prplmesh agent is not running"
+else
+  # Prplmesh agent is running, configure it over the bus
+  echo "Setting prplMesh BackhaulWireInterface over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth2"
+fi
 
 # Enable Wi-Fi radios
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].Enable=1"

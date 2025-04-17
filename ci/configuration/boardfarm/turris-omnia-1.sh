@@ -49,8 +49,15 @@ ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].", "parameters
 # Set a LAN IP:
 ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"lan\"].IPv4Address.[Alias == \"lan\"].", "parameters": { "IPAddress": "192.165.0.100" } }'
 
-# Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='eth2'
+# Set the wired backhaul interface:
+if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
+  # Prplmesh agent is not running. Data model isn't up.
+  echo "Prplmesh agent is not running"
+else
+  # Prplmesh agent is running, configure it over the bus
+  echo "Setting prplMesh BackhaulWireInterface over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth2"
+fi
 
 # For now there is no way to disable the firewall (see PCF-590).
 # Instead, wait for it in the datamodel, then set the whole INPUT

@@ -27,9 +27,11 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
 #include <bcl/network/sockets_impl.h>
-#include <bpl/bpl_cfg.h>
 #include <btl/broker_client_factory_factory.h>
 #include <mapf/common/utils.h>
+
+#include <bpl/bpl_amx.h>
+#include <bpl/bpl_cfg.h>
 
 #include <easylogging++.h>
 
@@ -53,7 +55,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif // AMBIORIX_BUS_URI
 
 #ifndef CONTROLLER_DATAMODEL_PATH
-#define CONTROLLER_DATAMODEL_PATH "config/odl/master_config.odl"
+#define CONTROLLER_DATAMODEL_PATH "config/controller/odl/master_config.odl"
 #endif
 
 #endif //#else // ENABLE_NBAPI
@@ -862,6 +864,8 @@ int main(int argc, char *argv[])
 
     s_pLogger = nullptr;
     controller.stop();
+
+    beerocks::bpl::bpl_close();
 
     return 0;
 }

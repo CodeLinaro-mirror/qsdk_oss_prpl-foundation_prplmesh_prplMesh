@@ -17,7 +17,7 @@
     silent = false;
     import-dbg = true;
     dm-eventing-enabled = true;
-    storage-path = "/opt/prplmesh/share";
+    storage-path = "/opt/prplmesh/share/$@@{name}";
     storage-type = "odl";
     odl = {
         dm-load = true,
@@ -32,7 +32,7 @@
         ".",
         "$@@{cfg-dir}/prplmesh",
         "$@@{cfg-dir}/modules",
-        "/opt/prplmesh/config/odl"
+        "/opt/prplmesh/config/$@@{name}/odl"
     ];
     import-dirs = [
         ".",
@@ -46,7 +46,7 @@
 
     //persistent storage
     pcm_svc_config = {
-        "Objects" = "@CONTROLLER_ROOT_DM_Header@"
+        "Objects" = "@CONTROLLER_ROOT_DM@"
     };
 }
 include "$@@{definition_file}";

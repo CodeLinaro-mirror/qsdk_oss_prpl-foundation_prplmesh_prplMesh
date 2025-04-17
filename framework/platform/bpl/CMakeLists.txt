@@ -188,6 +188,7 @@ find_package(amxd REQUIRED)
 find_package(amxp REQUIRED)
 list(APPEND BPL_LIBS amxb amxc amxd amxp)
 
+# BPL pwhm DM via wbapi
 if (USE_PRPLMESH_WHM)
     include_directories(${MODULE_PATH}/cfg/dm)
 
@@ -205,7 +206,7 @@ if (USE_PRPLMESH_WHM)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
 
-    list(APPEND BPL_LIBS wbapi nbapi)
+    list(APPEND BPL_LIBS wbapi)
 else ()
     file(GLOB_RECURSE bpl_platform_sources
         ${MODULE_PATH}/*/linux/*.c*
@@ -214,6 +215,16 @@ else ()
     )
 endif()
 
+# BPL configuration via nbapi
+list(FIND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_amx.cpp _index)
+message("bpl_platform_sources: ${bpl_platform_sources}")
+if (_index EQUAL -1)
+    message("APPEND bpl_platform_sources with ${MODULE_PATH}/cfg/dm/bpl_amx.cpp")
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_amx.cpp)
+endif()
+list(APPEND BPL_LIBS nbapi)
+
+# BPL bcl
 list(APPEND BPL_LIBS bcl)
 
 # Build the library

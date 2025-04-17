@@ -50,9 +50,7 @@ image-build-scripts:
 
 platform:
   stage: platform
-  needs:
-    - build-in-docker
-    - image-build-boardfarm-ci
+  needs: []
   rules:
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
     - !reference [.rules-for-expensive-job, rules]
@@ -211,6 +209,7 @@ clang-format:
     paths:
       - build/install
       - build/controller
+      - build/agent/src/beerocks/slave/nbapi/agent/odl
 
 pytest:
   extends: .build-in-docker

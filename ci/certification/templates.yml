@@ -103,24 +103,7 @@ include:
 # Merge train tests
 ##################
 
-merge-train:R1:turris-omnia:MAP-4.2.1:
-  extends: .certification:R1:turris-omnia
-  before_script:
-    - tools/deploy_firmware.py --full --device turris-omnia --target-name "$RUN_ON_DEVICE" --image "$TURRIS_OMNIA_FULLIMAGE" --whm --configuration ci/configuration/certification/R1/whm/turris-omnia.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  rules:
-    - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'
-      when: on_success
-  retry: 2
-
-merge-train:R1:haze:MAP-4.3.1_BHWIFI:
-  extends: .certification:R1:haze
-  rules:
-    - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'
-      when: on_success
-  retry: 2
-
-merge-train:R1:haze:MAP-4.4.1_BHWIFI:
+merge-train:R1:haze:MAP-4.2.1:
   extends: .certification:R1:haze
   rules:
     - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'

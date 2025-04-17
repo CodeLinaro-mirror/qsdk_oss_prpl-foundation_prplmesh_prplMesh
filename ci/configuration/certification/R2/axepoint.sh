@@ -72,8 +72,15 @@ ubus call IP.Interface _get '{ "rel_path": ".[Name == \"eth0_4\"].IPv4Address.[A
 # Finally, we can enable it:
 ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"eth0_4\"].", "parameters": { "IPv4Enable": true } }'
 
-# Wired backhaul interface:
-uci set prplmesh.config.backhaul_wire_iface='eth1'
+# Set the wired backhaul interface:
+if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
+  # Prplmesh agent is not running. Data model isn't up.
+  echo "Prplmesh agent is not running"
+else
+  # Prplmesh agent is running, configure it over the bus
+  echo "Setting prplMesh BackhaulWireInterface over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth1"
+fi
 
 # Stop and disable the firewall:
 /etc/init.d/tr181-firewall stop

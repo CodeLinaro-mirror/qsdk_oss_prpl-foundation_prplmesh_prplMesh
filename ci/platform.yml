@@ -56,7 +56,7 @@ build-for-freedom:
   variables:
     TARGET_DEVICE: "freedom"
 
-build-for-osp:
+build-for-osp-ospv2:
   stage: build
   variables:
     POLLING_RATE: "120"
@@ -67,7 +67,7 @@ build-for-osp:
     - |
       trigger_details=$(curl -X POST --retry 3 -s -f -F \
       token=${OSP_PIPELINE_TRIGGER_TOKEN_2} \
-      -F ref="mainline-3.2-v2" \
+      -F ref="mainline-23.05-v3" \
       -F variables[PRPLMESH_REVISION]="$CI_COMMIT_SHA" \
       -F variables[PARENT_PIPELINE_ID]="$CI_PIPELINE_ID" \
       -F variables[PARENT_PROJECT_ID]="$CI_PROJECT_ID" \
@@ -258,7 +258,7 @@ run-certification-tests-R4-platform-essensium:
     - echo "$TESTS_TO_RUN_R4_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_R4_ESSENSIUM" > .device-under-test
   rules:
-    - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp"'
+    - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
     - when: manual
       allow_failure: true
   tags:
