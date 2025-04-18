@@ -153,8 +153,6 @@ int cfg_get_param_int(const std::string &param, int &value)
     return RETURN_OK;
 }
 
-int cfg_is_enabled() { return 1; }
-
 int cfg_is_master()
 {
     switch (cfg_get_management_mode()) {

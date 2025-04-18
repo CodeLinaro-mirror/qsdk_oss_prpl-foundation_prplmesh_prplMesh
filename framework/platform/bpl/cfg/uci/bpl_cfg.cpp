@@ -43,16 +43,6 @@ int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                         hostap_iface_steer_vaps, BPL_LOAD_STEER_ON_VAPS_LEN);
 }
 
-int cfg_is_enabled()
-{
-    int retVal = -1;
-    if (cfg_get_prplmesh_param_int("enable", &retVal) == RETURN_ERR) {
-        MAPF_ERR("cfg_is_enabled: Failed to read Enable parameter\n");
-        return RETURN_ERR;
-    }
-    return retVal;
-}
-
 int cfg_is_master()
 {
     switch (cfg_get_management_mode()) {

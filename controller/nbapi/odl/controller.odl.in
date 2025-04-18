@@ -175,6 +175,7 @@
                     /* Used in optimal_path_task; applies bonus to current BSS {phy_rate or rssi}; 
                     choice of parameter is based on prefer_signal_strength flag */
                     %persistent uint32 SteeringCurrentBonus {
+                        default 10;
                         on action validate call check_range [0, 10000];
                     }
 
@@ -184,7 +185,7 @@
                         default 200;
                     }
 
-                    /* Link Metric Request Interval in Seconds */
+                    /* Interval for periodic link metrics requests from all agents (set to 0 to disable). */
                     %persistent uint32 LinkMetricsRequestIntervalSec {
                         default 60;
                     }
@@ -192,7 +193,7 @@
                     /* Used by controller to start / stop channel selection task */
                     %persistent bool ChannelSelectionTaskEnabled {
                         userflags %upc;
-                        default false;
+                        default true;
                     }
                     
                     /* Used by controller to start / stop dynamic channel selection task */
@@ -224,12 +225,12 @@
 
                     /* Used by controller to start / stop statistics polling task */
                     %persistent bool StatisticsPollingTaskEnabled {
-                        default false;
+                        default true;
                     }
 
                     /* Interval (in seconds) for statistics polling task */
                     %persistent uint32 StatisticsPollingRateSec {
-                        default 1;
+                        default 10;
                         on action validate call check_range [1, 10000];
                     }
                     
