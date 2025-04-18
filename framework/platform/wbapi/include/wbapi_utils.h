@@ -250,6 +250,11 @@ public:
     static std::string get_radio_iface(const AmbiorixVariant &obj);
 
     /**
+     * @brief get interface operating freq band of Radio object data
+     */
+    static std::string get_radio_op_freq_band(const AmbiorixVariant &obj);
+
+    /**
      * @brief get interface name of SSID object data
      */
     static std::string get_ssid_iface(const AmbiorixVariant &obj);

@@ -261,7 +261,7 @@ static void fill_master_config(son::db::sDbMasterConfig &master_conf,
                 continue;
             }
             char radio_channel_pool[BPL_LOAD_STEER_ON_VAPS_LEN] = {0};
-            if (beerocks::bpl::cfg_get_dcs_channel_pool(index, radio_channel_pool) < 0) {
+            if (beerocks::bpl::cfg_get_dcs_channel_pool(*it, radio_channel_pool) < 0) {
                 master_conf.default_channel_pools[it->ifname] = std::string();
             } else {
                 master_conf.default_channel_pools[it->ifname] = std::string(radio_channel_pool);

@@ -355,6 +355,13 @@ std::string wbapi_utils::get_radio_iface(const AmbiorixVariant &obj)
     return value;
 }
 
+std::string wbapi_utils::get_radio_op_freq_band(const AmbiorixVariant &obj)
+{
+    std::string value;
+    obj.read_child(value, "OperatingFrequencyBand");
+    return value;
+}
+
 std::string wbapi_utils::get_ssid_iface(const AmbiorixVariant &obj)
 {
     std::string value;

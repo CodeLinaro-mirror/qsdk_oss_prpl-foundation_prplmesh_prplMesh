@@ -247,14 +247,15 @@ int cfg_get_load_steer_on_vaps(int num_of_interfaces,
     return RETURN_OK;
 }
 
-int cfg_get_dcs_channel_pool(int radio_num, char channel_pool[BPL_DCS_CHANNEL_POOL_LEN])
+int cfg_get_dcs_channel_pool(const BPL_WLAN_IFACE &iface,
+                             char channel_pool[BPL_DCS_CHANNEL_POOL_LEN])
 {
     if (!channel_pool) {
         MAPF_ERR("invalid input: channel_pool is NULL");
         return RETURN_ERR;
     }
 
-    if (radio_num < 0) {
+    if (iface.radio_num < 0) {
         MAPF_ERR("invalid input: radio_num < 0");
         return RETURN_ERR;
     }

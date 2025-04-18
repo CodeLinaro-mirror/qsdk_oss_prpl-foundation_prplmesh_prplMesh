@@ -335,6 +335,20 @@
                         default false;
                     }
 
+                    /* DCS channel pool for radio 2.4 GHz that is used to determine what channels to scan */
+                    %persistent string DCSChannelPool_24GHz {
+                        default "1,6,11";
+                    }
+                    
+                    /* DCS channel pool for radio 5 GHz that is used to determine what channels to scan */
+                    %persistent string DCSChannelPool_5GHz {
+                        default "36-48,149-165";
+                    }
+                    
+                    /* DCS channel pool for radio 6 GHz that is used to determine what channels to scan */
+                    %persistent string DCSChannelPool_6GHz {
+                        default "0";
+                    }
 
                     /* QoS configuration */
                     %persistent object QoS {
