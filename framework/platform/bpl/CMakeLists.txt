@@ -137,30 +137,17 @@ elseif (TARGET_PLATFORM STREQUAL "rdkb")
 
     # Platform specific includes
     include_directories(${PLATFORM_INCLUDE_DIR})
-    include_directories(${PLATFORM_INCLUDE_DIR}/libnl3)
-    include_directories(${PLATFORM_INCLUDE_DIR}/bridge-utils)
 
     # UCI BPL
     file(GLOB_RECURSE bpl_platform_sources 
-        ${MODULE_PATH}/*/uci/*.c*
+        ${MODULE_PATH}/arp/linux/*.c*
+        ${MODULE_PATH}/dhcp/linux/*.c*
+        ${MODULE_PATH}/board/linux/*.c*
+        ${MODULE_PATH}/db/linux/*.c*
+        ${MODULE_PATH}/cfg/dm/*.c*
         ${MODULE_PATH}/cfg/vendor/*.c*
         ${MODULE_PATH}/service_prioritization/tc/service_prio_utils_tc.cpp
     )
-
-    # RDKB specific libraries
-    find_package(ubus REQUIRED)
-    find_package(slibc REQUIRED)
-
-    list(APPEND BPL_LIBS nl-3 nl-route-3 bridge dl swpal uci ubox ubus slibc)
-
-    # Install the UCI DB files
-    set(bpl_uci_db_files ${MODULE_PATH}/db/uci/prplmesh_db_version)
-    configure_file(
-      "${CMAKE_CURRENT_SOURCE_DIR}/db/uci/prplmesh_db.in"
-      "${CMAKE_CURRENT_BINARY_DIR}/prplmesh_db"
-      )
-    list(APPEND bpl_uci_db_files ${CMAKE_CURRENT_BINARY_DIR}/prplmesh_db)
-    install(FILES ${bpl_uci_db_files} DESTINATION ${CMAKE_INSTALL_PREFIX}/share)
 
 elseif (TARGET_PLATFORM STREQUAL "linux")
 

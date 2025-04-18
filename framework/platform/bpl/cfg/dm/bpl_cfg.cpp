@@ -67,7 +67,7 @@ int cfg_get_management_mode(std::string &mode)
 int cfg_get_certification_mode()
 {
     int certification_mode{1}; // on by default
-    read_agent_config_param(certification_mode, "CertificationMode");
+    read_agent_config_param("CertificationMode", certification_mode);
     return certification_mode;
 }
 

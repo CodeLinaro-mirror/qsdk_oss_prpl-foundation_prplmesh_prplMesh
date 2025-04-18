@@ -19,11 +19,6 @@ target_include_directories(ieee1905_transport_messages PUBLIC
     )
 
 add_executable(ieee1905_transport main.cpp)
-
-if (TARGET_PLATFORM STREQUAL "rdkb")
-    list(APPEND LINKED_LIBS breakpadwrapper)
-endif()
-
 target_link_libraries(ieee1905_transport PUBLIC ieee1905_transport_lib ${LINKED_LIBS} PRIVATE elpp)
 
 
