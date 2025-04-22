@@ -15,10 +15,12 @@ set_property(CACHE BWL_TYPE PROPERTY STRINGS "DUMMY" "NL80211" "DWPAL" "DWPALD" 
 add_definitions(-DBEEROCKS_TMP_PATH="${TMP_PATH}")
 
 if (TARGET_PLATFORM STREQUAL "rdkb")
-
-    set(BWL_TYPE "DWPALD")
-    # Extra libraries
-    list(APPEND BWL_LIBS rt dl)
+    if (TARGET_PLATFORM_TYPE STREQUAL "ugw")
+        set(BWL_TYPE "DWPALD")
+        list(APPEND BWL_LIBS rt dl)
+    else()
+        set(BWL_TYPE "NL80211")
+    endif()
 
 elseif(TARGET_PLATFORM STREQUAL "openwrt")
 

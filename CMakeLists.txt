@@ -183,9 +183,7 @@ elseif (TARGET_PLATFORM STREQUAL "rdkb")
     list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")
     add_definitions(-DFEATURE_PRE_ASSOCIATION_STEERING)
     set(BEEROCKS_BRIDGE_IFACE  "brlan0" CACHE STRING "LAN bridge")
-    set(BEEROCKS_BH_WIRE_IFACE "nsgmii0" CACHE STRING "Backhaul wire iface")
-    # Disable fronthaul wired ports
-    set(BEEROCKS_FH_WIRE_IFACE "" CACHE STRING "Fronthaul wire iface")
+    set(BEEROCKS_BH_WIRE_IFACE "eth1" CACHE STRING "Backhaul wire iface")
     # Disable file and enable syslog logging
     set(BEEROCKS_LOG_FILES_ENABLED "false" CACHE STRING "Write prplMesh logs into files")
     set(BEEROCKS_LOG_SYSLOG_ENABLED "true" CACHE STRING "Send logs to syslog")

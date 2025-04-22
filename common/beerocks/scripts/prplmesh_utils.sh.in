@@ -110,6 +110,16 @@ prplmesh_platform_db_init() {
     sed -i "s/operating_mode=.*/operating_mode=${operating_mode}/g" @TMP_PATH@/prplmesh_platform_db
 }
 
+prplmesh_dm_conf_init() {
+    management_mode=${1-"Controller+Agent"}
+
+    if [ -e "${PRPLMESH_DIR}/share/agent/odl/agent.odl" ]; then
+        sed -i "s/\('ManagementMode' = \"\)[^\"]*/\1${management_mode}\"/" "${PRPLMESH_DIR}/share/agent/odl/agent.odl"
+    else
+        sed -i "s/\('ManagementMode' = \"\)[^\"]*/\1${management_mode}\"/" "${PRPLMESH_DIR}/config/agent/odl/defaults.d/00_slave_configuration.odl"
+    fi
+}
+
 prplmesh_framework_init() {
     # This is required for solveing issue which causing meesges not geeting to their destination.
     # For more information see: https://github.com/prplfoundation/prplMesh/pull/1029#issuecomment-608353274
@@ -231,18 +241,21 @@ start_function() {
     case "$PRPLMESH_MODE" in
         CA | ca)
             prplmesh_platform_db_init "Multi-AP-Controller-and-Agent"
+            prplmesh_dm_conf_init "Controller+Agent"
             prplmesh_controller_start
             prplmesh_agent_start
             prplmesh_vendor_message_start
             ;;
         C | c)
             prplmesh_platform_db_init "Multi-AP-Controller"
+            prplmesh_dm_conf_init "Controller"
             prplmesh_controller_start
             # Dummy agent configures transport layer
             prplmesh_agent_start
             ;;
         A | a)
             prplmesh_platform_db_init "Multi-AP-Agent" "WDS-Repeater"
+            prplmesh_dm_conf_init "Agent"
             prplmesh_agent_start
             prplmesh_vendor_message_start
             ;;

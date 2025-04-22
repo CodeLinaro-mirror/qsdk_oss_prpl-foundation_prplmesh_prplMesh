@@ -29,6 +29,21 @@
                         ]; 
             }
 
+            /* Specifies prplMesh managment mode. Options: 'Controller', 'Controller+Agent', 'Agent' */
+            %persistent string ManagmentMode {
+                default "Controller+Agent";
+                on action validate call check_enum [
+                            "Controller",
+                            "Controller+Agent",
+                            "Agent"
+                        ]; 
+            }
+
+            /* TBD */
+            %persistent bool CertificationMode {
+                default false;
+            }
+
             /* Specifies the network interface to use for wired backhaul */
             %persistent string BackhaulWireInterface {
                 default "wan";
