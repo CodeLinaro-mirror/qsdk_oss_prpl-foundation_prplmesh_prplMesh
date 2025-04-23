@@ -7,6 +7,8 @@
  */
 
 #include "ieee1905_transport.h"
+#include <bcl/beerocks_os_utils.h>
+#include <bcl/network/network_utils.h>
 
 #include <arpa/inet.h>
 #include <chrono>
@@ -136,8 +138,26 @@ void Ieee1905Transport::handle_broker_interface_configuration_request_message(
             }
         }
     }
+    std::string bridge_mac;
+    if (!beerocks::net::network_utils::linux_iface_get_mac(bridge_name_, bridge_mac)) {
+        LOG(ERROR) << "Failed getting MAC address for interface: " << bridge_name_;
+    }
+
+    std::string cmd;
+    cmd.reserve(150);
+
+    cmd.append("ebtables -t broute -D BROUTING -p 0x893a -d ")
+        .append(bridge_mac)
+        .append(" -j DROP");    beerocks::os_utils::system_call(cmd);
+    cmd.clear();
+    cmd.append("ebtables -t broute -A BROUTING -p 0x893a -d ")
+        .append(bridge_mac)
+        .append(" -j DROP");
+
+    beerocks::os_utils::system_call(cmd);
+
     // Interface is not a bridge
-    else {
+    if (!msg.metadata()->is_bridge) {
         auto iface_name  = msg.metadata()->iface_name;
         auto bridge_name = msg.metadata()->bridge_name;
         if (msg.metadata()->add) {

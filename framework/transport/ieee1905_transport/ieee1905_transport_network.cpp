@@ -20,6 +20,8 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#define IEEE1905_PROTO 0x893A
+
 namespace beerocks {
 namespace transport {
 
@@ -153,7 +155,7 @@ bool Ieee1905Transport::open_interface_socket(NetworkInterface &interface)
 
     // open packet raw socket - see man packet(7) https://linux.die.net/man/7/packet
     int sockfd;
-    if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0) {
+    if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(IEEE1905_PROTO))) < 0) {
         MAPF_ERR("cannot open raw socket, error: \"" << strerror(errno) << "\" (" << errno << ").");
         return false;
     }
@@ -178,8 +180,8 @@ bool Ieee1905Transport::open_interface_socket(NetworkInterface &interface)
     // bind to specified interface - note that we cannot use SO_BINDTODEVICE sockopt as it does not support AF_PACKET sockets
     struct sockaddr_ll sockaddr;
     memset(&sockaddr, 0, sizeof(struct sockaddr_ll));
-    sockaddr.sll_family   = AF_PACKET;
-    sockaddr.sll_protocol = htons(ETH_P_ALL);
+    sockaddr.sll_family   = PF_PACKET;
+    sockaddr.sll_protocol = htons(IEEE1905_PROTO);
     sockaddr.sll_ifindex  = if_nametoindex(interface.ifname.c_str());
     if (bind(sockfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) < 0) {
         MAPF_ERR("cannot bind socket to interface for FD ("
@@ -372,46 +374,44 @@ void Ieee1905Transport::activate_interface(NetworkInterface &interface)
     }
     socket_name.append(interface.ifname).append(" Socket");
 
-    // Handle network events, but not for the bridge which is used for sending only.
-    if (!interface.is_bridge) {
-        EventLoop::EventHandlers handlers = {
-            // Handlers name
-            .name = socket_name,
+    // Handle network events
+    EventLoop::EventHandlers handlers = {
+        // Handlers name
+        .name = socket_name,
 
-            // Accept incoming connections
-            .on_read =
-                [&](int fd, EventLoop &loop) {
-                    LOG(DEBUG) << "Incoming message on interface " << interface.ifname << " FD ("
-                               << fd << ")";
-                    handle_interface_pollin_event(fd);
-                    return true;
-                },
+        // Accept incoming connections
+        .on_read =
+            [&](int fd, EventLoop &loop) {
+                LOG(DEBUG) << "Incoming message on interface " << interface.ifname << " FD (" << fd
+                           << ")";
+                handle_interface_pollin_event(fd);
+                return true;
+            },
 
-            // Not implemented
-            .on_write      = nullptr,
-            .on_disconnect = nullptr,
+        // Not implemented
+        .on_write      = nullptr,
+        .on_disconnect = nullptr,
 
-            // Handle interface errors
-            .on_error =
-                [&](int fd, EventLoop &loop) {
-                    std::string error_message;
+        // Handle interface errors
+        .on_error =
+            [&](int fd, EventLoop &loop) {
+                std::string error_message;
 
-                    int error        = 0;
-                    socklen_t errlen = sizeof(error);
-                    if (0 == getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&error, &errlen)) {
-                        error_message = ": \"" + std::string(strerror(error)) + "\" (" +
-                                        std::to_string(error) + ")";
-                    }
+                int error        = 0;
+                socklen_t errlen = sizeof(error);
+                if (0 == getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&error, &errlen)) {
+                    error_message = ": \"" + std::string(strerror(error)) + "\" (" +
+                                    std::to_string(error) + ")";
+                }
 
-                    LOG(ERROR) << "Error on FD (" << fd << ")" << error_message
-                               << ". Disabling interface " << interface.ifname;
+                LOG(ERROR) << "Error on FD (" << fd << ")" << error_message
+                           << ". Disabling interface " << interface.ifname;
 
-                    deactivate_interface(interface, false);
-                    return true;
-                },
-        };
-        m_event_loop->register_handlers(interface.fd->getSocketFd(), handlers);
-    }
+                deactivate_interface(interface, false);
+                return true;
+            },
+    };
+    m_event_loop->register_handlers(interface.fd->getSocketFd(), handlers);
 }
 
 void Ieee1905Transport::handle_interface_pollin_event(int fd)
