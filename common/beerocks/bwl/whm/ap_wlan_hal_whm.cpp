@@ -793,11 +793,98 @@ bool ap_wlan_hal_whm::restricted_channels_get(char *channel_list)
     return false;
 }
 
+int32_t
+ap_wlan_hal_whm::get_rank_of_channel(uint8_t chanNum,
+                                     std::vector<std::tuple<uint8_t, int32_t>> &chan_survey_report)
+{
+    for (const auto &entry : chan_survey_report) {
+        if (std::get<0>(entry) == chanNum) {
+            return std::get<1>(entry);
+        }
+    }
+    return INT32_MAX; // if channel not found return rank as max int value so that it will assign least multiap preference
+}
+
+bool ap_wlan_hal_whm::update_rank_for_channel(
+    std::vector<std::tuple<uint8_t, int32_t>> &chan_survey_report)
+{
+    if (m_radio_path.empty()) {
+        m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name),
+                                   m_radio_path);
+    }
+    auto radio = m_ambiorix_cl.get_object(m_radio_path);
+    if (!radio) {
+        LOG(ERROR) << " cannot refresh radio info, radio object missing ";
+        return false;
+    }
+
+    for (auto &pair : m_radio_info.channels_list) {
+        uint8_t channel_num = pair.first;
+        sChannelInfo &info  = pair.second;
+
+        for (auto &bw : info.bw_info_list) {
+
+            if (bw.first > m_radio_info.max_bandwidth) {
+                continue;
+            }
+            bw.second = get_rank_of_channel(channel_num, chan_survey_report);
+            LOG(INFO) << "Channel: " << int(channel_num) << " Bandwidth: " << int(bw.first)
+                      << " Rank: " << bw.second;
+        }
+    }
+    return true;
+}
+
 bool ap_wlan_hal_whm::read_acs_report()
 {
-    // Whm (similar to nl80211) does not support any channel ranking thus no need to provide any acs_report.
-    // Channel selection will be done at the controller level.
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    std::vector<std::tuple<uint8_t, int32_t>> chan_survey_report;
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    if (!m_ambiorix_cl.call(m_radio_path, "getChanSurveyReport", args, result)) {
+        LOG(ERROR) << " remote function call getChanSurveyReport Failed!";
+        return false;
+    }
+    AmbiorixVariantListSmartPtr acs_scan_results_list =
+        result.read_children<AmbiorixVariantListSmartPtr>();
+    if (!acs_scan_results_list) {
+        LOG(ERROR) << "failed reading scan_results!";
+        return false;
+    }
+    if (acs_scan_results_list->empty()) {
+        LOG(ERROR) << "scan_results are empty";
+        return false;
+    }
+    chan_survey_report.clear();
+    auto results_as_wrapped_list = acs_scan_results_list->front();
+    auto acs_interference_results_as_list =
+        results_as_wrapped_list.read_children<AmbiorixVariantListSmartPtr>();
+    for (auto &acs_interference_results_map : *acs_interference_results_as_list) {
+        auto data_map = acs_interference_results_map.read_children<AmbiorixVariantMapSmartPtr>();
+        auto &map     = *data_map;
+
+        int channel;
+        int32_t factor;
+        if (map.find("channel") != map.end()) {
+            map["channel"].get(channel);
+        } else {
+            LOG(DEBUG) << "channel is missing,skipping";
+            continue;
+        }
+        if (map.find("interferenceFactor") != map.end()) {
+            map["interferenceFactor"].get(factor);
+        } else {
+            LOG(DEBUG) << "InterferenceFactor is missing,skipping";
+            continue;
+        }
+        chan_survey_report.emplace_back(channel, factor);
+    }
+
+    if (chan_survey_report.empty()) {
+        LOG(ERROR) << "channel survey report is empty!";
+        return false;
+    }
+
+    update_rank_for_channel(chan_survey_report);
     return true;
 }
 
