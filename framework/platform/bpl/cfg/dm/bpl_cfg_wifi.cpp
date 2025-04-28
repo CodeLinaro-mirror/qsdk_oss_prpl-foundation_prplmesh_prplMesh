@@ -108,7 +108,12 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
                     std::to_string(interfaces_count));
                 continue;
             }
-            interfaces->freq_type = string_to_freq_type(freq_band_str);
+            interfaces[interfaces_count].freq_type = string_to_freq_type(freq_band_str);
+
+            // Skip 6Ghz interface configuration in certification mode
+            if (interfaces[interfaces_count].freq_type == FREQ_6G) {
+                continue;
+            }
 
             interfaces_count++;
         }

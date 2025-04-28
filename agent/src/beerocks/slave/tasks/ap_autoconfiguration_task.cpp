@@ -488,7 +488,7 @@ void ApAutoConfigurationTask::configuration_complete_wait_action(const std::stri
 bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
     const std::string &radio_iface)
 {
-    auto numberOfSupportedService = 2;
+    auto numberOfSupportedService = 1;
     auto db                       = AgentDB::get();
 
     ieee1905_1::tlvAutoconfigFreqBand::eValue freq_band =
@@ -1937,7 +1937,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
 
     const auto &vap_info = notification_in->vap_info();
     auto bssid           = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
-                              [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
+                                        [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
                                   return bssid.mac == vap_info.mac;
                               });
     if (bssid == radio->front.bssids.end()) {
