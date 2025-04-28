@@ -599,12 +599,6 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
         auto beerocks_header                      = message_com::get_beerocks_header(m_cmdu_tx);
         beerocks_header->actionhdr()->direction() = beerocks::BEEROCKS_DIRECTION_CONTROLLER;
 
-        // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
-        // WSC search message.
-        if (!multi_vendor::tlvf_handler::add_vs_tlv(
-                m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE)) {
-            LOG(ERROR) << "Failed adding few TLVs in AP Search Message";
-        }
         return true;
     };
 
