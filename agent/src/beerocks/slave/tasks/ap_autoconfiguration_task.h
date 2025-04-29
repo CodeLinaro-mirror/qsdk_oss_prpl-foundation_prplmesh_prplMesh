@@ -61,7 +61,8 @@ private:
         SEND_AP_AUTOCONFIGURATION_WSC_M1,
         WAIT_AP_AUTOCONFIGURATION_WSC_M2,
         WAIT_AP_CONFIGURATION_COMPLETE,
-        CONFIGURED
+        CONFIGURED,
+        SKIPPED
     };
 
     struct sConfigurationParams {
