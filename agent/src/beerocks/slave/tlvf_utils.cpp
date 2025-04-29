@@ -8,17 +8,18 @@
 
 #include "tlvf_utils.h"
 
-#include "agent_db.h"
-
 #include <bcl/beerocks_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
 
 #include <tlvf/wfa_map/tlvApRadioBasicCapabilities.h>
+#include <tlvf/wfa_map/tlvChannelScanCapabilities.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
 
 using namespace beerocks;
+
+constexpr uint8_t MINIMUM_SCAN_INTERVAL_SEC = 2;
 
 /**
  * @brief Get the maximum transmit power of operating class.
@@ -100,7 +101,9 @@ std::vector<uint8_t> get_operating_class_non_oper_channels(
                         });
                 };
 
-                if (is_there_any_unavailable_overlapping_channel()) {
+                if ((son::wireless_utils::which_freq_op_cls(operating_class) !=
+                     beerocks::eFreqType::FREQ_24G) &&
+                    is_there_any_unavailable_overlapping_channel()) {
                     break;
                 }
 
@@ -129,8 +132,6 @@ std::vector<uint8_t> get_operating_class_non_oper_channels(
 bool tlvf_utils::add_ap_radio_basic_capabilities(ieee1905_1::CmduMessageTx &cmdu_tx,
                                                  const sMacAddr &ruid)
 {
-    std::vector<uint8_t> operating_classes;
-
     auto radio_basic_caps = cmdu_tx.addClass<wfa_map::tlvApRadioBasicCapabilities>();
     if (!radio_basic_caps) {
         LOG(ERROR) << "Error creating TLV_AP_RADIO_BASIC_CAPABILITIES";
@@ -162,7 +163,7 @@ bool tlvf_utils::add_ap_radio_basic_capabilities(ieee1905_1::CmduMessageTx &cmdu
                << beerocks::utils::convert_frequency_type_to_string(
                       radio->wifi_channel.get_freq_type())
                << "):";
-    operating_classes = son::wireless_utils::get_operating_classes_of_freq_type(
+    auto operating_classes = son::wireless_utils::get_operating_classes_of_freq_type(
         radio->wifi_channel.get_freq_type());
 
     for (auto op_class : operating_classes) {
@@ -368,5 +369,140 @@ bool tlvf_utils::create_operating_channel_report(ieee1905_1::CmduMessageTx &cmdu
     }
 
     LOG(DEBUG) << "Created Operating Channel Report TLV";
+    return true;
+}
+
+bool tlvf_utils::add_tlv_channel_scan_capabilities(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+
+    if (cmdu_tx.getMessageType() != ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE) {
+        LOG(ERROR) << "wrong calling context";
+        return false;
+    }
+
+    LOG(DEBUG) << "add tlvChannelScanCapabilities to mid:" << std::hex << cmdu_tx.getMessageId();
+
+    auto channel_scan_capabilities_tlv = cmdu_tx.addClass<wfa_map::tlvChannelScanCapabilities>();
+
+    if (!channel_scan_capabilities_tlv) {
+        LOG(ERROR) << "Error creating TLV_CHANNEL_SCAN_CAPABILITIES";
+        return false;
+    }
+
+    std::map<uint8_t, std::vector<uint8_t>> scan_map;
+
+    auto db = AgentDB::get();
+
+    for (auto radio : db->get_radios_list()) {
+        if (!radio) {
+            LOG(ERROR) << "Error fetching radio";
+            continue;
+        }
+
+        // prepare radio subsection
+        auto radio_channel_scan_capabilities = channel_scan_capabilities_tlv->create_radio_list();
+        if (!radio_channel_scan_capabilities) {
+            LOG(ERROR) << "create_radio_list() has failed!";
+            return false;
+        }
+        radio_channel_scan_capabilities->radio_uid() = radio->front.iface_mac;
+        // On-Boot and On-Request scans are mutually exclusive.
+        // certification is the only time on-boot is used, although test case is not mandatory.
+        radio_channel_scan_capabilities->capabilities().on_boot_only =
+            (db->device_conf.certification_mode && db->device_conf.on_boot_scan > 0);
+        // Time slicing impairment (Radio may go off channel for a series of short intervals)
+        radio_channel_scan_capabilities->capabilities().scan_impact = wfa_map::
+            cRadiosWithScanCapabilities::eScanImpact::SCAN_IMPACT_REDUCED_NUMBER_OF_SPATIAL_STREAM;
+
+        radio_channel_scan_capabilities->minimum_scan_interval() = MINIMUM_SCAN_INTERVAL_SEC;
+
+        get_channel_scan_map(radio, scan_map);
+        for (const auto &op_class : scan_map) {
+            auto op_class_channels =
+                radio_channel_scan_capabilities->create_operating_classes_list();
+            if (!op_class_channels) {
+                LOG(ERROR) << "create_operating_classes_list() has failed!";
+                return false;
+            }
+            op_class_channels->operating_class() = op_class.first;
+
+            if (op_class.second.size() ==
+                son::wireless_utils::operating_classes_list.find(op_class.first)
+                    ->second.channels.size()) {
+                // if all channels in operating class are supported, set Num_Chan to 0
+
+                op_class_channels->channel_list_length() = 0;
+                if (!radio_channel_scan_capabilities->add_operating_classes_list(
+                        op_class_channels)) {
+                    LOG(ERROR) << "add_operating_classes_list failed";
+                }
+                continue;
+            }
+
+            if (!op_class_channels->set_channel_list(op_class.second.data(),
+                                                     op_class.second.size())) {
+                LOG(ERROR) << "set_channel_list() fail";
+            }
+            if (!radio_channel_scan_capabilities->add_operating_classes_list(op_class_channels)) {
+                LOG(ERROR) << "add_operating_classes_list failed";
+                return false;
+            }
+        }
+
+        // Push operating class object to the list of operating class objects
+        if (!channel_scan_capabilities_tlv->add_radio_list(radio_channel_scan_capabilities)) {
+            LOG(ERROR) << "add_radio_list() has failed!";
+            return false;
+        }
+    }
+
+    LOG(DEBUG) << "added tlvChannelScanCapabilities length"
+               << channel_scan_capabilities_tlv->length();
+    return true;
+}
+
+bool tlvf_utils::get_channel_scan_map(beerocks::AgentDB::sRadio *radio,
+                                      std::map<uint8_t, std::vector<uint8_t>> &scan_map)
+{
+
+    scan_map.clear();
+
+    // prepare supported operating classes
+    auto operating_classes = son::wireless_utils::get_operating_classes_of_freq_type(
+        radio->wifi_channel.get_freq_type());
+
+    if (operating_classes.empty()) {
+        LOG(ERROR) << "Error fetching operating classes for "
+                   << tlvf::mac_to_string(radio->front.iface_mac) << " and frequency type "
+                   << int(radio->wifi_channel.get_freq_type());
+        return false;
+    }
+
+    std::vector<uint8_t> channels_available_for_scan;
+
+    for (auto op_class : operating_classes) {
+        channels_available_for_scan.clear();
+        if (son::wireless_utils::operating_class_to_bandwidth(op_class) !=
+            beerocks::eWiFiBandwidth::BANDWIDTH_20) {
+            continue;
+        }
+        auto non_oper_channels =
+            get_operating_class_non_oper_channels(radio->channels_list, op_class);
+        if (non_oper_channels.size() ==
+            son::wireless_utils::operating_classes_list.find(op_class)->second.channels.size()) {
+            continue;
+        }
+
+        std::vector<uint8_t> op_class_channels_vec(
+            son::wireless_utils::operating_classes_list.find(op_class)->second.channels.begin(),
+            son::wireless_utils::operating_classes_list.find(op_class)->second.channels.end());
+
+        std::set_difference(
+            op_class_channels_vec.begin(), op_class_channels_vec.end(), non_oper_channels.begin(),
+            non_oper_channels.end(),
+            std::inserter(channels_available_for_scan, channels_available_for_scan.begin()));
+
+        scan_map[op_class] = channels_available_for_scan;
+    }
     return true;
 }
