@@ -95,23 +95,6 @@ private:
     bool add_ap_wifi6_capabilities(const std::string &iface_name);
 
     /**
-     * @brief Adds Channel Scan Capabilities TLV to AP Capability Report message.
-     *
-     * The TLV is already created by the caller. This function adds
-     * information to the given tlv based on radio on given interface.
-     * See section 17.2.38 of Multi-AP Specification v2 for details.
-     *
-     * @param radio Pointer to the AgentDB's radio element.
-     *
-     * @param channel_scan_capabilities_tlv Channel Scan Capabilities TLV.
-     *
-     * @return True on success and false otherwise.
-     */
-    bool add_channel_scan_capabilities(
-        const AgentDB::sRadio *radio,
-        wfa_map::tlvChannelScanCapabilities &channel_scan_capabilities_tlv);
-
-    /**
      * @brief Adds CAC-Capabilities TLV to AP Capability Report message.
      * 
      * @return true on success, otherwise false.
