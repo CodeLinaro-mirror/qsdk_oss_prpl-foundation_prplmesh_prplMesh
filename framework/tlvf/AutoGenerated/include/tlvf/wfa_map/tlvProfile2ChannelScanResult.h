@@ -28,6 +28,7 @@
 
 namespace wfa_map {
 
+class cRadioScanResult;
 class cNeighbors;
 
 class tlvProfile2ChannelScanResult : public BaseClass
@@ -65,6 +66,48 @@ class tlvProfile2ChannelScanResult : public BaseClass
         // clang-format on
         // Enum AutoPrint generated code snippet end
         
+        const eTlvTypeMap& type();
+        const uint16_t& length();
+        sMacAddr& radio_uid();
+        uint8_t& operating_class();
+        uint8_t& channel();
+        eScanStatus& success();
+        //This syntax allows having conditional fields in the TLV. Unfortunately, there are
+        //no automatic checks, neither at adding the fields, neither during parsing.
+        //It is possible to generate a malformed TLV by not adding the cRadioScanResult
+        //when success == eScanStatus::0x00, or adding it when success != 0x00, or by adding
+        //more than one instances of cRadioScanResult.
+        //Handle with care.
+        size_t scan_result_length();
+        std::tuple<bool, cRadioScanResult&> scan_result(size_t idx);
+        std::shared_ptr<cRadioScanResult> create_scan_result();
+        bool add_scan_result(std::shared_ptr<cRadioScanResult> ptr);
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eTlvTypeMap* m_type = nullptr;
+        uint16_t* m_length = nullptr;
+        sMacAddr* m_radio_uid = nullptr;
+        uint8_t* m_operating_class = nullptr;
+        uint8_t* m_channel = nullptr;
+        eScanStatus* m_success = nullptr;
+        cRadioScanResult* m_scan_result = nullptr;
+        size_t m_scan_result_idx__ = 0;
+        std::vector<std::shared_ptr<cRadioScanResult>> m_scan_result_vector;
+        bool m_lock_allocation__ = false;
+        int m_lock_order_counter__ = 0;
+};
+
+class cRadioScanResult : public BaseClass
+{
+    public:
+        cRadioScanResult(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cRadioScanResult(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cRadioScanResult();
+
         enum eScanType: uint8_t {
             SCAN_WAS_ACTIVE_SCAN = 0x80,
             SCAN_WAS_PASSIVE_SCAN = 0x0,
@@ -83,12 +126,6 @@ class tlvProfile2ChannelScanResult : public BaseClass
         // clang-format on
         // Enum AutoPrint generated code snippet end
         
-        const eTlvTypeMap& type();
-        const uint16_t& length();
-        sMacAddr& radio_uid();
-        uint8_t& operating_class();
-        uint8_t& channel();
-        eScanStatus& success();
         uint8_t& timestamp_length();
         //The timestamp shall be formatted as a string using the typedef dateandtime string
         //format as defined in section 3 of [1] and shall include timesecfrac and time-offset
@@ -116,12 +153,6 @@ class tlvProfile2ChannelScanResult : public BaseClass
 
     private:
         bool init();
-        eTlvTypeMap* m_type = nullptr;
-        uint16_t* m_length = nullptr;
-        sMacAddr* m_radio_uid = nullptr;
-        uint8_t* m_operating_class = nullptr;
-        uint8_t* m_channel = nullptr;
-        eScanStatus* m_success = nullptr;
         uint8_t* m_timestamp_length = nullptr;
         char* m_timestamp = nullptr;
         size_t m_timestamp_idx__ = 0;

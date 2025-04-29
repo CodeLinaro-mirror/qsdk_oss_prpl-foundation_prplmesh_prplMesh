@@ -850,10 +850,15 @@ int _test_conditional_parameters_rx_tx(uint8_t *rx_buffer, size_t rx_size)
 {
     int errors  = 0;
     auto tlv_rx = tlvProfile2ChannelScanResult(rx_buffer, rx_size, true);
-    auto len    = tlv_rx.neighbors_list_length();
+    auto s_pair = tlv_rx.scan_result(0);
+    if (!std::get<0>(s_pair)) {
+        return errors++;
+    }
+    auto s_r = std::get<1>(s_pair);
+    auto len = s_r.neighbors_list_length();
     LOG(DEBUG) << "len: " << len << std::endl;
     for (unsigned i = 0; i < len; i++) {
-        auto t = tlv_rx.neighbors_list(i);
+        auto t = s_r.neighbors_list(i);
         if (!std::get<0>(t)) {
             MAPF_ERR("Failed to get neighbor " + i);
             errors++;
@@ -879,6 +884,8 @@ int _test_conditional_parameters_rx_tx(uint8_t *rx_buffer, size_t rx_size)
         }
     }
 
+    auto scan_result_in = s_r;
+
     uint8_t tx_buffer[4096];
     memset(tx_buffer, 0, sizeof(tx_buffer));
     auto tlv_tx              = tlvProfile2ChannelScanResult(tx_buffer, sizeof(tx_buffer), false);
@@ -886,17 +893,19 @@ int _test_conditional_parameters_rx_tx(uint8_t *rx_buffer, size_t rx_size)
     tlv_tx.operating_class() = tlv_rx.operating_class();
     tlv_tx.channel()         = tlv_rx.channel();
     tlv_tx.success()         = tlv_rx.success();
-    tlv_tx.set_timestamp(tlv_rx.timestamp_str());
-    tlv_tx.utilization() = tlv_rx.utilization();
-    tlv_tx.noise()       = tlv_rx.noise();
+
+    std::shared_ptr<wfa_map::cRadioScanResult> scan_result_out = tlv_tx.create_scan_result();
+    scan_result_out->set_timestamp(scan_result_in.timestamp_str());
+    scan_result_out->utilization() = scan_result_in.utilization();
+    scan_result_out->noise()       = scan_result_in.noise();
     for (unsigned i = 0; i < len; i++) {
-        auto t = tlv_rx.neighbors_list(i);
+        auto t = scan_result_in.neighbors_list(i);
         if (!std::get<0>(t)) {
             MAPF_ERR("Failed to get neighbor " + i);
             errors++;
         }
         auto &rx_neigh                       = std::get<1>(t);
-        std::shared_ptr<cNeighbors> tx_neigh = tlv_tx.create_neighbors_list();
+        std::shared_ptr<cNeighbors> tx_neigh = scan_result_out->create_neighbors_list();
         tx_neigh->bssid()                    = rx_neigh.bssid();
         tx_neigh->set_ssid(rx_neigh.ssid_str());
         tx_neigh->signal_strength() = rx_neigh.signal_strength();
@@ -915,10 +924,12 @@ int _test_conditional_parameters_rx_tx(uint8_t *rx_buffer, size_t rx_size)
             }
         }
 
-        tlv_tx.add_neighbors_list(tx_neigh);
+        scan_result_out->add_neighbors_list(tx_neigh);
     }
-    tlv_tx.aggregate_scan_duration() = tlv_rx.aggregate_scan_duration();
-    tlv_tx.scan_type()               = tlv_rx.scan_type();
+    scan_result_out->aggregate_scan_duration() = scan_result_in.aggregate_scan_duration();
+    scan_result_out->scan_type()               = scan_result_in.scan_type();
+
+    tlv_tx.add_scan_result(scan_result_out);
 
     // tlv_rx is already in host byte order (swapping is done in
     // init()). If we want to compare tx to rx, we have to NOT swap
@@ -993,17 +1004,25 @@ int test_channel_scan_results()
     errors += check_field<uint8_t>(tlv_rx.channel(), 0x06, "channel");
     errors += check_field<tlvProfile2ChannelScanResult::eScanStatus>(
         tlv_rx.success(), tlvProfile2ChannelScanResult::eScanStatus::SUCCESS, "success");
-    errors += check_field<std::string>(tlv_rx.timestamp_str(), "2089-02-01T00:35:07.00000+00:00",
-                                       "timestamp");
-    errors += check_field<uint8_t>(tlv_rx.utilization(), 10, "utilization");
-    errors += check_field<uint8_t>(tlv_rx.noise(), 100, "noise");
 
-    errors += check_field<uint16_t>(tlv_rx.neighbors_list_length(), 2, "neighbors list length");
+    auto scan_result_pair = tlv_rx.scan_result(0);
+    if (std::get<0>(scan_result_pair)) {
+        return errors++;
+    }
+    auto scan_result = std::get<1>(scan_result_pair);
+
+    errors += check_field<std::string>(scan_result.timestamp_str(),
+                                       "2089-02-01T00:35:07.00000+00:00", "timestamp");
+    errors += check_field<uint8_t>(scan_result.utilization(), 10, "utilization");
+    errors += check_field<uint8_t>(scan_result.noise(), 100, "noise");
+
+    errors +=
+        check_field<uint16_t>(scan_result.neighbors_list_length(), 2, "neighbors list length");
     int neigh_num = 0;
 
     {
         // Neighbor 0, it has load elements.
-        auto t = tlv_rx.neighbors_list(neigh_num);
+        auto t = scan_result.neighbors_list(neigh_num);
         if (!std::get<0>(t)) {
             MAPF_ERR("Failed to get neighbor " + neigh_num);
             errors++;
@@ -1034,7 +1053,7 @@ int test_channel_scan_results()
     ++neigh_num;
     {
         // Neighbor 1, it does NOT have load elements.
-        auto t = tlv_rx.neighbors_list(neigh_num);
+        auto t = scan_result.neighbors_list(neigh_num);
         if (!std::get<0>(t)) {
             MAPF_ERR("Failed to get neighbor " + neigh_num);
             errors++;
@@ -1057,11 +1076,11 @@ int test_channel_scan_results()
                                  "neigh " + std::to_string(neigh_num) + " load element presence");
     }
 
-    errors +=
-        check_field<uint32_t>(tlv_rx.aggregate_scan_duration(), 100, "aggregate scan duration");
-    errors += check_field<uint8_t>(
-        tlv_rx.scan_type(), wfa_map::tlvProfile2ChannelScanResult::eScanType::SCAN_WAS_PASSIVE_SCAN,
-        "scan type");
+    errors += check_field<uint32_t>(scan_result.aggregate_scan_duration(), 100,
+                                    "aggregate scan duration");
+    errors += check_field<uint8_t>(scan_result.scan_type(),
+                                   wfa_map::cRadioScanResult::eScanType::SCAN_WAS_PASSIVE_SCAN,
+                                   "scan type");
 
     if (tlv_rx.length() != sizeof(rx_buffer) - sizeof(ieee1905_1::sTlvHeader)) {
         MAPF_ERR("RX doesn't report a correct length!");
