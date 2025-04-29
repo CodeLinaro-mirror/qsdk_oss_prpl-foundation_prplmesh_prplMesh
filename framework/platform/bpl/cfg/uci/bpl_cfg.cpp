@@ -822,6 +822,8 @@ bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measureme
     return true;
 }
 
+bool cfg_get_exclude_6GHz(bool &exclude_6GHz) { return exclude_6GHz = true; }
+
 bool cfg_get_radio_stats_enable(bool &radio_stats_enable)
 {
     int val = -1;

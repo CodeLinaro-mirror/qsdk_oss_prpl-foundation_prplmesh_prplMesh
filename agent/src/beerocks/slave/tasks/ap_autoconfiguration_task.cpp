@@ -91,6 +91,8 @@ const std::string ApAutoConfigurationTask::fsm_state_to_string(eState status)
         return "WAIT_AP_CONFIGURATION_COMPLETE";
     case eState::CONFIGURED:
         return "CONFIGURED";
+    case eState::SKIPPED:
+        return "SKIPPED";
     default:
         LOG(ERROR) << "state argument doesn't have an enum";
         break;
@@ -187,6 +189,10 @@ void ApAutoConfigurationTask::work()
             configured_aps_count++;
             break;
         }
+        case eState::SKIPPED: {
+            configured_aps_count++;
+            break;
+        }
         default:
             break;
         }
@@ -202,6 +208,11 @@ void ApAutoConfigurationTask::work()
         // Send pre-associated sta notification request to all radio
         for (const auto &radios_conf_param_kv : m_radios_conf_params) {
             const auto &radio_iface = radios_conf_param_kv.first;
+            if (radios_conf_param_kv.second.state == eState::SKIPPED) {
+                LOG(DEBUG) << "Skipping send_ap_connected_sta_notifications_request for "
+                           << radio_iface;
+                continue;
+            }
             if (!send_ap_connected_sta_notifications_request(radio_iface)) {
                 LOG(ERROR) << "send_ap_connected_sta_notifications_request failed for "
                            << radio_iface;
@@ -507,6 +518,12 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
     } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_5G) {
         freq_band = ieee1905_1::tlvAutoconfigFreqBand::IEEE_802_11_5_GHZ;
     } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_6G) {
+        if (db->device_conf.exclude_6GHz) {
+            LOG(DEBUG) << "Skipping AP-Autoconfiguration Search on 6GHz iface: " << radio_iface;
+            m_discovery_status[beerocks::eFreqType::FREQ_6G].msg_sent = true;
+            FSM_MOVE_STATE(radio_iface, eState::SKIPPED);
+            return false;
+        }
         freq_band = ieee1905_1::tlvAutoconfigFreqBand::IEEE_802_11_6_GHZ;
     } else {
         LOG(ERROR) << "unsupported freq_type=" << int(radio->wifi_channel.get_freq_type())

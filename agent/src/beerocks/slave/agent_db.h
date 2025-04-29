@@ -170,6 +170,8 @@ public:
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
         int on_boot_scan;
         uint8_t max_num_mlds = 3; // Arbitrary
+
+        bool exclude_6GHz = true;
     } device_conf;
 
     struct sControllerInfo {

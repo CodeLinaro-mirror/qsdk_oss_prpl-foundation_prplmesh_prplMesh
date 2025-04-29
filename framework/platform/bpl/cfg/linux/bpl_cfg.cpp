@@ -748,6 +748,8 @@ bool cfg_get_radio_stats_enable(bool &radio_stats_enable)
     return true;
 }
 
+bool cfg_get_exclude_6GHz(bool &exclude_6GHz) { return exclude_6GHz = true; }
+
 bool cfg_get_rssi_measurements_timeout(int &rssi_measurements_timeout_msec)
 {
     int retVal = DEFAULT_RSSI_MEASUREMENT_TIMEOUT_MSEC;

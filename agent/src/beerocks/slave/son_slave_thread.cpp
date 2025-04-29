@@ -655,6 +655,11 @@ bool slave_thread::read_platform_configuration()
                      << " using default configuration ";
     }
 
+    if (!bpl::cfg_get_exclude_6GHz(db->device_conf.exclude_6GHz)) {
+        LOG(WARNING) << "cfg_get_exclude_6GHz() failed!"
+                     << " using default configuration ";
+    }
+
     // Set local_gw flag
     db->device_conf.local_gw =
         (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT ||

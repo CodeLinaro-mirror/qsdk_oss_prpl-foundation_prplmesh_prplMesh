@@ -802,6 +802,14 @@ bool cfg_get_best_channel_rank_threshold(uint32_t &threshold);
 bool cfg_get_persistent_db_enable(bool &enable);
 
 /**
+ * @brief Returns whether the 6GHz onboarding is excluded
+ *
+ * @param [out] enable true if the 6GHz onboarding is excluded
+ * @return true on success, otherwise false.
+ */
+bool cfg_get_exclude_6GHz(bool &exclude_6GHz);
+
+/**
  * @brief Returns commit_changes_interval (seconds) value.
  *
  * @param[out] interval_sec The interval in seconds between periodic persistent data commit operations.

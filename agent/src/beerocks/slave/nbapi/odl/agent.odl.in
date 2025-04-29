@@ -59,6 +59,11 @@
                 default false;
             }
 
+            /* Excludes 6GHz radio from onboarding process */
+            %persistent bool Exclude_6GHz {
+                default true;
+            }
+
             /* Excludes dummy radio interfaces from credential propagation in the controller */
             %persistent bool RadioStatsEnable {
                 default true;
