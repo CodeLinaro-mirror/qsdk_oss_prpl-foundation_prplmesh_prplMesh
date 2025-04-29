@@ -1499,13 +1499,7 @@ bool Controller::handle_cmdu_1905_channel_scan_report(const sMacAddr &src_mac,
 
     int result_count = 0;
     for (auto const &result_tlv : cmdu_rx.getClassList<wfa_map::tlvProfile2ChannelScanResult>()) {
-        auto neighbors_list_length = result_tlv->neighbors_list_length();
-        LOG(DEBUG) << "Received Result TLV for:" << std::endl
-                   << "RUID: " << result_tlv->radio_uid() << ", "
-                   << "Scan status: " << result_tlv->success() << ", "
-                   << "Operating Class: " << result_tlv->operating_class() << ", "
-                   << "Channel: " << result_tlv->channel() << ", "
-                   << " containing " << neighbors_list_length << " neighbors";
+
         /**
          * To correctly store the results of the most current report, we need to know whether to
          * override any existing records.
@@ -1543,9 +1537,24 @@ bool Controller::handle_cmdu_1905_channel_scan_report(const sMacAddr &src_mac,
             continue;
         }
 
+        auto optional_fields = result_tlv->scan_result(0);
+        if (!std::get<0>(optional_fields)) {
+            LOG(ERROR) << "Status code SUCCESS yet no results";
+            continue;
+        }
+
+        auto scan_result           = std::get<1>(optional_fields);
+        auto neighbors_list_length = scan_result.neighbors_list_length();
+        LOG(DEBUG) << "Received Result TLV for:" << std::endl
+                   << "RUID: " << result_tlv->radio_uid() << ", "
+                   << "Scan status: " << result_tlv->success() << ", "
+                   << "Operating Class: " << result_tlv->operating_class() << ", "
+                   << "Channel: " << result_tlv->channel() << ", "
+                   << " containing " << neighbors_list_length << " neighbors";
+
         std::vector<wfa_map::cNeighbors> neighbor_vec;
         for (int nbr_idx = 0; nbr_idx < neighbors_list_length; nbr_idx++) {
-            auto neighbor_tuple = result_tlv->neighbors_list(nbr_idx);
+            auto neighbor_tuple = std::get<1>(optional_fields).neighbors_list(nbr_idx);
             if (!std::get<0>(neighbor_tuple)) {
                 LOG(ERROR) << "getting neighbor entry #" << nbr_idx << " has failed!";
                 return false;
@@ -1555,15 +1564,15 @@ bool Controller::handle_cmdu_1905_channel_scan_report(const sMacAddr &src_mac,
             neighbor_vec.push_back(neighbor);
         }
         if (!database.add_channel_report(result_tlv->radio_uid(), result_tlv->operating_class(),
-                                         result_tlv->channel(), neighbor_vec, result_tlv->noise(),
-                                         result_tlv->utilization(), ISO_8601_timestamp,
+                                         result_tlv->channel(), neighbor_vec, scan_result.noise(),
+                                         scan_result.utilization(), ISO_8601_timestamp,
                                          should_override_existing_records)) {
             LOG(ERROR) << "Failed to add channel report entry #" << result_count << "!";
             return false;
         }
         if (!database.dm_add_scan_result(
                 result_tlv->radio_uid(), result_tlv->operating_class(), result_tlv->channel(),
-                result_tlv->noise(), result_tlv->utilization(), neighbor_vec, ISO_8601_timestamp)) {
+                scan_result.noise(), scan_result.utilization(), neighbor_vec, ISO_8601_timestamp)) {
             LOG(ERROR) << "Failed to add ScanResult entry #" << result_count << " !";
         }
         result_count++;
