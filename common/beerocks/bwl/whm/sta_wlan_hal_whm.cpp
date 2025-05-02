@@ -545,6 +545,10 @@ bool sta_wlan_hal_whm::reassociate()
 {
     Endpoint endpoint;
     if (read_status(endpoint)) {
+        if (endpoint.bssid == beerocks::net::network_utils::ZERO_MAC_STRING) {
+            LOG(ERROR) << "Got zero BSSID after read status";
+            return false;
+        }
         update_status(endpoint);
         if (is_connected(endpoint.connection_status)) {
             LOG(TRACE) << "reassociate: - EP already connected";
@@ -725,12 +729,20 @@ bool sta_wlan_hal_whm::enable_profile(int profile_id)
     std::string profile_ref;
     m_ambiorix_cl.resolve_path(profile_path, profile_ref);
     params.set_type(AMXC_VAR_ID_HTABLE);
-    params.add_child("ProfileReference", profile_ref);
+    ret = params.add_child("ProfileReference", profile_ref);
+    if (!ret) {
+        LOG(ERROR) << "Failed to add ProfileReference " << get_iface_name();
+    }
+
     ret = m_ambiorix_cl.update_object(m_ep_path, params);
     if (!ret) {
         LOG(ERROR) << "Failed to set profile preference " << get_iface_name();
         return false;
+    } else {
+        LOG(DEBUG) << "set ProfileReference: " << profile_ref << " as profile reference for "
+                   << get_iface_name();
     }
+
     return true;
 }
 
@@ -816,12 +828,12 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             if (!read_status(endpoint)) {
                 LOG(ERROR) << "Failed reading connection status for iface: " << get_iface_name();
                 return false;
-            }
-            update_status(endpoint);
-            if (m_active_bssid == beerocks::net::network_utils::ZERO_MAC_STRING) {
-                LOG(ERROR) << "Got zero BSSID after status update";
+            } else if (endpoint.bssid == beerocks::net::network_utils::ZERO_MAC_STRING) {
+                LOG(ERROR) << "Got zero BSSID after read status";
                 return false;
             }
+            update_status(endpoint);
+
             LOG(DEBUG) << get_iface_name() << " - Connected: bssid = " << m_active_bssid
                        << ", channel = " << m_active_channel;
             auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
