@@ -552,6 +552,15 @@ private:
                                                        ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
+     * @brief Handles Tlv of Affiliated STA Metrics (tlvAffiliatedStaMetrics).
+     *
+     * @param src_mac Source MAC address.
+     * @param cmdu_rx  AP Metrics Response message.
+     * @return True on success, false otherwise.
+    */
+    bool handle_tlv_affiliated_sta_metrics(const sMacAddr &src_mac,
+                                           ieee1905_1::CmduMessageRx &cmdu_rx);
+    /**
      * @brief Handles Tlv of Profile-2 AP Capability (tlvProfile2ApCapability).
      *
      * @param agent agent db shared object.
