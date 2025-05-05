@@ -1194,7 +1194,8 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
             break;
         }
 
-        state_attempts = 0; // for next state
+        state_attempts = 0;     // for next state
+        reassociation  = false; // allow one reassociate() call in WAIT_WPS
 
         state_time_stamp_timeout =
             std::chrono::steady_clock::now() + std::chrono::seconds(STATE_WAIT_WPS_TIMEOUT_SECONDS);
@@ -1211,19 +1212,30 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
             FSM_MOVE_STATE(RESTART);
         }
 
-        // check if we are still waiting for WPS although sta is connected
-        for (auto &radio_info : m_radios_info) {
-            std::string iface = radio_info->sta_iface;
-            if (radio_info->sta_iface.empty()) {
-                continue;
-            }
-            if (!roam_flag && radio_info->sta_wlan_hal->is_connected()) {
-                for (const auto &sta_iface : slave_sta_ifaces) {
-                    auto sta_iface_hal = get_wireless_hal(sta_iface);
-                    if (!sta_iface_hal) {
-                        break;
+        // If we're still in WAIT_WPS and haven't yet kicked off a reassociate,
+        // do it on the first connected STA we find.
+        if (!reassociation) {
+            for (auto &radio_info : m_radios_info) {
+                std::string iface = radio_info->sta_iface;
+                if (radio_info->sta_iface.empty()) {
+                    continue;
+                }
+                if (!roam_flag && radio_info->sta_wlan_hal->is_connected()) {
+                    for (const auto &sta_iface : slave_sta_ifaces) {
+                        auto sta_iface_hal = get_wireless_hal(sta_iface);
+                        if (!sta_iface_hal) {
+                            break;
+                        }
+                        if (sta_iface_hal->reassociate()) {
+                            // reassociate() will return true only when we pushed Event::Connected.
+                            // no need to repeat.
+                            reassociation = true;
+                            break; // exit slave_sta_ifaces loop
+                        }
                     }
-                    sta_iface_hal->reassociate();
+                }
+                if (reassociation) {
+                    break; // exit m_radios_info loop
                 }
             }
         }
