@@ -287,6 +287,37 @@ private:
     bool trigger_pending_scan_requests();
 
     /**
+     * @brief Trigger pending scan request for the agent if it is idle
+     *
+     * @return true fi successful, false otherwise
+     */
+    bool trigger_pending_scan_request_for_agent(const sMacAddr &agent_mac,
+                                                sAgentScanStatus &agent_status);
+
+    /**
+     * @brief Abort all the requests for current agent.
+     * Used if something went wrong in one of the TLVF creation steps.
+     * @param[in] agent_mac : Agent 1905 AL-MAC
+     * @param[out] agent_status : Scan Status of the agent
+     *
+     * @return void
+     */
+    void abort_active_scans_in_agent(const sMacAddr agent_mac, sAgentScanStatus &agent_status);
+
+    /**
+     * @brief Add radio to channel scan request TLV
+     *
+     * @param[out] channel_scan_request_tlv : instance of TLV that is destined for the owner of radio_mac
+     * @param[out] scan_report_index : set of all [opClass channel] tuples from the Scan Request; used to identify the Scan Report
+     * @param[in] radio_mac : MAC addr of radio
+     * @param[in] is_single_scan : !single_scan = continuous_scan
+     */
+    bool add_radio_to_channel_scan_request_tlv(
+        std::shared_ptr<wfa_map::tlvProfile2ChannelScanRequest> &channel_scan_request_tlv,
+        std::set<Agent::sRadio::channel_scan_report::channel_scan_report_key> &scan_report_index,
+        const sMacAddr &radio_mac, bool is_single_scan);
+
+    /**
      * @brief Check if a scan was triggered for a given radio
      * 
      * @param radio_mac MAC address of the radio 
