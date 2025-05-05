@@ -53,6 +53,7 @@
 #include <tlvf/ieee_1905_1/tlvSupportedFreqBand.h>
 #include <tlvf/ieee_1905_1/tlvSupportedRole.h>
 #include <tlvf/wfa_map/tlv1905LayerSecurityCapability.h>
+#include <tlvf/wfa_map/tlvAffiliatedApMetrics.h>
 #include <tlvf/wfa_map/tlvAffiliatedStaMetrics.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvAkmSuiteCapabilities.h>
@@ -1721,6 +1722,7 @@ bool Controller::handle_cmdu_1905_ap_metric_response(const sMacAddr &src_mac,
     ret_val &= handle_tlv_associated_sta_extended_link_metrics(src_mac, cmdu_rx);
     ret_val &= handle_tlv_associated_sta_traffic_stats(src_mac, cmdu_rx);
     ret_val &= handle_tlv_associated_wifi6_sta_status_report(src_mac, cmdu_rx);
+    ret_val &= handle_tlv_affiliated_ap_metrics(src_mac, cmdu_rx);
     ret_val &= handle_tlv_affiliated_sta_metrics(src_mac, cmdu_rx);
 
     // For now, this is only used for certification so update the certification cmdu.
@@ -2029,6 +2031,46 @@ bool Controller::handle_tlv_associated_wifi6_sta_status_report(const sMacAddr &s
         }
     }
     return ret_val;
+}
+
+bool Controller::handle_tlv_affiliated_ap_metrics(const sMacAddr &src_mac,
+                                                  ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto agent = database.m_agents.get(src_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with mac is not found in database mac=" << src_mac;
+        return false;
+    }
+
+    for (auto affiliated_ap_metrics : cmdu_rx.getClassList<wfa_map::tlvAffiliatedApMetrics>()) {
+
+        db::sAffiliatedApMetrics affl_ap_metrics;
+
+        // Recalculate counters according to Agent Byte Units.
+        affl_ap_metrics.packets_sent       = affiliated_ap_metrics->packets_sent();
+        affl_ap_metrics.packets_received   = affiliated_ap_metrics->packets_received();
+        affl_ap_metrics.packet_sent_errors = affiliated_ap_metrics->packets_sent_errors();
+        affl_ap_metrics.unicast_bytes_sent = database.recalculate_attr_to_byte_units(
+            agent->byte_counter_units, affiliated_ap_metrics->unicast_bytes_sent()),
+        affl_ap_metrics.unicast_bytes_received = database.recalculate_attr_to_byte_units(
+            agent->byte_counter_units, affiliated_ap_metrics->unicast_bytes_received()),
+        affl_ap_metrics.multicast_bytes_sent = database.recalculate_attr_to_byte_units(
+            agent->byte_counter_units, affiliated_ap_metrics->multicast_bytes_sent()),
+        affl_ap_metrics.multicast_bytes_received = database.recalculate_attr_to_byte_units(
+            agent->byte_counter_units, affiliated_ap_metrics->multicast_bytes_received()),
+        affl_ap_metrics.broadcast_bytes_sent = database.recalculate_attr_to_byte_units(
+            agent->byte_counter_units, affiliated_ap_metrics->broadcast_bytes_sent()),
+        affl_ap_metrics.broadcast_bytes_received = database.recalculate_attr_to_byte_units(
+            agent->byte_counter_units, affiliated_ap_metrics->broadcast_bytes_received());
+
+        if (!database.dm_set_affiliated_ap_metrics(src_mac, affl_ap_metrics)) {
+            LOG(ERROR) << "Failed to set metrics for Affiliated AP: "
+                       << affiliated_ap_metrics->bssid();
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool Controller::handle_tlv_affiliated_sta_metrics(const sMacAddr &src_mac,

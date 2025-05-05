@@ -5260,6 +5260,53 @@ bool db::set_vap_stats_info(const sMacAddr &bssid, uint64_t uc_tx_bytes, uint64_
     return ret_val;
 }
 
+bool db::dm_set_affiliated_ap_metrics(const sMacAddr &src_mac,
+                                      sAffiliatedApMetrics &affl_ap_metrics)
+{
+    bool ret_val = true;
+
+    auto agent = m_agents.get(src_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with mac is not found in database mac=" << src_mac;
+        return false;
+    }
+
+    // Get Affiliated AP dm_path
+    std::string dm_path;
+    for (auto apmld : agent->ap_mlds) {
+        for (auto affiliated_ap : apmld.second.affiliated_aps) {
+            if (affiliated_ap.second.bssid == affl_ap_metrics.bssid) {
+                dm_path = affiliated_ap.second.dm_path;
+                break;
+            }
+        }
+    }
+
+    if (dm_path.empty()) {
+        LOG(ERROR) << "Failed to get Data Model path for Affiliated AP: " << affl_ap_metrics.bssid;
+        return false;
+    }
+
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "PacketsSent", affl_ap_metrics.packets_sent);
+    ret_val &=
+        m_ambiorix_datamodel->set(dm_path, "PacketsReceived", affl_ap_metrics.packets_received);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "ErrorsSent", affl_ap_metrics.packet_sent_errors);
+    ret_val &=
+        m_ambiorix_datamodel->set(dm_path, "UnicastBytesSent", affl_ap_metrics.unicast_bytes_sent);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "UnicastBytesReceived",
+                                         affl_ap_metrics.unicast_bytes_received);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "MulticastBytesSent",
+                                         affl_ap_metrics.multicast_bytes_sent);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "MulticastBytesReceived",
+                                         affl_ap_metrics.multicast_bytes_received);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "BroadcastBytesSent",
+                                         affl_ap_metrics.broadcast_bytes_sent);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "BroadcastBytesReceived",
+                                         affl_ap_metrics.broadcast_bytes_received);
+
+    return ret_val;
+}
+
 bool db::commit_persistent_db_changes()
 {
     bool ret = bpl::db_commit_changes();
