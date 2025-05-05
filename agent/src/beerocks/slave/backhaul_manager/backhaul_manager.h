@@ -354,6 +354,7 @@ private:
 
     std::chrono::steady_clock::time_point state_time_stamp_timeout;
     int state_attempts;
+    bool reassociation = false;
 
     bool hidden_ssid = false;
 

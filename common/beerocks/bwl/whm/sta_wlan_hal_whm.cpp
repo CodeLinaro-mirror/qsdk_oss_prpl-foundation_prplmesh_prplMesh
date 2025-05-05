@@ -570,6 +570,7 @@ bool sta_wlan_hal_whm::reassociate()
                 msg->multi_ap_primary_vlan_id = 0;
             }
             event_queue_push(Event::Connected, msg_buff);
+            return true;
         } else {
             LOG(TRACE) << "reassociate: - Toggle EP";
             AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
@@ -580,8 +581,8 @@ bool sta_wlan_hal_whm::reassociate()
                 LOG(ERROR) << "Failed to toggle endpoint " << get_iface_name();
                 return false;
             }
+            return false;
         }
-        return true;
     }
     return false;
 }
