@@ -261,6 +261,14 @@ public:
     } sAssociatedStaTrafficStats;
 
     typedef struct {
+        uint64_t bytes_sent          = 0;
+        uint64_t bytes_received      = 0;
+        uint32_t packets_sent        = 0;
+        uint32_t packets_received    = 0;
+        uint32_t packets_sent_errors = 0;
+    } sAffiliatedStaMetrics;
+
+    typedef struct {
         std::string dm_path; /**< data model path */
         sMacAddr original_bssid;
         sMacAddr target_bssid;
@@ -1013,6 +1021,18 @@ public:
      * @return true on success, false otherwise.
      */
     bool dm_set_sta_traffic_stats(const sMacAddr &sta_mac, db::sAssociatedStaTrafficStats &stats);
+
+    /**
+     * @brief Sets Metrics for corresponding Affiliated STA.
+     *
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.AffiliatedSta.{i}
+     *
+     * @param sta_mac sta MAC address for node matching
+     * @param affl_sta_metrics metrics of affiliated sta
+     * @return true on success, false otherwise.
+     */
+    bool dm_set_affiliated_sta_metrics(const sMacAddr &sta_mac,
+                                       db::sAffiliatedStaMetrics &affl_sta_metrics);
 
     /**
      * @brief Clears all stats for corresponding STA.

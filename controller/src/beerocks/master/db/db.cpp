@@ -7520,6 +7520,45 @@ bool db::dm_set_sta_traffic_stats(const sMacAddr &sta_mac, sAssociatedStaTraffic
     return ret_val;
 }
 
+bool db::dm_set_affiliated_sta_metrics(const sMacAddr &sta_mac,
+                                       sAffiliatedStaMetrics &affl_sta_metrics)
+{
+    bool ret_val = true;
+    auto station = get_station(sta_mac);
+    if (!station) {
+        LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
+        return false;
+    }
+
+    std::string affiliated_sta_dm_path = "";
+
+    // Get Affiliated STA DM path from Station DB
+    for (auto &affiliated_sta : station->sta_mld_configuration.affiliated_stas) {
+        if (affiliated_sta.affiliated_sta_mac == sta_mac) {
+            affiliated_sta_dm_path = affiliated_sta.dm_path;
+            break;
+        }
+    }
+
+    if (affiliated_sta_dm_path.empty()) {
+        LOG(ERROR) << "Failed to get Data Model path for Affiliated STA: " << sta_mac;
+        return false;
+    }
+
+    ret_val &=
+        m_ambiorix_datamodel->set(affiliated_sta_dm_path, "BytesSent", affl_sta_metrics.bytes_sent);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "BytesReceived",
+                                         affl_sta_metrics.bytes_received);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "PacketsSent",
+                                         affl_sta_metrics.packets_sent);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "PacketsReceived",
+                                         affl_sta_metrics.packets_received);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "ErrorsSent",
+                                         affl_sta_metrics.packets_sent_errors);
+
+    return ret_val;
+}
+
 bool db::dm_add_tid_queue_sizes(
     const Station &station,
     const std::vector<wfa_map::tlvAssociatedWiFi6StaStatusReport::sTidQueueSize> &tid_queue_vector)
