@@ -728,7 +728,13 @@ bool sta_wlan_hal_whm::enable_profile(int profile_id)
 
     // Path example: WiFi.EndPoint.[IntfName == 'wlan0'].
     std::string profile_ref;
-    m_ambiorix_cl.resolve_path(profile_path, profile_ref);
+    if (!m_ambiorix_cl.resolve_path(profile_path, profile_ref)) {
+        LOG(ERROR) << "Failed to resolve profile path: " << profile_path;
+        return false;
+    } else {
+        LOG(DEBUG) << "Resolved profile path: " << profile_path
+                   << " -> profile_ref: " << profile_ref;
+    }
     params.set_type(AMXC_VAR_ID_HTABLE);
     ret = params.add_child("ProfileReference", profile_ref);
     if (!ret) {
