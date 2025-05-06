@@ -1027,11 +1027,18 @@ bool ap_wlan_hal_whm::pre_generate_connected_clients_events()
 
 bool ap_wlan_hal_whm::start_wps_pbc()
 {
-    AmbiorixVariant args, result;
+    AmbiorixVariant args, wpsargs, result;
     std::string main_vap_ifname = m_radio_info.available_vaps[0].bss;
     std::string wps_path        = wbapi_utils::search_path_ap_by_iface(main_vap_ifname) + "WPS.";
-    bool ret                    = m_ambiorix_cl.call(wps_path, "InitiateWPSPBC", args, result);
 
+    wpsargs.add_child("Enable", true);
+    bool ret = m_ambiorix_cl.update_object(wps_path, wpsargs);
+    if (!ret) {
+        LOG(ERROR) << "vap " << main_vap_ifname << " set WPS.Enable failed!";
+        return false;
+    }
+
+    ret = m_ambiorix_cl.call(wps_path, "InitiateWPSPBC", args, result);
     if (!ret) {
         LOG(ERROR) << "start_wps_pbc() failed!";
         return false;
