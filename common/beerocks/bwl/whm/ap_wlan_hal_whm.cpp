@@ -354,6 +354,54 @@ bool ap_wlan_hal_whm::sta_deny(const sMacAddr &mac, const sMacAddr &bssid)
     return true;
 }
 
+bool ap_wlan_hal_whm::clear_blacklist()
+{
+    bool ret = true;
+    for (const auto &vap_info : m_radio_info.available_vaps) {
+        LOG(DEBUG) << "Turning off MACFiltering Mode for vap: " << vap_info.second.bss;
+        const std::string mac_filter_path =
+            wbapi_utils::search_path_mac_filtering(vap_info.second.bss);
+
+        AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+        new_obj.add_child("Mode", "Off");
+        ret = m_ambiorix_cl.update_object(mac_filter_path, new_obj);
+
+        // Clear Entries
+        auto entries = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+            wbapi_utils::search_path_mac_filtering_entries(vap_info.second.bss));
+        if (entries) {
+            int entry_index{};
+            for (auto const &it : *entries) {
+                auto &entry = it.second;
+                entry_index++;
+
+                // Getting STA MACAddress
+                std::string sta_mac{};
+                entry.read_child(sta_mac, "MACAddress");
+                if (sta_mac.empty()) {
+                    LOG(ERROR) << "clear_blacklist: failed to get MACAddress from Entry #"
+                               << entry_index;
+                    continue;
+                }
+
+                LOG(TRACE) << "clear_blacklist: deleting Entry #" << entry_index
+                           << " MACAddress: " << sta_mac;
+                AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
+                args.add_child("mac", sta_mac);
+                if (m_ambiorix_cl.call(mac_filter_path, "delEntry", args, result)) {
+                    LOG(ERROR) << "clear_blacklist: delEntry failed!";
+                }
+            }
+        }
+    }
+
+    if (!ret) {
+        LOG(ERROR) << "clear_blacklist failed!";
+        return false;
+    }
+    return true;
+}
+
 bool ap_wlan_hal_whm::sta_acceptlist_modify(const sMacAddr &mac, const sMacAddr &bssid,
                                             bwl::sta_acl_action action)
 {

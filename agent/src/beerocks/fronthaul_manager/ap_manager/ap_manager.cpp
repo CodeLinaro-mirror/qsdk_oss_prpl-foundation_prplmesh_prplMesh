@@ -3339,6 +3339,10 @@ bool ApManager::handle_ap_enabled(int vap_id)
         LOG(ERROR) << "Failed updating vap info!!!";
     }
 
+    if (!ap_wlan_hal->clear_blacklist()) {
+        LOG(ERROR) << "Failed to clear blacklist!!!";
+    }
+
     auto vap_iter = ap_wlan_hal->get_radio_info().available_vaps.find(vap_id);
     if (vap_iter == ap_wlan_hal->get_radio_info().available_vaps.end()) {
         LOG(ERROR) << "Received AP-ENABLED but can't get vap info";

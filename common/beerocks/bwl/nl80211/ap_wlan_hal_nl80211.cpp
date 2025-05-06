@@ -695,6 +695,12 @@ bool ap_wlan_hal_nl80211::sta_deny(const sMacAddr &mac, const sMacAddr &bssid)
     return true;
 }
 
+bool ap_wlan_hal_nl80211::clear_blacklist()
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return true;
+}
+
 bool ap_wlan_hal_nl80211::sta_acceptlist_modify(const sMacAddr &mac, const sMacAddr &bssid,
                                                 bwl::sta_acl_action action)
 {

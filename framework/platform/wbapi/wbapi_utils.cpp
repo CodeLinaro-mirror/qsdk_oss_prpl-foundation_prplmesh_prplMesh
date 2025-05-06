@@ -245,6 +245,11 @@ std::string wbapi_utils::search_path_mac_filtering(const std::string &vap_ifname
     return search_path_ap_by_iface(vap_ifname) + "MACFiltering.";
 }
 
+std::string wbapi_utils::search_path_mac_filtering_entries(const std::string &vap_ifname)
+{
+    return search_path_mac_filtering(vap_ifname) + "Entry.";
+}
+
 std::string wbapi_utils::search_path_mac_filtering_entry_by_mac(const std::string &vap_ifname,
                                                                 const std::string &mac)
 {

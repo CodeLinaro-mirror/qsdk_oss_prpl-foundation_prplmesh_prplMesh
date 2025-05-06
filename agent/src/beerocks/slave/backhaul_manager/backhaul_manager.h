@@ -252,6 +252,7 @@ private:
 
     std::shared_ptr<bwl::sta_wlan_hal> get_wireless_hal(std::string iface = "");
 
+private:
     /**
      * Buffer to hold CMDU to be transmitted.
      */

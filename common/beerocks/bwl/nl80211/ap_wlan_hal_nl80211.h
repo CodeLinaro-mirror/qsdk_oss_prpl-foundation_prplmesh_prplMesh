@@ -41,6 +41,7 @@ public:
     virtual bool set_channel(int chan, beerocks::eWiFiBandwidth bw, int center_channel) override;
     virtual bool sta_allow(const sMacAddr &mac, const sMacAddr &bssid) override;
     virtual bool sta_deny(const sMacAddr &mac, const sMacAddr &bssid) override;
+    virtual bool clear_blacklist() override;
     virtual bool sta_acceptlist_modify(const sMacAddr &mac, const sMacAddr &bssid,
                                        bwl::sta_acl_action action) override;
     virtual bool set_macacl_type(const eMacACLType &acl_type, const sMacAddr &bssid) override;
