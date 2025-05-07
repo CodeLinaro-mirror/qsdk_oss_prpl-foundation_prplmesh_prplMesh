@@ -305,6 +305,19 @@ private:
     void abort_active_scans_in_agent(const sMacAddr agent_mac, sAgentScanStatus &agent_status);
 
     /**
+     * @brief Compute OperatingClass / Channels for the Scan Request based on database info
+     * @param[in] radio_mac : ruid
+     * @param[out] operating_classes_to_channels_map : map, key=OpClass
+     * @param[in] single_scan : continuous scan if false
+     *
+     * @return true if successful
+     */
+    bool compute_scan_channels(
+        const sMacAddr &radio_mac,
+        std::unordered_map<uint8_t, std::set<uint8_t>> &operating_class_to_channels_map,
+        bool single_scan);
+
+    /**
      * @brief Add radio to channel scan request TLV
      *
      * @param[out] channel_scan_request_tlv : instance of TLV that is destined for the owner of radio_mac

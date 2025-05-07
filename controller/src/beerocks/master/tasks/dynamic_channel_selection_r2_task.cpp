@@ -277,78 +277,62 @@ void dynamic_channel_selection_r2_task::abort_active_scans_in_agent(const sMacAd
     agent_status.status = eAgentStatus::IDLE;
 }
 
+bool dynamic_channel_selection_r2_task::compute_scan_channels(
+    const sMacAddr &radio_mac, std::unordered_map<uint8_t, std::set<uint8_t>> &scan_channels_map,
+    bool single_scan)
+{
+    scan_channels_map.clear();
+    const auto &current_channel_pool = database.get_channel_scan_pool(radio_mac, single_scan);
+
+    std::ostringstream oss;
+    oss << "Channel Pool [ ";
+    for (const auto &chan : current_channel_pool) {
+        oss << int(chan) << " ";
+    }
+    oss << "]";
+    LOG(INFO) << oss.str();
+
+    auto band = database.get_radio_by_uid(radio_mac)->get_band();
+
+    for (const auto &ch : current_channel_pool) {
+        auto op_class = wireless_utils::get_operating_class_by_channel(
+            beerocks::WifiChannel(ch, band, beerocks::eWiFiBandwidth::BANDWIDTH_20));
+
+        if (op_class == 0) {
+            // Skip unsupported channel
+            continue;
+        }
+        scan_channels_map[op_class].insert(ch);
+    }
+
+    oss.clear();
+    for (auto const &op_ch : scan_channels_map) {
+        oss << "OpClass[" << op_ch.first << "]: { ";
+        for (auto const &ch : op_ch.second) {
+            oss << ch << ",";
+        }
+        oss << "}";
+        LOG(INFO) << oss.str();
+    }
+
+    if (scan_channels_map.empty()) {
+        LOG(ERROR) << "Could not compute Channel List for scan";
+        return false;
+    }
+
+    return true;
+}
+
 bool dynamic_channel_selection_r2_task::add_radio_to_channel_scan_request_tlv(
     std::shared_ptr<wfa_map::tlvProfile2ChannelScanRequest> &channel_scan_request_tlv,
     std::set<Agent::sRadio::channel_scan_report::channel_scan_report_key> &scan_report_index,
     const sMacAddr &radio_mac, bool is_single_scan)
 {
-
     // Helper lambda - Add a new operating_class to a radio in channel scan request tlv.
     auto add_operating_classes_to_radio =
-        [&](std::shared_ptr<wfa_map::cRadiosToScan> radio_list_entry, sMacAddr radio_mac) -> bool {
-        // Get parent agent mac from radio mac
-        auto ire = database.get_radio_parent_agent(radio_mac);
-        if (ire == beerocks::net::network_utils::ZERO_MAC) {
-            LOG(ERROR) << "Failed to get node_parent_ire!";
-            return false;
-        }
-
-        // Get channel pool for this radio scan request from DB
-        auto &current_channel_pool = database.get_channel_scan_pool(radio_mac, is_single_scan);
-        if (current_channel_pool.empty()) {
-            LOG(ERROR) << "Empty channel pool is not supported. please set channel pool "
-                          "for radio mac="
-                       << radio_mac;
-            return false;
-        }
-
-        if (current_channel_pool.size() > beerocks::message::SUPPORTED_CHANNELS_LENGTH) {
-            LOG(ERROR) << "channel_pool is too big [" << int(current_channel_pool.size())
-                       << "] on mac=" << radio_mac;
-            return false;
-        }
-
-        auto print_pool = [](const std::unordered_set<uint8_t> &channel_pool) -> std::string {
-            std::ostringstream oss;
-            oss << "[ ";
-            for (const auto &elem : channel_pool) {
-                oss << int(elem) << " ";
-            }
-            oss << "]";
-            return oss.str();
-        };
-        LOG(ERROR) << "Found channel pool: " << print_pool(current_channel_pool);
-
-        // Convert channels list to operating_class: channels list
-        std::unordered_map<uint8_t, std::set<uint8_t>> operating_class_to_classes_map;
-
-        auto wifi_channel = database.get_radio_wifi_channel(radio_mac);
-        if (wifi_channel.is_empty()) {
-            LOG(ERROR) << "WifiChannel is empty";
-        }
-
-        for (auto const &ch : current_channel_pool) {
-            auto operating_class =
-                wireless_utils::get_operating_class_by_channel(beerocks::WifiChannel(
-                    ch, wifi_channel.get_freq_type(), beerocks::eWiFiBandwidth::BANDWIDTH_20));
-            // Check if channel has a valid operating class in a 20MHz band
-            if (operating_class == 0) {
-                // Skip unsupported channel
-                continue;
-            }
-            operating_class_to_classes_map[operating_class].insert(ch);
-            // Add Operating-Class & Channel-Number pair to the scan report index.
-            // This will be used later when handling the report back.
-            scan_report_index.insert(std::make_pair(operating_class, ch));
-            LOG(INFO) << "Setting channel: " << ch << " => op_class:" << operating_class;
-        }
-
-        if (operating_class_to_classes_map.empty()) {
-            LOG(ERROR) << "Unable to send request with no Operating Classes";
-            return false;
-        }
-
-        for (auto const &op_class : operating_class_to_classes_map) {
+        [&](std::shared_ptr<wfa_map::cRadiosToScan> radio_list_entry, sMacAddr radio_mac,
+            std::unordered_map<uint8_t, std::set<uint8_t>> &chan_map) -> bool {
+        for (auto const &op_class : chan_map) {
 
             // Create radio list (cRadiosToScan) object
             auto operating_classes_list = radio_list_entry->create_operating_classes_list();
@@ -376,6 +360,39 @@ bool dynamic_channel_selection_r2_task::add_radio_to_channel_scan_request_tlv(
         }
         return true;
     };
+    std::unordered_map<uint8_t, std::set<uint8_t>> channels_map;
+
+    if ((channel_scan_request_tlv->perform_fresh_scan() ==
+         wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan::
+             PERFORM_A_FRESH_SCAN_AND_RETURN_RESULTS)) {
+
+        compute_scan_channels(radio_mac, channels_map, is_single_scan);
+        // use channel_scan_pool from database
+    } else {
+        for (const auto &op_ch :
+             database.get_radio_by_uid(radio_mac)->scan_capabilities.operating_classes) {
+            channels_map[op_ch.first] = std::set<uint8_t>(op_ch.second.begin(), op_ch.second.end());
+            // construct channels_map from agent scan capabilities TLV : all channels the agent can scan
+        }
+    }
+    std::ostringstream oss;
+
+    for (auto const &op_ch : channels_map) {
+        oss << "OpClass[" << int(op_ch.first) << "]: { ";
+        for (auto const &ch : op_ch.second) {
+            oss << int(ch) << ",";
+        }
+        oss << "}";
+        LOG(INFO) << oss.str();
+    }
+
+    // store channels_map to scan_report_index;
+    // scan_report_index is used for matching scan reports with scan requests
+    for (auto const &op_ch : channels_map) {
+        for (auto const &ch : op_ch.second) {
+            scan_report_index.insert(std::make_pair(op_ch.first, ch));
+        }
+    }
 
     // Create radio list (cRadiosToScan) object
     auto radio_list = channel_scan_request_tlv->create_radio_list();
@@ -397,7 +414,7 @@ bool dynamic_channel_selection_r2_task::add_radio_to_channel_scan_request_tlv(
         wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan::
             PERFORM_A_FRESH_SCAN_AND_RETURN_RESULTS) {
         // Fill Operating Class and Channel List
-        if (!add_operating_classes_to_radio(radio_list, radio_mac)) {
+        if (!add_operating_classes_to_radio(radio_list, radio_mac, channels_map)) {
             return false;
         };
     }
@@ -466,7 +483,20 @@ bool dynamic_channel_selection_r2_task::trigger_pending_scan_request_for_agent(
     bool success = true;
     for (auto &radio_scan_request : radio_scan_requests_to_trigger) {
         radio_scan_request.second.mid = mid;
+        auto &radio_mac               = radio_scan_request.first;
+        // Get current scan request dwell time from DB
+        int32_t dwell_time_msec = database.get_channel_scan_dwell_time_msec(
+            radio_mac, radio_scan_request.second.is_single_scan);
 
+        if (dwell_time_msec == 0) {
+            channel_scan_request_tlv->perform_fresh_scan() =
+                wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan::
+                    RETURN_STORED_RESULTS_OF_LAST_SUCCESSFUL_SCAN;
+        } else {
+            channel_scan_request_tlv->perform_fresh_scan() =
+                wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan::
+                    PERFORM_A_FRESH_SCAN_AND_RETURN_RESULTS;
+        }
         if (radio_scan_request.second.is_single_scan) {
             agent_status.single_radio_scans[radio_scan_request.first].status =
                 eRadioScanStatus::SCAN_IN_PROGRESS;
@@ -477,8 +507,10 @@ bool dynamic_channel_selection_r2_task::trigger_pending_scan_request_for_agent(
 
         LOG(DEBUG) << "Triggering a scan for radio " << radio_scan_request.first << " type: "
                    << std::string(radio_scan_request.second.is_single_scan ? "Single Scan"
-                                                                           : "Continuous Scan");
-        auto &radio_mac = radio_scan_request.first;
+                                                                           : "Continuous Scan")
+                   << " request to "
+                   << wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan_str(
+                          channel_scan_request_tlv->perform_fresh_scan());
         database.set_channel_scan_in_progress(radio_mac, true,
                                               radio_scan_request.second.is_single_scan);
 
