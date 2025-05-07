@@ -146,6 +146,7 @@ bool config_file::read_slave_config_file(const std::string &config_file_path, sC
             std::make_tuple("profile_x_disallow_override_unsupported_configuration=",
                             &conf.profile_x_disallow_override_unsupported_configuration, 0),
             std::make_tuple("on_boot_scan=", &conf.on_boot_scan, 0),
+            std::make_tuple("on_boot_scan_all=", &conf.on_boot_scan_all, 0),
         };
         std::string config_type = "global";
         if (!read_config_file(config_file_path, slave_global_conf_args, config_type)) {

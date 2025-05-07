@@ -44,6 +44,10 @@ profile_x_disallow_override_unsupported_configuration=1
 
 on_boot_scan=0
 
+# On_boot_scan_all is enabled for all bands in non-certification mode.
+
+on_boot_scan_all=1
+
 [backhaul]
 backhaul_preferred_bssid=
 

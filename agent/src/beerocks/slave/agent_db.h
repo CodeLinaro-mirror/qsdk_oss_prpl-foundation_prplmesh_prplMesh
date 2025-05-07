@@ -169,6 +169,7 @@ public:
         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile certification_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
         int on_boot_scan;
+        int on_boot_scan_all;
         uint8_t max_num_mlds = 3; // Arbitrary
     } device_conf;
 

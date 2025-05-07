@@ -133,6 +133,8 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     m_task_pool.add_task(
         std::make_shared<ChannelScanTask>(*this, cmdu_tx, db->device_conf.on_boot_scan > 0));
     m_task_pool.add_task(
+        std::make_shared<ChannelScanTask>(*this, cmdu_tx, db->device_conf.on_boot_scan_all > 0));
+    m_task_pool.add_task(
         std::make_shared<switch_channel::SwitchChannelTask>(m_task_pool, *this, cmdu_tx));
     m_task_pool.add_task(
         std::make_shared<coordinated_cac::CoordinatedCacTask>(m_task_pool, *this, cmdu_tx));

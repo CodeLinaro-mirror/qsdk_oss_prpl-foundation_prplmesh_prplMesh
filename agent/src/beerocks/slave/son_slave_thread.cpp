@@ -4669,6 +4669,23 @@ bool slave_thread::agent_fsm()
                 }
             }
         }
+        // Get radio list once
+        const auto &radio_list = db->get_radios_list();
+        if (radio_list.empty()) {
+            LOG(ERROR) << "No radios found, skipping On Boot Scan";
+            break;
+        }
+
+        // Check which scan mode is enabled
+        bool on_boot_scan_enabled     = (db->device_conf.on_boot_scan > 0);
+        bool on_boot_scan_all_enabled = (db->device_conf.on_boot_scan_all > 0);
+
+        // If both are enabled, prioritize on_boot_scan and skip on_boot_scan_all
+        if (on_boot_scan_enabled && on_boot_scan_all_enabled) {
+            LOG(WARNING) << "Both on_boot_scan and on_boot_scan_all are enabled. "
+                         << "Prioritizing on_boot_scan and skipping on_boot_scan_all.";
+            on_boot_scan_all_enabled = false;
+        }
 
         // On certification mode, if on boot scan is enabled, trigger On Boot Scan
         if (db->device_conf.certification_mode && db->device_conf.on_boot_scan > 0) {
@@ -4707,6 +4724,30 @@ bool slave_thread::agent_fsm()
                 LOG(DEBUG) << "Triggering On Boot Scan on radio: "
                            << on_boot_scan_request->radio_mac();
                 m_backhaul_manager_client->send_cmdu(cmdu_tx);
+            }
+        }
+
+        // ---------------- On Boot Scan All (Non-Certification Mode) ----------------------
+        if (on_boot_scan_all_enabled) {
+            LOG(DEBUG) << "On Boot Scan for all radios is enabled";
+            std::vector<beerocks::eFreqType> freq_types_to_scan = {
+                beerocks::FREQ_6G, beerocks::FREQ_5G, beerocks::FREQ_24G};
+            for (const auto &freq_type_to_scan : freq_types_to_scan) {
+                for (const auto &radio_to_scan : radio_list) {
+                    if (radio_to_scan->wifi_channel.get_freq_type() == freq_type_to_scan &&
+                        radio_to_scan->front.iface_mac != network_utils::ZERO_MAC) {
+                        auto on_boot_scan_request = message_com::create_vs_message<
+                            beerocks_message::cACTION_BACKHAUL_TRIGGER_ON_BOOT_SCAN>(cmdu_tx);
+                        if (!on_boot_scan_request) {
+                            LOG(ERROR) << "Failed building message!";
+                            continue;
+                        }
+                        on_boot_scan_request->radio_mac() = radio_to_scan->front.iface_mac;
+                        LOG(DEBUG) << "Triggering On Boot Scan on radio: "
+                                   << on_boot_scan_request->radio_mac();
+                        m_backhaul_manager_client->send_cmdu(cmdu_tx);
+                    }
+                }
             }
         }
 

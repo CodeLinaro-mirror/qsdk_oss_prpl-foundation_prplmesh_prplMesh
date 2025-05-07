@@ -419,9 +419,11 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     beerocks::bpl::set_ambiorix_impl_ptr(amb_dm_obj);
 
     {
-        auto db           = beerocks::AgentDB::get();
-        auto on_boot_scan = beerocks::string_utils::stoi(beerocks_slave_conf.on_boot_scan);
-        db->device_conf.on_boot_scan = on_boot_scan;
+        auto db               = beerocks::AgentDB::get();
+        auto on_boot_scan     = beerocks::string_utils::stoi(beerocks_slave_conf.on_boot_scan);
+        auto on_boot_scan_all = beerocks::string_utils::stoi(beerocks_slave_conf.on_boot_scan_all);
+        db->device_conf.on_boot_scan     = on_boot_scan;
+        db->device_conf.on_boot_scan_all = on_boot_scan_all;
         db->init_data_model(amb_dm_obj);
 
         auto management_mode = beerocks::bpl::cfg_get_management_mode();
