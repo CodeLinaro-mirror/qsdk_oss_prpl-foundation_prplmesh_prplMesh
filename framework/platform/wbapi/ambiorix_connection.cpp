@@ -197,10 +197,10 @@ int AmbiorixConnection::read()
 
 int AmbiorixConnection::read_signal()
 {
-    const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     int ret;
     do {
         std::lock_guard<std::mutex> guard(amxp_signal_read_mutex);
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
         ret = amxp_signal_read();
     } while (ret == 0);
     return ret;
