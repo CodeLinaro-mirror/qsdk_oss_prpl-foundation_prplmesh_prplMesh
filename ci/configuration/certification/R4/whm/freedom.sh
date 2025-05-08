@@ -77,6 +77,10 @@ ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 # Set multiAP profile for primary_vlan_id support
 ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
 
+# Workaround: Put all STAs in the lan bridge
+ba-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
+ba-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
+
 # Enable when hostapd on this target supports it
 ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
