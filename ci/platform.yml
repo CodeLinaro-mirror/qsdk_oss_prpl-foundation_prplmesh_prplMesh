@@ -45,16 +45,28 @@ build-for-turris-omnia:
   extends: .build-for-openwrt
   variables:
     TARGET_DEVICE: "turris-omnia"
+  tags:
+    - shell
+    - docker-build
+    - turris-build
 
 build-for-haze:
   extends: .build-for-openwrt
   variables:
     TARGET_DEVICE: "haze"
+  tags:
+    - shell
+    - docker-build
+    - haze-build
 
 build-for-freedom:
   extends: .build-for-openwrt
   variables:
     TARGET_DEVICE: "freedom"
+  tags:
+    - shell
+    - docker-build
+    - freedom-build
 
 build-for-osp-ospv2:
   stage: build
@@ -67,8 +79,9 @@ build-for-osp-ospv2:
     - |
       trigger_details=$(curl -X POST --retry 3 -s -f -F \
       token=${OSP_PIPELINE_TRIGGER_TOKEN_2} \
-      -F ref="mainline-23.05-v3" \
+      -F ref="mainline-23.05-v4" \
       -F variables[PRPLMESH_REVISION]="$CI_COMMIT_SHA" \
+      -F variables[PRPLMESH_COMMIT_REF_NAME]="$CI_COMMIT_REF_NAME" \
       -F variables[PARENT_PIPELINE_ID]="$CI_PIPELINE_ID" \
       -F variables[PARENT_PROJECT_ID]="$CI_PROJECT_ID" \
       -F variables[MR_TARGET_SHA]="$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" \
@@ -266,6 +279,7 @@ run-certification-tests-R4-platform-essensium:
   needs:
     - job: build-for-turris-omnia
     - job: build-for-haze
+    - job: build-for-freedom
 
 changelog:
   stage: build
