@@ -21,6 +21,10 @@
 
 #include <easylogging++.h>
 
+extern "C" {
+#include <libubox/utils.h>
+}
+
 using namespace beerocks;
 using namespace wbapi;
 
@@ -426,11 +430,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
         LOG(ERROR) << " cannot refresh radio info, radio object missing ";
         return false;
     }
-
-    std::string s_chipset_vendor;
-    radio->read_child(s_chipset_vendor, "ChipsetVendor");
-    m_radio_info.chipset_vendor = s_chipset_vendor;
-
     std::string s_val;
     if (radio->read_child(s_val, "OperatingFrequencyBand")) {
         m_radio_info.frequency_band = wbapi_utils::band_to_freq(s_val);
@@ -580,7 +579,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
                 he_pwhm_vec.end()) {
                 he_caps_ptr->su_beamformer_capable = 1;
             }
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "MU_BEAMFORMEE") !=
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "MU_BEAMFORMER") !=
                 he_pwhm_vec.end()) {
                 he_caps_ptr->mu_beamformer_capable = 1;
             }
@@ -613,8 +612,13 @@ bool base_wlan_hal_whm::refresh_radio_info()
             }
         }
         //SupportedHeMCS
-        //seems like pwhm supports HeMCS now. Need to check.
-        //m_radio_info.he_mcs_set.
+        if (radio->read_child(s_val, "SupportedHeMcsNssSet")) {
+            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.he_mcs_set.data(),
+                                     m_radio_info.he_mcs_set.size());
+            if (nBytes != beerocks::message::HE_MCS_SET_SIZE) {
+                LOG(ERROR) << "Failed to decode SupportedHeMcsNssSet str";
+            }
+        }
 
         //Wi-Fi 6 capabilities
         struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
@@ -624,9 +628,16 @@ bool base_wlan_hal_whm::refresh_radio_info()
             wifi6_caps_ptr->spatial_reuse = 1;
         }
 
-        bool twt_enable = false;
-        if (radio->read_child(twt_enable, "TargetWakeTimeEnable") && twt_enable) {
-            wifi6_caps_ptr->twt_responder = 1;
+        if (radio->read_child(s_val, "RadCapabilitiesHeMacStr")) {
+            auto wifi6_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "TWT_REQ") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->twt_requester = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "TWT_RESP") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->twt_responder = 1;
+            }
         }
 
         wifi6_caps_ptr->dl_ofdma            = he_caps_ptr->dl_ofdm_capable;
@@ -653,7 +664,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
                 wifi6_pwhm_vec.end()) {
                 wifi6_caps_ptr->su_beamformee = 1;
             }
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "MU_BEAMFORMEE") !=
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "MU_BEAMFORMER") !=
                 wifi6_pwhm_vec.end()) {
                 wifi6_caps_ptr->mu_Beamformer_status = 1;
             }
