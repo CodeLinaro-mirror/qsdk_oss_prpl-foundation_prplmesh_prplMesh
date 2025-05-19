@@ -198,10 +198,12 @@ int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_
 
 bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measurement_mode)
 {
-    int mode_value = 0;
-    if (read_agent_config_param("ClientsMeasurementMode", mode_value)) {
+    int mode_value = static_cast<int>(eClientsMeasurementMode::ENABLE_ALL);
+    if (!read_agent_config_param("ClientsMeasurementMode", mode_value)) {
+        MAPF_ERR("cfg_get_clients_measurement_mode: failed to read ClientsMeasurementMode\n");
         return false;
     }
+
     if (mode_value < static_cast<int>(eClientsMeasurementMode::DISABLE_ALL) ||
         mode_value >
             static_cast<int>(eClientsMeasurementMode::ONLY_CLIENTS_SELECTED_FOR_STEERING)) {
