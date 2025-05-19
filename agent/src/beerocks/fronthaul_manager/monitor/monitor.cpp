@@ -206,7 +206,7 @@ bool Monitor::thread_init()
         clients_measuremet_mode = bpl::eClientsMeasurementMode::ENABLE_ALL;
     }
     mon_db.set_clients_measuremet_mode(
-        (monitor_db::eClientsMeasurementMode)clients_measuremet_mode);
+        static_cast<monitor_db::eClientsMeasurementMode>(clients_measuremet_mode));
 #endif /* FEATURE_PRE_ASSOCIATION_STEERING */
     bool radio_stats_enable;
     if (!beerocks::bpl::cfg_get_radio_stats_enable(radio_stats_enable)) {
@@ -921,6 +921,8 @@ bool Monitor::update_sta_stats(const std::chrono::steady_clock::time_point &time
             // This is a potentially long running operation.
             // If we haven't finished iterating on all stations, stop here and continue on next
             // method call from this point on.
+            LOG(WARNING)
+                << "update_sta_stats: long running operation, stop iterating on all stations";
             return true;
         }
 
