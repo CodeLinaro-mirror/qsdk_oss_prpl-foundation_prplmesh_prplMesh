@@ -3102,15 +3102,14 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             LOG(ERROR) << "addClass wfa_map::tlvProfile2StatusCode!";
             return false;
         }
-        // note: at the moment just setting the code to non-zero
-        profile2_status_code_tlv->status_code() = 0x0001;
-        // add reason code
-        // note: no value is set at the moment
+        profile2_status_code_tlv->status_code() = sta_conn_fail->status;
         auto profile2_reason_code_tlv = cmdu_tx.addClass<wfa_map::tlvProfile2ReasonCode>();
         if (!profile2_reason_code_tlv) {
             LOG(ERROR) << "addClass wfa_map::tlvProfile2ReasonCode!";
             return false;
         }
+        profile2_reason_code_tlv->reason_code() =
+            static_cast<wfa_map::tlvProfile2ReasonCode::eReasonCode>(sta_conn_fail->reason);
         // Send the mismatched message
         send_cmdu(cmdu_tx);
     } break;
