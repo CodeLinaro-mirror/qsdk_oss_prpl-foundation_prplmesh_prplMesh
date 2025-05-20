@@ -1604,6 +1604,8 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         /* example PSK Mismatch notification
             eobject = "WiFi.AccessPoint.[vap5g0priv].",
             eventData = "<3>AP-STA-POSSIBLE-PSK-MISMATCH 6c:f7:84:d8:32:af",
+            // or with status/reason code
+            // eventData = "<3>AP-STA-POSSIBLE-PSK-MISMATCH 6c:f7:84:d8:32:af status=14/reason=15",
             ifName = "wlan2.1",
             notification = "wpaCtrlEvents",
             object = "WiFi.AccessPoint.vap5g0priv.",
@@ -1627,9 +1629,23 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         msg->sta_mac = tlvf::mac_from_string(parsed_obj[bwl::EVENT_KEYLESS_PARAM_MAC]);
         LOG(DEBUG) << "STA connection failure: offending Sta MAC: " << msg->sta_mac;
 
-        // BSSID
-        msg->bssid = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
-        LOG(DEBUG) << "STA connection failure: interface BSSID: " << msg->bssid;
+        // status
+        std::string status_str = parsed_obj["status"];
+        // reason
+        std::string reason_str = parsed_obj["reason"];
+
+        if (status_str.empty()) {
+            status_str = reason_str.empty() ? "1" : "0";
+        }
+        if (reason_str.empty()) {
+            reason_str = "0";
+        }
+
+        msg->status = beerocks::string_utils::stoi(status_str);
+        LOG(DEBUG) << "STA connection failure: status: " << msg->status;
+
+        msg->reason = beerocks::string_utils::stoi(reason_str);
+        LOG(DEBUG) << "STA connection failure: reason: " << msg->reason;
 
         // Add the message to the queue
         event_queue_push(event, msg_buff);
