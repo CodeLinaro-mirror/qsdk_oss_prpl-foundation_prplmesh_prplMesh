@@ -45,6 +45,17 @@ profile_x_disallow_override_unsupported_configuration=1
 
 on_boot_scan=0
 
+# Technical Requirements Specification for EasyMesh Plus
+#
+# [CORE_AIR_0005] Unassociated STA Link Metrics Measurement Report
+#
+# MAX Off-channel dwell time RCPI measurements  Default value
+# Dwell duration 2.4 GHz                         20 [ms]
+# Dwell duration 5 GHz                           20 [ms]
+#
+# The value must be a positive number in milliseconds within the chip's supported limits
+dwell_time=20
+
 [backhaul]
 backhaul_preferred_bssid=
 

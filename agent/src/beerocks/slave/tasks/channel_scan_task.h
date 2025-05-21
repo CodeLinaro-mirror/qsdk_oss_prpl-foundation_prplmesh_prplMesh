@@ -24,7 +24,7 @@ class BackhaulManager;
 class ChannelScanTask : public Task {
 public:
     ChannelScanTask(BackhaulManager &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx,
-                    const bool on_boot_scan_enabled);
+                    const bool on_boot_scan_enabled, const int dwell_time);
 
     void work() override;
 
@@ -170,15 +170,17 @@ private:
         uint8_t channel;
         eScanStatus status;
         std::chrono::system_clock::time_point timestamp;
+        int dwell_time;
         uint8_t utilization;
         uint8_t noise;
         std::vector<beerocks_message::sChannelScanResults> results;
         explicit sStoredScanResults(
             sMacAddr _ruid, uint8_t _operating_class, uint8_t _channel, eScanStatus _status,
-            std::chrono::system_clock::time_point _timestamp, uint8_t _utilization, uint8_t _noise,
-            const std::vector<beerocks_message::sChannelScanResults> &_results)
+            std::chrono::system_clock::time_point _timestamp, int _dwell_time, uint8_t _utilization,
+            uint8_t _noise, const std::vector<beerocks_message::sChannelScanResults> &_results)
             : ruid(_ruid), operating_class(_operating_class), channel(_channel), status(_status),
-              timestamp(_timestamp), utilization(_utilization), noise(_noise), results(_results)
+              timestamp(_timestamp), dwell_time(_dwell_time), utilization(_utilization),
+              noise(_noise), results(_results)
         {
         }
     };
@@ -187,6 +189,7 @@ private:
     BackhaulManager &m_btl_ctx;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
     const bool m_on_boot_scan_enabled;
+    const int m_preferred_dwell_time_ms;
 
     /* Request handling helper functions */
 
