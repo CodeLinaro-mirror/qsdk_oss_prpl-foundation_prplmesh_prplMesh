@@ -380,6 +380,9 @@ bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
     beacon_params.iface_name    = iface_name;
 
     auto &params = beacon_params.params;
+    LOG(DEBUG) << "beacon_params.params.channel" << beacon_params.params.channel
+               << ", beacon_metrics_query.channel_number(): "
+               << int(beacon_metrics_query.channel_number());
 
     params.bssid                  = beacon_metrics_query.bssid();
     params.channel                = beacon_metrics_query.channel_number();
@@ -402,6 +405,8 @@ bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
                               beerocks::message::WIFI_SSID_MAX_LENGTH);
 
     auto ap_channel_reports_list_length = beacon_metrics_query.ap_channel_reports_list_length();
+    LOG(DEBUG) << "params.channel: " << int(params.channel)
+               << ", ap_channel_reports_list_length: " << int(ap_channel_reports_list_length);
 
     if (ap_channel_reports_list_length != 0 && params.channel != 255) {
         LOG(ERROR) << "inconsistency between channel report length and channel number. please take "
@@ -423,10 +428,8 @@ bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
 
         for (size_t j = 0; j < static_cast<size_t>(tmp_chan_count); j++) {
             sBeaconMetricsQuery::sChanReport new_report = {};
-
-            new_report.op_class = op_class;
-            new_report.channel  = *std::get<1>(channel_report).ap_channel_report_list(j + 1);
-
+            new_report.op_class                         = op_class;
+            new_report.channel = *std::get<1>(channel_report).ap_channel_report_list(j + 1);
             beacon_params.chan_report_list.push_back(new_report);
         }
     }
@@ -439,7 +442,7 @@ bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
     }
 
     request_out->sta_mac() = beacon_params.params.sta_mac;
-
+    LOG(DEBUG) << "beacon_params.params.channel: " << int(beacon_params.params.channel);
     /* Timeout to send the Beacon Metrics Response. */
     if (ap_channel_reports_list_length != 0) {
         request_out->timeout() =
@@ -552,7 +555,8 @@ void LinkMetricsCollectionTask::handle_beacon_metrics_query(ieee1905_1::CmduMess
                << mid; // USED IN TESTS
 
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
-
+    LOG(DEBUG) << "BEACON_METRICS_QUERY channel: " << tlvBeaconMetricsQuery->channel_number()
+               << " op_class: " << tlvBeaconMetricsQuery->operating_class();
     if (!schedule_beacon_metrics_query(*tlvBeaconMetricsQuery, mid, radio->front.iface_name)) {
         LOG(ERROR) << "Failed to schedule Beacon Metrics Query for " << requested_sta_mac;
         return;
