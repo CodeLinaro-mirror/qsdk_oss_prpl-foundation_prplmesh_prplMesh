@@ -863,7 +863,8 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
                         LOG(DEBUG)
                             << "20MHz channel " << operating_class_20MHz_channel << " is supported";
                         // Assume scan will be successful, add to previous scans
-                        m_previous_scans[operating_class].emplace(operating_class_20MHz_channel);
+                        m_previous_scans[db_radio->front.iface_name][operating_class].emplace(
+                            operating_class_20MHz_channel);
                         channel_vector.emplace_back(operating_class_20MHz_channel);
                     }
                 }
@@ -882,7 +883,8 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
                         SCAN_NOT_SUPPORTED_ON_THIS_OPERATING_CLASS_AND_CHANNEL_ON_THIS_RADIO);
             } else {
                 // Assume scan will be successful, add to previous scans
-                m_previous_scans[operating_class].emplace(channel_number);
+                m_previous_scans[db_radio->front.iface_name][operating_class].emplace(
+                    channel_number);
                 channel_vector.emplace_back(channel_number);
             }
         }
@@ -913,9 +915,14 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
 
     // Create a sOperatingClass vector from the previous scans.
     auto create_stored_operating_classes =
-        [this, &print_channel_vector]() -> std::vector<sOperatingClass> {
+        [this, &print_channel_vector](AgentDB::sRadio *db_radio) -> std::vector<sOperatingClass> {
         std::vector<sOperatingClass> operating_vector;
-        for (const auto &previous_scan : m_previous_scans) {
+        // Check if iface_name exists in m_previous_scans
+        if (m_previous_scans.find(db_radio->front.iface_name) == m_previous_scans.end()) {
+            LOG(WARNING) << "No scans found for iface_name: " << db_radio->front.iface_name;
+            return operating_vector;
+        }
+        for (const auto &previous_scan : m_previous_scans[db_radio->front.iface_name]) {
             const auto operating_class = previous_scan.first;
             const auto bandwidth =
                 son::wireless_utils::operating_class_to_bandwidth(operating_class);
@@ -1035,7 +1042,7 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
         new_radio_scan->current_state = eState::PENDING_TRIGGER;
 
         if (!perform_fresh_scan) {
-            new_radio_scan->operating_classes = create_stored_operating_classes();
+            new_radio_scan->operating_classes = create_stored_operating_classes(radio);
         } else {
             // Iterate over operating classes
             for (int class_idx = 0; class_idx < class_list_len; class_idx++) {
@@ -1170,7 +1177,8 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
                         LOG(DEBUG)
                             << "20MHz channel " << operating_class_20MHz_channel << " is supported";
                         // Assume scan will be successful, add to previous scans
-                        m_previous_scans[operating_class].emplace(operating_class_20MHz_channel);
+                        m_previous_scans[db_radio->front.iface_name][operating_class].emplace(
+                            operating_class_20MHz_channel);
                         channel_vector.emplace_back(operating_class_20MHz_channel);
                     }
                 }
@@ -1189,7 +1197,8 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
                         SCAN_NOT_SUPPORTED_ON_THIS_OPERATING_CLASS_AND_CHANNEL_ON_THIS_RADIO);
             } else {
                 // Assume scan will be successful, add to previous scans
-                m_previous_scans[operating_class].emplace(channel_number);
+                m_previous_scans[db_radio->front.iface_name][operating_class].emplace(
+                    channel_number);
                 channel_vector.emplace_back(channel_number);
             }
         }
@@ -1198,9 +1207,14 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
 
     // Create a sOperatingClass vector from the previous scans.
     auto create_stored_operating_classes =
-        [this, &print_channel_vector]() -> std::vector<sOperatingClass> {
+        [this, &print_channel_vector](AgentDB::sRadio *db_radio) -> std::vector<sOperatingClass> {
         std::vector<sOperatingClass> operating_vector;
-        for (const auto &previous_scan : m_previous_scans) {
+        // Check if iface_name exists in m_previous_scans
+        if (m_previous_scans.find(db_radio->front.iface_name) == m_previous_scans.end()) {
+            LOG(WARNING) << "No scans found for iface_name: " << db_radio->front.iface_name;
+            return operating_vector;
+        }
+        for (const auto &previous_scan : m_previous_scans[db_radio->front.iface_name]) {
             const auto operating_class = previous_scan.first;
             const auto bandwidth =
                 son::wireless_utils::operating_class_to_bandwidth(operating_class);
@@ -1299,7 +1313,7 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
 
     auto operating_classes_size = operating_classes.size();
     if (send_results) {
-        new_radio_scan->operating_classes = create_stored_operating_classes();
+        new_radio_scan->operating_classes = create_stored_operating_classes(radio);
     } else {
         // Iterate over operating classes
         for (int class_idx = 0; class_idx < (int)operating_classes_size; class_idx++) {

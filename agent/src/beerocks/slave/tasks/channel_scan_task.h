@@ -133,10 +133,12 @@ private:
     };
     /**
      * Map containing previous successful scans
+     * Key: Radio interface name
      * Key: Oeprating Class
      * Value: Channel List
      */
-    std::unordered_map<uint8_t, std::unordered_set<uint8_t>> m_previous_scans;
+    std::unordered_map<std::string, std::unordered_map<uint8_t, std::unordered_set<uint8_t>>>
+        m_previous_scans;
 
     /**
      * Currently only one Channel Scan per radio is supported.
