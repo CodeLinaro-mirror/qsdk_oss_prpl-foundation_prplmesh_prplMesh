@@ -11,6 +11,7 @@
 
 #include <linux/netlink.h>
 
+#include <cstdint>
 #include <functional>
 #include <unordered_map>
 
