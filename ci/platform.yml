@@ -45,16 +45,28 @@ build-for-turris-omnia:
   extends: .build-for-openwrt
   variables:
     TARGET_DEVICE: "turris-omnia"
+  tags:
+    - shell
+    - docker-build
+    - turris-build
 
 build-for-haze:
   extends: .build-for-openwrt
   variables:
     TARGET_DEVICE: "haze"
+  tags:
+    - shell
+    - docker-build
+    - haze-build
 
 build-for-freedom:
   extends: .build-for-openwrt
   variables:
     TARGET_DEVICE: "freedom"
+  tags:
+    - shell
+    - docker-build
+    - freedom-build
 
 build-for-osp-ospv2:
   stage: build
@@ -67,8 +79,9 @@ build-for-osp-ospv2:
     - |
       trigger_details=$(curl -X POST --retry 3 -s -f -F \
       token=${OSP_PIPELINE_TRIGGER_TOKEN_2} \
-      -F ref="mainline-23.05-v3" \
+      -F ref="mainline-23.05-v4" \
       -F variables[PRPLMESH_REVISION]="$CI_COMMIT_SHA" \
+      -F variables[PRPLMESH_COMMIT_REF_NAME]="$CI_COMMIT_REF_NAME" \
       -F variables[PARENT_PIPELINE_ID]="$CI_PIPELINE_ID" \
       -F variables[PARENT_PROJECT_ID]="$CI_PROJECT_ID" \
       -F variables[MR_TARGET_SHA]="$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" \
@@ -105,7 +118,7 @@ build-for-osp-ospv2:
       done
     - echo "OSP build succeeded! Visit pipeline at ${downstream_pipeline_url}"
   needs: []
-  timeout: 3h
+  timeout: 5h
   tags:
     - osp-build-fetch
 
@@ -226,6 +239,7 @@ run-certification-tests-R1-platform-essensium:
     - !reference [.run-certification-tests-R1, before_script]
     - echo "$TESTS_TO_RUN_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_ESSENSIUM" > .device-under-test
+  timeout: 14h
   tags:
     - certs-tests-essensium
   needs:
@@ -246,6 +260,7 @@ run-certification-tests-R2-platform-essensium:
     - if: '$TESTS_TO_RUN_R2_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R2_ESSENSIUM != "prplmesh"'
     - when: manual
       allow_failure: true
+  timeout: 14h
   tags:
     - certs-tests-R2-essensium
   needs:
@@ -261,11 +276,11 @@ run-certification-tests-R4-platform-essensium:
     - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
     - when: manual
       allow_failure: true
+  timeout: 14h
   tags:
     - certs-tests-R4-essensium
   needs:
-    - job: build-for-turris-omnia
-    - job: build-for-haze
+    - job: build-for-freedom
 
 changelog:
   stage: build
