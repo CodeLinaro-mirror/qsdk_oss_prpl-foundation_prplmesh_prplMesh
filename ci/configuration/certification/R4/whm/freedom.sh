@@ -9,22 +9,22 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-sh /etc/init.d/tr181-upnp stop || true
+/etc/init.d/tr181-upnp stop || true
 rm -f /etc/rc.d/S*tr181-upnp
 
-sh /etc/init.d/obuspa stop || true
+/etc/init.d/obuspa stop || true
 rm -f /etc/rc.d/S*obuspa
 
 # Stop the default ssh server on the lan-bridge
-sh /etc/init.d/ssh-server stop || true
+/etc/init.d/ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
 
 # Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop || true
+/etc/init.d/tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
 
 # Disable restarting failing serivces by default
-sh /etc/init.d/amx-processmonitor stop || true
+/etc/init.d/amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 
@@ -52,6 +52,12 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
+
+/etc/init.d/prplmesh stop && sleep 1
+/etc/init.d/prplmesh start
+
+sleep 5
+
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
   # Prplmesh agent is not running. Data model isn't up.
@@ -73,6 +79,9 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 #ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
+
+# tshark on the sniffer can not handle RM capabilities, and thinks beacons containing them are malformed
+ba-cli WiFi.AccessPoint.*.IEEE80211kEnabled=0
 
 # Set multiAP profile for primary_vlan_id support
 ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
@@ -96,7 +105,8 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwi
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
 # Commands to start a new SSH server on the control port
-start_ssh_commands="killall -9 dropbear
+start_ssh_commands="iptables -P INPUT ACCEPT
+killall -9 dropbear
 dropbear -F -T 10 -p192.168.250.150:22 &"
 
 sleep 5
