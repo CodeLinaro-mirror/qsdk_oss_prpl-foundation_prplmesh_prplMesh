@@ -150,6 +150,12 @@ cConfigData:
   hidden_ssid:
     _type: uint8_t
     _value: 0
+  bss_index:
+    _type: int8_t
+    _value: 0
+  additional_auth:
+    _type: uint8_t
+    _value: 0
 
 cWscAttrEncryptedSettings:
   _type: class
@@ -547,3 +553,17 @@ cWscAttrNetworkKey:
   key:
     _type: char
     _length: []
+
+cWscAttrBssIndex:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eWscAttributes
+    _value: ATTR_BSS_INDEX
+  length:
+    _type: uint16_t
+    _value_const: 1
+    _length_var: True
+  index:
+    _type: uint8_t
+    _value: 0x00

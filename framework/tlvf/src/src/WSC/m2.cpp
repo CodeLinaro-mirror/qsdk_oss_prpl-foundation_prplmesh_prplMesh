@@ -212,6 +212,13 @@ bool m2::init(const config &cfg)
                                                 eWscVendorExtVersionIE::WSC_VERSION2};
     std::copy_n(reinterpret_cast<uint8_t *>(&version2), sizeof(version2), vendor_data);
 
+    auto bss_index = addAttr<cWscAttrBssIndex>();
+    if (!bss_index) {
+        TLVF_LOG(ERROR) << "addAttr<cWscAttrBssIndex> failed";
+        return false;
+    }
+    bss_index->index() = cfg.bss_index;
+
     auto encrypted_settings = addAttr<cWscAttrEncryptedSettings>();
     if (!encrypted_settings) {
         TLVF_LOG(ERROR) << "addAttr<cWscAttrEncryptedSettings> failed";

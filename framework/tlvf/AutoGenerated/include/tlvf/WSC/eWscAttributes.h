@@ -53,6 +53,7 @@ enum eWscAttributes: uint16_t {
     ATTR_VENDOR_EXTENSION = 0x1049,
     ATTR_VERSION = 0x104a,
     ATTR_PRIMARY_DEV_TYPE = 0x1054,
+    ATTR_BSS_INDEX = 0x1bbc,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
@@ -90,6 +91,7 @@ static const char *eWscAttributes_str(eWscAttributes enum_value) {
     case ATTR_VENDOR_EXTENSION: return "ATTR_VENDOR_EXTENSION";
     case ATTR_VERSION:          return "ATTR_VERSION";
     case ATTR_PRIMARY_DEV_TYPE: return "ATTR_PRIMARY_DEV_TYPE";
+    case ATTR_BSS_INDEX:        return "ATTR_BSS_INDEX";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();

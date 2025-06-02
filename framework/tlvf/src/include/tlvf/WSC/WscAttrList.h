@@ -215,6 +215,12 @@ public:
                     return false;
                 }
                 break;
+            case ATTR_BSS_INDEX:
+                if (!addAttr<cWscAttrBssIndex>()) {
+                    TLVF_LOG(ERROR) << "Failed to add cWscAttrBssIndex";
+                    return false;
+                }
+                break;
             case ATTR_KEY_WRAP_AUTH:
                 if (!addAttr<cWscAttrKeyWrapAuthenticator>()) {
                     TLVF_LOG(ERROR) << "Failed to add cWscAttrKeyWrapAuthenticator";
