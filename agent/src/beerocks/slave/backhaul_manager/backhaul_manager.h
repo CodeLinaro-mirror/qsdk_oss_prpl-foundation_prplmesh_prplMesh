@@ -195,7 +195,8 @@ private:
     bool backhaul_fsm_wired(bool &skip_select);
     bool backhaul_fsm_wireless(bool &skip_select);
     bool is_front_radio(std::string mac);
-    bool finalize_slaves_connect_state(bool fConnected); // cmdu_duplicate
+    bool handle_backhaul_connect();
+    bool handle_backhaul_disconnect();
 
     /**
      * @brief Creates Backhaul STA Steering Response message with 2 tlvs Steering Response
