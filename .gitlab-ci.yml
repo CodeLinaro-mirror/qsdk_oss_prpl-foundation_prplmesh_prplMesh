@@ -20,10 +20,14 @@ stages:
   - platform
   - test
   - certification-dummy
+  - feed
   - upload
 
 include:
   - local: "/ci/templates.yml"
+  - project: 'prpl-foundation/tooling/feedbot'
+    file: '/templates/.proxy-ci-variables.yml'
+    ref: main
 
 .rules-for-expensive-job: &expensive-job
   rules:
@@ -346,3 +350,35 @@ upload-artifacts:
       project: $CI_PROJECT_PATH
       ref: $CI_COMMIT_REF_NAME
       artifacts: true
+
+feed-merge-request-job:
+  stage: feed
+  trigger:
+    strategy: depend
+    project: "prpl-foundation/tooling/feedbot"
+    branch: "main"
+    inputs:
+      name: "prplMesh"
+      event-type: "merge-request"
+    forward:
+      pipeline_variables: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH
+      when: on_success
+    - when: never
+
+feed-tag-job:
+  stage: feed
+  trigger:
+    strategy: depend
+    project: "prpl-foundation/tooling/feedbot"
+    branch: "main"
+    inputs:
+      name: "prplMesh"
+      event-type: "tag"
+    forward:
+      pipeline_variables: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG
+      when: always
+    - when: never
