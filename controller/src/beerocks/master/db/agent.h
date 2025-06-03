@@ -90,6 +90,9 @@ public:
 
     // WSC Backhaul STA Reconfiguration support
     bool bSTA_reconfiguration_supported = false;
+
+    // RSN Overriding support
+    bool rsn_overriding_supported = false;
     /**
      * @brief Max Total Number of unique VLAN identifiers the Multi-AP Agent supports.
      *
