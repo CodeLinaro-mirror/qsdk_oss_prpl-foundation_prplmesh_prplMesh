@@ -35,12 +35,12 @@ std::shared_ptr<m2> m2::parse(ieee1905_1::tlvWsc &tlv)
     return attributes;
 }
 
-std::shared_ptr<m2> m2::create(ieee1905_1::tlvWsc &tlv, const config &cfg)
+std::shared_ptr<m2> m2::create(ieee1905_1::tlvWsc &tlv, const config &cfg, bool bss_index_support)
 {
     if (cfg.msg_type != eWscMessageType::WSC_MSG_TYPE_M2)
         return nullptr;
     auto attributes = std::make_shared<m2>(tlv.payload(), tlv.payload_length(), false);
-    if (!attributes || !attributes->init(cfg)) {
+    if (!attributes || !attributes->init(cfg, bss_index_support)) {
         TLVF_LOG(ERROR) << "Failed to initialize attributes";
         return nullptr;
     }
@@ -52,7 +52,7 @@ std::shared_ptr<m2> m2::create(ieee1905_1::tlvWsc &tlv, const config &cfg)
     return attributes;
 }
 
-bool m2::init(const config &cfg)
+bool m2::init(const config &cfg, bool bss_index_support)
 {
     if (m_parse)
         return false; // Used for create only
@@ -221,6 +221,16 @@ bool m2::init(const config &cfg)
     encrypted_settings->alloc_encrypted_settings(cfg.encrypted_settings.size());
     std::copy_n(cfg.encrypted_settings.data(), encrypted_settings->encrypted_settings_length(),
                 encrypted_settings->encrypted_settings());
+
+    // For retro compatibility, don't send bss_index for agent not supporting RSN overriding
+    if (bss_index_support) {
+        auto bss_index = addAttr<cWscAttrBssIndex>();
+        if (!bss_index) {
+            TLVF_LOG(ERROR) << "addAttr<cWscAttrBssIndex> failed";
+            return false;
+        }
+        bss_index->index() = cfg.bss_index;
+    }
 
     auto authenticator = addAttr<cWscAttrAuthenticator>();
     if (!authenticator) {

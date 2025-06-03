@@ -38,10 +38,11 @@ public:
     m2(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}
     virtual ~m2() = default;
 
-    bool init(const config &cfg);
+    bool init(const config &cfg, bool bss_index_support);
     bool init() { return WscAttrList::init(); };
     bool valid() const override;
-    static std::shared_ptr<m2> create(ieee1905_1::tlvWsc &tlv, const config &cfg);
+    static std::shared_ptr<m2> create(ieee1905_1::tlvWsc &tlv, const config &cfgi,
+                                      bool bss_index_support = false);
     static std::shared_ptr<m2> parse(ieee1905_1::tlvWsc &tlv);
 
     // getters

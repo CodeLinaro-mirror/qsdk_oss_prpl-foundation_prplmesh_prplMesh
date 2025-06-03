@@ -455,7 +455,8 @@ private:
     bool handle_tlv_ap_vht_capabilities(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     // Autoconfig encryption support
-    bool autoconfig_wsc_add_m2(WSC::m1 &m1, const wireless_utils::sBssInfoConf *bss_info_conf);
+    bool autoconfig_wsc_add_m2(WSC::m1 &m1, const wireless_utils::sBssInfoConf *bss_info_conf,
+                               const Agent &agent);
     bool autoconfig_wsc_add_m8(WSC::m1 &m1, const wireless_utils::sBssInfoConf &bss_info_conf);
     bool autoconfig_wsc_add_encrypted_settings(uint8_t &iv,
                                                std::vector<uint8_t> &encrypted_settings,
