@@ -180,7 +180,8 @@ bool AmbiorixVariant::set(AmbiorixVariant &obj)
     SET_VARIANT_AS(amxc_llist_t, m_var_ctx, &(obj.m_var_ctx->data.vl))
 }
 
-static int amxc_var_set_float(amxc_var_t *var, float value)
+// TODO: Revert temp workaround for amxc_var_set_float (PPM-3531)
+static int amxc_var_set_float_deprecated(amxc_var_t *var, float value)
 {
     int ret;
     if ((ret = amxc_var_set_type(var, AMXC_VAR_ID_FLOAT)) == 0) {
@@ -188,7 +189,12 @@ static int amxc_var_set_float(amxc_var_t *var, float value)
     }
     return ret;
 }
-bool AmbiorixVariant::set(float value) { SET_VARIANT_AS(float, m_var_ctx, value) }
+
+bool AmbiorixVariant::set(float value)
+{
+    // TODO: Revert temp workaround for amxc_var_set_float (PPM-3531)
+    SET_VARIANT_AS(float_deprecated, m_var_ctx, value)
+}
 
 bool AmbiorixVariant::get(std::string &value) const
 {
@@ -238,16 +244,20 @@ bool AmbiorixVariant::get(double &value) const
 {
     GET_VARIANT_AS(AMXC_VAR_ID_DOUBLE, double, value, m_var_ctx)
 }
-static float amxc_var_get_const_float(const amxc_var_t *const var)
+
+// TODO: Revert temp workaround for amxc_var_set_float (PPM-3531)
+static float amxc_var_get_const_float_deprecated(const amxc_var_t *const var)
 {
     if (var) {
         return var->data.f;
     }
     return 0;
 }
+
 bool AmbiorixVariant::get(float &value) const
 {
-    GET_VARIANT_AS(AMXC_VAR_ID_FLOAT, float, value, m_var_ctx)
+    // TODO: Revert temp workaround for amxc_var_set_float (PPM-3531)
+    GET_VARIANT_AS(AMXC_VAR_ID_FLOAT, float_deprecated, value, m_var_ctx)
 }
 
 bool AmbiorixVariant::get_children(AmbiorixVariantListSmartPtr &result, bool extract)
