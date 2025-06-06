@@ -168,7 +168,7 @@ shellcheck:
   before_script:
     - apk add --update --no-cache git
   script:
-    - git ls-files -z '*.sh' '*.sh.in'  | xargs -0 shellcheck -x -P tools:ci/owncloud
+    - git ls-files -z '*.sh' '*.sh.in'  | xargs -0 shellcheck -x -P tools
   needs: []
 
 clang-format:
@@ -311,38 +311,3 @@ run-certification-tests-R1-prplmesh-essensium:
     - job: build-in-docker
   rules:
     - if: '$TESTS_TO_RUN_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_ESSENSIUM == "prplmesh"'
-
-upload-artifacts:
-  stage: upload
-  extends: .in-prplmesh-builder
-  script:
-    # the owncloud password is stored in the file pointed by "$CI_OWNCLOUD_PASSWORD".
-    # We can only store the password in it, since spaces are not supported in Gitlab masked variables.
-    # We symlink the file to .netrc and pre-pend to it to avoid manipulating the password itself
-    # on the command line.
-    - ln -s "$CI_OWNCLOUD_PASSWORD" ~/.netrc
-    - sed --follow-symlinks -i 's/^/machine ftp.essensium.com login prplmesh-robot-ci password /' ~/.netrc
-    - |
-      echo "Updating the 'latest' folder"
-      # Copying takes a lot of time, and we want the "latest" folder
-      # to be updated "as fast as possible", so we rely on the script
-      # to upload to a temporary directory first, and move it to
-      # "latest" afterwards:
-      ci/owncloud/upload_to_owncloud.sh -v "artifacts/latest" ./build
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-      when: on_success
-  needs:
-    - build-in-docker
-    - platform
-    - job: build-for-turris-omnia
-      project: $CI_PROJECT_PATH
-      ref: $CI_COMMIT_REF_NAME
-      artifacts: true
-    - job: build-for-rdkb-turris-omnia
-      project: $CI_PROJECT_PATH
-      ref: $CI_COMMIT_REF_NAME
-    - job: build-for-haze
-      project: $CI_PROJECT_PATH
-      ref: $CI_COMMIT_REF_NAME
-      artifacts: true
