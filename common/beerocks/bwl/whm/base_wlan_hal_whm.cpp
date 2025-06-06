@@ -497,6 +497,15 @@ bool base_wlan_hal_whm::refresh_radio_info()
                 }
             }
         }
+
+        LOG(DEBUG) << "Channel list from pWHM for iface " << m_radio_info.iface_name << ":";
+        for (const auto &channel_pair : m_radio_info.channels_list) {
+            uint8_t channel  = channel_pair.first;
+            const auto &info = channel_pair.second;
+
+            LOG(DEBUG) << " - Channel: " << int(channel) << ", DFS State: " << int(info.dfs_state)
+                       << ", BW Entries: " << info.bw_info_list.size();
+        }
     }
 
     //Capabilities

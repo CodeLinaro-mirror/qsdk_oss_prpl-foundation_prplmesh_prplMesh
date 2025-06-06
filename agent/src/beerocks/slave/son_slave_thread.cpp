@@ -2469,6 +2469,16 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         fill_channel_list_to_agent_db(fronthaul_iface, notification->channel_list());
 
+        std::string channel_list{};
+        LOG(DEBUG) << "VOLODYMYR | ACTION_APMANAGER_JOINED_NOTIFICATION";
+        auto channels_list_length = notification->channel_list()->channels_list_length();
+        for (uint8_t ch_idx = 0; ch_idx < channels_list_length; ch_idx++) {
+            auto &channel_info = std::get<1>(notification->channel_list()->channels_list(ch_idx));
+            auto channel       = channel_info.beacon_channel();
+            channel_list += std::to_string(channel) + " ";
+        }
+        LOG(DEBUG) << "VOLODYMYR | channel_list=" << channel_list;
+
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
 
         radio->chipset_vendor = notification->params().chipset_vendor;
@@ -3219,6 +3229,16 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         }
 
         fill_channel_list_to_agent_db(fronthaul_iface, response->channel_list());
+
+        std::string channel_list{};
+        LOG(DEBUG) << "VOLODYMYR | ACTION_APMANAGER_CHANNELS_LIST_RESPONSE";
+        auto channels_list_length = response->channel_list()->channels_list_length();
+        for (uint8_t ch_idx = 0; ch_idx < channels_list_length; ch_idx++) {
+            auto &channel_info = std::get<1>(response->channel_list()->channels_list(ch_idx));
+            auto channel       = channel_info.beacon_channel();
+            channel_list += std::to_string(channel) + " ";
+        }
+        LOG(DEBUG) << "VOLODYMYR | channel_list=" << channel_list;
 
         // Forward channels list to the Backhaul manager
         auto response_out = message_com::create_vs_message<
