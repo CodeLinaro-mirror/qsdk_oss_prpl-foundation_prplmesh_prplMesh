@@ -911,7 +911,8 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
             LOG(ERROR) << "can't find vap_id " << id;
         }
     } else {
-        for (const auto &vap : saved_vaps) {
+        auto saved_vaps_copy = saved_vaps;
+        for (const auto &vap : saved_vaps_copy) {
             if (!vap.second.bss.empty()) {
                 handle_vap(vap.first, vap.second);
             }
