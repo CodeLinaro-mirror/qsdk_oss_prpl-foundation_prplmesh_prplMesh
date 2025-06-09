@@ -186,6 +186,27 @@ public:
     beerocks::eBeaconMeasurementSupportLevel supports_beacon_measurement =
         beerocks::BEACON_MEAS_UNSUPPORTED;
 
+    typedef struct {
+        sMacAddr sta_mld_mac = beerocks::net::network_utils::ZERO_MAC;
+        sMacAddr ap_mld_mac  = beerocks::net::network_utils::ZERO_MAC;
+        enum mode { NONE = 0, STR = 1 << 0, NSTR = 1 << 1, EMLSR = 1 << 2, EMLMR = 1 << 3 };
+        mode mld_mode;
+    } sMLDConfiguration;
+
+    typedef struct {
+        typedef struct {
+            std::string dm_path; // AffiliatedSta data model path
+            sMacAddr bssid;
+            sMacAddr affiliated_sta_mac;
+        } sAffiliatedSta;
+
+        std::string dm_path; // StaMld data model path
+        sMLDConfiguration mld_config;
+        std::vector<sAffiliatedSta> affiliated_stas;
+    } sAssociatedStaMldConfiguration;
+
+    sAssociatedStaMldConfiguration sta_mld_configuration;
+
 private:
     int m_client_locating_task_id_new_connection   = -1;
     int m_client_locating_task_id_exist_connection = -1;
