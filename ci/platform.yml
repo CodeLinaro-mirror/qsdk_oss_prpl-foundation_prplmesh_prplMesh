@@ -40,6 +40,8 @@ build-for-rdkb-turris-omnia:
   variables:
     TARGET_DEVICE: "turris-omnia"
   retry: 2
+  rules:
+    - when: manual
 
 build-for-turris-omnia:
   extends: .build-for-openwrt
@@ -49,6 +51,8 @@ build-for-turris-omnia:
     - shell
     - docker-build
     - turris-build
+  rules:
+    - when: manual
 
 build-for-haze:
   extends: .build-for-openwrt
@@ -58,6 +62,8 @@ build-for-haze:
     - shell
     - docker-build
     - haze-build
+  rules:
+    - when: manual
 
 build-for-freedom:
   extends: .build-for-openwrt
@@ -121,6 +127,8 @@ build-for-osp-ospv2:
   timeout: 5h
   tags:
     - osp-build-fetch
+  rules:
+    - when: manual
 
 build-for-cgr:
   stage: build
