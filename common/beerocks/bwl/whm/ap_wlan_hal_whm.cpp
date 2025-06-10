@@ -41,6 +41,8 @@ static ap_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode)
         return ap_wlan_hal::Event::DFS_CAC_Completed;
     } else if (opcode == "DFS-NOP-FINISHED") {
         return ap_wlan_hal::Event::DFS_NOP_Finished;
+    } else if (opcode == "AP-CSA-FINISHED") {
+        return ap_wlan_hal::Event::CSA_Finished;
     } else if (opcode == "CTRL-EVENT-EAP-FAILURE") {
         return ap_wlan_hal::Event::WPA_Event_EAP_Failure;
     } else if (opcode == "CTRL-EVENT-EAP-FAILURE2") {
@@ -1578,6 +1580,16 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
 
         // Add the message to the queue
         event_queue_push(Event::DFS_NOP_Finished, msg_buff);
+        break;
+    }
+    case Event::CSA_Finished: {
+        const std::string reason  = parsed_obj["reason"];
+        ChanSwReason chanSwReason = ChanSwReason::Unknown;
+        if (reason == "RADAR") {
+            chanSwReason = ChanSwReason::Radar;
+        }
+        m_radio_info.last_csa_sw_reason = chanSwReason;
+        event_queue_push(event);
         break;
     }
     case Event::WPA_Event_EAP_Failure:
