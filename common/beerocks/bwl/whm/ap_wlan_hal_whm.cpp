@@ -605,8 +605,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             }
         }
 
-        auto auth_type =
-            son::wireless_utils::wsc_to_bwl_authentication(bss_info_conf.authentication_type);
+        auto auth_type = son::wireless_utils::wsc_to_bwl_authentication(
+            bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         if (auth_type == "INVALID") {
             LOG(ERROR) << "Autoconfiguration: invalid auth_type "
                        << int(bss_info_conf.authentication_type);
@@ -648,8 +648,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             continue;
         }
 
-        std::string security_mode =
-            wbapi_utils::security_mode_to_string(bss_info_conf.authentication_type);
+        std::string security_mode = wbapi_utils::security_mode_to_string(
+            bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         std::string encryption_mode =
             wbapi_utils::encryption_type_to_string(bss_info_conf.encryption_type);
 

@@ -1665,10 +1665,12 @@ wireless_utils::operating_class_to_bandwidth(uint8_t operating_class)
     return it->second.band;
 }
 
-std::string wireless_utils::wsc_to_bwl_authentication(WSC::eWscAuth authtype)
+std::string wireless_utils::wsc_to_bwl_authentication(WSC::eWscAuth authtype,
+                                                      eAdditionalAuth additional_auth)
 {
     std::string authtype_str("");
-    if (authtype & WSC::eWscAuth::WSC_AUTH_OPEN) {
+    if ((authtype & WSC::eWscAuth::WSC_AUTH_OPEN) ||
+        (authtype & WSC::eWscAuth::WSC_AUTH_RSN && additional_auth == eAdditionalAuth::NONE)) {
         authtype_str += "NONE ";
     }
     if (authtype & WSC::eWscAuth::WSC_AUTH_WPAPSK) {
@@ -1690,7 +1692,12 @@ std::string wireless_utils::wsc_to_bwl_authentication(WSC::eWscAuth authtype)
         authtype_str += "SAE ";
     }
 
-    if (authtype_str.empty()) {
+    if (authtype & WSC::eWscAuth::WSC_AUTH_RSN &&
+        additional_auth == eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+        authtype_str += "WPA3-PCM ";
+    }
+
+    if (authtype == WSC::eWscAuth::WSC_AUTH_INVALID || authtype_str.empty()) {
         return "INVALID";
     }
     return authtype_str;

@@ -11,6 +11,7 @@
 
 #include "ambiorix_variant.h"
 #include <bcl/beerocks_defines.h>
+#include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
@@ -54,12 +55,21 @@ public:
     /**
      * @brief Converts WSC::eWscAuth ecurity mode to string.
      */
-    static std::string security_mode_to_string(const WSC::eWscAuth &security_mode);
+    static std::string
+    security_mode_to_string(const WSC::eWscAuth &security_mode,
+                            son::wireless_utils::eAdditionalAuth additional_auth =
+                                son::wireless_utils::eAdditionalAuth::NONE);
 
     /**
      * @brief Converts a string-based security mode to WSC::eWscAuth.
      */
     static WSC::eWscAuth security_mode_from_string(const std::string &security_mode);
+
+    /**
+     * @brief Converts a string-based security mode to son::wireless_utils::eAdditionalAuth
+     */
+    static son::wireless_utils::eAdditionalAuth
+    security_rsn_mode_from_string(const std::string &security_mode);
 
     /**
      * @brief Converts a beerocks::eFreqType encryption type to string.
@@ -308,6 +318,8 @@ private:
      */
     static const std::map<std::string, std::vector<WSC::eWscAuth>> security_mode_table;
 
+    static const std::map<std::string, std::vector<son::wireless_utils::eAdditionalAuth>>
+        security_rsn_mode_table;
     /**
      * @brief Convertion table of encryption type from string to WSC::eWscEncr.
      */

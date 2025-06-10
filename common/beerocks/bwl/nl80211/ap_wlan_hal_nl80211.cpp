@@ -317,7 +317,8 @@ static bool assign_auth_encr_parameters(prplmesh::hostapd::Configuration &conf,
         wpa_disable_eapol_key_retries.assign("0");
     } else {
         LOG(ERROR) << "Autoconfiguration: " << vap_id << " invalid authentication type: "
-                   << son::wireless_utils::wsc_to_bwl_authentication(bss.authentication_type);
+                   << son::wireless_utils::wsc_to_bwl_authentication(bss.authentication_type,
+                                                                     bss.additional_auth);
         return false;
     }
 
@@ -918,7 +919,8 @@ bool ap_wlan_hal_nl80211::update_vap_credentials(
         }
 
         // escape I
-        auto auth_type = son::wireless_utils::wsc_to_bwl_authentication(bss_it.authentication_type);
+        auto auth_type = son::wireless_utils::wsc_to_bwl_authentication(bss_it.authentication_type,
+                                                                        bss_it.additional_auth);
         if (auth_type == "INVALID") {
             LOG(ERROR) << "Autoconfiguration: auth type is 'INVALID'; number: "
                        << (uint16_t)bss_it.authentication_type;
