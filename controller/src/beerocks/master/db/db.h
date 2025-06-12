@@ -2256,10 +2256,10 @@ public:
      * @brief Gets or Allocates ApMld from Agent Database.
      *
      * @param al_mac AL MAC of the Agent.
-     * @param ssid SSID of ApMld to be matched
+     * @param mld_mac MLD MAC of ApMld to be matched
      * @return ApMld ptr if SSID matched, else NULL.
      */
-    Agent::sAPMLD *get_or_allocate_ap_mld(const sMacAddr &al_mac, std::string &ssid);
+    Agent::sAPMLD *get_or_allocate_ap_mld(const sMacAddr &al_mac, const sMacAddr &mld_mac);
 
     /**
      * @brief Gets or Allocates Affiliated AP from ApMld.
@@ -2689,20 +2689,20 @@ public:
      * @brief Remove instance of "APMLD" data element.
      *
      * @param al_mac AL MAC of the Agent on which AP MLD has to be removed.
-     * @param ssid SSID of AP MLD which has to be removed.
+     * @param mld_mac MLD MAC of AP MLD which has to be removed.
      * @return true on success, false otherwise.
      */
-    bool dm_remove_ap_mld(const sMacAddr &al_mac, const std::string &ssid);
+    bool dm_remove_ap_mld(const sMacAddr &al_mac, const sMacAddr &mld_mac);
 
     /**
      * @brief Remove instance of "AffiliatedAP" data element.
      *
      * @param al_mac AL MAC of the Agent on which Affiliated AP has to be removed.
-     * @param ssid SSID of AP MLD containing Affiliated AP which has to be removed.
+     * @param mld_mac MLD MAC of AP MLD containing Affiliated AP which has to be removed.
      * @param ruid RUID of Affiliated AP which has to be removed.
      * @return true on success, false otherwise.
      */
-    bool dm_remove_affiliated_ap(const sMacAddr &al_mac, const std::string &ssid,
+    bool dm_remove_affiliated_ap(const sMacAddr &al_mac, const sMacAddr &mld_mac,
                                  const sMacAddr &ruid);
 
     //

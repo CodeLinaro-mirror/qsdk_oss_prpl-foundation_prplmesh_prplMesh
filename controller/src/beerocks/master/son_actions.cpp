@@ -600,27 +600,28 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
 
             // SSID
             if (ap_mld.ssid_str().empty()) {
-                // Dropping this MLD from updation, as SSID is our key for ApMld
-                // Hence, SSID shall not be empty
+                // Dropping this MLD from updation, as SSID can't be empty for ApMld
                 LOG(ERROR) << "SSID is empty in tlvAgentApMldConfiguration";
                 continue;
             }
 
-            // Get or Allocate ApMld from DB
-            auto ssid            = ap_mld.ssid_str();
-            Agent::sAPMLD *apmld = database.get_or_allocate_ap_mld(al_mac, ssid);
-
-            // SSID
-            // Update SSID for both existing and new ApMld
-            apmld->mld_info.mld_ssid = ssid;
-
             // MAC
-            if (ap_mld.ap_mld_mac_addr_valid().is_valid) {
-                apmld->mld_info.mld_mac = ap_mld.ap_mld_mac_addr();
-            } else {
-                apmld->mld_info.mld_mac = beerocks::net::network_utils::ZERO_MAC;
-                LOG(WARNING) << "AP MLD MAC is not valid in tlvAgentApMldConfiguration";
+            if (!ap_mld.ap_mld_mac_addr_valid().is_valid) {
+                // Dropping this MLD from updation, as MLD MAC is our key for ApMld
+                // Hence, MLD MAC shall not be invalid
+                LOG(ERROR) << "AP MLD MAC is not valid in tlvAgentApMldConfiguration";
+                continue;
             }
+
+            // Get or Allocate ApMld from DB
+            auto mld_mac         = ap_mld.ap_mld_mac_addr();
+            Agent::sAPMLD *apmld = database.get_or_allocate_ap_mld(al_mac, mld_mac);
+
+            // Update SSID
+            apmld->mld_info.mld_ssid = ap_mld.ssid_str();
+
+            // Update MLD MAC
+            apmld->mld_info.mld_mac = ap_mld.ap_mld_mac_addr();
 
             // MLD MODE FLAGS - str, nstr, emlsr, emlmr
             if (ap_mld.modes().str) {
@@ -648,8 +649,9 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
                 std::tuple<bool, wfa_map::cAffiliatedAp &> affiliated_ap_tuple(
                     ap_mld.affiliated_ap(affiliated_ap_it));
                 if (!std::get<0>(affiliated_ap_tuple)) {
-                    LOG(ERROR) << "Couldn't get Affiliated AP from APMLD SSID : "
-                               << apmld->mld_info.mld_ssid;
+                    LOG(ERROR) << "Couldn't get Affiliated AP from APMLD with SSID: "
+                               << apmld->mld_info.mld_ssid
+                               << " and with MLD MAC: " << apmld->mld_info.mld_mac;
                     return false;
                 }
 
@@ -693,7 +695,7 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
         for (auto db_apmld_it : ap_mlds) {
             bool apmld_found     = 0;
             uint8_t tlv_apmld_it = 0;
-            auto mld_ssid        = db_apmld_it.first;
+            auto mld_mac         = db_apmld_it.first;
             for (tlv_apmld_it = 0; tlv_apmld_it < agent_ap_mld_configuration->num_ap_mld();
                  ++tlv_apmld_it) {
                 // Get AgentApMld config from TLV
@@ -701,8 +703,9 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
                     agent_ap_mld_configuration->ap_mld(tlv_apmld_it));
                 if (std::get<0>(ap_mld_tuple)) {
                     wfa_map::cApMld &ap_mld = std::get<1>(ap_mld_tuple);
-                    // Check for SSID match
-                    if (mld_ssid == ap_mld.ssid_str()) {
+                    // Check for MLD MAC match
+                    if ((ap_mld.ap_mld_mac_addr_valid().is_valid) &&
+                        (mld_mac == ap_mld.ap_mld_mac_addr())) {
                         apmld_found = 1;
                         break;
                     }
@@ -712,10 +715,10 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
             // Remove redundant ApMld
             if (!apmld_found) {
                 // Remove Database only if Data Model is removed
-                if (database.dm_remove_ap_mld(agent->al_mac, mld_ssid)) {
+                if (database.dm_remove_ap_mld(agent->al_mac, mld_mac)) {
                     // Remove Database
-                    agent->ap_mlds.erase(mld_ssid);
-                    LOG(DEBUG) << "Removed ApMld with ssid: " << mld_ssid
+                    agent->ap_mlds.erase(mld_mac);
+                    LOG(DEBUG) << "Removed ApMld with MLD MAC: " << mld_mac
                                << " from Agent: " << al_mac;
                 }
             } else {
@@ -743,11 +746,11 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
                         // Remove redundant Affiliated AP
                         if (!afflap_found) {
                             // Remove Database only if Data Model is removed
-                            if (database.dm_remove_affiliated_ap(agent->al_mac, mld_ssid, ruid)) {
+                            if (database.dm_remove_affiliated_ap(agent->al_mac, mld_mac, ruid)) {
                                 // Remove Database
-                                agent->ap_mlds[mld_ssid].affiliated_aps.erase(ruid);
+                                agent->ap_mlds[mld_mac].affiliated_aps.erase(ruid);
                                 LOG(DEBUG) << "Removed Affiliated AP with ruid: " << ruid
-                                           << " from ApMld with ssid: " << mld_ssid
+                                           << " from ApMld with MLD MAC: " << mld_mac
                                            << " of Agent: " << al_mac;
                             }
                         }

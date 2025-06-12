@@ -579,8 +579,8 @@ public:
         std::unordered_map<sMacAddr, sAffiliatedAP> affiliated_aps;
     } sAPMLD;
 
-    // Key: SSID
-    std::unordered_map<std::string, sAPMLD> ap_mlds;
+    // Key: MLD MAC
+    std::unordered_map<sMacAddr, sAPMLD> ap_mlds;
 
     uint8_t ap_maximum_links   = 0;
     uint8_t bsta_maximum_links = 0;
