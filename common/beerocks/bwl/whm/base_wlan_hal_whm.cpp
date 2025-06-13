@@ -444,23 +444,29 @@ bool base_wlan_hal_whm::refresh_radio_info()
     radio->read_child(m_radio_info.channel, "Channel");
     m_radio_info.is_dfs_channel = son::wireless_utils::is_dfs_channel(m_radio_info.channel);
 
+    std::unordered_set<std::string> cleared_channels_set;
+    std::unordered_set<std::string> radar_triggered_channels_set;
+
+    std::string channel_mgt_path = m_radio_path + "ChannelMgt.";
+    auto channel_mgt_obj         = m_ambiorix_cl.get_object(channel_mgt_path);
+    if (!channel_mgt_obj) {
+        LOG(ERROR) << "failed to get radio Stats object " << channel_mgt_path;
+        return true;
+    }
+    channel_mgt_obj->read_child(s_val, "ClearedDfsChannels");
+    auto cleared_channels_vec = beerocks::string_utils::str_split(s_val, ',');
+    cleared_channels_set.insert(cleared_channels_vec.cbegin(), cleared_channels_vec.cend());
+
+    channel_mgt_obj->read_child(s_val, "RadarTriggeredDfsChannels");
+    auto radar_triggered_channels_vec = beerocks::string_utils::str_split(s_val, ',');
+    radar_triggered_channels_set.insert(radar_triggered_channels_vec.cbegin(),
+                                        radar_triggered_channels_vec.cend());
+
     if (radio->read_child(s_val, "PossibleChannels")) {
         auto channels_vec = beerocks::string_utils::str_split(s_val, ',');
         for (auto &chan_str : channels_vec) {
             uint32_t chanNum   = beerocks::string_utils::stoi(chan_str);
             auto &channel_info = m_radio_info.channels_list[chanNum];
-
-            std::unordered_set<std::string> cleared_channels_set;
-            std::unordered_set<std::string> radar_triggered_channels_set;
-
-            s_val = radio->find_child_deep("ChannelMgt.ClearedDfsChannels")->get<std::string>();
-            auto cleared_channels_vec = beerocks::string_utils::str_split(s_val, ',');
-            cleared_channels_set.insert(cleared_channels_vec.cbegin(), cleared_channels_vec.cend());
-
-            s_val = radio->find_child_deep("ChannelMgt.ClearedDfsChannels")->get<std::string>();
-            auto radar_triggered_channels_vec = beerocks::string_utils::str_split(s_val, ',');
-            radar_triggered_channels_set.insert(radar_triggered_channels_vec.cbegin(),
-                                                radar_triggered_channels_vec.cend());
 
             if (son::wireless_utils::is_dfs_channel(chanNum)) {
                 if (cleared_channels_set.find(chan_str) != cleared_channels_set.end()) {
