@@ -144,6 +144,9 @@ main() {
         freedom)
             TARGET_SYSTEM=qca_ipq95xx
             ;;
+        mozart)
+            TARGET_SYSTEM=mtk_filogic
+            ;;
         *)
             err "Unknown target device: $TARGET_DEVICE"
             info "Currently supported targets are:"
