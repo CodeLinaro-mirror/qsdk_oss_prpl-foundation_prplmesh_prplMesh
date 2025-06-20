@@ -22,15 +22,16 @@ eAirtiesFeatureIDs:
 eAirtiesFeatureVersion:
   _type: enum
   _enum_storage: uint16_t
-  feature_version: 0x0001
+  FEATURE_VERSION_1: 0x0001
+  FEATURE_VERSION_2: 0x0002
 
 #Agent Version
 eMasterVersion:
   _type: enum
   _enum_storage: uint16_t
-  master_version: 4
+  MASTER_VERSION: 4
 
 eSubVersion:
   _type: enum
   _enum_storage: uint16_t
-  sub_version: 0
+  SUB_VERSION: 0

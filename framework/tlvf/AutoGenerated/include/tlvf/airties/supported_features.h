@@ -88,13 +88,15 @@ public:
 };
 
 enum eAirtiesFeatureVersion: uint16_t {
-    feature_version = 0x1,
+    FEATURE_VERSION_1 = 0x1,
+    FEATURE_VERSION_2 = 0x2,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
 static const char *eAirtiesFeatureVersion_str(eAirtiesFeatureVersion enum_value) {
     switch (enum_value) {
-    case feature_version: return "feature_version";
+    case FEATURE_VERSION_1: return "FEATURE_VERSION_1";
+    case FEATURE_VERSION_2: return "FEATURE_VERSION_2";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
@@ -104,13 +106,13 @@ inline std::ostream &operator<<(std::ostream &out, eAirtiesFeatureVersion value)
 // Enum AutoPrint generated code snippet end
 
 enum eMasterVersion: uint16_t {
-    master_version = 0x4,
+    MASTER_VERSION = 0x4,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
 static const char *eMasterVersion_str(eMasterVersion enum_value) {
     switch (enum_value) {
-    case master_version: return "master_version";
+    case MASTER_VERSION: return "MASTER_VERSION";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
@@ -120,13 +122,13 @@ inline std::ostream &operator<<(std::ostream &out, eMasterVersion value) { retur
 // Enum AutoPrint generated code snippet end
 
 enum eSubVersion: uint16_t {
-    sub_version = 0x0,
+    SUB_VERSION = 0x0,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
 static const char *eSubVersion_str(eSubVersion enum_value) {
     switch (enum_value) {
-    case sub_version: return "sub_version";
+    case SUB_VERSION: return "SUB_VERSION";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
