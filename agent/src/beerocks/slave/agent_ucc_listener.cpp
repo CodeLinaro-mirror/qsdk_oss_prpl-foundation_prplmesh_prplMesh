@@ -61,20 +61,24 @@ bool agent_ucc_listener::handle_dev_get_param(std::unordered_map<std::string, st
         value = tlvf::mac_to_string(db->bridge.mac);
         return true;
     } else if (parameter == "macaddr") {
+        LOG(DEBUG) << "get parameter: " << parameter;
         if (params.find("ruid") == params.end()) {
             value = "missing ruid";
             return false;
         }
         auto ruid = tlvf::mac_from_string(params["ruid"]);
+        LOG(DEBUG) << "get parameter: " << parameter << " ruid: " << tlvf::mac_to_string(ruid);
         if (params.find("ssid") == params.end()) {
             // No ssid was given, we need to return the backhaul sta mac.
             auto radio = db->get_radio_by_mac(ruid, AgentDB::eMacType::RADIO);
+            LOG(DEBUG) << "get parameter: " << parameter << " no ssid, returning radio mac";
             if (!radio) {
                 LOG(ERROR) << "No radio with ruid '" << params["ruid"] << "' found!";
                 value = "No radio with ruid " + params["ruid"];
                 return false;
             }
             value = tlvf::mac_to_string(radio->back.iface_mac);
+            LOG(DEBUG) << "Returning backhaul sta mac: " << value;
             return true;
         }
         auto ssid = params["ssid"];
