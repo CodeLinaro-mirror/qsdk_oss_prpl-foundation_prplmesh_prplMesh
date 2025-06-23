@@ -502,6 +502,8 @@ std::string sta_wlan_hal_dwpal::get_wireless_backhaul_mac()
     return mac;
 }
 
+bool sta_wlan_hal_dwpal::enable_disable_ep(bool enable) { return true; }
+
 bool sta_wlan_hal_dwpal::process_dwpal_event(char *ifname, char *buffer, int bufLen,
                                              const std::string &opcode)
 {

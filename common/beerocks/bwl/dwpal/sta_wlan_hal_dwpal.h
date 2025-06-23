@@ -63,6 +63,8 @@ public:
     std::string get_bssid() override;
     std::string get_wireless_backhaul_mac() override;
 
+    virtual bool enable_disable_ep(bool enable) override;
+
 protected:
     virtual bool process_dwpal_event(char *buffer, int bufLen, const std::string &opcode) override;
     virtual bool process_dwpal_nl_event(struct nl_msg *msg, void *arg = nullptr) override;

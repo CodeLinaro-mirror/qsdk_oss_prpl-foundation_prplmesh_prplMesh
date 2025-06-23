@@ -1293,7 +1293,7 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
                 send_bsta_configuration(radio->front.iface_mac, *bSTA_it);
                 configs.erase(bSTA_it);
             } else if (db->controller_info.early_ap_capability) {
-                send_enable_disable_endpoint(radio->front.iface_mac, false, true);
+                send_enable_disable_endpoint(radio->front.iface_mac, false);
             }
             send_ap_bss_configuration_message(radio->front.iface_name, configs);
         } else {
@@ -1957,15 +1957,69 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
 bool ApAutoConfigurationTask::send_bsta_configuration(const sMacAddr &radio_mac,
                                                       const WSC::configData::config &config)
 {
-    // Place holder
-    return true;
+    auto request = message_com::create_vs_message<
+        beerocks_message::cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST>(m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed building message ACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST!";
+        return false;
+    }
+    auto backhaul_manager_cmdu_client = m_btl_ctx.get_backhaul_manager_cmdu_client();
+    if (!backhaul_manager_cmdu_client) {
+        LOG(ERROR) << "Failed to get backhaul manager cmdu client";
+        return false;
+    }
+
+    request->radio_mac() = radio_mac;
+
+    std::stringstream ss;
+    auto bSta_credentials = request->create_wifi_credentials();
+    if (!bSta_credentials) {
+        LOG(ERROR) << "Failed building message!";
+        return false;
+    }
+
+    ss << "bSTA: " << config.bssid << std::endl;
+
+    bSta_credentials->bssid_attr().data = config.bssid;
+    bSta_credentials->bss_type()        = config.bss_type;
+
+    ss << "- SSID: " << config.ssid << std::endl
+       << "- Key: " << config.network_key << std::endl
+       << "- Auth: " << std::hex << int(config.auth_type) << std::endl
+       << "- Encr: " << std::hex << int(config.encr_type) << std::endl;
+
+    bSta_credentials->set_ssid(config.ssid);
+    bSta_credentials->set_network_key(config.network_key);
+    bSta_credentials->authentication_type_attr().data = config.auth_type;
+    bSta_credentials->encryption_type_attr().data     = config.encr_type;
+    request->add_wifi_credentials(bSta_credentials);
+
+    LOG(INFO) << "Sending bSTA configuration: " << std::endl << ss.str();
+
+    LOG(INFO) << "Sending ACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST to BH manager";
+    return backhaul_manager_cmdu_client->send_cmdu(m_cmdu_tx);
 }
 
 bool ApAutoConfigurationTask::send_enable_disable_endpoint(const sMacAddr &radio_mac,
-                                                           const bool enable, const bool force)
+                                                           const bool enable)
 {
-    // Place holder
-    return true;
+    auto request = message_com::create_vs_message<
+        beerocks_message::cACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT>(m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed building message ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT!";
+        return false;
+    }
+    auto backhaul_manager_cmdu_client = m_btl_ctx.get_backhaul_manager_cmdu_client();
+    if (!backhaul_manager_cmdu_client) {
+        LOG(ERROR) << "Failed to get backhaul manager cmdu client";
+        return false;
+    }
+
+    request->radio_mac() = radio_mac;
+    request->enable()    = enable;
+
+    LOG(INFO) << "Sending ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT to BH manager";
+    return backhaul_manager_cmdu_client->send_cmdu(m_cmdu_tx);
 }
 
 void ApAutoConfigurationTask::handle_vs_wifi_credentials_update_response(

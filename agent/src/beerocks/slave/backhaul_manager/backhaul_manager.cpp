@@ -1812,6 +1812,28 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         }
         break;
     }
+    case beerocks_message::ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT: {
+        LOG(TRACE) << "received ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT";
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT>();
+        if (!request) {
+            LOG(ERROR) << "addClass ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT failed";
+            return false;
+        }
+
+        const sMacAddr &radio_mac = request->radio_mac();
+
+        LOG(DEBUG) << "handle ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT for bsta " << radio_mac;
+        auto sta_wlan_hal = get_wireless_hal(radio_mac);
+        if (!sta_wlan_hal) {
+            return false;
+        }
+
+        sta_wlan_hal->enable_disable_ep(static_cast<bool>(request->enable()));
+
+        break;
+    }
     default: {
         bool handled =
             m_task_pool.handle_cmdu(cmdu_rx, 0, sMacAddr(), sMacAddr(), fd, beerocks_header);
@@ -2601,6 +2623,21 @@ std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_wireless_hal(std::string
         }
     }
     return {};
+}
+
+std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_wireless_hal(const sMacAddr &radio_mac)
+{
+    auto radio_it = std::find_if(m_radios_info.begin(), m_radios_info.end(),
+                                 [&radio_mac](const std::shared_ptr<sRadioInfo> radio_info) {
+                                     return radio_info->radio_mac == radio_mac;
+                                 });
+
+    if (radio_it == m_radios_info.end()) {
+        LOG(ERROR) << "Invalid radio " << radio_mac;
+        return nullptr;
+    }
+
+    return (*radio_it)->sta_wlan_hal;
 }
 
 bool BackhaulManager::handle_slave_failed_connection_message(ieee1905_1::CmduMessageRx &cmdu_rx,

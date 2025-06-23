@@ -227,8 +227,7 @@ private:
 
     bool send_bsta_configuration(const sMacAddr &radio_mac, const WSC::configData::config &config);
 
-    bool send_enable_disable_endpoint(const sMacAddr &radio_mac, const bool enable,
-                                      const bool force);
+    bool send_enable_disable_endpoint(const sMacAddr &radio_mac, const bool enable);
 
     bool validate_reconfiguration(const std::string &radio_iface,
                                   std::vector<WSC::configData::config> &configs);
