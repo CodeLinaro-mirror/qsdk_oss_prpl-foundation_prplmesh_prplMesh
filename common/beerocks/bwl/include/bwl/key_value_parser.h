@@ -9,6 +9,7 @@
 #ifndef _BWL_KEY_VALUE_PARSER_H_
 #define _BWL_KEY_VALUE_PARSER_H_
 
+#include <cstdint>
 #include <list>
 #include <string>
 #include <unordered_map>

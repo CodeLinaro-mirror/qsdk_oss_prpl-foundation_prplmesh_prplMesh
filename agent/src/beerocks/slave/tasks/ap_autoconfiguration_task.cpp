@@ -884,8 +884,14 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     notification->cs_params().bandwidth = radio->wifi_channel.get_bandwidth();
     notification->cs_params().channel_ext_above_primary =
         radio->wifi_channel.get_ext_above_primary();
-    notification->cs_params().vht_center_frequency = radio->wifi_channel.get_center_frequency();
-    notification->cs_params().tx_power             = radio->tx_power_dB;
+    if (radio->wifi_channel.get_freq_type() == eFreqType::FREQ_6G &&
+        radio->wifi_channel.get_bandwidth() == eWiFiBandwidth::BANDWIDTH_160) {
+        notification->cs_params().vht_center_frequency =
+            radio->wifi_channel.get_center_frequency_2();
+    } else {
+        notification->cs_params().vht_center_frequency = radio->wifi_channel.get_center_frequency();
+    }
+    notification->cs_params().tx_power = radio->tx_power_dB;
 
     // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
     // AP_AUTOCONFIGURATION_WSC_MESSAGE.
