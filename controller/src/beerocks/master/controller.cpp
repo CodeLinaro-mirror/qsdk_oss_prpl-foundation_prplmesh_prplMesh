@@ -1892,7 +1892,6 @@ bool Controller::handle_tlv_apCapability(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     unsigned char cap_bitfield = *reinterpret_cast<unsigned char *>(&(tlv_ap_capability->value()));
 
-    //LOG(ERROR) << "iacob agent AP Capability " << (tlv_ap_capability->value().RSN_Overriding ? "true" : "false") << std::hex << tlv_ap_capability->value();
     LOG(ERROR) << "iacob agent AP Capability "
                << (tlv_ap_capability->value().RSN_Overriding ? "true " : "false ") << std::hex
                << cap_bitfield;

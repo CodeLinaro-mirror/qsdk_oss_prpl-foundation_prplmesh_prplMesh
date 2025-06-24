@@ -13,6 +13,7 @@
 #include <bcl/beerocks_defines.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
+//#include <son_wireless_utils.h>
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 
@@ -64,6 +65,9 @@ public:
      * @brief Converts a string-based security mode to WSC::eWscAuth.
      */
     static WSC::eWscAuth security_mode_from_string(const std::string &security_mode);
+
+    static son::wireless_utils::eAdditionalAuth
+    security_rsn_mode_from_string(const std::string &security_mode);
 
     /**
      * @brief Converts a string-based security mode to son::wireless_utils::eAdditionalAuth

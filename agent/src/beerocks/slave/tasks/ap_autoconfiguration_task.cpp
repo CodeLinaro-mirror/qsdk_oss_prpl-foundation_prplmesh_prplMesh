@@ -2092,6 +2092,57 @@ bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
     return true;
 }
 
+bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::configData::config> &configs,
+    const sMacAddr &ruid, beerocks::eFreqType freq_type)
+{
+    LOG(DEBUG) << "Handling RSN parameters configuration";
+    auto rsn_parameters_configuration(cmdu_rx.getClass<wfa_map::tlvRsnParametersConfiguration>());
+    if (!rsn_parameters_configuration) {
+        LOG(DEBUG) << "No tlvRsnParametersConfiguration TLV received";
+        return true;
+    }
+
+    for (auto radio_idx = 0; radio_idx < rsn_parameters_configuration->num_radio(); ++radio_idx) {
+        auto rsn_parameters_radio = std::get<1>(rsn_parameters_configuration->radios(radio_idx));
+        if (rsn_parameters_radio.ruid() != ruid) {
+            LOG(DEBUG) << "Discarding wrong radio";
+            continue;
+        }
+
+        for (auto bss_idx = 0; bss_idx < rsn_parameters_radio.num_bss(); ++bss_idx) {
+            auto rsn_parameters_bss = std::get<1>(rsn_parameters_radio.bsss(bss_idx));
+            for (auto &config : configs) {
+                if (config.bss_index == rsn_parameters_bss.bss_index() && config.bss_index != 0) {
+                    LOG(DEBUG) << "Handling RSN for BSS with index " << config.bss_index;
+
+                    // Only handle WPA3-PCM as EHT enabled for now
+                    if ((freq_type == beerocks::eFreqType::FREQ_24G ||
+                         freq_type == beerocks::eFreqType::FREQ_5G) &&
+                        rsn_parameters_bss.security_ies_length() == wpa3_pcm_2g_5g_eht.size() &&
+                        std::memcmp(rsn_parameters_bss.security_ies(), wpa3_pcm_2g_5g_eht.data(),
+                                    wpa3_pcm_2g_5g_eht.size()) == 0) {
+                        LOG(DEBUG) << "2G_5G WPA3_PERSONAL_COMPATIBILITY detected";
+                        config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
+                        config.additional_auth =
+                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                    } else if (freq_type == beerocks::eFreqType::FREQ_6G &&
+                               rsn_parameters_bss.security_ies_length() == wpa3_pcm_6g_eht.size() &&
+                               std::memcmp(rsn_parameters_bss.security_ies(),
+                                           wpa3_pcm_6g_eht.data(), wpa3_pcm_6g_eht.size()) == 0) {
+                        LOG(DEBUG) << "6G WPA3_PERSONAL_COMPATIBILITY detected";
+                        config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
+                        config.additional_auth =
+                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 void ApAutoConfigurationTask::handle_vs_wifi_credentials_update_response(
     ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
 {

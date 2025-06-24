@@ -18,6 +18,7 @@
 #include <tlvf/WSC/eWscVendorExt.h>
 
 #include <array>
+#include <cstdint>
 #include <deque>
 #include <list>
 #include <map>

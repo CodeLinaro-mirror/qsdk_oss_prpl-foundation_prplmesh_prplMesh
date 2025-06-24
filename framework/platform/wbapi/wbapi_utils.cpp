@@ -116,7 +116,6 @@ wbapi_utils::security_mode_to_string(const WSC::eWscAuth &security_mode,
             return map_it->first;
         }
     } else {
-        LOG(ERROR) << "sec mode else " << std::hex << additional_auth;
         // Note that in the end there should be only security_rsn_mode_table with other security mode added
         auto map_it = std::find_if(
             security_rsn_mode_table.begin(), security_rsn_mode_table.end(),
