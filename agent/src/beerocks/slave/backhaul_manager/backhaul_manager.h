@@ -253,6 +253,11 @@ private:
     std::shared_ptr<bwl::sta_wlan_hal> get_wireless_hal(std::string iface = "");
     std::shared_ptr<bwl::sta_wlan_hal> get_wireless_hal(const sMacAddr &radio_mac);
 
+    /**
+     * @brief Converts WSC::sWscAttrAuthenticationType to bwl::WiFiSec
+     */
+    bwl::WiFiSec wsc_to_bwl_authentication(WSC::eWscAuth authtype);
+
 private:
     /**
      * Buffer to hold CMDU to be transmitted.
