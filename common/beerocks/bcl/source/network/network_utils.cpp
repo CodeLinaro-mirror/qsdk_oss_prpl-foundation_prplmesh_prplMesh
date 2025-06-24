@@ -1760,6 +1760,25 @@ bool network_utils::linux_iface_is_physical(const std::string &iface)
     return (iflink == ifindex) ? true : false;
 }
 
+std::vector<std::string> network_utils::linux_get_non_physical_interfaces()
+{
+    std::vector<std::string> non_physical_interfaces;
+
+    auto bridges = linux_get_bridges();
+    for (const auto &bridge : bridges) {
+        auto iface_list = linux_get_iface_list_from_bridge(bridge);
+        for (const auto &iface : iface_list) {
+            if (linux_iface_is_physical(iface)) {
+                continue;
+            }
+
+            non_physical_interfaces.push_back(iface);
+        }
+    }
+
+    return non_physical_interfaces;
+}
+
 std::vector<std::string> network_utils::linux_get_lan_interfaces()
 {
     std::vector<std::string> lan_interfaces;
@@ -1789,7 +1808,7 @@ std::vector<std::string> network_utils::linux_get_lan_interfaces()
                 continue;
             }
 
-            /* Skip non-physical interfaces (veth, dummy etc.)*/
+            /* Skip non-physical interfaces (veth, dummy etc.) */
             if (!linux_iface_is_physical(iface)) {
                 continue;
             }

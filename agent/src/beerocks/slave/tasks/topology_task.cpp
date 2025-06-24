@@ -497,177 +497,160 @@ bool TopologyTask::add_device_information_tlv()
 
     auto db = AgentDB::get();
 
-    /**
-     * 1905.1 AL MAC address of the device.
-     */
+    /* 1905.1 AL MAC address of the device */
     tlvDeviceInformation->mac() = db->bridge.mac;
 
-    /**
-     * Set the number of local interfaces and fill info of each of the local interfaces, according
-     * to IEEE_1905 section 6.4.5
-     */
+    struct sLocalIfaceInfo {
+        std::string ifname;
+        ieee1905_1::eMediaType media_type;
+        bool is_wlan;
+        /* The following applies only to WLAN interfaces */
+        bool is_backhaul;
+        uint8_t ap_chan_bw;
+        uint8_t ap_chan_index1;
+        uint8_t ap_chan_index2;
+    };
 
-    /**
-     * Add a LocalInterfaceInfo field for the wired interface, if any.
+    /*
+     * To store the interfaces' information before adding them to the TLV.
+     * The key is the MAC address of the interface. That is, a new interface
+     * added with the same MAC address will override the previous one, ensuring
+     * that we do not include multiple entries with the same MAC address in the TLV.
      */
-    auto fill_eth_device_information = [&](const std::string &local_eth_iface_name) {
-        if (!network_utils::linux_iface_is_up_and_running(local_eth_iface_name)) {
-            LOG(INFO) << "Interface is down iface_name: " << local_eth_iface_name;
-        }
-        ieee1905_1::eMediaType media_type = ieee1905_1::eMediaType::UNKNOWN_MEDIA;
-        if (!MediaType::get_media_type(local_eth_iface_name,
-                                       ieee1905_1::eMediaTypeGroup::IEEE_802_3, media_type)) {
-            LOG(ERROR) << "Unable to compute media type for interface " << local_eth_iface_name;
+    std::unordered_map<sMacAddr, sLocalIfaceInfo> iface_map;
+
+    auto add_non_wlan_iface_to_iface_map = [&](const std::string &ifname) {
+        std::string mac_str;
+        if (!network_utils::linux_iface_get_mac(ifname, mac_str)) {
+            LOG(WARNING) << "Failed getting MAC address for interface: " << ifname;
             return false;
         }
 
-        std::shared_ptr<ieee1905_1::cLocalInterfaceInfo> localInterfaceInfo =
-            tlvDeviceInformation->create_local_interface_list();
+        ieee1905_1::eMediaType media_type = ieee1905_1::eMediaType::UNKNOWN_MEDIA;
+        if (!MediaType::get_media_type(ifname, ieee1905_1::eMediaTypeGroup::IEEE_802_3,
+                                       media_type)) {
+            LOG(WARNING) << "Unable to compute media type for interface " << ifname;
+            return false;
+        }
 
-        // default to zero mac if get_mac fails.
-        std::string eth_iface_mac = network_utils::ZERO_MAC_STRING;
-        network_utils::linux_iface_get_mac(local_eth_iface_name, eth_iface_mac);
-        localInterfaceInfo->mac()               = tlvf::mac_from_string(eth_iface_mac);
-        localInterfaceInfo->media_type()        = media_type;
-        localInterfaceInfo->media_info_length() = 0;
+        sLocalIfaceInfo info = {
+            .ifname     = ifname,
+            .media_type = media_type,
+            .is_wlan    = false,
+        };
 
-        tlvDeviceInformation->add_local_interface_list(localInterfaceInfo);
+        iface_map[tlvf::mac_from_string(mac_str)] = info;
+
         return true;
     };
 
-    // Add WAN interface
-    if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
-        if (!fill_eth_device_information(db->ethernet.wan.iface_name)) {
-            // Error message inside the lambda function.
-            return false;
-        }
+    /* Add bridge interfaces to iface_map */
+    auto bridges = network_utils::linux_get_bridges();
+    for (const auto &bridge : bridges) {
+        add_non_wlan_iface_to_iface_map(bridge);
     }
 
-    // Add LAN interfaces
-    for (const auto &lan_iface_info : db->ethernet.lan) {
-        if (!fill_eth_device_information(lan_iface_info.iface_name)) {
-            // Error message inside the lambda function.
-            return false;
-        }
+    /* Add LAN interfaces to iface_map */
+    for (const auto &lan_iface : db->ethernet.lan) {
+        add_non_wlan_iface_to_iface_map(lan_iface.iface_name);
     }
 
-    /**
-     * Add a LocalInterfaceInfo field for each wireless interface.
-     */
+    /* Add non-physical interfaces to iface_map */
+    auto non_physical_interfaces = network_utils::linux_get_non_physical_interfaces();
+    for (const auto &iface : non_physical_interfaces) {
+        add_non_wlan_iface_to_iface_map(iface);
+    }
+
+    /* Add wlan interfaces to iface_map */
     for (const auto radio : db->get_radios_list()) {
         if (!radio) {
             continue;
         }
 
-        // Iterate on front radio iface and then switch to back radio iface
-        auto fill_radio_iface_info = [&](ieee1905_1::eMediaType media_type, bool front_iface) {
-            LOG(DEBUG) << "adding " << (front_iface ? "fronthaul" : "backhaul ") << " interface "
-                       << (front_iface ? radio->front.iface_name : radio->back.iface_name)
-                       << " to local interface list";
-
-            if ((front_iface && radio->front.iface_mac == network_utils::ZERO_MAC) ||
-                (!front_iface && radio->back.iface_mac == network_utils::ZERO_MAC)) {
-                return true;
-            }
-
-            // Skip Backhaul iteration iface when STA BWL is not allocated (Eth connection or GW).
-            if (!front_iface && (db->device_conf.local_gw ||
-                                 radio->back.iface_name != db->backhaul.selected_iface_name)) {
-                LOG(TRACE) << "Skip radio interface with no active STA BWL, front_radio="
-                           << radio->front.iface_name << ", back_radio=" << radio->back.iface_name;
-                return true;
-            }
-
-            auto fill_bss_info = [&](ieee1905_1::eMediaType media_type, const sMacAddr &mac,
-                                     bool front_iface) {
-                auto localInterfaceInfo = tlvDeviceInformation->create_local_interface_list();
-
-                localInterfaceInfo->mac()        = mac;
-                localInterfaceInfo->media_type() = media_type;
-
-                ieee1905_1::s802_11SpecificInformation media_info = {};
-                localInterfaceInfo->alloc_media_info(sizeof(media_info));
-
-                // BSSID field is not defined well for interface. The common definition is in simple
-                // words "the AP/ETH mac that we are connected to".
-                // For fronthaul radio interface or unused backhaul interface put zero mac.
-                if (db->device_conf.local_gw ||
-                    db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired ||
-                    front_iface ||
-                    (db->backhaul.connection_type ==
-                         AgentDB::sBackhaul::eConnectionType::Wireless &&
-                     radio->back.iface_name != db->backhaul.selected_iface_name)) {
-                    media_info.network_membership = network_utils::ZERO_MAC;
-                } else {
-                    if (db->backhaul.connection_type ==
-                            AgentDB::sBackhaul::eConnectionType::Wireless &&
-                        radio->back.iface_name == db->backhaul.selected_iface_name) {
-                        // backhaul STA
-                        media_info.network_membership = db->backhaul.backhaul_bssid;
-                    } else {
-                        media_info.network_membership = radio->back.iface_mac;
-                    }
-                }
-
-                media_info.role =
-                    front_iface ? ieee1905_1::eRole::AP : ieee1905_1::eRole::NON_AP_NON_PCP_STA;
-
-                media_info.ap_channel_bandwidth =
-                    convert_bandwidth(radio->wifi_channel.get_bandwidth());
-                media_info.ap_channel_center_frequency_index1 = radio->wifi_channel.get_channel();
-                media_info.ap_channel_center_frequency_index2 =
-                    radio->wifi_channel.get_center_frequency_2();
-
-                auto *media_info_ptr = localInterfaceInfo->media_info(0);
-                if (media_info_ptr == nullptr) {
-                    LOG(ERROR) << "media_info is nullptr";
-                    return false;
-                }
-
-                std::copy_n(reinterpret_cast<uint8_t *>(&media_info), sizeof(media_info),
-                            media_info_ptr);
-
-                LOG(DEBUG) << "Adding " << (front_iface ? "fronthaul" : "backhaul") << " BSS "
-                           << mac << " media type: " << media_type
-                           << " group: " << tlvf::print_media_type_group((media_type >> 8))
-                           << " info length: " << sizeof(media_info);
-                tlvDeviceInformation->add_local_interface_list(localInterfaceInfo);
-                return true;
-            };
-
-            if (front_iface) {
-                for (beerocks::AgentDB::sRadio::sFront::sBssid &bssid : radio->front.bssids) {
-                    if ((bssid.mac != network_utils::ZERO_MAC) && !bssid.ssid.empty()) {
-                        fill_bss_info(media_type, bssid.mac, front_iface);
-                    }
-                }
-            } else {
-                fill_bss_info(media_type, radio->back.iface_mac, front_iface);
-            }
-            return true;
-        };
-
-        std::string &local_radio_iface_name = radio->front.iface_name;
-
         ieee1905_1::eMediaTypeGroup media_type_group = ieee1905_1::eMediaTypeGroup::IEEE_802_11;
         ieee1905_1::eMediaType media_type            = ieee1905_1::eMediaType::UNKNOWN_MEDIA;
-        if (!MediaType::get_media_type(local_radio_iface_name, media_type_group, media_type)) {
-            LOG(ERROR) << "Unable to compute media type for interface " << local_radio_iface_name;
-            return false;
+        if (!MediaType::get_media_type(radio->back.iface_name, media_type_group, media_type)) {
+            LOG(WARNING) << "Unable to compute media type for radio " << radio->back.iface_name;
+            continue;
         }
 
-        if (!fill_radio_iface_info(media_type, true)) {
-            LOG(DEBUG) << "filling interface information on radio=" << radio->front.iface_name
-                       << " has failed!";
-            return false;
+        sLocalIfaceInfo info = {
+            .ifname         = radio->back.iface_name,
+            .media_type     = media_type,
+            .is_wlan        = true,
+            .is_backhaul    = true,
+            .ap_chan_bw     = convert_bandwidth(radio->wifi_channel.get_bandwidth()),
+            .ap_chan_index1 = radio->wifi_channel.get_channel(),
+            .ap_chan_index2 = static_cast<uint8_t>(radio->wifi_channel.get_center_frequency_2())};
+
+        std::string bh_mac_str;
+        if (!network_utils::linux_iface_get_mac(radio->back.iface_name, bh_mac_str)) {
+            LOG(WARNING) << "Failed getting MAC address for bh interface: "
+                         << radio->back.iface_name;
+            continue;
         }
 
-        if (!fill_radio_iface_info(media_type, false)) {
-            LOG(DEBUG) << "filling interface information on radio=" << radio->back.iface_name
-                       << " backhaul has failed!";
-            return false;
+        /* backhaul interface */
+        iface_map[tlvf::mac_from_string(bh_mac_str)] = info;
+
+        /* fronthaul interfaces */
+        for (beerocks::AgentDB::sRadio::sFront::sBssid &bssid : radio->front.bssids) {
+            if ((bssid.mac != network_utils::ZERO_MAC) && !bssid.ssid.empty()) {
+                info.ifname          = bssid.iface_name;
+                info.is_backhaul     = false;
+                iface_map[bssid.mac] = info;
+            }
         }
     }
+
+    /* Add all local interfaces to TLV */
+    for (const auto &iface : iface_map) {
+        auto localInterfaceInfo = tlvDeviceInformation->create_local_interface_list();
+
+        localInterfaceInfo->mac()        = iface.first;
+        localInterfaceInfo->media_type() = iface.second.media_type;
+
+        if (iface.second.is_wlan) {
+            ieee1905_1::s802_11SpecificInformation media_info = {};
+            localInterfaceInfo->alloc_media_info(sizeof(media_info));
+
+            if (iface.second.is_backhaul) {
+                const bool is_wired_bh =
+                    db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired;
+
+                const bool is_wireless_bh_mismatch =
+                    (db->backhaul.connection_type ==
+                     AgentDB::sBackhaul::eConnectionType::Wireless) &&
+                    (iface.second.ifname != db->backhaul.selected_iface_name);
+
+                media_info.network_membership = (is_wired_bh || is_wireless_bh_mismatch)
+                                                    ? network_utils::ZERO_MAC
+                                                    : db->backhaul.backhaul_bssid;
+                media_info.role = ieee1905_1::eRole::AP;
+            } else {
+                media_info.network_membership = iface.first;
+                media_info.role               = ieee1905_1::eRole::NON_AP_NON_PCP_STA;
+            }
+
+            media_info.ap_channel_bandwidth               = iface.second.ap_chan_bw;
+            media_info.ap_channel_center_frequency_index1 = iface.second.ap_chan_index1;
+            media_info.ap_channel_center_frequency_index2 = iface.second.ap_chan_index2;
+
+            uint8_t *media_info_ptr = localInterfaceInfo->media_info(0);
+            if (media_info_ptr == nullptr) {
+                LOG(ERROR) << "media_info is nullptr";
+                return false;
+            }
+
+            std::copy_n(reinterpret_cast<uint8_t *>(&media_info), sizeof(media_info),
+                        media_info_ptr);
+        } else {
+            localInterfaceInfo->media_info_length() = 0;
+        }
+
+        tlvDeviceInformation->add_local_interface_list(localInterfaceInfo);
+    }
+
     return true;
 }
 
