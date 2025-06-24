@@ -1874,22 +1874,23 @@ bool db::set_eht_operations(wfa_map::tlvEHTOperations &eht_ops_tlv, const sMacAd
     return ret_val;
 }
 
-Agent::sAPMLD *db::get_or_allocate_ap_mld(const sMacAddr &al_mac, std::string &ssid)
+Agent::sAPMLD *db::get_or_allocate_ap_mld(const sMacAddr &al_mac, const sMacAddr &mld_mac)
 {
     auto agent = m_agents.get(al_mac);
 
-    // Check SSID match
-    auto ap_mld = agent->ap_mlds.find(ssid);
+    // Check MLD MAC match
+    auto ap_mld = agent->ap_mlds.find(mld_mac);
 
     if (ap_mld != agent->ap_mlds.end()) {
-        // Return ApMld of matched SSID
-        LOG(DEBUG) << "AP MLD with SSID: " << ssid << " found.";
+        // Return ApMld of matched MLD MAC
+        LOG(DEBUG) << "AP MLD with MLD MAC: " << mld_mac << " found.";
         return &(ap_mld->second);
     } else {
-        agent->ap_mlds[ssid] = Agent::sAPMLD();
+        agent->ap_mlds[mld_mac] = Agent::sAPMLD();
         // Return new AP MLD
-        LOG(DEBUG) << "AP MLD with SSID: " << ssid << " not found. Creating new AP MLD entry.";
-        return &(agent->ap_mlds[ssid]);
+        LOG(DEBUG) << "AP MLD with MLD MAC: " << mld_mac
+                   << " not found. Creating new AP MLD entry.";
+        return &(agent->ap_mlds[mld_mac]);
     }
 }
 
@@ -1955,7 +1956,8 @@ bool db::dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &ap_mld)
                 m_ambiorix_datamodel->add_instance(ap_mld.dm_path + ".AffiliatedAP");
             if (affiliated_ap.dm_path.empty()) {
                 LOG(ERROR) << "Failed to add Affiliated AP on AP MLD with ssid: "
-                           << ap_mld.mld_info.mld_ssid;
+                           << ap_mld.mld_info.mld_ssid
+                           << " and MLD MAC: " << ap_mld.mld_info.mld_mac;
                 return false;
             }
         }
@@ -1969,14 +1971,14 @@ bool db::dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &ap_mld)
     return true;
 }
 
-bool db::dm_remove_ap_mld(const sMacAddr &al_mac, const std::string &ssid)
+bool db::dm_remove_ap_mld(const sMacAddr &al_mac, const sMacAddr &mld_mac)
 {
     auto agent = m_agents.get(al_mac);
 
-    // Check SSID match
-    auto ap_mld = agent->ap_mlds.find(ssid);
+    // Check MLD MAC match
+    auto ap_mld = agent->ap_mlds.find(mld_mac);
 
-    // Remove ApMld of matched SSID
+    // Remove ApMld of matched MLD MAC
     if (ap_mld != agent->ap_mlds.end()) {
         auto apmld = ap_mld->second;
         // Remove Data Model
@@ -1989,13 +1991,13 @@ bool db::dm_remove_ap_mld(const sMacAddr &al_mac, const std::string &ssid)
     return true;
 }
 
-bool db::dm_remove_affiliated_ap(const sMacAddr &al_mac, const std::string &ssid,
+bool db::dm_remove_affiliated_ap(const sMacAddr &al_mac, const sMacAddr &mld_mac,
                                  const sMacAddr &ruid)
 {
     auto agent = m_agents.get(al_mac);
 
-    // Check SSID match
-    auto ap_mld = agent->ap_mlds.find(ssid);
+    // Check MLD MAC match
+    auto ap_mld = agent->ap_mlds.find(mld_mac);
 
     if (ap_mld != agent->ap_mlds.end()) {
         auto apmld = ap_mld->second;
