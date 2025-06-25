@@ -538,147 +538,141 @@ void BackhaulManager::platform_notify_error(bpl::eErrorCode code, const std::str
     m_platform_manager_client->send_cmdu(cmdu_tx);
 }
 
-bool BackhaulManager::finalize_slaves_connect_state(bool fConnected)
+bool BackhaulManager::handle_backhaul_connect()
 {
-    LOG(TRACE) << __func__ << ": fConnected=" << fConnected;
-    // Backhaul Connected Notification
-    if (fConnected) {
+    // Build the notification message
+    auto notification =
+        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_CONNECTED_NOTIFICATION>(
+            cmdu_tx);
 
-        // Build the notification message
-        auto notification = message_com::create_vs_message<
-            beerocks_message::cACTION_BACKHAUL_CONNECTED_NOTIFICATION>(cmdu_tx);
-
-        if (notification == nullptr) {
-            LOG(ERROR) << "Failed building message!";
-            return false;
-        }
-
-        auto db = AgentDB::get();
-
-        beerocks::net::network_utils::iface_info iface_info;
-
-        LOG_IF(!db->device_conf.local_controller && db->backhaul.selected_iface_name.empty(), FATAL)
-            << "selected_iface_name is empty";
-
-        // Update the backhaul BSSID on the AgentDB and detach from any sta_bwl not used for
-        // by wireless connection:
-
-        // Initialize backhaul bssid to empty in case in the connected type is wired. If it is not,
-        // will be overriden in the loop below.
-        db->backhaul.backhaul_bssid = {};
-
-        for (auto &radio_info : m_radios_info) { // Detach from unused stations first
-            if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
-                radio_info->sta_iface == db->backhaul.selected_iface_name) {
-                continue;
-            } else {
-                clear_radio_handlers(radio_info);
-                if (radio_info->sta_wlan_hal) {
-                    radio_info->sta_wlan_hal.reset();
-                }
-            }
-        }
-
-        for (auto &radio_info : m_radios_info) {
-            if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
-                radio_info->sta_iface == db->backhaul.selected_iface_name) {
-                LOG_IF(!radio_info->sta_wlan_hal, FATAL) << "selected sta_hal is nullptr";
-                db->backhaul.backhaul_bssid =
-                    tlvf::mac_from_string(radio_info->sta_wlan_hal->get_bssid());
-
-                if (!radio_info->sta_wlan_hal->unique_file_descriptors() &&
-                    radio_info->sta_hal_ext_events.empty()) {
-                    // previous iteration destroyed the sta_wlan_hal instances that are unused
-                    // if the FDs were registered with another sta_wlan_hal, re-register now
-
-                    // Internal Events FD is unique and registered during WPA_ATTACH state
-
-                    // External events
-                    int ext_event_fd_max           = -1;
-                    radio_info->sta_hal_ext_events = radio_info->sta_wlan_hal->get_ext_events_fds();
-                    LOG(INFO) << "sta_hal_ext_events " << &(radio_info->sta_hal_ext_events);
-                    if (radio_info->sta_hal_ext_events.empty()) {
-                        LOG(WARNING) << "This instance [" << radio_info->sta_iface
-                                     << "] of sta_wlan_hal should expose FDs";
-                        ext_event_fd_max = 0;
-                    } else {
-                        beerocks::EventLoop::EventHandlers ext_events_handlers{
-                            .name = "sta_hal_ext_events",
-                            .on_read =
-                                [radio_info](int fd, EventLoop &loop) {
-                                    if (!radio_info->sta_wlan_hal->process_ext_events(fd)) {
-                                        LOG(ERROR) << "process_ext_events(" << fd << ") failed!";
-                                        return false;
-                                    }
-                                    return true;
-                                },
-                            .on_write = nullptr,
-                            .on_disconnect =
-                                [radio_info](int fd, EventLoop &loop) {
-                                    LOG(ERROR) << "sta_hal_ext_events disconnected! on fd " << fd;
-                                    auto it = std::find(radio_info->sta_hal_ext_events.begin(),
-                                                        radio_info->sta_hal_ext_events.end(), fd);
-                                    if (it != radio_info->sta_hal_ext_events.end()) {
-                                        *it = beerocks::net::FileDescriptor::invalid_descriptor;
-                                    }
-                                    return false;
-                                },
-                            .on_error =
-                                [radio_info](int fd, EventLoop &loop) {
-                                    LOG(ERROR) << "sta_hal_ext_events error! on fd " << fd;
-                                    auto it = std::find(radio_info->sta_hal_ext_events.begin(),
-                                                        radio_info->sta_hal_ext_events.end(), fd);
-                                    if (it != radio_info->sta_hal_ext_events.end()) {
-                                        *it = beerocks::net::FileDescriptor::invalid_descriptor;
-                                    }
-                                    return false;
-                                },
-                        };
-                        for (auto &ext_event_fd : radio_info->sta_hal_ext_events) {
-                            if (ext_event_fd > 0) {
-                                if (!m_event_loop->register_handlers(ext_event_fd,
-                                                                     ext_events_handlers)) {
-                                    LOG(ERROR)
-                                        << "Unable to register handlers for external event fd "
-                                        << ext_event_fd;
-                                    return false;
-                                } else if (ext_event_fd < 0) {
-                                    ext_event_fd =
-                                        beerocks::net::FileDescriptor::invalid_descriptor;
-                                }
-                                LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
-                            }
-                            ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
-                        }
-                    }
-                    if (ext_event_fd_max < 0) {
-                        LOG(ERROR)
-                            << "Invalid external event file descriptors: " << ext_event_fd_max;
-                        return false;
-                        // beerocks_agent will not receive ACTION_BACKHAUL_CONNECTED_NOTIFICATION
-                    }
-                }
-            }
-        }
-
-        // Send the message
-        send_cmdu(m_agent_fd, cmdu_tx);
-        // Backhaul Disconnected Notification
-    } else {
-
-        auto notification = message_com::create_vs_message<
-            beerocks_message::cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION>(cmdu_tx);
-        if (notification == nullptr) {
-            LOG(ERROR) << "Failed building message!";
-            return false;
-        }
-
-        notification->stopped() =
-            (uint8_t)(configuration_stop_on_failure_attempts && !stop_on_failure_attempts);
-        LOG(DEBUG) << "Sending DISCONNECTED notification";
-        send_cmdu(m_agent_fd, cmdu_tx);
+    if (!notification) {
+        LOG(ERROR) << "Failed building message!";
+        return false;
     }
 
+    auto db = AgentDB::get();
+
+    LOG_IF(!db->device_conf.local_controller && db->backhaul.selected_iface_name.empty(), FATAL)
+        << "selected_iface_name is empty";
+
+    // Update the backhaul BSSID on the AgentDB and detach from any sta_bwl not used for
+    // by wireless connection:
+
+    // Initialize backhaul bssid to empty in case in the connected type is wired. If it is not,
+    // will be overriden in the loop below.
+    db->backhaul.backhaul_bssid = {};
+
+    for (auto &radio_info : m_radios_info) { // Detach from unused stations first
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+            radio_info->sta_iface == db->backhaul.selected_iface_name) {
+            continue;
+        } else {
+            clear_radio_handlers(radio_info);
+            if (radio_info->sta_wlan_hal) {
+                radio_info->sta_wlan_hal.reset();
+            }
+        }
+    }
+
+    for (auto &radio_info : m_radios_info) {
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+            radio_info->sta_iface == db->backhaul.selected_iface_name) {
+            LOG_IF(!radio_info->sta_wlan_hal, FATAL) << "selected sta_hal is nullptr";
+            db->backhaul.backhaul_bssid =
+                tlvf::mac_from_string(radio_info->sta_wlan_hal->get_bssid());
+
+            if (!radio_info->sta_wlan_hal->unique_file_descriptors() &&
+                radio_info->sta_hal_ext_events.empty()) {
+                // previous iteration destroyed the sta_wlan_hal instances that are unused
+                // if the FDs were registered with another sta_wlan_hal, re-register now
+
+                // Internal Events FD is unique and registered during WPA_ATTACH state
+
+                // External events
+                int ext_event_fd_max           = -1;
+                radio_info->sta_hal_ext_events = radio_info->sta_wlan_hal->get_ext_events_fds();
+                LOG(INFO) << "sta_hal_ext_events " << &(radio_info->sta_hal_ext_events);
+                if (radio_info->sta_hal_ext_events.empty()) {
+                    LOG(WARNING) << "This instance [" << radio_info->sta_iface
+                                 << "] of sta_wlan_hal should expose FDs";
+                    ext_event_fd_max = 0;
+                } else {
+                    beerocks::EventLoop::EventHandlers ext_events_handlers{
+                        .name = "sta_hal_ext_events",
+                        .on_read =
+                            [radio_info](int fd, EventLoop &loop) {
+                                if (!radio_info->sta_wlan_hal->process_ext_events(fd)) {
+                                    LOG(ERROR) << "process_ext_events(" << fd << ") failed!";
+                                    return false;
+                                }
+                                return true;
+                            },
+                        .on_write = nullptr,
+                        .on_disconnect =
+                            [radio_info](int fd, EventLoop &loop) {
+                                LOG(ERROR) << "sta_hal_ext_events disconnected! on fd " << fd;
+                                auto it = std::find(radio_info->sta_hal_ext_events.begin(),
+                                                    radio_info->sta_hal_ext_events.end(), fd);
+                                if (it != radio_info->sta_hal_ext_events.end()) {
+                                    *it = beerocks::net::FileDescriptor::invalid_descriptor;
+                                }
+                                return false;
+                            },
+                        .on_error =
+                            [radio_info](int fd, EventLoop &loop) {
+                                LOG(ERROR) << "sta_hal_ext_events error! on fd " << fd;
+                                auto it = std::find(radio_info->sta_hal_ext_events.begin(),
+                                                    radio_info->sta_hal_ext_events.end(), fd);
+                                if (it != radio_info->sta_hal_ext_events.end()) {
+                                    *it = beerocks::net::FileDescriptor::invalid_descriptor;
+                                }
+                                return false;
+                            },
+                    };
+                    for (auto &ext_event_fd : radio_info->sta_hal_ext_events) {
+                        if (ext_event_fd > 0) {
+                            if (!m_event_loop->register_handlers(ext_event_fd,
+                                                                 ext_events_handlers)) {
+                                LOG(ERROR) << "Unable to register handlers for external event fd "
+                                           << ext_event_fd;
+                                return false;
+                            } else if (ext_event_fd < 0) {
+                                ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+                            }
+                            LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
+                        }
+                        ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
+                    }
+                }
+                if (ext_event_fd_max < 0) {
+                    LOG(ERROR) << "Invalid external event file descriptors: " << ext_event_fd_max;
+                    return false;
+                    // beerocks_agent will not receive ACTION_BACKHAUL_CONNECTED_NOTIFICATION
+                }
+            }
+        }
+    }
+
+    // Send the message
+    send_cmdu(m_agent_fd, cmdu_tx);
+
+    return true;
+}
+
+bool BackhaulManager::handle_backhaul_disconnect()
+{
+    auto notification = message_com::create_vs_message<
+        beerocks_message::cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION>(cmdu_tx);
+    if (!notification) {
+        LOG(ERROR) << "Failed building message!";
+        return false;
+    }
+
+    notification->stopped() =
+        static_cast<uint8_t>(configuration_stop_on_failure_attempts && !stop_on_failure_attempts);
+
+    LOG(DEBUG) << "Sending DISCONNECTED notification";
+    send_cmdu(m_agent_fd, cmdu_tx);
     return true;
 }
 
@@ -858,7 +852,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             }
         }
 
-        finalize_slaves_connect_state(true);
+        handle_backhaul_connect();
         stop_on_failure_attempts = configuration_stop_on_failure_attempts;
 
         LOG(DEBUG) << "clearing blacklist";
@@ -957,7 +951,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             }
         }
 
-        finalize_slaves_connect_state(false); //send disconnect to all connected slaves
+        handle_backhaul_disconnect(); //send disconnect to all connected slaves
 
         // wait again for enable from each slave before proceeding to attach
         pending_slave_sta_ifaces.clear();
