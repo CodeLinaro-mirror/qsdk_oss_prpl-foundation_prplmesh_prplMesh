@@ -683,15 +683,18 @@ bool db::set_radio_channel_scan_capabilites(
     radio.scan_capabilities.scan_impact           = radio_capabilities.capabilities().scan_impact;
     radio.scan_capabilities.minimum_scan_interval = radio_capabilities.minimum_scan_interval();
 
-    std::stringstream ss;
+    std::ostringstream ss;
     ss << "on_boot_only=" << std::hex << int(radio.scan_capabilities.on_boot_only) << std::endl
        << "scan_impact=" << std::oct << int(radio.scan_capabilities.scan_impact) << std::endl
        << "minimum_scan_interval=" << int(radio.scan_capabilities.minimum_scan_interval)
        << std::endl;
+    LOG(DEBUG) << ss.str();
 
     auto operating_classes_list_length = radio_capabilities.operating_classes_list_length();
     auto &operating_classes            = radio.scan_capabilities.operating_classes;
     operating_classes.clear();
+
+    std::vector<uint8_t> op_class_channels;
 
     for (uint8_t oc_idx = 0; oc_idx < operating_classes_list_length; oc_idx++) {
         auto operating_class_tuple = radio_capabilities.operating_classes_list(oc_idx);
@@ -699,6 +702,8 @@ bool db::set_radio_channel_scan_capabilites(
             LOG(ERROR) << "getting operating class entry has failed!";
             return false;
         }
+        op_class_channels.clear();
+        ss.clear();
 
         auto &operating_class_struct = std::get<1>(operating_class_tuple);
         auto operating_class         = operating_class_struct.operating_class();
@@ -709,34 +714,40 @@ bool db::set_radio_channel_scan_capabilites(
         auto channel_list_length = operating_class_struct.channel_list_length();
 
         ss << ", channel_list={";
+        // ChannelScanCapabilities TLV : zero channels implies all channels of operating class
         if (channel_list_length == 0) {
-            ss << "}";
+            for (const auto &ch : op_class_chan_set) {
+                op_class_channels.push_back(ch);
+            }
+            ss << "OpClass(" << int(operating_class) << ")}";
+        } else {
+            // if channel_list_length != 0, store the channels reported by agent
+            for (int ch_idx = 0; ch_idx < channel_list_length; ch_idx++) {
+                auto channel = operating_class_struct.channel_list(ch_idx);
+                if (!channel) {
+                    LOG(ERROR) << "getting channel entry has failed!";
+                    return false;
+                }
+
+                // Check if channel is valid for operating class
+                if (op_class_chan_set.find(*channel) == op_class_chan_set.end()) {
+                    LOG(ERROR) << "Channel " << int(*channel) << " invalid for operating class "
+                               << int(operating_class);
+                    return false;
+                }
+
+                ss << int(*channel);
+                // add comma if not last channel in the list, else close list by add curl brackets
+                ss << (((ch_idx + 1) != channel_list_length) ? "," : "}");
+                op_class_channels.push_back(*channel);
+            }
         }
 
-        for (int ch_idx = 0; ch_idx < channel_list_length; ch_idx++) {
-            auto channel = operating_class_struct.channel_list(ch_idx);
-            if (!channel) {
-                LOG(ERROR) << "getting channel entry has failed!";
-                return false;
-            }
-
-            // Check if channel is valid for operating class
-            if (op_class_chan_set.find(*channel) == op_class_chan_set.end()) {
-                LOG(ERROR) << "Channel " << int(*channel) << " invalid for operating class "
-                           << int(operating_class);
-                return false;
-            }
-
-            ss << int(*channel);
-
-            // add comma if not last channel in the list, else close list by add curl brackets
-            ss << (((ch_idx + 1) != channel_list_length) ? "," : "}");
-
-            operating_classes[operating_class].push_back(*channel);
-        }
+        operating_classes[operating_class].assign(op_class_channels.begin(),
+                                                  op_class_channels.end());
+        ss << std::endl;
+        LOG(DEBUG) << ss.str();
     }
-    ss << std::endl;
-    LOG(DEBUG) << ss.str();
     return true;
 }
 
