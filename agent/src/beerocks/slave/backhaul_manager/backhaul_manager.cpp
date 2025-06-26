@@ -1658,6 +1658,10 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
             radio_info->radio_mac = radio->front.iface_mac;
         }
 
+        // Notify channel scan task that all ap_manager processes have joined.
+        m_task_pool.send_event(eTaskType::CHANNEL_SCAN,
+                               ChannelScanTask::eEvent::BACKHAUL_MANAGER_ENABLE);
+
         if (m_eFSMState >= EState::CONNECTED) {
         }
 
