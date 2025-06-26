@@ -31,7 +31,7 @@ public:
     struct sScanRequestEvent {
     };
 
-    enum eEvent : uint8_t { INDEPENDENT_SCAN_REQUEST };
+    enum eEvent : uint8_t { INDEPENDENT_SCAN_REQUEST, BACKHAUL_MANAGER_ENABLE };
 
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
 
@@ -97,7 +97,7 @@ private:
         uint8_t channel_number;
         eScanStatus scan_status;
         explicit sChannel(const uint8_t _channel_number,
-                          const eScanStatus _scan_status = eScanStatus::SUCCESS)
+                          const eScanStatus _scan_status = eScanStatus::SCAN_NOT_COMPLETED)
             : channel_number(_channel_number), scan_status(_scan_status)
         {
         }
@@ -262,6 +262,16 @@ private:
     bool handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac,
                                      const sMacAddr &radio_mac, const bool &send_results = false);
 
+    /**
+     * @brief Handle ChannelScanTask::eEvent::BACKHAUL_MANAGER_ENABLED as the last event in the series
+     * son_slave_thread :
+     *    if(AP_MANAGER(i)::Joined; Monitor(i)::Joined) { send BACKHAUL_ENABLE }
+     * the causality is 'radios are available for retrieving information about channel scan capabilities
+     * @param none
+     */
+
+    void handle_backhaul_enable_event();
+
     /* 1905.1 message responses: */
 
     /**
@@ -282,6 +292,24 @@ private:
      */
     std::shared_ptr<StoredResultsVector>
     get_scan_results_for_request(const std::shared_ptr<sScanRequest> request);
+
+    /**
+     * @brief Dump cached results in a compact format :
+     * "radio" $NAME channel $Number nbOfSSIDs $COUNT status $(1905 SCAN_STATUS)
+     */
+    void dump_cached_results(const std::shared_ptr<sRadioScan> radio_scan_info);
+
+    /**
+     * @brief Dump Agend DB scan results in a compact format :
+     * "radio" $NAME channel $Number nbOfSSIDs $COUNT status $(1905 SCAN_STATUS)
+     *
+     * sRadio.channel_scan_results
+     * @param[in] radio_name if not empty, dump only infor for matching sRadio.sFront.iface_name
+     * @param[in] channel_list if not empty, dump only channels that are provided in the vector
+     */
+    void
+    dump_agent_db_scan_results(const std::string &radio_name            = std::string{},
+                               const std::vector<uint8_t> &channel_list = std::vector<uint8_t>{});
 };
 
 } // namespace beerocks

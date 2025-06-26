@@ -22,6 +22,7 @@
 #include <tlvf/WSC/configData.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
+#include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 
@@ -338,12 +339,15 @@ public:
          */
         channel_preferences_map channel_preferences;
 
+        using eScanStatus = wfa_map::tlvProfile2ChannelScanResult::eScanStatus;
+
         // Key: Channel number
-        // Value: Pair containing:
+        // Value: Tuple containing:
+        //              Status for scan
         //              Timestamp of Scan request
         //              Vector of Neighboring APs as ChannelScanResults.
-        std::unordered_map<uint8_t, std::pair<std::chrono::system_clock::time_point,
-                                              std::vector<beerocks_message::sChannelScanResults>>>
+        std::unordered_map<uint8_t, std::tuple<eScanStatus, std::chrono::system_clock::time_point,
+                                               std::vector<beerocks_message::sChannelScanResults>>>
             channel_scan_results;
 
         // Associated clients grouped by Client MAC.
