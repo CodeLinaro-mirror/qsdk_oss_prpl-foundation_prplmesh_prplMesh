@@ -620,6 +620,18 @@ bool sta_wlan_hal_whm::enable_disable_ep(bool enable)
     return true;
 }
 
+sMacAddr sta_wlan_hal_whm::get_bsta_mld_mac()
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
+sMacAddr sta_wlan_hal_whm::get_ap_mld_mac()
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 bool sta_wlan_hal_whm::update_status()
 {
     Endpoint endpoint;

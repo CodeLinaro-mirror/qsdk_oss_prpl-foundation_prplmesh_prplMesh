@@ -243,6 +243,10 @@ public:
      */
     virtual std::string get_radio_mac() = 0;
 
+    virtual sMacAddr get_bsta_mld_mac() = 0;
+
+    virtual sMacAddr get_ap_mld_mac() = 0;
+
     /*!
      * Returns vap id using vap bssid.
      */

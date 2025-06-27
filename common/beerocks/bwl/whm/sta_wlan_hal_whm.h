@@ -69,6 +69,9 @@ public:
 
     virtual bool enable_disable_ep(bool enable) override;
 
+    virtual sMacAddr get_bsta_mld_mac() override;
+    virtual sMacAddr get_ap_mld_mac() override;
+
     const std::vector<int> &get_ext_events_fds() const;
     bool unique_file_descriptors() const { return false; }
 
