@@ -577,6 +577,22 @@ public:
         sMLDInfo mld_info;
         // Key: RUID
         std::unordered_map<sMacAddr, sAffiliatedAP> affiliated_aps;
+
+        struct sStaMLD {
+            explicit sStaMLD(const sMacAddr &mac_) : mac(mac_) {}
+            sMacAddr mac;
+            std::string dm_path;
+
+            struct sAffiliatedSta {
+                explicit sAffiliatedSta(const sMacAddr &mac_) : mac(mac_) {}
+                sMacAddr mac;
+                sMacAddr bssid;
+                std::string dm_path;
+            };
+            beerocks::mac_map<sAffiliatedSta> affiliated_stas;
+        };
+        beerocks::mac_map<sStaMLD> sta_mlds;
+
     } sAPMLD;
 
     // Key: MLD MAC

@@ -13,6 +13,7 @@
 #include "../db/db.h"
 #include "task.h"
 #include "task_pool.h"
+#include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvVbssConfigurationReport.h>
 
 #include <beerocks/tlvf/beerocks_message.h>
@@ -68,6 +69,10 @@ private:
      */
     void handle_dead_neighbors(const sMacAddr &src_mac, const sMacAddr &al_mac,
                                std::unordered_set<sMacAddr> reported_neighbor_al_macs);
+
+    void handle_backhaul_sta_mld_configuration_tlv(
+        const Agent &agent, std::shared_ptr<wfa_map::tlvBackhaulStaMldConfiguration>
+                                backhaul_sta_mld_configuration_tlv);
 
     db &database;
     ieee1905_1::CmduMessageTx &cmdu_tx;

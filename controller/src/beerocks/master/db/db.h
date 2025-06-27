@@ -2705,6 +2705,31 @@ public:
     bool dm_remove_affiliated_ap(const sMacAddr &al_mac, const sMacAddr &mld_mac,
                                  const sMacAddr &ruid);
 
+    /**
+     * @brief Set an MLD STA as Backhaul STA
+     * This sets IsbSTA for MLD STA in Device.WiFi.DataElements.Network.Device.{i}.APMLD.{i}.STAMLD.{i}.
+     *
+     * @param[in] sta_mld_mac MAC address of the STA MLD to set as Backhaul STA
+     *
+     * @return true if the STA MLD has been set as Backhaul STA
+     */
+    bool dm_set_isbsta(const sMacAddr &sta_mld_mac);
+
+    /**
+     * @brief Fill bSTAMLD node
+     *
+     * @param[in] agent Agent to which the STA MLD is connected
+     * @param[in] bsta_mld_mac MAC Address of the bSTA MLD
+     * @param[in] ap_mld_mac MAC Address of the AP MLD it is connected
+     * @param[in] affiliated_sta_list list of affiliated STAs
+     * @param[in] mld_mode configuration of bSTA MLD
+     *
+     * @return true if the bSTAMLD node has been filled
+     */
+    bool dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
+                            const sMacAddr &ap_mld_mac, const std::string &affiliated_bsta_list,
+                            const Agent::sMLDInfo::mode &mld_mode);
+
     //
     // tasks
     //
