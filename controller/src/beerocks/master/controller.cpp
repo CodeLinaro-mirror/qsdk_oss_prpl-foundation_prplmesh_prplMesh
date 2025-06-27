@@ -65,6 +65,7 @@
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvAssociatedWiFi6StaStatusReport.h>
+#include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
 #include <tlvf/wfa_map/tlvBssid.h>
@@ -1180,6 +1181,113 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
 }
 
 /**
+ * @brief add Backhaul STA MLD Configuration TLV to the current CMDU
+ *
+ *        Fill a tlvBackhaulStaMldConfiguration with the infos we stored in the bss and mld confs
+ *        SSID and modes will be retrieved from the mld confs and we use the matching bss confs
+ *        frequencies to match the corresponding radios and find the ruid to send in the tlv
+ *
+ * @param[in] database reference to the database
+ * @param[out] cmdu_tx the message containing the tlv
+ * @param[in] agent_mac mac of the agent that sent the autoconfiguration WSC message
+ * @return true on success
+ * @return false on failure
+ */
+static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                   const sMacAddr &agent_mac)
+{
+    auto bh_sta_mld_configuration = cmdu_tx.addClass<wfa_map::tlvBackhaulStaMldConfiguration>();
+
+    std::unordered_map<std::string, wireless_utils::sMldInfoConf> &mld_configuration(
+        database.get_mld_info_configuration());
+    const std::list<wireless_utils::sBssInfoConf> &bss_configuration(
+        database.get_bss_info_configuration(agent_mac));
+
+    auto agent = database.get_agent(agent_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent " << agent_mac << " doesn't exist";
+        return false;
+    }
+
+    std::string backhaul_ssid;
+    std::string backhaul_mld_id;
+    for (const auto &bss_conf : bss_configuration) {
+        if (backhaul_mld_id.empty() && !bss_conf.mld_id.empty() && bss_conf.backhaul &&
+            mld_configuration.find(bss_conf.mld_id) != mld_configuration.end() &&
+            !bss_conf.ssid.empty()) {
+            backhaul_ssid   = bss_conf.ssid;
+            backhaul_mld_id = bss_conf.mld_id;
+
+            bh_sta_mld_configuration->addr_valid().ap_mld_mac_addr_valid   = 0;
+            bh_sta_mld_configuration->addr_valid().bsta_mld_mac_addr_valid = 0;
+            bh_sta_mld_configuration->modes().str   = mld_configuration.at(backhaul_mld_id).str;
+            bh_sta_mld_configuration->modes().nstr  = mld_configuration.at(backhaul_mld_id).nstr;
+            bh_sta_mld_configuration->modes().emlsr = mld_configuration.at(backhaul_mld_id).emlsr;
+            bh_sta_mld_configuration->modes().emlmr = mld_configuration.at(backhaul_mld_id).emlmr;
+
+            LOG(DEBUG) << "Creating bSTA MLD configuration for " << backhaul_ssid << "\n"
+                       << "[ MLDID: " << backhaul_mld_id << "]\n"
+                       << "[ STR  : " << mld_configuration.at(backhaul_mld_id).str << "]\n"
+                       << "[ NSTR : " << mld_configuration.at(backhaul_mld_id).nstr << "]\n"
+                       << "[ EMLSR: " << mld_configuration.at(backhaul_mld_id).emlsr << "]\n"
+                       << "[ EMLMR: " << mld_configuration.at(backhaul_mld_id).emlmr << "]";
+        }
+
+        if (!backhaul_mld_id.empty() && bss_conf.mld_id == backhaul_mld_id &&
+            bss_conf.ssid == backhaul_ssid) {
+            auto bss_conf_freq =
+                son::wireless_utils::which_freq_op_cls(bss_conf.operating_class.front());
+
+            for (const auto &affiliated_radio : agent->radios) {
+                if (!affiliated_radio.second) {
+                    LOG(ERROR) << "Radio " << affiliated_radio.first << " doesn't exist";
+                    continue;
+                }
+
+                // Check if bss conf freq matches radio freq and EHT is supported
+                if (bss_conf_freq != affiliated_radio.second->band ||
+                    !affiliated_radio.second->eht_supported ||
+                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.str_support &&
+                     mld_configuration.at(backhaul_mld_id).str) ||
+                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.nstr_support &&
+                     mld_configuration.at(backhaul_mld_id).nstr) ||
+                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.emlsr_support &&
+                     mld_configuration.at(backhaul_mld_id).emlsr) ||
+                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.emlmr_support &&
+                     mld_configuration.at(backhaul_mld_id).emlmr)) {
+                    continue;
+                }
+
+                if (bh_sta_mld_configuration->num_affiliated_bsta() >=
+                    (agent->bsta_maximum_links + 1)) {
+                    LOG(ERROR) << "More Affiliated APs than  maximum links available ("
+                               << (agent->bsta_maximum_links + 1) << ")";
+                    break;
+                }
+
+                LOG(DEBUG) << "Adding radio " << affiliated_radio.first
+                           << " to bSTA MLD Configuration";
+                auto affiliated_bsta(bh_sta_mld_configuration->create_affiliated_bsta());
+                affiliated_bsta->affiliated_bsta_mac_addr_valid().is_valid = 0;
+                affiliated_bsta->ruid()                                    = affiliated_radio.first;
+
+                if (!bh_sta_mld_configuration->add_affiliated_bsta(affiliated_bsta)) {
+                    LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";
+                    return false;
+                }
+            }
+        }
+    }
+
+    if (backhaul_mld_id.empty()) {
+        LOG(DEBUG) << "No MLD BH found";
+        return true;
+    }
+
+    return true;
+}
+
+/**
  * @brief Parse AP-Autoconfiguration WSC which should include one AP Radio Basic Capabilities
  *        TLV and one WSC TLV containing M1. If this is Intel agent, it will also have vendor specific tlv.
  *
@@ -1348,6 +1456,14 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         agent_monitoring_task::add_traffic_policy_tlv(database, cmdu_tx, m1);
         agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
                                                                       m1->mac_addr());
+    }
+
+    if (radio->eht_supported) {
+        if (add_backhaul_sta_mld_configuration_tlv(database, cmdu_tx, m1->mac_addr())) {
+            LOG(INFO) << "Backhaul STA MLD Configuration TLV added";
+        } else {
+            LOG(ERROR) << "Couldn't add Backhaul STA MLD Configuration TLV";
+        }
     }
 
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
