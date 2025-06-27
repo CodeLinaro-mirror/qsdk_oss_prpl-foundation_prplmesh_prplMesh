@@ -1083,6 +1083,7 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
                               << " is non-operable";
                     if (preference_key.flags.reason_code < tmp_preference_key.flags.reason_code) {
                         preference_key.flags.reason_code = tmp_preference_key.flags.reason_code;
+                        break;
                     }
                 } else if (preference_key.flags.preference < tmp_preference_key.flags.preference) {
                     // Set as the highest preference in the beacon channels
