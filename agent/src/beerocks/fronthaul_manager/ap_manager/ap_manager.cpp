@@ -1885,8 +1885,10 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.authentication_type = config_data.authentication_type_attr().data;
             bss_info_conf.encryption_type     = config_data.encryption_type_attr().data;
             bss_info_conf.network_key         = config_data.network_key_str();
-            bss_info_conf.mld_id              = config_data.mld_id();
-            bss_info_conf.hidden_ssid         = config_data.hidden_ssid();
+            bss_info_conf.mld_id              = (config_data.mld_id() == DISABLED_MLDUNIT)
+                                       ? ""
+                                       : std::to_string(config_data.mld_id());
+            bss_info_conf.hidden_ssid = config_data.hidden_ssid();
 
             bss_info_conf_list.push_back(bss_info_conf);
         }

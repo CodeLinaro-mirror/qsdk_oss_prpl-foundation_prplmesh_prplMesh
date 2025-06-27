@@ -125,10 +125,29 @@ public:
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
         bool hidden_ssid                                  = false;
-        int8_t mld_id                                     = -1;
+        std::string mld_id                                = "";
         bool bSTA                                         = false;
     } sBssInfoConf;
 
+    typedef struct sMldInfoConf {
+        std::string ssid = "";
+        bool str         = false;
+        bool nstr        = false;
+        bool emlsr       = false;
+        bool emlmr       = false;
+
+        bool operator==(const struct sMldInfoConf &rhs) const
+        {
+            return (this->ssid == rhs.ssid) && (this->str == rhs.str) && (this->nstr == rhs.nstr) &&
+                   (this->emlsr == rhs.emlsr) && (this->emlmr == rhs.emlmr);
+        }
+
+        bool operator!=(const struct sMldInfoConf &rhs) const
+        {
+            return (this->ssid != rhs.ssid) || (this->str != rhs.str) || (this->nstr != rhs.nstr) ||
+                   (this->emlsr != rhs.emlsr) || (this->emlmr != rhs.emlmr);
+        }
+    } sMldInfoConf;
     typedef struct {
         uint16_t phy_rate_100kb;
         double bit_rate_max_mbps;

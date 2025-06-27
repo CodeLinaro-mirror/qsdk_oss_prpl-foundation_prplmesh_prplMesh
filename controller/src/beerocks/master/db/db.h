@@ -2111,6 +2111,27 @@ public:
     void clear_configured_bss_info(const sMacAddr &ruid);
 
     /**
+     * @brief Return mld_infos_global map with uid - MLD information.
+     */
+    std::unordered_map<std::string, wireless_utils::sMldInfoConf> &get_mld_info_configuration();
+
+    /**
+     * @brief Store MLD information in the mld_infos_global list.
+     *
+     * @param mld_info Structure with MLD information.
+     * @param mld_uid  Unique identifier of the MLD.
+     */
+    void add_mld_info_configuration(const wireless_utils::sMldInfoConf &mld_info,
+                                    std::string const &mld_uid);
+
+    /**
+     * @brief Delete MLD information in the mld_infos_global list.
+     * 
+     * @param mld_uid  Unique identifier of the MLD.
+     */
+    void del_mld_info_configuration(std::string const &mld_uid);
+
+    /**
      * @brief Store traffic separation policy for agent.
      *
      * @param[in] al_mac AL MAC address of agent.
@@ -3198,6 +3219,11 @@ private:
     std::shared_ptr<uint8_t> certification_tx_buffer;
     std::unordered_map<sMacAddr, std::list<wireless_utils::sBssInfoConf>> bss_infos; // key=al_mac
     std::list<wireless_utils::sBssInfoConf> bss_infos_global;
+
+    /**
+     * @brief This map holds MLD configurations for each MLD indentifier.
+     */
+    std::unordered_map<std::string, wireless_utils::sMldInfoConf> mld_infos_global;
 
     /**
      * @brief List of BSSs currently configured on the radio
