@@ -71,6 +71,9 @@ public:
 
     virtual bool enable_disable_ep(bool enable) override;
 
+    virtual sMacAddr get_bsta_mld_mac() override;
+    virtual sMacAddr get_ap_mld_mac() override;
+
 protected:
     virtual bool process_nl80211_event(parsed_obj_map_t &parsed_obj) override;
 
