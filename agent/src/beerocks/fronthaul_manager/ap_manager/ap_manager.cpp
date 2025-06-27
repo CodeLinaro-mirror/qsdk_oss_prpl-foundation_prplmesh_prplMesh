@@ -2249,7 +2249,23 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(ERROR) << "start_platform_acs failed!";
             return;
         }
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_MLD_UPDATE_REQUEST: {
+        auto request =
+            beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_MLD_UPDATE_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
 
+        LOG(DEBUG) << "handle ACTION_APMANAGER_MLD_UPDATE_REQUEST";
+
+        // Radio is already known in ap_wlan_hal context. What should be updated are the SSIDs with
+        // the same ssid of the corresponding radio ONLY as there can be multiple MLDs with the
+        // same SSIDs on other radio (ex: single links).
+        ap_wlan_hal->update_mld_mode(request->ssid(), request->mld_mode());
+        ap_wlan_hal->update_mld_unit(request->ssid(), request->mld_unit());
         break;
     }
     default: {

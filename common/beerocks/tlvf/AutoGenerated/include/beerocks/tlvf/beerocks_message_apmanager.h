@@ -1374,6 +1374,36 @@ class cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST : public BaseClass
         uint16_t* m_timeout = nullptr;
 };
 
+class cACTION_APMANAGER_MLD_UPDATE_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_MLD_UPDATE_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_MLD_UPDATE_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_MLD_UPDATE_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_MLD_UPDATE_REQUEST);
+        }
+        std::string ssid_str();
+        char* ssid(size_t length = 0);
+        bool set_ssid(const std::string& str);
+        bool set_ssid(const char buffer[], size_t size);
+        int8_t& mld_unit();
+        uint8_t& mld_mode();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        char* m_ssid = nullptr;
+        size_t m_ssid_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+        int8_t* m_mld_unit = nullptr;
+        uint8_t* m_mld_mode = nullptr;
+};
+
 }; // close namespace: beerocks_message
 
 #endif //_BEEROCKS/TLVF_BEEROCKS_MESSAGE_APMANAGER_H_

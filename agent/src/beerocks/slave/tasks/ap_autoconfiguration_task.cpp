@@ -1312,7 +1312,7 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_bsta_mld_configuration_tlv has failed!";
         return;
     }
-    if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, configs)) {
+    if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, configs, radio->front.iface_name)) {
         LOG(ERROR) << "handle_agent_ap_mld_configuration_tlv has failed!";
         return;
     }
@@ -1375,6 +1375,11 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
                                     bsta_mld_request.second.second);
     }
     bsta_mld_requests_infos.clear();
+    for (auto &ap_mld_request : ap_mld_requests_infos[radio->front.iface_name]) {
+        send_ap_mld_configuration(radio->front.iface_name, std::get<0>(ap_mld_request),
+                                  std::get<1>(ap_mld_request), std::get<2>(ap_mld_request));
+    }
+    ap_mld_requests_infos[radio->front.iface_name].clear();
 
     // Initialize for next state
     auto &radio_conf_params = m_radios_conf_params[radio->front.iface_name];
@@ -1918,112 +1923,148 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
     return true;
 }
 
-bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
-    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::configData::config> &configs)
+bool ApAutoConfigurationTask::send_ap_mld_configuration(const std::string &radio_iface,
+                                                        std::string ssid, int8_t mld_unit,
+                                                        uint8_t mld_mode)
 {
-    auto db(AgentDB::get());
-    db->ap_mld_configurations.clear();
-
-    auto agent_ap_mld_configuration(cmdu_rx.getClass<wfa_map::tlvAgentApMldConfiguration>());
-    if (!agent_ap_mld_configuration) {
-        LOG(DEBUG) << "No tlvAgentApMldConfiguration TLV received";
-        return true;
+    auto request =
+        message_com::create_vs_message<beerocks_message::cACTION_APMANAGER_MLD_UPDATE_REQUEST>(
+            m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed building message cACTION_APMANAGER_MLD_UPDATE_REQUEST!";
+        return false;
     }
 
-    for (uint8_t ap_mld_it = 0; ap_mld_it < agent_ap_mld_configuration->num_ap_mld(); ++ap_mld_it) {
+    request->set_ssid(ssid);
+    request->mld_unit() = mld_unit;
+    request->mld_mode() = mld_mode;
+    LOG(DEBUG) << "Send ACTION_APMANAGER_MLD_UPDATE_REQUEST (iface: " << radio_iface
+               << ", ssid: " << ssid << ", mld_unit: " << mld_unit;
+    auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio_iface);
+    if (!m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx)) {
+        LOG(ERROR) << "Can't send ACTION_APMANAGER_MLD_UPDATE_REQUEST";
+        return false;
+    }
+    return true;
+}
 
-        std::tuple<bool, wfa_map::cApMld &> ap_mld_tuple(
-            agent_ap_mld_configuration->ap_mld(ap_mld_it));
-        if (!std::get<0>(ap_mld_tuple)) {
-            LOG(ERROR) << "Couldn't get AP MLD from tlvAgentApMldConfiguration";
-            return false;
-        }
-        wfa_map::cApMld &ap_mld = std::get<1>(ap_mld_tuple);
+bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::configData::config> &configs,
+    const std::string &radio_iface)
+{
+    auto db(AgentDB::get());
+    bool ret_code(true);
+    db->ap_mld_configurations.clear();
+    std::unordered_map<int8_t, uint8_t> mld_mode_mapping;
 
-        std::string ssid(ap_mld.ssid_str());
-        if (ssid.empty()) {
-            LOG(ERROR) << "SSID is empty in tlvAgentApMldConfiguration";
-            return false;
-        }
+    auto agent_ap_mld_configuration(cmdu_rx.getClass<wfa_map::tlvAgentApMldConfiguration>());
+    if (agent_ap_mld_configuration) {
+        for (uint8_t ap_mld_it = 0; ap_mld_it < agent_ap_mld_configuration->num_ap_mld();
+             ++ap_mld_it) {
 
-        // Find existing MLD Config
-        AgentDB::sAPMLDConfiguration *current_ap_mld_conf = nullptr;
-        for (auto &ap_mld_conf : db->ap_mld_configurations) {
-            if (ssid == ap_mld_conf.mld_config.mld_ssid) {
-                LOG(DEBUG) << "AP MLD configuration already exists for SSID " << ssid;
-                current_ap_mld_conf = &ap_mld_conf;
-                break;
+            std::tuple<bool, wfa_map::cApMld &> ap_mld_tuple(
+                agent_ap_mld_configuration->ap_mld(ap_mld_it));
+            if (!std::get<0>(ap_mld_tuple)) {
+                LOG(ERROR) << "Couldn't get AP MLD from tlvAgentApMldConfiguration";
+                return false;
             }
-        }
-        // Insert new MLD Config
-        if (!current_ap_mld_conf) {
-            db->ap_mld_configurations.push_back(AgentDB::sAPMLDConfiguration());
-            current_ap_mld_conf                      = &(db->ap_mld_configurations.back());
-            current_ap_mld_conf->mld_config.mld_ssid = ssid;
-        }
-        // Find new MLD Unit
-        if (current_ap_mld_conf->mld_config.mld_unit == -1) {
-            std::unordered_set<int8_t> used_mld_units;
-            if (db->bsta_mld_configuration) {
-                used_mld_units.insert(db->bsta_mld_configuration->mld_config.mld_unit);
-            }
-            for (auto ap_mld_conf : db->ap_mld_configurations) {
-                used_mld_units.insert(ap_mld_conf.mld_config.mld_unit);
-            }
-            for (int8_t mld_unit = 0; mld_unit < db->max_mlds; ++mld_unit) {
-                if (used_mld_units.find(mld_unit) == used_mld_units.end()) {
-                    current_ap_mld_conf->mld_config.mld_unit = mld_unit;
-                    LOG(DEBUG) << "MLD Unit " << mld_unit << " has been assigned to AP MLD "
-                               << ssid;
-                    break;
-                }
-            }
-        }
+            wfa_map::cApMld &ap_mld = std::get<1>(ap_mld_tuple);
 
-        if (ap_mld.modes().str) {
-            current_ap_mld_conf->mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf->mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::STR);
-        }
-        if (ap_mld.modes().nstr) {
-            current_ap_mld_conf->mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf->mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::NSTR);
-        }
-        if (ap_mld.modes().emlsr) {
-            current_ap_mld_conf->mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf->mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::EMLSR);
-        }
-        if (ap_mld.modes().emlmr) {
-            current_ap_mld_conf->mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf->mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::EMLMR);
-        }
-
-        LOG(DEBUG) << "Storing MLD configuration for BSta MLD " << ssid
-                   << ": [MLD_Unit=" << current_ap_mld_conf->mld_config.mld_unit
-                   << ", MLD_Mode=" << std::hex << current_ap_mld_conf->mld_config.mld_mode << "]";
-
-        current_ap_mld_conf->affiliated_aps.clear();
-        for (uint8_t affiliated_ap_it = 0; affiliated_ap_it < ap_mld.num_affiliated_ap();
-             ++affiliated_ap_it) {
-            std::tuple<bool, wfa_map::cAffiliatedAp &> affiliated_ap_tuple(
-                ap_mld.affiliated_ap(affiliated_ap_it));
-            if (!std::get<0>(affiliated_ap_tuple)) {
-                LOG(ERROR) << "Couldn't get Affiliated AP from APMLD SSID : " << ssid;
+            std::string ssid(ap_mld.ssid_str());
+            if (ssid.empty()) {
+                LOG(ERROR) << "SSID is empty in tlvAgentApMldConfiguration";
                 return false;
             }
 
-            AgentDB::sAPMLDConfiguration::sAffiliatedAP affiliated_conf = {};
-            affiliated_conf.ruid = std::get<1>(affiliated_ap_tuple).ruid();
-            current_ap_mld_conf->affiliated_aps.push_back(affiliated_conf);
-        }
+            // Insert new MLD Config
+            db->ap_mld_configurations.push_back(AgentDB::sAPMLDConfiguration());
+            AgentDB::sAPMLDConfiguration &current_ap_mld_conf = db->ap_mld_configurations.back();
+            current_ap_mld_conf.mld_config.mld_ssid           = ssid;
 
-        for (auto &config : configs) {
-            if (config.ssid == ssid) {
-                config.mld_id = current_ap_mld_conf->mld_config.mld_unit;
+            // Find new MLD Unit
+            if (current_ap_mld_conf.mld_config.mld_unit == DISABLED_MLDUNIT) {
+                std::unordered_set<int8_t> used_mld_units;
+                if (db->bsta_mld_configuration) {
+                    used_mld_units.insert(db->bsta_mld_configuration->mld_config.mld_unit);
+                }
+                for (auto ap_mld_conf : db->ap_mld_configurations) {
+                    used_mld_units.insert(ap_mld_conf.mld_config.mld_unit);
+                }
+                for (int8_t mld_unit = 0; mld_unit < db->max_mlds; ++mld_unit) {
+                    if (used_mld_units.find(mld_unit) == used_mld_units.end()) {
+                        current_ap_mld_conf.mld_config.mld_unit = mld_unit;
+                        LOG(DEBUG)
+                            << "MLD Unit " << mld_unit << " has been assigned to AP MLD " << ssid;
+                        break;
+                    }
+                }
+            }
+
+            if (ap_mld.modes().str) {
+                current_ap_mld_conf.mld_config.mld_mode =
+                    AgentDB::sMLDConfiguration::mode(current_ap_mld_conf.mld_config.mld_mode |
+                                                     AgentDB::sMLDConfiguration::mode::STR);
+            }
+            if (ap_mld.modes().nstr) {
+                current_ap_mld_conf.mld_config.mld_mode =
+                    AgentDB::sMLDConfiguration::mode(current_ap_mld_conf.mld_config.mld_mode |
+                                                     AgentDB::sMLDConfiguration::mode::NSTR);
+            }
+            if (ap_mld.modes().emlsr) {
+                current_ap_mld_conf.mld_config.mld_mode =
+                    AgentDB::sMLDConfiguration::mode(current_ap_mld_conf.mld_config.mld_mode |
+                                                     AgentDB::sMLDConfiguration::mode::EMLSR);
+            }
+            if (ap_mld.modes().emlmr) {
+                current_ap_mld_conf.mld_config.mld_mode =
+                    AgentDB::sMLDConfiguration::mode(current_ap_mld_conf.mld_config.mld_mode |
+                                                     AgentDB::sMLDConfiguration::mode::EMLMR);
+            }
+
+            LOG(DEBUG) << "Storing MLD configuration for BSta MLD " << ssid
+                       << ": [MLD_Unit=" << current_ap_mld_conf.mld_config.mld_unit
+                       << ", MLD_Mode=" << std::hex << current_ap_mld_conf.mld_config.mld_mode
+                       << "]";
+
+            current_ap_mld_conf.affiliated_aps.clear();
+            for (uint8_t affiliated_ap_it = 0; affiliated_ap_it < ap_mld.num_affiliated_ap();
+                 ++affiliated_ap_it) {
+                std::tuple<bool, wfa_map::cAffiliatedAp &> affiliated_ap_tuple(
+                    ap_mld.affiliated_ap(affiliated_ap_it));
+                if (!std::get<0>(affiliated_ap_tuple)) {
+                    LOG(ERROR) << "Couldn't get Affiliated AP from APMLD SSID : " << ssid;
+                    return false;
+                }
+
+                AgentDB::sAPMLDConfiguration::sAffiliatedAP affiliated_conf;
+                affiliated_conf.ruid = std::get<1>(affiliated_ap_tuple).ruid();
+                current_ap_mld_conf.affiliated_aps.push_back(affiliated_conf);
+            }
+
+            for (auto &config : configs) {
+                if (config.ssid == ssid) {
+                    config.mld_id = current_ap_mld_conf.mld_config.mld_unit;
+                    mld_mode_mapping[current_ap_mld_conf.mld_config.mld_unit] =
+                        static_cast<uint8_t>(current_ap_mld_conf.mld_config.mld_mode);
+                }
             }
         }
+    } else {
+        LOG(DEBUG) << "No tlvAgentAPConfiguration TLV received";
     }
 
-    return true;
+    std::unordered_set<int8_t> handled_mlds;
+    for (auto &config : configs) {
+        if (config.mld_id != DISABLED_MLDUNIT &&
+            handled_mlds.find(config.mld_id) == handled_mlds.end() &&
+            mld_mode_mapping.find(config.mld_id) != mld_mode_mapping.end()) {
+            // Save temporarily AP MLD configuration to send it later
+            ap_mld_requests_infos[radio_iface].push_back(
+                {config.ssid, config.mld_id, mld_mode_mapping[config.mld_id]});
+            handled_mlds.insert(config.mld_id);
+        }
+    }
+    return ret_code;
 }
 
 bool ApAutoConfigurationTask::send_bsta_configuration(const sMacAddr &radio_mac,
@@ -2119,7 +2160,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(
         LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, "
                    << "send ACTION_BACKHAUL_MLD_UPDATE_REQUEST to BH manager with -1";
         return send_bsta_mld_configuration(
-            ruid, DISABLED_MLD_UNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE),
+            ruid, DISABLED_MLDUNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE),
             initialization);
     }
 
@@ -2127,7 +2168,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(
         db->bsta_mld_configuration = std::make_unique<AgentDB::sBStaMLDConfiguration>();
     }
     // Find new MLD Unit
-    if (db->bsta_mld_configuration->mld_config.mld_unit == DISABLED_MLD_UNIT) {
+    if (db->bsta_mld_configuration->mld_config.mld_unit == DISABLED_MLDUNIT) {
         std::unordered_set<int8_t> used_mld_units;
         if (db->bsta_mld_configuration) {
             used_mld_units.insert(db->bsta_mld_configuration->mld_config.mld_unit);
@@ -2176,7 +2217,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(
         LOG(DEBUG) << "All MLO modes are disabled, "
                    << "send ACTION_BACKHAUL_MLD_UPDATE_REQUEST to BH manager with -1";
         return send_bsta_mld_configuration(
-            ruid, DISABLED_MLD_UNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE),
+            ruid, DISABLED_MLDUNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE),
             initialization);
     }
 

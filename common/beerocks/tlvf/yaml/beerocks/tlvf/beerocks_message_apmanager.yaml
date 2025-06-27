@@ -317,3 +317,13 @@ cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST:
   _type: class
   sta_mac: sMacAddr
   timeout: uint16_t
+
+cACTION_APMANAGER_MLD_UPDATE_REQUEST:
+  _type: class
+  ssid:
+    _type: char
+    _length: [32]
+  mld_unit:
+    _type: int8_t
+  mld_mode:
+    _type: uint8_t

@@ -129,6 +129,9 @@ private:
 
     // <RUID, <mld_unit, mld_mode>>
     std::unordered_map<sMacAddr, std::pair<int8_t, uint8_t>> bsta_mld_requests_infos;
+    // <iface, <<ssid, mld_unit, mld_mode>>>
+    std::unordered_map<std::string, std::vector<std::tuple<std::string, int8_t, uint8_t>>>
+        ap_mld_requests_infos;
 
     /* Message handlers: */
 
@@ -178,9 +181,11 @@ private:
                            std::unordered_set<std::string> &misconfigured_ssids);
     bool handle_wsc_m8_tlv(const std::string &radio_iface, std::shared_ptr<WSC::m8> m8,
                            std::vector<WSC::configData::config> &configs);
+    bool send_ap_mld_configuration(const std::string &radio_iface, std::string ssid,
+                                   int8_t mld_unit, uint8_t mld_mode);
     bool handle_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                               std::vector<WSC::configData::config> &configs);
-
+                                               std::vector<WSC::configData::config> &configs,
+                                               const std::string &radio_iface);
     bool send_bsta_mld_configuration(const sMacAddr &ruid, int8_t mld_unit, uint8_t mld_mode,
                                      bool initilaization = false);
     bool handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
