@@ -1747,6 +1747,7 @@ bool db::set_wifi7_agent_capabilities(wfa_map::tlvWifi7AgentCapabilities &wifi7_
         return false;
     }
 
+    agent->max_num_mlds     = static_cast<uint8_t>(wifi7_agt_caps_tlv.max_num_mlds());
     agent->ap_maximum_links = static_cast<uint8_t>(wifi7_agt_caps_tlv.flags1().ap_maximum_links);
     agent->bsta_maximum_links =
         static_cast<uint8_t>(wifi7_agt_caps_tlv.flags1().bsta_maximum_links);

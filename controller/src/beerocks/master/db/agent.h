@@ -582,6 +582,7 @@ public:
     // Key: MLD MAC
     std::unordered_map<sMacAddr, sAPMLD> ap_mlds;
 
+    uint8_t max_num_mlds       = 0;
     uint8_t ap_maximum_links   = 0;
     uint8_t bsta_maximum_links = 0;
 
