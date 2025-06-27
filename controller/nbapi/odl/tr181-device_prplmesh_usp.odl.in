@@ -1,0 +1,9 @@
+%config {
+    %global usp.translate = {
+        "'@DATAELEMENTS_ROOT_DM@.'" = "Device.WiFi.DataElements."
+    };
+
+    %global backend-dir = [ "/usr/bin/mods/usp", "/usr/bin/mods/amxb" ];
+
+    %global usp.connect-retry = true;
+}
