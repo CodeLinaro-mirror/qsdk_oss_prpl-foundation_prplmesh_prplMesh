@@ -497,7 +497,6 @@ constexpr int CHANNEL_SCAN_INVALID_PARAM = -1;
 constexpr int SCAN_ALL_CHANNELS          = 0;
 
 constexpr int PARAMETER_NOT_CONFIGURED = -1;
-constexpr int8_t DISABLED_MLD_UNIT     = -1;
 
 // array of allowed ifname prefix strings
 static const char *const ifname_prefix_list[] = {"wlan", "wl"};

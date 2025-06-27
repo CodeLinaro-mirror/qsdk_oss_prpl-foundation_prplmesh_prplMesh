@@ -128,6 +128,8 @@ public:
         son::wireless_utils::sSpatialReuseParams &spatial_reuse_params) override;
     virtual bool change_radio_mode_config(
         const airties::tlvAirtiesRadioCapability::sStandards &operating_standards) override;
+    virtual bool update_mld_mode(std::string ssid_alias, uint8_t mld_unit) override;
+    virtual bool update_mld_unit(std::string ssid_alias, int8_t mld_unit) override;
 
     virtual bool configure_service_priority(const uint8_t *data) override;
     virtual bool

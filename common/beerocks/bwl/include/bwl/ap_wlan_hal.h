@@ -624,6 +624,24 @@ public:
     virtual bool change_radio_mode_config(
         const airties::tlvAirtiesRadioCapability::sStandards &operating_standards) = 0;
 
+    /**
+     * @brief Set MLDMode in DM
+     * 
+     * @param iface_name interface name to get the SSID assocaited to mld_unit
+     * @param mld_mode mld mode to be set
+     * @return true if MLDMode is set correctly, false otherwise.
+     */
+    virtual bool update_mld_mode(std::string ssid, uint8_t mld_mode) = 0;
+
+    /**
+     * @brief Set MLDUnit in DM
+     * 
+     * @param iface_name interface name to get the SSID assocaited to mld_unit
+     * @param mld_unit mld unit to be set
+     * @return true if MLDUnit is set correctly, false otherwise.
+     */
+    virtual bool update_mld_unit(std::string ssid, int8_t mld_unit) = 0;
+
 private:
     static const int frame_body_idx = (sizeof(s80211MgmtFrame::sHeader) * 2);
 

@@ -1959,6 +1959,20 @@ bool ap_wlan_hal_whm::get_spatial_reuse_config(
     return true;
 }
 
+bool ap_wlan_hal_whm::update_mld_mode(std::string ssid, uint8_t mld_mode)
+{
+    LOG(DEBUG) << "Not implemented yet";
+
+    return true;
+}
+
+bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit)
+{
+    LOG(DEBUG) << "Not implemented yet";
+
+    return true;
+}
+
 void ap_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
                                                   beerocks::wbapi::AmbiorixVariant *updates)
 {
