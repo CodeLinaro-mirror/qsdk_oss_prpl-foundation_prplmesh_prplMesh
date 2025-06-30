@@ -21,10 +21,9 @@
                                                 received (Re)Association Request frame
                                                 from this client (STA) */
 
-        /**
-        ** Need to add here HTCapabilities, VHTCapabilities, HECapabilities
-        ** from mids which defined in controller.odl
-        **/
+        extend using mib HTCapabilities;
+        extend using mib VHTCapabilities;
+        extend using mib WiFi6Capabilities;
 
         %read-only uint32 LastDataDownlinkRate = 0;
         %read-only uint32 LastDataUplinkRate = 0;
