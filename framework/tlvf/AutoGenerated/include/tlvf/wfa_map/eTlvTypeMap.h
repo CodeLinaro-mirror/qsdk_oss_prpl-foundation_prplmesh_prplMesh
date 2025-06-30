@@ -125,6 +125,7 @@ enum class eTlvTypeMap : uint8_t {
     TLV_EHT_OPERATIONS = 0xe7,
     TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST = 0xe8,
     TLV_AVAILABLE_SPECTRUM_INQUIRY_RESPONSE = 0xe9,
+    TLV_RSN_PARAMETERS_CONFIGURATION = 0xeb,
     TLV_AP_WIFI_6_CAPABILITIES = 0xaa,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
@@ -235,6 +236,7 @@ static const char *eTlvTypeMap_str(eTlvTypeMap enum_value) {
     case eTlvTypeMap::TLV_EHT_OPERATIONS:                           return "eTlvTypeMap::TLV_EHT_OPERATIONS";
     case eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST:       return "eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST";
     case eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_RESPONSE:      return "eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_RESPONSE";
+    case eTlvTypeMap::TLV_RSN_PARAMETERS_CONFIGURATION:             return "eTlvTypeMap::TLV_RSN_PARAMETERS_CONFIGURATION";
     case eTlvTypeMap::TLV_AP_WIFI_6_CAPABILITIES:                   return "eTlvTypeMap::TLV_AP_WIFI_6_CAPABILITIES";
     }
     static std::string out_str = std::to_string(int(enum_value));
@@ -352,6 +354,7 @@ public:
         case 0xe7:
         case 0xe8:
         case 0xe9:
+        case 0xeb:
         case 0xaa:
                 ret = true;
                 break;

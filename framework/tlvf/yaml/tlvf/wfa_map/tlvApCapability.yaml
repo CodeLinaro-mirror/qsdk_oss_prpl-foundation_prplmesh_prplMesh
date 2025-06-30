@@ -22,6 +22,8 @@ sValue:
       _bit_range: [5,5]
     support_agent_backhaul_sta_reconfiguration:
       _bit_range: [4,4]
+    RSN_Overriding:
+      _bit_range: [3,3]
     reserved:
-      _bit_range: [3,0]
+      _bit_range: [2,0]
       _value: 0

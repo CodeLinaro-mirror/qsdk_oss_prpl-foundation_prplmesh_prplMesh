@@ -28,6 +28,7 @@ enum eWscAuth: uint16_t {
     WSC_AUTH_WPA2 = 0x10,
     WSC_AUTH_WPA2PSK = 0x20,
     WSC_AUTH_SAE = 0x40,
+    WSC_AUTH_RSN = 0x200,
     WSC_AUTH_INVALID = 0xffff,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
@@ -41,6 +42,7 @@ static const char *eWscAuth_str(eWscAuth enum_value) {
     case WSC_AUTH_WPA2:    return "WSC_AUTH_WPA2";
     case WSC_AUTH_WPA2PSK: return "WSC_AUTH_WPA2PSK";
     case WSC_AUTH_SAE:     return "WSC_AUTH_SAE";
+    case WSC_AUTH_RSN:     return "WSC_AUTH_RSN";
     case WSC_AUTH_INVALID: return "WSC_AUTH_INVALID";
     }
     static std::string out_str = std::to_string(int(enum_value));

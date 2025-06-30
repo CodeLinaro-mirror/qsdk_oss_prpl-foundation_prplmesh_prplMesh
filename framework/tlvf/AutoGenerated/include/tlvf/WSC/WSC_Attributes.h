@@ -72,6 +72,7 @@ class cWscAttrSsid;
 class cWscAttrAuthenticationType;
 class cWscAttrEncryptionType;
 class cWscAttrNetworkKey;
+class cWscAttrBssIndex;
 typedef struct sWscAttrAuthenticationType {
     eWscAttributes attribute_type;
     uint16_t data_length;
@@ -229,6 +230,8 @@ class cConfigData : public BaseClass
         uint8_t& bss_type();
         int8_t& mld_id();
         uint8_t& hidden_ssid();
+        int8_t& bss_index();
+        uint8_t& additional_auth();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -250,6 +253,8 @@ class cConfigData : public BaseClass
         uint8_t* m_bss_type = nullptr;
         int8_t* m_mld_id = nullptr;
         uint8_t* m_hidden_ssid = nullptr;
+        int8_t* m_bss_index = nullptr;
+        uint8_t* m_additional_auth = nullptr;
 };
 
 class cWscAttrEncryptedSettings : public BaseClass
@@ -964,6 +969,27 @@ class cWscAttrNetworkKey : public BaseClass
         char* m_key = nullptr;
         size_t m_key_idx__ = 0;
         int m_lock_order_counter__ = 0;
+};
+
+class cWscAttrBssIndex : public BaseClass
+{
+    public:
+        cWscAttrBssIndex(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cWscAttrBssIndex(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cWscAttrBssIndex();
+
+        eWscAttributes& type();
+        const uint16_t& length();
+        uint8_t& index();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eWscAttributes* m_type = nullptr;
+        uint16_t* m_length = nullptr;
+        uint8_t* m_index = nullptr;
 };
 
 }; // close namespace: WSC

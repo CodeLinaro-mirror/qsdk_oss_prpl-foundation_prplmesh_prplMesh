@@ -1,0 +1,46 @@
+#
+---
+_namespace: wfa_map
+
+tlvRsnParametersConfiguration:
+  _type: class
+  _is_tlv_class : True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_RSN_PARAMETERS_CONFIGURATION
+  length: uint16_t
+  num_radio:
+    _type: uint8_t
+    _length_var: True
+  radios:
+    _type: cRsnRadio
+    _length: [ num_radio ]
+
+cRsnRadio:
+  _type: class
+  ruid:
+    _type: sMacAddr
+  num_bss:
+    _type: uint8_t
+    _length_var: True
+  bsss: 
+    _type: cRsnBss
+    _length: [ num_bss ]  
+  reserved:
+    _type: uint8_t
+    _length: [16]
+
+cRsnBss:
+  _type: class
+  bssid:
+    _type: sMacAddr
+  bss_index: uint8_t
+  security_ies_length:
+    _type: uint16_t
+    _length_var: True
+  security_ies:
+    _type: uint8_t
+    _length: [ security_ies_length ]
+  reserved:
+    _type: uint8_t
+    _length: [16]

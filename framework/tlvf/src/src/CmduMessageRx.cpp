@@ -121,6 +121,7 @@
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
+#include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 #include <tlvf/wfa_map/tlvSpatialReuseConfigResponse.h>
@@ -615,6 +616,9 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     }
     case (wfa_map::eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_RESPONSE): {
         return msg.addClass<wfa_map::tlvAvailableSpectrumInquiryResponse>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_RSN_PARAMETERS_CONFIGURATION): {
+        return msg.addClass<wfa_map::tlvRsnParametersConfiguration>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);

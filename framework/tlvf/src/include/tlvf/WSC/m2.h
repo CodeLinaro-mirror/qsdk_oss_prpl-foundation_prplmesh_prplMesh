@@ -34,6 +34,7 @@ public:
         eWscRfBands bands;
         std::vector<uint8_t> encrypted_settings;
         uint8_t iv[WSC_ENCRYPTED_SETTINGS_IV_LENGTH];
+        uint8_t bss_index;
     };
     m2(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}
     virtual ~m2() = default;
@@ -73,6 +74,14 @@ public:
     cWscAttrEncryptedSettings &encrypted_settings()
     {
         return *getAttr<cWscAttrEncryptedSettings>();
+    };
+    uint8_t bss_index() const
+    {
+        auto bss_index_attr = getAttr<cWscAttrBssIndex>();
+        if (bss_index_attr) {
+            return bss_index_attr->index();
+        }
+        return 0;
     };
 };
 
