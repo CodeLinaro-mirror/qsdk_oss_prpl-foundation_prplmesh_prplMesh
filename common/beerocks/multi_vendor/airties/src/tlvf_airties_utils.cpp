@@ -643,6 +643,17 @@ bool tlvf_airties_utils::is_airties_platform_common_stp_enabled() const
     return beerocks::bpl::utils::is_stp_enabled(beerocks_slave_conf.bridge_iface) ? true : false;
 }
 
+constexpr airties::eAirtiesFeatureVersion get_feature_version(eAirtiesFeatureIDs feature_id)
+{
+    switch (feature_id) {
+    /* Eth stats gets version 2 since the introduction of the ETH_STATS_V2 TLV */
+    case eAirtiesFeatureIDs::AIRTIES_FEATURE_ETH_STATS:
+        return airties::eAirtiesFeatureVersion::FEATURE_VERSION_2;
+    default:
+        return airties::eAirtiesFeatureVersion::FEATURE_VERSION_1;
+    }
+}
+
 /**
  * @brief Create a feature list entry and add it to the TLV.
  *
@@ -661,14 +672,15 @@ create_and_add_feature_to_list(std::shared_ptr<airties::tlvVersionReporting> tlv
     // Create a new feature list entry
     auto version_members = tlv_version_reporting->create_em_agent_feature_list();
 
+    uint16_t version = get_feature_version(feature_id);
+
     // Set the feature info by combining the feature ID and version
     // EM+ features supported shall be reported as a big endian 4-octet value, where the 2 lowest
     // octets shall represent the version (iteration) of a feature and where the
     // 2 highest octets shall represent the ID of a feature
     // Below is the value for 2 highest octets of EM+ features supported feature ID.
     // shifting 16 bits(2 octets) and combining with the feature version.
-    version_members->feature_info() =
-        (static_cast<int>(feature_id) << 16) | airties::eAirtiesFeatureVersion::feature_version;
+    version_members->feature_info() = (static_cast<uint32_t>(feature_id) << 16) | version;
 
     // Add the created feature list entry to the TLV
     tlv_version_reporting->add_em_agent_feature_list(version_members);
@@ -712,7 +724,7 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
     // Below is the value for 2 lowest octets of EM+ features supported version.
     // shifting 16 bits(2 octets) and combining with the subversion.
     tlv_version_reporting->em_agent_version() =
-        (airties::eMasterVersion::master_version << 16) | airties::eSubVersion::sub_version;
+        (airties::eMasterVersion::MASTER_VERSION << 16) | airties::eSubVersion::SUB_VERSION;
 
     // The first feature ID we want to process
     int count = static_cast<int>(airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_DEVICE_METRICS);
@@ -736,7 +748,6 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_REBOOT_RESET:
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_WIFI6_CAP:
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_DPP_ONBOARD:
-        case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_LED:
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_SERVICE_STATUS_WIFI_ON_OFF:
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_HIDDEN_SSID:
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_RADIO_CAPABILITY:
@@ -752,6 +763,9 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
             }
             break;
         }
+        // Not supported
+        case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_LED:
+            break;
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_END: {
             LOG(INFO) << "Airties Feature END is reached, "
                       << "Nothing to add in airties-specific version reporting TLV";
