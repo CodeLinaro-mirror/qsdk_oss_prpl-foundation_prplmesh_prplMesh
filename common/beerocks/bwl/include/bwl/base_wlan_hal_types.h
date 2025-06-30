@@ -467,6 +467,8 @@ struct sMGMT_FRAME_NOTIFICATION {
 struct sStaConnectionFail {
     sMacAddr bssid;   /**< The BSSID of the AP's interface */
     sMacAddr sta_mac; /**< The MAC address of the station */
+    uint16_t status;  /**< Status code */
+    uint16_t reason;  /**< Reason code */
 };
 
 /**
