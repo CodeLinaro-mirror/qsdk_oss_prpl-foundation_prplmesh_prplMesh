@@ -19,10 +19,11 @@
         object AssociationEvent {
             object AssociationEventData[] {
                 counted with AssociationEventDataNumberOfEntries;
-                /**
-                ** Need to add here HTCapabilities, VHTCapabilities, HECapabilities
-                ** from mids which defined in controller.odl
-                **/
+
+                extend using mib HTCapabilities;
+                extend using mib VHTCapabilities;
+                extend using mib WiFi6Capabilities;
+
                 %read-only string BSSID;  /* The MAC address of the logical BSS (BSSID) which is
                                             reporting the association event. */
                 %read-only string MACAddress;  /* MAC address of the associating station */

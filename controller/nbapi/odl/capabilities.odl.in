@@ -16,10 +16,9 @@
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.Capabilities {
 
-        /**
-        ** Need to add here HTCapabilities, VHTCapabilities, HECapabilities
-        ** from mids which defined in controller.odl
-        **/
+        extend using mib HTCapabilities;
+        extend using mib VHTCapabilities;
+        extend using mib WiFi6Capabilities;
 
         /* Authentication and Key Management (AKM) Suite (security mode) capabilities for the fronthaul BSS. */
         %read-only object AKMFrontHaul [] {
