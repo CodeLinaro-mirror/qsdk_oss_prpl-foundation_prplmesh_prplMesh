@@ -65,6 +65,8 @@ public:
 private:
     /* Class members */
 
+    std::unordered_map<std::string, std::chrono::system_clock::time_point> m_prev_scan_timestamps;
+
     /**
      * @brief channel scan Task states.
      * 
@@ -77,6 +79,7 @@ private:
         SCAN_DONE,
         SCAN_ABORTED,
         SCAN_FAILED,
+        SCAN_IGNORED,
     };
 
     // clang-format off
@@ -87,7 +90,8 @@ private:
       { eState::WAIT_FOR_RESULTS_DUMP,   "WAIT_FOR_RESULTS_DUMP"    }, // Pending on "Results Dump" event.
       { eState::SCAN_DONE,               "SCAN_DONE"                }, // Scan finished Results Sequence.
       { eState::SCAN_ABORTED,            "SCAN_ABORTED"             }, // Scan was aborted.
-      { eState::SCAN_FAILED,             "SCAN_FAILED"              }  // Scan failed for some reason.
+      { eState::SCAN_FAILED,             "SCAN_FAILED"              }, // Scan failed for some reason.
+      { eState::SCAN_IGNORED,            "SCAN_IGNORED"             }  // Scan ignored.
     };
     // clang-format on
 
