@@ -248,6 +248,14 @@ void ChannelScanTask::work()
                 }
                 break;
             }
+            case eState::SCAN_IGNORED: {
+                set_radio_scan_status(current_radio_scan,
+                                      eScanStatus::REQUEST_TOO_SOON_AFTER_LAST_SCAN);
+                if (!m_on_boot_scan_enabled) {
+                    current_scan_request->ready_to_send_report = true;
+                }
+                break;
+            }
             default:
                 break;
             }
@@ -672,7 +680,8 @@ bool ChannelScanTask::trigger_next_radio_scan(const std::string &ifname,
     const auto &radio_scans = request->radio_scans;
     auto pending_radio_scan = radio_scans->current_state;
 
-    if (pending_radio_scan != eState::PENDING_TRIGGER) {
+    if (pending_radio_scan != eState::PENDING_TRIGGER &&
+        pending_radio_scan != eState::SCAN_IGNORED) {
         LOG(TRACE) << "Unable to find the next pending radio scan in request.";
         return false;
     }
@@ -1077,19 +1086,26 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
             return false;
         }
         const auto radio_iface = radio->front.iface_name;
+        std::chrono::system_clock::time_point last_scan;
+        bool prev_timestamp_entry_found = false;
 
-        if (perform_fresh_scan && m_current_scan_info[radio_iface].scan_request != NULL &&
-            m_current_scan_info[radio_iface].scan_request->scan_start_timestamp +
-                    MINIMUM_SCAN_INTERVAL_SEC >
-                std::chrono::system_clock::now()) {
-            LOG(ERROR) << "Scan request ignored: Received a new scan request before the minimum "
-                          "scan interval elapsed";
-            return false;
+        auto it = m_prev_scan_timestamps.find(radio_iface);
+        if (it != m_prev_scan_timestamps.end()) {
+            last_scan                  = it->second;
+            prev_timestamp_entry_found = true;
         }
 
-        if (perform_fresh_scan && m_current_scan_info[radio_iface].is_scan_currently_running) {
-            // Check if current scan can be aborted.
+        /*
+         * If previous timestamp scan entry is found, and if the previous scan 
+         * exceeds the minimum scan interval in execution and in the mean time
+         * a new scan request has arrived, abort the previous scan and proceed.
+         */
+        if (perform_fresh_scan && prev_timestamp_entry_found &&
+            (last_scan + MINIMUM_SCAN_INTERVAL_SEC) < std::chrono::system_clock::now() &&
+            m_current_scan_info[radio_iface].is_scan_currently_running) {
             auto current_request_info = m_current_scan_info[radio_iface].scan_request;
+            LOG(INFO) << "Current scan is running beyond the minimum scan interval time."
+                         " Hence beginning to abort the current running scan request.";
             if (!abort_scan_request(current_request_info)) {
                 LOG(ERROR) << "Failed to abort current scan request!";
                 return false;
@@ -1183,14 +1199,35 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
             }
         }
 
+        /*
+         * Check the previous scan requested timestamp, irrespective of whether
+         * successful or not, compare it with the current time
+         * and ignore this request. Moving this request FSM state to SCAN_IGNORED
+         * will send a scan report with status code REQUEST_TOO_SOON_AFTER_LAST_SCAN(0x02).
+         */
+        if (prev_timestamp_entry_found) {
+            if (perform_fresh_scan &&
+                ((last_scan + MINIMUM_SCAN_INTERVAL_SEC) > std::chrono::system_clock::now())) {
+                LOG(ERROR)
+                    << "Scan request ignored: Received a new scan request before the minimum "
+                       "scan interval elapsed";
+                FSM_MOVE_STATE(new_request->radio_scans, eState::SCAN_IGNORED);
+            }
+        }
+
         // Should return all the currently stored results in the DB for the requested radios
         // There is no need to add it to the request queue, since there is no need to perform a scan.
         if (!perform_fresh_scan) {
             new_request->ready_to_send_report = true;
             LOG(TRACE) << "do not perform fresh scan, report existing results";
             return send_channel_scan_report_to_controller(new_request);
+        } else {
+            /*
+             * Before enqueueing the new_request to pending request successfully,
+             * store the timestamp in the channel scan task class private variable.
+             */
+            m_prev_scan_timestamps[radio_iface] = new_request->scan_start_timestamp;
         }
-
         m_pending_requests[radio_iface] = new_request;
     }
 
