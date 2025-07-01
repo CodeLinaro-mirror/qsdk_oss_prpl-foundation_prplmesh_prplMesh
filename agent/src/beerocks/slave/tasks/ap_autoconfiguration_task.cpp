@@ -1056,16 +1056,34 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
         return;
     }
 
+    wfa_map::tlvProfile2MultiApProfile::eMultiApProfile old_profile, new_profile;
+    old_profile = db->controller_info.profile_support;
+    new_profile = wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
+
+    auto tlvProfile2MultiApProfile = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
+    if (tlvProfile2MultiApProfile) {
+        new_profile = tlvProfile2MultiApProfile->profile();
+        if (new_profile == wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
+            db->controller_info.profile_support =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
+        }
+    }
+
     // We are sending the search message multiple times to support diffrent Profiles Controllers.
     // As a result we might get several responses. If we already completed the discovery return
     // right away to prevent redundant processing and log printing.
     auto discovery_status_it = m_discovery_status.find(freq_type);
-    if (discovery_status_it != m_discovery_status.end() && discovery_status_it->second.completed) {
+    if (new_profile >= old_profile) {
+        db->controller_info.profile_support = new_profile;
+    } else if (discovery_status_it != m_discovery_status.end() &&
+               discovery_status_it->second.completed) {
         return;
     }
     m_discovery_status[freq_type].completed = true;
 
-    LOG(DEBUG) << "received ap_autoconfiguration response for " << band_name << " band";
+    LOG(DEBUG) << "received ap_autoconfiguration response for " << band_name << " band with MID "
+               << std::hex << cmdu_rx.getMessageId() << " and profile "
+               << wfa_map::tlvProfile2MultiApProfile::eMultiApProfile_str(new_profile);
 
     // Set prplmesh_controller to false by default. If "SLAVE_HANDSHAKE_RESPONSE" is received, mark
     // it to 'true'.
@@ -1080,16 +1098,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
         prplmesh_controller = true;
     } else {
         LOG(DEBUG) << "Not prplMesh controller " << src_mac;
-    }
-
-    auto tlvProfile2MultiApProfile = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
-    if (tlvProfile2MultiApProfile) {
-        db->controller_info.profile_support = tlvProfile2MultiApProfile->profile();
-        if (db->controller_info.profile_support ==
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-            db->controller_info.profile_support =
-                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
-        }
     }
 
     auto controller_capability_tlv = cmdu_rx.getClass<wfa_map::tlvControllerCapability>();
