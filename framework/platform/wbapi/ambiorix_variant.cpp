@@ -166,6 +166,20 @@ bool AmbiorixVariant::set(uint32_t value) { SET_VARIANT_AS(uint32_t, m_var_ctx, 
 bool AmbiorixVariant::set(uint64_t value) { SET_VARIANT_AS(uint64_t, m_var_ctx, value) }
 bool AmbiorixVariant::set(double value) { SET_VARIANT_AS(double, m_var_ctx, value) }
 
+static int amxc_var_set_amxc_llist_t(amxc_var_t *var, amxc_llist_t *list)
+{
+    int ret;
+    if ((ret = amxc_var_set_type(var, AMXC_VAR_ID_LIST)) == 0) {
+        amxc_llist_move(&var->data.vl, list);
+    }
+    return ret;
+}
+
+bool AmbiorixVariant::set(AmbiorixVariant &obj)
+{
+    SET_VARIANT_AS(amxc_llist_t, m_var_ctx, &(obj.m_var_ctx->data.vl))
+}
+
 static int amxc_var_set_float(amxc_var_t *var, float value)
 {
     int ret;
@@ -271,6 +285,33 @@ bool AmbiorixVariant::get_children(AmbiorixVariantMapSmartPtr &result, bool extr
         }
         result->emplace(key, AmbiorixVariant(elt, extract));
     }
+    return true;
+}
+
+bool AmbiorixVariant::add(uint8_t opclass, uint8_t exclude_channels_length,
+                          uint8_t *exclude_channels)
+{
+    auto var = amxc_var_add(amxc_htable_t, m_var_ctx, NULL);
+    if (!var) {
+        return false;
+    }
+    amxc_var_add_key(uint8_t, var, "opclass", opclass);
+    amxc_var_add_key(uint8_t, var, "exclude_channels_length", exclude_channels_length);
+
+    AmbiorixVariant list(AMXC_VAR_ID_LIST);
+    AmbiorixVariant value(AMXC_VAR_ID_UINT8);
+
+    for (size_t i = 0; i < exclude_channels_length; ++i) {
+        value.set(*(exclude_channels + i));
+        amxc_var_cast(value.m_var_ctx, AMXC_VAR_ID_LIST);
+        amxc_llist_for_each(it, &value.m_var_ctx->data.vl)
+        {
+            amxc_llist_append(&list.m_var_ctx->data.vl, it);
+        }
+    }
+
+    amxc_var_add_key(amxc_llist_t, var, "exclude_channels", &list.m_var_ctx->data.vl);
+
     return true;
 }
 

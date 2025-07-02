@@ -12,6 +12,7 @@
 #include "base_wlan_hal.h"
 #include <bcl/beerocks_string_utils.h>
 #include <tlvf/AssociationRequestFrame/AssocReqFrame.h>
+#include <tlvf/airties/ACSChannelList.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsQuery.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
 
@@ -602,6 +603,15 @@ public:
      */
     virtual bool
     get_spatial_reuse_config(son::wireless_utils::sSpatialReuseParams &spatial_reuse_params) = 0;
+
+    /**
+     * @brief Plaftorm ACS Start
+     *
+     * @param [in] acs_list ACS list
+     *
+     * @return true on success or false on error.
+     */
+    virtual bool start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) = 0;
 
 private:
     static const int frame_body_idx = (sizeof(s80211MgmtFrame::sHeader) * 2);

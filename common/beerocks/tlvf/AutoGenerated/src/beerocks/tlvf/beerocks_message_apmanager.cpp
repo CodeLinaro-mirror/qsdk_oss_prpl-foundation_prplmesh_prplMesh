@@ -1154,6 +1154,141 @@ bool cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START::init()
     return true;
 }
 
+cACTION_APMANAGER_PLATFORM_ACS::cACTION_APMANAGER_PLATFORM_ACS(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_PLATFORM_ACS::cACTION_APMANAGER_PLATFORM_ACS(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_PLATFORM_ACS::~cACTION_APMANAGER_PLATFORM_ACS() {
+}
+bool cACTION_APMANAGER_PLATFORM_ACS::isPostInitSucceeded() {
+    if (!m_acs_params_init) {
+        TLVF_LOG(ERROR) << "acs_params is not initialized";
+        return false;
+    }
+    return true; 
+}
+
+std::shared_ptr<airties::cACSChannelList> cACTION_APMANAGER_PLATFORM_ACS::create_acs_params() {
+    if (m_lock_order_counter__ > 0) {
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list acs_params, abort!";
+        return nullptr;
+    }
+    size_t len = airties::cACSChannelList::get_initial_size();
+    if (m_lock_allocation__) {
+        TLVF_LOG(ERROR) << "Can't create new element before adding the previous one";
+        return nullptr;
+    }
+    if (getBuffRemainingBytes() < len) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer";
+        return nullptr;
+    }
+    m_lock_order_counter__ = 0;
+    m_lock_allocation__ = true;
+    uint8_t *src = (uint8_t *)m_acs_params;
+    if (!m_parse__) {
+        uint8_t *dst = src + len;
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    return std::make_shared<airties::cACSChannelList>(src, getBuffRemainingBytes(src), m_parse__);
+}
+
+bool cACTION_APMANAGER_PLATFORM_ACS::add_acs_params(std::shared_ptr<airties::cACSChannelList> ptr) {
+    if (ptr == nullptr) {
+        TLVF_LOG(ERROR) << "Received entry is nullptr";
+        return false;
+    }
+    if (m_lock_allocation__ == false) {
+        TLVF_LOG(ERROR) << "No call to create_acs_params was called before add_acs_params";
+        return false;
+    }
+    uint8_t *src = (uint8_t *)m_acs_params;
+    if (ptr->getStartBuffPtr() != src) {
+        TLVF_LOG(ERROR) << "Received entry pointer is different than expected (expecting the same pointer returned from add method)";
+        return false;
+    }
+    if (ptr->getLen() > getBuffRemainingBytes(ptr->getStartBuffPtr())) {;
+        TLVF_LOG(ERROR) << "Not enough available space on buffer";
+        return false;
+    }
+    m_acs_params_init = true;
+    size_t len = ptr->getLen();
+    m_acs_params_ptr = ptr;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    m_lock_allocation__ = false;
+    return true;
+}
+
+void cACTION_APMANAGER_PLATFORM_ACS::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    if (m_acs_params_ptr) { m_acs_params_ptr->class_swap(); }
+}
+
+bool cACTION_APMANAGER_PLATFORM_ACS::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_PLATFORM_ACS::get_initial_size()
+{
+    size_t class_size = 0;
+    return class_size;
+}
+
+bool cACTION_APMANAGER_PLATFORM_ACS::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_acs_params = reinterpret_cast<airties::cACSChannelList*>(m_buff_ptr__);
+    if (m_parse__) {
+        auto acs_params = create_acs_params();
+        if (!acs_params || !acs_params->isInitialized()) {
+            TLVF_LOG(ERROR) << "create_acs_params() failed";
+            return false;
+        }
+        if (!add_acs_params(acs_params)) {
+            TLVF_LOG(ERROR) << "add_acs_params() failed";
+            return false;
+        }
+        // swap back since acs_params will be swapped as part of the whole class swap
+        acs_params->class_swap();
+    }
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cACTION_APMANAGER_HOSTAP_CANCEL_ACTIVE_CAC_REQUEST::cACTION_APMANAGER_HOSTAP_CANCEL_ACTIVE_CAC_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();

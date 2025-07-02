@@ -299,6 +299,8 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
         }
     }
 
+    auto db = AgentDB::get();
+
     // Handle Controller's Channel Preference TLV
     for (const auto &channel_preference_tlv :
          cmdu_rx.getClassList<wfa_map::tlvChannelPreference>()) {
@@ -318,15 +320,21 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
                 DECLINE_VIOLATES_MOST_RECENTLY_REPORTED_PREFERENCES;
             continue;
         }
-        if (!check_is_there_better_channel_than_current(radio_mac)) {
-            LOG(ERROR) << "Failed checking if there is a better channel!";
-            radio_request.response_code = wfa_map::tlvChannelSelectionResponse::eResponseCode::
-                DECLINE_VIOLATES_MOST_RECENTLY_REPORTED_PREFERENCES;
-            continue;
+        if (db->device_conf.enable_auto_chansel_handling) {
+            if (!build_acs_list(radio_mac, radio_request)) {
+                LOG(ERROR) << "Failed to prepare ACS list";
+                continue;
+            }
+        } else {
+            if (!check_is_there_better_channel_than_current(radio_mac)) {
+                LOG(ERROR) << "Failed checking if there is a better channel!";
+                radio_request.response_code = wfa_map::tlvChannelSelectionResponse::eResponseCode::
+                    DECLINE_VIOLATES_MOST_RECENTLY_REPORTED_PREFERENCES;
+                continue;
+            }
         }
     }
 
-    auto db = AgentDB::get();
     // Check if controller is prplMesh.
     if (db->controller_info.prplmesh_controller) {
         // Controller is prplMesh, parse selection extension TLV.
@@ -425,6 +433,16 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
 
         if (!radio) {
             LOG(ERROR) << "Radio " << radio_mac << " does not exist on the db";
+            continue;
+        }
+
+        if (db->device_conf.enable_auto_chansel_handling) {
+            if (radio_mac == m_acs_list.first) {
+                if (!send_acs_list_to_platform(radio_mac)) {
+                    LOG(ERROR) << "Failed to send ACS list";
+                    return;
+                }
+            }
             continue;
         }
 
@@ -2556,6 +2574,119 @@ bool ChannelSelectionTask::send_operating_channel_report(const sMacAddr &radio_m
     }
 
     return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+}
+
+bool ChannelSelectionTask::build_acs_list(const sMacAddr &radio_mac,
+                                          const sIncomingChannelSelectionRequest &radio_request)
+{
+    auto radio = AgentDB::get()->get_radio_by_mac(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "Radio " << radio_mac << " does not exist on the db";
+        return false;
+    }
+
+    m_acs_list.first = radio_mac;
+    m_acs_list.second.clear();
+
+    for (const auto &preference : radio_request.controller_preferences) {
+        const auto &operating_class_info          = preference.first;
+        const auto &operating_class_channels_list = preference.second;
+        auto opclass                              = operating_class_info.operating_class;
+
+        auto opclass_it = son::wireless_utils::operating_classes_list.find(opclass);
+        if (opclass_it == son::wireless_utils::operating_classes_list.end()) {
+            return false;
+        }
+
+        if (operating_class_info.flags.preference == 0) {
+            std::copy(opclass_it->second.channels.begin(), opclass_it->second.channels.end(),
+                      std::back_inserter(m_acs_list.second[opclass]));
+            continue;
+        }
+
+        if (!operating_class_channels_list.empty()) {
+            for (auto iter = operating_class_channels_list.begin();
+                 iter != operating_class_channels_list.end(); ++iter) {
+                if (!m_acs_list.second[opclass].empty()) {
+                    m_acs_list.second[opclass].erase(std::find(m_acs_list.second[opclass].begin(),
+                                                               m_acs_list.second[opclass].end(),
+                                                               *iter));
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ChannelSelectionTask::send_acs_list_to_platform(const sMacAddr &radio_mac)
+{
+    if (m_acs_list.second.empty()) {
+        LOG(INFO) << "Empty ACS list";
+    }
+
+    auto request =
+        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_PLATFORM_ACS>(m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed to build message";
+        return false;
+    }
+
+    auto acs_params = request->create_acs_params();
+    if (!acs_params) {
+        LOG(ERROR) << "Failed to create ACS params";
+        return false;
+    }
+
+    for (auto p = std::make_pair(m_acs_list.second.begin(), 0); p.first != m_acs_list.second.end();
+         ++p.first, ++p.second) {
+        auto exclude_list = acs_params->create_acs_list();
+        if (!exclude_list) {
+            LOG(ERROR) << "Failed to create exclude list";
+            return false;
+        }
+
+        if (!exclude_list->alloc_exclude_channels(p.first->second.size())) {
+            LOG(ERROR) << "Failed to allocate exclude list";
+            return false;
+        }
+
+        if (!acs_params->add_acs_list(exclude_list)) {
+            LOG(ERROR) << "Failed to add exclude list";
+            return false;
+        }
+
+        auto operating_class_list_entry_tuple = acs_params->acs_list(p.second);
+        if (!std::get<0>(operating_class_list_entry_tuple)) {
+            LOG(ERROR) << "Failed to get ACS list";
+            return false;
+        }
+
+        auto &operating_class_list_entry = std::get<1>(operating_class_list_entry_tuple);
+
+        operating_class_list_entry.opclass() = p.first->first;
+
+        for (size_t i = 0; i < p.first->second.size(); ++i) {
+            *operating_class_list_entry.exclude_channels(i) = p.first->second.at(i);
+        }
+    }
+
+    if (!request->add_acs_params(acs_params)) {
+        LOG(ERROR) << "Failed to add ACS params";
+        return false;
+    }
+
+    auto agent_fd = m_btl_ctx.get_agent_fd();
+    if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "Socket to Agent not found";
+        return false;
+    }
+
+    auto action_header         = message_com::get_beerocks_header(m_cmdu_tx)->actionhdr();
+    action_header->radio_mac() = radio_mac;
+
+    m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx);
+    return true;
 }
 
 } // namespace beerocks

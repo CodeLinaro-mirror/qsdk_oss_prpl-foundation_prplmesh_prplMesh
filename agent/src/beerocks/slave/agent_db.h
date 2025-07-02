@@ -172,6 +172,7 @@ public:
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
         int on_boot_scan;
         uint8_t max_num_mlds = 3; // Arbitrary
+        bool enable_auto_chansel_handling;
     } device_conf;
 
     struct sControllerInfo {

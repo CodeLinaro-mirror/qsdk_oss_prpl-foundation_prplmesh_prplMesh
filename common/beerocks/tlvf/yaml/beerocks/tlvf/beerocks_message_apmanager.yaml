@@ -7,6 +7,7 @@ _include:
     structs/sCacStartedNotificationParams.h,
     tlvf/WSC/WSC_Attributes.h,
     tlvf/wfa_map/tlvProfile2MultiApProfile.h,
+    tlvf/airties/ACSChannelList.h,
   }
 
 _namespace: beerocks_message
@@ -86,6 +87,10 @@ cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START:
   tx_limit: int8_t
   tx_limit_valid: uint8_t #bool
   spatial_reuse_valid: uint8_t #bool
+
+cACTION_APMANAGER_PLATFORM_ACS:
+  _type: class
+  acs_params: airties::cACSChannelList
 
 cACTION_APMANAGER_HOSTAP_CANCEL_ACTIVE_CAC_REQUEST:
   _type: class

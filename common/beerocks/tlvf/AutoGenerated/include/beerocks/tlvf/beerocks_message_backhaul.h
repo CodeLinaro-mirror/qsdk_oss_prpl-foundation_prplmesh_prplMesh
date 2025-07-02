@@ -24,6 +24,7 @@
 #include "beerocks/tlvf/beerocks_message_common.h"
 #include "structs/sCacStartedNotificationParams.h"
 #include "tlvf/WSC/WSC_Attributes.h"
+#include "tlvf/airties/ACSChannelList.h"
 
 namespace beerocks_message {
 
@@ -426,6 +427,34 @@ class cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START : public BaseClass
         uint8_t* m_tx_limit_valid = nullptr;
         sSpatialReuseParams* m_sr_params = nullptr;
         uint8_t* m_spatial_reuse_valid = nullptr;
+};
+
+class cACTION_BACKHAUL_PLATFORM_ACS : public BaseClass
+{
+    public:
+        cACTION_BACKHAUL_PLATFORM_ACS(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_BACKHAUL_PLATFORM_ACS(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_BACKHAUL_PLATFORM_ACS();
+
+        static eActionOp_BACKHAUL get_action_op(){
+            return (eActionOp_BACKHAUL)(ACTION_BACKHAUL_PLATFORM_ACS);
+        }
+        bool isPostInitSucceeded() override;
+        std::shared_ptr<airties::cACSChannelList> create_acs_params();
+        bool add_acs_params(std::shared_ptr<airties::cACSChannelList> ptr);
+        std::shared_ptr<airties::cACSChannelList> acs_params() { return m_acs_params_ptr; }
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_BACKHAUL* m_action_op = nullptr;
+        airties::cACSChannelList *m_acs_params = nullptr;
+        std::shared_ptr<airties::cACSChannelList> m_acs_params_ptr = nullptr;
+        bool m_acs_params_init = false;
+        bool m_lock_allocation__ = false;
+        int m_lock_order_counter__ = 0;
 };
 
 class cACTION_BACKHAUL_HOSTAP_CANCEL_ACTIVE_CAC_REQUEST : public BaseClass
