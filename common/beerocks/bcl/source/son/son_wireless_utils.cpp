@@ -564,7 +564,7 @@ wireless_utils::get_operating_classes_of_freq_type(beerocks::eFreqType freq_type
         last_iterator  = operating_classes_list.end();
         break;
     default:
-        LOG(ERROR) << "freq type must be 2.4GHz, 5GHz, or 6GHz";
+        LOG(ERROR) << "Unknown freq type " << int(freq_type) << ", must be 2.4GHz, 5GHz, or 6GHz";
         return {};
     }
 

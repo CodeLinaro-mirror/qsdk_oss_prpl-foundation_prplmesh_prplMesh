@@ -9,6 +9,8 @@
 #ifndef __TLVF_UTILS_H__
 #define __TLVF_UTILS_H__
 
+#include "agent_db.h"
+
 #include <tlvf/CmduMessageTx.h>
 
 #include <beerocks/tlvf/beerocks_message.h>
@@ -29,6 +31,26 @@ public:
                                                 const sMacAddr &ruid);
     static bool create_operating_channel_report(ieee1905_1::CmduMessageTx &cmdu_tx,
                                                 const sMacAddr &radio_mac);
+
+    /**
+     * @brief Fill the Channel Scan Capabilities TLV
+     * @param[out] cmdu_tx : CMDU message
+     * @return True on success
+     *
+     * one TLV holds info about all radios.
+     * only 20MHz opClasses / channels are added to the Channel Scan Capabilities TLV
+     */
+    static bool add_tlv_channel_scan_capabilities(ieee1905_1::CmduMessageTx &cmdu_tx);
+
+    /**
+     * @brief Compute the map {OpClass: vector<Channel>} of Channels that the Agent can
+     * scan
+     * @param[in] radio : pointer to AgentDB radio instance
+     * @param[out] scan_map : map of 20MHz channels available for scanning
+     * @return True on success
+     */
+    static bool get_channel_scan_map(beerocks::AgentDB::sRadio *radio,
+                                     std::map<uint8_t, std::vector<uint8_t>> &scan_map);
 };
 
 } // namespace beerocks

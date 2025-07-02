@@ -9,6 +9,7 @@
 #include "channel_scan_task.h"
 #include "../agent_db.h"
 #include "../backhaul_manager/backhaul_manager.h"
+#include "../tlvf_utils.h"
 #include <bcl/beerocks_utils.h>
 #include <beerocks/tlvf/beerocks_message.h>
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
@@ -31,6 +32,64 @@ using namespace beerocks;
         FSM_MOVE_STATE(radio_scan_info, new_state);                                                \
         radio_scan_info->timeout = std::chrono::system_clock::now() + timeout_sec;                 \
     })
+
+void ChannelScanTask::dump_agent_db_scan_results(const std::string &radio_name,
+                                                 const std::vector<uint8_t> &channel_list)
+{
+    auto db = AgentDB::get();
+
+    LOG(DEBUG) << "agentDB scan results";
+
+    for (auto radio : db->get_radios_list()) {
+        // if radio_name is provided, only log scan results for this radio
+        if (!radio_name.empty() && radio->front.iface_name != radio_name) {
+            continue;
+        }
+
+        for (auto result_kv : radio->channel_scan_results) {
+            std::ostringstream chan_str;
+            auto result_k = std::get<0>(result_kv); // key : channel
+            auto result_v = std::get<1>(result_kv); // value : tuple <status, timestamp, scanResults
+            chan_str << "radio " << radio->front.iface_name << " channel "
+                     << int(std::get<0>(result_kv)) << " numOfSSIDs "
+                     << std::get<2>(result_v).size() << " status " << int(std::get<0>(result_v));
+
+            // if channel_list input vector is provided, only log channels in the vector
+            if (channel_list.empty() || (std::find(channel_list.begin(), channel_list.end(),
+                                                   result_k) != channel_list.end())) {
+                LOG(DEBUG) << chan_str.str();
+            }
+        }
+    }
+    return;
+}
+
+void ChannelScanTask::dump_cached_results(const std::shared_ptr<sRadioScan> radio_scan_info)
+{
+    auto db    = AgentDB::get();
+    auto radio = db->get_radio_by_mac(radio_scan_info->radio_mac);
+    if (!radio) {
+        LOG(DEBUG) << "no radio with MAC " << radio_scan_info->radio_mac;
+        return;
+    }
+    auto name = radio->front.iface_name;
+    LOG(DEBUG) << "scan task cached scan results";
+
+    auto &results = radio_scan_info->cached_results;
+    for (auto op_cl : radio_scan_info->operating_classes) {
+        for (auto ch : op_cl.channel_list) {
+            std::ostringstream chan_str;
+            chan_str << "radio " << name << " channel " << int(ch.channel_number) << " numOfSSIDs ";
+            if (results.find(ch.channel_number) != results.end()) {
+                chan_str << radio_scan_info->cached_results.at(ch.channel_number).size();
+            } else {
+                chan_str << "0";
+            }
+            chan_str << " status " << int(ch.scan_status);
+            LOG(DEBUG) << chan_str.str();
+        }
+    }
+}
 
 /**
  * ToDo: Remove this "default" parameter after PPM-747 is resolved.
@@ -143,6 +202,7 @@ void ChannelScanTask::work()
                 break;
             }
             case eState::SCAN_DONE: {
+                LOG(DEBUG) << "sync cached results to DB";
                 // Once the scan is done we want to update the AgentDB with the cached results.
                 // If no neighbours are found on some channel, the cached result for that channel
                 // will simply not exist. But a cached result also doesn't exist if that channel
@@ -155,14 +215,15 @@ void ChannelScanTask::work()
                         const auto cached_result_iter =
                             current_radio_scan->cached_results.find(channel_num);
                         if (cached_result_iter == current_radio_scan->cached_results.end()) {
-                            // If a requested channel is not present in the cached results we can assume the channel did not contain results.
-                            // Therefore we need to clear the stored results from the DB to reflect the most recent results.
-                            radio->channel_scan_results.erase(channel_num);
+                            // If a requested channel is not present in cached results it means it is empty; still count this as a SUCCESS
+                            radio->channel_scan_results[channel_num] = std::make_tuple(
+                                eScanStatus::SUCCESS, current_scan_request->scan_start_timestamp,
+                                std::vector<beerocks_message::sChannelScanResults>{});
                         } else {
-                            // If a request channel is present in te cached results we need to override any existing stored results.
-                            radio->channel_scan_results[channel_num] =
-                                std::make_pair(current_scan_request->scan_start_timestamp,
-                                               cached_result_iter->second);
+                            // If a request channel is present in the cached results we need to override any existing stored results.
+                            radio->channel_scan_results[channel_num] = std::make_tuple(
+                                eScanStatus::SUCCESS, current_scan_request->scan_start_timestamp,
+                                cached_result_iter->second);
                         }
                     }
                 }
@@ -221,6 +282,11 @@ void ChannelScanTask::handle_event(uint8_t event_enum_value, const void *event_o
         auto scan_event = reinterpret_cast<const sScanRequestEvent *>(event_obj);
         LOG(TRACE) << "Received SCAN_TRIGGERED event";
         (void)scan_event;
+        break;
+    }
+    case eEvent::BACKHAUL_MANAGER_ENABLE: {
+        LOG(DEBUG) << "BACKHAUL_MANAGER_ENABLE : update channels";
+        handle_backhaul_enable_event();
         break;
     }
     default: {
@@ -454,6 +520,8 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             FSM_MOVE_TIMEOUT_STATE(m_current_scan_info[ifname].radio_scan,
                                    eState::WAIT_FOR_RESULTS_DUMP, SCAN_RESULTS_DUMP_WAIT_TIME);
         }
+        //opportunistically set all channels to SUCCESS before receiving SCAN_RESULT dumps
+        set_radio_scan_status(m_current_scan_info[ifname].radio_scan, eScanStatus::SUCCESS);
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_CHANNEL_SCAN_FINISHED_NOTIFICATION: {
@@ -911,23 +979,30 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
         return sOperatingClass(class_number, bandwidth, channel_vector);
     };
 
-    // Create a sOperatingClass vector from the previous scans.
+    // Create a sOperatingClass for StoredScan
     auto create_stored_operating_classes =
-        [this, &print_channel_vector]() -> std::vector<sOperatingClass> {
+        [this, &print_channel_vector](
+            beerocks::AgentDB::sRadio *const radio) -> std::vector<sOperatingClass> {
         std::vector<sOperatingClass> operating_vector;
-        for (const auto &previous_scan : m_previous_scans) {
-            const auto operating_class = previous_scan.first;
-            const auto bandwidth =
-                son::wireless_utils::operating_class_to_bandwidth(operating_class);
-            std::vector<sChannel> channel_vector;
-            for (const auto prev_scan_channel : previous_scan.second) {
-                channel_vector.emplace_back(prev_scan_channel);
-            }
-            LOG(TRACE) << "Operating class: #" << int(operating_class) << std::endl
-                       << "\tChannel list length:" << int(channel_vector.size()) << std::endl
-                       << "\tChannel list: " << print_channel_vector(channel_vector) << ".";
+        std::map<uint8_t, std::vector<uint8_t>> scan_map;
+        tlvf_utils::get_channel_scan_map(radio, scan_map);
 
-            operating_vector.emplace_back(operating_class, bandwidth, channel_vector);
+        for (auto elem : scan_map) {
+            std::vector<sChannel> channel_vector;
+            for (auto chan_num : elem.second) {
+                // extract status from database
+                eScanStatus new_status = eScanStatus::SCAN_NOT_COMPLETED;
+                auto db_status         = radio->channel_scan_results.find(chan_num);
+                if (db_status != radio->channel_scan_results.end()) {
+                    new_status = std::get<0>(db_status->second);
+                }
+                channel_vector.emplace_back(sChannel(chan_num, new_status));
+            }
+
+            LOG(TRACE) << "stored Operating class: #" << int(elem.first) << std::endl
+                       << "\tChannel list length:" << int(elem.second.size()) << std::endl
+                       << "\tChannel list: " << print_channel_vector(channel_vector) << ".";
+            operating_vector.emplace_back(elem.first, eWiFiBandwidth::BANDWIDTH_20, channel_vector);
         }
         return operating_vector;
     };
@@ -1035,7 +1110,7 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
         new_radio_scan->current_state = eState::PENDING_TRIGGER;
 
         if (!perform_fresh_scan) {
-            new_radio_scan->operating_classes = create_stored_operating_classes();
+            new_radio_scan->operating_classes = create_stored_operating_classes(radio);
         } else {
             // Iterate over operating classes
             for (int class_idx = 0; class_idx < class_list_len; class_idx++) {
@@ -1111,6 +1186,7 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
         // There is no need to add it to the request queue, since there is no need to perform a scan.
         if (!perform_fresh_scan) {
             new_request->ready_to_send_report = true;
+            LOG(TRACE) << "do not perform fresh scan, report existing results";
             return send_channel_scan_report_to_controller(new_request);
         }
 
@@ -1319,6 +1395,31 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
     return true;
 }
 
+void ChannelScanTask::handle_backhaul_enable_event()
+{
+    LOG(TRACE) << "init AgentDB scan results";
+
+    std::map<uint8_t, std::vector<uint8_t>> scan_map;
+
+    auto db  = AgentDB::get();
+    auto now = std::chrono::system_clock::now();
+
+    for (auto radio : db->get_radios_list()) {
+        scan_map.clear();
+        tlvf_utils::get_channel_scan_map(radio, scan_map);
+
+        for (auto scan_elem : scan_map) {
+            for (auto chan : std::get<1>(scan_elem)) {
+                radio->channel_scan_results[chan] =
+                    std::make_tuple(eScanStatus::SCAN_NOT_COMPLETED, now,
+                                    std::vector<beerocks_message::sChannelScanResults>{});
+            }
+        }
+    }
+    dump_agent_db_scan_results();
+    return;
+}
+
 bool ChannelScanTask::send_channel_scan_report_to_controller(
     const std::shared_ptr<sScanRequest> request)
 {
@@ -1429,9 +1530,11 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
         // Set Results TLV status
         results_tlv->success() = status;
         if (results_tlv->success() != eScanStatus::SUCCESS) {
-            // If results status is not successful, need to finish TLV.
+            // If results status is not successful, do not add the conditional fields in the TLV
             return true;
         }
+
+        std::shared_ptr<wfa_map::cRadioScanResult> scan_result = results_tlv->create_scan_result();
 
         // Set Results TLV timestamp
         const auto result_timestamp = utils::get_ISO_8601_timestamp_string(timestamp);
@@ -1439,14 +1542,14 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
             LOG(ERROR) << "Failed to create timestamp string for results";
             return false;
         }
-        if (!results_tlv->set_timestamp(result_timestamp)) {
+        if (!scan_result->set_timestamp(result_timestamp)) {
             LOG(ERROR) << "Failed to set timestamp in tlvProfile2ChannelScanResult!";
             return false;
         }
 
         // Set stored scan results in Results TLV neighbor list
         for (const auto &stored_neighbor : results) {
-            auto tlv_neighbor_ptr = results_tlv->create_neighbors_list();
+            auto tlv_neighbor_ptr = scan_result->create_neighbors_list();
             if (!tlv_neighbor_ptr) {
                 LOG(ERROR) << "Failed to create neighbor list";
                 return false;
@@ -1457,20 +1560,21 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
                 return false;
             }
 
-            if (!results_tlv->add_neighbors_list(tlv_neighbor_ptr)) {
+            if (!scan_result->add_neighbors_list(tlv_neighbor_ptr)) {
                 LOG(ERROR) << "Failed to add neighbor to TLV";
                 return false;
             }
         }
-        results_tlv->noise()       = noise;
-        results_tlv->utilization() = utilization;
+        scan_result->noise()       = noise;
+        scan_result->utilization() = utilization;
 
         // WFA R2 test script has a bug that checks utilization for non zero value.
         // Setting the utilization to a non zero value is a W/A that needs to be
         // deleted once WFA fixes the issue.
-        if (results_tlv->utilization() == 0) {
-            results_tlv->utilization() = 10;
+        if (scan_result->utilization() == 0) {
+            scan_result->utilization() = 10;
         }
+        results_tlv->add_scan_result(scan_result);
 
         return true;
     };
@@ -1651,9 +1755,11 @@ std::shared_ptr<ChannelScanTask::StoredResultsVector>
 ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest> request)
 {
     auto final_results = std::make_shared<StoredResultsVector>();
-    using ScanResults  = std::pair<std::chrono::system_clock::time_point,
-                                  std::vector<beerocks_message::sChannelScanResults>>;
-    using ResultsMap   = std::unordered_map<uint8_t, ScanResults>;
+    using eScanStatus  = wfa_map::tlvProfile2ChannelScanResult::eScanStatus;
+
+    using ScanResults = std::tuple<eScanStatus, std::chrono::system_clock::time_point,
+                                   std::vector<beerocks_message::sChannelScanResults>>;
+    using ResultsMap  = std::unordered_map<uint8_t, ScanResults>;
     // Add found results to final results
     auto add_scan_result =
         [&final_results](bool fresh_scan_requested, const sMacAddr &ruid,
@@ -1714,8 +1820,8 @@ ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest
                 }
                 auto &channel_results = channel_results_iter->second;
                 add_scan_result(fresh_scan_requested, ruid, operating_class, channel_number,
-                                scan_status, request_timestamp, channel_results.first,
-                                channel_results.second);
+                                scan_status, request_timestamp, std::get<1>(channel_results),
+                                std::get<2>(channel_results));
             }
         };
 

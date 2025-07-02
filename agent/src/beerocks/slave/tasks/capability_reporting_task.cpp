@@ -55,8 +55,6 @@ using namespace multi_vendor;
 
 namespace beerocks {
 
-constexpr uint8_t MINIMUM_SCAN_INTERVAL_SEC = 2;
-
 CapabilityReportingTask::CapabilityReportingTask(slave_thread &btl_ctx,
                                                  ieee1905_1::CmduMessageTx &cmdu_tx)
     : Task(eTaskType::CAPABILITY_REPORTING), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx)
@@ -577,27 +575,8 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     if (!early) {
         // 2.1 radio dependent tlvs
         // Add channel scan capabilities
-        auto channel_scan_capabilities_tlv =
-            m_cmdu_tx.addClass<wfa_map::tlvChannelScanCapabilities>();
-        if (!channel_scan_capabilities_tlv) {
-            LOG(ERROR) << "Error creating TLV_CHANNEL_SCAN_CAPABILITIES";
-            return false;
-        }
 
-        // Add Channel Scan Capabilities
-        for (auto radio : db->get_radios_list()) {
-
-            if (!radio) {
-                LOG(ERROR) << "radio does not exist in the db";
-                continue;
-            }
-
-            if (!add_channel_scan_capabilities(radio, *channel_scan_capabilities_tlv)) {
-                LOG(ERROR) << "Failed to fill in tlvChannelScanCapabilities for radio "
-                           << radio->front.iface_name;
-                continue;
-            }
-        }
+        tlvf_utils::add_tlv_channel_scan_capabilities(m_cmdu_tx);
     }
 
     // 2.2 radio independent tlvs
@@ -984,83 +963,6 @@ bool CapabilityReportingTask::add_ap_wifi6_capabilities(const std::string &iface
     return true;
 }
 
-bool CapabilityReportingTask::add_channel_scan_capabilities(
-    const AgentDB::sRadio *radio,
-    wfa_map::tlvChannelScanCapabilities &channel_scan_capabilities_tlv)
-{
-    auto radio_channel_scan_capabilities = channel_scan_capabilities_tlv.create_radio_list();
-    if (!radio_channel_scan_capabilities) {
-        LOG(ERROR) << "create_radio_list() has failed!";
-        return false;
-    }
-    radio_channel_scan_capabilities->radio_uid() = radio->front.iface_mac;
-    /*
-      We support either On-Boot Scan or On-Demand Scan at a time.
-      If On-Boot Scan is disabled, On-Demand Scan feature can be exercised.
-      Currently, On-Boot Scan is supported only on Certification mode as
-      it is required only for EasyMesh R5 certification.
-    */
-    auto db = AgentDB::get();
-    radio_channel_scan_capabilities->capabilities().on_boot_only =
-        (db->device_conf.certification_mode && db->device_conf.on_boot_scan > 0);
-
-    // Time slicing impairment (Radio may go off channel for a series of short intervals)
-    radio_channel_scan_capabilities->capabilities().scan_impact = wfa_map::
-        cRadiosWithScanCapabilities::eScanImpact::SCAN_IMPACT_REDUCED_NUMBER_OF_SPATIAL_STREAM;
-
-    radio_channel_scan_capabilities->minimum_scan_interval() = MINIMUM_SCAN_INTERVAL_SEC;
-
-    // Fill values for operating classes and channels (PPM-2294).
-    const std::vector<uint8_t> &supported_op_classes =
-        son::wireless_utils::get_operating_classes_of_freq_type(
-            radio->wifi_channel.get_freq_type());
-    if (supported_op_classes.empty()) {
-        LOG(ERROR) << "supported_op_classes is empty";
-        return false;
-    }
-
-    for (const auto &oper_class : supported_op_classes) {
-        // According to Wi-Fi EasyMesh Specification v5, operating classes specified in shall be
-        // 20 MHz operating classes from Table E-4 of [1].
-
-        if (son::wireless_utils::operating_class_to_bandwidth(oper_class) ==
-            beerocks::eWiFiBandwidth::BANDWIDTH_20) {
-            // Create operating class object
-            auto op_class_channels =
-                radio_channel_scan_capabilities->create_operating_classes_list();
-            if (!op_class_channels) {
-                LOG(ERROR) << "create_operating_classes_list() has failed!";
-                return false;
-            }
-
-            op_class_channels->operating_class() = oper_class;
-            std::vector<uint8_t> channel_vec(
-                son::wireless_utils::operating_class_to_channel_set(oper_class).begin(),
-                son::wireless_utils::operating_class_to_channel_set(oper_class).end());
-            if (!op_class_channels->set_channel_list(channel_vec.data(), channel_vec.size())) {
-                LOG(ERROR) << "set_channel_list() has failed!";
-                return false;
-            }
-            if (!radio_channel_scan_capabilities->add_operating_classes_list(op_class_channels)) {
-                LOG(ERROR) << "add_operating_classes_list failed";
-                return false;
-            }
-
-            if (op_class_channels->channel_list_length() == 0) {
-                LOG(DEBUG) << "channel_list_length is 0";
-            }
-        }
-    }
-
-    // Push operating class object to the list of operating class objects
-    if (!channel_scan_capabilities_tlv.add_radio_list(radio_channel_scan_capabilities)) {
-        LOG(ERROR) << "add_radio_list() has failed!";
-        return false;
-    }
-
-    return true;
-}
-
 bool CapabilityReportingTask::add_cac_capabilities_tlv()
 {
     auto cac_capabilities_tlv = m_cmdu_tx.addClass<wfa_map::tlvProfile2CacCapabilities>();
@@ -1214,7 +1116,21 @@ bool CapabilityReportingTask::add_profile2_ap_capability_tlv(ieee1905_1::CmduMes
 
 bool CapabilityReportingTask::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
 {
-    auto db  = AgentDB::get();
+    LOG(DEBUG) << "adding tlvEHTOperations";
+    auto db = AgentDB::get();
+
+    bool any_eht_radio = false;
+    for (const auto radio : db->get_radios_list()) {
+        if (radio->eht_supported) {
+            any_eht_radio = true;
+            break;
+        }
+    }
+    if (!any_eht_radio) {
+        LOG(INFO) << "no radio with EHT support";
+        return true;
+    }
+
     auto tlv = cmdu_tx.addClass<wfa_map::tlvEHTOperations>();
 
     if (!tlv) {
