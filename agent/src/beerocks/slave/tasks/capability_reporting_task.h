@@ -95,11 +95,27 @@ private:
     bool add_ap_wifi6_capabilities(const std::string &iface_name);
 
     /**
+     * @brief Adds an AP Radio Advanced Capabilities TLV to AP Capability Report message.
+     *
+     * @param iface_name Interface on which radio operates.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_ap_radio_advanced_capabilities_tlv(const std::string &iface_name);
+
+    /**
      * @brief Adds CAC-Capabilities TLV to AP Capability Report message.
      * 
      * @return true on success, otherwise false.
      */
     bool add_cac_capabilities_tlv();
+
+    /**
+     * @brief Adds Metric Collection Interval TLV to AP Capability Report message.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_metric_collection_interval_tlv();
 
     /**
      * @brief Adds Device Inventory TLVF to AP Capability Report message.

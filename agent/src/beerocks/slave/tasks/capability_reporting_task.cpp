@@ -486,16 +486,20 @@ void CapabilityReportingTask::handle_ap_capability_query(ieee1905_1::CmduMessage
 
 bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
 {
-    // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
-    // AP Capability Report message.
+    /**
+     * The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
+     * AP Capability Report message.
+     */
     if (!multi_vendor::tlvf_handler::add_vs_tlv(
             m_cmdu_tx, ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE)) {
         LOG(ERROR) << "Failed adding few TLVs in AP_CAPABILITY_REPORT_MESSAGE";
     }
 
     auto ap_capability_tlv = m_cmdu_tx.addClass<wfa_map::tlvApCapability>();
-    //TODO : These looks like a vendor specific params, where to read them from ?
-    // For now, lets  enable all of them to be able to develop/test the unassociated stations stats feature
+    /**
+     * TODO : These looks like a vendor specific params, where to read them from ?
+     * For now, lets  enable all of them to be able to develop/test the unassociated stations stats feature
+     */
     ap_capability_tlv->value().support_agent_initiated_rcpi_based_steering                  = true;
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_non_operating_bssid = true;
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_operating_bssid     = true;
@@ -508,8 +512,10 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
 
     auto db = AgentDB::get();
 
-    // 1. The tlvs created in the loop are created per radio and are
-    // defined in the specification as "Zero Or More" (multi-ap specification v2, 17.1.7)
+    /**
+     * 1. The tlvs created in the loop are created per radio and are
+     * defined in the specification as "Zero Or More" (multi-ap specification v2, 17.1.7)
+     */
     for (auto radio : db->get_radios_list()) {
         if (!radio) {
             LOG(ERROR) << "radio does not exist in the db";
@@ -532,34 +538,20 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
             return false;
         }
 
-        if (db->controller_info.profile_support >=
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3) {
+        if (!add_ap_wifi6_capabilities(radio->front.iface_name)) {
+            return false;
+        }
 
-            if (!add_ap_wifi6_capabilities(radio->front.iface_name)) {
-                return false;
-            }
-
-            /* One AP Radio Advanced Capabilities TLV */
-            auto ap_radio_advanced_capabilities_tlv =
-                m_cmdu_tx.addClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
-            if (!ap_radio_advanced_capabilities_tlv) {
-                LOG(ERROR) << "addClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities failed";
-                continue;
-            }
-
-            ap_radio_advanced_capabilities_tlv->radio_uid() = radio->front.iface_mac;
-
-            // Currently Set the flag as we don't support traffic separation.
-            ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().combined_front_back =
-                radio->front.hybrid_mode_supported;
-            ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities()
-                .combined_profile1_and_profile2 = 0;
+        if (!add_ap_radio_advanced_capabilities_tlv(radio->front.iface_name)) {
+            return false;
         }
     }
 
-    // 2. The tlvs created here are defined in the
-    // specification as "One" (multi-ap specification v2, 17.1.7).
-    // the one tlv may contain information about few radios
+    /**
+     * 2. The tlvs created here are defined in the
+     * specification as "One" (multi-ap specification v2, 17.1.7).
+     * the one tlv may contain information about few radios
+     */
 
     if (!add_wifi7_agent_capabilities_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling TLV_WIFI7_AGENT_CAPABILITIES";
@@ -571,47 +563,33 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     }
 
     if (!early) {
-        // 2.1 radio dependent tlvs
-        // Add channel scan capabilities
+        /* 2.1 radio dependent tlvs */
 
         tlvf_utils::add_tlv_channel_scan_capabilities(m_cmdu_tx);
     }
 
-    // 2.2 radio independent tlvs
+    /* 2.2 radio independent tlvs */
 
-    if (db->controller_info.profile_support >=
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2) {
+    if (!add_profile2_ap_capability_tlv(m_cmdu_tx)) {
+        return false;
+    }
 
-        // profile 2 ap capability
-        if (!add_profile2_ap_capability_tlv(m_cmdu_tx)) {
+    if (!add_metric_collection_interval_tlv()) {
+        return false;
+    }
+
+    /* 3. tlvs added by external sources */
+
+    if (!add_cac_capabilities_tlv()) {
+        LOG(ERROR) << "error filling cac capabilities tlv";
+        if (!early) {
             return false;
-        }
-
-        // profile 2 metric collection interval
-        // Note: at the moment we are not setting a value for collection_interval
-        auto profile2_meteric_collection_interval_tlv =
-            m_cmdu_tx.addClass<wfa_map::tlvProfile2MetricCollectionInterval>();
-        if (!profile2_meteric_collection_interval_tlv) {
-            LOG(ERROR) << "error creating TLV_PROFILE2_METERIC_COLLECTION_INTERVAL";
-            return false;
-        }
-
-        // 3. tlvs added by external sources
-        if (!add_cac_capabilities_tlv()) {
-            LOG(ERROR) << "error filling cac capabilities tlv";
-            if (!early) {
-                return false;
-            }
         }
     }
 
-    if (db->controller_info.profile_support >=
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3) {
-
-        if (!add_device_inventory_tlv()) {
-            LOG(ERROR) << "error filling device inventory tlv";
-            return false;
-        }
+    if (!add_device_inventory_tlv()) {
+        LOG(ERROR) << "error filling device inventory tlv";
+        return false;
     }
 
     return true;
@@ -960,6 +938,32 @@ bool CapabilityReportingTask::add_ap_wifi6_capabilities(const std::string &iface
     return true;
 }
 
+bool CapabilityReportingTask::add_ap_radio_advanced_capabilities_tlv(const std::string &iface_name)
+{
+    auto db    = AgentDB::get();
+    auto radio = db->radio(iface_name);
+    if (!radio) {
+        return false;
+    }
+
+    auto ap_radio_advanced_capabilities_tlv =
+        m_cmdu_tx.addClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
+    if (!ap_radio_advanced_capabilities_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities failed";
+        return false;
+    }
+
+    ap_radio_advanced_capabilities_tlv->radio_uid() = radio->front.iface_mac;
+
+    /* Currently Set the flag as we don't support traffic separation. */
+    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().combined_front_back =
+        radio->front.hybrid_mode_supported;
+    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities()
+        .combined_profile1_and_profile2 = 0;
+
+    return true;
+}
+
 bool CapabilityReportingTask::add_cac_capabilities_tlv()
 {
     auto cac_capabilities_tlv = m_cmdu_tx.addClass<wfa_map::tlvProfile2CacCapabilities>();
@@ -1043,6 +1047,19 @@ bool CapabilityReportingTask::add_cac_capabilities_tlv()
             return false;
         }
     }
+    return true;
+}
+
+bool CapabilityReportingTask::add_metric_collection_interval_tlv()
+{
+    /* Note: at the moment we are not setting a value for collection_interval */
+    auto profile2_metric_collection_interval_tlv =
+        m_cmdu_tx.addClass<wfa_map::tlvProfile2MetricCollectionInterval>();
+    if (!profile2_metric_collection_interval_tlv) {
+        LOG(ERROR) << "error creating TLV_PROFILE2_METRIC_COLLECTION_INTERVAL";
+        return false;
+    }
+
     return true;
 }
 
