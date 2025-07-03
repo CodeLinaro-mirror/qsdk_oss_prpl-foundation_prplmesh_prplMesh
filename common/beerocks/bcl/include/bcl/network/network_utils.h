@@ -346,6 +346,14 @@ public:
     static bool linux_iface_is_physical(const std::string &iface);
 
     /**
+     * @brief Retrieves the list of non-physical interfaces (veth, dummy, etc.) that are
+     * attached to bridges on the Linux device.
+     *
+     * @return A vector of strings containing the names of the non-physical bridge member interfaces.
+     */
+    static std::vector<std::string> linux_get_non_physical_bridge_interfaces();
+
+    /**
      * @brief Retrieves the list of lan interfaces on the linux device.
      *
      * @return A vector of strings containing the names of the lan interfaces.
