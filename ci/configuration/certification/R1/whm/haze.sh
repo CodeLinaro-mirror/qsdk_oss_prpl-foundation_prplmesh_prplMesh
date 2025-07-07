@@ -48,6 +48,9 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.130"
 
+/etc/init.d/prplmesh stop && sleep 2
+/etc/init.d/prplmesh start && sleep 2
+
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
   # Prplmesh agent is not running. Data model isn't up.
@@ -80,7 +83,8 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidt
 
 
 # Commands to start a new SSH server
-start_ssh_commands="killall -9 dropbear
+start_ssh_commands="iptables -P INPUT ACCEPT
+killall -9 dropbear
 dropbear -F -T 10 -p192.168.250.130:22 &"
 
 sleep 5

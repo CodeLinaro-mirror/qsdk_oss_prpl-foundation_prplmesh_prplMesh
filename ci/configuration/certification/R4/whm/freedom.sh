@@ -34,10 +34,6 @@ ba-cli DHCPv6Client.Client.wan.Enable=0
 ba-cli DHCPv4Server.Enable=0
 ba-cli DHCPv6Server.Enable=0
 
-# Fix overlapping MACs in 6GHz radio
-ba-cli Device.Ethernet.Link.ethernet_wan.MACAddress="58:E4:03:D2:10:04"
-ba-cli Device.WiFi.SSID.GUEST_RADIO3.MACAddress="58:E4:03:D2:10:50"
-
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
 ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" && {
@@ -52,6 +48,10 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
+# Setting BackhaulWireIface, or persistence can fail (PPM-3339)
+/etc/init.d/prplmesh stop && sleep 2
+/etc/init.d/prplmesh start && sleep 2
+
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
   # Prplmesh agent is not running. Data model isn't up.
@@ -65,12 +65,6 @@ fi
 # enable Wi-Fi radios
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Enable": "true" } }'
 ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Enable": "true" } }'
-
-# all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
-
-# Add all VAPs to br-lan by default
-#ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
-#ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
@@ -96,7 +90,8 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwi
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
 # Commands to start a new SSH server on the control port
-start_ssh_commands="killall -9 dropbear
+start_ssh_commands="iptables -P INPUT ACCEPT
+killall -9 dropbear
 dropbear -F -T 10 -p192.168.250.150:22 &"
 
 sleep 5
