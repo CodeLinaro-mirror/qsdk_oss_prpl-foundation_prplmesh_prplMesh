@@ -75,6 +75,7 @@ bool agent_ucc_listener::handle_dev_get_param(std::unordered_map<std::string, st
                 return false;
             }
             value = tlvf::mac_to_string(radio->back.iface_mac);
+            LOG(INFO) << "VOLODYMYR | return mac = " << value;
             return true;
         }
         auto ssid = params["ssid"];

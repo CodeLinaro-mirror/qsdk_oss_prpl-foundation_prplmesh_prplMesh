@@ -611,6 +611,7 @@ std::string sta_wlan_hal_whm::get_wireless_backhaul_mac()
         m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path)) {
         m_ambiorix_cl.get_param(mac, ssid_path, "MACAddress");
     }
+    LOG(INFO) << "VOLODYMYR | get_wireless_backhaul_mac | mac = " + mac;
     return mac;
 }
 

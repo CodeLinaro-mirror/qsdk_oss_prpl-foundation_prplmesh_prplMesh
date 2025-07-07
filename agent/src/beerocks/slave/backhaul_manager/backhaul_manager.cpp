@@ -1168,6 +1168,8 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                 radio->back.iface_mac =
                     tlvf::mac_from_string(radio_info->sta_wlan_hal->get_wireless_backhaul_mac());
 
+                LOG(INFO) << "VOLODYMYR | Backhaul mac is updated";
+
             } else if (attach_state == bwl::HALState::Failed) {
                 // Delete the HAL instance
                 radio_info->sta_wlan_hal.reset();
