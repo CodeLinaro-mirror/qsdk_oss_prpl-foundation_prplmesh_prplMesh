@@ -505,6 +505,6 @@ PLATFORM_INIT=@BEEROCKS_PLATFORM_INIT@
 DELETE_LOGS=false
 CONTROL_IFACE=
 DATA_IFACE=
-PRPLMESH_MODE="CA" # CA = Controller & Agent, A = Agent only, C = Controller only
+PRPLMESH_MODE="A" # CA = Controller & Agent, A = Agent only, C = Controller only
 
 main "$@"
