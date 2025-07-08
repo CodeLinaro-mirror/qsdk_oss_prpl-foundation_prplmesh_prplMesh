@@ -48,6 +48,7 @@ using namespace wbapi;
 #define MEMFREE_TXT "MemFree:"
 #define MEMBUFFER_TXT "Buffers:"
 #define STAT_IDLE_IND 3
+
 /*
  * Enum contains the different Link Types
  */
@@ -163,7 +164,7 @@ uint16_t set_supp_stats_val()
     return var;
 }
 
-static AmbiorixVariantSmartPtr get_eth_intf_object(const std::string &path)
+static AmbiorixVariantSmartPtr get_eth_interface_object(const std::string &path)
 {
     return (beerocks::bpl::m_ambiorix_cl.get_object(path));
 }
@@ -198,10 +199,10 @@ bool get_data_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string 
  */
 bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
-    std::string dm_path   = "Device.Ethernet.";
-    std::string intf_path = "Interface.";
-    std::string link_path = "Link.";
-    std::string int_details_path, link_details_path;
+    std::string dm_path        = "Device.Ethernet.";
+    std::string interface_path = "Interface.";
+    std::string link_path      = "Link.";
+    std::string interface_dm_path, link_dm_path;
     uint8_t num_ports = 0;
 
     auto tlvAirtiesEthIntf = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetInterface>();
@@ -216,26 +217,26 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
         static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_INTERFACE);
 
     //Get the Ambiorix object
-    auto eth_intf = get_eth_intf_object(dm_path);
-    if (!eth_intf) {
+    auto eth_interface = get_eth_interface_object(dm_path);
+    if (!eth_interface) {
         LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
         return false;
     }
 
     //Number of Ethernet Interfaces present
-    if (!get_data_from_dm(eth_intf, "LinkNumberOfEntries", num_ports) || (!num_ports)) {
+    if (!get_data_from_dm(eth_interface, "LinkNumberOfEntries", num_ports) || (!num_ports)) {
         LOG(ERROR) << "Failed to populate Ethernet Interface TLV as "
                       "LinkNumberOfEntries is not valid";
         return false;
     }
 
-    for (uint8_t port_id = 1; port_id <= num_ports; port_id++) {
+    for (uint8_t i = 1; i <= num_ports; i++) {
 
-        int_details_path = dm_path + intf_path + std::to_string(port_id) + ".";
+        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
 
-        auto eth_interface = get_eth_intf_object(int_details_path);
+        eth_interface = get_eth_interface_object(interface_dm_path);
         if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << int_details_path;
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
             continue;
         }
 
@@ -244,26 +245,28 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
             continue;
         }
 
-        auto intf_list = tlvAirtiesEthIntf->create_interface_list();
+        auto interface_list = tlvAirtiesEthIntf->create_interface_list();
 
-        /*
-         * As of now, store the i value itself to the port id.
-         * Once the community concludes the method to fetch
-         * the port id, the implementation will be done here.
-         */
-        intf_list->port_id() = port_id;
+        std::string interface_alias;
+        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
+            (interface_alias.empty())) {
+            LOG(ERROR) << "Failed to read Alias value from DM";
+            return false;
+        }
+        interface_list->port_id() =
+            airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
 
-        std::string mac_addr = "";
+        std::string mac_addr;
         if (!get_data_from_dm(eth_interface, "MACAddress", mac_addr)) {
-            LOG(ERROR) << "Failed to get the MAC address for port_id " << port_id;
+            LOG(ERROR) << "Failed to get the MAC address for port_id " << interface_list->port_id();
         }
-        intf_list->eth_mac() = tlvf::mac_from_string(mac_addr);
+        interface_list->eth_mac() = tlvf::mac_from_string(mac_addr);
 
-        std::string eth_intf_name = "";
-        if (!get_data_from_dm(eth_interface, "Name", eth_intf_name)) {
-            LOG(ERROR) << "Failed to the Interface Name for port_id " << port_id;
+        std::string eth_interface_name;
+        if (!get_data_from_dm(eth_interface, "Name", eth_interface_name)) {
+            LOG(ERROR) << "Failed to the Interface Name for port_id " << interface_list->port_id();
         }
-        intf_list->set_eth_intf_name(eth_intf_name);
+        interface_list->set_eth_intf_name(eth_interface_name);
 
         /*
          * Port State Bitwise
@@ -272,17 +275,19 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
          * Bit 5 - eth_port_duplex_mode - Device.Ethernet.Interface.1.DuplexMode
          * Bit 4 - 0 - Reserved
          */
-        std::string port_admin_state = "";
+        std::string port_admin_state;
         if (!get_data_from_dm(eth_interface, "Status", port_admin_state)) {
-            LOG(ERROR) << "Failed to get the admin state for the port_id " << port_id;
+            LOG(ERROR) << "Failed to get the admin state for the port_id "
+                       << interface_list->port_id();
         }
-        intf_list->flags1().eth_port_admin_state = (port_admin_state == "Up" ? 1 : 0);
+        interface_list->flags1().eth_port_admin_state = (port_admin_state == "Up" ? 1 : 0);
 
-        std::string port_dup_mode = "";
+        std::string port_dup_mode;
         if (!get_data_from_dm(eth_interface, "DuplexMode", port_dup_mode)) {
-            LOG(ERROR) << "Failed to get the duplex mode for the port_id " << port_id;
+            LOG(ERROR) << "Failed to get the duplex mode for the port_id "
+                       << interface_list->port_id();
         }
-        intf_list->flags1().eth_port_duplex_mode =
+        interface_list->flags1().eth_port_duplex_mode =
             (((port_dup_mode == "Auto") || (port_dup_mode == "Full")) ? 1 : 0);
 
         /*
@@ -292,34 +297,37 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
          */
         uint32_t supp_link_type = 0, cur_link_type = 0;
         if (!get_data_from_dm(eth_interface, "MaxBitRate", supp_link_type)) {
-            LOG(ERROR) << "Failed to get the Maximum support bit rate for port_id " << port_id;
+            LOG(ERROR) << "Failed to get the Maximum support bit rate for port_id "
+                       << interface_list->port_id();
         }
-        intf_list->flags2().supported_link_type = get_bitvalue(supp_link_type);
+        interface_list->flags2().supported_link_type = get_bitvalue(supp_link_type);
 
         if (!get_data_from_dm(eth_interface, "CurrentBitRate", cur_link_type)) {
-            LOG(ERROR) << "Failed to get the current bit rate for port_id " << port_id;
+            LOG(ERROR) << "Failed to get the current bit rate for port_id "
+                       << interface_list->port_id();
         }
-        intf_list->flags2().current_link_type = get_bitvalue(cur_link_type);
+        interface_list->flags2().current_link_type = get_bitvalue(cur_link_type);
 
         /*
          * Link state need to be fetched from Link path.
          * So, change the ambiorix path.
          */
-        link_details_path = dm_path + link_path + std::to_string(port_id) + ".";
+        link_dm_path = dm_path + link_path + std::to_string(interface_list->port_id()) + ".";
 
-        std::string port_link_state = "";
-        auto eth_link               = get_eth_intf_object(link_details_path);
+        std::string port_link_state;
+        auto eth_link = get_eth_interface_object(link_dm_path);
         if (eth_link) {
             if (!get_data_from_dm(eth_link, "Status", port_link_state)) {
-                LOG(ERROR) << "Failed to the link status for the port id " << port_id;
+                LOG(ERROR) << "Failed to the link status for the port id "
+                           << interface_list->port_id();
             }
         } else {
-            LOG(INFO) << "Unable to get the Ambiorix object for " << link_details_path;
+            LOG(INFO) << "Unable to get the Ambiorix object for " << link_dm_path;
         }
 
-        intf_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
+        interface_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
 
-        tlvAirtiesEthIntf->add_interface_list(intf_list);
+        tlvAirtiesEthIntf->add_interface_list(interface_list);
     }
     return true;
 }
@@ -361,7 +369,7 @@ uint64_t tlvf_airties_utils::get_value_from_dm(std::string param, std::string cn
 {
     uint64_t output = 0, value = 0;
 
-    auto eth_interface = get_eth_intf_object(cntr_path);
+    auto eth_interface = get_eth_interface_object(cntr_path);
     if (!eth_interface) {
         LOG(ERROR) << "failed to get radio Stats object " << cntr_path;
         return output;
@@ -427,11 +435,10 @@ template <typename T> void populate_cntrs_info(std::shared_ptr<T> &port_list, st
 bool tlvf_airties_utils::get_all_counters_info(
     std::shared_ptr<airties::tlvAirtiesEthernetStatsallcntr> &tlvEthStats)
 {
-    std::string dm_path    = "Device.Ethernet.";
-    std::string intf_path  = "Interface.";
-    std::string stats_path = "Stats.";
-    std::string cntr_path, int_details_path;
-    std::string param = "";
+    std::string dm_path        = "Device.Ethernet.";
+    std::string interface_path = "Interface.";
+    std::string stats_path     = "Stats.";
+    std::string cntr_path, interface_dm_path;
     uint8_t num_ports = 0;
 
     tlvEthStats->vendor_oui() =
@@ -442,7 +449,7 @@ bool tlvf_airties_utils::get_all_counters_info(
 
     tlvEthStats->supported_extra_stats() = set_supp_stats_val();
 
-    auto eth_interf = get_eth_intf_object(dm_path);
+    auto eth_interf = get_eth_interface_object(dm_path);
     if (!eth_interf) {
         LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
         return false;
@@ -457,13 +464,13 @@ bool tlvf_airties_utils::get_all_counters_info(
         return false;
     }
 
-    for (uint8_t port_id = 1; port_id <= num_ports; port_id++) {
+    for (uint8_t i = 1; i <= num_ports; i++) {
 
-        int_details_path = dm_path + intf_path + std::to_string(port_id) + ".";
+        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
 
-        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(int_details_path);
+        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(interface_dm_path);
         if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << int_details_path;
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
             return false;
         }
 
@@ -477,13 +484,15 @@ bool tlvf_airties_utils::get_all_counters_info(
 
         auto port_list = tlvEthStats->create_port_list();
 
-        cntr_path = dm_path + intf_path + std::to_string(port_id) + "." + stats_path;
-        /*
-         * As of now, store the i value itself to the port id.
-         * Once the community concludes the method to fetch
-         * the port id, the implementation will be done here.
-         */
-        port_list->port_id() = port_id;
+        cntr_path = dm_path + interface_path + std::to_string(i) + "." + stats_path;
+
+        std::string interface_alias;
+        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
+            (interface_alias.empty())) {
+            LOG(ERROR) << "Failed to read Alias value from DM";
+            return false;
+        }
+        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
 
         //Populate the counters
         populate_cntrs_info(port_list, cntr_path);
@@ -518,11 +527,10 @@ bool tlvf_airties_utils::get_all_counters_info(
 bool tlvf_airties_utils::get_counters_info(
     std::shared_ptr<airties::tlvAirtiesEthernetStats> &tlvEthStats)
 {
-    std::string dm_path    = "Device.Ethernet.";
-    std::string intf_path  = "Interface.";
-    std::string stats_path = "Stats.";
-    std::string cntr_path, int_details_path;
-    std::string param = "";
+    std::string dm_path        = "Device.Ethernet.";
+    std::string interface_path = "Interface.";
+    std::string stats_path     = "Stats.";
+    std::string cntr_path, interface_dm_path;
     uint8_t num_ports = 0;
 
     tlvEthStats->vendor_oui() =
@@ -549,13 +557,13 @@ bool tlvf_airties_utils::get_counters_info(
         return false;
     }
 
-    for (uint8_t port_id = 1; port_id <= num_ports; port_id++) {
+    for (uint8_t i = 1; i <= num_ports; i++) {
 
-        int_details_path = dm_path + intf_path + std::to_string(port_id) + ".";
+        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
 
-        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(int_details_path);
+        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(interface_dm_path);
         if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << int_details_path;
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
             return false;
         }
 
@@ -569,14 +577,16 @@ bool tlvf_airties_utils::get_counters_info(
 
         auto port_list = tlvEthStats->create_port_list();
 
-        cntr_path = dm_path + intf_path + std::to_string(port_id) + "." + stats_path;
+        cntr_path = dm_path + interface_path + std::to_string(i) + "." + stats_path;
 
-        /*
-         * As of now, store the i value itself to the port id.
-         * Once the community concludes the method to fetch
-         * the port id, the implementation will be done here.
-         */
-        port_list->port_id() = port_id;
+        std::string interface_alias;
+        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
+            (interface_alias.empty())) {
+            LOG(ERROR) << "Failed to read Alias value from DM";
+            return false;
+        }
+
+        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
 
         populate_cntrs_info(port_list, cntr_path);
 
@@ -697,7 +707,6 @@ create_and_add_feature_to_list(std::shared_ptr<airties::tlvVersionReporting> tlv
  */
 bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
 {
-
     // Instance to utilize platform-specific utilities
     airties::tlvf_airties_utils utils_instance;
 
@@ -1112,4 +1121,48 @@ bool tlvf_airties_utils::add_airties_msgtype_tlv(ieee1905_1::CmduMessageTx &cmdu
         (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
     LOG(INFO) << "Added Airties Msg Type TLV";
     return true;
+}
+
+uint8_t tlvf_airties_utils::assign_unique_port_id(const std::string &interface_name)
+{
+    static std::mutex port_id_mutex;
+    std::lock_guard<std::mutex> lock(port_id_mutex);
+
+    static std::map<std::string, uint8_t> assigned_ids;
+    static std::set<uint8_t> used_ids;
+
+    // Return immediately if already assigned
+    auto it = assigned_ids.find(interface_name);
+    if (it != assigned_ids.end()) {
+        return it->second;
+    }
+
+    // Extract trailing digit if present
+    int i = interface_name.size() - 1;
+    while (i >= 0 && isdigit(interface_name[i])) {
+        --i;
+    }
+
+    uint8_t suffix = 0;
+    if (i != (int)interface_name.size() - 1) {
+        std::string number_part = interface_name.substr(i + 1);
+        suffix                  = static_cast<uint8_t>(std::stoi(number_part));
+    }
+
+    // Assign suffix if valid and unused
+    if (used_ids.find(suffix) == used_ids.end()) {
+        assigned_ids[interface_name] = suffix;
+        used_ids.insert(suffix);
+        return suffix;
+    }
+
+    // Assign next available number
+    uint8_t next_id = 1;
+    while (used_ids.find(next_id) != used_ids.end()) {
+        ++next_id;
+    }
+
+    assigned_ids[interface_name] = next_id;
+    used_ids.insert(next_id);
+    return next_id;
 }
