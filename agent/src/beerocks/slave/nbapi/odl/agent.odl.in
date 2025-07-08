@@ -32,6 +32,7 @@
             /* Specifies the network interface to use for wired backhaul */
             %persistent string BackhaulWireInterface {
                 default "wan";
+                on action validate call check_minimum_length 1;
             }
 
             /* Number of retry attempts before the agent stops due to failures. 0 disables retries */
