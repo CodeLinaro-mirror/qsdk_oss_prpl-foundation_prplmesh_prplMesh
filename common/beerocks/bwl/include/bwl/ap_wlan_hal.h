@@ -42,6 +42,7 @@ public:
         WPA_Event_SAE_Unknown_Password_Identifier,
         WPS_Event_Cancel,
         AP_Sta_Possible_Psk_Mismatch,
+        ACL_DENY,
 
         STA_Connected,
         STA_Disconnected,
