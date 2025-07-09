@@ -1113,7 +1113,7 @@ sUnassociatedStationStats:
   sta_mac: sMacAddr
   signal_strength: 
     comment: RSSI 
-    _type: uint8_t
+    _type: int32_t
   channel: uint8_t
   operating_class: uint8_t
   time_stamp:

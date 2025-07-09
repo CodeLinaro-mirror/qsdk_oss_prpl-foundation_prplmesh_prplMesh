@@ -866,7 +866,7 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
 
     //Lets iterate through all instances
     for (auto &non_ass_device : *non_ass_devices) {
-        uint8_t signal_strength(0);
+        int32_t signal_strength(0);
         uint8_t channel(0);
         uint8_t operating_class(0);
         std::string time_stamp_str;
