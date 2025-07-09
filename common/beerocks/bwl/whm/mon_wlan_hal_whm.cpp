@@ -466,6 +466,19 @@ bool mon_wlan_hal_whm::channel_scan_trigger(int dwell_time_msec,
         m_scan_active = false; // optimistically reset m_scan_active
         LOG(INFO) << "m_scan_active: " << m_scan_active;
     }
+
+    /**
+     *Since it is mentioned that the custom dwell time parameter can be set with the prpl
+     *controller in the future, it is more appropriate to set the dwell time from here
+     */
+    AmbiorixVariant new_map(AMXC_VAR_ID_HTABLE);
+    new_map.add_child("PassiveChannelTime", dwell_time_msec);
+    new_map.add_child("ActiveChannelTime", dwell_time_msec);
+    bool ret = m_ambiorix_cl.update_object(m_radio_path + "ScanConfig.", new_map);
+    if (!ret) {
+        LOG(WARNING) << "failed to update Active/PassiveChannelTime for " << m_radio_path;
+    }
+
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     if (!channels.empty()) {

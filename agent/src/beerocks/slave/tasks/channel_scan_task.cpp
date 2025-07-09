@@ -146,9 +146,10 @@ constexpr size_t TLV_HEADER            = 3; // Bytes;
 constexpr size_t MAX_TLV_FRAGMENT_SIZE = 1500;
 
 ChannelScanTask::ChannelScanTask(BackhaulManager &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                 const bool on_boot_scan_enabled)
+                                 const bool on_boot_scan_enabled, const int dwell_time)
     : Task(eTaskType::CHANNEL_SCAN), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx),
-      m_on_boot_scan_enabled(on_boot_scan_enabled)
+      m_on_boot_scan_enabled(on_boot_scan_enabled),
+      m_preferred_dwell_time_ms(dwell_time == 0 ? PREFERRED_DWELLTIME_MS : dwell_time)
 {
     LOG(DEBUG) << "On Boot Scan is " << (m_on_boot_scan_enabled ? "enabled" : "disabled");
 }
@@ -1106,7 +1107,7 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
             delete ptr;
         });
         new_radio_scan->radio_mac     = radio_mac;
-        new_radio_scan->dwell_time    = PREFERRED_DWELLTIME_MS;
+        new_radio_scan->dwell_time    = m_preferred_dwell_time_ms;
         new_radio_scan->current_state = eState::PENDING_TRIGGER;
 
         if (!perform_fresh_scan) {
@@ -1370,7 +1371,7 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
     });
 
     new_radio_scan->radio_mac     = radio_mac;
-    new_radio_scan->dwell_time    = PREFERRED_DWELLTIME_MS;
+    new_radio_scan->dwell_time    = m_preferred_dwell_time_ms;
     new_radio_scan->current_state = eState::PENDING_TRIGGER;
 
     auto operating_classes_size = operating_classes.size();
@@ -1514,7 +1515,7 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
         [this, &set_neighbor_in_scan_results_tlv](
             sMacAddr ruid, uint8_t operating_class, uint8_t channel, eScanStatus status,
             std::chrono::system_clock::time_point timestamp, uint8_t utilization, uint8_t noise,
-            std::vector<beerocks_message::sChannelScanResults> results) -> bool {
+            int dwell_time, std::vector<beerocks_message::sChannelScanResults> results) -> bool {
         LOG(DEBUG) << "Adding new Scan Results TLV";
         auto results_tlv = m_cmdu_tx.addClass<wfa_map::tlvProfile2ChannelScanResult>();
         if (!results_tlv) {
@@ -1574,6 +1575,7 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
         if (scan_result->utilization() == 0) {
             scan_result->utilization() = 10;
         }
+        scan_result->aggregate_scan_duration() = dwell_time;
         results_tlv->add_scan_result(scan_result);
 
         return true;
@@ -1719,7 +1721,8 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
             stored_scan_results_iter->ruid, stored_scan_results_iter->operating_class,
             stored_scan_results_iter->channel, stored_scan_results_iter->status,
             stored_scan_results_iter->timestamp, stored_scan_results_iter->utilization,
-            stored_scan_results_iter->noise, results_fragment);
+            stored_scan_results_iter->noise, stored_scan_results_iter->dwell_time,
+            results_fragment);
         if (!results_tlv) {
             LOG(ERROR) << "Failed to add Scan Result TLV to Channel Scan Report Message";
             return false;
@@ -1761,40 +1764,40 @@ ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest
                                    std::vector<beerocks_message::sChannelScanResults>>;
     using ResultsMap  = std::unordered_map<uint8_t, ScanResults>;
     // Add found results to final results
-    auto add_scan_result =
-        [&final_results](bool fresh_scan_requested, const sMacAddr &ruid,
-                         const uint8_t operating_class, const uint8_t channel,
-                         const eScanStatus status,
-                         const std::chrono::system_clock::time_point &request_timestamp,
-                         const std::chrono::system_clock::time_point &results_timestamp =
-                             std::chrono::system_clock::time_point::min(),
-                         std::vector<beerocks_message::sChannelScanResults> results =
-                             std::vector<beerocks_message::sChannelScanResults>()) {
-            // If a fresh scan was requested, return only "fresh" results.
-            // Otherwise all results need to be returned
-            if (!fresh_scan_requested ||
-                (results_timestamp == request_timestamp ||
-                 results_timestamp == std::chrono::system_clock::time_point::min())) {
-                //extract the utilization and noise values ​​of the channel from sChannelScanResults and then delete
-                //only neighbor results should be kept
-                auto it             = std::find_if(results.begin(), results.end(),
-                                       [](const beerocks_message::sChannelScanResults &results) {
-                                           return results.spectrum_info_present;
-                                       });
-                uint8_t utilization = 0;
-                uint8_t noise       = 0;
-                if (it != results.end()) {
-                    utilization = it->utilization;
-                    noise       = (it->noise_dBm < 0) ? ((it->noise_dBm + 110) * 2) : 220;
-                    results.erase(it);
-                }
-                final_results->emplace_back(ruid, operating_class, channel, status,
-                                            results_timestamp, utilization, noise, results);
+    auto add_scan_result = [&final_results](
+                               bool fresh_scan_requested, const sMacAddr &ruid,
+                               const int dwell_time, const uint8_t operating_class,
+                               const uint8_t channel, const eScanStatus status,
+                               const std::chrono::system_clock::time_point &request_timestamp,
+                               const std::chrono::system_clock::time_point &results_timestamp =
+                                   std::chrono::system_clock::time_point::min(),
+                               std::vector<beerocks_message::sChannelScanResults> results =
+                                   std::vector<beerocks_message::sChannelScanResults>()) {
+        // If a fresh scan was requested, return only "fresh" results.
+        // Otherwise all results need to be returned
+        if (!fresh_scan_requested ||
+            (results_timestamp == request_timestamp ||
+             results_timestamp == std::chrono::system_clock::time_point::min())) {
+            //extract the utilization and noise values ​​of the channel from sChannelScanResults and then delete
+            //only neighbor results should be kept
+            auto it             = std::find_if(results.begin(), results.end(),
+                                   [](const beerocks_message::sChannelScanResults &results) {
+                                       return results.spectrum_info_present;
+                                   });
+            uint8_t utilization = 0;
+            uint8_t noise       = 0;
+            if (it != results.end()) {
+                utilization = it->utilization;
+                noise       = (it->noise_dBm < 0) ? ((it->noise_dBm + 110) * 2) : 220;
+                results.erase(it);
             }
-        };
+            final_results->emplace_back(ruid, operating_class, channel, status, results_timestamp,
+                                        dwell_time, utilization, noise, results);
+        }
+    };
 
     auto get_results_for_channel_list =
-        [&add_scan_result](bool fresh_scan_requested, const sMacAddr &ruid,
+        [&add_scan_result](bool fresh_scan_requested, const sMacAddr &ruid, const int dwell_time,
                            const uint8_t operating_class, const beerocks::eWiFiBandwidth bw,
                            const std::chrono::system_clock::time_point &request_timestamp,
                            const std::vector<sChannel> &channel_list, const ResultsMap &results) {
@@ -1806,22 +1809,22 @@ ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest
                 if (scan_status != eScanStatus::SUCCESS) {
                     LOG(DEBUG) << "Scan status is not successful for channel " << channel_number
                                << ", adding blank results";
-                    add_scan_result(fresh_scan_requested, ruid, operating_class, channel_number,
-                                    scan_status, request_timestamp);
+                    add_scan_result(fresh_scan_requested, ruid, dwell_time, operating_class,
+                                    channel_number, scan_status, request_timestamp);
                     continue;
                 }
                 auto channel_results_iter = results.find(channel_number);
                 if (channel_results_iter == results.end()) {
                     LOG(DEBUG) << "No results found for channel " << channel_number
                                << ", adding blank results";
-                    add_scan_result(fresh_scan_requested, ruid, operating_class, channel_number,
-                                    scan_status, request_timestamp);
+                    add_scan_result(fresh_scan_requested, ruid, dwell_time, operating_class,
+                                    channel_number, scan_status, request_timestamp);
                     continue;
                 }
                 auto &channel_results = channel_results_iter->second;
-                add_scan_result(fresh_scan_requested, ruid, operating_class, channel_number,
-                                scan_status, request_timestamp, std::get<1>(channel_results),
-                                std::get<2>(channel_results));
+                add_scan_result(fresh_scan_requested, ruid, dwell_time, operating_class,
+                                channel_number, scan_status, request_timestamp,
+                                std::get<1>(channel_results), std::get<2>(channel_results));
             }
         };
 
@@ -1837,10 +1840,11 @@ ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest
                                       wfa_map::tlvProfile2ChannelScanRequest::ePerformFreshScan::
                                           PERFORM_A_FRESH_SCAN_AND_RETURN_RESULTS;
     const auto &radio_scan_element = request->radio_scans;
+    const auto dwell_time          = radio_scan_element->dwell_time;
     for (const auto &operating_class_iter : radio_scan_element->operating_classes) {
         get_results_for_channel_list(fresh_scan_requested, radio_scan_element->radio_mac,
-                                     operating_class_iter.operating_class, operating_class_iter.bw,
-                                     request->scan_start_timestamp,
+                                     dwell_time, operating_class_iter.operating_class,
+                                     operating_class_iter.bw, request->scan_start_timestamp,
                                      operating_class_iter.channel_list, stored_scan_results_map);
     }
     return final_results;
