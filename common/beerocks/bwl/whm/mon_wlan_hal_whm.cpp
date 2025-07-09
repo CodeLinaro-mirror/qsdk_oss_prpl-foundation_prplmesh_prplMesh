@@ -858,6 +858,14 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
                    << non_associated_device_path;
     }
 
+    if (!new_list.empty()) {
+        AmbiorixVariant args, result;
+        if (!m_ambiorix_cl.call(nasta_monitor_path, "getNaStationStats", args, result)) {
+            LOG(ERROR) << "remote function call getNaStationStats for object " << nasta_monitor_path
+                       << " Failed!";
+        }
+    }
+
     auto non_ass_devices =
         m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(non_associated_device_path);
     if (!non_ass_devices) {
