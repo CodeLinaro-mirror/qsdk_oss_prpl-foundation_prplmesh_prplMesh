@@ -3101,7 +3101,8 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
     case Event::WPS_Event_Fail:
     case Event::WPA_Event_SAE_Unknown_Password_Identifier:
     case Event::WPS_Event_Cancel:
-    case Event::AP_Sta_Possible_Psk_Mismatch: {
+    case Event::AP_Sta_Possible_Psk_Mismatch:
+    case Event::ACL_DENY: {
         LOG(DEBUG) << "STA Connection failure";
         auto sta_conn_fail = static_cast<bwl::sStaConnectionFail *>(data);
         // Create a Failed Connection Message
