@@ -1482,12 +1482,13 @@ typedef struct sUnassociatedStationInfo {
 
 typedef struct sUnassociatedStationStats {
     sMacAddr sta_mac;
-    uint8_t signal_strength;
+    int32_t signal_strength;
     uint8_t channel;
     uint8_t operating_class;
     uint32_t time_stamp;
     void struct_swap(){
         sta_mac.struct_swap();
+        tlvf_swap(32, reinterpret_cast<uint8_t*>(&signal_strength));
         tlvf_swap(32, reinterpret_cast<uint8_t*>(&time_stamp));
     }
     void struct_init(){
