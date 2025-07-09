@@ -244,8 +244,8 @@ bool ap_wlan_hal_dummy::update_vap_credentials(
         }
         configured_vaps.push_back(vap_iter->first);
 
-        auto auth_type =
-            son::wireless_utils::wsc_to_bwl_authentication(bss_info_conf.authentication_type);
+        auto auth_type = son::wireless_utils::wsc_to_bwl_authentication(
+            bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         if (auth_type == "INVALID") {
             LOG(ERROR) << "Bssid " << bss_info_conf.bssid << " has an invalid auth_type "
                        << int(bss_info_conf.authentication_type);

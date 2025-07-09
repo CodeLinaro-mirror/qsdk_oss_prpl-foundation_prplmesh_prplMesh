@@ -91,6 +91,7 @@
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
+#include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
@@ -790,6 +791,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
     // fail to parse the response in case the TLV is present.
     auto tlvProfile2MultiApProfileAgent = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
     if (tlvProfile2MultiApProfileAgent) {
+        LOG(ERROR) << "iacob multiap profile 2 TLV";
         auto tlvProfile2MultiApProfileController =
             cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
         if (!tlvProfile2MultiApProfileController) {
@@ -812,6 +814,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
             return false;
         }
         tlvControllerCapability->flags().early_ap_capability = 1;
+        LOG(ERROR) << "iacob added controller capabilities";
     }
 
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
@@ -1059,6 +1062,9 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     m2_cfg.encr_type_flags     = uint16_t(WSC::eWscEncr::WSC_ENCR_NONE) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP);
+    if (bss_info_conf != nullptr) {
+        m2_cfg.bss_index = bss_info_conf->bss_index;
+    }
     m2_cfg.auth_type_flags =
         WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
                       WSC::eWscAuth::WSC_AUTH_SAE);
@@ -1175,6 +1181,74 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
 
     if (!autoconfig_wsc_authentication(m1, m8, authkey))
         return false;
+
+    return true;
+}
+
+static bool add_rsn_parameters_configuration_tlv(
+    db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agt_mac, const sMacAddr ruid,
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_confs, beerocks::eFreqType band)
+{
+    // In easymesh 6.1, it will be the new way to configure security mode.
+    // For now just send RSN Parameters Configuration TLV for WPA3-PCM security mode.
+    bool need_rsn_tlv = false;
+    for (auto &bss_info_conf : bss_info_confs) {
+        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+            need_rsn_tlv = true;
+            break;
+        }
+    }
+    if (!need_rsn_tlv) {
+        LOG(DEBUG) << "No RSN configuration needed";
+        return false;
+    }
+    auto rsn_parameters_configuration = cmdu_tx.addClass<wfa_map::tlvRsnParametersConfiguration>();
+    // we implement for now only in ap wsc configuration so one is sent per radio, to rework if same function used for another message
+    auto rsn_parameters_radio = rsn_parameters_configuration->create_radios();
+    if (!rsn_parameters_radio) {
+        LOG(ERROR) << "Failed creating rsn_parameters_radio";
+        return false;
+    }
+    LOG(DEBUG) << "Addind RSN parameters configuration tlv";
+    rsn_parameters_radio->ruid() = ruid;
+    for (auto &bss_info_conf : bss_info_confs) {
+        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+            auto rsn_parameters_bss = rsn_parameters_radio->create_bsss();
+            if (!rsn_parameters_bss) {
+                LOG(ERROR) << "Failed creating rsn_parameters_bss";
+                return false;
+            }
+            rsn_parameters_bss->bssid()     = beerocks::net::network_utils::ZERO_MAC;
+            rsn_parameters_bss->bss_index() = bss_info_conf.bss_index;
+
+            // TODO: Add future modes
+            if (bss_info_conf.additional_auth ==
+                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+                LOG(DEBUG) << "Setting WPA3 compatibility for BSS " << bss_info_conf.bss_index;
+                if (band == beerocks::eFreqType::FREQ_6G) {
+                    rsn_parameters_bss->set_security_ies(wpa3_pcm_6g_eht.data(),
+                                                         wpa3_pcm_6g_eht.size());
+                } else if (band == beerocks::eFreqType::FREQ_5G ||
+                           band == beerocks::eFreqType::FREQ_24G) {
+                    rsn_parameters_bss->set_security_ies(wpa3_pcm_2g_5g_eht.data(),
+                                                         wpa3_pcm_2g_5g_eht.size());
+                } else {
+                    LOG(ERROR) << "Unhandled Radio band " << band;
+                }
+            } else {
+                LOG(ERROR) << "Unhandled RSN type";
+            }
+
+            if (!rsn_parameters_radio->add_bsss(rsn_parameters_bss)) {
+                LOG(ERROR) << "add_bsss failed";
+                return false;
+            }
+        }
+    }
+    if (!rsn_parameters_configuration->add_radios(rsn_parameters_radio)) {
+        LOG(ERROR) << "add_radios for " << ruid << " failed";
+        return false;
+    }
 
     return true;
 }
@@ -1349,7 +1423,14 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
                                                                       m1->mac_addr());
     }
-
+    if (agent->rsn_overriding_supported) {
+        if (add_rsn_parameters_configuration_tlv(database, cmdu_tx, m1->mac_addr(), ruid,
+                                                 bss_info_confs, radio->band)) {
+            LOG(INFO) << "RSN Parameters Configuration TLV added";
+        } else {
+            LOG(ERROR) << "Couldn't add RSN Parameters Configuration TLV";
+        }
+    }
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
     if (beerocks_header) {
         LOG(INFO) << "Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid;
@@ -1805,6 +1886,16 @@ bool Controller::handle_tlv_apCapability(ieee1905_1::CmduMessageRx &cmdu_rx,
     if (early && tlv_ap_capability->value().support_agent_backhaul_sta_reconfiguration) {
         agent->bSTA_reconfiguration_supported = true;
     }
+    if (tlv_ap_capability->value().RSN_Overriding) {
+        agent->rsn_overriding_supported = true;
+    }
+
+    unsigned char cap_bitfield = *reinterpret_cast<unsigned char *>(&(tlv_ap_capability->value()));
+
+    //LOG(ERROR) << "iacob agent AP Capability " << (tlv_ap_capability->value().RSN_Overriding ? "true" : "false") << std::hex << tlv_ap_capability->value();
+    LOG(ERROR) << "iacob agent AP Capability "
+               << (tlv_ap_capability->value().RSN_Overriding ? "true " : "false ") << std::hex
+               << cap_bitfield;
     //TODO : shall we update the datamodel here ???
 
     return true;
@@ -3469,7 +3560,7 @@ bool Controller::handle_cmdu_control_message(
             new_event.snr        = notification->params().rx_snr;
             new_event.client_mac = notification->params().result.mac;
             new_event.bssid      = database.get_radio_bss_mac(tlvf::mac_from_string(ap_mac),
-                                                         notification->params().vap_id);
+                                                              notification->params().vap_id);
             m_task_pool.push_event(database.get_pre_association_steering_task_id(),
                                    pre_association_steering_task::eEvents::
                                        STEERING_EVENT_RSSI_MEASUREMENT_SNR_NOTIFICATION,
@@ -4727,6 +4818,7 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         LOG(ERROR) << "Agent with mac is not found in database mac=" << src_mac;
         return false;
     }
+    LOG(ERROR) << "iacob ap capability report ";
 
     agent->radios.keep_new_prepare();
 

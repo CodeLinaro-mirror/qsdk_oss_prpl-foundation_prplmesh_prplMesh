@@ -608,11 +608,23 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             }
         }
 
-        auto auth_type =
-            son::wireless_utils::wsc_to_bwl_authentication(bss_info_conf.authentication_type);
+        auto auth_type = son::wireless_utils::wsc_to_bwl_authentication(
+            bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         if (auth_type == "INVALID") {
-            LOG(ERROR) << "Autoconfiguration: invalid auth_type "
-                       << int(bss_info_conf.authentication_type);
+            LOG(ERROR) << "Autoconfiguration: invalid auth_type " << std::hex
+                       << bss_info_conf.authentication_type << " additional auth "
+                       << bss_info_conf.additional_auth << " additional auth value "
+                       << son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY
+                       << " wsc auth " << WSC::eWscAuth::WSC_AUTH_RSN;
+            bool auth = bss_info_conf.authentication_type & WSC::eWscAuth::WSC_AUTH_RSN;
+            if (auth) {
+                LOG(ERROR) << "flag ok";
+            }
+            bool add_auth = (bss_info_conf.additional_auth ==
+                             son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY);
+            if (add_auth) {
+                LOG(ERROR) << "add auth ok";
+            }
             continue;
         }
         auto enc_type = son::wireless_utils::wsc_to_bwl_encryption(bss_info_conf.encryption_type);
@@ -651,8 +663,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             continue;
         }
 
-        std::string security_mode =
-            wbapi_utils::security_mode_to_string(bss_info_conf.authentication_type);
+        std::string security_mode = wbapi_utils::security_mode_to_string(
+            bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         std::string encryption_mode =
             wbapi_utils::encryption_type_to_string(bss_info_conf.encryption_type);
 
@@ -666,7 +678,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             new_obj.add_child("KeyPassPhrase", bss_info_conf.network_key);
         }
         ret = m_ambiorix_cl.update_object(wifi_ap_sec_path, new_obj);
-
+        LOG(ERROR) << "string security mode " << security_mode << " encryption mode "
+                   << encryption_mode;
         if (!ret) {
             LOG(ERROR) << "Failed to update Security object " << wifi_ap_sec_path;
             continue;

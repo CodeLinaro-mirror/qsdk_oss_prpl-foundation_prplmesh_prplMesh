@@ -46,6 +46,7 @@
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvProfile2TrafficSeparationPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
+#include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
@@ -1102,9 +1103,12 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
 
     auto controller_capability_tlv = cmdu_rx.getClass<wfa_map::tlvControllerCapability>();
     if (controller_capability_tlv) {
+        LOG(ERROR) << "iacob early ap capability flag";
         if (controller_capability_tlv->flags().early_ap_capability) {
             db->controller_info.early_ap_capability = true;
         }
+    } else {
+        LOG(ERROR) << "iacob no controller capability";
     }
 
     auto tlvSupportedService = cmdu_rx.getClass<wfa_map::tlvSupportedService>();
@@ -1159,6 +1163,7 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
     // Send Early AP Capability
     if (db->controller_info.early_ap_capability &&
         !db->controller_info.early_ap_capability_report_sent) {
+        LOG(ERROR) << "iacob send early AP capability report";
         db->controller_info.early_ap_capability_report_sent = true;
         m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_EARLY_AP_CAPABILITY);
     }
@@ -1261,6 +1266,11 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
     }
     if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, configs)) {
         LOG(ERROR) << "handle_agent_ap_mld_configuration_tlv has failed!";
+        return;
+    }
+    if (!handle_rsn_parameters_configuration_tlv(cmdu_rx, configs, ruid->radio_uid(),
+                                                 radio->wifi_channel.get_freq_type())) {
+        LOG(ERROR) << "handle_rsn_parameters_configuration_tlv has failed!";
         return;
     }
 
@@ -1675,6 +1685,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             return false;
 
         WSC::configData::config config;
+        config.bss_index = m2.bss_index();
         if (!ap_autoconfiguration_wsc_parse_encrypted_settings(m2.encrypted_settings(), authkey,
                                                                keywrapkey, config)) {
             LOG(ERROR) << "Invalid config data, skip it";
@@ -2030,6 +2041,57 @@ bool ApAutoConfigurationTask::send_enable_disable_endpoint(const sMacAddr &radio
     return backhaul_manager_cmdu_client->send_cmdu(m_cmdu_tx);
 }
 
+bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::configData::config> &configs,
+    const sMacAddr &ruid, beerocks::eFreqType freq_type)
+{
+    LOG(DEBUG) << "Handling RSN parameters configuration";
+    auto rsn_parameters_configuration(cmdu_rx.getClass<wfa_map::tlvRsnParametersConfiguration>());
+    if (!rsn_parameters_configuration) {
+        LOG(DEBUG) << "No tlvRsnParametersConfiguration TLV received";
+        return true;
+    }
+
+    for (auto radio_idx = 0; radio_idx < rsn_parameters_configuration->num_radio(); ++radio_idx) {
+        auto rsn_parameters_radio = std::get<1>(rsn_parameters_configuration->radios(radio_idx));
+        if (rsn_parameters_radio.ruid() != ruid) {
+            LOG(DEBUG) << "Discarding wrong radio";
+            continue;
+        }
+
+        for (auto bss_idx = 0; bss_idx < rsn_parameters_radio.num_bss(); ++bss_idx) {
+            auto rsn_parameters_bss = std::get<1>(rsn_parameters_radio.bsss(bss_idx));
+            for (auto &config : configs) {
+                if (config.bss_index == rsn_parameters_bss.bss_index() && config.bss_index != 0) {
+                    LOG(DEBUG) << "Handling RSN for BSS with index " << config.bss_index;
+
+                    // Only handle WPA3-PCM as EHT enabled for now
+                    if ((freq_type == beerocks::eFreqType::FREQ_24G ||
+                         freq_type == beerocks::eFreqType::FREQ_5G) &&
+                        rsn_parameters_bss.security_ies_length() == wpa3_pcm_2g_5g_eht.size() &&
+                        std::memcmp(rsn_parameters_bss.security_ies(), wpa3_pcm_2g_5g_eht.data(),
+                                    wpa3_pcm_2g_5g_eht.size()) == 0) {
+                        LOG(DEBUG) << "2G_5G WPA3_PERSONAL_COMPATIBILITY detected";
+                        config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
+                        config.additional_auth =
+                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                    } else if (freq_type == beerocks::eFreqType::FREQ_6G &&
+                               rsn_parameters_bss.security_ies_length() == wpa3_pcm_6g_eht.size() &&
+                               std::memcmp(rsn_parameters_bss.security_ies(),
+                                           wpa3_pcm_6g_eht.data(), wpa3_pcm_6g_eht.size()) == 0) {
+                        LOG(DEBUG) << "6G WPA3_PERSONAL_COMPATIBILITY detected";
+                        config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
+                        config.additional_auth =
+                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 void ApAutoConfigurationTask::handle_vs_wifi_credentials_update_response(
     ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
 {
@@ -2085,7 +2147,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
 
     const auto &vap_info = notification_in->vap_info();
     auto bssid           = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
-                              [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
+                                        [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
                                   return bssid.mac == vap_info.mac;
                               });
     if (bssid == radio->front.bssids.end()) {
@@ -2646,6 +2708,9 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
         c->encryption_type_attr().data     = config.encr_type;
         c->mld_id()                        = config.mld_id;
         c->hidden_ssid()                   = config.hidden_ssid;
+        c->bss_index()                     = config.bss_index;
+        c->additional_auth() =
+            static_cast<son::wireless_utils::eAdditionalAuth>(config.additional_auth);
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

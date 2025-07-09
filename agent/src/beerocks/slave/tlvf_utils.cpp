@@ -99,8 +99,9 @@ std::vector<uint8_t> get_operating_class_non_oper_channels(
                             return channels_list.find(overlap_ch) == channels_list.end();
                         });
                 };
-
-                if (is_there_any_unavailable_overlapping_channel()) {
+                if ((son::wireless_utils::which_freq_op_cls(operating_class) !=
+                     beerocks::eFreqType::FREQ_24G) &&
+                    is_there_any_unavailable_overlapping_channel()) {
                     break;
                 }
 

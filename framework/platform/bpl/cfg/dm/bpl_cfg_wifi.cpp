@@ -218,6 +218,7 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
     std::string mode_enabled;
     if (ap_sec_obj->read_child(mode_enabled, "ModeEnabled")) {
         configuration.authentication_type = wbapi_utils::security_mode_from_string(mode_enabled);
+        configuration.additional_auth = wbapi_utils::security_rsn_mode_from_string(mode_enabled);
     }
 
     std::string encryption_mode;

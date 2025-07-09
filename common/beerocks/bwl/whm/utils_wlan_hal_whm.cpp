@@ -44,6 +44,7 @@ const std::map<std::string, WiFiSec> security_type_map = {
     {"WPA-WPA2-Personal", WiFiSec::WPA_WPA2_PSK},
     {"WPA2-WPA3-Personal", WiFiSec::WPA2_WP3_PSK},
     {"WPA3-Personal", WiFiSec::WPA3_PSK},
+    {"WPA3-Personal-Compatibility", WiFiSec::WPA3_PCM},
 };
 
 std::string security_type_to_string(const WiFiSec &security_type)

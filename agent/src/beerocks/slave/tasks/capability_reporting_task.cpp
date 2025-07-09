@@ -504,6 +504,7 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_non_operating_bssid = true;
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_operating_bssid     = true;
     ap_capability_tlv->value().support_agent_backhaul_sta_reconfiguration                   = true;
+    ap_capability_tlv->value().RSN_Overriding                                               = true;
 
     if (!ap_capability_tlv) {
         LOG(ERROR) << "addClass wfa_map::tlvApCapability has failed";

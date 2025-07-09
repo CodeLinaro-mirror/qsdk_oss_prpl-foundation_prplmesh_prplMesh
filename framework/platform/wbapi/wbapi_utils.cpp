@@ -89,19 +89,54 @@ const std::map<std::string, std::vector<WSC::eWscAuth>> wbapi_utils::security_mo
     {"WPA2-WPA3-Personal",
      {WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_SAE)}},
     {"WPA3-Personal", {WSC::eWscAuth::WSC_AUTH_SAE}},
+    {"WPA3-Personal-Compatibility", {WSC::eWscAuth::WSC_AUTH_RSN}},
 };
 
-std::string wbapi_utils::security_mode_to_string(const WSC::eWscAuth &security_mode)
+const std::map<std::string, std::vector<son::wireless_utils::eAdditionalAuth>>
+    wbapi_utils::security_rsn_mode_table = {
+        {"None", {son::wireless_utils::eAdditionalAuth::NONE}},
+        {"WPA3-Personal-Compatibility",
+         {son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY}},
+};
+
+std::string
+wbapi_utils::security_mode_to_string(const WSC::eWscAuth &security_mode,
+                                     son::wireless_utils::eAdditionalAuth additional_auth)
 {
-    auto map_it =
-        std::find_if(security_mode_table.begin(), security_mode_table.end(),
-                     [&](const std::pair<std::string, std::vector<WSC::eWscAuth>> &element) {
-                         auto secMode_it =
-                             std::find(element.second.begin(), element.second.end(), security_mode);
-                         return (secMode_it != element.second.end());
-                     });
-    if (map_it != security_mode_table.end()) {
-        return map_it->first;
+    LOG(ERROR) << "sec mode " << std::hex << security_mode;
+    if (security_mode != WSC::eWscAuth::WSC_AUTH_RSN) {
+        auto map_it =
+            std::find_if(security_mode_table.begin(), security_mode_table.end(),
+                         [&](const std::pair<std::string, std::vector<WSC::eWscAuth>> &element) {
+                             auto secMode_it = std::find(element.second.begin(),
+                                                         element.second.end(), security_mode);
+                             return (secMode_it != element.second.end());
+                         });
+        if (map_it != security_mode_table.end()) {
+            return map_it->first;
+        }
+    } else {
+        LOG(ERROR) << "sec mode else " << std::hex << additional_auth;
+        // Note that in the end there should be only security_rsn_mode_table with other security mode added
+        auto map_it = std::find_if(
+            security_rsn_mode_table.begin(), security_rsn_mode_table.end(),
+            [&](const std::pair<std::string, std::vector<son::wireless_utils::eAdditionalAuth>>
+                    &element) {
+                auto secMode_it =
+                    std::find(element.second.begin(), element.second.end(), additional_auth);
+                return (secMode_it != element.second.end());
+            });
+        if (map_it != security_rsn_mode_table.end()) {
+            return map_it->first;
+        }
+        for (auto el : security_rsn_mode_table) {
+            LOG(ERROR) << el.first;
+            auto auth_it  = std::find(el.second.begin(), el.second.end(), additional_auth);
+            bool add_auth = (auth_it != el.second.end());
+            if (add_auth) {
+                LOG(ERROR) << "add auth ok";
+            }
+        }
     }
     return "None";
 }
@@ -113,6 +148,16 @@ WSC::eWscAuth wbapi_utils::security_mode_from_string(const std::string &security
         return map_it->second.at(0);
     }
     return WSC::eWscAuth::WSC_AUTH_OPEN;
+}
+
+son::wireless_utils::eAdditionalAuth
+wbapi_utils::security_rsn_mode_from_string(const std::string &security_mode)
+{
+    auto map_it = security_rsn_mode_table.find(security_mode);
+    if (map_it != security_rsn_mode_table.end()) {
+        return map_it->second.at(0);
+    }
+    return son::wireless_utils::eAdditionalAuth::NONE;
 }
 
 const std::map<std::string, std::vector<WSC::eWscEncr>> wbapi_utils::encryption_type_table = {

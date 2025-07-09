@@ -724,7 +724,7 @@ update_vap_credentials_configure_wpa(const std::string &vap_if,
     } else {
         LOG(ERROR) << "Autoconfiguration: " << vap_if << " invalid authentication type "
                    << son::wireless_utils::wsc_to_bwl_authentication(
-                          bss_info_conf.authentication_type);
+                          bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         return false;
     }
 
@@ -1421,8 +1421,8 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
 
     // Go through the bss_info_conf_list and change the hostapd config accordingly
     for (const auto &bss_info_conf : bss_info_conf_list) {
-        auto auth_type =
-            son::wireless_utils::wsc_to_bwl_authentication(bss_info_conf.authentication_type);
+        auto auth_type = son::wireless_utils::wsc_to_bwl_authentication(
+            bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         if (auth_type == "INVALID") {
             LOG(ERROR) << "Autoconfiguration: invalid auth_type "
                        << int(bss_info_conf.authentication_type);
