@@ -395,14 +395,15 @@ enum eArpSource : uint8_t {
 
 enum eArpType : uint8_t { ARP_TYPE_NEWNEIGH = 0, ARP_TYPE_DELNEIGH, ARP_TYPE_GETNEIGH };
 
-enum eFreqType {
-    FREQ_24G    = 0,
-    FREQ_5G     = 1,
-    FREQ_58G    = 2,
-    FREQ_24G_5G = 3,
-    FREQ_6G     = 4,
-    FREQ_AUTO,
-    FREQ_UNKNOWN,
+enum eFreqType : uint8_t {
+    FREQ_DISABLED = 0,
+    FREQ_24G      = 1 << 0,
+    FREQ_5G       = 1 << 1,
+    FREQ_58G      = 1 << 2,
+    FREQ_24G_5G   = FREQ_24G | FREQ_5G,
+    FREQ_6G       = 1 << 3,
+    FREQ_AUTO     = 1 << 4,
+    FREQ_UNKNOWN  = (uint8_t)~0,
 };
 
 enum eSubbandType {

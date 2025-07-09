@@ -2210,7 +2210,7 @@ void son_management::handle_bml_message(int sd, std::shared_ptr<beerocks_header>
         // This flow should be blocked by the BML interface and should not be reached.
         if ((request->client_config().stay_on_initial_radio == PARAMETER_NOT_CONFIGURED) &&
             (request->client_config().stay_on_selected_device == PARAMETER_NOT_CONFIGURED) &&
-            (request->client_config().selected_bands == PARAMETER_NOT_CONFIGURED) &&
+            (request->client_config().selected_bands == eFreqType::FREQ_UNKNOWN) &&
             (request->client_config().time_life_delay_minutes == PARAMETER_NOT_CONFIGURED)) {
             LOG(ERROR)
                 << "Received ACTION_BML_CLIENT_SET_CLIENT request without parameters to configure";
@@ -2270,8 +2270,8 @@ void son_management::handle_bml_message(int sd, std::shared_ptr<beerocks_header>
         }
 
         // Set selected_bands if requested.
-        if (request->client_config().selected_bands != PARAMETER_NOT_CONFIGURED) {
-            auto selected_bands = eClientSelectedBands(request->client_config().selected_bands);
+        if (request->client_config().selected_bands != eFreqType::FREQ_UNKNOWN) {
+            auto selected_bands = eFreqType(request->client_config().selected_bands);
             if (!database.set_sta_selected_bands(*client, selected_bands, false)) {
                 LOG(ERROR) << " Failed to set selected-bands to " << selected_bands
                            << " for client " << client_mac;
@@ -2350,8 +2350,7 @@ void son_management::handle_bml_message(int sd, std::shared_ptr<beerocks_header>
         // Initial radio
         response->client().initial_radio = client->initial_radio;
         // Selected bands
-        response->client().selected_bands =
-            static_cast<eClientSelectedBands>(client->selected_bands);
+        response->client().selected_bands = static_cast<eFreqType>(client->selected_bands);
         // Timelife Delay in minutes
         response->client().time_life_delay_minutes =
             static_cast<int>(client->time_life_delay_minutes.count());

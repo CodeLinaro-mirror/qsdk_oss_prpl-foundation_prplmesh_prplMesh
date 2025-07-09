@@ -1027,15 +1027,6 @@ sBssidInfo:
   uplink_estimated_mac_data_rate_mbps: uint32_t
   sta_measured_uplink_rcpi_dbm_enc: uint8_t
 
-eClientSelectedBands:
-  _type: enum
-  _enum_storage: uint8_t
-  eSelectedBands_Disabled: 0
-  eSelectedBands_24G: 1
-  eSelectedBands_5G: 2
-  eSelectedBands_6G: 4
-  eSelectedBands_Unknown: 255
-
 sClientConfig:
   _type: struct
   stay_on_initial_radio:
@@ -1046,9 +1037,9 @@ sClientConfig:
     _type: int8_t
     _value: -1
     _comment: 1 for true, 0 for false, -1 for "not configured".
-  selected_bands:
-    _type: int8_t
-    _comment: Bitset of selected bands supported by the client according to eClientSelectedBands
+  selected_bands: 
+    _type: uint8_t
+    _comment: Bitset of selected bands supported by the client according to beerocks::eFreqType 
   time_life_delay_minutes:
     _type: int32_t
     _value: -1
@@ -1080,9 +1071,9 @@ sClient:
     _value: -1
     _comment: 1 for true, 0 for false, -1 for "not configured".
   selected_bands:
-    _type: eClientSelectedBands
-    _value: eClientSelectedBands::eSelectedBands_Unknown
-    _comment: Bitset of selected bands supported by the client according to eClientSelectedBands
+    _type: uint8_t
+    _value: beerocks::eFreqType::FREQ_UNKNOWN
+    _comment: Bitset of selected bands supported by the client according to beerocks::eFreqType
   single_band:
     _type: int8_t
     _value: -1

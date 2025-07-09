@@ -2502,7 +2502,7 @@ int bml_internal::client_set_client(const sMacAddr &sta_mac, const BML_CLIENT_CO
     LOG(DEBUG) << "client_set_client";
 
     if ((client_config.stay_on_initial_radio == BML_PARAMETER_NOT_CONFIGURED) &&
-        (client_config.selected_bands == BML_PARAMETER_NOT_CONFIGURED)) {
+        (client_config.selected_bands == beerocks::eFreqType::FREQ_UNKNOWN)) {
         LOG(WARNING) << "No parameter is requested to be configured, returning";
         return (-BML_RET_INVALID_ARGS);
     }

@@ -293,9 +293,9 @@ void optimal_path_task::work()
                               << " is not on the candidate ap list, continue as usual.";
         }
 
-        auto selected_bands = station->selected_bands;
-        if ((selected_bands != PARAMETER_NOT_CONFIGURED) &&
-            (selected_bands != eClientSelectedBands::eSelectedBands_Disabled)) {
+        eFreqType selected_bands = eFreqType(station->selected_bands);
+        if ((selected_bands != eFreqType::FREQ_UNKNOWN) &&
+            (selected_bands != eFreqType::FREQ_DISABLED)) {
             TASK_LOG(INFO) << "Client stay on selected bands enabled";
             if (!database.is_hostap_on_client_selected_bands(
                     client, tlvf::mac_from_string(current_hostap))) {
@@ -1189,9 +1189,9 @@ void optimal_path_task::work()
                               << " is not on the candidate ap list, continue as usual.";
         }
 
-        auto selected_bands = station->selected_bands;
-        if ((selected_bands != PARAMETER_NOT_CONFIGURED) &&
-            (selected_bands != eClientSelectedBands::eSelectedBands_Disabled)) {
+        eFreqType selected_bands = eFreqType(station->selected_bands);
+        if ((selected_bands != eFreqType::FREQ_DISABLED) &&
+            (selected_bands != eFreqType::FREQ_UNKNOWN)) {
             TASK_LOG(INFO) << "Client stay on selected bands enabled";
             if (!database.is_hostap_on_client_selected_bands(
                     client, tlvf::mac_from_string(current_hostap))) {
