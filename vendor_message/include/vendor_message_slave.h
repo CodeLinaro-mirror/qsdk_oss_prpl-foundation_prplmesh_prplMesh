@@ -8,11 +8,19 @@
 #ifndef VENDOR_MESSAGE_SLAVE_H
 #define VENDOR_MESSAGE_SLAVE_H
 
+#include "ambiorix_client.h"
+#include "wbapi_utils.h"
 #include <bcl/beerocks_eventloop_thread.h>
 #include <bcl/beerocks_logging.h>
 #include <btl/broker_client_factory.h>
 
 using namespace beerocks;
+
+namespace beerocks {
+namespace bpl {
+extern beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
+} // namespace bpl
+} // namespace beerocks
 
 namespace vendor_message {
 
@@ -43,6 +51,7 @@ public:
                                  const uint16_t &mid, ieee1905_1::eMessageType msg_type);
 
 private:
+    sMacAddr agent_almac = {0};
     /**
      * Buffer to hold CMDU to be transmitted.
      */
@@ -57,7 +66,6 @@ private:
 
     logging &logger;
 
-    sMacAddr bridge_mac = {0};
     /**
      * @brief Handles CMDU message received from broker.
      *
