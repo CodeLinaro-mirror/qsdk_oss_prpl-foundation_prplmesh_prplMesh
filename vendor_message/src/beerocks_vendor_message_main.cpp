@@ -11,6 +11,7 @@
 #include <bcl/beerocks_event_loop_impl.h>
 #include <bcl/beerocks_logging.h>
 #include <bcl/beerocks_version.h>
+#include <bpl/bpl.h>
 
 #include <easylogging++.h>
 #include <mapf/common/utils.h>
@@ -231,6 +232,12 @@ int main(int argc, char *argv[])
                       << std::endl;
             return 1;
         }
+    }
+
+    // Initialize the BPL (Beerocks Platform Library)
+    if (beerocks::bpl::bpl_init() < 0) {
+        LOG(ERROR) << "Failed to initialize BPL!";
+        return false;
     }
 
     // killall running slave

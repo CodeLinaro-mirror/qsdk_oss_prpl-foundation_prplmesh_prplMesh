@@ -6,8 +6,8 @@
  * See LICENSE file for more details.
  */
 
-#include "common_utility.h"
-#include "vendor_message_slave.h"
+#include "common_utility_dummy.h"
+#include "vendor_message_slave_dummy.h"
 
 namespace vendor_message {
 
