@@ -140,8 +140,6 @@ bool ap_wlan_hal_dummy::enable() { return true; }
 
 bool ap_wlan_hal_dummy::disable() { return true; }
 
-bool ap_wlan_hal_dummy::set_start_disabled(bool enable, int vap_id) { return true; }
-
 bool ap_wlan_hal_dummy::set_channel(int chan, beerocks::eWiFiBandwidth bw, int center_channel)
 {
     m_radio_info.channel         = chan;
