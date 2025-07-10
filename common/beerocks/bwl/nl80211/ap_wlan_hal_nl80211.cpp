@@ -1270,12 +1270,6 @@ bool ap_wlan_hal_nl80211::set_tx_power_limit(int tx_pow_limit)
     return m_nl80211_client->set_tx_power_limit(m_radio_info.iface_name, tx_pow_limit);
 }
 
-bool ap_wlan_hal_nl80211::set_vap_enable(const std::string &iface_name, const bool enable)
-{
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
-    return true;
-}
-
 bool ap_wlan_hal_nl80211::set_mbo_assoc_disallow(const std::string &bssid, bool enable)
 {
     LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
@@ -1289,12 +1283,6 @@ bool ap_wlan_hal_nl80211::set_radio_mbo_assoc_disallow(bool enable)
 }
 
 bool ap_wlan_hal_nl80211::set_primary_vlan_id(uint16_t primary_vlan_id)
-{
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
-    return true;
-}
-
-bool ap_wlan_hal_nl80211::get_vap_enable(const std::string &iface_name, bool &enable)
 {
     LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
     return true;
