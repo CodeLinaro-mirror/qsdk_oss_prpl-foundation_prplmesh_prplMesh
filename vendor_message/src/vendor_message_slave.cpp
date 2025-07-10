@@ -19,10 +19,6 @@ VendorMessageSlave::VendorMessageSlave(sVendorMessageConfig conf, beerocks::logg
     : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), config(conf), logger(logger_)
 {
     thread_name = BEEROCKS_V_MESSAGE;
-
-    //Set configuration on Agent database.
-    auto db               = AgentDB::get();
-    db->bridge.iface_name = conf.bridge_iface;
 }
 
 VendorMessageSlave::~VendorMessageSlave() { LOG(DEBUG) << "destructor - VendorMessageSlave"; }
@@ -31,22 +27,29 @@ bool VendorMessageSlave::handle_cmdu_from_broker(uint32_t iface_index, const sMa
                                                  const sMacAddr &src_mac,
                                                  ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    {
-        auto db = AgentDB::get();
-
-        std::string iface_mac;
-        if (!network_utils::linux_iface_get_mac(db->bridge.iface_name, iface_mac)) {
-            LOG(ERROR) << "Failed reading addresses from the bridge!";
+    if (agent_almac == beerocks::net::network_utils::ZERO_MAC) {
+        std::string agent_mac_addr;
+        std::string agent_dm_path = std::string(AGENT_ROOT_DM) + ".Info.";
+        auto agent_dm_obj         = beerocks::bpl::m_ambiorix_cl.get_object(agent_dm_path);
+        if (!agent_dm_obj) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path AGENT_ROOT_DM";
+            return false;
         }
-        bridge_mac = db->bridge.mac;
 
-        // Filter messages which are not destined to this agent
-        if (dst_mac != beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR &&
-            dst_mac != bridge_mac) {
-            LOG(DEBUG) << "handle_cmdu() - dropping msg, dst_mac=" << dst_mac
-                       << ", local_bridge_mac=" << bridge_mac;
-            return true;
+        agent_dm_obj->read_child<>(agent_mac_addr, "MACAddress");
+        if (agent_mac_addr.empty()) {
+            LOG(ERROR) << "Agent's MAC address is empty";
+            return false;
         }
+        agent_almac = tlvf::mac_from_string(agent_mac_addr);
+    }
+
+    // Filter messages which are not destined to this agent
+    if (dst_mac != beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR &&
+        dst_mac != agent_almac) {
+        LOG(DEBUG) << "handle_cmdu() - dropping msg, dst_mac=" << dst_mac
+                   << ", agent_almac=" << agent_almac;
+        return true;
     }
 
     if (!handle_cmdu(src_mac, cmdu_rx)) {
@@ -120,16 +123,15 @@ bool VendorMessageSlave::send_cmdu_to_controller(const sMacAddr &dst_mac,
                                                  const uint16_t &mid,
                                                  ieee1905_1::eMessageType msg_type)
 {
-    auto db             = AgentDB::get();
     auto cmdu_tx_header = cmdu_tx.create(mid, msg_type);
     if (!cmdu_tx_header) {
         LOG(ERROR) << "cmdu creation of MESSAGE TYPE: " << msg_type << ", has failed";
         return false;
     }
 
-    if (tlvf::mac_to_string(db->bridge.mac).empty()) {
-        return m_broker_client->send_cmdu(cmdu_tx, dst_mac, db->bridge.mac);
-    } else {
-        return m_broker_client->send_cmdu(cmdu_tx, dst_mac, bridge_mac);
+    if (agent_almac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Agent ALMAC is zeroed";
+        return false;
     }
+    return m_broker_client->send_cmdu(cmdu_tx, dst_mac, agent_almac);
 }

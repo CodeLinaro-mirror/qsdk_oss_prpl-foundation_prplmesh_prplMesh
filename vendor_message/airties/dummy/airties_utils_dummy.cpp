@@ -7,7 +7,7 @@
  */
 
 #include "airties_utils_dummy.h"
-#include "vendor_message_slave.h"
+#include "vendor_message_slave_dummy.h"
 
 #include <tlvf/CmduMessageRx.h>
 #include <tlvf/CmduMessageTx.h>
