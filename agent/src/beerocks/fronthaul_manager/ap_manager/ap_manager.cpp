@@ -2029,6 +2029,22 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST: {
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST failed";
+            return;
+        }
+
+        if (!ap_wlan_hal->change_radio_mode_config(request->operating_standards())) {
+            LOG(ERROR) << "change_radio_mode_config failed!";
+            return;
+        }
+
+        break;
+    }
     case beerocks_message::ACTION_APMANAGER_STEERING_CLIENT_SET_REQUEST: {
         auto request =
             beerocks_header

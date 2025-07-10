@@ -124,7 +124,8 @@ public:
         son::wireless_utils::sSpatialReuseParams &spatial_reuse_params) override;
     virtual bool get_spatial_reuse_config(
         son::wireless_utils::sSpatialReuseParams &spatial_reuse_params) override;
-
+    virtual bool change_radio_mode_config(
+        const airties::tlvAirtiesRadioCapability::sStandards &operating_standards) override;
     virtual bool configure_service_priority(const uint8_t *data) override;
     virtual bool
     start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) override;

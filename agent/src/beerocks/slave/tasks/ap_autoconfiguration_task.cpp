@@ -30,6 +30,7 @@
 #include <tlvf/WSC/m1.h>
 #include <tlvf/airties/eAirtiesTLVId.h>
 #include <tlvf/airties/tlvAirtiesMsgType.h>
+#include <tlvf/airties/tlvAirtiesRadioCapability.h>
 #include <tlvf/airties/tlvAirtiesServiceStatus.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvAutoconfigFreqBand.h>
@@ -61,10 +62,55 @@ using namespace beerocks;
 using namespace net;
 using namespace multi_vendor;
 
+namespace {
+bool is_valid_op_std(const std::string &radio_iface,
+                     const airties::tlvAirtiesRadioCapability::sStandards &op_std)
+{
+    auto db    = AgentDB::get();
+    auto radio = db->radio(radio_iface);
+    if (!radio) {
+        LOG(ERROR) << "Radio of iface " << radio_iface << " does not exist on the db";
+        return false;
+    }
+
+    if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_24G) {
+        if (op_std.s_80211a || op_std.s_80211ac) {
+            LOG(ERROR) << "Invalid operating standards for freq type "
+                       << beerocks::utils::convert_frequency_type_to_string(
+                              radio->wifi_channel.get_freq_type());
+            return false;
+        }
+    } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_5G) {
+        if (op_std.s_80211b || op_std.s_80211g) {
+            LOG(ERROR) << "Invalid operating standards for freq type "
+                       << beerocks::utils::convert_frequency_type_to_string(
+                              radio->wifi_channel.get_freq_type());
+            return false;
+        }
+    } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_6G) {
+        if (!(op_std.s_80211be || op_std.s_80211ax)) {
+            LOG(ERROR) << "Invalid operating standards for freq type "
+                       << beerocks::utils::convert_frequency_type_to_string(
+                              radio->wifi_channel.get_freq_type());
+            return false;
+        }
+    } else {
+        LOG(ERROR) << "unsupported freq type"
+                   << beerocks::utils::convert_frequency_type_to_string(
+                          radio->wifi_channel.get_freq_type())
+                   << ", iface=" << radio_iface;
+        return false;
+    }
+
+    return true;
+}
+} // namespace
+
 static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS = 3;
 #define HANDLE_THIRD_PARTY_ENABLE "1"
 #define VENDOR_HIDE_SSID 0x80
 #define VENDOR_BSS_CFG 0x02
+#define VENDOR_RADIO_CFG 0x05
 
 #define FSM_MOVE_STATE(radio_iface, new_state)                                                     \
     ({                                                                                             \
@@ -1677,6 +1723,10 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             if (!airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(m2, config)) {
                 LOG(INFO) << "Hidden SSID parameter not found in Vendor Extension";
             }
+            if (!airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
+                    radio->front.iface_name, m2)) {
+                LOG(INFO) << "Radio Operational Mode Config not found in Vendor Extension";
+            }
         }
 
         bool bSTA = bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA);
@@ -2205,6 +2255,46 @@ bool ApAutoConfigurationTask::airties_vs_ap_autoconfiguration_wsc_parse_hidden_s
 
     LOG(INFO) << "Hidden SSID is set to " << config.hidden_ssid;
     return retval;
+}
+
+bool ApAutoConfigurationTask::
+    airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
+        const std::string &radio_iface, const WSC::m2 &m2)
+{
+    for (auto &vendor_ext_attr : m2.getAttrList<WSC::cWscAttrVendorExtension>()) {
+        if ((WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1 != vendor_ext_attr->vendor_id_0()) ||
+            (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_2 != vendor_ext_attr->vendor_id_1()) ||
+            (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_3 != vendor_ext_attr->vendor_id_2())) {
+            continue;
+        }
+
+        LOG(INFO) << "Vendor OUI: " << vendor_ext_attr->vendor_id_0()
+                  << vendor_ext_attr->vendor_id_1() << vendor_ext_attr->vendor_id_2()
+                  << "is received";
+        auto vendor_data = vendor_ext_attr->vendor_data();
+
+        if (vendor_data[0] == VENDOR_RADIO_CFG) {
+            auto request = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST>(m_cmdu_tx);
+            if (!request) {
+                LOG(ERROR) << "Failed building message!";
+                return false;
+            }
+
+            std::copy_n(&vendor_data[1], sizeof(uint8_t),
+                        reinterpret_cast<uint8_t *>(&request->operating_standards()));
+
+            if (!is_valid_op_std(radio_iface, request->operating_standards())) {
+                return false;
+            }
+
+            auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio_iface);
+            m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_calculate_keys(
