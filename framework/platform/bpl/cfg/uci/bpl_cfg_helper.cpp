@@ -104,9 +104,9 @@ int cfg_get_channel(const std::string &interface_name, int *channel)
     }
 
     char channel_num[MAX_UCI_BUF_LEN] = {0};
-    char ifname[BPL_IFNAME_LEN]       = {0};
+    char ifname[IFNAMSIZ]             = {0};
 
-    mapf::utils::copy_string(ifname, interface_name.c_str(), BPL_IFNAME_LEN);
+    mapf::utils::copy_string(ifname, interface_name.c_str(), sizeof(ifname));
     if (cfg_uci_get_wireless_from_ifname(TYPE_RADIO, ifname, "channel", channel_num) != RETURN_OK) {
         return RETURN_ERR;
     }

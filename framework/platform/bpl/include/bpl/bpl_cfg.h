@@ -14,6 +14,7 @@
 
 #include <bcl/son/son_wireless_utils.h>
 
+#include <net/if.h>
 #include <stdint.h>
 #include <string>
 
@@ -57,7 +58,6 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 #define BPL_SSID_LEN (32 + 1)     /* Maximal length of Wi-Fi SSID */
 #define BPL_PASS_LEN (64 + 1)     /* Maximal length of Wi-Fi password */
 #define BPL_SEC_LEN 32            /* Maximal length of Wi-Fi security string */
-#define BPL_IFNAME_LEN 32         /* Maximal length of Wi-Fi interface name */
 #define BPL_NUM_OF_INTERFACES 7   /* Maximal number of Interfaces: (3 APs + 3 STAs) + 1 Wired */
 #define BPL_MNS_DATA_LEN 256      /* Maximal length of BPL MNS data */
 #define BPL_BACK_VAPS_GROUPS 4 /* Backhaul VAPs Groups size, group contain 1 Vap for every radio */
@@ -255,7 +255,7 @@ struct BPL_WIFI_CREDENTIALS {
 struct BPL_WPS_PARAMS {
 
     /* Wi-Fi interface name */
-    char ifname[BPL_IFNAME_LEN];
+    char ifname[IFNAMSIZ];
 
     /* wps type (0-pbc, 1-pin) */
     int wps_type;
@@ -314,7 +314,7 @@ struct BPL_NOTIF_WPS_COMPLETE_NOTIFICATION {
     char sec[BPL_SEC_LEN];
 
     /* Wi-Fi interface name */
-    char ifname[BPL_IFNAME_LEN];
+    char ifname[IFNAMSIZ];
 
     /* WPS Status success=0/fail=1*/
     int status;
@@ -341,7 +341,7 @@ struct BPL_WLAN_PARAMS {
  */
 struct BPL_WLAN_IFACE {
     int radio_num;
-    char ifname[BPL_IFNAME_LEN];
+    char ifname[IFNAMSIZ];
     eFreqType freq_type;
 };
 
@@ -651,7 +651,7 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
  * @return 0 Success.
  * @return -1 Error.
  */
-int cfg_get_wifi_params(const char *iface, struct BPL_WLAN_PARAMS *wlan_params);
+int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_params);
 
 /**
  * Returns backhaul vaps configuration.
@@ -722,8 +722,8 @@ int cfg_set_onboarding(int enable);
  * @param [in] success Success of onboarding (0 - failure, 1 - success).
  */
 int cfg_notify_onboarding_completed(const char ssid[BPL_SSID_LEN], const char pass[BPL_PASS_LEN],
-                                    const char sec[BPL_SEC_LEN],
-                                    const char iface_name[BPL_IFNAME_LEN], const int success);
+                                    const char sec[BPL_SEC_LEN], const std::string &iface_name,
+                                    const int success);
 
 /**
  * Notify the platform about an error.
@@ -755,7 +755,7 @@ int cfg_get_administrator_credentials(char pass[BPL_USER_PASS_LEN]);
  * @return 0 Success.
  * @return -1 Error, or no sta_iface is configured.
  */
-int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAME_LEN]);
+int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface);
 
 /**
  * Clear credentials received during wps session
@@ -771,7 +771,7 @@ void cfg_wifi_reset_wps_credentials();
  * @return 0 Success.
  * @return -1 Error, or no hostap_iface is configured.
  */
-int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN]);
+int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface);
 
 /**
  * Returns all the HOSTAP interfaces available in prplmesh config file

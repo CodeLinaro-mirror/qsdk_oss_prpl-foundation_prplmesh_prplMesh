@@ -231,17 +231,17 @@ int cfg_get_load_steer_on_vaps(int num_of_interfaces,
     }
 
     std::string load_steer_on_vaps_str;
-    char ifname[BPL_IFNAME_LEN] = {0};
+    std::string ifname;
     for (int index = 0; index < num_of_interfaces; index++) {
         if (cfg_get_hostap_iface(index, ifname) == RETURN_ERR) {
             MAPF_ERR("failed to get wifi interface steer vaps for agent" << index);
         } else {
-            if (std::string(ifname).length() > 0) {
+            if (ifname.length() > 0) {
                 if (!load_steer_on_vaps_str.empty()) {
                     load_steer_on_vaps_str.append(",");
                 }
                 // for linux implementation the wlan?.0 vaps are used for band steering
-                load_steer_on_vaps_str.append(std::string(ifname) + ".0");
+                load_steer_on_vaps_str.append(ifname + ".0");
             }
         }
     }
@@ -492,8 +492,8 @@ int cfg_get_security_policy() { return 0; }
 int cfg_set_onboarding(int enable) { return RETURN_ERR; }
 
 int cfg_notify_onboarding_completed(const char ssid[BPL_SSID_LEN], const char pass[BPL_PASS_LEN],
-                                    const char sec[BPL_SEC_LEN],
-                                    const char iface_name[BPL_IFNAME_LEN], const int success)
+                                    const char sec[BPL_SEC_LEN], const std::string &iface_name,
+                                    const int success)
 {
     return RETURN_ERR;
 }

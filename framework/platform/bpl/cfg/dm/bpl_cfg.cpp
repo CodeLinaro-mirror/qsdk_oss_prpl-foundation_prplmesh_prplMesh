@@ -153,8 +153,8 @@ bool cfg_set_channel_select_task(bool channel_select_task_enabled)
 }
 
 int cfg_notify_onboarding_completed(const char ssid[BPL_SSID_LEN], const char pass[BPL_PASS_LEN],
-                                    const char sec[BPL_SEC_LEN],
-                                    const char iface_name[BPL_IFNAME_LEN], const int success)
+                                    const char sec[BPL_SEC_LEN], const std::string &iface_name,
+                                    const int success)
 {
     return 0;
 }

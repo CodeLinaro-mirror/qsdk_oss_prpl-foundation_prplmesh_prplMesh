@@ -109,8 +109,7 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
         // the `first` element of iface_iter is a string structured "radioN" where N represents the
         // given interface's index
         interfaces[iface_idx].radio_num = atoi(iface_iter.first.substr(5).c_str());
-        strncpy_s(interfaces[iface_idx].ifname, BPL_IFNAME_LEN, iface_iter.second.c_str(),
-                  BPL_IFNAME_LEN - 1);
+        strncpy_s(interfaces[iface_idx].ifname, IFNAMSIZ, iface_iter.second.c_str(), IFNAMSIZ - 1);
         iface_idx++;
     }
 
@@ -119,17 +118,16 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
     return RETURN_OK;
 }
 
-int cfg_get_wifi_params(const char iface[BPL_IFNAME_LEN], struct BPL_WLAN_PARAMS *wlan_params)
+int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_params)
 {
-    if (!iface || !wlan_params) {
-        MAPF_ERR("cfg_get_wifi_params: invalid input: iface = "
-                 << intptr_t(iface) << " wlan_params = " << intptr_t(wlan_params));
+    if (!wlan_params) {
+        MAPF_ERR("cfg_get_wifi_params: invalid input: wlan_params = " << intptr_t(wlan_params));
         return RETURN_ERR;
     }
 
     // The UCI "disabled" setting is optional, defaults to false if not present
     bool disabled = false;
-    cfg_uci_get_wireless_bool(TYPE_RADIO, iface, "disabled", &disabled);
+    cfg_uci_get_wireless_bool(TYPE_RADIO, iface.c_str(), "disabled", &disabled);
     wlan_params->enabled = !disabled;
 
     if (cfg_uci_get_wireless_bool(TYPE_RADIO, iface, "sub_band_dfs", &wlan_params->sub_band_dfs) ==
@@ -419,7 +417,7 @@ bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces)
 {
     mandatory_interfaces.clear();
 
-    constexpr int MANDATORY_INTERFACES_SIZE = BPL_IFNAME_LEN * BPL_NUM_OF_INTERFACES + 1;
+    constexpr int MANDATORY_INTERFACES_SIZE = IFNAMSIZ * BPL_NUM_OF_INTERFACES + 1;
     char tmp_mandatory_interfaces[MANDATORY_INTERFACES_SIZE];
 
     if (cfg_get_prplmesh_param("mandatory_interfaces", tmp_mandatory_interfaces,
@@ -447,13 +445,8 @@ bool bpl_cfg_get_hostapd_ctrl_path(const std::string &iface, std::string &hostap
     return true;
 }
 
-int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAME_LEN])
+int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
 {
-    if (!iface || !sta_iface) {
-        MAPF_ERR("cfg_get_sta_iface: invalid input: iface or sta_iface are NULL");
-        return RETURN_ERR;
-    }
-
     // Find the "prplmesh.wifi-device" section in UCI configuration for the given interface
     const std::string package_name = "prplmesh";
     const std::string section_type = "wifi-device";
@@ -476,14 +469,14 @@ int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAM
         return RETURN_ERR;
     }
 
-    mapf::utils::copy_string(sta_iface, option_value.c_str(), BPL_IFNAME_LEN);
+    sta_iface = std::move(option_value);
 
     return RETURN_OK;
 }
 
 void cfg_wifi_reset_wps_credentials() { LOG(INFO) << __func__ << " NOT IMPLEMENTED"; }
 
-int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN])
+int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface)
 {
     if (!hostap_iface) {
         MAPF_ERR("cfg_get_hostap_iface: invalid input: hostap_iface is NULL");
@@ -495,7 +488,10 @@ int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN])
         return RETURN_ERR;
     }
 
-    return cfg_get_prplmesh_radio_param(radio_num, "hostap_iface", hostap_iface, BPL_IFNAME_LEN);
+    char iface_c_str[IFNAMSIZ];
+    auto result  = cfg_get_prplmesh_radio_param(radio_num, "hostap_iface", c_iface, IFNAMSIZ);
+    hostap_iface = std::string(iface_c_str);
+    return result;
 }
 
 bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,

@@ -157,14 +157,11 @@ static bool parse_arguments(int argc, char *argv[])
 static std::string get_sta_iface_from_hostap_iface(const std::string &hostap_iface)
 {
     // read the sta_iface from bpl and verify it is available
-    char sta_iface_str[BPL_IFNAME_LEN];
     std::string sta_iface;
-
-    if (beerocks::bpl::cfg_get_sta_iface(hostap_iface.c_str(), sta_iface_str) < 0) {
+    if (beerocks::bpl::cfg_get_sta_iface(hostap_iface, sta_iface) < 0) {
         LOG(ERROR) << "failed to read sta_iface for slave ";
         return std::string();
     } else {
-        sta_iface = std::string(sta_iface_str);
         if (!beerocks::net::network_utils::linux_iface_exists(sta_iface)) {
             LOG(DEBUG) << "sta iface " << sta_iface << " does not exist, clearing it from config";
             sta_iface.clear();
