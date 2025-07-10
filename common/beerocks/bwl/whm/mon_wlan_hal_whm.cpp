@@ -891,6 +891,14 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
                    << non_associated_device_path;
     }
 
+    if (!new_list.empty()) {
+        AmbiorixVariant args, result;
+        if (!m_ambiorix_cl.call(nasta_monitor_path, "getNaStationStats", args, result)) {
+            LOG(ERROR) << "remote function call getNaStationStats for object " << nasta_monitor_path
+                       << " Failed!";
+        }
+    }
+
     auto non_ass_devices =
         m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(non_associated_device_path);
     if (!non_ass_devices) {
@@ -899,7 +907,7 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
 
     //Lets iterate through all instances
     for (auto &non_ass_device : *non_ass_devices) {
-        uint8_t signal_strength(0);
+        int32_t signal_strength(0);
         uint8_t channel(0);
         uint8_t operating_class(0);
         std::string time_stamp_str;
