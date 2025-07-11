@@ -1500,55 +1500,6 @@ void Monitor::handle_cmdu_vs_message(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
         break;
     }
-    case beerocks_message::ACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST: {
-        auto request =
-            beerocks_header
-                ->addClass<beerocks_message::cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST>();
-        if (request == nullptr) {
-            LOG(ERROR) << "addClass cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST failed";
-            return;
-        }
-
-        // debug_channel_load_11k_request(request);
-        std::string sta_mac = tlvf::mac_to_string(request->params().sta_mac);
-        auto sta_node       = mon_db.sta_find(sta_mac);
-        if (sta_node == nullptr) {
-            LOG(ERROR) << "CLIENT_CHANNEL_LOAD_11K_REQUEST sta_mac=" << sta_mac
-                       << " sta not assoc, id=" << beerocks_header->id();
-            return;
-        }
-        auto vap_node = mon_db.vap_get_by_id(sta_node->get_vap_id());
-        if (!vap_node) {
-            LOG(ERROR) << "station " << sta_mac << " has no vap";
-            return;
-        }
-
-        // TODO: TEMPORARY CONVERSION!
-        bwl::SStaChannelLoadRequest11k bwl_request;
-
-        bwl_request.channel                  = request->params().channel;
-        bwl_request.op_class                 = request->params().op_class;
-        bwl_request.repeats                  = request->params().repeats;
-        bwl_request.rand_ival                = request->params().rand_ival;
-        bwl_request.duration                 = request->params().duration;
-        bwl_request.parallel                 = request->params().parallel;
-        bwl_request.enable                   = request->params().enable;
-        bwl_request.request                  = request->params().request;
-        bwl_request.report                   = request->params().report;
-        bwl_request.mandatory_duration       = request->params().mandatory_duration;
-        bwl_request.use_optional_ch_load_rep = request->params().use_optional_ch_load_rep;
-        bwl_request.ch_load_rep_first        = request->params().ch_load_rep_first;
-        bwl_request.ch_load_rep_second       = request->params().ch_load_rep_second;
-        bwl_request.use_optional_wide_band_ch_switch =
-            request->params().use_optional_wide_band_ch_switch;
-        bwl_request.new_ch_width             = request->params().new_ch_width;
-        bwl_request.new_ch_center_freq_seg_0 = request->params().new_ch_center_freq_seg_0;
-        bwl_request.new_ch_center_freq_seg_1 = request->params().new_ch_center_freq_seg_1;
-        tlvf::mac_to_array(request->params().sta_mac, bwl_request.sta_mac.oct);
-
-        mon_wlan_hal->sta_channel_load_11k_request(vap_node->get_iface(), bwl_request);
-        break;
-    }
     case beerocks_message::ACTION_MONITOR_CHANNEL_SCAN_TRIGGER_SCAN_REQUEST: {
         auto request =
             beerocks_header
@@ -2211,30 +2162,6 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
     return true;
 }
-
-// void Monitor::debug_channel_load_11k_request(message::sACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST* request)
-// {
-//     LOG(DEBUG) << "ACTION_MONITOR_CLIENT_CLIENT_CHANNEL_LOAD_11K_REQUEST:"
-//     << std::endl << "channel: "              << (int)request->params.channel
-//     << std::endl << "op_class: "             << (int)request->params.op_class
-//     << std::endl << "repeats: "              << (int)request->params.repeats
-//     << std::endl << "rand_ival: "            << (int)request->params.rand_ival
-//     << std::endl << "duration: "             << (int)request->params.duration
-//     << std::endl << "sta_mac: "              << request->params.sta_mac
-//     << std::endl << "parallel: "             << (int)request->params.parallel
-//     << std::endl << "enable: "               << (int)request->params.enable
-//     << std::endl << "request: "              << (int)request->params.request
-//     << std::endl << "report: "               << (int)request->params.report
-//     << std::endl << "mandatory_duration: "   << (int)request->params.mandatory_duration;
-//     //Optional:
-//     // << std::endl << "use_optional_ch_load_rep: "             << (int)request->params.use_optional_ch_load_rep
-//     // << std::endl << "ch_load_rep_first: "                    << (int)request->params.ch_load_rep_first
-//     // << std::endl << "ch_load_rep_second: "                   << (int)request->params.ch_load_rep_second
-//     // << std::endl << "use_optional_wide_band_ch_switch: "     << (int)request->params.use_optional_wide_band_ch_switch
-//     // << std::endl << "new_ch_width: "                         << (int)request->params.new_ch_width
-//     // << std::endl << "new_ch_center_freq_seg_0: "             << (int)request->params.new_ch_center_freq_seg_0
-//     // << std::endl << "new_ch_center_freq_seg_1: "             << (int)request->params.new_ch_center_freq_seg_1;
-// }
 
 // void Monitor::debug_beacon_11k_request(message::sACTION_MONITOR_CLIENT_BEACON_11K_REQUEST *request)
 // {

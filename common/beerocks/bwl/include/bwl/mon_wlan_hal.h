@@ -71,8 +71,6 @@ public:
                                                    const std::string &sta_mac,
                                                    SStaQosCtrlParams &sta_qos_ctrl_params) = 0;
 
-    virtual bool sta_channel_load_11k_request(const std::string &vap_iface_name,
-                                              const SStaChannelLoadRequest11k &req)      = 0;
     virtual bool sta_beacon_11k_request(const std::string &vap_iface_name,
                                         const SBeaconRequest11k &req, int &dialog_token) = 0;
     virtual bool sta_link_measurements_11k_request(const std::string &vap_iface_name,

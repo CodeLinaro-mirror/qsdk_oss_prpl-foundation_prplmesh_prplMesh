@@ -172,41 +172,6 @@ struct SStaQosCtrlParams {
         [IEEE80211_QOS_TID_MAX_UP]; //TID - Traffic identifier of QoS control header field in 802.11 mac header.
 };
 
-struct SStaChannelLoadRequest11k {
-    uint8_t channel;
-    uint8_t op_class;
-    uint16_t
-        repeats; // '0' = once, '65535' = repeats until cancel request, other (1-65534) = specific num of repeats
-    uint16_t
-        rand_ival; // random interval - specifies the upper bound of the random delay to be used prior to making the measurement, expressed in units of TUs [=1024usec]
-    uint16_t duration; // measurement duration, expressed in units of TUs [=1024usec]
-    SMacAddr sta_mac;
-
-    // Measurement request mode booleans:
-    uint8_t parallel; // (for multiple requests)'0' - measurements are to be performed in sequence,
-    //  '1' - request that the measurement is to start at the same time as the measurement described
-    //  by the next Measurement Request element in the same Measurement Request frame
-    uint8_t enable;
-    uint8_t request;
-    uint8_t report;
-    uint8_t
-        mandatory_duration; // '0' - the duration can be lower than in the duration fiels, '1' - duration is mandantory
-
-    // Optional:
-    uint8_t use_optional_ch_load_rep; // bool
-    uint8_t ch_load_rep_first;
-    uint8_t ch_load_rep_second;
-
-    uint8_t use_optional_wide_band_ch_switch; // bool
-    uint32_t new_ch_width;                    // not sure if this type is most fit
-    uint32_t new_ch_center_freq_seg_0;        // not sure if this type is most fit
-    uint32_t new_ch_center_freq_seg_1;        // not sure if this type is most fit
-
-    uint8_t reserved1;
-    uint8_t reserved2;
-    uint8_t reserved3;
-};
-
 struct SStaChannelLoadResponse11k {
     uint8_t channel;
     uint8_t channel_load;

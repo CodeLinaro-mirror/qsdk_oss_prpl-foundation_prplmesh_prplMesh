@@ -95,7 +95,6 @@ private:
     bool update_sta_qos_ctrl_params();
     bool update_sta_stats(const std::chrono::steady_clock::time_point &timeout);
 
-    void debug_channel_load_11k_request(beerocks_message::sStaChannelLoadRequest11k &request);
     void debug_channel_load_11k_response(beerocks_message::sStaChannelLoadResponse11k &event);
     void debug_beacon_11k_request(beerocks_message::sBeaconRequest11k &request);
     void debug_beacon_11k_response(beerocks_message::sBeaconResponse11k &event);

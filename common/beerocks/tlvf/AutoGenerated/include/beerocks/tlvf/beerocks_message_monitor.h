@@ -570,27 +570,6 @@ class cACTION_MONITOR_CLIENT_BEACON_11K_RESPONSE : public BaseClass
         sBeaconResponse11k* m_params = nullptr;
 };
 
-class cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST : public BaseClass
-{
-    public:
-        cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
-        explicit cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
-        ~cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST();
-
-        static eActionOp_MONITOR get_action_op(){
-            return (eActionOp_MONITOR)(ACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_REQUEST);
-        }
-        sStaChannelLoadRequest11k& params();
-        void class_swap() override;
-        bool finalize() override;
-        static size_t get_initial_size();
-
-    private:
-        bool init();
-        eActionOp_MONITOR* m_action_op = nullptr;
-        sStaChannelLoadRequest11k* m_params = nullptr;
-};
-
 class cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_RESPONSE : public BaseClass
 {
     public:

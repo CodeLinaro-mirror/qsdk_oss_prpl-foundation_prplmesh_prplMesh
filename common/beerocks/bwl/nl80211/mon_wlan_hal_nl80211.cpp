@@ -317,13 +317,6 @@ bool mon_wlan_hal_nl80211::update_station_qos_control_params(const std::string &
     return true;
 }
 
-bool mon_wlan_hal_nl80211::sta_channel_load_11k_request(const std::string &vap_iface_name,
-                                                        const SStaChannelLoadRequest11k &req)
-{
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
-    return true;
-}
-
 bool mon_wlan_hal_nl80211::sta_beacon_11k_request(const std::string &vap_iface_name,
                                                   const SBeaconRequest11k &req, int &dialog_token)
 {
