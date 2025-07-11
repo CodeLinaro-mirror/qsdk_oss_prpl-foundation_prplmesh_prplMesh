@@ -210,7 +210,18 @@ bool client_steering_task::steer_sta()
         }
     }
 
-    std::string target_radio_mac = m_database.get_bss_parent_radio(m_target_bssid);
+    // Precompute the “source” (original) BSSID → radio → agent
+    const auto sta_bssid          = m_original_bssid;
+    const auto original_radio_mac = m_database.get_bss_parent_radio(sta_bssid);
+    auto source_agent             = m_database.get_agent_by_bssid(tlvf::mac_from_string(sta_bssid));
+    if (original_radio_mac.empty() || !source_agent ||
+        tlvf::mac_to_string(source_agent->al_mac).empty()) {
+        LOG(ERROR) << "Cannot resolve source agent for original BSSID=" << sta_bssid;
+        return false;
+    }
+
+    // Find the “target” AP’s radio & agent for the unblock step
+    const auto target_radio_mac = m_database.get_bss_parent_radio(m_target_bssid);
     if (target_radio_mac.empty()) {
         LOG(ERROR) << "parent radio for target-bssid=" << m_target_bssid
                    << " not found, exiting steering task";
@@ -226,39 +237,39 @@ bool client_steering_task::steer_sta()
 
     dm_update_multi_ap_steering_params(m_database.get_node_11v_capability(*client));
 
-    // Send 17.1.27	Client Association Control Request : Unblock
+    // Send 17.1.27    Client Association Control Request : Unblock
     std::unordered_set<sMacAddr> unblock_list{tlvf::mac_from_string(m_sta_mac)};
 
     son_actions::send_client_association_control(
         m_database, m_cmdu_tx, target_agent->al_mac, tlvf::mac_from_string(m_target_bssid),
         unblock_list, 0, wfa_map::tlvClientAssociationControlRequest::UNBLOCK);
 
-    // update bml listeners
-    bml_task::client_allow_req_available_event client_allow_event;
-    client_allow_event.sta_mac    = m_sta_mac;
-    client_allow_event.hostap_mac = m_target_bssid;
-    client_allow_event.ip         = m_database.get_sta_ipv4(m_sta_mac);
+    // Notify BML that the client is now allowed on the new AP
+    bml_task::client_allow_req_available_event client_allow_event{
+        .sta_mac    = m_sta_mac,
+        .hostap_mac = m_target_bssid,
+        .ip         = m_database.get_sta_ipv4(m_sta_mac)};
     m_tasks.push_event(m_database.get_bml_task_id(), bml_task::CLIENT_ALLOW_REQ_EVENT_AVAILABLE,
                        &client_allow_event);
 
+    // If already a backhaul-STA, send the backhaul-steering CMDU to the source agent
     if (client->is_bSta()) {
         TASK_LOG(DEBUG) << "SLAVE " << m_sta_mac
-                        << " has an active socket, sending BACKHAUL_ROAM_REQUEST";
+                        << " has an active socket, sending BACKHAUL_STEERING_REQUEST";
+
         auto roam_request =
             m_cmdu_tx.create(0, ieee1905_1::eMessageType::BACKHAUL_STEERING_REQUEST_MESSAGE);
         if (!roam_request) {
             LOG(ERROR) << "Failed building BACKHAUL_STEERING_REQUEST_MESSAGE!";
             return false;
         }
-
         auto bh_steer_req_tlv = m_cmdu_tx.addClass<wfa_map::tlvBackhaulSteeringRequest>();
         if (!bh_steer_req_tlv) {
-            LOG(ERROR) << "Failed building addClass<wfa_map::tlvSteeringRequest!";
+            LOG(ERROR) << "Failed adding tlvBackhaulSteeringRequest!";
             return false;
         }
 
-        std::shared_ptr<Agent::sRadio> target_radio =
-            m_database.get_radio_by_bssid(tlvf::mac_from_string(m_target_bssid));
+        auto target_radio = m_database.get_radio_by_bssid(tlvf::mac_from_string(m_target_bssid));
         if (!target_radio) {
             LOG(ERROR) << "No radio found hosting BSS " << m_target_bssid;
             return false;
@@ -275,22 +286,19 @@ bool client_steering_task::steer_sta()
             m_database.get_radio_operating_class(tlvf::mac_from_string(target_radio_mac));
         bh_steer_req_tlv->finalize();
 
-        son_actions::send_cmdu_to_agent(target_agent->al_mac, m_cmdu_tx, m_database,
-                                        target_radio_mac);
-        // TODO: send backhaul steering to the owner of the bSTA (PPM-2118)
+        son_actions::send_cmdu_to_agent(source_agent->al_mac, m_cmdu_tx, m_database,
+                                        original_radio_mac);
 
-        // update bml listeners
-        bml_task::bh_roam_req_available_event bh_roam_event;
-        bh_roam_event.bssid   = m_target_bssid;
-        bh_roam_event.channel = wifi_channel.get_channel();
+        // Notify BML of backhaul-roam
+        bml_task::bh_roam_req_available_event bh_roam_event{.bssid   = m_target_bssid,
+                                                            .channel = wifi_channel.get_channel()};
         m_tasks.push_event(m_database.get_bml_task_id(), bml_task::BH_ROAM_REQ_EVENT_AVAILABLE,
                            &bh_roam_event);
 
         return true;
     }
 
-    auto hostaps                   = m_database.get_active_radios();
-    std::string original_radio_mac = m_database.get_bss_parent_radio(m_original_bssid);
+    auto hostaps = m_database.get_active_radios();
 
     hostaps.erase(target_radio_mac); // remove chosen hostap from the general list
     for (auto &hostap : hostaps) {
@@ -384,8 +392,6 @@ bool client_steering_task::steer_sta()
         LOG(WARNING) << "empty wifi channel of " << m_target_bssid << " in DB";
     }
     std::get<1>(bssid_list).target_bss_channel_number = wifi_channel.get_channel();
-
-    auto source_agent = m_database.get_agent_by_bssid(tlvf::mac_from_string(m_original_bssid));
 
     son_actions::send_cmdu_to_agent(source_agent->al_mac, m_cmdu_tx, m_database,
                                     original_radio_mac);
