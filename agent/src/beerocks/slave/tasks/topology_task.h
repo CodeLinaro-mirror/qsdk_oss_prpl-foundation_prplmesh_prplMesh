@@ -27,7 +27,6 @@ public:
     void work() override;
 
     enum eEvent : uint8_t {
-        AGENT_RADIO_STATE_CHANGED,
         AGENT_DEVICE_INITIALIZED,
     };
 
