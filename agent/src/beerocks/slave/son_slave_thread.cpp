@@ -877,9 +877,9 @@ bool slave_thread::handle_cmdu_from_broker(uint32_t iface_index, const sMacAddr 
         auto db = AgentDB::get();
         // Filter messages which are not destined to this agent
         if (dst_mac != beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR &&
-            dst_mac != db->bridge.mac) {
+            dst_mac != db->al_mac) {
             LOG(DEBUG) << "handle_cmdu() - dropping msg, dst_mac=" << dst_mac
-                       << ", local_bridge_mac=" << db->bridge.mac;
+                       << ", al_mac=" << db->al_mac;
             return true;
         }
 
@@ -2840,7 +2840,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
             return false;
         }
-        tlvAlMacAddress->mac() = db->bridge.mac;
+        tlvAlMacAddress->mac() = db->al_mac;
 
         auto client_association_event_tlv = cmdu_tx.addClass<wfa_map::tlvClientAssociationEvent>();
         if (!client_association_event_tlv) {
@@ -3176,7 +3176,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
             return false;
         }
-        tlvAlMacAddress->mac() = db->bridge.mac;
+        tlvAlMacAddress->mac() = db->al_mac;
 
         auto client_association_event_tlv = cmdu_tx.addClass<wfa_map::tlvClientAssociationEvent>();
         if (!client_association_event_tlv) {
@@ -4344,6 +4344,9 @@ bool slave_thread::agent_fsm()
         // Update bridge parameters on AgentDB.
         db->bridge.mac = tlvf::mac_from_string(iface_mac);
 
+        db->al_mac = db->bridge.mac;
+        db->al_mac.oct[0] |= 1 << 1;
+
         // On GW Platform, we clear the WAN interface from the database, once getting the
         // configuration from the Platform Manager. Since we initialize the local_gw flag later,
         // check if the WAN interface is empty instead of the local_gw flag.
@@ -4706,7 +4709,7 @@ bool slave_thread::agent_fsm()
         auto db = AgentDB::get();
 
         // Configure the transport process to bind the al_mac address
-        if (!m_broker_client->configure_al_mac(db->bridge.mac)) {
+        if (!m_broker_client->configure_al_mac(db->al_mac)) {
             LOG(FATAL) << "Failed configuring transport process!";
         }
 
@@ -4947,7 +4950,7 @@ bool slave_thread::send_cmdu_to_controller(const std::string &fronthaul_iface,
         break;
     }
 
-    return m_broker_client->send_cmdu(cmdu_tx, dst_addr, db->bridge.mac);
+    return m_broker_client->send_cmdu(cmdu_tx, dst_addr, db->al_mac);
 }
 
 void slave_thread::fsm_stop() { m_agent_state = STATE_STOPPED; }
@@ -4977,7 +4980,7 @@ bool slave_thread::forward_cmdu_to_controller(ieee1905_1::CmduMessageRx &cmdu_rx
         break;
     }
 
-    return m_broker_client->forward_cmdu(cmdu_rx, dst_addr, db->bridge.mac);
+    return m_broker_client->forward_cmdu(cmdu_rx, dst_addr, db->al_mac);
 }
 
 bool slave_thread::handle_client_association_request(ieee1905_1::CmduMessageRx &cmdu_rx)

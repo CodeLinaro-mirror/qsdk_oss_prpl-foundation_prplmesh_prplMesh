@@ -1037,7 +1037,7 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
 
     LOG(DEBUG) << "Sending ACK message to the originator, mid=" << std::hex << mid;
     auto db = AgentDB::get();
-    if (!m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, src_mac, db->bridge.mac)) {
+    if (!m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, src_mac, db->al_mac)) {
         LOG(ERROR) << "Failed to send ACK_MESSAGE back to controller";
         return false;
     }
@@ -1327,7 +1327,7 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
 
         LOG(DEBUG) << "Sending ACK message to the originator, mid=" << std::hex << mid;
         auto db = AgentDB::get();
-        if (!m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, src_mac, db->bridge.mac)) {
+        if (!m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, src_mac, db->al_mac)) {
             LOG(ERROR) << "Failed to send ACK_MESSAGE back to controller";
             return false;
         }
@@ -1598,7 +1598,7 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
             LOG(TRACE) << m_cmdu_tx.getMessageBuffLength() - m_cmdu_tx.getMessageLength();
         }
         LOG(DEBUG) << "Sending Channel Scan Report Message to broker";
-        return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, dst_mac, db->bridge.mac);
+        return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, dst_mac, db->al_mac);
     };
 
     auto calculate_remaining_buffer_size = [this](bool is_prplmesh_controller) -> size_t {

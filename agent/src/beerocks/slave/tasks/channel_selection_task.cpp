@@ -423,7 +423,7 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
     }
     // Send response back to the sender.
     LOG(DEBUG) << "Sending Channel-Selection-Response to broker";
-    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->al_mac);
 
     // Handle pending Outgoing requests.
     for (auto &request_iter : m_pending_selection.requests) {
@@ -1169,7 +1169,7 @@ bool ChannelSelectionTask::send_channel_preference_report()
     }
 
     LOG(DEBUG) << "sending channel preference report to broker";
-    return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+    return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->al_mac);
 }
 
 bool ChannelSelectionTask::create_channel_preference_tlv(const sMacAddr &radio_mac)
@@ -2573,7 +2573,7 @@ bool ChannelSelectionTask::send_operating_channel_report(const sMacAddr &radio_m
         }
     }
 
-    return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+    return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->al_mac);
 }
 
 bool ChannelSelectionTask::build_acs_list(const sMacAddr &radio_mac,

@@ -142,7 +142,7 @@ void LinkMetricsCollectionTask::handle_link_metric_query(ieee1905_1::CmduMessage
     /**
      * 1905.1 AL MAC address of the device that transmits the response message.
      */
-    sMacAddr reporter_al_mac = db->bridge.mac;
+    sMacAddr reporter_al_mac = db->al_mac;
 
     /**
      * 1905.1 AL MAC address of a neighbor of the receiving device.

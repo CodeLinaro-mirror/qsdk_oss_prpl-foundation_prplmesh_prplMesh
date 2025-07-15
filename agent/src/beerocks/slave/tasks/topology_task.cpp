@@ -176,7 +176,7 @@ void TopologyTask::handle_topology_discovery(ieee1905_1::CmduMessageRx &cmdu_rx,
     auto db = AgentDB::get();
 
     // Filter out the messages we have sent.
-    if (tlvAlMac->mac() == db->bridge.mac) {
+    if (tlvAlMac->mac() == db->al_mac) {
         return;
     }
 
@@ -345,7 +345,7 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
     }
 
     LOG(DEBUG) << "Sending topology response message, mid=" << std::hex << mid;
-    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, src_mac, db->bridge.mac);
+    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, src_mac, db->al_mac);
 }
 
 bool TopologyTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
@@ -433,7 +433,7 @@ void TopologyTask::send_topology_discovery()
             LOG(ERROR) << "Failed to create tlvAlMacAddress tlv";
             return;
         }
-        tlvAlMacAddress->mac() = db->bridge.mac;
+        tlvAlMacAddress->mac() = db->al_mac;
 
         auto tlvMacAddress = m_cmdu_tx.addClass<ieee1905_1::tlvMacAddress>();
         if (!tlvMacAddress) {
@@ -442,10 +442,10 @@ void TopologyTask::send_topology_discovery()
         }
         tlvMacAddress->mac() = iface_mac;
 
-        LOG(DEBUG) << "send_1905_topology_discovery_message, bridge_mac=" << db->bridge.mac
+        LOG(DEBUG) << "send_1905_topology_discovery_message, al_mac=" << db->al_mac
                    << ", iface=" << iface_name;
-        m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, network_utils::MULTICAST_1905_MAC_ADDR,
-                                      db->bridge.mac, iface_name);
+        m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, network_utils::MULTICAST_1905_MAC_ADDR, db->al_mac,
+                                      iface_name);
     }
 }
 
@@ -481,10 +481,9 @@ void TopologyTask::send_topology_notification()
         LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
         return;
     }
-    tlvAlMacAddress->mac() = db->bridge.mac;
+    tlvAlMacAddress->mac() = db->al_mac;
 
-    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, network_utils::MULTICAST_1905_MAC_ADDR,
-                                  db->bridge.mac);
+    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, network_utils::MULTICAST_1905_MAC_ADDR, db->al_mac);
 }
 
 bool TopologyTask::add_device_information_tlv()
@@ -498,7 +497,7 @@ bool TopologyTask::add_device_information_tlv()
     auto db = AgentDB::get();
 
     /* 1905.1 AL MAC address of the device */
-    tlvDeviceInformation->mac() = db->bridge.mac;
+    tlvDeviceInformation->mac() = db->al_mac;
 
     struct sLocalIfaceInfo {
         std::string ifname;

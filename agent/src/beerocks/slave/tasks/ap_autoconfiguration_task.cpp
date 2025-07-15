@@ -603,7 +603,7 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
             LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
             return false;
         }
-        tlvAlMacAddress->mac() = db->bridge.mac;
+        tlvAlMacAddress->mac() = db->al_mac;
 
         auto tlvSearchedRole = m_cmdu_tx.addClass<ieee1905_1::tlvSearchedRole>();
         if (!tlvSearchedRole) {
@@ -695,7 +695,7 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
     }
     if (db->controller_info.profile_support ==
         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-        LOG(DEBUG) << "sending autoconfig search message, bridge_mac=" << db->bridge.mac;
+        LOG(DEBUG) << "sending autoconfig search message, al_mac=" << db->al_mac;
         return m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
     } else if (db->controller_info.profile_support ==
                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN) {
@@ -723,8 +723,7 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
         tlvProfile2MultiApProfile->profile() = db->device_conf.certification_profile;
     }
 
-    LOG(DEBUG) << "sending autoconfig search message, bridge_mac=" << db->bridge.mac
-               << " with Profile TLV";
+    LOG(DEBUG) << "sending autoconfig search message, al_mac=" << db->al_mac << " with Profile TLV";
     return m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 
@@ -984,7 +983,7 @@ bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
     auto &radio_conf_params = m_radios_conf_params[radio_iface];
 
     cfg.msg_type = WSC::eWscMessageType::WSC_MSG_TYPE_M1;
-    cfg.mac      = db->bridge.mac;
+    cfg.mac      = db->al_mac;
 
     radio_conf_params.dh = std::make_unique<mapf::encryption::diffie_hellman>();
 
@@ -1048,10 +1047,10 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
     ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac)
 {
     auto db = AgentDB::get();
-    if (db->device_conf.local_controller && src_mac != db->bridge.mac) {
-        LOG(ERROR) << "[Multiple Controllers Detected] This agent has a local controller with mac="
-                   << db->bridge.mac << " but response came from src_mac=" << src_mac
-                   << ", ignoring";
+    if (db->device_conf.local_controller && src_mac != db->al_mac) {
+        LOG(ERROR)
+            << "[Multiple Controllers Detected] This agent has a local controller with al_mac="
+            << db->al_mac << " but response came from src_mac=" << src_mac << ", ignoring";
         return;
     }
     if (db->controller_info.bridge_mac != network_utils::ZERO_MAC &&
@@ -2211,7 +2210,7 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
         return;
     }
 
-    tlvAlMacAddress->mac() = db->bridge.mac;
+    tlvAlMacAddress->mac() = db->al_mac;
     m_btl_ctx.send_cmdu_to_controller(fronthaul_iface, m_cmdu_tx);
 
     radio_conf_params.received_vaps_list_update = true;
@@ -2310,7 +2309,7 @@ bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_calculate_keys(
     auto db = AgentDB::get();
     mapf::encryption::wps_calculate_keys(
         *radio_conf_params.dh, remote_pubkey, WSC::eWscLengths::WSC_PUBLIC_KEY_LENGTH,
-        radio_conf_params.dh->nonce(), db->bridge.mac.oct, nonce, authkey, keywrapkey);
+        radio_conf_params.dh->nonce(), db->al_mac.oct, nonce, authkey, keywrapkey);
 
     return true;
 }
@@ -2500,7 +2499,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
     const auto find_by_similarity = [&db](const AgentDB::sRadio::sFront::sBssid &bss) {
         return [&db, &bss](const WSC::configData::config &config) {
             // Check if config's BSSID is valid
-            if (config.bssid != db->bridge.mac) {
+            if (config.bssid != db->al_mac) {
                 // Config BSSID is valid, can check BSSID only.
                 return (config.bssid == bss.mac);
             }

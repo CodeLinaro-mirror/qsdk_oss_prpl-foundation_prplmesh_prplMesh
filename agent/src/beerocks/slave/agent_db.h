@@ -200,6 +200,8 @@ public:
         std::string iface_name;
     } bridge;
 
+    sMacAddr al_mac;
+
     struct sBackhaul {
         enum class eConnectionType { Invalid = 0, Wired, Wireless } connection_type;
         std::string selected_iface_name;

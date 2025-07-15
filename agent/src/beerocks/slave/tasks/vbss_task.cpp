@@ -195,7 +195,7 @@ void VbssTask::handle_virtual_bss_response(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
 
         auto db                = AgentDB::get();
-        tlvAlMacAddress->mac() = db->bridge.mac;
+        tlvAlMacAddress->mac() = db->al_mac;
         m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
     }
 }
