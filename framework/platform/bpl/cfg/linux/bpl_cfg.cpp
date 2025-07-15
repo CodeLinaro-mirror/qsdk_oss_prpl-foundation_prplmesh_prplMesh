@@ -158,6 +158,8 @@ int cfg_is_master()
     switch (cfg_get_management_mode()) {
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT:
         return 1;
+    case BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT:
+        return 1;
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER:
         return 1;
     case BPL_MGMT_MODE_MULTIAP_AGENT:
@@ -165,6 +167,11 @@ int cfg_is_master()
     default:
         return RETURN_ERR;
     }
+}
+
+int cfg_is_non_prplmesh_controller()
+{
+    return cfg_get_management_mode() == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
 }
 
 int cfg_get_management_mode()
@@ -177,6 +184,8 @@ int cfg_get_management_mode()
 
     if (mgmt_mode == "Multi-AP-Controller-and-Agent") {
         return BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT;
+    } else if (mgmt_mode == "Non-Prpl-Controller-and-Agent") {
+        return BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
     } else if (mgmt_mode == "Multi-AP-Controller") {
         return BPL_MGMT_MODE_MULTIAP_CONTROLLER;
     } else if (mgmt_mode == "Multi-AP-Agent") {

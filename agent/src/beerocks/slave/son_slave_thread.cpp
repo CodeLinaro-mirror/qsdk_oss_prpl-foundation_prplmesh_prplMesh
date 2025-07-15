@@ -662,6 +662,7 @@ bool slave_thread::read_platform_configuration()
     // Set local_gw flag
     db->device_conf.local_gw =
         (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT ||
+         db->device_conf.management_mode == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT ||
          db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER);
 
     db->device_conf.client_optimal_path_roaming_prefer_signal_strength_enabled =

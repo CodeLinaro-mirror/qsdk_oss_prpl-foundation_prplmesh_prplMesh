@@ -80,7 +80,8 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 #define BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT 0 /* EasyMesh controller and agent */
 #define BPL_MGMT_MODE_MULTIAP_CONTROLLER 1       /* EasyMesh controller */
 #define BPL_MGMT_MODE_MULTIAP_AGENT 2            /* EasyMesh agent */
-#define BPL_MGMT_MODE_NOT_MULTIAP 3              /* Non EasyMesh */
+#define BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT 3 /* Non-prpl controller and agent */
+#define BPL_MGMT_MODE_NOT_MULTIAP 4              /* Non EasyMesh */
 
 /* Platform Certification Mode */
 #define BPL_CERTIFICATION_MODE_OFF 0
@@ -351,6 +352,14 @@ struct BPL_WLAN_IFACE {
  * @return -1 Error.
  */
 int cfg_is_master();
+
+/*
+ * Returns whether the current platform has non-prplmesh controller
+ *
+ * return 1 for non-prplmesh controller
+ * return 0 for prplmesh controller
+ */
+int cfg_is_non_prplmesh_controller();
 
 /**
  * Returns the current management mode configuration.
