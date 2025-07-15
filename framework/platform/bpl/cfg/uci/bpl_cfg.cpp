@@ -43,10 +43,17 @@ int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                         hostap_iface_steer_vaps, BPL_LOAD_STEER_ON_VAPS_LEN);
 }
 
+int cfg_is_non_prplmesh_controller()
+{
+    return cfg_get_management_mode() == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
+}
+
 int cfg_is_master()
 {
     switch (cfg_get_management_mode()) {
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT:
+        return 1;
+    case BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT:
         return 1;
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER:
         return 1;
@@ -70,6 +77,8 @@ int cfg_get_management_mode()
         std::string mode_str(mgmt_mode);
         if (mode_str == "Multi-AP-Controller-and-Agent") {
             retVal = BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT;
+        } else if (mode_str == "Non-Prpl-Controller-and-Agent") {
+            retVal = BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
         } else if (mode_str == "Multi-AP-Controller") {
             retVal = BPL_MGMT_MODE_MULTIAP_CONTROLLER;
         } else if (mode_str == "Multi-AP-Agent") {
