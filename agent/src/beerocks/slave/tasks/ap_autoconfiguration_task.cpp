@@ -1039,11 +1039,28 @@ bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
 void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
     ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac)
 {
+
+    bool is_local_non_prplmesh_controller = bpl::cfg_is_non_prplmesh_controller();
+
     auto db = AgentDB::get();
+    /*
+     * Local agent with prpl controller - src_mac and bridge_mac have to be same
+     * Local agent with non-prpl controller - src_mac and bridge_mac can be different
+     * as the vendor controller can be sending AP response from vendor specific controller MAC,
+     * hence this check can be skipped.
+     */
+    if (db->device_conf.local_controller && !is_local_non_prplmesh_controller &&
+        src_mac != db->bridge.mac) {
+        LOG(ERROR) << "[Multiple Controllers Detected] This agent has a local controller with mac="
+                   << db->bridge.mac << " but response came from src_mac=" << src_mac
+                   << ", ignoring";
+        return;
+    }
     if (db->controller_info.bridge_mac != network_utils::ZERO_MAC &&
         src_mac != db->controller_info.bridge_mac) {
-        LOG(INFO) << "current controller_bridge_mac=" << db->controller_info.bridge_mac
-                  << " but response came from src_mac=" << src_mac << ", ignoring";
+        LOG(ERROR) << "[Multiple Controllers Detected] current controller_bridge_mac="
+                   << db->controller_info.bridge_mac
+                   << " but response came from src_mac=" << src_mac << ", ignoring";
         return;
     }
 

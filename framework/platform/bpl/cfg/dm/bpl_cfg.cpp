@@ -28,6 +28,8 @@ int cfg_is_master()
     switch (cfg_get_management_mode()) {
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT:
         return 1;
+    case BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT:
+        return 1;
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER:
         return 1;
     case BPL_MGMT_MODE_MULTIAP_AGENT:
@@ -35,6 +37,11 @@ int cfg_is_master()
     default:
         return -1;
     }
+}
+
+int cfg_is_non_prplmesh_controller()
+{
+    return cfg_get_management_mode() == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
 }
 
 #ifndef KEEP_UCI_GENERAL_OPTIONS
@@ -48,6 +55,8 @@ int cfg_get_management_mode()
 
     if (management_mode_str == "Controller+Agent") {
         management_mode = BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT;
+    } else if (management_mode_str == "Non-Prpl-Controller-and-Agent") {
+        management_mode = BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
     } else if (management_mode_str == "Controller") {
         management_mode = BPL_MGMT_MODE_MULTIAP_CONTROLLER;
     } else if (management_mode_str == "Agent") {
