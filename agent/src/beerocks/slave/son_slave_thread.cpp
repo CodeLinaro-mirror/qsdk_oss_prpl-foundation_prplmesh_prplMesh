@@ -4345,7 +4345,7 @@ bool slave_thread::agent_fsm()
         db->bridge.mac = tlvf::mac_from_string(iface_mac);
 
         db->al_mac = db->bridge.mac;
-        db->al_mac.oct[0] |= 1 << 1;
+        db->al_mac.oct[0] |= 1 << 2;
 
         // On GW Platform, we clear the WAN interface from the database, once getting the
         // configuration from the Platform Manager. Since we initialize the local_gw flag later,
