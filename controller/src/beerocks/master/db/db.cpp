@@ -4515,7 +4515,7 @@ bool db::set_sta_initial_radio(Station &client, const sMacAddr &initial_radio_ma
     return true;
 }
 
-bool db::set_sta_selected_bands(Station &client, int8_t selected_bands, bool save_to_persistent_db)
+bool db::set_sta_selected_bands(Station &client, uint8_t selected_bands, bool save_to_persistent_db)
 {
     auto mac                      = client.mac;
     std::shared_ptr<Station> pSta = get_station(mac);
@@ -4536,7 +4536,7 @@ bool db::set_sta_selected_bands(Station &client, int8_t selected_bands, bool sav
 
             ValuesMap values_map;
             values_map[TIMESTAMP_STR]      = timestamp_to_string_seconds(timestamp);
-            values_map[SELECTED_BANDS_STR] = (selected_bands != PARAMETER_NOT_CONFIGURED)
+            values_map[SELECTED_BANDS_STR] = (selected_bands != eFreqType::FREQ_UNKNOWN)
                                                  ? std::to_string(selected_bands)
                                                  : std::string("");
 
@@ -4600,7 +4600,7 @@ bool db::clear_client_persistent_db(const sMacAddr &mac)
     client->time_life_delay_minutes = std::chrono::minutes(PARAMETER_NOT_CONFIGURED);
     client->stay_on_initial_radio   = eTriStateBool::NOT_CONFIGURED;
     client->initial_radio           = network_utils::ZERO_MAC;
-    client->selected_bands          = PARAMETER_NOT_CONFIGURED;
+    client->selected_bands          = eFreqType::FREQ_UNKNOWN;
     client->is_unfriendly           = eTriStateBool::NOT_CONFIGURED;
 
     // if persistent db is enabled
@@ -4636,7 +4636,7 @@ bool db::is_hostap_on_client_selected_bands(const sMacAddr &client_mac, const sM
     }
     auto selected_bands = client->selected_bands;
 
-    if (selected_bands == PARAMETER_NOT_CONFIGURED) {
+    if (selected_bands == eFreqType::FREQ_UNKNOWN) {
         LOG(WARNING) << "the frequency type that's used by the client is not supported";
         return false;
     }
@@ -4644,9 +4644,8 @@ bool db::is_hostap_on_client_selected_bands(const sMacAddr &client_mac, const sM
     auto freq_type = radio_wifi_channel.get_freq_type();
     switch (freq_type) {
     case beerocks::eFreqType::FREQ_24G:
-        return (selected_bands & eClientSelectedBands::eSelectedBands_24G);
     case beerocks::eFreqType::FREQ_5G:
-        return (selected_bands & eClientSelectedBands::eSelectedBands_5G);
+        return (selected_bands & freq_type);
     default:
         LOG(WARNING) << "hostap band " << freq_type << " is not supported by client";
         return false;
@@ -4695,7 +4694,7 @@ bool db::update_client_persistent_db(Station &client)
         }
     }
 
-    if (client.selected_bands != PARAMETER_NOT_CONFIGURED) {
+    if (client.selected_bands != eFreqType::FREQ_UNKNOWN) {
         LOG(DEBUG) << "Setting client selected-bands in persistent-db to " << client.selected_bands
                    << " for " << mac;
         values_map[SELECTED_BANDS_STR] = std::to_string(client.selected_bands);

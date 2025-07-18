@@ -120,12 +120,6 @@ extern "C" {
 #define BML_CHANNEL_SCAN_MAX_CHANNEL_POOL_SIZE 32 /* Maximal size of the channel pool */
 #define BML_CHANNEL_SCAN_ENUM_LIST_SIZE 8
 
-/* BML Client Selected Bands */
-#define BML_CLIENT_SELECTED_BANDS_DISABLED 0
-#define BML_CLIENT_SELECTED_BANDS_24G 1
-#define BML_CLIENT_SELECTED_BANDS_5G 2
-#define BML_CLIENT_SELECTED_BANDS_6G 4
-
 #define BML_PARAMETER_NOT_CONFIGURED -1
 
 /****************************************************************************/
@@ -599,8 +593,8 @@ struct BML_CLIENT_CONFIG {
     int8_t stay_on_initial_radio;
 
     // Bitwise value of selected bands for the client.
-    // Correlates to BML_CLIENT_SELECTED_BANDS
-    int8_t selected_bands;
+    // Correlates to eFreqType
+    uint8_t selected_bands;
 
     // Optional parameter,
     // Determines the period of time after which the client configuration should be cleared,
@@ -627,8 +621,8 @@ struct BML_CLIENT {
     uint8_t initial_radio[BML_MAC_ADDR_LEN];
 
     // Bitwise value of selected bands for the client.
-    // Correlates to BML_CLIENT_SELECTED_BANDS
-    int8_t selected_bands;
+    // Correlates to eFreqType
+    uint8_t selected_bands;
 
     // Optional parameter,
     // Determines the period of time after which the client configuration should be cleared,

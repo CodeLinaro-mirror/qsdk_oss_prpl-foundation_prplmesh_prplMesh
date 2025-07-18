@@ -1390,21 +1390,13 @@ typedef struct sBssidInfo {
     }
 } __attribute__((packed)) sBssidInfo;
 
-enum eClientSelectedBands: uint8_t {
-    eSelectedBands_Disabled = 0x0,
-    eSelectedBands_24G = 0x1,
-    eSelectedBands_5G = 0x2,
-    eSelectedBands_6G = 0x4,
-    eSelectedBands_Unknown = 0xff,
-};
-
 typedef struct sClientConfig {
     //1 for true, 0 for false, -1 for "not configured".
     int8_t stay_on_initial_radio;
     //1 for true, 0 for false, -1 for "not configured".
     int8_t stay_on_selected_device;
-    //Bitset of selected bands supported by the client according to eClientSelectedBands
-    int8_t selected_bands;
+    //Bitset of selected bands supported by the client according to beerocks::eFreqType
+    uint8_t selected_bands;
     //Optional parameter,
     //Determines the period of time after which the client configuration should be cleared,
     //0 - Never age.
@@ -1432,8 +1424,8 @@ typedef struct sClient {
     sMacAddr initial_radio;
     //1 for true, 0 for false, -1 for "not configured".
     int8_t stay_on_selected_device;
-    //Bitset of selected bands supported by the client according to eClientSelectedBands
-    eClientSelectedBands selected_bands;
+    //Bitset of selected bands supported by the client according to beerocks::eFreqType
+    uint8_t selected_bands;
     //1 for true, 0 for false, -1 for "not configured".
     int8_t single_band;
     //Optional parameter,
@@ -1451,7 +1443,7 @@ typedef struct sClient {
         timestamp_sec = 0x0;
         stay_on_initial_radio = -0x1;
         stay_on_selected_device = -0x1;
-        selected_bands = eClientSelectedBands::eSelectedBands_Unknown;
+        selected_bands = beerocks::eFreqType::FREQ_UNKNOWN;
         single_band = -0x1;
         time_life_delay_minutes = -0x1;
     }

@@ -1491,7 +1491,7 @@ int cli_bml::client_set_client_caller(int numOfArgs)
      *  time_life_delay_minutes=<time_life_delay_minutes>
     ]*/
     std::string::size_type pos;
-    int8_t selected_bands           = BML_PARAMETER_NOT_CONFIGURED;
+    uint8_t selected_bands          = eFreqType::FREQ_UNKNOWN;
     int8_t stay_on_initial_radio    = BML_PARAMETER_NOT_CONFIGURED;
     int32_t time_life_delay_minutes = BML_PARAMETER_NOT_CONFIGURED;
 
@@ -2522,7 +2522,7 @@ int cli_bml::client_get_client_list()
 .
  * @return 0 on success.
  */
-int cli_bml::client_set_client(const std::string &sta_mac, int8_t selected_bands,
+int cli_bml::client_set_client(const std::string &sta_mac, uint8_t selected_bands,
                                int8_t stay_on_initial_radio, int32_t time_life_delay_minutes)
 {
     std::cout << "client_set_client: " << std::endl
@@ -2562,15 +2562,21 @@ int cli_bml::client_get_client(const std::string &sta_mac)
                 return "Not configured";
             return val ? "True" : "False";
         };
-        auto client_selected_bands_print = [](int8_t val) -> std::string {
+        auto client_selected_bands_print = [](uint8_t val) -> std::string {
             std::string ret = "";
-            if (val == BML_CLIENT_SELECTED_BANDS_DISABLED)
+            if (val == eFreqType::FREQ_DISABLED)
                 return "Disabled";
-            if (val & BML_CLIENT_SELECTED_BANDS_24G)
+            if (val == eFreqType::FREQ_AUTO)
+                return "Auto";
+            if (val == eFreqType::FREQ_UNKNOWN)
+                return "Unknown";
+            if (val > eFreqType::FREQ_AUTO)
+                return "Invalid bauds selected";
+            if (val & eFreqType::FREQ_24G)
                 ret += "2.4GHz,";
-            if (val & BML_CLIENT_SELECTED_BANDS_5G)
+            if (val & eFreqType::FREQ_5G)
                 ret += "5GHz,";
-            if (val & BML_CLIENT_SELECTED_BANDS_6G)
+            if (val & eFreqType::FREQ_6G)
                 ret += "6GHz,";
 
             // remove ending comma

@@ -234,7 +234,7 @@ private:
     int get_dcs_scan_results(const std::string &radio_mac, uint32_t max_results_size,
                              bool is_single_scan = false);
     int client_get_client_list();
-    int client_set_client(const std::string &sta_mac, int8_t selected_bands,
+    int client_set_client(const std::string &sta_mac, uint8_t selected_bands,
                           int8_t stay_on_initial_radio, int32_t time_life_delay_minutes);
     int client_get_client(const std::string &sta_mac);
     int client_clear_client(const std::string &sta_mac);
