@@ -857,6 +857,11 @@ bool ap_wlan_hal_dummy::get_spatial_reuse_config(
     return false;
 }
 
+void ap_wlan_hal_dummy::get_enabled_fh_vap_indices(std::vector<int> &indices)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+}
+
 bool ap_wlan_hal_dummy::start_platform_acs(
     const std::shared_ptr<airties::cACSChannelList> &acs_list)
 {

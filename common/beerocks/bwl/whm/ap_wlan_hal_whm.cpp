@@ -1168,24 +1168,71 @@ bool ap_wlan_hal_whm::set_primary_vlan_id(uint16_t primary_vlan_id)
     return true;
 }
 
+void ap_wlan_hal_whm::get_enabled_fh_vap_indices(std::vector<int> &indices)
+{
+    indices.clear();
+
+    std::vector<std::string> ssid_paths;
+    if (!m_ambiorix_cl.resolve_path_multi("Device.WiFi.SSID.*.", ssid_paths)) {
+        LOG(ERROR) << __func__ << " failed to resolve SSID instances";
+        return;
+    }
+
+    for (auto &ssid_path : ssid_paths) {
+        // skip if not enabled
+        bool ssid_enabled = false;
+        if (!m_ambiorix_cl.get_param(ssid_enabled, ssid_path, "Enable") || !ssid_enabled) {
+            continue;
+        }
+
+        static constexpr auto prefix = "Device.WiFi.SSID.";
+        auto pos                     = ssid_path.find(prefix);
+        if (pos == std::string::npos)
+            continue;
+        pos += strlen(prefix);
+        auto end = ssid_path.find('.', pos);
+        if (end == std::string::npos || end <= pos)
+            continue;
+        int idx = std::stoi(ssid_path.substr(pos, end - pos));
+
+        std::string ap_path = "Device.WiFi.AccessPoint." + std::to_string(idx) + ".";
+
+        // skip if bridge interface is not br-lan
+        std::string bridge_if;
+        if (!m_ambiorix_cl.get_param(bridge_if, ap_path, "BridgeInterface") ||
+            bridge_if != "br-lan") {
+            continue;
+        }
+
+        // skip if MultiAPType is not FronthaulBSS
+        std::string multi_ap;
+        if (!m_ambiorix_cl.get_param(multi_ap, ap_path, "MultiAPType") ||
+            multi_ap.find("FronthaulBSS") == std::string::npos) {
+            continue;
+        }
+
+        indices.push_back(idx);
+    }
+}
+
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
     LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce;
 
-    const std::string dm_path = "Device.WiFi.AccessPoint.1.Security.DPP";
+    std::vector<int> idxs;
+    get_enabled_fh_vap_indices(idxs);
 
-    AmbiorixVariant dpp_enable(AMXC_VAR_ID_HTABLE);
-    dpp_enable.add_child("Enable", advertise_cce == 1);
-
-    bool ret = m_ambiorix_cl.update_object(dm_path, dpp_enable);
-    if (!ret) {
-        LOG(ERROR) << __func__ << " failed to set DPP Enable for path: " << dm_path;
-        return false;
+    for (int idx : idxs) {
+        std::string dm_path = "Device.WiFi.AccessPoint." + std::to_string(idx) + ".Security.DPP";
+        AmbiorixVariant dpp_enable(AMXC_VAR_ID_HTABLE);
+        dpp_enable.add_child("Enable", advertise_cce == 1);
+        if (!m_ambiorix_cl.update_object(dm_path, dpp_enable)) {
+            LOG(ERROR) << __func__ << " failed for " << dm_path;
+            return false;
+        }
+        LOG(DEBUG) << "set CCE indication for " << dm_path << " to "
+                   << (advertise_cce == 1 ? "enabled" : "disabled");
     }
-
-    LOG(INFO) << __func__ << " set DPP Enable = " << (advertise_cce == 1)
-              << " for path: " << dm_path;
-
     return true;
 }
 

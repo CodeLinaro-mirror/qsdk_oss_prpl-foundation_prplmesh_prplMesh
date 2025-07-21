@@ -606,6 +606,13 @@ public:
     get_spatial_reuse_config(son::wireless_utils::sSpatialReuseParams &spatial_reuse_params) = 0;
 
     /**
+     * @brief Get the enabled Fronthaul VAP indices.
+     *
+     * @return vector of enabled Fronthaul VAP indices.
+     */
+    virtual void get_enabled_fh_vap_indices(std::vector<int> &indices) = 0;
+
+    /**
      * @brief Plaftorm ACS Start
      *
      * @param [in] acs_list ACS list

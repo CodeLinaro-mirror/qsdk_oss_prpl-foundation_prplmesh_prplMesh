@@ -132,6 +132,8 @@ public:
     virtual bool configure_service_priority(const uint8_t *data) override;
     virtual bool
     start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) override;
+
+    virtual void get_enabled_fh_vap_indices(std::vector<int> &indices) override;
     // Protected methods:
 protected:
     // Overload for AP events

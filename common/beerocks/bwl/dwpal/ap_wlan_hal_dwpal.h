@@ -128,6 +128,7 @@ public:
     virtual bool set_no_deauth_unknown_sta(const std::string &ifname, bool value) override;
 
     virtual bool configure_service_priority(const uint8_t *data) override;
+    virtual void get_enabled_fh_vap_indices(std::vector<int> &indices) override;
 
     // Protected methods:
 protected:

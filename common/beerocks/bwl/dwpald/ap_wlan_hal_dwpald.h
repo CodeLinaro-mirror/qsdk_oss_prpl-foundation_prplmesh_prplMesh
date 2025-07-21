@@ -139,6 +139,7 @@ public:
         const airties::tlvAirtiesRadioCapability::sStandards &operating_standards) override;
 
     virtual bool configure_service_priority(const uint8_t *data) override;
+    virtual void get_enabled_fh_vap_indices(std::vector<int> &indices) override;
     virtual bool
     start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) override;
 

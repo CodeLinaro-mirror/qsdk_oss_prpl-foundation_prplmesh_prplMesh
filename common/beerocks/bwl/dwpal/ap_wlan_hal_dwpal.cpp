@@ -3474,6 +3474,11 @@ bool ap_wlan_hal_dwpal::configure_service_priority(const uint8_t *data)
     return true;
 }
 
+void ap_wlan_hal_dwpal::get_enabled_fh_vap_indices(std::vector<int> &indices)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+}
+
 } // namespace bwl
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, hal_conf_t hal_conf,
