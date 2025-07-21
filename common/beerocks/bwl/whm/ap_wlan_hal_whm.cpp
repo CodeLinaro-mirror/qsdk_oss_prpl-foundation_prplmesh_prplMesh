@@ -1171,6 +1171,21 @@ bool ap_wlan_hal_whm::set_primary_vlan_id(uint16_t primary_vlan_id)
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
     LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce;
+
+    const std::string dm_path = "Device.WiFi.AccessPoint.1.Security.DPP";
+
+    AmbiorixVariant dpp_enable(AMXC_VAR_ID_HTABLE);
+    dpp_enable.add_child("Enable", advertise_cce == 1);
+
+    bool ret = m_ambiorix_cl.update_object(dm_path, dpp_enable);
+    if (!ret) {
+        LOG(ERROR) << __func__ << " failed to set DPP Enable for path: " << dm_path;
+        return false;
+    }
+
+    LOG(INFO) << __func__ << " set DPP Enable = " << (advertise_cce == 1)
+              << " for path: " << dm_path;
+
     return true;
 }
 
