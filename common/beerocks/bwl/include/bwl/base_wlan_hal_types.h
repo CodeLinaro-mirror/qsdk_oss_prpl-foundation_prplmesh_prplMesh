@@ -179,13 +179,13 @@ struct RadioInfo {
     bool vht_supported      = false; /**< Is VHT supported flag */
     uint16_t vht_capability = 0;     /**< VHT capabilities */
 
-    /**< 32-byte attribute containing the MCS set as defined in 802.11ac */
+    /**< 8-byte attribute containing the MCS set as defined in 802.11ac */
     std::array<uint8_t, beerocks::message::VHT_MCS_SET_SIZE> vht_mcs_set;
 
     bool he_supported         = false; /**< Is HE supported flag */
     uint16_t he_capability    = 0;     /**< HE capabilities */
     uint64_t wifi6_capability = 0;     /**< Wi-Fi 6 Capabilities */
-    /**< 32-byte attribute containing the MCS set as defined in 802.11ax */
+    /**< 12-byte attribute containing the MCS set as defined in 802.11ax */
     std::array<uint8_t, beerocks::message::HE_MCS_SET_SIZE> he_mcs_set;
 
     bool eht_supported = false; ///< Is 802.11be (Extremely High Throughput) protocol supported
