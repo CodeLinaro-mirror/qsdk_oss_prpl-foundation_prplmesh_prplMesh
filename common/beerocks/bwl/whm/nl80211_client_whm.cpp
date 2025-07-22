@@ -88,10 +88,10 @@ bool nl80211_client_whm::get_sta_info(const std::string &interface_name,
     assoc_device_obj->read_child(sta_info.signal_avg_dbm, "AvgSignalStrength");
     uint32_t u32Val;
     if (assoc_device_obj->read_child(u32Val, "LastDataDownlinkRate")) {
-        sta_info.rx_bitrate_100kbps = u32Val / 100;
+        sta_info.tx_bitrate_100kbps = u32Val / 100;
     }
     if (assoc_device_obj->read_child(u32Val, "LastDataUplinkRate")) {
-        sta_info.tx_bitrate_100kbps = u32Val / 100;
+        sta_info.rx_bitrate_100kbps = u32Val / 100;
     }
     uint32_t dl_bandwidth;
     assoc_device_obj->read_child(dl_bandwidth, "DownlinkBandwidth");
