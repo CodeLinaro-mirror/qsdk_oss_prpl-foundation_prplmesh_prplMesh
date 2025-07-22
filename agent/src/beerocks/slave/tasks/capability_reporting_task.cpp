@@ -705,6 +705,10 @@ bool CapabilityReportingTask::add_ap_ht_capabilities(const std::string &iface_na
     return true;
 }
 
+/* 9.4.2.157.3 Supported VHT-MCS and NSS Set field */
+#define RX_VHT_MCS_MAP_OFFSET 0
+#define TX_VHT_MCS_MAP_OFFSET 4
+
 bool CapabilityReportingTask::add_ap_vht_capabilities(const std::string &iface_name)
 {
     auto db    = AgentDB::get();
@@ -742,8 +746,13 @@ bool CapabilityReportingTask::add_ap_vht_capabilities(const std::string &iface_n
      * Bit  4     : MU beamformer capable.
      * Bit  3-0   : Reserved
      */
-    tlv->supported_vht_tx_mcs() = radio->vht_mcs_set[0] | (radio->vht_mcs_set[1] << 8);
-    tlv->supported_vht_rx_mcs() = radio->vht_mcs_set[2] | (radio->vht_mcs_set[3] << 8);
+    uint16_t vht_rx_mcs = 0xffff;
+    uint16_t vht_tx_mcs = 0xffff;
+    memcpy(&vht_rx_mcs, &radio->vht_mcs_set[RX_VHT_MCS_MAP_OFFSET], sizeof(vht_rx_mcs));
+    memcpy(&vht_tx_mcs, &radio->vht_mcs_set[TX_VHT_MCS_MAP_OFFSET], sizeof(vht_tx_mcs));
+
+    tlv->supported_vht_rx_mcs() = vht_rx_mcs;
+    tlv->supported_vht_tx_mcs() = vht_tx_mcs;
     tlv->flags1().max_num_of_supported_tx_spatial_streams =
         VHTCaps->max_num_of_supported_tx_spatial_streams;
     tlv->flags1().max_num_of_supported_rx_spatial_streams =
@@ -805,7 +814,20 @@ bool CapabilityReportingTask::add_ap_he_capabilities(const std::string &iface_na
     if (HECaps->he_support_80_80mhz) {
         mcs_nss_size += 4;
     }
-    tlv->set_supported_he_mcs(radio->he_mcs_set.begin(), mcs_nss_size);
+
+    /*
+     * 9.4.2.248.4 Supported HE-MCS And NSS Set Field
+     * [0] <=80MHz, [1] 160MHz, [2] 80+80MHz
+     * Each entry: 2B RX map + 2B TX map
+     */
+    uint32_t he_mcs[3] = {0};
+    memcpy(he_mcs, radio->he_mcs_set.begin(), sizeof(he_mcs));
+
+    he_mcs[0] = htonl(he_mcs[0]);
+    he_mcs[1] = htonl(he_mcs[1]);
+    he_mcs[2] = htonl(he_mcs[2]);
+
+    tlv->set_supported_he_mcs(he_mcs, mcs_nss_size);
     tlv->flags1().max_num_of_supported_tx_spatial_streams =
         HECaps->max_num_of_supported_tx_spatial_streams;
     tlv->flags1().max_num_of_supported_rx_spatial_streams =
@@ -903,14 +925,22 @@ bool CapabilityReportingTask::add_ap_wifi6_capabilities(const std::string &iface
         role->flags1().he_support_160mhz   = wifi6_caps->he_support_160mhz;
         role->flags1().he_support_80_80mhz = wifi6_caps->he_support_80_80mhz;
         role->flags1().mcs_nss_length      = wifi6_caps->mcs_nss_length;
-        role->set_mcs_nss_80(radio->he_mcs_set.begin(), 4);
+
+        /*
+         * 9.4.2.248.4 Supported HE-MCS And NSS Set Field
+         * [0] <=80MHz, [1] 160MHz, [2] 80+80MHz
+         * Each entry: 2B RX map + 2B TX map
+         */
+        uint32_t he_mcs[3] = {0};
+        memcpy(he_mcs, radio->he_mcs_set.begin(), sizeof(he_mcs));
+
+        uint32_t mcs_nss_80 = htonl(he_mcs[0]);
+        role->set_mcs_nss_80(&mcs_nss_80, sizeof(mcs_nss_80));
         if (role->flags1().he_support_160mhz) {
-            role->set_mcs_nss_160(radio->he_mcs_set[7] | (radio->he_mcs_set[6] << 8) |
-                                  (radio->he_mcs_set[5] << 16) | (radio->he_mcs_set[4] << 24));
+            role->set_mcs_nss_160(he_mcs[1]);
         }
         if (role->flags1().he_support_80_80mhz) {
-            role->set_mcs_nss_80_80(radio->he_mcs_set[11] | (radio->he_mcs_set[10] << 8) |
-                                    (radio->he_mcs_set[9] << 16) | (radio->he_mcs_set[8] << 24));
+            role->set_mcs_nss_80_80(he_mcs[2]);
         }
         role->flags2().su_beamformer                = wifi6_caps->su_beamformer;
         role->flags2().su_beamformee                = wifi6_caps->su_beamformee;
