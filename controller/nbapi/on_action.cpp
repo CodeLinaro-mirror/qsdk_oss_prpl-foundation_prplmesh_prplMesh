@@ -271,6 +271,8 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
 
     g_database->clear_bss_info_configuration();
 
+    uint8_t bss_index_generator = 1;
+
     if (network_enable) {
         amxd_object_for_each(instance, it, access_point)
         {
@@ -336,7 +338,10 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
 
             std::string mode_enabled = get_param_string(security_inst, "ModeEnabled");
             if (mode_enabled == "WPA3-Personal" || mode_enabled == "WPA3-Personal-Transition") {
-                bss_info.network_key         = get_param_string(security_inst, "SAEPassphrase");
+                bss_info.network_key = get_param_string(security_inst, "SAEPassphrase");
+                if (bss_info.network_key.empty()) { //try KeyPassphrase instead
+                    bss_info.network_key = get_param_string(security_inst, "KeyPassphrase");
+                }
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
             } else if (mode_enabled == "WPA2-Personal") {
@@ -346,6 +351,15 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 }
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+            } else if (mode_enabled == "WPA3-Personal-Compatibility") {
+                bss_info.network_key = get_param_string(security_inst, "PreSharedKey");
+                if (bss_info.network_key.empty()) {
+                    bss_info.network_key = get_param_string(security_inst, "KeyPassphrase");
+                }
+                bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_RSN;
+                bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+                bss_info.additional_auth =
+                    son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
             } else {
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_OPEN;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_NONE;
@@ -359,6 +373,7 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
             }
             LOG(DEBUG) << "Add bss info configration for AP with ssid: " << bss_info.ssid
                        << " and operating classes: " << bss_info.operating_class;
+            bss_info.bss_index = bss_index_generator++;
             g_database->add_bss_info_configuration(bss_info);
         }
     }
@@ -633,14 +648,14 @@ amxd_status_t trigger_set_spatial_reuse(amxd_object_t *object, amxd_function_t *
         std::string srg_bss_color_bitmap     = "";
         std::string srg_partial_bssid_bitmap = "";
 
-        srg_obsspd_min_offset = GET_UINT32(args, "srg_obsspd_min_offset")
-                                    ?: get_param_uint32(spatial_reuse, "SRGOBSSPDMinOffset");
-        srg_obsspd_max_offset = GET_UINT32(args, "srg_obsspd_max_offset")
-                                    ?: get_param_uint32(spatial_reuse, "SRGOBSSPDMaxOffset");
-        srg_bss_color_bitmap = GET_CHAR(args, "srg_bss_color_bitmap")
-                                   ?: get_param_string(spatial_reuse, "SRGBSSColorBitmap");
-        srg_partial_bssid_bitmap = GET_CHAR(args, "srg_partial_bssid_bitmap")
-                                       ?: get_param_string(spatial_reuse, "SRGPartialBSSIDBitmap");
+        srg_obsspd_min_offset         = GET_UINT32(args, "srg_obsspd_min_offset")
+                                            ?: get_param_uint32(spatial_reuse, "SRGOBSSPDMinOffset");
+        srg_obsspd_max_offset         = GET_UINT32(args, "srg_obsspd_max_offset")
+                                            ?: get_param_uint32(spatial_reuse, "SRGOBSSPDMaxOffset");
+        srg_bss_color_bitmap          = GET_CHAR(args, "srg_bss_color_bitmap")
+                                            ?: get_param_string(spatial_reuse, "SRGBSSColorBitmap");
+        srg_partial_bssid_bitmap      = GET_CHAR(args, "srg_partial_bssid_bitmap")
+                                            ?: get_param_string(spatial_reuse, "SRGPartialBSSIDBitmap");
         srg_bss_color_bitmap_uint     = get_uint64_from_bss_color_bitmap(srg_bss_color_bitmap);
         srg_partial_bssid_bitmap_uint = get_uint64_from_bss_color_bitmap(srg_partial_bssid_bitmap);
     }

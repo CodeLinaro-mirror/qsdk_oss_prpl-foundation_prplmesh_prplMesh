@@ -20,7 +20,8 @@
                     "None",
                     "WPA2-Personal",
                     "WPA3-Personal",
-                    "WPA3-Personal-Transition"
+                    "WPA3-Personal-Transition",
+                    "WPA3-Personal-Compatibility"
                 ];
             }
         }

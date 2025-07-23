@@ -1189,6 +1189,7 @@ static bool add_rsn_parameters_configuration_tlv(
     db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agt_mac, const sMacAddr ruid,
     const std::list<son::wireless_utils::sBssInfoConf> &bss_info_confs, beerocks::eFreqType band)
 {
+    LOG(INFO) << "iacob adding mrsn";
     // In easymesh 6.1, it will be the new way to configure security mode.
     // For now just send RSN Parameters Configuration TLV for WPA3-PCM security mode.
     bool need_rsn_tlv = false;
@@ -1199,7 +1200,7 @@ static bool add_rsn_parameters_configuration_tlv(
         }
     }
     if (!need_rsn_tlv) {
-        LOG(DEBUG) << "No RSN configuration needed";
+        LOG(INFO) << "iacob No RSN configuration needed";
         return false;
     }
     auto rsn_parameters_configuration = cmdu_tx.addClass<wfa_map::tlvRsnParametersConfiguration>();
@@ -1892,6 +1893,14 @@ bool Controller::handle_tlv_apCapability(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     unsigned char cap_bitfield = *reinterpret_cast<unsigned char *>(&(tlv_ap_capability->value()));
 
+    LOG(ERROR) << "iacob agent AP Capability "
+               << (tlv_ap_capability->value().RSN_Overriding ? "true " : "false ") << std::hex
+               << cap_bitfield;
+    //TODO : shall we update the datamodel here ???
+
+    unsigned char cap_bitfield = *reinterpret_cast<unsigned char *>(&(tlv_ap_capability->value()));
+
+    //LOG(ERROR) << "iacob agent AP Capability " << (tlv_ap_capability->value().RSN_Overriding ? "true" : "false") << std::hex << tlv_ap_capability->value();
     LOG(ERROR) << "iacob agent AP Capability "
                << (tlv_ap_capability->value().RSN_Overriding ? "true " : "false ") << std::hex
                << cap_bitfield;

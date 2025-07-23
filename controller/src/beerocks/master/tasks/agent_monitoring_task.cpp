@@ -23,6 +23,8 @@
 #include <tlvf/wfa_map/tlvProfile2TrafficSeparationPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
+#include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
+
 
 using namespace beerocks;
 using namespace net;
@@ -500,6 +502,18 @@ bool agent_monitoring_task::send_tlv_empty_channel_selection_request(
         LOG(ERROR) << "Failed building CHANNEL_SELECTION_REQUEST_MESSAGE ! ";
         return false;
     }
+    auto db_agent = database.get_agent(dst_mac);
+    if(!db_agent) {
+        LOG(ERROR) << "iacob sending empty channel selection request";
+        son_actions::send_cmdu_to_agent(dst_mac, cmdu_tx, database);
+    }
+    for(const auto &radio : db_agent->radios) {
+        auto txpow_tlv = cmdu_tx.addClass<wfa_map::tlvTransmitPowerLimit>();
+        txpow_tlv->radio_uid() = radio.first;
+        txpow_tlv->transmit_power_limit_dbm() = 5;
+    }
+    LOG(ERROR) << "sending non-empty tx power selection";
+
     return son_actions::send_cmdu_to_agent(dst_mac, cmdu_tx, database);
 }
 
