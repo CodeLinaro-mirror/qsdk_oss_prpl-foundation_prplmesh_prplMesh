@@ -487,7 +487,7 @@ bool mon_wlan_hal_dummy::sta_unassoc_rssi_measurement(
         100, //signal_strength
         36,  //channel
         115, //operating_class(5Ghz)
-        (uint32_t)now_c,
+        (uint64_t)now_c,
     };
 
     stats.push_back(new_stat);
@@ -497,7 +497,7 @@ bool mon_wlan_hal_dummy::sta_unassoc_rssi_measurement(
         200, //signal_strength
         1,   //channel
         81,  //operating_class(2Ghz)
-        (uint32_t)now_c,
+        (uint64_t)now_c,
     };
     stats.push_back(new_stat);
 
