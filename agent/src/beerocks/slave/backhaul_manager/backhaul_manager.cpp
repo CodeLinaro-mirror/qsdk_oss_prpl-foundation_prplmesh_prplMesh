@@ -3105,6 +3105,13 @@ bool BackhaulManager::start_wps_pbc(const sMacAddr &radio_mac)
     }
 }
 
+bool BackhaulManager::initiate_wps_pbc_auto()
+{
+    // Stub for now
+    LOG(ERROR) << "initiate_wps_pbc_auto isn't implemented ";
+    return false;
+}
+
 bool BackhaulManager::set_mbo_assoc_disallow(const sMacAddr &radio_mac, const sMacAddr &bssid,
                                              bool enable)
 {

@@ -140,6 +140,20 @@ public:
     bool start_wps_pbc(const sMacAddr &radio_mac);
 
     /**
+     * @brief Automatically initiates WPS Push Button Connect (PBC) based on agent state.
+     *
+     * This function determines the appropriate WPS PBC path depending on the
+     * agent's current operational state:
+     *  - If the agent is operational (fronthaul APs active), WPS PBC is triggered
+     *    on all fronthaul AP interfaces.
+     *  - If the agent is not operational (backhaul STA onboarding or disconnected),
+     *    WPS PBC is triggered on Endpoint (bSTA) interface(s).
+     *
+     * @return true on success, false on failure.
+     */
+    bool initiate_wps_pbc_auto();
+
+    /**
      * @brief set MBO AssocDisallow property
      * 
      * @param radio_mac radio mac of the radio on which to set the MBO

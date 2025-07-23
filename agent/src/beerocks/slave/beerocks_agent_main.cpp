@@ -41,6 +41,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #ifdef ENABLE_NBAPI
 
 #include "ambiorix_impl.h"
+#include "nbapi/on_action.h"
 
 #ifndef AGENT_DATAMODEL_PATH
 #define AGENT_DATAMODEL_PATH "config/agent/odl/slave_config.odl"
@@ -398,9 +399,10 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     guarantee = amxrt;
     (void)guarantee.use_count();
     auto agent_dm_path = mapf::utils::get_install_path() + AGENT_DATAMODEL_PATH;
+    auto funcs_list    = prplmesh::agent::actions::get_func_list();
     auto amb_dm_obj    = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
         event_loop, std::vector<beerocks::nbapi::sActionsCallback>(),
-        std::vector<beerocks::nbapi::sEvents>(), std::vector<beerocks::nbapi::sFunctions>());
+        std::vector<beerocks::nbapi::sEvents>(), funcs_list);
     LOG_IF(!amb_dm_obj, FATAL) << "Unable to create Ambiorix!";
     LOG_IF(!amb_dm_obj->init(agent_dm_path), FATAL) << "Unable to init ambiorix object!";
 #else
@@ -474,6 +476,12 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 
     // Start backhaul manager
     LOG_IF(!backhaul_manager.start(), FATAL) << "Unable to start backhaul manager!";
+
+#ifdef ENABLE_NBAPI
+    // Provide the auto WPS callback (decides AP vs bSTA internally)
+    prplmesh::agent::actions::set_wps_callback(
+        [&backhaul_manager]() -> bool { return backhaul_manager.initiate_wps_pbc_auto(); });
+#endif //ENABLE_NBAPI
 
     auto agent = start_agent_thread(interfaces_map, beerocks_slave_conf, argc, argv);
     if (!agent) {

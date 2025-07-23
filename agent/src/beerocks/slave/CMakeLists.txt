@@ -14,6 +14,7 @@ file(GLOB beerocks_agent_sources
     ${MODULE_PATH}/helpers/link_metrics/*.c*
     ${MODULE_PATH}/tasks/*.c*
     ${MODULE_PATH}/gate/*.c*
+    ${MODULE_PATH}/nbapi/*.c*
     ${MODULE_PATH}/*.c*
 )
 
