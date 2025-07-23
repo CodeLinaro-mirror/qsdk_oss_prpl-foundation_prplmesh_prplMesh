@@ -281,7 +281,7 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
             if (key.empty() || key == "MACAddress" || !value || value->empty()) {
                 continue;
             }
-            process_sta_event(vap_it->first, sta_mac, key, value.get());
+            process_sta_connected_event(vap_it->first, sta_mac, key, value.get());
         }
     };
 
@@ -325,6 +325,36 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
              AMX_CL_INSTANCE_REMOVED_EVT + "')";
 
     m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), sta_del_event_handler,
+                                            filter);
+
+    auto disasoc_event_handler         = std::make_shared<sAmbiorixEventHandler>();
+    disasoc_event_handler->event_type  = AMX_CL_DISASSOC_EVT;
+    disasoc_event_handler->callback_fn = [this](AmbiorixVariant &event_data) -> void {
+        std::string ap_path;
+        if (!event_data.read_child(ap_path, "path") || ap_path.empty()) {
+            return;
+        }
+
+        auto vap_it =
+            std::find_if(m_vapsExtInfo.begin(), m_vapsExtInfo.end(),
+                         [&](const auto &element) { return element.second.path == ap_path; });
+        if (vap_it == m_vapsExtInfo.end()) {
+            LOG(DEBUG) << "vap_it not found";
+            return;
+        }
+        LOG(DEBUG) << "event from iface " << vap_it->first;
+
+        if (!process_sta_disassoc_event(vap_it->first, &event_data)) {
+            LOG(ERROR) << "Failed to process sta disassoc event from iface " << vap_it->first;
+        }
+    };
+
+    filter = "(path matches '" + wbapi_utils::search_path_ap() +
+             "[0-9]+.$')"
+             " && (notification == '" +
+             AMX_CL_DISASSOC_EVT + "')";
+
+    m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), disasoc_event_handler,
                                             filter);
 }
 
@@ -379,8 +409,16 @@ bool base_wlan_hal_whm::process_ap_event(const std::string &interface, const std
     return true;
 }
 
-bool base_wlan_hal_whm::process_sta_event(const std::string &interface, const std::string &sta_mac,
-                                          const std::string &key, const AmbiorixVariant *value)
+bool base_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
+                                                    const std::string &sta_mac,
+                                                    const std::string &key,
+                                                    const AmbiorixVariant *value)
+{
+    return true;
+}
+
+bool base_wlan_hal_whm::process_sta_disassoc_event(
+    const std::string &interface, const beerocks::wbapi::AmbiorixVariant *event_data)
 {
     return true;
 }
