@@ -330,7 +330,7 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
     sta_stats.rx_phy_rate_100kb = sta_info.rx_bitrate_100kbps;
     sta_stats.dl_bandwidth      = sta_info.dl_bandwidth;
     if (sta_info.signal_dbm != 0) {
-        sta_stats.rx_rssi_watt = std::pow(10, (int8_t(sta_info.signal_dbm) / 10.0));
+        sta_stats.rx_rssi_watt += std::pow(10, (int8_t(sta_info.signal_dbm) / 10.0));
         sta_stats.rx_rssi_watt_samples_cnt++;
     }
 
