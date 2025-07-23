@@ -957,7 +957,7 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
         amxc_ts_t time;
         memset(&time, 0, sizeof(amxc_ts_t));
         amxc_ts_parse(&time, time_stamp_str.c_str(), time_stamp_str.size());
-        uint32_t timestamp_ms = time.sec * 1000 + time.nsec / 1000000;
+        uint64_t timestamp_ms = time.sec * 1000 + time.nsec / 1000000;
         // TimeStamp is datetime as per RFC3339 and maybe contains fractions of seconds information
 
         if (new_list.find(mac_address_amx) != new_list.end()) {
