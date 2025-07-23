@@ -2893,7 +2893,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             LOG(ERROR) << "addClass reason_code_tlv failed";
             return false;
         }
-        reason_code_tlv->reason_code() = wfa_map::tlvProfile2ReasonCode::LEAVING_NETWORK_DISASSOC;
+        reason_code_tlv->reason_code() = static_cast<wfa_map::tlvProfile2ReasonCode::eReasonCode>(
+            notification_in->params().reason);
 
         // 17.2.35 Associated STA Traffic Stats
         // TEMPORARY: adding empty statistics
@@ -5228,7 +5229,7 @@ bool slave_thread::handle_client_steering_request(ieee1905_1::CmduMessageRx &cmd
             request_out->mac()    = sta_mac;
             request_out->vap_id() = index;
             request_out->type()   = beerocks_message::eDisconnect_Type_Deauth;
-            request_out->reason() = beerocks_message::eWifi_Steering_Event_Client_Disconnect;
+            request_out->reason() = wfa_map::tlvProfile2ReasonCode::INVALID_AUTHENTICATION;
             request_out->src()    = beerocks_message::eClient_Disconnect_Source_Ignore;
 
             return send_cmdu(m_radio_managers[radio->front.iface_name].ap_manager_fd, cmdu_tx);
