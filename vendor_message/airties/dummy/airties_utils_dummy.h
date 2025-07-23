@@ -12,7 +12,7 @@
 #include <tlvf/CmduMessageRx.h>
 #include <tlvf/CmduMessageTx.h>
 
-#include "vendor_message_slave.h"
+#include "vendor_message_slave_dummy.h"
 #include <beerocks/tlvf/beerocks_message.h>
 
 using namespace vendor_message;
@@ -21,8 +21,6 @@ namespace airties {
 
 class AirtiesUtils {
 public:
-    static std::vector<std::shared_ptr<ieee1905_1::tlvVendorSpecific>> airties_vs_tlv_list;
-
     /**
      * @brief It will perform the reboot or factory reset depends upon an action_value.
      * @param action value of either reboot or factory reset
