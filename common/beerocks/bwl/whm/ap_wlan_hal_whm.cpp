@@ -55,6 +55,8 @@ static ap_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode)
         return ap_wlan_hal::Event::WPA_Event_SAE_Unknown_Password_Identifier;
     } else if (opcode == "AP-STA-POSSIBLE-PSK-MISMATCH") {
         return ap_wlan_hal::Event::AP_Sta_Possible_Psk_Mismatch;
+    } else if (opcode == "ACL-DENY") {
+        return ap_wlan_hal::Event::ACL_DENY;
     }
 
     return ap_wlan_hal::Event::Invalid;
@@ -1600,7 +1602,7 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
     case Event::WPA_Event_EAP_Timeout_Failure:
     case Event::WPA_Event_EAP_Timeout_Failure2:
     case Event::WPA_Event_SAE_Unknown_Password_Identifier:
-    case Event::AP_Sta_Possible_Psk_Mismatch: {
+    case Event::AP_Sta_Possible_Psk_Mismatch:
         /* example PSK Mismatch notification
             eobject = "WiFi.AccessPoint.[vap5g0priv].",
             eventData = "<3>AP-STA-POSSIBLE-PSK-MISMATCH 6c:f7:84:d8:32:af",
@@ -1611,6 +1613,8 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
             object = "WiFi.AccessPoint.vap5g0priv.",
             path = "WiFi.AccessPoint.1."
         */
+    case Event::ACL_DENY: {
+        // eventData = "<3>ACL-DENY AA:BB:CC:DD:EE:FF"
         auto vap_id    = get_vap_id_with_bss(interface);
         auto iface_ids = beerocks::utils::get_ids_from_iface_string(interface);
         if ((vap_id < 0) && (iface_ids.vap_id != beerocks::IFACE_RADIO_ID)) {
