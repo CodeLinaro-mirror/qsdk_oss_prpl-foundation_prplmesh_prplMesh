@@ -241,7 +241,7 @@ typedef struct {
     int32_t signal_strength;
     uint8_t channel;
     uint8_t operating_class;
-    uint32_t time_stamp;
+    uint64_t time_stamp;
 } sUnassociatedStationStats;
 
 typedef struct {
