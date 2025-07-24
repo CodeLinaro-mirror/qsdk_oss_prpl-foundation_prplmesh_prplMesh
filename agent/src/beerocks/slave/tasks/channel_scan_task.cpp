@@ -17,6 +17,9 @@
 #include <easylogging++.h>
 #include <tlvf/CmduMessageTx.h>
 
+#include <chrono>
+#include <thread>
+
 using namespace beerocks;
 
 #define FSM_MOVE_STATE(radio_scan_info, new_state)                                                 \
@@ -95,7 +98,7 @@ void ChannelScanTask::dump_cached_results(const std::shared_ptr<sRadioScan> radi
  * ToDo: Remove this "default" parameter after PPM-747 is resolved.
  */
 constexpr int PREFERRED_DWELLTIME_MS                       = 103; // 103 Millisec
-constexpr std::chrono::seconds SCAN_TRIGGERED_WAIT_TIME    = std::chrono::seconds(20);  // 20 Sec
+constexpr std::chrono::seconds SCAN_TRIGGERED_WAIT_TIME    = std::chrono::seconds(60);  // 20 Sec
 constexpr std::chrono::seconds SCAN_RESULTS_DUMP_WAIT_TIME = std::chrono::seconds(210); // 3.5 Min
 constexpr std::chrono::seconds SCAN_REQUEST_TIMEOUT_SEC    = std::chrono::seconds(300); // 5 Min
 constexpr std::chrono::seconds MINIMUM_SCAN_INTERVAL_SEC   = std::chrono::seconds(2);   // 2 Sec
@@ -547,6 +550,9 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             !is_current_scan_in_state(ifname, eState::WAIT_FOR_RESULTS_DUMP)) {
             return false;
         }
+
+        // Check channel scan race condition
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
         FSM_MOVE_STATE(m_current_scan_info[ifname].radio_scan, eState::SCAN_DONE);
         break;

@@ -54,7 +54,7 @@ on_boot_scan=0
 # Dwell duration 5 GHz                           20 [ms]
 #
 # The value must be a positive number in milliseconds within the chip's supported limits
-dwell_time=20
+dwell_time=10
 
 [backhaul]
 backhaul_preferred_bssid=
