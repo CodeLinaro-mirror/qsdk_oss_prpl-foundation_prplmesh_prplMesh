@@ -137,7 +137,7 @@ public:
     bool set(uint32_t value);
     bool set(uint64_t value);
     bool set(double value);
-    bool set(float value);
+    bool set(float value) = delete;
     bool set(AmbiorixVariant &obj);
 
     /**
@@ -157,7 +157,7 @@ public:
     bool get(uint32_t &value) const;
     bool get(uint64_t &value) const;
     bool get(double &value) const;
-    bool get(float &value) const;
+    bool get(float &value) const = delete;
 
     /**
      * @brief template method to get Ambiorix variant value

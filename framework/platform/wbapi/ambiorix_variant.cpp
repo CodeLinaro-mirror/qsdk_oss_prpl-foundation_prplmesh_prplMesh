@@ -180,6 +180,7 @@ bool AmbiorixVariant::set(AmbiorixVariant &obj)
     SET_VARIANT_AS(amxc_llist_t, m_var_ctx, &(obj.m_var_ctx->data.vl))
 }
 
+/*
 static int amxc_var_set_float(amxc_var_t *var, float value)
 {
     int ret;
@@ -189,6 +190,7 @@ static int amxc_var_set_float(amxc_var_t *var, float value)
     return ret;
 }
 bool AmbiorixVariant::set(float value) { SET_VARIANT_AS(float, m_var_ctx, value) }
+*/
 
 bool AmbiorixVariant::get(std::string &value) const
 {
@@ -238,7 +240,7 @@ bool AmbiorixVariant::get(double &value) const
 {
     GET_VARIANT_AS(AMXC_VAR_ID_DOUBLE, double, value, m_var_ctx)
 }
-static float amxc_var_get_const_float(const amxc_var_t *const var)
+/*static float amxc_var_get_const_float(const amxc_var_t *const var)
 {
     if (var) {
         return var->data.f;
@@ -248,7 +250,7 @@ static float amxc_var_get_const_float(const amxc_var_t *const var)
 bool AmbiorixVariant::get(float &value) const
 {
     GET_VARIANT_AS(AMXC_VAR_ID_FLOAT, float, value, m_var_ctx)
-}
+}*/
 
 bool AmbiorixVariant::get_children(AmbiorixVariantListSmartPtr &result, bool extract)
 {
