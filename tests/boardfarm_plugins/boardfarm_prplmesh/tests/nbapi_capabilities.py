@@ -80,6 +80,31 @@ class NbapiCapabilities(PrplMeshBaseTest):
         repeater = topology[agent.mac]
         for ap_cap_report in ap_cap_report:
             for tlv in ap_cap_report.ieee1905_tlvs:
+                if (
+                    tlv.tlv_type
+                    == self.ieee1905["eTlvTypeMap"]["TLV_PROFILE2_AP_RADIO_ADVANCED_CAPABILITIES"]
+                ):
+                    radio = repeater.radios[tlv.ap_advanced_capabilities_radio_id]
+                    actual = tlv.ap_advanced_capabilities_flags_tree[
+                        "ieee1905.ap_advanced_capabilities."
+                        "traffic_sep_on_combined_fronthaul_and_r1_only_backhaul"
+                    ]
+                    expected = controller.nbapi_get_parameter(
+                        radio.path, "TrafficSeparationCombinedFronthaul"
+                    )
+                    debug(f"(my) actual: {actual}, expected: {expected}")
+                    self.assertEqualInt("TrafficSeparationCombinedFronthaul", actual,
+                                        str(int(expected)))
+                    actual = tlv.ap_advanced_capabilities_flags_tree[
+                        "ieee1905.ap_advanced_capabilities."
+                        "traffic_sep_on_combined_r1_and_r2_and_backhaul"
+                    ]
+                    expected = controller.nbapi_get_parameter(
+                        radio.path, "TrafficSeparationCombinedBackhaul"
+                    )
+                    debug(f"(my) actual: {actual}, expected: {expected}")
+                    self.assertEqualInt("TrafficSeparationCombinedBackhaul", actual,
+                                        str(int(expected)))
                 if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_AP_RADIO_BASIC_CAPABILITIES']:
                     radio = repeater.radios[tlv.ap_radio_identifier]
                     op_classes_nbapi = controller.nbapi_get_list_instances(
