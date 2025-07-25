@@ -4485,6 +4485,137 @@ bool Controller::start_client_steering(const std::string &sta_mac, const std::st
     return true;
 }
 
+bool Controller::reconfig_apmld(const sMacAddr &al_mac, const sMacAddr &mld_mac,
+                                const sMacAddr &ruid, bool add_link)
+{
+    auto agent = database.get_agent(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with MAC:" << tlvf::mac_to_string(al_mac) << " not found in database";
+        return false;
+    }
+
+    // Modify a copy of ap_mlds based on reconfig_apmld params
+    auto ap_mlds = agent->ap_mlds;
+
+    // Check MLD MAC match
+    auto apmld_it = ap_mlds.find(mld_mac);
+
+    if (apmld_it != ap_mlds.end()) {
+        auto &ap_mld = apmld_it->second;
+        // Check RUID match
+        auto affl_ap = ap_mld.affiliated_aps.find(ruid);
+        if (add_link) {
+            // Add Affiliated AP
+            if (affl_ap != ap_mld.affiliated_aps.end()) {
+                LOG(ERROR) << "Duplicated Affiliated AP addition with RUID: "
+                           << tlvf::mac_to_string(ruid);
+                return false;
+            }
+            ap_mld.affiliated_aps[ruid]         = Agent::sAPMLD::sAffiliatedAP();
+            ap_mld.affiliated_aps[ruid].ruid    = ruid;
+            ap_mld.affiliated_aps[ruid].link_id = beerocks::INVALID_LINKID;
+        } else {
+            // Remove Affiliated AP
+            if (affl_ap != ap_mld.affiliated_aps.end()) {
+                if (ap_mld.affiliated_aps.size() > 1) {
+                    ap_mld.affiliated_aps.erase(ruid);
+                } else {
+                    LOG(ERROR) << "Affiliated AP with RUID: " << tlvf::mac_to_string(ruid)
+                               << " is the last link of APMLD. Hence can't be removed";
+                    return false;
+                }
+            } else {
+                LOG(ERROR) << "Affiliated AP with RUID: " << tlvf::mac_to_string(ruid)
+                           << " not found";
+                return false;
+            }
+        }
+    } else {
+        LOG(ERROR) << "MLD with MAC: " << tlvf::mac_to_string(mld_mac) << " not found";
+        return false;
+    }
+
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "CMDU creation of type AP_MLD_CONFIGURATION_REQUEST_MESSAGE, has failed";
+        return false;
+    }
+
+    // Add TLVs to AP MLD Configuration Request Message
+    // Add Agent AP MLD Configuration TLV
+    auto tlvAgentApMldConfiguration = cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
+    if (!tlvAgentApMldConfiguration) {
+        LOG(ERROR) << "addClass wfa_map::tlvAgentAPMLDConfiguration failed";
+        return false;
+    }
+
+    for (const auto &apmld : ap_mlds) {
+
+        auto db_ap_mld = apmld.second;
+        auto ap_mld(tlvAgentApMldConfiguration->create_ap_mld());
+
+        // MLD MAC valid bit
+        ap_mld->ap_mld_mac_addr_valid().is_valid =
+            (db_ap_mld.mld_info.mld_mac != beerocks::net::network_utils::ZERO_MAC);
+
+        // SSID
+        ap_mld->set_ssid(db_ap_mld.mld_info.mld_ssid);
+
+        // MLD MAC
+        ap_mld->ap_mld_mac_addr() = db_ap_mld.mld_info.mld_mac;
+
+        // MLD MODES
+        if (db_ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::STR) {
+            ap_mld->modes().str = 1;
+        }
+        if (db_ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::NSTR) {
+            ap_mld->modes().nstr = 1;
+        }
+        if (db_ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLSR) {
+            ap_mld->modes().emlsr = 1;
+        }
+        if (db_ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLMR) {
+            ap_mld->modes().emlmr = 1;
+        }
+
+        LOG(DEBUG) << "Sending AP MLD configuration for " << db_ap_mld.mld_info.mld_ssid
+                   << " [mac=" << db_ap_mld.mld_info.mld_mac << ", mode=" << std::hex
+                   << db_ap_mld.mld_info.mld_mode << "]";
+
+        for (const auto &affl_ap : db_ap_mld.affiliated_aps) {
+            auto db_affiliated_ap = affl_ap.second;
+            auto affiliated_ap(ap_mld->create_affiliated_ap());
+
+            affiliated_ap->affiliated_ap_fields_valid().affiliated_ap_mac_addr_valid =
+                (db_affiliated_ap.bssid != beerocks::net::network_utils::ZERO_MAC);
+            affiliated_ap->affiliated_ap_fields_valid().linkid_valid =
+                (db_affiliated_ap.link_id != beerocks::INVALID_LINKID);
+            affiliated_ap->ruid()                   = db_affiliated_ap.ruid;
+            affiliated_ap->affiliated_ap_mac_addr() = db_affiliated_ap.bssid;
+            affiliated_ap->linkid()                 = db_affiliated_ap.link_id;
+
+            if (!ap_mld->add_affiliated_ap(affiliated_ap)) {
+                LOG(ERROR)
+                    << "add_affiliated_ap() failed in tlvAgentApMldConfiguration.affiliated_ap";
+                return false;
+            }
+        }
+
+        if (!tlvAgentApMldConfiguration->add_ap_mld(ap_mld)) {
+            LOG(ERROR) << "add_ap_mld() failed in tlvAgentApMldConfiguration";
+            return false;
+        }
+    }
+
+    // TODO: Add EHT Operations TLV
+
+    LOG(DEBUG) << "Sending APMLD Reconfig request to " << (add_link ? "add" : "remove")
+               << " Affiliated AP with RUID: " << tlvf::mac_to_string(ruid)
+               << " for APMLD with MLD MAC: " << tlvf::mac_to_string(mld_mac)
+               << " on Agent: " << tlvf::mac_to_string(al_mac);
+
+    return son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
+}
+
 #define BEACON_INTERVAL_MS_IN_BI 100
 bool Controller::send_btm_request(const bool &disassoc_imminent,
                                   const uint32_t &disassoc_timer,    // beacon interval count
