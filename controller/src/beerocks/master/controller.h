@@ -379,6 +379,9 @@ private:
     bool handle_cmdu_1905_early_ap_capability_report_message(const sMacAddr &src_mac,
                                                              ieee1905_1::CmduMessageRx &cmdu_rx);
 
+    bool handle_cmdu_1905_ap_mld_configuration_response_message(const sMacAddr &src_mac,
+                                                                ieee1905_1::CmduMessageRx &cmdu_rx);
+
     bool autoconfig_wsc_parse_radio_caps(
         const sMacAddr &radio_mac,
         std::shared_ptr<wfa_map::tlvApRadioBasicCapabilities> radio_caps);
