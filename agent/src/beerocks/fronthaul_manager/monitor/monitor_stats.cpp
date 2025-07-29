@@ -14,6 +14,7 @@
 #include <beerocks/tlvf/beerocks_message.h>
 #include <beerocks/tlvf/beerocks_message_monitor.h>
 #include <tlvf/wfa_map/tlvAffiliatedApMetrics.h>
+#include <tlvf/wfa_map/tlvAffiliatedStaMetrics.h>
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
@@ -593,6 +594,25 @@ bool monitor_stats::add_ap_assoc_wifi_6_sta_status_report(ieee1905_1::CmduMessag
         ap_assoc_wifi_6_sta_status_report.tid        = n;
         ap_assoc_wifi_6_sta_status_report.queue_size = sta_qos_ctrl_params.tid_queue_size[n];
     }
+    return true;
+}
+
+bool monitor_stats::add_affiliated_sta_metrics(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                               const monitor_sta_node &sta_node)
+{
+    auto affiliated_sta_metrics_tlv = cmdu_tx.addClass<wfa_map::tlvAffiliatedStaMetrics>();
+    if (!affiliated_sta_metrics_tlv) {
+        LOG(ERROR) << "Couldn't addClass affiliated_sta_metrics_tlv";
+        return false;
+    }
+    auto affiliated_sta_stats = sta_node.get_stats().hal_stats.affiliated_sta_stats;
+    affiliated_sta_metrics_tlv->sta_mac_addr()        = tlvf::mac_from_string(sta_node.get_mac());
+    affiliated_sta_metrics_tlv->bytes_sent()          = affiliated_sta_stats.bytes_sent;
+    affiliated_sta_metrics_tlv->bytes_received()      = affiliated_sta_stats.bytes_received;
+    affiliated_sta_metrics_tlv->packets_sent()        = affiliated_sta_stats.packets_sent;
+    affiliated_sta_metrics_tlv->packets_received()    = affiliated_sta_stats.packets_received;
+    affiliated_sta_metrics_tlv->packets_sent_errors() = affiliated_sta_stats.packets_sent_errors;
+
     return true;
 }
 

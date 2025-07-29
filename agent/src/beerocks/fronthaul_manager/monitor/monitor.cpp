@@ -833,6 +833,11 @@ bool Monitor::create_ap_metrics_response(uint16_t mid, const std::vector<sMacAdd
                         return false;
                     }
                 }
+
+                if (!mon_stats.add_affiliated_sta_metrics(cmdu_tx, *sta_node)) {
+                    LOG(ERROR) << "Failed to add Affiliated STA metrics tlv";
+                    return false;
+                }
             }
         }
 
