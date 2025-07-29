@@ -457,6 +457,21 @@ bool base_wlan_hal_whm::set(const std::string &param, const std::string &value, 
 bool base_wlan_hal_whm::ping() { return true; }
 bool base_wlan_hal_whm::reassociate() { return true; }
 
+/* 9.4.2.55.4 Supported MCS Set field */
+#define RX_HT_MCS_BITMASK_LEN 10
+
+/* 9.4.2.158.3 Supported VHT-MCS and NSS Set field */
+#define RX_VHT_MCS_MAP_OFFSET 0
+#define TX_VHT_MCS_MAP_OFFSET 4
+
+/* 9.4.2.248.4 Supported HE-MCS And NSS Set Field */
+#define RX_HE_MCS_MAP_80_OFFSET 0
+#define TX_HE_MCS_MAP_80_OFFSET 2
+#define RX_HE_MCS_MAP_160_OFFSET 4
+#define TX_HE_MCS_MAP_160_OFFSET 6
+#define RX_HE_MCS_MAP_8080_OFFSET 8
+#define TX_HE_MCS_MAP_8080_OFFSET 10
+
 bool base_wlan_hal_whm::refresh_radio_info()
 {
     if (m_radio_path.empty()) {
@@ -572,12 +587,52 @@ bool base_wlan_hal_whm::refresh_radio_info()
                 ht_caps_ptr->ht_support_40mhz = 1;
             }
         }
-        //SupportedHtMCS
-        //seems like pwhm supports HtMCS now. Need to check.
-        //m_radio_info.ht_mcs_set.
+
+        if (radio->read_child(s_val, "SupportedHtMcsSet")) {
+            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.ht_mcs_set.data(),
+                                     m_radio_info.ht_mcs_set.size());
+            if (nBytes != beerocks::message::HT_MCS_SET_SIZE) {
+                LOG(ERROR) << "Failed to decode SupportedHtMcsSet str";
+            }
+        }
+
+        /*
+         * 9.4.2.55.4 Supported HT-MCS Set field
+         * First 10 bytes represent supported spatial streams indexed from 0.
+         * The variable `ss` holds the highest supported stream index (0-based),
+         * so total spatial streams = ss + 1.
+         */
+        uint8_t ss = 0;
+        for (uint8_t i = 0; i < RX_HT_MCS_BITMASK_LEN; i++) {
+            if (m_radio_info.ht_mcs_set[i]) {
+                ss = i;
+            }
+        }
+        ht_caps_ptr->max_num_of_supported_rx_spatial_streams = ss;
+        ht_caps_ptr->max_num_of_supported_tx_spatial_streams = ss;
     }
 
-    //VHt capabilities
+    /*
+     * Lambda to calculate spatial streams count for VHT and HE MCS sets.
+     * According to IEEE 802.11-2020 (VHT) and 802.11ax-2021 (HE),
+     * each spatial stream is encoded as 2 bits in a 16-bit MCS map.
+     * Supported streams have 2-bit value < 3.
+     * Returns highest supported stream index (0-based), so total streams = ss + 1.
+     */
+    auto calc_ss = [](const uint8_t *mcsSet, uint8_t offset) {
+        uint8_t ss   = 0;
+        uint16_t mcs = 0xffff;
+        memcpy(&mcs, &mcsSet[offset], sizeof(mcs));
+        /* up to 8 ss */
+        for (int i = 0; i < 8; i++) {
+            if (((mcs >> (2 * i)) & 0x3) < 3) {
+                ss = i;
+            }
+        }
+        return ss;
+    };
+
+    //VHT capabilities
     m_radio_info.vht_supported = supported_standards.find("ac") != std::string::npos ? 1 : 0;
     if (m_radio_info.vht_supported) {
         struct beerocks::net::sVHTCapabilities *vht_caps_ptr =
@@ -604,9 +659,19 @@ bool base_wlan_hal_whm::refresh_radio_info()
                 vht_caps_ptr->mu_beamformer_capable = 1;
             }
         }
-        //SupportedVHtMCS
-        //seems like pwhm supports VHtMCS now. Need to check.
-        //m_radio_info.vht_mcs_set.
+
+        if (radio->read_child(s_val, "SupportedVhtMcsNssSet")) {
+            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.vht_mcs_set.data(),
+                                     m_radio_info.vht_mcs_set.size());
+            if (nBytes != beerocks::message::VHT_MCS_SET_SIZE) {
+                LOG(ERROR) << "Failed to decode SupportedVhtMcsNssSet str";
+            }
+        }
+
+        vht_caps_ptr->max_num_of_supported_rx_spatial_streams =
+            calc_ss(m_radio_info.vht_mcs_set.data(), RX_VHT_MCS_MAP_OFFSET);
+        vht_caps_ptr->max_num_of_supported_tx_spatial_streams =
+            calc_ss(m_radio_info.vht_mcs_set.data(), TX_VHT_MCS_MAP_OFFSET);
     }
 
     //HE capabilities
@@ -652,9 +717,10 @@ bool base_wlan_hal_whm::refresh_radio_info()
             if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "UL_MUMIMO") !=
                 he_pwhm_vec.end()) {
                 he_caps_ptr->ul_mu_mimo_and_ofdm_capable = 1;
+                he_caps_ptr->ul_mu_mimo_capable          = 1;
             }
         }
-        //SupportedHeMCS
+
         if (radio->read_child(s_val, "SupportedHeMcsNssSet")) {
             auto nBytes = b64_decode(s_val.c_str(), m_radio_info.he_mcs_set.data(),
                                      m_radio_info.he_mcs_set.size());
@@ -662,6 +728,16 @@ bool base_wlan_hal_whm::refresh_radio_info()
                 LOG(ERROR) << "Failed to decode SupportedHeMcsNssSet str";
             }
         }
+
+        he_caps_ptr->max_num_of_supported_rx_spatial_streams =
+            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_80_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_160_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_8080_OFFSET)});
+
+        he_caps_ptr->max_num_of_supported_tx_spatial_streams =
+            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_80_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_160_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_8080_OFFSET)});
 
         //Wi-Fi 6 capabilities
         struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =

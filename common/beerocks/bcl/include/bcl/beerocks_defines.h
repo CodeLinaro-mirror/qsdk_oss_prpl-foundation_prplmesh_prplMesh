@@ -81,7 +81,7 @@ enum eStructsConsts {
     WIFI_DATA_TRANSFER_RATES_LIST_LENGTH = 256,
     CHANNEL_SCAN_LIST_LENGTH             = 8,
     HT_MCS_SET_SIZE                      = 16,
-    VHT_MCS_SET_SIZE                     = 32,
+    VHT_MCS_SET_SIZE                     = 8,
     HE_MCS_SET_SIZE                      = 12,
     DEV_MAX_RADIOS                       = 3,
     DSCP_MAPPING_LIST_LENGTH             = 64,

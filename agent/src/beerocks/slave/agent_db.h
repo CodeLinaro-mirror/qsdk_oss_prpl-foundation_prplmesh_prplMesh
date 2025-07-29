@@ -375,7 +375,7 @@ public:
         bool vht_supported; ///< Is 802.11ac (Very High Throughput) protocol supported
         uint16_t vht_capability;
 
-        // 32-byte attribute containing the MCS set as defined in 802.11ac
+        // 8-byte attribute containing the MCS set as defined in 802.11ac
         std::array<uint8_t, beerocks::message::VHT_MCS_SET_SIZE> vht_mcs_set;
 
         bool he_supported = false; ///< Is 802.11ax (High Efficiency) protocol supported
@@ -386,7 +386,7 @@ public:
         // new capability announcements for a WiFi 6 AP
         uint64_t wifi6_capability;
 
-        // 32-byte attribute containing the MCS set as defined in 802.11ax
+        // 12-byte attribute containing the MCS set as defined in 802.11ax
         std::array<uint8_t, beerocks::message::HE_MCS_SET_SIZE> he_mcs_set;
 
         bool eht_supported = false;
