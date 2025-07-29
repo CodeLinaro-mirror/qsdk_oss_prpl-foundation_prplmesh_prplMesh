@@ -707,8 +707,10 @@ bool mon_wlan_hal_whm::process_ap_event(const std::string &interface, const std:
     return true;
 }
 
-bool mon_wlan_hal_whm::process_sta_event(const std::string &interface, const std::string &sta_mac,
-                                         const std::string &key, const AmbiorixVariant *value)
+bool mon_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
+                                                   const std::string &sta_mac,
+                                                   const std::string &key,
+                                                   const AmbiorixVariant *value)
 {
     auto vap_id = get_vap_id_with_bss(interface);
     if (vap_id == beerocks::IFACE_ID_INVALID) {
@@ -727,19 +729,63 @@ bool mon_wlan_hal_whm::process_sta_event(const std::string &interface, const std
             msg->vap_id = vap_id;
             msg->mac    = tlvf::mac_from_string(sta_mac);
             event_queue_push(Event::STA_Connected, msg_buff);
-        } else {
-            LOG(WARNING) << "monitor: disconnected station " << sta_mac << " from vap "
-                         << interface;
-            auto msg_buff =
-                ALLOC_SMART_BUFFER(sizeof(sACTION_MONITOR_CLIENT_DISCONNECTED_NOTIFICATION));
-            auto msg = reinterpret_cast<sACTION_MONITOR_CLIENT_DISCONNECTED_NOTIFICATION *>(
-                msg_buff.get());
-            LOG_IF(!msg, FATAL) << "Memory allocation failed!";
-            memset(msg_buff.get(), 0, sizeof(sACTION_MONITOR_CLIENT_DISCONNECTED_NOTIFICATION));
-            msg->mac = tlvf::mac_from_string(sta_mac);
-            event_queue_push(Event::STA_Disconnected, msg_buff);
         }
     }
+    return true;
+}
+
+bool mon_wlan_hal_whm::process_sta_disassoc_event(
+    const std::string &interface, const beerocks::wbapi::AmbiorixVariant *event_data)
+{
+    if (event_data == nullptr) {
+        LOG(ERROR) << "event_data null";
+        return false;
+    }
+
+    std::string name_notification;
+    event_data->read_child(name_notification, "notification");
+
+    auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION));
+    auto msg =
+        reinterpret_cast<sACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION *>(msg_buff.get());
+    LOG_IF(!msg, FATAL) << "Memory allocation failed!";
+
+    // Initialize the message
+    memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION));
+
+    auto vap_id = get_vap_id_with_bss(interface);
+    if (vap_id == beerocks::IFACE_ID_INVALID) {
+        LOG(ERROR) << "Invalid vap_id";
+        return false;
+    }
+    msg->params.vap_id = vap_id;
+
+    auto data = event_data->find_child("Data");
+    if (!data || data->empty()) {
+        LOG(WARNING) << "Missing or empty Data field in event_data";
+        return false;
+    }
+    auto data_map = data->read_children<AmbiorixVariantMapSmartPtr>();
+    if (!data_map) {
+        LOG(WARNING) << "Data field could not be parsed into data_map";
+        return false;
+    }
+
+    std::string sta_mac;
+    if (data_map->find("MACAddress") != data_map->end()) {
+        (*data_map)["MACAddress"].get(sta_mac);
+        msg->params.mac = tlvf::mac_from_string(sta_mac);
+    }
+
+    if (data_map->find("DeauthReason") != data_map->end()) {
+        (*data_map)["DeauthReason"].get(msg->params.reason);
+    }
+
+    LOG(INFO) << "disconnected station " << sta_mac << " from vap "
+              << interface << " reason: " << msg->params.reason;
+
+    event_queue_push(Event::STA_Disconnected, msg_buff);
+
     return true;
 }
 

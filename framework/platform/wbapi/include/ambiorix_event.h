@@ -26,6 +26,7 @@ constexpr char AMX_CL_RSSI_UPDATE_EVT[]      = "RssiUpdate";
 constexpr char AMX_CL_CHANNEL_CHANGE_EVT[]   = "Channel change event";
 constexpr char AMX_CL_WPA_CTRL_EVT[]         = "wpaCtrlEvents";
 constexpr char AMX_CL_MGMT_ACT_FRAME_EVT[]   = "MgmtActionFrameReceived";
+constexpr char AMX_CL_DISASSOC_EVT[]         = "Disassociation";
 
 namespace beerocks {
 namespace wbapi {
