@@ -24,6 +24,7 @@
 #include <tlvf/ieee_1905_1/tlvReceiverLinkMetric.h>
 #include <tlvf/ieee_1905_1/tlvTransmitterLinkMetric.h>
 #include <tlvf/wfa_map/tlvAffiliatedApMetrics.h>
+#include <tlvf/wfa_map/tlvAffiliatedStaMetrics.h>
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetricQuery.h>
 #include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
@@ -1156,15 +1157,33 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 affiliated_ap_metrics_tlv->broadcast_bytes_received();
         }
 
+        // Affiliated STA Metrics
+        std::vector<sAffiliatedStaMetrics> affiliated_sta_metrics = {};
+        for (const auto &affl_sta_metrics :
+             cmdu_rx.getClassList<wfa_map::tlvAffiliatedStaMetrics>()) {
+            if (!affl_sta_metrics) {
+                LOG(ERROR) << "Failed to get class list for tlvAffiliatedStaMetrics";
+                continue;
+            }
+
+            auto assoc_client = radio->associated_clients.find(affl_sta_metrics->sta_mac_addr());
+            if (assoc_client != radio->associated_clients.end() &&
+                assoc_client->second.bssid == metric.bssid) {
+                affiliated_sta_metrics.push_back({
+                    affl_sta_metrics->sta_mac_addr(),
+                    affl_sta_metrics->bytes_sent(),
+                    affl_sta_metrics->bytes_received(),
+                    affl_sta_metrics->packets_sent(),
+                    affl_sta_metrics->packets_received(),
+                    affl_sta_metrics->packets_sent_errors(),
+                });
+            }
+        }
+
         // Fill a response vector
-        m_ap_metric_response.push_back({
-            metric,
-            extended_metrics,
-            traffic_stats_response,
-            link_metrics_response,
-            qos_ctrl_response,
-            affiliated_ap_metrics,
-        });
+        m_ap_metric_response.push_back({metric, extended_metrics, traffic_stats_response,
+                                        link_metrics_response, qos_ctrl_response,
+                                        affiliated_ap_metrics, affiliated_sta_metrics});
 
         // Remove an entry from the processed query
         ap_metric_queries_map->second.erase(
@@ -1283,7 +1302,7 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
 
         // For each station one "Associated Wifi 6 Sta Status tlv" is added to
         // "AP Metrics Response Message". And value of the tlv fields are populated
-        // with values from reponse vector.
+        // with values from response vector.
         for (auto &qos_control_params : response.sta_wifi_6_status) {
             auto sta_wifi6_status_report_response_tlv =
                 m_cmdu_tx.addClass<wfa_map::tlvAssociatedWiFi6StaStatusReport>();
@@ -1347,6 +1366,43 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 response.affiliated_ap_metrics.broadcast_bytes_sent;
             affiliated_ap_metrics_tlv->broadcast_bytes_received() =
                 response.affiliated_ap_metrics.broadcast_bytes_received;
+        }
+
+        // For each Affiliated station one "Affiliated STA Metrics tlv" is added to
+        // "AP Metrics Response Message". And value of the tlv fields are populated
+        // with values from response vector.
+        for (auto &stat : response.affiliated_sta_metrics) {
+
+            // Add Affiliated STA Metrics TLV only for Affiliated STAs
+            bool is_affiliated_sta = false;
+            for (auto &associated_sta_mld : db->associated_sta_mlds) {
+                for (auto &affiliated_sta : associated_sta_mld.affiliated_stas) {
+                    if (affiliated_sta.affiliated_sta_mac == stat.sta_mac) {
+                        is_affiliated_sta = true;
+                        break;
+                    }
+                }
+                if (is_affiliated_sta) {
+                    break;
+                }
+            }
+
+            if (is_affiliated_sta) {
+                auto affiliated_sta_metrics_tlv =
+                    m_cmdu_tx.addClass<wfa_map::tlvAffiliatedStaMetrics>();
+
+                if (!affiliated_sta_metrics_tlv) {
+                    LOG(ERROR) << "Failed addClass<wfa_map::tlvAffiliatedStaMetrics>";
+                    continue;
+                }
+
+                affiliated_sta_metrics_tlv->sta_mac_addr()        = stat.sta_mac;
+                affiliated_sta_metrics_tlv->bytes_sent()          = stat.bytes_sent;
+                affiliated_sta_metrics_tlv->bytes_received()      = stat.bytes_received;
+                affiliated_sta_metrics_tlv->packets_sent()        = stat.packets_sent;
+                affiliated_sta_metrics_tlv->packets_received()    = stat.packets_received;
+                affiliated_sta_metrics_tlv->packets_sent_errors() = stat.packets_sent_errors;
+            }
         }
     }
 

@@ -85,6 +85,14 @@ struct SVapStats {
     sMloStats mlo_stats;
 };
 
+struct sAffiliatedStaStats {
+    uint32_t bytes_sent          = 0;
+    uint32_t bytes_received      = 0;
+    uint32_t packets_sent        = 0;
+    uint32_t packets_received    = 0;
+    uint32_t packets_sent_errors = 0;
+};
+
 struct SStaStats {
     float rx_rssi_watt               = 0;
     uint8_t rx_rssi_watt_samples_cnt = 0;
@@ -118,6 +126,7 @@ struct SStaStats {
     // uint8_t  rx_load_percent_curr=0;
     // uint8_t  rx_load_percent_prev=0;
     uint8_t dl_bandwidth = 0; //beerocks::eWiFiBandwidth
+    sAffiliatedStaStats affiliated_sta_stats;
 };
 
 struct sStaExtendedStats {

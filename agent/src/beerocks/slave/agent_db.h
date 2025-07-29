@@ -661,11 +661,11 @@ public:
 
         sMLDConfiguration mld_config;
         std::vector<sAffiliatedSta> affiliated_stas;
-    } sAssociatedStaMldConfiguration;
+    } sAssociatedStaMld;
 
     std::vector<sAPMLDConfiguration> ap_mld_configurations;
     std::unique_ptr<sBStaMLDConfiguration> bsta_mld_configuration;
-    std::vector<sAssociatedStaMldConfiguration> associated_sta_mld_configs;
+    std::vector<sAssociatedStaMld> associated_sta_mlds;
 
     std::string em_handle_third_party;
     bool em_ap_controller_found = false;
