@@ -646,8 +646,26 @@ public:
         sMacAddr ap_mld_mac;
     } sBStaMLDConfiguration;
 
+    typedef struct {
+        typedef struct {
+            sMacAddr sta_mld_mac = beerocks::net::network_utils::ZERO_MAC;
+            sMacAddr ap_mld_mac  = beerocks::net::network_utils::ZERO_MAC;
+            enum mode { NONE = 0, STR = 1 << 0, NSTR = 1 << 1, EMLSR = 1 << 2, EMLMR = 1 << 3 };
+            mode mld_mode;
+        } sMLDConfiguration;
+
+        typedef struct {
+            sMacAddr bssid;
+            sMacAddr affiliated_sta_mac;
+        } sAffiliatedSta;
+
+        sMLDConfiguration mld_config;
+        std::vector<sAffiliatedSta> affiliated_stas;
+    } sAssociatedStaMldConfiguration;
+
     std::vector<sAPMLDConfiguration> ap_mld_configurations;
     std::unique_ptr<sBStaMLDConfiguration> bsta_mld_configuration;
+    std::vector<sAssociatedStaMldConfiguration> associated_sta_mld_configs;
 
     std::string em_handle_third_party;
     bool em_ap_controller_found = false;
