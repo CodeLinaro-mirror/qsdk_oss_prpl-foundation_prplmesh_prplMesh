@@ -856,103 +856,90 @@ bool ap_wlan_hal_whm::read_acs_report()
     return true;
 }
 
-#define MAX_TX_POWER_ABSOLUTE_MW 100
-
 bool ap_wlan_hal_whm::set_tx_power_limit(int tx_pow_limit)
 {
+
+    if (m_radio_info.channels_list.find(m_radio_info.channel) == m_radio_info.channels_list.end()) {
+        LOG(WARNING) << "Unknown maxTxPower for current channel";
+    }
+
+    /*
+     * at this point we expect m_radio_info.channels_list[channel].tx_power_dbm
+     * to contain a valid value, as well as the controller, to know it, and request a valid txpower level
+     *
+     * the value of tx power limit, in EasyMesh, is an absolute value expressed in dBm.
+     * tr-181 specifies Radio.{i}.TransmitPower as a percentage of maximum transmit power of the radio.
+     * and also as a value from the list TransmitPowerSupported
+     * tr-181 gives the following example for TransmitPowerSupported : "0,25,50,75,100".
+     * pwhm typically accepts 100, 50, 25, 12, 6, and -1 for automatic tx power selection.
+     * since Automatic tx power selection is not part of EasyMesh, it is not covered here.
+     */
+
+    /*
+     * dB scale is a logarithmic scale.
+     * the division between the target txPower [mW] and maximal txPower [mW] is equivalent
+     * to a substraction between these values in their logarithmic representation.
+     * since the dBm values are integers, the ratios that they can represent are discreet.
+     * pow_lvls_rel table is used to compute an initial relative value of txPower
+     * substracting 1dBm is approximated to substracting 20% (multiplication by 0.8)
+     * substracting 2dBm is approximated to substracting 40% (multiplication by 0.6)
+     * substracting 3dBm is identical to substracting 50%    (multiplication by 0.5)
+     */
+
+    auto max_pow_abs = m_radio_info.channels_list[m_radio_info.channel].tx_power_dbm;
+
+    const std::vector<int8_t> pow_lvls_rel = {100, 80, 60, 50, 40, 30, 25, 20, 16, 12, 10, 8, 6};
+
+    uint8_t max_selector = pow_lvls_rel.size() - 1;
+    uint8_t selector     = 0;
+
+    while ((max_pow_abs > tx_pow_limit) && (selector < max_selector)) {
+        max_pow_abs -= 1;
+        selector++;
+    }
+
+    auto selected_tx_power = pow_lvls_rel[selector];
+    LOG(DEBUG) << "max tx_power " << m_radio_info.channels_list[m_radio_info.channel].tx_power_dbm
+               << "dBm; requested power " << tx_pow_limit << "dBm; relative tx_pow "
+               << selected_tx_power << "%";
+
+    /*
+     * the initial relative value of txpower may or may not be supported by pwhm.
+     * identify pwhm power level that is closest
+     */
     std::string power_list_str;
     m_ambiorix_cl.get_param(power_list_str, m_radio_path, "TransmitPowerSupported");
-
     std::stringstream ss(power_list_str);
-    std::vector<int> power_list_vec;
-    int new_value;
+    std::vector<int> power_levels_pwhm;
 
     while (ss.good()) {
         std::string substr;
         getline(ss, substr, ',');
         if (stoi(substr) > 0) { // skip special value of -1
-            power_list_vec.push_back(stoi(substr));
+            power_levels_pwhm.push_back(stoi(substr));
         }
     }
-    std::sort(power_list_vec.begin(), power_list_vec.end());
+    std::sort(power_levels_pwhm.begin(), power_levels_pwhm.end(), std::greater<int>());
+    // sort in decreasing order
 
-    //convert tx_pow_limit from dBm to mW
-    std::map<int, double> dbm_to_mw_conversion_table = {
-        {-7, 0.2000},   {-6, 0.2512},   {-5, 0.3162},   {-4, 0.3981},   {-3, 0.5012},
-        {-2, 0.6310},   {-1, 0.7943},   {0, 1.0000},    {1, 1.2589},    {2, 1.5849},
-        {3, 1.9953},    {4, 2.5119},    {5, 3.1628},    {6, 3.9811},    {7, 5.0119},
-        {8, 6.3096},    {9, 7.9433},    {10, 10.000},   {11, 12.5893},  {12, 15.8489},
-        {13, 19.9526},  {14, 25.1189},  {15, 31.6228},  {16, 39.8107},  {17, 50.1187},
-        {18, 63.0957},  {19, 79.4328},  {20, 100.00},   {21, 125.8925}, {22, 158.4893},
-        {23, 199.5262}, {24, 251.1886}, {25, 316.2278}, {26, 398.1072}, {27, 501.1872},
-        {28, 630.9573}, {29, 794.3282}, {30, 1000.00},
-    };
-    /* human-readable conversion table  (from https://www.rapidtables.com/convert/power/dBm_to_mW.html)
-{-7 ,  0.200},  {12 ,  15.8489},
-{-6 ,  0.2512},  {13 ,  19.9526},
-{-5 ,  0.3162},  {14 ,  25.1189},
-{-4 ,  0.3981},  {15 ,  31.6228},
-{-3 ,  0.5012},  {16 ,  39.8107},
-{-2 ,  0.6310},  {17 ,  50.1187},
-{-1 ,  0.7943},  {18 ,  63.0957},
-{0  ,  1.0000},   {19 ,  79.4328},
-{1  ,  1.2589},   {20 ,  100.00},
-{2  ,  1.5849},   {21 ,  125.8925},
-{3  ,  1.9953},   {22 ,  158.4893},
-{4  ,  2.5119},   {23 ,  199.5262},
-{5  ,  3.1628},   {24 ,  251.1886},
-{6  ,  3.9811},   {25 ,  316.2278},
-{7  ,  5.0119},   {26 ,  398.1072},
-{8  ,  6.3096},   {27 ,  501.1872},
-{9  ,  7.9433},   {28 ,  630.9573},
-{10 ,	10.00},   {29 ,  794.3282},
-{11 ,  12.5893},  {30 ,  1000.00},
-
-notes on maintenance: adjust MAX_TX_POWER according to board; extend table if needed
-ideally, expose the MAX_TX_POWER_ABSOLUTE_MW via bpl;
-the code below will still work
-*/
-    auto pow_it = dbm_to_mw_conversion_table.find(tx_pow_limit);
-
-    if (pow_it == dbm_to_mw_conversion_table.end()) {
-        if (tx_pow_limit < dbm_to_mw_conversion_table.begin()->first) {
-            //use smallest possible value
-            new_value = *power_list_vec.begin();
-        } else {
-            //use biggest possible value
-            new_value = *power_list_vec.rbegin();
+    for (const auto pwr : power_levels_pwhm) {
+        if (pwr <= selected_tx_power) {
+            selected_tx_power = pwr;
+            break;
         }
-    } else {
-        float denominator(MAX_TX_POWER_ABSOLUTE_MW), ratio, numerator;
-        numerator           = pow_it->second;
-        ratio               = numerator * 100 / denominator;
-        int tx_pow_relative = floor(ratio);
-
-        // power_list_vec is sorted; use reverse iterator until
-        // the computed tx_pow_relative fits between between two values of "TransmitPowerSupported"
-        // then use the small value of the two (with reverse iterator, it's the current one)
-        std::vector<int>::reverse_iterator r_it;
-        for (r_it = power_list_vec.rbegin(); &*(r_it.base() - 1) != &*(power_list_vec.begin());
-             ++r_it) {
-            // stop on the first element of the vector instead of the rend() iterator
-
-            if (tx_pow_relative >= *r_it) {
-                //computed value is smaller than previous, but bigger than current, use current value
-                break;
-            }
-        }
-        new_value = *r_it;
     }
+    LOG(DEBUG) << "Final power lvl " << selected_tx_power << "%";
 
+    /**
+     * apply new power level
+     */
     AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
-    new_obj.add_child("TransmitPower", int8_t(new_value));
+    new_obj.add_child("TransmitPower", int8_t(selected_tx_power));
     bool ret = m_ambiorix_cl.update_object(m_radio_path, new_obj);
 
     if (!ret) {
         LOG(ERROR) << "unable to set tx power limit for " << m_radio_path;
         return false;
-    } else {
-        LOG(INFO) << "Absolute power " << tx_pow_limit << " dBm, relative power " << new_value;
     }
 
     return true;
