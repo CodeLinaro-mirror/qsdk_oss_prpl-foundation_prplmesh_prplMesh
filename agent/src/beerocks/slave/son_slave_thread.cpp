@@ -5236,7 +5236,16 @@ bool slave_thread::handle_client_steering_request(ieee1905_1::CmduMessageRx &cmd
             request_out->reason() = wfa_map::tlvProfile2ReasonCode::INVALID_AUTHENTICATION;
             request_out->src()    = beerocks_message::eClient_Disconnect_Source_Ignore;
 
-            return send_cmdu(m_radio_managers[radio->front.iface_name].ap_manager_fd, cmdu_tx);
+            if (!send_cmdu(m_radio_managers[radio->front.iface_name].ap_manager_fd, cmdu_tx)) {
+                LOG(ERROR) << "Failed to send cmdu!";
+                return false;
+            }
+
+            // STA is about to be kicked, remove it from db immediately. Otherwise, if a
+            // client association control message arrives right after this message, the STA
+            // still appears connected. This is a race condition situation.
+            db->erase_client(sta_mac, source_bssid);
+            return true;
         }
 
         auto request_out = message_com::create_vs_message<
