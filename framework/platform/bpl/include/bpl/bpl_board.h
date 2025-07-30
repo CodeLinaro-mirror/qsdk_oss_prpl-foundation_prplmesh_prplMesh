@@ -23,6 +23,8 @@ namespace bpl {
 struct sBoardInfo {
     std::string manufacturer;
     std::string manufacturer_model;
+    std::string serial_number;
+    std::string model_number;
 };
 
 /****************************************************************************/

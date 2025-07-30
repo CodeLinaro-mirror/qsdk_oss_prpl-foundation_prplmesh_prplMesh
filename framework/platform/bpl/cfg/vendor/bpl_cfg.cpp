@@ -54,6 +54,16 @@ bool get_software_version(std::string &software_version)
     return true;
 }
 
+bool get_model_number(std::string &model_number)
+{
+    std::string attr = "ModelNumber";
+
+    if (!get_string_value_dm(attr, model_number)) {
+        model_number.assign("modelnumber12345");
+    }
+    return true;
+}
+
 bool get_ruid_chipset_vendor(const sMacAddr &ruid, std::string &chipset_vendor)
 {
     chipset_vendor = "prplmesh";
