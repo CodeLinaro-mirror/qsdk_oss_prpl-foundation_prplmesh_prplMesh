@@ -933,7 +933,8 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
                             << "20MHz channel " << operating_class_20MHz_channel << " is supported";
                         // Assume scan will be successful, add to previous scans
                         m_previous_scans[operating_class].emplace(operating_class_20MHz_channel);
-                        channel_vector.emplace_back(operating_class_20MHz_channel);
+                        channel_vector.emplace_back(operating_class_20MHz_channel,
+                                                    eScanStatus::SUCCESS);
                     }
                 }
             }
@@ -952,7 +953,7 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
             } else {
                 // Assume scan will be successful, add to previous scans
                 m_previous_scans[operating_class].emplace(channel_number);
-                channel_vector.emplace_back(channel_number);
+                channel_vector.emplace_back(channel_number, eScanStatus::SUCCESS);
             }
         }
         return channel_vector;
@@ -1248,7 +1249,8 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
                             << "20MHz channel " << operating_class_20MHz_channel << " is supported";
                         // Assume scan will be successful, add to previous scans
                         m_previous_scans[operating_class].emplace(operating_class_20MHz_channel);
-                        channel_vector.emplace_back(operating_class_20MHz_channel);
+                        channel_vector.emplace_back(operating_class_20MHz_channel,
+                                                    eScanStatus::SUCCESS);
                     }
                 }
             }
@@ -1267,7 +1269,7 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
             } else {
                 // Assume scan will be successful, add to previous scans
                 m_previous_scans[operating_class].emplace(channel_number);
-                channel_vector.emplace_back(channel_number);
+                channel_vector.emplace_back(channel_number, eScanStatus::SUCCESS);
             }
         }
         return channel_vector;
@@ -1283,7 +1285,7 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
                 son::wireless_utils::operating_class_to_bandwidth(operating_class);
             std::vector<sChannel> channel_vector;
             for (const auto prev_scan_channel : previous_scan.second) {
-                channel_vector.emplace_back(prev_scan_channel);
+                channel_vector.emplace_back(prev_scan_channel, eScanStatus::SUCCESS);
             }
             LOG(TRACE) << "Operating class: #" << int(operating_class) << std::endl
                        << "\tChannel list length:" << int(channel_vector.size()) << std::endl
