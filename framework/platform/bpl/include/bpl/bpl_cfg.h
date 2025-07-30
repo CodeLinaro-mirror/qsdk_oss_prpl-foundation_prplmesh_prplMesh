@@ -1028,6 +1028,18 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
 bool get_serial_number(std::string &serial_number);
 
 /**
+ * @brief Get a string identifying the particular device that is unique for the indicated model
+ * and manufacturer.
+ *
+ * @note It is the manufacturer responsibility to override implementation of this function and
+ * and return a correct string.
+ *
+ * @param [out] model_number  Model number of the device.
+ * @return true on success, otherwise false.
+ */
+bool get_model_number(std::string &model_number);
+
+/**
  * @brief Get a string identifying the software version
  *
  * @param [out] software_version  current running software version on the device.
