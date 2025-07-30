@@ -64,7 +64,6 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
         # DM BPL
         file(GLOB_RECURSE bpl_platform_sources 
             ${MODULE_PATH}/arp/linux/*.c*
-            ${MODULE_PATH}/board/uci/*.c*
             ${MODULE_PATH}/cfg/dm/*.c*
             ${MODULE_PATH}/cfg/vendor/*.c*
             ${MODULE_PATH}/common/uci/*.c* 
@@ -82,6 +81,9 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
                 ${MODULE_PATH}/cfg/uci/bpl.cpp
                 ${MODULE_PATH}/cfg/uci/bpl_cfg_wifi.cpp
             )
+        if (USE_PRPLMESH_WHM)
+            list(APPEND bpl_platform_sources ${MODULE_PATH}/board/system_ubus/bpl_board.cpp)
+        endif()
 
             list(APPEND bpl_platform_sources ${bpl_cfg_uci_sources})
         endif()
