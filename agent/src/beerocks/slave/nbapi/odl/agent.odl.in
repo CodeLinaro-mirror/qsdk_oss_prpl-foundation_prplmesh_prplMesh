@@ -14,6 +14,20 @@
         /* Configuration options for the agent */
         %persistent object Configuration {
 
+            /* Mode of the prplMesh to run in */
+            %persistent string ManagementMode {
+                default "Multi-AP-Agent";
+                on action validate call check_enum [
+                            "Multi-AP-Controller-and-Agent", 
+                            "Multi-AP-Agent"
+                        ]; 
+            }
+
+            /* Certification mode */
+            %persistent uint32 CertificationMode {
+                default 1;
+            }
+
             /* Threshold for the best channel rank, used in the channel selection task */
             %persistent uint32 BestChannelRankThreshold {
                 default 0;
