@@ -8,6 +8,7 @@ from boardfarm.exceptions import SkipTest
 from opts import debug
 from typing import List
 import sniffer
+import re
 
 import time
 import environment as env
@@ -22,6 +23,10 @@ class NbapiCapabilities(PrplMeshBaseTest):
     def assertEqualInt(self, name: str, actual: int, expected: str):
         assert int(actual) == int(expected, 0),\
             f"Wrong value for {name}: {int(actual)} expected {int(expected, 0)}"
+
+    def assertEqualStr(self, name: str, actual: str, expected: str):
+        assert actual == expected,\
+            f"Wrong value for {name}: {actual} expected {expected}"
 
     def check_op_class(self, supported_op_classes: List[sniffer.TlvStruct],
                        nbapi_op_class_path: str, controller):
@@ -196,4 +201,28 @@ class NbapiCapabilities(PrplMeshBaseTest):
                     # TODO: Check  AP Radio Advanced Capabilities and related DM objects (PPM-2345).
                 if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_DEVICE_INVENTORY']:
                     debug("Checking Profile-3 Device Inventory TLV")
-                    # TODO: Check Profile-3 Device Inventory TLV and related DM objects (PPM-2333).
+                    for i in tlv.radio:
+                        radio = repeater.radios[i.radio_id]
+                        path = re.match(
+                            r"^(Device\.WiFi\.DataElements\.Network\.Device\.\d+)", radio.path
+                        ).group(1)
+                        self.assertEqualStr(
+                            "SerialNumber",
+                            controller.nbapi_get_parameter(path, "SerialNumber"),
+                            tlv.device_inventory_serial_number,
+                        )
+                        self.assertEqualStr(
+                            "SoftwareVersion",
+                            controller.nbapi_get_parameter(path, "SoftwareVersion"),
+                            tlv.device_inventory_software_version,
+                        )
+                        self.assertEqualStr(
+                            "ExecutionEnv",
+                            controller.nbapi_get_parameter(path, "ExecutionEnv"),
+                            tlv.device_inventory_execution_env,
+                        )
+                        self.assertEqualStr(
+                            "ChipsetVendor",
+                            controller.nbapi_get_parameter(radio.path, "ChipsetVendor"),
+                            i.chipset_vendor,
+                        )
