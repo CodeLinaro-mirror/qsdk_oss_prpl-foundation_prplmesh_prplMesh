@@ -96,6 +96,7 @@ public:
         std::string on_boot_scan;
         std::string dwell_time;
         std::string enable_auto_chansel_handling;
+        std::string clients_unicast_measurements;
         //[slaveX]
         std::string enable_repeater_mode[MAX_RADIOS_PER_AGENT];
         std::string hostap_iface_type[MAX_RADIOS_PER_AGENT];

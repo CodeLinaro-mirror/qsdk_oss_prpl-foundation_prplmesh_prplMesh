@@ -216,11 +216,9 @@ bool Monitor::thread_init()
 
     mon_db.set_radio_stats_enable(radio_stats_enable);
 
-    bool clients_unicast_measurements;
-    if (!beerocks::bpl::cfg_get_clients_unicast_measurements(clients_unicast_measurements)) {
-        LOG(DEBUG) << "Failed to read clients_unicast_measurement - using default value: false";
-        clients_unicast_measurements = false;
-    }
+    bool clients_unicast_measurements = beerocks_slave_conf.clients_unicast_measurements == "1";
+    LOG(INFO) << "Client unicast measurement mode: "
+              << (clients_unicast_measurements ? "enabled" : "disabled");
     mon_db.set_clients_unicast_measurements(clients_unicast_measurements);
 
     LOG(DEBUG) << "started";

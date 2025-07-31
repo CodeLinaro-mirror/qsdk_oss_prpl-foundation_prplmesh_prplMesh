@@ -349,9 +349,16 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
     m_ambiorix_cl.get_param(sta_stats.tx_bytes_cnt, assoc_device_path, "TxBytes");
     m_ambiorix_cl.get_param(sta_stats.rx_bytes_cnt, assoc_device_path, "RxBytes");
     m_ambiorix_cl.get_param(sta_stats.rx_packets_cnt, assoc_device_path, "RxPacketCount");
-    m_ambiorix_cl.get_param(sta_stats.tx_packets_cnt, assoc_device_path, "TxPacketCount");
     m_ambiorix_cl.get_param(sta_stats.tx_errors_cnt, assoc_device_path, "TxErrors");
     m_ambiorix_cl.get_param(sta_stats.rx_errors_cnt, assoc_device_path, "RxErrors");
+
+    if (is_read_unicast) {
+        // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
+        m_ambiorix_cl.get_param(sta_stats.tx_packets_cnt, assoc_device_path,
+                                "TxUnicastPacketCount");
+    } else {
+        m_ambiorix_cl.get_param(sta_stats.tx_packets_cnt, assoc_device_path, "TxPacketCount");
+    }
 
     return true;
 }
