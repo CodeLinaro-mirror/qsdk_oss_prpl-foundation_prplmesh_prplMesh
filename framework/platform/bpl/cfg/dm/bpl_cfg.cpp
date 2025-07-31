@@ -65,7 +65,7 @@ int cfg_get_management_mode(std::string &mode)
 int cfg_get_certification_mode()
 {
     int certification_mode{1}; // 1 by default
-    read_agent_config_param(certification_mode, "CertificationMode");
+    read_agent_config_param("CertificationMode", certification_mode);
     return certification_mode;
 }
 
@@ -630,6 +630,8 @@ int cfg_get_load_steer_on_vaps(int num_of_interfaces,
 
     return RETURN_OK;
 }
+
+bool cfg_commit_changes() { return true; };
 
 } // namespace bpl
 } // namespace beerocks

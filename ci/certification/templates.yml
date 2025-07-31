@@ -107,5 +107,5 @@ merge-train:R1:haze:MAP-4.2.1:
   extends: .certification:R1:haze
   rules:
     - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'
-      when: on_success
+      when: always
   retry: 2

@@ -1,6 +1,7 @@
 %populate {
 	object '@AGENT_ROOT_DM@' {
 		object 'Configuration' {
+			parameter ManagementMode = 'Controller+Agent';
 			parameter BackhaulWireInterface = '@BEEROCKS_BH_WIRE_IFACE@';
 		}
 	}

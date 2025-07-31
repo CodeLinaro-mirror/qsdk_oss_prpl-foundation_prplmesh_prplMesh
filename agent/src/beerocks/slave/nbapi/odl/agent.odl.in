@@ -16,10 +16,10 @@
 
             /* Mode of the prplMesh to run in */
             %persistent string ManagementMode {
-                default "Multi-AP-Agent";
+                default "Controller+Agent";
                 on action validate call check_enum [
-                            "Multi-AP-Controller-and-Agent", 
-                            "Multi-AP-Agent"
+                            "Controller+Agent", 
+                            "Agent"
                         ]; 
             }
 
