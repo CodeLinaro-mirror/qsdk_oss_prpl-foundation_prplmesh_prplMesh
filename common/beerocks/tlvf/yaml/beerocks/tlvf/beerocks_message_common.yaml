@@ -14,6 +14,8 @@ eWiFiSec:
   eWiFiSec_WPA_PSK: 3
   eWiFiSec_WPA2_PSK: 4
   eWiFiSec_WPA_WPA2_PSK: 5
+  eWiFiSec_WPA2_WPA3_PSK: 6
+  eWiFiSec_WPA3_PSK: 7
 
 eDHCPOp:
   _type: enum

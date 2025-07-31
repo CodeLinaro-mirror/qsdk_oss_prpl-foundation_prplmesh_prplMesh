@@ -1528,7 +1528,7 @@ bwl::WiFiSec BackhaulManager::wsc_to_bwl_authentication(WSC::eWscAuth authtype)
         return bwl::WiFiSec::WPA_PSK;
     case WSC::eWscAuth::WSC_AUTH_WPA2PSK:
         if (authtype & WSC::eWscAuth::WSC_AUTH_SAE) {
-            return bwl::WiFiSec::WPA2_WP3_PSK;
+            return bwl::WiFiSec::WPA2_WPA3_PSK;
         }
         return bwl::WiFiSec::WPA2_PSK;
     case WSC::eWscAuth::WSC_AUTH_WPA:
