@@ -3978,6 +3978,8 @@ bool db::add_channel_report(const sMacAddr &RUID, const uint8_t &operating_class
             return beerocks_message::eChannelScanResultChannelBandwidth::eChannel_Bandwidth_80_80;
         } else if (bw == "160Mz") {
             return beerocks_message::eChannelScanResultChannelBandwidth::eChannel_Bandwidth_160MHz;
+        } else if (bw == "320Mz") {
+            return beerocks_message::eChannelScanResultChannelBandwidth::eChannel_Bandwidth_320MHz;
         } else {
             return beerocks_message::eChannelScanResultChannelBandwidth::eChannel_Bandwidth_NA;
         }

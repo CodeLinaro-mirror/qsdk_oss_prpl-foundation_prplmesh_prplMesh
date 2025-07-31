@@ -300,6 +300,7 @@ std::string utils::convert_channel_ext_above_to_string(bool channel_ext_above_se
         } else {
             return "L";
         }
+    case beerocks::BANDWIDTH_320:
     default:
         return std::string();
     }

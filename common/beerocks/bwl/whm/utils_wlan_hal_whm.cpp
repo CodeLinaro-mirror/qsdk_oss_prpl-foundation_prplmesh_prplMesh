@@ -148,6 +148,9 @@ get_scan_result_operating_standards_from_str(const std::string &standards_str)
     if (all_standards.find("ax") != all_standards.end()) {
         supported_standards.push_back(bwl::eChannelScanResultStandards::eStandard_802_11ax);
     }
+    if (all_standards.find("be") != all_standards.end()) {
+        supported_standards.push_back(bwl::eChannelScanResultStandards::eStandard_802_11be);
+    }
     return supported_standards;
 }
 
