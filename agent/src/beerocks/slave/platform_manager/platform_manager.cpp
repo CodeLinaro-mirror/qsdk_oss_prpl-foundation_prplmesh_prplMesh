@@ -662,6 +662,10 @@ bool PlatformManager::handle_cmdu(int fd, ieee1905_1::CmduMessageRx &cmdu_rx)
                     msg_sec = beerocks_message::eWiFiSec_WPA2_PSK;
                 } else if (sec_string == BPL_WLAN_SEC_WPA_WPA2_PSK_STR) {
                     msg_sec = beerocks_message::eWiFiSec_WPA_WPA2_PSK;
+                } else if (sec_string == BPL_WLAN_SEC_WPA2_WPA3_PSK_STR) {
+                    msg_sec = beerocks_message::eWiFiSec_WPA2_WPA3_PSK;
+                } else if (sec_string == BPL_WLAN_SEC_WPA3_PSK_STR) {
+                    msg_sec = beerocks_message::eWiFiSec_WPA3_PSK;
                 } else {
                     msg_sec = beerocks_message::eWiFiSec_None;
                     LOG(WARNING) << "Unsupported Wi-Fi Security: " << sec_string;
