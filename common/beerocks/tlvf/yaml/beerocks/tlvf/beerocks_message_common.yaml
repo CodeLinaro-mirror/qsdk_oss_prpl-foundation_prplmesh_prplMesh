@@ -940,6 +940,7 @@ eChannelScanResultChannelBandwidth:
   eChannel_Bandwidth_80MHz: 3
   eChannel_Bandwidth_160MHz: 4
   eChannel_Bandwidth_80_80: 5
+  eChannel_Bandwidth_320MHz: 6
 
 sChannelScanResults:
   _type: struct

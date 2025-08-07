@@ -352,6 +352,7 @@ enum class eChannelScanResultStandards : uint8_t {
     eStandard_802_11n  = 0x4,
     eStandard_802_11ac = 0x5,
     eStandard_802_11ax = 0x6,
+    eStandard_802_11be = 0x7,
 };
 
 enum class eChannelScanResultChannelBandwidth : uint8_t {
@@ -361,6 +362,7 @@ enum class eChannelScanResultChannelBandwidth : uint8_t {
     eChannel_Bandwidth_80MHz  = 0x3,
     eChannel_Bandwidth_160MHz = 0x4,
     eChannel_Bandwidth_80_80  = 0x5,
+    eChannel_Bandwidth_320MHz = 0x6,
 };
 
 typedef struct sChannelScanResults {

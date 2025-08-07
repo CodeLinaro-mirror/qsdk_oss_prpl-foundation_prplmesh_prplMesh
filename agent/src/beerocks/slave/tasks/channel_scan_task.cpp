@@ -1521,6 +1521,8 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
                 return "80+80MHz";
             case beerocks_message::eChannelScanResultChannelBandwidth::eChannel_Bandwidth_160MHz:
                 return "160MHz";
+            case beerocks_message::eChannelScanResultChannelBandwidth::eChannel_Bandwidth_320MHz:
+                return "320MHz";
             case beerocks_message::eChannelScanResultChannelBandwidth::eChannel_Bandwidth_NA:
             default:
                 LOG(DEBUG) << "Unknown BW value, setting 20MHz";
