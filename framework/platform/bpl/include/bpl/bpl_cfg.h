@@ -106,6 +106,8 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 #define BPL_WLAN_SEC_WPA_PSK_STR "WPA-Personal"
 #define BPL_WLAN_SEC_WPA2_PSK_STR "WPA2-Personal"
 #define BPL_WLAN_SEC_WPA_WPA2_PSK_STR "WPA-WPA2-Personal"
+#define BPL_WLAN_SEC_WPA2_WPA3_PSK_STR "WPA2-WPA3-Personal"
+#define BPL_WLAN_SEC_WPA3_PSK_STR "WPA3-Personal"
 
 /* Gateway database */
 #define BPL_GW_DB_MANAGE_MODE_LEN (127 + 1) /* Maximal length of MANAGEMENT MODE string */

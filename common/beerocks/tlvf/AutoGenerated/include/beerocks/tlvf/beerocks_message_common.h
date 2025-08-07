@@ -29,6 +29,8 @@ enum eWiFiSec: uint8_t {
     eWiFiSec_WPA_PSK = 0x3,
     eWiFiSec_WPA2_PSK = 0x4,
     eWiFiSec_WPA_WPA2_PSK = 0x5,
+    eWiFiSec_WPA2_WPA3_PSK = 0x6,
+    eWiFiSec_WPA3_PSK = 0x7,
 };
 
 enum eDHCPOp: uint8_t {

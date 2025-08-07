@@ -75,12 +75,14 @@ extern "C" {
 #define BML_WLAN_VENDOR_INTEL 1   /* Intel Corporation */
 
 /* BML Wi-Fi Security Modes */
-#define BML_WLAN_SEC_NONE 0         /* No Wi-Fi Security */
-#define BML_WLAN_SEC_WEP64 1        /* WEP-64 Encryption */
-#define BML_WLAN_SEC_WEP128 2       /* WEP-128 Encryption */
-#define BML_WLAN_SEC_WPA_PSK 3      /* WPA-Personal Encryption */
-#define BML_WLAN_SEC_WPA2_PSK 4     /* WPA2-Personal Encryption */
-#define BML_WLAN_SEC_WPA_WPA2_PSK 5 /* WPA-WPA2-Personal Encryption */
+#define BML_WLAN_SEC_NONE 0          /* No Wi-Fi Security */
+#define BML_WLAN_SEC_WEP64 1         /* WEP-64 Encryption */
+#define BML_WLAN_SEC_WEP128 2        /* WEP-128 Encryption */
+#define BML_WLAN_SEC_WPA_PSK 3       /* WPA-Personal Encryption */
+#define BML_WLAN_SEC_WPA2_PSK 4      /* WPA2-Personal Encryption */
+#define BML_WLAN_SEC_WPA_WPA2_PSK 5  /* WPA-WPA2-Personal Encryption */
+#define BML_WLAN_SEC_WPA2_WPA3_PSK 6 /* WPA2-WPA3-Personal Encryption */
+#define BML_WLAN_SEC_WPA3_PSK 7      /* WPA3-Personal Encryption */
 
 #define BML_WLAN_SEC_NONE_STR "None"
 #define BML_WLAN_SEC_WEP64_STR "WEP-64"
@@ -88,6 +90,8 @@ extern "C" {
 #define BML_WLAN_SEC_WPA_PSK_STR "WPA-Personal"
 #define BML_WLAN_SEC_WPA2_PSK_STR "WPA2-Personal"
 #define BML_WLAN_SEC_WPA_WPA2_PSK_STR "WPA-WPA2-Personal"
+#define BML_WLAN_SEC_WPA2_WPA3_PSK_STR "WPA2-WPA3-Personal"
+#define BML_WLAN_SEC_WPA3_PSK_STR "WPA3-Personal"
 
 /* BML Statistic Types */
 #define BML_STAT_TYPE_RADIO 1  /* Radio Statistics */
