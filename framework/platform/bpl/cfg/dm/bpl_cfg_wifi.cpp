@@ -159,6 +159,7 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
         return false;
     }
 
+    uint8_t bss_index_generator = 1;
     for (auto const &it : *aps) {
         auto &ap   = it.second;
         auto iface = wbapi_utils::get_ap_iface(ap);
@@ -189,6 +190,7 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
         if (ap_enable && bpl_cfg_get_wifi_credentials(iface, configuration)) {
             LOG(DEBUG) << "add " << configuration.ssid << " to wireless settings size "
                        << wireless_settings.size() << " path " << it.first;
+            configuration.bss_index = bss_index_generator++;
             wireless_settings.push_back(configuration);
         } else {
             LOG(DEBUG) << " ap " << it.first << " is disabled";
