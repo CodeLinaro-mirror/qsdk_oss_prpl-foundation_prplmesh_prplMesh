@@ -82,7 +82,7 @@ bool nl80211_client_whm::get_sta_info(const std::string &interface_name,
     assoc_device_obj->read_child(sta_info.rx_bytes, "RxBytes");
     assoc_device_obj->read_child(sta_info.tx_packets, "TxPacketCount");
     assoc_device_obj->read_child(sta_info.rx_packets, "RxPacketCount");
-    assoc_device_obj->read_child(sta_info.tx_retries, "Retransmissions");
+    assoc_device_obj->read_child(sta_info.tx_retries, "Tx_Retransmissions");
     assoc_device_obj->read_child(sta_info.tx_failed, "TxErrors");
     assoc_device_obj->read_child(sta_info.signal_dbm, "SignalStrength");
     assoc_device_obj->read_child(sta_info.signal_avg_dbm, "AvgSignalStrength");
