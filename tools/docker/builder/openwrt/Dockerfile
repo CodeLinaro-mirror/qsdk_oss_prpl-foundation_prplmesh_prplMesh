@@ -93,7 +93,7 @@ RUN printf '\033[1;35m%s Cloning prplWrt\n\033[0m' "$(date --iso-8601=seconds --
     && ./scripts/gen_config.py "$TARGET_SYSTEM" prpl \
     && make defconfig \
     && make -j"$(nproc)" tools/tar/compile \
-    && make -j"$(nproc)" download check FIXUP=1 \
+    && make -j"$(nproc)" download FIXUP=1 \
     && make -j"$(nproc)" \
     && rm -rf bin \
     && rm -rf build_dir/target*/libnl-3* \
