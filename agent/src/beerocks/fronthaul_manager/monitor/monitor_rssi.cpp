@@ -352,10 +352,14 @@ void monitor_rssi::process()
                        << ", is_4addr_client = " << int(is_4addr_client)
                        << ", sta_mac = " << sta_mac << ", dest_ip = " << sta_node->get_ipv4()
                        << ", dst_mac = " << arp_dst_mac;
-
-            network_utils::arp_send(arp_iface, sta_node->get_ipv4(), arp_iface_ipv4,
-                                    tlvf::mac_from_string(arp_dst_mac),
-                                    tlvf::mac_from_string(arp_iface_mac), 6, arp_socket);
+            if (sta_ipv4 != network_utils::ZERO_IP_STRING) {
+                network_utils::arp_send(arp_iface, sta_node->get_ipv4(), arp_iface_ipv4,
+                                        tlvf::mac_from_string(arp_dst_mac),
+                                        tlvf::mac_from_string(arp_iface_mac), 6, arp_socket);
+            } else {
+                LOG(DEBUG) << "state: SEND_ARP -> IDLE, skip sending arp to the client with no ip";
+                sta_node->set_arp_state(monitor_sta_node::IDLE);
+            }
         }
         // Monitor for idle station
         if (sta_node->enable_idle_monitor) {
