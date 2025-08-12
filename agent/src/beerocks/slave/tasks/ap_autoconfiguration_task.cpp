@@ -1004,8 +1004,8 @@ bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
 
     cfg.manufacturer        = board_info.manufacturer;
     cfg.model_name          = board_info.manufacturer_model;
-    cfg.serial_number       = db->device_conf.device_serial_number;
-    cfg.model_number        = "18.04";
+    cfg.serial_number       = board_info.serial_number;
+    cfg.model_number        = board_info.model_number;
     cfg.primary_dev_type_id = WSC::WSC_DEV_NETWORK_INFRA_AP;
     cfg.device_name         = "prplmesh-agent";
     switch (radio->wifi_channel.get_freq_type()) {

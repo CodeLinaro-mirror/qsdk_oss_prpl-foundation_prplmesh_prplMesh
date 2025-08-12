@@ -6,6 +6,7 @@
  * See LICENSE file for more details.
  */
 #include <bpl/bpl_board.h>
+#include <bpl/bpl_cfg.h>
 #include <easylogging++.h>
 
 extern "C" {
@@ -181,6 +182,9 @@ bool get_board_info(sBoardInfo &board_info)
 
     board_info.manufacturer = board_params.board_name.substr(0, board_params.board_name.find(","));
     board_info.manufacturer_model = board_params.model;
+    beerocks::bpl::get_serial_number(board_info.serial_number);
+    beerocks::bpl::get_model_number(board_info.model_number);
+
     return true;
 }
 

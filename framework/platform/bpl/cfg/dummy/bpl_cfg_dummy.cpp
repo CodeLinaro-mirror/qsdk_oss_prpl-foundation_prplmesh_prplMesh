@@ -99,6 +99,12 @@ bool get_software_version(std::string &software_version)
     return true;
 }
 
+bool get_model_number(std::string &model_number)
+{
+    model_number.assign("modelnumber12345");
+    return true;
+}
+
 bool get_max_prioritization_rules(uint32_t &max_prioritization_rules)
 {
     LOG(ERROR) << __func__ << ":not Supported in Dummy";
