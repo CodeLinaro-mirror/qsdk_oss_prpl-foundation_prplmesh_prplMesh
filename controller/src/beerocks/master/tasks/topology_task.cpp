@@ -479,6 +479,13 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
 
             auto &neighbor_al_mac = std::get<1>(neighbor_al_mac_tuple);
 
+            // Sometimes MAC addresses belonging to a 1905 device are reported as non1905 neighbors
+            // by some Agents. Discard the "false" neighbors.
+            if (database.get_agent(neighbor_al_mac)) {
+                LOG(DEBUG) << "MAC " << neighbor_al_mac << " belongs to an agent";
+                continue;
+            }
+
             // Add neighbor to related the interface
             database.add_neighbor(al_mac, tlvNon1905NeighborDevice->mac_local_iface(),
                                   neighbor_al_mac, false);
