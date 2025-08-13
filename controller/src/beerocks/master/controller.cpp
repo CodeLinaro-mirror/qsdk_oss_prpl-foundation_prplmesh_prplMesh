@@ -2135,8 +2135,20 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
             auto &operating_class_struct = std::get<1>(operating_class_tuple);
             auto operating_class         = operating_class_struct.operating_class;
             auto channel                 = operating_class_struct.channel_number;
-            LOG(INFO) << "operating_class=" << int(operating_class)
-                      << ", operating_channel=" << int(channel);
+
+            // In case of a non Intel Slave the radio wifi channel is not added at AP-Autoconfiguration
+            // reception.
+            // Fill radio wifi channel struct with primary channel and its operating class
+            if (wireless_utils::get_bandwidth_from_op_class(operating_class) ==
+                beerocks::eWiFiBandwidth::BANDWIDTH_20) {
+                beerocks::WifiChannel wifi_channel = beerocks::WifiChannel(
+                    channel, wireless_utils::which_freq_op_cls(operating_class),
+                    beerocks::eWiFiBandwidth::BANDWIDTH_20, false);
+
+                if (!database.set_radio_wifi_channel(ruid, wifi_channel)) {
+                    LOG(ERROR) << "set node wifi channel failed, mac=" << ruid;
+                }
+            }
 
             database.add_current_op_class(ruid, operating_class, channel, tx_power);
         }

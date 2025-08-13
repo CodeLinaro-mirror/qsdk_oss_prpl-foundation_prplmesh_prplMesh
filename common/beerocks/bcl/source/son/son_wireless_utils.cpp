@@ -2408,3 +2408,14 @@ wireless_utils::initialize_channels_table_6g()
 
     return channels_table;
 }
+
+beerocks::eWiFiBandwidth wireless_utils::get_bandwidth_from_op_class(const uint8_t &op_class)
+{
+    auto op_class_info = wireless_utils::operating_classes_list.find(op_class);
+    if (op_class_info == wireless_utils::operating_classes_list.end()) {
+        LOG(ERROR) << "Op class " << op_class << " not found in operating_classes_list";
+        return beerocks::BANDWIDTH_UNKNOWN;
+    }
+
+    return op_class_info->second.band;
+}
