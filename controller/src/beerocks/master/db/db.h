@@ -768,7 +768,23 @@ public:
 
     /**
      * @brief Add Current Operating Class to the Device.WiFi.DataElements Data model.
-     *        Data model path example: "Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses".
+     *        Data model path examples: "Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses"
+     *                                 "Device.WiFi.DataElements.Network.Device.1.MultiAPDevice.Backhaul.CurrentOperatingClassProfile"   .
+     *
+     * @param[in] op_class_path_instance path of Operating Class profile to update.
+     * @param[in] op_class Current operating class.
+     * @param[in] op_channel Current channel number.
+     * @param[in] tx_power Current Transmit power.
+     * @return True if success otherwise false.
+     */
+    bool add_current_op_class(std::string op_class_path_instance, uint8_t op_class,
+                              uint8_t op_channel, int8_t tx_power);
+
+    /**
+     * @brief Create instances for each bandwidth possible for Radio.x.CurrentOperatingClasses and 
+     *        Backhaul.CurrentOperatingClassProfile.
+     *        Fill the database and DM's Current Operating Class for Radio and Backhaul if needed.
+     *        Fill database radio wifi channel.
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class.
      * @param[in] op_class Current operating class.
@@ -776,16 +792,39 @@ public:
      * @param[in] tx_power Current Transmit power.
      * @return True if success otherwise false.
      */
-    bool add_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8_t op_channel,
-                              int8_t tx_power);
+    bool handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8_t op_channel,
+                                 int8_t tx_power);
 
     /**
-     * @brief Removes all CurrentOperatingClasses instances from the Data Model.
+     * @brief Clear database for all Radio.CurrentOperatingClasses.
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
      * @return true on success and false otherwise.
      */
-    bool remove_current_op_classes(const sMacAddr &radio_mac);
+    bool clear_database_current_op_classes(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Clear DM (for all empty op_class in database) in Radio.CurrentOperatingClasses and
+     * Backhaul.CurrentOperatingClassProfile if radio is BH STA.
+     *
+     * @param[in] radio_mac MAC address for Radio which reporting Operating Class
+     * @return true on success and false otherwise.
+     */
+    bool clear_dm_current_op_classes(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Set DM values for Radio.CurrentOperatingClasses and
+     * Backhaul.CurrentOperatingClassProfile if needed.
+     *
+     * @param[in] radio_mac Radio MAC address
+     * @param[in] index Bandwidth index for targeted op class
+     * @param[in] op_class OP class to be written in DM
+     * @param[in] op_channel Channel to be written in DM
+     * @param[in] tx_power Tx Power to be written in DM
+     * @return true on success and false otherwise.
+     */
+    bool set_dm_current_op_class(const sMacAddr &radio_mac, int index, int op_class, int op_channel,
+                                 int tx_power);
 
     /**
      * @brief Removes all instances of hostap supported operating classes

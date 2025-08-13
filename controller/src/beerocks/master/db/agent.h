@@ -116,6 +116,17 @@ public:
         std::string country_code;
     } device_info;
 
+    enum operatingClassProfileIndex {
+        OPERATING_CLASS_20MHZ,
+        OPERATING_CLASS_40MHZ,
+        OPERATING_CLASS_80MHZ,
+        OPERATING_CLASS_160MHZ,
+        OPERATING_CLASS_320MHZ,
+        OPERATING_CLASS_MAX_BW
+    };
+
+    std::string backhaul_op_class_profile_dm_path[OPERATING_CLASS_MAX_BW];
+
     // True: Report unsuccessful association attempts, False: Don't report
     bool unsuccessful_assoc_report_policy;
 
@@ -407,6 +418,26 @@ public:
             // Encoded per [Table 9-176/802.11-2020]
             uint8_t rcpi_steering_threshold;
         } steering_policies;
+
+        struct sOperatingClassProfile {
+            std::string dm_path;
+            uint8_t op_class = 0;
+            uint8_t channel  = 0;
+            int8_t tx_power  = 0;
+        };
+
+        /**
+         * We can have up to BANDWIDTH_MAX Operating Class Profiles at the same time
+         * one per bandwidth
+         */
+        struct sOperatingClassProfile current_operating_class_profile[OPERATING_CLASS_MAX_BW];
+
+        /**
+         * @brief Retrieve the current TX power of this radio
+         *
+         * @return TX Power of the widest current operating class, 0 in case of error.
+         */
+        uint8_t get_tx_power();
 
         /**
          * Get the band this radio is currently operating on

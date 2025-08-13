@@ -151,6 +151,19 @@
                     %read-only uint32 LastDataUplinkRate = 0;
                     %read-only datetime TimeStamp = 0;
                 }
+                object CurrentOperatingClassProfile [] {
+                    counted with CurrentOperatingClassProfileNumberOfEntries;
+                    %read-only datetime TimeStamp = "2020-08-31T11:22:39Z";
+                    %read-only uint32 Class = 0 {
+                       on action validate call check_range [0, 255];
+                    }
+                    %read-only uint32 Channel = 0 {
+                       on action validate call check_range [0, 255];
+                    }
+                    %read-only int32 TxPower = 0 {
+                       on action validate call check_range [-127, 127];
+                    }
+                }
             }
         }
 
