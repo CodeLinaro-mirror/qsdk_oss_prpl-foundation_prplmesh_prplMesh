@@ -3012,30 +3012,6 @@ std::string BackhaulManager::freq_to_radio_mac(eFreqType freq) const
 
 bool BackhaulManager::start_wps_pbc(const sMacAddr &radio_mac)
 {
-    auto db        = AgentDB::get();
-    auto enableAps = [&]() -> bool {
-        for (const auto &radio_info : m_radios_info) {
-            auto notification = message_com::create_vs_message<
-                beerocks_message::cACTION_BACKHAUL_ENABLE_APS_REQUEST>(cmdu_tx);
-
-            if (!notification) {
-                LOG(ERROR) << "Failed building message!";
-                return false;
-            }
-
-            notification->set_iface(radio_info->hostap_iface);
-            notification->channel()        = radio_info->primary_channel;
-            notification->bandwidth()      = eWiFiBandwidth::BANDWIDTH_20;
-            notification->center_channel() = radio_info->primary_channel;
-
-            LOG(DEBUG) << "Send enable to radio " << radio_info->hostap_iface
-                       << ", channel = " << int(notification->channel())
-                       << ", center_channel = " << int(notification->center_channel());
-
-            send_cmdu(m_agent_fd, cmdu_tx);
-        }
-        return true;
-    };
     if ((m_eFSMState == EState::OPERATIONAL)) {
         auto it = std::find_if(m_radios_info.begin(), m_radios_info.end(),
                                [&](std::shared_ptr<sRadioInfo> radio_info) {
@@ -3064,41 +3040,11 @@ bool BackhaulManager::start_wps_pbc(const sMacAddr &radio_mac)
         auto sta_wlan_hal = get_selected_backhaul_sta_wlan_hal();
         if (!sta_wlan_hal) {
             LOG(ERROR) << "Failed to get backhaul STA hal";
-            if (db->device_conf.certification_mode)
-                enableAps() ? LOG(DEBUG) << "Enabling all radios"
-                            : LOG(DEBUG) << "Failed enabling radios";
             return false;
         }
 
-#ifndef USE_PRPLMESH_WHM
-        // Disable radio interface to make sure its not beaconing along while the supplicant is
-        // scanning.Disable rest of radio interfaces to prevent stations from connecting (there is
-        // no BH link anyway).
-        // This is a temporary solution for axepoint (prplwrt) in order to pass wbh easymesh
-        // certification tests (Need to be removed once PPM-643 or PPM-1580 are solved)
-        for (const auto &radio_info : m_radios_info) {
-            auto msg = message_com::create_vs_message<
-                beerocks_message::cACTION_BACKHAUL_RADIO_DISABLE_REQUEST>(cmdu_tx);
-            if (!msg) {
-                LOG(ERROR) << "Failed building cACTION_BACKHAUL_RADIO_DISABLE_REQUEST";
-                return false;
-            }
-
-            msg->set_iface(radio_info->hostap_iface);
-            LOG(DEBUG) << "Request Agent to disable the radio interface "
-                       << radio_info->hostap_iface << " before WPS starts";
-            if (!send_cmdu(m_agent_fd, cmdu_tx)) {
-                LOG(ERROR) << "Failed to send cACTION_BACKHAUL_RADIO_DISABLE_REQUEST";
-                return false;
-            }
-            UTILS_SLEEP_MSEC(3000);
-        }
-#endif
         if (!sta_wlan_hal->start_wps_pbc()) {
             LOG(ERROR) << "Failed to start wps";
-            if (db->device_conf.certification_mode)
-                enableAps() ? LOG(DEBUG) << "Enabling all radios"
-                            : LOG(DEBUG) << "Failed enabling radios";
             return false;
         }
         return true;
