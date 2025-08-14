@@ -480,7 +480,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
     const std::string &backhaul_wps_ssid, const std::string &backhaul_wps_passphrase,
     const std::string &bridge_ifname)
 {
-    LOG(DEBUG) << "updating vap credentials of radio " << get_iface_name();
+    LOG(DEBUG) << "updating vap credentials of radio " << get_iface_name()
+               << " and bridge=" << bridge_ifname;
     bool ret;
     int new_vap_index = m_radio_info.available_vaps.size();
 
@@ -532,7 +533,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             LOG(INFO) << "added new instances " << wifi_ssid_path << " " << wifi_vap_path;
 
             args.set_type(AMXC_VAR_ID_HTABLE);
-            args.add_child("BridgeInterface", "br-lan");
+            args.add_child("BridgeInterface", bridge_ifname);
             args.add_child("IEEE80211kEnabled", 1);
             args.add_child("WDSEnable", 1);
             if (!m_ambiorix_cl.update_object(wifi_vap_path, args)) {
