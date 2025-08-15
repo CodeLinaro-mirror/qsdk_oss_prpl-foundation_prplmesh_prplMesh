@@ -99,6 +99,20 @@ bool get_software_version(std::string &software_version)
     return true;
 }
 
+bool get_manufacturer(std::string &manufacturer)
+{
+    std::string attr = "Manufacturer";
+
+    return get_string_value_dm(attr, manufacturer);
+}
+
+bool get_model_name(std::string &model_name)
+{
+    std::string attr = "ModelName";
+
+    return get_string_value_dm(attr, model_name);
+}
+
 bool get_model_number(std::string &model_number)
 {
     model_number.assign("modelnumber12345");

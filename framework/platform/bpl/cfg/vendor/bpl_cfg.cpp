@@ -18,18 +18,40 @@ namespace bpl {
 
 bool get_string_value_dm(std::string attr, std::string &value)
 {
-    std::string dm       = "DeviceInfo.";
-    std::string attr_val = "";
+    std::string dm                 = "DeviceInfo";
+    std::string dev_string         = "0.'DeviceInfo.'";
+    constexpr int amxb_get_timeout = 30;
+    value                          = std::string("invalid");
 
-    auto det = m_ambiorix_cl.get_object(dm);
-    if (!det) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm;
+    amxc_var_t data;
+    amxc_var_init(&data);
+
+    amxb_bus_ctx_t *ctx = amxb_be_who_has(dm.c_str());
+    if (ctx == NULL) {
+        LOG(WARNING) << "Failed to get the bus context";
         return false;
     }
 
-    det->read_child<>(attr_val, attr);
-    value.assign(attr_val);
+    dm += "." + attr;
+    int ret = amxb_get(ctx, dm.c_str(), 0, &data, amxb_get_timeout);
+    if (ret != AMXB_STATUS_OK) {
+        LOG(WARNING) << "amxb_get timedout";
+        return false;
+    }
 
+    if (amxc_var_is_null(&data)) {
+        return false;
+    }
+
+    dev_string += "." + attr;
+    const char *p = GETP_CHAR(&data, dev_string.c_str());
+    if (p == NULL) {
+        amxc_var_clean(&data);
+        return false;
+    }
+
+    value.assign(p);
+    amxc_var_clean(&data);
     return true;
 }
 
@@ -54,14 +76,28 @@ bool get_software_version(std::string &software_version)
     return true;
 }
 
+bool get_manufacturer(std::string &manufacturer)
+{
+    std::string attr = "Manufacturer";
+
+    get_string_value_dm(attr, manufacturer);
+
+    return true;
+}
+
+bool get_model_name(std::string &model_name)
+{
+    std::string attr = "ModelName";
+
+    get_string_value_dm(attr, model_name);
+
+    return true;
+}
+
 bool get_model_number(std::string &model_number)
 {
     std::string attr = "ModelNumber";
-
-    if (!get_string_value_dm(attr, model_number)) {
-        model_number.assign("modelnumber12345");
-    }
-    return true;
+    return get_string_value_dm(attr, model_number);
 }
 
 bool get_ruid_chipset_vendor(const sMacAddr &ruid, std::string &chipset_vendor)
