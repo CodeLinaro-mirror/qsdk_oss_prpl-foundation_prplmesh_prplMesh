@@ -1073,8 +1073,31 @@ bool get_model_number(std::string &model_number);
  * @param [out] software_version  current running software version on the device.
  * @return true on success, otherwise false.
  */
-
 bool get_software_version(std::string &software_version);
+
+/**
+ * @brief Get a string identifying the manufacturer
+ *
+ * @param [out] manufacturer  manufacturer of the device.
+ * @return true on success, otherwise false.
+ */
+bool get_manufacturer(std::string &manufacturer);
+
+/**
+ * @brief Get a string identifying the model name
+ *
+ * @param [out] model_name  model name of the device.
+ * @return true on success, otherwise false.
+ */
+bool get_model_name(std::string &model_name);
+
+/**
+ * @brief Get a string identifying the model number
+ *
+ * @param [out] model_number  model number of the device.
+ * @return true on success, otherwise false.
+ */
+bool get_model_number(std::string &model_number);
 
 /**
  * @brief Get a string identifying the Wi-Fi chip vendor a radio.

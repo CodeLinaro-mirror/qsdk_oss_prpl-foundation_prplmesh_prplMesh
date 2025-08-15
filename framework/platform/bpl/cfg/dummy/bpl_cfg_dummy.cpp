@@ -76,11 +76,7 @@ bool get_string_value_dm(std::string &attr, std::string &value)
  */
 bool get_serial_number(std::string &serial_number)
 {
-    std::string attr = "SerialNumber";
-
-    if (!get_string_value_dm(attr, serial_number)) {
-        serial_number.assign("prplmesh12345");
-    }
+    serial_number = "prplmesh12345";
     return true;
 }
 
@@ -90,18 +86,25 @@ bool get_serial_number(std::string &serial_number)
  */
 bool get_software_version(std::string &software_version)
 {
-    std::string attr = "SoftwareVersion";
+    software_version = beerocks::version::get_module_version();
+    return true;
+}
 
-    if (!get_string_value_dm(attr, software_version)) {
-        std::string version_string = beerocks::version::get_module_version();
-        software_version.assign(version_string);
-    }
+bool get_manufacturer(std::string &manufacturer)
+{
+    manufacturer = "prplMesh";
+    return true;
+}
+
+bool get_model_name(std::string &model_name)
+{
+    model_name = "Ubuntu";
     return true;
 }
 
 bool get_model_number(std::string &model_number)
 {
-    model_number.assign("modelnumber12345");
+    model_number = "modelnumber12345";
     return true;
 }
 
