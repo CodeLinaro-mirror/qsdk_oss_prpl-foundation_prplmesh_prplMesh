@@ -154,6 +154,39 @@ public:
     bool initiate_wps_pbc_auto();
 
     /**
+     * @brief Start WPS PBC on all fronthaul AP interfaces.
+     *
+     * Iterates over all known radios and triggers WPS PBC on those
+     * that have an active fronthaul AP interface.
+     *
+     * @note Filtering for "fronthaul" radios is currently based on the presence
+     *       of a non-empty @c hostap_iface field.
+     *
+     * @return true if at least one fronthaul radio successfully accepted WPS PBC, false otherwise.
+     */
+    bool start_wps_pbc_ap_all_fronthauls();
+
+    /**
+     * @brief Start WPS PBC on a specific fronthaul AP radio.
+     *
+     * Sends a @c cACTION_BACKHAUL_START_WPS_PBC_REQUEST message to the slave
+     * managing the given @p radio_mac.
+     *
+     * @param radio_mac MAC address of the target AP radio.
+     * @return true on success, false if the radio is not found or message send fails.
+     */
+    bool start_wps_pbc_ap(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Start WPS PBC on the backhaul STA interface.
+     *
+     * This initiates WPS PBC on the currently selected backhaul STA.
+     *
+     * @return true on success, false if the STA HAL is not available or WPS start fails.
+     */
+    bool start_wps_pbc_sta();
+
+    /**
      * @brief set MBO AssocDisallow property
      * 
      * @param radio_mac radio mac of the radio on which to set the MBO

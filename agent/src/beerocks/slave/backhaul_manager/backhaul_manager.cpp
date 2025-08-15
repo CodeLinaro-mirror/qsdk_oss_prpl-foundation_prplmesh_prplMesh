@@ -3010,52 +3010,95 @@ std::string BackhaulManager::freq_to_radio_mac(eFreqType freq) const
     return {};
 }
 
+bool BackhaulManager::start_wps_pbc_ap(const sMacAddr &radio_mac)
+{
+    // Find target radio
+    auto it = std::find_if(
+        m_radios_info.begin(), m_radios_info.end(),
+        [&](std::shared_ptr<sRadioInfo> radio_info) { return radio_info->radio_mac == radio_mac; });
+    if (it == m_radios_info.end()) {
+        LOG(ERROR) << "couldn't find slave for radio mac " << radio_mac;
+        return false;
+    }
+
+    // Store the socket to the slave managing the requested radio
+    auto &radio_info = *it;
+    // WPS PBC registration on AP interface
+    auto msg =
+        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_START_WPS_PBC_REQUEST>(
+            cmdu_tx);
+    if (!msg) {
+        LOG(ERROR) << "Failed building message!";
+        return false;
+    }
+
+    msg->set_iface(radio_info->hostap_iface);
+    LOG(DEBUG) << "Start WPS PBC registration on interface " << radio_info->hostap_iface;
+    return send_cmdu(m_agent_fd, cmdu_tx);
+}
+
+bool BackhaulManager::start_wps_pbc_sta()
+{
+    // WPS PBC registration on STA interface
+    auto sta_wlan_hal = get_selected_backhaul_sta_wlan_hal();
+    if (!sta_wlan_hal) {
+        LOG(ERROR) << "Failed to get backhaul STA hal";
+        return false;
+    }
+
+    if (!sta_wlan_hal->start_wps_pbc()) {
+        LOG(ERROR) << "Failed to start wps";
+        return false;
+    }
+    return true;
+}
+
 bool BackhaulManager::start_wps_pbc(const sMacAddr &radio_mac)
 {
-    if ((m_eFSMState == EState::OPERATIONAL)) {
-        auto it = std::find_if(m_radios_info.begin(), m_radios_info.end(),
-                               [&](std::shared_ptr<sRadioInfo> radio_info) {
-                                   return radio_info->radio_mac == radio_mac;
-                               });
-        if (it == m_radios_info.end()) {
-            LOG(ERROR) << "couldn't find slave for radio mac " << radio_mac;
-            return false;
-        }
-
-        // Store the socket to the slave managing the requested radio
-        auto &radio_info = *it;
-        // WPS PBC registration on AP interface
-        auto msg = message_com::create_vs_message<
-            beerocks_message::cACTION_BACKHAUL_START_WPS_PBC_REQUEST>(cmdu_tx);
-        if (!msg) {
-            LOG(ERROR) << "Failed building message!";
-            return false;
-        }
-
-        msg->set_iface(radio_info->hostap_iface);
-        LOG(DEBUG) << "Start WPS PBC registration on interface " << radio_info->hostap_iface;
-        return send_cmdu(m_agent_fd, cmdu_tx);
-    } else {
-        // WPS PBC registration on STA interface
-        auto sta_wlan_hal = get_selected_backhaul_sta_wlan_hal();
-        if (!sta_wlan_hal) {
-            LOG(ERROR) << "Failed to get backhaul STA hal";
-            return false;
-        }
-
-        if (!sta_wlan_hal->start_wps_pbc()) {
-            LOG(ERROR) << "Failed to start wps";
-            return false;
-        }
-        return true;
+    if (m_eFSMState == EState::OPERATIONAL) {
+        LOG(INFO) << "WPS PBC: AP/fronthaul path (agent is operational)";
+        return start_wps_pbc_ap(radio_mac);
     }
+    LOG(INFO) << "WPS PBC: bSTA path (agent not operational)";
+    return start_wps_pbc_sta();
+}
+
+bool BackhaulManager::start_wps_pbc_ap_all_fronthauls()
+{
+    bool result = false;
+
+    for (const auto &ri : m_radios_info) {
+        if (!ri) {
+            continue;
+        }
+
+        // Filter to fronthaul radios/BSSes
+        // Also possible way to get info from bpl_cfg_get_wireless_settings
+        if (ri->hostap_iface.empty()) {
+            LOG(DEBUG) << "WPS PBC: skip radio (no fronthaul hostap_iface)";
+            continue;
+        }
+
+        if (start_wps_pbc_ap(ri->radio_mac)) {
+            LOG(INFO) << "WPS PBC (fronthaul) on " << ri->hostap_iface << " result = OK";
+            result = true;
+        }
+    }
+
+    if (!result) {
+        LOG(WARNING) << "WPS PBC: no fronthaul radios accepted PBC";
+    }
+    return result;
 }
 
 bool BackhaulManager::initiate_wps_pbc_auto()
 {
-    // Stub for now
-    LOG(ERROR) << "initiate_wps_pbc_auto isn't implemented ";
-    return false;
+    if (m_eFSMState == EState::OPERATIONAL) {
+        LOG(INFO) << "WPS PBC: AP/fronthaul path (agent is operational)";
+        return start_wps_pbc_ap_all_fronthauls();
+    }
+    LOG(INFO) << "WPS PBC: bSTA path (agent not operational)";
+    return start_wps_pbc_sta();
 }
 
 bool BackhaulManager::set_mbo_assoc_disallow(const sMacAddr &radio_mac, const sMacAddr &bssid,
