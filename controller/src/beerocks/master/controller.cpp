@@ -1058,10 +1058,10 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     // public_key is set in autoconfig_wsc_calculate_keys()
     // connection_type and configuration_methods have default values
     // TODO the following should be taken from the database
-    m2_cfg.manufacturer        = "prplMesh";
-    m2_cfg.model_name          = "Ubuntu";
-    m2_cfg.model_number        = "18.04";
-    m2_cfg.serial_number       = "prpl12345";
+    beerocks::bpl::get_manufacturer(m2_cfg.manufacturer);
+    beerocks::bpl::get_model_name(m2_cfg.model_name);
+    beerocks::bpl::get_model_number(m2_cfg.model_number);
+    beerocks::bpl::get_serial_number(m2_cfg.serial_number);
     m2_cfg.primary_dev_type_id = WSC::WSC_DEV_NETWORK_INFRA_GATEWAY;
     m2_cfg.device_name         = "prplmesh-controller";
     m2_cfg.encr_type_flags     = uint16_t(WSC::eWscEncr::WSC_ENCR_NONE) |
@@ -1073,6 +1073,7 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     m2_cfg.auth_type_flags =
         WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
                       WSC::eWscAuth::WSC_AUTH_SAE);
+
     // TODO Maybe the band should be taken from bss_info_conf.operating_class instead?
 
     if (m1.rf_bands() & WSC::WSC_RF_BAND_2GHZ) {
