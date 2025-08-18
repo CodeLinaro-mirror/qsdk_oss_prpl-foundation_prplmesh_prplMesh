@@ -161,8 +161,8 @@ main() {
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
         dbg "$TARGET_DEVICE non-legacy platform, building on prplOS mainline-23.05 (stable-v4.0 08/08/2025)"
-        OPENWRT_TOOLCHAIN_VERSION='c89c38db4592b732795db3a26bbf625b0a440b51'
-        OPENWRT_VERSION='c89c38db4592b732795db3a26bbf625b0a440b51'
+        OPENWRT_TOOLCHAIN_VERSION='7c888aca7e2b35ff7d91cea2efbe89915bef0cad'
+        OPENWRT_VERSION='7c888aca7e2b35ff7d91cea2efbe89915bef0cad'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -202,8 +202,8 @@ VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos mainline-23.05 (stable-v4.0)
-OPENWRT_TOOLCHAIN_VERSION='c89c38db4592b732795db3a26bbf625b0a440b51'
-OPENWRT_VERSION='c89c38db4592b732795db3a26bbf625b0a440b51'
+OPENWRT_TOOLCHAIN_VERSION='7c888aca7e2b35ff7d91cea2efbe89915bef0cad'
+OPENWRT_VERSION='7c888aca7e2b35ff7d91cea2efbe89915bef0cad'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
