@@ -3037,6 +3037,22 @@ bool BackhaulManager::start_wps_pbc_ap(const sMacAddr &radio_mac)
     return send_cmdu(m_agent_fd, cmdu_tx);
 }
 
+bool BackhaulManager::start_wps_pbc_ep(const sMacAddr &radio_mac)
+{
+    // WPS PBC registration on STA interface
+    auto sta_wlan_hal = get_wireless_hal(radio_mac);
+    if (!sta_wlan_hal) {
+        LOG(ERROR) << "Failed to get backhaul STA hal";
+        return false;
+    }
+
+    if (!sta_wlan_hal->start_wps_pbc()) {
+        LOG(ERROR) << "Failed to start wps";
+        return false;
+    }
+    return true;
+}
+
 bool BackhaulManager::start_wps_pbc_sta()
 {
     // WPS PBC registration on STA interface
@@ -3063,42 +3079,55 @@ bool BackhaulManager::start_wps_pbc(const sMacAddr &radio_mac)
     return start_wps_pbc_sta();
 }
 
-bool BackhaulManager::start_wps_pbc_ap_all_fronthauls()
+bool BackhaulManager::start_wps_pbc_ep_freq(eFreqType freq)
 {
-    bool result = false;
-
-    for (const auto &ri : m_radios_info) {
-        if (!ri) {
-            continue;
-        }
-
-        // Filter to fronthaul radios/BSSes
-        // Also possible way to get info from bpl_cfg_get_wireless_settings
-        if (ri->hostap_iface.empty()) {
-            LOG(DEBUG) << "WPS PBC: skip radio (no fronthaul hostap_iface)";
-            continue;
-        }
-
-        if (start_wps_pbc_ap(ri->radio_mac)) {
-            LOG(INFO) << "WPS PBC (fronthaul) on " << ri->hostap_iface << " result = OK";
-            result = true;
-        }
+    auto radio_mac_str = freq_to_radio_mac(freq);
+    if (radio_mac_str.empty()) {
+        LOG(ERROR) << "Failed to get radio";
+        return false;
     }
 
-    if (!result) {
-        LOG(WARNING) << "WPS PBC: no fronthaul radios accepted PBC";
+    auto radio_mac = tlvf::mac_from_string(radio_mac_str);
+
+    if (start_wps_pbc_ep(radio_mac)) {
+        LOG(INFO) << "WPS PBC endpoint on " << radio_mac;
+        return true;
     }
-    return result;
+    LOG(WARNING) << "WPS PBC: no fronthaul BSS accepted PBC in the radio: " << radio_mac;
+
+    return false;
 }
 
 bool BackhaulManager::initiate_wps_pbc_auto()
 {
-    if (m_eFSMState == EState::OPERATIONAL) {
-        LOG(INFO) << "WPS PBC: AP/fronthaul path (agent is operational)";
-        return start_wps_pbc_ap_all_fronthauls();
+    auto db = AgentDB::get();
+
+    if (db->statuses.ap_autoconfiguration_completed) {
+        bool result = false;
+        for (const auto radio : db->get_radios_list()) {
+            //Skip 6GHz since WPS is not allowed on 6GHz per Wi-Fi 6E standard
+            if (!radio || radio->wifi_channel.get_freq_type() == eFreqType::FREQ_6G) {
+                continue;
+            }
+            if (start_wps_pbc_ap(radio->front.iface_mac)) {
+                LOG(INFO) << "WPS PBC AP/fronthaul path (agent is operational) on radio: "
+                          << radio->front.iface_mac;
+                result = true;
+            }
+        }
+        return result;
+    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_5G)) { //Default frequency for WPS PBC is 5G
+        LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_5G";
+        return true;
+
+    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_24G)) {
+        LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_24G";
+        return true;
     }
-    LOG(INFO) << "WPS PBC: bSTA path (agent not operational)";
-    return start_wps_pbc_sta();
+
+    LOG(ERROR) << "WPS PBC: failed to trigger";
+
+    return false;
 }
 
 bool BackhaulManager::set_mbo_assoc_disallow(const sMacAddr &radio_mac, const sMacAddr &bssid,

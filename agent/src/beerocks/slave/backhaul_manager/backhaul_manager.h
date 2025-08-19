@@ -154,17 +154,13 @@ public:
     bool initiate_wps_pbc_auto();
 
     /**
-     * @brief Start WPS PBC on all fronthaul AP interfaces.
+     * @brief Triggers WPS PBC (backhaul STA) on provided frequency
      *
-     * Iterates over all known radios and triggers WPS PBC on those
-     * that have an active fronthaul AP interface.
-     *
-     * @note Filtering for "fronthaul" radios is currently based on the presence
-     *       of a non-empty @c hostap_iface field.
-     *
+     * @param freq frequency on which WPS PBC will be triggerd
+     * Default frequency is 5G
      * @return true if at least one fronthaul radio successfully accepted WPS PBC, false otherwise.
      */
-    bool start_wps_pbc_ap_all_fronthauls();
+    bool start_wps_pbc_ep_freq(eFreqType freq = eFreqType::FREQ_5G);
 
     /**
      * @brief Start WPS PBC on a specific fronthaul AP radio.
@@ -180,8 +176,17 @@ public:
     /**
      * @brief Start WPS PBC on the backhaul STA interface.
      *
-     * This initiates WPS PBC on the currently selected backhaul STA.
+     * This initiates WPS PBC on the all radios
+     * @param radio_mac MAC address of the target EP radio.
+     * @return true on success, false if the STA HAL is not available or WPS start fails.
+     */
+    bool start_wps_pbc_ep(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Start WPS PBC on the backhaul STA interface.
      *
+     * This initiates WPS PBC on the currently selected backhaul STA.
+     * @param radio_mac MAC address of the target EP radio.
      * @return true on success, false if the STA HAL is not available or WPS start fails.
      */
     bool start_wps_pbc_sta();
