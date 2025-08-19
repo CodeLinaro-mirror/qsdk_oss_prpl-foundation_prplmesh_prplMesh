@@ -438,10 +438,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             return false;
         }
 
-        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(db->ethernet.wan.iface_name)) {
-            LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
-            return false;
-        }
+        db->ethernet.wan.iface_name="br-lan";
         // Destroy `db` to unlock it.
     }
 

@@ -774,27 +774,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         auto ifaces =
             beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
 
-        // If a wired (WAN) interface was provided, try it first, check if the interface is UP
-        wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
-        if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
-            wired_link_state = wan_mon.initialize(db->ethernet.wan.iface_name);
-            // Failure might be due to insufficient permissions, detailed error message is being
-            // printed inside.
-            if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
-                LOG(WARNING) << "wan_mon.initialize() failed, skip wired link establishment";
-            }
-        }
-        if ((wired_link_state == wan_monitor::ELinkState::eUp) &&
-            (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
-
-            auto it = std::find(ifaces.begin(), ifaces.end(), db->ethernet.wan.iface_name);
-            if (it == ifaces.end()) {
-                LOG(ERROR) << "wire iface " << db->ethernet.wan.iface_name
-                           << " is not on the bridge";
-                FSM_MOVE_STATE(RESTART);
-                break;
-            }
-
+        if ((m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
             // Mark the connection as WIRED
             db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
             db->backhaul.selected_iface_name = db->ethernet.wan.iface_name;
