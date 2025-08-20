@@ -63,6 +63,8 @@ static ap_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode)
         return ap_wlan_hal::Event::AP_Sta_Possible_Psk_Mismatch;
     } else if (opcode == "ACL-DENY") {
         return ap_wlan_hal::Event::ACL_DENY;
+    } else if (opcode == "DPP-CHIRP-RX") {
+        return ap_wlan_hal::Event::DPP_PRESENCE_ANNOUNCEMENT;
     }
 
     return ap_wlan_hal::Event::Invalid;
@@ -2058,6 +2060,22 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         msg->status = beerocks::string_utils::stoi(status_str);
         msg->reason = beerocks::string_utils::stoi(reason_str);
         LOG(DEBUG) << "STA connection failure: status=" << msg->status << " reason=" << msg->reason;
+
+        // Add the message to the queue
+        event_queue_push(event, msg_buff);
+        break;
+    }
+    case Event::DPP_PRESENCE_ANNOUNCEMENT: {
+        LOG(DEBUG) << "DPP PRESENCE ANNOUNCEMENT";
+        auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT));
+        auto msg = reinterpret_cast<sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT *>(msg_buff.get());
+        LOG_IF(!msg, FATAL) << "Memory allocation failed!";
+
+        // Initialize the message
+        memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT));
+        msg->enrollee_mac = tlvf::mac_from_string(parsed_obj["src"]);
+        strncpy(msg->hash, parsed_obj["hash"].c_str(), sizeof(msg->hash) - 1);
+        msg->hash[sizeof(msg->hash) - 1] = '\0';
 
         // Add the message to the queue
         event_queue_push(event, msg_buff);
