@@ -958,6 +958,19 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     return true;
 }
 
+#define MYLOG(CONTENT)                                                                             \
+    {                                                                                              \
+        std::ofstream file("/tmp/mylog", std::ios_base::app);                                      \
+        if (file.is_open()) {                                                                      \
+            file << CONTENT << std::endl;                                                          \
+            file.close();                                                                          \
+        } else {                                                                                   \
+            LOG(DEBUG) << "(my) failed to open a log file";                                        \
+        }                                                                                          \
+                                                                                                   \
+        LOG(DEBUG) << "(my) " << CONTENT;                                                          \
+    }
+
 bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
 {
     auto tlv = m_cmdu_tx.addClass<ieee1905_1::tlvWsc>();
@@ -999,13 +1012,15 @@ bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
                           uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP) |
                           uint16_t(WSC::eWscEncr::WSC_ENCR_NONE);
 
-    bpl::sBoardInfo board_info;
-    bpl::get_board_info(board_info);
+    beerocks::bpl::get_manufacturer(cfg.manufacturer);
+    beerocks::bpl::get_model_name(cfg.model_name);
+    beerocks::bpl::get_model_number(cfg.model_number);
+    beerocks::bpl::get_serial_number(cfg.serial_number);
 
-    cfg.manufacturer        = board_info.manufacturer;
-    cfg.model_name          = board_info.manufacturer_model;
-    cfg.serial_number       = board_info.serial_number;
-    cfg.model_number        = board_info.model_number;
+    // device.wifi.dataelements
+    MYLOG("manuf: " << cfg.manufacturer << ", m name: " << cfg.model_name
+                    << ", m num: " << cfg.model_number << ", s num: " << cfg.serial_number);
+
     cfg.primary_dev_type_id = WSC::WSC_DEV_NETWORK_INFRA_AP;
     cfg.device_name         = "prplmesh-agent";
     switch (radio->wifi_channel.get_freq_type()) {
@@ -2127,7 +2142,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
 
     const auto &vap_info = notification_in->vap_info();
     auto bssid           = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
-                              [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
+                                        [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
                                   return bssid.mac == vap_info.mac;
                               });
     if (bssid == radio->front.bssids.end()) {

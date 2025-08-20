@@ -26,6 +26,19 @@ using namespace beerocks_message;
 using namespace son;
 using namespace net;
 
+#define MYLOG(CONTENT)                                                                             \
+    {                                                                                              \
+        std::ofstream file("/tmp/mylog", std::ios_base::app);                                      \
+        if (file.is_open()) {                                                                      \
+            file << CONTENT << std::endl;                                                          \
+            file.close();                                                                          \
+        } else {                                                                                   \
+            LOG(DEBUG) << "(my) failed to open a log file";                                        \
+        }                                                                                          \
+                                                                                                   \
+        LOG(DEBUG) << "(my) " << CONTENT;                                                          \
+    }
+
 const std::string db::TIMESTAMP_STR            = "timestamp";
 const std::string db::TIMELIFE_DELAY_STR       = "timelife_minutes";
 const std::string db::INITIAL_RADIO_ENABLE_STR = "initial_radio_enable";
@@ -326,6 +339,8 @@ std::shared_ptr<Agent> db::add_agent(const sMacAddr &mac, const sMacAddr &parent
     }
 
     agent->dm_path = data_model_path;
+
+    MYLOG("added agent: " << data_model_path);
 
     if (!dm_set_device_multi_ap_capabilities(tlvf::mac_to_string(mac))) {
         LOG(ERROR) << "Failed to set multi ap capabilities";
@@ -1541,8 +1556,8 @@ bool db::set_internal_wifi7_radio_capabilities(
     wfa_map::cRadioWifi7Capabilities &radio_wifi7_capabilities, Agent::sRadio &radio, bool is_bsta)
 {
 
-    auto wifi7_support = is_bsta ? radio_wifi7_capabilities.bsta_modes_support()
-                                 : radio_wifi7_capabilities.ap_modes_support();
+    auto wifi7_support      = is_bsta ? radio_wifi7_capabilities.bsta_modes_support()
+                                      : radio_wifi7_capabilities.ap_modes_support();
     auto wifi7_capabilities = is_bsta ? radio_wifi7_capabilities.bsta_wifi7_capabilities()
                                       : radio_wifi7_capabilities.ap_wifi7_capabilities();
 
@@ -4788,24 +4803,23 @@ bool db::load_persistent_db_clients()
             std::begin(vector_of_clients), std::end(vector_of_clients),
             [&](const std::pair<std::string, std::unordered_map<std::string, std::string>> &a,
                 const std::pair<std::string, std::unordered_map<std::string, std::string>> &b) {
-                auto get_timestamp_sec = [](const std::pair<
-                                             std::string,
-                                             std::unordered_map<std::string, std::string>>
-                                                &client) {
-                    // A 2nd validation to assert if clients doesn't have a timestamp value
-                    // since this meant to deduce the best candidate between two unaging clients.
-                    // Returning db::timestamp_from_seconds(0) will automatically prioritize the
-                    // trailing client assuming it has a timestamp value ofc.
-                    auto timestamp_it = client.second.find(TIMESTAMP_STR);
-                    if (timestamp_it == client.second.end()) {
-                        return db::timestamp_from_seconds(0);
-                    }
+                auto get_timestamp_sec =
+                    [](const std::pair<std::string, std::unordered_map<std::string, std::string>>
+                           &client) {
+                        // A 2nd validation to assert if clients doesn't have a timestamp value
+                        // since this meant to deduce the best candidate between two unaging clients.
+                        // Returning db::timestamp_from_seconds(0) will automatically prioritize the
+                        // trailing client assuming it has a timestamp value ofc.
+                        auto timestamp_it = client.second.find(TIMESTAMP_STR);
+                        if (timestamp_it == client.second.end()) {
+                            return db::timestamp_from_seconds(0);
+                        }
 
-                    int64_t timestamp_sec = beerocks::string_utils::stoi(timestamp_it->second);
-                    auto timestamp        = db::timestamp_from_seconds(timestamp_sec);
+                        int64_t timestamp_sec = beerocks::string_utils::stoi(timestamp_it->second);
+                        auto timestamp        = db::timestamp_from_seconds(timestamp_sec);
 
-                    return timestamp;
-                };
+                        return timestamp;
+                    };
                 auto is_not_aging =
                     [&](const std::pair<std::string, std::unordered_map<std::string, std::string>>
                             &client) -> bool {
