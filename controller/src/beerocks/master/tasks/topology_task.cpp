@@ -509,12 +509,66 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         }
     }
 
-    //TODO: After handling Device and Neighbor Information, identify Parent Agent (PPM-2043)
-
     // Handle Agent APMLD Configuration TLV
     if (!son_actions::handle_agent_ap_mld_configuration_tlv(database, al_mac, cmdu_rx)) {
         LOG(ERROR) << "handle_ap_mld_configuration_tlv has failed!";
         return false;
+    }
+
+    auto update_parent_details_from_neighbor_info = [](std::shared_ptr<Agent> agent,
+        const auto &al_mac, db &database) -> bool {
+        auto neighbors_al_macs = database.get_1905_1_neighbors(al_mac);
+        for (const auto &neighbor_al_mac : neighbors_al_macs) {
+            std::shared_ptr<Agent> parent_agent = database.get_agent(neighbor_al_mac);
+            if (!parent_agent) {
+                continue;
+            } else {
+                /* If backhaul details are not found earlier, fill the details here. */
+                if (agent->backhaul.parent_interface == beerocks::net::network_utils::ZERO_MAC) {
+                    /* Get the parent device interface which is providing backhaul to this device */
+                    for (const auto &parent_intf : parent_agent->interfaces) {
+                        for (const auto &neighbor : parent_intf.second->m_neighbors) {
+                            if (neighbor.second->ieee1905_flag && neighbor.first == al_mac) {
+                                agent->backhaul.parent_agent = parent_agent;
+                                ieee1905_1::eMediaType media_type = parent_intf.second->m_media_type;
+                                ieee1905_1::eMediaTypeGroup media_type_group =
+                                    static_cast<ieee1905_1::eMediaTypeGroup>(media_type >> 8);
+                                /* Check if the parent agent interface is wireless or not*/
+                                if (ieee1905_1::eMediaTypeGroup::IEEE_802_11 == media_type_group) {
+                                    /* Find the active  backhaul mac address of this agent*/
+                                    for (const auto &radio : agent->radios) {
+                                        std::shared_ptr<Station> station =
+                                            database.get_station(radio.second->backhaul_station_mac);
+                                        if (station && station->is_bSta() && station->get_bss()) {
+                                            agent->backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+                                            agent->backhaul.parent_interface = parent_intf.second->m_mac;
+                                            agent->backhaul.backhaul_interface =
+                                                radio.second->backhaul_station_mac;
+                                            agent->backhaul.wireless_backhaul_radio =
+                                                database.get_radio_by_backhaul_cap(radio.second->backhaul_station_mac);
+                                        }
+                                    }
+                                 } else if (ieee1905_1::eMediaTypeGroup::IEEE_802_3 == media_type_group) {
+                                    agent->backhaul.parent_interface = parent_intf.second->m_mac;
+                                    agent->backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_ETHERNET;
+                                 }
+                                 database.dm_set_device_multi_ap_backhaul(*agent);
+                                 return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    };
+
+    if (!agent->is_gateway && (agent->backhaul.parent_agent.lock() == nullptr)) {
+        if (update_parent_details_from_neighbor_info(agent, al_mac, database)) {
+            LOG(DEBUG) << "Parent details updated successfully";
+        } else {
+            LOG(DEBUG) << "Parent details not found";
+        }
     }
 
     return true;
