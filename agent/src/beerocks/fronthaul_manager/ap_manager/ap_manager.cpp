@@ -3726,8 +3726,10 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             return false;
         }
 
-        chirp_value_tlv->set_hash(dpp_presence->hash, sizeof(dpp_presence->hash));
-        chirp_value_tlv->hash_length() = sizeof(dpp_presence->hash);
+        auto binary_hash =
+            beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(dpp_presence->hash);
+        chirp_value_tlv->set_hash(binary_hash.data(), binary_hash.size());
+        chirp_value_tlv->hash_length() = binary_hash.size();
         // establish
         chirp_value_tlv->flags().hash_validity                = true;
         chirp_value_tlv->flags().enrollee_mac_address_present = true;
