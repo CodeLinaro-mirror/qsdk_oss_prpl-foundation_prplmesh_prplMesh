@@ -294,6 +294,8 @@ std::string wbapi_utils::search_path_ep_profiles_by_alias(const std::string &pro
     return search_path_ep() + "*.Profile.[Alias == '" + profile_alias + "'].";
 }
 
+std::string wbapi_utils::search_path_ethernet() { return std::string("Device.Ethernet."); }
+
 std::string wbapi_utils::get_path_ap_of_assocDev(const std::string &assocDev_path)
 {
     auto pos = assocDev_path.rfind("AssociatedDevice");

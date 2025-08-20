@@ -51,11 +51,6 @@ public:
 
     static bool add_radio_capability(ieee1905_1::CmduMessageTx &cmdu_tx);
 
-    static bool
-    get_counters_info(std::shared_ptr<airties::tlvAirtiesEthernetStats> &tlvAirtiesEthStats);
-    static bool get_all_counters_info(
-        std::shared_ptr<airties::tlvAirtiesEthernetStatsallcntr> &tlvAirtiesEthStats);
-
     /**
      * @brief Assigns a unique port ID for the given interface name.
      *

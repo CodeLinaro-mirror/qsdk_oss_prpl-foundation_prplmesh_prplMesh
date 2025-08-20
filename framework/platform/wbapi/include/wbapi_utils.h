@@ -214,6 +214,11 @@ public:
     static std::string search_path_ep_profiles_by_alias(const std::string &profile_alias);
 
     /**
+     * @brief return path of Ethernet root object.
+     */
+    static std::string search_path_ethernet();
+
+    /**
      * @brief return accesspoint object instance path from path of child AssociatedDevice object
      * instance
      */

@@ -8,10 +8,12 @@
 
 #include "tlvf_airties_utils.h"
 #include "agent_db.h"
+#include <atomic>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <bpl/common/utils/utils.h>
+#include <cmath>
 #include <cstring>
 #include <easylogging++.h>
 #include <linux/if_bridge.h>
@@ -49,6 +51,397 @@ using namespace wbapi;
 #define MEMFREE_TXT "MemFree:"
 #define MEMBUFFER_TXT "Buffers:"
 #define STAT_IDLE_IND 3
+#define COUNTERS_SIZE 6 /* Size of the counter is 6 octets */
+#define BYTES_IN_KB 1024
+#define CACHE_PERIOD 1000 /* in milliseconds */
+
+namespace {
+/* Global declarations for keeping previous cpu values */
+uint64_t g_cpu_idle_prev  = 0;
+uint64_t g_cpu_total_prev = 1;
+
+/* Device metrics parameters to be cached */
+struct sDeviceMetrics {
+    uint32_t uptime;
+    uint8_t cpu_load;
+    uint8_t cpu_temp;
+    int32_t memtotal;
+    int32_t memfree;
+    int32_t memcached;
+    /* key: radio_id, val: radio_temp */
+    std::vector<std::pair<sMacAddr, uint8_t>> radio_info;
+};
+
+/* Ethernet stats parameters to be cached */
+struct sEthernetPortStats {
+    uint64_t bytes_sent;
+    uint64_t bytes_recvd;
+    uint64_t packets_sent;
+    uint64_t packets_recvd;
+    uint64_t tx_pkt_errors;
+    uint64_t rx_pkt_errors;
+    uint64_t bcast_pkts_sent;
+    uint64_t bcast_pkts_recvd;
+    uint64_t mcast_pkts_sent;
+    uint64_t mcast_pkts_recvd;
+    uint64_t bcast_bytes_sent;
+    uint64_t bcast_bytes_recvd;
+    uint64_t mcast_bytes_sent;
+    uint64_t mcast_bytes_recvd;
+};
+
+/*
+ * Holds cached device and ethernet metrics with synchronized access.
+ * Provides snapshot methods for thread-safe read access to cached values.
+ */
+struct sCachedMetrics {
+    sDeviceMetrics device_metrics;
+    std::map<uint8_t, sEthernetPortStats> ethernet_stats;
+    mutable std::mutex cache_mutex;
+
+    sDeviceMetrics snapshotDeviceMetrics() const
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        return device_metrics;
+    }
+
+    std::map<uint8_t, sEthernetPortStats> snapshotEthernetStats() const
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        return ethernet_stats;
+    }
+} g_cached_metrics;
+
+void device_metrics_read_cpu_temp(sDeviceMetrics &device_metrics)
+{
+    std::ifstream file(CPU_TEMP_FILE);
+    int temp_milli = 0;
+    if (file >> temp_milli) {
+        device_metrics.cpu_temp = static_cast<uint8_t>(temp_milli / 1000);
+    } else {
+        LOG(ERROR) << "Failed to read/parse " << CPU_TEMP_FILE;
+    }
+}
+
+void device_metrics_read_cpu_load(sDeviceMetrics &device_metrics)
+{
+    std::ifstream file(STAT_FILE);
+    if (!file.is_open()) {
+        LOG(ERROR) << "Cannot open file: " << STAT_FILE;
+        return;
+    }
+
+    std::string line;
+    if (!std::getline(file, line) ||
+        line.compare(0, std::strlen(STAT_CPU_TXT), STAT_CPU_TXT) != 0) {
+        LOG(ERROR) << "Invalid or unreadable format in: " << STAT_FILE;
+        return;
+    }
+
+    std::istringstream iss(line.substr(std::strlen(STAT_CPU_TXT)));
+
+    std::vector<uint64_t> vals;
+    uint64_t v;
+    while (iss >> v) {
+        vals.push_back(v);
+    }
+
+    /*
+     * indices according to kernel docs (may be missing or extra)
+     * 0=user,1=nice,2=system,3=idle,4=iowait,5=irq,6=softirq,7=steal,8=guest,9=guest_nice
+     */
+    auto get = [&](size_t idx) -> uint64_t {
+        if (idx < vals.size()) {
+            return vals[idx];
+        } else {
+            LOG(WARNING) << "CPU stats parse: missing value at index " << idx
+                         << ", defaulting to 0";
+            return 0ULL;
+        }
+    };
+
+    uint64_t user    = get(0);
+    uint64_t nice    = get(1);
+    uint64_t system  = get(2);
+    uint64_t idle    = get(3);
+    uint64_t iowait  = get(4);
+    uint64_t irq     = get(5);
+    uint64_t softirq = get(6);
+    uint64_t steal   = get(7);
+    //uint64_t guest     = get(8);
+    //uint64_t guest_nice= get(9);
+
+    uint64_t total_now = user + nice + system + idle + iowait + irq + softirq + steal;
+    uint64_t idle_now  = idle + steal;
+
+    uint64_t prev_total = g_cpu_total_prev;
+    uint64_t prev_idle  = g_cpu_idle_prev;
+
+    uint8_t cpu_load = 0;
+    if (total_now > prev_total && idle_now > prev_idle) {
+        double usage = 1.0 - double(idle_now - prev_idle) / double(total_now - prev_total);
+        cpu_load     = static_cast<uint8_t>(std::round(usage * 100.0));
+    }
+
+    g_cpu_total_prev = total_now;
+    g_cpu_idle_prev  = idle_now;
+
+    device_metrics.cpu_load = cpu_load;
+}
+
+void device_metrics_read_mem_info(sDeviceMetrics &device_metrics)
+{
+    std::ifstream file(MEMINFO_FILE);
+    if (!file.is_open()) {
+        LOG(ERROR) << "Cannot open file: " << MEMINFO_FILE;
+        return;
+    }
+
+    int32_t memtotal = -1, memfree = -1, memcached = -1, membufs = -1;
+    std::string line;
+
+    while (std::getline(file, line)) {
+        if (line.find(MEMTOTAL_TXT) != std::string::npos) {
+            sscanf(line.c_str(), "%*s %d", &memtotal);
+        } else if (line.find(MEMFREE_TXT) != std::string::npos) {
+            sscanf(line.c_str(), "%*s %d", &memfree);
+        } else if (line.find(MEMCACHED_TXT) != std::string::npos) {
+            sscanf(line.c_str(), "%*s %d", &memcached);
+        } else if (line.find(MEMBUFFER_TXT) != std::string::npos) {
+            sscanf(line.c_str(), "%*s %d", &membufs);
+        }
+    }
+
+    if (memcached >= 0 && membufs >= 0) {
+        memcached += membufs;
+    }
+
+    device_metrics.memtotal  = memtotal;
+    device_metrics.memfree   = memfree;
+    device_metrics.memcached = memcached;
+}
+
+void device_metrics_read_uptime(sDeviceMetrics &device_metrics)
+{
+    auto now  = std::chrono::steady_clock::now();
+    auto secs = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+    device_metrics.uptime = static_cast<uint32_t>(secs > 0 ? secs : 0);
+}
+
+void device_metrics_read_radio_info(sDeviceMetrics &device_metrics)
+{
+    auto db           = AgentDB::get();
+    int num_of_radios = db->get_radios_list().size();
+
+    for (int radio_index = 1; radio_index <= num_of_radios; radio_index++) {
+        std::string curr_radio_path =
+            wbapi_utils::search_path_radio() + std::to_string(radio_index) + ".";
+
+        auto dev = beerocks::bpl::m_ambiorix_cl.get_object(curr_radio_path);
+        if (!dev) {
+            LOG(ERROR) << "Failed to get the ambiorix object for path " << curr_radio_path;
+            return;
+        }
+
+        std::string radio_name;
+        if (!dev->read_child<>(radio_name, "Name")) {
+            LOG(ERROR) << "Failed to read Name from " << curr_radio_path;
+            return;
+        }
+
+        std::string radio_mac;
+        if (!beerocks::net::network_utils::linux_iface_get_mac(radio_name, radio_mac)) {
+            LOG(ERROR) << "Failed to get radio mac from ifname " << radio_name;
+            return;
+        }
+
+        /* Temperature */
+        std::string curr_radio_stats_path =
+            wbapi_utils::search_path_radio() + std::to_string(radio_index) + "." + "Stats.";
+
+        auto temp_obj = beerocks::bpl::m_ambiorix_cl.get_object(curr_radio_stats_path);
+        if (!temp_obj) {
+            LOG(ERROR) << "Failed to get the ambiorix object for temperature path "
+                       << curr_radio_stats_path;
+            return;
+        }
+
+        uint8_t radio_temp = 0;
+        if (!temp_obj->read_child<>(radio_temp, "Temperature")) {
+            LOG(ERROR) << "Failed to read Temperature from " << curr_radio_stats_path;
+            return;
+        }
+
+        device_metrics.radio_info.emplace_back(tlvf::mac_from_string(radio_mac), radio_temp);
+    }
+}
+
+/*
+ * Checks if the given Ethernet interface is a WAN interface.
+ * WAN interfaces will not be included in the TLV.
+ */
+bool is_wan_interface(AmbiorixVariantSmartPtr &eth_interface)
+{
+    bool upstream_val = false;
+    if (!eth_interface->read_child(upstream_val, "Upstream")) {
+        LOG(INFO) << "Failed to read Upstream value from DM";
+    }
+    return upstream_val;
+}
+
+/*
+ * Checks if the given Ethernet interface is invalid.
+ * Some interfaces may have entries in the data model but might not actually exist,
+ * for example, interfaces that do not appear in ifconfig but are present in the data model.
+ * To distinguish such invalid interfaces, we check the MAC address in the data model.
+ * If the MAC address is empty, the interface is considered invalid and will not be added to the TLV.
+ */
+bool is_invalid_ethernet_interface(AmbiorixVariantSmartPtr &eth_interface)
+{
+    std::string mac_addr;
+    if (!eth_interface->read_child(mac_addr, "MACAddress")) {
+        LOG(INFO) << "Failed to read MACAddress value from DM";
+    }
+    return mac_addr.empty();
+}
+
+void ethernet_stats_read_stats(std::map<uint8_t, sEthernetPortStats> &ethernet_stats)
+{
+    auto eth_obj = beerocks::bpl::m_ambiorix_cl.get_object(wbapi_utils::search_path_ethernet());
+    if (!eth_obj) {
+        LOG(ERROR) << "Failed to get object: " << wbapi_utils::search_path_ethernet();
+        return;
+    }
+
+    uint8_t num_ports = 0;
+    if (!eth_obj->read_child(num_ports, "InterfaceNumberOfEntries") || !num_ports) {
+        LOG(ERROR) << "No Ethernet ports found";
+        return;
+    }
+
+    for (uint8_t i = 1; i <= num_ports; i++) {
+        std::string dev_eth_iface_path =
+            wbapi_utils::search_path_ethernet() + "Interface." + std::to_string(i) + ".";
+        auto eth_interface_obj = beerocks::bpl::m_ambiorix_cl.get_object(dev_eth_iface_path);
+        if (!eth_interface_obj) {
+            LOG(ERROR) << "Failed to get object: " << dev_eth_iface_path;
+            return;
+        }
+
+        /* Skip WAN interface */
+        if (is_wan_interface(eth_interface_obj)) {
+            continue;
+        }
+
+        /* Skip invalid interface */
+        if (is_invalid_ethernet_interface(eth_interface_obj)) {
+            continue;
+        }
+
+        std::string interface_alias;
+        if (!eth_interface_obj->read_child(interface_alias, "Alias") || interface_alias.empty()) {
+            LOG(ERROR) << "Failed to read Alias value from DM";
+            return;
+        }
+        uint8_t port_id = airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
+
+        std::string dev_eth_iface_stats_path = dev_eth_iface_path + "Stats.";
+        auto stats_obj = beerocks::bpl::m_ambiorix_cl.get_object(dev_eth_iface_stats_path);
+        if (!stats_obj) {
+            LOG(ERROR) << "Stats obj missing for port " << i;
+            continue;
+        }
+
+        auto read_ctr = [&](std::string param) {
+            uint64_t value = 0;
+            if (!stats_obj->read_child(value, param)) {
+                LOG(ERROR) << "Failed to read " << param << " for port " << i;
+            } else if ((param == "BytesSent") || (param == "BytesReceived")) {
+                /*
+                 * As per the requirement, only bytes counter need
+                 * to be be converted to KiloByte. As of now, only
+                 * BytesSent and Received are supported in DM.
+                 */
+                value = value / BYTES_IN_KB;
+            }
+
+            return value;
+        };
+
+        sEthernetPortStats s{};
+
+        /* Base stats */
+        s.bytes_sent    = read_ctr("BytesSent");
+        s.bytes_recvd   = read_ctr("BytesReceived");
+        s.packets_sent  = read_ctr("PacketsSent");
+        s.packets_recvd = read_ctr("PacketsReceived");
+        s.tx_pkt_errors = read_ctr("ErrorsSent");
+        s.rx_pkt_errors = read_ctr("ErrorsReceived");
+
+        /*
+         * Optional stats.
+         * Fields set to zero don't have a dm entry yet.
+         * They'll be filled when entries become available.
+         */
+        s.mcast_bytes_sent  = 0;
+        s.mcast_bytes_recvd = 0;
+        s.mcast_pkts_sent   = read_ctr("MulticastPacketsSent");
+        s.mcast_pkts_recvd  = read_ctr("MulticastPacketsReceived");
+        s.bcast_bytes_sent  = 0;
+        s.bcast_bytes_recvd = 0;
+        s.bcast_pkts_sent   = read_ctr("BroadcastPacketsSent");
+        s.bcast_pkts_recvd  = read_ctr("BroadcastPacketsReceived");
+
+        ethernet_stats[port_id] = s;
+    }
+}
+
+std::atomic<bool> g_keep_running{true};
+
+/*
+ * Thread callback that periodically reads device metrics and ethernet stats
+ * and updates the shared cache.
+ */
+void background_metrics_updater_cb()
+{
+    while (g_keep_running.load()) {
+        sDeviceMetrics device_metrics;
+        std::map<uint8_t, sEthernetPortStats> ethernet_stats;
+
+        device_metrics_read_cpu_temp(device_metrics);
+        device_metrics_read_cpu_load(device_metrics);
+        device_metrics_read_mem_info(device_metrics);
+        device_metrics_read_uptime(device_metrics);
+        device_metrics_read_radio_info(device_metrics);
+        ethernet_stats_read_stats(ethernet_stats);
+
+        {
+            std::lock_guard<std::mutex> lock(g_cached_metrics.cache_mutex);
+            g_cached_metrics.device_metrics = std::move(device_metrics);
+            g_cached_metrics.ethernet_stats = std::move(ethernet_stats);
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(CACHE_PERIOD));
+    }
+}
+
+std::thread g_metrics_thread;
+
+struct sMetricsThreadManager {
+    sMetricsThreadManager()
+    {
+        g_keep_running   = true;
+        g_metrics_thread = std::thread(background_metrics_updater_cb);
+    }
+    ~sMetricsThreadManager()
+    {
+        g_keep_running = false;
+        if (g_metrics_thread.joinable()) {
+            g_metrics_thread.join();
+        }
+    }
+} static g_metrics_manager;
+} // namespace
 
 /*
  * Enum contains the different Link Types
@@ -90,12 +483,6 @@ enum supported_stats_enum {
     MCAST_PKTS_SENT   = 1,
     MCAST_PKTS_RECVD  = 1
 };
-
-#define BYTES_IN_KB 1024
-#define COUNTERS_SIZE 6 // Size of the counter is 6 octets.
-
-#define BCAST_BYTES_SUPPORTED (BCAST_BYTES_SENT && BCAST_BYTES_RECVD)
-#define MCAST_BYTES_SUPPORTED (MCAST_BYTES_SENT && MCAST_BYTES_RECVD)
 
 /*
  * Following function returns the link speed.
@@ -171,19 +558,6 @@ static AmbiorixVariantSmartPtr get_eth_interface_object(const std::string &path)
 }
 
 /*
- * Check if its WAN or LAN interface.
- * If its WAN, then dont add it to the TLV.
- */
-bool check_wan_interface(AmbiorixVariantSmartPtr &eth_interface)
-{
-    uint8_t upstream_val = 0;
-    if (!eth_interface->read_child(upstream_val, "Upstream")) {
-        LOG(INFO) << "Failed to read Upstream value from DM";
-    }
-    return upstream_val;
-}
-
-/*
  * Utility function to read any data type from DM.
  */
 template <typename T>
@@ -200,7 +574,7 @@ bool get_data_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string 
  */
 bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
-    std::string dm_path        = "Device.Ethernet.";
+    std::string dm_path        = wbapi_utils::search_path_ethernet();
     std::string interface_path = "Interface.";
     std::string link_path      = "Link.";
     std::string interface_dm_path, link_dm_path;
@@ -241,8 +615,13 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
             continue;
         }
 
-        //Check if its a wan interface.
-        if (check_wan_interface(eth_interface)) {
+        /* Skip WAN interface */
+        if (is_wan_interface(eth_interface)) {
+            continue;
+        }
+
+        /* Skip invalid interface */
+        if (is_invalid_ethernet_interface(eth_interface)) {
             continue;
         }
 
@@ -360,240 +739,20 @@ uint64_t swap_and_convert_counter(uint64_t val)
     return swapped;
 }
 
-/*
- * Function to return byte value converted
- * to KB value.
- */
-uint64_t convertBytes_to_Kb(uint64_t bytes_val) { return (bytes_val / BYTES_IN_KB); }
-
-uint64_t tlvf_airties_utils::get_value_from_dm(std::string param, std::string cntr_path)
+inline void insert_ethernet_stats_item(std::shared_ptr<airties::cPortList> &port_list,
+                                       uint64_t counter)
 {
-    uint64_t output = 0, value = 0;
-
-    auto eth_interface = get_eth_interface_object(cntr_path);
-    if (!eth_interface) {
-        LOG(ERROR) << "failed to get radio Stats object " << cntr_path;
-        return output;
-    }
-    if (!eth_interface->read_child<>(value, param.c_str())) {
-        LOG(INFO) << "Failed to read " << cntr_path << " " << param;
-        return output;
+    auto statsItem = port_list->create_statsItem();
+    if (!statsItem) {
+        LOG(ERROR) << "Failed to create stats item!";
+        return;
     }
 
-    /*
-     * As per the requirement, only bytes counter need
-     * to be be converted to KiloByte. As of now, only
-     * BytesSent and Received are supported in DM.
-     */
-    if ((param == "BytesSent") || (param == "BytesReceived")) {
-        if (value) {
-            value = convertBytes_to_Kb(value);
-        }
-    }
+    uint64_t swapped = swap_and_convert_counter(counter);
 
-    output = swap_and_convert_counter(value);
-    return output;
-}
+    statsItem->set_item(&swapped, COUNTERS_SIZE);
 
-template <typename T> void populate_cntrs_info(std::shared_ptr<T> &port_list, std::string cntr_path)
-{
-    uint64_t value = 0;
-    value          = tlvf_airties_utils::get_value_from_dm("BytesSent", cntr_path);
-    port_list->set_bytes_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("BytesReceived", cntr_path);
-    port_list->set_bytes_recvd(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("PacketsSent", cntr_path);
-    port_list->set_packets_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("PacketsReceived", cntr_path);
-    port_list->set_packets_recvd(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("ErrorsSent", cntr_path);
-    port_list->set_tx_pkt_errors(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("ErrorsReceived", cntr_path);
-    port_list->set_rx_pkt_errors(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("BroadcastPacketsSent", cntr_path);
-    port_list->set_bcast_pkts_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("BroadcastPacketsReceived", cntr_path);
-    port_list->set_bcast_pkts_recvd(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("MulticastPacketsSent", cntr_path);
-    port_list->set_mcast_pkts_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("MulticastPacketsReceived", cntr_path);
-    port_list->set_mcast_pkts_recvd(&value, COUNTERS_SIZE);
-}
-
-/*
- * Function to populate the Ethernet Stats TLV
- * for all the counters present.
- */
-bool tlvf_airties_utils::get_all_counters_info(
-    std::shared_ptr<airties::tlvAirtiesEthernetStatsallcntr> &tlvEthStats)
-{
-    std::string dm_path        = "Device.Ethernet.";
-    std::string interface_path = "Interface.";
-    std::string stats_path     = "Stats.";
-    std::string cntr_path, interface_dm_path;
-    uint8_t num_ports = 0;
-
-    tlvEthStats->vendor_oui() =
-        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
-    tlvEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
-
-    //Start filling the fields
-
-    tlvEthStats->supported_extra_stats() = set_supp_stats_val();
-
-    auto eth_interf = get_eth_interface_object(dm_path);
-    if (!eth_interf) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
-        return false;
-    }
-    /*
-     * Get the number of Ethernet ports
-     * for the loop count
-     */
-    if (!get_data_from_dm(eth_interf, "InterfaceNumberOfEntries", num_ports) || !num_ports) {
-        LOG(ERROR) << "Failed to populate Ethernet Stats TLV as "
-                      "InterfaceNumberOfEntries is not valid";
-        return false;
-    }
-
-    for (uint8_t i = 1; i <= num_ports; i++) {
-
-        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
-
-        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(interface_dm_path);
-        if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
-            return false;
-        }
-
-        /*
-         * Check if its WAN or LAN interface.
-         * If its WAN, then dont add it to the TLV.
-         */
-        if (check_wan_interface(eth_interface)) {
-            continue;
-        }
-
-        auto port_list = tlvEthStats->create_port_list();
-
-        cntr_path = dm_path + interface_path + std::to_string(i) + "." + stats_path;
-
-        std::string interface_alias;
-        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
-            (interface_alias.empty())) {
-            LOG(ERROR) << "Failed to read Alias value from DM";
-            return false;
-        }
-        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
-
-        //Populate the counters
-        populate_cntrs_info(port_list, cntr_path);
-        /*
-         * TODO:
-         * Broadcast/Multicast Byte counters are not supported in Data model
-         * for which community bug has raised.
-         * This is a placeholder for fetching those counters.
-         * As of now, for all the ports, the hard coded values will be
-         * populated in the TLV fields.
-         * In future, if the solution to fetch these counters are
-         * available, it can be implemented in separate function and called
-         * here or implementented in populate_cntrs_info() itself.
-         */
-        uint64_t c_bbytes_sent = swap_and_convert_counter(100);
-        port_list->set_bcast_bytes_sent(&c_bbytes_sent, 6);
-
-        uint64_t c_bbytes_recvd = swap_and_convert_counter(200);
-        port_list->set_bcast_pkts_recvd(&c_bbytes_recvd, 6);
-
-        uint64_t c_mbytes_sent = swap_and_convert_counter(300);
-        port_list->set_mcast_bytes_sent(&c_mbytes_sent, 6);
-
-        uint64_t c_mbytes_recvd = swap_and_convert_counter(400);
-        port_list->set_mcast_bytes_recvd(&c_mbytes_recvd, 6);
-
-        tlvEthStats->add_port_list(port_list);
-    }
-    return true;
-}
-
-bool tlvf_airties_utils::get_counters_info(
-    std::shared_ptr<airties::tlvAirtiesEthernetStats> &tlvEthStats)
-{
-    std::string dm_path        = "Device.Ethernet.";
-    std::string interface_path = "Interface.";
-    std::string stats_path     = "Stats.";
-    std::string cntr_path, interface_dm_path;
-    uint8_t num_ports = 0;
-
-    tlvEthStats->vendor_oui() =
-        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
-    tlvEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
-
-    //Start filling the fields
-
-    tlvEthStats->supported_extra_stats() = set_supp_stats_val();
-
-    auto eth_interf = beerocks::bpl::m_ambiorix_cl.get_object(dm_path);
-    if (!eth_interf) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
-        return false;
-    }
-
-    /*
-     * Get the number of Ethernet ports
-     * for the loop count
-     */
-    if (!get_data_from_dm(eth_interf, "InterfaceNumberOfEntries", num_ports) || (!num_ports)) {
-        LOG(ERROR) << "Failed to populate Ethernet Stats TLV as "
-                      "InterfaceNumberOfEntries is not valid";
-        return false;
-    }
-
-    for (uint8_t i = 1; i <= num_ports; i++) {
-
-        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
-
-        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(interface_dm_path);
-        if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
-            return false;
-        }
-
-        /*
-         * Check if its WAN or LAN interface.
-         * If its WAN, then dont add it to the TLV.
-         */
-        if (check_wan_interface(eth_interface)) {
-            continue;
-        }
-
-        auto port_list = tlvEthStats->create_port_list();
-
-        cntr_path = dm_path + interface_path + std::to_string(i) + "." + stats_path;
-
-        std::string interface_alias;
-        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
-            (interface_alias.empty())) {
-            LOG(ERROR) << "Failed to read Alias value from DM";
-            return false;
-        }
-
-        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
-
-        populate_cntrs_info(port_list, cntr_path);
-
-        tlvEthStats->add_port_list(port_list);
-    }
-    return true;
+    port_list->add_statsItem(statsItem);
 }
 
 /*
@@ -602,26 +761,48 @@ bool tlvf_airties_utils::get_counters_info(
  */
 bool tlvf_airties_utils::add_airties_ethernet_stats_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
-    /*
-     * If the optional counters support is present
-     * in the DM, then populate TLV: tlvAirtiesEthernetStatsallcntr
-     * else populate all the counters TLV:tlvAirtiesEthernetStats
-     */
-    if (BCAST_BYTES_SUPPORTED) {
-        auto tlvAirtiesEthStatsall = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStatsallcntr>();
-        if (!tlvAirtiesEthStatsall) {
-            LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
-            return false;
-        }
-        get_all_counters_info(tlvAirtiesEthStatsall);
+    auto snap_eth = g_cached_metrics.snapshotEthernetStats();
+    if (snap_eth.empty()) {
+        LOG(ERROR) << "No cached ethernet statistics available";
+        return false;
+    }
 
-    } else {
-        auto tlvAirtiesEthStats = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStats>();
-        if (!tlvAirtiesEthStats) {
-            LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
-            return false;
-        }
-        get_counters_info(tlvAirtiesEthStats);
+    auto tlvAirtiesEthStats = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStats>();
+    if (!tlvAirtiesEthStats) {
+        LOG(ERROR) << "addClass wfa_map::tlvAirtiesEthStats failed";
+        return false;
+    }
+
+    tlvAirtiesEthStats->vendor_oui() =
+        sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES);
+    tlvAirtiesEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
+    tlvAirtiesEthStats->supported_extra_stats() = set_supp_stats_val();
+
+    for (auto &s : snap_eth) {
+        auto port_list       = tlvAirtiesEthStats->create_port_list();
+        port_list->port_id() = s.first;
+
+        /*
+         * The lines commented out below correspond to dm entries that are
+         * not yet available. Uncomment them once those entries exist.
+         * Do NOT change the insertion order.
+         */
+        insert_ethernet_stats_item(port_list, s.second.bytes_sent);
+        insert_ethernet_stats_item(port_list, s.second.bytes_recvd);
+        insert_ethernet_stats_item(port_list, s.second.packets_sent);
+        insert_ethernet_stats_item(port_list, s.second.packets_recvd);
+        insert_ethernet_stats_item(port_list, s.second.tx_pkt_errors);
+        insert_ethernet_stats_item(port_list, s.second.rx_pkt_errors);
+        //insert_ethernet_stats_item(port_list, s.second.mcast_bytes_sent);
+        //insert_ethernet_stats_item(port_list, s.second.mcast_bytes_recvd);
+        insert_ethernet_stats_item(port_list, s.second.mcast_pkts_sent);
+        insert_ethernet_stats_item(port_list, s.second.mcast_pkts_recvd);
+        //insert_ethernet_stats_item(port_list, s.second.bcast_bytes_sent);
+        //insert_ethernet_stats_item(port_list, s.second.bcast_bytes_recvd);
+        insert_ethernet_stats_item(port_list, s.second.bcast_pkts_sent);
+        insert_ethernet_stats_item(port_list, s.second.bcast_pkts_recvd);
+
+        tlvAirtiesEthStats->add_port_list(port_list);
     }
     return true;
 }
@@ -843,189 +1024,7 @@ bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m
         tlvAirtiesDeviceInfo->flags2().device_role_indication = TLV_BIT_DISABLE;
     }
     LOG(INFO) << "Added Device Info TLV";
-    return true;
-}
 
-//Global declarations for keeping previous cpu values and meminfo
-uint32_t cpu_idle_prev = 0, cpu_total_prev = 1;
-
-//Function to get the CPU temperature
-bool devicemetrics_get_cpu_temp(uint8_t &cpu_temp)
-{
-    char buf[32] = {0};
-    /* Open ACPI thermal zone sysfs file to read temperature. */
-    FILE *fd = fopen(CPU_TEMP_FILE, "r");
-    if (fd == NULL) {
-        LOG(ERROR) << "cannot open file" << CPU_TEMP_FILE;
-        return false;
-    }
-
-    if (fgets(buf, sizeof(buf), fd)) {
-        /* Temperature resides as milidegree Celcius as denoted in Linux ACPI docs. */
-        cpu_temp = atoi(buf) / 1000;
-    } else {
-        cpu_temp = 0;
-    }
-    fclose(fd);
-    return true;
-}
-
-//Function to get the CPU Load
-bool devicemetrics_get_cpu_load(uint8_t &cpu_load)
-{
-    uint8_t cpu_total = 0, cpu_idle = 0;
-    char buf[256] = {0};
-
-    FILE *fp = fopen(STAT_FILE, "r");
-    if (fp == NULL) {
-        LOG(ERROR) << "cannot open file" << STAT_FILE;
-        return false;
-    }
-
-    /* Get the first line of CPU stats. */
-    if (fgets(buf, sizeof(buf), fp)) {
-        int i = 0;
-        char *token, *ctx;
-
-        /* Check if we have expected string in read buffer. */
-        if (strncmp(buf, STAT_CPU_TXT, strlen(STAT_CPU_TXT)) != 0) {
-            LOG(ERROR) << "Incorrect string read in CPU stats.";
-            fclose(fp);
-            return false;
-        }
-        /* Point empty spaces and parse to get CPU stats: user nice system idle .. */
-        token = strtok_r(buf, " ", &ctx);
-        while (token != NULL) {
-            token = strtok_r(NULL, " ", &ctx);
-            if (token != NULL) {
-                cpu_total += atoi(token);
-                /* IDLE ticks are stored in 4th column according to Linux documentation. */
-                if (i == STAT_IDLE_IND) {
-                    cpu_idle = atoi(token);
-                }
-                i++;
-            }
-        }
-    }
-
-    LOG(INFO) << "cpu_idle_prev " << cpu_idle_prev << "cpu_idle " << cpu_idle << "cpu_total_prev "
-              << cpu_total_prev << "cpu_total " << cpu_total;
-
-    if (cpu_total > 0 && cpu_idle > 0 && cpu_total != cpu_total_prev) {
-        cpu_load = (1 - ((double)(cpu_idle - cpu_idle_prev) / (cpu_total - cpu_total_prev))) * 100;
-    }
-    /* Keep previous data to get delta between cpu load changes. */
-    cpu_idle_prev  = cpu_idle;
-    cpu_total_prev = cpu_total;
-    fclose(fp);
-    return true;
-}
-
-bool devicemetrics_get_meminfo(int32_t &memtotal, int32_t &memfree, int32_t &memcached)
-{
-    FILE *fp        = NULL;
-    char buf[32]    = {0};
-    int32_t membufs = -1;
-
-    fp = fopen(MEMINFO_FILE, "r");
-    if (fp == NULL) {
-        LOG(ERROR) << "cannot open file" << MEMINFO_FILE;
-        goto out;
-    }
-    /* Read meminfo file line by line to fetch free, cached and total sizes. */
-    while (fgets(buf, sizeof(buf), fp) != NULL) {
-        char *ctx = NULL, *fld = NULL, *val = NULL;
-        fld = strtok_r(buf, " ", &ctx);
-        if (fld == NULL) {
-            continue;
-        }
-        /* Point empty spaces and parse to get mem info. */
-        val = strtok_r(NULL, " ", &ctx);
-        if (val == NULL) {
-            continue;
-        }
-        if (strcmp(fld, MEMCACHED_TXT) == 0) {
-            memcached = atoi(val);
-        } else if (strcmp(fld, MEMFREE_TXT) == 0) {
-            memfree = atoi(val);
-        } else if (strcmp(fld, MEMTOTAL_TXT) == 0) {
-            memtotal = atoi(val);
-        } else if (strcmp(fld, MEMBUFFER_TXT) == 0) {
-            membufs = atoi(val);
-        }
-        if (memcached >= 0 && memfree >= 0 && memtotal >= 0 && membufs >= 0) {
-            /* We got all we need, break the loop. */
-            break;
-        }
-    }
-    if ((memcached < 0) || (memtotal < 0) || (memfree < 0) || (membufs < 0)) {
-        LOG(INFO) << "Failed to read meminfo fields memcache: " << memcached
-                  << "memtotal:  " << memtotal << "memfree: " << memfree << "membuffs: " << membufs;
-        goto out;
-    }
-    memcached = memcached + membufs;
-    fclose(fp);
-    return true;
-out:
-    if (fp != NULL) {
-        fclose(fp);
-    }
-    return false;
-}
-
-//Function to get the Device Uptime
-bool devicemetrics_get_uptime(struct timespec &ts)
-{
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        return false;
-    }
-    return true;
-}
-
-bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetrics> &tlvDevMetrics)
-{
-    std::string dm_path      = "Device.WiFi.Radio.";
-    std::string stats_string = "Stats.";
-    std::string rad_details_path;
-
-    auto db           = AgentDB::get();
-    int num_of_radios = 0;
-
-    num_of_radios = db->get_radios_list().size();
-    LOG(INFO) << "Device Metrics TLV: Number of radios  " << num_of_radios;
-
-    for (int radio_index = 1; radio_index <= num_of_radios; radio_index++) {
-        auto rad_list = tlvDevMetrics->create_radio_list();
-
-        //Radio ID
-        rad_details_path = dm_path + std::to_string(radio_index) + ".";
-
-        auto dev = beerocks::bpl::m_ambiorix_cl.get_object(rad_details_path);
-        if (!dev) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << rad_details_path;
-            return false;
-        }
-
-        std::string radio_id = "";
-        dev->read_child<>(radio_id, "BaseMACAddress");
-        rad_list->radio_id() = tlvf::mac_from_string(radio_id);
-
-        //Temperature
-        rad_details_path = dm_path + std::to_string(radio_index) + "." + stats_string;
-
-        auto temp_obj = beerocks::bpl::m_ambiorix_cl.get_object(rad_details_path);
-        if (!temp_obj) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path for temp "
-                       << rad_details_path;
-            return false;
-        }
-
-        uint8_t radio_temp = 0;
-        temp_obj->read_child<>(radio_temp, "Temperature");
-        rad_list->radio_temperature() = radio_temp;
-
-        tlvDevMetrics->add_radio_list(rad_list);
-    }
     return true;
 }
 
@@ -1034,64 +1033,28 @@ bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetri
  */
 bool tlvf_airties_utils::add_device_metrics(ieee1905_1::CmduMessageTx &cmdu_tx)
 {
-    struct timespec ts = {.tv_sec = 0, .tv_nsec = 0};
-    int32_t memcached = -1, memtotal = -1, memfree = -1;
-    uint8_t cpu_load = 0, cpu_temp = 0;
+    auto snap_dev = g_cached_metrics.snapshotDeviceMetrics();
 
-    auto tlvAirtiesDeviceMetrics = cmdu_tx.addClass<airties::tlvAirtiesDeviceMetrics>();
-    if (!tlvAirtiesDeviceMetrics) {
+    auto tlv = cmdu_tx.addClass<airties::tlvAirtiesDeviceMetrics>();
+    if (!tlv) {
         LOG(ERROR) << "Failed adding tlvAirtiesDeviceMetrics";
         return false;
     }
 
-    tlvAirtiesDeviceMetrics->vendor_oui() =
-        sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES);
-    tlvAirtiesDeviceMetrics->tlv_id() =
-        static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_METRICS);
+    tlv->vendor_oui()            = sVendorOUI(airties::tlvAirtiesMsgType::OUI_AIRTIES);
+    tlv->tlv_id()                = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_METRICS);
+    tlv->uptime_to_boot()        = snap_dev.uptime;
+    tlv->cpu_loadtime_platform() = snap_dev.cpu_load;
+    tlv->cpu_temperature()       = snap_dev.cpu_temp;
+    tlv->platform_totalmemory()  = std::max<int32_t>(0, snap_dev.memtotal);
+    tlv->platform_freememory()   = std::max<int32_t>(0, snap_dev.memfree);
+    tlv->platform_cachedmemory() = std::max<int32_t>(0, snap_dev.memcached);
 
-    /*
-     * If any of the following fields like cpu lod, meminfo returns
-     * error, the TLV will still be added except the respective values
-     * which threw error.
-     */
-    if (devicemetrics_get_uptime(ts)) {
-        tlvAirtiesDeviceMetrics->uptime_to_boot() = ts.tv_sec;
-    } else {
-        LOG(INFO) << "Unable to fetch the clock time for"
-                  << "updating the Device Metrics TLV";
-        tlvAirtiesDeviceMetrics->uptime_to_boot() = 0;
-    }
-
-    if (devicemetrics_get_cpu_load(cpu_load)) {
-        tlvAirtiesDeviceMetrics->cpu_loadtime_platform() = cpu_load;
-    } else {
-        LOG(INFO) << "Unable to fetch the CPU load for"
-                  << "updating the Device Metrics TLV";
-        tlvAirtiesDeviceMetrics->cpu_loadtime_platform() = 0;
-    }
-
-    if (devicemetrics_get_cpu_temp(cpu_temp)) {
-        tlvAirtiesDeviceMetrics->cpu_temperature() = cpu_temp;
-    } else {
-        LOG(INFO) << "Unable to fetch the CPU Temp for"
-                  << "updating the Device Metrics TLV";
-        tlvAirtiesDeviceMetrics->cpu_temperature() = 0;
-    }
-
-    if (devicemetrics_get_meminfo(memtotal, memfree, memcached)) {
-        tlvAirtiesDeviceMetrics->platform_totalmemory()  = memtotal;
-        tlvAirtiesDeviceMetrics->platform_freememory()   = memfree;
-        tlvAirtiesDeviceMetrics->platform_cachedmemory() = memcached;
-    } else {
-        LOG(INFO) << "Unable to fetch the Memory Info for"
-                  << "updating the Device Metrics TLV";
-        tlvAirtiesDeviceMetrics->platform_totalmemory()  = 0;
-        tlvAirtiesDeviceMetrics->platform_freememory()   = 0;
-        tlvAirtiesDeviceMetrics->platform_cachedmemory() = 0;
-    }
-    if (!devicemetrics_get_radio_info(tlvAirtiesDeviceMetrics)) {
-        LOG(INFO) << "Unable to fetch the radio Info for"
-                  << "updating the Device Metrics TLV";
+    for (auto &s : snap_dev.radio_info) {
+        auto radio                 = tlv->create_radio_list();
+        radio->radio_id()          = s.first;
+        radio->radio_temperature() = s.second;
+        tlv->add_radio_list(radio);
     }
 
     return true;
