@@ -1355,6 +1355,39 @@ bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
     LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce;
+
+    AmbiorixVariant arg(AMXC_VAR_ID_HTABLE);
+    arg.add_child("CCEAdvertisementEnabled", advertise_cce == 1);
+
+    for (const auto &vap_it : m_vapsExtInfo) {
+        const auto &ap_path = vap_it.second.path;
+
+        auto ap = m_ambiorix_cl.get_object(ap_path);
+        if (!ap) {
+            LOG(ERROR) << "Failed to get object for " << ap_path;
+            continue;
+        }
+
+        // skip if vap_type is not HOME
+        if (wbapi_utils::vap_type_from_custom_alias(wbapi_utils::get_custom_alias(*ap)) !=
+            eVapType::HOME) {
+            continue;
+        }
+
+        // skip if ap is disabled
+        bool ap_enabled = false;
+        if (!ap->read_child(ap_enabled, "Enable") || !ap_enabled) {
+            continue;
+        }
+
+        if (!m_ambiorix_cl.update_object(ap_path, arg)) {
+            LOG(ERROR) << "Failed to update CCEAdvertisementEnabled for " << ap_path;
+            return false;
+        }
+        LOG(DEBUG) << "set CCE indication for " << ap_path << " to "
+                   << (advertise_cce == 1 ? "enabled" : "disabled");
+    }
+
     return true;
 }
 
