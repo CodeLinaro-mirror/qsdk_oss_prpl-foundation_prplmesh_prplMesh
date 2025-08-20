@@ -1001,7 +1001,14 @@ bool Monitor::update_sta_stats(const std::chrono::steady_clock::time_point &time
 bool Monitor::update_ap_stats()
 {
     // Radio Statistics
-    auto &radio_stats = mon_db.get_radio_node()->get_stats();
+    auto *radio_node = mon_db.get_radio_node();
+    if (!radio_node) {
+        LOG(ERROR) << "update_ap_stats: radio_node is nullptr";
+        return false;
+    }
+
+    auto &radio_stats = radio_node->get_stats();
+    const auto &info  = radio_node->ap_metrics_reporting_info();
 
     // Update radio statistics
     if (!mon_wlan_hal->update_radio_stats(radio_stats.hal_stats)) {
@@ -1039,10 +1046,12 @@ bool Monitor::update_ap_stats()
         }
 
         /**
-         * If both transmitted and received bytes counters contain sensible data, then set the flag
+         * If ap_channel_utilization_reporting_threshold is equal to zero or
+         * both transmitted and received bytes counters contain sensible data, then set the flag
          * signaling that VAP statistics are available
          */
-        if ((vap_stats.hal_stats.rx_bytes_cnt > 0) && (vap_stats.hal_stats.tx_bytes_cnt > 0)) {
+        if (info.ap_channel_utilization_reporting_threshold == 0 ||
+            ((vap_stats.hal_stats.rx_bytes_cnt > 0) && (vap_stats.hal_stats.tx_bytes_cnt > 0))) {
             radio_stats.vap_stats_available = true;
         }
 
