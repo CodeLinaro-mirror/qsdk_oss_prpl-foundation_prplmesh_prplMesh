@@ -392,6 +392,7 @@ typedef struct {
 typedef struct {
     char hash[65];
     sMacAddr enrollee_mac;
+    char vap_interface[20];
 } sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT;
 
 typedef struct {

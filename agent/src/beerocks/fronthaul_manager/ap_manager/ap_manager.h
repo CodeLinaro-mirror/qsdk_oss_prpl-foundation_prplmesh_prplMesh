@@ -18,6 +18,7 @@
 #include <bcl/beerocks_timer_manager.h>
 #include <bcl/network/file_descriptor.h>
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
+#include <tlvf/wfa_map/tlv1905EncapDpp.h>
 
 #include <atomic>
 #include <list>
@@ -90,6 +91,59 @@ private:
      * @param cmdu_rx Received CMDU to be handled.
      */
     void handle_cmdu_ieee1905_1_message(ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    struct sEnrolleeInfo {
+        sMacAddr mac;
+        std::vector<uint8_t> auth_frame;
+        std::vector<uint8_t> hash;
+        wfa_map::tlv1905EncapDpp::sFlags flags;
+    };
+    std::map<std::array<uint8_t, 6>, sEnrolleeInfo> m_enrollee_auth_map;
+
+    bool m_hash_match_found = false;
+
+    /**
+     * @brief   Saves the DPP auth request from the em+ controller.
+     *
+     * @param   sta_mac MAC address of the enrollee.
+     * @param   auth_frame DPP auth request frame.
+     * @param   hash Hash of the DPP auth frame.
+     * @param   flags Flags of the DPP frame.
+     *
+     * This function is used to store the DPP auth request
+     * from the em+ controller so that it can be used later to send the DPP auth request.
+     * The function checks if the enrollee is already in the map, if not it adds it.
+     * If the enrollee is already in the map, it updates the auth_frame and hash.
+     */
+    void store_enrollee_auth_request(const sMacAddr &sta_mac,
+                                     const std::vector<uint8_t> &auth_frame,
+                                     const std::vector<uint8_t> &hash,
+                                     const wfa_map::tlv1905EncapDpp::sFlags &flags);
+
+    /**
+     * @brief Sends DPP authentication request to the enrollee.
+     *
+     * @param interface_name The interface name to send the DPP authentication request.
+     * @param channel The channel to send the DPP authentication request.
+     * @param dst The destination MAC address of the enrollee.
+     * @param frame The DPP authentication request frame.
+     * @param frame_len The length of the DPP authentication request frame.
+     * @param dpp_flags The flags of the DPP frame indicator.
+     * @return true on success and false otherwise.
+     *
+     * This function is used to send the DPP authentication request to the enrollee.
+     */
+    bool send_dpp_auth_to_enrollee(const std::string &vap_interface_name, uint8_t channel,
+                                   const sMacAddr &dst, const uint8_t *encap_body,
+                                   size_t encap_body_len,
+                                   const wfa_map::tlv1905EncapDpp::sFlags &dpp_flags);
+
+    /**
+     * @brief Handles Proxied Encap message received from controller.
+     *
+     * @param cmdu_rx Received CMDU to be handled.
+     */
+    void handle_proxied_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
      * @brief Handles DPP CCE Indication message.

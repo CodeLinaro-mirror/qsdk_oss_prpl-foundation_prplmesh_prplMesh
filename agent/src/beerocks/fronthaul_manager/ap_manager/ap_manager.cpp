@@ -22,6 +22,7 @@
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
 
 #include "tlvf/wfa_map/tlvClientInfo.h"
+#include <tlvf/ieee_802_11/sMacHeader.h>
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
 #include <tlvf/wfa_map/tlvBssid.h>
@@ -753,9 +754,118 @@ void ApManager::handle_cmdu_ieee1905_1_message(ieee1905_1::CmduMessageRx &cmdu_r
         handle_trigger_channel_switch_announcement_request(cmdu_rx);
         break;
     }
+    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE: {
+        handle_proxied_encap_dpp_message(cmdu_rx);
+        break;
+    }
 
     default:
         LOG(ERROR) << "Unknown CMDU message type: " << std::hex << int(cmdu_message_type);
+    }
+}
+
+void ApManager::store_enrollee_auth_request(const sMacAddr &sta_mac,
+                                            const std::vector<uint8_t> &auth_frame,
+                                            const std::vector<uint8_t> &hash,
+                                            const wfa_map::tlv1905EncapDpp::sFlags &flags)
+{
+    std::array<uint8_t, 6> mac_key;
+    tlvf::mac_to_array(sta_mac, mac_key.data());
+
+    auto &entry      = m_enrollee_auth_map[mac_key];
+    entry.mac        = sta_mac;
+    entry.auth_frame = auth_frame;
+    entry.hash       = hash;
+    entry.flags      = flags;
+
+    LOG(DEBUG) << "Stored Auth Request and Hash for " << tlvf::mac_to_string(sta_mac);
+}
+
+bool ApManager::send_dpp_auth_to_enrollee(const std::string &vap_iface_name, uint8_t channel,
+                                          const sMacAddr &dst, const uint8_t *encap_body,
+                                          size_t encap_body_len,
+                                          const wfa_map::tlv1905EncapDpp::sFlags &dpp_flags)
+{
+    if (!encap_body || encap_body_len == 0) {
+        LOG(ERROR) << "send_dpp_auth_to_enrollee: empty frame body";
+        return false;
+    }
+
+    const std::string dst_mac = tlvf::mac_to_string(dst);
+    auto fc                   = string_utils::int_to_hex_string(
+        ap_wlan_hal->generate_fc(
+            static_cast<uint8_t>(ieee802_11::sMacHeader::eType::MGMT),
+            static_cast<uint8_t>(ieee802_11::sMacHeader::eSubtypeMgmt::ACTION)),
+        4);
+
+    std::vector<uint8_t> frame;
+    frame.reserve(encap_body_len + 1);
+
+    if (dpp_flags.dpp_frame_indicator ==
+        wfa_map::tlv1905EncapDpp::eFrameType::DPP_PUBLIC_ACTION_FRAME) {
+        LOG(DEBUG) << "DPP Action Frame";
+        // Build full 802.11 Public Action frame body: 0x04 (category) + DPP action body
+        frame.push_back(0x04);
+    } else if (dpp_flags.dpp_frame_indicator == wfa_map::tlv1905EncapDpp::eFrameType::GAS_FRAME) {
+        LOG(DEBUG) << "DPP GAS Frame";
+    }
+
+    frame.insert(frame.end(), encap_body, encap_body + encap_body_len);
+    const std::string frame_hex = beerocks::string_utils::bytes_to_hex(frame.data(), frame.size());
+
+    if (!ap_wlan_hal->send_management_frame(dst_mac, fc, channel, frame_hex, vap_iface_name)) {
+        LOG(ERROR) << "send_management_frame failed (vap iface=" << vap_iface_name
+                   << ", ch=" << int(channel) << ", len=" << frame.size() << ")";
+        return false;
+    }
+
+    return true;
+}
+
+void ApManager::handle_proxied_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto encap_1905_dpp_tlv = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
+    if (!encap_1905_dpp_tlv) {
+        LOG(ERROR) << "Proxied encap dpp cmdu message doesn't contain 1905 encap Dpp tlv";
+        return;
+    }
+
+    auto dest_sta_mac_ptr = encap_1905_dpp_tlv->dest_sta_mac();
+    if (!dest_sta_mac_ptr) {
+        LOG(ERROR) << "1905 encap DPP TLV is missing destination STA MAC";
+        return;
+    }
+
+    auto auth_frame           = encap_1905_dpp_tlv->encapsulated_frame();
+    size_t auth_frame_len     = encap_1905_dpp_tlv->encapsulated_frame_length();
+    sMacAddr dest_sta_mac     = *dest_sta_mac_ptr;
+    auto dpp_inidicator_flags = encap_1905_dpp_tlv->frame_flags();
+    std::vector<uint8_t> frame_vec(auth_frame, auth_frame + auth_frame_len);
+
+    auto chirp_tlv = cmdu_rx.getClass<wfa_map::tlvDppChirpValue>();
+    if (!chirp_tlv) {
+        LOG(WARNING) << "No chirp TLV in AUTH_REQ message from controller.";
+        return;
+    }
+    std::vector<uint8_t> hash_vec(chirp_tlv->hash(), chirp_tlv->hash() + chirp_tlv->hash_length());
+
+    store_enrollee_auth_request(dest_sta_mac, frame_vec, hash_vec, dpp_inidicator_flags);
+
+    if (!m_hash_match_found) {
+        const auto &radio_info = ap_wlan_hal->get_radio_info();
+        uint8_t channel        = radio_info.channel;
+        for (const auto &vap_pair : radio_info.available_vaps) {
+            const auto &vap            = vap_pair.second;
+            std::string vap_iface_name = vap.bss;
+            LOG(DEBUG) << "VAP interface: " << vap_iface_name << " is on channel: " << channel
+                       << " with MAC: " << vap.mac;
+
+            if (!send_dpp_auth_to_enrollee(vap_iface_name, channel, dest_sta_mac, auth_frame,
+                                           auth_frame_len, dpp_inidicator_flags)) {
+                LOG(ERROR) << "Failed to send DPP auth frame to enrollee " << dest_sta_mac;
+                return;
+            }
+        }
     }
 }
 
@@ -3426,7 +3536,35 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
     case Event::DPP_PRESENCE_ANNOUNCEMENT: {
         LOG(DEBUG) << "DPP Presence Announcement";
         auto dpp_presence = static_cast<bwl::sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT *>(data);
+        auto binary_hash =
+            beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(dpp_presence->hash);
+        m_hash_match_found = false;
 
+        for (const auto &entry : m_enrollee_auth_map) {
+            const sEnrolleeInfo &info = entry.second;
+            if (info.hash.size() == binary_hash.size() &&
+                std::memcmp(info.hash.data(), binary_hash.data(), binary_hash.size()) == 0) {
+                m_hash_match_found     = true;
+                const auto &radio_info = ap_wlan_hal->get_radio_info();
+                uint8_t channel        = radio_info.channel;
+
+                LOG(INFO) << "Received DPP presence announcement VAP interface:"
+                          << dpp_presence->vap_interface << ", channel: " << int(channel)
+                          << ", mac: " << info.mac
+                          << ", auth_frame size: " << info.auth_frame.size();
+
+                if (!send_dpp_auth_to_enrollee(dpp_presence->vap_interface, channel, info.mac,
+                                               info.auth_frame.data(), info.auth_frame.size(),
+                                               info.flags)) {
+                    LOG(ERROR) << "send_management_frame failed (vap iface="
+                               << dpp_presence->vap_interface << ", ch=" << int(channel)
+                               << ", len=" << info.auth_frame.size() << ")";
+                    LOG(ERROR) << "Failed to send DPP auth frame to enrollee " << info.mac;
+                    return false;
+                }
+                break;
+            }
+        }
         auto cmdu_tx_header =
             cmdu_tx.create(0, ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE);
         if (!cmdu_tx_header) {
@@ -3440,8 +3578,6 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             return false;
         }
 
-        auto binary_hash =
-            beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(dpp_presence->hash);
         chirp_value_tlv->set_hash(binary_hash.data(), binary_hash.size());
         chirp_value_tlv->hash_length() = binary_hash.size();
         // establish

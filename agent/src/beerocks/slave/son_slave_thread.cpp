@@ -286,6 +286,8 @@ bool slave_thread::thread_init()
             ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE,
+            ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE,
+            ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
             // Controller's messages which are used to update connectivity
             ieee1905_1::eMessageType::ACK_MESSAGE,
             ieee1905_1::eMessageType::LINK_METRIC_QUERY_MESSAGE,

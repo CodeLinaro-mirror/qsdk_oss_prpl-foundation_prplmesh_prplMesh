@@ -5,6 +5,8 @@
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
 
 namespace beerocks {
+constexpr uint8_t DPP_FRAME_AUTH_REQUEST  = 0;
+constexpr uint8_t DPP_FRAME_AUTH_RESPONSE = 1;
 
 ProxyAgentDppTask::ProxyAgentDppTask(slave_thread &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx)
     : Task(eTaskType::PROXY_AGENT_DPP), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx)
@@ -56,7 +58,7 @@ void ProxyAgentDppTask::handle_chirp_notification(ieee1905_1::CmduMessageRx &cmd
         return;
     }
 
-    // code for comparison of the hash will be added as part of PPM-2160.
+    // hash comparison and validation moved to AP manager as part of PPM-3439.
     // chirp notification message will be sent to the controller only if the hash comparison fails.
     // Otherwise authentication request message will be forwarded to ap_manager and then to the enrollee.
     m_btl_ctx.forward_cmdu_to_controller(cmdu_rx);
@@ -74,9 +76,8 @@ void ProxyAgentDppTask::handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac
 
     auto db = AgentDB::get();
     if (src_mac == db->controller_info.bridge_mac) {
-        // TO DO: save DPP authentication request frame.
-        if (encap_1905_dpp_tlv->frame_type() == 0) {
-            // TO DO: handle DPP authentication request message
+        // Handle the auth request frame in AP Manager.
+        if (encap_1905_dpp_tlv->frame_type() == DPP_FRAME_AUTH_REQUEST) {
             // forward proxy_encap_dpp messages originating from controller to ap_manager.
             for (auto radio : db->get_radios_list()) {
                 auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio->front.iface_name);
@@ -101,7 +102,7 @@ void ProxyAgentDppTask::handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac
     // forward proxy encap dpp cmdu message originating from ap_manager to controller.
     if (src_mac != db->controller_info.bridge_mac && src_mac == net::network_utils::ZERO_MAC) {
         // save ap_manager fd that sent DPP Authentication Response.
-        if (encap_1905_dpp_tlv->frame_type() == 1) {
+        if (encap_1905_dpp_tlv->frame_type() == DPP_FRAME_AUTH_RESPONSE) {
             active_onboarding_ap_manager_fd = fd;
         }
         m_btl_ctx.forward_cmdu_to_controller(cmdu_rx);
