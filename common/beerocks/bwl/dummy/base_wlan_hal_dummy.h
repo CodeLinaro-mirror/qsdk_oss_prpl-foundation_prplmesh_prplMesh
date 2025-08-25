@@ -115,6 +115,12 @@ protected:
 
     static const int predefined_vaps_num = 4;
 
+    uint16_t generate_fc(uint8_t type, uint8_t subtype, bool is_protected = false,
+                         bool retry = false)
+    {
+        LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+        return false;
+    }
     // Private data-members:
 private:
     const uint32_t AP_ENABELED_TIMEOUT_SEC           = 15;

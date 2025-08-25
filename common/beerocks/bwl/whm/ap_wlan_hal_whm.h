@@ -163,6 +163,9 @@ public:
     virtual bool configure_service_priority(const uint8_t *data) override;
     virtual bool
     start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) override;
+    virtual bool send_management_frame(const std::string &dst_mac, const std::string &fc,
+                                       uint8_t channel, const std::string &frame_hex,
+                                       const std::string &vap_iface_name) override;
     // Protected methods:
 protected:
     // Overload for AP events

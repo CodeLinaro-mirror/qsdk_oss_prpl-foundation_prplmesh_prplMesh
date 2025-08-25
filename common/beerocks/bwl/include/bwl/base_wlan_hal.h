@@ -11,6 +11,7 @@
 
 #include "base_802_11_defs.h"
 #include "base_wlan_hal_types.h"
+#include <tlvf/ieee_802_11/sMacHeader.h>
 
 #include <bcl/beerocks_thread_safe_queue.h>
 #include <bcl/son/son_wireless_utils.h>
@@ -159,6 +160,35 @@ public:
 
     // Public getter methods:
 public:
+    /*
+     * brief Generates a frame control field.
+     *
+     * @param type Frame type.
+     * @param subtype Frame subtype.
+     * @param is_protected Whether the frame is protected.
+     * @param retry Whether the frame is a retry frame.
+     *
+     * @return The generated frame control field.
+     */
+    uint16_t generate_fc(uint8_t type, uint8_t subtype, bool is_protected = false,
+                         bool retry = false)
+    {
+        ieee802_11::sMacHeader::sFrameControlB1 fc1{};
+        ieee802_11::sMacHeader::sFrameControlB2 fc2{};
+
+        fc1.protocol_version = 0;
+        fc1.type             = type;
+        fc1.subtype          = subtype;
+
+        if (retry) {
+            fc2.unused |= (1 << 3); // bit 11
+        }
+        if (is_protected) {
+            fc2.unused |= (1 << 6); // bit 14
+        }
+        return static_cast<uint16_t>((*(reinterpret_cast<uint8_t *>(&fc1)) << 8) | fc2.unused);
+    }
+
     /*!
      * Returns the type of the HAL instance.
      */

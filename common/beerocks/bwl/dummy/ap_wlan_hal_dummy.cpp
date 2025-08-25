@@ -909,6 +909,14 @@ bool ap_wlan_hal_dummy::update_mld_unit(std::string ssid_alias, int8_t mld_unit)
     return false;
 }
 
+bool ap_wlan_hal_dummy::send_management_frame(const std::string &dst_mac, const std::string &fc,
+                                              uint8_t channel, const std::string &frame_hex,
+                                              const std::string &vap_iface_name)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace dummy
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,

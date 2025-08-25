@@ -2077,6 +2077,9 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         strncpy(msg->hash, parsed_obj["hash"].c_str(), sizeof(msg->hash) - 1);
         msg->hash[sizeof(msg->hash) - 1] = '\0';
 
+        strncpy(msg->vap_interface, interface.c_str(), sizeof(msg->vap_interface) - 1);
+        msg->vap_interface[sizeof(msg->vap_interface) - 1] = '\0';
+
         // Add the message to the queue
         event_queue_push(event, msg_buff);
         break;
@@ -2663,6 +2666,35 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
         event_queue_push(Event::AP_Attached);
     }
 
+    return true;
+}
+
+bool ap_wlan_hal_whm::send_management_frame(const std::string &dst_mac, const std::string &fc,
+                                            uint8_t channel, const std::string &frame_hex,
+                                            const std::string &vap_iface_name)
+{
+    std::string wifi_ap_path;
+    if (!m_ambiorix_cl.resolve_path(wbapi_utils::search_path_ap_by_iface(vap_iface_name),
+                                    wifi_ap_path)) {
+        LOG(ERROR) << "Failed to resolve AP path!";
+        return false;
+    }
+
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
+    args.add_child("mac", dst_mac);
+    args.add_child("fc", fc);
+    args.add_child("channel", channel);
+    args.add_child("data", frame_hex);
+
+    LOG(INFO) << "sendManagementFrame info: mac=" << dst_mac << " fc=" << fc
+              << " channel=" << int(channel) << " data=" << frame_hex
+              << " iface_name=" << vap_iface_name;
+
+    bool ret = m_ambiorix_cl.call(wifi_ap_path, "sendManagementFrame", args, result);
+    if (!ret) {
+        LOG(ERROR) << "sendManagementFrame() failed!" << wifi_ap_path;
+        return false;
+    }
     return true;
 }
 
