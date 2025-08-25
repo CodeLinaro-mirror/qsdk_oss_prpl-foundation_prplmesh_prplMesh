@@ -755,7 +755,7 @@ public:
 
     /**
      * @brief Add Current Operating Class to the Device.WiFi.DataElements Data model.
-     *        Data model path example: "Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses".
+     *        Data model path example: "Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile".
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class.
      * @param[in] op_class Current operating class.
@@ -767,7 +767,7 @@ public:
                               int8_t tx_power);
 
     /**
-     * @brief Removes all CurrentOperatingClasses instances from the Data Model.
+     * @brief Removes all CurrentOperatingClassProfile instances from the Data Model.
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
      * @return true on success and false otherwise.

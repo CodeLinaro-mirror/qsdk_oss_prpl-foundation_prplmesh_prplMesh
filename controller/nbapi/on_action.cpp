@@ -232,7 +232,7 @@ static uint64_t get_uint64_from_bss_color_bitmap(const std::string &decimal_str)
 }
 
 /**
-* @brief Overwrite an action 'get' aka 'read' for Device.WiFi.DataElements.Network.AccessPointCommit
+* @brief Overwrite an action 'get' aka 'read' for CONTROLLER_ROOT_DM.Network.AccessPointCommit
 * data element, that when this element is triggered the bss information from
 * Device.WiFi.DataElements.Network.AccessPoint and Device.WiFi.DataElements.Network.AccessPoint.n.Security,
 * where n = element's index, objects will be stored in the sAccessPoint structure.
@@ -1268,7 +1268,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
 std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
 {
     const std::vector<beerocks::nbapi::sFunctions> functions_list = {
-        {"access_point_commit", DATAELEMENTS_ROOT_DM ".Network.AccessPointCommit",
+        {"access_point_commit", CONTROLLER_ROOT_DM ".Network.AccessPointCommit",
          access_point_commit},
         {"client_steering", DATAELEMENTS_ROOT_DM ".Network.ClientSteering", client_steering},
         {"trigger_scan", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ScanTrigger", trigger_scan},

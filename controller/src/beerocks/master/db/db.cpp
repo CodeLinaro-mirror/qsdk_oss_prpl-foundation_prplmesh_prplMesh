@@ -1541,8 +1541,8 @@ bool db::set_internal_wifi7_radio_capabilities(
     wfa_map::cRadioWifi7Capabilities &radio_wifi7_capabilities, Agent::sRadio &radio, bool is_bsta)
 {
 
-    auto wifi7_support = is_bsta ? radio_wifi7_capabilities.bsta_modes_support()
-                                 : radio_wifi7_capabilities.ap_modes_support();
+    auto wifi7_support      = is_bsta ? radio_wifi7_capabilities.bsta_modes_support()
+                                      : radio_wifi7_capabilities.ap_modes_support();
     auto wifi7_capabilities = is_bsta ? radio_wifi7_capabilities.bsta_wifi7_capabilities()
                                       : radio_wifi7_capabilities.ap_wifi7_capabilities();
 
@@ -4788,24 +4788,23 @@ bool db::load_persistent_db_clients()
             std::begin(vector_of_clients), std::end(vector_of_clients),
             [&](const std::pair<std::string, std::unordered_map<std::string, std::string>> &a,
                 const std::pair<std::string, std::unordered_map<std::string, std::string>> &b) {
-                auto get_timestamp_sec = [](const std::pair<
-                                             std::string,
-                                             std::unordered_map<std::string, std::string>>
-                                                &client) {
-                    // A 2nd validation to assert if clients doesn't have a timestamp value
-                    // since this meant to deduce the best candidate between two unaging clients.
-                    // Returning db::timestamp_from_seconds(0) will automatically prioritize the
-                    // trailing client assuming it has a timestamp value ofc.
-                    auto timestamp_it = client.second.find(TIMESTAMP_STR);
-                    if (timestamp_it == client.second.end()) {
-                        return db::timestamp_from_seconds(0);
-                    }
+                auto get_timestamp_sec =
+                    [](const std::pair<std::string, std::unordered_map<std::string, std::string>>
+                           &client) {
+                        // A 2nd validation to assert if clients doesn't have a timestamp value
+                        // since this meant to deduce the best candidate between two unaging clients.
+                        // Returning db::timestamp_from_seconds(0) will automatically prioritize the
+                        // trailing client assuming it has a timestamp value ofc.
+                        auto timestamp_it = client.second.find(TIMESTAMP_STR);
+                        if (timestamp_it == client.second.end()) {
+                            return db::timestamp_from_seconds(0);
+                        }
 
-                    int64_t timestamp_sec = beerocks::string_utils::stoi(timestamp_it->second);
-                    auto timestamp        = db::timestamp_from_seconds(timestamp_sec);
+                        int64_t timestamp_sec = beerocks::string_utils::stoi(timestamp_it->second);
+                        auto timestamp        = db::timestamp_from_seconds(timestamp_sec);
 
-                    return timestamp;
-                };
+                        return timestamp;
+                    };
                 auto is_not_aging =
                     [&](const std::pair<std::string, std::unordered_map<std::string, std::string>>
                             &client) -> bool {
@@ -6573,10 +6572,10 @@ std::string db::dm_add_steer_event()
         return {};
     }
 
-    std::string event_path = m_ambiorix_datamodel->add_instance(DATAELEMENTS_ROOT_DM ".SteerEvent");
+    std::string event_path = m_ambiorix_datamodel->add_instance(CONTROLLER_ROOT_DM ".SteerEvent");
 
     if (event_path.empty() && NBAPI_ON) {
-        LOG(ERROR) << "Failed to add instance " DATAELEMENTS_ROOT_DM ".SteerEvent";
+        LOG(ERROR) << "Failed to add instance " CONTROLLER_ROOT_DM ".SteerEvent";
         return {};
     }
     m_steer_events.push(event_path);
@@ -6679,6 +6678,22 @@ std::string db::dm_add_association_event(const sMacAddr &bssid, const sMacAddr &
         LOG(ERROR) << "Failed to set " << path_association_event << ".StatusCode: " << 0;
         return {};
     }
+
+    if (!m_stations.count(client_mac)) {
+        LOG(ERROR) << "No client with mac: " << client_mac << " in m_stations";
+        return {};
+    }
+
+    std::shared_ptr<Station> sta = m_stations.get(client_mac);
+    if (!m_ambiorix_datamodel->set(path_association_event, "OpClass",
+                                   static_cast<uint32_t>(sta->operating_class))) {
+        LOG(ERROR) << "Failed to set " << path_association_event << ".OpClass: " << 0;
+    }
+    if (!m_ambiorix_datamodel->set(path_association_event, "Channel",
+                                   static_cast<uint32_t>(sta->wifi_channel.get_channel()))) {
+        LOG(ERROR) << "Failed to set " << path_association_event << ".Channel: " << 0;
+    }
+
     return path_association_event;
 }
 
@@ -6741,9 +6756,9 @@ bool db::add_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8
         return true;
     }
 
-    // Prepare path to the CurrentOperatingClasses instance
-    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses
-    auto op_class_path = radio_path + ".CurrentOperatingClasses";
+    // Prepare path to the CurrentOperatingClassProfile instance
+    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile
+    auto op_class_path = radio_path + ".CurrentOperatingClassProfile";
 
     auto op_class_path_instance = m_ambiorix_datamodel->add_instance(op_class_path);
     if (op_class_path_instance.empty()) {
@@ -6754,21 +6769,21 @@ bool db::add_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8
     m_ambiorix_datamodel->set_current_time(op_class_path_instance);
 
     //Set Operating class
-    //Data model path: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses.Class
+    //Data model path: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile.Class
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "Class", op_class)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".Class: " << op_class;
         return false;
     }
 
     //Set Operating channel
-    //Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses.Channel
+    //Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile.Channel
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "Channel", op_channel)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".Channel: " << op_channel;
         return false;
     }
 
     //Set TX power
-    //Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses.TxPower
+    //Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile.TxPower
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "TxPower", tx_power)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".TxPower: " << tx_power;
         return false;
@@ -6790,9 +6805,9 @@ bool db::remove_current_op_classes(const sMacAddr &radio_mac)
         return true;
     }
 
-    // Prepare path to the CurrentOperatingClasses instance
-    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses
-    auto op_class_path = radio_path + ".CurrentOperatingClasses";
+    // Prepare path to the CurrentOperatingClassProfile instance
+    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile
+    auto op_class_path = radio_path + ".CurrentOperatingClassProfile";
 
     if (!m_ambiorix_datamodel->remove_all_instances(op_class_path)) {
         LOG(ERROR) << "Failed to remove all instances for: " << op_class_path;

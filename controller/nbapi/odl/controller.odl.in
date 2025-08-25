@@ -351,69 +351,6 @@
                         }
                     }
                 }
-    @CONTROLLER_ROOT_DM_Footer@ 
-
-
-    /* --- TR-181 DataElements DM --- */
-
-    @DATAELEMENTS_ROOT_DM_Header@
-
-                // Define controller.Network element
-                object Network {
-
-                    // Define string variable
-                    %read-only string ID = "0";
-
-                    // Define date variable in format YYYY-MM-DDThh:mm:ssZ
-                    %read-only datetime TimeStamp = "2020-08-31T11:22:39Z";
-
-                    %read-only string ControllerID = "0";
-
-                    /*
-                        Network devices list.
-                    */
-                    object Device[] {
-                        counted with DeviceNumberOfEntries;
-                    }
-
-                    object AccessPoint[] {
-                        counted with AccessPointNumberOfEntries;
-                    }
-                    
-                    void AccessPointCommit();
-
-                    // Global network wide enable
-                    bool Enable = true; 
-
-                    // Global network wide enable
-                    object X-PRPL_ORG_Group[] {
-                        //name of the group (private / guest, etc...)
-                        %read-only string Name = "";
-
-                        //  Enable of the group
-                        bool Enable;
-                    }
-
-                    void SetServicePrioritization();
-
-                    void ClientSteering(
-                        %in %mandatory string station_mac,
-                        %in %mandatory string target_bssid
-                    );
-
-                    %read-only object MultiAPSteeringSummaryStats {
-                        %read-only uint64 NoCandidateAPFailures = 0;
-                        %read-only uint64 BlacklistAttempts = 0;
-                        %read-only uint64 BlacklistSuccesses = 0;
-                        %read-only uint64 BlacklistFailures = 0;
-                        %read-only uint64 BTMAttempts = 0;
-                        %read-only uint64 BTMSuccesses = 0;
-                        %read-only uint64 BTMFailures = 0;
-                        %read-only uint64 BTMQueryResponses = 0;
-                    }
-                    /* Update all unassociated stations stats, from all agents and all radios */
-                    bool UpdateUnassociatedStationsStats();
-                }
                 %persistent %read-only object SteerEvent[] {
                     counted with SteerEventNumberOfEntries;
                     %persistent %read-only string DeviceId = "00:00:00:00:00:00";
@@ -452,8 +389,74 @@
                         ];
                     }
                 }
+
                 %read-only object AgentConnectedEvent[];
                 %read-only object AgentDisconnectedEvent[];
+
+                 object AccessPoint[] {
+                        counted with AccessPointNumberOfEntries;
+                 }
+                    
+
+    @CONTROLLER_ROOT_DM_Footer@ 
+
+
+    /* --- TR-181 DataElements DM --- */
+
+    @DATAELEMENTS_ROOT_DM_Header@
+
+                // Define controller.Network element
+                object Network {
+
+                    // Define string variable
+                    %read-only string ID = "0";
+
+                    // Define date variable in format YYYY-MM-DDThh:mm:ssZ
+                    %read-only datetime TimeStamp = "2020-08-31T11:22:39Z";
+
+                    %read-only string ControllerID = "0";
+
+                    /*
+                        Network devices list.
+                    */
+                    object Device[] {
+                        counted with DeviceNumberOfEntries;
+                    }
+
+                    void AccessPointCommit();
+
+                    // Global network wide enable
+                    bool Enable = true; 
+
+                    // Global network wide enable
+                    object X-PRPL_ORG_Group[] {
+                        //name of the group (private / guest, etc...)
+                        %read-only string Name = "";
+
+                        //  Enable of the group
+                        bool Enable;
+                    }
+
+                    void SetServicePrioritization();
+
+                    void ClientSteering(
+                        %in %mandatory string station_mac,
+                        %in %mandatory string target_bssid
+                    );
+
+                    %read-only object MultiAPSteeringSummaryStats {
+                        %read-only uint64 NoCandidateAPFailures = 0;
+                        %read-only uint64 BlacklistAttempts = 0;
+                        %read-only uint64 BlacklistSuccesses = 0;
+                        %read-only uint64 BlacklistFailures = 0;
+                        %read-only uint64 BTMAttempts = 0;
+                        %read-only uint64 BTMSuccesses = 0;
+                        %read-only uint64 BTMFailures = 0;
+                        %read-only uint64 BTMQueryResponses = 0;
+                    }
+                    /* Update all unassociated stations stats, from all agents and all radios */
+                    bool UpdateUnassociatedStationsStats();
+                }
 
     @DATAELEMENTS_ROOT_DM_Footer@ 
 

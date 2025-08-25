@@ -18,6 +18,5 @@
         %read-only uint32 SignalStrength = 0 {
             on action validate call check_range [0, 220];
         }
-        %read-only datetime TimeStamp;
     }
 }

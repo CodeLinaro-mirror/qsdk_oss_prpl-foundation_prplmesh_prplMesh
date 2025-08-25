@@ -482,11 +482,11 @@ class PrplMeshBaseTest(bft_base_test.BftBaseTest):
     def configure_ssids_clear(self):
         '''Clear the SSID configuration.
 
-        Removes all Device.WiFi.DataElements.Network.AccessPoint instances in the northbound API.
+        Removes all X_PRPLWARE-COM_Controller.Network.AccessPoint instances in the northbound API.
         '''
         controller = self.dev.lan.controller_entity
         access_points = controller.nbapi_get_list_instances(
-            'Device.WiFi.DataElements.Network.AccessPoint')
+            'X_PRPLWARE-COM_Controller.Network.AccessPoint')
         for access_point_path in access_points:
             controller.nbapi_command(access_point_path, '_del', {})
 
@@ -571,7 +571,7 @@ class PrplMeshBaseTest(bft_base_test.BftBaseTest):
                        bands: Dict = None) -> str:
         '''Configure an SSID.
 
-        Adds a Device.WiFi.DataElements.Network.AccessPoint instance and configures it with
+        Adds a CONTROLLER_ROOD_DM.Network.AccessPoint instance and configures it with
         the given SSID, bands and multi AP mode.
         If parameter 'bands' was not passed the SSID will be enabled on all bands.
         If one of the band was not specified its value will be set to false.
@@ -586,7 +586,7 @@ class PrplMeshBaseTest(bft_base_test.BftBaseTest):
         Returns
         -------
         str
-            Path to the Device.WiFi.DataElements.Network.AccessPoint instance.
+            Path to the CONTROLLER_ROOD_DM.Network.AccessPoint instance.
         '''
         if not bands:
             bands = {"Band5GH": True, "Band6G":  True, "Band5GL": True, "Band2_4G": True}
@@ -602,8 +602,8 @@ class PrplMeshBaseTest(bft_base_test.BftBaseTest):
             "Enable": True,  # Enable AP set
         }}
         new_inst = controller.nbapi_command(
-            "Device.WiFi.DataElements.Network.AccessPoint", "_add", params)
-        return "Device.WiFi.DataElements.Network.AccessPoint." + new_inst["name"]
+            "X_PRPLWARE-COM_Controller.Network.AccessPoint", "_add", params)
+        return "X_PRPLWARE-COM_Controller.Network.AccessPoint." + new_inst["name"]
 
     def configure_ssids(self, ssids: [str], clear_old: bool = True):
         '''Configure SSIDs on all agents.

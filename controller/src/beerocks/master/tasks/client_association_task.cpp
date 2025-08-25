@@ -118,6 +118,7 @@ bool client_association_task::send_sta_capability_query(const sMacAddr &src_mac,
 bool client_association_task::handle_cmdu_1905_client_capability_report_message(
     const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
+    MYLOG("handle_cmdu_1905_client_capability_report_message");
     auto mid                          = cmdu_rx.getMessageId();
     auto client_capability_report_tlv = cmdu_rx.getClass<wfa_map::tlvClientCapabilityReport>();
     if (!client_capability_report_tlv) {

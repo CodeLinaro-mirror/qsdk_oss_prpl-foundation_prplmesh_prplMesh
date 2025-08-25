@@ -34,6 +34,8 @@
                 %read-only string ClientCapabilities; /* The frame body of the most recently
                                                        received (Re)Association Request frame
                                                        from this client (STA) */
+                %read-only uint32 OpClass;
+                %read-only uint32 Channel;
             }
         }
     }

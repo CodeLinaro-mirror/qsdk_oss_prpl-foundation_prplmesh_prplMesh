@@ -6,6 +6,19 @@
  * See LICENSE file for more details.
  */
 
+#define MYLOG(CONTENT)                                                                             \
+    {                                                                                              \
+        LOG(DEBUG) << "(my) " << CONTENT;                                                          \
+        std::ofstream file("/tmp/mylog", std::ios_base::app);                                      \
+        if (file.is_open()) {                                                                      \
+            file << CONTENT << std::endl;                                                          \
+            file.close();                                                                          \
+        } else {                                                                                   \
+            LOG(DEBUG) << "(my) failed to open a log file";                                        \
+        }                                                                                          \
+                                                                                                   \
+    }
+
 #ifndef _BEEROCKS_DEFINES_H_
 #define _BEEROCKS_DEFINES_H_
 
