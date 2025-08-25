@@ -74,6 +74,12 @@ ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
 # Enable when hostapd on this target supports it
 ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
+# Configure Operating Standards
+ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g,n,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
+
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
 # switch channels when we ask it to. Channels 1 and 48 were chosen
