@@ -1,0 +1,39 @@
+@startuml
+participant Controller
+participant "backhaul_manager (BH)" as BH
+participant "ap_manager (FH)" as FH
+participant "pWHM" as pwhm
+
+== 1. VAPs Creation ==
+pwhm -> pwhm: Create VAPs objects on Device.WiFi.AccessPoint.[1-8]
+note left: APs are created by pWHM (making conf and starting hostapd) \nwhen Device.WiFi.AccessPoint.*.Enable=1 is done
+
+== 2. Onboarding and VAP Configuration ==
+Controller -> BH: Send WSC M2 configuration message
+BH -> FH: ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST
+
+note right: ap_wlan_hal_whm::update_vap_credentials()
+
+alt Create new vap for wildcard bssid
+    FH -> pwhm: addVAPIntf
+    FH -> pwhm: update_object (bridge, IEEE80211k, WDSEnable)   
+else VAP exist or not wildcard
+    FH -> FH: update VAP and SSID paths
+end
+
+alt Existing VAP
+    FH -> pwhm: update_object (Enable, MultiAPType, SSIDAdvertisementEnabled)
+end
+
+alt Configuration changed (for ex. new SSID)
+    FH -> pwhm: update_object (SSID, ModeEnabled, EncryptionMode, KeyPassPhrase, SAEPassphrase) (if needed)
+end
+
+alt VAP previously torn down
+    FH -> pwhm: update_object (Enable = true)
+end
+
+FH -> pwhm: get_param (Status)
+FH -> FH: process_ap_event (send Event::AP_Enabled or Event::AP_Disabled)
+
+@enduml
