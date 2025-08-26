@@ -261,6 +261,19 @@ public:
     } sAssociatedStaTrafficStats;
 
     typedef struct {
+        sMacAddr bssid;
+        uint32_t packets_sent             = 0;
+        uint32_t packets_received         = 0;
+        uint32_t packet_sent_errors       = 0;
+        uint32_t unicast_bytes_sent       = 0;
+        uint32_t unicast_bytes_received   = 0;
+        uint32_t multicast_bytes_sent     = 0;
+        uint32_t multicast_bytes_received = 0;
+        uint32_t broadcast_bytes_sent     = 0;
+        uint32_t broadcast_bytes_received = 0;
+    } sAffiliatedApMetrics;
+
+    typedef struct {
         uint64_t bytes_sent          = 0;
         uint64_t bytes_received      = 0;
         uint32_t packets_sent        = 0;
@@ -2005,6 +2018,16 @@ public:
     bool set_vap_stats_info(const sMacAddr &bssid, uint64_t uc_tx_bytes, uint64_t uc_rx_bytes,
                             uint64_t mc_tx_bytes, uint64_t mc_rx_bytes, uint64_t bc_tx_bytes,
                             uint64_t bc_rx_bytes);
+
+    /**
+     * @brief Set Affiliated AP metrics info
+     *
+     * @param[in] src_mac AL MAC address of Agent
+     * @param[in] affl_ap_metrics Affiliated AP Metrics filled from TLV
+     * @return true on success, otherwise false.
+     */
+    bool dm_set_affiliated_ap_metrics(const sMacAddr &src_mac,
+                                      sAffiliatedApMetrics &affl_ap_metrics);
 
     bool commit_persistent_db_changes();
     bool is_commit_to_persistent_db_required();

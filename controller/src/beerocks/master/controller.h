@@ -550,7 +550,15 @@ private:
     */
     bool handle_tlv_associated_wifi6_sta_status_report(const sMacAddr &src_mac,
                                                        ieee1905_1::CmduMessageRx &cmdu_rx);
-
+    /**
+     * @brief Handles Tlv of Affiliated AP Metrics (tlvApMetrics).
+     *
+     * @param src_mac Source MAC address.
+     * @param cmdu_rx AP Metrics Response message.
+     * @return True on success, false otherwise.
+    */
+    bool handle_tlv_affiliated_ap_metrics(const sMacAddr &src_mac,
+                                          ieee1905_1::CmduMessageRx &cmdu_rx);
     /**
      * @brief Handles Tlv of Affiliated STA Metrics (tlvAffiliatedStaMetrics).
      *
@@ -560,6 +568,7 @@ private:
     */
     bool handle_tlv_affiliated_sta_metrics(const sMacAddr &src_mac,
                                            ieee1905_1::CmduMessageRx &cmdu_rx);
+
     /**
      * @brief Handles Tlv of Profile-2 AP Capability (tlvProfile2ApCapability).
      *
