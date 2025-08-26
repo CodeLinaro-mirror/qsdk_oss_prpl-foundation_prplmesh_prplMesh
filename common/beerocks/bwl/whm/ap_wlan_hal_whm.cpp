@@ -885,23 +885,10 @@ bool ap_wlan_hal_whm::set_tx_power_limit(int tx_pow_limit)
      * substracting 2dBm is approximated to substracting 40% (multiplication by 0.6)
      * substracting 3dBm is identical to substracting 50%    (multiplication by 0.5)
      */
-    /*
-     * regarding the trailing end:
-     * 5% means (minus 13dBm)
-     * 4%       (minus 14dBm)
-     * 3%       (minus 15dBm)
-     *    (minus 16dBm) is 2.5% - tr-181 Device.Radio.{i}.TransmitPower requires integers, so round down to 2
-     * 2%       (minus 17dBm)
-     * 1%       (minus 20dBm)
-     * mapping both 16dBm and 17dBm deltas to 2% (17dBm delta):
-     * 2 repeats in pow_lvls_rel because the index is also the dBm delta: 16 and 17 dBm delta both map to 2%
-     * mapping anything above a 17dBm delta (lower than 2%) to 1%
-     */
 
     auto max_pow_abs = m_radio_info.channels_list[m_radio_info.channel].tx_power_dbm;
 
-    const std::vector<int8_t> pow_lvls_rel = {100, 80, 60, 50, 40, 30, 25, 20, 15, 12,
-                                              10,  8,  6,  5,  4,  3,  2,  2,  1};
+    const std::vector<int8_t> pow_lvls_rel = {100, 80, 60, 50, 40, 30, 25, 20, 16, 12, 10, 8, 6};
 
     uint8_t max_selector = pow_lvls_rel.size() - 1;
     uint8_t selector     = 0;
