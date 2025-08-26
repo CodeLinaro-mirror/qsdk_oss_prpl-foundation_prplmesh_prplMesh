@@ -208,8 +208,8 @@ void monitor_stats::send_associated_sta_link_metrics(const sMeasurementsRequest 
 
     // TODO: MAC data rate and Phy rate are not necessarily the same
     // https://github.com/prplfoundation/prplMesh/issues/1195
-    bss_info.downlink_estimated_mac_data_rate_mbps = sta_stats.rx_phy_rate_100kb_avg / 10;
-    bss_info.uplink_estimated_mac_data_rate_mbps   = sta_stats.tx_phy_rate_100kb_avg / 10;
+    bss_info.downlink_estimated_mac_data_rate_mbps = sta_stats.tx_phy_rate_100kb_avg / 10;
+    bss_info.uplink_estimated_mac_data_rate_mbps   = sta_stats.rx_phy_rate_100kb_avg / 10;
     bss_info.sta_measured_uplink_rcpi_dbm_enc =
         wireless_utils::convert_rcpi_from_rssi(sta_stats.rx_rssi_curr);
 
@@ -559,8 +559,8 @@ bool monitor_stats::add_ap_assoc_sta_link_metric(ieee1905_1::CmduMessageTx &cmdu
 
     // TODO: MAC data rate and Phy rate are not necessarily the same
     // https://github.com/prplfoundation/prplMesh/issues/1195
-    bss_info.downlink_estimated_mac_data_rate_mbps = sta_stats.rx_phy_rate_100kb_avg / 10;
-    bss_info.uplink_estimated_mac_data_rate_mbps   = sta_stats.tx_phy_rate_100kb_avg / 10;
+    bss_info.downlink_estimated_mac_data_rate_mbps = sta_stats.tx_phy_rate_100kb_avg / 10;
+    bss_info.uplink_estimated_mac_data_rate_mbps   = sta_stats.rx_phy_rate_100kb_avg / 10;
     bss_info.sta_measured_uplink_rcpi_dbm_enc =
         wireless_utils::convert_rcpi_from_rssi(sta_stats.rx_rssi_curr);
 
