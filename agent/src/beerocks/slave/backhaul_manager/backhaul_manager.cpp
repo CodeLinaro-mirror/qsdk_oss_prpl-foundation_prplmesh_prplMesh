@@ -3212,6 +3212,9 @@ void BackhaulManager::handle_dev_reset_default(
     auto bridge        = db->bridge.iface_name;
     auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(bridge);
     auto eth_iface     = db->ethernet.wan.iface_name;
+    if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(eth_iface)) {
+        LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
+    }
 
     auto program = params.at("program");
     if (program == supported_programs[0]) {
@@ -3337,6 +3340,9 @@ bool BackhaulManager::handle_dev_set_config(
         auto bridge        = db->bridge.iface_name;
         auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(bridge);
         auto eth_iface     = db->ethernet.wan.iface_name;
+        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(eth_iface)) {
+            LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
+        }
         if (std::find(bridge_ifaces.begin(), bridge_ifaces.end(), eth_iface) !=
             bridge_ifaces.end()) {
             if (!beerocks::net::network_utils::linux_remove_iface_from_bridge(bridge, eth_iface)) {
