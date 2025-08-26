@@ -235,6 +235,11 @@ start_function() {
             prplmesh_agent_start
             prplmesh_vendor_message_start
             ;;
+        NA | na)
+            prplmesh_platform_db_init "Non-Prpl-Controller-and-Agent"
+            prplmesh_agent_start
+            prplmesh_vendor_message_start
+            ;;
         C | c)
             prplmesh_platform_db_init "Multi-AP-Controller"
             prplmesh_controller_start
