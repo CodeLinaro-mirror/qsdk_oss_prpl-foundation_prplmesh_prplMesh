@@ -106,10 +106,10 @@ public:
         int8_t rx_snr_curr             = beerocks::SNR_INVALID;
         uint16_t tx_phy_rate_100kb_avg = 0;
         uint16_t tx_phy_rate_100kb_min = 0;
-        uint16_t tx_phy_rate_100kb_acc = 0;
+        uint32_t tx_phy_rate_100kb_acc = 0;
         uint16_t rx_phy_rate_100kb_avg = 0;
         uint16_t rx_phy_rate_100kb_min = 0;
-        uint16_t rx_phy_rate_100kb_acc = 0;
+        uint32_t rx_phy_rate_100kb_acc = 0;
 
         bwl::SStaStats hal_stats = {};
 
