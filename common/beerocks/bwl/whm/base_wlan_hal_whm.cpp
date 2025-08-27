@@ -499,7 +499,8 @@ bool base_wlan_hal_whm::refresh_radio_info()
         m_radio_info.bandwidth = wbapi_utils::bandwith_from_string(s_val);
     }
     radio->read_child(m_radio_info.channel, "Channel");
-    m_radio_info.is_dfs_channel = son::wireless_utils::is_dfs_channel(m_radio_info.channel);
+    m_radio_info.is_dfs_channel =
+        son::wireless_utils::is_dfs_channel(m_radio_info.channel, m_radio_info.frequency_band);
 
     std::unordered_set<std::string> cleared_channels_set;
     std::unordered_set<std::string> radar_triggered_channels_set;
@@ -525,7 +526,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
             uint32_t chanNum   = beerocks::string_utils::stoi(chan_str);
             auto &channel_info = m_radio_info.channels_list[chanNum];
 
-            if (son::wireless_utils::is_dfs_channel(chanNum)) {
+            if (son::wireless_utils::is_dfs_channel(chanNum, m_radio_info.frequency_band)) {
                 if (cleared_channels_set.find(chan_str) != cleared_channels_set.end()) {
                     channel_info.dfs_state = beerocks::eDfsState::AVAILABLE;
                 } else if (radar_triggered_channels_set.find(chan_str) !=

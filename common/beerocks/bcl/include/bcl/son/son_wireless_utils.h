@@ -240,7 +240,7 @@ public:
     static beerocks::eSubbandType which_subband(uint32_t chn);
     static bool is_low_subband(const uint32_t chn);
     static bool is_high_subband(const uint32_t chn);
-    static bool is_dfs_channel(const uint32_t chn);
+    static bool is_dfs_channel(const uint32_t chn, beerocks::eFreqType freq_type);
     static bool is_same_interface(const std::string &ifname1, const std::string &ifname2);
     static std::vector<std::pair<uint8_t, beerocks::eWifiChannelType>>
     split_channel_to_20MHz(int channel, beerocks::eWiFiBandwidth bw,
