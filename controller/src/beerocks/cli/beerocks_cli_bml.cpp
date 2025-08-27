@@ -198,7 +198,8 @@ static void bml_utils_dump_conn_map(
                 ss << ind_str << (radio->ifname != "N/A" ? "RADIO: " + radio->ifname : "RADIO")
                    << " mac: " << radio->radio_mac << ", ch: "
                    << (radio->channel != 255 ? std::to_string(radio->channel) : std::string("N/A"))
-                   << ((son::wireless_utils::is_dfs_channel(radio->channel) &&
+                   << ((son::wireless_utils::is_dfs_channel(
+                            radio->channel, static_cast<beerocks::eFreqType>(radio->freq_type)) &&
                         !radio->cac_completed)
                            ? std::string("(CAC)")
                            : std::string())

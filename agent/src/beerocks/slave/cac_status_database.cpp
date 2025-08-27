@@ -172,7 +172,8 @@ bool CacStatusDatabase::add_cac_status_report_tlv(
         auto &available_ref           = std::get<1>(cac_status_report_tlv->available_channels(i));
         available_ref.operating_class = available_channels[i].operating_class;
         available_ref.channel         = available_channels[i].channel;
-        if (son::wireless_utils::is_dfs_channel(available_channels[i].channel)) {
+        if (son::wireless_utils::is_dfs_channel(available_channels[i].channel,
+                                                radio->wifi_channel.get_freq_type())) {
             available_ref.minutes_since_cac_completion = static_cast<uint16_t>(
                 std::chrono::duration_cast<std::chrono::minutes>(available_channels[i].duration)
                     .count());
