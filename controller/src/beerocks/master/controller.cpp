@@ -1194,15 +1194,16 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
  * @return true on success
  * @return false on failure
  */
+
 static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                   const std::shared_ptr<Agent> &agent)
+                                                   const Agent &agent)
 {
     auto bh_sta_mld_configuration = cmdu_tx.addClass<wfa_map::tlvBackhaulStaMldConfiguration>();
 
     std::unordered_map<std::string, wireless_utils::sMldInfoConf> &mld_configuration(
         database.get_mld_info_configuration());
     const std::list<wireless_utils::sBssInfoConf> &bss_configuration(
-        database.get_bss_info_configuration(agent->al_mac));
+        database.get_bss_info_configuration(agent.al_mac));
 
     std::string backhaul_ssid;
     std::string backhaul_mld_id;
@@ -1233,7 +1234,7 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
             auto bss_conf_freq =
                 son::wireless_utils::which_freq_op_cls(bss_conf.operating_class.front());
 
-            for (const auto &affiliated_radio : agent->radios) {
+            for (const auto &affiliated_radio : agent.radios) {
                 if (!affiliated_radio.second) {
                     LOG(ERROR) << "Radio " << affiliated_radio.first << " doesn't exist";
                     continue;
@@ -1254,9 +1255,9 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
                 }
 
                 if (bh_sta_mld_configuration->num_affiliated_bsta() >=
-                    (agent->bsta_maximum_links + 1)) {
+                    (agent.bsta_maximum_links + 1)) {
                     LOG(ERROR) << "More Affiliated APs than  maximum links available ("
-                               << (agent->bsta_maximum_links + 1) << ")";
+                               << (agent.bsta_maximum_links + 1) << ")";
                     break;
                 }
 
@@ -1277,6 +1278,127 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
     if (backhaul_mld_id.empty()) {
         LOG(DEBUG) << "No MLD BH found";
         return true;
+    }
+
+    return true;
+}
+
+/**
+ * @brief add Agent AP MLD Configuration TLV to the current CMDU
+ *
+ *        Fill a tlvAgentApMldConfiguration with the infos we stored in the bss and mld confs
+ *        SSID and modes will be retrieved from the mld confs and we use the matching bss confs
+ *        frequencies to match the corresponding radios and find the ruid to send in the tlv
+ *
+ * @param[in] database reference to the database
+ * @param[out] cmdu_tx the message containing the tlv
+ * @param[in] agent_mac mac of the agent that sent the autoconfiguration WSC message
+ * @return true on success
+ * @return false on failure
+ */
+
+static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                               const Agent &agent)
+{
+    auto agent_ap_mld_configuration = cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
+
+    auto &mld_configuration(database.get_mld_info_configuration());
+    const auto &bss_configuration(database.get_bss_info_configuration(agent.al_mac));
+
+    for (auto &mld : mld_configuration) {
+
+        if (mld.first.empty()) {
+            LOG(ERROR) << "Missing MLDID";
+            continue;
+        }
+
+        // If no Affiliated AP conf are present, do not add the MLD configuration
+        auto bss_conf_check = std::find_if(
+            bss_configuration.begin(), bss_configuration.end(),
+            [&](const wireless_utils::sBssInfoConf &bss) { return bss.mld_id == mld.first; });
+        if (bss_conf_check == bss_configuration.end()) {
+            continue;
+        }
+
+        if (bss_conf_check->ssid.empty()) {
+            LOG(ERROR) << "No SSID for MLDID " << mld.first;
+            continue;
+        }
+
+        LOG(INFO) << "SSID " << bss_conf_check->ssid << " for MLDID " << mld.first;
+        mld.second.ssid = bss_conf_check->ssid;
+
+        auto ap_mld(agent_ap_mld_configuration->create_ap_mld());
+        ap_mld->ap_mld_mac_addr_valid().is_valid = 0;
+        ap_mld->set_ssid(mld.second.ssid);
+        ap_mld->modes().str   = mld.second.str;
+        ap_mld->modes().nstr  = mld.second.nstr;
+        ap_mld->modes().emlsr = mld.second.emlsr;
+        ap_mld->modes().emlmr = mld.second.emlmr;
+
+        LOG(DEBUG) << "Creating AP MLD configuration for " << mld.second.ssid << "\n"
+                   << "[ MLDID: " << mld.first << "]\n"
+                   << "[ STR  : " << mld.second.str << "]\n"
+                   << "[ NSTR : " << mld.second.nstr << "]\n"
+                   << "[ EMLSR: " << mld.second.emlsr << "]\n"
+                   << "[ EMLMR: " << mld.second.emlmr << "]";
+
+        // Look for radios of the agent matching with the frequency of a bss configuration
+        // that is linked to a MLD through a valid MLDID
+        for (const auto &bss_conf : bss_configuration) {
+            if (bss_conf.operating_class.empty()) {
+                LOG(ERROR) << "Empty operating_class in bss configuration";
+                continue;
+            }
+            if (!bss_conf.ssid.empty() && bss_conf.ssid == mld.second.ssid &&
+                bss_conf.mld_id == mld.first) {
+                auto bss_conf_freq =
+                    son::wireless_utils::which_freq_op_cls(bss_conf.operating_class.front());
+
+                for (const auto &affiliated_radio : agent.radios) {
+                    if (!affiliated_radio.second) {
+                        LOG(ERROR) << "Radio " << affiliated_radio.first << " doesn't exist";
+                        continue;
+                    }
+
+                    // Check if bss conf freq matches radio freq and EHT is supported
+                    if (bss_conf_freq != affiliated_radio.second->band ||
+                        !affiliated_radio.second->eht_supported ||
+                        (!affiliated_radio.second->wifi7_capabilities.ap_role.str_support &&
+                         mld_configuration.at(bss_conf.mld_id).str) ||
+                        (!affiliated_radio.second->wifi7_capabilities.ap_role.nstr_support &&
+                         mld_configuration.at(bss_conf.mld_id).nstr) ||
+                        (!affiliated_radio.second->wifi7_capabilities.ap_role.emlsr_support &&
+                         mld_configuration.at(bss_conf.mld_id).emlsr) ||
+                        (!affiliated_radio.second->wifi7_capabilities.ap_role.emlmr_support &&
+                         mld_configuration.at(bss_conf.mld_id).emlmr)) {
+                        continue;
+                    }
+
+                    if (ap_mld->num_affiliated_ap() >= (agent.ap_maximum_links)) {
+                        LOG(ERROR) << "More Affiliated APs than  maximum links available ("
+                                   << (agent.ap_maximum_links) << ")";
+                        break;
+                    }
+                    LOG(DEBUG) << "Adding radio " << affiliated_radio.first
+                               << " to AP MLD Configuration";
+                    auto affiliated_ap(ap_mld->create_affiliated_ap());
+                    affiliated_ap->affiliated_ap_fields_valid().affiliated_ap_mac_addr_valid = 0;
+                    affiliated_ap->affiliated_ap_fields_valid().linkid_valid                 = 0;
+                    affiliated_ap->ruid() = affiliated_radio.first;
+
+                    if (!ap_mld->add_affiliated_ap(affiliated_ap)) {
+                        LOG(ERROR) << "add_affiliated_ap() failed in tlvAgentApMldConfiguration";
+                        return false;
+                    }
+                }
+            }
+        }
+
+        if (!agent_ap_mld_configuration->add_ap_mld(ap_mld)) {
+            LOG(ERROR) << "add_ap_mld() failed in tlvAgentApMldConfiguration";
+            return false;
+        }
     }
 
     return true;
@@ -1453,9 +1575,12 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
                                                                       m1->mac_addr());
     }
 
-    if (radio->eht_supported) {
-        if (!add_backhaul_sta_mld_configuration_tlv(database, cmdu_tx, agent)) {
+    if (agent->max_num_mlds != 0 && radio->eht_supported) {
+        if (!add_backhaul_sta_mld_configuration_tlv(database, cmdu_tx, *agent)) {
             LOG(ERROR) << "Couldn't add Backhaul STA MLD Configuration TLV";
+        }
+        if (!add_agent_ap_mld_configuration_tlv(database, cmdu_tx, *agent)) {
+            LOG(ERROR) << "Couldn't add Agent AP MLD Configuration TLV";
         }
     }
 
