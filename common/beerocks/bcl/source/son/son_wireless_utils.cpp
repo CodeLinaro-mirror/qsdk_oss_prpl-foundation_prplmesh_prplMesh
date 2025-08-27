@@ -1142,10 +1142,11 @@ bool wireless_utils::is_high_subband(const uint32_t chn)
     return (which_subband(chn) == beerocks::eSubbandType::HIGH_SUBBAND);
 }
 
-bool wireless_utils::is_dfs_channel(const uint32_t chn)
+bool wireless_utils::is_dfs_channel(const uint32_t chn, beerocks::eFreqType freq_type)
 {
-    if (((chn >= START_OF_LOW_DFS_SUBBAND) && chn <= (END_OF_LOW_DFS_SUBBAND)) ||
-        ((chn >= START_OF_HIGH_DFS_SUBBAND) && (chn <= END_OF_HIGH_DFS_SUBBAND))) {
+    if ((freq_type == beerocks::eFreqType::FREQ_5G) &&
+        (((chn >= START_OF_LOW_DFS_SUBBAND) && chn <= (END_OF_LOW_DFS_SUBBAND)) ||
+         ((chn >= START_OF_HIGH_DFS_SUBBAND) && (chn <= END_OF_HIGH_DFS_SUBBAND)))) {
         return true;
     }
     return false;
