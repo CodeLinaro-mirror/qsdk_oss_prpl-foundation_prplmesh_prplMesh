@@ -86,9 +86,11 @@ public:
     virtual int get_channel()    = 0;
     virtual bool update_status() = 0;
 
-    virtual std::string get_ssid()              = 0;
-    virtual std::string get_bssid()             = 0;
-    virtual bool clear_non_associated_devices() = 0;
+    virtual std::string get_ssid()                 = 0;
+    virtual std::string get_bssid()                = 0;
+    virtual bool clear_non_associated_devices()    = 0;
+    virtual bool update_mld_mode(uint8_t mld_mode) = 0;
+    virtual bool update_mld_unit(int8_t mld_unit)  = 0;
 
     /*!
      * Returns the Backhaul Mac address.

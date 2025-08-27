@@ -127,6 +127,9 @@ private:
     slave_thread &m_btl_ctx;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
 
+    // <RUID, <mld_unit, mld_mode>>
+    std::unordered_map<sMacAddr, std::pair<int8_t, uint8_t>> bsta_mld_requests_infos;
+
     /* Message handlers: */
 
     /**
@@ -178,6 +181,11 @@ private:
     bool handle_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                std::vector<WSC::configData::config> &configs);
 
+    bool send_bsta_mld_configuration(const sMacAddr &ruid, int8_t mld_unit, uint8_t mld_mode,
+                                     bool initilaization = false);
+    bool handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                           std::vector<WSC::configData::config> &configs,
+                                           const sMacAddr &ruid, bool initialization = false);
     bool handle_ap_autoconfiguration_wsc_vs_extension_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                           const std::string &radio_iface);
 

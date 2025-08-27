@@ -619,7 +619,7 @@ public:
     typedef struct {
         std::string mld_ssid = "";
         sMacAddr mld_mac     = net::network_utils::ZERO_MAC;
-        int8_t mld_unit      = -1;
+        int8_t mld_unit      = DISABLED_MLD_UNIT;
         enum mode { NONE = 0, STR = 1 << 0, NSTR = 1 << 1, EMLSR = 1 << 2, EMLMR = 1 << 3 };
         mode mld_mode;
     } sMLDConfiguration;
