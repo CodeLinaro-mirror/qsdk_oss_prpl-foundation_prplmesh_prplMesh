@@ -513,6 +513,8 @@ enum class eZWDFS_flags : uint8_t {
     ALL          = 0b11111111
 };
 
+constexpr int8_t DISABLED_MLDUNIT = -1;
+
 } // namespace beerocks
 
 #endif //_BEEROCKS_DEFINES_H_

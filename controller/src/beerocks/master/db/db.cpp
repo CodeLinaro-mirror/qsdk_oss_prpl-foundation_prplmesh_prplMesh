@@ -5949,6 +5949,20 @@ void db::add_traffic_separation_configuration(const sMacAddr &al_mac,
     traffic_separation_policy_configurations[al_mac].push_back(config);
 }
 
+std::unordered_map<std::string, wireless_utils::sMldInfoConf> &db::get_mld_info_configuration()
+{
+    return mld_infos_global;
+}
+
+void db::add_mld_info_configuration(wireless_utils::sMldInfoConf const &mld_info,
+                                    std::string const &mld_uid)
+{
+    mld_infos_global.insert(
+        std::pair<std::string, wireless_utils::sMldInfoConf>(mld_uid, mld_info));
+}
+
+void db::del_mld_info_configuration(std::string const &mld_uid) { mld_infos_global.erase(mld_uid); }
+
 void db::add_default_8021q_settings(const sMacAddr &al_mac,
                                     const wireless_utils::s8021QSettings &config)
 {
