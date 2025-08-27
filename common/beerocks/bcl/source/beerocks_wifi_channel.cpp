@@ -179,7 +179,7 @@ bool WifiChannel::is_empty() const { return m_freq_type == beerocks::FREQ_UNKNOW
 
 bool WifiChannel::is_dfs_channel() const
 {
-    return (m_freq_type == eFreqType::FREQ_5G) && son::wireless_utils::is_dfs_channel(m_channel);
+    return son::wireless_utils::is_dfs_channel(m_channel, m_freq_type);
 }
 
 uint8_t WifiChannel::get_tx_power() const { return m_tx_power; }
@@ -252,11 +252,8 @@ void WifiChannel::initialize_wifi_channel_members(uint8_t channel, eFreqType fre
     m_tx_power            = 0;
     m_radar_affected      = 0;
 
-    if (m_freq_type == eFreqType::FREQ_5G) {
-        m_is_dfs = son::wireless_utils::is_dfs_channel(m_channel);
-    } else {
-        m_is_dfs = false;
-    }
+    m_is_dfs = son::wireless_utils::is_dfs_channel(m_channel, m_freq_type);
+
     unsigned int center_channel = son::wireless_utils::freq_to_channel(center_frequency);
     if (channel < center_channel) {
         m_ext_above_primary = 1;

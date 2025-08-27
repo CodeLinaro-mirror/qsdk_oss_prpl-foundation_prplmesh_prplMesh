@@ -147,7 +147,8 @@ bool ap_wlan_hal_dummy::set_channel(int chan, beerocks::eWiFiBandwidth bw, int c
     m_radio_info.channel         = chan;
     m_radio_info.bandwidth       = bw;
     m_radio_info.vht_center_freq = center_channel;
-    m_radio_info.is_dfs_channel  = son::wireless_utils::is_dfs_channel(chan);
+    m_radio_info.is_dfs_channel =
+        son::wireless_utils::is_dfs_channel(chan, m_radio_info.frequency_band);
     std::stringstream value;
     value << "channel: " << chan << std::endl;
     value << "bw: " << beerocks::utils::convert_bandwidth_to_string(m_radio_info.bandwidth)
