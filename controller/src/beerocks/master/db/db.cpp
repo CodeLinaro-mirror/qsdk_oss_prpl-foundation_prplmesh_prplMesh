@@ -1898,7 +1898,7 @@ Agent::sAPMLD *db::get_or_allocate_ap_mld(const sMacAddr &al_mac, const sMacAddr
         LOG(DEBUG) << "AP MLD with MLD MAC: " << mld_mac << " found.";
         return &(ap_mld->second);
     } else {
-        agent->ap_mlds[mld_mac] = Agent::sAPMLD();
+        agent->ap_mlds.insert({mld_mac, Agent::sAPMLD()});
         // Return new AP MLD
         LOG(DEBUG) << "AP MLD with MLD MAC: " << mld_mac
                    << " not found. Creating new AP MLD entry.";
@@ -8786,6 +8786,72 @@ bool db::dm_set_device_ap_capabilities(const Agent &agent)
     ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "PrioritizationSupport",
                                          agent.prioritization_support);
     ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "MaxVIDs", agent.max_total_number_of_vids);
+    return ret_val;
+}
+
+bool db::dm_set_isbsta(const sMacAddr &sta_mld_mac)
+{
+    std::shared_ptr<Agent::sAPMLD::sStaMLD> sta_mld = nullptr;
+    for (const auto &agent : m_agents) {
+        for (auto ap_mld_it = agent.second->ap_mlds.begin();
+             ap_mld_it != agent.second->ap_mlds.end(); ++ap_mld_it) {
+            sta_mld = ap_mld_it->second.sta_mlds.get(sta_mld_mac);
+            if (sta_mld && !(sta_mld->dm_path.empty())) {
+                m_ambiorix_datamodel->set(sta_mld->dm_path, "IsbSTA", "true");
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
+                            const sMacAddr &ap_mld_mac, const std::string &affiliated_bsta_list,
+                            const Agent::sMLDInfo::mode &mld_mode)
+{
+    if (agent.dm_path.empty()) {
+        return true;
+    }
+
+    bool ret_val(true);
+    std::string bsta_mld_path = agent.dm_path + ".bSTAMLD";
+    if (!m_ambiorix_datamodel->set(bsta_mld_path, "MLDMACAddress", bsta_mld_mac)) {
+        LOG(ERROR) << "Failed to set MLDMACAddress " << bsta_mld_mac;
+        ret_val &= false;
+    }
+    if (!m_ambiorix_datamodel->set(bsta_mld_path, "BSSID", ap_mld_mac)) {
+        LOG(ERROR) << "Failed to set BSSID " << ap_mld_mac;
+        ret_val &= false;
+    }
+    if (!m_ambiorix_datamodel->set(bsta_mld_path, "AffiliatedbSTAList", affiliated_bsta_list)) {
+        LOG(ERROR) << "Failed to set AffiliatedbSTAList " << affiliated_bsta_list;
+        ret_val &= false;
+    }
+    std::string bsta_mld_config = bsta_mld_path + ".bSTAMLDConfig";
+    if (!m_ambiorix_datamodel->set(bsta_mld_config, "STREnabled",
+                                   mld_mode | Agent::sMLDInfo::mode::STR)) {
+        LOG(ERROR) << "Failed to set STR " << Agent::sMLDInfo::mode::STR;
+        ret_val &= false;
+    }
+
+    if (!m_ambiorix_datamodel->set(bsta_mld_config, "NSTREnabled",
+                                   mld_mode | Agent::sMLDInfo::mode::NSTR)) {
+        LOG(ERROR) << "Failed to set NSTR " << Agent::sMLDInfo::mode::NSTR;
+        ret_val &= false;
+    }
+
+    if (!m_ambiorix_datamodel->set(bsta_mld_config, "EMLSREnabled",
+                                   mld_mode | Agent::sMLDInfo::mode::EMLSR)) {
+        LOG(ERROR) << "Failed to set EMLSR " << Agent::sMLDInfo::mode::EMLSR;
+        ret_val &= false;
+    }
+
+    if (!m_ambiorix_datamodel->set(bsta_mld_config, "EMLMREnabled",
+                                   mld_mode | Agent::sMLDInfo::mode::EMLMR)) {
+        LOG(ERROR) << "Failed to set EMLMR " << Agent::sMLDInfo::mode::EMLMR;
+        ret_val &= false;
+    }
+
     return ret_val;
 }
 
