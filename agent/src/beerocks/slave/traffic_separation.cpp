@@ -10,6 +10,8 @@
 #include <bcl/network/network_utils.h>
 #include <btl/broker_client_factory_factory.h>
 
+#include <bcl/network/network_utils.h>
+
 #include "agent_db.h"
 #include "traffic_separation.h"
 
@@ -80,169 +82,196 @@ void TrafficSeparation::clear_configuration()
 
 void TrafficSeparation::apply_policy(const std::string &radio_iface)
 {
-    // Since the following call is locking the database, thread safety is promised on this function.
-    auto db = AgentDB::get();
+    const std::string BH = "wlan1", VAP_1 = "wlan0.1", VAP_2 = "wlan0.2";
 
-    network_utils::set_vlan_filtering(db->bridge.iface_name,
-                                      db->traffic_separation.primary_vlan_id);
+    const std::vector<std::string> cmds = {
+        R"(ip link set wlan0.1 down 2>/dev/null || true)",
+        R"(ip link set wlan0.2 down 2>/dev/null || true)",
+        // R"(ip addr flush dev " + BH + " 2>/dev/null || true)",
 
-    // If the primary VID has changed to zero, vlan filtering is disabled, so there is no point
-    // modifying the VLAN policy on the platform interfaces.
-    if (db->traffic_separation.primary_vlan_id == 0) {
-        return;
+        R"(brctl addbr br-lan   2>/dev/null || true)",
+        R"(brctl addbr br-guest 2>/dev/null || true)", R"(brctl stp br-lan off)",
+        R"(brctl stp br-guest off)",
+
+        R"(ip link add link " + BH + " name " + BH + ".10 type vlan id 10 2>/dev/null || true)",
+        R"(ip link add link " + BH + " name " + BH + ".20 type vlan id 20 2>/dev/null || true)",
+
+        R"(ip link set " + BH + ".10 up)", R"(ip link set " + BH + ".20 up)",
+
+        R"(brctl delif br-lan " + BH + "      || true)",
+        R"(brctl addif br-lan " + BH + ".10      || true)",
+        R"(brctl addif br-guest " + BH + ".20 || true)",
+
+        R"(ip link set " + VAP_1 + " up)", R"(ip link set " + VAP_2 + " up)",
+        R"(ip link set br-lan up)", R"(ip link set br-guest up)"};
+
+    for (const auto &cmd : cmds) {
+        beerocks::os_utils::system_call(cmd);
     }
 
-    LOG(DEBUG) << "Apply traffic separation policy";
+    // // Since the following call is locking the database, thread safety is promised on this function.
+    // auto db = AgentDB::get();
 
-    // Configure the Primary VLAN in Transport Process
-    if (!m_broker_client->configure_primary_vlan_id(db->traffic_separation.primary_vlan_id, true)) {
-        LOG(ERROR) << "Failed configuring transport process!";
-    }
+    // network_utils::set_vlan_filtering(db->bridge.iface_name,
+    //                                   db->traffic_separation.primary_vlan_id);
 
-    // The Bridge, the WAN ports and the LAN ports should all have "Tagged Port" policy.
-    // Update the Bridge Policy
-    bool is_bridge = true;
-    set_vlan_policy(db->bridge.iface_name, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED, is_bridge);
+    // // If the primary VID has changed to zero, vlan filtering is disabled, so there is no point
+    // // modifying the VLAN policy on the platform interfaces.
+    // if (db->traffic_separation.primary_vlan_id == 0) {
+    //     return;
+    // }
 
-    // Since we already set the bridge, and there are no more bridge interfaces, the 'bridge_iface'
-    // is set to 'false' from now on.
-    is_bridge = false;
+    // LOG(DEBUG) << "Apply traffic separation policy";
 
-    // Update WAN and LAN Ports.
-    if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
-        set_vlan_policy(db->ethernet.wan.iface_name, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED,
-                        is_bridge);
-    }
-    for (const auto &lan_iface_info : db->ethernet.lan) {
-        set_vlan_policy(lan_iface_info.iface_name, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED,
-                        is_bridge);
-    }
+    // // Configure the Primary VLAN in Transport Process
+    // if (!m_broker_client->configure_primary_vlan_id(db->traffic_separation.primary_vlan_id, true)) {
+    //     LOG(ERROR) << "Failed configuring transport process!";
+    // }
 
-    // Wireless Backhaul
-    if (!db->device_conf.local_gw && !db->backhaul.selected_iface_name.empty() &&
-        db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
+    // // The Bridge, the WAN ports and the LAN ports should all have "Tagged Port" policy.
+    // // Update the Bridge Policy
+    // bool is_bridge = true;
+    // set_vlan_policy(db->bridge.iface_name, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED, is_bridge);
 
-        auto radio = db->radio(db->backhaul.selected_iface_name);
-        if (!radio) {
-            LOG(ERROR) << "Could not find Backhaul Radio interface!";
-            return;
-        }
+    // // Since we already set the bridge, and there are no more bridge interfaces, the 'bridge_iface'
+    // // is set to 'false' from now on.
+    // is_bridge = false;
 
-        if (db->backhaul.bssid_multi_ap_profile > 1) {
-            set_vlan_policy(radio->back.iface_name, ePortMode::TAGGED_PORT_PRIMARY_TAGGED,
-                            is_bridge);
-        } else {
-            set_vlan_policy(radio->back.iface_name, ePortMode::UNTAGGED_PORT, is_bridge,
-                            db->traffic_separation.primary_vlan_id);
-        }
-    }
+    // // Update WAN and LAN Ports.
+    // if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
+    //     set_vlan_policy(db->ethernet.wan.iface_name, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED,
+    //                     is_bridge);
+    // }
+    // for (const auto &lan_iface_info : db->ethernet.lan) {
+    //     set_vlan_policy(lan_iface_info.iface_name, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED,
+    //                     is_bridge);
+    // }
 
-    // If radio interface has not been given, then stop configuring the VLAN policy after finished
-    // to configure the bridge, ethernet ports and wireless backhaul interface.
-    // This should happen whenever the backhaul connects, and we need to update the Primary VLAN
-    // of the platform so we would be able to get messages from the Controller.
-    if (radio_iface.empty()) {
-        return;
-    }
+    // // Wireless Backhaul
+    // if (!db->device_conf.local_gw && !db->backhaul.selected_iface_name.empty() &&
+    //     db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
 
-    // Update Policy given Radio interface.
-    auto radio = db->radio(radio_iface);
-    if (!radio) {
-        return;
-    }
+    //     auto radio = db->radio(db->backhaul.selected_iface_name);
+    //     if (!radio) {
+    //         LOG(ERROR) << "Could not find Backhaul Radio interface!";
+    //         return;
+    //     }
 
-    for (auto &bss : radio->front.bssids) {
-        // Skip unconfigured BSS.
-        if (bss.ssid.empty()) {
-            continue;
-        }
+    //     if (db->backhaul.bssid_multi_ap_profile > 1) {
+    //         set_vlan_policy(radio->back.iface_name, ePortMode::TAGGED_PORT_PRIMARY_TAGGED,
+    //                         is_bridge);
+    //     } else {
+    //         set_vlan_policy(radio->back.iface_name, ePortMode::UNTAGGED_PORT, is_bridge,
+    //                         db->traffic_separation.primary_vlan_id);
+    //     }
+    // }
 
-        LOG(DEBUG) << "BSS " << bss.mac << ", ssid:" << bss.ssid << ", fBSS: " << bss.fronthaul_bss
-                   << ", bBSS: " << bss.backhaul_bss
-                   << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
-                   << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association;
+    // // If radio interface has not been given, then stop configuring the VLAN policy after finished
+    // // to configure the bridge, ethernet ports and wireless backhaul interface.
+    // // This should happen whenever the backhaul connects, and we need to update the Primary VLAN
+    // // of the platform so we would be able to get messages from the Controller.
+    // if (radio_iface.empty()) {
+    //     return;
+    // }
 
-        std::string bss_iface;
+    // // Update Policy given Radio interface.
+    // auto radio = db->radio(radio_iface);
+    // if (!radio) {
+    //     return;
+    // }
 
-        if (!network_utils::linux_iface_get_name(bss.mac, bss_iface)) {
-            LOG(WARNING) << "Interface with MAC " << bss.mac << " does not exist";
-            continue;
-        }
+    // for (auto &bss : radio->front.bssids) {
+    //     // Skip unconfigured BSS.
+    //     if (bss.ssid.empty()) {
+    //         continue;
+    //     }
 
-        // Fronthaul-only BSS: set untagged VID based on SSID->VID mapping.
-        if (bss.fronthaul_bss && !bss.backhaul_bss) {
-            auto it = db->traffic_separation.ssid_vid_mapping.find(bss.ssid);
-            if (it == db->traffic_separation.ssid_vid_mapping.end()) {
-                LOG(INFO) << "SSID '" << bss.ssid << "' not found in SSID->VID map, skip.";
-                continue;
-            }
-            set_vlan_policy(bss_iface, ePortMode::UNTAGGED_PORT, is_bridge, it->second);
-        }
-        // Backhaul-only BSS.
-        else if (!bss.fronthaul_bss && bss.backhaul_bss) {
-            if (bss.backhaul_bss_disallow_profile1_agent_association ==
-                bss.backhaul_bss_disallow_profile2_agent_association) {
-                LOG(WARNING) << "bBSS invalid configuration - "
-                             << "profile1_disallow == profile2_disallow == "
-                             << bss.backhaul_bss_disallow_profile1_agent_association;
+    //     LOG(DEBUG) << "BSS " << bss.mac << ", ssid:" << bss.ssid << ", fBSS: " << bss.fronthaul_bss
+    //                << ", bBSS: " << bss.backhaul_bss
+    //                << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
+    //                << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association;
 
-                if (m_profile_x_disallow_override_unsupported_configuration == 0) {
-                    continue;
-                }
-                LOG(DEBUG) << "profile_x_disallow_override is set on profile "
-                           << m_profile_x_disallow_override_unsupported_configuration;
+    //     std::string bss_iface;
 
-                //Overriding bBSS profile disallow configuration if m_profile_x_disallow_override_unsupported_configuration > 0
-                bss.backhaul_bss_disallow_profile1_agent_association =
-                    (m_profile_x_disallow_override_unsupported_configuration == 1);
-                bss.backhaul_bss_disallow_profile2_agent_association =
-                    (m_profile_x_disallow_override_unsupported_configuration == 2);
-            }
-            auto bss_iface_netdevs =
-                network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
+    //     if (!network_utils::linux_iface_get_name(bss.mac, bss_iface)) {
+    //         LOG(WARNING) << "Interface with MAC " << bss.mac << " does not exist";
+    //         continue;
+    //     }
 
-            for (const auto &iface_name : bss_iface_netdevs) {
-                // Profile-2 backhaul BSS -> tagged primary + tagged secondary.
-                if (bss.backhaul_bss_disallow_profile1_agent_association ||
-                    m_profile_x_disallow_override_unsupported_configuration == 1) {
-                    set_vlan_policy(iface_name, ePortMode::TAGGED_PORT_PRIMARY_TAGGED, is_bridge);
-                }
-                // Profile-1 backhaul BSS -> untagged primary VID.
-                else {
-                    set_vlan_policy(iface_name, ePortMode::UNTAGGED_PORT, is_bridge,
-                                    db->traffic_separation.primary_vlan_id);
-                }
-            }
-        }
-        // Combined fBSS & bBSS - Currently Support only Profile-1 (PPM-1418)
-        else {
-            if (!bss.backhaul_bss_disallow_profile2_agent_association) {
+    //     // Fronthaul-only BSS: set untagged VID based on SSID->VID mapping.
+    //     if (bss.fronthaul_bss && !bss.backhaul_bss) {
+    //         auto it = db->traffic_separation.ssid_vid_mapping.find(bss.ssid);
+    //         if (it == db->traffic_separation.ssid_vid_mapping.end()) {
+    //             LOG(INFO) << "SSID '" << bss.ssid << "' not found in SSID->VID map, skip.";
+    //             continue;
+    //         }
+    //         set_vlan_policy(bss_iface, ePortMode::UNTAGGED_PORT, is_bridge, it->second);
+    //     }
+    //     // Backhaul-only BSS.
+    //     else if (!bss.fronthaul_bss && bss.backhaul_bss) {
+    //         if (bss.backhaul_bss_disallow_profile1_agent_association ==
+    //             bss.backhaul_bss_disallow_profile2_agent_association) {
+    //             LOG(WARNING) << "bBSS invalid configuration - "
+    //                          << "profile1_disallow == profile2_disallow == "
+    //                          << bss.backhaul_bss_disallow_profile1_agent_association;
 
-                // Note: If Combined mode with profile 2 will be supported, need to create a VLAN
-                // interface for it to support tagging on multicast messages.
-                LOG(WARNING) << "bBSS invalid configuration! "
-                             << "Combined BSS not supported with Profile-2 bBSS - Skip";
-                continue;
-            }
-            if (bss.backhaul_bss_disallow_profile1_agent_association) {
-                LOG(ERROR) << "bBSS invalid configuration! "
-                           << "Profile-1 and Profile-2 Backhaul connection are both disallowed - "
-                              "Skip";
-                continue;
-            }
+    //             if (m_profile_x_disallow_override_unsupported_configuration == 0) {
+    //                 continue;
+    //             }
+    //             LOG(DEBUG) << "profile_x_disallow_override is set on profile "
+    //                        << m_profile_x_disallow_override_unsupported_configuration;
 
-            set_vlan_policy(bss_iface, ePortMode::UNTAGGED_PORT, is_bridge,
-                            db->traffic_separation.primary_vlan_id);
+    //             //Overriding bBSS profile disallow configuration if m_profile_x_disallow_override_unsupported_configuration > 0
+    //             bss.backhaul_bss_disallow_profile1_agent_association =
+    //                 (m_profile_x_disallow_override_unsupported_configuration == 1);
+    //             bss.backhaul_bss_disallow_profile2_agent_association =
+    //                 (m_profile_x_disallow_override_unsupported_configuration == 2);
+    //         }
+    //         auto bss_iface_netdevs =
+    //             network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
 
-            auto bss_iface_netdevs =
-                network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
+    //         for (const auto &iface_name : bss_iface_netdevs) {
+    //             // Profile-2 backhaul BSS -> tagged primary + tagged secondary.
+    //             if (bss.backhaul_bss_disallow_profile1_agent_association ||
+    //                 m_profile_x_disallow_override_unsupported_configuration == 1) {
+    //                 set_vlan_policy(iface_name, ePortMode::TAGGED_PORT_PRIMARY_TAGGED, is_bridge);
+    //             }
+    //             // Profile-1 backhaul BSS -> untagged primary VID.
+    //             else {
+    //                 set_vlan_policy(iface_name, ePortMode::UNTAGGED_PORT, is_bridge,
+    //                                 db->traffic_separation.primary_vlan_id);
+    //             }
+    //         }
+    //     }
+    //     // Combined fBSS & bBSS - Currently Support only Profile-1 (PPM-1418)
+    //     else {
+    //         if (!bss.backhaul_bss_disallow_profile2_agent_association) {
 
-            for (const auto &iface_name : bss_iface_netdevs) {
-                set_vlan_policy(iface_name, ePortMode::UNTAGGED_PORT, is_bridge,
-                                db->traffic_separation.primary_vlan_id);
-            }
-        }
-    }
+    //             // Note: If Combined mode with profile 2 will be supported, need to create a VLAN
+    //             // interface for it to support tagging on multicast messages.
+    //             LOG(WARNING) << "bBSS invalid configuration! "
+    //                          << "Combined BSS not supported with Profile-2 bBSS - Skip";
+    //             continue;
+    //         }
+    //         if (bss.backhaul_bss_disallow_profile1_agent_association) {
+    //             LOG(ERROR) << "bBSS invalid configuration! "
+    //                        << "Profile-1 and Profile-2 Backhaul connection are both disallowed - "
+    //                           "Skip";
+    //             continue;
+    //         }
+
+    //         set_vlan_policy(bss_iface, ePortMode::UNTAGGED_PORT, is_bridge,
+    //                         db->traffic_separation.primary_vlan_id);
+
+    //         auto bss_iface_netdevs =
+    //             network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
+
+    //         for (const auto &iface_name : bss_iface_netdevs) {
+    //             set_vlan_policy(iface_name, ePortMode::UNTAGGED_PORT, is_bridge,
+    //                             db->traffic_separation.primary_vlan_id);
+    //         }
+    //     }
+    // }
 
     // NOTE:
     // - No DHCP/IP configuration here. Main and guest networks br-lan and br-guest are handled by prplos
