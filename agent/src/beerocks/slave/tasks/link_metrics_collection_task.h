@@ -289,6 +289,15 @@ private:
         uint32_t broadcast_bytes_received = 0;
     };
 
+    struct sAffiliatedStaMetrics {
+        sMacAddr sta_mac;
+        uint32_t bytes_sent;
+        uint32_t bytes_received;
+        uint32_t packets_sent;
+        uint32_t packets_received;
+        uint32_t packets_sent_errors;
+    };
+
     struct sApMetricsResponse {
         sApMetrics metric;
         sApExtendedMetrics extended_metric;
@@ -296,6 +305,7 @@ private:
         std::vector<sStaLinkMetrics> sta_link_metrics;
         std::vector<sStaQosCtrlParams> sta_wifi_6_status;
         sAffiliatedApMetrics affiliated_ap_metrics;
+        std::vector<sAffiliatedStaMetrics> affiliated_sta_metrics;
     };
 
     std::vector<sApMetricsResponse> m_ap_metric_response;
