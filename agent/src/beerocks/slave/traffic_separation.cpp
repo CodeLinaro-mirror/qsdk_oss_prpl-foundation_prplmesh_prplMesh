@@ -10,6 +10,8 @@
 #include <bcl/network/network_utils.h>
 #include <btl/broker_client_factory_factory.h>
 
+#include <bcl/network/network_utils.h>
+
 #include "agent_db.h"
 #include "traffic_separation.h"
 

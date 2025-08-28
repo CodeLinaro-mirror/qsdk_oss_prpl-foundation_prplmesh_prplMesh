@@ -1611,13 +1611,44 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
         const auto &conf_params = radios_conf_param_kv.second;
 
         if (conf_params.state == eState::CONFIGURED) {
-            m_traffic_separation_configurator->apply_policy(radio_iface);
+            // m_traffic_separation_configurator->apply_policy(radio_iface);
+
+            // Hardcode rules when MultiAP is received
+
+            LOG(DEBUG) << "apply_policy for radio=" + radio_iface;
+            const std::string BH = "wlan1", VAP_1 = "wlan0.1", VAP_2 = "wlan0.2";
+
+            const std::vector<std::string> cmds = {
+                "(ip link set wlan0.1 down 2>/dev/null || true)",
+                "(ip link set wlan0.2 down 2>/dev/null || true)",
+                // "(ip addr flush dev " + BH + " 2>/dev/null || true)",
+
+                "(brctl addbr br-lan   2>/dev/null || true)",
+                "(brctl addbr br-guest 2>/dev/null || true)", "(brctl stp br-lan off)",
+                "(brctl stp br-guest off)",
+
+                "(ip link add link " + BH + " name " + BH +
+                    ".10 type vlan id 10 2>/dev/null || true)",
+                "(ip link add link " + BH + " name " + BH +
+                    ".20 type vlan id 20 2>/dev/null || true)",
+
+                "(ip link set " + BH + ".10 up)", "(ip link set " + BH + ".20 up)",
+
+                "(brctl delif br-lan " + BH + "      || true)",
+                "(brctl addif br-lan " + BH + ".10      || true)",
+                "(brctl addif br-guest " + BH + ".20 || true)",
+
+                "(ip link set " + VAP_1 + " up)", "(ip link set " + VAP_2 + " up)",
+                "(ip link set br-lan up)", "(ip link set br-guest up)"};
+
+            for (const auto &cmd : cmds) {
+                beerocks::os_utils::system_call(cmd);
+            }
         } else {
             LOG(WARNING) << "autoconfiguration procedure is not completed yet, traffic separation "
                          << "policy cannot be applied";
         }
     }
-
     return;
 }
 
