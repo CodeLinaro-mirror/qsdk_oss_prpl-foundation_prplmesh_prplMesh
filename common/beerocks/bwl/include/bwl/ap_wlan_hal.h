@@ -379,14 +379,6 @@ public:
     virtual bool set_tx_power_limit(int tx_pow_limit) = 0;
 
     /**
-     * @brief Set/Get enable vap beacon transmittion.
-     * 
-     * @return true on success or false on error.
-     */
-    virtual bool set_vap_enable(const std::string &iface_name, const bool enable) = 0;
-    virtual bool get_vap_enable(const std::string &iface_name, bool &enable)      = 0;
-
-    /**
      * @brief Set MBO Association Disallow parameter for BSSID.
      * 
      * @param [in] bssid BSSID of the VAP to set the parameter.

@@ -959,18 +959,6 @@ bool ap_wlan_hal_whm::set_tx_power_limit(int tx_pow_limit)
     return true;
 }
 
-bool ap_wlan_hal_whm::set_vap_enable(const std::string &iface_name, const bool enable)
-{
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
-    return true;
-}
-
-bool ap_wlan_hal_whm::get_vap_enable(const std::string &iface_name, bool &enable)
-{
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
-    return true;
-}
-
 bool ap_wlan_hal_whm::generate_connected_clients_events(
     bool &is_finished_all_clients, std::chrono::steady_clock::time_point max_iteration_timeout)
 {

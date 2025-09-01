@@ -2193,18 +2193,6 @@ bool ap_wlan_hal_dwpal::set_tx_power_limit(int tx_pow_limit)
     return m_nl80211_client->set_tx_power_limit(m_radio_info.iface_name, tx_pow_limit);
 }
 
-bool ap_wlan_hal_dwpal::set_vap_enable(const std::string &iface_name, const bool enable)
-{
-    LOG(DEBUG) << "set_vap_enable(): missing function implementation";
-    return true;
-}
-
-bool ap_wlan_hal_dwpal::get_vap_enable(const std::string &iface_name, bool &enable)
-{
-    LOG(DEBUG) << "get_vap_enable(): missing function implementation";
-    return true;
-}
-
 bool ap_wlan_hal_dwpal::set_mbo_assoc_disallow(const std::string &bssid, bool enable)
 {
     LOG(DEBUG) << "set_mbo_assoc_disallow " << enable << " for bssid " << bssid;
