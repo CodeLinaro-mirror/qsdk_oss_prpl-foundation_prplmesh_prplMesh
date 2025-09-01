@@ -1056,12 +1056,22 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
                     OPERATION_DISALLOWED_DUE_TO_RADAR_DETECTION_ON_A_DFS_CHANNEL);
         }
 
+        auto reason_code = wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED;
+
+        if (supported_channel_info.dfs_state == beerocks_message::eDfsState::USABLE) {
+            reason_code = wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                DFS_CHANNEL_STATE_UNKNOWN_CAC_HAS_NOT_RUN;
+        } else if (supported_channel_info.dfs_state == beerocks_message::eDfsState::AVAILABLE) {
+            reason_code = wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                IMMEDIATE_OPERATION_POSSIBLE_ON_A_DFS_CHANNEL_CAC_HAS_BEEN_RUN__CHANNEL_HAS_BEEN_CLEARED_FOR_USE;
+        }
+
         // Channel is supported and has a valid preference.
         return AgentDB::sChannelPreference(
             operating_class,
             static_cast<wfa_map::cPreferenceOperatingClasses::ePreference>(
                 it_bw->multiap_preference),
-            wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED);
+            reason_code);
     };
 
     // Received new preferences, clear old preferences
