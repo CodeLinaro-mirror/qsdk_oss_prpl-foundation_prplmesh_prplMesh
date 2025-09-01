@@ -4955,8 +4955,7 @@ bool Controller::handle_tlv_profile2_ap_radio_advanced_capabilities(
     return true;
 }
 
-bool Controller::handle_tlv_profile3_device_inventory(Agent &agent,
-                                                      ieee1905_1::CmduMessageRx &cmdu_rx)
+bool Controller::handle_tlv_device_inventory(Agent &agent, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto device_inventory = cmdu_rx.getClass<wfa_map::tlvDeviceInventory>();
     if (!device_inventory) {
@@ -4964,7 +4963,7 @@ bool Controller::handle_tlv_profile3_device_inventory(Agent &agent,
         return false;
     }
 
-    LOG(DEBUG) << "Profile-3 Device Inventory TLV is received";
+    LOG(DEBUG) << "Device Inventory TLV is received";
 
     std::stringstream ss;
 
@@ -5088,6 +5087,12 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         LOG(ERROR) << "Couldn't handle AP Radio Advanced Capabilities TLV from Agent " << src_mac;
     }
 
+    if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
+        !handle_tlv_device_inventory(*agent, cmdu_rx)) {
+        LOG(ERROR) << "Device Inventory is not supplied for Agent " << src_mac
+                   << " with profile enum " << agent->profile;
+    }
+
     if (agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile2_cac_capabilities(*agent, cmdu_rx)) {
         LOG(ERROR) << "Profile2 CAC Capabilities are not supplied for Agent " << src_mac
@@ -5098,12 +5103,6 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         !handle_tlv_profile3_1905_layer_security_capabilities(*agent, cmdu_rx)) {
         LOG(ERROR) << "Profile3 1905 Layer Security Capability is not supplied for Agent "
                    << src_mac << " with profile enum " << agent->profile;
-    }
-
-    if (agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2 &&
-        !handle_tlv_profile3_device_inventory(*agent, cmdu_rx)) {
-        LOG(ERROR) << "Profile3 Device Inventory is not supplied for Agent " << src_mac
-                   << " with profile enum " << agent->profile;
     }
 
     return all_radio_capabilities_saved_successfully;
