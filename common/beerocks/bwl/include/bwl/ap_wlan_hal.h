@@ -101,16 +101,6 @@ public:
     virtual bool disable() = 0;
 
     /**
-     * @brief Set start_disabled flag
-     * 
-     * @param [in] enable The start_disabled flag
-     * @param [in] vap_id vap_id to set
-     * 
-     * @return true on success or false on error.
-     */
-    virtual bool set_start_disabled(bool enable, int vap_id = beerocks::IFACE_RADIO_ID) = 0;
-
-    /**
      * @brief Set the AP channel
      * 
      * @param [in] chan The channel to switch to.

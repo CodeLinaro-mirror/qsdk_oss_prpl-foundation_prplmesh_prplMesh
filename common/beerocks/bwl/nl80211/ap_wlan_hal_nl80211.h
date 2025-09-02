@@ -37,7 +37,6 @@ public:
     bool refresh_radio_info() override;
     virtual bool enable() override;
     virtual bool disable() override;
-    virtual bool set_start_disabled(bool enable, int vap_id = beerocks::IFACE_RADIO_ID) override;
     virtual bool set_channel(int chan, beerocks::eWiFiBandwidth bw, int center_channel) override;
     virtual bool sta_allow(const sMacAddr &mac, const sMacAddr &bssid) override;
     virtual bool sta_deny(const sMacAddr &mac, const sMacAddr &bssid) override;

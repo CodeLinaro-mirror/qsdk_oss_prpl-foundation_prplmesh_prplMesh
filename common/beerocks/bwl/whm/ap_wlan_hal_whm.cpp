@@ -214,12 +214,6 @@ bool ap_wlan_hal_whm::disable()
     return true;
 }
 
-bool ap_wlan_hal_whm::set_start_disabled(bool enable, int vap_id)
-{
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
-    return true;
-}
-
 bool ap_wlan_hal_whm::set_channel(int chan, beerocks::eWiFiBandwidth bw, int center_channel)
 {
     bool auto_channel_enable = false;
