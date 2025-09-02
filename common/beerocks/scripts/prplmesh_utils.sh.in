@@ -377,12 +377,16 @@ check_processmonitor_entry() {
 add_processmonitor_entry() {
     echo "Adding ProcessMonitor entry for prplMesh $1" &&
     ba-cli -l "ProcessMonitor.Test.+(
-        Name='prplmesh', 
-        Type='Process', 
-        Subject='/tmp/beerocks/pid/beerocks_$1', 
-        MaxFailNum=0, 
-        FailAction='RESTART', 
-        TestInterval=5
+        Name='prplmesh',
+        Type='Process',
+        Subject='/tmp/beerocks/pid/beerocks_$1',
+        MaxFailNum=2,
+        MaxFailDuration=-1,
+        FailAction='RESTART',
+        TestInterval=30,
+        TestIntervalMultiplier=1,
+        ProcessMonitoringEnabled=0,
+        TestResetInterval=300
         )" > /dev/null
 }
 
