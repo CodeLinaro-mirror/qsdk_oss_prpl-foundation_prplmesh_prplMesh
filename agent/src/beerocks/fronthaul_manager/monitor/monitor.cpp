@@ -1751,40 +1751,6 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
     switch (event) {
 
-    case Event::RRM_Channel_Load_Response: {
-
-        auto hal_data = static_cast<bwl::SStaChannelLoadResponse11k *>(data);
-
-        auto response = message_com::create_vs_message<
-            beerocks_message::cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_RESPONSE>(cmdu_tx);
-        if (response == nullptr) {
-            LOG(ERROR)
-                << "Failed building cACTION_MONITOR_CLIENT_CHANNEL_LOAD_11K_RESPONSE message!";
-            return false;
-        }
-
-        // TODO: TEMPORARY CONVERSION!
-        response->params().channel           = hal_data->channel;
-        response->params().channel_load      = hal_data->channel_load;
-        response->params().op_class          = hal_data->op_class;
-        response->params().rep_mode          = hal_data->rep_mode;
-        response->params().dialog_token      = hal_data->dialog_token;
-        response->params().measurement_token = hal_data->measurement_token;
-        response->params().duration          = hal_data->duration;
-        response->params().start_time        = hal_data->start_time;
-        response->params().use_optional_wide_band_ch_switch =
-            hal_data->use_optional_wide_band_ch_switch;
-        response->params().new_ch_width             = hal_data->new_ch_width;
-        response->params().new_ch_center_freq_seg_0 = hal_data->new_ch_center_freq_seg_0;
-        response->params().new_ch_center_freq_seg_1 = hal_data->new_ch_center_freq_seg_1;
-        tlvf::mac_from_array(hal_data->sta_mac.oct, response->params().sta_mac);
-
-        // debug_channel_load_11k_response(msg);
-
-        send_cmdu(cmdu_tx);
-
-    } break;
-
     case Event::RRM_Beacon_Request_Status: {
 
         auto hal_data = static_cast<bwl::SBeaconRequestStatus11k *>(data);

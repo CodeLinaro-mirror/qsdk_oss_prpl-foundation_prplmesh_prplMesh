@@ -32,7 +32,6 @@ public:
         AP_Enabled,
         AP_Disabled,
         // RRM (802.11k) Events
-        RRM_Channel_Load_Response,
         RRM_Beacon_Request_Status,
         RRM_Beacon_Response,
         //CHANNEL_SCAN events
