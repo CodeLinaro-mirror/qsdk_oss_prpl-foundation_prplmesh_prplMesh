@@ -32,7 +32,12 @@ if [ "$TARGET_SYSTEM" = "mxl_x86_osp_tb341" ]; then
     args+=("mxl_wlan_hostap_ng")
 fi
 
-# args+=("webui")
+if [ "$TARGET_SYSTEM" = "qca_ipq95xx" ]; then
+    # add Freedom's cellular, security and thread profiles
+    args+=("cellular")
+    args+=("security")
+    args+=("thread")
+fi
 
 # feed-prpl is in the prpl profile:
 if [ -n "$WHM_ENABLE" ] ; then
