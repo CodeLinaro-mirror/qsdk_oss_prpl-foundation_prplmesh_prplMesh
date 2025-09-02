@@ -438,7 +438,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             return false;
         }
 
-        db->ethernet.wan.iface_name="br-lan";
+        db->ethernet.wan.iface_name = "br-lan";
         // Destroy `db` to unlock it.
     }
 

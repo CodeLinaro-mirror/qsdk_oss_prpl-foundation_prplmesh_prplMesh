@@ -172,6 +172,7 @@ public:
     static bool linux_iface_exists(const std::string &iface);
     static bool linux_iface_is_up(const std::string &iface);
     static bool linux_iface_is_up_and_running(const std::string &iface);
+    static bool linux_iface_is_wireless(const std::string &iface);
 
     /**
      * @brief Gets the current link speed and the maximum advertised speed

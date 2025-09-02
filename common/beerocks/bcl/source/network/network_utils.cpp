@@ -920,6 +920,29 @@ bool network_utils::linux_iface_is_up_and_running(const std::string &iface)
     return (false);
 }
 
+bool network_utils::linux_iface_is_wireless(const std::string &iface)
+{
+    if (iface.empty()) {
+        return false;
+    }
+
+    // /sys/class/net/<iface>/wireless exists for mac80211/FullMAC ifaces
+    struct stat st {
+    };
+    std::string p1 = "/sys/class/net/" + iface + "/wireless";
+    if (stat(p1.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+        return true;
+    }
+
+    // Some drivers expose phy80211 path
+    std::string p2 = "/sys/class/net/" + iface + "/phy80211";
+    if (stat(p2.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+        return true;
+    }
+
+    return false;
+}
+
 #define ETHTOOL_LINK_MODE_MASK_MAX_KERNEL_NU32 (SCHAR_MAX)
 
 static bool linux_iface_get_max_speed_from_link_modes(const uint32_t *link_mode_flags,

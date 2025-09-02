@@ -774,11 +774,51 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         auto ifaces =
             beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
 
-        if ((m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
-            // Mark the connection as WIRED
-            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
-            db->backhaul.selected_iface_name = db->ethernet.wan.iface_name;
+        // If a wired (WAN) interface was provided, try it first, check if the interface is UP
+        wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
+        std::string up_wired_iface;
 
+        if (!db->device_conf.local_gw) {
+            // ifaces = list of members of br-lan
+            std::sort(ifaces.begin(), ifaces.end());
+
+            for (const auto &iface : ifaces) {
+                // skip loopback or anything obviously non-candidate
+                if (iface == "lo")
+                    continue;
+
+                // skip wireless (AP/STA VIFs also appear as bridge members)
+                if (beerocks::net::network_utils::linux_iface_is_wireless(iface)) {
+                    LOG(DEBUG) << "wireless iface: " << iface << " skipping";
+                    continue;
+                }
+
+                // Either use wan_monitor (carrier-based)...
+                // either network_utils::linux_iface_is_up_and_running(iface)
+                auto state = wan_mon.initialize(iface);
+                if (state == wan_monitor::ELinkState::eInvalid) {
+                    LOG(WARNING) << "wan_mon.initialize(" << iface << ") failed; skipping";
+                    continue;
+                }
+
+                if (state == wan_monitor::ELinkState::eUp) {
+                    wired_link_state = wan_monitor::ELinkState::eUp;
+                    up_wired_iface   = iface;
+                    LOG(DEBUG) << "wired candidate " << iface << " is UP and on the bridge";
+                    break;
+                }
+
+                LOG(TRACE) << "wired candidate " << iface << " is not UP";
+            }
+        }
+
+        if ((wired_link_state == wan_monitor::ELinkState::eUp) &&
+            (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
+
+            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
+            db->backhaul.selected_iface_name = up_wired_iface;
+
+            LOG(INFO) << "Selected wired backhaul on iface " << up_wired_iface;
         } else {
             // If no wired backhaul is configured, or it is down, we get into this else branch.
 
