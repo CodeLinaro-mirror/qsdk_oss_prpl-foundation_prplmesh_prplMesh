@@ -331,6 +331,12 @@ std::string wbapi_utils::get_path_ssid_reference(const AmbiorixVariant &obj)
 {
     std::string value;
     if (obj.read_child(value, "SSIDReference")) {
+
+        // add "Device." prefix if not present before getting object.
+        std::string prefix("Device.");
+        if (value.rfind(prefix, 0) != 0) {
+            value.insert(0, prefix);
+        }
         value += ".";
     }
     return value;
