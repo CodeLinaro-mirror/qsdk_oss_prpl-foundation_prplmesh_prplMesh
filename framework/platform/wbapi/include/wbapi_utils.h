@@ -110,6 +110,11 @@ public:
     static std::string search_path_ep();
 
     /**
+     * @brief return path for all EndPoint objects.
+     */
+    static std::string search_path_ep_all();
+
+    /**
      * @brief return search path of Radio object instance's Name.
      */
     static std::string search_path_radio_iface();

@@ -324,7 +324,7 @@ void cfg_wifi_reset_wps_credentials()
     const std::string aux_alias = "reset_aux";
 
     // create new auxiliary profiles for all EndPoint instances
-    m_ambiorix_cl.resolve_path_multi("WiFi.EndPoint.*.", endpoint_paths);
+    m_ambiorix_cl.resolve_path_multi(wbapi_utils::search_path_ep_all(), endpoint_paths);
 
     int profile_id = -1;
 
