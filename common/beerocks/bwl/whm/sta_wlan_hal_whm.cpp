@@ -237,6 +237,25 @@ bool sta_wlan_hal_whm::start_wps_pbc()
         return false;
     }
 
+    auto ep_obj = m_ambiorix_cl.get_object(m_ep_path);
+    if (!ep_obj) {
+        LOG(ERROR) << "failed to get EP object";
+        return false;
+    }
+
+    std::string con_status;
+    if (!ep_obj->read_child(con_status, "ConnectionStatus")) {
+        LOG(WARNING) << "failed to read ConnectionStatus for " << m_ep_path
+                     << ", proceeding cautiously";
+    } else {
+        if (con_status == std::string("Discovering") || con_status == std::string("Connecting") ||
+            con_status == std::string("WPS_Pairing")) {
+            LOG(INFO) << "Skipping WPS PBC: EndPoint " << m_ep_path
+                      << " is busy (ConnectionStatus=" << con_status << ")";
+            return false;
+        }
+    }
+
     // MultiAPEnable default value may be false, do not rely only on
     // an outside entity to configure the EndPoint correctly
     AmbiorixVariant enable_map(AMXC_VAR_ID_HTABLE);
