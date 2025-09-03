@@ -1100,6 +1100,12 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
     VAPExtInfo vap_extInfo;
 
     auto wifi_ssid_path = wbapi_utils::get_path_ssid_reference(ap_obj);
+
+    // WiFi. -> Device.WiFi.
+    if (wifi_ssid_path.rfind("WiFi.", 0) == 0) {
+        wifi_ssid_path.insert(0, "Device.");
+    }
+
     auto ifname         = wbapi_utils::get_ap_iface(ap_obj);
 
     LOG(INFO) << "refresh_vap_info " << id << " path " << wifi_ssid_path;
@@ -1133,6 +1139,8 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
             m_ambiorix_cl.resolve_path(wbapi_utils::search_path_ap_by_iface(ifname),
                                        vap_extInfo.path);
             m_ambiorix_cl.resolve_path(wifi_ssid_path, vap_extInfo.ssid_path);
+            LOG(INFO) << "VOLODYMYR | vap_extInfo.ssid_path=" << vap_extInfo.ssid_path;
+
             vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
             LOG(INFO) << "status for " << ifname << " " << vap_extInfo.status;
         }

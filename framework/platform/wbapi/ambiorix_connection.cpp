@@ -121,6 +121,8 @@ bool AmbiorixConnection::resolve_path(const std::string &search_path,
     amxd_path_init(&amxd_path, search_path.c_str());
     AmbiorixVariant result;
     auto ret = amxb_resolve(m_bus_ctx, &amxd_path, get_amxc_var_ptr(result));
+    LOG(INFO) << "VOLODYMYR | search_path=" << search_path
+              << " | amxb_resolve ret=" << std::to_string(ret);
     amxd_path_clean(&amxd_path);
     if ((ret == 0) && (!result.empty()) && (result.get_type() == AMXC_VAR_ID_LIST)) {
         auto path_list = result.read_children<AmbiorixVariantListSmartPtr>();
