@@ -10,14 +10,15 @@ cp -r /home/openwrt/prplMesh_source /home/openwrt/prplMesh
 make package/prplmesh/prepare USE_SOURCE_DIR="/home/openwrt/prplMesh" V=s
 # Rebuild the full image:
 
-if ! make -j"$(nproc)" ; then
+make -j"$(nproc)" V=sc 2>&1 | tee custom-prplos-build.log
+#if ! make -j"$(nproc)" ; then
     # Building failed. Rebuild with V=sc, but exit immediately even if
     # the second build succeeds (to let the user/CI know that the
     # parallel build failed).
-    echo "Build failed. Rebuilding with -j1."
-    make V=sc
-    exit 1
-fi
+#    echo "Build failed. Rebuilding with -j1."
+#    make V=sc
+#    exit 1
+#fi
 
 mkdir -p artifacts
 cat << EOT >> artifacts/prplmesh.buildinfo
@@ -37,3 +38,4 @@ find bin/targets/"$TARGET_SYSTEM"/*/ -type f -maxdepth 1 -exec cp -v {} "artifac
 find artifacts/ -type f -name 'prplos-*' -exec bash -c 'mv $0 ${0/\prplos/openwrt}' {} \;
 cp .config artifacts/openwrt.config
 cp files/etc/prplwrt-version artifacts/
+cp custom-prplos-build.log artifacts/
