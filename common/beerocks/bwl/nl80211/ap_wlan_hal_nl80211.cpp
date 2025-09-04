@@ -1826,6 +1826,18 @@ bool ap_wlan_hal_nl80211::change_radio_mode_config(
     return false;
 }
 
+bool ap_wlan_hal_nl80211::update_mld_mode(std::string ssid_alias, uint8_t mld_unit)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
+bool ap_wlan_hal_nl80211::update_mld_unit(std::string ssid_alias, int8_t mld_unit)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace nl80211
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, hal_conf_t hal_conf,
