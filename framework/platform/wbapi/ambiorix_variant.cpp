@@ -108,6 +108,10 @@ AmbiorixVariantSmartPtr AmbiorixVariant::bind(amxc_var_t *data)
 
 AmbiorixVariantSmartPtr AmbiorixVariant::wrap(amxc_var_t *data)
 {
+    if (data == nullptr) {
+        return {};
+    }
+
     return std::make_unique<AmbiorixVariant>(data, false);
 }
 
