@@ -174,6 +174,8 @@ std::string wbapi_utils::search_path_ap_inst() { return search_path_wifi() + "Ac
 
 std::string wbapi_utils::search_path_ep() { return search_path_wifi() + "EndPoint."; }
 
+std::string wbapi_utils::search_path_ep_all() { return search_path_ep() + "*."; }
+
 std::string wbapi_utils::search_path_radio_iface() { return search_path_radio() + "*.Name"; }
 
 std::string wbapi_utils::search_path_radio_by_iface(const std::string &rad_ifname)
@@ -331,6 +333,12 @@ std::string wbapi_utils::get_path_ssid_reference(const AmbiorixVariant &obj)
 {
     std::string value;
     if (obj.read_child(value, "SSIDReference")) {
+
+        // add "Device." prefix if not present before getting object.
+        std::string prefix("Device.");
+        if (value.rfind(prefix, 0) != 0) {
+            value.insert(0, prefix);
+        }
         value += ".";
     }
     return value;
