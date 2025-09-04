@@ -186,7 +186,11 @@ class NbapiCapabilities(PrplMeshBaseTest):
                         )
                 if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_PROFILE2_CAC_CAPABILITIES']:
                     debug("Checking Profile-2 CAC Capabilities TLV")
-                    # TODO: Check Profile-2 CAC Capabilities TLV and related DM objects (PPM-2289).
+                    debug(f"(my) tlv: {tlv}")
+                    debug(f"(my) cac: {controller.nbapi_list(radio.path+'.CACCapability')}")
+                    debug(f"(my) cac: {controller.nbapi_get(radio.path+'.CACCapability')}")
+                    debug(f"(my) cac m: {controller.nbapi_list(radio.path+'.CACCapability.CACMethod')}")
+                    debug(f"(my) cac m: {controller.nbapi_get(radio.path+'.CACCapability.CACMethod')}")
                 if tlv.tlv_type == self.ieee1905['eTlvTypeMap']['TLV_CHANNEL_SCAN_CAPABILITIES']:
                     debug("Checking Profile-2 Scan Capabilities TLV")
                     # TODO: Check Profile-2 Scan Capabilities TLV and related DM objects (PPM-2293).
