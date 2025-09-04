@@ -1040,11 +1040,16 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
     ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac)
 {
     auto db = AgentDB::get();
-    if (db->controller_info.bridge_mac != network_utils::ZERO_MAC &&
-        src_mac != db->controller_info.bridge_mac) {
-        LOG(INFO) << "current controller_bridge_mac=" << db->controller_info.bridge_mac
-                  << " but response came from src_mac=" << src_mac << ", ignoring";
-        return;
+    if (src_mac != db->controller_info.bridge_mac) {
+        if (db->controller_info.bridge_mac != network_utils::ZERO_MAC) {
+            LOG(INFO) << "current controller_bridge_mac=" << db->controller_info.bridge_mac
+                      << " but response came from src_mac=" << src_mac << ", ignoring";
+            return;
+        } else if (src_mac != db->bridge.mac && db->device_conf.local_gw) {
+            LOG(WARNING) << "got response from external controller " << src_mac
+                         << " on local agent, ignoring";
+            return;
+        }
     }
 
     auto tlvSupportedRole = cmdu_rx.getClass<ieee1905_1::tlvSupportedRole>();
@@ -2020,7 +2025,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
 
     const auto &vap_info = notification_in->vap_info();
     auto bssid           = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
-                              [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
+                                        [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
                                   return bssid.mac == vap_info.mac;
                               });
     if (bssid == radio->front.bssids.end()) {
