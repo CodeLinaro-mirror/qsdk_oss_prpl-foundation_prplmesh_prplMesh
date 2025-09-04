@@ -55,6 +55,11 @@ bool AmbiorixClient::resolve_path_multi(const std::string &search_path,
 
 bool AmbiorixClient::resolve_path(const std::string &search_path, std::string &absolute_path)
 {
+    if (search_path.empty() || search_path == ".") {
+        absolute_path.clear();
+        return false;
+    }
+
     std::vector<std::string> absolute_path_list;
     if (resolve_path_multi(search_path, absolute_path_list) && !absolute_path_list.empty()) {
         absolute_path = absolute_path_list[0];
