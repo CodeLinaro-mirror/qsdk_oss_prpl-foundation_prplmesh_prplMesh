@@ -274,10 +274,12 @@ int main(int argc, char *argv[])
                               timer_manager, event_loop);
 
     if (!ap_manager.start()) {
-        // if is a fatal error except for when the user explicitly terminate the process
+        // it is not an error when the user explicitly terminate the process
         if (s_signal == SIGTERM)
             return 0;
-        LOG(FATAL) << "Unable to start AP manager!";
+        LOG(INFO) << "Unable to start AP manager!";
+        std::cout << "Beerocks Fronthaul Process Stop" << std::endl;
+        return 1;
     }
 
     // Create Monitor
