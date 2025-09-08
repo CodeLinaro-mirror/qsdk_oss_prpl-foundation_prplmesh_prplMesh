@@ -221,6 +221,41 @@ bool sta_wlan_hal_whm::process_scan_complete_event(const std::string &result)
 
 bool sta_wlan_hal_whm::start_wps_pbc()
 {
+    std::string wps_path = m_ep_path + "WPS.";
+    bool enabled         = false;
+
+    // Path example: WiFi.EndPoint.[IntfName == 'wlan0'].WPS
+    auto wps_obj = m_ambiorix_cl.get_object(wps_path);
+    if (!wps_obj) {
+        LOG(ERROR) << "failed to get wps object";
+        return false;
+    }
+
+    wps_obj->read_child(enabled, "Enable");
+    if (!enabled) {
+        LOG(INFO) << "WPS is disabled on EndPoint: " << m_ep_path;
+        return false;
+    }
+
+    auto ep_obj = m_ambiorix_cl.get_object(m_ep_path);
+    if (!ep_obj) {
+        LOG(ERROR) << "failed to get EP object";
+        return false;
+    }
+
+    std::string con_status;
+    if (!ep_obj->read_child(con_status, "ConnectionStatus")) {
+        LOG(WARNING) << "failed to read ConnectionStatus for " << m_ep_path
+                     << ", proceeding cautiously";
+    } else {
+        if (con_status == std::string("Discovering") || con_status == std::string("Connecting") ||
+            con_status == std::string("WPS_Pairing")) {
+            LOG(INFO) << "Skipping WPS PBC: EndPoint " << m_ep_path
+                      << " is busy (ConnectionStatus=" << con_status << ")";
+            return false;
+        }
+    }
+
     // MultiAPEnable default value may be false, do not rely only on
     // an outside entity to configure the EndPoint correctly
     AmbiorixVariant enable_map(AMXC_VAR_ID_HTABLE);
@@ -231,13 +266,12 @@ bool sta_wlan_hal_whm::start_wps_pbc()
     }
 
     AmbiorixVariant args, result;
-    std::string wps_path = m_ep_path + "WPS.";
-    ret                  = m_ambiorix_cl.call(wps_path, "pushButton", args, result);
-
+    ret = m_ambiorix_cl.call(wps_path, "pushButton", args, result);
     if (!ret) {
         LOG(ERROR) << "start_wps_pbc() failed!";
         return false;
     }
+
     return true;
 }
 

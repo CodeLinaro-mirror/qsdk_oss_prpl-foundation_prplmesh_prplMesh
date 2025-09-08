@@ -140,6 +140,58 @@ public:
     bool start_wps_pbc(const sMacAddr &radio_mac);
 
     /**
+     * @brief Automatically initiates WPS Push Button Connect (PBC) based on agent state.
+     *
+     * This function determines the appropriate WPS PBC path depending on the
+     * agent's current operational state:
+     *  - If the agent is operational (fronthaul APs active), WPS PBC is triggered
+     *    on all fronthaul AP interfaces.
+     *  - If the agent is not operational (backhaul STA onboarding or disconnected),
+     *    WPS PBC is triggered on Endpoint (bSTA) interface(s).
+     *
+     * @return true on success, false on failure.
+     */
+    bool initiate_wps_pbc_auto();
+
+    /**
+     * @brief Triggers WPS PBC (backhaul STA) on provided frequency
+     *
+     * @param freq frequency on which WPS PBC will be triggerd
+     * Default frequency is 5G
+     * @return true if at least one fronthaul radio successfully accepted WPS PBC, false otherwise.
+     */
+    bool start_wps_pbc_ep_freq(eFreqType freq = eFreqType::FREQ_5G);
+
+    /**
+     * @brief Start WPS PBC on a specific fronthaul AP radio.
+     *
+     * Sends a @c cACTION_BACKHAUL_START_WPS_PBC_REQUEST message to the slave
+     * managing the given @p radio_mac.
+     *
+     * @param radio_mac MAC address of the target AP radio.
+     * @return true on success, false if the radio is not found or message send fails.
+     */
+    bool start_wps_pbc_ap(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Start WPS PBC on the backhaul STA interface.
+     *
+     * This initiates WPS PBC on the all radios
+     * @param radio_mac MAC address of the target EP radio.
+     * @return true on success, false if the STA HAL is not available or WPS start fails.
+     */
+    bool start_wps_pbc_ep(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Start WPS PBC on the backhaul STA interface.
+     *
+     * This initiates WPS PBC on the currently selected backhaul STA.
+     * @param radio_mac MAC address of the target EP radio.
+     * @return true on success, false if the STA HAL is not available or WPS start fails.
+     */
+    bool start_wps_pbc_sta();
+
+    /**
      * @brief set MBO AssocDisallow property
      * 
      * @param radio_mac radio mac of the radio on which to set the MBO

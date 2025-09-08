@@ -108,5 +108,19 @@
             }
         }
 
+        /* Provides control and status parameters related to Wi-Fi Protected Setup (WPS) functionality on the agent. */
+        %persistent object WPS {
+            /**
+            * InitiateWPSPBC
+            *
+            * Triggers a WPS Push Button Connect (PBC) action on the agent.
+            *
+            * When invoked, the agent will check its onboarding status:
+            *   - If not onboarded: triggers WPS on Endpoint interfaces (bSTA).
+            *   - If onboarded: triggers WPS on Access Point interfaces (Fronthauls).
+            */
+            %instance bool InitiateWPSPBC();
+        }
+
     @AGENT_ROOT_DM_Footer@
 }

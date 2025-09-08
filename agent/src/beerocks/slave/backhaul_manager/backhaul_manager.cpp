@@ -3010,99 +3010,124 @@ std::string BackhaulManager::freq_to_radio_mac(eFreqType freq) const
     return {};
 }
 
+bool BackhaulManager::start_wps_pbc_ap(const sMacAddr &radio_mac)
+{
+    // Find target radio
+    auto it = std::find_if(
+        m_radios_info.begin(), m_radios_info.end(),
+        [&](std::shared_ptr<sRadioInfo> radio_info) { return radio_info->radio_mac == radio_mac; });
+    if (it == m_radios_info.end()) {
+        LOG(ERROR) << "couldn't find slave for radio mac " << radio_mac;
+        return false;
+    }
+
+    // Store the socket to the slave managing the requested radio
+    auto &radio_info = *it;
+    // WPS PBC registration on AP interface
+    auto msg =
+        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_START_WPS_PBC_REQUEST>(
+            cmdu_tx);
+    if (!msg) {
+        LOG(ERROR) << "Failed building message!";
+        return false;
+    }
+
+    msg->set_iface(radio_info->hostap_iface);
+    LOG(DEBUG) << "Start WPS PBC registration on interface " << radio_info->hostap_iface;
+    return send_cmdu(m_agent_fd, cmdu_tx);
+}
+
+bool BackhaulManager::start_wps_pbc_ep(const sMacAddr &radio_mac)
+{
+    // WPS PBC registration on STA interface
+    auto sta_wlan_hal = get_wireless_hal(radio_mac);
+    if (!sta_wlan_hal) {
+        LOG(ERROR) << "Failed to get backhaul STA hal";
+        return false;
+    }
+
+    if (!sta_wlan_hal->start_wps_pbc()) {
+        LOG(ERROR) << "Failed to start wps";
+        return false;
+    }
+    return true;
+}
+
+bool BackhaulManager::start_wps_pbc_sta()
+{
+    // WPS PBC registration on STA interface
+    auto sta_wlan_hal = get_selected_backhaul_sta_wlan_hal();
+    if (!sta_wlan_hal) {
+        LOG(ERROR) << "Failed to get backhaul STA hal";
+        return false;
+    }
+
+    if (!sta_wlan_hal->start_wps_pbc()) {
+        LOG(ERROR) << "Failed to start wps";
+        return false;
+    }
+    return true;
+}
+
 bool BackhaulManager::start_wps_pbc(const sMacAddr &radio_mac)
 {
-    auto db        = AgentDB::get();
-    auto enableAps = [&]() -> bool {
-        for (const auto &radio_info : m_radios_info) {
-            auto notification = message_com::create_vs_message<
-                beerocks_message::cACTION_BACKHAUL_ENABLE_APS_REQUEST>(cmdu_tx);
+    if (m_eFSMState == EState::OPERATIONAL) {
+        LOG(INFO) << "WPS PBC: AP/fronthaul path (agent is operational)";
+        return start_wps_pbc_ap(radio_mac);
+    }
+    LOG(INFO) << "WPS PBC: bSTA path (agent not operational)";
+    return start_wps_pbc_sta();
+}
 
-            if (!notification) {
-                LOG(ERROR) << "Failed building message!";
-                return false;
-            }
+bool BackhaulManager::start_wps_pbc_ep_freq(eFreqType freq)
+{
+    auto radio_mac_str = freq_to_radio_mac(freq);
+    if (radio_mac_str.empty()) {
+        LOG(ERROR) << "Failed to get radio";
+        return false;
+    }
 
-            notification->set_iface(radio_info->hostap_iface);
-            notification->channel()        = radio_info->primary_channel;
-            notification->bandwidth()      = eWiFiBandwidth::BANDWIDTH_20;
-            notification->center_channel() = radio_info->primary_channel;
+    auto radio_mac = tlvf::mac_from_string(radio_mac_str);
 
-            LOG(DEBUG) << "Send enable to radio " << radio_info->hostap_iface
-                       << ", channel = " << int(notification->channel())
-                       << ", center_channel = " << int(notification->center_channel());
-
-            send_cmdu(m_agent_fd, cmdu_tx);
-        }
-        return true;
-    };
-    if ((m_eFSMState == EState::OPERATIONAL)) {
-        auto it = std::find_if(m_radios_info.begin(), m_radios_info.end(),
-                               [&](std::shared_ptr<sRadioInfo> radio_info) {
-                                   return radio_info->radio_mac == radio_mac;
-                               });
-        if (it == m_radios_info.end()) {
-            LOG(ERROR) << "couldn't find slave for radio mac " << radio_mac;
-            return false;
-        }
-
-        // Store the socket to the slave managing the requested radio
-        auto &radio_info = *it;
-        // WPS PBC registration on AP interface
-        auto msg = message_com::create_vs_message<
-            beerocks_message::cACTION_BACKHAUL_START_WPS_PBC_REQUEST>(cmdu_tx);
-        if (!msg) {
-            LOG(ERROR) << "Failed building message!";
-            return false;
-        }
-
-        msg->set_iface(radio_info->hostap_iface);
-        LOG(DEBUG) << "Start WPS PBC registration on interface " << radio_info->hostap_iface;
-        return send_cmdu(m_agent_fd, cmdu_tx);
-    } else {
-        // WPS PBC registration on STA interface
-        auto sta_wlan_hal = get_selected_backhaul_sta_wlan_hal();
-        if (!sta_wlan_hal) {
-            LOG(ERROR) << "Failed to get backhaul STA hal";
-            if (db->device_conf.certification_mode)
-                enableAps() ? LOG(DEBUG) << "Enabling all radios"
-                            : LOG(DEBUG) << "Failed enabling radios";
-            return false;
-        }
-
-#ifndef USE_PRPLMESH_WHM
-        // Disable radio interface to make sure its not beaconing along while the supplicant is
-        // scanning.Disable rest of radio interfaces to prevent stations from connecting (there is
-        // no BH link anyway).
-        // This is a temporary solution for axepoint (prplwrt) in order to pass wbh easymesh
-        // certification tests (Need to be removed once PPM-643 or PPM-1580 are solved)
-        for (const auto &radio_info : m_radios_info) {
-            auto msg = message_com::create_vs_message<
-                beerocks_message::cACTION_BACKHAUL_RADIO_DISABLE_REQUEST>(cmdu_tx);
-            if (!msg) {
-                LOG(ERROR) << "Failed building cACTION_BACKHAUL_RADIO_DISABLE_REQUEST";
-                return false;
-            }
-
-            msg->set_iface(radio_info->hostap_iface);
-            LOG(DEBUG) << "Request Agent to disable the radio interface "
-                       << radio_info->hostap_iface << " before WPS starts";
-            if (!send_cmdu(m_agent_fd, cmdu_tx)) {
-                LOG(ERROR) << "Failed to send cACTION_BACKHAUL_RADIO_DISABLE_REQUEST";
-                return false;
-            }
-            UTILS_SLEEP_MSEC(3000);
-        }
-#endif
-        if (!sta_wlan_hal->start_wps_pbc()) {
-            LOG(ERROR) << "Failed to start wps";
-            if (db->device_conf.certification_mode)
-                enableAps() ? LOG(DEBUG) << "Enabling all radios"
-                            : LOG(DEBUG) << "Failed enabling radios";
-            return false;
-        }
+    if (start_wps_pbc_ep(radio_mac)) {
+        LOG(INFO) << "WPS PBC endpoint on " << radio_mac;
         return true;
     }
+    LOG(WARNING) << "WPS PBC: no fronthaul BSS accepted PBC in the radio: " << radio_mac;
+
+    return false;
+}
+
+bool BackhaulManager::initiate_wps_pbc_auto()
+{
+    auto db = AgentDB::get();
+
+    if (db->statuses.ap_autoconfiguration_completed) {
+        bool result = false;
+        for (const auto radio : db->get_radios_list()) {
+            //Skip 6GHz since WPS is not allowed on 6GHz per Wi-Fi 6E standard
+            if (!radio || radio->wifi_channel.get_freq_type() == eFreqType::FREQ_6G) {
+                continue;
+            }
+            if (start_wps_pbc_ap(radio->front.iface_mac)) {
+                LOG(INFO) << "WPS PBC AP/fronthaul path (agent is operational) on radio: "
+                          << radio->front.iface_mac;
+                result = true;
+            }
+        }
+        return result;
+    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_5G)) { //Default frequency for WPS PBC is 5G
+        LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_5G";
+        return true;
+
+    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_24G)) {
+        LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_24G";
+        return true;
+    }
+
+    LOG(ERROR) << "WPS PBC: failed to trigger";
+
+    return false;
 }
 
 bool BackhaulManager::set_mbo_assoc_disallow(const sMacAddr &radio_mac, const sMacAddr &bssid,
