@@ -559,6 +559,14 @@ public:
                  operating_class != OPCLASS_6GHZ_EXCEPTION));
     }
 
+    /**
+     * @brief Get bandwith form the operating class
+     *
+     * @param op_class operating class
+     * @return bandwidth, BANDWIDTH_UNKNOWN if bandwidth not found
+     */
+    static beerocks::eWiFiBandwidth get_bandwidth_from_op_class(const uint8_t &op_class);
+
 private:
     enum eAntennaFactor {
         ANT_FACTOR_1X1 = 0,
