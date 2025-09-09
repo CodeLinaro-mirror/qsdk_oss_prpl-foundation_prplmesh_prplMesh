@@ -755,11 +755,6 @@ bool topology_task::handle_topology_notification(const sMacAddr &src_mac,
         client->clear_cross_rssi();
         database.dm_clear_sta_stats(tlvf::mac_from_string(client_mac_str));
 
-        if (!(client->is_bSta() && database.get_sta_handoff_flag(*client))) {
-            // The node is not an IRE in handoff
-            client->set_bSta(false);
-        }
-
         database.set_sta_backhaul_iface_type(client_mac, beerocks::IFACE_TYPE_WIFI_UNSPECIFIED);
 
         if (vs_tlv) {
