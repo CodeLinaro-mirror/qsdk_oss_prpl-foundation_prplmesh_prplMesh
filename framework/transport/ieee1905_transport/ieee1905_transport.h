@@ -160,12 +160,8 @@ private:
         uint8_t ether_dhost[ETH_ALEN]; /* destination eth addr  */
         uint8_t ether_shost[ETH_ALEN]; /* source ether addr */
         uint16_t tpid;                 /* 802.1Q header TPID */
-        struct TCI {
-            uint16_t vid : 12; /* VLAN Identifier */
-            uint16_t dei : 1;  /* Drop eligible indicator */
-            uint16_t pcp : 3;  /* Priority code point */
-        } __attribute__((__packed__)) tci;
-        uint16_t ether_type; /* packet type ID field    */
+        uint16_t tci;                  /* tag control information (VID + DEI + PCP) */
+        uint16_t ether_type;           /* packet type ID field    */
     } __attribute__((__packed__));
 
 // IEEE1905 CMDU header in packed format
