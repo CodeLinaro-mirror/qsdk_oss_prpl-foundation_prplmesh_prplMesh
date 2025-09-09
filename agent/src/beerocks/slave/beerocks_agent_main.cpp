@@ -412,6 +412,10 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     {
         auto db           = beerocks::AgentDB::get();
         auto on_boot_scan = beerocks::string_utils::stoi(beerocks_slave_conf.on_boot_scan);
+        db->device_conf.on_boot_scan = on_boot_scan;
+        bool send_btm_to_non_11v_sta =
+            beerocks::string_utils::stoi(beerocks_slave_conf.send_btm_to_non_11v_sta);
+        db->device_conf.send_btm_to_non_11v_sta = send_btm_to_non_11v_sta;
 
         auto dwell_time = beerocks::string_utils::stoi(beerocks_slave_conf.dwell_time);
         if (dwell_time > 0) {
@@ -424,7 +428,6 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
                           "used (PREFERRED_DWELLTIME_MS)";
         }
 
-        db->device_conf.on_boot_scan = on_boot_scan;
         db->device_conf.enable_auto_chansel_handling =
             beerocks_slave_conf.enable_auto_chansel_handling == "1";
         db->init_data_model(amb_dm_obj);

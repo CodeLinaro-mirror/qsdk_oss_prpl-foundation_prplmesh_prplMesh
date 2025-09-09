@@ -172,7 +172,8 @@ public:
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
         int on_boot_scan;
         int dwell_time;
-        uint8_t max_num_mlds = 3; // Arbitrary
+        bool send_btm_to_non_11v_sta = false;
+        uint8_t max_num_mlds         = 3; // Arbitrary
         bool enable_auto_chansel_handling;
     } device_conf;
 
@@ -292,9 +293,10 @@ public:
         } statuses;
 
         struct sClient {
-            sClient(sMacAddr bssid_, size_t association_frame_length_, uint8_t *association_frame_)
+            sClient(sMacAddr bssid_, size_t association_frame_length_, uint8_t *association_frame_,
+                    uint8_t btm_supported_)
                 : bssid(bssid_), association_time(std::chrono::steady_clock::now()),
-                  association_frame_length(association_frame_length_)
+                  association_frame_length(association_frame_length_), supports_11v(btm_supported_)
             {
                 std::copy_n(association_frame_, association_frame_length_,
                             association_frame.begin());
@@ -303,6 +305,7 @@ public:
             std::chrono::steady_clock::time_point association_time;
             size_t association_frame_length;
             std::array<uint8_t, ASSOCIATION_FRAME_SIZE> association_frame;
+            bool supports_11v;
         };
 
         struct sCacCapabilities {
