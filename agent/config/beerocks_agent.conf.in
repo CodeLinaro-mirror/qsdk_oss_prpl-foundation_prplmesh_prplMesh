@@ -56,10 +56,13 @@ on_boot_scan=0
 # The value must be a positive number in milliseconds within the chip's supported limits
 dwell_time=20
 
-
 # Indicates whether unicast traffic statistics are collected per station
 # 1 = enable
 clients_unicast_measurements=0
+
+# send_btm_to_non_11v_sta = 0 -> Do not send BTM requests to STAs that do not support 802.11v
+# send_btm_to_non_11v_sta = 1 -> Allow sending BTM requests to STAs even if they do not support 802.11v
+send_btm_to_non_11v_sta=0
 
 [backhaul]
 backhaul_preferred_bssid=
