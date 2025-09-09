@@ -203,6 +203,7 @@ public:
     struct sBackhaul {
         enum class eConnectionType { Invalid = 0, Wired, Wireless } connection_type;
         std::string selected_iface_name;
+        std::set<std::string> attempted_wired_iface_names;
         sMacAddr preferred_bssid;
         uint8_t bssid_multi_ap_profile;
         sMacAddr backhaul_bssid;

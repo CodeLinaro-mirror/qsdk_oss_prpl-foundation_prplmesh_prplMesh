@@ -4750,11 +4750,17 @@ bool slave_thread::agent_fsm()
     case STATE_OPERATIONAL: {
         LOG(TRACE) << "Agent is in STATE_OPERATIONAL";
 
+        auto db = AgentDB::get();
+
+        LOG(DEBUG) << "Selected backhaul iface: " << db->backhaul.selected_iface_name;
+        // We're so happy about the current backhaul iface,
+        // we remove it from attempted to not to skip on reset
+        db->backhaul.attempted_wired_iface_names.erase(db->backhaul.selected_iface_name);
+
         // In certification mode, if prplMesh is configured with local controller, do not enable the
         // transport process until agent has connected to controller. This way we prevent the agent
         // from connecting to another controller in the testbed, which might still be running from a
         // previous test.
-        auto db = AgentDB::get();
         if (db->device_conf.certification_mode && db->device_conf.local_controller) {
             if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
                 // Configure the transport process to use the network bridge

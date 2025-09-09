@@ -773,35 +773,72 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         // link establish
         auto ifaces =
             beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+        auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
+        decltype(ifaces) bh_candidates;
 
-        // If a wired (WAN) interface was provided, try it first, check if the interface is UP
-        wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
-        if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
-            wired_link_state = wan_mon.initialize(db->ethernet.wan.iface_name);
-            // Failure might be due to insufficient permissions, detailed error message is being
-            // printed inside.
-            if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
-                LOG(WARNING) << "wan_mon.initialize() failed, skip wired link establishment";
+        std::sort(ifaces.begin(), ifaces.end());
+        std::sort(lan_ifaces.begin(), lan_ifaces.end());
+        std::set_intersection(ifaces.begin(), ifaces.end(), lan_ifaces.begin(), lan_ifaces.end(),
+                              std::back_inserter(bh_candidates));
+
+        const bool attempted_everything =
+            !bh_candidates.empty() &&
+            std::all_of(bh_candidates.begin(), bh_candidates.end(), [&db](const auto &iface) {
+                return db->backhaul.attempted_wired_iface_names.count(iface);
+            });
+        if (attempted_everything) {
+            LOG(DEBUG) << "Attempted all wired ifaces, trying again";
+            db->backhaul.attempted_wired_iface_names.clear();
+        }
+
+        db->backhaul.connection_type = AgentDB::sBackhaul::eConnectionType::Invalid;
+        // Try wired first
+        if (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH) {
+            auto is_ok = [&db](const std::string &iface_name) {
+                LOG(DEBUG) << "Checking iface: " << iface_name;
+
+                if (iface_name.empty())
+                    return false;
+                if (db->backhaul.attempted_wired_iface_names.count(iface_name))
+                    return false;
+
+                // Add to attempted before checking if iface is UP
+                // otherwise we will never mark all ifaces as attempted
+                // and never try the UP ones again
+                LOG(DEBUG) << "Adding to attempted ifaces: " << iface_name;
+                db->backhaul.attempted_wired_iface_names.insert(iface_name);
+
+                if (!net::network_utils::linux_iface_is_up_and_running(iface_name))
+                    return false;
+
+                return true;
+            };
+            std::string selected_iface_name;
+
+            // If preferred wired (WAN) interface was provided, try it first
+            auto it = find(bh_candidates.begin(), bh_candidates.end(), db->ethernet.wan.iface_name);
+            if (it != bh_candidates.end() && is_ok(db->ethernet.wan.iface_name)) {
+                selected_iface_name = db->ethernet.wan.iface_name;
+            } else { // check wired ones in the bridge
+                // It's possible that wan.iface_name will be checked twice, not a huge problem
+                for (const auto &iface_name : bh_candidates) {
+                    if (is_ok(iface_name)) {
+                        selected_iface_name = iface_name;
+                        break;
+                    }
+                }
+            }
+
+            if (!selected_iface_name.empty()) {
+                LOG(DEBUG) << "Selected wired iface: " << selected_iface_name;
+                // Mark the connection as WIRED
+                db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
+                db->backhaul.selected_iface_name = selected_iface_name;
             }
         }
-        if ((wired_link_state == wan_monitor::ELinkState::eUp) &&
-            (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
 
-            auto it = std::find(ifaces.begin(), ifaces.end(), db->ethernet.wan.iface_name);
-            if (it == ifaces.end()) {
-                LOG(ERROR) << "wire iface " << db->ethernet.wan.iface_name
-                           << " is not on the bridge";
-                FSM_MOVE_STATE(RESTART);
-                break;
-            }
-
-            // Mark the connection as WIRED
-            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
-            db->backhaul.selected_iface_name = db->ethernet.wan.iface_name;
-
-        } else {
-            // If no wired backhaul is configured, or it is down, we get into this else branch.
-
+        // If no wired backhaul is configured or found, try wireless
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Invalid) {
             // If selected backhaul is not empty, it's because we are in certification mode and
             // it was given with "dev_set_config".
             // If the RUID of the selected backhaul is null, then restart instead of continuing
