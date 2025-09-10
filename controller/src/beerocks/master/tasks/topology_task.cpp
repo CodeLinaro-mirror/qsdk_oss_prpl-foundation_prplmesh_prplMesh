@@ -415,22 +415,24 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         }
     }
 
-    for (auto reported_neighbor_mac : reported_neighbor_al_macs) {
+    for (const auto &reported_neighbor_mac : reported_neighbor_al_macs) {
         if (!database.get_agent(reported_neighbor_mac) &&
             recently_reported_neighbors.find(reported_neighbor_mac) ==
                 recently_reported_neighbors.end()) {
-            // Send a Topology Query if any new neighbor was detected.
-            if (!cmdu_tx.create(0, ieee1905_1::eMessageType::TOPOLOGY_QUERY_MESSAGE)) {
-                LOG(ERROR) << "Failed to build TOPOLOGY_QUERY_MESSAGE message!";
-            }
-            // Save just reported new neighbor to avoid sending unnecessary multiple
-            // Topology Query from different devices to the same new node.
+
+            // Save just-reported new neighbor to avoid duplicate Topology Queries
             recently_reported_neighbors.insert(
                 {reported_neighbor_mac, std::chrono::steady_clock::now()});
-            son_actions::send_cmdu_to_agent(reported_neighbor_mac, cmdu_tx, database);
-            // Send an AP-AutoConfiguration Renew message to notify the neighbor
-            // that an AP-AutoConfiguration WSC message should be sent.
-            son_actions::send_ap_config_renew_msg(cmdu_tx, database);
+
+            // Send a Topology Query (includes required Multi-AP Profile TLV)
+            if (!son_actions::send_topology_query_msg(reported_neighbor_mac, cmdu_tx, database)) {
+                LOG(ERROR) << "Failed to send TOPOLOGY_QUERY_MESSAGE to " << reported_neighbor_mac;
+            }
+
+            // Notify the neighbor to send AP-Autoconfiguration WSC message
+            if (!son_actions::send_ap_config_renew_msg(cmdu_tx, database)) {
+                LOG(WARNING) << "Failed to send AP-AutoConfiguration Renew";
+            }
         }
     }
 
