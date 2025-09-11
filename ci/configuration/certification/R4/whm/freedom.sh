@@ -23,13 +23,14 @@ rm -f /etc/rc.d/S*ssh-server
 sh /etc/init.d/tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
 
-# Disable restarting failing serivces by default
-sh /etc/init.d/amx-processmonitor stop || true
+# Stop and disable the DHCPv4 client: (PPW-888)
+sh /etc/init.d/tr181-dhcpv4client stop || true
+rm -f /etc/rc.d/*dhcpv4client
+pkill -f -9 tr181-dhcpv4client || true
 
 ubus wait_for IP.Interface
 
 # Stop and disable the DHCP clients and servers:
-ba-cli DHCPv4Client.Client.wan.Enable=0
 ba-cli DHCPv6Client.Client.wan.Enable=0
 ba-cli DHCPv4Server.Enable=0
 ba-cli DHCPv6Server.Enable=0
