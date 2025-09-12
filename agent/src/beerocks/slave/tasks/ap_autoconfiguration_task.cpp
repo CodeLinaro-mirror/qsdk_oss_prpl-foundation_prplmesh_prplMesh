@@ -1065,12 +1065,18 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
                    << ", ignoring";
         return;
     }
-    if (db->controller_info.bridge_mac != network_utils::ZERO_MAC &&
-        src_mac != db->controller_info.bridge_mac) {
-        LOG(ERROR) << "[Multiple Controllers Detected] current controller_bridge_mac="
-                   << db->controller_info.bridge_mac
-                   << " but response came from src_mac=" << src_mac << ", ignoring";
-        return;
+    if (src_mac != db->controller_info.bridge_mac) {
+        if (db->controller_info.bridge_mac != network_utils::ZERO_MAC) {
+            LOG(ERROR) << "[Multiple Controllers Detected] current controller_bridge_mac="
+                       << db->controller_info.bridge_mac
+                       << " but response came from src_mac=" << src_mac << ", ignoring";
+            return;
+        } else if (src_mac != db->bridge.mac && db->device_conf.local_gw) {
+            LOG(WARNING)
+                << "[Multiple Controllers Detected] got response from external controller src_mac="
+                << src_mac << " on local agent mac=" << db->bridge.mac << ", ignoring";
+            return;
+        }
     }
 
     auto tlvSupportedRole = cmdu_rx.getClass<ieee1905_1::tlvSupportedRole>();
