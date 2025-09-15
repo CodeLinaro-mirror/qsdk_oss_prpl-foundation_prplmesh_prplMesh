@@ -202,9 +202,7 @@ private:
 
     // Class constants
     static constexpr uint8_t BEACON_TRANSMIT_TIME_MS = 100;
-    static constexpr uint8_t BSS_STEER_IMMINENT_VALID_INT_BTT =
-        (beerocks::BSS_STEER_DISASSOC_TIMER_MS / BEACON_TRANSMIT_TIME_MS);
-    static constexpr uint8_t BSS_STEER_VALID_INT_BTT = 2; // 200ms
+    static constexpr uint8_t BSS_STEER_VALID_INT_BTT = 100; // 10s
 
     /**
      * Buffer to hold CMDU to be transmitted.
@@ -223,8 +221,7 @@ private:
     wfa_map::tlvProfile2MultiApProfile::eMultiApProfile m_multiap_controller_profile =
         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
 
-    int bss_steer_valid_int          = BSS_STEER_VALID_INT_BTT;
-    int bss_steer_imminent_valid_int = BSS_STEER_IMMINENT_VALID_INT_BTT;
+    int bss_steer_valid_int = BSS_STEER_VALID_INT_BTT;
     struct sApManagerState {
         ApManager *parent;
         eApManagerState cur;
