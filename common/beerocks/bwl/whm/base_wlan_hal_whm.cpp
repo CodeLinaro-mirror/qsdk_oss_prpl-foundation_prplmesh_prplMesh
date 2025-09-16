@@ -880,11 +880,27 @@ bool base_wlan_hal_whm::get_radio_vaps(AmbiorixVariantMap &aps)
     std::string radio_path;
     for (auto &it : *result) {
         auto &ap = it.second;
-        if ((ap.empty()) ||
-            (!m_ambiorix_cl.resolve_path(wbapi_utils::get_path_radio_reference(ap), radio_path))) {
-            LOG(ERROR) << "iteration on ap " << it.first << " problem with radio reference ? ";
-            LOG(ERROR) << "radio path " << radio_path << " m_radio_path " << m_radio_path;
+
+        if (ap.empty()) {
+            LOG(ERROR) << "iteration on ap " << it.first << " empty AP object";
             continue;
+        }
+
+        const auto ref = wbapi_utils::get_path_radio_reference(ap);
+        bool resolved  = m_ambiorix_cl.resolve_path(ref, radio_path);
+
+        // Try #2 (only if first failed)
+        if (!resolved) {
+            LOG(INFO) << "Radio resolve path re-attempt for ap " << it.first << " ref=" << ref;
+            radio_path.clear(); // avoid stale values
+            resolved = m_ambiorix_cl.resolve_path(ref, radio_path);
+
+            if (!resolved) {
+                LOG(ERROR) << "ap " << it.first
+                           << ": failed to resolve radio reference after 2 attempts ref=" << ref
+                           << ", m_radio_path=" << m_radio_path;
+                continue;
+            }
         }
 
         auto vap_rad_index = wbapi_utils::get_object_id(radio_path);
