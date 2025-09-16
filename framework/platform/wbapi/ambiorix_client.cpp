@@ -56,6 +56,8 @@ bool AmbiorixClient::resolve_path_multi(const std::string &search_path,
 bool AmbiorixClient::resolve_path(const std::string &search_path, std::string &absolute_path)
 {
     if (search_path.empty() || search_path == ".") {
+        LOG(WARNING) << "resolve_path called with empty/dot search_path, absolute_path = "
+                     << absolute_path;
         absolute_path.clear();
         return false;
     }
@@ -65,7 +67,9 @@ bool AmbiorixClient::resolve_path(const std::string &search_path, std::string &a
         absolute_path = absolute_path_list[0];
         return true;
     }
-    absolute_path = "";
+
+    LOG(ERROR) << "AmbiorixClient::resolve_path failed to resolve path: " << search_path;
+    absolute_path.clear();
     return false;
 }
 
