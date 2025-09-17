@@ -507,7 +507,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             args.add_child("vap", new_vap_name);
             args.add_child("radio", radio_name);
 
-            m_ambiorix_cl.call("Device.WiFi.", "addVAPIntf", args, result);
+            m_ambiorix_cl.call(wbapi_utils::search_path_wifi(), "addVAPIntf", args, result);
 
             // ex of call: Device.WiFi.addVAPIntf(vap="new5g10", radio="radio2")
             // use the parameter 'vap', "new5g10", as Alias to retrieve the new
@@ -578,6 +578,11 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             }
             if (bss_info_conf.backhaul) {
                 multi_ap += "BackhaulBSS";
+
+                // Backhaul SSID should be always part of private bridge.
+                // TODO: Sync between Agent & pWHM DMs and Bridging Issues (PPM:3525)
+                new_obj.add_child("BridgeInterface", bridge_ifname);
+                new_obj.add_child("DefaultDeviceType", "Data");
             }
             LOG(DEBUG) << "set multiaptype " << multi_ap;
             new_obj.add_child("MultiAPType", multi_ap);
