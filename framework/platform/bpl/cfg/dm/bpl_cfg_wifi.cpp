@@ -318,7 +318,8 @@ int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAM
 void cfg_wifi_reset_wps_credentials()
 {
     std::vector<std::string> ambiorix_paths;
-    m_ambiorix_cl.resolve_path_multi("WiFi.EndPoint.*.Profile.*", ambiorix_paths);
+    m_ambiorix_cl.resolve_path_multi(wbapi_utils::search_path_ep_all() + "Profile.*",
+                                     ambiorix_paths);
     // remove all profiles
     for (const auto &path : ambiorix_paths) {
         LOG(DEBUG) << "remove " << path;
