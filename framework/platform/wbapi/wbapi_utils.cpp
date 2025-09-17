@@ -181,6 +181,11 @@ std::string wbapi_utils::search_path_radio_by_iface(const std::string &rad_ifnam
     return search_path_radio() + "[Name == '" + rad_ifname + "'].";
 }
 
+std::string wbapi_utils::search_path_radRef_by_alias(const std::string &rad_alias)
+{
+    return search_path_radio() + rad_alias;
+}
+
 std::string wbapi_utils::search_path_ssid_iface() { return search_path_ssid() + "*.Name"; }
 
 std::string wbapi_utils::search_path_ssid_by_iface(const std::string &ssid_ifname)
