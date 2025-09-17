@@ -1845,13 +1845,36 @@ bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
 
     LOG(DEBUG) << "Setting QOS_MAP_SET " << qos_map;
 
-    // It seems that for now Aliases for VAPs can't be resolved
-    // auto search_path = wbapi_utils::search_path_ap_by_iface(get_iface_name());
-    const auto search_path = "WiFi.AccessPoint.*.";
+    // Getting APs paths by radRef (getting all APs for specific radio)
+    // pWHM: Radio obj -> Alias -> "[Device.]WiFi.Radio." + Alias == RadioReference (e.g. "WiFi.Radio.radio0")
+    LOG(TRACE) << "Getting APs paths by RadioReference";
+    const auto radio_obj =
+        m_ambiorix_cl.get_object(wbapi_utils::search_path_radio_by_iface(get_iface_name()));
+    if (!radio_obj) {
+        LOG(ERROR) << "Could not resolve get radio object for iface=" << get_iface_name();
+        return false;
+    }
+
+    std::string alias{};
+    if (!radio_obj->read_child(alias, "Alias")) {
+        LOG(ERROR) << "Alias was not found for iface=" << get_iface_name();
+        return false;
+    }
+    auto radRef = wbapi_utils::search_path_radRef_by_alias(alias);
+
+    // TODO: Handle pWHM DM Radio/SSID/ProfileReferences (PPM-3533)
+    constexpr const char *device_prefix = "Device.";
+    if (radRef.rfind(device_prefix, 0) == 0) {
+        radRef.erase(0, strlen(device_prefix));
+        LOG(DEBUG) << "Stripped Device prefix, new radRef: " << radRef;
+    }
+
+    const auto search_path_ap_by_radRef = wbapi_utils::search_path_ap_by_radRef(radRef);
+    LOG(TRACE) << "search_path=" << search_path_ap_by_radReff;
 
     std::vector<std::string> paths;
-    if (!m_ambiorix_cl.resolve_path_multi(search_path, paths)) {
-        LOG(ERROR) << "Could not resolve " << search_path;
+    if (!m_ambiorix_cl.resolve_path_multi(search_path_ap_by_radRef, paths)) {
+        LOG(ERROR) << "Could not resolve " << search_path_ap_by_radRef;
         return false;
     }
 
