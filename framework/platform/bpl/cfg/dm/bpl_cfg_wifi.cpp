@@ -368,7 +368,8 @@ void cfg_wifi_reset_wps_credentials()
         m_ambiorix_cl.update_object(endpoint, args);
     }
 
-    m_ambiorix_cl.resolve_path_multi("WiFi.EndPoint.*.Profile.*", profile_paths);
+    m_ambiorix_cl.resolve_path_multi(wbapi_utils::search_path_ep_all() + "Profile.*",
+                                     profile_paths);
 
     // remove all profiles
     for (const auto &profile : profile_paths) {
