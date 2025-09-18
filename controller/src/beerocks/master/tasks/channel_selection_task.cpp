@@ -378,7 +378,7 @@ void channel_selection_task::work()
         }
 
         if (!radio->is_acs_enabled) {
-            if (wireless_utils::is_dfs_channel(hostap_params.channel)) {
+            if (wireless_utils::is_dfs_channel(hostap_params.channel, hostap_params.freq_type)) {
                 TASK_LOG(INFO) << "not waiting for CAC completed on static DFS channel "
                                   "configuration, setting CAC completed flag to true";
                 database.set_radio_cac_completed(radio_mac, true);
