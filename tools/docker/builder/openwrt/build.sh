@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # shellcheck disable=SC2076
 # shellcheck disable=SC2016
 ###############################################################
@@ -14,7 +14,7 @@ rootdir="${scriptdir%/*/*/*/*}"
 # shellcheck source=functions.sh
 . "${rootdir}/tools/functions.sh"
 
-set -o pipefail
+#set -o pipefail
 
 usage() {
     echo "usage: $(basename "$0") -d <target_device> [-hfiortv]"
@@ -192,6 +192,7 @@ main() {
     build_directory="$rootdir/build"
 
     build_image "$build_directory/$TARGET_DEVICE"
+    return 0
     [ $IMAGE_ONLY = true ] && exit $?
 
     build_prplmesh "$build_directory/$TARGET_DEVICE"

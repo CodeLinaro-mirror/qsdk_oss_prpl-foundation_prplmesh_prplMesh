@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 ###############################################################
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 # SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
@@ -55,7 +55,7 @@ for profile in "${args[@]}" ; do
 done
 
 printf '\033[1;35m%s Building prplWrt\n\033[0m' "$(date --iso-8601=seconds --universal)"
-make -j"$(nproc)" 2>&1 | tee make.log
+make -j"$(nproc)" V=sc 2>&1 | tee make.log
 
 printf '\033[1;35m%s Cleaning prplMesh\n\033[0m' "$(date --iso-8601=seconds --universal)"
 make package/prplmesh/clean
