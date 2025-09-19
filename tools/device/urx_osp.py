@@ -55,19 +55,13 @@ class URXOSP(GenericPrplOS):
         shell.sendline("run update_fullimage")
         shell.expect("done", timeout=30)
         # Image transfer successful
-        shell.expect("Found device tree image", timeout=15)
-        shell.expect("Saving Environment to MMC", timeout=15)
-        shell.expect("OK", timeout=15)
+        shell.expect("fullimage(FIT format) upgrade succeed", timeout=30)
+        shell.expect("fullimage(FIT format) upgrade succeed", timeout=10)
         # Image written to MMC
         shell.sendline("")
         shell.expect(self.bootloader_prompt)
-
-        time.sleep(10)
-        shell.sendline(
-            "mmc erase ${overlay_container_a_block_start} ${overlay_container_a_block_size}")
-        shell.expect("blocks erased: OK", timeout=15)
         time.sleep(5)
         shell.sendline(
-            "mmc erase ${overlay_container_a_block_start} ${overlay_container_a_block_size}")
+            "mmc erase ${rootfs_data_block_start} ${rootfs_data_block_size}")
         shell.expect("blocks erased: OK", timeout=15)
         shell.expect(self.bootloader_prompt)
