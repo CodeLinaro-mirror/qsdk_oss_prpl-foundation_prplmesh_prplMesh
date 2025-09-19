@@ -45,7 +45,7 @@ build_image() {
            --build-arg WHM_ENABLE="$WHM_ENABLE" \
            --build-arg PRPLMESH_VARIANT="$PRPLMESH_VARIANT" \
            --target="$DOCKER_TARGET_STAGE" \
-           "$scriptdir/" \
+           "$scriptdir/" 2>&1 \
       | awk -v LOGFILE="$build_dir/openwrt-build.log" '
           BEGIN { p = 1; }
           /Cleaning prplMesh/ { p = 1; }
