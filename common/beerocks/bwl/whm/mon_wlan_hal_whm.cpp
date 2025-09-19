@@ -391,6 +391,7 @@ bool mon_wlan_hal_whm::sta_beacon_11k_request(const std::string &vap_iface_name,
     args.add_child("mode", int(req.measurement_mode));
     args.add_child("neighbor", false);
     args.add_child("duration", uint16_t(req.duration));
+    args.add_child("timeout", 0);
 
     if (req.use_optional_ap_ch_report) {
         std::stringstream optionalElements;
