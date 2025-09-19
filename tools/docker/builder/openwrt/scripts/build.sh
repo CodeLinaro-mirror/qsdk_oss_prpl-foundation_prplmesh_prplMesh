@@ -31,6 +31,8 @@ EOT
 TARGET_SYSTEM=${TARGET_SYSTEM//mxl_x86_osp_tb341/intel_x86}
 TARGET_SYSTEM=${TARGET_SYSTEM//qca_ipq95xx/ipq95xx}
 
+TARGET_SYSTEM=${TARGET_SYSTEM//ipq807x/qualcommax}
+
 find bin -name 'prplmesh_*.ipk' -exec cp -v {} "artifacts/prplmesh.ipk" \;
 find bin/targets/"$TARGET_SYSTEM"/*/ -type f -maxdepth 1 -exec cp -v {} "artifacts/" \;
 # Rename the prplos image
