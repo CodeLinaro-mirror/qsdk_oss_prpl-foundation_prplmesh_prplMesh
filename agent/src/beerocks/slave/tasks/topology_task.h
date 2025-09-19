@@ -149,6 +149,13 @@ private:
      */
     bool add_agent_ap_mld_configuration_tlv();
 
+    /**
+     * @brief Add and fill backhaul_sta_mld_configuration tlv.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_backhaul_sta_mld_configuration_tlv();
+
     std::chrono::steady_clock::time_point m_periodic_discovery_timestamp;
 
     bool m_pending_to_send_topology_notification = false;

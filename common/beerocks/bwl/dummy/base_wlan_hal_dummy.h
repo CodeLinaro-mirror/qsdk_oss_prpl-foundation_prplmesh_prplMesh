@@ -54,6 +54,8 @@ public:
     virtual bool process_ext_events(int fd = 0) override;
     virtual bool process_nl_events() override;
     virtual std::string get_radio_mac() override;
+    virtual sMacAddr get_bsta_mld_mac() override;
+    virtual sMacAddr get_ap_mld_mac() override;
 
     /**
      * @brief Gets channel utilization.

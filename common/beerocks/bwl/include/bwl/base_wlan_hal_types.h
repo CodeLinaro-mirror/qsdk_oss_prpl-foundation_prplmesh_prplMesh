@@ -263,6 +263,12 @@ typedef struct {
     sNodeRssiMeasurement params;
 } sACTION_BACKHAUL_CLIENT_RX_RSSI_MEASUREMENT_RESPONSE;
 
+typedef struct {
+    sMacAddr mld_mac_address;
+    sMacAddr affiliated_mac_address;
+    sMacAddr ruid;
+} sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION;
+
 //ap_wlan_hal
 
 enum eWiFiStandard : uint8_t {

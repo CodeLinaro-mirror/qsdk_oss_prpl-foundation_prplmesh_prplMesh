@@ -29,6 +29,7 @@ public:
         Connected,
         Disconnected,
         Terminating,
+        Affiliated_Link_Connected,
         ScanResults,
         ChannelSwitch,
 

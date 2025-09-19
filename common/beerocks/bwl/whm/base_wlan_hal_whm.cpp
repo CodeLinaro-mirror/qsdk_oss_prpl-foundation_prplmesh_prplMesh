@@ -1239,6 +1239,18 @@ std::string base_wlan_hal_whm::get_radio_mac()
     return m_radio_mac_address;
 }
 
+sMacAddr base_wlan_hal_whm::get_bsta_mld_mac()
+{
+    LOG(WARNING) << "not implemented";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
+sMacAddr base_wlan_hal_whm::get_ap_mld_mac()
+{
+    LOG(WARNING) << "not implemented";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 bool base_wlan_hal_whm::get_channel_utilization(uint8_t &channel_utilization)
 {
     uint16_t chLoad;

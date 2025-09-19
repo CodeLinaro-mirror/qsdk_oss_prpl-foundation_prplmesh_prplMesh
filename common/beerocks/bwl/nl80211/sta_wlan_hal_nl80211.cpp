@@ -287,6 +287,18 @@ std::string sta_wlan_hal_nl80211::get_wireless_backhaul_mac()
 
 bool sta_wlan_hal_nl80211::enable_disable_ep(bool enable) { return true; }
 
+sMacAddr sta_wlan_hal_nl80211::get_bsta_mld_mac()
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
+sMacAddr sta_wlan_hal_nl80211::get_ap_mld_mac()
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 bool sta_wlan_hal_nl80211::process_nl80211_event(parsed_obj_map_t &parsed_obj)
 {
     auto opcode = parsed_obj["_opcode"];

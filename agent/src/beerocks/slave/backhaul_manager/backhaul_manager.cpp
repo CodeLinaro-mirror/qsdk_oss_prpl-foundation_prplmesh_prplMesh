@@ -2419,7 +2419,20 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             LOG(ERROR) << "sta_unassociated_rssi_measurement_header_id == -1";
         }
     } break;
-
+    case Event::Affiliated_Link_Connected: {
+        auto msg = static_cast<bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION *>(data);
+        auto db  = AgentDB::get();
+        if (msg && db->bsta_mld_configuration) {
+            db->bsta_mld_configuration->mld_config.mld_mac = msg->mld_mac_address;
+            for (auto &affiliated_bsta : db->bsta_mld_configuration->affiliated_bstas) {
+                if (affiliated_bsta.ruid == msg->ruid) {
+                    affiliated_bsta.bssid = msg->affiliated_mac_address;
+                }
+            }
+        } else {
+            LOG(ERROR) << "Affiliated_Link_Connected empty message or bSTA configuration";
+        }
+    } break;
     // Unhandled events
     default: {
         LOG(ERROR) << "Unhandled event: " << int(event);
