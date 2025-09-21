@@ -75,8 +75,6 @@ public:
                                               const SStaChannelLoadRequest11k &req)      = 0;
     virtual bool sta_beacon_11k_request(const std::string &vap_iface_name,
                                         const SBeaconRequest11k &req, int &dialog_token) = 0;
-    virtual bool sta_link_measurements_11k_request(const std::string &vap_iface_name,
-                                                   const std::string &sta_mac)           = 0;
     virtual bool channel_scan_trigger(int dwell_time_msec,
                                       const std::vector<unsigned int> &channel_pool,
                                       bool cert_mode = false)                            = 0;
