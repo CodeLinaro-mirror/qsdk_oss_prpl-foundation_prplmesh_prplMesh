@@ -125,6 +125,11 @@ public:
     static std::string search_path_radio_by_iface(const std::string &rad_ifname);
 
     /**
+     * @brief return search path of radio reference instance by alias.
+     */
+    static std::string search_path_radRef_by_alias(const std::string &rad_alias);
+
+    /**
      * @brief return search path of SSID object instance's Name.
      */
     static std::string search_path_ssid_iface();

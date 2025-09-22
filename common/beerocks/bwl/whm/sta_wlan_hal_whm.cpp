@@ -788,7 +788,7 @@ bool sta_wlan_hal_whm::enable_profile(int profile_id)
                    << " -> profile_ref: " << profile_ref;
     }
 
-    // We only need the DM path under “WiFi.”, strip leading “Device.” if present
+    // TODO: Handle pWHM DM Radio/SSID/ProfileReferences (PPM-3533)
     constexpr const char *device_prefix = "Device.";
     if (profile_ref.rfind(device_prefix, 0) == 0) {
         profile_ref.erase(0, strlen(device_prefix));
