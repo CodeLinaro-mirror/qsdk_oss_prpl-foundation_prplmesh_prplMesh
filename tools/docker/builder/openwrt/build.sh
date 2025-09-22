@@ -37,7 +37,7 @@ usage() {
 build_image() {
     build_dir="$1"
     mkdir -p "$build_dir"
-    docker build --tag "$image_tag" \
+    DOCKER_BUILDKIT=0 docker build --tag "$image_tag" \
            --build-arg OPENWRT_REPOSITORY="$OPENWRT_REPOSITORY" \
            --build-arg OPENWRT_VERSION="$OPENWRT_VERSION" \
            --build-arg OPENWRT_TOOLCHAIN_VERSION="$OPENWRT_TOOLCHAIN_VERSION" \
