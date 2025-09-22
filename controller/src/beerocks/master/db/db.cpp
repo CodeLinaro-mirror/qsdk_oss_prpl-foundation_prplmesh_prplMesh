@@ -6824,9 +6824,9 @@ bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, ui
         }
     }
 
-    // Prepare path to the CurrentOperatingClasses instance
-    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses
-    auto op_class_path = radio_path + ".CurrentOperatingClasses";
+    // Prepare path to the CurrentOperatingClassProfile instance
+    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile
+    auto op_class_path = radio_path + ".CurrentOperatingClassProfile";
 
     // Convert operating class bandwidth to index
     Agent::operatingClassProfileIndex index;
@@ -6854,7 +6854,7 @@ bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, ui
 
     auto agent = get_agent_by_radio_uid(radio_mac);
 
-    // The first time, instanciate one Radio.CurrentOperatingClasses and
+    // The first time, instanciate one Radio.CurrentOperatingClassProfile and
     // MultiAPDevice.Backhaul.CurrentOperatingClassProfile for all bandwidth.
     for (int i = 0; i < Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW; i++) {
         if (radio->current_operating_class_profile[i].dm_path.empty()) {
@@ -6894,7 +6894,7 @@ bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, ui
     return true;
 }
 
-bool db::clear_database_current_op_classes(const sMacAddr &radio_mac)
+bool db::reset_current_op_classes_db(const sMacAddr &radio_mac)
 {
     auto radio = get_radio_by_uid(radio_mac);
     if (!radio) {
@@ -6913,7 +6913,7 @@ bool db::clear_database_current_op_classes(const sMacAddr &radio_mac)
     return true;
 }
 
-bool db::clear_dm_current_op_classes(const sMacAddr &radio_mac)
+bool db::clear_empty_dm_current_op_classes(const sMacAddr &radio_mac)
 {
     auto radio = get_radio_by_uid(radio_mac);
     if (!radio) {
@@ -6937,25 +6937,25 @@ bool db::add_current_op_class(std::string op_class_path_instance, uint8_t op_cla
         return false;
     }
 
-    //Set timestamp
+    // Set timestamp for Radio or Backhaul in CurrentOperatingClassProfile.TimeStamp
     if (!m_ambiorix_datamodel->set_current_time(op_class_path_instance)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".TimeStamp: " << op_class;
         return false;
     }
 
-    //Set Operating class
+    // Set Operating class for Radio or Backhaul in CurrentOperatingClassProfile.Class
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "Class", op_class)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".Class: " << op_class;
         return false;
     }
 
-    //Set Operating channel
+    // Set Operating channel for Radio or Backhaul in CurrentOperatingClassProfile.Channel
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "Channel", op_channel)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".Channel: " << op_channel;
         return false;
     }
 
-    //Set TX power
+    // Set TX power for Radio or Backhaul in CurrentOperatingClassProfile.TxPower
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "TxPower", tx_power)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".TxPower: " << tx_power;
         return false;
@@ -6973,7 +6973,7 @@ bool db::set_dm_current_op_class(const sMacAddr &radio_mac, int index, int op_cl
         return false;
     }
 
-    // Set in Radio.CurrentOperatingClasses list
+    // Set Device.WiFi.DataElements.Network.Device.x.Radio.x.CurrentOperatingClassProfile
     if (!add_current_op_class(radio->current_operating_class_profile[index].dm_path, op_class,
                               op_channel, tx_power)) {
         LOG(DEBUG) << "Failed to set: " << radio->current_operating_class_profile[index].dm_path;
@@ -6984,7 +6984,7 @@ bool db::set_dm_current_op_class(const sMacAddr &radio_mac, int index, int op_cl
     radio->current_operating_class_profile[index].channel  = op_channel;
     radio->current_operating_class_profile[index].tx_power = tx_power;
 
-    // Set in MultiAPDevice.Backhaul.CurrentOperatingClassProfile list
+    // Set if needed: Device.WiFi.DataElements.Network.Device.x.Radio.x.CurrentOperatingClassProfile
     if (radio->backhaul_station_mac != beerocks::net::network_utils::ZERO_MAC) {
         // If bSTA of this radio is in the list of known stations with a valid DM path, it means it's connected
         std::shared_ptr<Station> station = get_station(radio->backhaul_station_mac);

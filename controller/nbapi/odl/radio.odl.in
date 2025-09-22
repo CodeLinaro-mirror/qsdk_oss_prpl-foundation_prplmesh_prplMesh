@@ -59,8 +59,8 @@
             on action validate call check_range [0, 220];
         }
 
-        object CurrentOperatingClasses [] {
-            counted with CurrentOperatingClassesNumberOfEntries;
+        object CurrentOperatingClassProfile [] {
+            counted with CurrentOperatingClassProfileNumberOfEntries;
             %read-only datetime TimeStamp = "2020-08-31T11:22:39Z";
             %read-only uint32 Class = 0 {
                 on action validate call check_range [0, 255];

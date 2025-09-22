@@ -2466,10 +2466,13 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
         auto tx_power = operating_channel_report_tlv->current_transmit_power();
 
         /*
-            Here need to remove the CurrentOperatingClass data from the Controller Data Model which was
-            set in previous OPERATING_CHANNEL_REPORT_MESSAGE.
+            Here need to remove the CurrentOperatingClass data from the Controller Data Model which
+            was set in previous OPERATING_CHANNEL_REPORT_MESSAGE.
+            To avoid clearing a DM node and setting it right after, we reset the op_classses in db,
+            set the operating classes db in handle_current_op_class and then
+            clear_empty_dm_current_op_classes.
          */
-        database.clear_database_current_op_classes(ruid);
+        database.reset_current_op_classes_db(ruid);
 
         LOG(INFO) << "operating channel report, ruid=" << ruid << ", tx_power=" << std::dec
                   << int(tx_power);
@@ -2490,7 +2493,7 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
 
             database.handle_current_op_class(ruid, operating_class, channel, tx_power);
         }
-        database.clear_dm_current_op_classes(ruid);
+        database.clear_empty_dm_current_op_classes(ruid);
     }
 
     for (const auto &spatial_reuse_report_tlv :

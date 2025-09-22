@@ -768,7 +768,7 @@ public:
 
     /**
      * @brief Add Current Operating Class to the Device.WiFi.DataElements Data model.
-     *        Data model path examples: "Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses"
+     *        Data model path examples: "Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile"
      *                                 "Device.WiFi.DataElements.Network.Device.1.MultiAPDevice.Backhaul.CurrentOperatingClassProfile"   .
      *
      * @param[in] op_class_path_instance path of Operating Class profile to update.
@@ -781,7 +781,7 @@ public:
                               uint8_t op_channel, int8_t tx_power);
 
     /**
-     * @brief Create instances for each bandwidth possible for Radio.x.CurrentOperatingClasses and 
+     * @brief Create instances for each bandwidth possible for Radio.x.CurrentOperatingClassProfile and
      *        Backhaul.CurrentOperatingClassProfile.
      *        Fill the database and DM's Current Operating Class for Radio and Backhaul if needed.
      *        Fill database radio wifi channel.
@@ -796,24 +796,29 @@ public:
                                  int8_t tx_power);
 
     /**
-     * @brief Clear database for all Radio.CurrentOperatingClasses.
+     * @brief Reset database current operating class profile for all
+     * Radio.CurrentOperatingClassProfile. Does not clear DM as some of could be set directly after
+     * by handle_current_op_class, instead call clear_empty_dm_current_op_classes after handling
+     * is done.
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
      * @return true on success and false otherwise.
      */
-    bool clear_database_current_op_classes(const sMacAddr &radio_mac);
+    bool reset_current_op_classes_db(const sMacAddr &radio_mac);
 
     /**
-     * @brief Clear DM (for all empty op_class in database) in Radio.CurrentOperatingClasses and
-     * Backhaul.CurrentOperatingClassProfile if radio is BH STA.
+     * @brief Clear DM (for all empty op_class in database) in Radio.CurrentOperatingClassProfile
+     * and Backhaul.CurrentOperatingClassProfile if radio is BH STA. This function should be called
+     * after reset_current_op_classes_db as it uses the db values to decide if an operating class
+     * profile is empty.
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
      * @return true on success and false otherwise.
      */
-    bool clear_dm_current_op_classes(const sMacAddr &radio_mac);
+    bool clear_empty_dm_current_op_classes(const sMacAddr &radio_mac);
 
     /**
-     * @brief Set DM values for Radio.CurrentOperatingClasses and
+     * @brief Set DM values for Radio.CurrentOperatingClassProfile and
      * Backhaul.CurrentOperatingClassProfile if needed.
      *
      * @param[in] radio_mac Radio MAC address

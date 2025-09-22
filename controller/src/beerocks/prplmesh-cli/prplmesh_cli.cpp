@@ -135,7 +135,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
         const char *radio_key     = amxc_htable_it_get_key(radio_it);
         std::string radio_path_i  = std::string(radio_key);
         amxc_var_t *radio_obj     = amxc_var_from_htable_it(radio_it);
-        std::string curr_op_class = radio_path_i + "CurrentOperatingClasses." + "*.";
+        std::string curr_op_class = radio_path_i + "CurrentOperatingClassProfile." + "*.";
         amxc_var_t *op_class_obj  = m_amx_client->get_object(curr_op_class);
         conn_map.radio_id         = GET_CHAR(radio_obj, "ID");
         conn_map.channel          = GET_UINT32(op_class_obj, "Channel");
