@@ -16,7 +16,7 @@ import environment as env
 class NbapiRadio(PrplMeshBaseTest):
     '''
         Test for NBAPI Radio object checks if values for all parameters
-        and for its sub-object CurrentOperatingClasses were set properly.
+        and for its sub-object CurrentOperatingClassProfile were set properly.
     '''
 
     def assertEqual(self, path: str, name: str, expected: str):
@@ -87,7 +87,7 @@ class NbapiRadio(PrplMeshBaseTest):
         self.assertEqual(radio.path, "Noise", noise)
 
         op_classes = controller.nbapi_get_list_instances(
-            radio.path + ".CurrentOperatingClasses")
+            radio.path + ".CurrentOperatingClassProfile")
         found = False
         for op_class in op_classes:
             nbapi_class = controller.nbapi_get_parameter(op_class, "Class")
@@ -111,4 +111,6 @@ class NbapiRadio(PrplMeshBaseTest):
             report, self.ieee1905['eTlvTypeMap']['TLV_OPERATING_CHANNEL_REPORT'])
             for report in op_ch_reports]
             if op_ch_tlv[0].operating_channel_radio_id == agent.radios[0].mac]
-        assert not missing_op_class, f"CurrentOperatingClasses missing value for {missing_op_class}"
+        assert not missing_op_class, (
+            f"CurrentOperatingClassProfile missing value for {missing_op_class}"
+        )

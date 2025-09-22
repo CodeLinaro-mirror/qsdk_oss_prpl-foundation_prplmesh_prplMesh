@@ -573,7 +573,7 @@ TEST_F(DbTest, test_add_hostap_supported_operating_class)
 TEST_F(DbTest, test_add_current_op_class)
 {
     const std::string radio_path_1_operating_classes =
-        std::string(g_radio_path_1) + ".CurrentOperatingClasses";
+        std::string(g_radio_path_1) + ".CurrentOperatingClassProfile";
 
     //device always exists
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));

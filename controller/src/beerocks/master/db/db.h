@@ -817,11 +817,13 @@ public:
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
      * @return true on success and false otherwise.
      */
-    bool clear_database_current_op_classes(const sMacAddr &radio_mac);
+    bool reset_current_op_classes_db(const sMacAddr &radio_mac);
 
     /**
-     * @brief Clear DM (for all empty op_class in database) in Radio.CurrentOperatingClasses and
-     * Backhaul.CurrentOperatingClassProfile if radio is BH STA.
+     * @brief Clear DM (for all empty op_class in database) in Radio.CurrentOperatingClassProfile
+     * and Backhaul.CurrentOperatingClassProfile if radio is BH STA. This function should be called
+     * after reset_current_op_classes_db as it uses the db values to decide if an operating class
+     * profile is empty.
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
      * @return true on success and false otherwise.
@@ -829,7 +831,7 @@ public:
     bool dm_clear_empty_current_op_classes(const sMacAddr &radio_mac);
 
     /**
-     * @brief Set DM values for Radio.CurrentOperatingClasses and
+     * @brief Set DM values for Radio.CurrentOperatingClassProfile and
      * Backhaul.CurrentOperatingClassProfile if needed.
      *
      * @param[in] radio_mac Radio MAC address
