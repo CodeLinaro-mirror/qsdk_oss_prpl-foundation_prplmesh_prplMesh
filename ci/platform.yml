@@ -246,7 +246,7 @@ run-certification-tests-R1-platform-essensium:
     - job: build-for-turris-omnia
     - job: build-for-haze
   rules:
-    - if: '$TESTS_TO_RUN_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_ESSENSIUM != "prplmesh"'
+    - if: '$TESTS_TO_RUN_ESSENSIUM != "" && $DEVICE_UNDER_TEST_ESSENSIUM != "prplmesh"'
     - when: manual
       allow_failure: true
 
@@ -257,7 +257,7 @@ run-certification-tests-R2-platform-essensium:
     - echo "$TESTS_TO_RUN_R2_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_R2_ESSENSIUM" > .device-under-test
   rules:
-    - if: '$TESTS_TO_RUN_R2_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R2_ESSENSIUM != "prplmesh"'
+    - if: '$TESTS_TO_RUN_R2_ESSENSIUM != "" && $DEVICE_UNDER_TEST_R2_ESSENSIUM != "prplmesh"'
     - when: manual
       allow_failure: true
   timeout: 14h
@@ -273,7 +273,7 @@ run-certification-tests-R4-platform-essensium:
     - echo "$TESTS_TO_RUN_R4_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_R4_ESSENSIUM" > .device-under-test
   rules:
-    - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
+    - if: '$TESTS_TO_RUN_R4_ESSENSIUM != "" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
     - when: manual
       allow_failure: true
   timeout: 14h
