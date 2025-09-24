@@ -23,7 +23,20 @@
 #include <atomic>
 #include <list>
 
+#include <cstdint>
+#include <iomanip>
+#include <vector>
+
 namespace son {
+// Namespace for DPP frame constants
+namespace dpp_frame {
+constexpr uint8_t CATEGORY_PUBLIC_ACTION      = 0x04;
+constexpr uint8_t ACTION_VENDOR_SPECIFIC      = 0x09;
+constexpr uint8_t OUI_WFA[3]                  = {0x50, 0x6F, 0x9A};
+constexpr uint8_t OUI_TYPE_DPP                = 0x1A;
+constexpr uint8_t CRYPTO_SUITE                = 0x01;
+constexpr uint8_t SUBTYPE_AUTHENTICATION_RESP = 0x01;
+} // namespace dpp_frame
 class ApManager {
 
 public:
@@ -55,6 +68,17 @@ public:
                                      const std::vector<uint8_t> &auth_frame,
                                      const std::vector<uint8_t> &hash,
                                      const wfa_map::tlv1905EncapDpp::sFlags &flags);
+
+    /**
+     * @brief Constructs a DPP Authentication Response frame from the given attributes.
+     *
+     * This function takes a vector of DPP attributes in binary format and builds a complete
+     * DPP Authentication Response frame suitable for transmission over the air.
+     *
+     * @param attributes A vector containing the binary-encoded DPP attributes.
+     * @return A vector of bytes representing the full DPP Authentication Response frame.
+     */
+    std::vector<uint8_t> build_dpp_auth_response_frame(const std::vector<uint8_t> &attributes);
 
     /**
      * @brief Starts AP manager.

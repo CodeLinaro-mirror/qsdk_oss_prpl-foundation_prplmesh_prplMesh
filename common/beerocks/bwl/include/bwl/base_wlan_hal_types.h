@@ -397,6 +397,7 @@ typedef struct {
 
 typedef struct {
     sMacAddr enrollee_mac;
+    char buf[];
 } sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE;
 
 typedef struct {
