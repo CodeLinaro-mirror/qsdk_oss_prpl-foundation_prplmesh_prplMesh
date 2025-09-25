@@ -8,6 +8,8 @@
 
 #include "wifi_manager.h"
 
+#include <bcl/beerocks_timer_factory_impl.h>
+#include <bcl/beerocks_timer_manager_impl.h>
 #include <beerocks/tlvf/beerocks_message_bml.h>
 #include <bpl/bpl_cfg.h>
 
@@ -25,6 +27,10 @@ namespace prplmesh {
 namespace controller {
 namespace whm {
 
+namespace {
+constexpr std::chrono::milliseconds CONFIG_RENEW_TIMEOUT{3000};
+}
+
 WifiManager::WifiManager(std::shared_ptr<beerocks::EventLoop> event_loop, son::db *ctx_wifi_db)
 {
 
@@ -38,11 +44,43 @@ WifiManager::WifiManager(std::shared_ptr<beerocks::EventLoop> event_loop, son::d
 
     m_ambiorix_cl->init_event_loop(m_event_loop);
     m_ambiorix_cl->init_signal_loop(m_event_loop);
+
+    auto timer_factory = std::make_shared<beerocks::TimerFactoryImpl>();
+    LOG_IF(!timer_factory, FATAL) << "Unable to create timer factory!";
+    if (timer_factory) {
+        m_timer_manager = std::make_shared<beerocks::TimerManagerImpl>(timer_factory, event_loop);
+        LOG_IF(!m_timer_manager, FATAL) << "Unable to create timer manager!";
+    }
 }
 
 bool WifiManager::bss_info_config_change()
 {
+    if (!m_timer_manager) {
+        send_ap_config_renew_msg();
+    }
 
+    if (m_timer != beerocks::net::FileDescriptor::invalid_descriptor) {
+        m_timer_manager->remove_timer(m_timer);
+    }
+    m_timer =
+        m_timer_manager->add_timer("ap_config_renew", CONFIG_RENEW_TIMEOUT, CONFIG_RENEW_TIMEOUT,
+                                   [this](int /*fd*/, beerocks::EventLoop & /*loop*/) {
+                                       m_timer_manager->remove_timer(m_timer);
+                                       m_timer = beerocks::net::FileDescriptor::invalid_descriptor;
+                                       send_ap_config_renew_msg();
+                                       return true;
+                                   });
+    if (m_timer == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(WARNING) << "Failed to create a timer for send_renew_msg(), calling it immediately.";
+        send_ap_config_renew_msg();
+        return false;
+    }
+
+    return true;
+}
+
+bool WifiManager::send_ap_config_renew_msg()
+{
     m_ctx_wifi_db->clear_bss_info_configuration();
 
     std::list<son::wireless_utils::sBssInfoConf> wireless_settings;
@@ -62,7 +100,7 @@ bool WifiManager::bss_info_config_change()
 
     if (!connected_agents.empty()) {
         if (!son_actions::send_ap_config_renew_msg(cmdu_tx, *m_ctx_wifi_db)) {
-            LOG(ERROR) << "Failed son_actions::send_ap_config_renew_msg ! ";
+            LOG(ERROR) << "Failed son_actions::send_ap_config_renew_msg!";
             return false;
         }
     }

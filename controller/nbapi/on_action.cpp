@@ -241,6 +241,17 @@ static uint64_t get_uint64_from_bss_color_bitmap(const std::string &decimal_str)
 amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
                                   amxc_var_t *ret)
 {
+    if (!g_database) {
+        LOG(ERROR) << "Can't read use_dataelements_vap_configs, g_database is nullptr";
+        return amxd_status_ok;
+    }
+
+    if (!g_database->config.use_dataelements_vap_configs) {
+        LOG(WARNING) << "Device.WiFi.DataElements.Network.AccessPointCommit ignored when "
+                        "use_dataelements_vap_configs = false";
+        return amxd_status_ok;
+    }
+
     amxc_var_clean(ret);
     amxd_object_t *access_point = amxd_object_get_child(object, "AccessPoint");
 

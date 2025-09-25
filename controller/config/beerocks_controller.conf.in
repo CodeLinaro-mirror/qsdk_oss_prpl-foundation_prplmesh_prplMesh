@@ -53,7 +53,7 @@ credentials_change_timeout_sec=300
 fail_safe_5G_frequency=5180
 fail_safe_5G_bw=80
 fail_safe_5G_vht_frequency=5210
-use_dataelements_vap_configs=0
+use_dataelements_vap_configs=@BEEROCKS_CONTROLLER_DATAELEMENTS_VAP_CONFIGS@
 
 [log]
 log_global_levels=error,info,warning,fatal,trace,debug

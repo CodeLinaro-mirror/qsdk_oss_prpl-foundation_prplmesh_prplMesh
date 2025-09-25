@@ -32,9 +32,13 @@ public:
 
 private:
     bool bss_info_config_change();
+    bool send_ap_config_renew_msg();
+
     std::shared_ptr<beerocks::wbapi::AmbiorixClient> m_ambiorix_cl = nullptr;
     son::db *m_ctx_wifi_db;
     std::shared_ptr<beerocks::EventLoop> m_event_loop;
+    std::shared_ptr<beerocks::TimerManager> m_timer_manager;
+    int m_timer = beerocks::net::FileDescriptor::invalid_descriptor;
 };
 
 } // namespace whm
