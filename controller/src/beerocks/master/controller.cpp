@@ -93,6 +93,7 @@
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
+#include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
@@ -1035,7 +1036,8 @@ prepare_wsc_config(const sMacAddr &ruid, const wireless_utils::sBssInfoConf *bss
  * @return false on failure
  */
 bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
-                                       const wireless_utils::sBssInfoConf *bss_info_conf)
+                                       const wireless_utils::sBssInfoConf *bss_info_conf,
+                                       const Agent &agent)
 {
     auto tlv = cmdu_tx.addClass<ieee1905_1::tlvWsc>();
     if (!tlv) {
@@ -1064,6 +1066,9 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     m2_cfg.encr_type_flags     = uint16_t(WSC::eWscEncr::WSC_ENCR_NONE) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP);
+    if (bss_info_conf != nullptr) {
+        m2_cfg.bss_index = bss_info_conf->bss_index;
+    }
     m2_cfg.auth_type_flags =
         WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
                       WSC::eWscAuth::WSC_AUTH_SAE);
@@ -1113,7 +1118,7 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
                                                authkey, keywrapkey))
         return false;
 
-    auto m2 = WSC::m2::create(*tlv, m2_cfg);
+    auto m2 = WSC::m2::create(*tlv, m2_cfg, agent.rsn_overriding_supported);
     if (!m2)
         return false;
 
@@ -1180,6 +1185,63 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
 
     if (!autoconfig_wsc_authentication(m1, m8, authkey))
         return false;
+
+    return true;
+}
+
+static bool add_rsn_parameters_configuration_tlv(
+    db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agt_mac, const sMacAddr ruid,
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_confs, beerocks::eFreqType band)
+{
+    // In easymesh 6.1, it will be the new way to configure security mode.
+    // For now just send RSN Parameters Configuration TLV for WPA3-PCM security mode.
+    // we implement for now only in ap wsc configuration so one is sent per radio, to rework if same function used for another message
+    auto rsn_parameters_configuration = cmdu_tx.addClass<wfa_map::tlvRsnParametersConfiguration>();
+    auto rsn_parameters_radio         = rsn_parameters_configuration->create_radios();
+    if (!rsn_parameters_radio) {
+        LOG(ERROR) << "Failed creating rsn_parameters_radio";
+        return false;
+    }
+    LOG(DEBUG) << "Addind RSN parameters configuration tlv for radio " << ruid;
+    rsn_parameters_radio->ruid() = ruid;
+    for (auto &bss_info_conf : bss_info_confs) {
+        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+            auto rsn_parameters_bss = rsn_parameters_radio->create_bsss();
+            if (!rsn_parameters_bss) {
+                LOG(ERROR) << "Failed creating rsn_parameters_bss";
+                return false;
+            }
+            rsn_parameters_bss->bssid()     = beerocks::net::network_utils::ZERO_MAC;
+            rsn_parameters_bss->bss_index() = bss_info_conf.bss_index;
+
+            // TODO: Add future modes (PPM-3450)
+            if (bss_info_conf.additional_auth ==
+                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+                LOG(DEBUG) << "Setting WPA3 compatibility for BSS " << bss_info_conf.bss_index;
+                if (band == beerocks::eFreqType::FREQ_6G) {
+                    rsn_parameters_bss->set_security_ies(wpa3_pcm_6g_eht.data(),
+                                                         wpa3_pcm_6g_eht.size());
+                } else if (band == beerocks::eFreqType::FREQ_5G ||
+                           band == beerocks::eFreqType::FREQ_24G) {
+                    rsn_parameters_bss->set_security_ies(wpa3_pcm_2g_5g_eht.data(),
+                                                         wpa3_pcm_2g_5g_eht.size());
+                } else {
+                    LOG(ERROR) << "Unhandled Radio band " << band;
+                }
+            } else {
+                LOG(ERROR) << "Unhandled RSN type";
+            }
+
+            if (!rsn_parameters_radio->add_bsss(rsn_parameters_bss)) {
+                LOG(ERROR) << "add_bsss failed";
+                return false;
+            }
+        }
+    }
+    if (!rsn_parameters_configuration->add_radios(rsn_parameters_radio)) {
+        LOG(ERROR) << "add_radios for " << ruid << " failed";
+        return false;
+    }
 
     return true;
 }
@@ -1481,8 +1543,9 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
 
     tlvRuid->radio_uid() = ruid;
 
-    auto &bss_info_confs = database.get_bss_info_configuration(m1->mac_addr());
-    uint8_t num_bsss     = 0;
+    auto &bss_info_confs  = database.get_bss_info_configuration(m1->mac_addr());
+    uint8_t num_bsss      = 0;
+    bool rsn_tlv_required = false;
 
     // Update BSSes in the Agent
     if (agent->radios.find(ruid) == agent->radios.end()) {
@@ -1552,7 +1615,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             bss_info_conf.bSTA = true;
         }
 
-        if (!autoconfig_wsc_add_m2(*m1, &bss_info_conf)) {
+        if (!autoconfig_wsc_add_m2(*m1, &bss_info_conf, *agent)) {
             LOG(ERROR) << "Failed setting M2 attributes";
             return false;
         }
@@ -1564,11 +1627,15 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         }
         database.add_configured_bss_info(ruid, bss_info_conf);
         num_bsss++;
+
+        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+            rsn_tlv_required = true;
+        }
     }
 
     // If no BSS (either because none are configured, or because they don't match), tear down.
     if (num_bsss == 0) {
-        if (!autoconfig_wsc_add_m2(*m1, nullptr)) {
+        if (!autoconfig_wsc_add_m2(*m1, nullptr, *agent)) {
             LOG(ERROR) << "Failed setting M2 attributes";
             return false;
         }
@@ -1587,6 +1654,10 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         }
     }
 
+    if (agent->rsn_overriding_supported && rsn_tlv_required) {
+        add_rsn_parameters_configuration_tlv(database, cmdu_tx, m1->mac_addr(), ruid,
+                                             bss_info_confs, radio->band);
+    }
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
     if (beerocks_header) {
         LOG(INFO) << "Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid;
@@ -2051,6 +2122,9 @@ bool Controller::handle_tlv_apCapability(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     if (early && tlv_ap_capability->value().support_agent_backhaul_sta_reconfiguration) {
         agent->bSTA_reconfiguration_supported = true;
+    }
+    if (tlv_ap_capability->value().RSN_Overriding) {
+        agent->rsn_overriding_supported = true;
     }
     //TODO : shall we update the datamodel here ???
 

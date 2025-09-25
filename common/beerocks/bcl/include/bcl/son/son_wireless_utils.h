@@ -17,6 +17,7 @@
 #include <tlvf/WSC/eWscEncr.h>
 #include <tlvf/WSC/eWscVendorExt.h>
 
+#include <array>
 #include <deque>
 #include <list>
 #include <map>
@@ -79,9 +80,182 @@ constexpr uint32_t BAND_6G_MAX_FREQ  = 7125U;
 #define OPCLASS_6GHZ_EXCEPTION 136
 #define OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST 137
 
+constexpr std::array<uint8_t, 99> wpa3_pcm_2g_5g_eht = {
+    /****
+     RSNE
+     ****/
+    // Element ID
+    0x30,
+    // Length
+    0x1A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x04,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x02,
+    // RSN Capabilities
+    0x08, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNOE
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x1E, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x29,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x04,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x08,
+    // RSN Capabilities
+    0x0C, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNO2E
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x1E, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x2A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x09,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x18,
+    // RSN Capabilities
+    0x0C, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNXOE
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x05, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x2B,
+    // Extended RSN Capabilities
+    0x20};
+
+constexpr std::array<uint8_t, 70> wpa3_pcm_6g_eht = {
+    /****
+     RSNE
+     ****/
+    // Element ID
+    0x30,
+    // Length
+    0x1A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x04,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x08,
+    // RSN Capabilities
+    0x0C, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNO2E
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x1E, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x2A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x09,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x18,
+    // RSN Capabilities
+    0x0C, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNXE
+     ****/
+    // Element ID
+    0xF4,
+    // Length
+    0x01,
+    // Extended RSN Capabilities
+    0x20,
+
+    /****
+     RSNXOE
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x05, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x2B,
+    // Extended RSN Capabilities
+    0x20};
+
 namespace son {
 class wireless_utils {
 public:
+    enum eAdditionalAuth {
+        NONE = 0,
+        // TODO: add future modes (PPM-3450)
+        WPA3_PERSONAL_COMPATIBILITY = 1
+    };
+
     enum eEstimationStatus {
         ESTIMATION_SUCCESS              = 0,
         ESTIMATION_FAILURE_BELOW_RANGE  = 1,
@@ -127,6 +301,8 @@ public:
         bool hidden_ssid                                  = false;
         std::string mld_id                                = "";
         bool bSTA                                         = false;
+        uint8_t bss_index                                 = 0;
+        eAdditionalAuth additional_auth                   = eAdditionalAuth::NONE;
     } sBssInfoConf;
 
     typedef struct sMldInfoConf {
