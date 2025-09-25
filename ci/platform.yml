@@ -7,9 +7,9 @@
 
 variables:
   PACKAGE_REGISTRY_BASE_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic"
-  TURRIS_OMNIA_FULLIMAGE: "openwrt-mvebu-cortexa9-cznic_turris-omnia-sysupgrade.img.gz"
+  TURRIS_OMNIA_FULLIMAGE: "openwrt-mvebu-cortexa9-cznic_turris-omnia-squashfs-sysupgrade.img.gz"
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
-  HAZE_FULLIMAGE: "openwrt-ipq807x-generic-prpl_haze-squashfs-sysupgrade.bin"
+  HAZE_FULLIMAGE: "openwrt-qualcommax-ipq807x-prpl_haze-squashfs-sysupgrade.bin"
   FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
   OSP_PACKAGE_ID: 13754300
 
@@ -79,7 +79,7 @@ build-for-osp-ospv2:
     - |
       trigger_details=$(curl -X POST --retry 3 -s -f -F \
       token=${OSP_PIPELINE_TRIGGER_TOKEN_2} \
-      -F ref="latest-24.10" \
+      -F ref="main-UPDK-9.2.0-flashlayout" \
       -F variables[PRPLMESH_REVISION]="$CI_COMMIT_SHA" \
       -F variables[PRPLMESH_COMMIT_REF_NAME]="$CI_COMMIT_REF_NAME" \
       -F variables[PARENT_PIPELINE_ID]="$CI_PIPELINE_ID" \
@@ -246,7 +246,7 @@ run-certification-tests-R1-platform-essensium:
     - job: build-for-turris-omnia
     - job: build-for-haze
   rules:
-    - if: '$TESTS_TO_RUN_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_ESSENSIUM != "prplmesh"'
+    - if: '$TESTS_TO_RUN_ESSENSIUM != "" && $DEVICE_UNDER_TEST_ESSENSIUM != "prplmesh"'
     - when: manual
       allow_failure: true
 
@@ -257,7 +257,7 @@ run-certification-tests-R2-platform-essensium:
     - echo "$TESTS_TO_RUN_R2_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_R2_ESSENSIUM" > .device-under-test
   rules:
-    - if: '$TESTS_TO_RUN_R2_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R2_ESSENSIUM != "prplmesh"'
+    - if: '$TESTS_TO_RUN_R2_ESSENSIUM != "" && $DEVICE_UNDER_TEST_R2_ESSENSIUM != "prplmesh"'
     - when: manual
       allow_failure: true
   timeout: 14h
@@ -273,7 +273,7 @@ run-certification-tests-R4-platform-essensium:
     - echo "$TESTS_TO_RUN_R4_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_R4_ESSENSIUM" > .device-under-test
   rules:
-    - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
+    - if: '$TESTS_TO_RUN_R4_ESSENSIUM != "" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
     - when: manual
       allow_failure: true
   timeout: 14h
