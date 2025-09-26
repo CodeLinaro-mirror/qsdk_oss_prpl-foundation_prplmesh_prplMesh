@@ -336,9 +336,17 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
 
             std::string mode_enabled = get_param_string(security_inst, "ModeEnabled");
             if (mode_enabled == "WPA3-Personal" || mode_enabled == "WPA3-Personal-Transition") {
-                bss_info.network_key         = get_param_string(security_inst, "SAEPassphrase");
-                bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
-                bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+                bss_info.network_key = get_param_string(security_inst, "SAEPassphrase");
+                if (bss_info.network_key.empty()) { //try KeyPassphrase instead
+                    bss_info.network_key = get_param_string(security_inst, "KeyPassphrase");
+                }
+                if (mode_enabled == "WPA3-Personal-Transition") {
+                    bss_info.authentication_type = WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK |
+                                                                 WSC::eWscAuth::WSC_AUTH_SAE);
+                } else {
+                    bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+                }
+                bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
             } else if (mode_enabled == "WPA2-Personal") {
                 bss_info.network_key = get_param_string(security_inst, "PreSharedKey");
                 if (bss_info.network_key.empty()) {
