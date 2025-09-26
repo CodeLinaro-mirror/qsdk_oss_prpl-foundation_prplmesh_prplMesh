@@ -563,10 +563,22 @@ bool ap_wlan_hal_whm::update_vap_credentials(
 
         AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
         if (bss_info_conf.teardown) {
-            auto &vap_info          = m_radio_info.available_vaps[vap_id];
-            ifname                  = vap_info.bss;
-            auto vap_it             = m_vapsExtInfo.find(ifname);
+            // Re-check validity right before use; VAP may have been removed meanwhile.
+            if (!check_vap_id(vap_id)) {
+                LOG(WARNING) << "teardown requested but vap_id invalid for bssid " << bssid
+                             << " - skipping";
+                continue;
+            }
+            auto &vap_info = m_radio_info.available_vaps[vap_id];
+            ifname         = vap_info.bss;
+            auto vap_it    = m_vapsExtInfo.find(ifname);
+            if (vap_it == m_vapsExtInfo.end()) {
+                LOG(WARNING) << "teardown requested but VAP ext info missing for ifname " << ifname
+                             << " - skipping";
+                continue;
+            }
             vap_it->second.teardown = true;
+
             LOG(INFO) << "BSS " << bss_info_conf.bssid << " flagged for tear down.";
             new_obj.add_child<bool>("Enable", false);
             ret = m_ambiorix_cl.update_object(wifi_vap_path, new_obj);
@@ -681,9 +693,22 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             continue;
         }
 
-        auto &vap_info      = m_radio_info.available_vaps[vap_id];
-        ifname              = vap_info.bss;
-        auto vap_it         = m_vapsExtInfo.find(ifname);
+        // From here we must have a stable VAP in our maps; re-validate again to be safe.
+        if (!check_vap_id(vap_id)) {
+            LOG(WARNING) << "vap_id invalidated before local map update for ifname " << ifname
+                         << " - skipping local state update";
+            continue;
+        }
+        auto &vap_info = m_radio_info.available_vaps[vap_id];
+
+        ifname      = vap_info.bss;
+        auto vap_it = m_vapsExtInfo.find(ifname);
+        if (vap_it == m_vapsExtInfo.end()) {
+            LOG(WARNING) << "VAP ext info missing for ifname " << ifname
+                         << " - skipping local state update";
+            continue;
+        }
+
         bool &prev_teardown = vap_it->second.teardown;
 
         if (prev_teardown) {
