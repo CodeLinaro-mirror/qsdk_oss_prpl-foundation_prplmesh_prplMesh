@@ -1485,12 +1485,6 @@ bool ChannelSelectionTask::check_is_there_better_channel_than_current(const sMac
                << " has a preference score of " << (int)selected_channel.preference_score
                << " and a DFS state of " << (int)selected_channel.dfs_state << ".";
 
-    if (current_preference >= selected_channel.preference_score) {
-        LOG(DEBUG) << "Currect channel is better or as good as the next best channel, no need "
-                      "to switch";
-        return true;
-    }
-
     if (radio->wifi_channel.get_channel() == selected_channel.channel &&
         radio->wifi_channel.get_bandwidth() == selected_channel.bw) {
 
