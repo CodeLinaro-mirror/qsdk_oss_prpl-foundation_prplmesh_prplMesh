@@ -202,8 +202,7 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
 {
     std::string dm_path        = "Device.Ethernet.";
     std::string interface_path = "Interface.";
-    std::string link_path      = "Link.";
-    std::string interface_dm_path, link_dm_path;
+    std::string interface_dm_path;
     uint8_t num_ports = 0;
 
     auto tlvAirtiesEthIntf = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetInterface>();
@@ -271,17 +270,24 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
 
         /*
          * Port State Bitwise
-         * Bit 7 - eth_port_admin_state - Device.Ethernet.Interface.1.Status
-         * Bit 6 - eth_port_link_state - Device.Ethernet.Link.1.Status
+         * Bit 7 - eth_port_admin_state - Device.Ethernet.Interface.1.Enable
+         * Bit 6 - eth_port_link_state  - Device.Ethernet.Interface.1.Status
          * Bit 5 - eth_port_duplex_mode - Device.Ethernet.Interface.1.DuplexMode
          * Bit 4 - 0 - Reserved
          */
-        std::string port_admin_state;
-        if (!get_data_from_dm(eth_interface, "Status", port_admin_state)) {
+        bool port_admin_state;
+        if (!get_data_from_dm(eth_interface, "Enable", port_admin_state)) {
             LOG(ERROR) << "Failed to get the admin state for the port_id "
                        << interface_list->port_id();
         }
-        interface_list->flags1().eth_port_admin_state = (port_admin_state == "Up" ? 1 : 0);
+        interface_list->flags1().eth_port_admin_state = port_admin_state;
+
+        std::string port_link_state;
+        if (!get_data_from_dm(eth_interface, "Status", port_link_state)) {
+            LOG(ERROR) << "Failed to get the link state for the port_id "
+                       << interface_list->port_id();
+        }
+        interface_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
 
         std::string port_dup_mode;
         if (!get_data_from_dm(eth_interface, "DuplexMode", port_dup_mode)) {
@@ -308,25 +314,6 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
                        << interface_list->port_id();
         }
         interface_list->flags2().current_link_type = get_bitvalue(cur_link_type);
-
-        /*
-         * Link state need to be fetched from Link path.
-         * So, change the ambiorix path.
-         */
-        link_dm_path = dm_path + link_path + std::to_string(interface_list->port_id()) + ".";
-
-        std::string port_link_state;
-        auto eth_link = get_eth_interface_object(link_dm_path);
-        if (eth_link) {
-            if (!get_data_from_dm(eth_link, "Status", port_link_state)) {
-                LOG(ERROR) << "Failed to the link status for the port id "
-                           << interface_list->port_id();
-            }
-        } else {
-            LOG(INFO) << "Unable to get the Ambiorix object for " << link_dm_path;
-        }
-
-        interface_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
 
         tlvAirtiesEthIntf->add_interface_list(interface_list);
     }
