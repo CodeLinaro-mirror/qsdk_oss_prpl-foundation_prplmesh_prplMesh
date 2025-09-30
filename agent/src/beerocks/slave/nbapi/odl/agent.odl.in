@@ -35,6 +35,18 @@
                 on action validate call check_minimum_length 1;
             }
 
+            /* Multi-AP Profile supported/advertised by this Agent.
+             * Values:
+             *   1 = Profile 1 (NO Multi-AP Profile TLV added since Profile 1 does not support MultiAp Profile)
+             *   2 = Profile 2
+             *   3 = Profile 3
+             *   4 = Profile-1 as of Release 4
+             */
+            %persistent uint32 MultiAPProfile {
+                default 2;
+                on action validate call check_range [1, 4];
+            }
+
             /* Number of retry attempts before the agent stops due to failures. 0 disables retries */
             %persistent uint32 StopOnFailureAttempts {
                 default 1;
