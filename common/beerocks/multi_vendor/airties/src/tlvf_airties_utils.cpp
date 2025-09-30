@@ -202,8 +202,7 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
 {
     std::string dm_path        = "Device.Ethernet.";
     std::string interface_path = "Interface.";
-    std::string link_path      = "Link.";
-    std::string interface_dm_path, link_dm_path;
+    std::string interface_dm_path;
     uint8_t num_ports = 0;
 
     auto tlvAirtiesEthIntf = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetInterface>();
@@ -251,8 +250,8 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
         std::string interface_alias;
         if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
             (interface_alias.empty())) {
-            LOG(ERROR) << "Failed to read Alias value from DM";
-            return false;
+            LOG(ERROR) << "Failed to read Alias value from " << interface_dm_path;
+            continue;
         }
         interface_list->port_id() =
             airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
@@ -260,33 +259,46 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
         std::string mac_addr;
         if (!get_data_from_dm(eth_interface, "MACAddress", mac_addr)) {
             LOG(ERROR) << "Failed to get the MAC address for port_id " << interface_list->port_id();
+            continue;
         }
         interface_list->eth_mac() = tlvf::mac_from_string(mac_addr);
 
         std::string eth_interface_name;
         if (!get_data_from_dm(eth_interface, "Name", eth_interface_name)) {
-            LOG(ERROR) << "Failed to the Interface Name for port_id " << interface_list->port_id();
+            LOG(ERROR) << "Failed to get the Interface Name for port_id "
+                       << interface_list->port_id();
+            continue;
         }
         interface_list->set_eth_intf_name(eth_interface_name);
 
         /*
          * Port State Bitwise
-         * Bit 7 - eth_port_admin_state - Device.Ethernet.Interface.1.Status
-         * Bit 6 - eth_port_link_state - Device.Ethernet.Link.1.Status
+         * Bit 7 - eth_port_admin_state - Device.Ethernet.Interface.1.Enable
+         * Bit 6 - eth_port_link_state  - Device.Ethernet.Interface.1.Status
          * Bit 5 - eth_port_duplex_mode - Device.Ethernet.Interface.1.DuplexMode
          * Bit 4 - 0 - Reserved
          */
-        std::string port_admin_state;
-        if (!get_data_from_dm(eth_interface, "Status", port_admin_state)) {
+        bool port_admin_state = false;
+        if (!get_data_from_dm(eth_interface, "Enable", port_admin_state)) {
             LOG(ERROR) << "Failed to get the admin state for the port_id "
                        << interface_list->port_id();
+            continue;
         }
-        interface_list->flags1().eth_port_admin_state = (port_admin_state == "Up" ? 1 : 0);
+        interface_list->flags1().eth_port_admin_state = port_admin_state;
+
+        std::string port_link_state;
+        if (!get_data_from_dm(eth_interface, "Status", port_link_state)) {
+            LOG(ERROR) << "Failed to get the link state for the port_id "
+                       << interface_list->port_id();
+            continue;
+        }
+        interface_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
 
         std::string port_dup_mode;
         if (!get_data_from_dm(eth_interface, "DuplexMode", port_dup_mode)) {
             LOG(ERROR) << "Failed to get the duplex mode for the port_id "
                        << interface_list->port_id();
+            continue;
         }
         interface_list->flags1().eth_port_duplex_mode =
             (((port_dup_mode == "Auto") || (port_dup_mode == "Full")) ? 1 : 0);
@@ -300,33 +312,16 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
         if (!get_data_from_dm(eth_interface, "MaxBitRate", supp_link_type)) {
             LOG(ERROR) << "Failed to get the Maximum support bit rate for port_id "
                        << interface_list->port_id();
+            continue;
         }
         interface_list->flags2().supported_link_type = get_bitvalue(supp_link_type);
 
         if (!get_data_from_dm(eth_interface, "CurrentBitRate", cur_link_type)) {
             LOG(ERROR) << "Failed to get the current bit rate for port_id "
                        << interface_list->port_id();
+            continue;
         }
         interface_list->flags2().current_link_type = get_bitvalue(cur_link_type);
-
-        /*
-         * Link state need to be fetched from Link path.
-         * So, change the ambiorix path.
-         */
-        link_dm_path = dm_path + link_path + std::to_string(interface_list->port_id()) + ".";
-
-        std::string port_link_state;
-        auto eth_link = get_eth_interface_object(link_dm_path);
-        if (eth_link) {
-            if (!get_data_from_dm(eth_link, "Status", port_link_state)) {
-                LOG(ERROR) << "Failed to the link status for the port id "
-                           << interface_list->port_id();
-            }
-        } else {
-            LOG(INFO) << "Unable to get the Ambiorix object for " << link_dm_path;
-        }
-
-        interface_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
 
         tlvAirtiesEthIntf->add_interface_list(interface_list);
     }
