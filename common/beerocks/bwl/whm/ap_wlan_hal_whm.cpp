@@ -1697,6 +1697,10 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         msg->sta_mac = tlvf::mac_from_string(parsed_obj[bwl::EVENT_KEYLESS_PARAM_MAC]);
         LOG(DEBUG) << "STA connection failure: offending Sta MAC: " << msg->sta_mac;
 
+        // BSSID
+        msg->bssid = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
+        LOG(DEBUG) << "STA connection failure: interface BSSID: " << msg->bssid;
+
         // status
         std::string status_str = parsed_obj["status"];
         // reason
