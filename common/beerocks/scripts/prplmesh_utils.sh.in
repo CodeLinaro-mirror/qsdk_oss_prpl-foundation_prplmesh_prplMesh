@@ -306,7 +306,7 @@ status_function() {
     echo "$0: status"
 
     pgrep -l beerocks
-    pgrep -l ieee1905_transport
+    pgrep -f -l 'ieee1905_transport'
 
     # Use the given argument as birdge mac if it filled with something, otherwise get the bridge mac
     # of the local platform.
