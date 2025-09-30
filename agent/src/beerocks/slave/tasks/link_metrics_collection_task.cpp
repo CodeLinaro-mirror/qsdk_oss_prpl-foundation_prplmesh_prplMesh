@@ -431,10 +431,13 @@ bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
     }
 
     // USED IN TESTS: Explicitly send the query with the values from dev_send_1905
-    sBeaconMetricsQuery::sChanReport new_report = {};
-    new_report.op_class                         = params.op_class;
-    new_report.channel                          = params.channel;
-    beacon_params.chan_report_list.push_back(new_report);
+    auto db = AgentDB::get();
+    if (db->device_conf.certification_mode) {
+        sBeaconMetricsQuery::sChanReport new_report = {};
+        new_report.op_class                         = params.op_class;
+        new_report.channel                          = params.channel;
+        beacon_params.chan_report_list.push_back(new_report);
+    }
 
     auto request_out = message_com::create_vs_message<
         beerocks_message::cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST>(m_cmdu_tx, mid);
