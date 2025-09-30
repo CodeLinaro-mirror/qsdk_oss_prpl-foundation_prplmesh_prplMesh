@@ -1889,6 +1889,8 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                                        ? ""
                                        : std::to_string(config_data.mld_id());
             bss_info_conf.hidden_ssid = config_data.hidden_ssid();
+            bss_info_conf.additional_auth =
+                static_cast<son::wireless_utils::eAdditionalAuth>(config_data.additional_auth());
 
             bss_info_conf_list.push_back(bss_info_conf);
         }
