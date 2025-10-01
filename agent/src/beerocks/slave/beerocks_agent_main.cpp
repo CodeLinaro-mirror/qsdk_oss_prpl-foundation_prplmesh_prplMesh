@@ -443,6 +443,22 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             return false;
         }
 
+        uint32_t m_ap_profile;
+        if (!beerocks::bpl::bpl_cfg_get_agent_multi_ap_profile(m_ap_profile)) {
+            LOG(ERROR) << "Failed reading 'multi_ap_profile'";
+            m_ap_profile = beerocks::bpl::DEFAULT_MULTI_AP_PROFILE;
+        }
+
+        // MULTIAP_PROFILE_1_AS_OF_R4 enum value is not in standard, but it is acted as Profile1
+        if (static_cast<wfa_map::tlvProfile2MultiApProfile::eMultiApProfile>(m_ap_profile) ==
+            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4) {
+            db->device_conf.multi_ap_profile =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+        } else {
+            db->device_conf.multi_ap_profile =
+                static_cast<wfa_map::tlvProfile2MultiApProfile::eMultiApProfile>(m_ap_profile);
+        }
+
         if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(db->ethernet.wan.iface_name)) {
             LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
             return false;

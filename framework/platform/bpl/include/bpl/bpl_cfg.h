@@ -161,6 +161,9 @@ constexpr int DEFAULT_ZWDFS_DISABLE = 0;
 // By default best channel ranking threshold is 0.
 constexpr int DEFAULT_BEST_CHANNEL_RANKING_TH = 0;
 
+// Default Multi-AP Profile is R2
+constexpr int DEFAULT_MULTI_AP_PROFILE = 2;
+
 // Link metrics tasks send request with this interval.
 constexpr std::chrono::seconds DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC{60};
 
@@ -967,6 +970,20 @@ bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces);
  * @return true on success, otherwise false.
  */
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface);
+
+/**
+ * @brief Returns Multi-AP Profile from Agent DM.
+ *
+ * Values:
+ *   1 = Profile 1 (NO Multi-APProfile TLV added since Profile 1 does not support MultiAp Profile)
+ *   2 = Profile 2
+ *   3 = Profile 3
+ *   4 = Profile 1 as of Release 4
+ *
+ * @param [out] profile Multi-AP profile (uint32_t)
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_agent_multi_ap_profile(uint32_t &profile);
 
 /**
  * @brief Reads roaming hysteresis percent bonus.
