@@ -169,9 +169,9 @@ public:
         wfa_map::tlvProfile2ApCapability::eByteCounterUnits byte_counter_units =
             wfa_map::tlvProfile2ApCapability::eByteCounterUnits::BYTES;
         uint32_t max_prioritization_rules{1};
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile certification_profile =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
         int on_boot_scan;
+        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile multi_ap_profile = wfa_map::
+            tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2; // R2 is a default
         int dwell_time;
         bool send_btm_to_non_11v_sta = false;
         uint8_t max_num_mlds         = 3; // Arbitrary

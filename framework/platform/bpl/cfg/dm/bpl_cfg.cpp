@@ -174,6 +174,11 @@ bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
     return read_agent_config_param("BackhaulWireInterface", iface);
 }
 
+bool bpl_cfg_get_agent_multi_ap_profile(uint32_t &profile)
+{
+    return read_agent_config_param("MultiAPProfile", profile);
+}
+
 int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band)
 {
     if (max_vaps) {

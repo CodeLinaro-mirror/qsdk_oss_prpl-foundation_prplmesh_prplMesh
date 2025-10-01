@@ -704,6 +704,12 @@ bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
     return true;
 }
 
+bool bpl_cfg_get_agent_multi_ap_profile(uint32_t &profile)
+{
+    profile = DEFAULT_MULTI_AP_PROFILE;
+    return true;
+}
+
 bool cfg_get_roaming_hysteresis_percent_bonus(int &roaming_hysteresis_percent_bonus)
 {
     int val = -1;

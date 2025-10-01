@@ -3110,21 +3110,21 @@ void BackhaulManager::handle_dev_reset_default(
 
     auto program = params.at("program");
     if (program == supported_programs[0]) {
-        // If certification program is map, set the certification_profile to Profile 1.
-        db->device_conf.certification_profile =
+        // If certification program is map, set the multi_ap_profile to Profile 1.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
     } else if (program == supported_programs[1]) {
-        // If certification program is mapr2, set the certification_profile to Profile 2.
-        db->device_conf.certification_profile =
+        // If certification program is mapr2, set the multi_ap_profile to Profile 2.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
     } else if (program == supported_programs[2]) {
-        // If certification program is mapr3, set the certification_profile to Profile 3.
-        db->device_conf.certification_profile =
+        // If certification program is mapr3, set the multi_ap_profile to Profile 3.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3;
     } else if (program == supported_programs[3] || program == supported_programs[4] ||
                program == supported_programs[5]) {
-        // If certification program is mapr4/5/6, set the certification_profile to Profile 4.
-        db->device_conf.certification_profile =
+        // If certification program is mapr4/5/6, set the multi_ap_profile to Profile 4.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
     }
 
