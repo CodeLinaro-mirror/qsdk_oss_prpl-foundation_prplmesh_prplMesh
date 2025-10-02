@@ -128,7 +128,16 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
             return;
         }
 
-        if (db->backhaul.bssid_multi_ap_profile > 1) {
+        // Effective Multi-AP Profile = minimum of local capability, and bBSS
+        // (upstream AP) profile. This ensures the link never advertises or enables
+        // features (TS, SP, R3/4) that are unsupported by any participant in the path.
+        auto profile_min = std::min({int(db->backhaul.backhaul_bss_multi_ap_profile),
+                                     int(db->device_conf.multi_ap_profile)});
+        LOG(INFO) << "TS decision: local =" << int(db->device_conf.multi_ap_profile)
+                  << " peer =" << db->backhaul.backhaul_bss_multi_ap_profile
+                  << " -> effective=" << profile_min;
+
+        if (profile_min > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
             set_vlan_policy(radio->back.iface_name, ePortMode::TAGGED_PORT_PRIMARY_TAGGED,
                             is_bridge);
         } else {
