@@ -222,8 +222,18 @@ void ServicePrioritizationTask::gather_iface_details(
             return;
         }
         iface.iface_name = radio->back.iface_name;
+
+        // Effective Multi-AP Profile = minimum of local capability, and bBSS
+        // (upstream AP) profile. This ensures the link never advertises or enables
+        // features (TS, SP, R3/4) that are unsupported by any participant in the path.
+        auto profile_min = std::min({int(db->backhaul.backhaul_bss_multi_ap_profile),
+                                     int(db->device_conf.multi_ap_profile)});
+        LOG(INFO) << "Service Prioritization decision: local ="
+                  << int(db->device_conf.multi_ap_profile)
+                  << " peer =" << db->backhaul.backhaul_bss_multi_ap_profile
+                  << " -> effective=" << profile_min;
         iface.tag_info =
-            db->backhaul.bssid_multi_ap_profile > 1
+            profile_min > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1
                 ? bpl::ServicePrioritizationUtils::ePortMode::TAGGED_PORT_PRIMARY_TAGGED
                 : bpl::ServicePrioritizationUtils::ePortMode::UNTAGGED_PORT;
         iface_tag_info_list->push_back(iface);

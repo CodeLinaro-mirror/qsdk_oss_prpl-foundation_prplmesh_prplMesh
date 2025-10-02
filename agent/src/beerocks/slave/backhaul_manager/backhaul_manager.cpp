@@ -727,10 +727,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
     case EState::INIT: {
         state_time_stamp_timeout = std::chrono::steady_clock::now() +
                                    std::chrono::seconds(STATE_WAIT_ENABLE_TIMEOUT_SECONDS);
-        auto db                             = AgentDB::get();
-        db->backhaul.connection_type        = AgentDB::sBackhaul::eConnectionType::Invalid;
-        db->backhaul.bssid_multi_ap_profile = 0;
-        db->controller_info.bridge_mac      = beerocks::net::network_utils::ZERO_MAC;
+        auto db                        = AgentDB::get();
+        db->backhaul.connection_type   = AgentDB::sBackhaul::eConnectionType::Invalid;
+        db->controller_info.bridge_mac = beerocks::net::network_utils::ZERO_MAC;
+        db->backhaul.backhaul_bss_multi_ap_profile =
+            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
 
         FSM_MOVE_STATE(WAIT_ENABLE);
         break;
@@ -2033,8 +2034,8 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             LOG(INFO) << "Multi-AP-Profile: " << msg->multi_ap_profile
                       << ", Multi-AP Primary VLAN ID: " << msg->multi_ap_primary_vlan_id;
 
-            db->traffic_separation.primary_vlan_id = msg->multi_ap_primary_vlan_id;
-            db->backhaul.bssid_multi_ap_profile    = msg->multi_ap_profile;
+            db->traffic_separation.primary_vlan_id     = msg->multi_ap_primary_vlan_id;
+            db->backhaul.backhaul_bss_multi_ap_profile = msg->multi_ap_profile;
 
             auto request = message_com::create_vs_message<
                 beerocks_message::cACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST>(cmdu_tx);

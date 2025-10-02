@@ -209,7 +209,12 @@ public:
         enum class eConnectionType { Invalid = 0, Wired, Wireless } connection_type;
         std::string selected_iface_name;
         sMacAddr preferred_bssid;
-        uint8_t bssid_multi_ap_profile;
+
+        // Multi-AP Profile advertised by the upstream AP in its association response.
+        // Read-only from prplMesh perspective (populated by pwhm via EndPoint.MultiAPProfile).
+        // Used together with our own device_conf.multi_ap_profile and controller profile
+        // to determine the effective profile for this backhaul link.
+        uint8_t backhaul_bss_multi_ap_profile;
         sMacAddr backhaul_bssid;
 
         struct sBackhaulLink {
