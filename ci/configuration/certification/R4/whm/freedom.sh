@@ -34,10 +34,6 @@ ba-cli DHCPv6Client.Client.wan.Enable=0
 ba-cli DHCPv4Server.Enable=0
 ba-cli DHCPv6Server.Enable=0
 
-# Fix overlapping MACs in 6GHz radio
-ba-cli Device.Ethernet.Link.ethernet_wan.MACAddress="58:E4:03:D2:10:04"
-ba-cli Device.WiFi.SSID.GUEST_RADIO3.MACAddress="58:E4:03:D2:10:50"
-
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
 ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" && {
@@ -75,7 +71,9 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
 # Set multiAP profile for primary_vlan_id support
-ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
+ba-cli WiFi.AccessPoint.*.MultiAPProfile=3
+
+ba-cli WiFi.EndPoint.*.MultiAPProfile=3
 
 # Enable when hostapd on this target supports it
 ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
