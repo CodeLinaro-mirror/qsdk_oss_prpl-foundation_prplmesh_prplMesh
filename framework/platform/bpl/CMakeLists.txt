@@ -69,7 +69,7 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
             ${MODULE_PATH}/common/uci/*.c* 
             ${MODULE_PATH}/db/uci/*.c* 
             ${MODULE_PATH}/dhcp/uci/*.c*
-            ${MODULE_PATH}/service_prioritization/osp_mxl/service_prio_utils_osp_mxl.cpp
+            ${MODULE_PATH}/service_prioritization/tc/service_prio_utils_tc.cpp
         )
 
         if(KEEP_UCI_GENERAL_OPTIONS) 
