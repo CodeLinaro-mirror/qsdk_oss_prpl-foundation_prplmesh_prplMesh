@@ -160,6 +160,11 @@ public:
     static std::string search_path_ssid_iface_by_bssid(const std::string &bssid);
 
     /**
+     * @brief return search path of SSID object instance by SSID.
+     */
+    static std::string search_path_ssid_by_ssid(const std::string &ssid);
+
+    /**
      * @brief return search path of SSID object instance by Alias
     */
     static std::string search_path_ssid_by_alias(const std::string &alias);
