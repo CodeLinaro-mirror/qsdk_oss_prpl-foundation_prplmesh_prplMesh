@@ -86,16 +86,47 @@ protected:
 
 private:
     /**
+     * Possible Endpoint WPS ConnectionStatus values
+     */
+    enum class eWpsConnectionStatus {
+        eDisabled,
+        eIdle,
+        eDiscovering,
+        eConnecting,
+        eWPS_Pairing,
+        eWPS_PairingDone,
+        eConnected,
+        eDisconnected,
+        eError,
+        eError_Misconfigured
+    };
+
+    /**
      * @brief subscribe to WiFi.EndPoint.*.ConnectionStatus and IntfName dm object change
      */
     void subscribe_to_ep_events();
 
     /**
      * *@brief Process the event WiFi.EndPoint.*.ConnectionStatus and IntfName dm event
+     *
+     * @param interface the interface name
+     * @param key the object name
+     * @param new_value the object new value
+     *
+     * @return true on success, false otherwise.
      */
     bool process_ep_event(const std::string &interface, const std::string &key,
-                          const beerocks::wbapi::AmbiorixVariant *new_value,
-                          const beerocks::wbapi::AmbiorixVariant *old_value);
+                          const beerocks::wbapi::AmbiorixVariant *new_value);
+
+    /**
+     * *@brief Update internal WPS connection status
+     */
+    bool update_wps_connection_status(const std::string &status);
+
+    /**
+     * *@brief Helper to convert eWpsConnectionStatus type to readble string
+     */
+    std::string connection_status_to_string() const;
 
     /**
      * @brief subscribe to WiFi.EndPoint.*.WPS. pairingDone dm notification
@@ -157,6 +188,8 @@ private:
     uint8_t m_active_channel  = 0;
     int m_active_profile_id   = -1;
     bool m_scan_active        = false;
+    // Internal EndPoint WPS connection status
+    eWpsConnectionStatus m_current_connection_status;
 };
 
 } // namespace whm

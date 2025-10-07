@@ -63,6 +63,7 @@ sta_wlan_hal_whm::sta_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t
     }
 
     LOG(DEBUG) << "init sta_wlan_hal_whm for " << m_ep_path << " with radio " << m_radio_path;
+    m_current_connection_status = eWpsConnectionStatus::eDisconnected;
     subscribe_to_ep_events();
     subscribe_to_ep_wps_events();
     subscribe_to_scan_complete_events();
@@ -165,13 +166,10 @@ void sta_wlan_hal_whm::subscribe_to_ep_events()
         for (auto &param_it : *params_map) {
             auto key       = param_it.first;
             auto new_value = param_it.second.find_child("to");
-            auto old_value = param_it.second.find_child("from");
-
-            if (key.empty() || !new_value || new_value->empty() || !old_value ||
-                old_value->empty()) {
+            if (key.empty() || !new_value || new_value->empty()) {
                 continue;
             }
-            process_ep_event(get_iface_name(), key, new_value.get(), old_value.get());
+            process_ep_event(get_iface_name(), key, new_value.get());
         }
     };
 
@@ -879,24 +877,79 @@ bool sta_wlan_hal_whm::is_connected(const std::string &status)
     return (status.compare("Connected") == 0);
 }
 
+bool sta_wlan_hal_whm::update_wps_connection_status(const std::string &status)
+{
+    static const std::unordered_map<std::string, eWpsConnectionStatus> status_map = {
+        {"Disabled", eWpsConnectionStatus::eDisabled},
+        {"Idle", eWpsConnectionStatus::eIdle},
+        {"Discovering", eWpsConnectionStatus::eDiscovering},
+        {"Connecting", eWpsConnectionStatus::eConnecting},
+        {"WPS_Pairing", eWpsConnectionStatus::eWPS_Pairing},
+        {"WPS_PairingDone", eWpsConnectionStatus::eWPS_PairingDone},
+        {"Connected", eWpsConnectionStatus::eConnected},
+        {"Disconnected", eWpsConnectionStatus::eDisconnected},
+        {"Error", eWpsConnectionStatus::eError},
+        {"Error_Misconfigured", eWpsConnectionStatus::eError_Misconfigured}};
+
+    auto it = status_map.find(status);
+    if (it == status_map.end()) {
+        LOG(ERROR) << "Unkown connection status : " << status;
+        return false;
+    }
+
+    m_current_connection_status = it->second;
+    return true;
+}
+
+std::string sta_wlan_hal_whm::connection_status_to_string() const
+{
+    switch (m_current_connection_status) {
+    case eWpsConnectionStatus::eDisabled:
+        return "Disabled";
+    case eWpsConnectionStatus::eIdle:
+        return "Idle";
+    case eWpsConnectionStatus::eDiscovering:
+        return "Discovering";
+    case eWpsConnectionStatus::eConnecting:
+        return "Connecting";
+    case eWpsConnectionStatus::eWPS_Pairing:
+        return "WPS_Pairing";
+    case eWpsConnectionStatus::eWPS_PairingDone:
+        return "WPS_PairingDone";
+    case eWpsConnectionStatus::eConnected:
+        return "Connected";
+    case eWpsConnectionStatus::eDisconnected:
+        return "Disconnected";
+    case eWpsConnectionStatus::eError:
+        return "Error";
+    case eWpsConnectionStatus::eError_Misconfigured:
+        return "Error_Misconfigured";
+    }
+    return "Unknown";
+}
+
 bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std::string &key,
-                                        const AmbiorixVariant *new_value,
-                                        const AmbiorixVariant *old_value)
+                                        const AmbiorixVariant *new_value)
 {
     if (key == "ConnectionStatus") {
         std::string new_status = new_value->get<std::string>();
-        std::string old_status = old_value->get<std::string>();
-        if (old_status.empty() || new_status.empty()) {
+
+        LOG(DEBUG) << "process_ep_event: current status: " << connection_status_to_string()
+                   << "-> new status: " << new_status;
+
+        if (new_status.empty()) {
+            LOG(ERROR) << "Empty new_status !";
             return true;
         }
-        LOG(INFO) << "Endpoint " << interface << " ConnectionStatus " << new_status;
         if (is_connected(new_status)) {
             Endpoint endpoint;
             if (!read_status(endpoint)) {
                 LOG(ERROR) << "Failed reading connection status for iface: " << get_iface_name();
+                update_wps_connection_status(new_status);
                 return false;
             } else if (endpoint.bssid == beerocks::net::network_utils::ZERO_MAC_STRING) {
                 LOG(ERROR) << "Got zero BSSID after read status";
+                update_wps_connection_status(new_status);
                 return false;
             }
             update_status(endpoint);
@@ -921,7 +974,7 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
                 msg->multi_ap_primary_vlan_id = 0;
             }
             event_queue_push(Event::Connected, msg_buff);
-        } else if (is_connected(old_status)) {
+        } else if (m_current_connection_status == eWpsConnectionStatus::eConnected) {
             auto msg_buff =
                 ALLOC_SMART_BUFFER(sizeof(sACTION_BACKHAUL_DISCONNECT_REASON_NOTIFICATION));
             auto msg =
@@ -936,6 +989,7 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             clear_conn_state();
             event_queue_push(Event::Disconnected, msg_buff);
         }
+        update_wps_connection_status(new_status);
     }
     return true;
 }
