@@ -594,6 +594,18 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             }
             LOG(DEBUG) << "set multiaptype " << multi_ap;
             new_obj.add_child("MultiAPType", multi_ap);
+
+            // MultiAPProfile is added here for all VAP types, not only for backhaul ones.
+            // While the Multi-AP specification primarily associates profile information
+            // with backhaul BSSs, there are corner cases where the Agent or HAL may not yet
+            // know the exact MultiAPType when this object is created (e.g. during early
+            // VAP setup or mixed-role configurations).
+            // If someone is absolutely certain that the MultiAPType is always known at this
+            // stage, the "MultiAPProfile" assignment could be moved inside the
+            // `if (bss_info_conf.backhaul)` block below.
+            LOG(DEBUG) << "set multiapprofile " << (get_hal_conf().multi_ap_profile);
+            new_obj.add_child("MultiAPProfile", get_hal_conf().multi_ap_profile);
+
             std::string is_hide_ssid    = "";
             std::string is_ssid_adv_set = "";
             m_ambiorix_cl.get_param(is_hide_ssid, wifi_ssid_path, "SSID");

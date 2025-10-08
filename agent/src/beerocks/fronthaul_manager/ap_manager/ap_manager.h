@@ -320,6 +320,8 @@ private:
 
     bool certification_mode = false;
     bool radio_state_lock   = false;
+    uint8_t multi_ap_profile =
+        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
 
     struct sBeaconMetricsResponse {
         sMacAddr sta_mac;
