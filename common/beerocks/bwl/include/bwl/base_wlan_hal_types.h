@@ -44,6 +44,14 @@ enum class HALState {
 
 enum class AntMode { Invalid = 0, ANT_1X1, ANT_2X2, ANT_3X3, ANT_4X4 };
 
+enum eMultiApProfile : uint8_t {
+    PRPLMESH_PROFILE_UNKNOWN   = 0x0,
+    MULTIAP_PROFILE_1          = 0x1,
+    MULTIAP_PROFILE_2          = 0x2,
+    MULTIAP_PROFILE_3          = 0x3,
+    MULTIAP_PROFILE_1_AS_OF_R4 = 0x4,
+};
+
 struct VAPElement {
     /**
      * Basic Service Set (i.e.: VAP name, e.g.: wlan0.0, wlan0.1, wlan0.2, ...).
@@ -223,8 +231,9 @@ struct hal_conf_t {
     bool ap_acs_enabled = false;
     std::string wpa_ctrl_path;
     std::set<std::string> monitored_BSSs;
-    bool is_repeater        = false;
-    bool certification_mode = false;
+    bool is_repeater         = false;
+    bool certification_mode  = false;
+    uint8_t multi_ap_profile = MULTIAP_PROFILE_2;
 };
 
 //sta_wlan_hal
