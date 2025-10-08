@@ -695,34 +695,27 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
         LOG(ERROR) << "Failed creating search message";
         return false;
     }
-    if (db->controller_info.profile_support ==
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-        LOG(DEBUG) << "sending autoconfig search message, bridge_mac=" << db->bridge.mac;
-        return m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
-    } else if (db->controller_info.profile_support ==
-               wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN) {
-        // If we still don't know which profile the controller supports, send 2 autoconfig search
-        // messages: one without the MultiAp profile TLV and one with it.
-        // We do this since we came across certified agents that don't respond to a search message
-        // that contains the newly added TLV. So to make sure we will get a response send both
-        // options.
-        m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
-        if (!create_autoconfig_search()) {
-            LOG(ERROR) << "Failed creating search message";
+
+    const bool include_profile_tlv =
+        (db->device_conf.multi_ap_profile >
+         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1);
+
+    // We no longer send duplicate Autoconfig Search messages.
+    // The presence of the Multi-AP Profile TLV now depends on Agent’s own configured profile:
+    // - For R1 Agents (profile <= 1), the TLV is omitted to stay compatible with R1 controllers.
+    // - For R2+ Agents (profile >= 2), the TLV is included to advertise full capability.
+    if (include_profile_tlv) {
+        auto tlvProfile2MultiApProfile = m_cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
+        if (!tlvProfile2MultiApProfile) {
+            LOG(ERROR) << "addClass wfa_map::tlvProfile2MultiApProfile failed";
             return false;
         }
+        tlvProfile2MultiApProfile->profile() = db->device_conf.multi_ap_profile;
     }
-
-    auto tlvProfile2MultiApProfile = m_cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
-    if (!tlvProfile2MultiApProfile) {
-        LOG(ERROR) << "addClass wfa_map::tlvProfile2MultiApProfile failed";
-        return false;
-    }
-
-    tlvProfile2MultiApProfile->profile() = db->device_conf.multi_ap_profile;
 
     LOG(DEBUG) << "sending autoconfig search message, bridge_mac=" << db->bridge.mac
-               << " with Profile TLV";
+               << " multi_ap_profile=" << db->device_conf.multi_ap_profile
+               << (include_profile_tlv ? " with Profile TLV" : " without Profile TLV");
     return m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 
