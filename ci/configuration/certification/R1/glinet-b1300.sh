@@ -113,6 +113,8 @@ else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth1"
+  echo "Setting prplMesh MultiAPProfile over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.MultiAPProfile=1
 fi
 
 # Stop and disable the firewall:
