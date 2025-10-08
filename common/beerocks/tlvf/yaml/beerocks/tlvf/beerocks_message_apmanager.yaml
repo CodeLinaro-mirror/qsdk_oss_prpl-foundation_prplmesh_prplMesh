@@ -35,6 +35,7 @@ cACTION_APMANAGER_CONFIGURE:
   _type: class
   channel: uint8_t
   certification_mode: uint8_t #bool
+  multi_ap_profile: uint8_t
 
 cACTION_APMANAGER_JOINED_NOTIFICATION:
   _type: class

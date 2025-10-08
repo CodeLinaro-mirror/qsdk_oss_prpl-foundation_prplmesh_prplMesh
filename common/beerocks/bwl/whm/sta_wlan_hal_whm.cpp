@@ -58,6 +58,7 @@ sta_wlan_hal_whm::sta_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t
         // Enable the endpoint instance
         AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
         params.add_child<bool>("Enable", true);
+        params.add_child("MultiAPProfile", hal_conf.multi_ap_profile);
         bool ret = m_ambiorix_cl.update_object(m_ep_path, params);
         LOG_IF((!ret), ERROR) << "Failed to enable endpoint, path:" << m_ep_path;
     }
