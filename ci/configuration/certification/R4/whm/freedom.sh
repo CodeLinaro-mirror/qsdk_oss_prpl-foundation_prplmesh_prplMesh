@@ -9,12 +9,6 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-sh /etc/init.d/tr181-upnp stop || true
-rm -f /etc/rc.d/S*tr181-upnp
-
-sh /etc/init.d/obuspa stop || true
-rm -f /etc/rc.d/S*obuspa
-
 # Stop the default ssh server on the lan-bridge
 sh /etc/init.d/ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
