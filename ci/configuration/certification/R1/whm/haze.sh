@@ -61,6 +61,8 @@ else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan3"
+  echo "Setting prplMesh MultiAPProfile over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.MultiAPProfile=1
 fi
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc

@@ -58,6 +58,8 @@ else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
+  echo "Setting prplMesh MultiAPProfile over DM"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.MultiAPProfile=1
 fi
 
 # For now there is no way to disable the firewall (see PCF-590).
