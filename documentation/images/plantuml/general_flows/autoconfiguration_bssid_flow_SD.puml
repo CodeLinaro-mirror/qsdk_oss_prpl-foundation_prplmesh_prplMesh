@@ -1,0 +1,116 @@
+@startuml bssid_flow
+title M1/M2 bssid flow
+
+box Fronthaul
+  control "ap_wlan_hal" as AP_HAL
+  participant ApManager as AM
+
+end box
+
+box Agent
+  database "AgentDB" as AGT_DB
+  participant "ApAutoconfigurationTask" as ACT
+  participant "son_slave_thread" as SST
+end box
+
+box Controller
+  participant "son_actions" as SA
+  participant "Controller" as C
+  database "DB" as D
+end box
+
+ACT -> ACT: send_ap_autoconfiguration_wsc_m1_message(radio_iface)
+
+activate ACT
+
+  note over of ACT 
+    M1 msg is sent per radio_iface
+  end note
+
+  ACT -> AGT_DB : db->radio(radio_iface)
+  ACT <-- AGT_DB : return sRadio
+
+  ACT -> ACT : add_ap_radio_basic_capabilities(cmdu_tx, iface_mac)
+  note over of ACT 
+    ruid = radio->front.iface_mac
+    (mac from ACTION_APMANAGER_JOINED_NOTIFICATION)
+  end note
+
+  ACT -> ACT : add_wsc_m1_tlv(radio_iface)
+  note over of ACT 
+    cfg.mac = db->bridge.mac;
+  end note
+
+  ...
+
+  ACT -> SST : send_cmdu_to_controller
+
+deactivate ACT
+
+SST -> C : send M1 message
+
+C -> C : handle_cmdu_1905_autoconfiguration_WSC(src_mac, cmdu_rx)
+
+activate C
+
+  note right of C
+    Update agent's al_mac, ruid and radio mac in DB
+  end note
+  C -> D : Add/Reuse agent with m1->al_mac
+  C <-- D : return Agent
+  C -> D : add_radio(m1->ruid, m1->al_mac)
+
+...
+
+  note right of C
+    Controller gets bss conf for agent's al_mac from DB
+  end note
+  C -> D : database.get_bss_info_configuration(m1->mac_addr())
+  C <-- D : return bss_info_confs
+
+...
+
+  C -> C : autoconfig_wsc_add_m2(m1, bss_info_conf, agent)
+  note right of C 
+    cfg.bssid = ruid;
+  end note
+
+  C -> SA : send_cmdu_to_agent
+  SA -> SST : send M2 message 
+
+deactivate C
+
+SST -> ACT : handle_cmdu
+
+ACT -> ACT : handle_ap_autoconfiguration_wsc
+activate ACT
+
+  ACT -> AGT_DB : get_radio_by_mac(radio_uid(), eMacType::RADIO)
+  ACT <-- AGT_DB : return sRadio
+
+  ACT -> ACT : handle_wsc_m2_tlv
+  note over of ACT 
+    From each M2 TLV we get sBssConfig 
+    (`bssid` inside `payload_config`)
+  end note 
+
+  ACT -> ACT : validate_reconfiguration(radio_iface, bss_configs)
+  note over of ACT 
+    Set the BSSID of the BSS by similarity
+    since the controller in M2 does not send this information.
+  end note 
+
+  ACT -> SST : send_cmdu(ap_manager_fd, cmdu_tx)
+
+deactivate ACT
+
+SST -> AM : ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST
+
+AM -> AP_HAL : update_vap_credentials
+
+note right AP_HAL 
+  To see what is going after this point
+  you could check `vap_workflow.puml`
+end note
+
+@enduml
