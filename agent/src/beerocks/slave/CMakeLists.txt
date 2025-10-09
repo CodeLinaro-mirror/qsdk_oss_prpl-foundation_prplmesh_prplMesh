@@ -1,6 +1,16 @@
 project(beerocks_agent VERSION ${prplmesh_VERSION})
 message("${BoldWhite}Preparing ${BoldGreen}${PROJECT_NAME}${BoldWhite} for the ${BoldGreen}${TARGET_PLATFORM}${BoldWhite} platform${ColourReset}")
 
+# >>> ADD HERE (right after project/message) <<<
+include(FetchContent)
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.2
+)
+FetchContent_MakeAvailable(nlohmann_json)
+# <<< END ADD HERE >>>
+
 # Set the base path for the current module
 set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
@@ -13,6 +23,7 @@ file(GLOB beerocks_agent_sources
     ${MODULE_PATH}/helpers/*.c*
     ${MODULE_PATH}/helpers/link_metrics/*.c*
     ${MODULE_PATH}/tasks/*.c*
+    ${MODULE_PATH}/tasks/spectrum_inquiry_task.c*
     ${MODULE_PATH}/gate/*.c*
     ${MODULE_PATH}/nbapi/*.c*
     ${MODULE_PATH}/*.c*
@@ -42,8 +53,18 @@ if (TARGET_PLATFORM STREQUAL "ugw")
 endif()
 
 add_executable(${PROJECT_NAME} ${beerocks_agent_sources})
+target_include_directories(${PROJECT_NAME} PRIVATE /usr/include)
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
-target_link_libraries(${PROJECT_NAME} rt dl bcl btl tlvf elpp btlvf bwl bpl nbapi multi_vendor ${LIBS})
+
+target_compile_options(${PROJECT_NAME} PRIVATE -fexceptions)
+
+# >>> MODIFY THIS target_link_libraries <<<
+target_link_libraries(${PROJECT_NAME}
+    PRIVATE
+        nlohmann_json::nlohmann_json     # <-- add this here
+        rt dl bcl btl tlvf elpp btlvf bwl bpl nbapi multi_vendor ${LIBS}
+)
+# <<< END MODIFY >>>
 
 if (ENABLE_NBAPI)
     # Include AMBIORIX in the build
@@ -52,7 +73,7 @@ if (ENABLE_NBAPI)
     find_package(amxd REQUIRED)
     find_package(amxp REQUIRED)
     find_package(libamxrt REQUIRED)
-    target_link_libraries(${PROJECT_NAME} amxc amxd amxp libamxrt)
+    target_link_libraries(${PROJECT_NAME} PRIVATE amxc amxd amxp libamxrt)
 endif()
 
 # Install
