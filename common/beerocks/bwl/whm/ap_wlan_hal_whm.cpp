@@ -17,6 +17,7 @@
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
 #include <math.h>
+#include <numeric>
 #include <sstream>
 
 using namespace beerocks;
@@ -2080,25 +2081,39 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
                                    m_radio_path);
     }
 
+    std::string op_std_format;
+    if (!m_ambiorix_cl.get_param(op_std_format, m_radio_path, "OperatingStandardsFormat")) {
+        LOG(ERROR) << "Cannot read OperatingStandardsFormat for " << m_radio_path;
+        return false;
+    }
+
     auto op_std_str =
-        [](const airties::tlvAirtiesRadioCapability::sStandards &op_std) -> std::string {
-        if (op_std.s_80211be) {
-            return std::string{"be"};
-        } else if (op_std.s_80211ax) {
-            return std::string{"ax"};
-        } else if (op_std.s_80211ac) {
-            return std::string{"ac"};
-        } else if (op_std.s_80211n) {
-            return std::string{"n"};
-        } else if (op_std.s_80211g) {
-            return std::string{"g"};
-        } else if (op_std.s_80211b) {
-            return std::string{"b"};
-        } else if (op_std.s_80211a) {
-            return std::string{"a"};
-        } else {
-            return std::string{};
+        [&](const airties::tlvAirtiesRadioCapability::sStandards &op_std) -> std::string {
+        std::vector<std::string> standards;
+
+        if (op_std.s_80211be)
+            standards.push_back("be");
+        if (op_std.s_80211ax)
+            standards.push_back("ax");
+        if (op_std.s_80211ac)
+            standards.push_back("ac");
+        if (op_std.s_80211n)
+            standards.push_back("n");
+        if (op_std.s_80211g)
+            standards.push_back("g");
+        if (op_std.s_80211b)
+            standards.push_back("b");
+        if (op_std.s_80211a)
+            standards.push_back("a");
+
+        if (op_std_format == "Legacy" && !standards.empty()) {
+            return standards.front();
         }
+
+        return std::accumulate(standards.rbegin(), standards.rend(), std::string(),
+                               [](const std::string &lhs, const std::string &rhs) {
+                                   return lhs.empty() ? rhs : lhs + "," + rhs;
+                               });
     }(operating_standards);
 
     if (op_std_str.empty()) {
