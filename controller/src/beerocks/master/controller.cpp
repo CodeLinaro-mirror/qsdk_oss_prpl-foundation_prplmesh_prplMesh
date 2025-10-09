@@ -66,6 +66,7 @@
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvAssociatedWiFi6StaStatusReport.h>
+#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
@@ -322,6 +323,7 @@ bool Controller::start()
             ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
+            ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
         })) {
         LOG(ERROR) << "Failed subscribing to the Bus";
         return false;
@@ -621,6 +623,8 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
         return handle_cmdu_1905_associated_sta_link_metrics_response_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE:
         return handle_cmdu_1905_early_ap_capability_report_message(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE:
+        return handle_cmdu_1905_available_spectrum_inquiry_message(src_mac, cmdu_rx);
 
     // Empty cases are used to prevent error logs. Below message types are processed within tasks.
     case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE:
@@ -2202,6 +2206,22 @@ bool Controller::handle_tlv_associated_sta_link_metrics(const sMacAddr &src_mac,
         }
     }
     return ret_val;
+}
+
+bool Controller::handle_cmdu_1905_available_spectrum_inquiry_message(const sMacAddr &src_mac,
+                                                                ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto mid = cmdu_rx.getMessageId();
+
+    LOG(INFO) << "Controller received AVAILABLE_SPECTRUM_INQUIRY_MESSAGE from agent: " << src_mac << std::hex << int(mid);
+    auto tlv = cmdu_rx.getClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
+    //if (!tlv) {
+      //  LOG(ERROR) << "Missing AvailableSpectrumInquiryRequest TLV";
+        //return false;
+    //}
+
+    LOG(DEBUG) << "sending ACK message back to agent, mid=" << std::hex << int(mid);
+    return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
 }
 
 bool Controller::handle_tlv_associated_sta_extended_link_metrics(const sMacAddr &src_mac,
