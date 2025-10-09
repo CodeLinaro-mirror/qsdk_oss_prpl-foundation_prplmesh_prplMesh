@@ -136,6 +136,13 @@ private:
     bool add_associated_clients_tlv();
 
     /**
+     * @brief Add and fill associated sta mld conf report tlv.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_assoc_sta_mld_conf_report_tlv();
+
+    /**
      * @brief Add and fill bssid_iface_mapping tlv.
      *
      * @return true on success, otherwise false.

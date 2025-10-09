@@ -56,6 +56,7 @@ public:
     virtual std::string get_radio_mac() override;
     virtual sMacAddr get_bsta_mld_mac() override;
     virtual sMacAddr get_ap_mld_mac() override;
+    virtual sMacAddr get_assoc_sta_mld_mac() override;
 
     /**
      * @brief Gets channel utilization.

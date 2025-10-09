@@ -521,6 +521,12 @@ sMacAddr base_wlan_hal_dummy::get_ap_mld_mac()
     return beerocks::net::network_utils::ZERO_MAC;
 }
 
+sMacAddr base_wlan_hal_dummy::get_assoc_sta_mld_mac()
+{
+    LOG(WARNING) << "not implemented";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 bool base_wlan_hal_dummy::get_channel_utilization(uint8_t &channel_utilization)
 {
     const uint8_t min_value   = 0;

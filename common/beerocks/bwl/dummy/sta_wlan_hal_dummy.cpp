@@ -97,6 +97,11 @@ sMacAddr sta_wlan_hal_dummy::get_bsta_mld_mac() { return beerocks::net::network_
 
 sMacAddr sta_wlan_hal_dummy::get_ap_mld_mac() { return beerocks::net::network_utils::ZERO_MAC; }
 
+sMacAddr sta_wlan_hal_dummy::get_assoc_sta_mld_mac()
+{
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 bool sta_wlan_hal_dummy::process_dummy_data(parsed_obj_map_t &parsed_obj) { return true; }
 
 bool sta_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj) { return true; }

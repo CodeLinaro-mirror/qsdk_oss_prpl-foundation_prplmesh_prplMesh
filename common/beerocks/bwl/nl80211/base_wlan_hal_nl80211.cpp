@@ -965,6 +965,12 @@ sMacAddr base_wlan_hal_nl80211::get_ap_mld_mac()
     return beerocks::net::network_utils::ZERO_MAC;
 }
 
+sMacAddr base_wlan_hal_nl80211::get_assoc_sta_mld_mac()
+{
+    LOG(WARNING) << "not implemented";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 void base_wlan_hal_nl80211::send_ctrl_iface_cmd(std::string cmd)
 {
     parsed_obj_map_t obj1;

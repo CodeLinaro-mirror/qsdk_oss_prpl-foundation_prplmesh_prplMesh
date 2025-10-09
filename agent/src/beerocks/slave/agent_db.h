@@ -93,7 +93,7 @@ public:
         static AgentDB instance;
         return SafeDB(instance);
     }
-    AgentDB(const AgentDB &) = delete;
+    AgentDB(const AgentDB &)        = delete;
     void operator=(const AgentDB &) = delete;
 
 private:
@@ -233,7 +233,7 @@ public:
                 : iface_name(iface_name_), mac(mac_)
             {
             }
-            sEthernetPort() : mac(net::network_utils::ZERO_MAC){};
+            sEthernetPort() : mac(net::network_utils::ZERO_MAC) {};
             std::string iface_name;
             sMacAddr mac;
         } wan;
@@ -663,9 +663,28 @@ public:
         std::vector<sAffiliatedSta> affiliated_stas;
     } sAssociatedStaMld;
 
+    typedef struct {
+        typedef struct {
+            sMacAddr sta_mld_mac = beerocks::net::network_utils::ZERO_MAC;
+            sMacAddr ap_mld_mac  = beerocks::net::network_utils::ZERO_MAC;
+            enum mode { NONE = 0, STR = 1 << 0, NSTR = 1 << 1, EMLSR = 1 << 2, EMLMR = 1 << 3 };
+            mode mld_mode;
+        } sMLDConfiguration;
+
+        typedef struct {
+            sMacAddr bssid;
+            sMacAddr affiliated_sta_mac;
+        } sAffiliatedSta;
+
+        sMLDConfiguration mld_config;
+
+        std::vector<sAffiliatedSta> affiliated_sta;
+    } sAssociatedSTAMLDConfiguration;
+
     std::vector<sAPMLDConfiguration> ap_mld_configurations;
     std::unique_ptr<sBStaMLDConfiguration> bsta_mld_configuration;
     std::vector<sAssociatedStaMld> associated_sta_mlds;
+    std::unique_ptr<sAssociatedSTAMLDConfiguration> associated_sta_mld_conf;
 
     std::string em_handle_third_party;
     bool em_ap_controller_found = false;

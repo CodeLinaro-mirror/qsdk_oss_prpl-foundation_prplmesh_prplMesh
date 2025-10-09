@@ -247,6 +247,8 @@ public:
 
     virtual sMacAddr get_ap_mld_mac() = 0;
 
+    virtual sMacAddr get_assoc_sta_mld_mac() = 0;
+
     /*!
      * Returns vap id using vap bssid.
      */

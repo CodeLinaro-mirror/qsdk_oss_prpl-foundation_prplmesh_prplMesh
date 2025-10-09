@@ -299,6 +299,12 @@ sMacAddr sta_wlan_hal_nl80211::get_ap_mld_mac()
     return beerocks::net::network_utils::ZERO_MAC;
 }
 
+sMacAddr sta_wlan_hal_nl80211::get_assoc_sta_mld_mac()
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 bool sta_wlan_hal_nl80211::process_nl80211_event(parsed_obj_map_t &parsed_obj)
 {
     auto opcode = parsed_obj["_opcode"];

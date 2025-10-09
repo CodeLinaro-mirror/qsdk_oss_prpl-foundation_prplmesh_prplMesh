@@ -26,6 +26,7 @@
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
+#include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
@@ -279,6 +280,11 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     if (!add_associated_clients_tlv()) {
         LOG(ERROR) << "Failed to add associated clients TLV";
+        return;
+    }
+
+    if (!add_assoc_sta_mld_conf_report_tlv()) {
+        LOG(ERROR) << "Failed to add associated STA MLD configuration report TLV";
         return;
     }
 
@@ -628,7 +634,7 @@ bool TopologyTask::add_device_information_tlv()
                 media_info.network_membership = (is_wired_bh || is_wireless_bh_mismatch)
                                                     ? network_utils::ZERO_MAC
                                                     : db->backhaul.backhaul_bssid;
-                media_info.role = ieee1905_1::eRole::AP;
+                media_info.role               = ieee1905_1::eRole::AP;
             } else {
                 media_info.network_membership = iface.first;
                 media_info.role               = ieee1905_1::eRole::NON_AP_NON_PCP_STA;
@@ -1050,6 +1056,87 @@ bool TopologyTask::add_vs_tlv_bssid_iface_mapping()
             filled++;
         }
     }
+    return true;
+}
+
+bool TopologyTask::add_assoc_sta_mld_conf_report_tlv()
+{
+    auto db(AgentDB::get());
+
+    if (db->associated_sta_mld_conf) {
+        auto tlvAssociatedStaMldConfigurationReport =
+            m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaMldConfigurationReport>();
+        if (!tlvAssociatedStaMldConfigurationReport) {
+            LOG(ERROR) << "addClass wfa_map::tlvAssociatedStaMldConfigurationReport failed";
+            return false;
+        }
+        if (db->associated_sta_mld_conf->mld_config.sta_mld_mac == net::network_utils::ZERO_MAC) {
+            for (const auto &radios_info : m_btl_ctx.m_radios_info) {
+                if (radios_info->sta_wlan_hal) {
+                    if (radios_info->sta_wlan_hal->get_assoc_sta_mld_mac() !=
+                        net::network_utils::ZERO_MAC) {
+                        db->associated_sta_mld_conf->mld_config.sta_mld_mac =
+                            radios_info->sta_wlan_hal->get_assoc_sta_mld_mac();
+                        break;
+                    }
+                }
+            }
+        }
+        if (db->associated_sta_mld_conf->mld_config.ap_mld_mac == net::network_utils::ZERO_MAC) {
+            for (const auto &radios_info : m_btl_ctx.m_radios_info) {
+                if (radios_info->sta_wlan_hal) {
+                    if (radios_info->sta_wlan_hal->get_ap_mld_mac() !=
+                        net::network_utils::ZERO_MAC) {
+                        db->associated_sta_mld_conf->mld_config.ap_mld_mac =
+                            radios_info->sta_wlan_hal->get_ap_mld_mac();
+                        break;
+                    }
+                }
+            }
+        }
+        tlvAssociatedStaMldConfigurationReport->sta_mld_mac_addr() =
+            db->associated_sta_mld_conf->mld_config.sta_mld_mac;
+        // mac to which bh is connected
+        tlvAssociatedStaMldConfigurationReport->ap_mld_mac_addr() =
+            db->associated_sta_mld_conf->mld_config.ap_mld_mac;
+
+        if (db->associated_sta_mld_conf->mld_config.mld_mode &
+            AgentDB::sMLDConfiguration::mode::STR) {
+            tlvAssociatedStaMldConfigurationReport->modes().str = 1;
+        }
+        if (db->associated_sta_mld_conf->mld_config.mld_mode &
+            AgentDB::sMLDConfiguration::mode::NSTR) {
+            tlvAssociatedStaMldConfigurationReport->modes().nstr = 1;
+        }
+        if (db->associated_sta_mld_conf->mld_config.mld_mode &
+            AgentDB::sMLDConfiguration::mode::EMLSR) {
+            tlvAssociatedStaMldConfigurationReport->modes().emlsr = 1;
+        }
+        if (db->associated_sta_mld_conf->mld_config.mld_mode &
+            AgentDB::sMLDConfiguration::mode::EMLMR) {
+            tlvAssociatedStaMldConfigurationReport->modes().emlmr = 1;
+        }
+
+        LOG(DEBUG) << "Sending assoc Sta MLD configuration for "
+                   << db->associated_sta_mld_conf->mld_config.ap_mld_mac
+                   << " [mac=" << db->associated_sta_mld_conf->mld_config.ap_mld_mac
+                   << ", mode=" << std::hex << db->associated_sta_mld_conf->mld_config.mld_mode
+                   << "]";
+
+        for (const auto &affiliated_bsta_conf : db->associated_sta_mld_conf->affiliated_sta) {
+
+            auto affiliated_bsta(tlvAssociatedStaMldConfigurationReport->create_affiliated_sta());
+            affiliated_bsta->bssid()                   = affiliated_bsta_conf.bssid;
+            affiliated_bsta->affiliated_sta_mac_addr() = affiliated_bsta_conf.affiliated_sta_mac;
+
+            if (!tlvAssociatedStaMldConfigurationReport->add_affiliated_sta(affiliated_bsta)) {
+                LOG(ERROR)
+                    << "add_affiliated_sta() failed in tlvAssociatedStaMldConfigurationReport";
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 
