@@ -634,7 +634,7 @@ bool TopologyTask::add_device_information_tlv()
                 media_info.network_membership = (is_wired_bh || is_wireless_bh_mismatch)
                                                     ? network_utils::ZERO_MAC
                                                     : db->backhaul.backhaul_bssid;
-                media_info.role               = ieee1905_1::eRole::AP;
+                media_info.role = ieee1905_1::eRole::AP;
             } else {
                 media_info.network_membership = iface.first;
                 media_info.role               = ieee1905_1::eRole::NON_AP_NON_PCP_STA;

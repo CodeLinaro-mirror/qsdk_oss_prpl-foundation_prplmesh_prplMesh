@@ -93,7 +93,7 @@ public:
         static AgentDB instance;
         return SafeDB(instance);
     }
-    AgentDB(const AgentDB &)        = delete;
+    AgentDB(const AgentDB &) = delete;
     void operator=(const AgentDB &) = delete;
 
 private:
@@ -233,7 +233,7 @@ public:
                 : iface_name(iface_name_), mac(mac_)
             {
             }
-            sEthernetPort() : mac(net::network_utils::ZERO_MAC) {};
+            sEthernetPort() : mac(net::network_utils::ZERO_MAC){};
             std::string iface_name;
             sMacAddr mac;
         } wan;
