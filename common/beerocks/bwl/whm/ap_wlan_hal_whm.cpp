@@ -2002,126 +2002,46 @@ bool ap_wlan_hal_whm::update_mld_mode(std::string ssid, uint8_t mld_mode)
 
 bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit)
 {
-    LOG(INFO) << "=== update_mld_unit() CALLED === SSID: " << ssid
-              << ", MLDUnit: " << static_cast<int>(mld_unit);
-
-    // Get ALL Device.WiFi.SSID.* instances at once
-    // For MLD, we can have 2-3 SSIDs (2.4GHz, 5GHz, 6GHz) with the same name
-    auto ssids = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
-        wbapi_utils::search_path_ssid());
-    if (!ssids) {
-        LOG(ERROR) << "Failed to get SSID objects";
-        return false;
+    std::string radio_path_no_dot = m_radio_path;
+    if (radio_path_no_dot.back() == '.') {
+        radio_path_no_dot.pop_back();
     }
 
-    LOG(DEBUG) << "Found " << ssids->size() << " total SSID instances in data model";
+    std::string search_path =
+        wbapi_utils::search_path_ssid_by_ssid_and_radio(ssid, radio_path_no_dot);
+    LOG(DEBUG) << "Search SSID: " << ssid << " for Radio: " << radio_path_no_dot
+               << " returned paths:\n"
+               << search_path;
 
-    // Prepare the update object
-    AmbiorixVariant new_obj(AMXC_VAR_ID_INT8);
-    new_obj.add_child("MLDUnit", mld_unit);
-    LOG(DEBUG) << "Created AmbiorixVariant with MLDUnit value: " << static_cast<int>(mld_unit);
-
-    // Filter by: SSID name matches AND belongs to THIS radio
-    // Each AP Manager handles only its own radio's SSIDs
-    int found_count = 0;
-    bool updated = false;
-    std::string updated_ssid_path;
-
-    // Iterate through all Device.WiFi.SSID.i instances
-    // Note: Indexes are NOT sequential (1,2,3) - they can be any numbers
-    for (auto const &it : *ssids) {
-        const std::string &ssid_path = it.first;  // e.g., "Device.WiFi.SSID.8."
-        auto &ssid_obj = it.second;
-
-        // Read the SSID name from this instance
-        std::string ssid_name;
-        if (!ssid_obj.read_child(ssid_name, "SSID")) {
-            LOG(DEBUG) << "Skipping SSID path (no SSID parameter): " << ssid_path;
-            continue;
-        }
-
-        // Check if this SSID matches our target name
-        if (ssid_name != ssid) {
-            continue;  // Not a match, skip this one
-        }
-
-        // Check if SSID is enabled
-        bool ssid_enable = false;
-        if (!ssid_obj.read_child(ssid_enable, "Enable")) {
-            LOG(DEBUG) << "SSID has no Enable parameter: " << ssid_path;
-            continue;
-        }
-
-        if (!ssid_enable) {
-            LOG(DEBUG) << "SSID is disabled, skipping: " << ssid_path << ", name=" << ssid_name;
-            continue;  // SSID is disabled, skip
-        }
-
-        // Check if this SSID belongs to THIS radio (via LowerLayer parameter)
-        std::string lower_layer;
-        if (!ssid_obj.read_child(lower_layer, "LowerLayer")) {
-            LOG(DEBUG) << "SSID has no LowerLayer parameter: " << ssid_path;
-            continue;
-        }
-
-        // Normalize LowerLayer path - add trailing dot if not present
-        if (!lower_layer.empty() && lower_layer.back() != '.') {
-            lower_layer += ".";
-        }
-
-        // Check if this SSID belongs to THIS AP Manager's radio
-        if (lower_layer != m_radio_path) {
-            LOG(DEBUG) << "SSID " << ssid_path << " belongs to different radio: "
-                       << lower_layer << " (our radio: " << m_radio_path << ")";
-            continue;  // Belongs to different radio, skip
-        }
-
-        // Found SSID matching both: name AND radio
-        found_count++;
-        LOG(DEBUG) << "Found SSID instance " << found_count
-                   << " on our radio: path=" << ssid_path
-                   << ", name=" << ssid_name
-                   << ", radio=" << m_radio_path;
-
-        // Update only the FIRST match
-        if (found_count == 1) {
-            if (!m_ambiorix_cl.update_object(ssid_path, new_obj)) {
-                LOG(ERROR) << "Failed to update MLDUnit for SSID: " << ssid
-                           << ", ssid_path: " << ssid_path
-                           << ", MLDUnit value: " << static_cast<int>(mld_unit);
-                return false;
-            }
-            updated = true;
-            updated_ssid_path = ssid_path;
-            LOG(DEBUG) << "Successfully updated MLDUnit for path: " << ssid_path;
-        } else {
-            // Found more than one SSID with same name on same radio - this is wrong configuration
-            LOG(INFO) << "Found more than 1 SSID index (" << found_count
-                      << " total) with name '" << ssid
-                      << "' on radio " << m_radio_path
-                      << " - this indicates wrong configuration. Only first SSID updated.";
-        }
-    }
-
-    // Check if we found any matches
-    if (found_count == 0) {
+    auto ssids = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(search_path);
+    if (!ssids || ssids->empty()) {
         LOG(ERROR) << "No SSID instances found with name: " << ssid
                    << " for radio: " << m_radio_path;
         return false;
     }
 
-    if (updated) {
-        LOG(INFO) << "=== Successfully updated MLDUnit === SSID: " << ssid
-                  << ", MLDUnit: " << static_cast<int>(mld_unit)
-                  << ", Path: " << updated_ssid_path
-                  << ", Radio: " << m_radio_path;
-        if (found_count > 1) {
-            LOG(WARNING) << "Note: Found " << found_count
-                         << " SSID instances with same name on same radio (misconfiguration)";
-        }
+    LOG(DEBUG) << "Found " << ssids->size() << " SSID instance(s) matching SSID and radio";
+
+    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+    new_obj.add_child("MLDUnit", mld_unit);
+
+    auto it                      = ssids->begin();
+    const std::string &ssid_path = it->first;
+
+    if (!m_ambiorix_cl.update_object(ssid_path, new_obj)) {
+        LOG(ERROR) << "Failed to update MLDUnit for SSID: " << ssid << ", ssid_path: " << ssid_path
+                   << ", MLDUnit value: " << static_cast<int>(mld_unit);
+        return false;
     }
 
-    return updated;
+    LOG(INFO) << " Successfully updated MLDUnit. SSID: " << ssid
+              << ", MLDUnit: " << static_cast<int>(mld_unit) << ", Path: " << ssid_path;
+
+    LOG_IF(ssids->size() > 1, WARNING)
+        << "Found " << ssids->size()
+        << " SSID instances with same name on same radio (misconfiguration) "
+        << "Only first SSID updated";
+    return true;
 }
 
 void ap_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,

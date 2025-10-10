@@ -2155,6 +2155,11 @@ public:
     void del_mld_info_configuration(std::string const &mld_uid);
 
     /**
+     * @brief clears complete global values for mld.
+     */
+    void clear_mld_info_configuration();
+
+    /**
      * @brief Store traffic separation policy for agent.
      *
      * @param[in] al_mac AL MAC address of agent.

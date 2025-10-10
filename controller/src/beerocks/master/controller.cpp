@@ -1368,7 +1368,7 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
     auto agent_ap_mld_configuration = cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
 
     auto &mld_configuration(database.get_mld_info_configuration());
-    const auto &bss_configuration(database.get_bss_info_configuration(agent.al_mac));
+    const auto &bss_configuration(database.get_bss_info_configuration());
 
     for (auto &mld : mld_configuration) {
 

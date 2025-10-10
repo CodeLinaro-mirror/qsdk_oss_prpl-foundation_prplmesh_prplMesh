@@ -5940,6 +5940,8 @@ void db::clear_bss_info_configuration()
     bss_infos_global.clear();
 }
 
+void db::clear_mld_info_configuration() { mld_infos_global.clear(); }
+
 void db::clear_bss_info_configuration(const sMacAddr &al_mac) { bss_infos[al_mac].clear(); }
 
 void db::clear_configured_bss_info(const sMacAddr &ruid) { configured_bss_infos[ruid].clear(); }
