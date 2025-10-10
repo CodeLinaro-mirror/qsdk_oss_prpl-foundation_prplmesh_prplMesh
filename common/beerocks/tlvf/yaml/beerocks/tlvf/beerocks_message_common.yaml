@@ -291,7 +291,7 @@ sNodeHostapVendorSpec:
   vht_capability: uint16_t
   vht_mcs_set:
     _type: uint8_t
-    _length: ["beerocks::message::VHT_MCS_SET_SIZE"]
+    _length: ["beerocks::message::VHT_MCS_SET_SIZE_VS"]
   he_supported: uint8_t #bool
   he_capability: uint16_t
   wifi6_capability: uint64_t

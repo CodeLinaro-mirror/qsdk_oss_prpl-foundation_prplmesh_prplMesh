@@ -390,7 +390,7 @@ typedef struct sNodeHostapVendorSpec {
     uint8_t ht_mcs_set[beerocks::message::HT_MCS_SET_SIZE];
     uint8_t vht_supported;
     uint16_t vht_capability;
-    uint8_t vht_mcs_set[beerocks::message::VHT_MCS_SET_SIZE];
+    uint8_t vht_mcs_set[beerocks::message::VHT_MCS_SET_SIZE_VS];
     uint8_t he_supported;
     uint16_t he_capability;
     uint64_t wifi6_capability;

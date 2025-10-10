@@ -82,6 +82,7 @@ enum eStructsConsts {
     CHANNEL_SCAN_LIST_LENGTH             = 8,
     HT_MCS_SET_SIZE                      = 16,
     VHT_MCS_SET_SIZE                     = 8,
+    VHT_MCS_SET_SIZE_VS                  = 32,
     HE_MCS_SET_SIZE                      = 12,
     DEV_MAX_RADIOS                       = 3,
     DSCP_MAPPING_LIST_LENGTH             = 64,
