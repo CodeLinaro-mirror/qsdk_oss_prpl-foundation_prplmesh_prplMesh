@@ -37,6 +37,10 @@
         bool Band5GH = false;
         bool Band6G = false;
 
+        int8 MLDUnit {
+            default -1;
+            on action validate call check_range [-1, 15];
+        }
         /*
         ** Name of the group this set of accesspoints belong to.
         */
