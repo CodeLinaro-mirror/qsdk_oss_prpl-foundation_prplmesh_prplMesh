@@ -515,8 +515,9 @@ bool ap_wlan_hal_nl80211::refresh_radio_info()
                     m_radio_info.ht_mcs_set.begin());
         m_radio_info.vht_supported  = band_info_it->vht_supported;
         m_radio_info.vht_capability = band_info_it->vht_capability;
-        std::copy_n(band_info_it->vht_mcs_set, m_radio_info.vht_mcs_set.size(),
-                    m_radio_info.vht_mcs_set.begin());
+        // TODO: Sizes are changed, needs to be reworked!
+        // std::copy_n(band_info_it->vht_mcs_set, m_radio_info.vht_mcs_set.size(),
+        //             m_radio_info.vht_mcs_set.begin());
         m_radio_info.he_supported     = band_info_it->he_supported;
         m_radio_info.he_capability    = band_info_it->he_capability;
         m_radio_info.wifi6_capability = band_info_it->wifi6_capability;

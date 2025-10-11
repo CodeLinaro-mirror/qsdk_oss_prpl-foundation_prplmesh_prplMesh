@@ -350,11 +350,11 @@ typedef struct sNodeHostap {
     uint8_t ht_mcs_set[beerocks::message::HT_MCS_SET_SIZE];
     uint8_t vht_supported;
     uint16_t vht_capability;
-    uint8_t vht_mcs_set[beerocks::message::VHT_MCS_SET_SIZE];
+    uint8_t vht_mcs_set[beerocks::message::VHT_MCS_SET_NL802_SIZE];
     uint8_t he_supported;
     uint16_t he_capability;
     uint64_t wifi6_capability;
-    uint8_t he_mcs_set[beerocks::message::HE_MCS_SET_SIZE];
+    uint8_t he_mcs_set[beerocks::message::HE_MCS_SET_NL802_SIZE];
     uint8_t eht_supported;
     //Boolean. When set to 'true', the radio can be used only for zwdfs purpose.
     uint8_t zwdfs;
@@ -388,11 +388,11 @@ typedef struct sNodeHostapVendorSpec {
     uint8_t ht_mcs_set[beerocks::message::HT_MCS_SET_SIZE];
     uint8_t vht_supported;
     uint16_t vht_capability;
-    uint8_t vht_mcs_set[beerocks::message::VHT_MCS_SET_SIZE];
+    uint8_t vht_mcs_set[beerocks::message::VHT_MCS_SET_NL802_SIZE];
     uint8_t he_supported;
     uint16_t he_capability;
     uint64_t wifi6_capability;
-    uint8_t he_mcs_set[beerocks::message::HE_MCS_SET_SIZE];
+    uint8_t he_mcs_set[beerocks::message::HE_MCS_SET_NL802_SIZE];
     //Boolean. When set to 'true', the radio can be used only for zwdfs purpose.
     uint8_t zwdfs;
     //Boolean
