@@ -1285,24 +1285,35 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
 
-    std::vector<WSC::EncryptedSettingsPayload::config> configs;
-    if (!handle_wsc_m2_tlv(cmdu_rx, radio->front.iface_name, m2_list, configs,
+    std::vector<sBssConfig> bss_infos;
+    if (!handle_wsc_m2_tlv(cmdu_rx, radio->front.iface_name, m2_list, bss_infos,
                            misconfigured_ssids)) {
         LOG(ERROR) << "handle_wsc_m2_tlv has failed!";
         return;
     }
-    if (m8 && !handle_wsc_m8_tlv(radio->front.iface_name, m8, configs)) {
+
+    sBStaConfig bsta_info;
+    if (m8 && !handle_wsc_m8_tlv(radio->front.iface_name, m8, bsta_info)) {
         LOG(ERROR) << "handle_wsc_m8_tlv has failed!";
         return;
     }
-    if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, configs)) {
+
+    // MLD
+    if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, bss_infos)) {
         LOG(ERROR) << "handle_agent_ap_mld_configuration_tlv has failed!";
         return;
     }
 
     if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
-        validate_reconfiguration(radio->front.iface_name, configs);
-        if (!configs.empty()) {
+        validate_reconfiguration(radio->front.iface_name, bss_infos);
+        if (!bss_infos.empty()) {
+            // Get new credentials
+            std::vector<WSC::EncryptedSettingsPayload::config> new_credentials;
+            new_credentials.reserve(bss_infos.size());
+            for (const auto &info : bss_infos) {
+                new_credentials.push_back(info.payload_config);
+            }
+
             // Update the BSS credentials if a backhaul link for this radio already exists
             // or add a new one otherwise.
             auto it =
@@ -1314,33 +1325,21 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
                 LOG(DEBUG) << "Updating credentials for backhaul interface with type="
                            << int(it->connection_type) << ", iface_name=" << it->iface_name
                            << ", iface_mac=" << it->iface_mac;
-                it->credentials = configs;
+                it->credentials = new_credentials;
             } else {
                 LOG(DEBUG) << "Storing backhaul credentials for new interface: "
                            << radio->front.iface_name << ", iface_mac=" << radio->front.iface_mac;
                 db->backhaul.backhaul_links.emplace_back(
                     AgentDB::sBackhaul::eConnectionType::Wireless, radio->front.iface_name,
-                    radio->front.iface_mac, configs);
+                    radio->front.iface_mac, new_credentials);
             }
 
             if (m8) {
-                auto bSTA_it = std::find_if(
-                    configs.begin(), configs.end(),
-                    [&](const WSC::EncryptedSettingsPayload::config &config) {
-                        return ((config.bss_type ==
-                                 static_cast<uint8_t>(
-                                     WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA)));
-                    });
-
-                if (bSTA_it == configs.end()) {
-                    return;
-                }
-                send_bsta_configuration(radio->front.iface_mac, *bSTA_it);
-                configs.erase(bSTA_it);
+                send_bsta_configuration(radio->front.iface_mac, bsta_info);
             } else if (db->controller_info.early_ap_capability) {
                 send_enable_disable_endpoint(radio->front.iface_mac, false, true);
             }
-            send_ap_bss_configuration_message(radio->front.iface_name, configs);
+            send_ap_bss_configuration_message(radio->front.iface_name, bss_infos);
         } else {
             LOG(INFO) << "Reconfiguration is not needed";
         }
@@ -1689,8 +1688,7 @@ bool ApAutoConfigurationTask::handle_profile2_traffic_separation_policy_tlv(
 
 bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     ieee1905_1::CmduMessageRx &cmdu_rx, const std::string &radio_iface,
-    const std::vector<WSC::m2> &m2_list,
-    std::vector<WSC::EncryptedSettingsPayload::config> &configs,
+    const std::vector<WSC::m2> &m2_list, std::vector<sBssConfig> &infos,
     std::unordered_set<std::string> &misconfigured_ssids)
 {
     auto db    = AgentDB::get();
@@ -1710,42 +1708,47 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
                                                    reinterpret_cast<uint8_t *>(m2.authenticator())))
             return false;
 
-        WSC::EncryptedSettingsPayload::config config;
+        sBssConfig info;
         if (!ap_autoconfiguration_wsc_parse_encrypted_settings(m2.encrypted_settings(), authkey,
-                                                               keywrapkey, config)) {
-            LOG(ERROR) << "Invalid config data, skip it";
+                                                               keywrapkey, info.payload_config)) {
+            LOG(ERROR) << "Invalid Encrypted Settings, skip it";
             return false;
         }
         if (db->em_ap_controller_found) {
             LOG(DEBUG) << "EM+ controller is found. Check for Hidden SSID parameters";
-            if (!airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(m2, config)) {
-                LOG(INFO) << "Hidden SSID parameter not found in Vendor Extension";
-            }
+
+            // hidden_ssid is false if Vendor Extension is not found
+            info.m2_config.hidden_ssid = m2.hidden_ssid();
+
             if (!airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
                     radio->front.iface_name, m2)) {
                 LOG(INFO) << "Radio Operational Mode Config not found in Vendor Extension";
             }
         }
 
-        bool bSTA = bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA);
-        bool fBSS = bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS);
-        bool bBSS = bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS);
+        bool bSTA =
+            bool(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA);
+        bool fBSS =
+            bool(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS);
+        bool bBSS =
+            bool(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS);
         bool bBSS_p1_disallowed =
-            bool(config.bss_type &
+            bool(info.payload_config.bss_type &
                  WSC::eWscVendorExtSubelementBssType::PROFILE1_BACKHAUL_STA_ASSOCIATION_DISALLOWED);
         bool bBSS_p2_disallowed =
-            bool(config.bss_type &
+            bool(info.payload_config.bss_type &
                  WSC::eWscVendorExtSubelementBssType::PROFILE2_BACKHAUL_STA_ASSOCIATION_DISALLOWED);
-        bool teardown = bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN);
+        bool teardown =
+            bool(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN);
 
         std::stringstream ss;
-        ss << "Parsed config data: " << std::endl;
-        ss << "bssid: " << config.bssid << std::endl;
-        ss << "ssid: " << config.ssid << std::endl;
+        ss << "Parsed M2 info: " << std::endl;
+        ss << "bssid: " << info.payload_config.bssid << std::endl;
+        ss << "ssid: " << info.payload_config.ssid << std::endl;
         ss << "fBSS: " << fBSS << std::endl;
         ss << "bBSS: " << bBSS << std::endl;
         ss << "teardown: " << teardown << std::endl;
-        ss << "hidden_ssid " << config.hidden_ssid << std::endl;
+        ss << "hidden_ssid " << info.m2_config.hidden_ssid << std::endl;
         if (bBSS) {
             ss << "profile1_backhaul_sta_association_disallowed: " << bBSS_p1_disallowed;
             ss << "profile2_backhaul_sta_association_disallowed: " << bBSS_p2_disallowed;
@@ -1754,18 +1757,18 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         LOG(DEBUG) << m2.manufacturer() << " " << ss.str();
 
         if (teardown) {
-            LOG(DEBUG) << "BSSID: " << config.bssid << " is flagged for teardown!";
-            configs.push_back(config);
+            LOG(DEBUG) << "BSSID: " << info.payload_config.bssid << " is flagged for teardown!";
+            infos.push_back(info);
             continue;
         }
 
         // TODO - revisit this in the future
         // In practice, some controllers simply send an empty config data when asked for tear down,
         // so tear down the radio if the SSID is empty.
-        if (config.ssid.empty()) {
+        if (info.payload_config.ssid.empty()) {
             LOG(INFO) << "Empty config data, tear down radio";
-            config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
-            configs.push_back(config);
+            info.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+            infos.push_back(info);
             continue;
         }
 
@@ -1774,23 +1777,23 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             LOG(WARNING) << "Unexpected backhaul STA bit";
         }
 
-        if (misconfigured_ssids.find(config.ssid) != misconfigured_ssids.end()) {
+        if (misconfigured_ssids.find(info.payload_config.ssid) != misconfigured_ssids.end()) {
             LOG(WARNING) << "Controller configured VLANs more than maximum supported";
             bss_errors.push_back({wfa_map::tlvProfile2ErrorCode::eReasonCode::
                                       NUMBER_OF_UNIQUE_VLAN_ID_EXCEEDS_MAXIMUM_SUPPORTED,
-                                  config.bssid});
+                                  info.payload_config.bssid});
 
             // Multi-AP standard requires to tear down any misconfigured BSS.
-            config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+            info.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
         } else if (fBSS && bBSS && !radio->front.hybrid_mode_supported) {
             LOG(WARNING) << "Controller configured hybrid mode, but it is not supported!";
             bss_errors.push_back(
                 {wfa_map::tlvProfile2ErrorCode::eReasonCode::
                      TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED,
-                 config.bssid});
+                 info.payload_config.bssid});
 
             // Multi-AP standard requires to tear down any misconfigured BSS.
-            config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+            info.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
         } else if (db->controller_info.profile_support !=
                        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
                    bBSS && !bBSS_p1_disallowed && !bBSS_p2_disallowed) {
@@ -1812,23 +1815,23 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
              */
             if (TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration == 0) {
                 LOG(WARNING) << "Sending error and Tearing down BSS that controller configured to "
-                             << config.ssid;
+                             << info.payload_config.ssid;
                 bss_errors.push_back(
                     {wfa_map::tlvProfile2ErrorCode::eReasonCode::
                          TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED,
-                     config.bssid});
+                     info.payload_config.bssid});
 
                 // Multi-AP standard requires to tear down any misconfigured BSS.
-                config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+                info.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
                 continue;
             } else if (TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration ==
                        1) {
-                config.bss_type |= WSC::eWscVendorExtSubelementBssType::
+                info.payload_config.bss_type |= WSC::eWscVendorExtSubelementBssType::
                     PROFILE1_BACKHAUL_STA_ASSOCIATION_DISALLOWED;
             }
             // TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration == 2
             else {
-                config.bss_type |= WSC::eWscVendorExtSubelementBssType::
+                info.payload_config.bss_type |= WSC::eWscVendorExtSubelementBssType::
                     PROFILE2_BACKHAUL_STA_ASSOCIATION_DISALLOWED;
             }
             LOG(DEBUG)
@@ -1836,10 +1839,10 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
                 << TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration;
         }
 
-        configs.push_back(config);
+        infos.push_back(info);
     }
 
-    LOG(INFO) << "Finished M2 parsing with " << configs.size() << " vaps and " << bss_errors.size()
+    LOG(INFO) << "Finished M2 parsing with " << infos.size() << " vaps and " << bss_errors.size()
               << " errors.";
 
     if (bss_errors.size()) {
@@ -1852,10 +1855,8 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     return true;
 }
 
-// Zero or one WSC TLV (containing M8)
-bool ApAutoConfigurationTask::handle_wsc_m8_tlv(
-    const std::string &radio_iface, std::shared_ptr<WSC::m8> m8,
-    std::vector<WSC::EncryptedSettingsPayload::config> &configs)
+bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
+                                                std::shared_ptr<WSC::m8> m8, sBStaConfig &info)
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
@@ -1870,24 +1871,22 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(
                                                reinterpret_cast<uint8_t *>(m8->authenticator())))
         return false;
 
-    WSC::EncryptedSettingsPayload::config config;
     if (!ap_autoconfiguration_wsc_parse_encrypted_settings(m8->encrypted_settings(), authkey,
-                                                           keywrapkey, config)) {
-        LOG(ERROR) << "Invalid config data, skip it";
+                                                           keywrapkey, info.payload_config)) {
+        LOG(ERROR) << "Invalid Encrypted Settings, skipping it";
         return false;
     }
 
-    if (!(config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA)) {
-        LOG(ERROR) << "Invalid config data, not a bSTA one";
+    if (!(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA)) {
+        LOG(ERROR) << "Invalid Encrypted Settings, not a bSTA one, skipping it";
         return false;
     }
 
     std::stringstream ss;
-    ss << "Parsed bSTA config data: " << std::endl;
-    ss << "bssid: " << config.bssid << std::endl;
-    ss << "ssid: " << config.ssid << std::endl;
+    ss << "Parsed bSTA info: " << std::endl;
+    ss << "bssid: " << info.payload_config.bssid << std::endl;
+    ss << "ssid: " << info.payload_config.ssid << std::endl;
     LOG(INFO) << ss.str();
-    configs.push_back(config);
 
     LOG(INFO) << "Finished M8 parsing";
 
@@ -1895,7 +1894,7 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(
 }
 
 bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
-    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::EncryptedSettingsPayload::config> &configs)
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<sBssConfig> &infos)
 {
     auto db(AgentDB::get());
 
@@ -1956,8 +1955,8 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
             mld_conf.affiliated_aps.push_back(affiliated_conf);
         }
 
-        for (auto &config : configs) {
-            if (config.ssid == ssid) {
+        for (auto &config : infos) {
+            if (config.payload_config.ssid == ssid) {
                 config.mld_id = mld_id;
             }
         }
@@ -1966,8 +1965,8 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
     return true;
 }
 
-bool ApAutoConfigurationTask::send_bsta_configuration(
-    const sMacAddr &radio_mac, const WSC::EncryptedSettingsPayload::config &config)
+bool ApAutoConfigurationTask::send_bsta_configuration(const sMacAddr &radio_mac,
+                                                      const sBStaConfig &info)
 {
     // Place holder
     return true;
@@ -2137,34 +2136,6 @@ void ApAutoConfigurationTask::handle_vs_apply_vlan_policy_request(
     m_traffic_separation_configurator->apply_policy();
 }
 
-bool ApAutoConfigurationTask::airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(
-    WSC::m2 &m2, WSC::EncryptedSettingsPayload::config &config)
-{
-    bool retval = false;
-    for (auto &vendor_ext_attr : m2.getAttrList<WSC::cWscAttrVendorExtension>()) {
-        if ((WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1 != vendor_ext_attr->vendor_id_0()) ||
-            (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_2 != vendor_ext_attr->vendor_id_1()) ||
-            (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_3 != vendor_ext_attr->vendor_id_2())) {
-            continue;
-        }
-
-        LOG(INFO) << "Vendor OUI: " << vendor_ext_attr->vendor_id_0()
-                  << vendor_ext_attr->vendor_id_1() << vendor_ext_attr->vendor_id_2()
-                  << "is received";
-        auto vendor_data = vendor_ext_attr->vendor_data();
-
-        if (vendor_data[0] == VENDOR_BSS_CFG) {
-            //Hidden BSS attribute is set
-            config.hidden_ssid = (vendor_data[1] == VENDOR_HIDE_SSID) ? true : false;
-            retval             = true;
-            break;
-        }
-    }
-
-    LOG(INFO) << "Hidden SSID is set to " << config.hidden_ssid;
-    return retval;
-}
-
 bool ApAutoConfigurationTask::
     airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
         const std::string &radio_iface, const WSC::m2 &m2)
@@ -2265,7 +2236,7 @@ bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_authenticate(
 
 bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_parse_encrypted_settings(
     WSC::cWscAttrEncryptedSettings encrypted_settings, uint8_t authkey[32], uint8_t keywrapkey[16],
-    WSC::EncryptedSettingsPayload::config &config)
+    WSC::EncryptedSettingsPayload::config &payload_config)
 {
     uint8_t *iv     = reinterpret_cast<uint8_t *>(encrypted_settings.iv());
     auto ciphertext = reinterpret_cast<uint8_t *>(encrypted_settings.encrypted_settings());
@@ -2305,12 +2276,12 @@ bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_parse_encrypted_settings(
         return false;
     }
     // Update VAP configuration
-    config.auth_type   = config_data->auth_type();
-    config.encr_type   = config_data->encr_type();
-    config.bssid       = config_data->bssid();
-    config.network_key = config_data->network_key();
-    config.ssid        = config_data->ssid();
-    config.bss_type    = config_data->bss_type();
+    payload_config.auth_type   = config_data->auth_type();
+    payload_config.encr_type   = config_data->encr_type();
+    payload_config.bssid       = config_data->bssid();
+    payload_config.network_key = config_data->network_key();
+    payload_config.ssid        = config_data->ssid();
+    payload_config.bss_type    = config_data->bss_type();
 
     // Get the Key Wrap Authenticator data
     auto kwa_data = config_data->key_wrap_authenticator();
@@ -2372,8 +2343,8 @@ bool ApAutoConfigurationTask::send_error_response_message(
     return true;
 }
 
-bool ApAutoConfigurationTask::validate_reconfiguration(
-    const std::string &radio_iface, std::vector<WSC::EncryptedSettingsPayload::config> &configs)
+bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_iface,
+                                                       std::vector<sBssConfig> &infos)
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
@@ -2393,12 +2364,14 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
     }
 
     config_prints << "-- Incoming BSS config data:" << std::endl;
-    for (const auto &config : configs) {
-        config_prints << " bssid: " << config.bssid << ", ssid: " << config.ssid
-                      << ", network_key: " << config.network_key
-                      << ", authentication_type: " << std::hex << int(config.auth_type)
-                      << ", encryption_type: " << std::hex << int(config.encr_type)
-                      << ", bss_type: " << std::hex << int(config.bss_type) << std::endl;
+    for (const auto &info : infos) {
+        config_prints << " bssid: " << info.payload_config.bssid
+                      << ", ssid: " << info.payload_config.ssid
+                      << ", network_key: " << info.payload_config.network_key
+                      << ", authentication_type: " << std::hex << int(info.payload_config.auth_type)
+                      << ", encryption_type: " << std::hex << int(info.payload_config.encr_type)
+                      << ", bss_type: " << std::hex << int(info.payload_config.bss_type)
+                      << std::endl;
     }
     config_prints << "--" << std::endl;
 
@@ -2406,11 +2379,11 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
     // The named lambda "find_by_similarity" receives a AgentDB BSS element.
     // The anonymous returning predicate lambda, finds a "matching" WSC config element.
     const auto find_by_similarity = [&db](const AgentDB::sRadio::sFront::sBssid &bss) {
-        return [&db, &bss](const WSC::EncryptedSettingsPayload::config &config) {
+        return [&db, &bss](const sBssConfig &info) {
             // Check if config's BSSID is valid
-            if (config.bssid != db->bridge.mac) {
+            if (info.payload_config.bssid != db->bridge.mac) {
                 // Config BSSID is valid, can check BSSID only.
-                return (config.bssid == bss.mac);
+                return (info.payload_config.bssid == bss.mac);
             }
             // Need to expand the comparison to create a stricter match
             // TODO: PPM-2296
@@ -2423,31 +2396,31 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
             int matching_fields              = 0;
 
             // SSID
-            if (bss.ssid == config.ssid) {
+            if (bss.ssid == info.payload_config.ssid) {
                 matching_fields++;
             }
 
             // BSS Type
-            if (bss.active &&
-                !bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN)) {
+            if (bss.active && !bool(info.payload_config.bss_type &
+                                    WSC::eWscVendorExtSubelementBssType::TEARDOWN)) {
                 matching_fields++;
             }
-            if (bss.backhaul_bss &&
-                bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS)) {
+            if (bss.backhaul_bss && bool(info.payload_config.bss_type &
+                                         WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS)) {
                 matching_fields++;
             }
-            if (bss.fronthaul_bss &&
-                bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS)) {
+            if (bss.fronthaul_bss && bool(info.payload_config.bss_type &
+                                          WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS)) {
                 matching_fields++;
             }
-            if (bss.hidden_ssid && bool(config.hidden_ssid)) {
+            if (bss.hidden_ssid && bool(info.m2_config.hidden_ssid)) {
                 matching_fields++;
             }
 
             return (matching_fields >= minimal_similarity);
         };
     };
-    const auto bss_needs_reconfiguration = [](const WSC::EncryptedSettingsPayload::config &config,
+    const auto bss_needs_reconfiguration = [](const sBssConfig &info,
                                               const AgentDB::sRadio::sFront::sBssid &bss) {
         // Need to read compare the incoming config (WSC::EncryptedSettingsPayload::config)
         // and compare it to the existing bss (AgentDB::sRadio::sFront::sBssid)
@@ -2459,30 +2432,32 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
         // For now validate against the values we do have.
 
         // SSID
-        if (bss.ssid != config.ssid) {
-            LOG(DEBUG) << "SSID needs reconfiguration: " << bss.ssid << " != " << config.ssid;
+        if (bss.ssid != info.payload_config.ssid) {
+            LOG(DEBUG) << "SSID needs reconfiguration: " << bss.ssid
+                       << " != " << info.payload_config.ssid;
             return true;
         }
 
         // BSS Type
-        if (bss.active && bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN)) {
+        if (bss.active &&
+            bool(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN)) {
             LOG(DEBUG) << "BSS type needs reconfiguration: bss.active: " << bss.active
-                       << " bss_type: " << config.bss_type;
+                       << " bss_type: " << info.payload_config.bss_type;
             return true;
         }
-        if (bss.backhaul_bss &&
-            !bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS)) {
+        if (bss.backhaul_bss && !bool(info.payload_config.bss_type &
+                                      WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS)) {
             LOG(DEBUG) << "BSS type needs reconfiguration: bss.backhaul_bss: " << bss.backhaul_bss
-                       << " bss_type: " << config.bss_type;
+                       << " bss_type: " << info.payload_config.bss_type;
             return true;
         }
-        if (bss.fronthaul_bss &&
-            !bool(config.bss_type & WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS)) {
+        if (bss.fronthaul_bss && !bool(info.payload_config.bss_type &
+                                       WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS)) {
             LOG(DEBUG) << "BSS type needs reconfiguration: bss.fronthaul_bss: " << bss.fronthaul_bss
-                       << " bss_type: " << config.bss_type;
+                       << " bss_type: " << info.payload_config.bss_type;
             return true;
         }
-        if (bss.hidden_ssid && !bool(config.hidden_ssid)) {
+        if (bss.hidden_ssid && !bool(info.m2_config.hidden_ssid)) {
             return true;
         }
 
@@ -2490,8 +2465,9 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
         return true;
     };
 
-    const auto bss_pending_teardown = [](const WSC::EncryptedSettingsPayload::config &config) {
-        return ((config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN) != 0);
+    const auto bss_pending_teardown = [](const sBssConfig &info) {
+        return ((info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN) !=
+                0);
     };
 
     const auto &bssids = radio->front.bssids;
@@ -2499,16 +2475,16 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
     // Create a container for the final configuration.
 
     // We create these two containers, so we could remove and insert into the configuration
-    std::vector<WSC::EncryptedSettingsPayload::config> config_copy = configs;
-    std::vector<WSC::EncryptedSettingsPayload::config> final_config;
+    std::vector<sBssConfig> infos_copy = infos;
+    std::vector<sBssConfig> final_infos;
 
     // Iterate over existing configuration.
     for (const auto &bssid : bssids) {
         if (!bssid.active) {
             continue;
         }
-        auto iter = std::find_if(config_copy.begin(), config_copy.end(), find_by_similarity(bssid));
-        if (iter != config_copy.end()) {
+        auto iter = std::find_if(infos_copy.begin(), infos_copy.end(), find_by_similarity(bssid));
+        if (iter != infos_copy.end()) {
             // Found a configuration that is similar to current bssid
             if (bss_needs_reconfiguration(*iter, bssid)) {
 
@@ -2516,67 +2492,71 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
                 LOG(DEBUG) << "BSS " << bssid.mac << " needs reconfiguration.";
 
                 // Set the BSSID of the BSS since the controller does not send this information.
-                iter->bssid = bssid.mac;
+                iter->payload_config.bssid = bssid.mac;
 
                 // Add to the final configuration.
-                final_config.emplace_back(std::move(*iter));
+                final_infos.emplace_back(std::move(*iter));
 
                 // Remove from incoming configuration so we would not match with it again by mistake.
-                config_copy.erase(iter);
+                infos_copy.erase(iter);
             } else {
                 LOG(DEBUG) << "BSS " << bssid.mac << " does not need reconfiguration.";
             }
         } else {
             // Did not find vap in configuration, need to teardown
-            WSC::EncryptedSettingsPayload::config vap_to_teardown;
-            vap_to_teardown.bssid    = bssid.mac;
-            vap_to_teardown.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
-            final_config.emplace_back(std::move(vap_to_teardown));
+            sBssConfig vap_to_teardown;
+            vap_to_teardown.payload_config.bssid    = bssid.mac;
+            vap_to_teardown.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+            final_infos.emplace_back(std::move(vap_to_teardown));
         }
     }
 
     // Now that all the existing BSSs were updated, we need to iterate over the remaining incoming configuration.
     // Any BSS that is flagged for teardown in the final configuration will instead be updated with the incoming configuration.
 
-    for (auto &remaining_bss : config_copy) {
+    for (auto &remaining_bss : infos_copy) {
         // Find if there are any BSSs that are pending for teardown
-        auto iter = std::find_if(final_config.begin(), final_config.end(), bss_pending_teardown);
-        if (iter != final_config.end()) {
+        auto iter = std::find_if(final_infos.begin(), final_infos.end(), bss_pending_teardown);
+        if (iter != final_infos.end()) {
             // Override BSSs parameters
-            LOG(DEBUG) << "BSS " << iter->bssid
+            LOG(DEBUG) << "BSS " << iter->payload_config.bssid
                        << " will be reconfigured instead of being torn down.";
-            iter->ssid        = remaining_bss.ssid;
-            iter->auth_type   = remaining_bss.auth_type;
-            iter->encr_type   = remaining_bss.encr_type;
-            iter->network_key = remaining_bss.network_key;
-            iter->bss_type    = remaining_bss.bss_type;
-            iter->hidden_ssid = remaining_bss.hidden_ssid;
+            iter->payload_config.ssid        = remaining_bss.payload_config.ssid;
+            iter->payload_config.auth_type   = remaining_bss.payload_config.auth_type;
+            iter->payload_config.encr_type   = remaining_bss.payload_config.encr_type;
+            iter->payload_config.network_key = remaining_bss.payload_config.network_key;
+            iter->payload_config.bss_type    = remaining_bss.payload_config.bss_type;
+            iter->m2_config.hidden_ssid      = remaining_bss.m2_config.hidden_ssid;
 
-        } else if (final_config.size() < radio->front.radio_max_bss) {
-            LOG(DEBUG) << "SSID " << remaining_bss.ssid
+        } else if (final_infos.size() < radio->front.radio_max_bss) {
+            LOG(DEBUG) << "SSID " << remaining_bss.payload_config.ssid
                        << " will be marked for a new instance of AccessPoint";
             // use wildcard mac for 'new' vaps
-            tlvf::mac_from_string(remaining_bss.bssid.oct, network_utils::WILD_MAC_STRING);
+            tlvf::mac_from_string(remaining_bss.payload_config.bssid.oct,
+                                  network_utils::WILD_MAC_STRING);
 
-            final_config.emplace_back(std::move(remaining_bss));
+            final_infos.emplace_back(std::move(remaining_bss));
         } else {
             LOG(ERROR) << "Cannot add more VAPs then what are currently configured";
         }
     }
 
     config_prints << "-- New BSS config data:" << std::endl;
-    for (const auto &config : final_config) {
-        config_prints << " bssid: " << config.bssid << ", ssid: " << config.ssid
-                      << ", network_key: " << config.network_key
-                      << ", authentication_type: " << std::hex << int(config.auth_type)
-                      << ", encryption_type: " << std::hex << int(config.encr_type)
-                      << ", bss_type: " << std::hex << int(config.bss_type) << std::endl
-                      << ", Hidden SSID: " << config.hidden_ssid << ", bss_type: " << std::hex
-                      << int(config.bss_type) << std::endl;
+    for (const auto &info : final_infos) {
+        config_prints << " bssid: " << info.payload_config.bssid
+                      << ", ssid: " << info.payload_config.ssid
+                      << ", network_key: " << info.payload_config.network_key
+                      << ", authentication_type: " << std::hex << int(info.payload_config.auth_type)
+                      << ", encryption_type: " << std::hex << int(info.payload_config.encr_type)
+                      << ", bss_type: " << std::hex << int(info.payload_config.bss_type)
+                      << std::endl
+                      << ", Hidden SSID: " << info.m2_config.hidden_ssid
+                      << ", bss_type: " << std::hex << int(info.payload_config.bss_type)
+                      << std::endl;
     }
 
     // Set final configuration.
-    configs = final_config;
+    infos = final_infos;
 
     // This log is very large and spamming, can be used for debugging purposes if needed.
     // LOG(INFO) << "Config Prints: " << std::endl
@@ -2587,8 +2567,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
 }
 
 bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
-    const std::string &radio_iface,
-    const std::vector<WSC::EncryptedSettingsPayload::config> &configs)
+    const std::string &radio_iface, const std::vector<sBssConfig> &infos)
 {
     auto request = message_com::create_vs_message<
         beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>(m_cmdu_tx);
@@ -2601,20 +2580,20 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
     request->set_bridge_ifname(db->bridge.iface_name);
 
     std::stringstream ss;
-    for (const auto &config : configs) {
+    for (const auto &info : infos) {
         auto c = request->create_wifi_credentials();
         if (!c) {
             LOG(ERROR) << "Failed building message!";
             return false;
         }
 
-        ss << "VAP: " << config.bssid << std::endl
-           << "- BSS type: " << std::hex << int(config.bss_type) << std::endl;
+        ss << "VAP: " << info.payload_config.bssid << std::endl
+           << "- BSS type: " << std::hex << int(info.payload_config.bss_type) << std::endl;
 
-        c->bssid_attr().data = config.bssid;
-        c->bss_type()        = config.bss_type;
+        c->bssid_attr().data = info.payload_config.bssid;
+        c->bss_type()        = info.payload_config.bss_type;
 
-        if ((config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN) != 0) {
+        if ((info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN) != 0) {
             ss << "- - BSS flagged for teardown." << std::endl;
             // BSS needs teardown, can skip setting the rest of the values.
             c->set_ssid("");
@@ -2625,18 +2604,18 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
             continue;
         }
 
-        ss << "- SSID: " << config.ssid << std::endl
-           << "- Key: " << config.network_key << std::endl
-           << "- Auth: " << std::hex << int(config.auth_type) << std::endl
-           << "- Encr: " << std::hex << int(config.encr_type) << std::endl
-           << "- Hidden_SSID: " << config.hidden_ssid << std::endl;
+        ss << "- SSID: " << info.payload_config.ssid << std::endl
+           << "- Key: " << info.payload_config.network_key << std::endl
+           << "- Auth: " << std::hex << int(info.payload_config.auth_type) << std::endl
+           << "- Encr: " << std::hex << int(info.payload_config.encr_type) << std::endl
+           << "- Hidden_SSID: " << info.m2_config.hidden_ssid << std::endl;
 
-        c->set_ssid(config.ssid);
-        c->set_network_key(config.network_key);
-        c->authentication_type_attr().data = config.auth_type;
-        c->encryption_type_attr().data     = config.encr_type;
-        c->mld_id()                        = config.mld_id;
-        c->hidden_ssid()                   = config.hidden_ssid;
+        c->set_ssid(info.payload_config.ssid);
+        c->set_network_key(info.payload_config.network_key);
+        c->authentication_type_attr().data = info.payload_config.auth_type;
+        c->encryption_type_attr().data     = info.payload_config.encr_type;
+        c->mld_id()                        = info.mld_id;
+        c->hidden_ssid()                   = info.m2_config.hidden_ssid;
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();
