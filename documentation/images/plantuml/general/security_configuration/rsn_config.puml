@@ -1,0 +1,56 @@
+@startmindmap
+scale 3600 width
+*:Controller
+----
+auth type
+0x0200 INVALID
+--AND--
+wpa_key_mgmt=AKM2
+rsn_override_key_mgmt=AKM8
+rsn_override_key_mgmt_2=AKM24;
+**: <Autoconf WSC M2>
+----
+auth type
+0x0200 INVALID
+--AND--
+RSN TLV Configuration:
+...
+wlan.rsn.akms=AKM2
+wlan.rsno.akms=AKM8
+wlan.rsno2.akms=AKM24
+...
+;
+***:Agent
+----
+auth type
+0x0200 INVALID
+--AND--
+sec_config.rsn.akm=AKM2
+sec_config.rsno.akm=AKM8
+sec_config.rsno2.akm=AKM24;
+****:<conversion>
+agent 2 pwhm
+----
+one-to-one mapping;
+*****:pwhm datamodel
+----
+AccessPoint.Security.Configuration
+individual fields for each RSN component
+...
+rsn.akm
+rsno.akm
+rsno2.akm
+etc.
+...;
+******:hostapd.conf
+----
+wpa_key_mgmt=WPA-PSK
+rsn_override_key_mgmt=SAE
+rsn_override_key_mgmt_2=SAE-EXT-KEY;
+*******: RSN IE
+AKM:2;
+*******: RSN Override IE
+AKM:8;
+*******: RSN Override 2 IE
+AKM:24;
+@endmindmap
