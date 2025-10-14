@@ -2208,16 +2208,17 @@ bool Controller::handle_tlv_associated_sta_link_metrics(const sMacAddr &src_mac,
     return ret_val;
 }
 
-bool Controller::handle_cmdu_1905_available_spectrum_inquiry_message(const sMacAddr &src_mac,
-                                                                ieee1905_1::CmduMessageRx &cmdu_rx)
+bool Controller::handle_cmdu_1905_available_spectrum_inquiry_message(
+    const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto mid = cmdu_rx.getMessageId();
 
-    LOG(INFO) << "Controller received AVAILABLE_SPECTRUM_INQUIRY_MESSAGE from agent: " << src_mac << std::hex << int(mid);
+    LOG(INFO) << "Controller received AVAILABLE_SPECTRUM_INQUIRY_MESSAGE from agent: " << src_mac
+              << std::hex << int(mid);
     auto tlv = cmdu_rx.getClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
     //if (!tlv) {
-      //  LOG(ERROR) << "Missing AvailableSpectrumInquiryRequest TLV";
-        //return false;
+    //  LOG(ERROR) << "Missing AvailableSpectrumInquiryRequest TLV";
+    //return false;
     //}
 
     LOG(DEBUG) << "sending ACK message back to agent, mid=" << std::hex << int(mid);

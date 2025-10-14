@@ -1,22 +1,20 @@
 #include "spectrum_inquiry_task.h"
 #include "../backhaul_manager/backhaul_manager.h"
-#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.h>
-#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryResponse.h>
+#include <easylogging++.h>
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include <easylogging++.h>
+#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.h>
+#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryResponse.h>
 #define RESPONSE_FILE "tempResponse.txt"
 #include <json-c/json.h>
 #include <nlohmann/json.hpp>
-
 
 using json = nlohmann::json;
 using namespace wfa_map;
 
 namespace beerocks {
-SpectrumInquiryTask::SpectrumInquiryTask(slave_thread &btl_ctx,
-                                         ieee1905_1::CmduMessageTx &cmdu_tx)
+SpectrumInquiryTask::SpectrumInquiryTask(slave_thread &btl_ctx, ieee1905_1::CmduMessageTx &cmdu_tx)
     : Task(eTaskType::SPECTRUM_INQUIRY), m_btl_ctx(btl_ctx), m_cmdu_tx(cmdu_tx)
 {
 }
@@ -33,43 +31,44 @@ void SpectrumInquiryTask::create_available_spectrum_inquiry_message()
     }
     auto request_tlv = m_cmdu_tx.addClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
     if (!request_tlv) {
-      LOG(ERROR) << "Failed to add AvailableSpectrumInquiryRequest TLV";
+        LOG(ERROR) << "Failed to add AvailableSpectrumInquiryRequest TLV";
         return;
     }
     if (!prepare_available_spectrum_inquiry_message()) {
         LOG(ERROR) << "AVAILABLE_SPECTRUM_INQUIRY_MESSAGE filling has failed";
         return;
     }
-    
+
     LOG(INFO) << "Sending AVAILABLE_SPECTRUM_INQUIRY_MESSAGE to controller";
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 
 bool SpectrumInquiryTask::prepare_available_spectrum_inquiry_message()
 {
-	/**
+    /**
      *  The tlvs created here are defined in the
      * specification as "One" (multi-ap specification v6, 17.2.104 and 17.2.105).
      **/
 
-        auto request_tlv = m_cmdu_tx.addClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
-        if (!request_tlv) {
+    auto request_tlv = m_cmdu_tx.addClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
+    if (!request_tlv) {
         LOG(ERROR) << "Failed to get tlvAvailableSpectrumInquiryRequest from CmduMessageTx";
         return false;
-      }
-        
-        //auto tlv = m_cmdu_tx->getClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
-        if (!add_available_spectrum_inquiry_request_tlv(request_tlv)) {
+    }
+
+    //auto tlv = m_cmdu_tx->getClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
+    if (!add_available_spectrum_inquiry_request_tlv(request_tlv)) {
         LOG(ERROR) << "Error filling AVAILABLE SPECTRUM INQUIRY REQUEST TLV";
         return false;
-      }
-	if (!add_available_spectrum_inquiry_response_tlv(m_cmdu_tx)) {
+    }
+    if (!add_available_spectrum_inquiry_response_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling AVAILABLE SPECTRUM INQUIRY RESPONSE TLV";
         return false;
-      }
-	return true;
+    }
+    return true;
 }
-bool SpectrumInquiryTask::add_available_spectrum_inquiry_response_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+bool SpectrumInquiryTask::add_available_spectrum_inquiry_response_tlv(
+    ieee1905_1::CmduMessageTx &cmdu_tx)
 {
     // Create an empty TLV container
     auto response_tlv = cmdu_tx.addClass<wfa_map::tlvAvailableSpectrumInquiryResponse>();
@@ -83,19 +82,22 @@ bool SpectrumInquiryTask::add_available_spectrum_inquiry_response_tlv(ieee1905_1
         LOG(ERROR) << "Failed to open AFC Response File: " << RESPONSE_FILE;
         return false;
     }
-    std::stringstream buffer;//string based buffer decleration.
-    buffer << file.rdbuf();//copies the content of resonse file to buffer.
+    std::stringstream buffer; //string based buffer decleration.
+    buffer << file.rdbuf();   //copies the content of resonse file to buffer.
     std::vector<uint8_t> binary_buffer;
     // Parse the JSON content
-    json j;//JSON object decleration
+    json j; //JSON object decleration
     try {
-        j = json::parse(buffer.str());//copying into json object as string,basically structured json object data
-    } catch (const std::exception& e) {
+        j = json::parse(
+            buffer
+                .str()); //copying into json object as string,basically structured json object data
+    } catch (const std::exception &e) {
         LOG(ERROR) << "JSON parsing error: " << e.what();
         return false;
     }
     // Validate that the AFC response is present.
-    if (!j.contains("availableSpectrumInquiryResponses") || !j["availableSpectrumInquiryResponses"].is_array()) {
+    if (!j.contains("availableSpectrumInquiryResponses") ||
+        !j["availableSpectrumInquiryResponses"].is_array()) {
         LOG(ERROR) << "Invalid AFC response format: missing 'availableSpectrumInquiryResponses'";
         return false;
     }
@@ -110,7 +112,8 @@ bool SpectrumInquiryTask::add_available_spectrum_inquiry_response_tlv(ieee1905_1
         return false;
     }
     // Set TLV payload
-    if (!response_tlv->set_available_spectrum_inquiry_response_obj(binary_buffer.data(), binary_buffer.size())) {
+    if (!response_tlv->set_available_spectrum_inquiry_response_obj(binary_buffer.data(),
+                                                                   binary_buffer.size())) {
         LOG(ERROR) << "Failed to set available spectrum inquiry response object";
         return false;
     }
@@ -118,11 +121,11 @@ bool SpectrumInquiryTask::add_available_spectrum_inquiry_response_tlv(ieee1905_1
         LOG(ERROR) << "TLV finalization failed";
         return false;
     }
-    LOG(INFO) << "Successfully filled TLV with Available Spectrum Inquiry Response payload (length = "
-              << binary_buffer.size() << ")";
+    LOG(INFO)
+        << "Successfully filled TLV with Available Spectrum Inquiry Response payload (length = "
+        << binary_buffer.size() << ")";
     return true;
 }
-
 
 bool SpectrumInquiryTask::add_available_spectrum_inquiry_request_tlv(
     const std::shared_ptr<wfa_map::tlvAvailableSpectrumInquiryRequest> &request_tlv)
@@ -133,7 +136,8 @@ bool SpectrumInquiryTask::add_available_spectrum_inquiry_request_tlv(
         LOG(ERROR) << "Failed to open tempRequest.txt";
         return false;
     }
-    std::string json_string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    std::string json_string((std::istreambuf_iterator<char>(file)),
+                            std::istreambuf_iterator<char>());
     file.close();
     LOG(DEBUG) << "Loaded JSON string: " << json_string;
 
@@ -162,13 +166,15 @@ bool SpectrumInquiryTask::add_available_spectrum_inquiry_request_tlv(
     }
 
     // Step 4: Set TLV buffer
-    if (!request_tlv->set_available_spectrum_inquiry_request_obj(binary_buffer.data(), binary_buffer.size())) {
+    if (!request_tlv->set_available_spectrum_inquiry_request_obj(binary_buffer.data(),
+                                                                 binary_buffer.size())) {
         LOG(ERROR) << "Failed to set available spectrum inquiry request obj";
         return false;
     }
 
-    LOG(INFO) << "Successfully filled TLV with Available Spectrum Inquiry Request payload (length = "
-              << binary_buffer.size() << ")";
+    LOG(INFO)
+        << "Successfully filled TLV with Available Spectrum Inquiry Request payload (length = "
+        << binary_buffer.size() << ")";
 
     if (!request_tlv->finalize()) {
         LOG(ERROR) << "TLV finalization failed";
