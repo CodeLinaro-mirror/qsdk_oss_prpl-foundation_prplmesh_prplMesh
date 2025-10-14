@@ -11,31 +11,65 @@
 
 #include <tlvf/WSC/WscAttrList.h>
 
-namespace WSC {
+// TODO(PPM-3571): move to common/
+#define VENDOR_HIDE_SSID 0x80
+#define VENDOR_BSS_CFG 0x02
 
+namespace WSC {
+/**
+ * @class WSC::m2
+ * @brief Builder/parser for the WSC **M2** attribute list carried inside an IEEE 1905.1 WSC TLV.
+ *
+ * Purpose:
+ *  - **Create mode** (`parse==false`): serializes a complete M2 message from `m2::config`
+ *    into the provided buffer (adds all mandatory WSC attributes, optional BSS index,
+ *    and the WFA Vendor Extension: Version2). The class is finalized in network byte order.
+ *  - **Parse mode** (`parse==true`): validates and exposes fields of an incoming M2.
+ *
+ * Notes
+ *  - This class does **not** encrypt ConfigData. Provide `cfg.iv` and `cfg.encrypted_settings`
+ *    (produced by the KeyWrap stage) before calling `create()`.
+ */
 class m2 : public WscAttrList {
 public:
+    // WSC M2 configuration (inputs to m2::init/create)
     struct config {
-        eWscMessageType msg_type;
-        uint8_t uuid_e[WSC_UUID_LENGTH];
-        uint8_t uuid_r[WSC_UUID_LENGTH];
-        sMacAddr mac;
-        uint8_t enrollee_nonce[WSC_NONCE_LENGTH];
-        uint8_t registrar_nonce[WSC_NONCE_LENGTH];
-        uint8_t pub_key[WSC_PUBLIC_KEY_LENGTH];
-        uint16_t encr_type_flags;
-        eWscAuth auth_type_flags;
-        std::string manufacturer;
-        std::string model_name;
-        std::string model_number;
-        std::string serial_number;
-        uint16_t primary_dev_type_id;
-        std::string device_name;
-        eWscRfBands bands;
-        std::vector<uint8_t> encrypted_settings;
-        uint8_t iv[WSC_ENCRYPTED_SETTINGS_IV_LENGTH];
-        uint8_t bss_index;
+        /** WSC message type; must be WSC_MSG_TYPE_M2 */
+        eWscMessageType msg_type{eWscMessageType::WSC_MSG_TYPE_M2};
+
+        /** Enrollee/Registrar nonces (from M1 / freshly generated) */
+        uint8_t enrollee_nonce[WSC_NONCE_LENGTH]{};
+        uint8_t registrar_nonce[WSC_NONCE_LENGTH]{};
+
+        /** Registrar public key (DH) */
+        uint8_t pub_key[WSC_PUBLIC_KEY_LENGTH]{};
+
+        /** Encryption/Auth type flags advertised in M2 */
+        uint16_t encr_type_flags{0};
+        eWscAuth auth_type_flags{eWscAuth::WSC_AUTH_OPEN};
+
+        /** Device identity block shown in M2 */
+        std::string manufacturer{};
+        std::string model_name{};
+        std::string model_number{};
+        std::string serial_number{};
+        uint16_t primary_dev_type_id{0};
+        std::string device_name{};
+
+        /** RF bands capability advertised in M2 */
+        eWscRfBands bands{WSC_RF_BAND_2GHZ_5GHZ};
+
+        /** WSC Encrypted Settings payload (ConfigData ciphertext) and IV */
+        std::vector<uint8_t> encrypted_settings{};
+        uint8_t iv[WSC_ENCRYPTED_SETTINGS_IV_LENGTH]{};
+
+        /** Optional BSS index (included only if bss_index_support == true) */
+        uint8_t bss_index{0};
+
+        /** Hidden SSID flag (Airties Vendor Extension subelement: hidden_ssid) */
+        bool hidden_ssid = false;
     };
+
     m2(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}
     virtual ~m2() = default;
 
@@ -83,6 +117,24 @@ public:
             return bss_index_attr->index();
         }
         return 0;
+    };
+    bool hidden_ssid() const
+    {
+        for (auto &vendor_ext_attr : getAttrList<WSC::cWscAttrVendorExtension>()) {
+            if ((WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1 != vendor_ext_attr->vendor_id_0()) ||
+                (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_2 != vendor_ext_attr->vendor_id_1()) ||
+                (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_3 != vendor_ext_attr->vendor_id_2())) {
+                continue;
+            }
+
+            auto vendor_data = vendor_ext_attr->vendor_data();
+
+            if (vendor_data[0] == VENDOR_BSS_CFG) {
+                //Hidden BSS attribute is set
+                return (vendor_data[1] == VENDOR_HIDE_SSID) ? true : false;
+            }
+        }
+        return false;
     };
 };
 
