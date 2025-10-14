@@ -116,7 +116,7 @@ cWscAttrVendorExtension:
     _type: uint8_t
     _length: []
 
-cConfigData:
+cEncryptedSettingsPayload:
   _type: class
   ssid_type:
     _type: eWscAttributes

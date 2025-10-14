@@ -6,15 +6,23 @@
  * See LICENSE file for more details.
  */
 
-#ifndef _TLVF_WSC_CONFIGDATA_H_
-#define _TLVF_WSC_CONFIGDATA_H_
+#ifndef _TLVF_WSC_ENCRYPTEDSETTINGSPAYLOAD_H_
+#define _TLVF_WSC_ENCRYPTEDSETTINGSPAYLOAD_H_
 
 #include <tlvf/WSC/WscAttrList.h>
 #include <tlvf/tlvflogging.h>
 
 namespace WSC {
-
-class configData : public WscAttrList {
+/**
+ * @class EncryptedSettingsPayload
+ * @brief Byte container for WSC "Encrypted Settings" (m2::config::encrypted_settings after encryption).
+ *
+ * Purpose:
+ *   - Holds the exact bytes that go into the WSC Attribute
+ *     **Encrypted Settings** inside M2/M8.
+ *   - This is the on-wire representation: 16-byte IV followed by AES-CBC ciphertext.
+ **/
+class EncryptedSettingsPayload : public WscAttrList {
 
 public:
     struct config {
@@ -30,14 +38,18 @@ public:
         uint8_t additional_auth = 0;
     };
 
-    configData(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}
-    virtual ~configData() = default;
+    EncryptedSettingsPayload(uint8_t *buff, size_t buff_len, bool parse)
+        : WscAttrList(buff, buff_len, parse)
+    {
+    }
+    virtual ~EncryptedSettingsPayload() = default;
 
     bool init(const config &cfg);
     bool init() { return WscAttrList::init(); };
     bool valid() const override;
-    static std::shared_ptr<configData> create(const config &cfg, uint8_t *buff, size_t buff_len);
-    static std::shared_ptr<configData> parse(uint8_t *buff, size_t buff_len);
+    static std::shared_ptr<EncryptedSettingsPayload> create(const config &cfg, uint8_t *buff,
+                                                            size_t buff_len);
+    static std::shared_ptr<EncryptedSettingsPayload> parse(uint8_t *buff, size_t buff_len);
 
     // getters
     std::string ssid() const
@@ -112,4 +124,4 @@ public:
 
 } // namespace WSC
 
-#endif // _TLVF_WSC_CONFIGDATA_H_
+#endif // _TLVF_WSC_ENCRYPTEDSETTINGSPAYLOAD_H_

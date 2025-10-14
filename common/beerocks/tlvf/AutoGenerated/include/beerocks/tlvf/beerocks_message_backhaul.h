@@ -749,9 +749,9 @@ class cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST : public BaseClass
         }
         sMacAddr& radio_mac();
         bool isPostInitSucceeded() override;
-        std::shared_ptr<WSC::cConfigData> create_wifi_credentials();
-        bool add_wifi_credentials(std::shared_ptr<WSC::cConfigData> ptr);
-        std::shared_ptr<WSC::cConfigData> wifi_credentials() { return m_wifi_credentials_ptr; }
+        std::shared_ptr<WSC::cEncryptedSettingsPayload> create_wifi_credentials();
+        bool add_wifi_credentials(std::shared_ptr<WSC::cEncryptedSettingsPayload> ptr);
+        std::shared_ptr<WSC::cEncryptedSettingsPayload> wifi_credentials() { return m_wifi_credentials_ptr; }
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -760,8 +760,8 @@ class cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST : public BaseClass
         bool init();
         eActionOp_BACKHAUL* m_action_op = nullptr;
         sMacAddr* m_radio_mac = nullptr;
-        WSC::cConfigData *m_wifi_credentials = nullptr;
-        std::shared_ptr<WSC::cConfigData> m_wifi_credentials_ptr = nullptr;
+        WSC::cEncryptedSettingsPayload *m_wifi_credentials = nullptr;
+        std::shared_ptr<WSC::cEncryptedSettingsPayload> m_wifi_credentials_ptr = nullptr;
         bool m_wifi_credentials_init = false;
         bool m_lock_allocation__ = false;
         int m_lock_order_counter__ = 0;

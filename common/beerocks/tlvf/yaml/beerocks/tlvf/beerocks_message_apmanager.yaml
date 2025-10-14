@@ -265,7 +265,7 @@ cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST:
     _type: uint8_t
     _length_var: True
   wifi_credentials:
-    _type: WSC::cConfigData
+    _type: WSC::cEncryptedSettingsPayload
     _length: [wifi_credentials_size]
 
 cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_RESPONSE:

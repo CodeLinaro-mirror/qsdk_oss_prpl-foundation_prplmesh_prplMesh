@@ -304,25 +304,25 @@ bool cWscAttrVendorExtension::init()
     return true;
 }
 
-cConfigData::cConfigData(uint8_t* buff, size_t buff_len, bool parse) :
+cEncryptedSettingsPayload::cEncryptedSettingsPayload(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();
 }
-cConfigData::cConfigData(std::shared_ptr<BaseClass> base, bool parse) :
+cEncryptedSettingsPayload::cEncryptedSettingsPayload(std::shared_ptr<BaseClass> base, bool parse) :
 BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
     m_init_succeeded = init();
 }
-cConfigData::~cConfigData() {
+cEncryptedSettingsPayload::~cEncryptedSettingsPayload() {
 }
-eWscAttributes& cConfigData::ssid_type() {
+eWscAttributes& cEncryptedSettingsPayload::ssid_type() {
     return (eWscAttributes&)(*m_ssid_type);
 }
 
-uint16_t& cConfigData::ssid_length() {
+uint16_t& cEncryptedSettingsPayload::ssid_length() {
     return (uint16_t&)(*m_ssid_length);
 }
 
-std::string cConfigData::ssid_str() {
+std::string cEncryptedSettingsPayload::ssid_str() {
     char *ssid_ = ssid();
     if (!ssid_) { return std::string(); }
     auto str = std::string(ssid_, m_ssid_idx__);
@@ -333,7 +333,7 @@ std::string cConfigData::ssid_str() {
     return str;
 }
 
-char* cConfigData::ssid(size_t length) {
+char* cEncryptedSettingsPayload::ssid(size_t length) {
     if( (m_ssid_idx__ == 0) || (m_ssid_idx__ < length) ) {
         TLVF_LOG(ERROR) << "ssid length is smaller than requested length";
         return nullptr;
@@ -345,8 +345,8 @@ char* cConfigData::ssid(size_t length) {
     return ((char*)m_ssid);
 }
 
-bool cConfigData::set_ssid(const std::string& str) { return set_ssid(str.c_str(), str.size()); }
-bool cConfigData::set_ssid(const char str[], size_t size) {
+bool cEncryptedSettingsPayload::set_ssid(const std::string& str) { return set_ssid(str.c_str(), str.size()); }
+bool cEncryptedSettingsPayload::set_ssid(const char str[], size_t size) {
     if (str == nullptr) {
         TLVF_LOG(WARNING) << "set_ssid received a null pointer.";
         return false;
@@ -359,7 +359,7 @@ bool cConfigData::set_ssid(const char str[], size_t size) {
     std::copy(str, str + size, m_ssid);
     return true;
 }
-bool cConfigData::alloc_ssid(size_t count) {
+bool cEncryptedSettingsPayload::alloc_ssid(size_t count) {
     if (m_lock_order_counter__ > 0) {;
         TLVF_LOG(ERROR) << "Out of order allocation for variable length list ssid, abort!";
         return false;
@@ -400,23 +400,23 @@ bool cConfigData::alloc_ssid(size_t count) {
     return true;
 }
 
-sWscAttrAuthenticationType& cConfigData::authentication_type_attr() {
+sWscAttrAuthenticationType& cEncryptedSettingsPayload::authentication_type_attr() {
     return (sWscAttrAuthenticationType&)(*m_authentication_type_attr);
 }
 
-sWscAttrEncryptionType& cConfigData::encryption_type_attr() {
+sWscAttrEncryptionType& cEncryptedSettingsPayload::encryption_type_attr() {
     return (sWscAttrEncryptionType&)(*m_encryption_type_attr);
 }
 
-eWscAttributes& cConfigData::network_key_type() {
+eWscAttributes& cEncryptedSettingsPayload::network_key_type() {
     return (eWscAttributes&)(*m_network_key_type);
 }
 
-uint16_t& cConfigData::network_key_length() {
+uint16_t& cEncryptedSettingsPayload::network_key_length() {
     return (uint16_t&)(*m_network_key_length);
 }
 
-std::string cConfigData::network_key_str() {
+std::string cEncryptedSettingsPayload::network_key_str() {
     char *network_key_ = network_key();
     if (!network_key_) { return std::string(); }
     auto str = std::string(network_key_, m_network_key_idx__);
@@ -427,7 +427,7 @@ std::string cConfigData::network_key_str() {
     return str;
 }
 
-char* cConfigData::network_key(size_t length) {
+char* cEncryptedSettingsPayload::network_key(size_t length) {
     if( (m_network_key_idx__ == 0) || (m_network_key_idx__ < length) ) {
         TLVF_LOG(ERROR) << "network_key length is smaller than requested length";
         return nullptr;
@@ -439,8 +439,8 @@ char* cConfigData::network_key(size_t length) {
     return ((char*)m_network_key);
 }
 
-bool cConfigData::set_network_key(const std::string& str) { return set_network_key(str.c_str(), str.size()); }
-bool cConfigData::set_network_key(const char str[], size_t size) {
+bool cEncryptedSettingsPayload::set_network_key(const std::string& str) { return set_network_key(str.c_str(), str.size()); }
+bool cEncryptedSettingsPayload::set_network_key(const char str[], size_t size) {
     if (str == nullptr) {
         TLVF_LOG(WARNING) << "set_network_key received a null pointer.";
         return false;
@@ -453,7 +453,7 @@ bool cConfigData::set_network_key(const char str[], size_t size) {
     std::copy(str, str + size, m_network_key);
     return true;
 }
-bool cConfigData::alloc_network_key(size_t count) {
+bool cEncryptedSettingsPayload::alloc_network_key(size_t count) {
     if (m_lock_order_counter__ > 1) {;
         TLVF_LOG(ERROR) << "Out of order allocation for variable length list network_key, abort!";
         return false;
@@ -489,31 +489,31 @@ bool cConfigData::alloc_network_key(size_t count) {
     return true;
 }
 
-sWscAttrBssid& cConfigData::bssid_attr() {
+sWscAttrBssid& cEncryptedSettingsPayload::bssid_attr() {
     return (sWscAttrBssid&)(*m_bssid_attr);
 }
 
-uint8_t& cConfigData::bss_type() {
+uint8_t& cEncryptedSettingsPayload::bss_type() {
     return (uint8_t&)(*m_bss_type);
 }
 
-int8_t& cConfigData::mld_id() {
+int8_t& cEncryptedSettingsPayload::mld_id() {
     return (int8_t&)(*m_mld_id);
 }
 
-uint8_t& cConfigData::hidden_ssid() {
+uint8_t& cEncryptedSettingsPayload::hidden_ssid() {
     return (uint8_t&)(*m_hidden_ssid);
 }
 
-int8_t& cConfigData::bss_index() {
+int8_t& cEncryptedSettingsPayload::bss_index() {
     return (int8_t&)(*m_bss_index);
 }
 
-uint8_t& cConfigData::additional_auth() {
+uint8_t& cEncryptedSettingsPayload::additional_auth() {
     return (uint8_t&)(*m_additional_auth);
 }
 
-void cConfigData::class_swap()
+void cEncryptedSettingsPayload::class_swap()
 {
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_ssid_type));
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_ssid_length));
@@ -524,7 +524,7 @@ void cConfigData::class_swap()
     m_bssid_attr->struct_swap();
 }
 
-bool cConfigData::finalize()
+bool cEncryptedSettingsPayload::finalize()
 {
     if (m_parse__) {
         TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
@@ -551,7 +551,7 @@ bool cConfigData::finalize()
     return true;
 }
 
-size_t cConfigData::get_initial_size()
+size_t cEncryptedSettingsPayload::get_initial_size()
 {
     size_t class_size = 0;
     class_size += sizeof(eWscAttributes); // ssid_type
@@ -569,7 +569,7 @@ size_t cConfigData::get_initial_size()
     return class_size;
 }
 
-bool cConfigData::init()
+bool cEncryptedSettingsPayload::init()
 {
     if (getBuffRemainingBytes() < get_initial_size()) {
         TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";

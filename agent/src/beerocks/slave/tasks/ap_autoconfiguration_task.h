@@ -14,7 +14,7 @@
 
 #include <mapf/common/encryption.h>
 #include <tlvf/CmduMessageTx.h>
-#include <tlvf/WSC/configData.h>
+#include <tlvf/WSC/EncryptedSettingsPayload.h>
 #include <tlvf/WSC/m2.h>
 #include <tlvf/WSC/m8.h>
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
@@ -177,27 +177,29 @@ private:
         ieee1905_1::CmduMessageRx &cmdu_rx, std::unordered_set<std::string> &misconfigured_ssids);
     bool handle_wsc_m2_tlv(ieee1905_1::CmduMessageRx &cmdu_rx, const std::string &radio_iface,
                            const std::vector<WSC::m2> &m2_list,
-                           std::vector<WSC::configData::config> &configs,
+                           std::vector<WSC::EncryptedSettingsPayload::config> &configs,
                            std::unordered_set<std::string> &misconfigured_ssids);
     bool handle_wsc_m8_tlv(const std::string &radio_iface, std::shared_ptr<WSC::m8> m8,
-                           std::vector<WSC::configData::config> &configs);
+                           std::vector<WSC::EncryptedSettingsPayload::config> &configs);
     bool send_ap_mld_configuration(const std::string &radio_iface, std::string ssid,
                                    int8_t mld_unit, uint8_t mld_mode);
-    bool handle_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                               std::vector<WSC::configData::config> &configs,
-                                               const std::string &radio_iface);
+    bool handle_agent_ap_mld_configuration_tlv(
+        ieee1905_1::CmduMessageRx &cmdu_rx,
+        std::vector<WSC::EncryptedSettingsPayload::config> &configs,
+        const std::string &radio_iface);
     bool send_bsta_mld_configuration(const sMacAddr &ruid, int8_t mld_unit, uint8_t mld_mode,
                                      bool initilaization = false);
-    bool handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                           std::vector<WSC::configData::config> &configs,
-                                           const sMacAddr &ruid, bool initialization = false);
+    bool
+    handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                      std::vector<WSC::EncryptedSettingsPayload::config> &configs,
+                                      const sMacAddr &ruid, bool initialization = false);
     bool handle_ap_autoconfiguration_wsc_vs_extension_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                           const std::string &radio_iface);
 
-    bool handle_rsn_parameters_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                                 std::vector<WSC::configData::config> &configs,
-                                                 const sMacAddr &ruid,
-                                                 beerocks::eFreqType freq_type);
+    bool handle_rsn_parameters_configuration_tlv(
+        ieee1905_1::CmduMessageRx &cmdu_rx,
+        std::vector<WSC::EncryptedSettingsPayload::config> &configs, const sMacAddr &ruid,
+        beerocks::eFreqType freq_type);
     /**
      * @brief Handles Vendor Specific messages.
      *
@@ -239,15 +241,17 @@ private:
 
     bool send_ap_autoconfiguration_wsc_m1_message(const std::string &radio_iface);
 
-    bool send_ap_bss_configuration_message(const std::string &radio_iface,
-                                           const std::vector<WSC::configData::config> &configs);
+    bool send_ap_bss_configuration_message(
+        const std::string &radio_iface,
+        const std::vector<WSC::EncryptedSettingsPayload::config> &configs);
 
-    bool send_bsta_configuration(const sMacAddr &radio_mac, const WSC::configData::config &config);
+    bool send_bsta_configuration(const sMacAddr &radio_mac,
+                                 const WSC::EncryptedSettingsPayload::config &config);
 
     bool send_enable_disable_endpoint(const sMacAddr &radio_mac, const bool enable);
 
     bool validate_reconfiguration(const std::string &radio_iface,
-                                  std::vector<WSC::configData::config> &configs);
+                                  std::vector<WSC::EncryptedSettingsPayload::config> &configs);
 
     bool send_ap_bss_info_update_request(const std::string &radio_iface);
 
@@ -306,7 +310,7 @@ private:
      */
     bool ap_autoconfiguration_wsc_parse_encrypted_settings(
         WSC::cWscAttrEncryptedSettings encrypted_settings, uint8_t authkey[32],
-        uint8_t keywrapkey[16], WSC::configData::config &config);
+        uint8_t keywrapkey[16], WSC::EncryptedSettingsPayload::config &config);
 
     /**
      * @brief Parse the vendor extension from m2 for hidden SSID bit, 
@@ -318,8 +322,8 @@ private:
      * @param [out] config BSS configuration.
      * @return true on success, otherwise false.
      */
-    bool airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(WSC::m2 &m2,
-                                                               WSC::configData::config &config);
+    bool airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(
+        WSC::m2 &m2, WSC::EncryptedSettingsPayload::config &config);
     /**
      * @brief Parse the vendor extension from m2 for Service Status
      *
