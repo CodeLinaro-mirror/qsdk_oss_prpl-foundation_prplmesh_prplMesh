@@ -19,6 +19,8 @@
 #include <tlvf/WSC/m8.h>
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 
+#include <bcl/son/son_wireless_utils.h>
+
 namespace beerocks {
 
 // Forward declaration for Agent context saving
@@ -76,6 +78,31 @@ private:
         std::unordered_set<sMacAddr> enabled_bssids;
         bool sent_vaps_list_update;
         bool received_vaps_list_update;
+    };
+
+    /**
+     * @brief Per-BSS configuration received via WSC/1905 TLVs.
+     *
+     * Holds all data needed to (re)configure a single AP BSS on the Agent side.
+     * It aggregates attributes parsed from:
+     *   - WSC M2 TLV and it's "Encrypted Settings" (e.g. SSID, keying)
+     *   - Agent AP MLD Configuration TLV 
+     *   - RSN Parameters Configuration TLV 
+     **/
+    struct sBssConfig {
+        WSC::m2::config m2_config;
+        WSC::EncryptedSettingsPayload::config payload_config;
+        int8_t mld_id = DISABLED_MLDUNIT;
+        son::wireless_utils::eAdditionalAuth additional_auth =
+            son::wireless_utils::eAdditionalAuth::NONE;
+    };
+
+    /**
+     * @brief Backhaul STA (bSTA) configuration and targeting from WSC M8.
+     **/
+    struct sBStaConfig {
+        WSC::m8::config m8_config;
+        WSC::EncryptedSettingsPayload::config payload_config;
     };
 
     /**
@@ -170,14 +197,12 @@ private:
     bool handle_profile2_traffic_separation_policy_tlv(
         ieee1905_1::CmduMessageRx &cmdu_rx, std::unordered_set<std::string> &misconfigured_ssids);
     bool handle_wsc_m2_tlv(ieee1905_1::CmduMessageRx &cmdu_rx, const std::string &radio_iface,
-                           const std::vector<WSC::m2> &m2_list,
-                           std::vector<WSC::EncryptedSettingsPayload::config> &configs,
+                           const std::vector<WSC::m2> &m2_list, std::vector<sBssConfig> &infos,
                            std::unordered_set<std::string> &misconfigured_ssids);
     bool handle_wsc_m8_tlv(const std::string &radio_iface, std::shared_ptr<WSC::m8> m8,
-                           std::vector<WSC::EncryptedSettingsPayload::config> &configs);
-    bool handle_agent_ap_mld_configuration_tlv(
-        ieee1905_1::CmduMessageRx &cmdu_rx,
-        std::vector<WSC::EncryptedSettingsPayload::config> &configs);
+                           sBStaConfig &info);
+    bool handle_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                               std::vector<sBssConfig> &infos);
 
     bool handle_ap_autoconfiguration_wsc_vs_extension_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                           const std::string &radio_iface);
@@ -223,18 +248,15 @@ private:
 
     bool send_ap_autoconfiguration_wsc_m1_message(const std::string &radio_iface);
 
-    bool send_ap_bss_configuration_message(
-        const std::string &radio_iface,
-        const std::vector<WSC::EncryptedSettingsPayload::config> &configs);
+    bool send_ap_bss_configuration_message(const std::string &radio_iface,
+                                           const std::vector<sBssConfig> &infos);
 
-    bool send_bsta_configuration(const sMacAddr &radio_mac,
-                                 const WSC::EncryptedSettingsPayload::config &config);
+    bool send_bsta_configuration(const sMacAddr &radio_mac, const sBStaConfig &info);
 
     bool send_enable_disable_endpoint(const sMacAddr &radio_mac, const bool enable,
                                       const bool force);
 
-    bool validate_reconfiguration(const std::string &radio_iface,
-                                  std::vector<WSC::EncryptedSettingsPayload::config> &configs);
+    bool validate_reconfiguration(const std::string &radio_iface, std::vector<sBssConfig> &infos);
 
     bool send_ap_bss_info_update_request(const std::string &radio_iface);
 
@@ -293,20 +315,8 @@ private:
      */
     bool ap_autoconfiguration_wsc_parse_encrypted_settings(
         WSC::cWscAttrEncryptedSettings encrypted_settings, uint8_t authkey[32],
-        uint8_t keywrapkey[16], WSC::EncryptedSettingsPayload::config &config);
+        uint8_t keywrapkey[16], WSC::EncryptedSettingsPayload::config &payload_config);
 
-    /**
-     * @brief Parse the vendor extension from m2 for hidden SSID bit, 
-     * and load that into the BSS configuration
-     *
-     * This BSS configuration will be used to hide or unhide of the respective SSIDs.
-     *
-     * @param [in] m2 WSC M2 TLV from the Controller.
-     * @param [out] config BSS configuration.
-     * @return true on success, otherwise false.
-     */
-    bool airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(
-        WSC::m2 &m2, WSC::EncryptedSettingsPayload::config &config);
     /**
      * @brief Parse the vendor extension from m2 for Service Status
      *

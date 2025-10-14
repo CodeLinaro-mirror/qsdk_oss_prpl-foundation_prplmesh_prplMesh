@@ -13,27 +13,44 @@
 #include <tlvf/tlvflogging.h>
 
 namespace WSC {
+
 /**
- * @class EncryptedSettingsPayload
- * @brief Byte container for WSC "Encrypted Settings" (m2::config::encrypted_settings after encryption).
+ * @class WSC::EncryptedSettingsPayload
+ * @brief Builder/parser for the plaintext **ConfigData** that becomes the WSC **Encrypted Settings**.
  *
  * Purpose:
- *   - Holds the exact bytes that go into the WSC Attribute
- *     **Encrypted Settings** inside M2/M8.
- *   - This is the on-wire representation: 16-byte IV followed by AES-CBC ciphertext.
- **/
+ *  - **Create mode** (`parse==false`): serializes the ConfigData attribute list (SSID, auth/encr,
+ *    network key, BSSID, WFA VE: Version2 + Multi-AP Identifier, plus any vendor-specific items)
+ *    into a contiguous byte payload ready for encryption.
+ *  - **Parse mode** (`parse==true`): parses an already-decrypted ConfigData blob and exposes fields.
+ *
+ * Notes
+ *  - This class does **not** perform encryption or KWA calculation.
+ *    After `create()`, encrypt the serialized bytes with AES-CBC using the Key Wrap Key (KWK) and IV,
+ *    place the result in `m2::config::encrypted_settings`, and compute/send the KWA separately.
+ */
 class EncryptedSettingsPayload : public WscAttrList {
 
 public:
+    // Plaintext inputs used to build WSC **ConfigData** (later encrypted into Encrypted Settings).
     struct config {
-        std::string ssid = "";
-        eWscAuth auth_type;
-        eWscEncr encr_type;
-        std::string network_key = "";
-        sMacAddr bssid          = {};
-        uint8_t bss_type;
-        int8_t mld_id    = -1;
-        bool hidden_ssid = false;
+        /* SSID (WSC Attribute: SSID) */
+        std::string ssid{};
+
+        /* Authentication type (WSC Attribute: Authentication Type) */
+        eWscAuth auth_type{eWscAuth::WSC_AUTH_INVALID};
+
+        /* Encryption type (WSC Attribute: Encryption Type) */
+        eWscEncr encr_type{eWscEncr::WSC_ENCR_INVALID};
+
+        /* PSK/Passphrase (WSC Attribute: Network Key) */
+        std::string network_key{};
+
+        /* AP’s BSSID/MAC (WSC Attribute: MAC Address) */
+        sMacAddr bssid{};
+
+        /* Multi-AP Identifier value (WFA Vendor Extension subelement: MULTI_AP_IDENTIFIER) */
+        uint8_t bss_type{WSC::eWscVendorExtSubelementBssType::TEARDOWN};
     };
 
     EncryptedSettingsPayload(uint8_t *buff, size_t buff_len, bool parse)
