@@ -6,14 +6,15 @@
  * See LICENSE file for more details.
  */
 
-#include <tlvf/WSC/configData.h>
+#include <tlvf/WSC/EncryptedSettingsPayload.h>
 #include <tlvf/tlvfdefines.h>
 
 using namespace WSC;
 
-std::shared_ptr<configData> configData::parse(uint8_t *buff, size_t buff_len)
+std::shared_ptr<EncryptedSettingsPayload> EncryptedSettingsPayload::parse(uint8_t *buff,
+                                                                          size_t buff_len)
 {
-    auto attributes = std::make_shared<configData>(buff, buff_len, true);
+    auto attributes = std::make_shared<EncryptedSettingsPayload>(buff, buff_len, true);
     if (!attributes) {
         TLVF_LOG(ERROR) << "Failed to initialize attributes";
         return nullptr;
@@ -26,9 +27,10 @@ std::shared_ptr<configData> configData::parse(uint8_t *buff, size_t buff_len)
     return attributes;
 }
 
-std::shared_ptr<configData> configData::create(const config &cfg, uint8_t *buff, size_t buff_len)
+std::shared_ptr<EncryptedSettingsPayload>
+EncryptedSettingsPayload::create(const config &cfg, uint8_t *buff, size_t buff_len)
 {
-    auto attributes = std::make_shared<configData>(buff, buff_len, false);
+    auto attributes = std::make_shared<EncryptedSettingsPayload>(buff, buff_len, false);
     if (!attributes || !attributes->init(cfg)) {
         TLVF_LOG(ERROR) << "Failed to initialize attributes";
         return nullptr;
@@ -40,7 +42,7 @@ std::shared_ptr<configData> configData::create(const config &cfg, uint8_t *buff,
     return attributes;
 }
 
-bool configData::init(const config &cfg)
+bool EncryptedSettingsPayload::init(const config &cfg)
 {
     if (m_parse) {
         TLVF_LOG(ERROR) << "init(cfg) called but m_parse is set!";
@@ -117,7 +119,7 @@ bool configData::init(const config &cfg)
     return true;
 }
 
-bool configData::valid() const
+bool EncryptedSettingsPayload::valid() const
 {
     bool valid = true;
     if (!getAttr<cWscAttrVendorExtension>()) {

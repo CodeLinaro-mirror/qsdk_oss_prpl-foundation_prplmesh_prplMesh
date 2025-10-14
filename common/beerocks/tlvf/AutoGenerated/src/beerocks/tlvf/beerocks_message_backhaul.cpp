@@ -2474,12 +2474,12 @@ bool cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST::isPostInitSucceeded() {
     return true; 
 }
 
-std::shared_ptr<WSC::cConfigData> cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST::create_wifi_credentials() {
+std::shared_ptr<WSC::cEncryptedSettingsPayload> cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST::create_wifi_credentials() {
     if (m_lock_order_counter__ > 0) {
         TLVF_LOG(ERROR) << "Out of order allocation for variable length list wifi_credentials, abort!";
         return nullptr;
     }
-    size_t len = WSC::cConfigData::get_initial_size();
+    size_t len = WSC::cEncryptedSettingsPayload::get_initial_size();
     if (m_lock_allocation__) {
         TLVF_LOG(ERROR) << "Can't create new element before adding the previous one";
         return nullptr;
@@ -2496,10 +2496,10 @@ std::shared_ptr<WSC::cConfigData> cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUE
         size_t move_length = getBuffRemainingBytes(src) - len;
         std::copy_n(src, move_length, dst);
     }
-    return std::make_shared<WSC::cConfigData>(src, getBuffRemainingBytes(src), m_parse__);
+    return std::make_shared<WSC::cEncryptedSettingsPayload>(src, getBuffRemainingBytes(src), m_parse__);
 }
 
-bool cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST::add_wifi_credentials(std::shared_ptr<WSC::cConfigData> ptr) {
+bool cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST::add_wifi_credentials(std::shared_ptr<WSC::cEncryptedSettingsPayload> ptr) {
     if (ptr == nullptr) {
         TLVF_LOG(ERROR) << "Received entry is nullptr";
         return false;
@@ -2581,7 +2581,7 @@ bool cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST::init()
         return false;
     }
     if (!m_parse__) { m_radio_mac->struct_init(); }
-    m_wifi_credentials = reinterpret_cast<WSC::cConfigData*>(m_buff_ptr__);
+    m_wifi_credentials = reinterpret_cast<WSC::cEncryptedSettingsPayload*>(m_buff_ptr__);
     if (m_parse__) {
         auto wifi_credentials = create_wifi_credentials();
         if (!wifi_credentials || !wifi_credentials->isInitialized()) {

@@ -3844,7 +3844,7 @@ bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::alloc_bridge_ifname(size
         std::copy_n(src, move_length, dst);
     }
     m_wifi_credentials_size = (uint8_t *)((uint8_t *)(m_wifi_credentials_size) + len);
-    m_wifi_credentials = (WSC::cConfigData *)((uint8_t *)(m_wifi_credentials) + len);
+    m_wifi_credentials = (WSC::cEncryptedSettingsPayload *)((uint8_t *)(m_wifi_credentials) + len);
     m_bridge_ifname_idx__ += count;
     *m_bridge_ifname_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -3858,7 +3858,7 @@ uint8_t& cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::wifi_credentials_siz
     return (uint8_t&)(*m_wifi_credentials_size);
 }
 
-std::tuple<bool, WSC::cConfigData&> cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::wifi_credentials(size_t idx) {
+std::tuple<bool, WSC::cEncryptedSettingsPayload&> cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::wifi_credentials(size_t idx) {
     bool ret_success = ( (m_wifi_credentials_idx__ > 0) && (m_wifi_credentials_idx__ > idx) );
     size_t ret_idx = ret_success ? idx : 0;
     if (!ret_success) {
@@ -3867,12 +3867,12 @@ std::tuple<bool, WSC::cConfigData&> cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_RE
     return std::forward_as_tuple(ret_success, *(m_wifi_credentials_vector[ret_idx]));
 }
 
-std::shared_ptr<WSC::cConfigData> cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::create_wifi_credentials() {
+std::shared_ptr<WSC::cEncryptedSettingsPayload> cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::create_wifi_credentials() {
     if (m_lock_order_counter__ > 1) {
         TLVF_LOG(ERROR) << "Out of order allocation for variable length list wifi_credentials, abort!";
         return nullptr;
     }
-    size_t len = WSC::cConfigData::get_initial_size();
+    size_t len = WSC::cEncryptedSettingsPayload::get_initial_size();
     if (m_lock_allocation__) {
         TLVF_LOG(ERROR) << "Can't create new element before adding the previous one";
         return nullptr;
@@ -3892,10 +3892,10 @@ std::shared_ptr<WSC::cConfigData> cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQU
         size_t move_length = getBuffRemainingBytes(src) - len;
         std::copy_n(src, move_length, dst);
     }
-    return std::make_shared<WSC::cConfigData>(src, getBuffRemainingBytes(src), m_parse__);
+    return std::make_shared<WSC::cEncryptedSettingsPayload>(src, getBuffRemainingBytes(src), m_parse__);
 }
 
-bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::add_wifi_credentials(std::shared_ptr<WSC::cConfigData> ptr) {
+bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::add_wifi_credentials(std::shared_ptr<WSC::cEncryptedSettingsPayload> ptr) {
     if (ptr == nullptr) {
         TLVF_LOG(ERROR) << "Received entry is nullptr";
         return false;
@@ -3996,7 +3996,7 @@ bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::init()
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;
     }
-    m_wifi_credentials = reinterpret_cast<WSC::cConfigData*>(m_buff_ptr__);
+    m_wifi_credentials = reinterpret_cast<WSC::cEncryptedSettingsPayload*>(m_buff_ptr__);
     uint8_t wifi_credentials_size = *m_wifi_credentials_size;
     m_wifi_credentials_idx__ = 0;
     for (size_t i = 0; i < wifi_credentials_size; i++) {

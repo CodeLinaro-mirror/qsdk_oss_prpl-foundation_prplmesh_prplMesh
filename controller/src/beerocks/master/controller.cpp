@@ -856,7 +856,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
  *
  * @param[out] iv initialization vector from M2/M8 to be filled
  * @param[out] encrypted_settings encrypted settings from M2/M8 to be filled
- * @param[in] config_data config data in network byte order (swapped)
+ * @param[in] payload config data in network byte order (swapped)
  * @param[in] authkey 32 bytes calculated authentication key
  * @param[in] keywrapkey 16 bytes calculated key wrap key
  * @return true on success
@@ -864,26 +864,26 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
  */
 bool Controller::autoconfig_wsc_add_encrypted_settings(uint8_t &iv,
                                                        std::vector<uint8_t> &encrypted_settings,
-                                                       WSC::configData &config_data,
+                                                       WSC::EncryptedSettingsPayload &payload,
                                                        uint8_t authkey[32], uint8_t keywrapkey[16])
 {
     // Step 1 - key wrap authenticator calculation
-    uint8_t *plaintext = config_data.getMessageBuff();
-    int plaintextlen   = config_data.getMessageLength();
+    uint8_t *plaintext = payload.getMessageBuff();
+    int plaintextlen   = payload.getMessageLength();
 
-    uint8_t *kwa = config_data.key_wrap_authenticator();
-    // The keywrap authenticator is part of the config_data (last member of the
-    // config_data to be precise).
-    // However, since we need to calculate it over the part of config_data without the keywrap
+    uint8_t *kwa = payload.key_wrap_authenticator();
+    // The keywrap authenticator is part of the payload (last member of the
+    // payload to be precise).
+    // However, since we need to calculate it over the part of payload without the keywrap
     // authenticator, substruct it's size from the computation length
-    size_t config_data_len_for_kwa = plaintextlen - config_data.key_wrap_authenticator_size();
-    // Add KWA which is the 1st 64 bits of HMAC of config_data using AuthKey
-    if (!mapf::encryption::kwa_compute(authkey, plaintext, config_data_len_for_kwa, kwa)) {
+    size_t payload_len_for_kwa = plaintextlen - payload.key_wrap_authenticator_size();
+    // Add KWA which is the 1st 64 bits of HMAC of payload using AuthKey
+    if (!mapf::encryption::kwa_compute(authkey, plaintext, payload_len_for_kwa, kwa)) {
         LOG(ERROR) << "KeyWrapAuth computation failed!";
         return false;
     }
 
-    // The KWA is computed on the swapped config_data (network byte order).
+    // The KWA is computed on the swapped payload (network byte order).
     // So at this point the KWA class is already swapped. We don't need to swap the recently
     // calculated data since the data is a char array and there is no need to swap it.
 
@@ -934,11 +934,12 @@ void Controller::autoconfig_wsc_calculate_keys(WSC::m1 &m1, uint8_t &enrollee_no
     copy_pubkey(dh, &pub_key);
 }
 
-WSC::configData::config
-prepare_wsc_config(const sMacAddr &ruid, const wireless_utils::sBssInfoConf *bss_info_conf, bool m8)
+WSC::EncryptedSettingsPayload::config
+prepare_encrypted_settings_config(const sMacAddr &ruid,
+                                  const wireless_utils::sBssInfoConf *bss_info_conf, bool m8)
 {
-    // Create ConfigData
-    WSC::configData::config cfg;
+    // Create EncryptedSettingsPayload
+    WSC::EncryptedSettingsPayload::config cfg;
     if (bss_info_conf) {
         cfg.ssid        = bss_info_conf->ssid;
         cfg.auth_type   = bss_info_conf->authentication_type;
@@ -980,7 +981,7 @@ prepare_wsc_config(const sMacAddr &ruid, const wireless_utils::sBssInfoConf *bss
     // The MAC address in the config data is tricky... According to "Wi-Fi Simple Configuration
     // Technical Specification v2.0.6", section 7.2.2 "Validation of Configuration Data" the MAC
     // address should be validated to match the Enrollee's own MAC address. "IEEE Std 1905.1-2013"
-    // section 10.1.2, Table 10-1 "IEEE 802.11 settings (ConfigData) in M2 frame" says that it
+    // section 10.1.2, Table 10-1 "IEEE 802.11 settings (EncryptedSettingsPayload) in M2 frame" says that it
     // should be "AP’s MAC address (BSSID)". The Multi-AP doesn't say anything about the MAC
     // addresses in M2, but it does say that the Enrollee MAC address in the M1 message must be the
     // AL-MAC address.
@@ -1076,20 +1077,21 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
                                   *m2_cfg.pub_key, dh, authkey, keywrapkey);
 
     // Encrypted settings
-    // Encrypted settings are the ConfigData + IV. First create the ConfigData,
+    // Encrypted settings are the EncryptedSettingsPayload + IV. First create the EncryptedSettingsPayload,
     // Then copy it to the encrypted data, add an IV and encrypt.
     // Finally, add HMAC
 
     uint8_t buf[1024];
-    WSC::configData::config cfg = prepare_wsc_config(m1.mac_addr(), bss_info_conf, false);
-    auto config_data            = WSC::configData::create(cfg, buf, sizeof(buf));
-    if (!config_data) {
-        LOG(ERROR) << "Failed to create configData";
+    WSC::EncryptedSettingsPayload::config cfg =
+        prepare_encrypted_settings_config(m1.mac_addr(), bss_info_conf, false);
+    auto payload = WSC::EncryptedSettingsPayload::create(cfg, buf, sizeof(buf));
+    if (!payload) {
+        LOG(ERROR) << "Failed to create EncryptedSettingsPayload";
         return false;
     }
-    config_data->finalize();
+    payload->finalize();
 
-    if (!autoconfig_wsc_add_encrypted_settings(*m2_cfg.iv, m2_cfg.encrypted_settings, *config_data,
+    if (!autoconfig_wsc_add_encrypted_settings(*m2_cfg.iv, m2_cfg.encrypted_settings, *payload,
                                                authkey, keywrapkey))
         return false;
 
@@ -1134,20 +1136,21 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
                                   *m8_cfg.pub_key, dh, authkey, keywrapkey);
 
     // Encrypted settings
-    // Encrypted settings are the ConfigData + IV. First create the ConfigData,
+    // Encrypted settings are the EncryptedSettingsPayload + IV. First create the EncryptedSettingsPayload,
     // Then copy it to the encrypted data, add an IV and encrypt.
     // Finally, add HMAC
 
     uint8_t buf[1024];
-    WSC::configData::config cfg = prepare_wsc_config(m1.mac_addr(), &bss_info_conf, true);
-    auto config_data            = WSC::configData::create(cfg, buf, sizeof(buf));
-    if (!config_data) {
-        LOG(ERROR) << "Failed to create configData";
+    WSC::EncryptedSettingsPayload::config cfg =
+        prepare_encrypted_settings_config(m1.mac_addr(), &bss_info_conf, true);
+    auto payload = WSC::EncryptedSettingsPayload::create(cfg, buf, sizeof(buf));
+    if (!payload) {
+        LOG(ERROR) << "Failed to create EncryptedSettingsPayload";
         return false;
     }
-    config_data->finalize();
+    payload->finalize();
 
-    if (!autoconfig_wsc_add_encrypted_settings(*m8_cfg.iv, m8_cfg.encrypted_settings, *config_data,
+    if (!autoconfig_wsc_add_encrypted_settings(*m8_cfg.iv, m8_cfg.encrypted_settings, *payload,
                                                authkey, keywrapkey))
         return false;
 

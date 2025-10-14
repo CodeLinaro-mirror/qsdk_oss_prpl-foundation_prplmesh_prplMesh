@@ -164,7 +164,7 @@ cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST:
   radio_mac:
     _type: sMacAddr
   wifi_credentials:
-    _type: WSC::cConfigData
+    _type: WSC::cEncryptedSettingsPayload
 
 ################################################
 # CHANNEL SCAN REQUESTS/RESPONSES

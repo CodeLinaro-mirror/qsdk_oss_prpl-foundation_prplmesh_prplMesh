@@ -1285,7 +1285,7 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
 
-    std::vector<WSC::configData::config> configs;
+    std::vector<WSC::EncryptedSettingsPayload::config> configs;
     if (!handle_wsc_m2_tlv(cmdu_rx, radio->front.iface_name, m2_list, configs,
                            misconfigured_ssids)) {
         LOG(ERROR) << "handle_wsc_m2_tlv has failed!";
@@ -1325,7 +1325,8 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
 
             if (m8) {
                 auto bSTA_it = std::find_if(
-                    configs.begin(), configs.end(), [&](const WSC::configData::config &config) {
+                    configs.begin(), configs.end(),
+                    [&](const WSC::EncryptedSettingsPayload::config &config) {
                         return ((config.bss_type ==
                                  static_cast<uint8_t>(
                                      WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA)));
@@ -1688,7 +1689,8 @@ bool ApAutoConfigurationTask::handle_profile2_traffic_separation_policy_tlv(
 
 bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     ieee1905_1::CmduMessageRx &cmdu_rx, const std::string &radio_iface,
-    const std::vector<WSC::m2> &m2_list, std::vector<WSC::configData::config> &configs,
+    const std::vector<WSC::m2> &m2_list,
+    std::vector<WSC::EncryptedSettingsPayload::config> &configs,
     std::unordered_set<std::string> &misconfigured_ssids)
 {
     auto db    = AgentDB::get();
@@ -1708,7 +1710,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
                                                    reinterpret_cast<uint8_t *>(m2.authenticator())))
             return false;
 
-        WSC::configData::config config;
+        WSC::EncryptedSettingsPayload::config config;
         if (!ap_autoconfiguration_wsc_parse_encrypted_settings(m2.encrypted_settings(), authkey,
                                                                keywrapkey, config)) {
             LOG(ERROR) << "Invalid config data, skip it";
@@ -1851,9 +1853,9 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
 }
 
 // Zero or one WSC TLV (containing M8)
-bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
-                                                std::shared_ptr<WSC::m8> m8,
-                                                std::vector<WSC::configData::config> &configs)
+bool ApAutoConfigurationTask::handle_wsc_m8_tlv(
+    const std::string &radio_iface, std::shared_ptr<WSC::m8> m8,
+    std::vector<WSC::EncryptedSettingsPayload::config> &configs)
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
@@ -1868,7 +1870,7 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
                                                reinterpret_cast<uint8_t *>(m8->authenticator())))
         return false;
 
-    WSC::configData::config config;
+    WSC::EncryptedSettingsPayload::config config;
     if (!ap_autoconfiguration_wsc_parse_encrypted_settings(m8->encrypted_settings(), authkey,
                                                            keywrapkey, config)) {
         LOG(ERROR) << "Invalid config data, skip it";
@@ -1893,7 +1895,7 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
 }
 
 bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
-    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::configData::config> &configs)
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<WSC::EncryptedSettingsPayload::config> &configs)
 {
     auto db(AgentDB::get());
 
@@ -1964,8 +1966,8 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
     return true;
 }
 
-bool ApAutoConfigurationTask::send_bsta_configuration(const sMacAddr &radio_mac,
-                                                      const WSC::configData::config &config)
+bool ApAutoConfigurationTask::send_bsta_configuration(
+    const sMacAddr &radio_mac, const WSC::EncryptedSettingsPayload::config &config)
 {
     // Place holder
     return true;
@@ -2136,7 +2138,7 @@ void ApAutoConfigurationTask::handle_vs_apply_vlan_policy_request(
 }
 
 bool ApAutoConfigurationTask::airties_vs_ap_autoconfiguration_wsc_parse_hidden_ssid(
-    WSC::m2 &m2, WSC::configData::config &config)
+    WSC::m2 &m2, WSC::EncryptedSettingsPayload::config &config)
 {
     bool retval = false;
     for (auto &vendor_ext_attr : m2.getAttrList<WSC::cWscAttrVendorExtension>()) {
@@ -2263,7 +2265,7 @@ bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_authenticate(
 
 bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_parse_encrypted_settings(
     WSC::cWscAttrEncryptedSettings encrypted_settings, uint8_t authkey[32], uint8_t keywrapkey[16],
-    WSC::configData::config &config)
+    WSC::EncryptedSettingsPayload::config &config)
 {
     uint8_t *iv     = reinterpret_cast<uint8_t *>(encrypted_settings.iv());
     auto ciphertext = reinterpret_cast<uint8_t *>(encrypted_settings.encrypted_settings());
@@ -2289,7 +2291,7 @@ bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_parse_encrypted_settings(
     // In practice, some controllers simply send an empty config data
     // when the radio should be tore down, so let the caller handle this
     // by returning true with a warning for now.
-    auto config_data = WSC::configData::parse(decrypted, datalen);
+    auto config_data = WSC::EncryptedSettingsPayload::parse(decrypted, datalen);
     if (!config_data) {
         LOG(WARNING) << "Invalid config data, skip it";
         return true;
@@ -2371,7 +2373,7 @@ bool ApAutoConfigurationTask::send_error_response_message(
 }
 
 bool ApAutoConfigurationTask::validate_reconfiguration(
-    const std::string &radio_iface, std::vector<WSC::configData::config> &configs)
+    const std::string &radio_iface, std::vector<WSC::EncryptedSettingsPayload::config> &configs)
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
@@ -2404,7 +2406,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
     // The named lambda "find_by_similarity" receives a AgentDB BSS element.
     // The anonymous returning predicate lambda, finds a "matching" WSC config element.
     const auto find_by_similarity = [&db](const AgentDB::sRadio::sFront::sBssid &bss) {
-        return [&db, &bss](const WSC::configData::config &config) {
+        return [&db, &bss](const WSC::EncryptedSettingsPayload::config &config) {
             // Check if config's BSSID is valid
             if (config.bssid != db->bridge.mac) {
                 // Config BSSID is valid, can check BSSID only.
@@ -2445,9 +2447,9 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
             return (matching_fields >= minimal_similarity);
         };
     };
-    const auto bss_needs_reconfiguration = [](const WSC::configData::config &config,
+    const auto bss_needs_reconfiguration = [](const WSC::EncryptedSettingsPayload::config &config,
                                               const AgentDB::sRadio::sFront::sBssid &bss) {
-        // Need to read compare the incoming config (WSC::configData::config)
+        // Need to read compare the incoming config (WSC::EncryptedSettingsPayload::config)
         // and compare it to the existing bss (AgentDB::sRadio::sFront::sBssid)
         // TODO: PPM-2296
         // The issue here is that the Agent DB's sBssid does not contain the following
@@ -2488,7 +2490,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
         return true;
     };
 
-    const auto bss_pending_teardown = [](const WSC::configData::config &config) {
+    const auto bss_pending_teardown = [](const WSC::EncryptedSettingsPayload::config &config) {
         return ((config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN) != 0);
     };
 
@@ -2497,8 +2499,8 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
     // Create a container for the final configuration.
 
     // We create these two containers, so we could remove and insert into the configuration
-    std::vector<WSC::configData::config> config_copy = configs;
-    std::vector<WSC::configData::config> final_config;
+    std::vector<WSC::EncryptedSettingsPayload::config> config_copy = configs;
+    std::vector<WSC::EncryptedSettingsPayload::config> final_config;
 
     // Iterate over existing configuration.
     for (const auto &bssid : bssids) {
@@ -2526,7 +2528,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
             }
         } else {
             // Did not find vap in configuration, need to teardown
-            WSC::configData::config vap_to_teardown;
+            WSC::EncryptedSettingsPayload::config vap_to_teardown;
             vap_to_teardown.bssid    = bssid.mac;
             vap_to_teardown.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
             final_config.emplace_back(std::move(vap_to_teardown));
@@ -2585,7 +2587,8 @@ bool ApAutoConfigurationTask::validate_reconfiguration(
 }
 
 bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
-    const std::string &radio_iface, const std::vector<WSC::configData::config> &configs)
+    const std::string &radio_iface,
+    const std::vector<WSC::EncryptedSettingsPayload::config> &configs)
 {
     auto request = message_com::create_vs_message<
         beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>(m_cmdu_tx);
