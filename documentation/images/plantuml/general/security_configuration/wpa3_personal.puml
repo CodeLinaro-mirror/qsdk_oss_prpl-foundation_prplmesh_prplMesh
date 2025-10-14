@@ -1,0 +1,35 @@
+@startmindmap
+scale 3600 width
+*:NBAPI Input
+WPA3-Personal-Transition;
+**:Controller
+----
+auth type
+(0x0040|0x0020);
+***: <Autoconf WSC M2>
+----
+auth type
+(0x0040|0x0020);
+****:Agent
+----
+auth type
+(0x0040|0x0020);
+*****:<conversion>
+agent 2 pwhm
+per Table 1
+----
+0x0020 WPA2
+0x0040 WPA3
+etc.;
+******:pwhm datamodel
+----
+AP.Sec.ModeEnabled
+WPA3-Personal-Transition ;
+*******:hostapd.conf
+----
+wpa_key_mgmt=WPA-PSK SAE SAE-EXT-KEY;
+********: RSN IE contains
+AKM:2
+AKM:8
+AKM:24;
+@endmindmap
