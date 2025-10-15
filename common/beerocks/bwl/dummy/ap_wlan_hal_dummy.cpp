@@ -538,6 +538,7 @@ bool ap_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj)
             msg->params.capabilities.ht_mcs              = beerocks::MCS_7;
             msg->params.capabilities.ht_low_bw_short_gi  = 1;
             msg->params.capabilities.ht_high_bw_short_gi = 0;
+            msg->params.capabilities.btm_supported       = 1;
             if (m_radio_info.is_5ghz) {
                 msg->params.capabilities.wifi_standard |= STANDARD_AC;
                 msg->params.capabilities.vht_ss               = 1;

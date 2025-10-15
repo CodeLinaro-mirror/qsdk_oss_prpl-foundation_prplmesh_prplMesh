@@ -3164,7 +3164,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         radio->associated_clients.emplace(
             client_mac, AgentDB::sRadio::sClient{bssid, notification_in->association_frame_length(),
-                                                 notification_in->association_frame()});
+                                                 notification_in->association_frame(),
+                                                 notification_in->capabilities().btm_supported});
 
         if (!link_to_controller()) {
             LOG(DEBUG) << "Controller is not connected";
@@ -5209,8 +5210,14 @@ bool slave_thread::handle_client_steering_request(ieee1905_1::CmduMessageRx &cmd
             return send_cmdu_to_controller({}, cmdu_tx);
         }
 
+        /* Skip BTM steering if:
+         * 1. The STA is explicitly listed in the BTM steering disallowed set.
+         * 2. The STA does not support 802.11v and the configuration disallows
+         * sending BTM to non-11v STAs.
+         */
         auto btm = db->steering_policy.btm_steering_disallowed.find(sta_mac);
-        if (btm != db->steering_policy.btm_steering_disallowed.end()) {
+        if (btm != db->steering_policy.btm_steering_disallowed.end() ||
+            (!associated_sta->second.supports_11v && !db->device_conf.send_btm_to_non_11v_sta)) {
             if (!cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {
                 LOG(ERROR) << "cmdu creation of type ACK_MESSAGE, has failed";
                 return false;

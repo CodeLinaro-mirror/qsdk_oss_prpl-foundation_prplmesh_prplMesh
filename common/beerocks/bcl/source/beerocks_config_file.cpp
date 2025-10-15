@@ -149,6 +149,7 @@ bool config_file::read_slave_config_file(const std::string &config_file_path, sC
             std::make_tuple("dwell_time=", &conf.dwell_time, 0),
             std::make_tuple("enable_auto_chansel_handling=", &conf.enable_auto_chansel_handling, 0),
             std::make_tuple("clients_unicast_measurements=", &conf.clients_unicast_measurements, 0),
+            std::make_tuple("send_btm_to_non_11v_sta=", &conf.send_btm_to_non_11v_sta, 0),
         };
         std::string config_type = "global";
         if (!read_config_file(config_file_path, slave_global_conf_args, config_type)) {
