@@ -161,6 +161,14 @@ class ALEntity:
         ret = self.nbapi_command(path, "_set", {"parameters": parameters})
         return ret
 
+    def nbapi_set_parameters_no_exception(self, path: str, parameters: Dict) -> Any:
+        '''Set a parameter for nbapi object
+
+        Sets value for "parameters" of northbound API object specified with "path".
+        '''
+        ret = self.nbapi_command_not_fail(path, "_set", {"parameters": parameters})
+        return ret
+
     def nbapi_get_data_model(self):
         '''Get entire data model tree.'''
 
