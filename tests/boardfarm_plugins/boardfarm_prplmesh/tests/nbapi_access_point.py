@@ -75,6 +75,14 @@ class NbapiAccessPoint(PrplMeshBaseTest):
             raise SkipTest(ae)
 
         ''' Test Access Point object '''
+        self.dev.DUT.wired_sniffer.start(self.__class__.__name__ + "-" + self.dev.DUT.name)
+
+        debug("roll logs for agent")
+        agent.command("killall", "-SIGUSR1", "beerocks_agent")
+        agent.command("killall", "-SIGUSR1", "beerocks_fronthaul")
+        time.sleep(2)
+        # update [logfile: size] dict with new values
+        self.checkpoint()
 
         # Add Access Point object and set up parameters for it
         self.configure_ssids_clear()
@@ -87,17 +95,22 @@ class NbapiAccessPoint(PrplMeshBaseTest):
             "F+B": "Test-FronthaulBackhaul"
         }
 
-        all_bands_security_obj_path = self.configure_ssid(ssid["all_bands"]) + ".Security"
+        all_bands_ssid_path = self.configure_ssid(ssid["all_bands"])
         self.configure_ssid(ssid["5GH_24G"], "Fronthaul", {"Band2_4G": True, "Band5GH": True})
-        self.configure_ssid(ssid["5GL"], "Fronthaul", {"Band5GL": True})
+        five_gl_ssid_path = self.configure_ssid(ssid["5GL"], "Fronthaul", {"Band5GL": True})
         self.configure_ssid(ssid["6G"], "Fronthaul", {"Band6G": True})
         self.configure_ssid(ssid["F+B"], "Fronthaul+Backhaul")
 
+        all_bands_security_obj_path = all_bands_ssid_path + ".Security"
+        five_gl_security_obj_path = five_gl_ssid_path + ".Security"
+        five_gl_passphrase = "definitely_not_empty_pwd"
         time.sleep(4)
         controller.nbapi_set_parameters(all_bands_security_obj_path,
                                         {"ModeEnabled": "WPA2-Personal"})
         controller.nbapi_set_parameters(all_bands_security_obj_path,
                                         {"KeyPassphrase": "key_passphrease_value"})
+        controller.nbapi_set_parameters(five_gl_security_obj_path,
+                                        {"KeyPassphrase": five_gl_passphrase})
 
         controller.nbapi_command("Device.WiFi.DataElements.Network", "AccessPointCommit")
         time.sleep(20)
@@ -114,24 +127,23 @@ class NbapiAccessPoint(PrplMeshBaseTest):
             "network_key": "key_passphrease_value"
         }
 
+        debug("check agent0")
         self.check_bss_conf(agent.radios[0], ssid["all_bands"], config_all_bands)
         self.check_bss_conf(agent.radios[1], ssid["all_bands"], config_all_bands)
-        self.check_bss_conf(agent2.radios[0], ssid["all_bands"], config_all_bands)
-        self.check_bss_conf(agent2.radios[1], ssid["all_bands"], config_all_bands)
-
         self.check_bss_conf(agent.radios[0], ssid["5GH_24G"], {"fronthaul": "true"})
         self.check_bss_conf(agent.radios[1], ssid["5GH_24G"], {"fronthaul": "true"})
-        self.check_bss_conf(agent2.radios[0], ssid["5GH_24G"], {"fronthaul": "true"})
-        self.check_bss_conf(agent2.radios[1], ssid["5GH_24G"], {"fronthaul": "true"})
-
         self.check_bss_conf(agent.radios[1], ssid["5GL"], {"fronthaul": "true"})
-        self.check_bss_conf(agent2.radios[1], ssid["5GL"], {"fronthaul": "true"})
-
         self.check_bss_conf(agent.radios[0], ssid["F+B"], {"backhaul": "true"})
         self.check_bss_conf(agent.radios[1], ssid["F+B"], {"backhaul": "true"})
+
+        debug("check agent2")
+        self.check_bss_conf(agent2.radios[0], ssid["all_bands"], config_all_bands)
+        self.check_bss_conf(agent2.radios[1], ssid["all_bands"], config_all_bands)
+        self.check_bss_conf(agent2.radios[0], ssid["5GH_24G"], {"fronthaul": "true"})
+        self.check_bss_conf(agent2.radios[1], ssid["5GH_24G"], {"fronthaul": "true"})
+        self.check_bss_conf(agent2.radios[1], ssid["5GL"], {"fronthaul": "true"})
         self.check_bss_conf(agent2.radios[0], ssid["F+B"], {"backhaul": "true"})
         self.check_bss_conf(agent2.radios[1], ssid["F+B"], {"backhaul": "true"})
-
         bssid_all_bands = agent.ucc_socket.dev_get_parameter('macaddr',
                                                              ruid='0x' +
                                                              agent.radios[1].mac.replace(':', ''),
@@ -170,3 +182,25 @@ class NbapiAccessPoint(PrplMeshBaseTest):
                                         controller)
                 self.check_bss_in_radio(ssid["F+B"], radio, ssid, {"backhaul": "true"}, controller)
                 self.check_bss_is_disabled(ssid["6G"], radio, controller)
+
+        debug("testing WPA3-CM propagatoin")
+        five_gl_wpa3_ssid = "WPA3_cm_ssid"
+        controller.nbapi_set_parameters_no_exception(five_gl_security_obj_path,
+                                                     {"ModeEnabled":
+                                                      "WPA3-Personal-Compatibility"})
+        controller.nbapi_set_parameters_no_exception(five_gl_ssid_path,
+                                                     {"SSID": five_gl_wpa3_ssid})
+        debug("called set secMode")
+        controller.nbapi_command("Device.WiFi.DataElements.Network", "AccessPointCommit")
+        time.sleep(5)
+        debug("called AccessPointCommit")
+
+        config_wpa3_cm = {
+            "fronthaul": "true",
+            "backhaul": "false",
+            "auth_type": "WPA3-PCM",
+            "encr_type": "AES",
+            "network_key": five_gl_passphrase
+        }
+        self.check_bss_conf(agent.radios[1], five_gl_wpa3_ssid, config_wpa3_cm)
+        debug("end of NBAPI AccessPoint test")
