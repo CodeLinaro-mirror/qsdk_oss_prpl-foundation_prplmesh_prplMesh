@@ -261,7 +261,7 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
     }
 
     bool network_enable         = get_param_bool(object, "Enable");
-    amxd_object_t *group_object = amxd_object_get_child(object, "X-PRPL_ORG_Group");
+    amxd_object_t *group_object = amxd_object_get_child(object, "X_PRPLWARE-COM_Group");
     if (!group_object) {
         LOG(WARNING) << "Fail to get Group object from Network object!";
         return amxd_status_object_not_found;
@@ -296,10 +296,11 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
             bss_info.ssid = get_param_string(access_point_inst, "SSID");
 
             bss_info.vap_type = wireless_utils::string_to_vap_type(
-                get_param_string(access_point_inst, "X_PRPLWARE_VapType"));
+                get_param_string(access_point_inst, "X_PRPLWARE-COM_VapType"));
 
             bool access_point_enable = amxd_object_get_bool(access_point_inst, "Enable", NULL);
-            std::string group_name   = get_param_string(access_point_inst, "X-PRPL_ORG_GroupName");
+            std::string group_name =
+                get_param_string(access_point_inst, "X_PRPLWARE-COM_GroupName");
             if (!group_name.empty()) {
                 bool new_enable_value =
                     network_enable && group_status[group_name] && access_point_enable;

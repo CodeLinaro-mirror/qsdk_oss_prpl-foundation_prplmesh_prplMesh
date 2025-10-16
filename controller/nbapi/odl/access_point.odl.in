@@ -45,23 +45,23 @@
         /*
         ** Name of the group this set of accesspoints belong to.
         */
-        %read-only string X-PRPL_ORG_GroupName = "";
+        %read-only string X_PRPLWARE-COM_GroupName = "";
 
         // --- VapType enum for BSS (Home/Guest/etc.) ---
-        string X_PRPLWARE_VapType {
+        string X_PRPLWARE-COM_VapType {
             default "other";
             on action validate call check_enum [
                 "home",
                 "guest",
                 "video",
-                "backhaul", 
+                "backhaul",
                 "hotspot",
                 "staff",
                 "isolated",
                 "other"
             ];
         }
-        
+
         /*
         ** Enabling/Disabling the AcceessPoint set.
         */
