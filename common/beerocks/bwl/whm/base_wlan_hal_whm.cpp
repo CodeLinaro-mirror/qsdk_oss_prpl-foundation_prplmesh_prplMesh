@@ -29,6 +29,96 @@ extern "C" {
 using namespace beerocks;
 using namespace wbapi;
 
+namespace {
+
+std::map<uint32_t, std::vector<beerocks::eWiFiBandwidth>>
+get_applicable_bandwidths_per_channel(const std::string &radio_path,
+                                      beerocks::wbapi::AmbiorixClient &ambiorix_cl)
+{
+    std::map<uint32_t, std::vector<beerocks::eWiFiBandwidth>> applicable_bandwidths_per_channel;
+    AmbiorixVariant args;
+    AmbiorixVariant return_value;
+    bool result = ambiorix_cl.call(radio_path, "X_PRPLWARE-COM_getApplicableBandwidthPerChannel",
+                                   args, return_value);
+    if (!result) {
+        LOG(ERROR) << "Failed to call X_PRPLWARE-COM_getApplicableBandwidthPerChannel";
+        return {};
+    }
+
+    AmbiorixVariantListSmartPtr return_list;
+    result = return_value.get_children(return_list, false);
+    if (!result || return_list->size() != 1) {
+        LOG(ERROR) << "Failed to read value returned by "
+                      "X_PRPLWARE-COM_getApplicableChannelBandwidthsPerChannel";
+        return {};
+    }
+
+    AmbiorixVariantListSmartPtr channel_bandwith_list;
+    result = return_list->at(0).get_children(channel_bandwith_list, false);
+    if (!result) {
+        LOG(ERROR) << "Failed to read value returned by "
+                      "X_PRPLWARE-COM_getApplicableChannelBandwidthsPerChannel";
+        return {};
+    }
+
+    for (auto i : *channel_bandwith_list) {
+        uint32_t channel;
+        i.read_child(channel, "channel");
+        std::string bandwidths_str;
+        i.read_child(bandwidths_str, "bandwidths");
+        auto bandwidths = beerocks::string_utils::str_split(bandwidths_str, ',');
+        for (const auto &b : bandwidths) {
+            applicable_bandwidths_per_channel[channel].push_back(
+                wbapi_utils::bandwith_from_string(b));
+        }
+    }
+
+    return applicable_bandwidths_per_channel;
+}
+
+// SupportedOperatingChannelBandwidth stores all possible bandwidths without
+// specifying which channels support which bandwidths. For example 5g channels
+// 132, 136, 140, and 144 do not support 160 MHz bandwidth,
+// even though it is a valid value for other channels.
+// Because we use a Cartesian product to generate configurations, even
+// valid configuration can result in errors. To prevent this, we add an exception
+// for these channels.
+bool is_exception_channel(beerocks::eFreqType freq, uint32_t channel,
+                          beerocks::eWiFiBandwidth bandwidth)
+{
+    switch (freq) {
+    case beerocks::eFreqType::FREQ_5G:
+        return bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_160 &&
+               (channel == 132 || channel == 136 || channel == 140 || channel == 144);
+
+    case beerocks::eFreqType::FREQ_6G: {
+        switch (bandwidth) {
+        case beerocks::eWiFiBandwidth::BANDWIDTH_40:
+            return channel == 233;
+        case beerocks::eWiFiBandwidth::BANDWIDTH_80:
+        case beerocks::eWiFiBandwidth::BANDWIDTH_80_80:
+        case beerocks::eWiFiBandwidth::BANDWIDTH_160:
+            return channel == 225 || channel == 229 || channel == 233;
+        case beerocks::eWiFiBandwidth::BANDWIDTH_320_1:
+            return channel == 193 || channel == 197 || channel == 201 || channel == 205 ||
+                   channel == 209 || channel == 213 || channel == 217 || channel == 221 ||
+                   channel == 225 || channel == 229 || channel == 233;
+        case beerocks::eWiFiBandwidth::BANDWIDTH_320_2:
+            return channel == 1 || channel == 5 || channel == 9 || channel == 13 || channel == 17 ||
+                   channel == 21 || channel == 25 || channel == 29 || channel == 225 ||
+                   channel == 229 || channel == 233;
+
+        default:
+            return false;
+        }
+    }
+    default:
+        return false;
+    }
+}
+
+} // namespace
+
 namespace bwl {
 namespace whm {
 
@@ -810,66 +900,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
     m_radio_info.is_dfs_channel =
         son::wireless_utils::is_dfs_channel(m_radio_info.channel, m_radio_info.frequency_band);
 
-    std::unordered_set<std::string> cleared_channels_set;
-    std::unordered_set<std::string> radar_triggered_channels_set;
-
-    std::string channel_mgt_path = m_radio_path + "ChannelMgt.";
-    auto channel_mgt_obj         = m_ambiorix_cl.get_object(channel_mgt_path);
-    if (!channel_mgt_obj) {
-        LOG(ERROR) << "failed to get radio Stats object " << channel_mgt_path;
-        return true;
-    }
-    channel_mgt_obj->read_child(s_val, "ClearedDfsChannels");
-    auto cleared_channels_vec = beerocks::string_utils::str_split(s_val, ',');
-    cleared_channels_set.insert(cleared_channels_vec.cbegin(), cleared_channels_vec.cend());
-
-    channel_mgt_obj->read_child(s_val, "RadarTriggeredDfsChannels");
-    auto radar_triggered_channels_vec = beerocks::string_utils::str_split(s_val, ',');
-    radar_triggered_channels_set.insert(radar_triggered_channels_vec.cbegin(),
-                                        radar_triggered_channels_vec.cend());
-
-    if (radio->read_child(s_val, "PossibleChannels")) {
-        auto channels_vec = beerocks::string_utils::str_split(s_val, ',');
-        for (auto &chan_str : channels_vec) {
-            uint32_t chanNum   = beerocks::string_utils::stoi(chan_str);
-            auto &channel_info = m_radio_info.channels_list[chanNum];
-
-            if (son::wireless_utils::is_dfs_channel(chanNum, m_radio_info.frequency_band)) {
-                if (cleared_channels_set.find(chan_str) != cleared_channels_set.end()) {
-                    channel_info.dfs_state = beerocks::eDfsState::AVAILABLE;
-                } else if (radar_triggered_channels_set.find(chan_str) !=
-                           radar_triggered_channels_set.end()) {
-                    channel_info.dfs_state = beerocks::eDfsState::UNAVAILABLE;
-                } else {
-                    channel_info.dfs_state = beerocks::eDfsState::USABLE;
-                }
-
-            } else {
-                channel_info.dfs_state = beerocks::eDfsState::DFS_STATE_MAX;
-            }
-
-            if (radio->read_child(s_val, "MaxChannelBandwidth")) {
-                m_radio_info.max_bandwidth = wbapi_utils::bandwith_from_string(s_val);
-                std::vector<beerocks::eWiFiBandwidth> bandwidths;
-                if (radio->read_child(s_val, "SupportedOperatingChannelBandwidth")) {
-                    auto supported_bandwiths_vec = beerocks::string_utils::str_split(s_val, ',');
-                    for (const auto &bw : supported_bandwiths_vec) {
-                        if (!bw.compare("Auto")) {
-                            continue;
-                        }
-                        bandwidths.push_back(wbapi_utils::bandwith_from_string(bw));
-                    }
-                }
-                for (auto &bandw_iter : bandwidths) {
-                    if (bandw_iter > m_radio_info.max_bandwidth) {
-                        continue;
-                    }
-                    // Fill with the lowest operable preference value
-                    channel_info.bw_info_list[bandw_iter] = 1;
-                }
-            }
-        }
-    }
+    refresh_possible_channels_info(radio);
 
     if (radio->read_child(s_val, "ExtensionChannel")) {
         bool channel_ext_above = (s_val == "AboveControlChannel");
@@ -1101,6 +1132,113 @@ void base_wlan_hal_whm::read_qos_management_support()
     if (!m_ambiorix_cl.get_param(m_radio_info.scs_supported, capabilities_path, "SCSSupport")) {
         LOG(DEBUG) << "SCSSupport is not available at " << capabilities_path;
     }
+}
+
+bool base_wlan_hal_whm::refresh_possible_channels_info(
+    const beerocks::wbapi::AmbiorixVariantSmartPtr &radio)
+{
+    std::string s_val;
+    std::unordered_set<std::string> cleared_channels_set;
+    std::unordered_set<std::string> radar_triggered_channels_set;
+
+    std::string channel_mgt_path = m_radio_path + "ChannelMgt.";
+    auto channel_mgt_obj         = m_ambiorix_cl.get_object(channel_mgt_path);
+    if (!channel_mgt_obj) {
+        LOG(ERROR) << "failed to get radio Stats object " << channel_mgt_path;
+        return true;
+    }
+    channel_mgt_obj->read_child(s_val, "ClearedDfsChannels");
+    auto cleared_channels_vec = beerocks::string_utils::str_split(s_val, ',');
+    cleared_channels_set.insert(cleared_channels_vec.cbegin(), cleared_channels_vec.cend());
+
+    channel_mgt_obj->read_child(s_val, "RadarTriggeredDfsChannels");
+    auto radar_triggered_channels_vec = beerocks::string_utils::str_split(s_val, ',');
+    radar_triggered_channels_set.insert(radar_triggered_channels_vec.cbegin(),
+                                        radar_triggered_channels_vec.cend());
+
+    if (!radio->read_child(s_val, "PossibleChannels")) {
+        return false;
+    }
+    auto channels_vec = beerocks::string_utils::str_split(s_val, ',');
+
+    if (!radio->read_child(s_val, "MaxChannelBandwidth")) {
+        return false;
+    }
+
+    std::map<uint32_t, std::vector<beerocks::eWiFiBandwidth>> applicable_bandwidths_per_channel =
+        get_applicable_bandwidths_per_channel(m_radio_path, m_ambiorix_cl);
+
+    m_radio_info.max_bandwidth = wbapi_utils::bandwith_from_string(s_val);
+
+    std::vector<beerocks::eWiFiBandwidth> bandwidths;
+    if (radio->read_child(s_val, "SupportedOperatingChannelBandwidth")) {
+        auto supported_bandwidths_vec = beerocks::string_utils::str_split(s_val, ',');
+        for (const auto &bw : supported_bandwidths_vec) {
+            if (!bw.compare("Auto")) {
+                continue;
+            }
+            bandwidths.push_back(wbapi_utils::bandwith_from_string(bw));
+        }
+    }
+
+    std::string skipped_channel_bw;
+    for (auto &chan_str : channels_vec) {
+        uint32_t chanNum   = beerocks::string_utils::stoi(chan_str);
+        auto &channel_info = m_radio_info.channels_list[chanNum];
+
+        if (applicable_bandwidths_per_channel.find(chanNum) ==
+            applicable_bandwidths_per_channel.end()) {
+            continue;
+        }
+
+        if (son::wireless_utils::is_dfs_channel(chanNum, m_radio_info.frequency_band)) {
+            if (cleared_channels_set.find(chan_str) != cleared_channels_set.end()) {
+                channel_info.dfs_state = beerocks::eDfsState::AVAILABLE;
+            } else if (radar_triggered_channels_set.find(chan_str) !=
+                       radar_triggered_channels_set.end()) {
+                channel_info.dfs_state = beerocks::eDfsState::UNAVAILABLE;
+            } else {
+                channel_info.dfs_state = beerocks::eDfsState::USABLE;
+            }
+        } else {
+            channel_info.dfs_state = beerocks::eDfsState::DFS_STATE_MAX;
+        }
+
+        auto &applicable_bandwidths = applicable_bandwidths_per_channel[chanNum];
+        for (auto &bandw_iter : bandwidths) {
+            if (bandw_iter > m_radio_info.max_bandwidth) {
+                continue;
+            }
+            if (is_exception_channel(m_radio_info.frequency_band, chanNum, bandw_iter)) {
+                continue;
+            }
+
+            if (std::find(applicable_bandwidths.begin(), applicable_bandwidths.end(), bandw_iter) ==
+                    applicable_bandwidths.end() ||
+                !son::wireless_utils::is_valid_bandwidth(chanNum, m_radio_info.frequency_band,
+                                                         bandw_iter)) {
+                if (!skipped_channel_bw.empty()) {
+                    skipped_channel_bw += ", ";
+                }
+                skipped_channel_bw +=
+                    "{freq: " +
+                    beerocks::utils::convert_frequency_type_to_string(m_radio_info.frequency_band) +
+                    ", channel: " + std::to_string(chanNum) +
+                    ", bandwidth: " + beerocks::utils::convert_bandwidth_to_string(bandw_iter) +
+                    "}";
+                continue;
+            }
+
+            // Fill with the lowest operable preference value
+            channel_info.bw_info_list[bandw_iter] = 1;
+        }
+    }
+
+    if (!skipped_channel_bw.empty()) {
+        LOG(WARNING) << "Skipping invalid channel-bandwidth combination: " << skipped_channel_bw;
+    }
+
+    return true;
 }
 
 bool base_wlan_hal_whm::get_vap_status(

@@ -525,6 +525,9 @@ public:
     static uint8_t get_center_channel(uint8_t channel, beerocks::eFreqType freq_type,
                                       beerocks::eWiFiBandwidth bandwidth);
 
+    static bool is_valid_bandwidth(uint8_t channel, beerocks::eFreqType freq_type,
+                                   beerocks::eWiFiBandwidth bandwidth);
+
     static uint8_t get_operating_class_by_channel(const beerocks::message::sWifiChannel &channel);
     /**
      * @brief Get the operating class of the wifiChannel object.

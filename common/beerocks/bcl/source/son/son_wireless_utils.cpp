@@ -26,6 +26,14 @@ using namespace son;
 #define OPERATING_CLASS_6GHZ_FIRST 131
 #define OPERATING_CLASS_6GHZ_LAST 137
 
+namespace {
+bool is_valid_bandwidth_24g(uint8_t channel, beerocks::eWiFiBandwidth bandwidth);
+
+bool is_valid_bandwidth_5g(uint8_t channel, beerocks::eWiFiBandwidth bandwidth);
+
+bool is_valid_bandwidth_6g(uint8_t channel, beerocks::eWiFiBandwidth bandwidth);
+} // namespace
+
 //Based on hostapd global_op_class struct, file ieee802_11_common.c
 // clang-format off
 const std::map<uint8_t, wireless_utils::sOperatingClass> wireless_utils::operating_classes_list = {
@@ -1453,6 +1461,24 @@ uint8_t wireless_utils::get_center_channel(uint8_t channel, beerocks::eFreqType 
     return bw_info_it->second.center_channel;
 }
 
+bool wireless_utils::is_valid_bandwidth(uint8_t channel, beerocks::eFreqType freq_type,
+                                        beerocks::eWiFiBandwidth bandwidth)
+{
+    switch (freq_type) {
+    case beerocks::eFreqType::FREQ_24G:
+        return is_valid_bandwidth_24g(channel, bandwidth);
+    case beerocks::eFreqType::FREQ_5G:
+        return is_valid_bandwidth_5g(channel, bandwidth);
+    case beerocks::eFreqType::FREQ_24G_5G:
+        return is_valid_bandwidth_5g(channel, bandwidth) ||
+               is_valid_bandwidth_24g(channel, bandwidth);
+    case beerocks::eFreqType::FREQ_6G:
+        return is_valid_bandwidth_6g(channel, bandwidth);
+    default:
+        return false;
+    }
+}
+
 uint16_t wireless_utils::get_vht_central_frequency(uint8_t channel,
                                                    beerocks::eWiFiBandwidth bandwidth)
 {
@@ -2479,3 +2505,59 @@ wireless_utils::get_bandwidth_from_channel_and_op_class(const uint8_t channel,
                << ", doesn't match any channel in 320-1 or 320-2";
     return beerocks::BANDWIDTH_UNKNOWN;
 }
+
+namespace {
+
+bool is_valid_bandwidth_24g(uint8_t channel, beerocks::eWiFiBandwidth bandwidth)
+{
+    auto channel_it = wireless_utils::channels_table_24g.find(channel);
+    if (channel_it == wireless_utils::channels_table_24g.end()) {
+        return false;
+    }
+
+    for (auto it : channel_it->second) {
+        auto op_num = it.first;
+        auto op_it  = wireless_utils::operating_classes_list.find(op_num);
+        if (op_it == wireless_utils::operating_classes_list.end()) {
+            continue;
+        }
+
+        if (op_it->second.band ==
+            (bandwidth == beerocks::BANDWIDTH_80_80 ? beerocks::BANDWIDTH_80 : bandwidth)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool is_valid_bandwidth_5g(uint8_t channel, beerocks::eWiFiBandwidth bandwidth)
+{
+    auto channel_it = wireless_utils::channels_table_5g.find(channel);
+    if (channel_it == wireless_utils::channels_table_5g.end()) {
+        return false;
+    }
+    auto center_channel_it = channel_it->second.find(
+        (bandwidth == beerocks::BANDWIDTH_80_80 ? beerocks::BANDWIDTH_80 : bandwidth));
+    if (center_channel_it == channel_it->second.end()) {
+        return false;
+    }
+
+    return true;
+}
+
+bool is_valid_bandwidth_6g(uint8_t channel, beerocks::eWiFiBandwidth bandwidth)
+{
+    auto channel_it = wireless_utils::channels_table_6g.find(channel);
+    if (channel_it == wireless_utils::channels_table_6g.end()) {
+        return false;
+    }
+    auto center_channel_it = channel_it->second.find(
+        (bandwidth == beerocks::BANDWIDTH_80_80 ? beerocks::BANDWIDTH_80 : bandwidth));
+    if (center_channel_it == channel_it->second.end()) {
+        return false;
+    }
+
+    return true;
+}
+} // namespace

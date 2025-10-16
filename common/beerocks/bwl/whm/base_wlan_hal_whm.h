@@ -116,6 +116,7 @@ protected:
     bool get_accesspoint_by_ssid(std::string &ssid_path, std::string &ap_path);
     bool has_enabled_vap() const;
     bool check_enabled_vap(const std::string &bss) const;
+    bool refresh_possible_channels_info(const beerocks::wbapi::AmbiorixVariantSmartPtr &radio);
 
     /**
      * @brief try to read MRSNO support for m_radio and fill
