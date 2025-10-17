@@ -2215,7 +2215,7 @@ bool Controller::handle_cmdu_1905_available_spectrum_inquiry_message(
 
     LOG(INFO) << "Controller received AVAILABLE_SPECTRUM_INQUIRY_MESSAGE from agent: " << src_mac
               << std::hex << int(mid);
-    auto tlv = cmdu_rx.getClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
+    //auto tlv = cmdu_rx.getClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
     //if (!tlv) {
     //  LOG(ERROR) << "Missing AvailableSpectrumInquiryRequest TLV";
     //return false;

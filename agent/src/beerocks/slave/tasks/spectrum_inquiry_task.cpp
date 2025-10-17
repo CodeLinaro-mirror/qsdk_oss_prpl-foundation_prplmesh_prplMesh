@@ -103,7 +103,6 @@ bool SpectrumInquiryTask::add_available_spectrum_inquiry_response_tlv(
     }
 
     // Serialize the JSON back into a compact string and convert to binary
-    std::vector<uint8_t> bin_buffer;
     try {
         std::string serialized_str = j.dump(); // compact form
         binary_buffer.assign(serialized_str.begin(), serialized_str.end());

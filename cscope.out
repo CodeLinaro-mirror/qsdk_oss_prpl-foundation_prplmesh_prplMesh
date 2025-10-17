@@ -1,4 +1,4 @@
-cscope 15 $HOME/prplMesh1/prplMesh               0016586326
+cscope 15 $HOME/prplMesh1/prplMesh               0016586165
 	@agent/src/beerocks/fronthaul_manager/ap_manager/ap_manager.cpp
 
 9 
@@ -173602,27 +173602,27 @@ QOS_USE_DSCP_MAP
 "
 
 3 
-	~<vf/wç_m­/vAvaabËS³ùrumInquœyReque¡.h
+	~<—syloggšg++.h
 >
 
 4 
-	~<vf/wç_m­/vAvaabËS³ùrumInquœyRe¥Ú£.h
->
-
-5 
 	~<f¡»am
 >
 
-6 
+5 
 	~<io¡»am
 >
 
-7 
+6 
 	~<s¡»am
 >
 
+7 
+	~<vf/wç_m­/vAvaabËS³ùrumInquœyReque¡.h
+>
+
 8 
-	~<—syloggšg++.h
+	~<vf/wç_m­/vAvaabËS³ùrumInquœyRe¥Ú£.h
 >
 
 9 
@@ -173639,7 +173639,7 @@ QOS_USE_DSCP_MAP
 	~<Æohmªn/jsÚ.hµ
 >
 
-14 
+13 
 usšg
  
 	gjsÚ
@@ -173649,7 +173649,7 @@ usšg
 jsÚ
 ;
 
-15 
+14 
 usšg
  
 Çme¥aû
@@ -173657,13 +173657,13 @@ usšg
 	gwç_m­
 ;
 
-17 
+16 
 Çme¥aû
  
 	gb“rocks
  {
 
-18 
+17 
 	gS³ùrumInquœyTask
 ::
 S³ùrumInquœyTask
@@ -173671,9 +173671,7 @@ S³ùrumInquœyTask
 ¦ave_th»ad
  &
 b_ùx
-,
-
-19 
+, 
 ›“1905_1
 ::
 CmduMes§geTx
@@ -173681,7 +173679,7 @@ CmduMes§geTx
 cmdu_tx
 )
 
-20 : 
+18 : 
 Task
 (
 eTaskTy³
@@ -173697,19 +173695,19 @@ m_cmdu_tx
 cmdu_tx
 )
 
-23 
+21 
 	gS³ùrumInquœyTask
 ::
 wÜk
 ()
 
-28 
+26 
 S³ùrumInquœyTask
 ::
 ü—‹_avaabË_¥eùrum_šquœy_mes§ge
 ()
 
-30 ià(!
+28 ià(!
 m_cmdu_tx
 .
 ü—‹
@@ -173721,13 +173719,13 @@ eMes§geTy³
 AVAILABLE_SPECTRUM_INQUIRY_MESSAGE
 )) {
 
-31 
+29 
 LOG
 (
 ERROR
 ) << "Failedo create AVAILABLE_SPECTRUM_INQUIRY_MESSAGE";
 
-34 autØ
+32 autØ
 	g»que¡_v
  = 
 m_cmdu_tx
@@ -173739,33 +173737,33 @@ wç_m­
 vAvaabËS³ùrumInquœyReque¡
 >();
 
-35 ià(!
+33 ià(!
 	g»que¡_v
 ) {
 
-36 
+34 
 LOG
 (
 ERROR
 ) << "Failedo‡dd AvailableSpectrumInquiryRequest TLV";
 
-39 ià(!
+37 ià(!
 ´•¬e_avaabË_¥eùrum_šquœy_mes§ge
 ()) {
 
-40 
+38 
 LOG
 (
 ERROR
 ) << "AVAILABLE_SPECTRUM_INQUIRY_MESSAGE filling has failed";
 
-44 
+42 
 LOG
 (
 INFO
 ) << "Sending AVAILABLE_SPECTRUM_INQUIRY_MESSAGEo controller";
 
-45 
+43 
 	gm_b_ùx
 .
 £nd_cmdu_to_cÚŒŞËr
@@ -173773,7 +173771,7 @@ INFO
 m_cmdu_tx
 );
 
-48 
+46 
 boŞ
  
 	gS³ùrumInquœyTask
@@ -173781,7 +173779,7 @@ boŞ
 ´•¬e_avaabË_¥eùrum_šquœy_mes§ge
 ()
 
-55 autØ
+53 autØ
 »que¡_v
  = 
 m_cmdu_tx
@@ -173793,63 +173791,65 @@ wç_m­
 vAvaabËS³ùrumInquœyReque¡
 >();
 
-56 ià(!
+54 ià(!
 	g»que¡_v
 ) {
 
-57 
+55 
 LOG
 (
 ERROR
 ) << "Failedo getlvAvailableSpectrumInquiryRequest from CmduMessageTx";
 
-58  
+56  
 	gçl£
 ;
 
-62 ià(!
+60 ià(!
 add_avaabË_¥eùrum_šquœy_»que¡_v
 (
 »que¡_v
 )) {
 
-63 
+61 
 LOG
 (
 ERROR
 ) << "Error filling AVAILABLE SPECTRUM INQUIRY REQUEST TLV";
 
-64  
+62  
 	gçl£
 ;
 
-66 ià(!
+64 ià(!
 add_avaabË_¥eùrum_šquœy_»¥Ú£_v
 (
 m_cmdu_tx
 )) {
 
-67 
+65 
 LOG
 (
 ERROR
 ) << "Error filling AVAILABLE SPECTRUM INQUIRY RESPONSE TLV";
 
-68  
+66  
 	gçl£
 ;
 
-70  
+68  
 	gŒue
 ;
 
-72 
+70 
 boŞ
  
 	gS³ùrumInquœyTask
 ::
 add_avaabË_¥eùrum_šquœy_»¥Ú£_v
 (
+
+71 
 ›“1905_1
 ::
 CmduMes§geTx
@@ -173857,7 +173857,7 @@ CmduMes§geTx
 cmdu_tx
 )
 
-75 autØ
+74 autØ
 »¥Ú£_v
  = 
 cmdu_tx
@@ -173869,21 +173869,21 @@ wç_m­
 vAvaabËS³ùrumInquœyRe¥Ú£
 >();
 
-76 ià(!
+75 ià(!
 	g»¥Ú£_v
 ) {
 
-77 
+76 
 LOG
 (
 ERROR
 ) << "Error creating Available Spectrum Inquiry Response TLV!";
 
-78  
+77  
 	gçl£
 ;
 
-81 
+80 
 	g¡d
 ::
 if¡»am
@@ -173893,13 +173893,13 @@ fe
 RESPONSE_FILE
 );
 
-82 ià(!
+81 ià(!
 	gfe
 .
 is_İ’
 ()) {
 
-83 
+82 
 LOG
 (
 ERROR
@@ -173907,11 +173907,11 @@ ERROR
 	gRESPONSE_FILE
 ;
 
-84  
+83  
 	gçl£
 ;
 
-86 
+85 
 	g¡d
 ::
 ¡ršg¡»am
@@ -173919,7 +173919,7 @@ ERROR
 bufãr
 ;
 
-87 
+86 
 	gbufãr
  << 
 	gfe
@@ -173927,7 +173927,7 @@ bufãr
 rdbuf
 ();
 
-88 
+87 
 	g¡d
 ::
 veùÜ
@@ -173937,39 +173937,43 @@ ušt8_t
 bš¬y_bufãr
 ;
 
-90 
+89 
 jsÚ
  
 	gj
 ;
 
-91 
+90 
 	gŒy
  {
 
-92 
+91 
 	gj
  = 
 jsÚ
 ::
 ·r£
 (
+
+92 
 bufãr
-.
+
+
+93 .
 ¡r
 ());
 
-93 } 
+94 } 
 ÿtch
  (cÚ¡ 
 ¡d
 ::
 exû±iÚ
-& 
+ &
 e
 ) {
 
-94 
+95 
 LOG
 (
 ERROR
@@ -173979,43 +173983,37 @@ e
 wh©
 ();
 
-95  
+96  
 	gçl£
 ;
 
-98 ià(!
+99 ià(!
 	gj
 .
 cÚšs
-("avaabËS³ùrumInquœyRe¥Ú£s"è|| !j["avaabËS³ùrumInquœyRe¥Ú£s"].
+("availableSpectrumInquiryResponses") ||
+
+100 !
+	gj
+["avaabËS³ùrumInquœyRe¥Ú£s"].
 is_¬¿y
 ()) {
 
-99 
+101 
 LOG
 (
 ERROR
 ) << "Invalid AFC„esponse format: missing 'availableSpectrumInquiryResponses'";
 
-100  
+102  
 	gçl£
 ;
 
-104 
-	g¡d
-::
-veùÜ
-<
-ušt8_t
-> 
-bš_bufãr
-;
-
-105 
+106 
 	gŒy
  {
 
-106 
+107 
 	g¡d
 ::
 ¡ršg
@@ -174027,7 +174025,7 @@ j
 dump
 ();
 
-107 
+108 
 	gbš¬y_bufãr
 .
 assign
@@ -174039,7 +174037,7 @@ begš
 ’d
 ());
 
-108 } 
+109 } 
 ÿtch
  (cÚ¡ 
 ¡d
@@ -174049,7 +174047,7 @@ exû±iÚ
 e
 ) {
 
-109 
+110 
 LOG
 (
 ERROR
@@ -174059,11 +174057,11 @@ e
 wh©
 ();
 
-110  
+111  
 	gçl£
 ;
 
-113 ià(!
+114 ià(!
 	g»¥Ú£_v
 ->
 £t_avaabË_¥eùrum_šquœy_»¥Ú£_obj
@@ -174071,53 +174069,57 @@ wh©
 bš¬y_bufãr
 .
 d©a
-(), bš¬y_bufãr.
+(),
+
+115 
+bš¬y_bufãr
+.
 size
 ())) {
 
-114 
+116 
 LOG
 (
 ERROR
 ) << "Failedo set‡vailable spectrum inquiry„esponse object";
 
-115  
+117  
 	gçl£
 ;
 
-117 ià(!
+119 ià(!
 	g»¥Ú£_v
 ->
 fš®ize
 ()) {
 
-118 
+120 
 LOG
 (
 ERROR
 ) << "TLV finalization failed";
 
-119  
+121  
 	gçl£
 ;
 
-121 
+123 
 LOG
 (
 INFO
-) << "Successfully filled TLV with Available Spectrum Inquiry Response…ayload (length = "
+)
 
-122 << 
+125 << 
 	gbš¬y_bufãr
 .
 size
 () << ")";
 
-123  
+126  
 	gŒue
 ;
 
-127 
+129 
 boŞ
  
 	gS³ùrumInquœyTask
@@ -174125,7 +174127,7 @@ boŞ
 add_avaabË_¥eùrum_šquœy_»que¡_v
 (
 
-128 cÚ¡ 
+130 cÚ¡ 
 ¡d
 ::
 sh¬ed_±r
@@ -174137,7 +174139,7 @@ wç_m­
 »que¡_v
 )
 
-131 
+133 
 ¡d
 ::
 if¡»am
@@ -174145,23 +174147,23 @@ if¡»am
 fe
 ("tempRequest.txt");
 
-132 ià(!
+134 ià(!
 	gfe
 .
 is_İ’
 ()) {
 
-133 
+135 
 LOG
 (
 ERROR
 ) << "Failedo openempRequest.txt";
 
-134  
+136  
 	gçl£
 ;
 
-136 
+138 
 	g¡d
 ::
 ¡ršg
@@ -174173,15 +174175,21 @@ jsÚ_¡ršg
 i¡»ambuf_™”©Ü
 <>(
 fe
-)), std::istreambuf_iterator<>());
+)),
 
-137 
+139 
+¡d
+::
+i¡»ambuf_™”©Ü
+<>());
+
+140 
 	gfe
 .
 şo£
 ();
 
-138 
+141 
 LOG
 (
 DEBUG
@@ -174189,7 +174197,7 @@ DEBUG
 	gjsÚ_¡ršg
 ;
 
-141 
+144 
 	gÆohmªn
 ::
 jsÚ
@@ -174197,11 +174205,11 @@ jsÚ
 roÙ
 ;
 
-142 
+145 
 	gŒy
  {
 
-143 
+146 
 	groÙ
  = 
 Æohmªn
@@ -174213,7 +174221,7 @@ jsÚ
 jsÚ_¡ršg
 );
 
-144 } 
+147 } 
 ÿtch
  (cÚ¡ 
 ¡d
@@ -174223,7 +174231,7 @@ exû±iÚ
 e
 ) {
 
-145 
+148 
 LOG
 (
 ERROR
@@ -174233,27 +174241,27 @@ e
 wh©
 ();
 
-146  
+149  
 	gçl£
 ;
 
-149 ià(!
+152 ià(!
 	groÙ
 .
 cÚšs
 ("availableSpectrumInquiryRequests")) {
 
-150 
+153 
 LOG
 (
 ERROR
 ) << "Missing 'availableSpectrumInquiryRequests'‡rray in JSON";
 
-151  
+154  
 	gçl£
 ;
 
-155 
+158 
 	g¡d
 ::
 veùÜ
@@ -174263,11 +174271,11 @@ ušt8_t
 bš¬y_bufãr
 ;
 
-156 
+159 
 	gŒy
  {
 
-157 
+160 
 	g¡d
 ::
 ¡ršg
@@ -174279,7 +174287,7 @@ roÙ
 dump
 ();
 
-158 
+161 
 	gbš¬y_bufãr
 .
 assign
@@ -174291,7 +174299,7 @@ begš
 ’d
 ());
 
-159 } 
+162 } 
 ÿtch
  (cÚ¡ 
 ¡d
@@ -174301,7 +174309,7 @@ exû±iÚ
 e
 ) {
 
-160 
+163 
 LOG
 (
 ERROR
@@ -174311,11 +174319,11 @@ e
 wh©
 ();
 
-161  
+164  
 	gçl£
 ;
 
-165 ià(!
+168 ià(!
 	g»que¡_v
 ->
 £t_avaabË_¥eùrum_šquœy_»que¡_obj
@@ -174323,49 +174331,53 @@ wh©
 bš¬y_bufãr
 .
 d©a
-(), bš¬y_bufãr.
+(),
+
+169 
+bš¬y_bufãr
+.
 size
 ())) {
 
-166 
+170 
 LOG
 (
 ERROR
 ) << "Failedo set‡vailable spectrum inquiry„equest obj";
 
-167  
+171  
 	gçl£
 ;
 
-170 
+174 
 LOG
 (
 INFO
-) << "Successfully filled TLV with Available Spectrum Inquiry Request…ayload (length = "
+)
 
-171 << 
+176 << 
 	gbš¬y_bufãr
 .
 size
 () << ")";
 
-173 ià(!
+178 ià(!
 	g»que¡_v
 ->
 fš®ize
 ()) {
 
-174 
+179 
 LOG
 (
 ERROR
 ) << "TLV finalization failed";
 
-175  
+180  
 	gçl£
 ;
 
-178  
+183  
 	gŒue
 ;
 
@@ -174382,24 +174394,24 @@ SPECTRUM_INQUIRY_TASK_H
 	)
 
 3 
-	~"sk.h
+	~"../sÚ_¦ave_th»ad.h
 "
 
 4 
-	~<vf/CmduMes§geTx.h
->
+	~"sk.h
+"
 
 5 
-	~<vf/CmduMes§geRx.h
->
-
-6 
 	~<memÜy
 >
 
+6 
+	~<vf/CmduMes§geRx.h
+>
+
 7 
-	~"../sÚ_¦ave_th»ad.h
-"
+	~<vf/CmduMes§geTx.h
+>
 
 8 
 	~<vf/wç_m­/vAvaabËS³ùrumInquœyReque¡.h
@@ -174433,21 +174445,17 @@ public
 	ceEv’t
  : 
 ušt8_t
- {
+ { 
+AVAILABLE_SPECTRUM_INQUIRY
+ = 0 };
 
 14 
-AVAILABLE_SPECTRUM_INQUIRY
- = 0
-
-16 
 S³ùrumInquœyTask
 (
 ¦ave_th»ad
  &
 b_ùx
-,
-
-17 
+, 
 ›“1905_1
 ::
 CmduMes§geTx
@@ -174455,23 +174463,27 @@ CmduMes§geTx
 cmdu_tx
 );
 
-18 
+15 
 wÜk
 (è
 	gov”ride
 ;
 
-20 
+16 
+ü—‹_avaabË_¥eùrum_šquœy_mes§ge
+();
+
+18 
 	g´iv©e
 :
 
-21 
+19 
 ¦ave_th»ad
  &
 m_b_ùx
 ;
 
-22 
+20 
 	g›“1905_1
 ::
 CmduMes§geTx
@@ -174479,23 +174491,19 @@ CmduMes§geTx
 m_cmdu_tx
 ;
 
-23 
-ü—‹_avaabË_¥eùrum_šquœy_mes§ge
-();
-
-24 
+21 
 boŞ
  
 ´•¬e_avaabË_¥eùrum_šquœy_mes§ge
 ();
 
-25 
+22 
 boŞ
  
 add_avaabË_¥eùrum_šquœy_»que¡_v
 (
 
-26 cÚ¡ 
+23 cÚ¡ 
 ¡d
 ::
 sh¬ed_±r
@@ -174507,7 +174515,7 @@ wç_m­
 »que¡_v
 );
 
-27 
+24 
 boŞ
  
 add_avaabË_¥eùrum_šquœy_»¥Ú£_v
@@ -776088,7 +776096,9 @@ LOG_LEVELS_SYSLOG_DEFAULT
 ;
 
 64 
-loggšg
+ex¶ic™
+ 
+loggš
 (cÚ¡ 
 ¡d
 ::
@@ -922135,11 +922145,7 @@ TOPOLOGY_DISCOVERY_MESSAGE
 	gVIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE
  = 0x8048,
 
-113 
-	gAVAILABLE_SPECTRUM_INQUIRY_MESSAGE
- = 0x8049,
-
-117 cÚ¡ *
+116 cÚ¡ *
 	$eMes§geTy³_¡r
 (
 eMes§geTy³
@@ -922147,551 +922153,545 @@ eMes§geTy³
 ’um_v®ue
 ) {
 
-118 
+117 
 ’um_v®ue
 ) {
 
-119 
+118 
 eMes§geTy³
 ::
 TOPOLOGY_DISCOVERY_MESSAGE
 :  "eMessageType::TOPOLOGY_DISCOVERY_MESSAGE";
 
-120 
+119 
 eMes§geTy³
 ::
 TOPOLOGY_NOTIFICATION_MESSAGE
 :  "eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE";
 
-121 
+120 
 eMes§geTy³
 ::
 TOPOLOGY_QUERY_MESSAGE
 :  "eMessageType::TOPOLOGY_QUERY_MESSAGE";
 
-122 
+121 
 eMes§geTy³
 ::
 TOPOLOGY_RESPONSE_MESSAGE
 :  "eMessageType::TOPOLOGY_RESPONSE_MESSAGE";
 
-123 
+122 
 eMes§geTy³
 ::
 VENDOR_SPECIFIC_MESSAGE
 :  "eMessageType::VENDOR_SPECIFIC_MESSAGE";
 
-124 
+123 
 eMes§geTy³
 ::
 LINK_METRIC_QUERY_MESSAGE
 :  "eMessageType::LINK_METRIC_QUERY_MESSAGE";
 
-125 
+124 
 eMes§geTy³
 ::
 LINK_METRIC_RESPONSE_MESSAGE
 :  "eMessageType::LINK_METRIC_RESPONSE_MESSAGE";
 
-126 
+125 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_SEARCH_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE";
 
-127 
+126 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE";
 
-128 
+127 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_WSC_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE";
 
-129 
+128 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_RENEW_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_RENEW_MESSAGE";
 
-130 
+129 
 eMes§geTy³
 ::
 PUSH_BUTTON_EVENT_NOTIFICATION_MESSAGE
 :  "eMessageType::PUSH_BUTTON_EVENT_NOTIFICATION_MESSAGE";
 
-131 
+130 
 eMes§geTy³
 ::
 PUSH_BUTTON_JOIN_NOTIFICATION_MESSAGE
 :  "eMessageType::PUSH_BUTTON_JOIN_NOTIFICATION_MESSAGE";
 
-132 
+131 
 eMes§geTy³
 ::
 HIGHER_LAYER_QUERY_MESSAGE
 :  "eMessageType::HIGHER_LAYER_QUERY_MESSAGE";
 
-133 
+132 
 eMes§geTy³
 ::
 HIGHER_LAYER_RESPONSE_MESSAGE
 :  "eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE";
 
-134 
+133 
 eMes§geTy³
 ::
 INTERFACE_POWER_CHANGE_REQUEST_MESSAGE
 :  "eMessageType::INTERFACE_POWER_CHANGE_REQUEST_MESSAGE";
 
-135 
+134 
 eMes§geTy³
 ::
 INTERFACE_POWER_CHANGE_RESPONSE_MESSAGE
 :  "eMessageType::INTERFACE_POWER_CHANGE_RESPONSE_MESSAGE";
 
-136 
+135 
 eMes§geTy³
 ::
 GENERIC_PHY_QUERY_MESSAGE
 :  "eMessageType::GENERIC_PHY_QUERY_MESSAGE";
 
-137 
+136 
 eMes§geTy³
 ::
 GENERIC_PHY_RESPONSE_MESSAGE
 :  "eMessageType::GENERIC_PHY_RESPONSE_MESSAGE";
 
-138 
+137 
 eMes§geTy³
 ::
 ACK_MESSAGE
 :  "eMessageType::ACK_MESSAGE";
 
-139 
+138 
 eMes§geTy³
 ::
 AP_CAPABILITY_QUERY_MESSAGE
 :  "eMessageType::AP_CAPABILITY_QUERY_MESSAGE";
 
-140 
+139 
 eMes§geTy³
 ::
 AP_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::AP_CAPABILITY_REPORT_MESSAGE";
 
-141 
+140 
 eMes§geTy³
 ::
 MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE
 :  "eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE";
 
-142 
+141 
 eMes§geTy³
 ::
 CHANNEL_PREFERENCE_QUERY_MESSAGE
 :  "eMessageType::CHANNEL_PREFERENCE_QUERY_MESSAGE";
 
-143 
+142 
 eMes§geTy³
 ::
 CHANNEL_PREFERENCE_REPORT_MESSAGE
 :  "eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE";
 
-144 
+143 
 eMes§geTy³
 ::
 CHANNEL_SELECTION_REQUEST_MESSAGE
 :  "eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE";
 
-145 
+144 
 eMes§geTy³
 ::
 CHANNEL_SELECTION_RESPONSE_MESSAGE
 :  "eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE";
 
-146 
+145 
 eMes§geTy³
 ::
 OPERATING_CHANNEL_REPORT_MESSAGE
 :  "eMessageType::OPERATING_CHANNEL_REPORT_MESSAGE";
 
-147 
+146 
 eMes§geTy³
 ::
 CLIENT_CAPABILITY_QUERY_MESSAGE
 :  "eMessageType::CLIENT_CAPABILITY_QUERY_MESSAGE";
 
-148 
+147 
 eMes§geTy³
 ::
 CLIENT_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE";
 
-149 
+148 
 eMes§geTy³
 ::
 AP_METRICS_QUERY_MESSAGE
 :  "eMessageType::AP_METRICS_QUERY_MESSAGE";
 
-150 
+149 
 eMes§geTy³
 ::
 AP_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::AP_METRICS_RESPONSE_MESSAGE";
 
-151 
+150 
 eMes§geTy³
 ::
 ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE
 :  "eMessageType::ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE";
 
-152 
+151 
 eMes§geTy³
 ::
 ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE";
 
-153 
+152 
 eMes§geTy³
 ::
 UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE
 :  "eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE";
 
-154 
+153 
 eMes§geTy³
 ::
 UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE";
 
-155 
+154 
 eMes§geTy³
 ::
 BEACON_METRICS_QUERY_MESSAGE
 :  "eMessageType::BEACON_METRICS_QUERY_MESSAGE";
 
-156 
+155 
 eMes§geTy³
 ::
 BEACON_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::BEACON_METRICS_RESPONSE_MESSAGE";
 
-157 
+156 
 eMes§geTy³
 ::
 COMBINED_INFRASTRUCTURE_METRICS_MESSAGE
 :  "eMessageType::COMBINED_INFRASTRUCTURE_METRICS_MESSAGE";
 
-158 
+157 
 eMes§geTy³
 ::
 CLIENT_STEERING_REQUEST_MESSAGE
 :  "eMessageType::CLIENT_STEERING_REQUEST_MESSAGE";
 
-159 
+158 
 eMes§geTy³
 ::
 CLIENT_STEERING_BTM_REPORT_MESSAGE
 :  "eMessageType::CLIENT_STEERING_BTM_REPORT_MESSAGE";
 
-160 
+159 
 eMes§geTy³
 ::
 CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE
 :  "eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE";
 
-161 
+160 
 eMes§geTy³
 ::
 STEERING_COMPLETED_MESSAGE
 :  "eMessageType::STEERING_COMPLETED_MESSAGE";
 
-162 
+161 
 eMes§geTy³
 ::
 HIGHER_LAYER_DATA_MESSAGE
 :  "eMessageType::HIGHER_LAYER_DATA_MESSAGE";
 
-163 
+162 
 eMes§geTy³
 ::
 BACKHAUL_STEERING_REQUEST_MESSAGE
 :  "eMessageType::BACKHAUL_STEERING_REQUEST_MESSAGE";
 
-164 
+163 
 eMes§geTy³
 ::
 BACKHAUL_STEERING_RESPONSE_MESSAGE
 :  "eMessageType::BACKHAUL_STEERING_RESPONSE_MESSAGE";
 
-165 
+164 
 eMes§geTy³
 ::
 CHANNEL_SCAN_REQUEST_MESSAGE
 :  "eMessageType::CHANNEL_SCAN_REQUEST_MESSAGE";
 
-166 
+165 
 eMes§geTy³
 ::
 CHANNEL_SCAN_REPORT_MESSAGE
 :  "eMessageType::CHANNEL_SCAN_REPORT_MESSAGE";
 
-167 
+166 
 eMes§geTy³
 ::
 DPP_CCE_INDICATION_MESSAGE
 :  "eMessageType::DPP_CCE_INDICATION_MESSAGE";
 
-168 
+167 
 eMes§geTy³
 ::
 IEEE1905_REKEY_REQUEST_MESSAGE
 :  "eMessageType::IEEE1905_REKEY_REQUEST_MESSAGE";
 
-169 
+168 
 eMes§geTy³
 ::
 IEEE1905_DECRYPTION_FAILURE_MESSAGE
 :  "eMessageType::IEEE1905_DECRYPTION_FAILURE_MESSAGE";
 
-170 
+169 
 eMes§geTy³
 ::
 CAC_REQUEST_MESSAGE
 :  "eMessageType::CAC_REQUEST_MESSAGE";
 
-171 
+170 
 eMes§geTy³
 ::
 CAC_TERMINATION_MESSAGE
 :  "eMessageType::CAC_TERMINATION_MESSAGE";
 
-172 
+171 
 eMes§geTy³
 ::
 CLIENT_DISASSOCIATION_STATS_MESSAGE
 :  "eMessageType::CLIENT_DISASSOCIATION_STATS_MESSAGE";
 
-173 
+172 
 eMes§geTy³
 ::
 SERVICE_PRIORITIZATION_REQUEST_MESSAGE
 :  "eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE";
 
-174 
+173 
 eMes§geTy³
 ::
 ERROR_RESPONSE_MESSAGE
 :  "eMessageType::ERROR_RESPONSE_MESSAGE";
 
-175 
+174 
 eMes§geTy³
 ::
 ASSOCIATION_STATUS_NOTIFICATION_MESSAGE
 :  "eMessageType::ASSOCIATION_STATUS_NOTIFICATION_MESSAGE";
 
-176 
+175 
 eMes§geTy³
 ::
 TUNNELLED_MESSAGE
 :  "eMessageType::TUNNELLED_MESSAGE";
 
-177 
+176 
 eMes§geTy³
 ::
 BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE
 :  "eMessageType::BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE";
 
-178 
+177 
 eMes§geTy³
 ::
 BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE";
 
-179 
+178 
 eMes§geTy³
 ::
 PROXIED_ENCAP_DPP_MESSAGE
 :  "eMessageType::PROXIED_ENCAP_DPP_MESSAGE";
 
-180 
+179 
 eMes§geTy³
 ::
 DIRECT_ENCAP_DPP_MESSAGE
 :  "eMessageType::DIRECT_ENCAP_DPP_MESSAGE";
 
-181 
+180 
 eMes§geTy³
 ::
 RECONFIGURATION_TRIGGER_MESSAGE
 :  "eMessageType::RECONFIGURATION_TRIGGER_MESSAGE";
 
-182 
+181 
 eMes§geTy³
 ::
 BSS_CONFIGURATION_REQUEST_MESSAGE
 :  "eMessageType::BSS_CONFIGURATION_REQUEST_MESSAGE";
 
-183 
+182 
 eMes§geTy³
 ::
 BSS_CONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::BSS_CONFIGURATION_RESPONSE_MESSAGE";
 
-184 
+183 
 eMes§geTy³
 ::
 BSS_CONFIGURATION_RESULT_MESSAGE
 :  "eMessageType::BSS_CONFIGURATION_RESULT_MESSAGE";
 
-185 
+184 
 eMes§geTy³
 ::
 CHIRP_NOTIFICATION_MESSAGE
 :  "eMessageType::CHIRP_NOTIFICATION_MESSAGE";
 
-186 
+185 
 eMes§geTy³
 ::
 IEEE1905_ENCAP_EAPOL_MESSAGE
 :  "eMessageType::IEEE1905_ENCAP_EAPOL_MESSAGE";
 
-187 
+186 
 eMes§geTy³
 ::
 DPP_BOOTSTRAPPING_URI_NOTIFICATION_MESSAGE
 :  "eMessageType::DPP_BOOTSTRAPPING_URI_NOTIFICATION_MESSAGE";
 
-188 
+187 
 eMes§geTy³
 ::
 FAILED_CONNECTION_MESSAGE
 :  "eMessageType::FAILED_CONNECTION_MESSAGE";
 
-189 
+188 
 eMes§geTy³
 ::
 AGENT_LIST_MESSAGE
 :  "eMessageType::AGENT_LIST_MESSAGE";
 
-190 
+189 
 eMes§geTy³
 ::
 QOS_MANAGEMENT_NOTIFICATION_MESSAGE
 :  "eMessageType::QOS_MANAGEMENT_NOTIFICATION_MESSAGE";
 
-191 
+190 
 eMes§geTy³
 ::
 VIRTUAL_BSS_CAPABILITIES_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_CAPABILITIES_REQUEST_MESSAGE";
 
-192 
+191 
 eMes§geTy³
 ::
 VIRTUAL_BSS_CAPABILITIES_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_CAPABILITIES_RESPONSE_MESSAGE";
 
-193 
+192 
 eMes§geTy³
 ::
 VIRTUAL_BSS_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_REQUEST_MESSAGE";
 
-194 
+193 
 eMes§geTy³
 ::
 VIRTUAL_BSS_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_RESPONSE_MESSAGE";
 
-195 
+194 
 eMes§geTy³
 ::
 CLIENT_SECURITY_CONTEXT_REQUEST_MESSAGE
 :  "eMessageType::CLIENT_SECURITY_CONTEXT_REQUEST_MESSAGE";
 
-196 
+195 
 eMes§geTy³
 ::
 CLIENT_SECURITY_CONTEXT_RESPONSE_MESSAGE
 :  "eMessageType::CLIENT_SECURITY_CONTEXT_RESPONSE_MESSAGE";
 
-197 
+196 
 eMes§geTy³
 ::
 TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE
 :  "eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE";
 
-198 
+197 
 eMes§geTy³
 ::
 TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE
 :  "eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE";
 
-199 
+198 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE";
 
-200 
+199 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_PREPARATION_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_RESPONSE_MESSAGE";
 
-201 
+200 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE";
 
-202 
+201 
 eMes§geTy³
 ::
 EARLY_AP_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE";
 
-203 
+202 
 eMes§geTy³
 ::
 AP_MLD_CONFIGURATION_REQUEST_MESSAGE
 :  "eMessageType::AP_MLD_CONFIGURATION_REQUEST_MESSAGE";
 
-204 
+203 
 eMes§geTy³
 ::
 AP_MLD_CONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::AP_MLD_CONFIGURATION_RESPONSE_MESSAGE";
 
-205 
+204 
 eMes§geTy³
 ::
 BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE
 :  "eMessageType::BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE";
 
-206 
+205 
 eMes§geTy³
 ::
 BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE";
 
-207 
+206 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE";
 
-208 
-eMes§geTy³
-::
-AVAILABLE_SPECTRUM_INQUIRY_MESSAGE
-:  "eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE";
-
-210 
+208 
 ¡d
 ::
 ¡ršg
@@ -922703,17 +922703,17 @@ out_¡r
 ’um_v®ue
 ));
 
-211  
+209  
 out_¡r
 .
 	`c_¡r
 ();
 
-212 
+210 
 	}
 }
 
-213 
+211 
 šlše
  
 	g¡d
@@ -922737,15 +922737,15 @@ eMes§geTy³_¡r
 v®ue
 ); }
 
-216 şas 
+214 şas 
 	ceMes§geTy³V®id©e
  {
 
-217 
+215 
 	gpublic
 :
 
-218 
+216 
 boŞ
  
 check
@@ -922755,7 +922755,7 @@ ušt16_t
 v®ue
 ) {
 
-219 
+217 
 boŞ
  
 »t
@@ -922763,23 +922763,23 @@ boŞ
 çl£
 ;
 
-220 
+218 
 	gv®ue
 ) {
 
-311 
+308 
 »t
  = 
 Œue
 ;
 
-314 
+311 
 »t
  = 
 çl£
 ;
 
-317  
+314  
 	g»t
 ;
 
@@ -1536231,13 +1536231,13 @@ boŞ
 	gCÚŒŞËr
 ::
 hªdË_cmdu_1905_avaabË_¥eùrum_šquœy_mes§ge
-(cÚ¡ 
+(
+
+2212 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
-,
-
-2212 
+, 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1536259,7 +1536259,9 @@ LOG
 INFO
 è<< "CÚŒŞË¸»ûived AVAILABLE_SPECTRUM_INQUIRY_MESSAGE from‡g’t: " << 
 	g¤c_mac
- << 
+
+
+2217 << 
 	g¡d
 ::
 hex
@@ -1536267,7 +1536269,7 @@ hex
 mid
 );
 
-2217 autØ
+2218 autØ
 	gv
  = 
 cmdu_rx
@@ -1536279,7 +1536281,7 @@ wç_m­
 vAvaabËS³ùrumInquœyReque¡
 >();
 
-2223 
+2224 
 LOG
 (
 DEBUG
@@ -1536291,7 +1536293,7 @@ hex
 mid
 );
 
-2224  
+2225  
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1536303,7 +1536305,7 @@ cmdu_tx
 d©aba£
 );
 
-2227 
+2228 
 boŞ
  
 	gCÚŒŞËr
@@ -1536315,7 +1536317,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2228 
+2229 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1536323,7 +1536325,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2230 
+2231 
 boŞ
  
 »t_v®
@@ -1536331,11 +1536333,11 @@ boŞ
 Œue
 ;
 
-2232 autØ&
+2233 autØ&
 	g¡a_ex‹nded_lšk_m‘ric
  :
 
-2233 
+2234 
 cmdu_rx
 .
 g‘CÏssLi¡
@@ -1536345,25 +1536347,25 @@ wç_m­
 vAssocŸ‹dSEx‹ndedLškM‘rics
 >()) {
 
-2235 ià(
+2236 ià(
 ¡a_ex‹nded_lšk_m‘ric
 ->
 m‘rics_li¡_Ëngth
 () == 0) {
 
-2236 
+2237 
 LOG
 (
 INFO
 ) << "No metrics…rovided forhe station "
 
-2237 << 
+2238 << 
 ¡a_ex‹nded_lšk_m‘ric
 ->
 assocŸ‹d_¡a
 ();
 
-2241 autØ
+2242 autØ
 	gm‘rics_li¡
  = 
 ¡a_ex‹nded_lšk_m‘ric
@@ -1536371,7 +1536373,7 @@ assocŸ‹d_¡a
 m‘rics_li¡
 (0);
 
-2242 ià(!
+2243 ià(!
 	g¡d
 ::
 g‘
@@ -1536379,13 +1536381,13 @@ g‘
 m‘rics_li¡
 )) {
 
-2243 
+2244 
 LOG
 (
 ERROR
 ) << "Failedo get metrics info†ist.";
 
-2247 autØ
+2248 autØ
 	gm‘rics
  = 
 ¡d
@@ -1536395,7 +1536397,7 @@ g‘
 m‘rics_li¡
 );
 
-2250 autØ
+2251 autØ
 	g¡©iÚ
  = 
 d©aba£
@@ -1536407,23 +1536409,23 @@ g‘_¡©iÚ
 assocŸ‹d_¡a
 ());
 
-2251 ià(!
+2252 ià(!
 	g¡©iÚ
 ) {
 
-2252 
+2253 
 LOG
 (
 ERROR
 ) << "Failedo get station on db with mac: "
 
-2253 << 
+2254 << 
 	g¡a_ex‹nded_lšk_m‘ric
 ->
 assocŸ‹d_¡a
 ();
 
-2257 autØ
+2258 autØ
 	g·»Á_bss
  = 
 ¡©iÚ
@@ -1536431,23 +1536433,23 @@ assocŸ‹d_¡a
 g‘_bss
 ();
 
-2258 ià(!
+2259 ià(!
 	g·»Á_bss
 ) {
 
-2259 
+2260 
 LOG
 (
 ERROR
 ) << "Connected BSS ofhe station is‚ot found, sta mac="
 
-2260 << 
+2261 << 
 	g¡a_ex‹nded_lšk_m‘ric
 ->
 assocŸ‹d_¡a
 ();
 
-2263 ià(
+2264 ià(
 	g·»Á_bss
 ->
 	gbssid
@@ -1536457,19 +1536459,19 @@ m‘rics
 bssid
 ) {
 
-2264 
+2265 
 LOG
 (
 INFO
 ) << "Reported STA BSSID is‚ot matching with datamodel. Reported bssid:"
 
-2265 << 
+2266 << 
 m‘rics
 .
 bssid
 ;
 
-2268 ià(!
+2269 ià(!
 	gd©aba£
 .
 dm_£t_¡a_ex‹nded_lšk_m‘rics
@@ -1536479,33 +1536481,33 @@ dm_£t_¡a_ex‹nded_lšk_m‘rics
 assocŸ‹d_¡a
 (),
 
-2269 
+2270 
 m‘rics
 )) {
 
-2270 
+2271 
 LOG
 (
 ERROR
 ) << "Failedo setƒxtended†ink metrics for STA:"
 
-2271 << 
+2272 << 
 	g¡a_ex‹nded_lšk_m‘ric
 ->
 assocŸ‹d_¡a
 ();
 
-2272 
+2273 
 	g»t_v®
  = 
 çl£
 ;
 
-2275  
+2276  
 	g»t_v®
 ;
 
-2278 
+2279 
 boŞ
  
 	gCÚŒŞËr
@@ -1536517,7 +1536519,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2279 
+2280 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1536525,7 +1536527,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2281 
+2282 
 boŞ
  
 »t_v®
@@ -1536533,7 +1536535,7 @@ boŞ
 Œue
 ;
 
-2283 autØ
+2284 autØ
 	gag’t
  = 
 d©aba£
@@ -1536545,11 +1536547,11 @@ g‘
 ¤c_mac
 );
 
-2285 ià(!
+2286 ià(!
 	gag’t
 ) {
 
-2286 
+2287 
 LOG
 (
 ERROR
@@ -1536557,11 +1536559,11 @@ ERROR
 	g¤c_mac
 ;
 
-2287  
+2288  
 	gçl£
 ;
 
-2290 autØ&
+2291 autØ&
 	g¡a_Œaffic_¡©
  : 
 cmdu_rx
@@ -1536573,7 +1536575,7 @@ wç_m­
 vAssocŸ‹dST¿fficSts
 >()) {
 
-2292 
+2293 
 db
 ::
 sAssocŸ‹dST¿fficSts
@@ -1536581,7 +1536583,7 @@ sAssocŸ‹dST¿fficSts
 ¡©s
 ;
 
-2295 
+2296 
 	g¡©s
 .
 	gm_by‹_»ûived
@@ -1536591,7 +1536593,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2296 
+2297 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1536601,7 +1536603,7 @@ by‹_couÁ”_un™s
 by‹_»ûived
 ());
 
-2298 
+2299 
 	g¡©s
 .
 	gm_by‹_£Á
@@ -1536615,13 +1536617,13 @@ ag’t
 by‹_couÁ”_un™s
 ,
 
-2299 
+2300 
 ¡a_Œaffic_¡©
 ->
 by‹_£Á
 ());
 
-2301 
+2302 
 	g¡©s
 .
 	gm_·ck‘s_»ûived
@@ -1536631,7 +1536633,7 @@ by‹_£Á
 ·ck‘s_»ûived
 ();
 
-2302 
+2303 
 	g¡©s
 .
 	gm_·ck‘s_£Á
@@ -1536641,7 +1536643,7 @@ by‹_£Á
 ·ck‘s_£Á
 ();
 
-2303 
+2304 
 	g¡©s
 .
 	gm_»ŒªsmissiÚ_couÁ
@@ -1536651,7 +1536653,7 @@ by‹_£Á
 »ŒªsmissiÚ_couÁ
 ();
 
-2304 
+2305 
 	g¡©s
 .
 	gm_rx_·ck‘s_”rÜ
@@ -1536661,7 +1536663,7 @@ by‹_£Á
 rx_·ck‘s_”rÜ
 ();
 
-2305 
+2306 
 	g¡©s
 .
 	gm_tx_·ck‘s_”rÜ
@@ -1536671,7 +1536673,7 @@ rx_·ck‘s_”rÜ
 tx_·ck‘s_”rÜ
 ();
 
-2307 ià(!
+2308 ià(!
 	gd©aba£
 .
 dm_£t_¡a_Œaffic_¡©s
@@ -1536683,7 +1536685,7 @@ dm_£t_¡a_Œaffic_¡©s
 ¡©s
 )) {
 
-2308 
+2309 
 LOG
 (
 ERROR
@@ -1536693,17 +1536695,17 @@ ERROR
 ¡a_mac
 ();
 
-2309 
+2310 
 	g»t_v®
  = 
 çl£
 ;
 
-2312  
+2313  
 	g»t_v®
 ;
 
-2315 
+2316 
 boŞ
  
 	gCÚŒŞËr
@@ -1536715,7 +1536717,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2316 
+2317 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1536723,7 +1536725,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2318 
+2319 
 boŞ
  
 »t_v®
@@ -1536731,7 +1536733,7 @@ boŞ
 Œue
 ;
 
-2320 autØ
+2321 autØ
 	gag’t
  = 
 d©aba£
@@ -1536743,11 +1536745,11 @@ g‘
 ¤c_mac
 );
 
-2321 ià(!
+2322 ià(!
 	gag’t
 ) {
 
-2322 
+2323 
 LOG
 (
 ERROR
@@ -1536755,15 +1536757,15 @@ ERROR
 	g¤c_mac
 ;
 
-2323  
+2324  
 	gçl£
 ;
 
-2326 autØ&
+2327 autØ&
 	gwifi6_¡a_¡©us_»p
  :
 
-2327 
+2328 
 cmdu_rx
 .
 g‘CÏssLi¡
@@ -1536773,7 +1536775,7 @@ wç_m­
 vAssocŸ‹dWiFi6SStusR•Üt
 >()) {
 
-2329 autØ
+2330 autØ
 ¡©iÚ
  = 
 d©aba£
@@ -1536785,27 +1536787,27 @@ wifi6_¡a_¡©us_»p
 ¡a_mac
 ());
 
-2330 ià(!
+2331 ià(!
 	g¡©iÚ
 ) {
 
-2331 
+2332 
 LOG
 (
 ERROR
 ) << "Failedo get station on db with mac: "
 
-2332 << 
+2333 << 
 	gwifi6_¡a_¡©us_»p
 ->
 ¡a_mac
 ();
 
-2333  
+2334  
 	gçl£
 ;
 
-2336 
+2337 
 	g¡d
 ::
 veùÜ
@@ -1536819,7 +1536821,7 @@ sTidQueueSize
 tid_queue_veùÜ
 ;
 
-2337 
+2338 
 ušt8_t
  
 	gtid_li¡_Ëngth
@@ -1536829,7 +1536831,7 @@ wifi6_¡a_¡©us_»p
 tid_queue_size_li¡_Ëngth
 ();
 
-2339 
+2340 
 LOG
 (
 DEBUG
@@ -1536837,13 +1536839,13 @@ DEBUG
 	gtid_li¡_Ëngth
 
 
-2340 << " oàMAC‡dd»s oàthassocŸ‹d STA: " << 
+2341 << " oàMAC‡dd»s oàthassocŸ‹d STA: " << 
 	gwifi6_¡a_¡©us_»p
 ->
 ¡a_mac
 ();
 
-2342 
+2343 
 ušt8_t
  
 	gtid_šdex
@@ -1536851,7 +1536853,7 @@ ušt8_t
 	gtid_li¡_Ëngth
 ;id_index++) {
 
-2343 autØ
+2344 autØ
 	gtid_tu¶e
  = 
 wifi6_¡a_¡©us_»p
@@ -1536861,7 +1536863,7 @@ tid_queue_size_li¡
 tid_šdex
 );
 
-2344 ià(!
+2345 ià(!
 	g¡d
 ::
 g‘
@@ -1536869,13 +1536871,13 @@ g‘
 tid_tu¶e
 )) {
 
-2345 
+2346 
 LOG
 (
 ERROR
 ) << "Invalid TID with queue size inlvAssociatedWiFi6StaStatusReport";
 
-2349 autØ&
+2350 autØ&
 	gqos_ù¾_·¿ms
  = 
 ¡d
@@ -1536885,7 +1536887,7 @@ g‘
 tid_tu¶e
 );
 
-2351 
+2352 
 LOG
 (
 DEBUG
@@ -1536895,13 +1536897,13 @@ DEBUG
 	gtid
 
 
-2352 << ", QueuSize: " << 
+2353 << ", QueuSize: " << 
 	gqos_ù¾_·¿ms
 .
 	gqueue_size
 ;
 
-2354 
+2355 
 	gtid_queue_veùÜ
 .
 push_back
@@ -1536909,7 +1536911,7 @@ push_back
 qos_ù¾_·¿ms
 );
 
-2357 ià(!
+2358 ià(!
 	gd©aba£
 .
 dm_add_tid_queue_sizes
@@ -1536919,29 +1536921,29 @@ dm_add_tid_queue_sizes
 tid_queue_veùÜ
 )) {
 
-2358 
+2359 
 LOG
 (
 ERROR
 ) << "Failedo set TID‡nd corresponding Queue Size for STA:"
 
-2359 << 
+2360 << 
 	gwifi6_¡a_¡©us_»p
 ->
 ¡a_mac
 ();
 
-2360 
+2361 
 	g»t_v®
  = 
 çl£
 ;
 
-2363  
+2364  
 	g»t_v®
 ;
 
-2366 
+2367 
 boŞ
  
 	gCÚŒŞËr
@@ -1536953,7 +1536955,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2367 
+2368 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1536961,7 +1536963,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2369 autØ
+2370 autØ
 ag’t
  = 
 d©aba£
@@ -1536973,11 +1536975,11 @@ g‘
 ¤c_mac
 );
 
-2370 ià(!
+2371 ià(!
 	gag’t
 ) {
 
-2371 
+2372 
 LOG
 (
 ERROR
@@ -1536985,11 +1536987,11 @@ ERROR
 	g¤c_mac
 ;
 
-2372  
+2373  
 	gçl£
 ;
 
-2375 autØ
+2376 autØ
 	gaffŸ‹d_­_m‘rics
  : 
 cmdu_rx
@@ -1537001,7 +1537003,7 @@ wç_m­
 vAffŸ‹dApM‘rics
 >()) {
 
-2377 
+2378 
 db
 ::
 sAffŸ‹dApM‘rics
@@ -1537009,7 +1537011,7 @@ sAffŸ‹dApM‘rics
 afæ_­_m‘rics
 ;
 
-2380 
+2381 
 	gafæ_­_m‘rics
 .
 	g·ck‘s_£Á
@@ -1537019,7 +1537021,7 @@ affŸ‹d_­_m‘rics
 ·ck‘s_£Á
 ();
 
-2381 
+2382 
 	gafæ_­_m‘rics
 .
 	g·ck‘s_»ûived
@@ -1537029,7 +1537031,7 @@ affŸ‹d_­_m‘rics
 ·ck‘s_»ûived
 ();
 
-2382 
+2383 
 	gafæ_­_m‘rics
 .
 	g·ck‘_£Á_”rÜs
@@ -1537039,7 +1537041,7 @@ affŸ‹d_­_m‘rics
 ·ck‘s_£Á_”rÜs
 ();
 
-2383 
+2384 
 	gafæ_­_m‘rics
 .
 	guniÿ¡_by‹s_£Á
@@ -1537049,7 +1537051,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2384 
+2385 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537059,7 +1537061,7 @@ affŸ‹d_­_m‘rics
 uniÿ¡_by‹s_£Á
 ()),
 
-2385 
+2386 
 	gafæ_­_m‘rics
 .
 	guniÿ¡_by‹s_»ûived
@@ -1537069,7 +1537071,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2386 
+2387 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537079,7 +1537081,7 @@ affŸ‹d_­_m‘rics
 uniÿ¡_by‹s_»ûived
 ()),
 
-2387 
+2388 
 	gafæ_­_m‘rics
 .
 	gmuÉiÿ¡_by‹s_£Á
@@ -1537089,7 +1537091,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2388 
+2389 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537099,7 +1537101,7 @@ affŸ‹d_­_m‘rics
 muÉiÿ¡_by‹s_£Á
 ()),
 
-2389 
+2390 
 	gafæ_­_m‘rics
 .
 	gmuÉiÿ¡_by‹s_»ûived
@@ -1537109,7 +1537111,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2390 
+2391 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537119,7 +1537121,7 @@ affŸ‹d_­_m‘rics
 muÉiÿ¡_by‹s_»ûived
 ()),
 
-2391 
+2392 
 	gafæ_­_m‘rics
 .
 	gbrßdÿ¡_by‹s_£Á
@@ -1537129,7 +1537131,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2392 
+2393 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537139,7 +1537141,7 @@ affŸ‹d_­_m‘rics
 brßdÿ¡_by‹s_£Á
 ()),
 
-2393 
+2394 
 	gafæ_­_m‘rics
 .
 	gbrßdÿ¡_by‹s_»ûived
@@ -1537149,7 +1537151,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2394 
+2395 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537159,7 +1537161,7 @@ affŸ‹d_­_m‘rics
 brßdÿ¡_by‹s_»ûived
 ());
 
-2396 ià(!
+2397 ià(!
 	gd©aba£
 .
 dm_£t_affŸ‹d_­_m‘rics
@@ -1537169,27 +1537171,27 @@ dm_£t_affŸ‹d_­_m‘rics
 afæ_­_m‘rics
 )) {
 
-2397 
+2398 
 LOG
 (
 ERROR
 ) << "Failedo set metrics for Affiliated AP: "
 
-2398 << 
+2399 << 
 	gaffŸ‹d_­_m‘rics
 ->
 bssid
 ();
 
-2399  
+2400  
 	gçl£
 ;
 
-2403  
+2404  
 	gŒue
 ;
 
-2406 
+2407 
 boŞ
  
 	gCÚŒŞËr
@@ -1537201,7 +1537203,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2407 
+2408 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1537209,7 +1537211,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2409 autØ
+2410 autØ
 ag’t
  = 
 d©aba£
@@ -1537221,11 +1537223,11 @@ g‘
 ¤c_mac
 );
 
-2411 ià(!
+2412 ià(!
 	gag’t
 ) {
 
-2412 
+2413 
 LOG
 (
 ERROR
@@ -1537233,11 +1537235,11 @@ ERROR
 	g¤c_mac
 ;
 
-2413  
+2414  
 	gçl£
 ;
 
-2416 autØ&
+2417 autØ&
 	gaffŸ‹d_¡a_m‘rics
  : 
 cmdu_rx
@@ -1537249,7 +1537251,7 @@ wç_m­
 vAffŸ‹dSM‘rics
 >()) {
 
-2418 
+2419 
 db
 ::
 sAffŸ‹dSM‘rics
@@ -1537257,7 +1537259,7 @@ sAffŸ‹dSM‘rics
 afæ_¡a_m‘rics
 ;
 
-2421 
+2422 
 	gafæ_¡a_m‘rics
 .
 	gby‹s_£Á
@@ -1537267,7 +1537269,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2422 
+2423 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537277,7 +1537279,7 @@ affŸ‹d_¡a_m‘rics
 by‹s_£Á
 ());
 
-2424 
+2425 
 	gafæ_¡a_m‘rics
 .
 	gby‹s_»ûived
@@ -1537287,7 +1537289,7 @@ d©aba£
 »ÿlcuÏ‹_©Œ_to_by‹_un™s
 (
 
-2425 
+2426 
 ag’t
 ->
 by‹_couÁ”_un™s
@@ -1537297,7 +1537299,7 @@ affŸ‹d_¡a_m‘rics
 by‹s_»ûived
 ());
 
-2427 
+2428 
 	gafæ_¡a_m‘rics
 .
 	g·ck‘s_»ûived
@@ -1537307,7 +1537309,7 @@ affŸ‹d_¡a_m‘rics
 ·ck‘s_»ûived
 ();
 
-2428 
+2429 
 	gafæ_¡a_m‘rics
 .
 	g·ck‘s_£Á
@@ -1537317,7 +1537319,7 @@ affŸ‹d_¡a_m‘rics
 ·ck‘s_£Á
 ();
 
-2429 
+2430 
 	gafæ_¡a_m‘rics
 .
 	g·ck‘s_£Á_”rÜs
@@ -1537327,7 +1537329,7 @@ affŸ‹d_¡a_m‘rics
 ·ck‘s_£Á_”rÜs
 ();
 
-2431 ià(!
+2432 ià(!
 	gd©aba£
 .
 dm_£t_affŸ‹d_¡a_m‘rics
@@ -1537337,31 +1537339,31 @@ affŸ‹d_¡a_m‘rics
 ¡a_mac_addr
 (),
 
-2432 
+2433 
 afæ_¡a_m‘rics
 )) {
 
-2433 
+2434 
 LOG
 (
 ERROR
 ) << "Failedo set metrics for Affiliated STA:"
 
-2434 << 
+2435 << 
 	gaffŸ‹d_¡a_m‘rics
 ->
 ¡a_mac_addr
 ();
 
-2435  
+2436  
 	gçl£
 ;
 
-2438  
+2439  
 	gŒue
 ;
 
-2441 
+2442 
 boŞ
  
 	gCÚŒŞËr
@@ -1537375,7 +1537377,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2443 
+2444 
 boŞ
  
 »t_v®
@@ -1537383,7 +1537385,7 @@ boŞ
 Œue
 ;
 
-2445 cÚ¡‡utØ&
+2446 cÚ¡‡utØ&
 	gvht_ÿps_v
  : 
 cmdu_rx
@@ -1537395,7 +1537397,7 @@ wç_m­
 vApVhtC­ab™›s
 >()) {
 
-2446 ià(!
+2447 ià(!
 d©aba£
 .
 £t_­_vht_ÿ·b™›s
@@ -1537403,23 +1537405,23 @@ d©aba£
 vht_ÿps_v
 )) {
 
-2447 
+2448 
 LOG
 (
 ERROR
 ) << "Couldn't set values for‡p VHTcapabilities data model";
 
-2448 
+2449 
 	g»t_v®
  = 
 çl£
 ;
 
-2451  
+2452  
 	g»t_v®
 ;
 
-2454 
+2455 
 boŞ
  
 	gCÚŒŞËr
@@ -1537433,13 +1537435,13 @@ CmduMes§geRx
 cmdu_rx
 ,
 
-2455 cÚ¡ 
+2456 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
 )
 
-2457 autØ
+2458 autØ
 	gag’t_­_mld_cÚfigu¿tiÚ_v
  = 
 cmdu_rx
@@ -1537451,25 +1537453,25 @@ wç_m­
 vAg’tApMldCÚfigu¿tiÚ
 >();
 
-2458 ià(!
+2459 ià(!
 	gag’t_­_mld_cÚfigu¿tiÚ_v
 ) {
 
-2459 
+2460 
 LOG
 (
 ERROR
 ) << "addClass wfa_map::tlvAgentApMldConfiguration failed";
 
-2460  
+2461  
 	gçl£
 ;
 
-2465  
+2466  
 	gŒue
 ;
 
-2468 
+2469 
 boŞ
  
 	gCÚŒŞËr
@@ -1537481,7 +1537483,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2469 
+2470 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1537489,7 +1537491,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2471 autØ
+2472 autØ
 mid
  = 
 cmdu_rx
@@ -1537497,7 +1537499,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-2472 
+2473 
 LOG
 (
 INFO
@@ -1537509,7 +1537511,7 @@ dec
 mid
 );
 
-2474  
+2475  
 hªdË_­_ÿ·b™y_»pÜt
 (
 ¤c_mac
@@ -1537519,7 +1537521,7 @@ cmdu_rx
 çl£
 );
 
-2477 
+2478 
 boŞ
  
 	gCÚŒŞËr
@@ -1537531,7 +1537533,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2478 
+2479 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1537539,7 +1537541,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2480 autØ
+2481 autØ
 mid
  = 
 cmdu_rx
@@ -1537547,7 +1537549,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-2481 
+2482 
 LOG
 (
 INFO
@@ -1537559,11 +1537561,11 @@ dec
 mid
 );
 
-2483 autØ
+2484 autØ
 	gİ”©šg_chªÃl_»pÜt_v
  :
 
-2484 
+2485 
 cmdu_rx
 .
 g‘CÏssLi¡
@@ -1537573,7 +1537575,7 @@ wç_m­
 vO³¿tšgChªÃlR•Üt
 >()) {
 
-2485 autØ&
+2486 autØ&
 ruid
  = 
 İ”©šg_chªÃl_»pÜt_v
@@ -1537581,7 +1537583,7 @@ ruid
 ¿dio_uid
 ();
 
-2486 autØ
+2487 autØ
 	gtx_pow”
  = 
 İ”©šg_chªÃl_»pÜt_v
@@ -1537589,7 +1537591,7 @@ ruid
 cu¼’t_Œªsm™_pow”
 ();
 
-2492 
+2493 
 	gd©aba£
 .
 »move_cu¼’t_İ_şas£s
@@ -1537597,7 +1537599,7 @@ cu¼’t_Œªsm™_pow”
 ruid
 );
 
-2494 
+2495 
 LOG
 (
 INFO
@@ -1537609,21 +1537611,21 @@ INFO
 dec
 
 
-2495 << (
+2496 << (
 tx_pow”
 );
 
-2497 autØ
+2498 autØ
 	gİ”©šg_şas£s_li¡_Ëngth
  =
 
-2498 
+2499 
 İ”©šg_chªÃl_»pÜt_v
 ->
 İ”©šg_şas£s_li¡_Ëngth
 ();
 
-2500 
+2501 
 ušt8_t
  
 	goc
@@ -1537631,7 +1537633,7 @@ ušt8_t
 	gİ”©šg_şas£s_li¡_Ëngth
 ; oc++) {
 
-2501 autØ
+2502 autØ
 	gİ”©šg_şass_tu¶e
  = 
 İ”©šg_chªÃl_»pÜt_v
@@ -1537641,7 +1537643,7 @@ ušt8_t
 oc
 );
 
-2502 ià(!
+2503 ià(!
 	g¡d
 ::
 g‘
@@ -1537649,17 +1537651,17 @@ g‘
 İ”©šg_şass_tu¶e
 )) {
 
-2503 
+2504 
 LOG
 (
 ERROR
 ) << "getting operating classƒntry has failed!";
 
-2504  
+2505  
 	gçl£
 ;
 
-2507 autØ&
+2508 autØ&
 	gİ”©šg_şass_¡ruù
  = 
 ¡d
@@ -1537669,7 +1537671,7 @@ g‘
 İ”©šg_şass_tu¶e
 );
 
-2508 autØ
+2509 autØ
 	gİ”©šg_şass
  = 
 İ”©šg_şass_¡ruù
@@ -1537677,7 +1537679,7 @@ g‘
 İ”©šg_şass
 ;
 
-2509 autØ
+2510 autØ
 	gchªÃl
  = 
 İ”©šg_şass_¡ruù
@@ -1537685,7 +1537687,7 @@ g‘
 chªÃl_numb”
 ;
 
-2514 ià(
+2515 ià(
 	gwœ–ess_uts
 ::
 g‘_bªdwidth_äom_İ_şass
@@ -1537693,7 +1537695,7 @@ g‘_bªdwidth_äom_İ_şass
 İ”©šg_şass
 ) ==
 
-2515 
+2516 
 b“rocks
 ::
 eWiFiBªdwidth
@@ -1537701,7 +1537703,7 @@ eWiFiBªdwidth
 BANDWIDTH_20
 ) {
 
-2516 
+2517 
 b“rocks
 ::
 WifiChªÃl
@@ -1537709,7 +1537711,7 @@ WifiChªÃl
 wifi_chªÃl
  = beerocks::WifiChannel(
 
-2517 
+2518 
 chªÃl
 , 
 wœ–ess_uts
@@ -1537719,7 +1537721,7 @@ which_äeq_İ_şs
 İ”©šg_şass
 ),
 
-2518 
+2519 
 b“rocks
 ::
 eWiFiBªdwidth
@@ -1537729,7 +1537731,7 @@ BANDWIDTH_20
 çl£
 );
 
-2520 ià(!
+2521 ià(!
 	gd©aba£
 .
 £t_¿dio_wifi_chªÃl
@@ -1537739,7 +1537741,7 @@ ruid
 wifi_chªÃl
 )) {
 
-2521 
+2522 
 LOG
 (
 ERROR
@@ -1537747,7 +1537749,7 @@ ERROR
 	gruid
 ;
 
-2525 
+2526 
 	gd©aba£
 .
 add_cu¼’t_İ_şass
@@ -1537761,11 +1537763,11 @@ chªÃl
 tx_pow”
 );
 
-2529 cÚ¡‡utØ&
+2530 cÚ¡‡utØ&
 	g¥©Ÿl_»u£_»pÜt_v
  :
 
-2530 
+2531 
 cmdu_rx
 .
 g‘CÏssLi¡
@@ -1537775,7 +1537777,7 @@ wç_m­
 vS·tŸlReu£R•Üt
 >()) {
 
-2532 ià(!
+2533 ià(!
 d©aba£
 .
 add_¥©Ÿl_»u£_·¿m‘”s
@@ -1537783,13 +1537785,13 @@ add_¥©Ÿl_»u£_·¿m‘”s
 ¥©Ÿl_»u£_»pÜt_v
 )) {
 
-2533 
+2534 
 LOG
 (
 ERROR
 ) << "Couldn't set values for‡p SpatialReuse data model";
 
-2538 ià(!
+2539 ià(!
 	gcmdu_tx
 .
 ü—‹
@@ -1537803,17 +1537805,17 @@ eMes§geTy³
 ACK_MESSAGE
 )) {
 
-2539 
+2540 
 LOG
 (
 ERROR
 ) << "cmdu creation ofype ACK_MESSAGE, has failed";
 
-2540  
+2541  
 	gçl£
 ;
 
-2543  
+2544  
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1537825,7 +1537827,7 @@ cmdu_tx
 d©aba£
 );
 
-2546 
+2547 
 boŞ
  
 	gCÚŒŞËr
@@ -1537837,7 +1537839,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2547 
+2548 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1537845,7 +1537847,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2549 cÚ¡‡utØ
+2550 cÚ¡‡utØ
 mid
  = 
 cmdu_rx
@@ -1537853,7 +1537855,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-2550 
+2551 
 LOG
 (
 DEBUG
@@ -1537865,7 +1537867,7 @@ hex
 mid
 );
 
-2552 autØ
+2553 autØ
 	gvHigh”Lay”D©a
  = 
 cmdu_rx
@@ -1537877,21 +1537879,21 @@ wç_m­
 vHigh”Lay”D©a
 >();
 
-2553 ià(!
+2554 ià(!
 	gvHigh”Lay”D©a
 ) {
 
-2554 
+2555 
 LOG
 (
 ERROR
 ) << "addClass wfa_map::tlvHigherLayerData failed";
 
-2555  
+2556  
 	gçl£
 ;
 
-2558 cÚ¡‡utØ
+2559 cÚ¡‡utØ
 	g´ÙocŞ
  = 
 vHigh”Lay”D©a
@@ -1537899,7 +1537901,7 @@ ERROR
 ´ÙocŞ
 ();
 
-2559 cÚ¡‡utØ
+2560 cÚ¡‡utØ
 	g·ylßd_Ëngth
  = 
 vHigh”Lay”D©a
@@ -1537907,7 +1537909,7 @@ ERROR
 ·ylßd_Ëngth
 ();
 
-2560 
+2561 
 LOG
 (
 DEBUG
@@ -1537919,7 +1537921,7 @@ hex
 ´ÙocŞ
 ;
 
-2561 
+2562 
 LOG
 (
 DEBUG
@@ -1537927,7 +1537929,7 @@ DEBUG
 	g·ylßd_Ëngth
 );
 
-2564 autØ
+2565 autØ
 	gcmdu_tx_h—d”
  = 
 cmdu_tx
@@ -1537943,21 +1537945,21 @@ eMes§geTy³
 ACK_MESSAGE
 );
 
-2565 ià(!
+2566 ià(!
 	gcmdu_tx_h—d”
 ) {
 
-2566 
+2567 
 LOG
 (
 ERROR
 ) << "cmdu creation ofype ACK_MESSAGE, has failed";
 
-2567  
+2568  
 	gçl£
 ;
 
-2569 
+2570 
 LOG
 (
 DEBUG
@@ -1537969,7 +1537971,7 @@ hex
 mid
 );
 
-2570  
+2571  
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1537981,7 +1537983,7 @@ cmdu_tx
 d©aba£
 );
 
-2573 
+2574 
 boŞ
  
 	gCÚŒŞËr
@@ -1537993,7 +1537995,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2574 
+2575 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1538001,7 +1538003,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2576 autØ
+2577 autØ
 mid
  = 
 cmdu_rx
@@ -1538009,7 +1538011,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-2577 
+2578 
 LOG
 (
 DEBUG
@@ -1538021,11 +1538023,11 @@ DEBUG
 hex
 
 
-2578 << 
+2579 << 
 mid
 ;
 
-2580 autØ
+2581 autØ
 	gv_backhaul_¡a_¡“ršg_»¥
  = 
 cmdu_rx
@@ -1538037,21 +1538039,21 @@ wç_m­
 vBackhaulS‹”šgRe¥Ú£
 >();
 
-2581 ià(!
+2582 ià(!
 	gv_backhaul_¡a_¡“ršg_»¥
 ) {
 
-2582 
+2583 
 LOG
 (
 ERROR
 ) << "Failed getClass<wfa_map::tlvBackhaulSteeringResponse>";
 
-2583  
+2584  
 	gçl£
 ;
 
-2586 autØ
+2587 autØ
 	gbh_¡“ršg_»¥_code
  = 
 v_backhaul_¡a_¡“ršg_»¥
@@ -1538059,7 +1538061,7 @@ ERROR
 »suÉ_code
 ();
 
-2587 
+2588 
 LOG
 (
 DEBUG
@@ -1538067,11 +1538069,11 @@ DEBUG
 	gbh_¡“ršg_»¥_code
 );
 
-2589 ià(
+2590 ià(
 	gbh_¡“ršg_»¥_code
 ) {
 
-2590 autØ
+2591 autØ
 	g”rÜ_code_v
  = 
 cmdu_rx
@@ -1538083,33 +1538085,33 @@ wç_m­
 vE¼ÜCode
 >();
 
-2591 ià(!
+2592 ià(!
 	g”rÜ_code_v
 ) {
 
-2592 
+2593 
 LOG
 (
 ERROR
 ) << "Failed getClass<wfa_map::tlvErrorCode>";
 
-2593  
+2594  
 	gçl£
 ;
 
-2595 
+2596 
 LOG
 (
 DEBUG
 ) << "BACKHAUL_STA_STEERING_MESSAGEƒrror_code: "
 
-2596 << (
+2597 << (
 	g”rÜ_code_v
 ->
 »asÚ_code
 ());
 
-2600 autØ
+2601 autØ
 	gcmdu_tx_h—d”
  = 
 cmdu_tx
@@ -1538125,21 +1538127,21 @@ eMes§geTy³
 ACK_MESSAGE
 );
 
-2601 ià(!
+2602 ià(!
 	gcmdu_tx_h—d”
 ) {
 
-2602 
+2603 
 LOG
 (
 ERROR
 ) << "cmdu creation ofype ACK_MESSAGE, has failed";
 
-2603  
+2604  
 	gçl£
 ;
 
-2606 
+2607 
 LOG
 (
 DEBUG
@@ -1538151,7 +1538153,7 @@ hex
 mid
 ;
 
-2608  
+2609  
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1538163,7 +1538165,7 @@ cmdu_tx
 d©aba£
 );
 
-2611 
+2612 
 boŞ
  
 	gCÚŒŞËr
@@ -1538175,7 +1538177,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2612 
+2613 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1538183,7 +1538185,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2614 autØ
+2615 autØ
 mid
  = 
 cmdu_rx
@@ -1538191,7 +1538193,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-2615 
+2616 
 LOG
 (
 DEBUG
@@ -1538205,7 +1538207,7 @@ hex
 mid
 ;
 
-2618 autØ
+2619 autØ
 	gsourû_šfo_v
  = 
 cmdu_rx
@@ -1538217,21 +1538219,21 @@ wç_m­
 vTuÂ–ËdSourûInfo
 >();
 
-2619 ià(!
+2620 ià(!
 	gsourû_šfo_v
 ) {
 
-2620 
+2621 
 LOG
 (
 ERROR
 ) << "Failed…arsinglvTunnelledSourceInfo!";
 
-2621  
+2622  
 	gçl£
 ;
 
-2625 autØ
+2626 autØ
 	gty³_v
  = 
 cmdu_rx
@@ -1538243,21 +1538245,21 @@ wç_m­
 vTuÂ–ËdPrÙocŞTy³
 >();
 
-2626 ià(!
+2627 ià(!
 	gty³_v
 ) {
 
-2627 
+2628 
 LOG
 (
 ERROR
 ) << "Failed…arsinglvTunnelledProtocolType!";
 
-2628  
+2629  
 	gçl£
 ;
 
-2632 autØ
+2633 autØ
 	gd©a_v
  = 
 cmdu_rx
@@ -1538269,21 +1538271,21 @@ wç_m­
 vTuÂ–ËdD©a
 >();
 
-2633 ià(!
+2634 ià(!
 	gd©a_v
 ) {
 
-2634 
+2635 
 LOG
 (
 ERROR
 ) << "Failed…arsinglvTunnelledData!";
 
-2635  
+2636  
 	gçl£
 ;
 
-2638 
+2639 
 LOG
 (
 DEBUG
@@ -1538297,7 +1538299,7 @@ mac
 hex
 
 
-2639 << (
+2640 << (
 ty³_v
 ->
 ´ÙocŞ_ty³
@@ -1538307,7 +1538309,7 @@ ty³_v
 dec
 
 
-2640 << 
+2641 << 
 d©a_v
 ->
 d©a_Ëngth
@@ -1538317,7 +1538319,7 @@ d©a_Ëngth
 ’dl
 
 
-2641 << 
+2642 << 
 b“rocks
 ::
 uts
@@ -1538331,13 +1538333,13 @@ d©a
 d©a_Ëngth
 ());
 
-2643 ià(
+2644 ià(
 	gty³_v
 ->
 ´ÙocŞ_ty³
 () ==
 
-2644 
+2645 
 wç_m­
 ::
 vTuÂ–ËdPrÙocŞTy³
@@ -1538347,7 +1538349,7 @@ eTuÂ–ËdPrÙocŞTy³
 ASSOCIATION_REQUEST
 ) {
 
-2645 autØ
+2646 autØ
 assoc_äame
  =‡ssoc_äame::
 AssocReqF¿me
@@ -1538355,7 +1538357,7 @@ AssocReqF¿me
 ·r£
 (
 
-2646 
+2647 
 d©a_v
 ->
 d©a
@@ -1538363,7 +1538365,7 @@ d©a
 d©a_Ëngth
 (),
 
-2647 
+2648 
 assoc_äame
 ::
 AssocReqF¿me
@@ -1538373,23 +1538375,23 @@ eF¿meTy³
 ASSOCIATION_REQUEST
 );
 
-2648 ià(!
+2649 ià(!
 	gassoc_äame
 ) {
 
-2649 
+2650 
 LOG
 (
 ERROR
 ) << "Failedo…arse Association Request frame";
 
-2652 ià(
+2653 ià(
 	gty³_v
 ->
 ´ÙocŞ_ty³
 () ==
 
-2653 
+2654 
 wç_m­
 ::
 vTuÂ–ËdPrÙocŞTy³
@@ -1538399,7 +1538401,7 @@ eTuÂ–ËdPrÙocŞTy³
 REASSOCIATION_REQUEST
 ) {
 
-2654 autØ
+2655 autØ
 »assoc_äame
  = 
 assoc_äame
@@ -1538409,7 +1538411,7 @@ AssocReqF¿me
 ·r£
 (
 
-2655 
+2656 
 d©a_v
 ->
 d©a
@@ -1538417,7 +1538419,7 @@ d©a
 d©a_Ëngth
 (),
 
-2656 
+2657 
 assoc_äame
 ::
 AssocReqF¿me
@@ -1538427,21 +1538429,21 @@ eF¿meTy³
 REASSOCIATION_REQUEST
 );
 
-2657 ià(!
+2658 ià(!
 	g»assoc_äame
 ) {
 
-2658 
+2659 
 LOG
 (
 ERROR
 ) << "Failedo…arse Reassociation Request frame";
 
-2670  
+2671  
 	gŒue
 ;
 
-2673 
+2674 
 boŞ
  
 	gCÚŒŞËr
@@ -1538449,7 +1538451,7 @@ boŞ
 hªdË_cmdu_1905_backhaul_¡a_ÿ·b™y_»pÜt_mes§ge
 (
 
-2674 cÚ¡ 
+2675 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
@@ -1538461,7 +1538463,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2676 autØ
+2677 autØ
 mid
  = 
 cmdu_rx
@@ -1538469,7 +1538471,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-2677 
+2678 
 LOG
 (
 DEBUG
@@ -1538481,15 +1538483,15 @@ hex
 mid
 
 
-2678 << " from " << 
+2679 << " from " << 
 ¤c_mac
 ;
 
-2680 autØ
+2681 autØ
 	gbh_¡a_¿dio_ÿp_v
  :
 
-2681 
+2682 
 cmdu_rx
 .
 g‘CÏssLi¡
@@ -1538499,21 +1538501,21 @@ wç_m­
 vBackhaulSRadioC­ab™›s
 >()) {
 
-2682 ià(!
+2683 ià(!
 bh_¡a_¿dio_ÿp_v
 ) {
 
-2683 
+2684 
 LOG
 (
 ERROR
 ) << "Failedo getlvBackhaulStaRadioCapabilities!";
 
-2684  
+2685  
 	gçl£
 ;
 
-2687 autØ
+2688 autØ
 	g¿dio
  = 
 d©aba£
@@ -1538525,21 +1538527,21 @@ bh_¡a_¿dio_ÿp_v
 ruid
 ());
 
-2688 ià(!
+2689 ià(!
 	g¿dio
 ) {
 
-2689  
+2690  
 	gçl£
 ;
 
-2692 ià(
+2693 ià(
 	gbh_¡a_¿dio_ÿp_v
 ->
 ¡a_mac_šşuded
 ()) {
 
-2693 
+2694 
 	g¿dio
 ->
 	gbackhaul_¡©iÚ_mac
@@ -1538549,13 +1538551,13 @@ bh_¡a_¿dio_ÿp_v
 ¡a_mac
 ();
 
-2695 
+2696 
 LOG
 (
 INFO
 ) << "STA MAC is‚ot included in Backhaul STA Capability Report.";
 
-2696 
+2697 
 	g¿dio
 ->
 	gbackhaul_¡©iÚ_mac
@@ -1538569,7 +1538571,7 @@ b“rocks
 ZERO_MAC
 ;
 
-2699 autØ
+2700 autØ
 	g¡a_·»Á
  = 
 d©aba£
@@ -1538585,7 +1538587,7 @@ mac_to_¡ršg
 backhaul_¡©iÚ_mac
 ));
 
-2700 
+2701 
 LOG
 (
 DEBUG
@@ -1538595,7 +1538597,7 @@ DEBUG
 ruid
 ()
 
-2701 << " i ¡a_mac=" << 
+2702 << " i ¡a_mac=" << 
 	g¿dio
 ->
 	gbackhaul_¡©iÚ_mac
@@ -1538603,7 +1538605,7 @@ ruid
 	g¡a_·»Á
 ;
 
-2703 ià(
+2704 ià(
 	g¿dio
 ->
 	gbackhaul_¡©iÚ_mac
@@ -1538617,7 +1538619,7 @@ b“rocks
 ZERO_MAC
 ) {
 
-2704 
+2705 
 d©aba£
 .
 add_backhaul_¡©iÚ
@@ -1538627,7 +1538629,7 @@ add_backhaul_¡©iÚ
 backhaul_¡©iÚ_mac
 ,
 
-2705 
+2706 
 vf
 ::
 mac_äom_¡ršg
@@ -1538637,7 +1538639,7 @@ mac_äom_¡ršg
 ¤c_mac
 );
 
-2707 
+2708 
 	gd©aba£
 .
 dm_£t_¿dio_bh_¡a
@@ -1538647,11 +1538649,11 @@ dm_£t_¿dio_bh_¡a
 backhaul_¡©iÚ_mac
 );
 
-2709  
+2710  
 	gŒue
 ;
 
-2712 
+2713 
 boŞ
  
 	gCÚŒŞËr
@@ -1538663,7 +1538665,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2713 
+2714 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1538671,13 +1538673,13 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2715 
+2716 
 LOG
 (
 DEBUG
 ) << "Received Failed Connection Message for STA";
 
-2717 autØ
+2718 autØ
 	gbssid_v
  = 
 cmdu_rx
@@ -1538689,21 +1538691,21 @@ wç_m­
 vBssid
 >();
 
-2718 ià(!
+2719 ià(!
 	gbssid_v
 ) {
 
-2719 
+2720 
 LOG
 (
 ERROR
 ) << "Failedo getlvBssid!";
 
-2720  
+2721  
 	gçl£
 ;
 
-2723 autØ
+2724 autØ
 	g¡a_mac_v
  = 
 cmdu_rx
@@ -1538715,21 +1538717,21 @@ wç_m­
 vSMacAdd»ssTy³
 >();
 
-2724 ià(!
+2725 ià(!
 	g¡a_mac_v
 ) {
 
-2725 
+2726 
 LOG
 (
 ERROR
 ) << "Failedo getlvStaMacAddressType!";
 
-2726  
+2727  
 	gçl£
 ;
 
-2728 
+2729 
 LOG
 (
 DEBUG
@@ -1538739,17 +1538741,17 @@ DEBUG
 ¡a_mac
 ()
 
-2729 << " bssid = " << 
+2730 << " bssid = " << 
 	gbssid_v
 ->
 bssid
 ();
 
-2731 autØ
+2732 autØ
 	g¡©us_code
  = 0x0001;
 
-2732 autØ
+2733 autØ
 	g´ofe2_¡©us_code_v
  = 
 cmdu_rx
@@ -1538761,7 +1538763,7 @@ wç_m­
 vProfe2StusCode
 >();
 
-2733 autØ
+2734 autØ
 	gag’t
  = 
 d©aba£
@@ -1538773,11 +1538775,11 @@ g‘
 ¤c_mac
 );
 
-2735 ià(!
+2736 ià(!
 	gag’t
 ) {
 
-2736 
+2737 
 LOG
 (
 ERROR
@@ -1538785,11 +1538787,11 @@ ERROR
 	g¤c_mac
 ;
 
-2737  
+2738  
 	gçl£
 ;
 
-2739 ià(
+2740 ià(
 	gag’t
 ->
 	g´ofe
@@ -1538803,11 +1538805,11 @@ eMuÉiApProfe
 MULTIAP_PROFILE_1
  &&
 
-2740 !
+2741 !
 ´ofe2_¡©us_code_v
 ) {
 
-2741 
+2742 
 LOG
 (
 ERROR
@@ -1538815,17 +1538817,17 @@ ERROR
 ¤c_mac
 
 
-2742 << " w™h…rof’um " << 
+2743 << " w™h…rof’um " << 
 ag’t
 ->
 ´ofe
 ;
 
-2744 ià(
+2745 ià(
 	g´ofe2_¡©us_code_v
 ) {
 
-2745 
+2746 
 	g¡©us_code
  = 
 ´ofe2_¡©us_code_v
@@ -1538833,7 +1538835,7 @@ ag’t
 ¡©us_code
 ();
 
-2748 autØ
+2749 autØ
 	g»asÚ_code
  = 
 wç_m­
@@ -1538843,7 +1538845,7 @@ wç_m­
 UNSPECIFIED_REASON
 ;
 
-2749 autØ
+2750 autØ
 	g´ofe2_»asÚ_code_v
  = 
 cmdu_rx
@@ -1538855,7 +1538857,7 @@ wç_m­
 vProfe2R—sÚCode
 >();
 
-2751 ià(
+2752 ià(
 	gag’t
 ->
 	g´ofe
@@ -1538869,11 +1538871,11 @@ eMuÉiApProfe
 MULTIAP_PROFILE_1
  &&
 
-2752 !
+2753 !
 ´ofe2_»asÚ_code_v
 ) {
 
-2753 
+2754 
 LOG
 (
 ERROR
@@ -1538881,17 +1538883,17 @@ ERROR
 ¤c_mac
 
 
-2754 << " w™h…rof’um " << 
+2755 << " w™h…rof’um " << 
 ag’t
 ->
 ´ofe
 ;
 
-2756 ià(
+2757 ià(
 	g´ofe2_»asÚ_code_v
 ) {
 
-2757 
+2758 
 	g»asÚ_code
  = 
 ´ofe2_»asÚ_code_v
@@ -1538899,11 +1538901,11 @@ ag’t
 »asÚ_code
 ();
 
-2759 ià(
+2760 ià(
 	g¡©us_code
  != 0) {
 
-2760 ià(!
+2761 ià(!
 d©aba£
 .
 dm_add_çed_cÚÃùiÚ_ev’t
@@ -1538917,27 +1538919,27 @@ bssid
 ¡a_mac
 (),
 
-2761 
+2762 
 »asÚ_code
 , 
 ¡©us_code
 )) {
 
-2762 
+2763 
 LOG
 (
 ERROR
 ) << "Failedo‡dd FailedConnectionEvent.";
 
-2763  
+2764  
 	gçl£
 ;
 
-2766  
+2767  
 	gŒue
 ;
 
-2769 
+2770 
 boŞ
  
 	gCÚŒŞËr
@@ -1538949,7 +1538951,7 @@ sMacAddr
 ¤c_mac
 ,
 
-2770 
+2771 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1538957,7 +1538959,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-2774 autØ
+2775 autØ
 mid
  = 
 cmdu_rx
@@ -1538965,7 +1538967,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-2775 
+2776 
 LOG
 (
 DEBUG
@@ -1538977,11 +1538979,11 @@ hex
 mid
 ;
 
-2776  
+2777  
 	gŒue
 ;
 
-2779 
+2780 
 boŞ
  
 	gCÚŒŞËr
@@ -1538989,7 +1538991,7 @@ boŞ
 hªdË_š‹l_¦ave_još
 (
 
-2780 cÚ¡ 
+2781 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
@@ -1539005,7 +1539007,7 @@ wç_m­
 ¿dio_ÿps
 ,
 
-2781 
+2782 
 b“rocks
 ::
 b“rocks_h—d”
@@ -1539017,7 +1539019,7 @@ CmduMes§geTx
 cmdu_tx
 ,
 
-2782 cÚ¡ 
+2783 cÚ¡ 
 ¡d
 ::
 sh¬ed_±r
@@ -1539027,11 +1539029,11 @@ Ag’t
 ag’t
 )
 
-2785 autØ
+2786 autØ
 još_»¥Ú£
  =
 
-2786 
+2787 
 b“rocks
 ::
 mes§ge_com
@@ -1539043,25 +1539045,25 @@ b“rocks_mes§ge
 cACTION_CONTROL_SLAVE_JOINED_RESPONSE
 >(
 
-2787 
+2788 
 cmdu_tx
 );
 
-2788 ià(!
+2789 ià(!
 	gjoš_»¥Ú£
 ) {
 
-2789 
+2790 
 LOG
 (
 ERROR
 ) << "Failed‡dding intel vendor specific TLV";
 
-2790  
+2791  
 	gçl£
 ;
 
-2793 ià(
+2794 ià(
 	gb“rocks_h—d”
 .
 aùiÚ_İ
@@ -1539071,7 +1539073,7 @@ b“rocks_mes§ge
 ACTION_CONTROL_SLAVE_JOINED_NOTIFICATION
 ) {
 
-2794 
+2795 
 LOG
 (
 ERROR
@@ -1539081,15 +1539083,15 @@ b“rocks_h—d”
 aùiÚ_İ
 ();
 
-2795  
+2796  
 	gçl£
 ;
 
-2798 autØ
+2799 autØ
 	gnÙifiÿtiÚ
  =
 
-2799 
+2800 
 b“rocks_h—d”
 .
 addCÏss
@@ -1539099,31 +1539101,31 @@ b“rocks_mes§ge
 cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION
 >();
 
-2800 ià(!
+2801 ià(!
 	gnÙifiÿtiÚ
 ) {
 
-2801 
+2802 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION failed";
 
-2802  
+2803  
 	gçl£
 ;
 
-2807 
+2808 
 LOG
 (
 DEBUG
 ) << "prplMesh‡gent:„eceived cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION from "
 
-2808 << 
+2809 << 
 	g¤c_mac
 ;
 
-2809 
+2810 
 	gd©aba£
 .
 £t_´¶mesh
@@ -1539131,7 +1539133,7 @@ DEBUG
 ¤c_mac
 );
 
-2811 
+2812 
 	g¡d
 ::
 ¡ršg
@@ -1539139,7 +1539141,7 @@ DEBUG
 ¦ave_v”siÚ
  =
 
-2812 
+2813 
 ¡d
 ::
 ¡ršg
@@ -1539155,7 +1539157,7 @@ mes§ge
 VERSION_LENGTH
 ));
 
-2813 
+2814 
 sMacAddr
  
 	g¿dio_mac
@@ -1539167,7 +1539169,7 @@ ho¡­
 içû_mac
 ;
 
-2814 
+2815 
 sMacAddr
  
 	g·»Á_bssid_mac
@@ -1539179,7 +1539181,7 @@ backhaul_·¿ms
 backhaul_bssid
 ;
 
-2815 
+2816 
 	g¡d
 ::
 ¡ršg
@@ -1539195,7 +1539197,7 @@ nÙifiÿtiÚ
 backhaul_·¿ms
 ().backhaul_mac);
 
-2816 
+2817 
 	g¡d
 ::
 ¡ršg
@@ -1539203,7 +1539205,7 @@ backhaul_·¿ms
 backhaul_v4
  =
 
-2817 
+2818 
 b“rocks
 ::
 Ãt
@@ -1539219,7 +1539221,7 @@ backhaul_·¿ms
 backhaul_v4
 );
 
-2818 
+2819 
 	gb“rocks
 ::
 eIçûTy³
@@ -1539227,7 +1539229,7 @@ eIçûTy³
 backhaul_içû_ty³
  =
 
-2819 (
+2820 (
 b“rocks
 ::
 eIçûTy³
@@ -1539239,7 +1539241,7 @@ backhaul_·¿ms
 backhaul_içû_ty³
 ;
 
-2820 
+2821 
 boŞ
  
 	gis_gw_¦ave
@@ -1539251,7 +1539253,7 @@ b“rocks
 IFACE_TYPE_GW_BRIDGE
 );
 
-2821 
+2822 
 	gb“rocks
 ::
 eTy³
@@ -1539267,7 +1539269,7 @@ TYPE_GW
 TYPE_IRE
 ;
 
-2822 
+2823 
 	gbackhaul_chªÃl
  = 
 nÙifiÿtiÚ
@@ -1539277,7 +1539279,7 @@ backhaul_·¿ms
 backhaul_chªÃl
 ;
 
-2823 
+2824 
 sMacAddr
  
 	gbridge_mac
@@ -1539287,7 +1539289,7 @@ ag’t
 ®_mac
 ;
 
-2824 
+2825 
 	g¡d
 ::
 ¡ršg
@@ -1539301,7 +1539303,7 @@ mac_to_¡ršg
 bridge_mac
 );
 
-2825 
+2826 
 	g¡d
 ::
 ¡ršg
@@ -1539309,7 +1539311,7 @@ bridge_mac
 bridge_v4
  =
 
-2826 
+2827 
 b“rocks
 ::
 Ãt
@@ -1539325,7 +1539327,7 @@ backhaul_·¿ms
 bridge_v4
 );
 
-2827 
+2828 
 boŞ
  
 	gbackhaul_mªag”
@@ -1539337,7 +1539339,7 @@ backhaul_·¿ms
 is_backhaul_mªag”
 ;
 
-2828 
+2829 
 boŞ
  
 	gacs_’abËd
@@ -1539349,7 +1539351,7 @@ wÏn_£‰šgs
 chªÃl
  == 0);
 
-2830 
+2831 
 	g¡d
 ::
 ¡ršg
@@ -1539357,15 +1539359,15 @@ chªÃl
 gw_Çme
 ;
 
-2831 ià(
+2832 ià(
 	gis_gw_¦ave
 ) {
 
-2832 
+2833 
 	ggw_Çme
  =
 
-2834 
+2835 
 ¡d
 ::
 ¡ršg
@@ -1539377,7 +1539379,7 @@ nÙifiÿtiÚ
 loÿl_ma¡”
  ? "_MASTER" : "_SLAVE_ONLY");
 
-2836 
+2837 
 	g¡d
 ::
 ¡ršg
@@ -1539385,15 +1539387,15 @@ loÿl_ma¡”
 ¦ave_Çme
  =
 
-2837 
+2838 
 is_gw_¦ave
 
 
-2838 ? 
+2839 ? 
 gw_Çme
 
 
-2840 (
+2841 (
 nÙifiÿtiÚ
 ->
 ¶©fÜm_£‰šgs
@@ -1539405,7 +1539407,7 @@ loÿl_ma¡”
 ¡ršg
 ()) +
 
-2841 
+2842 
 bridge_mac_¡r
 .
 sub¡r
@@ -1539413,7 +1539415,7 @@ sub¡r
 size
 () - 5, bridge_mac_str.size() - 1));
 
-2843 
+2844 
 LOG
 (
 INFO
@@ -1539423,7 +1539425,7 @@ INFO
 ’dl
 
 
-2844 << " sÏve_v”siÚ=" << 
+2845 << " sÏve_v”siÚ=" << 
 ¦ave_v”siÚ
  << 
 ¡d
@@ -1539431,7 +1539433,7 @@ INFO
 ’dl
 
 
-2845 << " sÏve_Çme=" << 
+2846 << " sÏve_Çme=" << 
 ¦ave_Çme
  << 
 ¡d
@@ -1539439,7 +1539441,7 @@ INFO
 ’dl
 
 
-2846 << "…¬’t_bssid_mac=" << 
+2847 << "…¬’t_bssid_mac=" << 
 ·»Á_bssid_mac
  << 
 ¡d
@@ -1539447,7 +1539449,7 @@ INFO
 ’dl
 
 
-2847 << " backhaul_mac=" << 
+2848 << " backhaul_mac=" << 
 backhaul_mac
  << 
 ¡d
@@ -1539455,7 +1539457,7 @@ backhaul_mac
 ’dl
 
 
-2848 << " backhaul_v4=" << 
+2849 << " backhaul_v4=" << 
 backhaul_v4
  << 
 ¡d
@@ -1539463,7 +1539465,7 @@ backhaul_v4
 ’dl
 
 
-2849 << " bridge_mac=" << 
+2850 << " bridge_mac=" << 
 bridge_mac
  << 
 ¡d
@@ -1539471,7 +1539473,7 @@ bridge_mac
 ’dl
 
 
-2850 << " bridge_v4=" << 
+2851 << " bridge_v4=" << 
 bridge_v4
  << 
 ¡d
@@ -1539479,7 +1539481,7 @@ bridge_v4
 ’dl
 
 
-2851 << " backhaul_mªag”=" << (
+2852 << " backhaul_mªag”=" << (
 backhaul_mªag”
 è<< 
 ¡d
@@ -1539487,7 +1539489,7 @@ backhaul_mªag”
 ’dl
 
 
-2852 << " backhaul_ty³=" << 
+2853 << " backhaul_ty³=" << 
 b“rocks
 ::
 uts
@@ -1539497,13 +1539499,13 @@ g‘_içû_ty³_¡ršg
 backhaul_içû_ty³
 )
 
-2853 << 
+2854 << 
 ¡d
 ::
 ’dl
 
 
-2854 << "†ow_·ss_f‹r_Ú = " << (
+2855 << "†ow_·ss_f‹r_Ú = " << (
 nÙifiÿtiÚ
 ->
 low_·ss_f‹r_Ú
@@ -1539513,7 +1539515,7 @@ low_·ss_f‹r_Ú
 ’dl
 
 
-2855 << "„adio_maøğ" << 
+2856 << "„adio_maøğ" << 
 ¿dio_mac
  << 
 ¡d
@@ -1539521,7 +1539523,7 @@ low_·ss_f‹r_Ú
 ’dl
 
 
-2856 << " chªÃÈğ" << (
+2857 << " chªÃÈğ" << (
 nÙifiÿtiÚ
 ->
 wÏn_£‰šgs
@@ -1539533,7 +1539535,7 @@ chªÃl
 ’dl
 
 
-2857 << " is_gw_¦avğ" << (
+2858 << " is_gw_¦avğ" << (
 is_gw_¦ave
 è<< 
 ¡d
@@ -1539541,11 +1539543,11 @@ is_gw_¦ave
 ’dl
 ;
 
-2859 ià(!
+2860 ià(!
 	gis_gw_¦ave
 ) {
 
-2863 ià(!
+2864 ià(!
 	gnÙifiÿtiÚ
 ->
 ¶©fÜm_£‰šgs
@@ -1539553,7 +1539555,7 @@ is_gw_¦ave
 	gloÿl_ma¡”
 ) {
 
-2865 ià((
+2866 ià((
 	g·»Á_bssid_mac
  !ğ
 b“rocks
@@ -1539565,7 +1539567,7 @@ b“rocks
 ZERO_MAC
 ) &&
 
-2866 (!
+2867 (!
 d©aba£
 .
 g‘_bss
@@ -1539573,7 +1539575,7 @@ g‘_bss
 ·»Á_bssid_mac
 ) ||
 
-2867 (!
+2868 (!
 d©aba£
 .
 g‘_bss
@@ -1539583,19 +1539585,19 @@ g‘_bss
 ’abËd
 ))) {
 
-2868 
+2869 
 LOG
 (
 DEBUG
 ) << "sending back join„eject!";
 
-2869 
+2870 
 LOG
 (
 DEBUG
 ) << "reject_debug:…arent_bssid_has_node="
 
-2870 << ()(
+2871 << ()(
 	gd©aba£
 .
 g‘_bss
@@ -1539605,7 +1539607,7 @@ g‘_bss
 nuÎ±r
 );
 
-2872 
+2873 
 	gjoš_»¥Ú£
 ->
 ”r_code
@@ -1539615,7 +1539617,7 @@ b“rocks
 JOIN_RESP_REJECT
 ;
 
-2873  
+2874  
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1539627,7 +1539629,7 @@ cmdu_tx
 d©aba£
 );
 
-2878 
+2879 
 	g¡d
 ::
 sh¬ed_±r
@@ -1539647,7 +1539649,7 @@ mac_äom_¡ršg
 backhaul_mac
 ));
 
-2879 ià(
+2880 ià(
 	gbh_¡a
  && !bh_¡a->
 is_bS
@@ -1539659,7 +1539661,7 @@ b“rocks
 STATE_CONNECTED
 ) {
 
-2880 
+2881 
 LOG
 (
 DEBUG
@@ -1539667,7 +1539669,7 @@ DEBUG
 backhaul_mac
 
 
-2882 
+2883 
 	gbml_sk
 ::
 cÚÃùiÚ_chªge_ev’t
@@ -1539675,7 +1539677,7 @@ cÚÃùiÚ_chªge_ev’t
 Ãw_ev’t
 ;
 
-2883 
+2884 
 	gÃw_ev’t
 .
 	gmac
@@ -1539683,7 +1539685,7 @@ cÚÃùiÚ_chªge_ev’t
 backhaul_mac
 ;
 
-2884 
+2885 
 	gÃw_ev’t
 .
 	gfÜû_ş›Á_discÚÃù
@@ -1539691,7 +1539693,7 @@ backhaul_mac
 Œue
 ;
 
-2885 
+2886 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1539705,11 +1539707,11 @@ bml_sk
 CONNECTION_CHANGE
 ,
 
-2886 &
+2887 &
 Ãw_ev’t
 );
 
-2890 ià(
+2891 ià(
 	g·»Á_bssid_mac
  !ğ
 b“rocks
@@ -1539721,7 +1539723,7 @@ b“rocks
 ZERO_MAC
 ) {
 
-2892 
+2893 
 LOG
 (
 DEBUG
@@ -1539729,15 +1539731,15 @@ DEBUG
 backhaul_mac
 
 
-2893 << ",…¬’t_bssid_maøğ" << 
+2894 << ",…¬’t_bssid_maøğ" << 
 ·»Á_bssid_mac
 
 
-2894 << ", bridge_maøğ" << 
+2895 << ", bridge_maøğ" << 
 bridge_mac
 ;
 
-2895 
+2896 
 	gd©aba£
 .
 add_backhaul_¡©iÚ
@@ -1539751,11 +1539753,11 @@ backhaul_mac
 ·»Á_bssid_mac
 ,
 
-2896 
+2897 
 bridge_mac
 );
 
-2897 } ià(
+2898 } ià(
 	gd©aba£
 .
 g‘_¡a_¡©e
@@ -1539767,13 +1539769,13 @@ b“rocks
 STATE_CONNECTED
 ) {
 
-2901 
+2902 
 LOG
 (
 DEBUG
 ) << "connectedohe GW's LAN switch ";
 
-2902 autØ
+2903 autØ
 	ggw
  = 
 d©aba£
@@ -1539781,21 +1539783,21 @@ d©aba£
 g‘_gw
 ();
 
-2903 ià(!
+2904 ià(!
 	ggw
 ) {
 
-2904 
+2905 
 LOG
 (
 ERROR
 ) << "can't get GW‚ode!";
 
-2905  
+2906  
 	gçl£
 ;
 
-2908 ià(
+2909 ià(
 	ggw
 ->
 	g‘h_sw™ches
@@ -1539803,17 +1539805,17 @@ ERROR
 em±y
 ()) {
 
-2909 
+2910 
 LOG
 (
 ERROR
 ) << "GW has‚o LAN SWITCH‚ode!";
 
-2910  
+2911  
 	gçl£
 ;
 
-2913 
+2914 
 LOG
 (
 DEBUG
@@ -1539821,7 +1539823,7 @@ DEBUG
 	gbackhaul_mac
 
 
-2914 << " gw_Ïn_sw™ch = " << 
+2915 << " gw_Ïn_sw™ch = " << 
 	ggw
 ->
 	g‘h_sw™ches
@@ -1539831,7 +1539833,7 @@ begš
 	gfœ¡
 
 
-2916 
+2917 
 	gd©aba£
 .
 add_backhaul_¡©iÚ
@@ -1539843,7 +1539845,7 @@ mac_äom_¡ršg
 backhaul_mac
 ),
 
-2917 
+2918 
 gw
 ->
 ‘h_sw™ches
@@ -1539853,7 +1539855,7 @@ begš
 fœ¡
 );
 
-2918 
+2919 
 	gd©aba£
 .
 £t_¡a_¡©e
@@ -1539865,13 +1539867,13 @@ b“rocks
 STATE_CONNECTED
 );
 
-2921 
+2922 
 	gbackhaul_mac
 .
 ş—r
 ();
 
-2925 
+2926 
 	g¡d
 ::
 ¡ršg
@@ -1539889,7 +1539891,7 @@ g‘_ag’t_·»Á
 bridge_mac
 ));
 
-2926 
+2927 
 	g¡d
 ::
 sh¬ed_±r
@@ -1539899,7 +1539901,7 @@ StiÚ
 ´evious_bh_¡a
  =
 
-2927 
+2928 
 d©aba£
 .
 g‘_¡©iÚ
@@ -1539911,7 +1539913,7 @@ mac_äom_¡ršg
 ´evious_backhaul
 ));
 
-2928 ià(!
+2929 ià(!
 	g´evious_backhaul
 .
 em±y
@@ -1539921,13 +1539923,13 @@ backhaul_mac
 ´evious_bh_¡a
  &&
 
-2929 
+2930 
 ´evious_bh_¡a
 ->
 is_bS
 ()) {
 
-2930 
+2931 
 LOG
 (
 DEBUG
@@ -1539937,7 +1539939,7 @@ DEBUG
 bridge_mac
 
 
-2932 
+2933 
 	gd©aba£
 .
 £t_¡a_¡©e
@@ -1539949,7 +1539951,7 @@ b“rocks
 STATE_DISCONNECTED
 );
 
-2937 ià(
+2938 ià(
 	gd©aba£
 .
 has_¡©iÚ
@@ -1539957,7 +1539959,7 @@ has_¡©iÚ
 bridge_mac
 )) {
 
-2938 
+2939 
 	gd©aba£
 .
 »move_¡a
@@ -1539965,7 +1539967,7 @@ bridge_mac
 bridge_mac
 );
 
-2941 
+2942 
 LOG
 (
 DEBUG
@@ -1539975,15 +1539977,15 @@ DEBUG
 	gbackhaul_mac
  << ",‡nd mark‡sype "
 
-2942 << 
+2943 << 
 	gœe_ty³
 ;
 
-2943 ià(
+2944 ià(
 	gis_gw_¦ave
 ) {
 
-2944 
+2945 
 	gd©aba£
 .
 add_g©eway
@@ -1539991,7 +1539993,7 @@ add_g©eway
 bridge_mac
 );
 
-2945 
+2946 
 	gag’t
 ->
 	gis_g©eway
@@ -1539999,7 +1540001,7 @@ bridge_mac
 Œue
 ;
 
-2947 
+2948 
 	gd©aba£
 .
 add_ag’t
@@ -1540013,7 +1540015,7 @@ mac_äom_¡ršg
 backhaul_mac
 ));
 
-2950 
+2951 
 	gd©aba£
 .
 £t_ag’t_¡©e
@@ -1540025,11 +1540027,11 @@ b“rocks
 STATE_CONNECTED
 );
 
-2956 ià(
+2957 ià(
 	gbackhaul_mªag”
 ) {
 
-2960 
+2961 
 	gd©aba£
 .
 £t_¡a_backhaul_içû_ty³
@@ -1540041,11 +1540043,11 @@ mac_äom_¡ršg
 backhaul_mac
 ),
 
-2961 
+2962 
 backhaul_içû_ty³
 );
 
-2963 
+2964 
 	gd©aba£
 .
 £t_¡a_v4
@@ -1540055,7 +1540057,7 @@ backhaul_mac
 bridge_v4
 );
 
-2964 
+2965 
 	gd©aba£
 .
 £t_ag’t_v4
@@ -1540065,7 +1540067,7 @@ bridge_mac_¡r
 bridge_v4
 );
 
-2966 
+2967 
 	g¡d
 ::
 sh¬ed_±r
@@ -1540085,11 +1540087,11 @@ mac_äom_¡ršg
 backhaul_mac
 ));
 
-2967 ià(
+2968 ià(
 	gbh_¡a
 ) {
 
-2968 
+2969 
 	gbh_¡a
 ->
 £t_bS
@@ -1540097,7 +1540099,7 @@ backhaul_mac
 Œue
 );
 
-2971 
+2972 
 	gd©aba£
 .
 £t_¡a_Çme
@@ -1540107,7 +1540109,7 @@ backhaul_mac
 ¦ave_Çme
  + "_BH");
 
-2972 
+2973 
 	gd©aba£
 .
 £t_ag’t_Çme
@@ -1540117,11 +1540119,11 @@ bridge_mac_¡r
 ¦ave_Çme
 );
 
-2976 autØ
+2977 autØ
 	g‘h_sw_mac_bš¬y
  =
 
-2977 
+2978 
 b“rocks
 ::
 Ãt
@@ -1540133,7 +1540135,7 @@ g‘_‘h_sw_mac_äom_bridge_mac
 bridge_mac
 );
 
-2979 
+2980 
 	g¡d
 ::
 ¡ršg
@@ -1540147,7 +1540149,7 @@ mac_to_¡ršg
 ‘h_sw_mac_bš¬y
 );
 
-2980 
+2981 
 	gd©aba£
 .
 add_‘h_sw™ch
@@ -1540161,7 +1540163,7 @@ mac_äom_¡ršg
 bridge_mac
 );
 
-2981 
+2982 
 	gd©aba£
 .
 £t_‘h_sw™ch_¡©e
@@ -1540173,7 +1540175,7 @@ b“rocks
 STATE_CONNECTED
 );
 
-2982 
+2983 
 	gd©aba£
 .
 £t_‘h_sw™ch_Çme
@@ -1540183,7 +1540185,7 @@ STATE_CONNECTED
 ¦ave_Çme
  + "_ETH");
 
-2985 ià(!
+2986 ià(!
 	gd©aba£
 .
 is_¡a_wœ–ess
@@ -1540191,7 +1540193,7 @@ is_¡a_wœ–ess
 backhaul_mac
 )) {
 
-2986 
+2987 
 LOG
 (
 DEBUG
@@ -1540199,7 +1540201,7 @@ DEBUG
 	gbridge_mac
 ;
 
-2987 autØ
+2988 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1540215,13 +1540217,13 @@ d©aba£
 	gm_sk_poŞ
 ,
 
-2988 
+2989 
 	gbridge_mac_¡r
 , 
 	gŒue
 , 2000);
 
-2989 
+2990 
 	gm_sk_poŞ
 .
 add_sk
@@ -1540229,7 +1540231,7 @@ add_sk
 Ãw_sk
 );
 
-2995 autØ
+2996 autØ
 	gag’ts
  = 
 d©aba£
@@ -1540237,13 +1540239,13 @@ d©aba£
 g‘_®l_cÚÃùed_ag’ts
 ();
 
-2996 cÚ¡‡utØ&
+2997 cÚ¡‡utØ&
 	ga
  : 
 ag’ts
 ) {
 
-2997 ià(
+2998 ià(
 a
 ->
 ®_mac
@@ -1540253,7 +1540255,7 @@ bridge_mac
 is_g©eway
 ) {
 
-2998 
+2999 
 LOG
 (
 INFO
@@ -1540263,7 +1540265,7 @@ a
 ®_mac
 ;
 
-3001 
+3002 
 	g¡d
 ::
 sh¬ed_±r
@@ -1540281,13 +1540283,13 @@ a
 ·»Á_mac
 );
 
-3002 ià(
+3003 ià(
 	gag’t_bh_¡a
  && !ag’t_bh_¡a->
 g‘_bss
 ()) {
 
-3003 
+3004 
 LOG
 (
 DEBUG
@@ -1540297,7 +1540299,7 @@ DEBUG
 	g®_mac
 ;
 
-3004 autØ
+3005 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1540307,7 +1540309,7 @@ make_sh¬ed
 ş›Á_loÿtšg_sk
 >(
 
-3005 
+3006 
 d©aba£
 , 
 	gcmdu_tx
@@ -1540325,7 +1540327,7 @@ a
 	gŒue
 , 2000);
 
-3006 
+3007 
 	gm_sk_poŞ
 .
 add_sk
@@ -1540333,7 +1540335,7 @@ add_sk
 Ãw_sk
 );
 
-3012 autØ
+3013 autØ
 	g¦ave_v”siÚ_s
  = 
 b“rocks
@@ -1540345,7 +1540347,7 @@ v”siÚ_äom_¡ršg
 ¦ave_v”siÚ
 );
 
-3013 autØ
+3014 autØ
 	gma¡”_v”siÚ_s
  = 
 b“rocks
@@ -1540357,7 +1540359,7 @@ v”siÚ_äom_¡ršg
 BEEROCKS_VERSION
 );
 
-3015 
+3016 
 	gb“rocks
 ::
 ¡ršg_uts
@@ -1540371,7 +1540373,7 @@ ma¡”_v”siÚ
 BEEROCKS_VERSION
 ,
 
-3016 
+3017 
 b“rocks
 ::
 mes§ge
@@ -1540379,7 +1540381,7 @@ mes§ge
 VERSION_LENGTH
 );
 
-3019 ià(
+3020 ià(
 	g¦ave_v”siÚ_s
 .
 	gmajÜ
@@ -1540389,7 +1540391,7 @@ ma¡”_v”siÚ_s
 majÜ
  ||
 
-3020 
+3021 
 ¦ave_v”siÚ_s
 .
 mšÜ
@@ -1540397,13 +1540399,13 @@ mšÜ
 ma¡”_v”siÚ_s
 .minor) {
 
-3021 
+3022 
 LOG
 (
 WARNING
 ) << "IRE Slave joined, Mismatch version! slave_version="
 
-3022 << 
+3023 << 
 ¡d
 ::
 ¡ršg
@@ -1540411,7 +1540413,7 @@ WARNING
 ¦ave_v”siÚ
 )
 
-3023 << " ma¡”_v”siÚ=" << 
+3024 << " ma¡”_v”siÚ=" << 
 ¡d
 ::
 ¡ršg
@@ -1540419,7 +1540421,7 @@ WARNING
 BEEROCKS_VERSION
 );
 
-3024 
+3025 
 LOG
 (
 WARNING
@@ -1540429,7 +1540431,7 @@ WARNING
 	gbridge_v4
 ;
 
-3027 
+3028 
 	gb“rocks
 ::
 eIçûTy³
@@ -1540437,7 +1540439,7 @@ eIçûTy³
 ho¡­_içû_ty³
  =
 
-3028 (
+3029 (
 b“rocks
 ::
 eIçûTy³
@@ -1540449,7 +1540451,7 @@ ho¡­
 içû_ty³
 ;
 
-3030 
+3031 
 LOG
 (
 INFO
@@ -1540459,7 +1540461,7 @@ INFO
 ’dl
 
 
-3031 << " ho¡­_içû_Çme=" << 
+3032 << " ho¡­_içû_Çme=" << 
 nÙifiÿtiÚ
 ->
 ho¡­
@@ -1540471,7 +1540473,7 @@ içû_Çme
 ’dl
 
 
-3033 << 
+3034 << 
 b“rocks
 ::
 uts
@@ -1540485,7 +1540487,7 @@ ho¡­_içû_ty³
 ’dl
 
 
-3034 << "‡Á_num=" << (
+3035 << "‡Á_num=" << (
 nÙifiÿtiÚ
 ->
 ho¡­
@@ -1540493,7 +1540495,7 @@ ho¡­
 ªt_num
 )
 
-3035 << "‡Á_gaš=" << (
+3036 << "‡Á_gaš=" << (
 nÙifiÿtiÚ
 ->
 ho¡­
@@ -1540501,7 +1540503,7 @@ ho¡­
 ªt_gaš
 )
 
-3036 << " chªÃl=" << (
+3037 << " chªÃl=" << (
 nÙifiÿtiÚ
 ->
 cs_·¿ms
@@ -1540509,7 +1540511,7 @@ cs_·¿ms
 chªÃl
 )
 
-3037 << " cÚduùed=" << (
+3038 << " cÚduùed=" << (
 nÙifiÿtiÚ
 ->
 ho¡­
@@ -1540521,7 +1540523,7 @@ tx_pow”
 ’dl
 
 
-3038 << "„adio_mac=" << 
+3039 << "„adio_mac=" << 
 ¿dio_mac
  << 
 ¡d
@@ -1540529,7 +1540531,7 @@ tx_pow”
 ’dl
 ;
 
-3040 
+3041 
 boŞ
  
 	gloÿl_ma¡”
@@ -1540541,15 +1540543,15 @@ nÙifiÿtiÚ
 loÿl_ma¡”
 ;
 
-3041 ià(
+3042 ià(
 	gloÿl_ma¡”
 ) {
 
-3042 #ifdeà
+3043 #ifdeà
 FEATURE_PRE_ASSOCIATION_STEERING
 
 
-3043 
+3044 
 	g´ev_sk_id
  = 
 d©aba£
@@ -1540557,7 +1540559,7 @@ d©aba£
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 ();
 
-3044 ià(!
+3045 ià(!
 	gm_sk_poŞ
 .
 is_sk_ruÂšg
@@ -1540565,17 +1540567,17 @@ is_sk_ruÂšg
 ´ev_sk_id
 )) {
 
-3045 
+3046 
 LOG
 (
 DEBUG
 ) << "starting Pre Association Steeringask";
 
-3046 autØ
+3047 autØ
 	gÃw_´e_assocŸtiÚ_¡“ršg_sk
  =
 
-3047 
+3048 
 ¡d
 ::
 make_sh¬ed
@@ -1540589,7 +1540591,7 @@ d©aba£
 	gm_sk_poŞ
 );
 
-3048 
+3049 
 	gm_sk_poŞ
 .
 add_sk
@@ -1540597,7 +1540599,7 @@ add_sk
 Ãw_´e_assocŸtiÚ_¡“ršg_sk
 );
 
-3056 ià(
+3057 ià(
 	gd©aba£
 .
 g‘_¿dio_by_uid
@@ -1540605,7 +1540607,7 @@ g‘_¿dio_by_uid
 ¿dio_mac
 )) {
 
-3057 autØ
+3058 autØ
 	gho¡­_içû_Çme
  = 
 d©aba£
@@ -1540615,13 +1540617,13 @@ g‘_¿dio_içû_Çme
 ¿dio_mac
 );
 
-3058 ià(!
+3059 ià(!
 	gho¡­_içû_Çme
 .
 em±y
 () &&
 
-3059 
+3060 
 	gho¡­_içû_Çme
 .
 com·»
@@ -1540633,13 +1540635,13 @@ ho¡­
 içû_Çme
 )) {
 
-3060 
+3061 
 LOG
 (
 ERROR
 ) << "Mac duplication detected between "
 
-3061 << 
+3062 << 
 	gd©aba£
 .
 g‘_¿dio_içû_Çme
@@ -1540647,7 +1540649,7 @@ g‘_¿dio_içû_Çme
 ¿dio_mac
 ) << "‡nd "
 
-3062 << 
+3063 << 
 	gnÙifiÿtiÚ
 ->
 ho¡­
@@ -1540655,11 +1540657,11 @@ ho¡­
 	giçû_Çme
 ;
 
-3063  
+3064  
 	gçl£
 ;
 
-3066 
+3067 
 	gd©aba£
 .
 add_¿dio
@@ -1540669,7 +1540671,7 @@ add_¿dio
 bridge_mac
 );
 
-3070 
+3071 
 	gd©aba£
 .
 ş—r_¿dio_¡©s_šfo
@@ -1540679,7 +1540681,7 @@ bridge_mac
 ¿dio_mac
 );
 
-3072 autØ
+3073 autØ
 	g¿dio
  = 
 d©aba£
@@ -1540691,21 +1540693,21 @@ bridge_mac
 ¿dio_mac
 );
 
-3073 ià(!
+3074 ià(!
 	g¿dio
 ) {
 
-3074 
+3075 
 LOG
 (
 ERROR
 ) << "Radio‚ot found";
 
-3075  
+3076  
 	gçl£
 ;
 
-3078 
+3079 
 	g¿dio
 ->
 	gis_acs_’abËd
@@ -1540713,7 +1540715,7 @@ ERROR
 acs_’abËd
 ;
 
-3081 
+3082 
 	gsÚ_aùiÚs
 ::
 £t_¿dio_aùive
@@ -1540731,11 +1540733,11 @@ mac_to_¡ršg
 çl£
 );
 
-3082 ià(
+3083 ià(
 	gbackhaul_mªag”
 ) {
 
-3083 
+3084 
 	gag’t
 ->
 	gbackhaul
@@ -1540745,7 +1540747,7 @@ mac_to_¡ršg
 ¿dio
 ;
 
-3086 
+3087 
 	gd©aba£
 .
 £t_¿dio_¡©e
@@ -1540761,7 +1540763,7 @@ b“rocks
 STATE_CONNECTED
 );
 
-3087 
+3088 
 	gd©aba£
 .
 £t_¿dio_içû_Çme
@@ -1540775,7 +1540777,7 @@ ho¡­
 içû_Çme
 );
 
-3088 
+3089 
 	gd©aba£
 .
 £t_¿dio_içû_ty³
@@ -1540787,7 +1540789,7 @@ bridge_mac
 ho¡­_içû_ty³
 );
 
-3090 
+3091 
 	gd©aba£
 .
 £t_¿dio_ªt_num
@@ -1540805,7 +1540807,7 @@ ho¡­
 ªt_num
 );
 
-3091 
+3092 
 	gd©aba£
 .
 £t_¿dio_ªt_gaš
@@ -1540819,7 +1540821,7 @@ ho¡­
 ªt_gaš
 );
 
-3092 
+3093 
 	gd©aba£
 .
 £t_¿dio_tx_pow”
@@ -1540833,7 +1540835,7 @@ ho¡­
 tx_pow”
 );
 
-3094 ià(
+3095 ià(
 	gd©aba£
 .
 g‘_¿dio_5ghz_suµÜt
@@ -1540841,13 +1540843,13 @@ g‘_¿dio_5ghz_suµÜt
 ¿dio_mac
 )) {
 
-3095 ià(
+3096 ià(
 	gnÙifiÿtiÚ
 ->
 low_·ss_f‹r_Ú
 ()) {
 
-3096 
+3097 
 	gd©aba£
 .
 £t_¿dio_bªd_ÿ·b™y
@@ -1540859,7 +1540861,7 @@ b“rocks
 LOW_SUBBAND_ONLY
 );
 
-3098 
+3099 
 	gd©aba£
 .
 £t_¿dio_bªd_ÿ·b™y
@@ -1540871,7 +1540873,7 @@ b“rocks
 BOTH_SUBBAND
 );
 
-3101 
+3102 
 	gd©aba£
 .
 £t_¿dio_bªd_ÿ·b™y
@@ -1540883,7 +1540885,7 @@ b“rocks
 SUBBAND_CAPABILITY_UNKNOWN
 );
 
-3103 
+3104 
 autocÚfig_wsc_·r£_¿dio_ÿps
 (
 ¿dio_mac
@@ -1540891,7 +1540893,7 @@ autocÚfig_wsc_·r£_¿dio_ÿps
 ¿dio_ÿps
 );
 
-3108 
+3109 
 	gb“rocks
 ::
 ¡ršg_uts
@@ -1540899,7 +1540901,7 @@ autocÚfig_wsc_·r£_¿dio_ÿps
 cİy_¡ršg
 (
 
-3109 
+3110 
 još_»¥Ú£
 ->
 ma¡”_v”siÚ
@@ -1540913,7 +1540915,7 @@ VERSION_LENGTH
 BEEROCKS_VERSION
 ,
 
-3110 
+3111 
 b“rocks
 ::
 mes§ge
@@ -1540921,7 +1540923,7 @@ mes§ge
 VERSION_LENGTH
 );
 
-3111 
+3112 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1540929,7 +1540931,7 @@ cÚfig
 	gmÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_hi_th_³rûÁ
  =
 
-3112 
+3113 
 d©aba£
 .
 cÚfig
@@ -1540937,7 +1540939,7 @@ cÚfig
 mÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_hi_th_³rûÁ
 ;
 
-3113 
+3114 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1540945,7 +1540947,7 @@ cÚfig
 	gmÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_lo_th_³rûÁ
  =
 
-3114 
+3115 
 d©aba£
 .
 cÚfig
@@ -1540953,7 +1540955,7 @@ cÚfig
 mÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_lo_th_³rûÁ
 ;
 
-3115 
+3116 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1540961,7 +1540963,7 @@ cÚfig
 	gmÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_d–_th_³rûÁ
  =
 
-3116 
+3117 
 d©aba£
 .
 cÚfig
@@ -1540969,7 +1540971,7 @@ cÚfig
 mÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_d–_th_³rûÁ
 ;
 
-3117 
+3118 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1540977,7 +1540979,7 @@ cÚfig
 	gmÚ™Ü_mš_aùive_ş›Ás
  =
 
-3118 
+3119 
 d©aba£
 .
 cÚfig
@@ -1540985,7 +1540987,7 @@ cÚfig
 mÚ™Ü_mš_aùive_ş›Ás
 ;
 
-3119 
+3120 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1540997,7 +1540999,7 @@ d©aba£
 mÚ™Ü_aùive_ş›Á_th
 ;
 
-3120 
+3121 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541005,7 +1541007,7 @@ cÚfig
 	gmÚ™Ü_ş›Á_lßd_nÙifiÿtiÚ_d–_th_³rûÁ
  =
 
-3121 
+3122 
 d©aba£
 .
 cÚfig
@@ -1541013,7 +1541015,7 @@ cÚfig
 mÚ™Ü_ş›Á_lßd_nÙifiÿtiÚ_d–_th_³rûÁ
 ;
 
-3122 
+3123 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541021,7 +1541023,7 @@ cÚfig
 	gmÚ™Ü_rx_rssi_nÙifiÿtiÚ_th»shŞd_dbm
  =
 
-3123 
+3124 
 d©aba£
 .
 cÚfig
@@ -1541029,7 +1541031,7 @@ cÚfig
 mÚ™Ü_rx_rssi_nÙifiÿtiÚ_th»shŞd_dbm
 ;
 
-3124 
+3125 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541037,7 +1541039,7 @@ cÚfig
 	gmÚ™Ü_rx_rssi_nÙifiÿtiÚ_d–_db
  =
 
-3125 
+3126 
 d©aba£
 .
 cÚfig
@@ -1541045,7 +1541047,7 @@ cÚfig
 mÚ™Ü_rx_rssi_nÙifiÿtiÚ_d–_db
 ;
 
-3126 
+3127 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541053,7 +1541055,7 @@ cÚfig
 	gmÚ™Ü_­_idË_th»shŞd_B
  =
 
-3127 
+3128 
 d©aba£
 .
 cÚfig
@@ -1541061,7 +1541063,7 @@ cÚfig
 mÚ™Ü_­_idË_th»shŞd_B
 ;
 
-3128 
+3129 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541069,7 +1541071,7 @@ cÚfig
 	gmÚ™Ü_­_aùive_th»shŞd_B
  =
 
-3129 
+3130 
 d©aba£
 .
 cÚfig
@@ -1541077,7 +1541079,7 @@ cÚfig
 mÚ™Ü_­_aùive_th»shŞd_B
 ;
 
-3130 
+3131 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541085,7 +1541087,7 @@ cÚfig
 	gmÚ™Ü_­_idË_¡abË_time_£c
  =
 
-3131 
+3132 
 d©aba£
 .
 cÚfig
@@ -1541093,7 +1541095,7 @@ cÚfig
 mÚ™Ü_­_idË_¡abË_time_£c
 ;
 
-3132 
+3133 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541101,7 +1541103,7 @@ cÚfig
 	gmÚ™Ü_di§bË_š™Ÿtive_¬p
  =
 
-3133 
+3134 
 d©aba£
 .
 cÚfig
@@ -1541109,7 +1541111,7 @@ cÚfig
 mÚ™Ü_di§bË_š™Ÿtive_¬p
 ;
 
-3134 
+3135 
 	gjoš_»¥Ú£
 ->
 cÚfig
@@ -1541121,13 +1541123,13 @@ d©aba£
 œe_rssi_»pÜt_¿‹_£c
 ;
 
-3136 
+3137 
 LOG
 (
 DEBUG
 ) << "send SLAVE_JOINED_RESPONSE";
 
-3137 
+3138 
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1541139,7 +1541141,7 @@ cmdu_tx
 d©aba£
 );
 
-3141 ià(
+3142 ià(
 	gbackhaul_mªag”
  && (!
 	gis_gw_¦ave
@@ -1541151,7 +1541153,7 @@ is_¡a_wœ–ess
 backhaul_mac
 )) {
 
-3142 
+3143 
 	gsÚ_aùiÚs
 ::
 hªdË_com¶‘ed_cÚÃùiÚ
@@ -1541165,7 +1541167,7 @@ m_sk_poŞ
 backhaul_mac
 );
 
-3146 
+3147 
 	gbml_sk
 ::
 cÚÃùiÚ_chªge_ev’t
@@ -1541173,7 +1541175,7 @@ cÚÃùiÚ_chªge_ev’t
 bml_Ãw_ev’t
 ;
 
-3147 
+3148 
 	gbml_Ãw_ev’t
 .
 	gmac
@@ -1541181,7 +1541183,7 @@ bml_Ãw_ev’t
 bridge_mac_¡r
 ;
 
-3148 
+3149 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1541197,7 +1541199,7 @@ CONNECTION_CHANGE
 bml_Ãw_ev’t
 );
 
-3149 
+3150 
 LOG
 (
 DEBUG
@@ -1541207,7 +1541209,7 @@ DEBUG
 	gmac
 ;
 
-3152 
+3153 
 LOG
 (
 DEBUG
@@ -1541215,7 +1541217,7 @@ DEBUG
 	g¿dio_mac
 ;
 
-3153 autØ
+3154 autØ
 	gcs_Ãw_ev’t
  = 
 Ãw
@@ -1541225,7 +1541227,7 @@ chªÃl_£ËùiÚ_sk
 sSÏveJošed_ev’t
 ;
 
-3154 
+3155 
 	gcs_Ãw_ev’t
 ->
 	gbackhaul_is_wœ–ess
@@ -1541239,7 +1541241,7 @@ is_deviû_wœ–ess
 backhaul_içû_ty³
 );
 
-3155 
+3156 
 	gcs_Ãw_ev’t
 ->
 	gbackhaul_chªÃl
@@ -1541247,7 +1541249,7 @@ backhaul_içû_ty³
 backhaul_chªÃl
 ;
 
-3156 
+3157 
 	gcs_Ãw_ev’t
 ->
 	gchªÃl
@@ -1541259,7 +1541261,7 @@ cs_·¿ms
 chªÃl
 ;
 
-3157 
+3158 
 	gcs_Ãw_ev’t
 ->
 	glow_·ss_f‹r_Ú
@@ -1541269,7 +1541271,7 @@ nÙifiÿtiÚ
 low_·ss_f‹r_Ú
 ();
 
-3158 
+3159 
 LOG
 (
 DEBUG
@@ -1541279,13 +1541281,13 @@ DEBUG
 	glow_·ss_f‹r_Ú
 )
 
-3159 << " cs_Ãw_ev’ˆğ" << 
+3160 << " cs_Ãw_ev’ˆğ" << 
 šŒ_t
 (
 cs_Ãw_ev’t
 );
 
-3160 
+3161 
 	gcs_Ãw_ev’t
 ->
 	gho¡­_mac
@@ -1541293,7 +1541295,7 @@ cs_Ãw_ev’t
 ¿dio_mac
 ;
 
-3161 
+3162 
 	gcs_Ãw_ev’t
 ->
 	gcs_·¿ms
@@ -1541303,7 +1541305,7 @@ nÙifiÿtiÚ
 cs_·¿ms
 ();
 
-3163 
+3164 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1541313,7 +1541315,7 @@ d©aba£
 g‘_chªÃl_£ËùiÚ_sk_id
 (),
 
-3164 ()
+3165 ()
 chªÃl_£ËùiÚ_sk
 ::
 eEv’t
@@ -1541321,15 +1541323,15 @@ eEv’t
 SLAVE_JOINED_EVENT
 ,
 
-3165 (*)
+3166 (*)
 cs_Ãw_ev’t
 );
 
-3166 #ifdeà
+3167 #ifdeà
 FEATURE_PRE_ASSOCIATION_STEERING
 
 
-3168 
+3169 
 LOG
 (
 DEBUG
@@ -1541337,7 +1541339,7 @@ DEBUG
 	g¿dio_mac
 ;
 
-3169 
+3170 
 	g´e_assocŸtiÚ_¡“ršg_sk
 ::
 sS‹”šgSÏveJošEv’t
@@ -1541345,7 +1541347,7 @@ sS‹”šgSÏveJošEv’t
 Ãw_ev’t
 {};
 
-3170 
+3171 
 	gÃw_ev’t
 .
 	g¿dio_mac
@@ -1541357,7 +1541359,7 @@ mac_to_¡ršg
 ¿dio_mac
 );
 
-3171 
+3172 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1541367,7 +1541369,7 @@ d©aba£
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-3172 
+3173 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1541377,7 +1541379,7 @@ STEERING_SLAVE_JOIN
 Ãw_ev’t
 );
 
-3178 
+3179 
 	gd©aba£
 .
 £t_¿dio_aùive
@@ -1541387,7 +1541389,7 @@ STEERING_SLAVE_JOIN
 Œue
 );
 
-3181 
+3182 
 	gd©aba£
 .
 upd©e_¿dio_Ï¡_£’
@@ -1541395,11 +1541397,11 @@ upd©e_¿dio_Ï¡_£’
 ¿dio_mac
 );
 
-3183  
+3184  
 	gŒue
 ;
 
-3195 
+3196 
 boŞ
  
 	gCÚŒŞËr
@@ -1541407,7 +1541409,7 @@ boŞ
 autocÚfig_wsc_·r£_¿dio_ÿps
 (
 
-3196 cÚ¡ 
+3197 cÚ¡ 
 sMacAddr
  &
 ¿dio_mac
@@ -1541423,7 +1541425,7 @@ wç_m­
 ¿dio_ÿps
 )
 
-3199 autØ
+3200 autØ
 İ”©šg_şas£s_li¡_Ëngth
  = 
 ¿dio_ÿps
@@ -1541431,7 +1541433,7 @@ wç_m­
 İ”©šg_şas£s_šfo_li¡_Ëngth
 ();
 
-3200 ià(
+3201 ià(
 	gİ”©šg_şas£s_li¡_Ëngth
  > 
 	gb“rocks
@@ -1541441,13 +1541443,13 @@ mes§ge
 SUPPORTED_CHANNELS_LENGTH
 ) {
 
-3201 
+3202 
 LOG
 (
 WARNING
 ) << "operating class info†ist†argerhen maximum supported channels";
 
-3202 
+3203 
 	gİ”©šg_şas£s_li¡_Ëngth
  = 
 b“rocks
@@ -1541457,7 +1541459,7 @@ mes§ge
 SUPPORTED_CHANNELS_LENGTH
 ;
 
-3209 
+3210 
 	gd©aba£
 .
 »move_ho¡­_suµÜ‹d_İ”©šg_şas£s
@@ -1541465,7 +1541467,7 @@ SUPPORTED_CHANNELS_LENGTH
 ¿dio_mac
 );
 
-3211 
+3212 
 	g¡d
 ::
 ¡ršg¡»am
@@ -1541473,13 +1541475,13 @@ SUPPORTED_CHANNELS_LENGTH
 ss
 ;
 
-3212 
+3213 
 	goc_idx
  = 0; oc_idx < 
 	gİ”©šg_şas£s_li¡_Ëngth
 ; oc_idx++) {
 
-3213 autØ
+3214 autØ
 	gİ”©šg_şass_tu¶e
  = 
 ¿dio_ÿps
@@ -1541489,7 +1541491,7 @@ ss
 oc_idx
 );
 
-3214 ià(!
+3215 ià(!
 	g¡d
 ::
 g‘
@@ -1541497,17 +1541499,17 @@ g‘
 İ”©šg_şass_tu¶e
 )) {
 
-3215 
+3216 
 LOG
 (
 ERROR
 ) << "getting operating classƒntry has failed!";
 
-3216  
+3217  
 	gçl£
 ;
 
-3218 autØ&
+3219 autØ&
 	gİ_şass
  = 
 ¡d
@@ -1541517,7 +1541519,7 @@ g‘
 İ”©šg_şass_tu¶e
 );
 
-3219 autØ
+3220 autØ
 	gİ”©šg_şass
  = 
 İ_şass
@@ -1541525,7 +1541527,7 @@ g‘
 İ”©šg_şass
 ();
 
-3220 autØ
+3221 autØ
 	gmaximum_Œªsm™_pow”_dbm
  = 
 İ_şass
@@ -1541533,7 +1541535,7 @@ g‘
 maximum_Œªsm™_pow”_dbm
 ();
 
-3221 
+3222 
 	gss
  << "İ”©šg_şass=" << (
 	gİ”©šg_şass
@@ -1541543,7 +1541545,7 @@ maximum_Œªsm™_pow”_dbm
 ’dl
 ;
 
-3222 
+3223 
 	gss
  << "maximum_Œªsm™_pow”_dbm=" << (
 	gmaximum_Œªsm™_pow”_dbm
@@ -1541553,11 +1541555,11 @@ maximum_Œªsm™_pow”_dbm
 ’dl
 ;
 
-3223 
+3224 
 	gss
  << "channel†ist={ ";
 
-3224 autØ
+3225 autØ
 	gchªÃl_li¡
  = 
 sÚ
@@ -1541569,19 +1541571,19 @@ wœ–ess_uts
 İ”©šg_şass
 );
 
-3225 autØ
+3226 autØ
 	gchªÃl
  : 
 chªÃl_li¡
 ) {
 
-3226 
+3227 
 ss
  << (
 chªÃl
 ) << " ";
 
-3228 
+3229 
 	gss
  << "}" << 
 	g¡d
@@ -1541589,21 +1541591,21 @@ chªÃl
 ’dl
 ;
 
-3229 
+3230 
 	gss
  << "statically_non_operable_channel_list={ ";
 
-3231 autØ
+3232 autØ
 	gnÚ_İ”_chªÃls_li¡_Ëngth
  =
 
-3232 
+3233 
 İ_şass
 .
 ¡©iÿÎy_nÚ_İ”abË_chªÃls_li¡_Ëngth
 ();
 
-3233 
+3234 
 	g¡d
 ::
 veùÜ
@@ -1541613,13 +1541615,13 @@ ušt8_t
 nÚ_İ”abË_chªÃls
 ;
 
-3234 
+3235 
 	gch_idx
  = 0; ch_idx < 
 	gnÚ_İ”_chªÃls_li¡_Ëngth
 ; ch_idx++) {
 
-3235 autØ
+3236 autØ
 	gchªÃl
  = 
 İ_şass
@@ -1541629,13 +1541631,13 @@ nÚ_İ”abË_chªÃls
 ch_idx
 );
 
-3236 
+3237 
 	gss
  << (*
 	gchªÃl
 ) << " ";
 
-3237 
+3238 
 	gnÚ_İ”abË_chªÃls
 .
 push_back
@@ -1541643,7 +1541645,7 @@ push_back
 chªÃl
 );
 
-3239 
+3240 
 	gss
  << " }" << 
 	g¡d
@@ -1541651,13 +1541653,13 @@ chªÃl
 ’dl
 ;
 
-3241 
+3242 
 	gd©aba£
 .
 add_ho¡­_suµÜ‹d_İ”©šg_şass
 (
 
-3242 
+3243 
 ¿dio_mac
 , 
 İ”©šg_şass
@@ -1541667,7 +1541669,7 @@ maximum_Œªsm™_pow”_dbm
 nÚ_İ”abË_chªÃls
 );
 
-3244 
+3245 
 LOG
 (
 DEBUG
@@ -1541677,7 +1541679,7 @@ DEBUG
 ’dl
 
 
-3245 << 
+3246 << 
 ss
 .
 ¡r
@@ -1541687,13 +1541689,13 @@ ss
 ’dl
 
 
-3246 << "SuµÜ‹d ChªÃls:" << 
+3247 << "SuµÜ‹d ChªÃls:" << 
 ¡d
 ::
 ’dl
 
 
-3247 << 
+3248 << 
 d©aba£
 .
 g‘_ho¡­_suµÜ‹d_chªÃls_¡ršg
@@ -1541701,11 +1541703,11 @@ g‘_ho¡­_suµÜ‹d_chªÃls_¡ršg
 ¿dio_mac
 );
 
-3249  
+3250  
 	gŒue
 ;
 
-3252 
+3253 
 boŞ
  
 	gCÚŒŞËr
@@ -1541713,7 +1541715,7 @@ boŞ
 hªdË_nÚ_š‹l_¦ave_još
 (
 
-3253 cÚ¡ 
+3254 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
@@ -1541729,7 +1541731,7 @@ wç_m­
 ¿dio_ÿps
 ,
 
-3254 cÚ¡ 
+3255 cÚ¡ 
 WSC
 ::
 m1
@@ -1541747,7 +1541749,7 @@ sMacAddr
 ¿dio_mac
 ,
 
-3255 
+3256 
 ›“1905_1
 ::
 CmduMes§geTx
@@ -1541755,7 +1541757,7 @@ CmduMes§geTx
 cmdu_tx
 )
 
-3261 
+3262 
 sMacAddr
  
 bridge_mac
@@ -1541765,7 +1541767,7 @@ ag’t
 ®_mac
 ;
 
-3262 
+3263 
 sMacAddr
  
 	gmac
@@ -1541773,19 +1541775,19 @@ sMacAddr
 bridge_mac
 ;
 
-3263 
+3264 
 	gmac
 .
 	goù
 [4]++;
 
-3265 
+3266 
 	gmac
 .
 	goù
 [0] |= 1 << 1;
 
-3266 
+3267 
 	g¡d
 ::
 ¡ršg
@@ -1541799,7 +1541801,7 @@ mac_to_¡ršg
 mac
 );
 
-3268 autØ
+3269 autØ
 	g‘h_sw™ch_mac_bš¬y
  = 
 b“rocks
@@ -1541813,7 +1541815,7 @@ g‘_‘h_sw_mac_äom_bridge_mac
 mac
 );
 
-3269 
+3270 
 	g¡d
 ::
 ¡ršg
@@ -1541827,7 +1541829,7 @@ mac_to_¡ršg
 ‘h_sw™ch_mac_bš¬y
 );
 
-3270 
+3271 
 LOG
 (
 INFO
@@ -1541837,7 +1541839,7 @@ INFO
 ’dl
 
 
-3271 << " mªuçùu»r=" << 
+3272 << " mªuçùu»r=" << 
 ag’t
 ->
 deviû_šfo
@@ -1541849,7 +1541851,7 @@ mªuçùu»r
 ’dl
 
 
-3272 << "‡l_mac=" << 
+3273 << "‡l_mac=" << 
 bridge_mac
  << 
 ¡d
@@ -1541857,7 +1541859,7 @@ bridge_mac
 ’dl
 
 
-3273 << "ƒth_sw™ch_mac=" << 
+3274 << "ƒth_sw™ch_mac=" << 
 ‘h_sw™ch_mac
  << 
 ¡d
@@ -1541865,7 +1541867,7 @@ bridge_mac
 ’dl
 
 
-3274 << " backhaul_mac=" << 
+3275 << " backhaul_mac=" << 
 backhaul_mac
  << 
 ¡d
@@ -1541873,7 +1541875,7 @@ backhaul_mac
 ’dl
 
 
-3275 << "„adio_id’tif›¸ğ" << 
+3276 << "„adio_id’tif›¸ğ" << 
 ¿dio_mac
  << 
 ¡d
@@ -1541881,7 +1541883,7 @@ backhaul_mac
 ’dl
 
 
-3276 << "„adiØbªdğ" << 
+3277 << "„adiØbªdğ" << 
 m1
 .
 rf_bªds
@@ -1541891,13 +1541893,13 @@ rf_bªds
 ’dl
 ;
 
-3278 
+3279 
 LOG
 (
 DEBUG
 ) << "simulate backhaul connectedohe GW's LAN switch ";
 
-3279 autØ
+3280 autØ
 	ggw
  = 
 d©aba£
@@ -1541905,21 +1541907,21 @@ d©aba£
 g‘_gw
 ();
 
-3280 ià(!
+3281 ià(!
 	ggw
 ) {
 
-3281 
+3282 
 LOG
 (
 ERROR
 ) << "can't get GW‚ode!";
 
-3282  
+3283  
 	gçl£
 ;
 
-3285 ià(
+3286 ià(
 	ggw
 ->
 	g‘h_sw™ches
@@ -1541927,17 +1541929,17 @@ ERROR
 em±y
 ()) {
 
-3286 
+3287 
 LOG
 (
 ERROR
 ) << "GW has‚o LAN SWITCH‚ode!";
 
-3287  
+3288  
 	gçl£
 ;
 
-3290 
+3291 
 LOG
 (
 DEBUG
@@ -1541945,7 +1541947,7 @@ DEBUG
 	gbackhaul_mac
 
 
-3291 << " gw_Ïn_sw™ch = " << 
+3292 << " gw_Ïn_sw™ch = " << 
 	ggw
 ->
 	g‘h_sw™ches
@@ -1541955,7 +1541957,7 @@ begš
 	gfœ¡
  << " STATE_CONNECTED";
 
-3292 
+3293 
 	g¡d
 ::
 sh¬ed_±r
@@ -1541969,7 +1541971,7 @@ d©aba£
 add_backhaul_¡©iÚ
 (
 
-3293 
+3294 
 vf
 ::
 mac_äom_¡ršg
@@ -1541985,7 +1541987,7 @@ begš
 fœ¡
 );
 
-3294 
+3295 
 	gd©aba£
 .
 £t_¡a_¡©e
@@ -1541997,7 +1541999,7 @@ b“rocks
 STATE_CONNECTED
 );
 
-3298 
+3299 
 	gb“rocks
 ::
 eTy³
@@ -1542009,7 +1542011,7 @@ b“rocks
 TYPE_IRE
 ;
 
-3300 
+3301 
 	g¡d
 ::
 ¡ršg
@@ -1542023,7 +1542025,7 @@ mac_to_¡ršg
 bridge_mac
 );
 
-3304 ià(
+3305 ià(
 	gd©aba£
 .
 has_¡©iÚ
@@ -1542031,7 +1542033,7 @@ has_¡©iÚ
 bridge_mac
 )) {
 
-3305 
+3306 
 	gd©aba£
 .
 »move_¡a
@@ -1542039,7 +1542041,7 @@ bridge_mac
 bridge_mac
 );
 
-3308 
+3309 
 LOG
 (
 DEBUG
@@ -1542049,11 +1542051,11 @@ DEBUG
 	gbackhaul_mac
  << ",‡nd mark‡sype "
 
-3309 << 
+3310 << 
 	gœe_ty³
 ;
 
-3311 
+3312 
 	gd©aba£
 .
 add_ag’t
@@ -1542067,7 +1542069,7 @@ mac_äom_¡ršg
 backhaul_mac
 ));
 
-3313 
+3314 
 	gd©aba£
 .
 £t_ag’t_¡©e
@@ -1542079,7 +1542081,7 @@ b“rocks
 STATE_CONNECTED
 );
 
-3314 
+3315 
 	gd©aba£
 .
 £t_¡a_backhaul_içû_ty³
@@ -1542091,7 +1542093,7 @@ mac_äom_¡ršg
 backhaul_mac
 ),
 
-3315 
+3316 
 b“rocks
 ::
 eIçûTy³
@@ -1542099,7 +1542101,7 @@ eIçûTy³
 IFACE_TYPE_ETHERNET
 );
 
-3316 
+3317 
 	gbh_¡a
 ->
 £t_bS
@@ -1542107,7 +1542109,7 @@ IFACE_TYPE_ETHERNET
 Œue
 );
 
-3317 
+3318 
 	gd©aba£
 .
 £t_¡a_Çme
@@ -1542121,7 +1542123,7 @@ deviû_šfo
 mªuçùu»r
  + "_BH");
 
-3318 
+3319 
 	gd©aba£
 .
 £t_ag’t_Çme
@@ -1542135,7 +1542137,7 @@ deviû_šfo
 mªuçùu»r
 );
 
-3319 
+3320 
 	gd©aba£
 .
 add_‘h_sw™ch
@@ -1542149,7 +1542151,7 @@ mac_äom_¡ršg
 bridge_mac
 );
 
-3320 
+3321 
 	gd©aba£
 .
 £t_‘h_sw™ch_¡©e
@@ -1542161,7 +1542163,7 @@ b“rocks
 STATE_CONNECTED
 );
 
-3321 
+3322 
 	gd©aba£
 .
 £t_‘h_sw™ch_Çme
@@ -1542173,7 +1542175,7 @@ mac_äom_¡ršg
 ‘h_sw™ch_mac
 ),
 
-3322 
+3323 
 ag’t
 ->
 deviû_šfo
@@ -1542181,7 +1542183,7 @@ deviû_šfo
 mªuçùu»r
  + "_ETH");
 
-3326 
+3327 
 	gd©aba£
 .
 £t_soáw¬e_v”siÚ
@@ -1542197,7 +1542199,7 @@ m1
 os_v”siÚ
 ()));
 
-3329 ià(!
+3330 ià(!
 	gd©aba£
 .
 g‘_¿dio_by_uid
@@ -1542205,7 +1542207,7 @@ g‘_¿dio_by_uid
 ¿dio_mac
 )) {
 
-3330 
+3331 
 	gd©aba£
 .
 add_¿dio
@@ -1542215,7 +1542217,7 @@ add_¿dio
 bridge_mac
 );
 
-3334 
+3335 
 	gd©aba£
 .
 ş—r_¿dio_¡©s_šfo
@@ -1542225,7 +1542227,7 @@ bridge_mac
 ¿dio_mac
 );
 
-3338 
+3339 
 	gd©aba£
 .
 £t_¿dio_¡©e
@@ -1542241,7 +1542243,7 @@ b“rocks
 STATE_CONNECTED
 );
 
-3339 
+3340 
 	gd©aba£
 .
 £t_¿dio_içû_Çme
@@ -1542249,7 +1542251,7 @@ STATE_CONNECTED
 ¿dio_mac
 , "N/A");
 
-3340 
+3341 
 	gd©aba£
 .
 £t_¿dio_içû_ty³
@@ -1542263,7 +1542265,7 @@ b“rocks
 IFACE_TYPE_WIFI_UNSPECIFIED
 );
 
-3344 
+3345 
 	gd©aba£
 .
 £t_¿dio_ªt_num
@@ -1542277,7 +1542279,7 @@ eWiFiAÁNum
 ANT_NONE
 );
 
-3345 
+3346 
 	gd©aba£
 .
 £t_¿dio_ªt_gaš
@@ -1542285,7 +1542287,7 @@ ANT_NONE
 ¿dio_mac
 , 0);
 
-3346 
+3347 
 	gd©aba£
 .
 £t_¿dio_tx_pow”
@@ -1542293,7 +1542295,7 @@ ANT_NONE
 ¿dio_mac
 , 0);
 
-3347 
+3348 
 	gd©aba£
 .
 £t_¿dio_aùive
@@ -1542303,7 +1542305,7 @@ ANT_NONE
 Œue
 );
 
-3350 
+3351 
 autocÚfig_wsc_·r£_¿dio_ÿps
 (
 ¿dio_mac
@@ -1542311,7 +1542313,7 @@ autocÚfig_wsc_·r£_¿dio_ÿps
 ¿dio_ÿps
 );
 
-3361 
+3362 
 	gd©aba£
 .
 £t_¿dio_bªd_ÿ·b™y
@@ -1542323,7 +1542325,7 @@ b“rocks
 SUBBAND_CAPABILITY_UNKNOWN
 );
 
-3365 
+3366 
 	gbml_sk
 ::
 cÚÃùiÚ_chªge_ev’t
@@ -1542331,7 +1542333,7 @@ cÚÃùiÚ_chªge_ev’t
 bml_Ãw_ev’t
 ;
 
-3366 
+3367 
 	gbml_Ãw_ev’t
 .
 	gmac
@@ -1542339,7 +1542341,7 @@ bml_Ãw_ev’t
 bridge_mac_¡r
 ;
 
-3367 
+3368 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1542355,7 +1542357,7 @@ CONNECTION_CHANGE
 bml_Ãw_ev’t
 );
 
-3368 
+3369 
 LOG
 (
 DEBUG
@@ -1542365,13 +1542367,13 @@ DEBUG
 	gmac
 ;
 
-3370 
+3371 
 LOG
 (
 DEBUG
 ) << "send AP_AUTOCONFIG_WSC M2";
 
-3371  
+3372  
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1542383,7 +1542385,7 @@ cmdu_tx
 d©aba£
 );
 
-3374 
+3375 
 boŞ
  
 	gCÚŒŞËr
@@ -1542391,7 +1542393,7 @@ boŞ
 hªdË_cmdu_cÚŒŞ_mes§ge
 (
 
-3375 cÚ¡ 
+3376 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
@@ -1542405,7 +1542407,7 @@ b“rocks
 b“rocks_h—d”
 > beerocks_header)
 
-3377 
+3378 
 sMacAddr
  
 ¿dio_mac
@@ -1542415,7 +1542417,7 @@ b“rocks_h—d”
 aùiÚhdr
 ()->radio_mac();
 
-3378 
+3379 
 	g¡d
 ::
 ¡ršg
@@ -1542429,7 +1542431,7 @@ mac_to_¡ršg
 ¿dio_mac
 );
 
-3381 ià(
+3382 ià(
 	g¿dio_mac
  =ğ
 b“rocks
@@ -1542441,19 +1542443,19 @@ b“rocks
 ZERO_MAC
 ) {
 
-3382 ià(
+3383 ià(
 b“rocks_h—d”
 ->
 aùiÚ_İ
 () !=
 
-3383 
+3384 
 b“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_DHCP_COMPLETE_NOTIFICATION
 ) {
 
-3391 
+3392 
 LOG
 (
 ERROR
@@ -1542463,17 +1542465,17 @@ b“rocks_h—d”
 id
 ())
 
-3392 << " op=" << (
+3393 << " op=" << (
 b“rocks_h—d”
 ->
 aùiÚ_İ
 ()) << " withƒmpty mac!";
 
-3393  
+3394  
 	gçl£
 ;
 
-3397 ià(
+3398 ià(
 	gb“rocks_h—d”
 ->
 aùiÚhdr
@@ -1542485,11 +1542487,11 @@ b“rocks
 BEEROCKS_DIRECTION_AGENT
 ) {
 
-3398  
+3399  
 Œue
 ;
 
-3402 
+3403 
 	gd©aba£
 .
 upd©e_¿dio_Ï¡_£’
@@ -1542497,29 +1542499,29 @@ upd©e_¿dio_Ï¡_£’
 ¿dio_mac
 );
 
-3404 
+3405 
 	gb“rocks_h—d”
 ->
 aùiÚ_İ
 ()) {
 
-3405 
+3406 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_SET_RESTRICTED_FAILSAFE_CHANNEL_RESPONSE
 : {
 
-3406 
+3407 
 LOG
 (
 DEBUG
 )
 
-3408 << 
+3409 << 
 ¿dio_mac
 ;
 
-3409 autØ
+3410 autØ
 	g»¥Ú£
  = 
 b“rocks_h—d”
@@ -1542527,29 +1542529,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-3410 
+3411 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_HOSTAP_SET_RESTRICTED_FAILSAFE_CHANNEL_RESPONSE
 >();
 
-3412 ià(
+3413 ià(
 	g»¥Ú£
  =ğ
 nuÎ±r
 ) {
 
-3413 
+3414 
 LOG
 (
 ERROR
 ) << "Failed building message!";
 
-3414  
+3415  
 	gçl£
 ;
 
-3417 autØ
+3418 autØ
 	gÃw_ev’t
  = 
 Ãw
@@ -1542559,7 +1542561,7 @@ chªÃl_£ËùiÚ_sk
 sRe¡riùedChªÃlRe¥Ú£_ev’t
 ;
 
-3418 
+3419 
 	gÃw_ev’t
 ->
 	gho¡­_mac
@@ -1542571,7 +1542573,7 @@ aùiÚhdr
 ¿dio_mac
 ();
 
-3419 
+3420 
 	gÃw_ev’t
 ->
 	gsucûss
@@ -1542581,19 +1542583,19 @@ aùiÚhdr
 sucûss
 ();
 
-3420 
+3421 
 	gm_sk_poŞ
 .
 push_ev’t
 (
 
-3421 
+3422 
 d©aba£
 .
 g‘_chªÃl_£ËùiÚ_sk_id
 (),
 
-3422 ()
+3423 ()
 chªÃl_£ËùiÚ_sk
 ::
 eEv’t
@@ -1542601,25 +1542603,25 @@ eEv’t
 RESTRICTED_CHANNEL_RESPONSE_EVENT
 ,
 
-3423 (*)
+3424 (*)
 Ãw_ev’t
 );
 
-3426 
+3427 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_AP_DISABLED_NOTIFICATION
 : {
 
-3427 autØ
+3428 autØ
 nÙifiÿtiÚ
  =
 
-3428 
+3429 
 b“rocks_h—d”
 
 
-3429 ->
+3430 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1542627,23 +1542629,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_HOSTAP_AP_DISABLED_NOTIFICATION
 >();
 
-3431 ià(
+3432 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3432 
+3433 
 LOG
 (
 ERROR
 ) << "Failed building message!";
 
-3433  
+3434  
 	gçl£
 ;
 
-3436 
+3437 
 	gv­_id
  = 
 nÙifiÿtiÚ
@@ -1542651,7 +1542653,7 @@ nÙifiÿtiÚ
 v­_id
 ();
 
-3437 
+3438 
 LOG
 (
 INFO
@@ -1542659,11 +1542661,11 @@ INFO
 	g¿dio_mac
 
 
-3438 << " v­_id=" << 
+3439 << " v­_id=" << 
 	gv­_id
 ;
 
-3440 cÚ¡‡utØ
+3441 cÚ¡‡utØ
 	gdi§bËd_bssid
  = 
 d©aba£
@@ -1542675,7 +1542677,7 @@ g‘_¿dio_bss_mac
 v­_id
 );
 
-3441 ià(
+3442 ià(
 	gdi§bËd_bssid
  =ğ
 b“rocks
@@ -1542687,7 +1542689,7 @@ b“rocks
 ZERO_MAC
 ) {
 
-3442 
+3443 
 LOG
 (
 INFO
@@ -1542695,7 +1542697,7 @@ INFO
 v­_id
 ;
 
-3445 autØ
+3446 autØ
 	gbss
  = 
 d©aba£
@@ -1542705,11 +1542707,11 @@ g‘_bss
 di§bËd_bssid
 );
 
-3446 ià(!
+3447 ià(!
 	gbss
 ) {
 
-3447 
+3448 
 LOG
 (
 ERROR
@@ -1542717,7 +1542719,7 @@ ERROR
 	gdi§bËd_bssid
 ;
 
-3451 cÚ¡‡utØ&
+3452 cÚ¡‡utØ&
 	gş›Á
  : 
 bss
@@ -1542725,7 +1542727,7 @@ bss
 cÚÃùed_¡©iÚs
 ) {
 
-3452 
+3453 
 sÚ_aùiÚs
 ::
 hªdË_d—d_¡©iÚ
@@ -1542743,11 +1542745,11 @@ fœ¡
 d©aba£
 ,
 
-3453 
+3454 
 m_sk_poŞ
 );
 
-3457 autØ
+3458 autØ
 	g¿dio
  = 
 d©aba£
@@ -1542759,11 +1542761,11 @@ g‘_¿dio
 ¿dio_mac
 );
 
-3458 ià(!
+3459 ià(!
 	g¿dio
 ) {
 
-3459 
+3460 
 LOG
 (
 ERROR
@@ -1542773,7 +1542775,7 @@ ERROR
 	g¤c_mac
 ;
 
-3463 
+3464 
 LOG
 (
 DEBUG
@@ -1542783,7 +1542785,7 @@ DEBUG
 	gdm_·th
 ;
 
-3464 
+3465 
 	gd©aba£
 .
 di§bË_bss
@@ -1542793,7 +1542795,7 @@ di§bË_bss
 bss
 );
 
-3466 ià(
+3467 ià(
 	g¿dio
 ->
 	gbs£s
@@ -1542803,7 +1542805,7 @@ bss
 di§bËd_bssid
 ) != 1) {
 
-3467 
+3468 
 LOG
 (
 ERROR
@@ -1542813,21 +1542815,21 @@ di§bËd_bssid
 ¿dio_mac
 ;
 
-3472 
+3473 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_AP_ENABLED_NOTIFICATION
 : {
 
-3473 autØ
+3474 autØ
 nÙifiÿtiÚ
  =
 
-3474 
+3475 
 b“rocks_h—d”
 
 
-3475 ->
+3476 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1542835,23 +1542837,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_HOSTAP_AP_ENABLED_NOTIFICATION
 >();
 
-3477 ià(
+3478 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3478 
+3479 
 LOG
 (
 ERROR
 ) << "Failed building message!";
 
-3479  
+3480  
 	gçl£
 ;
 
-3482 
+3483 
 	gv­_id
  = 
 nÙifiÿtiÚ
@@ -1542859,7 +1542861,7 @@ nÙifiÿtiÚ
 v­_id
 ();
 
-3483 
+3484 
 LOG
 (
 INFO
@@ -1542867,11 +1542869,11 @@ INFO
 	g¿dio_mac
 
 
-3484 << " v­_id=" << 
+3485 << " v­_id=" << 
 	gv­_id
 ;
 
-3486 autØ
+3487 autØ
 	gbssid
  = 
 nÙifiÿtiÚ
@@ -1542881,7 +1542883,7 @@ v­_šfo
 mac
 ;
 
-3487 autØ
+3488 autØ
 	gssid
  = 
 ¡d
@@ -1542895,7 +1542897,7 @@ v­_šfo
 ssid
 );
 
-3490 autØ
+3491 autØ
 	g¿dio
  = 
 d©aba£
@@ -1542907,11 +1542909,11 @@ g‘_¿dio
 ¿dio_mac
 );
 
-3491 ià(!
+3492 ià(!
 	g¿dio
 ) {
 
-3492 
+3493 
 LOG
 (
 ERROR
@@ -1542921,7 +1542923,7 @@ ERROR
 	g¤c_mac
 ;
 
-3496 autØ
+3497 autØ
 	gbss
  = 
 d©aba£
@@ -1542937,7 +1542939,7 @@ ssid
 v­_id
 );
 
-3498 
+3499 
 	gbss
 ->
 upd©e_v­_id
@@ -1542945,7 +1542947,7 @@ upd©e_v­_id
 v­_id
 );
 
-3499 
+3500 
 LOG_IF
 (
 bss
@@ -1542957,7 +1542959,7 @@ v­_id
 ERROR
 )
 
-3500 << "BSS " << 
+3501 << "BSS " << 
 	gbssid
  << " chªged v­_id " << 
 	gbss
@@ -1542967,7 +1542969,7 @@ g‘_v­_id
 	gv­_id
 ;
 
-3501 
+3502 
 	gbss
 ->
 	g’abËd
@@ -1542975,7 +1542977,7 @@ g‘_v­_id
 Œue
 ;
 
-3502 
+3503 
 	gbss
 ->
 	gäÚthaul
@@ -1542987,7 +1542989,7 @@ v­_šfo
 äÚthaul_v­
 ;
 
-3503 
+3504 
 	gbss
 ->
 	gbackhaul
@@ -1542999,7 +1543001,7 @@ v­_šfo
 backhaul_v­
 ;
 
-3506 
+3507 
 	gbml_sk
 ::
 cÚÃùiÚ_chªge_ev’t
@@ -1543007,7 +1543009,7 @@ cÚÃùiÚ_chªge_ev’t
 Ãw_ev’t
 ;
 
-3507 
+3508 
 	gÃw_ev’t
 .
 	gmac
@@ -1543023,7 +1543025,7 @@ g‘_¿dio_·»Á_ag’t
 ¿dio_mac
 ));
 
-3508 
+3509 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1543039,7 +1543041,7 @@ CONNECTION_CHANGE
 Ãw_ev’t
 );
 
-3509 
+3510 
 LOG
 (
 DEBUG
@@ -1543049,13 +1543051,13 @@ DEBUG
 	gmac
 ;
 
-3513 
+3514 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_CSA_ERROR_NOTIFICATION
 : {
 
-3514 
+3515 
 sMacAddr
  
 backhaul_mac
@@ -1543067,7 +1543069,7 @@ g‘_¿dio_·»Á_ag’t
 ¿dio_mac
 );
 
-3516 
+3517 
 LOG
 (
 ERROR
@@ -1543077,7 +1543079,7 @@ ERROR
 	g¿dio_mac
 ;
 
-3519 
+3520 
 	gsÚ_aùiÚs
 ::
 £t_¿dio_aùive
@@ -1543091,13 +1543093,13 @@ m_sk_poŞ
 çl£
 );
 
-3522 
+3523 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_CSA_NOTIFICATION
 : {
 
-3523 
+3524 
 LOG
 (
 DEBUG
@@ -1543105,11 +1543107,11 @@ DEBUG
 ¿dio_mac
 ;
 
-3525 autØ
+3526 autØ
 	gnÙifiÿtiÚ
  =
 
-3526 
+3527 
 b“rocks_h—d”
 ->
 addCÏss
@@ -1543119,23 +1543121,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_HOSTAP_CSA_NOTIFICATION
 >();
 
-3527 ià(
+3528 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3528 
+3529 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_HOSTAP_CSA_NOTIFICATION failed";
 
-3529  
+3530  
 	gçl£
 ;
 
-3532 
+3533 
 LOG
 (
 DEBUG
@@ -1543143,7 +1543145,7 @@ DEBUG
 	g¿dio_mac
 ;
 
-3533 autØ
+3534 autØ
 	gÃw_ev’t
  = 
 Ãw
@@ -1543153,7 +1543155,7 @@ chªÃl_£ËùiÚ_sk
 sC§_ev’t
 ;
 
-3534 
+3535 
 	gÃw_ev’t
 ->
 	gho¡­_mac
@@ -1543165,7 +1543167,7 @@ aùiÚhdr
 ¿dio_mac
 ();
 
-3535 
+3536 
 	gÃw_ev’t
 ->
 	gcs_·¿ms
@@ -1543175,7 +1543177,7 @@ nÙifiÿtiÚ
 cs_·¿ms
 ();
 
-3536 
+3537 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1543185,7 +1543187,7 @@ d©aba£
 g‘_chªÃl_£ËùiÚ_sk_id
 (),
 
-3537 ()
+3538 ()
 chªÃl_£ËùiÚ_sk
 ::
 eEv’t
@@ -1543195,13 +1543197,13 @@ CSA_EVENT
 Ãw_ev’t
 );
 
-3540 
+3541 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_ACS_NOTIFICATION
 : {
 
-3541 
+3542 
 LOG
 (
 DEBUG
@@ -1543209,11 +1543211,11 @@ DEBUG
 ¿dio_mac
 ;
 
-3543 autØ
+3544 autØ
 	gnÙifiÿtiÚ
  =
 
-3544 
+3545 
 b“rocks_h—d”
 ->
 addCÏss
@@ -1543223,23 +1543225,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_HOSTAP_ACS_NOTIFICATION
 >();
 
-3545 ià(
+3546 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3546 
+3547 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_HOSTAP_ACS_NOTIFICATION failed";
 
-3547  
+3548  
 	gçl£
 ;
 
-3549 
+3550 
 LOG
 (
 DEBUG
@@ -1543247,7 +1543249,7 @@ DEBUG
 	g¿dio_mac
 ;
 
-3551 autØ
+3552 autØ
 	gÃw_ev’t
  = 
 Ãw
@@ -1543257,7 +1543259,7 @@ chªÃl_£ËùiÚ_sk
 sAcsRe¥Ú£_ev’t
 ;
 
-3552 
+3553 
 	gÃw_ev’t
 ->
 	gho¡­_mac
@@ -1543265,7 +1543267,7 @@ sAcsRe¥Ú£_ev’t
 ¿dio_mac
 ;
 
-3553 
+3554 
 	gÃw_ev’t
 ->
 	gcs_·¿ms
@@ -1543275,7 +1543277,7 @@ nÙifiÿtiÚ
 cs_·¿ms
 ();
 
-3554 
+3555 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1543285,7 +1543287,7 @@ d©aba£
 g‘_chªÃl_£ËùiÚ_sk_id
 (),
 
-3555 ()
+3556 ()
 chªÃl_£ËùiÚ_sk
 ::
 eEv’t
@@ -1543293,17 +1543295,17 @@ eEv’t
 ACS_RESPONSE_EVENT
 ,
 
-3556 (*)
+3557 (*)
 Ãw_ev’t
 );
 
-3559 
+3560 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION
 : {
 
-3560 autØ
+3561 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1543311,29 +1543313,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-3561 
+3562 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION
 >();
 
-3562 ià(
+3563 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3563 
+3564 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_HOSTAP_ACS_NOTIFICATION failed";
 
-3564  
+3565  
 	gçl£
 ;
 
-3568 autØ
+3569 autØ
 	g¿dio
  = 
 d©aba£
@@ -1543345,11 +1543347,11 @@ g‘_¿dio
 ¿dio_mac
 );
 
-3569 ià(!
+3570 ià(!
 	g¿dio
 ) {
 
-3570 
+3571 
 LOG
 (
 ERROR
@@ -1543359,7 +1543361,7 @@ ERROR
 	g¤c_mac
 ;
 
-3574 
+3575 
 	g¿dio
 ->
 	gbs£s
@@ -1543367,7 +1543369,7 @@ ERROR
 k“p_Ãw_´•¬e
 ();
 
-3576 
+3577 
 	g¡d
 ::
 ¡ršg
@@ -1543375,7 +1543377,7 @@ k“p_Ãw_´•¬e
 mac
 ;
 
-3577 
+3578 
 	g¡d
 ::
 ¡ršg
@@ -1543383,11 +1543385,11 @@ mac
 ssid
 ;
 
-3578 } 
+3579 } 
 	tsV­EËm’t
 ;
 
-3579 
+3580 
 	g¡d
 ::
 unÜd”ed_m­
@@ -1543399,7 +1543401,7 @@ unÜd”ed_m­
 	gv­s_šfo
 ;
 
-3580 
+3581 
 	g¡d
 ::
 ¡ršg
@@ -1543407,7 +1543409,7 @@ unÜd”ed_m­
 v­s_li¡
 ;
 
-3581 
+3582 
 št8_t
  
 	gv­_id
@@ -1543419,11 +1543421,11 @@ IFACE_VAP_ID_MIN
 IFACE_VAP_ID_MAX
 ;
 
-3582 
+3583 
 	gv­_id
 ++) {
 
-3583 autØ
+3584 autØ
 	gv­_mac
  = 
 vf
@@ -1543441,7 +1543443,7 @@ v­_id
 mac
 );
 
-3584 ià(
+3585 ià(
 	gv­_mac
  !ğ
 b“rocks
@@ -1543453,7 +1543455,7 @@ b“rocks
 ZERO_MAC_STRING
 ) {
 
-3585 autØ
+3586 autØ
 bss
  = 
 d©aba£
@@ -1543461,7 +1543463,7 @@ d©aba£
 add_bss
 (
 
-3586 *
+3587 *
 ¿dio
 , 
 nÙifiÿtiÚ
@@ -1543475,7 +1543477,7 @@ v­_id
 mac
 ,
 
-3587 
+3588 
 ¡d
 ::
 ¡ršg
@@ -1543491,7 +1543493,7 @@ v­_id
 ssid
 ), vap_id);
 
-3589 
+3590 
 	gbss
 ->
 upd©e_v­_id
@@ -1543499,7 +1543501,7 @@ upd©e_v­_id
 v­_id
 );
 
-3590 
+3591 
 	gbss
 ->
 	gäÚthaul
@@ -1543515,7 +1543517,7 @@ v­_id
 äÚthaul_v­
 ;
 
-3591 
+3592 
 	gbss
 ->
 	gbackhaul
@@ -1543531,7 +1543533,7 @@ v­_id
 backhaul_v­
 ;
 
-3593 
+3594 
 	gv­s_šfo
 [
 v­_id
@@ -1543541,7 +1543543,7 @@ v­_id
 v­_mac
 ;
 
-3594 
+3595 
 	gv­s_šfo
 [
 v­_id
@@ -1543549,7 +1543551,7 @@ v­_id
 	gssid
  =
 
-3595 
+3596 
 ¡d
 ::
 ¡ršg
@@ -1543565,7 +1543567,7 @@ v­_id
 ssid
 );
 
-3596 
+3597 
 	gv­s_li¡
  +ğ(" v­_id=" + 
 ¡d
@@ -1543575,7 +1543577,7 @@ to_¡ršg
 v­_id
 ) +
 
-3597 ", v­_mac=" + (
+3598 ", v­_mac=" + (
 v­s_šfo
 [
 v­_id
@@ -1543583,7 +1543585,7 @@ v­_id
 mac
  +
 
-3598 " , ssid=" + (
+3599 " , ssid=" + (
 v­s_šfo
 [
 v­_id
@@ -1543595,7 +1543597,7 @@ ssid
 ¡ršg
 ("\n"));
 
-3602 
+3603 
 LOG
 (
 INFO
@@ -1543603,29 +1543605,29 @@ INFO
 	g¿dio_mac
 
 
-3603 << 
+3604 << 
 	g¡d
 ::
 ’dl
 
 
-3604 << "v­s_li¡:" << 
+3605 << "v­s_li¡:" << 
 ¡d
 ::
 ’dl
 
 
-3605 << 
+3606 << 
 v­s_li¡
 ;
 
-3607 cÚ¡‡utØ&
+3608 cÚ¡‡utØ&
 	gv­
  : 
 v­s_šfo
 ) {
 
-3608 ià(!
+3609 ià(!
 d©aba£
 .
 upd©e_bss
@@ -1543645,7 +1543647,7 @@ v­
 mac
 ),
 
-3609 
+3610 
 v­
 .
 £cÚd
@@ -1543653,7 +1543655,7 @@ v­
 ssid
 )) {
 
-3610 
+3611 
 LOG
 (
 ERROR
@@ -1543661,7 +1543663,7 @@ ERROR
 	g¿dio_mac
  << " BSS "
 
-3611 << 
+3612 << 
 	gv­
 .
 	g£cÚd
@@ -1543671,7 +1543673,7 @@ ERROR
 	gssid
 ;
 
-3615 autØ
+3616 autØ
 	g»moved
  = 
 ¿dio
@@ -1543681,13 +1543683,13 @@ bs£s
 k“p_Ãw_»move_Şd
 ();
 
-3616 cÚ¡‡utØ&
+3617 cÚ¡‡utØ&
 	gbss
  : 
 »moved
 ) {
 
-3619 cÚ¡‡utØ&
+3620 cÚ¡‡utØ&
 ş›Á
  : 
 bss
@@ -1543695,7 +1543697,7 @@ bss
 cÚÃùed_¡©iÚs
 ) {
 
-3620 
+3621 
 sÚ_aùiÚs
 ::
 hªdË_d—d_¡©iÚ
@@ -1543713,11 +1543715,11 @@ fœ¡
 d©aba£
 ,
 
-3621 
+3622 
 m_sk_poŞ
 );
 
-3625 
+3626 
 LOG
 (
 DEBUG
@@ -1543729,7 +1543731,7 @@ DEBUG
 	gdm_·th
 
 
-3627 
+3628 
 	gd©aba£
 .
 di§bË_bss
@@ -1543739,7 +1543741,7 @@ di§bË_bss
 bss
 );
 
-3631 
+3632 
 	gbml_sk
 ::
 cÚÃùiÚ_chªge_ev’t
@@ -1543747,7 +1543749,7 @@ cÚÃùiÚ_chªge_ev’t
 Ãw_ev’t
 ;
 
-3632 
+3633 
 	gÃw_ev’t
 .
 	gmac
@@ -1543763,7 +1543765,7 @@ g‘_¿dio_·»Á_ag’t
 ¿dio_mac
 ));
 
-3633 
+3634 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1543779,7 +1543781,7 @@ CONNECTION_CHANGE
 Ãw_ev’t
 );
 
-3634 
+3635 
 LOG
 (
 DEBUG
@@ -1543789,21 +1543791,21 @@ DEBUG
 	gmac
 ;
 
-3638 
+3639 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_ARP_MONITOR_NOTIFICATION
 : {
 
-3640 autØ
+3641 autØ
 nÙifiÿtiÚ
  =
 
-3641 
+3642 
 b“rocks_h—d”
 
 
-3642 ->
+3643 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1543811,23 +1543813,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_CLIENT_ARP_MONITOR_NOTIFICATION
 >();
 
-3643 ià(
+3644 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3644 
+3645 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_ARP_MONITOR_NOTIFICATION failed";
 
-3645  
+3646  
 	gçl£
 ;
 
-3648 
+3649 
 	g¡d
 ::
 ¡ršg
@@ -1543845,7 +1543847,7 @@ nÙifiÿtiÚ
 mac
 );
 
-3649 
+3650 
 	g¡d
 ::
 ¡ršg
@@ -1543853,7 +1543855,7 @@ mac
 ş›Á_v4
  =
 
-3650 
+3651 
 b“rocks
 ::
 Ãt
@@ -1543869,7 +1543871,7 @@ nÙifiÿtiÚ
 v4
 );
 
-3651 
+3652 
 LOG
 (
 DEBUG
@@ -1543877,13 +1543879,13 @@ DEBUG
 	g¿dio_mac
  << ":"
 
-3652 << 
+3653 << 
 	g¡d
 ::
 ’dl
 
 
-3653 << " cl›Á_mac=" << 
+3654 << " cl›Á_mac=" << 
 ş›Á_mac
  << 
 ¡d
@@ -1543891,7 +1543893,7 @@ DEBUG
 ’dl
 
 
-3654 << " cl›Á_v4=" << 
+3655 << " cl›Á_v4=" << 
 ş›Á_v4
  << 
 ¡d
@@ -1543899,7 +1543901,7 @@ DEBUG
 ’dl
 
 
-3655 << " s‹=" << (
+3656 << " s‹=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1543907,7 +1543909,7 @@ nÙifiÿtiÚ
 ¡©e
 )
 
-3656 << " sourû=" << (
+3657 << " sourû=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1543915,7 +1543917,7 @@ nÙifiÿtiÚ
 sourû
 )
 
-3657 << "y³=" << (
+3658 << "y³=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1543923,7 +1543925,7 @@ nÙifiÿtiÚ
 ty³
 );
 
-3668 ià(
+3669 ià(
 	gş›Á_v4
  =ğ
 b“rocks
@@ -1543935,13 +1543937,13 @@ b“rocks
 ZERO_IP_STRING
 ) {
 
-3669 
+3670 
 LOG
 (
 DEBUG
 ) << "arp ipv4 is 0.0.0.0, ignoring";
 
-3673 
+3674 
 	g¡d
 ::
 sh¬ed_±r
@@ -1543961,7 +1543963,7 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3674 
+3675 
 	g¡d
 ::
 sh¬ed_±r
@@ -1543973,11 +1543975,11 @@ ag’t
 nuÎ±r
 ;
 
-3675 ià(!
+3676 ià(!
 	g¡©iÚ
 ) {
 
-3676 
+3677 
 	gag’t
  = 
 d©aba£
@@ -1543991,7 +1543993,7 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3678 
+3679 
 boŞ
  
 	gÃw_node
@@ -1544001,7 +1544003,7 @@ boŞ
 ag’t
 ;
 
-3680 
+3681 
 boŞ
  
 	grun_loÿtšg_sk
@@ -1544009,7 +1544011,7 @@ boŞ
 çl£
 ;
 
-3683 ià(
+3684 ià(
 	gÃw_node
  || !
 	gd©aba£
@@ -1544019,21 +1544021,21 @@ is_¡a_wœ–ess
 ş›Á_mac
 )) {
 
-3687 ià(
+3688 ià(
 	gÃw_node
 ) {
 
-3688 
+3689 
 LOG
 (
 DEBUG
 ) << "handle_control_message - calling‡dd_node_to_gw_default_location "
 
-3690 << 
+3691 << 
 	gş›Á_mac
 ;
 
-3691 ià(!
+3692 ià(!
 	gsÚ_aùiÚs
 ::
 add_¡©iÚ_to_deçuÉ_loÿtiÚ
@@ -1544043,13 +1544045,13 @@ d©aba£
 ş›Á_mac
 )) {
 
-3692 
+3693 
 LOG
 (
 ERROR
 )
 
-3696 
+3697 
 	g¡©iÚ
  = 
 d©aba£
@@ -1544063,7 +1544065,7 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3700 ià(
+3701 ià(
 	gÃw_node
  || 
 	gd©aba£
@@ -1544075,7 +1544077,7 @@ g‘_¡a_v4
 ş›Á_v4
 ) {
 
-3701 
+3702 
 LOG
 (
 DEBUG
@@ -1544085,7 +1544087,7 @@ DEBUG
 ş›Á_v4
 ;
 
-3702 
+3703 
 	gd©aba£
 .
 £t_¡a_v4
@@ -1544095,7 +1544097,7 @@ DEBUG
 ş›Á_v4
 );
 
-3703 
+3704 
 	gsÚ_aùiÚs
 ::
 hªdË_com¶‘ed_cÚÃùiÚ
@@ -1544107,23 +1544109,23 @@ cmdu_tx
 m_sk_poŞ
 ,
 
-3704 
+3705 
 ş›Á_mac
 );
 
-3708 ià(
+3709 ià(
 	g¡©iÚ
  || 
 	gag’t
 ) {
 
-3709 
+3710 
 	grun_loÿtšg_sk
  = 
 Œue
 ;
 
-3716 ià(
+3717 ià(
 	gd©aba£
 .
 g‘_¡a_¡©e
@@ -1544135,7 +1544137,7 @@ b“rocks
 STATE_DISCONNECTED
 ) {
 
-3717 
+3718 
 LOG
 (
 DEBUG
@@ -1544143,11 +1544145,11 @@ DEBUG
 ş›Á_mac
 
 
-3718 << " cl›Á_v4 =" << 
+3719 << " cl›Á_v4 =" << 
 ş›Á_v4
 ;
 
-3721 } ià(
+3722 } ià(
 	gd©aba£
 .
 g‘_¡a_v4
@@ -1544157,7 +1544159,7 @@ g‘_¡a_v4
 ş›Á_v4
 ) {
 
-3723 
+3724 
 LOG
 (
 DEBUG
@@ -1544167,7 +1544169,7 @@ DEBUG
 ş›Á_v4
 ;
 
-3724 
+3725 
 	gd©aba£
 .
 £t_¡a_v4
@@ -1544177,7 +1544179,7 @@ DEBUG
 ş›Á_v4
 );
 
-3725 
+3726 
 	gsÚ_aùiÚs
 ::
 hªdË_com¶‘ed_cÚÃùiÚ
@@ -1544189,11 +1544191,11 @@ cmdu_tx
 m_sk_poŞ
 ,
 
-3726 
+3727 
 ş›Á_mac
 );
 
-3732 
+3733 
 	gd©aba£
 .
 upd©e_¡a_Ï¡_£’
@@ -1544201,11 +1544203,11 @@ upd©e_¡a_Ï¡_£’
 ş›Á_mac
 );
 
-3736 ià(
+3737 ià(
 	grun_loÿtšg_sk
  &&
 
-3737 ((
+3738 ((
 	gnÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544217,7 +1544219,7 @@ b“rocks
 ARP_SRC_ETH_FRONT
 ) ||
 
-3738 (
+3739 (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544229,7 +1544231,7 @@ b“rocks
 ARP_SRC_WIRELESS_FRONT
 ))) {
 
-3739 
+3740 
 LOG
 (
 DEBUG
@@ -1544237,7 +1544239,7 @@ DEBUG
 ş›Á_mac
 ;
 
-3741 
+3742 
 	g¡d
 ::
 sh¬ed_±r
@@ -1544253,11 +1544255,11 @@ g‘_ag’t_by_¿dio_uid
 ¿dio_mac
 );
 
-3742 ià(!
+3743 ià(!
 	g·»Á_ag’t
 ) {
 
-3743 
+3744 
 LOG
 (
 ERROR
@@ -1544265,7 +1544267,7 @@ ERROR
 	g¿dio_mac
 ;
 
-3746 
+3747 
 	g¡d
 ::
 sh¬ed_±r
@@ -1544277,7 +1544279,7 @@ sEthSw™ch
 ‘h_sw™ch
  =
 
-3747 
+3748 
 d©aba£
 .
 g‘_‘h_sw™ch
@@ -1544287,11 +1544289,11 @@ g‘_‘h_sw™ch
 ®_mac
 );
 
-3748 ià(!
+3749 ià(!
 	g‘h_sw™ch
 ) {
 
-3749 
+3750 
 LOG
 (
 ERROR
@@ -1544299,7 +1544301,7 @@ ERROR
 	g¿dio_mac
  << " does‚ot have‡n Ethernet switch sibling!";
 
-3753 autØ
+3754 autØ
 	gş›Á
  = 
 d©aba£
@@ -1544313,11 +1544315,11 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3754 ià(!
+3755 ià(!
 	gş›Á
 ) {
 
-3755 
+3756 
 LOG
 (
 ERROR
@@ -1544325,7 +1544327,7 @@ ERROR
 	gş›Á_mac
  << "‚ot found";
 
-3759 
+3760 
 	g´ev_sk_id
  = 
 ş›Á
@@ -1544335,7 +1544337,7 @@ g‘_ş›Á_loÿtšg_sk_id
 Œue
  );
 
-3761 ià(
+3762 ià(
 	gm_sk_poŞ
 .
 is_sk_ruÂšg
@@ -1544343,7 +1544345,7 @@ is_sk_ruÂšg
 ´ev_sk_id
 )) {
 
-3762 
+3763 
 LOG
 (
 DEBUG
@@ -1544351,7 +1544353,7 @@ DEBUG
 	gş›Á_mac
 ;
 
-3764 
+3765 
 LOG
 (
 DEBUG
@@ -1544359,7 +1544361,7 @@ DEBUG
 	gş›Á_mac
 ;
 
-3765 autØ
+3766 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1544369,7 +1544371,7 @@ make_sh¬ed
 ş›Á_loÿtšg_sk
 >(
 
-3766 
+3767 
 d©aba£
 , 
 	gcmdu_tx
@@ -1544381,7 +1544383,7 @@ d©aba£
 	gŒue
  , 2000,
 
-3767 
+3768 
 	gvf
 ::
 mac_to_¡ršg
@@ -1544391,7 +1544393,7 @@ mac_to_¡ršg
 mac
 ));
 
-3768 
+3769 
 	gm_sk_poŞ
 .
 add_sk
@@ -1544399,7 +1544401,7 @@ add_sk
 Ãw_sk
 );
 
-3771 
+3772 
 LOG
 (
 INFO
@@ -1544407,7 +1544409,7 @@ INFO
 	gş›Á_mac
 
 
-3772 << "‚ÙifiÿtiÚ->·¿ms.sourû: " << ()
+3773 << "‚ÙifiÿtiÚ->·¿ms.sourû: " << ()
 	gnÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544415,13 +1544417,13 @@ INFO
 	gsourû
 ;
 
-3777 
+3778 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_START_NOTIFICATION
 : {
 
-3778 autØ
+3779 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1544429,43 +1544431,43 @@ b“rocks_h—d”
 addCÏss
 <
 
-3779 
+3780 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_START_NOTIFICATION
 >();
 
-3780 ià(
+3781 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3781 
+3782 
 LOG
 (
 ERROR
 ) << "addClass "
 
-3783  
+3784  
 	gçl£
 ;
 
-3787 
+3788 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_RESPONSE
 : {
 
-3788 autØ
+3789 autØ
 nÙifiÿtiÚ
  =
 
-3789 
+3790 
 b“rocks_h—d”
 
 
-3790 ->
+3791 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1544473,23 +1544475,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_RESPONSE
 >();
 
-3791 ià(
+3792 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3792 
+3793 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_RESPONSE failed";
 
-3793  
+3794  
 	gçl£
 ;
 
-3796 
+3797 
 	g¡d
 ::
 ¡ršg
@@ -1544509,7 +1544511,7 @@ nÙifiÿtiÚ
 mac
 );
 
-3797 
+3798 
 	g¡d
 ::
 ¡ršg
@@ -1544519,7 +1544521,7 @@ mac
 ¿dio_mac_¡r
 ;
 
-3799 autØ
+3800 autØ
 	gş›Á
  = 
 d©aba£
@@ -1544533,11 +1544535,11 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3800 ià(!
+3801 ià(!
 	gş›Á
 ) {
 
-3801 
+3802 
 LOG
 (
 ERROR
@@ -1544545,17 +1544547,17 @@ ERROR
 	gş›Á_mac
  << "‚ot found";
 
-3802  
+3803  
 	gçl£
 ;
 
-3805 
+3806 
 boŞ
  
 	gis_·»Á
  =
 
-3806 (
+3807 (
 ş›Á
 ->
 g‘_bss
@@ -1544573,7 +1544575,7 @@ mac_äom_¡ršg
 ­_mac
 ),
 
-3807 
+3808 
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544581,7 +1544583,7 @@ nÙifiÿtiÚ
 v­_id
 ));
 
-3809 autØ
+3810 autØ
 	gag’t
  = 
 d©aba£
@@ -1544591,11 +1544593,11 @@ g‘_ag’t
 ¤c_mac
 );
 
-3810 ià(!
+3811 ià(!
 	gag’t
 ) {
 
-3811 
+3812 
 LOG
 (
 ERROR
@@ -1544603,7 +1544605,7 @@ ERROR
 	g¤c_mac
  << "‚ot found";
 
-3815 autØ
+3816 autØ
 	g¿dio
  = 
 d©aba£
@@ -1544615,11 +1544617,11 @@ g‘_¿dio
 ¿dio_mac
 );
 
-3816 ià(!
+3817 ià(!
 	g¿dio
 ) {
 
-3817 
+3818 
 LOG
 (
 ERROR
@@ -1544629,7 +1544631,7 @@ ERROR
 	g¤c_mac
 ;
 
-3821 autØ
+3822 autØ
 	gbh
  = 
 ag’t
@@ -1544639,7 +1544641,7 @@ backhaul
 wœ–ess_backhaul_¿dio
 ;
 
-3822 
+3823 
 boŞ
  
 	gis_backhaul_mªag”
@@ -1544651,19 +1544653,19 @@ bh
 ¿dio
 ->radio_uid));
 
-3824 
+3825 
 LOG_CLI
 (
 DEBUG
 ,
 
-3826 << 
+3827 << 
 ş›Á_mac
  << " (¡aè<-> (­è" << 
 ­_mac
 
 
-3827 << "„x_·ck‘s=" << (
+3828 << "„x_·ck‘s=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544671,7 +1544673,7 @@ nÙifiÿtiÚ
 rx_·ck‘s
 )
 
-3828 << "„x_rssi=" << (
+3829 << "„x_rssi=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544679,7 +1544681,7 @@ nÙifiÿtiÚ
 rx_rssi
 )
 
-3829 << "…hy_¿‹_100kb (RX|TX)=" << (
+3830 << "…hy_¿‹_100kb (RX|TX)=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544687,7 +1544689,7 @@ nÙifiÿtiÚ
 rx_phy_¿‹_100kb
 )
 
-3830 << " | " << (
+3831 << " | " << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544695,15 +1544697,15 @@ nÙifiÿtiÚ
 tx_phy_¿‹_100kb
 )
 
-3831 << " is_·»Á=" << (
+3832 << " is_·»Á=" << (
 is_·»Á
  ? "1" : "0")
 
-3832 << " is_backhaul_mªag”=" << (
+3833 << " is_backhaul_mªag”=" << (
 is_backhaul_mªag”
  ? "1" : "0")
 
-3833 << " src_moduË=" << (
+3834 << " src_moduË=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544711,7 +1544713,7 @@ nÙifiÿtiÚ
 ¤c_moduË
 )
 
-3834 << " id=" << (
+3835 << " id=" << (
 b“rocks_h—d”
 ->
 id
@@ -1544723,7 +1544725,7 @@ g‘_bss
 bssid
 
 
-3835 << " v­_id=" << (
+3836 << " v­_id=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544731,7 +1544733,7 @@ nÙifiÿtiÚ
 v­_id
 ));
 
-3838 
+3839 
 sMacAddr
  
 	g·»Á_ag’t_®id
@@ -1544747,7 +1544749,7 @@ mac_äom_¡ršg
 ­_mac
 ));
 
-3839 
+3840 
 LOG
 (
 DEBUG
@@ -1544755,7 +1544757,7 @@ DEBUG
 	g·»Á_ag’t_®id
 ;
 
-3840 
+3841 
 sMacAddr
  
 	g·»Á_ag’t_bh
@@ -1544767,7 +1544769,7 @@ g‘_ag’t_·»Á
 ·»Á_ag’t_®id
 );
 
-3841 
+3842 
 LOG
 (
 DEBUG
@@ -1544775,7 +1544777,7 @@ DEBUG
 	g·»Á_ag’t_bh
 ;
 
-3842 
+3843 
 	g¡d
 ::
 sh¬ed_±r
@@ -1544791,7 +1544793,7 @@ g‘_¡©iÚ
 ·»Á_ag’t_bh
 );
 
-3843 ià(
+3844 ià(
 	gis_backhaul_mªag”
  && 
 	g·»Á_backhaul
@@ -1544799,7 +1544801,7 @@ g‘_¡©iÚ
 g‘_bss
 () &&
 
-3844 
+3845 
 	gd©aba£
 .
 is_¡a_5ghz
@@ -1544811,13 +1544813,13 @@ mac_äom_¡ršg
 ş›Á_mac
 ))) {
 
-3845 autØ
+3846 autØ
 ´iv_­_mac
  = 
 ­_mac
 ;
 
-3846 
+3847 
 	g­_mac
  = 
 d©aba£
@@ -1544827,7 +1544829,7 @@ g‘_5ghz_siblšg_bss
 ­_mac
 );
 
-3847 
+3848 
 LOG
 (
 DEBUG
@@ -1544835,23 +1544837,23 @@ DEBUG
 	g´iv_­_mac
 
 
-3848 << "Øğ" << 
+3849 << "Øğ" << 
 	g­_mac
 ;
 
-3850 ià(
+3851 ià(
 	g­_mac
 .
 em±y
 ()) {
 
-3851 
+3852 
 LOG
 (
 ERROR
 ) << "update„ssi measurement failed";
 
-3853 
+3854 
 	gş›Á
 ->
 £t_üoss_rx_rssi
@@ -1544865,7 +1544867,7 @@ nÙifiÿtiÚ
 rx_rssi
 ,
 
-3854 
+3855 
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544873,11 +1544875,11 @@ nÙifiÿtiÚ
 rx_·ck‘s
 );
 
-3855 ià(
+3856 ià(
 	gis_·»Á
 ) {
 
-3856 
+3857 
 	gş›Á
 ->
 	güoss_tx_phy_¿‹_100kb
@@ -1544889,7 +1544891,7 @@ nÙifiÿtiÚ
 tx_phy_¿‹_100kb
 ;
 
-3857 
+3858 
 	gş›Á
 ->
 	güoss_rx_phy_¿‹_100kb
@@ -1544901,11 +1544903,11 @@ nÙifiÿtiÚ
 rx_phy_¿‹_100kb
 ;
 
-3859 #ifdeà
+3860 #ifdeà
 FEATURE_PRE_ASSOCIATION_STEERING
 
 
-3860 ià((
+3861 ià((
 	gb“rocks_h—d”
 ->
 id
@@ -1544915,7 +1544917,7 @@ d©aba£
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 ())) {
 
-3861 
+3862 
 b“rocks_mes§ge
 ::
 sS‹”šgEvSÄ
@@ -1544923,7 +1544925,7 @@ sS‹”šgEvSÄ
 Ãw_ev’t
 ;
 
-3862 
+3863 
 	gÃw_ev’t
 .
 	g¢r
@@ -1544935,7 +1544937,7 @@ nÙifiÿtiÚ
 rx_¢r
 ;
 
-3863 
+3864 
 	gÃw_ev’t
 .
 	gş›Á_mac
@@ -1544949,7 +1544951,7 @@ nÙifiÿtiÚ
 mac
 ;
 
-3864 
+3865 
 	gÃw_ev’t
 .
 	gbssid
@@ -1544965,7 +1544967,7 @@ mac_äom_¡ršg
 ­_mac
 ),
 
-3865 
+3866 
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1544973,7 +1544975,7 @@ nÙifiÿtiÚ
 v­_id
 );
 
-3866 
+3867 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1544983,27 +1544985,27 @@ d©aba£
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-3867 
+3868 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
 ::
 
-3868 
+3869 
 STEERING_EVENT_RSSI_MEASUREMENT_SNR_NOTIFICATION
 ,
 
-3869 &
+3870 &
 Ãw_ev’t
 );
 
-3874 
+3875 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_NOTIFICATION
 : {
 
-3875 autØ
+3876 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1545011,29 +1545013,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-3876 
+3877 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_NOTIFICATION
 >();
 
-3877 ià(
+3878 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3878 
+3879 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_NOTIFICATION failed";
 
-3879  
+3880  
 	gçl£
 ;
 
-3881 
+3882 
 	g¡d
 ::
 ¡ršg
@@ -1545053,7 +1545055,7 @@ nÙifiÿtiÚ
 mac
 );
 
-3883 autØ
+3884 autØ
 	gş›Á
  = 
 d©aba£
@@ -1545067,11 +1545069,11 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3884 ià(!
+3885 ià(!
 	gş›Á
 ) {
 
-3885 
+3886 
 LOG
 (
 ERROR
@@ -1545079,11 +1545081,11 @@ ERROR
 	gş›Á_mac
  << "‚ot found";
 
-3886  
+3887  
 	gçl£
 ;
 
-3889 
+3890 
 	g¡d
 ::
 ¡ršg
@@ -1545097,7 +1545099,7 @@ g‘_¡a_·»Á
 ş›Á_mac
 );
 
-3890 
+3891 
 sMacAddr
  
 	gbssid
@@ -1545115,7 +1545117,7 @@ nÙifiÿtiÚ
 v­_id
 );
 
-3891 
+3892 
 boŞ
  
 	gis_·»Á
@@ -1545129,7 +1545131,7 @@ mac_äom_¡ršg
 bssid
 );
 
-3893 
+3894 
 	grx_rssi
  = (
 nÙifiÿtiÚ
@@ -1545139,13 +1545141,13 @@ nÙifiÿtiÚ
 rx_rssi
 );
 
-3895 
+3896 
 LOG_CLI
 (
 DEBUG
 ,
 
-3897 << 
+3898 << 
 ş›Á_mac
  << " (¡aè<-> (­è" << 
 ¿dio_mac
@@ -1545153,7 +1545155,7 @@ DEBUG
 rx_rssi
 
 
-3898 << "…hy_¿‹_100kb (RX|TX)=" << (
+3899 << "…hy_¿‹_100kb (RX|TX)=" << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1545161,7 +1545163,7 @@ nÙifiÿtiÚ
 rx_phy_¿‹_100kb
 )
 
-3899 << " | " << (
+3900 << " | " << (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1545169,13 +1545171,13 @@ nÙifiÿtiÚ
 tx_phy_¿‹_100kb
 ));
 
-3901 ià(!
+3902 ià(!
 	gş›Á
 ->
 is_bS
 () &&
 
-3902 (
+3903 (
 	gd©aba£
 .
 g‘_¡a_¡©e
@@ -1545187,7 +1545189,7 @@ b“rocks
 STATE_CONNECTED
 ) &&
 
-3903 (!
+3904 (!
 d©aba£
 .
 g‘_¡a_hªdoff_æag
@@ -1545197,7 +1545199,7 @@ g‘_¡a_hªdoff_æag
 is_·»Á
 ) {
 
-3905 
+3906 
 ş›Á
 ->
 £t_üoss_rx_rssi
@@ -1545211,7 +1545213,7 @@ nÙifiÿtiÚ
 rx_rssi
 ,
 
-3906 
+3907 
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1545219,7 +1545221,7 @@ nÙifiÿtiÚ
 rx_·ck‘s
 );
 
-3907 
+3908 
 	gş›Á
 ->
 	güoss_tx_phy_¿‹_100kb
@@ -1545231,7 +1545233,7 @@ nÙifiÿtiÚ
 tx_phy_¿‹_100kb
 ;
 
-3908 
+3909 
 	gş›Á
 ->
 	güoss_rx_phy_¿‹_100kb
@@ -1545243,7 +1545245,7 @@ nÙifiÿtiÚ
 rx_phy_¿‹_100kb
 ;
 
-3914 ià(
+3915 ià(
 	gm_sk_poŞ
 .
 is_sk_ruÂšg
@@ -1545253,7 +1545255,7 @@ is_sk_ruÂšg
 rßmšg_sk_id
 )) {
 
-3915 
+3916 
 LOG
 (
 DEBUG
@@ -1545261,7 +1545263,7 @@ DEBUG
 	gş›Á_mac
 ;
 
-3917 autØ
+3918 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1545277,11 +1545279,11 @@ d©aba£
 	gm_sk_poŞ
 ,
 
-3918 
+3919 
 	gş›Á_mac
 , 0, "");
 
-3919 
+3920 
 	gm_sk_poŞ
 .
 add_sk
@@ -1545289,21 +1545291,21 @@ add_sk
 Ãw_sk
 );
 
-3924 
+3925 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_NO_RESPONSE_NOTIFICATION
 : {
 
-3925 autØ
+3926 autØ
 nÙifiÿtiÚ
  =
 
-3926 
+3927 
 b“rocks_h—d”
 
 
-3927 ->
+3928 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1545311,23 +1545313,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_CLIENT_NO_RESPONSE_NOTIFICATION
 >();
 
-3928 ià(
+3929 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-3929 
+3930 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_NO_RESPONSE_NOTIFICATION failed";
 
-3930  
+3931  
 	gçl£
 ;
 
-3932 
+3933 
 	g¡d
 ::
 ¡ršg
@@ -1545343,7 +1545345,7 @@ nÙifiÿtiÚ
 mac
 ());
 
-3934 
+3935 
 LOG
 (
 DEBUG
@@ -1545351,11 +1545353,11 @@ DEBUG
 	gş›Á_mac
 
 
-3935 << " ho¡­ mac=" << 
+3936 << " ho¡­ mac=" << 
 	g¿dio_mac
 ;
 
-3937 
+3938 
 	g¡d
 ::
 sh¬ed_±r
@@ -1545373,17 +1545375,17 @@ nÙifiÿtiÚ
 mac
 ());
 
-3938 ià(!
+3939 ià(!
 	gş›Á
 ) {
 
-3941 ià(
+3942 ià(
 	gş›Á
 ->
 is_bS
 ()) {
 
-3942 
+3943 
 LOG
 (
 INFO
@@ -1545391,11 +1545393,11 @@ INFO
 	gş›Á_mac
 
 
-3943 << " ho¡­ mac=" << 
+3944 << " ho¡­ mac=" << 
 	g¿dio_mac
 
 
-3945 
+3946 
 boŞ
  
 	g»pÜ‹d_by_·»Á
@@ -1545409,7 +1545411,7 @@ g‘_¡a_·»Á
 ş›Á_mac
 );
 
-3946 
+3947 
 	gsÚ_aùiÚs
 ::
 hªdË_d—d_¡©iÚ
@@ -1545423,21 +1545425,21 @@ d©aba£
 m_sk_poŞ
 );
 
-3950 
+3951 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_DHCP_COMPLETE_NOTIFICATION
 : {
 
-3951 autØ
+3952 autØ
 nÙifiÿtiÚ_š
  =
 
-3952 
+3953 
 b“rocks_h—d”
 
 
-3953 ->
+3954 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1545445,21 +1545447,21 @@ b“rocks_mes§ge
 cACTION_CONTROL_CLIENT_DHCP_COMPLETE_NOTIFICATION
 >();
 
-3954 ià(!
+3955 ià(!
 	gnÙifiÿtiÚ_š
 ) {
 
-3955 
+3956 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_DHCP_COMPLETE_NOTIFICATION failed";
 
-3956  
+3957  
 	gçl£
 ;
 
-3959 
+3960 
 	g¡d
 ::
 ¡ršg
@@ -1545475,7 +1545477,7 @@ nÙifiÿtiÚ_š
 mac
 ());
 
-3960 
+3961 
 	g¡d
 ::
 ¡ršg
@@ -1545493,7 +1545495,7 @@ b“rocks
 nÙifiÿtiÚ_š
 ->ipv4());
 
-3961 
+3962 
 LOG
 (
 DEBUG
@@ -1545503,7 +1545505,7 @@ DEBUG
 	gv4
 
 
-3962 << "…»viou =" << 
+3963 << "…»viou =" << 
 	gd©aba£
 .
 g‘_¡a_v4
@@ -1545511,7 +1545513,7 @@ g‘_¡a_v4
 ş›Á_mac
 );
 
-3964 
+3965 
 	g¡d
 ::
 sh¬ed_±r
@@ -1545531,11 +1545533,11 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3965 ià(!
+3966 ià(!
 	g¡©iÚ
 ) {
 
-3966 
+3967 
 LOG
 (
 DEBUG
@@ -1545543,7 +1545545,7 @@ DEBUG
 	gş›Á_mac
 ;
 
-3967 
+3968 
 	g¡©iÚ
  = 
 d©aba£
@@ -1545559,7 +1545561,7 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-3968 
+3969 
 	gd©aba£
 .
 upd©e_¡a_Ï¡_£’
@@ -1545567,13 +1545569,13 @@ upd©e_¡a_Ï¡_£’
 ş›Á_mac
 );
 
-3971 ià(
+3972 ià(
 	g¡©iÚ
 ->
 is_bS
 ()) {
 
-3972 
+3973 
 LOG
 (
 INFO
@@ -1545581,11 +1545583,11 @@ INFO
 	gş›Á_mac
 
 
-3974  
+3975  
 	gŒue
 ;
 
-3977 
+3978 
 	gd©aba£
 .
 £t_¡a_v4
@@ -1545595,13 +1545597,13 @@ INFO
 v4
 );
 
-3978 
+3979 
 	gd©aba£
 .
 £t_¡a_Çme
 (
 
-3979 
+3980 
 ş›Á_mac
 , 
 ¡d
@@ -1545619,7 +1545621,7 @@ mes§ge
 NODE_NAME_LENGTH
 )));
 
-3981 ià(
+3982 ià(
 	gd©aba£
 .
 is_¡a_wœ–ess
@@ -1545627,7 +1545629,7 @@ is_¡a_wœ–ess
 ş›Á_mac
 )) {
 
-3982 autØ
+3983 autØ
 	gnÙifiÿtiÚ_out
  = 
 b“rocks
@@ -1545637,7 +1545639,7 @@ mes§ge_com
 ü—‹_vs_mes§ge
 <
 
-3983 
+3984 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_CLIENT_NEW_IP_ADDRESS_NOTIFICATION
@@ -1545645,21 +1545647,21 @@ cACTION_CONTROL_CLIENT_NEW_IP_ADDRESS_NOTIFICATION
 cmdu_tx
 );
 
-3985 ià(!
+3986 ià(!
 	gnÙifiÿtiÚ_out
 ) {
 
-3986 
+3987 
 LOG
 (
 ERROR
 ) << "Failed building message!";
 
-3987  
+3988  
 	gçl£
 ;
 
-3989 
+3990 
 	gnÙifiÿtiÚ_out
 ->
 mac
@@ -1545667,7 +1545669,7 @@ mac
 nÙifiÿtiÚ_š
 ->mac();
 
-3990 
+3991 
 	gnÙifiÿtiÚ_out
 ->
 v4
@@ -1545675,7 +1545677,7 @@ nÙifiÿtiÚ_š
 nÙifiÿtiÚ_š
 ->ipv4();
 
-3992 autØ
+3993 autØ
 	gş›Á_bssid
  = 
 d©aba£
@@ -1545685,23 +1545687,23 @@ g‘_¡a_·»Á
 ş›Á_mac
 );
 
-3993 ià(
+3994 ià(
 	gş›Á_bssid
 .
 em±y
 ()) {
 
-3994 
+3995 
 LOG
 (
 WARNING
 ) << "Client does‚ot have‡ valid…arent hostap onhe database";
 
-3995  
+3996  
 	gŒue
 ;
 
-3997 autØ
+3998 autØ
 	gş›Á_¿dio
  = 
 d©aba£
@@ -1545711,7 +1545713,7 @@ g‘_bss_·»Á_¿dio
 ş›Á_bssid
 );
 
-3998 
+3999 
 LOG
 (
 WARNING
@@ -1545719,11 +1545721,11 @@ WARNING
 	gş›Á_mac
 
 
-4000 << 
+4001 << 
 	gş›Á_¿dio
 ;
 
-4002 autØ
+4003 autØ
 	gag’t_mac
  = 
 d©aba£
@@ -1545737,7 +1545739,7 @@ mac_äom_¡ršg
 ş›Á_¿dio
 ));
 
-4003 
+4004 
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1545751,7 +1545753,7 @@ d©aba£
 ş›Á_¿dio
 );
 
-4006 
+4007 
 LOG
 (
 DEBUG
@@ -1545759,7 +1545761,7 @@ DEBUG
 	gş›Á_mac
 ;
 
-4007 autØ
+4008 autØ
 	gş›Á
  = 
 d©aba£
@@ -1545773,11 +1545775,11 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-4008 ià(!
+4009 ià(!
 	gş›Á
 ) {
 
-4009 
+4010 
 LOG
 (
 ERROR
@@ -1545785,7 +1545787,7 @@ ERROR
 	gş›Á_mac
  << "‚ot found";
 
-4012 
+4013 
 	g´ev_sk_id
  = 
 ş›Á
@@ -1545795,7 +1545797,7 @@ g‘_ş›Á_loÿtšg_sk_id
 Œue
 );
 
-4013 ià(
+4014 ià(
 	gm_sk_poŞ
 .
 is_sk_ruÂšg
@@ -1545803,7 +1545805,7 @@ is_sk_ruÂšg
 ´ev_sk_id
 )) {
 
-4014 
+4015 
 LOG
 (
 DEBUG
@@ -1545811,7 +1545813,7 @@ DEBUG
 	gş›Á_mac
 ;
 
-4016 autØ
+4017 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1545821,7 +1545823,7 @@ make_sh¬ed
 ş›Á_loÿtšg_sk
 >(
 
-4017 
+4018 
 d©aba£
 , 
 	gcmdu_tx
@@ -1545833,7 +1545835,7 @@ d©aba£
 	gŒue
 , 2000);
 
-4018 
+4019 
 	gm_sk_poŞ
 .
 add_sk
@@ -1545841,13 +1545843,13 @@ add_sk
 Ãw_sk
 );
 
-4023 
+4024 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION
 : {
 
-4024 autØ
+4025 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1545855,39 +1545857,39 @@ b“rocks_h—d”
 addCÏss
 <
 
-4025 
+4026 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION
 >();
 
-4026 ià(
+4027 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4027 
+4028 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION failed";
 
-4028  
+4029  
 	gçl£
 ;
 
-4030 
+4031 
 LOG
 (
 DEBUG
 ) << "received ACTION_CONTROL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION hostap_mac="
 
-4031 << 
+4032 << 
 	g¿dio_mac
 ;
 
-4033 autØ
+4034 autØ
 	gÃw_ev’t
  = 
 Ãw
@@ -1545897,7 +1545899,7 @@ chªÃl_£ËùiÚ_sk
 sCacCom¶‘ed_ev’t
 ;
 
-4034 
+4035 
 	gÃw_ev’t
 ->
 	gho¡­_mac
@@ -1545905,7 +1545907,7 @@ sCacCom¶‘ed_ev’t
 ¿dio_mac
 ;
 
-4035 
+4036 
 	gÃw_ev’t
 ->
 	g·¿ms
@@ -1545915,7 +1545917,7 @@ nÙifiÿtiÚ
 ·¿ms
 ();
 
-4036 
+4037 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1545925,7 +1545927,7 @@ d©aba£
 g‘_chªÃl_£ËùiÚ_sk_id
 (),
 
-4037 ()
+4038 ()
 chªÃl_£ËùiÚ_sk
 ::
 eEv’t
@@ -1545933,15 +1545935,15 @@ eEv’t
 CAC_COMPLETED_EVENT
 ,
 
-4038 (*)
+4039 (*)
 Ãw_ev’t
 );
 
-4040 autØ
+4041 autØ
 	gchªÃl_ext_above
  =
 
-4041 (
+4042 (
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1545953,11 +1545955,11 @@ nÙifiÿtiÚ
 Œue
 
 
-4042 : 
+4043 : 
 çl£
 ;
 
-4044 
+4045 
 	gb“rocks
 ::
 WifiChªÃl
@@ -1545967,7 +1545969,7 @@ wifi_chªÃl
 b“rocks
 ::WifiChannel(
 
-4045 
+4046 
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1545977,7 +1545979,7 @@ chªÃl
 ûÁ”_äequ’cy1
 ,
 
-4046 
+4047 
 ¡©ic_ÿ¡
 <
 b“rocks
@@ -1545991,11 +1545993,11 @@ nÙifiÿtiÚ
 bªdwidth
 ),
 
-4047 
+4048 
 chªÃl_ext_above
 );
 
-4048 ià(!
+4049 ià(!
 	gd©aba£
 .
 £t_¿dio_wifi_chªÃl
@@ -1546005,7 +1546007,7 @@ chªÃl_ext_above
 wifi_chªÃl
 )) {
 
-4049 
+4050 
 LOG
 (
 ERROR
@@ -1546013,13 +1546015,13 @@ ERROR
 	g¿dio_mac
 ;
 
-4054 
+4055 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION
 : {
 
-4055 autØ
+4056 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1546027,39 +1546029,39 @@ b“rocks_h—d”
 addCÏss
 <
 
-4056 
+4057 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION
 >();
 
-4057 ià(
+4058 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4058 
+4059 
 LOG
 (
 ERROR
 )
 
-4060  
+4061  
 	gçl£
 ;
 
-4062 
+4063 
 LOG
 (
 DEBUG
 )
 
-4064 << 
+4065 << 
 	g¿dio_mac
 ;
 
-4066 autØ
+4067 autØ
 	gÃw_ev’t
  = 
 Ãw
@@ -1546069,7 +1546071,7 @@ chªÃl_£ËùiÚ_sk
 sDfsChªÃlAvaabË_ev’t
 ;
 
-4067 
+4068 
 	gÃw_ev’t
 ->
 	gho¡­_mac
@@ -1546077,7 +1546079,7 @@ sDfsChªÃlAvaabË_ev’t
 ¿dio_mac
 ;
 
-4068 
+4069 
 	gÃw_ev’t
 ->
 	g·¿ms
@@ -1546087,7 +1546089,7 @@ nÙifiÿtiÚ
 ·¿ms
 ();
 
-4069 
+4070 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1546097,7 +1546099,7 @@ d©aba£
 g‘_chªÃl_£ËùiÚ_sk_id
 (),
 
-4070 ()
+4071 ()
 chªÃl_£ËùiÚ_sk
 ::
 eEv’t
@@ -1546105,25 +1546107,25 @@ eEv’t
 DFS_CHANNEL_AVAILABLE_EVENT
 ,
 
-4071 (*)
+4072 (*)
 Ãw_ev’t
 );
 
-4074 
+4075 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_STATS_MEASUREMENT_RESPONSE
 : {
 
-4075 autØ
+4076 autØ
 »¥Ú£
  =
 
-4076 
+4077 
 b“rocks_h—d”
 
 
-4077 ->
+4078 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1546131,23 +1546133,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_HOSTAP_STATS_MEASUREMENT_RESPONSE
 >();
 
-4078 ià(
+4079 ià(
 	g»¥Ú£
  =ğ
 nuÎ±r
 ) {
 
-4079 
+4080 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_HOSTAP_STATS_MEASUREMENT_RESPONSE failed";
 
-4080  
+4081  
 	gçl£
 ;
 
-4083 autØ
+4084 autØ
 	gi
  = 0; i < 
 	g»¥Ú£
@@ -1546155,7 +1546157,7 @@ ERROR
 ¡a_¡©s_size
 (); i++) {
 
-4084 autØ
+4085 autØ
 	g¡a_¡©s_tu¶e
  = 
 »¥Ú£
@@ -1546165,7 +1546167,7 @@ ERROR
 i
 );
 
-4085 ià(!
+4086 ià(!
 	g¡d
 ::
 g‘
@@ -1546173,7 +1546175,7 @@ g‘
 ¡a_¡©s_tu¶e
 )) {
 
-4086 
+4087 
 LOG
 (
 ERROR
@@ -1546181,7 +1546183,7 @@ ERROR
 i
 ;
 
-4089 autØ&
+4090 autØ&
 	g¡a_¡©s
  = 
 ¡d
@@ -1546191,7 +1546193,7 @@ g‘
 ¡a_¡©s_tu¶e
 );
 
-4090 autØ
+4091 autØ
 	gş›Á_mac
  = 
 vf
@@ -1546203,7 +1546205,7 @@ mac_to_¡ršg
 mac
 );
 
-4092 ià(!
+4093 ià(!
 	gd©aba£
 .
 has_¡©iÚ
@@ -1546215,7 +1546217,7 @@ mac_äom_¡ršg
 ş›Á_mac
 ))) {
 
-4093 
+4094 
 LOG
 (
 ERROR
@@ -1546223,7 +1546225,7 @@ ERROR
 ş›Á_mac
  << " is‚ot in DB!";
 
-4095 } ià(
+4096 } ià(
 	gd©aba£
 .
 g‘_¡a_¡©e
@@ -1546235,7 +1546237,7 @@ b“rocks
 STATE_CONNECTED
 ) {
 
-4096 
+4097 
 LOG
 (
 DEBUG
@@ -1546245,7 +1546247,7 @@ DEBUG
 ¿dio_mac
 
 
-4102 ià((
+4103 ià((
 	g¡a_¡©s
 .
 	gdl_bªdwidth
@@ -1546255,7 +1546257,7 @@ b“rocks
 BANDWIDTH_UNKNOWN
 ) &&
 
-4103 (
+4104 (
 ¡a_¡©s
 .
 dl_bªdwidth
@@ -1546265,13 +1546267,13 @@ b“rocks
 BANDWIDTH_MAX
 )) {
 
-4104 
+4105 
 d©aba£
 .
 upd©e_¡a_wifi_chªÃl_bw
 (
 
-4105 
+4106 
 ¡a_¡©s
 .
 mac
@@ -1546285,7 +1546287,7 @@ eWiFiBªdwidth
 dl_bªdwidth
 ));
 
-4110 
+4111 
 	gd©aba£
 .
 £t_¡a_¡©s_šfo
@@ -1546295,13 +1546297,13 @@ dl_bªdwidth
 mac
 , &sta_stats);
 
-4113 ià(
+4114 ià(
 	g»¥Ú£
 ->
 ­_¡©s_size
 () == 0) {
 
-4117 autØ
+4118 autØ
 	g­_¡©s_tu¶e
  = 
 »¥Ú£
@@ -1546311,7 +1546313,7 @@ mac
 ­_¡©s_size
 () - 1);
 
-4118 ià(!
+4119 ià(!
 	g¡d
 ::
 g‘
@@ -1546319,17 +1546321,17 @@ g‘
 ­_¡©s_tu¶e
 )) {
 
-4119 
+4120 
 LOG
 (
 ERROR
 ) << "Couldn't‡ccess‡pƒlement";
 
-4120  
+4121  
 	gçl£
 ;
 
-4122 autØ&
+4123 autØ&
 	g­_¡©s
  = 
 ¡d
@@ -1546339,7 +1546341,7 @@ g‘
 ­_¡©s_tu¶e
 );
 
-4123 
+4124 
 	gd©aba£
 .
 £t_¿dio_¡©s_šfo
@@ -1546349,13 +1546351,13 @@ g‘
 ­_¡©s
 );
 
-4126 
+4127 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_LOAD_MEASUREMENT_NOTIFICATION
 : {
 
-4127 
+4128 
 ¡d
 ::
 sh¬ed_±r
@@ -1546371,11 +1546373,11 @@ g‘_ag’t_by_¿dio_uid
 ¿dio_mac
 );
 
-4128 ià(!
+4129 ià(!
 	g·»Á_ag’t
 ) {
 
-4129 
+4130 
 LOG
 (
 ERROR
@@ -1546383,11 +1546385,11 @@ ERROR
 	g¿dio_mac
 ;
 
-4130  
+4131  
 	gçl£
 ;
 
-4132 autØ
+4133 autØ
 	gœe_mac
  = 
 vf
@@ -1546399,7 +1546401,7 @@ mac_to_¡ršg
 ®_mac
 );
 
-4133 autØ
+4134 autØ
 	gnÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1546407,27 +1546409,27 @@ b“rocks_h—d”
 addCÏss
 <
 
-4134 
+4135 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_HOSTAP_LOAD_MEASUREMENT_NOTIFICATION
 >();
 
-4135 ià(!
+4136 ià(!
 	gnÙifiÿtiÚ
 ) {
 
-4136 
+4137 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_HOSTAP_LOAD_MEASUREMENT_NOTIFICATION failed";
 
-4137  
+4138  
 	gçl£
 ;
 
-4139 
+4140 
 	gaùive_ş›Á_couÁ
  = 
 nÙifiÿtiÚ
@@ -1546437,7 +1546439,7 @@ nÙifiÿtiÚ
 aùive_ş›Á_couÁ
 ;
 
-4140 
+4141 
 	gş›Á_lßd_³rûÁ
  = 
 nÙifiÿtiÚ
@@ -1546447,7 +1546449,7 @@ nÙifiÿtiÚ
 ş›Á_tx_lßd_³rûÁ
  +
 
-4141 
+4142 
 nÙifiÿtiÚ
 ->
 ·¿ms
@@ -1546455,7 +1546457,7 @@ nÙifiÿtiÚ
 ş›Á_rx_lßd_³rûÁ
 ;
 
-4143 
+4144 
 LOG
 (
 DEBUG
@@ -1546465,15 +1546467,15 @@ DEBUG
 	gœe_mac
 
 
-4144 << "‡ùive_ş›Á_couÁ=" << 
+4145 << "‡ùive_ş›Á_couÁ=" << 
 	gaùive_ş›Á_couÁ
 
 
-4145 << " cl›Á_lßd=" << 
+4146 << " cl›Á_lßd=" << 
 	gş›Á_lßd_³rûÁ
 ;
 
-4150 ià(
+4151 ià(
 	gaùive_ş›Á_couÁ
  > 
 	gd©aba£
@@ -1546483,11 +1546485,11 @@ DEBUG
 	gmÚ™Ü_mš_aùive_ş›Ás
  &&
 
-4151 
+4152 
 	gş›Á_lßd_³rûÁ
  >
 
-4152 
+4153 
 	gd©aba£
 .
 	gcÚfig
@@ -1546495,7 +1546497,7 @@ DEBUG
 	gmÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_hi_th_³rûÁ
  &&
 
-4153 
+4154 
 	gd©aba£
 .
 £‰šgs_lßd_b®ªcšg
@@ -1546505,7 +1546507,7 @@ is_¿dio_aùive
 ¿dio_mac
 ) &&
 
-4154 
+4155 
 	gd©aba£
 .
 g‘_ag’t_¡©e
@@ -1546519,7 +1546521,7 @@ b“rocks
 STATE_CONNECTED
 ) {
 
-4160 
+4161 
 LOG
 (
 DEBUG
@@ -1546527,11 +1546529,11 @@ DEBUG
 œe_mac
 ;
 
-4161 
+4162 
 	g´ev_sk_id
  =
 
-4162 
+4163 
 d©aba£
 .
 g‘_ag’t_lßd_b®ªûr_sk_id
@@ -1546543,7 +1546545,7 @@ mac_äom_¡ršg
 œe_mac
 ));
 
-4163 ià(
+4164 ià(
 	gm_sk_poŞ
 .
 is_sk_ruÂšg
@@ -1546551,7 +1546553,7 @@ is_sk_ruÂšg
 ´ev_sk_id
 )) {
 
-4164 
+4165 
 LOG
 (
 DEBUG
@@ -1546559,7 +1546561,7 @@ DEBUG
 	gœe_mac
 ;
 
-4166 autØ
+4167 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1546569,7 +1546571,7 @@ make_sh¬ed
 lßd_b®ªûr_sk
 >(
 
-4167 
+4168 
 d©aba£
 , 
 	gcmdu_tx
@@ -1546579,7 +1546581,7 @@ d©aba£
 	gœe_mac
 , "load‚otif (high)-†oad_balancer");
 
-4168 
+4169 
 	gm_sk_poŞ
 .
 add_sk
@@ -1546587,7 +1546589,7 @@ add_sk
 Ãw_sk
 );
 
-4170 } ià((
+4171 } ià((
 	gaùive_ş›Á_couÁ
  < 
 	gd©aba£
@@ -1546597,11 +1546599,11 @@ add_sk
 	gmÚ™Ü_mš_aùive_ş›Ás
 ) &&
 
-4171 (
+4172 (
 	gş›Á_lßd_³rûÁ
  <
 
-4172 
+4173 
 	gd©aba£
 .
 	gcÚfig
@@ -1546609,7 +1546611,7 @@ add_sk
 	gmÚ™Ü_tÙ®_ch_lßd_nÙifiÿtiÚ_lo_th_³rûÁ
 )) {
 
-4173 
+4174 
 LOG
 (
 DEBUG
@@ -1546617,7 +1546619,7 @@ DEBUG
 	gœe_mac
 ;
 
-4179 cÚ¡‡utØ&
+4180 cÚ¡‡utØ&
 	gho¡­
  : 
 ·»Á_ag’t
@@ -1546625,7 +1546627,7 @@ DEBUG
 ¿dios
 ) {
 
-4180 cÚ¡‡utØ&
+4181 cÚ¡‡utØ&
 bss
  : 
 ho¡­
@@ -1546635,7 +1546637,7 @@ ho¡­
 bs£s
 ) {
 
-4181 cÚ¡‡utØ&
+4182 cÚ¡‡utØ&
 ¡©iÚ
  : 
 bss
@@ -1546645,7 +1546647,7 @@ bss
 cÚÃùed_¡©iÚs
 ) {
 
-4182 ià(
+4183 ià(
 ¡©iÚ
 .
 £cÚd
@@ -1546653,7 +1546655,7 @@ cÚÃùed_¡©iÚs
 cÚfšed
 ) {
 
-4183 
+4184 
 LOG
 (
 DEBUG
@@ -1546663,7 +1546665,7 @@ DEBUG
 fœ¡
 ;
 
-4184 
+4185 
 	g¡©iÚ
 .
 	g£cÚd
@@ -1546673,7 +1546675,7 @@ fœ¡
 çl£
 ;
 
-4188 ià(
+4189 ià(
 	gd©aba£
 .
 g‘_¡a_¡©e
@@ -1546687,13 +1546689,13 @@ mac_to_¡ršg
 fœ¡
 )) ==
 
-4189 
+4190 
 b“rocks
 ::
 STATE_CONNECTED
 ) {
 
-4190 ià(
+4191 ià(
 m_sk_poŞ
 .
 is_sk_ruÂšg
@@ -1546705,19 +1546707,19 @@ is_sk_ruÂšg
 rßmšg_sk_id
 )) {
 
-4191 
+4192 
 LOG
 (
 DEBUG
 )
 
-4192 << "rßmšgask‡Ì—dy„uÂšg fÜ " << 
+4193 << "rßmšgask‡Ì—dy„uÂšg fÜ " << 
 ¡©iÚ
 .
 fœ¡
 ;
 
-4194 autØ
+4195 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1546727,7 +1546729,7 @@ make_sh¬ed
 İtim®_·th_sk
 >(
 
-4195 
+4196 
 d©aba£
 , 
 	gcmdu_tx
@@ -1546735,7 +1546737,7 @@ d©aba£
 	gm_sk_poŞ
 ,
 
-4196 
+4197 
 	gvf
 ::
 mac_to_¡ršg
@@ -1546745,7 +1546747,7 @@ mac_to_¡ršg
 fœ¡
 ), 0,
 
-4198 
+4199 
 	gm_sk_poŞ
 .
 add_sk
@@ -1546753,7 +1546755,7 @@ add_sk
 Ãw_sk
 );
 
-4201 
+4202 
 	gd©aba£
 .
 £t_¡a_hªdoff_æag
@@ -1546765,21 +1546767,21 @@ add_sk
 çl£
 );
 
-4210 
+4211 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_BEACON_11K_RESPONSE
 : {
 
-4211 autØ
+4212 autØ
 »¥Ú£
  =
 
-4212 
+4213 
 b“rocks_h—d”
 
 
-4213 ->
+4214 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1546787,31 +1546789,31 @@ b“rocks_mes§ge
 cACTION_CONTROL_CLIENT_BEACON_11K_RESPONSE
 >();
 
-4214 ià(
+4215 ià(
 	g»¥Ú£
  =ğ
 nuÎ±r
 ) {
 
-4215 
+4216 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_BEACON_11K_RESPONSE failed";
 
-4216  
+4217  
 	gçl£
 ;
 
-4218 
+4219 
 LOG_CLI
 (
 
-4219 
+4220 
 DEBUG
 ,
 
-4221 << 
+4222 << 
 b“rocks_h—d”
 ->
 id
@@ -1546821,7 +1546823,7 @@ id
 ’dl
 
 
-4222 << "¡a_mac: " << 
+4223 << "¡a_mac: " << 
 »¥Ú£
 ->
 ·¿ms
@@ -1546833,7 +1546835,7 @@ id
 ’dl
 
 
-4223 << "m—su»m’t_»p_mode: " << ()
+4224 << "m—su»m’t_»p_mode: " << ()
 »¥Ú£
 ->
 ·¿ms
@@ -1546845,7 +1546847,7 @@ id
 ’dl
 
 
-4224 << "İ_şass: " << ()
+4225 << "İ_şass: " << ()
 »¥Ú£
 ->
 ·¿ms
@@ -1546857,7 +1546859,7 @@ id
 ’dl
 
 
-4226 << ()
+4227 << ()
 »¥Ú£
 ->
 ·¿ms
@@ -1546865,13 +1546867,13 @@ id
 chªÃl
 
 
-4228 << 
+4229 << 
 ¡d
 ::
 ’dl
 
 
-4230 << ()
+4231 << ()
 »¥Ú£
 ->
 ·¿ms
@@ -1546879,13 +1546881,13 @@ chªÃl
 du¿tiÚ
 
 
-4233 << 
+4234 << 
 ¡d
 ::
 ’dl
 
 
-4234 << "rıi: " << ()
+4235 << "rıi: " << ()
 »¥Ú£
 ->
 ·¿ms
@@ -1546897,7 +1546899,7 @@ rıi
 ’dl
 
 
-4235 << "r¢i: " << ()
+4236 << "r¢i: " << ()
 »¥Ú£
 ->
 ·¿ms
@@ -1546909,7 +1546911,7 @@ r¢i
 ’dl
 
 
-4236 << "bssid: " << 
+4237 << "bssid: " << 
 »¥Ú£
 ->
 ·¿ms
@@ -1546921,7 +1546923,7 @@ bssid
 ’dl
 
 
-4237 << "dŸlogok’: " << 
+4238 << "dŸlogok’: " << 
 »¥Ú£
 ->
 ·¿ms
@@ -1546929,13 +1546931,13 @@ bssid
 dŸlog_tok’
 
 
-4244 ià(
+4245 ià(
 	gsÚ_aùiÚs
 ::
 v®id©e_b—cÚ_m—su»m’t_»pÜt
 (
 
-4245 
+4246 
 »¥Ú£
 ->
 ·¿ms
@@ -1546947,7 +1546949,7 @@ mac_to_¡ršg
 ¡a_mac
 ),
 
-4246 
+4247 
 vf
 ::
 mac_to_¡ršg
@@ -1546959,7 +1546961,7 @@ mac_to_¡ršg
 bssid
 ))) {
 
-4247 
+4248 
 d©aba£
 .
 dm_add_¡a_b—cÚ_m—su»m’t
@@ -1546969,13 +1546971,13 @@ dm_add_¡a_b—cÚ_m—su»m’t
 ·¿ms
 ());
 
-4251 
+4252 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_CMD_RESPONSE
 : {
 
-4252 autØ
+4253 autØ
 »¥Ú£
  = 
 b“rocks_h—d”
@@ -1546983,29 +1546985,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-4253 
+4254 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_CMD_RESPONSE
 >();
 
-4254 ià(
+4255 ià(
 	g»¥Ú£
  =ğ
 nuÎ±r
 ) {
 
-4255 
+4256 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_CMD_RESPONSE failed";
 
-4256  
+4257  
 	gçl£
 ;
 
-4258 
+4259 
 	g¡d
 ::
 ¡ršg
@@ -1547021,7 +1547023,7 @@ mac_to_¡ršg
 mac
 ());
 
-4259 autØ
+4260 autØ
 	gş›Á_wifi_chªÃl
  = 
 d©aba£
@@ -1547031,13 +1547033,13 @@ g‘_¡a_wifi_chªÃl
 ş›Á_mac
 );
 
-4260 ià(
+4261 ià(
 	gş›Á_wifi_chªÃl
 .
 is_em±y
 ()) {
 
-4261 
+4262 
 LOG
 (
 WARNING
@@ -1547045,37 +1547047,37 @@ WARNING
 	gş›Á_mac
  << " in DB";
 
-4263 
+4264 
 LOG
 (
 DEBUG
 ) << "ACTION_CONTROL_CLIENT_RX_RSSI_MEASUREMENT_CMD_RESPONSE client_mac="
 
-4264 << 
+4265 << 
 	gş›Á_mac
  << "„eûived from ho¡­ " << 
 	g¿dio_mac
 
 
-4265 << " chªÃl=" << (
+4266 << " chªÃl=" << (
 	gş›Á_wifi_chªÃl
 .
 g‘_chªÃl
 ())
 
-4266 << " F»qu’cy Ty³: " << 
+4267 << " F»qu’cy Ty³: " << 
 	gş›Á_wifi_chªÃl
 .
 g‘_äeq_ty³
 ()
 
-4267 << " Ã¯d = " << (
+4268 << " Ã¯d = " << (
 	gb“rocks_h—d”
 ->
 id
 ());
 
-4269 
+4270 
 	gd©aba£
 .
 £t_m—su»m’t_»cv_d–
@@ -1547083,21 +1547085,21 @@ id
 ¿dio_mac_¡r
 );
 
-4272 
+4273 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_NO_ACTIVITY_NOTIFICATION
 : {
 
-4273 autØ
+4274 autØ
 nÙifiÿtiÚ
  =
 
-4274 
+4275 
 b“rocks_h—d”
 
 
-4275 ->
+4276 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1547105,23 +1547107,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_CLIENT_NO_ACTIVITY_NOTIFICATION
 >();
 
-4276 ià(
+4277 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4277 
+4278 
 LOG
 (
 ERROR
 ) << "addClass ACTION_CONTROL_CLIENT_NO_ACTIVITY_NOTIFICATION failed";
 
-4278  
+4279  
 	gçl£
 ;
 
-4280 
+4281 
 	g¡d
 ::
 ¡ršg
@@ -1547137,7 +1547139,7 @@ nÙifiÿtiÚ
 mac
 ());
 
-4281 
+4282 
 LOG
 (
 INFO
@@ -1547145,7 +1547147,7 @@ INFO
 	gş›Á_mac
 ;
 
-4283 autØ
+4284 autØ
 	gş›Á
  = 
 d©aba£
@@ -1547159,11 +1547161,11 @@ mac_äom_¡ršg
 ş›Á_mac
 ));
 
-4284 ià(!
+4285 ià(!
 	gş›Á
 ) {
 
-4285 
+4286 
 LOG
 (
 ERROR
@@ -1547171,11 +1547173,11 @@ ERROR
 	gş›Á_mac
  << "‚ot found";
 
-4286  
+4287  
 	gçl£
 ;
 
-4289 ià(
+4290 ià(
 	gm_sk_poŞ
 .
 is_sk_ruÂšg
@@ -1547185,7 +1547187,7 @@ is_sk_ruÂšg
 rßmšg_sk_id
 )) {
 
-4290 
+4291 
 LOG
 (
 DEBUG
@@ -1547193,7 +1547195,7 @@ DEBUG
 	gş›Á_mac
 ;
 
-4292 
+4293 
 LOG
 (
 INFO
@@ -1547201,7 +1547203,7 @@ INFO
 	gş›Á_mac
 ;
 
-4293 autØ
+4294 autØ
 	gÃw_sk
  = 
 ¡d
@@ -1547217,11 +1547219,11 @@ d©aba£
 	gm_sk_poŞ
 ,
 
-4294 
+4295 
 	gş›Á_mac
 , 0, "");
 
-4295 
+4296 
 	gm_sk_poŞ
 .
 add_sk
@@ -1547229,21 +1547231,21 @@ add_sk
 Ãw_sk
 );
 
-4299 
+4300 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_HOSTAP_ACTIVITY_NOTIFICATION
 : {
 
-4300 autØ
+4301 autØ
 nÙifiÿtiÚ
  =
 
-4301 
+4302 
 b“rocks_h—d”
 
 
-4302 ->
+4303 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1547251,29 +1547253,29 @@ b“rocks_mes§ge
 cACTION_CONTROL_HOSTAP_ACTIVITY_NOTIFICATION
 >();
 
-4303 ià(
+4304 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4304 
+4305 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_HOSTAP_ACTIVITY_NOTIFICATION failed";
 
-4305  
+4306  
 	gçl£
 ;
 
-4308 
+4309 
 	gd©aba£
 .
 £t_¿dio_aùiv™y_mode
 (
 
-4309 
+4310 
 ¿dio_mac
 , 
 b“rocks
@@ -1547287,7 +1547289,7 @@ nÙifiÿtiÚ
 ­_aùiv™y_mode
 ));
 
-4310 ià(
+4311 ià(
 	gnÙifiÿtiÚ
 ->
 ·¿ms
@@ -1547299,7 +1547301,7 @@ b“rocks
 AP_IDLE_MODE
 ) {
 
-4311 
+4312 
 LOG
 (
 DEBUG
@@ -1547307,7 +1547309,7 @@ DEBUG
 ¿dio_mac
 ;
 
-4312 autØ
+4313 autØ
 	gÃw_ev’t
  = 
 Ãw
@@ -1547317,7 +1547319,7 @@ chªÃl_£ËùiÚ_sk
 sApAùiv™yIdË_ev’t
 ;
 
-4313 
+4314 
 	gÃw_ev’t
 ->
 	gho¡­_mac
@@ -1547325,7 +1547327,7 @@ sApAùiv™yIdË_ev’t
 ¿dio_mac
 ;
 
-4314 
+4315 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1547335,7 +1547337,7 @@ d©aba£
 g‘_chªÃl_£ËùiÚ_sk_id
 (),
 
-4315 ()
+4316 ()
 chªÃl_£ËùiÚ_sk
 ::
 eEv’t
@@ -1547343,33 +1547345,33 @@ eEv’t
 AP_ACTIVITY_IDLE_EVENT
 ,
 
-4316 (*)
+4317 (*)
 Ãw_ev’t
 );
 
-4321 
+4322 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_ARP_QUERY_RESPONSE
 : {
 
-4322 
+4323 
 LOG
 (
 DEBUG
 ) << "ACTION_CONTROL_ARP_QUERY_RESPONSE from "
 
-4323 << " id=" << 
+4324 << " id=" << 
 b“rocks_h—d”
 ->
 id
 ();
 
-4324 autØ
+4325 autØ
 	g»¥Ú£
  =
 
-4325 
+4326 
 b“rocks_h—d”
 ->
 addCÏss
@@ -1547379,33 +1547381,33 @@ b“rocks_mes§ge
 cACTION_CONTROL_ARP_QUERY_RESPONSE
 >();
 
-4326 ià(
+4327 ià(
 	g»¥Ú£
  =ğ
 nuÎ±r
 ) {
 
-4327 
+4328 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_ARP_QUERY_RESPONSE failed";
 
-4328  
+4329  
 	gçl£
 ;
 
-4332 #ifdeà
+4333 #ifdeà
 FEATURE_PRE_ASSOCIATION_STEERING
 
 
-4333 
+4334 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_STEERING_EVENT_CLIENT_ACTIVITY_NOTIFICATION
 : {
 
-4334 autØ
+4335 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1547413,29 +1547415,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-4335 
+4336 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_STEERING_EVENT_CLIENT_ACTIVITY_NOTIFICATION
 >();
 
-4336 ià(
+4337 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4337 
+4338 
 LOG
 (
 ERROR
 ) << "addClass "
 
-4339  
+4340  
 	gçl£
 ;
 
-4342 
+4343 
 	gb“rocks_mes§ge
 ::
 sS‹”šgEvAùiv™y
@@ -1547443,7 +1547445,7 @@ sS‹”šgEvAùiv™y
 Ãw_ev’t
 ;
 
-4343 
+4344 
 	gÃw_ev’t
  = 
 nÙifiÿtiÚ
@@ -1547451,19 +1547453,19 @@ nÙifiÿtiÚ
 ·¿ms
 ();
 
-4344 
+4345 
 	gm_sk_poŞ
 .
 push_ev’t
 (
 
-4345 
+4346 
 d©aba£
 .
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-4346 
+4347 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1547471,17 +1547473,17 @@ eEv’ts
 STEERING_EVENT_CLIENT_ACTIVITY_NOTIFICATION
 ,
 
-4347 &
+4348 &
 Ãw_ev’t
 );
 
-4351 
+4352 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_STEERING_EVENT_SNR_XING_NOTIFICATION
 : {
 
-4352 autØ
+4353 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1547489,29 +1547491,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-4353 
+4354 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_STEERING_EVENT_SNR_XING_NOTIFICATION
 >();
 
-4354 ià(
+4355 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4355 
+4356 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_STEERING_EVENT_SNR_XING_NOTIFICATION failed";
 
-4356  
+4357  
 	gçl£
 ;
 
-4358 
+4359 
 	gb“rocks_mes§ge
 ::
 sS‹”šgEvSÄXšg
@@ -1547519,7 +1547521,7 @@ sS‹”šgEvSÄXšg
 Ãw_ev’t
 ;
 
-4359 
+4360 
 	gÃw_ev’t
  = 
 nÙifiÿtiÚ
@@ -1547527,19 +1547529,19 @@ nÙifiÿtiÚ
 ·¿ms
 ();
 
-4360 
+4361 
 	gm_sk_poŞ
 .
 push_ev’t
 (
 
-4361 
+4362 
 d©aba£
 .
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-4362 
+4363 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1547547,17 +1547549,17 @@ eEv’ts
 STEERING_EVENT_SNR_XING_NOTIFICATION
 ,
 
-4363 &
+4364 &
 Ãw_ev’t
 );
 
-4367 
+4368 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_STEERING_EVENT_PROBE_REQ_NOTIFICATION
 : {
 
-4368 autØ
+4369 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1547565,29 +1547567,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-4369 
+4370 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_STEERING_EVENT_PROBE_REQ_NOTIFICATION
 >();
 
-4370 ià(
+4371 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4371 
+4372 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_STEERING_EVENT_PROBE_REQ_NOTIFICATION failed";
 
-4372  
+4373  
 	gçl£
 ;
 
-4375 
+4376 
 	gb“rocks_mes§ge
 ::
 sS‹”šgEvProbeReq
@@ -1547595,7 +1547597,7 @@ sS‹”šgEvProbeReq
 Ãw_ev’t
 ;
 
-4376 
+4377 
 	gÃw_ev’t
  = 
 nÙifiÿtiÚ
@@ -1547603,19 +1547605,19 @@ nÙifiÿtiÚ
 ·¿ms
 ();
 
-4377 
+4378 
 	gm_sk_poŞ
 .
 push_ev’t
 (
 
-4378 
+4379 
 d©aba£
 .
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-4379 
+4380 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1547623,17 +1547625,17 @@ eEv’ts
 STEERING_EVENT_PROBE_REQ_NOTIFICATION
 ,
 
-4380 &
+4381 &
 Ãw_ev’t
 );
 
-4384 
+4385 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_STEERING_EVENT_AUTH_FAIL_NOTIFICATION
 : {
 
-4385 autØ
+4386 autØ
 nÙifiÿtiÚ
  = 
 b“rocks_h—d”
@@ -1547641,29 +1547643,29 @@ b“rocks_h—d”
 addCÏss
 <
 
-4386 
+4387 
 b“rocks_mes§ge
 ::
 cACTION_CONTROL_STEERING_EVENT_AUTH_FAIL_NOTIFICATION
 >();
 
-4387 ià(
+4388 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4388 
+4389 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_STEERING_EVENT_AUTH_FAIL_NOTIFICATION failed";
 
-4389  
+4390  
 	gçl£
 ;
 
-4391 
+4392 
 	gb“rocks_mes§ge
 ::
 sS‹”šgEvAuthFa
@@ -1547671,7 +1547673,7 @@ sS‹”šgEvAuthFa
 Ãw_ev’t
 ;
 
-4392 
+4393 
 	gÃw_ev’t
  = 
 nÙifiÿtiÚ
@@ -1547679,19 +1547681,19 @@ nÙifiÿtiÚ
 ·¿ms
 ();
 
-4393 
+4394 
 	gm_sk_poŞ
 .
 push_ev’t
 (
 
-4394 
+4395 
 d©aba£
 .
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-4395 
+4396 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1547699,25 +1547701,25 @@ eEv’ts
 STEERING_EVENT_AUTH_FAIL_NOTIFICATION
 ,
 
-4396 &
+4397 &
 Ãw_ev’t
 );
 
-4399 
+4400 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_STEERING_CLIENT_SET_GROUP_RESPONSE
 : {
 
-4400 autØ
+4401 autØ
 nÙifiÿtiÚ
  =
 
-4401 
+4402 
 b“rocks_h—d”
 
 
-4402 ->
+4403 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1547725,23 +1547727,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_STEERING_CLIENT_SET_GROUP_RESPONSE
 >();
 
-4403 ià(
+4404 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4404 
+4405 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_STEERING_CLIENT_SET_GROUP_REQUEST failed";
 
-4405  
+4406  
 	gçl£
 ;
 
-4407 
+4408 
 	g´e_assocŸtiÚ_¡“ršg_sk
 ::
 sS‹”šgS‘GroupRe¥Ú£Ev’t
@@ -1547749,7 +1547751,7 @@ sS‹”šgS‘GroupRe¥Ú£Ev’t
 Ãw_ev’t
 ;
 
-4408 
+4409 
 	gÃw_ev’t
 .
 	g»t_code
@@ -1547761,7 +1547763,7 @@ nÙifiÿtiÚ
 ”rÜ_code
 ;
 
-4409 
+4410 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1547771,7 +1547773,7 @@ d©aba£
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-4410 
+4411 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1547779,25 +1547781,25 @@ eEv’ts
 STEERING_SET_GROUP_RESPONSE
 ,
 
-4411 &
+4412 &
 Ãw_ev’t
 );
 
-4415 
+4416 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_STEERING_CLIENT_SET_RESPONSE
 : {
 
-4416 autØ
+4417 autØ
 nÙifiÿtiÚ
  =
 
-4417 
+4418 
 b“rocks_h—d”
 
 
-4418 ->
+4419 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1547805,23 +1547807,23 @@ b“rocks_mes§ge
 cACTION_CONTROL_STEERING_CLIENT_SET_RESPONSE
 >();
 
-4419 ià(
+4420 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4420 
+4421 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_STEERING_CLIENT_SET_RESPONSE failed";
 
-4421  
+4422  
 	gçl£
 ;
 
-4423 
+4424 
 	g´e_assocŸtiÚ_¡“ršg_sk
 ::
 sS‹”šgCl›ÁS‘Re¥Ú£Ev’t
@@ -1547829,7 +1547831,7 @@ sS‹”šgCl›ÁS‘Re¥Ú£Ev’t
 Ãw_ev’t
 ;
 
-4424 
+4425 
 	gÃw_ev’t
 .
 	g»t_code
@@ -1547841,7 +1547843,7 @@ nÙifiÿtiÚ
 ”rÜ_code
 ;
 
-4425 
+4426 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1547851,7 +1547853,7 @@ d©aba£
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-4426 
+4427 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1547859,25 +1547861,25 @@ eEv’ts
 STEERING_CLIENT_SET_RESPONSE
 ,
 
-4427 &
+4428 &
 Ãw_ev’t
 );
 
-4432 
+4433 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_DISCONNECT_RESPONSE
 : {
 
-4433 autØ
+4434 autØ
 nÙifiÿtiÚ
  =
 
-4434 
+4435 
 b“rocks_h—d”
 
 
-4435 ->
+4436 ->
 addCÏss
 <
 b“rocks_mes§ge
@@ -1547885,27 +1547887,27 @@ b“rocks_mes§ge
 cACTION_CONTROL_CLIENT_DISCONNECT_RESPONSE
 >();
 
-4436 ià(
+4437 ià(
 	gnÙifiÿtiÚ
  =ğ
 nuÎ±r
 ) {
 
-4437 
+4438 
 LOG
 (
 ERROR
 ) << "addClass cACTION_CONTROL_CLIENT_DISCONNECT_RESPONSE failed";
 
-4438  
+4439  
 	gçl£
 ;
 
-4440 #ifdeà
+4441 #ifdeà
 FEATURE_PRE_ASSOCIATION_STEERING
 
 
-4441 ià(
+4442 ià(
 	gnÙifiÿtiÚ
 ->
 ·¿ms
@@ -1547915,7 +1547917,7 @@ FEATURE_PRE_ASSOCIATION_STEERING
 eCl›Á_DiscÚÃù_Sourû_P»_AssocŸtiÚ_S‹”šg_Task
 ) {
 
-4443 
+4444 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 sS‹”šgCl›ÁDiscÚÃùRe¥Ú£Ev’t
@@ -1547923,7 +1547925,7 @@ sS‹”šgCl›ÁDiscÚÃùRe¥Ú£Ev’t
 Ãw_ev’t
 ;
 
-4444 
+4445 
 	gÃw_ev’t
 .
 	g»t_code
@@ -1547935,19 +1547937,19 @@ nÙifiÿtiÚ
 ”rÜ_code
 ;
 
-4445 
+4446 
 	gm_sk_poŞ
 .
 push_ev’t
 (
 
-4446 
+4447 
 d©aba£
 .
 g‘_´e_assocŸtiÚ_¡“ršg_sk_id
 (),
 
-4447 
+4448 
 ´e_assocŸtiÚ_¡“ršg_sk
 ::
 eEv’ts
@@ -1547955,47 +1547957,47 @@ eEv’ts
 STEERING_CLIENT_DISCONNECT_RESPONSE
 ,
 
-4448 &
+4449 &
 Ãw_ev’t
 );
 
-4453 
+4454 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CHANNEL_SCAN_TRIGGER_SCAN_RESPONSE
 : {
 
-4456 
+4457 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CHANNEL_SCAN_TRIGGERED_NOTIFICATION
 : {
 
-4458 
+4459 
 b“rocks_mes§ge
 ::
 ACTION_CONTROL_CHANNEL_SCAN_RESULTS_NOTIFICATION
 : {
 
-4461 
+4462 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CHANNEL_SCAN_FINISHED_NOTIFICATION
 : {
 
-4464 
+4465 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CHANNEL_SCAN_ABORT_NOTIFICATION
 : {
 
-4467 
+4468 
 	gb“rocks_mes§ge
 ::
 ACTION_CONTROL_CLIENT_START_MONITORING_RESPONSE
 : {
 
-4472 
+4473 
 LOG_CLI
 (
 ERROR
@@ -1548005,17 +1548007,17 @@ b“rocks_h—d”
 aùiÚ_İ
 ()));
 
-4473  
+4474  
 	gçl£
 ;
 
-4479 ià(
+4480 ià(
 	gb“rocks_h—d”
 ->
 id
 ()) {
 
-4480 
+4481 
 	gm_sk_poŞ
 .
 »¥Ú£_»ûived
@@ -1548025,15 +1548027,15 @@ id
 b“rocks_h—d”
 );
 
-4481  
+4482  
 	gŒue
 ;
 
-4484  
+4485  
 	gŒue
 ;
 
-4487 
+4488 
 boŞ
  
 	gCÚŒŞËr
@@ -1548049,7 +1548051,7 @@ boŞ
 rg‘_bssid
 )
 
-4489 
+4490 
 ¡d
 ::
 ¡ršg
@@ -1548057,7 +1548059,7 @@ boŞ
 Œigg”ed_by
 {"NBAPI"};
 
-4490 
+4491 
 boŞ
  
 	gdi§ssoc_immš’t
@@ -1548065,7 +1548067,7 @@ boŞ
 çl£
 ;
 
-4492 
+4493 
 LOG
 (
 DEBUG
@@ -1548075,7 +1548077,7 @@ DEBUG
 	grg‘_bssid
 ;
 
-4493 
+4494 
 	gsÚ_aùiÚs
 ::
 ¡“r_¡a
@@ -1548093,7 +1548095,7 @@ m_sk_poŞ
 Œigg”ed_by
 ,
 
-4494 
+4495 
 ¡d
 ::
 ¡ršg
@@ -1548101,7 +1548103,7 @@ m_sk_poŞ
 di§ssoc_immš’t
 ,
 
-4495 
+4496 
 d©aba£
 .
 cÚfig
@@ -1548111,17 +1548113,17 @@ cÚfig
 couÁ
 ());
 
-4496  
+4497  
 	gŒue
 ;
 
-4499 
+4500 
 	#BEACON_INTERVAL_MS_IN_BI
  100
 
 	)
 
-4500 
+4501 
 boŞ
  
 	gCÚŒŞËr
@@ -1548131,31 +1548133,31 @@ boŞ
 di§ssoc_immš’t
 ,
 
-4501 cÚ¡ 
+4502 cÚ¡ 
 ušt32_t
  &
 di§ssoc_tim”
 ,
 
-4502 cÚ¡ 
+4503 cÚ¡ 
 ušt32_t
  &
 bss_‹rm_du¿tiÚ
 ,
 
-4503 cÚ¡ 
+4504 cÚ¡ 
 ušt32_t
  &
 v®id™y_š‹rv®
 ,
 
-4504 cÚ¡ 
+4505 cÚ¡ 
 ušt32_t
  &
 ¡“ršg_tim”
 ,
 
-4505 cÚ¡ 
+4506 cÚ¡ 
 ¡d
 ::
 ¡ršg
@@ -1548165,7 +1548167,7 @@ ušt32_t
 rg‘_bssid
 )
 
-4507 
+4508 
 ¡d
 ::
 ¡ršg
@@ -1548173,7 +1548175,7 @@ ušt32_t
 Œigg”ed_by
 {"NBAPI BTMRequest"};
 
-4509 
+4510 
 	gdi§ssoc_tim”_ms
  = 
 BEACON_INTERVAL_MS_IN_BI
@@ -1548181,7 +1548183,7 @@ BEACON_INTERVAL_MS_IN_BI
 di§ssoc_tim”
 ;
 
-4510 
+4511 
 	g¡“ršg_tim”_ms
  = 
 BEACON_INTERVAL_MS_IN_BI
@@ -1548189,7 +1548191,7 @@ BEACON_INTERVAL_MS_IN_BI
 ¡“ršg_tim”
 ;
 
-4511 
+4512 
 	gv®id™y_š‹rv®_ms
  = 
 BEACON_INTERVAL_MS_IN_BI
@@ -1548197,7 +1548199,7 @@ BEACON_INTERVAL_MS_IN_BI
 v®id™y_š‹rv®
 ;
 
-4513 
+4514 
 LOG
 (
 DEBUG
@@ -1548207,7 +1548209,7 @@ DEBUG
 	grg‘_bssid
 ;
 
-4514 
+4515 
 	gsÚ_aùiÚs
 ::
 ¡¬t_btm_»que¡_sk
@@ -1548221,7 +1548223,7 @@ m_sk_poŞ
 di§ssoc_immš’t
 ,
 
-4515 
+4516 
 di§ssoc_tim”_ms
 , 
 bss_‹rm_du¿tiÚ
@@ -1548229,7 +1548231,7 @@ bss_‹rm_du¿tiÚ
 v®id™y_š‹rv®_ms
 ,
 
-4516 
+4517 
 ¡“ršg_tim”_ms
 , 
 ¡a_mac
@@ -1548239,11 +1548241,11 @@ v®id™y_š‹rv®_ms
 Œigg”ed_by
 );
 
-4518  
+4519  
 	gŒue
 ;
 
-4521 
+4522 
 boŞ
  
 	gCÚŒŞËr
@@ -1548251,13 +1548253,13 @@ boŞ
 Œigg”_sÿn
 (
 
-4522 cÚ¡ 
+4523 cÚ¡ 
 sMacAddr
  &
 ¿dio_mac
 ,
 
-4523 
+4524 
 ¡d
 ::
 ¬¿y
@@ -1548273,7 +1548275,7 @@ SUPPORTED_CHANNELS_LENGTH
 chªÃl_poŞ
 ,
 
-4524 
+4525 
 ušt8_t
  
 poŞ_size
@@ -1548281,7 +1548283,7 @@ poŞ_size
 dw–l_time
 )
 
-4526 autØ
+4527 autØ
 	gchªÃl_poŞ_£t
  = 
 ¡d
@@ -1548297,11 +1548299,11 @@ chªÃl_poŞ
 poŞ_size
 ]);
 
-4528 ià(
+4529 ià(
 	gpoŞ_size
  == 0) {
 
-4529 
+4530 
 LOG
 (
 DEBUG
@@ -1548309,7 +1548311,7 @@ DEBUG
 ¿dio_mac
 ;
 
-4530 ià(!
+4531 ià(!
 	gd©aba£
 .
 g‘_poŞ_of_®l_suµÜ‹d_chªÃls
@@ -1548319,11 +1548321,11 @@ chªÃl_poŞ_£t
 ¿dio_mac
 )) {
 
-4531  
+4532  
 	gçl£
 ;
 
-4534 ià(!
+4535 ià(!
 	gd©aba£
 .
 £t_chªÃl_sÿn_poŞ
@@ -1548335,17 +1548337,17 @@ chªÃl_poŞ_£t
 Œue
 )) {
 
-4535 
+4536 
 LOG
 (
 ERROR
 ) << "set_channel_scan_pool failed";
 
-4536  
+4537  
 	gçl£
 ;
 
-4538 ià(!
+4539 ià(!
 	gd©aba£
 .
 £t_chªÃl_sÿn_dw–l_time_m£c
@@ -1548357,17 +1548359,17 @@ dw–l_time
 Œue
 )) {
 
-4539 
+4540 
 LOG
 (
 ERROR
 ) << "set_channel_scan_dwell_time_msec failed";
 
-4540  
+4541  
 	gçl£
 ;
 
-4543 
+4544 
 LOG
 (
 DEBUG
@@ -1548375,7 +1548377,7 @@ DEBUG
 	g¿dio_mac
 ;
 
-4545 
+4546 
 	gdyÇmic_chªÃl_£ËùiÚ_r2_sk
 ::
 sSšgËSÿnReque¡Ev’t
@@ -1548383,7 +1548385,7 @@ sSšgËSÿnReque¡Ev’t
 Ãw_ev’t
  = {};
 
-4546 
+4547 
 	gÃw_ev’t
 .
 	g¿dio_mac
@@ -1548391,7 +1548393,7 @@ sSšgËSÿnReque¡Ev’t
 ¿dio_mac
 ;
 
-4547 
+4548 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1548401,7 +1548403,7 @@ d©aba£
 g‘_dyÇmic_chªÃl_£ËùiÚ_r2_sk_id
 (),
 
-4548 
+4549 
 dyÇmic_chªÃl_£ËùiÚ_r2_sk
 ::
 eEv’t
@@ -1548409,15 +1548411,15 @@ eEv’t
 TRIGGER_SINGLE_SCAN
 ,
 
-4549 &
+4550 &
 Ãw_ev’t
 );
 
-4550  
+4551  
 	gŒue
 ;
 
-4553 
+4554 
 boŞ
  
 	gCÚŒŞËr
@@ -1548425,7 +1548427,7 @@ boŞ
 Œigg”_£t_¥©Ÿl_»u£
 (
 
-4554 cÚ¡ 
+4555 cÚ¡ 
 sMacAddr
  &
 ruid
@@ -1548439,7 +1548441,7 @@ boŞ
 hesiga_¥r_v®ue15_®lowed
 ,
 
-4555 cÚ¡ 
+4556 cÚ¡ 
 boŞ
  
 ¤g_šfÜm©iÚ_v®id
@@ -1548449,7 +1548451,7 @@ nÚ_¤g_off£t_v®id
 p¤_di§Îowed
 ,
 
-4556 
+4557 
 ušt32_t
  
 nÚ_¤g_obs¥d_max_off£t
@@ -1548457,7 +1548459,7 @@ nÚ_¤g_obs¥d_max_off£t
 ¤g_obs¥d_mš_off£t
 ,
 
-4557 
+4558 
 ušt32_t
  
 ¤g_obs¥d_max_off£t
@@ -1548467,13 +1548469,13 @@ ušt64_t
 ¤g_bss_cŞÜ_b™m­
 ,
 
-4558 
+4559 
 ušt64_t
  
 ¤g_·¹Ÿl_bssid_b™m­
 )
 
-4560 
+4561 
 LOG
 (
 DEBUG
@@ -1548481,43 +1548483,43 @@ DEBUG
 	gbss_cŞÜ
 
 
-4561 << ", HESIGAS·tŸlReu£V®ue15AÎowed: " << 
+4562 << ", HESIGAS·tŸlReu£V®ue15AÎowed: " << 
 	ghesiga_¥r_v®ue15_®lowed
 
 
-4562 << ", SRGInfÜm©iÚV®id: " << 
+4563 << ", SRGInfÜm©iÚV®id: " << 
 	g¤g_šfÜm©iÚ_v®id
 
 
-4563 << ", NÚSRGOff£tV®id: " << 
+4564 << ", NÚSRGOff£tV®id: " << 
 	gnÚ_¤g_off£t_v®id
 
 
-4564 << ", PSRDi§Îowed: " << 
+4565 << ", PSRDi§Îowed: " << 
 	gp¤_di§Îowed
 
 
-4565 << ", NÚSRGOBSSPDMaxOff£t: " << 
+4566 << ", NÚSRGOBSSPDMaxOff£t: " << 
 	gnÚ_¤g_obs¥d_max_off£t
 
 
-4566 << ", SRGOBSSPDMšOff£t: " << 
+4567 << ", SRGOBSSPDMšOff£t: " << 
 	g¤g_obs¥d_mš_off£t
 
 
-4567 << ", SRGOBSSPDMaxOff£t: " << 
+4568 << ", SRGOBSSPDMaxOff£t: " << 
 	g¤g_obs¥d_max_off£t
 
 
-4568 << ", SRGBSSCŞÜB™m­: " << 
+4569 << ", SRGBSSCŞÜB™m­: " << 
 	g¤g_bss_cŞÜ_b™m­
 
 
-4569 << ", SRGP¬tŸlBSSIDB™m­: " << 
+4570 << ", SRGP¬tŸlBSSIDB™m­: " << 
 	g¤g_·¹Ÿl_bssid_b™m­
 ;
 
-4572 ià(!
+4573 ià(!
 	gcmdu_tx
 .
 ü—‹
@@ -1548529,17 +1548531,17 @@ eMes§geTy³
 CHANNEL_SELECTION_REQUEST_MESSAGE
 )) {
 
-4573 
+4574 
 LOG
 (
 ERROR
 ) << "CMDU creation ofype CHANNEL_SELECTION_REQUEST_MESSAGE, has failed";
 
-4574  
+4575  
 	gçl£
 ;
 
-4577 autØ
+4578 autØ
 	g¥©Ÿl_»u£_»que¡_v
  = 
 cmdu_tx
@@ -1548551,21 +1548553,21 @@ wç_m­
 vS·tŸlReu£Reque¡
 >();
 
-4578 ià(!
+4579 ià(!
 	g¥©Ÿl_»u£_»que¡_v
 ) {
 
-4579 
+4580 
 LOG
 (
 ERROR
 ) << "addClass wfa_map::tlvSpatialReuseRequest has failed";
 
-4580  
+4581  
 	gçl£
 ;
 
-4583 
+4584 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 ¿dio_uid
@@ -1548573,7 +1548575,7 @@ ERROR
 ruid
 ;
 
-4584 
+4585 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 æags1
@@ -1548583,7 +1548585,7 @@ ruid
 bss_cŞÜ
 ;
 
-4585 
+4586 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 æags2
@@ -1548591,11 +1548593,11 @@ bss_cŞÜ
 	ghesiga_¥©Ÿl_»u£_v®ue15_®lowed
  =
 
-4586 
+4587 
 hesiga_¥r_v®ue15_®lowed
 ;
 
-4587 
+4588 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 æags2
@@ -1548605,7 +1548607,7 @@ hesiga_¥r_v®ue15_®lowed
 ¤g_šfÜm©iÚ_v®id
 ;
 
-4588 
+4589 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 æags2
@@ -1548615,7 +1548617,7 @@ hesiga_¥r_v®ue15_®lowed
 nÚ_¤g_off£t_v®id
 ;
 
-4589 
+4590 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 æags2
@@ -1548625,45 +1548627,45 @@ nÚ_¤g_off£t_v®id
 p¤_di§Îowed
 ;
 
-4590 ià(
+4591 ià(
 	gnÚ_¤g_off£t_v®id
 ) {
 
-4591 
+4592 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 nÚ_¤g_obs¥d_max_off£t
 () =‚on_srg_obsspd_max_offset;
 
-4593 ià(
+4594 ià(
 	g¤g_šfÜm©iÚ_v®id
 ) {
 
-4594 
+4595 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 ¤g_obs¥d_mš_off£t
 () = srg_obsspd_min_offset;
 
-4595 
+4596 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 ¤g_obs¥d_max_off£t
 () = srg_obsspd_max_offset;
 
-4596 
+4597 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 ¤g_bss_cŞÜ_b™m­
 () = srg_bss_color_bitmap;
 
-4597 
+4598 
 	g¥©Ÿl_»u£_»que¡_v
 ->
 ¤g_·¹Ÿl_bssid_b™m­
 () = srg_partial_bssid_bitmap;
 
-4599 cÚ¡‡utØ&
+4600 cÚ¡‡utØ&
 	gag’t
  : 
 d©aba£
@@ -1548671,7 +1548673,7 @@ d©aba£
 g‘_®l_cÚÃùed_ag’ts
 ()) {
 
-4600 
+4601 
 sÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1548685,13 +1548687,13 @@ cmdu_tx
 d©aba£
 );
 
-4601 
+4602 
 LOG
 (
 DEBUG
 ) << "send CHANNEL_SELECTION_REQUEST_MESSAGE with spatial„euseo‡gent with "
 
-4603 << 
+4604 << 
 	gvf
 ::
 mac_to_¡ršg
@@ -1548701,11 +1548703,11 @@ ag’t
 ®_mac
 );
 
-4605  
+4606  
 	gŒue
 ;
 
-4608 
+4609 
 boŞ
  
 	gCÚŒŞËr
@@ -1548719,7 +1548721,7 @@ de¡_ruid
 vbssid
 ,
 
-4609 cÚ¡ 
+4610 cÚ¡ 
 sMacAddr
  &
 ş›Á_mac
@@ -1548731,7 +1548733,7 @@ sMacAddr
 Ãw_bss_ssid
 ,
 
-4610 cÚ¡ 
+4611 cÚ¡ 
 ¡d
 ::
 ¡ršg
@@ -1548739,11 +1548741,11 @@ sMacAddr
 Ãw_bss_·ss
 )
 
-4612 #ifdeà
+4613 #ifdeà
 ENABLE_VBSS
 
 
-4613 
+4614 
 vbss
 ::
 sCl›ÁVBSS
@@ -1548751,7 +1548753,7 @@ sCl›ÁVBSS
 ş›Á_vbss
  = {};
 
-4615 
+4616 
 	gş›Á_vbss
 .
 	gş›Á_is_assocŸ‹d
@@ -1548759,7 +1548761,7 @@ sCl›ÁVBSS
 çl£
 ;
 
-4616 
+4617 
 	gş›Á_vbss
 .
 	gş›Á_mac
@@ -1548767,7 +1548769,7 @@ sCl›ÁVBSS
 ş›Á_mac
 ;
 
-4617 
+4618 
 	gş›Á_vbss
 .
 	gcu¼’t_cÚÃùed_ruid
@@ -1548781,7 +1548783,7 @@ b“rocks
 ZERO_MAC
 ;
 
-4618 
+4619 
 	gş›Á_vbss
 .
 	gvbssid
@@ -1548789,7 +1548791,7 @@ ZERO_MAC
 vbssid
 ;
 
-4620  
+4621  
 	gvbss
 ::
 vbss_aùiÚs
@@ -1548805,23 +1548807,23 @@ de¡_ruid
 Ãw_bss_·ss
 ,
 
-4621 
+4622 
 nuÎ±r
 , 
 d©aba£
 );
 
-4623 
+4624 
 LOG
 (
 ERROR
 ) << "Failedorigger VBSS creation! VBSS is‚otƒnabled!";
 
-4624  
+4625  
 	gçl£
 ;
 
-4627 
+4628 
 boŞ
  
 	gCÚŒŞËr
@@ -1548835,23 +1548837,23 @@ cÚÃùed_ruid
 vbssid
 ,
 
-4628 cÚ¡ 
+4629 cÚ¡ 
 sMacAddr
  &
 ş›Á_mac
 ,
 
-4629 cÚ¡ 
+4630 cÚ¡ 
 boŞ
  
 should_di§ssocŸ‹
 )
 
-4631 #ifdeà
+4632 #ifdeà
 ENABLE_VBSS
 
 
-4632 
+4633 
 	gvbss
 ::
 sCl›ÁVBSS
@@ -1548859,7 +1548861,7 @@ sCl›ÁVBSS
 ş›Á_vbss
  = {};
 
-4634 
+4635 
 	gş›Á_vbss
 .
 	gş›Á_is_assocŸ‹d
@@ -1548867,7 +1548869,7 @@ sCl›ÁVBSS
 Œue
 ;
 
-4635 
+4636 
 	gş›Á_vbss
 .
 	gş›Á_mac
@@ -1548875,7 +1548877,7 @@ sCl›ÁVBSS
 ş›Á_mac
 ;
 
-4636 
+4637 
 	gş›Á_vbss
 .
 	gcu¼’t_cÚÃùed_ruid
@@ -1548883,7 +1548885,7 @@ sCl›ÁVBSS
 cÚÃùed_ruid
 ;
 
-4637 
+4638 
 	gş›Á_vbss
 .
 	gvbssid
@@ -1548891,7 +1548893,7 @@ cÚÃùed_ruid
 vbssid
 ;
 
-4639  
+4640  
 	gvbss
 ::
 vbss_aùiÚs
@@ -1548905,17 +1548907,17 @@ should_di§ssocŸ‹
 d©aba£
 );
 
-4641 
+4642 
 LOG
 (
 ERROR
 ) << "Failedorigger VBSS destruction! VBSS is‚otƒnabled!";
 
-4642  
+4643  
 	gçl£
 ;
 
-4645 
+4646 
 boŞ
  
 	gCÚŒŞËr
@@ -1548927,11 +1548929,11 @@ sMacAddr
 ag’t_mac
 )
 
-4647 #ifdeà
+4648 #ifdeà
 ENABLE_VBSS
 
 
-4648  
+4649  
 vbss
 ::
 vbss_aùiÚs
@@ -1548943,17 +1548945,17 @@ ag’t_mac
 d©aba£
 );
 
-4650 
+4651 
 LOG
 (
 ERROR
 ) << "Failedo update VBSS capabilities! VBSS is‚otƒnabled!";
 
-4651  
+4652  
 	gçl£
 ;
 
-4654 
+4655 
 boŞ
  
 	gCÚŒŞËr
@@ -1548967,7 +1548969,7 @@ cÚÃùed_ruid
 de¡_ruid
 ,
 
-4655 cÚ¡ 
+4656 cÚ¡ 
 sMacAddr
  &
 vbssid
@@ -1548975,7 +1548977,7 @@ vbssid
 ş›Á_mac
 ,
 
-4656 cÚ¡ 
+4657 cÚ¡ 
 ¡d
 ::
 ¡ršg
@@ -1548985,11 +1548987,11 @@ vbssid
 Ãw_bss_·ss
 )
 
-4658 #ifdeà
+4659 #ifdeà
 ENABLE_VBSS
 
 
-4659 
+4660 
 sk_id
  = 
 d©aba£
@@ -1548997,7 +1548999,7 @@ d©aba£
 g‘_vbss_sk_id
 ();
 
-4660 ià(
+4661 ià(
 	gsk_id
  =ğ
 db
@@ -1549005,17 +1549007,17 @@ db
 TASK_ID_NOT_FOUND
 ) {
 
-4661 
+4662 
 LOG
 (
 ERROR
 ) << "Could‚otrigger VBSS move! VBSS Task‚ot found!";
 
-4662  
+4663  
 	gçl£
 ;
 
-4665 
+4666 
 	gvbss
 ::
 sCl›ÁVBSS
@@ -1549023,7 +1549025,7 @@ sCl›ÁVBSS
 ş›Á_vbss
  = {};
 
-4666 
+4667 
 	gş›Á_vbss
 .
 	gş›Á_is_assocŸ‹d
@@ -1549031,7 +1549033,7 @@ sCl›ÁVBSS
 Œue
 ;
 
-4667 
+4668 
 	gş›Á_vbss
 .
 	gş›Á_mac
@@ -1549039,7 +1549041,7 @@ sCl›ÁVBSS
 ş›Á_mac
 ;
 
-4668 
+4669 
 	gş›Á_vbss
 .
 	gcu¼’t_cÚÃùed_ruid
@@ -1549047,7 +1549049,7 @@ sCl›ÁVBSS
 cÚÃùed_ruid
 ;
 
-4669 
+4670 
 	gş›Á_vbss
 .
 	gvbssid
@@ -1549055,7 +1549057,7 @@ cÚÃùed_ruid
 vbssid
 ;
 
-4671 
+4672 
 	gvbss_sk
 ::
 sMoveEv’t
@@ -1549063,7 +1549065,7 @@ sMoveEv’t
 move_ev’t
  = {};
 
-4672 
+4673 
 	gmove_ev’t
 .
 	gş›Á_vbss
@@ -1549071,7 +1549073,7 @@ move_ev’t
 ş›Á_vbss
 ;
 
-4673 
+4674 
 	gmove_ev’t
 .
 	gde¡_ruid
@@ -1549079,7 +1549081,7 @@ move_ev’t
 de¡_ruid
 ;
 
-4674 
+4675 
 	gmove_ev’t
 .
 	gssid
@@ -1549087,7 +1549089,7 @@ de¡_ruid
 Ãw_bss_ssid
 ;
 
-4675 
+4676 
 	gmove_ev’t
 .
 	g·sswÜd
@@ -1549095,7 +1549097,7 @@ de¡_ruid
 Ãw_bss_·ss
 ;
 
-4677 
+4678 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1549111,27 +1549113,27 @@ MOVE
 move_ev’t
 );
 
-4679  
+4680  
 	gŒue
 ;
 
-4681 
+4682 
 LOG
 (
 ERROR
 ) << "Failedorigger VBSS move! VBSS is‚otƒnabled!";
 
-4682  
+4683  
 	gçl£
 ;
 
-4685 
+4686 
 	gCÚŒŞËr
 ::
 Œigg”_´iÜ™iz©iÚ_cÚfig
 ()
 
-4687 autØ
+4688 autØ
 ev
  = 
 ag’t_mÚ™Üšg_sk
@@ -1549139,7 +1549141,7 @@ ag’t_mÚ™Üšg_sk
 CONFIGURE_QOS
 ;
 
-4688 
+4689 
 	gm_sk_poŞ
 .
 push_ev’t
@@ -1549151,7 +1549153,7 @@ g‘_ag’t_mÚ™Üšg_sk_id
 ev
 );
 
-4691 
+4692 
 boŞ
  
 	gCÚŒŞËr
@@ -1549167,7 +1549169,7 @@ Ag’t
 ag’t
 ,
 
-4692 
+4693 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1549175,7 +1549177,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-4694 autØ
+4695 autØ
 ´ofe2_­_ÿ·b™y_v
  = 
 cmdu_rx
@@ -1549187,21 +1549189,21 @@ wç_m­
 vProfe2ApC­ab™y
 >();
 
-4695 ià(!
+4696 ià(!
 	g´ofe2_­_ÿ·b™y_v
 ) {
 
-4696 
+4697 
 LOG
 (
 DEBUG
 ) << "getClass wfa_map::tlvProfile2ApCapability has failed";
 
-4697  
+4698  
 	gçl£
 ;
 
-4700 
+4701 
 	gag’t
 ->
 	gmax_´iÜ™iz©iÚ_ruËs
@@ -1549211,7 +1549213,7 @@ DEBUG
 max_´iÜ™iz©iÚ_ruËs
 ();
 
-4701 
+4702 
 	gag’t
 ->
 	gby‹_couÁ”_un™s
@@ -1549225,7 +1549227,7 @@ wç_m­
 eBy‹CouÁ”Un™s
 >(
 
-4702 
+4703 
 ´ofe2_­_ÿ·b™y_v
 ->
 ÿ·b™›s_b™_f›ld
@@ -1549233,13 +1549235,13 @@ eBy‹CouÁ”Un™s
 by‹_couÁ”_un™s
 );
 
-4703 
+4704 
 	gag’t
 ->
 	g´iÜ™iz©iÚ_suµÜt
  =
 
-4704 
+4705 
 ´ofe2_­_ÿ·b™y_v
 ->
 ÿ·b™›s_b™_f›ld
@@ -1549247,13 +1549249,13 @@ by‹_couÁ”_un™s
 ´iÜ™iz©iÚ
 ;
 
-4705 
+4706 
 	gag’t
 ->
 	gdµ_Úbßrdšg_suµÜt
  =
 
-4706 
+4707 
 ´ofe2_­_ÿ·b™y_v
 ->
 ÿ·b™›s_b™_f›ld
@@ -1549261,13 +1549263,13 @@ by‹_couÁ”_un™s
 dµ_Úbßrdšg
 ;
 
-4707 
+4708 
 	gag’t
 ->
 	gŒaffic_£·¿tiÚ_suµÜt
  =
 
-4708 
+4709 
 ´ofe2_­_ÿ·b™y_v
 ->
 ÿ·b™›s_b™_f›ld
@@ -1549275,7 +1549277,7 @@ dµ_Úbßrdšg
 Œaffic_£·¿tiÚ
 ;
 
-4709 
+4710 
 	gag’t
 ->
 	gmax_tÙ®_numb”_of_vids
@@ -1549285,7 +1549287,7 @@ dµ_Úbßrdšg
 max_tÙ®_numb”_of_vids
 ();
 
-4711 
+4712 
 LOG
 (
 DEBUG
@@ -1549295,7 +1549297,7 @@ DEBUG
 ’dl
 
 
-4713 << 
+4714 << 
 ag’t
 ->
 max_´iÜ™iz©iÚ_ruËs
@@ -1549305,7 +1549307,7 @@ max_´iÜ™iz©iÚ_ruËs
 ’dl
 
 
-4715 << 
+4716 << 
 wç_m­
 ::
 vProfe2ApC­ab™y
@@ -1549317,13 +1549319,13 @@ ag’t
 by‹_couÁ”_un™s
 )
 
-4716 << 
+4717 << 
 ¡d
 ::
 ’dl
 
 
-4717 << "S”viû PriÜ™iz©iÚ suµÜt: " << 
+4718 << "S”viû PriÜ™iz©iÚ suµÜt: " << 
 ag’t
 ->
 ´iÜ™iz©iÚ_suµÜt
@@ -1549333,7 +1549335,7 @@ ag’t
 ’dl
 
 
-4718 << "DPP Onbßrdšg…roûdu» suµÜt: " << 
+4719 << "DPP Onbßrdšg…roûdu» suµÜt: " << 
 ag’t
 ->
 dµ_Úbßrdšg_suµÜt
@@ -1549343,7 +1549345,7 @@ dµ_Úbßrdšg_suµÜt
 ’dl
 
 
-4719 << "T¿ffiøS•¬©iÚ suµÜt: " << 
+4720 << "T¿ffiøS•¬©iÚ suµÜt: " << 
 ag’t
 ->
 Œaffic_£·¿tiÚ_suµÜt
@@ -1549353,7 +1549355,7 @@ ag’t
 ’dl
 
 
-4721 << 
+4722 << 
 ag’t
 ->
 max_tÙ®_numb”_of_vids
@@ -1549363,7 +1549365,7 @@ max_tÙ®_numb”_of_vids
 ’dl
 ;
 
-4723 ià(!
+4724 ià(!
 	gd©aba£
 .
 dm_£t_deviû_­_ÿ·b™›s
@@ -1549371,7 +1549373,7 @@ dm_£t_deviû_­_ÿ·b™›s
 ag’t
 )) {
 
-4724 
+4725 
 LOG
 (
 ERROR
@@ -1549381,15 +1549383,15 @@ ERROR
 	g®_mac
 ;
 
-4725  
+4726  
 	gçl£
 ;
 
-4728  
+4729  
 	gŒue
 ;
 
-4731 
+4732 
 boŞ
  
 	gCÚŒŞËr
@@ -1549401,7 +1549403,7 @@ Ag’t
 ag’t
 ,
 
-4732 
+4733 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1549409,7 +1549411,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-4734 autØ
+4735 autØ
 ÿc_ÿ·b™›s_v
  = 
 cmdu_rx
@@ -1549421,27 +1549423,27 @@ wç_m­
 vProfe2CacC­ab™›s
 >();
 
-4735 ià(!
+4736 ià(!
 	gÿc_ÿ·b™›s_v
 ) {
 
-4736 
+4737 
 LOG
 (
 DEBUG
 ) << "getClass wfa_map::tlvProfile2CacCapabilities has failed";
 
-4737  
+4738  
 	gçl£
 ;
 
-4740 
+4741 
 LOG
 (
 DEBUG
 ) << "Profile-2 CAC Capabilities TLV is„eceived";
 
-4742 
+4743 
 	g¡d
 ::
 ¡ršg¡»am
@@ -1549449,7 +1549451,7 @@ DEBUG
 ss
 ;
 
-4744 
+4745 
 	gag’t
 .
 	gdeviû_šfo
@@ -1549458,20 +1549460,6 @@ ss
 .
 ş—r
 ();
-
-4745 
-	gag’t
-.
-	gdeviû_šfo
-.
-	gcouÁry_code
- +ğ
-¡©ic_ÿ¡
-<>(*
-ÿc_ÿ·b™›s_v
-->
-couÁry_code
-(0));
 
 4746 
 	gag’t
@@ -1549485,9 +1549473,23 @@ couÁry_code
 ÿc_ÿ·b™›s_v
 ->
 couÁry_code
-(1));
+(0));
 
 4747 
+	gag’t
+.
+	gdeviû_šfo
+.
+	gcouÁry_code
+ +ğ
+¡©ic_ÿ¡
+<>(*
+ÿc_ÿ·b™›s_v
+->
+couÁry_code
+(1));
+
+4748 
 	gss
  << "CouÁry code: " << 
 	gag’t
@@ -1549501,7 +1549503,7 @@ couÁry_code
 ’dl
 ;
 
-4749 
+4750 
 size_t
  
 	g¿dio_idx
@@ -1549511,11 +1549513,11 @@ size_t
 numb”_of_ÿc_¿dios
 ();
 
-4750 
+4751 
 	g¿dio_idx
 ++) {
 
-4751 ià(!
+4752 ià(!
 	g¡d
 ::
 g‘
@@ -1549527,13 +1549529,13 @@ g‘
 ¿dio_idx
 ))) {
 
-4752 
+4753 
 LOG
 (
 ERROR
 ) << "Invalid CAC„adio inlvProfile2CacCapabilities";
 
-4756 autØ&
+4757 autØ&
 	gÿc_¿dio
  = 
 ¡d
@@ -1549547,7 +1549549,7 @@ g‘
 ¿dio_idx
 ));
 
-4757 autØ
+4758 autØ
 	gruid
  = 
 ÿc_¿dio
@@ -1549555,7 +1549557,7 @@ g‘
 ¿dio_uid
 ();
 
-4759 autØ
+4760 autØ
 	g¿dio
  = 
 ag’t
@@ -1549567,11 +1549569,11 @@ g‘
 ruid
 );
 
-4760 ià(!
+4761 ià(!
 	g¿dio
 ) {
 
-4761 
+4762 
 LOG
 (
 ERROR
@@ -1549583,7 +1549585,7 @@ ERROR
 	g®_mac
 ;
 
-4765 
+4766 
 	gd©aba£
 .
 dm_ş—r_¿dio_ÿc_ÿ·b™›s
@@ -1549591,7 +1549593,7 @@ dm_ş—r_¿dio_ÿc_ÿ·b™›s
 ¿dio
 );
 
-4767 
+4768 
 size_t
  
 	gty³_idx
@@ -1549601,21 +1549603,21 @@ size_t
 numb”_of_ÿc_ty³_suµÜ‹d
 ();ype_idx++) {
 
-4768 ià(
+4769 ià(
 	gty³_idx
  > 3) {
 
-4769 
+4770 
 LOG
 (
 ERROR
 ) << "Invalid‚umber of CACypes inlvProfile2CacCapabilities";
 
-4770  
+4771  
 	gçl£
 ;
 
-4773 ià(!
+4774 ià(!
 	g¡d
 ::
 g‘
@@ -1549627,13 +1549629,13 @@ g‘
 ty³_idx
 ))) {
 
-4774 
+4775 
 LOG
 (
 ERROR
 ) << "Invalid CACype inlvProfile2CacCapabilities";
 
-4777 autØ&
+4778 autØ&
 	gÿc_ty³
  = 
 ¡d
@@ -1549647,7 +1549649,7 @@ g‘
 ty³_idx
 ));
 
-4779 autØ
+4780 autØ
 	gÿc_m‘hod
  = 
 ÿc_ty³
@@ -1549655,7 +1549657,7 @@ ty³_idx
 ÿc_m‘hod
 ();
 
-4780 autØ
+4781 autØ
 	gÿc_m‘hod_¡r
  = 
 wç_m­
@@ -1549665,7 +1549667,7 @@ eCacM‘hod_¡r
 ÿc_m‘hod
 );
 
-4781 autØ
+4782 autØ
 	gÿc_du¿tiÚ
  = 
 ÿc_ty³
@@ -1549673,7 +1549675,7 @@ eCacM‘hod_¡r
 du¿tiÚ
 ();
 
-4783 
+4784 
 	gss
  << "RadiØ" << 
 	gruid
@@ -1549681,7 +1549683,7 @@ du¿tiÚ
 	gÿc_m‘hod_¡r
 
 
-4784 << " w™h du¿tiÚ " << (*
+4785 << " w™h du¿tiÚ " << (*
 	gÿc_du¿tiÚ
 è<< 
 	g¡d
@@ -1549689,19 +1549691,19 @@ du¿tiÚ
 ’dl
 ;
 
-4786 ià(!
+4787 ià(!
 	gÿc_ty³
 .
 numb”_of_İ”©šg_şas£s
 ()) {
 
-4787 
+4788 
 LOG
 (
 ERROR
 ) << "Invalid‚umber of supported operating classes in "
 
-4793 
+4794 
 	g¡d
 ::
 unÜd”ed_m­
@@ -1549713,7 +1549715,7 @@ veùÜ
 oc_chªÃls
 ;
 
-4795 
+4796 
 	gss
  << "SuµÜ‹d OC/chªÃls:" << 
 	g¡d
@@ -1549721,7 +1549723,7 @@ oc_chªÃls
 ’dl
 ;
 
-4796 
+4797 
 size_t
  
 	goc_idx
@@ -1549731,7 +1549733,7 @@ size_t
 numb”_of_İ”©šg_şas£s
 (); oc_idx++) {
 
-4797 ià(!
+4798 ià(!
 	g¡d
 ::
 g‘
@@ -1549743,13 +1549745,13 @@ g‘
 oc_idx
 ))) {
 
-4798 
+4799 
 LOG
 (
 ERROR
 ) << "Invalid operating class inlvProfile2CacCapabilities";
 
-4802 autØ&
+4803 autØ&
 	gİ”©šg_şass
  = 
 ¡d
@@ -1549763,19 +1549765,19 @@ g‘
 oc_idx
 ));
 
-4803 autØ
+4804 autØ
 	goc
  = 
 İ”©šg_şass
 .operating_class();
 
-4804 
+4805 
 	gss
  << "OC: " << (
 	goc
 ) << ", channels: ";
 
-4806 
+4807 
 	g¡d
 ::
 veùÜ
@@ -1549785,7 +1549787,7 @@ ušt8_t
 chªÃls
 ;
 
-4807 
+4808 
 size_t
  
 	gch_idx
@@ -1549795,7 +1549797,7 @@ size_t
 numb”_of_chªÃls
 (); ch_idx++) {
 
-4808 
+4809 
 	gchªÃls
 .
 push_back
@@ -1549807,7 +1549809,7 @@ chªÃls
 ch_idx
 ));
 
-4809 
+4810 
 	gss
  << "#" << (*
 	gİ”©šg_şass
@@ -1549817,7 +1549819,7 @@ chªÃls
 ch_idx
 )) << " ";
 
-4811 
+4812 
 	goc_chªÃls
 .
 em¶aû
@@ -1549827,7 +1549829,7 @@ oc
 chªÃls
 );
 
-4812 
+4813 
 	gss
  << 
 	g¡d
@@ -1549835,7 +1549837,7 @@ chªÃls
 ’dl
 ;
 
-4815 ià(!
+4816 ià(!
 	gd©aba£
 .
 dm_add_¿dio_ÿc_ÿ·b™›s
@@ -1549847,11 +1549849,11 @@ dm_add_¿dio_ÿc_ÿ·b™›s
 ÿc_du¿tiÚ
 ,
 
-4816 
+4817 
 oc_chªÃls
 )) {
 
-4817 
+4818 
 LOG
 (
 ERROR
@@ -1549861,11 +1549863,11 @@ ERROR
 	g¿dio_uid
 ;
 
-4818  
+4819  
 	gçl£
 ;
 
-4823 
+4824 
 LOG
 (
 DEBUG
@@ -1549875,11 +1549877,11 @@ DEBUG
 ¡r
 ();
 
-4824  
+4825  
 	gŒue
 ;
 
-4827 
+4828 
 boŞ
  
 	gCÚŒŞËr
@@ -1549895,7 +1549897,7 @@ Ag’t
 ag’t
 ,
 
-4828 
+4829 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1549903,7 +1549905,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-4830 autØ
+4831 autØ
 chªÃl_sÿn_ÿ·b™›s_v
  = 
 cmdu_rx
@@ -1549915,21 +1549917,21 @@ wç_m­
 vChªÃlSÿnC­ab™›s
 >();
 
-4831 ià(!
+4832 ià(!
 	gchªÃl_sÿn_ÿ·b™›s_v
 ) {
 
-4832 
+4833 
 LOG
 (
 ERROR
 ) << "getClass wfa_map::tlvChannelScanCapabilities has failed";
 
-4833  
+4834  
 	gçl£
 ;
 
-4836 autØ
+4837 autØ
 	g¿dio_li¡_Ëngth
  = 
 chªÃl_sÿn_ÿ·b™›s_v
@@ -1549937,27 +1549939,27 @@ chªÃl_sÿn_ÿ·b™›s_v
 ¿dio_li¡_Ëngth
 ();
 
-4837 ià(!
+4838 ià(!
 	g¿dio_li¡_Ëngth
 ) {
 
-4838 
+4839 
 LOG
 (
 WARNING
 ) << "Received Channel Scan Capabilities TLV without‡ny„adios";
 
-4839  
+4840  
 	gŒue
 ;
 
-4842 
+4843 
 	grc_idx
  = 0;„c_idx < 
 	g¿dio_li¡_Ëngth
 ;„c_idx++) {
 
-4844 autØ
+4845 autØ
 	g¿dio_ÿ·b™›s_tu¶e
  = 
 chªÃl_sÿn_ÿ·b™›s_v
@@ -1549967,7 +1549969,7 @@ chªÃl_sÿn_ÿ·b™›s_v
 rc_idx
 );
 
-4845 ià(!
+4846 ià(!
 	g¡d
 ::
 g‘
@@ -1549975,17 +1549977,17 @@ g‘
 ¿dio_ÿ·b™›s_tu¶e
 )) {
 
-4846 
+4847 
 LOG
 (
 ERROR
 ) << "Invalid„adio inlvChannelScanCapabilities";
 
-4847  
+4848  
 	gçl£
 ;
 
-4850 autØ&
+4851 autØ&
 	g¿dio_ÿ·b™›s
  = 
 ¡d
@@ -1549995,7 +1549997,7 @@ g‘
 ¿dio_ÿ·b™›s_tu¶e
 );
 
-4851 autØ&
+4852 autØ&
 	gruid
  = 
 ¿dio_ÿ·b™›s
@@ -1550003,7 +1550005,7 @@ g‘
 ¿dio_uid
 ();
 
-4853 autØ
+4854 autØ
 	g¿dio
  = 
 ag’t
@@ -1550015,11 +1550017,11 @@ g‘
 ruid
 );
 
-4854 ià(!
+4855 ià(!
 	g¿dio
 ) {
 
-4855 
+4856 
 LOG
 (
 ERROR
@@ -1550031,7 +1550033,7 @@ ERROR
 	g®_mac
 ;
 
-4859 ià(!
+4860 ià(!
 	gd©aba£
 .
 £t_¿dio_chªÃl_sÿn_ÿ·b™es
@@ -1550041,7 +1550043,7 @@ ERROR
 ¿dio_ÿ·b™›s
 )) {
 
-4860 
+4861 
 LOG
 (
 ERROR
@@ -1550049,11 +1550051,11 @@ ERROR
 	gruid
 ;
 
-4861  
+4862  
 	gçl£
 ;
 
-4864 ià(!
+4865 ià(!
 	gd©aba£
 .
 dm_add_¿dio_sÿn_ÿ·b™›s
@@ -1550061,7 +1550063,7 @@ dm_add_¿dio_sÿn_ÿ·b™›s
 ¿dio
 )) {
 
-4865 
+4866 
 LOG
 (
 ERROR
@@ -1550069,15 +1550071,15 @@ ERROR
 	gruid
 ;
 
-4866  
+4867  
 	gçl£
 ;
 
-4870  
+4871  
 	gŒue
 ;
 
-4873 
+4874 
 boŞ
  
 	gCÚŒŞËr
@@ -1550085,7 +1550087,7 @@ boŞ
 hªdË_v_´ofe3_1905_Ïy”_£cur™y_ÿ·b™›s
 (
 
-4874 cÚ¡ 
+4875 cÚ¡ 
 Ag’t
  &
 ag’t
@@ -1550097,7 +1550099,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-4876 autØ
+4877 autØ
 ›“_1905_£cur™y_v
  = 
 cmdu_rx
@@ -1550109,33 +1550111,33 @@ wç_m­
 v1905Lay”Secur™yC­ab™y
 >();
 
-4877 ià(!
+4878 ià(!
 	g›“_1905_£cur™y_v
 ) {
 
-4878 
+4879 
 LOG
 (
 DEBUG
 ) << "getClass wfa_map::tlv1905LayerSecurityCapability has failed";
 
-4879  
+4880  
 	gçl£
 ;
 
-4882 
+4883 
 LOG
 (
 DEBUG
 ) << "Profile-3 1905 Layer Security Capability TLV is„eceived";
 
-4884 ià(!
+4885 ià(!
 	gd©aba£
 .
 dm_add_ag’t_1905_Ïy”_£cur™y_ÿ·b™›s
 (
 
-4885 
+4886 
 ag’t
 , 
 ›“_1905_£cur™y_v
@@ -1550143,33 +1550145,33 @@ ag’t
 Úbßrdšg_´ÙocŞ
 (),
 
-4886 
+4887 
 ›“_1905_£cur™y_v
 ->
 mic_®gÜ™hm
 (),
 
-4887 
+4888 
 ›“_1905_£cur™y_v
 ->
 ’üy±iÚ_®gÜ™hm
 ())) {
 
-4888 
+4889 
 LOG
 (
 ERROR
 ) << "Failedo‡dd IEEE 1905 security capability";
 
-4889  
+4890  
 	gçl£
 ;
 
-4892  
+4893  
 	gŒue
 ;
 
-4895 
+4896 
 boŞ
  
 	gCÚŒŞËr
@@ -1550177,7 +1550179,7 @@ boŞ
 hªdË_cmdu_1905_bss_cÚfigu¿tiÚ_»que¡_mes§ge
 (
 
-4896 cÚ¡ 
+4897 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
@@ -1550189,7 +1550191,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-4898 autØ
+4899 autØ
 mid
  = 
 cmdu_rx
@@ -1550197,7 +1550199,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-4899 
+4900 
 LOG
 (
 DEBUG
@@ -1550209,7 +1550211,7 @@ hex
 mid
 ;
 
-4901 autØ
+4902 autØ
 	gag’t
  = 
 d©aba£
@@ -1550221,11 +1550223,11 @@ g‘
 ¤c_mac
 );
 
-4902 ià(!
+4903 ià(!
 	gag’t
 ) {
 
-4903 
+4904 
 LOG
 (
 ERROR
@@ -1550233,11 +1550235,11 @@ ERROR
 	g¤c_mac
 ;
 
-4904  
+4905  
 	gçl£
 ;
 
-4907 ià(
+4908 ià(
 	gag’t
 ->
 	g´ofe
@@ -1550251,7 +1550253,7 @@ eMuÉiApProfe
 MULTIAP_PROFILE_2
 ) {
 
-4908 autØ
+4909 autØ
 vProfe2MuÉiApProfe
  = 
 cmdu_rx
@@ -1550261,11 +1550263,11 @@ g‘CÏss
 wç_m­
 ::tlvProfile2MultiApProfile>();
 
-4909 ià(
+4910 ià(
 	gvProfe2MuÉiApProfe
 ) {
 
-4910 
+4911 
 	gag’t
 ->
 	g´ofe
@@ -1550275,7 +1550277,7 @@ wç_m­
 ´ofe
 ();
 
-4911 ià(!
+4912 ià(!
 	gd©aba£
 .
 dm_£t_deviû_muÉi_­_´ofe
@@ -1550283,7 +1550285,7 @@ dm_£t_deviû_muÉi_­_´ofe
 ag’t
 )) {
 
-4912 
+4913 
 LOG
 (
 ERROR
@@ -1550293,11 +1550295,11 @@ ERROR
 	g®_mac
 ;
 
-4913  
+4914  
 	gçl£
 ;
 
-4918 ià(!
+4919 ià(!
 hªdË_v_´ofe2_­_ÿ·b™y
 (
 ag’t
@@ -1550305,7 +1550307,7 @@ ag’t
 cmdu_rx
 )) {
 
-4919 
+4920 
 LOG
 (
 ERROR
@@ -1550313,7 +1550315,7 @@ ERROR
 	g¤c_mac
 ;
 
-4922 ià(
+4923 ià(
 	gag’t
 ->
 	g´ofe
@@ -1550327,7 +1550329,7 @@ eMuÉiApProfe
 MULTIAP_PROFILE_2
  &&
 
-4923 !
+4924 !
 hªdË_v_´ofe3_akm_su™e_ÿ·b™›s
 (*
 ag’t
@@ -1550335,7 +1550337,7 @@ ag’t
 cmdu_rx
 )) {
 
-4924 
+4925 
 LOG
 (
 ERROR
@@ -1550345,13 +1550347,13 @@ ERROR
 	g®_mac
 
 
-4925 << " w™h…rof’um " << 
+4926 << " w™h…rof’um " << 
 	gag’t
 ->
 	g´ofe
 ;
 
-4928 ià(!
+4929 ià(!
 hªdË_v_´ofe2_­_¿dio_advªûd_ÿ·b™›s
 (*
 ag’t
@@ -1550359,23 +1550361,23 @@ ag’t
 cmdu_rx
 )) {
 
-4929 
+4930 
 LOG
 (
 ERROR
 ) << "Couldn't handle AP Radio Advanced Capabilities TLV from Agent "
 
-4930 << 
+4931 << 
 	gag’t
 ->
 	g®_mac
 ;
 
-4935 autØ
+4936 autØ
 	gcmdu_tx_h—d”
  =
 
-4936 
+4937 
 cmdu_tx
 .
 ü—‹
@@ -1550389,21 +1550391,21 @@ eMes§geTy³
 BSS_CONFIGURATION_RESPONSE_MESSAGE
 );
 
-4937 ià(!
+4938 ià(!
 	gcmdu_tx_h—d”
 ) {
 
-4938 
+4939 
 LOG
 (
 ERROR
 ) << "cmdu creation ofype BSS_CONFIGURATION_RESPONSE_MESSAGE, has failed";
 
-4939  
+4940  
 	gçl£
 ;
 
-4942 
+4943 
 	gag’t_mÚ™Üšg_sk
 ::
 add_´ofe_2deçuÉ_802q_£‰šgs_v
@@ -1550415,7 +1550417,7 @@ cmdu_tx
 ¤c_mac
 );
 
-4944  
+4945  
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1550427,7 +1550429,7 @@ cmdu_tx
 d©aba£
 );
 
-4947 
+4948 
 boŞ
  
 	gCÚŒŞËr
@@ -1550439,7 +1550441,7 @@ Ag’t
 ag’t
 ,
 
-4948 
+4949 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1550447,7 +1550449,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-4950 autØ
+4951 autØ
 akm_su™e_ÿ·b™›s_v
  = 
 cmdu_rx
@@ -1550459,27 +1550461,27 @@ wç_m­
 vAkmSu™eC­ab™›s
 >();
 
-4951 ià(!
+4952 ià(!
 	gakm_su™e_ÿ·b™›s_v
 ) {
 
-4952 
+4953 
 LOG
 (
 DEBUG
 ) << "getClass wfa_map::tlvAkmSuiteCapabilities has failed";
 
-4953  
+4954  
 	gçl£
 ;
 
-4956 
+4957 
 LOG
 (
 DEBUG
 ) << "Profile-3 AKM Suite Capabilities TLV is„eceived";
 
-4958 
+4959 
 	g¡d
 ::
 veùÜ
@@ -1550493,7 +1550495,7 @@ sBssAkmSu™eS–eùÜ
 backhaul_bss_£ËùÜs
 ;
 
-4959 
+4960 
 	g¡d
 ::
 veùÜ
@@ -1550507,7 +1550509,7 @@ sBssAkmSu™eS–eùÜ
 äÚthaul_bss_£ËùÜs
 ;
 
-4961 
+4962 
 	g¡d
 ::
 ¡ršg¡»am
@@ -1550515,7 +1550517,7 @@ sBssAkmSu™eS–eùÜ
 ss
 ;
 
-4962 
+4963 
 size_t
  
 	gi
@@ -1550525,11 +1550527,11 @@ size_t
 numb”_of_bh_bss_akm_su™e_£ËùÜs
 ();
 
-4963 
+4964 
 	gi
 ++) {
 
-4964 ià(!
+4965 ià(!
 	g¡d
 ::
 g‘
@@ -1550541,17 +1550543,17 @@ backhaul_bss_akm_su™e_£ËùÜs
 i
 ))) {
 
-4965 
+4966 
 LOG
 (
 ERROR
 ) << "Invalid Backhaul BSS Selectors inlvAkmSuiteCapabilities";
 
-4969 autØ&
+4970 autØ&
 	g£ËùÜ
  =
 
-4970 
+4971 
 ¡d
 ::
 g‘
@@ -1550563,11 +1550565,11 @@ backhaul_bss_akm_su™e_£ËùÜs
 i
 ));
 
-4972 
+4973 
 	gss
  << "Backhaul BSS, OUI: "
 
-4973 << 
+4974 << 
 	gwç_m­
 ::
 vAkmSu™eC­ab™›s
@@ -1550575,7 +1550577,7 @@ i
 eAkmSu™eOUI_¡r
 (
 
-4974 
+4975 
 wç_m­
 ::
 vAkmSu™eC­ab™›s
@@ -1550589,7 +1550591,7 @@ ušt32_t
 oui
 )))
 
-4975 << ", su™ty³: " << ()
+4976 << ", su™ty³: " << ()
 £ËùÜ
 .
 akm_su™e_ty³
@@ -1550599,7 +1550601,7 @@ akm_su™e_ty³
 ’dl
 ;
 
-4977 
+4978 
 	gbackhaul_bss_£ËùÜs
 .
 push_back
@@ -1550607,7 +1550609,7 @@ push_back
 £ËùÜ
 );
 
-4980 
+4981 
 size_t
  
 	gi
@@ -1550617,11 +1550619,11 @@ size_t
 numb”_of_fh_bss_akm_su™e_£ËùÜs
 ();
 
-4981 
+4982 
 	gi
 ++) {
 
-4982 ià(!
+4983 ià(!
 	g¡d
 ::
 g‘
@@ -1550633,17 +1550635,17 @@ akm_su™e_ÿ·b™›s_v
 i
 ))) {
 
-4983 
+4984 
 LOG
 (
 ERROR
 ) << "Invalid Fronthaul BSS Selectors inlvAkmSuiteCapabilities";
 
-4987 autØ&
+4988 autØ&
 	g£ËùÜ
  =
 
-4988 
+4989 
 ¡d
 ::
 g‘
@@ -1550655,11 +1550657,11 @@ akm_su™e_ÿ·b™›s_v
 i
 ));
 
-4990 
+4991 
 	gss
  << "Fronthaul BSS, OUI: "
 
-4991 << 
+4992 << 
 	gwç_m­
 ::
 vAkmSu™eC­ab™›s
@@ -1550667,7 +1550669,7 @@ i
 eAkmSu™eOUI_¡r
 (
 
-4992 
+4993 
 wç_m­
 ::
 vAkmSu™eC­ab™›s
@@ -1550681,7 +1550683,7 @@ ušt32_t
 oui
 )))
 
-4993 << ", su™ty³: " << ()
+4994 << ", su™ty³: " << ()
 £ËùÜ
 .
 akm_su™e_ty³
@@ -1550691,7 +1550693,7 @@ akm_su™e_ty³
 ’dl
 ;
 
-4995 
+4996 
 	gäÚthaul_bss_£ËùÜs
 .
 push_back
@@ -1550699,11 +1550701,11 @@ push_back
 £ËùÜ
 );
 
-5005  
+5006  
 	gŒue
 ;
 
-5008 
+5009 
 boŞ
  
 	gCÚŒŞËr
@@ -1550711,7 +1550713,7 @@ boŞ
 hªdË_v_´ofe2_­_¿dio_advªûd_ÿ·b™›s
 (
 
-5009 
+5010 
 Ag’t
  &
 ag’t
@@ -1550723,11 +1550725,11 @@ CmduMes§geRx
 cmdu_rx
 )
 
-5011 autØ
+5012 autØ
 ­_¿dio_advªûd_ÿ·b™›s
  =
 
-5012 
+5013 
 cmdu_rx
 .
 g‘CÏss
@@ -1550737,27 +1550739,27 @@ wç_m­
 vProfe2ApRadioAdvªûdC­ab™›s
 >();
 
-5013 ià(!
+5014 ià(!
 	g­_¿dio_advªûd_ÿ·b™›s
 ) {
 
-5014 
+5015 
 LOG
 (
 DEBUG
 ) << "getClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities has failed";
 
-5015  
+5016  
 	gçl£
 ;
 
-5018 
+5019 
 LOG
 (
 DEBUG
 ) << "Profile-2 AP Radio Advanced Capabilities TLV is„eceived";
 
-5020 
+5021 
 	g¡d
 ::
 ¡ršg¡»am
@@ -1550765,7 +1550767,7 @@ DEBUG
 ss
 ;
 
-5022 autØ
+5023 autØ
 	gruid
  = 
 ­_¿dio_advªûd_ÿ·b™›s
@@ -1550773,7 +1550775,7 @@ ss
 ¿dio_uid
 ();
 
-5024 autØ
+5025 autØ
 	g¿dio
  = 
 ag’t
@@ -1550785,11 +1550787,11 @@ g‘
 ruid
 );
 
-5025 ià(!
+5026 ià(!
 	g¿dio
 ) {
 
-5026 
+5027 
 LOG
 (
 ERROR
@@ -1550801,21 +1550803,21 @@ ERROR
 	g®_mac
 ;
 
-5027  
+5028  
 	gçl£
 ;
 
-5030 autØ
+5031 autØ
 	gadvªûd_¿dio_ÿ·b™›s
  =
 
-5031 
+5032 
 ­_¿dio_advªûd_ÿ·b™›s
 ->
 advªûd_¿dio_ÿ·b™›s
 ();
 
-5033 
+5034 
 	g¿dio
 ->
 	gadvªûd_ÿ·b™›s
@@ -1550823,13 +1550825,13 @@ advªûd_¿dio_ÿ·b™›s
 	gŒaffic_£·¿tiÚ_combšed_äÚthaul
  =
 
-5034 
+5035 
 advªûd_¿dio_ÿ·b™›s
 .
 combšed_äÚt_back
 ;
 
-5035 
+5036 
 	g¿dio
 ->
 	gadvªûd_ÿ·b™›s
@@ -1550837,13 +1550839,13 @@ combšed_äÚt_back
 	gŒaffic_£·¿tiÚ_combšed_backhaul
  =
 
-5036 
+5037 
 advªûd_¿dio_ÿ·b™›s
 .
 combšed_´ofe1_ªd_´ofe2
 ;
 
-5037 
+5038 
 	g¿dio
 ->
 	gadvªûd_ÿ·b™›s
@@ -1550855,7 +1550857,7 @@ advªûd_¿dio_ÿ·b™›s
 mscs
 ;
 
-5038 
+5039 
 	g¿dio
 ->
 	gadvªûd_ÿ·b™›s
@@ -1550867,7 +1550869,7 @@ advªûd_¿dio_ÿ·b™›s
 scs
 ;
 
-5039 
+5040 
 	g¿dio
 ->
 	gadvªûd_ÿ·b™›s
@@ -1550875,13 +1550877,13 @@ scs
 	gdsı_to_up_m­pšg
  =
 
-5040 
+5041 
 advªûd_¿dio_ÿ·b™›s
 .
 dsı_to_up_m­pšg
 ;
 
-5041 
+5042 
 	g¿dio
 ->
 	gadvªûd_ÿ·b™›s
@@ -1550893,7 +1550895,7 @@ advªûd_¿dio_ÿ·b™›s
 dsı_pŞicy
 ;
 
-5043 
+5044 
 	gss
  << "RadiØ" << 
 	gruid
@@ -1550903,7 +1550905,7 @@ dsı_pŞicy
 ’dl
 
 
-5045 << 
+5046 << 
 ¿dio
 ->
 advªûd_ÿ·b™›s
@@ -1550915,7 +1550917,7 @@ advªûd_ÿ·b™›s
 ’dl
 
 
-5047 << 
+5048 << 
 ¿dio
 ->
 advªûd_ÿ·b™›s
@@ -1550927,7 +1550929,7 @@ advªûd_ÿ·b™›s
 ’dl
 
 
-5048 << "MSCS suµÜˆğ" << 
+5049 << "MSCS suµÜˆğ" << 
 ¿dio
 ->
 advªûd_ÿ·b™›s
@@ -1550939,7 +1550941,7 @@ mscs
 ’dl
 
 
-5049 << "SCS suµÜˆğ" << 
+5050 << "SCS suµÜˆğ" << 
 ¿dio
 ->
 advªûd_ÿ·b™›s
@@ -1550951,7 +1550953,7 @@ scs
 ’dl
 
 
-5050 << "DSCP-to-UP m­pšg suµÜˆğ" << 
+5051 << "DSCP-to-UP m­pšg suµÜˆğ" << 
 ¿dio
 ->
 advªûd_ÿ·b™›s
@@ -1550959,13 +1550961,13 @@ advªûd_ÿ·b™›s
 dsı_to_up_m­pšg
 
 
-5051 << 
+5052 << 
 ¡d
 ::
 ’dl
 
 
-5052 << "DSCP PŞicy suµÜˆğ" << 
+5053 << "DSCP PŞicy suµÜˆğ" << 
 ¿dio
 ->
 advªûd_ÿ·b™›s
@@ -1550977,7 +1550979,7 @@ dsı_pŞicy
 ’dl
 ;
 
-5054 ià(!
+5055 ià(!
 	gd©aba£
 .
 dm_£t_¿dio_advªûd_ÿ·b™›s
@@ -1550985,23 +1550987,23 @@ dm_£t_¿dio_advªûd_ÿ·b™›s
 ¿dio
 )) {
 
-5055 
+5056 
 LOG
 (
 ERROR
 ) << "Failedo set AP Radio Advanced Capabilities in DM for„adio="
 
-5056 << 
+5057 << 
 	g¿dio
 ->
 	g¿dio_uid
 ;
 
-5057  
+5058  
 	gçl£
 ;
 
-5060 
+5061 
 LOG
 (
 DEBUG
@@ -1551011,11 +1551013,11 @@ DEBUG
 ¡r
 ();
 
-5061  
+5062  
 	gŒue
 ;
 
-5064 
+5065 
 boŞ
  
 	gCÚŒŞËr
@@ -1551033,7 +1551035,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-5066 autØ
+5067 autØ
 deviû_šv’tÜy
  = 
 cmdu_rx
@@ -1551045,27 +1551047,27 @@ wç_m­
 vDeviûInv’tÜy
 >();
 
-5067 ià(!
+5068 ià(!
 	gdeviû_šv’tÜy
 ) {
 
-5068 
+5069 
 LOG
 (
 DEBUG
 ) << "getClass wfa_map::tlvDeviceInventory has failed";
 
-5069  
+5070  
 	gçl£
 ;
 
-5072 
+5073 
 LOG
 (
 DEBUG
 ) << "Device Inventory TLV is„eceived";
 
-5074 
+5075 
 	g¡d
 ::
 ¡ršg¡»am
@@ -1551073,7 +1551075,7 @@ DEBUG
 ss
 ;
 
-5076 
+5077 
 	gag’t
 .
 	gdeviû_šfo
@@ -1551085,7 +1551087,7 @@ deviû_šv’tÜy
 £rŸl_numb”_¡r
 ();
 
-5077 
+5078 
 	gag’t
 .
 	gdeviû_šfo
@@ -1551097,7 +1551099,7 @@ deviû_šv’tÜy
 soáw¬e_v”siÚ_¡r
 ();
 
-5078 
+5079 
 	gag’t
 .
 	gdeviû_šfo
@@ -1551109,7 +1551111,7 @@ deviû_šv’tÜy
 executiÚ_’vœÚm’t_¡r
 ();
 
-5080 
+5081 
 	gss
  << "Deviû Inv’tÜy…¬am‘”s: " << 
 	g¡d
@@ -1551117,7 +1551119,7 @@ executiÚ_’vœÚm’t_¡r
 ’dl
 
 
-5081 << "S”ŸÈnumb” = " << 
+5082 << "S”ŸÈnumb” = " << 
 ag’t
 .
 deviû_šfo
@@ -1551129,7 +1551131,7 @@ deviû_šfo
 ’dl
 
 
-5082 << "Soáw¬v”siÚ = " << 
+5083 << "Soáw¬v”siÚ = " << 
 ag’t
 .
 deviû_šfo
@@ -1551141,7 +1551143,7 @@ soáw¬e_v”siÚ
 ’dl
 
 
-5083 << "ExecutiÚƒnvœÚm’ˆğ" << 
+5084 << "ExecutiÚƒnvœÚm’ˆğ" << 
 ag’t
 .
 deviû_šfo
@@ -1551153,7 +1551155,7 @@ executiÚ_’v
 ’dl
 ;
 
-5085 
+5086 
 size_t
  
 	g¿dio_idx
@@ -1551163,7 +1551165,7 @@ size_t
 numb”_of_¿dios
 ();„adio_idx++) {
 
-5086 ià(!
+5087 ià(!
 	g¡d
 ::
 g‘
@@ -1551175,13 +1551177,13 @@ deviû_šv’tÜy
 ¿dio_idx
 ))) {
 
-5087 
+5088 
 LOG
 (
 ERROR
 ) << "Invalid Radio Vendor Info inlvDeviceInventory";
 
-5091 autØ&
+5092 autØ&
 	g¿dio_v’dÜ_šfo
  = 
 ¡d
@@ -1551195,7 +1551197,7 @@ deviû_šv’tÜy
 ¿dio_idx
 ));
 
-5093 autØ
+5094 autØ
 	g¿dio
  = 
 ag’t
@@ -1551209,11 +1551211,11 @@ g‘
 ruid
 ());
 
-5094 ià(!
+5095 ià(!
 	g¿dio
 ) {
 
-5095 
+5096 
 LOG
 (
 ERROR
@@ -1551223,17 +1551225,17 @@ ERROR
 ruid
 () << " on "
 
-5096 << 
+5097 << 
 	gag’t
 .
 	g®_mac
 ;
 
-5097  
+5098  
 	gçl£
 ;
 
-5099 
+5100 
 	g¿dio
 ->
 	gch£t_v’dÜ
@@ -1551243,7 +1551245,7 @@ ruid
 ch£t_v’dÜ_¡r
 ();
 
-5101 
+5102 
 	gss
  << "RadiØUID = " << 
 	g¿dio
@@ -1551253,13 +1551255,13 @@ ch£t_v’dÜ_¡r
 	gch£t_v’dÜ
 
 
-5102 << 
+5103 << 
 	g¡d
 ::
 ’dl
 ;
 
-5105 ià(!
+5106 ià(!
 	gd©aba£
 .
 dm_£t_´ofe3_deviû_šfo
@@ -1551267,7 +1551269,7 @@ dm_£t_´ofe3_deviû_šfo
 ag’t
 )) {
 
-5106 
+5107 
 LOG
 (
 ERROR
@@ -1551277,11 +1551279,11 @@ ERROR
 	g®_mac
 ;
 
-5107  
+5108  
 	gçl£
 ;
 
-5110 
+5111 
 LOG
 (
 DEBUG
@@ -1551291,11 +1551293,11 @@ DEBUG
 ¡r
 ();
 
-5111  
+5112  
 	gŒue
 ;
 
-5114 
+5115 
 boŞ
  
 	gCÚŒŞËr
@@ -1551307,7 +1551309,7 @@ sMacAddr
 ¤c_mac
 ,
 
-5115 
+5116 
 ›“1905_1
 ::
 CmduMes§geRx
@@ -1551319,7 +1551321,7 @@ boŞ
 —¾y
 )
 
-5117 autØ
+5118 autØ
 	gag’t
  = 
 d©aba£
@@ -1551331,11 +1551333,11 @@ g‘
 ¤c_mac
 );
 
-5118 ià(!
+5119 ià(!
 	gag’t
 ) {
 
-5119 
+5120 
 LOG
 (
 ERROR
@@ -1551343,11 +1551345,11 @@ ERROR
 	g¤c_mac
 ;
 
-5120  
+5121  
 	gçl£
 ;
 
-5123 
+5124 
 	gag’t
 ->
 	g¿dios
@@ -1551355,7 +1551357,7 @@ ERROR
 k“p_Ãw_´•¬e
 ();
 
-5125 autØ
+5126 autØ
 	g¿dio_v
  : 
 cmdu_rx
@@ -1551367,7 +1551369,7 @@ wç_m­
 vApRadioBasicC­ab™›s
 >()) {
 
-5127 
+5128 
 LOG
 (
 DEBUG
@@ -1551377,7 +1551379,7 @@ DEBUG
 ¿dio_uid
 ();
 
-5128 
+5129 
 	gd©aba£
 .
 add_¿dio
@@ -1551391,7 +1551393,7 @@ ag’t
 ®_mac
 );
 
-5134 
+5135 
 	gd©aba£
 .
 ş—r_­_ÿ·b™›s
@@ -1551401,7 +1551403,7 @@ ag’t
 ¿dio_uid
 ());
 
-5137 autØ
+5138 autØ
 	g»moved
  = 
 ag’t
@@ -1551411,25 +1551413,25 @@ ag’t
 k“p_Ãw_»move_Şd
 ();
 
-5138 cÚ¡‡utØ&
+5139 cÚ¡‡utØ&
 	g»moved_¿dio
  : 
 »moved
 ) {
 
-5140 
+5141 
 LOG
 (
 INFO
 ) << "Radio is‚ot„eported on AP_CAPABILITY_REPORT,„emove„adio object„uid="
 
-5141 << 
+5142 << 
 »moved_¿dio
 ->
 ¿dio_uid
 ;
 
-5143 
+5144 
 	gd©aba£
 .
 dm_»move_¿dio
@@ -1551437,7 +1551439,7 @@ dm_»move_¿dio
 »moved_¿dio
 );
 
-5144 
+5145 
 	gsÚ_aùiÚs
 ::
 hªdË_d—d_¿dio
@@ -1551453,7 +1551455,7 @@ d©aba£
 m_sk_poŞ
 );
 
-5147 
+5148 
 boŞ
  
 	g®l_¿dio_ÿ·b™›s_§ved_sucûssfuÎy
@@ -1551461,11 +1551463,11 @@ boŞ
 Œue
 ;
 
-5148 ià(!
+5149 ià(!
 	g—¾y
  &&
 
-5149 
+5150 
 	gag’t
 ->
 	g´ofe
@@ -1551479,7 +1551481,7 @@ eMuÉiApProfe
 MULTIAP_PROFILE_1
  &&
 
-5150 !
+5151 !
 hªdË_v_´ofe2_chªÃl_sÿn_ÿ·b™›s
 (
 ag’t
@@ -1551487,7 +1551489,7 @@ ag’t
 cmdu_rx
 )) {
 
-5151 
+5152 
 LOG
 (
 ERROR
@@ -1551495,19 +1551497,19 @@ ERROR
 	g¤c_mac
 
 
-5152 << " w™h…rof’um " << 
+5153 << " w™h…rof’um " << 
 	gag’t
 ->
 	g´ofe
 ;
 
-5153 
+5154 
 	g®l_¿dio_ÿ·b™›s_§ved_sucûssfuÎy
  = 
 çl£
 ;
 
-5157 cÚ¡‡utØ&
+5158 cÚ¡‡utØ&
 	g¿dio
  : 
 ag’t
@@ -1551515,7 +1551517,7 @@ ag’t
 ¿dios
 ) {
 
-5158 
+5159 
 ¿dio
 .
 £cÚd
@@ -1551525,39 +1551527,39 @@ eht_suµÜ‹d
 çl£
 ;
 
-5160 ià(!
+5161 ià(!
 hªdË_v_­_ht_ÿ·b™›s
 (
 cmdu_rx
 )) {
 
-5161 
+5162 
 LOG
 (
 ERROR
 ) << "Couldn't handle TLV AP HT Capabilities";
 
-5162  
+5163  
 	gçl£
 ;
 
-5164 ià(!
+5165 ià(!
 hªdË_v_­_vht_ÿ·b™›s
 (
 cmdu_rx
 )) {
 
-5165 
+5166 
 LOG
 (
 ERROR
 ) << "Couldn't handle TLV AP VHT Capabilities";
 
-5166  
+5167  
 	gçl£
 ;
 
-5168 ià(!
+5169 ià(!
 hªdË_v_eht_İ”©iÚs
 (
 cmdu_rx
@@ -1551565,17 +1551567,17 @@ cmdu_rx
 ¤c_mac
 )) {
 
-5169 
+5170 
 LOG
 (
 DEBUG
 ) << "Couldn't handle TLV AP EHT Operations";
 
-5170  
+5171  
 	gçl£
 ;
 
-5172 ià(!
+5173 ià(!
 hªdË_v_­C­ab™y
 (
 cmdu_rx
@@ -1551585,13 +1551587,13 @@ ag’t
 —¾y
 )) {
 
-5173 
+5174 
 LOG
 (
 ERROR
 ) << "Couldn't handle TLVlvApCapability";
 
-5175 ià(
+5176 ià(
 	gag’t
 ->
 	g´ofe
@@ -1551605,23 +1551607,23 @@ eMuÉiApProfe
 MULTIAP_PROFILE_3
  &&
 
-5176 !
+5177 !
 hªdË_v_­_wifi6_ÿ·b™›s
 (
 cmdu_rx
 )) {
 
-5177 
+5178 
 LOG
 (
 ERROR
 ) << "Couldn't handle TLV AP WIFI6Capabilities";
 
-5178  
+5179  
 	gçl£
 ;
 
-5181 ià(!
+5182 ià(!
 hªdË_v_wifi7_ag’t_ÿ·b™›s
 (
 cmdu_rx
@@ -1551629,17 +1551631,17 @@ cmdu_rx
 ag’t
 )) {
 
-5182 
+5183 
 LOG
 (
 DEBUG
 ) << "Couldn't handle TLV WIFI7AgentCapabilities";
 
-5183  
+5184  
 	gçl£
 ;
 
-5187 ià(!
+5188 ià(!
 hªdË_v_´ofe2_­_ÿ·b™y
 (
 ag’t
@@ -1551647,7 +1551649,7 @@ ag’t
 cmdu_rx
 )) {
 
-5188 
+5189 
 LOG
 (
 ERROR
@@ -1551655,13 +1551657,13 @@ ERROR
 	g¤c_mac
 
 
-5189 << " w™h…rof’um " << 
+5190 << " w™h…rof’um " << 
 	gag’t
 ->
 	g´ofe
 ;
 
-5192 ià(!
+5193 ià(!
 hªdË_v_´ofe2_­_¿dio_advªûd_ÿ·b™›s
 (*
 ag’t
@@ -1551669,7 +1551671,7 @@ ag’t
 cmdu_rx
 )) {
 
-5193 
+5194 
 LOG
 (
 ERROR
@@ -1551677,7 +1551679,7 @@ ERROR
 	g¤c_mac
 ;
 
-5196 ià(
+5197 ià(
 	gag’t
 ->
 	g´ofe
@@ -1551691,7 +1551693,7 @@ eMuÉiApProfe
 MULTIAP_PROFILE_1
  &&
 
-5197 !
+5198 !
 hªdË_v_deviû_šv’tÜy
 (*
 ag’t
@@ -1551699,7 +1551701,7 @@ ag’t
 cmdu_rx
 )) {
 
-5198 
+5199 
 LOG
 (
 ERROR
@@ -1551707,13 +1551709,13 @@ ERROR
 	g¤c_mac
 
 
-5199 << " w™h…rof’um " << 
+5200 << " w™h…rof’um " << 
 	gag’t
 ->
 	g´ofe
 ;
 
-5202 ià(
+5203 ià(
 	gag’t
 ->
 	g´ofe
@@ -1551727,7 +1551729,7 @@ eMuÉiApProfe
 MULTIAP_PROFILE_1
  &&
 
-5203 !
+5204 !
 hªdË_v_´ofe2_ÿc_ÿ·b™›s
 (*
 ag’t
@@ -1551735,7 +1551737,7 @@ ag’t
 cmdu_rx
 )) {
 
-5204 
+5205 
 LOG
 (
 ERROR
@@ -1551743,13 +1551745,13 @@ ERROR
 	g¤c_mac
 
 
-5205 << " w™h…rof’um " << 
+5206 << " w™h…rof’um " << 
 	gag’t
 ->
 	g´ofe
 ;
 
-5208 ià(
+5209 ià(
 	gag’t
 ->
 	g´ofe
@@ -1551763,7 +1551765,7 @@ eMuÉiApProfe
 MULTIAP_PROFILE_2
  &&
 
-5209 !
+5210 !
 hªdË_v_´ofe3_1905_Ïy”_£cur™y_ÿ·b™›s
 (*
 ag’t
@@ -1551771,13 +1551773,13 @@ ag’t
 cmdu_rx
 )) {
 
-5210 
+5211 
 LOG
 (
 ERROR
 ) << "Profile3 1905 Layer Security Capability is‚ot supplied for Agent "
 
-5211 << 
+5212 << 
 	g¤c_mac
  << " w™h…rof’um " << 
 	gag’t
@@ -1551785,11 +1551787,11 @@ ERROR
 	g´ofe
 ;
 
-5214  
+5215  
 	g®l_¿dio_ÿ·b™›s_§ved_sucûssfuÎy
 ;
 
-5217 
+5218 
 boŞ
  
 	gCÚŒŞËr
@@ -1551797,7 +1551799,7 @@ boŞ
 hªdË_cmdu_1905_—¾y_­_ÿ·b™y_»pÜt_mes§ge
 (
 
-5218 cÚ¡ 
+5219 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
@@ -1551809,7 +1551811,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-5220 autØ
+5221 autØ
 mid
  = 
 cmdu_rx
@@ -1551817,7 +1551819,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-5221 
+5222 
 LOG
 (
 INFO
@@ -1551829,7 +1551831,7 @@ dec
 mid
 );
 
-5223  
+5224  
 hªdË_­_ÿ·b™y_»pÜt
 (
 ¤c_mac
@@ -1551839,7 +1551841,7 @@ cmdu_rx
 Œue
 );
 
-5226 
+5227 
 boŞ
  
 	gCÚŒŞËr
@@ -1551855,7 +1551857,7 @@ ušt8_t
 chªÃl
 ,
 
-5227 
+5228 
 ušt8_t
  
 İ”©šg_şass
@@ -1551865,13 +1551867,13 @@ sMacAddr
 ag’t_mac_addr
 ,
 
-5228 cÚ¡ 
+5229 cÚ¡ 
 sMacAddr
  &
 ¿dio_mac_addr
 )
 
-5230 ià(!
+5231 ià(!
 	gd©aba£
 .
 add_uÇssocŸ‹d_¡©iÚ
@@ -1551883,17 +1551885,17 @@ chªÃl
 İ”©šg_şass
 ,
 
-5231 
+5232 
 ag’t_mac_addr
 , 
 ¿dio_mac_addr
 )) {
 
-5232  
+5233  
 	gçl£
 ;
 
-5234  
+5235  
 £nd_uÇssocŸ‹d_¡a_lšk_m‘rics_qu”y_mes§ge
 (
 cmdu_tx
@@ -1551901,7 +1551903,7 @@ cmdu_tx
 d©aba£
 );
 
-5237 
+5238 
 boŞ
  
 	gCÚŒŞËr
@@ -1551913,19 +1551915,19 @@ sMacAddr
 ¡©iÚ_mac_addr
 ,
 
-5238 cÚ¡ 
+5239 cÚ¡ 
 sMacAddr
  &
 ag’t_mac_addr
 ,
 
-5239 cÚ¡ 
+5240 cÚ¡ 
 sMacAddr
  &
 ¿dio_mac_addr
 )
 
-5241 ià(!
+5242 ià(!
 	gd©aba£
 .
 »move_uÇssocŸ‹d_¡©iÚ
@@ -1551937,11 +1551939,11 @@ ag’t_mac_addr
 ¿dio_mac_addr
 )) {
 
-5242  
+5243  
 	gçl£
 ;
 
-5245  
+5246  
 £nd_uÇssocŸ‹d_¡a_lšk_m‘rics_qu”y_mes§ge
 (
 cmdu_tx
@@ -1551949,7 +1551951,7 @@ cmdu_tx
 d©aba£
 );
 
-5248 
+5249 
 boŞ
  
 	gCÚŒŞËr
@@ -1551957,7 +1551959,7 @@ boŞ
 g‘_uÇssocŸ‹d_¡©iÚs_¡©s
 ()
 
-5250  
+5251  
 £nd_uÇssocŸ‹d_¡a_lšk_m‘rics_qu”y_mes§ge
 (
 cmdu_tx
@@ -1551965,7 +1551967,7 @@ cmdu_tx
 d©aba£
 );
 
-5253 
+5254 
 boŞ
  
 	gCÚŒŞËr
@@ -1551973,7 +1551975,7 @@ boŞ
 £nd_uÇssocŸ‹d_¡a_lšk_m‘rics_qu”y_mes§ge
 (
 
-5254 
+5255 
 ›“1905_1
 ::
 CmduMes§geTx
@@ -1551985,7 +1551987,7 @@ db
 d©aba£
 )
 
-5256 ià(!
+5257 ià(!
 	gcmdu_tx
 .
 ü—‹
@@ -1551997,17 +1551999,17 @@ eMes§geTy³
 UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE
 )) {
 
-5257 
+5258 
 LOG
 (
 ERROR
 ) << "Failed building message UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE!";
 
-5258  
+5259  
 	gçl£
 ;
 
-5261 
+5262 
 usšg
  
 	gm­_¡©iÚs_³r_chªÃl
@@ -1552025,7 +1552027,7 @@ li¡
 sMacAddr
 >>;
 
-5263 
+5264 
 usšg
  
 	gm­_İ”©šg_şas£s_³r_ag’t
@@ -1552039,7 +1552041,7 @@ ušt8_t
 	gm­_¡©iÚs_³r_chªÃl
 >;
 
-5265 
+5266 
 usšg
  
 	gm­_®l_ag’ts
@@ -1552049,21 +1552051,21 @@ usšg
 unÜd”ed_m­
 <
 
-5266 
+5267 
 sMacAddr
 ,
 
-5267 
+5268 
 	gm­_İ”©šg_şas£s_³r_ag’t
 >;
 
-5269 
+5270 
 m­_®l_ag’ts
  
 	gglob®_m­
 ;
 
-5271 autØ
+5272 autØ
 	gun_¡©iÚs_db
  = 
 d©aba£
@@ -1552071,19 +1552073,19 @@ d©aba£
 g‘_uÇssocŸ‹d_¡©iÚs
 ();
 
-5272 ià(
+5273 ià(
 	gun_¡©iÚs_db
 .
 size
 ()) {
 
-5273 autØ&
+5274 autØ&
 	g¡©iÚ
  : 
 un_¡©iÚs_db
 ) {
 
-5274 cÚ¡‡utØ&
+5275 cÚ¡‡utØ&
 ag’t
  : 
 ¡©iÚ
@@ -1552093,7 +1552095,7 @@ ag’t
 g‘_ag’ts
 ()) {
 
-5276 ià(
+5277 ià(
 glob®_m­
 .
 fšd
@@ -1552105,13 +1552107,13 @@ fœ¡
 ’d
 ()) {
 
-5277 
+5278 
 glob®_m­
 .
 š£¹
 (
 
-5278 
+5279 
 ¡d
 ::
 make_·œ
@@ -1552123,7 +1552125,7 @@ fœ¡
 m­_İ”©šg_şas£s_³r_ag’t
 ()));
 
-5280 autØ&
+5281 autØ&
 	gag’ts_İ”©šg_şas£s
  = 
 glob®_m­
@@ -1552133,7 +1552135,7 @@ ag’t
 fœ¡
 ];
 
-5283 
+5284 
 ušt8_t
  
 	gİ”©šg_şass
@@ -1552145,7 +1552147,7 @@ ušt8_t
 g‘_İ”©šg_şass
 ();
 
-5284 ià(
+5285 ià(
 	gag’ts_İ”©šg_şas£s
 .
 fšd
@@ -1552153,19 +1552155,19 @@ fšd
 İ”©šg_şass
 ) ==
 
-5285 
+5286 
 ag’ts_İ”©šg_şas£s
 .
 ’d
 ()) {
 
-5286 
+5287 
 ag’ts_İ”©šg_şas£s
 .
 š£¹
 (
 
-5287 
+5288 
 ¡d
 ::
 make_·œ
@@ -1552175,7 +1552177,7 @@ make_·œ
 m­_¡©iÚs_³r_chªÃl
 ()));
 
-5289 autØ&
+5290 autØ&
 	g¡©iÚs_³r_chªÃl
  = 
 ag’ts_İ”©šg_şas£s
@@ -1552183,7 +1552185,7 @@ ag’ts_İ”©šg_şas£s
 İ”©šg_şass
 ];
 
-5292 
+5293 
 ušt8_t
  
 	gchªÃl
@@ -1552195,7 +1552197,7 @@ ušt8_t
 g‘_chªÃl
 ();
 
-5293 ià(
+5294 ià(
 	g¡©iÚs_³r_chªÃl
 .
 fšd
@@ -1552207,7 +1552209,7 @@ chªÃl
 ’d
 ()) {
 
-5294 
+5295 
 ¡©iÚs_³r_chªÃl
 .
 š£¹
@@ -1552223,7 +1552225,7 @@ li¡
 sMacAddr
 >()));
 
-5297 autØ&
+5298 autØ&
 	gli¡_¡©iÚs
  = 
 ¡©iÚs_³r_chªÃl
@@ -1552231,7 +1552233,7 @@ sMacAddr
 chªÃl
 ];
 
-5298 
+5299 
 	gli¡_¡©iÚs
 .
 em¶aû_back
@@ -1552241,7 +1552243,7 @@ em¶aû_back
 fœ¡
 );
 
-5302 cÚ¡‡utØ&
+5303 cÚ¡‡utØ&
 	gag’t
  : 
 d©aba£
@@ -1552249,7 +1552251,7 @@ d©aba£
 g‘_®l_cÚÃùed_ag’ts
 ()) {
 
-5303 
+5304 
 cmdu_tx
 .
 addCÏss
@@ -1552259,7 +1552261,7 @@ wç_m­
 vUÇssocŸ‹dSLškM‘ricsQu”y
 >();
 
-5304 
+5305 
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1552273,13 +1552275,13 @@ cmdu_tx
 d©aba£
 );
 
-5305 
+5306 
 LOG
 (
 DEBUG
 ) << "removed‚on_associated stations from‡gent with mac_address "
 
-5306 << 
+5307 << 
 	gvf
 ::
 mac_to_¡ršg
@@ -1552289,17 +1552291,17 @@ ag’t
 ®_mac
 );
 
-5308  
+5309  
 	gŒue
 ;
 
-5312 autØ&
+5313 autØ&
 	gag’t
  : 
 glob®_m­
 ) {
 
-5314 autØ&
+5315 autØ&
 İ”©šg_şass
  : 
 ag’t
@@ -1552307,11 +1552309,11 @@ ag’t
 £cÚd
 ) {
 
-5315 autØ
+5316 autØ
 uÇssocŸ‹d_¡a_qu”y
  =
 
-5316 
+5317 
 cmdu_tx
 .
 addCÏss
@@ -1552321,7 +1552323,7 @@ wç_m­
 vUÇssocŸ‹dSLškM‘ricsQu”y
 >();
 
-5317 ià(
+5318 ià(
 	gİ”©šg_şass
 .
 	g£cÚd
@@ -1552329,7 +1552331,7 @@ wç_m­
 size
 () == 0) {
 
-5320 autØ&
+5321 autØ&
 	g¡©iÚs_³r_chªÃl
  : 
 İ”©šg_şass
@@ -1552337,7 +1552339,7 @@ size
 £cÚd
 ) {
 
-5321 
+5322 
 ¡d
 ::
 sh¬ed_±r
@@ -1552349,13 +1552351,13 @@ cChªÃlP¬am‘”s
 chªÃls
  =
 
-5322 
+5323 
 uÇssocŸ‹d_¡a_qu”y
 ->
 ü—‹_chªÃl_li¡
 ();
 
-5323 
+5324 
 	gchªÃls
 ->
 chªÃl_numb”
@@ -1552365,7 +1552367,7 @@ chªÃl_numb”
 fœ¡
 ;
 
-5324 
+5325 
 	gchªÃls
 ->
 ®loc_¡a_li¡
@@ -1552377,13 +1552379,13 @@ fœ¡
 size
 ());
 
-5325 
+5326 
 size_t
  
 couÁ
 (0);
 
-5326 autØ&
+5327 autØ&
 	g¡©iÚ
  : 
 ¡©iÚs_³r_chªÃl
@@ -1552391,7 +1552393,7 @@ couÁ
 £cÚd
 ) {
 
-5327 
+5328 
 ¡d
 ::
 g‘
@@ -1552403,15 +1552405,15 @@ chªÃls
 couÁ
 )) =
 
-5328 
+5329 
 ¡©iÚ
 ;
 
-5329 
+5330 
 	gcouÁ
 ++;
 
-5332 ià(!
+5333 ià(!
 	guÇssocŸ‹d_¡a_qu”y
 ->
 add_chªÃl_li¡
@@ -1552419,23 +1552421,23 @@ add_chªÃl_li¡
 chªÃls
 )) {
 
-5333 
+5334 
 LOG
 (
 ERROR
 )
 
-5335  
+5336  
 	gçl£
 ;
 
-5339 
+5340 
 LOG
 (
 DEBUG
 ) << " sending‡‚ewlvUnassociatedStaLinkMetricsQueryo‡gent: "
 
-5340 << 
+5341 << 
 	gvf
 ::
 mac_to_¡ršg
@@ -1552445,13 +1552447,13 @@ ag’t
 fœ¡
 )
 
-5341 << " w™h: o³¿tšg_şass: " << 
+5342 << " w™h: o³¿tšg_şass: " << 
 İ”©šg_şass
 .
 fœ¡
 ;
 
-5342 
+5343 
 	guÇssocŸ‹d_¡a_qu”y
 ->
 İ”©šg_şass_of_chªÃl_li¡
@@ -1552461,13 +1552463,13 @@ fœ¡
 fœ¡
 ;
 
-5343 
+5344 
 	guÇssocŸ‹d_¡a_qu”y
 ->
 chªÃl_li¡_Ëngth
 () =
 
-5344 
+5345 
 İ”©šg_şass
 .
 £cÚd
@@ -1552475,7 +1552477,7 @@ chªÃl_li¡_Ëngth
 size
 ();
 
-5345 
+5346 
 	gsÚ_aùiÚs
 ::
 £nd_cmdu_to_ag’t
@@ -1552489,11 +1552491,11 @@ cmdu_tx
 d©aba£
 );
 
-5348  
+5349  
 	gŒue
 ;
 
-5351 
+5352 
 boŞ
  
 	gCÚŒŞËr
@@ -1552501,7 +1552503,7 @@ boŞ
 hªdË_cmdu_1905_­_mld_cÚfigu¿tiÚ_»¥Ú£_mes§ge
 (
 
-5352 cÚ¡ 
+5353 cÚ¡ 
 sMacAddr
  &
 ¤c_mac
@@ -1552513,7 +1552515,7 @@ CmduMes§geRx
 cmdu_rx
 )
 
-5354 autØ
+5355 autØ
 mid
  = 
 cmdu_rx
@@ -1552521,7 +1552523,7 @@ cmdu_rx
 g‘Mes§geId
 ();
 
-5355 
+5356 
 LOG
 (
 INFO
@@ -1552533,7 +1552535,7 @@ dec
 mid
 );
 
-5357 autØ
+5358 autØ
 	gag’t
  = 
 d©aba£
@@ -1552545,11 +1552547,11 @@ g‘
 ¤c_mac
 );
 
-5358 ià(!
+5359 ià(!
 	gag’t
 ) {
 
-5359 
+5360 
 LOG
 (
 WARNING
@@ -1552557,11 +1552559,11 @@ WARNING
 	g¤c_mac
 ;
 
-5360  
+5361  
 	gçl£
 ;
 
-5364 ià(!
+5365 ià(!
 	gsÚ_aùiÚs
 ::
 hªdË_ag’t_­_mld_cÚfigu¿tiÚ_v
@@ -1552573,17 +1552575,17 @@ d©aba£
 cmdu_rx
 )) {
 
-5365 
+5366 
 LOG
 (
 ERROR
 ) << "handle_ap_mld_configuration_tlv has failed!";
 
-5366  
+5367  
 	gçl£
 ;
 
-5371  
+5372  
 	gŒue
 ;
 
@@ -1876943,7 +1876945,11 @@ TOPOLOGY_DISCOVERY_MESSAGE
 	gVIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE
  = 0x8048,
 
-116 cÚ¡ *
+113 
+	gAVAILABLE_SPECTRUM_INQUIRY_MESSAGE
+ = 0x8049,
+
+117 cÚ¡ *
 	$eMes§geTy³_¡r
 (
 eMes§geTy³
@@ -1876951,545 +1876957,551 @@ eMes§geTy³
 ’um_v®ue
 ) {
 
-117 
+118 
 ’um_v®ue
 ) {
 
-118 
+119 
 eMes§geTy³
 ::
 TOPOLOGY_DISCOVERY_MESSAGE
 :  "eMessageType::TOPOLOGY_DISCOVERY_MESSAGE";
 
-119 
+120 
 eMes§geTy³
 ::
 TOPOLOGY_NOTIFICATION_MESSAGE
 :  "eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE";
 
-120 
+121 
 eMes§geTy³
 ::
 TOPOLOGY_QUERY_MESSAGE
 :  "eMessageType::TOPOLOGY_QUERY_MESSAGE";
 
-121 
+122 
 eMes§geTy³
 ::
 TOPOLOGY_RESPONSE_MESSAGE
 :  "eMessageType::TOPOLOGY_RESPONSE_MESSAGE";
 
-122 
+123 
 eMes§geTy³
 ::
 VENDOR_SPECIFIC_MESSAGE
 :  "eMessageType::VENDOR_SPECIFIC_MESSAGE";
 
-123 
+124 
 eMes§geTy³
 ::
 LINK_METRIC_QUERY_MESSAGE
 :  "eMessageType::LINK_METRIC_QUERY_MESSAGE";
 
-124 
+125 
 eMes§geTy³
 ::
 LINK_METRIC_RESPONSE_MESSAGE
 :  "eMessageType::LINK_METRIC_RESPONSE_MESSAGE";
 
-125 
+126 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_SEARCH_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE";
 
-126 
+127 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE";
 
-127 
+128 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_WSC_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE";
 
-128 
+129 
 eMes§geTy³
 ::
 AP_AUTOCONFIGURATION_RENEW_MESSAGE
 :  "eMessageType::AP_AUTOCONFIGURATION_RENEW_MESSAGE";
 
-129 
+130 
 eMes§geTy³
 ::
 PUSH_BUTTON_EVENT_NOTIFICATION_MESSAGE
 :  "eMessageType::PUSH_BUTTON_EVENT_NOTIFICATION_MESSAGE";
 
-130 
+131 
 eMes§geTy³
 ::
 PUSH_BUTTON_JOIN_NOTIFICATION_MESSAGE
 :  "eMessageType::PUSH_BUTTON_JOIN_NOTIFICATION_MESSAGE";
 
-131 
+132 
 eMes§geTy³
 ::
 HIGHER_LAYER_QUERY_MESSAGE
 :  "eMessageType::HIGHER_LAYER_QUERY_MESSAGE";
 
-132 
+133 
 eMes§geTy³
 ::
 HIGHER_LAYER_RESPONSE_MESSAGE
 :  "eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE";
 
-133 
+134 
 eMes§geTy³
 ::
 INTERFACE_POWER_CHANGE_REQUEST_MESSAGE
 :  "eMessageType::INTERFACE_POWER_CHANGE_REQUEST_MESSAGE";
 
-134 
+135 
 eMes§geTy³
 ::
 INTERFACE_POWER_CHANGE_RESPONSE_MESSAGE
 :  "eMessageType::INTERFACE_POWER_CHANGE_RESPONSE_MESSAGE";
 
-135 
+136 
 eMes§geTy³
 ::
 GENERIC_PHY_QUERY_MESSAGE
 :  "eMessageType::GENERIC_PHY_QUERY_MESSAGE";
 
-136 
+137 
 eMes§geTy³
 ::
 GENERIC_PHY_RESPONSE_MESSAGE
 :  "eMessageType::GENERIC_PHY_RESPONSE_MESSAGE";
 
-137 
+138 
 eMes§geTy³
 ::
 ACK_MESSAGE
 :  "eMessageType::ACK_MESSAGE";
 
-138 
+139 
 eMes§geTy³
 ::
 AP_CAPABILITY_QUERY_MESSAGE
 :  "eMessageType::AP_CAPABILITY_QUERY_MESSAGE";
 
-139 
+140 
 eMes§geTy³
 ::
 AP_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::AP_CAPABILITY_REPORT_MESSAGE";
 
-140 
+141 
 eMes§geTy³
 ::
 MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE
 :  "eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE";
 
-141 
+142 
 eMes§geTy³
 ::
 CHANNEL_PREFERENCE_QUERY_MESSAGE
 :  "eMessageType::CHANNEL_PREFERENCE_QUERY_MESSAGE";
 
-142 
+143 
 eMes§geTy³
 ::
 CHANNEL_PREFERENCE_REPORT_MESSAGE
 :  "eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE";
 
-143 
+144 
 eMes§geTy³
 ::
 CHANNEL_SELECTION_REQUEST_MESSAGE
 :  "eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE";
 
-144 
+145 
 eMes§geTy³
 ::
 CHANNEL_SELECTION_RESPONSE_MESSAGE
 :  "eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE";
 
-145 
+146 
 eMes§geTy³
 ::
 OPERATING_CHANNEL_REPORT_MESSAGE
 :  "eMessageType::OPERATING_CHANNEL_REPORT_MESSAGE";
 
-146 
+147 
 eMes§geTy³
 ::
 CLIENT_CAPABILITY_QUERY_MESSAGE
 :  "eMessageType::CLIENT_CAPABILITY_QUERY_MESSAGE";
 
-147 
+148 
 eMes§geTy³
 ::
 CLIENT_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE";
 
-148 
+149 
 eMes§geTy³
 ::
 AP_METRICS_QUERY_MESSAGE
 :  "eMessageType::AP_METRICS_QUERY_MESSAGE";
 
-149 
+150 
 eMes§geTy³
 ::
 AP_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::AP_METRICS_RESPONSE_MESSAGE";
 
-150 
+151 
 eMes§geTy³
 ::
 ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE
 :  "eMessageType::ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE";
 
-151 
+152 
 eMes§geTy³
 ::
 ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE";
 
-152 
+153 
 eMes§geTy³
 ::
 UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE
 :  "eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE";
 
-153 
+154 
 eMes§geTy³
 ::
 UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE";
 
-154 
+155 
 eMes§geTy³
 ::
 BEACON_METRICS_QUERY_MESSAGE
 :  "eMessageType::BEACON_METRICS_QUERY_MESSAGE";
 
-155 
+156 
 eMes§geTy³
 ::
 BEACON_METRICS_RESPONSE_MESSAGE
 :  "eMessageType::BEACON_METRICS_RESPONSE_MESSAGE";
 
-156 
+157 
 eMes§geTy³
 ::
 COMBINED_INFRASTRUCTURE_METRICS_MESSAGE
 :  "eMessageType::COMBINED_INFRASTRUCTURE_METRICS_MESSAGE";
 
-157 
+158 
 eMes§geTy³
 ::
 CLIENT_STEERING_REQUEST_MESSAGE
 :  "eMessageType::CLIENT_STEERING_REQUEST_MESSAGE";
 
-158 
+159 
 eMes§geTy³
 ::
 CLIENT_STEERING_BTM_REPORT_MESSAGE
 :  "eMessageType::CLIENT_STEERING_BTM_REPORT_MESSAGE";
 
-159 
+160 
 eMes§geTy³
 ::
 CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE
 :  "eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE";
 
-160 
+161 
 eMes§geTy³
 ::
 STEERING_COMPLETED_MESSAGE
 :  "eMessageType::STEERING_COMPLETED_MESSAGE";
 
-161 
+162 
 eMes§geTy³
 ::
 HIGHER_LAYER_DATA_MESSAGE
 :  "eMessageType::HIGHER_LAYER_DATA_MESSAGE";
 
-162 
+163 
 eMes§geTy³
 ::
 BACKHAUL_STEERING_REQUEST_MESSAGE
 :  "eMessageType::BACKHAUL_STEERING_REQUEST_MESSAGE";
 
-163 
+164 
 eMes§geTy³
 ::
 BACKHAUL_STEERING_RESPONSE_MESSAGE
 :  "eMessageType::BACKHAUL_STEERING_RESPONSE_MESSAGE";
 
-164 
+165 
 eMes§geTy³
 ::
 CHANNEL_SCAN_REQUEST_MESSAGE
 :  "eMessageType::CHANNEL_SCAN_REQUEST_MESSAGE";
 
-165 
+166 
 eMes§geTy³
 ::
 CHANNEL_SCAN_REPORT_MESSAGE
 :  "eMessageType::CHANNEL_SCAN_REPORT_MESSAGE";
 
-166 
+167 
 eMes§geTy³
 ::
 DPP_CCE_INDICATION_MESSAGE
 :  "eMessageType::DPP_CCE_INDICATION_MESSAGE";
 
-167 
+168 
 eMes§geTy³
 ::
 IEEE1905_REKEY_REQUEST_MESSAGE
 :  "eMessageType::IEEE1905_REKEY_REQUEST_MESSAGE";
 
-168 
+169 
 eMes§geTy³
 ::
 IEEE1905_DECRYPTION_FAILURE_MESSAGE
 :  "eMessageType::IEEE1905_DECRYPTION_FAILURE_MESSAGE";
 
-169 
+170 
 eMes§geTy³
 ::
 CAC_REQUEST_MESSAGE
 :  "eMessageType::CAC_REQUEST_MESSAGE";
 
-170 
+171 
 eMes§geTy³
 ::
 CAC_TERMINATION_MESSAGE
 :  "eMessageType::CAC_TERMINATION_MESSAGE";
 
-171 
+172 
 eMes§geTy³
 ::
 CLIENT_DISASSOCIATION_STATS_MESSAGE
 :  "eMessageType::CLIENT_DISASSOCIATION_STATS_MESSAGE";
 
-172 
+173 
 eMes§geTy³
 ::
 SERVICE_PRIORITIZATION_REQUEST_MESSAGE
 :  "eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE";
 
-173 
+174 
 eMes§geTy³
 ::
 ERROR_RESPONSE_MESSAGE
 :  "eMessageType::ERROR_RESPONSE_MESSAGE";
 
-174 
+175 
 eMes§geTy³
 ::
 ASSOCIATION_STATUS_NOTIFICATION_MESSAGE
 :  "eMessageType::ASSOCIATION_STATUS_NOTIFICATION_MESSAGE";
 
-175 
+176 
 eMes§geTy³
 ::
 TUNNELLED_MESSAGE
 :  "eMessageType::TUNNELLED_MESSAGE";
 
-176 
+177 
 eMes§geTy³
 ::
 BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE
 :  "eMessageType::BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE";
 
-177 
+178 
 eMes§geTy³
 ::
 BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE";
 
-178 
+179 
 eMes§geTy³
 ::
 PROXIED_ENCAP_DPP_MESSAGE
 :  "eMessageType::PROXIED_ENCAP_DPP_MESSAGE";
 
-179 
+180 
 eMes§geTy³
 ::
 DIRECT_ENCAP_DPP_MESSAGE
 :  "eMessageType::DIRECT_ENCAP_DPP_MESSAGE";
 
-180 
+181 
 eMes§geTy³
 ::
 RECONFIGURATION_TRIGGER_MESSAGE
 :  "eMessageType::RECONFIGURATION_TRIGGER_MESSAGE";
 
-181 
+182 
 eMes§geTy³
 ::
 BSS_CONFIGURATION_REQUEST_MESSAGE
 :  "eMessageType::BSS_CONFIGURATION_REQUEST_MESSAGE";
 
-182 
+183 
 eMes§geTy³
 ::
 BSS_CONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::BSS_CONFIGURATION_RESPONSE_MESSAGE";
 
-183 
+184 
 eMes§geTy³
 ::
 BSS_CONFIGURATION_RESULT_MESSAGE
 :  "eMessageType::BSS_CONFIGURATION_RESULT_MESSAGE";
 
-184 
+185 
 eMes§geTy³
 ::
 CHIRP_NOTIFICATION_MESSAGE
 :  "eMessageType::CHIRP_NOTIFICATION_MESSAGE";
 
-185 
+186 
 eMes§geTy³
 ::
 IEEE1905_ENCAP_EAPOL_MESSAGE
 :  "eMessageType::IEEE1905_ENCAP_EAPOL_MESSAGE";
 
-186 
+187 
 eMes§geTy³
 ::
 DPP_BOOTSTRAPPING_URI_NOTIFICATION_MESSAGE
 :  "eMessageType::DPP_BOOTSTRAPPING_URI_NOTIFICATION_MESSAGE";
 
-187 
+188 
 eMes§geTy³
 ::
 FAILED_CONNECTION_MESSAGE
 :  "eMessageType::FAILED_CONNECTION_MESSAGE";
 
-188 
+189 
 eMes§geTy³
 ::
 AGENT_LIST_MESSAGE
 :  "eMessageType::AGENT_LIST_MESSAGE";
 
-189 
+190 
 eMes§geTy³
 ::
 QOS_MANAGEMENT_NOTIFICATION_MESSAGE
 :  "eMessageType::QOS_MANAGEMENT_NOTIFICATION_MESSAGE";
 
-190 
+191 
 eMes§geTy³
 ::
 VIRTUAL_BSS_CAPABILITIES_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_CAPABILITIES_REQUEST_MESSAGE";
 
-191 
+192 
 eMes§geTy³
 ::
 VIRTUAL_BSS_CAPABILITIES_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_CAPABILITIES_RESPONSE_MESSAGE";
 
-192 
+193 
 eMes§geTy³
 ::
 VIRTUAL_BSS_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_REQUEST_MESSAGE";
 
-193 
+194 
 eMes§geTy³
 ::
 VIRTUAL_BSS_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_RESPONSE_MESSAGE";
 
-194 
+195 
 eMes§geTy³
 ::
 CLIENT_SECURITY_CONTEXT_REQUEST_MESSAGE
 :  "eMessageType::CLIENT_SECURITY_CONTEXT_REQUEST_MESSAGE";
 
-195 
+196 
 eMes§geTy³
 ::
 CLIENT_SECURITY_CONTEXT_RESPONSE_MESSAGE
 :  "eMessageType::CLIENT_SECURITY_CONTEXT_RESPONSE_MESSAGE";
 
-196 
+197 
 eMes§geTy³
 ::
 TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE
 :  "eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE";
 
-197 
+198 
 eMes§geTy³
 ::
 TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE
 :  "eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE";
 
-198 
+199 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE";
 
-199 
+200 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_PREPARATION_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_RESPONSE_MESSAGE";
 
-200 
+201 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE";
 
-201 
+202 
 eMes§geTy³
 ::
 EARLY_AP_CAPABILITY_REPORT_MESSAGE
 :  "eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE";
 
-202 
+203 
 eMes§geTy³
 ::
 AP_MLD_CONFIGURATION_REQUEST_MESSAGE
 :  "eMessageType::AP_MLD_CONFIGURATION_REQUEST_MESSAGE";
 
-203 
+204 
 eMes§geTy³
 ::
 AP_MLD_CONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::AP_MLD_CONFIGURATION_RESPONSE_MESSAGE";
 
-204 
+205 
 eMes§geTy³
 ::
 BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE
 :  "eMessageType::BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE";
 
-205 
+206 
 eMes§geTy³
 ::
 BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE
 :  "eMessageType::BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE";
 
-206 
+207 
 eMes§geTy³
 ::
 VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE
 :  "eMessageType::VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE";
 
-208 
+208 
+eMes§geTy³
+::
+AVAILABLE_SPECTRUM_INQUIRY_MESSAGE
+:  "eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE";
+
+210 
 ¡d
 ::
 ¡ršg
@@ -1877501,17 +1877513,17 @@ out_¡r
 ’um_v®ue
 ));
 
-209  
+211  
 out_¡r
 .
 	`c_¡r
 ();
 
-210 
+212 
 	}
 }
 
-211 
+213 
 šlše
  
 	g¡d
@@ -1877535,15 +1877547,15 @@ eMes§geTy³_¡r
 v®ue
 ); }
 
-214 şas 
+216 şas 
 	ceMes§geTy³V®id©e
  {
 
-215 
+217 
 	gpublic
 :
 
-216 
+218 
 boŞ
  
 check
@@ -1877553,7 +1877565,7 @@ ušt16_t
 v®ue
 ) {
 
-217 
+219 
 boŞ
  
 »t
@@ -1877561,23 +1877573,23 @@ boŞ
 çl£
 ;
 
-218 
+220 
 	gv®ue
 ) {
 
-308 
+311 
 »t
  = 
 Œue
 ;
 
-311 
+314 
 »t
  = 
 çl£
 ;
 
-314  
+317  
 	g»t
 ;
 
