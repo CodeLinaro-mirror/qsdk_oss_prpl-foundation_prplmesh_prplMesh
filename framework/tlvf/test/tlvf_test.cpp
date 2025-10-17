@@ -8,7 +8,7 @@
 
 #include "tlvf/CmduMessageRx.h"
 #include "tlvf/CmduMessageTx.h"
-#include "tlvf/WSC/configData.h"
+#include "tlvf/WSC/EncryptedSettingsPayload.h"
 #include "tlvf/WSC/m1.h"
 #include "tlvf/WSC/m2.h"
 #include "tlvf/ieee_1905_1/tlv1905NeighborDevice.h"
@@ -223,18 +223,18 @@ int test_complex_list()
 bool add_encrypted_settings(tlvWsc &tlv, uint8_t *keywrapkey, WSC::m2::config &m2_cfg)
 {
     // Encrypted settings
-    // Encrypted settings are the ConfigData + IV. First create the ConfigData,
+    // Encrypted settings are the EncryptedSettingsPayload + IV. First create the EncryptedSettingsPayload,
     // Then copy it to the encrypted data, add an IV and encrypt.
     // Finally, add HMAC
     uint8_t buf[1024];
-    WSC::configData::config cfg;
+    WSC::EncryptedSettingsPayload::config cfg;
     cfg.ssid         = "test_ssid";
     cfg.auth_type    = WSC::eWscAuth::WSC_AUTH_WPA2;
     cfg.encr_type    = WSC::eWscEncr::WSC_ENCR_AES;
     cfg.network_key  = "test1234";
-    auto config_data = WSC::configData::create(cfg, buf, sizeof(buf));
+    auto config_data = WSC::EncryptedSettingsPayload::create(cfg, buf, sizeof(buf));
     if (!config_data) {
-        LOG(ERROR) << "Failed to create configData";
+        LOG(ERROR) << "Failed to create EncryptedSettingsPayload";
         return false;
     }
 
@@ -305,9 +305,9 @@ bool parse_encrypted_settings(std::shared_ptr<tlvWsc> tlv, uint8_t *keywrapkey, 
     mapf::encryption::aes_decrypt(keywrapkey, iv,
                                   (uint8_t *)encrypted_settings.encrypted_settings(),
                                   encrypted_settings.encrypted_settings_length(), buf, dlen);
-    LOG(DEBUG) << "configData buffer: " << std::hex << ptrdiff_t(buf) << std::endl
+    LOG(DEBUG) << "EncryptedSettingsPayload buffer: " << std::hex << ptrdiff_t(buf) << std::endl
                << utils::dump_buffer(buf, dlen);
-    auto config_data = WSC::configData::parse(buf, dlen);
+    auto config_data = WSC::EncryptedSettingsPayload::parse(buf, dlen);
     if (!config_data) {
         LOG(ERROR) << "Failed to parse config data";
         return false;

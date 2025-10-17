@@ -1089,9 +1089,9 @@ class cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST : public BaseClass
         bool set_bridge_ifname(const char buffer[], size_t size);
         bool alloc_bridge_ifname(size_t count = 1);
         uint8_t& wifi_credentials_size();
-        std::tuple<bool, WSC::cConfigData&> wifi_credentials(size_t idx);
-        std::shared_ptr<WSC::cConfigData> create_wifi_credentials();
-        bool add_wifi_credentials(std::shared_ptr<WSC::cConfigData> ptr);
+        std::tuple<bool, WSC::cEncryptedSettingsPayload&> wifi_credentials(size_t idx);
+        std::shared_ptr<WSC::cEncryptedSettingsPayload> create_wifi_credentials();
+        bool add_wifi_credentials(std::shared_ptr<WSC::cEncryptedSettingsPayload> ptr);
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -1104,9 +1104,9 @@ class cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST : public BaseClass
         size_t m_bridge_ifname_idx__ = 0;
         int m_lock_order_counter__ = 0;
         uint8_t* m_wifi_credentials_size = nullptr;
-        WSC::cConfigData* m_wifi_credentials = nullptr;
+        WSC::cEncryptedSettingsPayload* m_wifi_credentials = nullptr;
         size_t m_wifi_credentials_idx__ = 0;
-        std::vector<std::shared_ptr<WSC::cConfigData>> m_wifi_credentials_vector;
+        std::vector<std::shared_ptr<WSC::cEncryptedSettingsPayload>> m_wifi_credentials_vector;
         bool m_lock_allocation__ = false;
 };
 

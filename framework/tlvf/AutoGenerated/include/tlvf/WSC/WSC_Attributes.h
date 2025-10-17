@@ -41,7 +41,7 @@
 namespace WSC {
 
 class cWscAttrVendorExtension;
-class cConfigData;
+class cEncryptedSettingsPayload;
 class cWscAttrEncryptedSettings;
 class cWscAttrVersion;
 class cWscAttrMessageType;
@@ -203,12 +203,12 @@ class cWscAttrVendorExtension : public BaseClass
         int m_lock_order_counter__ = 0;
 };
 
-class cConfigData : public BaseClass
+class cEncryptedSettingsPayload : public BaseClass
 {
     public:
-        cConfigData(uint8_t* buff, size_t buff_len, bool parse = false);
-        explicit cConfigData(std::shared_ptr<BaseClass> base, bool parse = false);
-        ~cConfigData();
+        cEncryptedSettingsPayload(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cEncryptedSettingsPayload(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cEncryptedSettingsPayload();
 
         eWscAttributes& ssid_type();
         uint16_t& ssid_length();

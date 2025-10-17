@@ -31,7 +31,7 @@
 #include <btl/broker_client_factory.h>
 
 #include <mapf/common/encryption.h>
-#include <tlvf/WSC/configData.h>
+#include <tlvf/WSC/EncryptedSettingsPayload.h>
 #include <tlvf/WSC/m1.h>
 #include <tlvf/WSC/m2.h>
 #include <tlvf/WSC/m8.h>
@@ -461,8 +461,8 @@ private:
     bool autoconfig_wsc_add_m8(WSC::m1 &m1, const wireless_utils::sBssInfoConf &bss_info_conf);
     bool autoconfig_wsc_add_encrypted_settings(uint8_t &iv,
                                                std::vector<uint8_t> &encrypted_settings,
-                                               WSC::configData &config_data, uint8_t authkey[32],
-                                               uint8_t keywrapkey[16]);
+                                               WSC::EncryptedSettingsPayload &config_data,
+                                               uint8_t authkey[32], uint8_t keywrapkey[16]);
 
     /**
      * @brief autoconfig global authenticator attribute calculation
