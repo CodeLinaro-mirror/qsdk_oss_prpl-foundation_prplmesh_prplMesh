@@ -8,6 +8,7 @@
 
 #include "on_action.h"
 
+#include <bcl/beerocks_defines.h>
 #include <beerocks/tlvf/beerocks_message_bml.h>
 #include <chrono>
 #include <iomanip>
@@ -270,6 +271,7 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
     }
 
     g_database->clear_bss_info_configuration();
+    g_database->clear_mld_info_configuration();
 
     if (network_enable) {
         amxd_object_for_each(instance, it, access_point)
@@ -365,30 +367,24 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                              << " missing value for network key.";
                 continue;
             }
-
-            // Handle MLDUnit configuration
-            int8_t mld_unit = amxd_object_get_int8_t(access_point_inst, "MLDUnit", nullptr);
-            if (mld_unit != -1) {
-                // Validate MLDUnit is in valid range [0, 15]
-                if (mld_unit >= 0 && mld_unit <= 15) {
-                    son::wireless_utils::sMldInfoConf mld_info;
-                    mld_info.ssid = bss_info.ssid;
-                    mld_info.str  = true;
-                    mld_info.nstr = false;
-                    mld_info.emlsr = false;
-                    mld_info.emlmr = false;
-                    std::string mld_id = std::to_string(mld_unit);
-                    g_database->add_mld_info_configuration(mld_info, mld_id);
-                    LOG(DEBUG) << "Added MLD configuration for SSID: " << bss_info.ssid
-                       << " with MLDUnit: " << static_cast<int>(mld_unit);
-                } else {
-                    LOG(WARNING) << "Invalid MLDUnit value " << static_cast<int>(mld_unit)
-                       << " for SSID: " << bss_info.ssid
-                       << ". Must be in range [0, 15] or -1 for disabled.";
-                }
-            }
             LOG(DEBUG) << "Add bss info configration for AP with ssid: " << bss_info.ssid
                        << " and operating classes: " << bss_info.operating_class;
+
+            int8_t mld_unit = amxd_object_get_int8_t(access_point_inst, "MLDUnit", nullptr);
+            if (mld_unit != DISABLED_MLDUNIT) {
+                son::wireless_utils::sMldInfoConf mld_info;
+                mld_info.ssid = bss_info.ssid;
+
+                // TODO: Read Modes from Configuration (PPM-3588)
+                mld_info.str   = true;
+                mld_info.nstr  = false;
+                mld_info.emlsr = true;
+                mld_info.emlmr = false;
+
+                g_database->add_mld_info_configuration(mld_info, std::to_string(mld_unit));
+                bss_info.mld_id = std::to_string(mld_unit);
+                LOG(DEBUG) << " Set bss_info.mld_id='" << bss_info.mld_id << "'";
+            }
             g_database->add_bss_info_configuration(bss_info);
         }
     }

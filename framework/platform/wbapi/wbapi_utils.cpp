@@ -239,11 +239,6 @@ std::string wbapi_utils::search_path_ssid_by_bssid(const std::string &bssid)
     return search_path_ssid() + "[BSSID == '" + macLc + "' || BSSID == '" + macUc + "'].";
 }
 
-std::string wbapi_utils::search_path_ssid_by_ssid(const std::string &ssid)
-{
-    return search_path_ssid() + "[SSID == '" + ssid + "'].";
-}
-
 std::string wbapi_utils::search_path_ssid_iface_by_bssid(const std::string &bssid)
 {
     return search_path_ssid_by_bssid(bssid) + "Name";
@@ -252,6 +247,12 @@ std::string wbapi_utils::search_path_ssid_iface_by_bssid(const std::string &bssi
 std::string wbapi_utils::search_path_ssid_by_alias(const std::string &alias)
 {
     return search_path_ssid() + "[Alias == '" + alias + "'].";
+}
+
+std::string wbapi_utils::search_path_ssid_by_ssid_and_radio(const std::string &ssid,
+                                                            const std::string &radio_path)
+{
+    return search_path_ssid() + "[SSID == '" + ssid + "' && LowerLayers == '" + radio_path + "'].";
 }
 
 std::string wbapi_utils::search_path_ap_iface() { return search_path_ssid() + "*.Alias"; }

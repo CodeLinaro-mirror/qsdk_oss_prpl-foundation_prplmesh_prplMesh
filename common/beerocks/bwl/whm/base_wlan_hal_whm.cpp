@@ -799,6 +799,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
         }
     }
 
+    m_radio_info.eht_supported = supported_standards.find("be") != std::string::npos ? true : false;
     if (radio->read_child(s_val, "ExtensionChannel")) {
         bool channel_ext_above = (s_val == "AboveControlChannel");
         if (!channel_ext_above && (s_val == "Auto") &&
