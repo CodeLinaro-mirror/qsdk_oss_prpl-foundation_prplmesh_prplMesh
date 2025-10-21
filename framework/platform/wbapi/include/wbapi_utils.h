@@ -165,6 +165,11 @@ public:
     static std::string search_path_ssid_by_alias(const std::string &alias);
 
     /**
+     * @brief return search path of SSID object instance by CustomAlias
+    */
+    static std::string search_path_ssid_by_custom_alias(const std::string &custom_alias);
+
+    /**
      * @brief return search path of SSID object instance by SSID.
      *
      * @param[in] ssid SSID name string to search for.

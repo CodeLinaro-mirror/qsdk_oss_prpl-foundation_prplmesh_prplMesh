@@ -27,6 +27,32 @@ using namespace wbapi;
 ////////////////////////// Local Module Definitions //////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
+namespace {
+// Returns lower-case suffix used in CustomAlias (e.g., "home", "guest").
+inline const char *vap_type_suffix(WSC::eWscVendorExtVapType type) noexcept
+{
+    switch (type) {
+    case WSC::eWscVendorExtVapType::HOME:
+        return "home";
+    case WSC::eWscVendorExtVapType::GUEST:
+        return "guest";
+    case WSC::eWscVendorExtVapType::VIDEO:
+        return "video";
+    case WSC::eWscVendorExtVapType::BACKHAUL:
+        return "backhaul";
+    case WSC::eWscVendorExtVapType::HOTSPOT:
+        return "hotspot";
+    case WSC::eWscVendorExtVapType::STAFF:
+        return "staff";
+    case WSC::eWscVendorExtVapType::ISOLATED:
+        return "isolated";
+    case WSC::eWscVendorExtVapType::OTHER:
+    default:
+        return "other";
+    }
+}
+} // namespace
+
 namespace bwl {
 namespace whm {
 
@@ -477,18 +503,36 @@ bool ap_wlan_hal_whm::update_vap_credentials(
 {
     LOG(DEBUG) << "updating vap credentials of radio " << get_iface_name()
                << " and bridge=" << bridge_ifname;
-    bool ret;
+    bool ret          = false;
     int new_vap_index = m_radio_info.available_vaps.size();
 
-    for (auto bss_info_conf : bss_info_conf_list) {
+    for (const auto &bss_info_conf : bss_info_conf_list) {
         std::string wifi_vap_path, wifi_ssid_path;
         std::string ifname = "new_interface";
 
-        auto bssid = tlvf::mac_to_string(bss_info_conf.bssid);
-        int vap_id = get_vap_id_with_mac(bssid);
+        // (1) lookup by bssid
+        const auto bssid = tlvf::mac_to_string(bss_info_conf.bssid);
+        int vap_id       = get_vap_id_with_mac(bssid);
 
-        if (!check_vap_id(vap_id) || (bssid == beerocks::net::network_utils::WILD_MAC_STRING)) {
-            LOG(DEBUG) << "create new vap for wildcard bssid";
+        // (2) resolving VAP by vap_type
+        //
+        // If the BSSID in the new config doesn’t resolve to an existing VAP,
+        // fall back to role-based lookup (Home/Guest/Backhaul) to reuse an
+        // existing VAP instead of creating a new one and later tearing the old one down.
+        //
+        // LIMITATION: This works reliably only when there is a single VAP per role.
+        //             If multiple VAPs share the same vap_type, get_vap_id_with_vap_type() may
+        //             select a different instance than intended (ambiguous selection).
+        if (!check_vap_id(vap_id) && (bss_info_conf.vap_type != WSC::eWscVendorExtVapType::OTHER)) {
+            const int role_vap_id = get_vap_id_with_vap_type(bss_info_conf.vap_type);
+            if (check_vap_id(role_vap_id)) {
+                vap_id = role_vap_id;
+            }
+        }
+
+        // Create a new VAP when no reusable instance was found
+        if (!check_vap_id(vap_id)) {
+            LOG(DEBUG) << "create new vap";
 
             auto freq_name = wbapi_utils::band_short_name(m_radio_info.frequency_band);
 
@@ -2197,6 +2241,24 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
     }
 
     return true;
+}
+
+int ap_wlan_hal_whm::get_vap_id_with_vap_type(WSC::eWscVendorExtVapType vap_type)
+{
+    const std::string vap_name = "vap" + wbapi_utils::band_short_name(m_radio_info.frequency_band) +
+                                 vap_type_suffix(vap_type);
+    const std::string search_path = wbapi_utils::search_path_ssid_by_custom_alias(vap_name);
+
+    std::string wifi_ssid_path;
+    if (!m_ambiorix_cl.resolve_path(search_path, wifi_ssid_path)) {
+        LOG(ERROR) << "SSID not found";
+        return beerocks::IFACE_ID_INVALID;
+    }
+
+    std::string vap_mac;
+    m_ambiorix_cl.get_param(vap_mac, wifi_ssid_path, "BSSID");
+
+    return get_vap_id_with_mac(vap_mac);
 }
 
 } // namespace whm

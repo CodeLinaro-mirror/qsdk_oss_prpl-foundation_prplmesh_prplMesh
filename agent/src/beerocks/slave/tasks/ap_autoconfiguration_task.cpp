@@ -110,8 +110,6 @@ bool is_valid_op_std(const std::string &radio_iface,
 
 static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS = 3;
 #define HANDLE_THIRD_PARTY_ENABLE "1"
-#define VENDOR_HIDE_SSID 0x80
-#define VENDOR_BSS_CFG 0x02
 #define VENDOR_RADIO_CFG 0x05
 
 #define FSM_MOVE_STATE(radio_iface, new_state)                                                     \
@@ -1743,6 +1741,11 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         if (db->em_ap_controller_found) {
             LOG(DEBUG) << "EM+ controller is found. Check for Hidden SSID parameters";
 
+            info.m2_config.vap_type = m2.vap_type();
+            if (info.m2_config.vap_type == WSC::eWscVendorExtVapType::OTHER) {
+                LOG(INFO) << "VAP type not found in Vendor Extension";
+            }
+
             // hidden_ssid is false if Vendor Extension is not found
             info.m2_config.hidden_ssid = m2.hidden_ssid();
 
@@ -1775,6 +1778,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         ss << "bBSS: " << bBSS << std::endl;
         ss << "teardown: " << teardown << std::endl;
         ss << "hidden_ssid " << info.m2_config.hidden_ssid << std::endl;
+        ss << "vap_type " << info.m2_config.vap_type << std::endl;
         if (bBSS) {
             ss << "profile1_backhaul_sta_association_disallowed: " << bBSS_p1_disallowed;
             ss << "profile2_backhaul_sta_association_disallowed: " << bBSS_p2_disallowed;
@@ -2760,6 +2764,9 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
             if (bss.hidden_ssid && bool(info.m2_config.hidden_ssid)) {
                 matching_fields++;
             }
+            if (bss.vap_type == info.m2_config.vap_type) {
+                matching_fields++;
+            }
 
             return (matching_fields >= minimal_similarity);
         };
@@ -2802,6 +2809,9 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
             return true;
         }
         if (bss.hidden_ssid && !bool(info.m2_config.hidden_ssid)) {
+            return true;
+        }
+        if (bss.vap_type != info.m2_config.vap_type) {
             return true;
         }
 
@@ -2871,6 +2881,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
             iter->payload_config.network_key = remaining_bss.payload_config.network_key;
             iter->payload_config.bss_type    = remaining_bss.payload_config.bss_type;
             iter->m2_config.hidden_ssid      = remaining_bss.m2_config.hidden_ssid;
+            iter->m2_config.vap_type         = remaining_bss.m2_config.vap_type;
 
         } else if (final_infos.size() < radio->front.radio_max_bss) {
             LOG(DEBUG) << "SSID " << remaining_bss.payload_config.ssid
@@ -2896,7 +2907,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
                       << std::endl
                       << ", Hidden SSID: " << info.m2_config.hidden_ssid
                       << ", bss_type: " << std::hex << int(info.payload_config.bss_type)
-                      << std::endl;
+                      << ", vap_type: " << info.m2_config.vap_type << std::endl;
     }
 
     // Set final configuration.
@@ -2963,6 +2974,7 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
         c->bss_index()                     = info.m2_config.bss_index;
         c->additional_auth() =
             static_cast<son::wireless_utils::eAdditionalAuth>(info.additional_auth);
+        c->vap_type() = info.m2_config.vap_type;
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

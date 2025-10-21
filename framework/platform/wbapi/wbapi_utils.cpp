@@ -249,6 +249,11 @@ std::string wbapi_utils::search_path_ssid_by_alias(const std::string &alias)
     return search_path_ssid() + "[Alias == '" + alias + "'].";
 }
 
+std::string wbapi_utils::search_path_ssid_by_custom_alias(const std::string &custom_alias)
+{
+    return search_path_ssid() + "[CustomAlias == '" + custom_alias + "'].";
+}
+
 std::string wbapi_utils::search_path_ssid_by_ssid_and_radio(const std::string &ssid,
                                                             const std::string &radio_path)
 {

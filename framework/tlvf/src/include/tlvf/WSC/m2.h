@@ -15,9 +15,9 @@ namespace WSC {
 namespace vendor_extension {
 namespace airties {
 
-constexpr int VENDOR_HIDE_SSID = 0x80;
-constexpr int VENDOR_BSS_CFG   = 0x02;
-constexpr int VENDOR_BSS_TYPE  = 0x00;
+constexpr uint8_t VENDOR_HIDE_SSID = 0x80;
+constexpr uint8_t VENDOR_BSS_CFG   = 0x02;
+constexpr uint8_t VENDOR_VAP_TYPE  = 0x00;
 
 } // namespace airties
 } // namespace vendor_extension
@@ -146,6 +146,25 @@ public:
         }
         return false;
     };
+    eWscVendorExtVapType vap_type() const
+    {
+        for (auto &vendor_ext_attr : getAttrList<WSC::cWscAttrVendorExtension>()) {
+            if ((WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1 != vendor_ext_attr->vendor_id_0()) ||
+                (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_2 != vendor_ext_attr->vendor_id_1()) ||
+                (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_3 != vendor_ext_attr->vendor_id_2())) {
+                continue;
+            }
+
+            const auto &data = vendor_ext_attr->vendor_data();
+            const size_t len = vendor_ext_attr->vendor_data_length();
+
+            // Need at least 2 bytes: [subelem_id][value]
+            if (len >= 2 && data[0] == WSC::vendor_extension::airties::VENDOR_VAP_TYPE) {
+                return static_cast<eWscVendorExtVapType>(data[1]);
+            }
+        }
+        return eWscVendorExtVapType::OTHER;
+    }
 };
 
 } // namespace WSC

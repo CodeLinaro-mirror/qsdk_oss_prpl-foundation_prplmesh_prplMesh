@@ -344,6 +344,7 @@ private:
     bool
     airties_vs_ap_autoconfiguration_wsc_parse_service_status(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                              const std::string &radio_iface);
+
     /**
      * @brief Parse the vendor extension from m2 for Radio Operational Mode
      *

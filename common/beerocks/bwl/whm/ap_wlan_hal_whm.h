@@ -183,6 +183,14 @@ private:
      * @brief Process event "wpaCtrlEvents"
      */
     bool process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data) override;
+
+    /**
+     * @brief Get vap id by using vap type.
+     *
+     * @param [in] vap_type VAP type enum value.
+     * @return vap id.
+     */
+    int get_vap_id_with_vap_type(WSC::eWscVendorExtVapType vap_type);
 };
 
 } // namespace whm
