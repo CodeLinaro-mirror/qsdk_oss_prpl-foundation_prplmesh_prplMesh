@@ -302,6 +302,7 @@ bool ap_wlan_hal_dummy::update_vap_credentials(
         parsed_obj_map_t parsed_obj;
         parsed_obj[DUMMY_EVENT_KEYLESS_PARAM_OPCODE] = "AP-ENABLED";
         parsed_obj[DUMMY_EVENT_KEYLESS_PARAM_IFACE]  = m_radio_info.available_vaps[id].bss;
+        m_radio_info.radio_max_bss_supported++;
         process_dummy_event(parsed_obj);
     }
 
