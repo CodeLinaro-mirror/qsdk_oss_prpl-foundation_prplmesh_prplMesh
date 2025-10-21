@@ -208,6 +208,18 @@ public:
                            const std::string &new_bss_ssid, const std::string &new_bss_pass);
 
     /**
+     * @brief Sets the disabled subchannel bitmap
+     *
+     * @param[in] agent_mac_addr 1905 AL MAC of target Agent
+     * @param[in] radio_mac Radio of the target Agent that owns the @param bssid
+     * @param[in] bssid BSSID for which the parameters are targeted
+     * @param[in] bitmap The bitmap of disabled channels: lowest bit means lowest channel to be disabled
+     * @return True if set was successful, false otherwise.
+     */
+    bool set_eht_operations(const sMacAddr &agent_mac_addr, const sMacAddr &radio_mac,
+                            const sMacAddr &bssid, uint16_t bitmap);
+
+    /**
      * @brief Triggers the sending of QoS configuration to agents
      *
      */

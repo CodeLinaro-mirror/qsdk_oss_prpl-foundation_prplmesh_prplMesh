@@ -947,6 +947,71 @@ amxd_status_t trigger_vbss_move(amxd_object_t *object, amxd_function_t *func, am
     return amxd_status_ok;
 }
 
+/**
+ * @brief add EHT Operation TLV with disabled subchannel bitmap as an argument
+ *
+ * @param[in] DisabledSubchannelBitmap decimal or hex representation of the disabled subchannel bitmap,
+ *            where LSB is lowest 20MHz channel of the currently in use Operating Class
+ *            same syntax as hostapd.conf punct_bitmap parameter
+ * Example of usage:
+ * Device.WiFi.DataElements.Network.Device.1.Radio.1.BSS.1.SetEHTOperations(DisabledSubchannelBitmap="0x02")
+ *
+ */
+amxd_status_t set_eht_operations(amxd_object_t *bss_instance, amxd_function_t *func,
+                                 amxc_var_t *args, amxc_var_t *ret)
+{
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context.";
+        return amxd_status_unknown_error;
+    }
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+
+    amxd_object_t *radio = amxd_object_get_parent(amxd_object_get_parent(bss_instance));
+    amxd_object_get_param(radio, "ID", &value);
+    const std::string radio_mac = amxc_var_constcast(cstring_t, &value);
+
+    if (radio_mac.empty()) {
+        LOG(ERROR) << "radio_mac is empty";
+        amxc_var_clean(&value);
+        return amxd_status_parameter_not_found;
+    }
+
+    amxd_object_t *agent = amxd_object_get_parent(amxd_object_get_parent(radio));
+    amxd_object_get_param(agent, "ID", &value);
+    const std::string agent_mac = amxc_var_constcast(cstring_t, &value);
+
+    if (agent_mac.empty()) {
+        LOG(ERROR) << "agent_mac is empty";
+        amxc_var_clean(&value);
+        return amxd_status_parameter_not_found;
+    }
+
+    amxd_object_get_param(bss_instance, "BSSID", &value);
+    const std::string bssid_str = amxc_var_constcast(cstring_t, &value);
+
+    if (bssid_str.empty()) {
+        LOG(ERROR) << "bssid_str is empty";
+        amxc_var_clean(&value);
+        return amxd_status_parameter_not_found;
+    }
+
+    amxc_var_clean(&value);
+
+    uint16_t bitmap = amxc_var_dyncast(uint16_t, GET_ARG(args, "DisabledSubchannelBitmap"));
+
+    if (!controller_ctx->set_eht_operations(tlvf::mac_from_string(agent_mac),
+                                            tlvf::mac_from_string(radio_mac),
+                                            tlvf::mac_from_string(bssid_str), bitmap)) {
+        LOG(ERROR) << "Failed to set disabled subchannel from NBAPI for BSSID: " << bssid_str;
+        return amxd_status_unknown_error;
+    }
+
+    return amxd_status_ok;
+}
+
 amxd_status_t trigger_prioritization(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
                                      amxc_var_t *ret)
 {
@@ -1322,6 +1387,8 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
          trigger_vbss_destruction},
         {"trigger_vbss_move", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.TriggerVBSSMove",
          trigger_vbss_move},
+        {"set_eht_operations", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.SetEHTOperations",
+         set_eht_operations},
         {"trigger_prioritization", DATAELEMENTS_ROOT_DM ".Network.SetServicePrioritization",
          trigger_prioritization},
         {"add_unassociated_station",
