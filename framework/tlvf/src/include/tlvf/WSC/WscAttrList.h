@@ -238,8 +238,13 @@ public:
                 return true;
             // Other attributes are not expected, if so ignore them silently
             default:
-                TLVF_LOG(DEBUG) << "Unknown attribute " << getNextAttrType()
-                                << " assuming end of AttrList";
+                TLVF_LOG(DEBUG) << "Unknown attribute " << getNextAttrType() << " with length "
+                                << getNextAttrLength();
+                bool skip_success = skipNextAttribute();
+                TLVF_LOG(DEBUG) << " skip success ? " << skip_success;
+                if (skip_success) {
+                    break;
+                }
                 return true;
             }
         }

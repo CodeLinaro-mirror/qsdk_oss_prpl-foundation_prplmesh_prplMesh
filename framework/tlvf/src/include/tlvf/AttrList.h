@@ -9,6 +9,7 @@
 #ifndef _TLVF_ATTR_LIST_H_
 #define _TLVF_ATTR_LIST_H_
 
+#include <limits>
 #include <memory>
 #include <tlvf/ClassList.h>
 #include <tlvf/swap.h>
@@ -44,19 +45,47 @@ protected:
         return reinterpret_cast<sAttrHeader<TT, TD> *>(
             m_class_vector.empty() ? getMessageBuff() : m_class_vector.back()->getBuffPtr());
     }
-    uint16_t getNextAttrType()
+    TT getNextAttrType()
     {
         auto type = getNextAttrHdr()->type;
         if (m_parse) {
             tlvf_swap((sizeof(type) * 8), reinterpret_cast<uint8_t *>(&type));
         }
-        return static_cast<uint16_t>(type);
+        return type;
     };
     size_t getRemainingBytes()
     {
         return m_class_vector.empty() ? getMessageBuffLength()
                                       : m_class_vector.back()->getBuffRemainingBytes();
     };
+    TT getNextAttrLength()
+    {
+        auto *hdr = getNextAttrHdr();
+        if (!hdr) {
+            TLVF_LOG(ERROR) << "getNextAttrLength: No next attr header";
+            return 0;
+        }
+        auto length = hdr->length;
+        if (m_parse) {
+            tlvf_swap((sizeof(length) * std::numeric_limits<uint8_t>::digits),
+                      reinterpret_cast<uint8_t *>(&length));
+        }
+        return length;
+    }
+    bool skipNextAttribute()
+    {
+        if (m_class_vector.empty()) {
+            return false;
+        }
+        auto *hdr = getNextAttrHdr();
+        if (!hdr) {
+            TLVF_LOG(ERROR) << "skipNextAttribute: No next attr header";
+            return 0;
+        }
+        // Increment sizeof type + sizeof length + length of data
+        return m_class_vector.back()->buffPtrIncrementSafe(sizeof(hdr->type) + sizeof(hdr->length) +
+                                                           getNextAttrLength());
+    }
 };
 
 #endif // _TLVF_ATTR_LIST_H_
