@@ -190,6 +190,15 @@ private:
     void handle_ap_autoconfiguration_wsc_renew(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
+     * @brief Parse BSTA MLD Configuration Request message.
+     *
+     * This function implements the handling of BSTA MLD Configuration TLV. If OK, it ACK.
+     *
+     * @param cmdu_rx received CMDU containing BSTA MLD Configuration Request message.
+     */
+    void handle_bsta_mld_configuration_request(ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    /**
      * @brief Parse Multi-AP Policy Configuration message.
      * 
      * The function parse the message, set it on the database and apply it on the Agent platform.
@@ -214,8 +223,9 @@ private:
                                                const std::string &radio_iface);
     bool send_bsta_mld_configuration(const sMacAddr &ruid, int8_t mld_unit, uint8_t mld_mode,
                                      bool initilaization = false);
-    bool handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &ruid,
-                                           bool initialization = false);
+    int8_t find_available_bsta_mld_unit();
+    bool handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                           const sMacAddr &ruid);
     bool handle_ap_autoconfiguration_wsc_vs_extension_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                           const std::string &radio_iface);
 
