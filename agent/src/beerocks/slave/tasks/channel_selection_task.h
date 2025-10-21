@@ -15,6 +15,7 @@
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 #include <tlvf/wfa_map/tlvChannelSelectionResponse.h>
+#include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvSpatialReuseConfigResponse.h>
 #include <tlvf/wfa_map/tlvSpatialReuseRequest.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
@@ -88,9 +89,11 @@ private:
             uint8_t CSA_count                  = 5;
         } outgoing_request;
         son::wireless_utils::sSpatialReuseParams spatial_reuse_request;
+        son::wireless_utils::sEhtOperationParams eht_operation;
         sSelectedChannel selected_channel;
         bool power_switch_received          = false;
         bool channel_switch_needed          = false;
+        bool eht_operations_received        = false;
         bool spatial_reuse_request_received = false;
         bool is_zwdfs_needed                = false;
         bool manually_send_operating_report = false;
@@ -175,6 +178,8 @@ private:
     bool check_received_preferences_contain_violation(const sMacAddr &radio_mac);
 
     bool check_is_there_better_channel_than_current(const sMacAddr &radio_mac);
+
+    bool handle_eht_operation_tlv(wfa_map::tlvEHTOperations &eht_ops_tlv);
 
     bool handle_spatial_reuse_tlv(wfa_map::tlvSpatialReuseRequest &spatial_reuse_tlv);
 
