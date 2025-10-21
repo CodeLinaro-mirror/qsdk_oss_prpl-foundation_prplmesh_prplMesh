@@ -97,6 +97,8 @@ cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START:
   tx_limit_valid: uint8_t #bool
   sr_params: sSpatialReuseParams
   spatial_reuse_valid: uint8_t #bool
+  eo_params: sEhtOperationParams
+  eht_operation_valid: uint8_t #bool
 
 cACTION_BACKHAUL_PLATFORM_ACS:
   _type: class

@@ -1525,6 +1525,25 @@ typedef struct sSpatialReuseParams {
     }
 } __attribute__((packed)) sSpatialReuseParams;
 
+typedef struct sEhtOperationParams {
+    uint8_t eht_operation_information_valid;
+    uint8_t disabled_subchannel_valid;
+    uint8_t eht_default_pe_duration;
+    uint8_t group_addressed_bu_indication_limit;
+    uint8_t group_addressed_bu_indication_exponent;
+    uint32_t basic_eht_mcs_and_nss_set;
+    uint8_t control;
+    uint8_t ccfs0;
+    uint8_t ccfs1;
+    uint16_t disabled_subchannel_bitmap;
+    void struct_swap(){
+        tlvf_swap(32, reinterpret_cast<uint8_t*>(&basic_eht_mcs_and_nss_set));
+        tlvf_swap(16, reinterpret_cast<uint8_t*>(&disabled_subchannel_bitmap));
+    }
+    void struct_init(){
+    }
+} __attribute__((packed)) sEhtOperationParams;
+
 typedef struct sStaAssociationControl {
     sMacAddr mac;
     uint8_t disassoc;
