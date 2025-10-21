@@ -1297,11 +1297,20 @@ uint8_t& cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START::spatial_reuse_valid()
     return (uint8_t&)(*m_spatial_reuse_valid);
 }
 
+sEhtOperationParams& cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START::eo_params() {
+    return (sEhtOperationParams&)(*m_eo_params);
+}
+
+uint8_t& cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START::eht_operation_valid() {
+    return (uint8_t&)(*m_eht_operation_valid);
+}
+
 void cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_BACKHAUL), reinterpret_cast<uint8_t*>(m_action_op));
     m_cs_params->struct_swap();
     m_sr_params->struct_swap();
+    m_eo_params->struct_swap();
 }
 
 bool cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START::finalize()
@@ -1339,6 +1348,8 @@ size_t cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START::get_initial_size()
     class_size += sizeof(uint8_t); // tx_limit_valid
     class_size += sizeof(sSpatialReuseParams); // sr_params
     class_size += sizeof(uint8_t); // spatial_reuse_valid
+    class_size += sizeof(sEhtOperationParams); // eo_params
+    class_size += sizeof(uint8_t); // eht_operation_valid
     return class_size;
 }
 
@@ -1371,6 +1382,17 @@ bool cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START::init()
     }
     if (!m_parse__) { m_sr_params->struct_init(); }
     m_spatial_reuse_valid = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_eo_params = reinterpret_cast<sEhtOperationParams*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sEhtOperationParams))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sEhtOperationParams) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_eo_params->struct_init(); }
+    m_eht_operation_valid = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;
