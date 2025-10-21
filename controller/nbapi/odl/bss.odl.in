@@ -66,6 +66,10 @@
             %in %mandatory string pass
         );
 
+        %instance bool SetEHTOperations(
+            %in %mandatory uint16 DisabledSubchannelBitmap
+        );
+
         object STA [] {
             counted with STANumberOfEntries;
         }

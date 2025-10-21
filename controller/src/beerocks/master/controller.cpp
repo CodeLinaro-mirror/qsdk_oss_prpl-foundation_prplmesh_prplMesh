@@ -4824,6 +4824,89 @@ bool Controller::trigger_vbss_move(const sMacAddr &connected_ruid, const sMacAdd
     return false;
 }
 
+bool Controller::set_eht_operations(const sMacAddr &agent_mac_addr, const sMacAddr &radio_mac,
+                                    const sMacAddr &bssid, uint16_t bitmap)
+{
+
+    auto agent = database.m_agents.get(agent_mac_addr);
+    if (!agent) {
+        LOG(ERROR) << "Agent " << tlvf::mac_to_string(agent_mac_addr) << " not found in database";
+        return false;
+    }
+
+    auto radio = agent->radios.get(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "Radio " << tlvf::mac_to_string(radio_mac) << " not found in database";
+        return false;
+    }
+
+    auto bw = radio->wifi_channel.get_bandwidth();
+
+    if (bw == beerocks::eWiFiBandwidth::BANDWIDTH_UNKNOWN) {
+        LOG(ERROR) << "Invalid bandwidth " << bw;
+        return false;
+    }
+
+    LOG(DEBUG) << "Radio channel is " << radio->wifi_channel.get_channel() << " and bandwidth "
+               << beerocks::utils::convert_bandwidth_to_string(bw);
+
+    int num_channels =
+        beerocks::utils::count_target_bandwidth(bw, beerocks::eWiFiBandwidth::BANDWIDTH_20);
+    uint16_t max_bitmap = (1 << num_channels) - 1;
+    if (bitmap > max_bitmap) {
+        LOG(ERROR) << "Invalid bitmap " << bitmap << " for bandwidth "
+                   << beerocks::utils::convert_bandwidth_to_string(bw);
+        return false;
+    }
+
+    // Need to create CHANNEL_SELECTION_REQUEST_MESSAGE with eht operation tlv and send it to the agent.
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "CMDU creation of type CHANNEL_SELECTION_REQUEST_MESSAGE, has failed";
+        return false;
+    }
+
+    auto eht_operation_tlv = cmdu_tx.addClass<wfa_map::tlvEHTOperations>();
+    if (!eht_operation_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvEHTOperations has failed";
+        return false;
+    }
+
+    auto eht_operations_radio = eht_operation_tlv->create_radio_entries();
+    if (!eht_operations_radio) {
+        LOG(ERROR) << "Failed creating eht_operations_radio";
+        return false;
+    }
+    eht_operations_radio->ruid() = radio_mac;
+    LOG(DEBUG) << "Creating eht_operations_bss";
+
+    // eht operations tlv bss
+    auto eht_operations_bss = eht_operations_radio->create_bss_entries();
+    if (!eht_operations_bss) {
+        LOG(ERROR) << "Failed creating eht_operations_bss";
+        return false;
+    }
+
+    eht_operations_bss->bssid()                                 = bssid;
+    eht_operations_bss->flags().eht_operation_information_valid = 0;
+    eht_operations_bss->flags().disabled_subchannel_valid       = 1;
+    eht_operations_bss->disabled_subchannel_bitmap()            = bitmap;
+
+    if (!eht_operations_radio->add_bss_entries(eht_operations_bss)) {
+        LOG(ERROR) << "Failed adding BSS entry in eht operation TLV for bssid " << bssid;
+        return false;
+    }
+    if (!eht_operation_tlv->add_radio_entries(eht_operations_radio)) {
+        LOG(ERROR) << "Failed adding Radio entry in eht operation TLV for mac " << radio_mac;
+        return false;
+    }
+    son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
+    LOG(DEBUG) << "send CHANNEL_SELECTION_REQUEST_MESSAGE with eht operation info to agent with "
+                  "mac_address "
+               << tlvf::mac_to_string(agent->al_mac);
+
+    return true;
+}
+
 void Controller::trigger_prioritization_config()
 {
     auto ev = agent_monitoring_task::CONFIGURE_QOS;
