@@ -17,6 +17,7 @@ namespace airties {
 
 constexpr int VENDOR_HIDE_SSID = 0x80;
 constexpr int VENDOR_BSS_CFG   = 0x02;
+constexpr int VENDOR_BSS_TYPE  = 0x00;
 
 } // namespace airties
 } // namespace vendor_extension
@@ -73,6 +74,9 @@ public:
 
         /* Hidden SSID flag (Airties Vendor Extension subelement: hidden_ssid) */
         bool hidden_ssid = false;
+
+        /* WSC VAP Type */
+        eWscVendorExtVapType vap_type = eWscVendorExtVapType::OTHER;
     };
 
     m2(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}

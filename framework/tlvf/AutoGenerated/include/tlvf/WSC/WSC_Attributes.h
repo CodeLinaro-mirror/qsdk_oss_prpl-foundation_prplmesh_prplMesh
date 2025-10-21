@@ -37,6 +37,7 @@
 #include "tlvf/WSC/eWscAssoc.h"
 #include "tlvf/WSC/eWscValues16.h"
 #include "tlvf/WSC/eWscState.h"
+#include "tlvf/WSC/eWscVendorExtVapType.h"
 
 namespace WSC {
 
@@ -232,6 +233,7 @@ class cEncryptedSettingsPayload : public BaseClass
         uint8_t& hidden_ssid();
         int8_t& bss_index();
         uint8_t& additional_auth();
+        eWscVendorExtVapType& vap_type();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -255,6 +257,7 @@ class cEncryptedSettingsPayload : public BaseClass
         uint8_t* m_hidden_ssid = nullptr;
         int8_t* m_bss_index = nullptr;
         uint8_t* m_additional_auth = nullptr;
+        eWscVendorExtVapType* m_vap_type = nullptr;
 };
 
 class cWscAttrEncryptedSettings : public BaseClass

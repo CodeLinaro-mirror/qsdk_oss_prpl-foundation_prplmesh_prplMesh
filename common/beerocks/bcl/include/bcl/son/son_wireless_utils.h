@@ -16,6 +16,7 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 #include <tlvf/WSC/eWscVendorExt.h>
+#include <tlvf/WSC/eWscVendorExtVapType.h>
 
 #include <array>
 #include <deque>
@@ -298,6 +299,7 @@ public:
         bool backhaul                                     = false;
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
+        WSC::eWscVendorExtVapType vap_type                = WSC::eWscVendorExtVapType::OTHER;
         bool hidden_ssid                                  = false;
         std::string mld_id                                = "";
         bool bSTA                                         = false;
