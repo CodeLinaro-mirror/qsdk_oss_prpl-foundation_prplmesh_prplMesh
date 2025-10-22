@@ -6637,10 +6637,10 @@ std::string db::dm_add_steer_event()
         return {};
     }
 
-    std::string event_path = m_ambiorix_datamodel->add_instance(DATAELEMENTS_ROOT_DM ".SteerEvent");
+    std::string event_path = m_ambiorix_datamodel->add_instance(CONTROLLER_ROOT_DM ".SteerEvent");
 
     if (event_path.empty() && NBAPI_ON) {
-        LOG(ERROR) << "Failed to add instance " DATAELEMENTS_ROOT_DM ".SteerEvent";
+        LOG(ERROR) << "Failed to add instance " CONTROLLER_ROOT_DM ".SteerEvent";
         return {};
     }
     m_steer_events.push(event_path);
@@ -8372,7 +8372,7 @@ bool db::dm_save_radio_cac_completion_report(wfa_map::cCacCompletionReportRadio 
         return true;
     }
 
-    const auto CAC_completion_path       = pRadio->dm_path + ".CACCompletion";
+    const auto CAC_completion_path       = pRadio->dm_path + ".X_PRPLWARE-COM_CACCompletion";
     const auto CAC_completion_pairs_path = CAC_completion_path + ".Pairs";
     bool ret_val                         = true;
 
@@ -9196,14 +9196,16 @@ void db::update_unassociated_station_stats(const sMacAddr &mac_address,
                 m_ambiorix_datamodel->set(new_station_path, "MACAddress", mac_address);
                 m_ambiorix_datamodel->set(new_station_path, " SignalStrength",
                                           new_stats.uplink_rcpi_dbm_enc);
-                m_ambiorix_datamodel->set_time(new_station_path, new_stats.time_stamp);
+                m_ambiorix_datamodel->set(new_station_path, "X_PRPLWARE-COM_TimeStamp",
+                                          new_stats.time_stamp);
             } else {
                 unassociated_sta_path.append(".");
                 unassociated_sta_path.append(std::to_string(index));
                 m_ambiorix_datamodel->set(unassociated_sta_path, "MACAddress", mac_address);
                 m_ambiorix_datamodel->set(unassociated_sta_path, "SignalStrength",
                                           new_stats.uplink_rcpi_dbm_enc);
-                m_ambiorix_datamodel->set_time(unassociated_sta_path, new_stats.time_stamp);
+                m_ambiorix_datamodel->set(unassociated_sta_path, "X_PRPLWARE-COM_TimeStamp",
+                                          new_stats.time_stamp);
             }
             LOG(DEBUG) << "Setting MACAddress " << mac_address
                        << "SignalStrength: " << new_stats.uplink_rcpi_dbm_enc << " TimeStamp"
