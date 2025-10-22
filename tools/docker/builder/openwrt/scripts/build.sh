@@ -33,6 +33,9 @@ TARGET_SYSTEM=${TARGET_SYSTEM//qca_ipq95xx/ipq95xx}
 
 TARGET_SYSTEM=${TARGET_SYSTEM//ipq807x/qualcommax}
 
+# Mediatek Mozart has it's binaries in the mediatek folder
+TARGET_SYSTEM=${TARGET_SYSTEM//mtk_filogic/mediatek}
+
 find bin -name 'prplmesh_*.ipk' -exec cp -v {} "artifacts/prplmesh.ipk" \;
 find bin/targets/"$TARGET_SYSTEM"/*/ -type f -maxdepth 1 -exec cp -v {} "artifacts/" \;
 # Rename the prplos image
