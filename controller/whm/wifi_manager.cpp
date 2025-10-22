@@ -49,6 +49,7 @@ bool WifiManager::bss_info_config_change()
     if (beerocks::bpl::bpl_cfg_get_wireless_settings(wireless_settings)) {
         for (const auto &configuration : wireless_settings) {
             m_ctx_wifi_db->add_bss_info_configuration(configuration);
+            m_ctx_wifi_db->dm_set_vap_type_by_ssid(configuration.ssid, configuration.vap_type);
         }
     } else {
         LOG(WARNING) << "failed to read wireless settings";

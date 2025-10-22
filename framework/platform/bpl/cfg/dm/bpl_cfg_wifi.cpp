@@ -18,6 +18,8 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 
+#include <tlvf/WSC/eWscVendorExtVapType.h>
+
 #include "wbapi_utils.h"
 
 #include "bpl_cfg_pwhm.h"
@@ -151,6 +153,22 @@ int cfg_get_wifi_params(const char iface[BPL_IFNAME_LEN], struct BPL_WLAN_PARAMS
     return RETURN_OK;
 }
 
+WSC::eWscVendorExtVapType bpl_cfg_get_vap_type(const std::string &vap_iface)
+{
+    auto ssid_obj = beerocks::bpl::bpl_cfg_get_wifi_ssid_object(vap_iface);
+    if (!ssid_obj) {
+        LOG(ERROR) << "bpl_cfg_get_vap_type: no SSID object for iface " << vap_iface;
+        return WSC::eWscVendorExtVapType::OTHER;
+    }
+
+    std::string custom_alias;
+    if (!ssid_obj->read_child(custom_alias, "CustomAlias")) {
+        LOG(ERROR) << "bpl_cfg_get_vap_type: no Alias for iface " << vap_iface;
+        return WSC::eWscVendorExtVapType::OTHER;
+    }
+    return wbapi_utils::vap_type_from_custom_alias(custom_alias);
+}
+
 bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> &wireless_settings)
 {
     auto aps =
@@ -184,11 +202,16 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
                 configuration.backhaul = true;
             }
         }
+
+        // Setting vap_type
+        configuration.vap_type = bpl_cfg_get_vap_type(iface);
+
         bool ap_enable = false;
         ap.read_child(ap_enable, "Enable");
         if (ap_enable && bpl_cfg_get_wifi_credentials(iface, configuration)) {
             LOG(DEBUG) << "add " << configuration.ssid << " to wireless settings size "
-                       << wireless_settings.size() << " path " << it.first;
+                       << wireless_settings.size() << " path " << it.first
+                       << " vap_type=" << WSC::eWscVendorExtVapType_str(configuration.vap_type);
             wireless_settings.push_back(configuration);
         } else {
             LOG(DEBUG) << " ap " << it.first << " is disabled";

@@ -58,6 +58,33 @@ std::string db::type_to_string(beerocks::eType type)
     }
 }
 
+/**
+  * @brief Convert eWscVendorExtVapType enum to TR-181 string used in
+  * DATAELEMENTS_ROOT_DM.Network.AccessPoint[].X_PRPLWARE_VapType.
+  */
+const char *vap_type_to_string(WSC::eWscVendorExtVapType t)
+{
+    switch (t) {
+    case WSC::eWscVendorExtVapType::HOME:
+        return "home";
+    case WSC::eWscVendorExtVapType::GUEST:
+        return "guest";
+    case WSC::eWscVendorExtVapType::VIDEO:
+        return "video";
+    case WSC::eWscVendorExtVapType::BACKHAUL:
+        return "backhaul";
+    case WSC::eWscVendorExtVapType::HOTSPOT:
+        return "hotspot";
+    case WSC::eWscVendorExtVapType::STAFF:
+        return "staff";
+    case WSC::eWscVendorExtVapType::ISOLATED:
+        return "isolated";
+    case WSC::eWscVendorExtVapType::OTHER:
+    default:
+        return "other";
+    }
+}
+
 std::string db::client_db_entry_from_mac(const sMacAddr &mac)
 {
     std::string db_entry = tlvf::mac_to_string(mac);
@@ -6678,6 +6705,32 @@ bool db::dm_restore_steering_summary_stats(Station &station)
 void db::dm_increment_steer_summary_stats(const std::string &param_name)
 {
     dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM ".Network.MultiAPSteeringSummaryStats", param_name);
+}
+
+bool db::dm_set_vap_type_by_ssid(const std::string &ssid, WSC::eWscVendorExtVapType vap_type)
+{
+    const std::string ap_class_pred =
+        std::string(DATAELEMENTS_ROOT_DM) + ".Network.AccessPoint.[SSID == '%s'].";
+
+    const uint32_t ap_index = m_ambiorix_datamodel->get_instance_index(ap_class_pred, ssid);
+    if (ap_index == 0) {
+        LOG(WARNING) << "No AccessPoint instance found for SSID='" << ssid << "'";
+        return false;
+    }
+
+    const std::string ap_path =
+        std::string(DATAELEMENTS_ROOT_DM) + ".Network.AccessPoint." + std::to_string(ap_index);
+
+    const char *vap_type_str = vap_type_to_string(vap_type);
+    if (!m_ambiorix_datamodel->set(ap_path, "X_PRPLWARE_VapType", std::string(vap_type_str))) {
+        LOG(ERROR) << "Failed to set X_PRPLWARE_VapType='" << vap_type_str << "' for " << ap_path
+                   << " (SSID='" << ssid << "')";
+        return false;
+    }
+
+    LOG(DEBUG) << "Set X_PRPLWARE_VapType='" << vap_type_str << "' for " << ap_path << " (SSID='"
+               << ssid << "')";
+    return true;
 }
 
 bool db::dm_add_failed_connection_event(const sMacAddr &bssid, const sMacAddr &sta_mac,

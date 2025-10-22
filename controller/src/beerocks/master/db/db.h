@@ -20,6 +20,7 @@
 #include <bcl/son/son_wireless_utils.h>
 #include <bpl/bpl_board.h>
 
+#include <tlvf/WSC/eWscVendorExtVapType.h>
 #include <tlvf/common/sMacAddr.h>
 #include <tlvf/ieee_1905_1/tlvReceiverLinkMetric.h>
 #include <tlvf/ieee_1905_1/tlvTransmitterLinkMetric.h>
@@ -960,6 +961,16 @@ public:
      * @param param_name Name of parameter, value of which will be increased by one.
      */
     void dm_increment_steer_summary_stats(const std::string &param_name);
+
+    /**
+     * @brief Set X_PRPLWARE_VapType for a single AccessPoint[] object, selected by SSID.
+     *
+     * @param[in] ssid     Exact SSID string used to locate the AccessPoint instance.
+     * @param[in] vap_type Enum value to set.
+     * @return true on successful; false if the AP instance was not found
+     *         or if the write failed.
+     */
+    bool dm_set_vap_type_by_ssid(const std::string &ssid, WSC::eWscVendorExtVapType vap_type);
 
     /**
      * @brief Adds or updates instance of Neighbor inside Interface object.
