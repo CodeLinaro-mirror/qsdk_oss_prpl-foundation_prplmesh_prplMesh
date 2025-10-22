@@ -177,7 +177,7 @@
         }
 
         /* Describes the Channel Availability Check (CAC) Completion Report */
-        %read-only object CACCompletion {
+        %read-only object X_PRPLWARE-COM_CACCompletion {
             %read-only uint32 OperatingClass = 0;
             %read-only uint32 Channel = 0;
             %read-only uint32 Status {

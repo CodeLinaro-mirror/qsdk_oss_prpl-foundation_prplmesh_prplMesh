@@ -305,7 +305,7 @@
             on action validate call check_minimum 0;
         }
 
-        %read-only bool SupportsVBSS = false;
+        %read-only bool X_PRPLWARE-COM_SupportsVBSS = false;
 
         %instance bool UpdateVBSSCapabilities();
 
