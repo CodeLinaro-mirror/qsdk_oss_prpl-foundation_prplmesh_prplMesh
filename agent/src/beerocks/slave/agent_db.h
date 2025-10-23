@@ -284,7 +284,8 @@ public:
                 uint8_t eht_operations[10];
                 bool hidden_ssid = false;
             };
-            uint8_t radio_max_bss = 0;
+            uint8_t radio_max_bss     = 0;
+            bool rsn_override_support = false;
             std::array<sBssid, eBeeRocksIfaceIds::IFACE_TOTAL_VAPS> bssids{};
         } front;
 

@@ -517,6 +517,12 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     }
 
     auto ap_capability_tlv = m_cmdu_tx.addClass<wfa_map::tlvApCapability>();
+    if (!ap_capability_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvApCapability has failed";
+        return false;
+    }
+    auto db = AgentDB::get();
+
     /**
      * TODO : These looks like a vendor specific params, where to read them from ?
      * For now, lets  enable all of them to be able to develop/test the unassociated stations stats feature
@@ -525,14 +531,6 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_non_operating_bssid = true;
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_operating_bssid     = true;
     ap_capability_tlv->value().support_agent_backhaul_sta_reconfiguration                   = true;
-    ap_capability_tlv->value().RSN_Overriding                                               = true;
-
-    if (!ap_capability_tlv) {
-        LOG(ERROR) << "addClass wfa_map::tlvApCapability has failed";
-        return false;
-    }
-
-    auto db = AgentDB::get();
 
     /**
      * 1. The tlvs created in the loop are created per radio and are
@@ -567,6 +565,8 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
         if (!add_ap_radio_advanced_capabilities_tlv(radio->front.iface_name)) {
             return false;
         }
+
+        ap_capability_tlv->value().RSN_Overriding |= radio->front.rsn_override_support;
     }
 
     /**
