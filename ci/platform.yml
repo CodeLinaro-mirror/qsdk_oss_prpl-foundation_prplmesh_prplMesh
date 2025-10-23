@@ -11,7 +11,7 @@ variables:
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
   HAZE_FULLIMAGE: "openwrt-ipq807x-generic-prpl_haze-squashfs-sysupgrade.bin"
   FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
-  MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.bin"
+  MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-initramfs.itb"
   OSP_PACKAGE_ID: 13754300
 
 workflow:
@@ -248,9 +248,9 @@ boardfarm-on-mozart:
       curl --location  --header "PRIVATE-TOKEN: $ARTIFACTS_DOWNLOADER_TOKEN" "$BUILD_IN_DOCKER_DOWNLOAD_URL" --output artifacts.zip
       unzip artifacts.zip && rm artifacts.zip
       echo Done
-    - ssh "$TARGET_DEVICE_NAME" 'ubus-cli WiFi.Radio.*.Enable=1' |true
+    - ssh "$TARGET_DEVICE_NAME" 'ubus-cli WiFi.Radio.*.Enable=1' || true
     - ./dctest.py --dut "$TARGET_DEVICE_NAME" --test-suite test_flows_on_prplwrt
-    - ssh "$TARGET_DEVICE_NAME" 'service prplmesh stop && ubus-cli WiFi.Radio.*.Enable=0'| true
+    - ssh "$TARGET_DEVICE_NAME" 'service prplmesh stop && ubus-cli WiFi.Radio.*.Enable=0' || true
   tags:
     - boardfarm
     - mozart
