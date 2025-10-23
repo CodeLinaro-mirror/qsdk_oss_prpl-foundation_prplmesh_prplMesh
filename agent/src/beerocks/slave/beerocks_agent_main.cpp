@@ -472,6 +472,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
         // MULTIAP_PROFILE_1_AS_OF_R4 enum value is not in standard, but it is acted as Profile1
         if (static_cast<wfa_map::tlvProfile2MultiApProfile::eMultiApProfile>(m_ap_profile) ==
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4) {
+            db->device_conf.is_multiap_profile_1_as_of_r4 = true;
             db->device_conf.multi_ap_profile =
                 wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
         } else {

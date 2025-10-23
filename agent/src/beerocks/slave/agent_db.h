@@ -172,6 +172,7 @@ public:
         int on_boot_scan;
         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile multi_ap_profile = wfa_map::
             tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2; // R2 is a default
+        bool is_multiap_profile_1_as_of_r4 = false;
         int dwell_time;
         bool send_btm_to_non_11v_sta = false;
         uint8_t max_num_mlds         = 3; // Arbitrary

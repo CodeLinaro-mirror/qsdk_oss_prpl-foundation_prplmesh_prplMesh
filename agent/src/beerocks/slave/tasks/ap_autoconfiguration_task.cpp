@@ -806,7 +806,8 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
 
     const bool include_profile_tlv =
         (db->device_conf.multi_ap_profile >
-         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1);
+         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) ||
+        db->device_conf.is_multiap_profile_1_as_of_r4;
 
     // We no longer send duplicate Autoconfig Search messages.
     // The presence of the Multi-AP Profile TLV now depends on Agent’s own configured profile:
