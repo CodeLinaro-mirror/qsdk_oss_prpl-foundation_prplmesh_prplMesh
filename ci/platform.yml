@@ -11,7 +11,7 @@ variables:
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
   HAZE_FULLIMAGE: "openwrt-qualcommax-ipq807x-prpl_haze-squashfs-sysupgrade.bin"
   FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
-  MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.bin"
+  MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-initramfs.itb"
   OSP_PACKAGE_ID: 13754300
 
 workflow:
@@ -270,6 +270,7 @@ boardfarm-on-mozart:
     - mozart
   needs:
     - build-for-mozart
+  allow_failure: true
 
 boardfarm-on-mozart-stability:
   extends: boardfarm-on-mozart

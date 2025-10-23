@@ -13,6 +13,8 @@ import pexpect
 import pexpect.fdpexpect
 import pexpect.pxssh
 from device.prplos import GenericPrplOS
+from device.serial import SerialDevice
+from device.utils import ShellType
 
 
 class Mozart(GenericPrplOS):
@@ -24,6 +26,8 @@ class Mozart(GenericPrplOS):
 
     bootloader_prompt = r"MT7988> "
     """The u-boot prompt on the target."""
+    boot_stop_sequence = "0"
+    bootloader_reboot_command = "run fakereset"
 
     def upgrade_from_u_boot(self, shell: pexpect.fdpexpect.fdspawn):
         """Upgrade from u-boot and remove the overlay.
@@ -38,28 +42,51 @@ class Mozart(GenericPrplOS):
         shell.expect(self.bootloader_prompt)
         # Give the ethernet interfaces some time to initialize:
         time.sleep(10)
+        # do nothing
 
-        shell.sendline(f"tftpboot 0x46000000 {self.image}")
-        shell.sendline("")
-        shell.expect("Loading: ")
-        shell.expect("done")
-        shell.expect(self.bootloader_prompt)
+    def reboot(self, serial_type: ShellType, stop_in_bootloader: bool = False):
+        """Reboot the device.
 
-        shell.sendline("setenv untar_addr_kernel; setenv untar_addr_root")
-        shell.expect(self.bootloader_prompt)
+        Note that this method handles both the cases where the device
+        is currently booted into a Linux OS, or stopped in its
+        bootloader.
 
-        shell.sendline("untar 0x$fileaddr 0x$filesize kernel root")
-        shell.expect("filename: sysupgrade-prpl_freedom/CONTROL")
-        shell.expect("filename: sysupgrade-prpl_freedom/kernel")
-        shell.expect("filename: sysupgrade-prpl_freedom/root")
-        shell.expect(self.bootloader_prompt)
+        Parameters
+        -----------
+        serial_type: ShellType
+            Type of the serial connection as enum ShellType(uboot, rdkb, prplOS)
+        stop_in_bootloader: bool
+            Whether to stop the device when it enters its bootloader or not.
+        """
+        with SerialDevice(self.baudrate, self.name,
+                          self.serial_prompt, expect_prompt_on_connect=False) as shell:
+            print("Reset board.")
 
-        shell.sendline("if test -n $untar_addr_kernel; then flash '0:HLOS' 0x$untar_addr_kernel 0x$untar_size_kernel; else echo 'kernel not found'; fi") # noqa E501
-        shell.expect("blocks erased: OK", timeout=10)
-        shell.expect("blocks written: OK", timeout=10)
-        shell.expect(self.bootloader_prompt)
+            if serial_type == ShellType.UBOOT:
+                if stop_in_bootloader:
+                    shell.sendline("reset")
+                else:
+                    shell.sendline(self.bootloader_reboot_command)
+            elif serial_type in [ShellType.PRPLOS, ShellType.RDKB, ShellType.LINUX_UNKNOWN]:
+                shell.sendline("reboot ; sleep 15 && echo force rebooting && reboot -f")
+            if stop_in_bootloader:
+                print("Device will be stopped in its bootloader.")
+                max_wait = 180  # total seconds to wait for boot menu
+                start_time = time.time()
+                boot_prompt_detected = False
+                while time.time() - start_time < max_wait:
+                    try:
+                        shell.expect(self.boot_stop_expression, timeout=1)
+                        shell.sendline(self.boot_stop_sequence)
+                    except pexpect.TIMEOUT:
+                        shell.sendline(self.boot_stop_sequence)
+                    try:
+                        shell.expect(self.bootloader_prompt, timeout=1)
+                        boot_prompt_detected = True
+                        print("Device stopped in bootloader.")
+                        break
+                    except pexpect.TIMEOUT:
+                        continue
+                if not boot_prompt_detected:
+                    raise TimeoutError("Failed to stop device in bootloader within timeout.")
 
-        shell.sendline("if test -n $untar_addr_root; then flash 'rootfs' 0x$untar_addr_root 0x$untar_size_root; else echo 'rootfs not found'; fi") # noqa E501
-        shell.expect("blocks erased: OK", timeout=10)
-        shell.expect("blocks written: OK", timeout=10)
-        shell.expect(self.bootloader_prompt)
