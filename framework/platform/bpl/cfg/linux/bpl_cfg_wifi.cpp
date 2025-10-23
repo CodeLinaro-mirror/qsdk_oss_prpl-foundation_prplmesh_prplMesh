@@ -251,5 +251,8 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
     return true;
 }
 
+// prplMesh build for boardfarm uses this backend. return true so WPA3-CM can be tested.
+bool cfg_rsn_overriding_supported() { return true; }
+
 } // namespace bpl
 } // namespace beerocks

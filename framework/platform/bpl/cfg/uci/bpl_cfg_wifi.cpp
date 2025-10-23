@@ -535,6 +535,8 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
     // break monitor vaps to vector
 }
 
+bool cfg_rsn_overriding_supported() { return false; }
+
 #endif
 
 } // namespace bpl

@@ -376,5 +376,21 @@ bool bpl_cfg_get_hostapd_ctrl_path(const std::string &iface, std::string &hostap
     return true;
 }
 
+bool cfg_rsn_overriding_supported()
+{
+    auto ap_sec_obj = m_ambiorix_cl.get_object(wbapi_utils::search_path_ap() + "1.Security.");
+    if (!ap_sec_obj) {
+        return false;
+    }
+
+    std::string modes_available;
+    if (!ap_sec_obj->read_child(modes_available, "ModesAvailable")) {
+        return false;
+    }
+
+    LOG(DEBUG) << "RSN Overriding Supported";
+    return (modes_available.find("WPA3-Personal-Compatibility") != std::string::npos);
+}
+
 } // namespace bpl
 } // namespace beerocks

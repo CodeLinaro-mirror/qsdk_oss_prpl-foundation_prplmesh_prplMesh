@@ -1291,6 +1291,13 @@ bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements);
  */
 bool cfg_commit_changes();
 
+/**
+ * @brief Does this platform support RSN Overriding ?
+ *
+ * @return true if it does, false if if it doesn't
+ */
+bool cfg_rsn_overriding_supported();
+
 } // namespace bpl
 } // namespace beerocks
 

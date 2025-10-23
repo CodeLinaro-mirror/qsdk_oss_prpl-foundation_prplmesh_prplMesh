@@ -32,6 +32,7 @@
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
 #include "multi_vendor.h"
+#include <bpl/bpl_cfg.h>
 
 #include <tlvf/wfa_map/tlvApCapability.h>
 #include <tlvf/wfa_map/tlvApHeCapabilities.h>
@@ -506,7 +507,8 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_non_operating_bssid = true;
     ap_capability_tlv->value().support_unassociated_sta_link_metrics_on_operating_bssid     = true;
     ap_capability_tlv->value().support_agent_backhaul_sta_reconfiguration                   = true;
-    ap_capability_tlv->value().RSN_Overriding                                               = true;
+
+    ap_capability_tlv->value().RSN_Overriding = bpl::cfg_rsn_overriding_supported();
 
     if (!ap_capability_tlv) {
         LOG(ERROR) << "addClass wfa_map::tlvApCapability has failed";
