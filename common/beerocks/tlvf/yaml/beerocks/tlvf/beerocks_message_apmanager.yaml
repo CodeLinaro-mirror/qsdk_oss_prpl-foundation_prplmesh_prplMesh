@@ -44,6 +44,7 @@ cACTION_APMANAGER_JOINED_NOTIFICATION:
   channel_list: cChannelList
   vap_list: sVapsList
   radio_max_bss: uint8_t
+  radio_rsn_override_support : uint8_t #bool
 
 cACTION_APMANAGER_ENABLE_APS_REQUEST:
   _type: class

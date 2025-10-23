@@ -102,6 +102,12 @@ protected:
     bool has_enabled_vap() const;
     bool check_enabled_vap(const std::string &bss) const;
 
+    /**
+     * @brief try to read MRSNO support for m_radio and fill
+     * m_radio_info.rsn_override_support with a non-default value (default value: false)
+     */
+    void read_rsn_support();
+
     beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
     std::unique_ptr<nl80211_client> m_iso_nl80211_client; //impl nl80211 client apis with whm dm
     std::string m_radio_path;

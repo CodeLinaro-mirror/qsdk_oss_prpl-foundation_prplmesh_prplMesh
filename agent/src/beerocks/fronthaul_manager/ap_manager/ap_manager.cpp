@@ -3358,6 +3358,7 @@ void ApManager::handle_hostapd_attached()
     notification->params().hybrid_mode_supported = ap_wlan_hal->hybrid_mode_supported();
 
     notification->radio_max_bss() = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    notification->radio_rsn_override_support() = ap_wlan_hal->get_radio_info().rsn_override_support;
 
     fill_cs_params(notification->cs_params());
 

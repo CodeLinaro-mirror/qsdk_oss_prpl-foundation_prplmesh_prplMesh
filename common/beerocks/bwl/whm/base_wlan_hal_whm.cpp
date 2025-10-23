@@ -960,7 +960,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
         // agent shall use legacy method counting current instances of WiFi.AccessPoint.[RadioReference == m_radio_path].
     }
     LOG(INFO) << "set radio_max_bss_supported for [" << m_radio_path << "] to " << max_bss;
-
     m_radio_info.radio_max_bss_supported = uint8_t(max_bss);
 
     if (!m_radio_info.available_vaps.size()) {
@@ -970,6 +969,8 @@ bool base_wlan_hal_whm::refresh_radio_info()
             return false;
         }
     }
+
+    read_rsn_support();
 
     return true;
 }
@@ -986,41 +987,42 @@ bool base_wlan_hal_whm::get_radio_vaps(AmbiorixVariantMap &aps)
         return false;
     }
 
-    auto rad_index = wbapi_utils::get_object_id(m_radio_path);
+    auto radio_index = wbapi_utils::get_object_id(m_radio_path);
     std::string radio_path;
     for (auto &it : *result) {
-        auto &ap = it.second;
+        auto ap_path = it.first;
+        auto &ap_obj = it.second;
 
-        if (ap.empty()) {
-            LOG(ERROR) << "iteration on ap " << it.first << " empty AP object";
+        if (ap_obj.empty()) {
+            LOG(ERROR) << "iteration on ap " << ap_path << " empty AP object";
             continue;
         }
 
-        const auto ref = wbapi_utils::get_path_radio_reference(ap);
+        const auto ref = wbapi_utils::get_path_radio_reference(ap_obj);
         bool resolved  = m_ambiorix_cl.resolve_path(ref, radio_path);
 
         // Try #2 (only if first failed)
         if (!resolved) {
-            LOG(INFO) << "Radio resolve path re-attempt for ap " << it.first << " ref=" << ref;
+            LOG(INFO) << "Radio resolve path re-attempt for ap " << ap_path << " ref=" << ref;
             radio_path.clear(); // avoid stale values
             resolved = m_ambiorix_cl.resolve_path(ref, radio_path);
 
             if (!resolved) {
-                LOG(ERROR) << "ap " << it.first
+                LOG(ERROR) << "ap " << ap_path
                            << ": failed to resolve radio reference after 2 attempts ref=" << ref
                            << ", m_radio_path=" << m_radio_path;
                 continue;
             }
         }
 
-        auto vap_rad_index = wbapi_utils::get_object_id(radio_path);
+        auto vap_radio_index = wbapi_utils::get_object_id(radio_path);
 
-        if (rad_index != vap_rad_index) {
+        if (radio_index != vap_radio_index) {
             continue;
         }
-        auto ssid_obj = m_ambiorix_cl.get_object(wbapi_utils::get_path_ssid_reference(ap));
+        auto ssid_obj = m_ambiorix_cl.get_object(wbapi_utils::get_path_ssid_reference(ap_obj));
         if (!ssid_obj) {
-            LOG(ERROR) << "problem with ssid reference for " << it.first;
+            LOG(ERROR) << "problem with ssid reference for " << ap_path;
             continue;
         }
         std::string mac_addr = wbapi_utils::get_ssid_mac(*ssid_obj);
@@ -1028,8 +1030,8 @@ bool base_wlan_hal_whm::get_radio_vaps(AmbiorixVariantMap &aps)
         if (mac_addr == "00:00:00:00:00:00" || mac_addr.empty()) {
             continue;
         }
-        LOG(DEBUG) << "add " << it.first << " to list of APs, with MAC " << mac_addr;
-        aps.emplace(std::move(mac_addr), std::move(ap));
+        LOG(DEBUG) << "add " << ap_path << " to list of APs, with MAC " << mac_addr;
+        aps.emplace(std::move(mac_addr), std::move(ap_obj));
     }
     return true;
 }
@@ -1075,6 +1077,60 @@ bool base_wlan_hal_whm::check_enabled_vap(const std::string &bss) const
 {
     auto vap_it = m_vapsExtInfo.find(bss);
     return (vap_it != m_vapsExtInfo.end() && vap_it->second.status == "Enabled");
+}
+
+void base_wlan_hal_whm::read_rsn_support()
+{
+    auto result = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+        wbapi_utils::search_path_ap_inst());
+
+    if (!result) {
+        LOG(ERROR) << "could not get ap multi object for " << wbapi_utils::search_path_ap();
+        return;
+    }
+
+    auto radio_index = wbapi_utils::get_object_id(m_radio_path);
+    std::string radio_path;
+
+    for (auto &it : *result) {
+        auto ap_path = it.first;
+        auto &ap_obj = it.second;
+
+        if (ap_obj.empty()) {
+            LOG(DEBUG) << "iteration on ap " << ap_path << " empty AP object";
+            continue;
+        }
+
+        const auto ref = wbapi_utils::get_path_radio_reference(ap_obj);
+        if (!m_ambiorix_cl.resolve_path(ref, radio_path)) {
+            continue;
+        }
+
+        auto vap_radio_index = wbapi_utils::get_object_id(radio_path);
+
+        if (radio_index != vap_radio_index) {
+            continue;
+        }
+
+        auto security_obj = m_ambiorix_cl.get_object(ap_path + "Security.");
+        if (!security_obj) {
+            continue;
+        }
+        std::string modes_available;
+        if (!security_obj->read_child(modes_available, "ModesAvailable")) {
+            continue;
+        }
+
+        // OR-ing because capability is true if at least one AccessPoint advertises it
+        m_radio_info.rsn_override_support |=
+            (modes_available.find("WPA3-Personal-Compatibility") != std::string::npos);
+    }
+
+    //radio->wifi_channel.get_freq_type()
+    LOG_IF(m_radio_info.rsn_override_support, DEBUG)
+        << "Radio "
+        << beerocks::utils::convert_frequency_type_to_string(m_radio_info.frequency_band)
+        << " RSN Overriding Supported";
 }
 
 bool base_wlan_hal_whm::get_vap_status(
