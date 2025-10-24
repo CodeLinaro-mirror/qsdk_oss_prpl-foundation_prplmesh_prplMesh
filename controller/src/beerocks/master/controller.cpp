@@ -1645,6 +1645,11 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
                                                                       m1->mac_addr());
     }
 
+    //TODO ticket PPM-3595
+    if (agent->max_num_mlds > 0) {
+        radio->eht_supported = true;
+    }
+
     if (agent->max_num_mlds != 0 && radio->eht_supported) {
         if (!add_backhaul_sta_mld_configuration_tlv(database, cmdu_tx, *agent)) {
             LOG(ERROR) << "Couldn't add Backhaul STA MLD Configuration TLV";
