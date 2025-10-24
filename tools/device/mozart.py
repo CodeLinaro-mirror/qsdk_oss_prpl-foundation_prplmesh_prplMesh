@@ -89,4 +89,3 @@ class Mozart(GenericPrplOS):
                         continue
                 if not boot_prompt_detected:
                     raise TimeoutError("Failed to stop device in bootloader within timeout.")
-
