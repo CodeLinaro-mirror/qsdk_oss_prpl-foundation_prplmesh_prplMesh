@@ -60,7 +60,7 @@ ssh "$TARGET" "logread" > "$LOG_DIR/logread.txt"
 echo "Capturing the prplMesh logs..."
 scp -r "$TARGET:/tmp/beerocks/logs/*" "$LOG_DIR"
 
-scp "$TARGET:/var/run/hostapd-phy*.conf" "$LOG_DIR"
+scp "$TARGET:/var/run/hostapd-phy*.conf" "$LOG_DIR" || true
 
 if ssh "$TARGET" "[ -f /bin/getDebugInformation ]"; then
     echo "Collecting getDebugInformation..."
