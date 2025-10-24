@@ -1476,6 +1476,32 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
     return true;
 }
 
+constexpr WSC::eWscAuth rsn_fallback_security_mode_24_5_g = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
+constexpr WSC::eWscAuth rsn_fallback_security_mode_6_g    = WSC::eWscAuth::WSC_AUTH_SAE;
+
+/**
+ * @brief If agent does not support RSN Overriding, downgrade to the configuration that
+ * WPA3-CM specifies for the RSNE : WPA2PSK for 2.4GHz/ 5GHz, SAE for 6GHz
+ *
+ * @param[in] agent database instance of an agent, used to access capabilites
+ * @param[in] radio database instance of a agent radio
+ * @param[out] bss_info copy config that controller assigned to the @param agent
+ */
+static void adjust_security_mode(std::shared_ptr<Agent> agent, std::shared_ptr<Agent::sRadio> radio,
+                                 wireless_utils::sBssInfoConf *bss_info)
+{
+    if (!(agent->rsn_overriding_supported) &&
+        bss_info->authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+        if (radio->band == beerocks::FREQ_6G) {
+            bss_info->authentication_type = rsn_fallback_security_mode_6_g;
+        } else {
+            bss_info->authentication_type = rsn_fallback_security_mode_24_5_g;
+        }
+        LOG(DEBUG) << "Agent " << tlvf::mac_to_string(agent->al_mac)
+                   << " does not support RSN Overriding";
+    }
+}
+
 /**
  * @brief Parse AP-Autoconfiguration WSC which should include one AP Radio Basic Capabilities
  *        TLV and one WSC TLV containing M1. If this is Intel agent, it will also have vendor specific tlv.
@@ -1622,7 +1648,14 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             bss_info_conf.bSTA = true;
         }
 
-        if (!autoconfig_wsc_add_m2(*m1, &bss_info_conf, *agent)) {
+        database.add_configured_bss_info(ruid, bss_info_conf);
+        num_bsss++;
+        auto bss_info_copy = database.get_last_configured_bss_info(ruid);
+
+        // if agent does not support RSN Overriding, downgrade security config
+        adjust_security_mode(agent, radio, &bss_info_copy);
+
+        if (!autoconfig_wsc_add_m2(*m1, &bss_info_copy, *agent)) {
             LOG(ERROR) << "Failed setting M2 attributes";
             return false;
         }
@@ -1632,10 +1665,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             LOG(ERROR) << "Failed setting M8 attributes";
             return false;
         }
-        database.add_configured_bss_info(ruid, bss_info_conf);
-        num_bsss++;
 
-        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+        if (bss_info_copy.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
             rsn_tlv_required = true;
         }
     }
@@ -2136,9 +2167,8 @@ bool Controller::handle_tlv_apCapability(ieee1905_1::CmduMessageRx &cmdu_rx,
     if (early && tlv_ap_capability->value().support_agent_backhaul_sta_reconfiguration) {
         agent->bSTA_reconfiguration_supported = true;
     }
-    if (tlv_ap_capability->value().RSN_Overriding) {
-        agent->rsn_overriding_supported = true;
-    }
+    agent->rsn_overriding_supported = tlv_ap_capability->value().RSN_Overriding;
+
     //TODO : shall we update the datamodel here ???
 
     return true;

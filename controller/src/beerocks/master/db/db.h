@@ -2125,6 +2125,11 @@ public:
      */
     std::list<wireless_utils::sBssInfoConf> &get_configured_bss_info(const sMacAddr &ruid);
 
+    /**
+     * @brief Get the last BSS configured on a given radio.
+     */
+    wireless_utils::sBssInfoConf &get_last_configured_bss_info(const sMacAddr &ruid);
+
     void clear_bss_info_configuration();
     void clear_bss_info_configuration(const sMacAddr &al_mac);
 

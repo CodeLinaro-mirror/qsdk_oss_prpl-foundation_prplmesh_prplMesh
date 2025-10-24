@@ -5934,6 +5934,11 @@ std::list<wireless_utils::sBssInfoConf> &db::get_configured_bss_info(const sMacA
     return configured_bss_infos[ruid];
 }
 
+wireless_utils::sBssInfoConf &db::get_last_configured_bss_info(const sMacAddr &ruid)
+{
+    return configured_bss_infos[ruid].back();
+}
+
 void db::clear_bss_info_configuration()
 {
     bss_infos.clear();
