@@ -1472,6 +1472,26 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
     return true;
 }
 
+constexpr WSC::eWscAuth default_security_mode_24_5_g = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
+constexpr WSC::eWscAuth default_security_mode_6_g    = WSC::eWscAuth::WSC_AUTH_SAE;
+
+/**
+ * @brief If agent does not support RSN Overriding, downgrade to the configuration that
+ * WPA3-CM specifies for the RSNE : WPA2PSK for 2.4GHz/ 5GHz, SAE for 6GHz
+ */
+static void downgrade_sec_mode(std::shared_ptr<Agent> agent, std::shared_ptr<Agent::sRadio> radio,
+                               wireless_utils::sBssInfoConf *bss_info)
+{
+    if (!(agent->rsn_overriding_supported) &&
+        bss_info->authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+        if (radio->band == beerocks::FREQ_6G) {
+            bss_info->authentication_type = default_security_mode_6_g;
+        } else {
+            bss_info->authentication_type = default_security_mode_24_5_g;
+        }
+    }
+}
+
 /**
  * @brief Parse AP-Autoconfiguration WSC which should include one AP Radio Basic Capabilities
  *        TLV and one WSC TLV containing M1. If this is Intel agent, it will also have vendor specific tlv.
@@ -1618,7 +1638,12 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             bss_info_conf.bSTA = true;
         }
 
-        if (!autoconfig_wsc_add_m2(*m1, &bss_info_conf, *agent)) {
+        database.add_configured_bss_info(ruid, bss_info_conf);
+        num_bsss++;
+        auto bss_info_copy = database.get_last_configured_bss_info(ruid);
+        downgrade_sec_mode(agent, radio, &bss_info_copy);
+
+        if (!autoconfig_wsc_add_m2(*m1, &bss_info_copy, *agent)) {
             LOG(ERROR) << "Failed setting M2 attributes";
             return false;
         }
@@ -1628,10 +1653,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             LOG(ERROR) << "Failed setting M8 attributes";
             return false;
         }
-        database.add_configured_bss_info(ruid, bss_info_conf);
-        num_bsss++;
 
-        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+        if (bss_info_copy.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
             rsn_tlv_required = true;
         }
     }
