@@ -270,7 +270,7 @@ boardfarm-on-mozart:
     - mozart
   needs:
     - build-for-mozart
-  allow_failure: true
+      #allow_failure: true
 
 boardfarm-on-mozart-stability:
   extends: boardfarm-on-mozart
