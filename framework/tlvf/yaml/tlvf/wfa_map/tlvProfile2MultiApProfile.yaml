@@ -7,14 +7,14 @@ _namespace: wfa_map
 
 tlvProfile2MultiApProfile:
   _type: class
-  _is_tlv_class : True
+  _is_tlv_class: True
   type:
     _type: eTlvTypeMap
     _value_const: TLV_PROFILE2_MULTIAP_PROFILE
   length: uint16_t
-  profile: 
+  profile:
     _type: eMultiApProfile
-    _value: eMultiApProfile::MULTIAP_PROFILE_3
+    _value: eMultiApProfile::MULTIAP_PROFILE_2
 
 eMultiApProfile:
   _type: enum
