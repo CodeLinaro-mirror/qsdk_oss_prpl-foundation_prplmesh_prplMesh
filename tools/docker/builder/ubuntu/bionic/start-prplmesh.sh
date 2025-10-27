@@ -88,8 +88,6 @@ fi
 mkdir /var/run/ubus
 ubusd &
 
-sed -i 's/use_dataelements_vap_configs=0/use_dataelements_vap_configs=1/g' "${INSTALL_DIR}"/config/beerocks_controller.conf
-
 "${INSTALL_DIR}/scripts/prplmesh_utils.sh" start "${start_arg[@]}" "$@"
 
 tail -f /dev/null # hack so the script will not exit forcing the container to stop
