@@ -13,6 +13,7 @@
 #include "../tasks/channel_scan_task.h"
 #include "../tasks/channel_selection_task.h"
 #include "../tasks/coordinated_cac_task.h"
+#include "../tasks/spectrum_inquiry_task.h"
 #include "../tasks/switch_channel_task.h"
 #include "../tasks/topology_task.h"
 #include <bcl/beerocks_cmdu_client_factory_factory.h>
