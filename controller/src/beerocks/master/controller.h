@@ -334,6 +334,10 @@ private:
     bool handle_cmdu_1905_1_message(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_cmdu_control_message(const sMacAddr &src_mac,
                                      std::shared_ptr<beerocks::beerocks_header> beerocks_header);
+
+    bool handle_cmdu_1905_available_spectrum_inquiry_message(const sMacAddr &src_mac,
+                                                             ieee1905_1::CmduMessageRx &cmdu_rx);
+
     void handle_cmdu_control_ieee1905_1_message(const std::string &src_mac,
                                                 ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_intel_slave_join(const sMacAddr &src_mac,
