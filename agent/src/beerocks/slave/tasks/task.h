@@ -36,6 +36,7 @@ enum eTaskType : uint8_t {
     PROXY_AGENT_DPP,
     CONTROLLER_CONNECTIVITY,
     VBSS,
+    SPECTRUM_INQUIRY,
 };
 
 class Task {
