@@ -721,10 +721,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
     case EState::INIT: {
         state_time_stamp_timeout = std::chrono::steady_clock::now() +
                                    std::chrono::seconds(STATE_WAIT_ENABLE_TIMEOUT_SECONDS);
-        auto db                             = AgentDB::get();
-        db->backhaul.connection_type        = AgentDB::sBackhaul::eConnectionType::Invalid;
-        db->backhaul.bssid_multi_ap_profile = 0;
-        db->controller_info.bridge_mac      = beerocks::net::network_utils::ZERO_MAC;
+        auto db                        = AgentDB::get();
+        db->backhaul.connection_type   = AgentDB::sBackhaul::eConnectionType::Invalid;
+        db->controller_info.bridge_mac = beerocks::net::network_utils::ZERO_MAC;
+        db->backhaul.backhaul_bss_multi_ap_profile =
+            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
 
         FSM_MOVE_STATE(WAIT_ENABLE);
         break;
@@ -2150,8 +2151,8 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                 db->bsta_mld_configuration->ap_mld_mac = msg->mac_address;
             }
 
-            db->traffic_separation.primary_vlan_id = msg->multi_ap_primary_vlan_id;
-            db->backhaul.bssid_multi_ap_profile    = msg->multi_ap_profile;
+            db->traffic_separation.primary_vlan_id     = msg->multi_ap_primary_vlan_id;
+            db->backhaul.backhaul_bss_multi_ap_profile = msg->multi_ap_profile;
 
             auto request = message_com::create_vs_message<
                 beerocks_message::cACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST>(cmdu_tx);
@@ -3273,21 +3274,21 @@ void BackhaulManager::handle_dev_reset_default(
 
     auto program = params.at("program");
     if (program == supported_programs[0]) {
-        // If certification program is map, set the certification_profile to Profile 1.
-        db->device_conf.certification_profile =
+        // If certification program is map, set the multi_ap_profile to Profile 1.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
     } else if (program == supported_programs[1]) {
-        // If certification program is mapr2, set the certification_profile to Profile 2.
-        db->device_conf.certification_profile =
+        // If certification program is mapr2, set the multi_ap_profile to Profile 2.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
     } else if (program == supported_programs[2]) {
-        // If certification program is mapr3, set the certification_profile to Profile 3.
-        db->device_conf.certification_profile =
+        // If certification program is mapr3, set the multi_ap_profile to Profile 3.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3;
     } else if (program == supported_programs[3] || program == supported_programs[4] ||
                program == supported_programs[5]) {
-        // If certification program is mapr4/5/6, set the certification_profile to Profile 4.
-        db->device_conf.certification_profile =
+        // If certification program is mapr4/5/6, set the multi_ap_profile to Profile 4.
+        db->device_conf.multi_ap_profile =
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
     }
 

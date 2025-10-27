@@ -168,9 +168,10 @@ public:
         wfa_map::tlvProfile2ApCapability::eByteCounterUnits byte_counter_units =
             wfa_map::tlvProfile2ApCapability::eByteCounterUnits::BYTES;
         uint32_t max_prioritization_rules{1};
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile certification_profile =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
         int on_boot_scan;
+        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile multi_ap_profile = wfa_map::
+            tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2; // R2 is a default
+        bool is_multiap_profile_1_as_of_r4 = false;
         int dwell_time;
         bool send_btm_to_non_11v_sta = false;
         uint8_t max_num_mlds         = 3; // Arbitrary
@@ -205,7 +206,12 @@ public:
         enum class eConnectionType { Invalid = 0, Wired, Wireless } connection_type;
         std::string selected_iface_name;
         sMacAddr preferred_bssid;
-        uint8_t bssid_multi_ap_profile;
+
+        // Multi-AP Profile advertised by the upstream AP in its association response.
+        // Read-only from prplMesh perspective (populated by pwhm via EndPoint.MultiAPProfile).
+        // Used together with our own device_conf.multi_ap_profile and controller profile
+        // to determine the effective profile for this backhaul link.
+        uint8_t backhaul_bss_multi_ap_profile;
         sMacAddr backhaul_bssid;
 
         struct sBackhaulLink {

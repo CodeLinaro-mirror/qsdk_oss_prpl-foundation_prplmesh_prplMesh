@@ -68,9 +68,6 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
-# Set multiAP profile for primary_vlan_id support
-ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
-
 # Enable when hostapd on this target supports it
 ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
