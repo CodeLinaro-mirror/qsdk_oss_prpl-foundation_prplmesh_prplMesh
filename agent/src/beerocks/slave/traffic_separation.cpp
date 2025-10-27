@@ -10,6 +10,10 @@
 #include <bcl/network/network_utils.h>
 #include <btl/broker_client_factory_factory.h>
 
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 #include "agent_db.h"
 #include "traffic_separation.h"
 
@@ -30,6 +34,20 @@ void TrafficSeparation::clear_configuration()
     LOG(DEBUG) << "Clearing traffic separation policy!";
 
     auto db = AgentDB::get();
+
+    std::unordered_set<std::string> bridge_ifaces_set;
+    std::vector<std::string> bridge_ifaces;
+
+    auto register_bridge = [&](const std::string &bridge_iface) {
+        if (bridge_iface.empty()) {
+            return;
+        }
+        if (bridge_ifaces_set.insert(bridge_iface).second) {
+            bridge_ifaces.emplace_back(bridge_iface);
+        }
+    };
+
+    register_bridge(db->bridge.iface_name);
 
     for (auto &radio : db->get_radios_list()) {
         for (uint8_t bss_id = 0; bss_id < radio->front.bssids.size(); bss_id++) {
@@ -52,6 +70,8 @@ void TrafficSeparation::clear_configuration()
                 utils::get_iface_string_from_iface_vap_ids(radio->front.iface_name, bss_id);
             auto vid = found_it->second;
 
+            register_bridge(network_utils::linux_iface_get_host_bridge(bss_iface_name));
+
             // Remove VLAN packet filter.
             network_utils::set_vlan_packet_filter(false, bss_iface_name, vid);
         }
@@ -65,7 +85,9 @@ void TrafficSeparation::clear_configuration()
     db->traffic_separation.primary_vlan_id = 0;
     db->traffic_separation.secondary_vlans_ids.clear();
     db->traffic_separation.ssid_vid_mapping.clear();
-    network_utils::set_vlan_filtering(db->bridge.iface_name, 0);
+    for (const auto &bridge_iface : bridge_ifaces) {
+        network_utils::set_vlan_filtering(bridge_iface, 0);
+    }
 
     // Remove the Primary Vlan configuration in Transport process
     if (!m_broker_client->configure_primary_vlan_id(0, false)) {
@@ -83,8 +105,40 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
     // Since the following call is locking the database, thread safety is promised on this function.
     auto db = AgentDB::get();
 
-    network_utils::set_vlan_filtering(db->bridge.iface_name,
-                                      db->traffic_separation.primary_vlan_id);
+    std::unordered_map<std::string, std::string> bss_iface_bridge_map;
+    std::unordered_set<std::string> bridge_ifaces_set;
+    std::vector<std::string> bridge_ifaces;
+
+    auto register_bridge = [&](const std::string &bridge_iface) {
+        if (bridge_iface.empty()) {
+            return;
+        }
+        if (bridge_ifaces_set.insert(bridge_iface).second) {
+            bridge_ifaces.emplace_back(bridge_iface);
+        }
+    };
+
+    register_bridge(db->bridge.iface_name);
+
+    for (const auto &radio_entry : db->get_radios_list()) {
+        if (!radio_entry) {
+            continue;
+        }
+        for (const auto &bss_entry : radio_entry->front.bssids) {
+            std::string bss_iface;
+            if (!network_utils::linux_iface_get_name(bss_entry.mac, bss_iface)) {
+                continue;
+            }
+
+            auto host_bridge = network_utils::linux_iface_get_host_bridge(bss_iface);
+            bss_iface_bridge_map.emplace(bss_iface, host_bridge);
+            register_bridge(host_bridge);
+        }
+    }
+
+    for (const auto &bridge_iface : bridge_ifaces) {
+        network_utils::set_vlan_filtering(bridge_iface, db->traffic_separation.primary_vlan_id);
+    }
 
     // If the primary VID has changed to zero, vlan filtering is disabled, so there is no point
     // modifying the VLAN policy on the platform interfaces.
@@ -100,13 +154,13 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
     }
 
     // The Bridge, the WAN ports and the LAN ports should all have "Tagged Port" policy.
-    // Update the Bridge Policy
-    bool is_bridge = true;
-    set_vlan_policy(db->bridge.iface_name, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED, is_bridge);
+    // Update the policy for every bridge that currently hosts VAPs.
+    for (const auto &bridge_iface : bridge_ifaces) {
+        set_vlan_policy(bridge_iface, ePortMode::TAGGED_PORT_PRIMARY_UNTAGGED, true);
+    }
 
-    // Since we already set the bridge, and there are no more bridge interfaces, the 'bridge_iface'
-    // is set to 'false' from now on.
-    is_bridge = false;
+    // Since we already set the bridges, the 'bridge_iface' flag can be set to 'false' from now on.
+    bool is_bridge = false;
 
     // Update WAN and LAN Ports.
     if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
@@ -166,17 +220,23 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
             continue;
         }
 
-        LOG(DEBUG) << "BSS " << bss.mac << ", ssid:" << bss.ssid << ", fBSS: " << bss.fronthaul_bss
-                   << ", bBSS: " << bss.backhaul_bss
-                   << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
-                   << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association;
-
         std::string bss_iface;
-
         if (!network_utils::linux_iface_get_name(bss.mac, bss_iface)) {
             LOG(WARNING) << "Interface with MAC " << bss.mac << " does not exist";
             continue;
         }
+
+        auto host_bridge_it = bss_iface_bridge_map.find(bss_iface);
+        std::string host_bridge =
+            (host_bridge_it == bss_iface_bridge_map.end()) ? "" : host_bridge_it->second;
+        if (host_bridge.empty()) {
+            host_bridge = db->bridge.iface_name;
+        }
+
+        LOG(DEBUG) << "BSS " << bss.mac << ", ssid:" << bss.ssid << ", fBSS: " << bss.fronthaul_bss
+                   << ", bBSS: " << bss.backhaul_bss
+                   << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
+                   << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association;
 
         // fBSS
         if (bss.fronthaul_bss && !bss.backhaul_bss) {
@@ -209,8 +269,7 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
                 bss.backhaul_bss_disallow_profile2_agent_association =
                     (m_profile_x_disallow_override_unsupported_configuration == 2);
             }
-            auto bss_iface_netdevs =
-                network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
+            auto bss_iface_netdevs = network_utils::get_bss_ifaces(bss_iface, host_bridge);
 
             for (const auto &bss_iface_netdev : bss_iface_netdevs) {
 
@@ -247,8 +306,7 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
             set_vlan_policy(bss_iface, ePortMode::UNTAGGED_PORT, is_bridge,
                             db->traffic_separation.primary_vlan_id);
 
-            auto bss_iface_netdevs =
-                network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
+            auto bss_iface_netdevs = network_utils::get_bss_ifaces(bss_iface, host_bridge);
 
             for (const auto &bss_iface_netdev : bss_iface_netdevs) {
                 set_vlan_policy(bss_iface_netdev, ePortMode::UNTAGGED_PORT, is_bridge,
@@ -257,99 +315,118 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
         }
     }
 
-    // Create a VLAN interface linked to the bridge interface for each Secondary VLAN.
+    // Create a VLAN interface linked to each bridge interface for each Secondary VLAN.
     auto linux_ifaces = network_utils::linux_get_iface_list();
 
-    std::string bridge_vlan_base_str = db->bridge.iface_name + ".";
+    std::list<sBridgeVlanInfo> all_bridge_vlan_interfaces;
 
-    std::list<sBridgeVlanInfo> bridge_vlan_interfaces;
-    for (const auto &iface : linux_ifaces) {
-        if (iface.compare(0, bridge_vlan_base_str.size(), bridge_vlan_base_str)) {
+    for (const auto &bridge_iface : bridge_ifaces) {
+        std::string bridge_vlan_base_str = bridge_iface + ".";
+
+        for (const auto &iface : linux_ifaces) {
+            if (iface.compare(0, bridge_vlan_base_str.size(), bridge_vlan_base_str)) {
+                continue;
+            }
+
+            // If there is a vlan interface linked to the bridge, bring it down. This is to prevent
+            // residues of previous interface configuration to have effect.
+            network_utils::linux_iface_ctrl(iface, false);
+        }
+
+        network_utils::iface_info bridge_iface_info;
+        if (network_utils::get_iface_info(bridge_iface_info, bridge_iface) != 0) {
+            LOG(ERROR) << "Failed to get iface info of bridge " << bridge_iface;
+            if (bridge_iface == db->bridge.iface_name) {
+                return;
+            }
             continue;
         }
 
-        // If there is a vlan interface linked to the bridge, bring it down. This is to prevent of
-        // residues of previous interface configuration to have effect.
-        network_utils::linux_iface_ctrl(iface, false);
-    }
+        sIpv4Addr bridge_ipv4 = network_utils::ipv4_from_string(bridge_iface_info.ip);
+        sIpv4Addr subnetmask  = network_utils::ipv4_from_string(bridge_iface_info.netmask);
 
-    std::string ipv4_str;
-    network_utils::iface_info bridge_iface_info;
-    if (network_utils::get_iface_info(bridge_iface_info, db->bridge.iface_name) != 0) {
-        LOG(ERROR) << "Failed to get iface info of bridge " << db->bridge.iface_name;
-        return;
-    }
+        // Subnetmask least significant byte.
+        // 255.255.255.0 = 2, 255.255.0.0 = 1, 255.0.0.0 = 0
+        int8_t subnetmask_lsb = subnetmask.oct[2] ? 2 : subnetmask.oct[1] ? 1 : 0;
 
-    sIpv4Addr bridge_ipv4 = network_utils::ipv4_from_string(bridge_iface_info.ip);
-    sIpv4Addr subnetmask  = network_utils::ipv4_from_string(bridge_iface_info.netmask);
+        auto bridge_vlan_ipv4 = bridge_ipv4;
 
-    // Subnetmask least significant byte.
-    // 255.255.255.0 = 2, 255.255.0.0 = 1, 255.0.0.0 = 0
-    int8_t subnetmask_lsb = subnetmask.oct[2] ? 2 : subnetmask.oct[1] ? 1 : 0;
-
-    auto bridge_vlan_ipv4 = bridge_ipv4;
-
-    // Increment subnet IP address by one safely.
-    auto increment_subnet_ip_safe = [&](sIpv4Addr &br_vlan_ipv4, int8_t &sub_lsb) {
-        if (sub_lsb < 0) {
-            LOG(ERROR) << "Subnetmask least significant byte is -1!";
-            return false;
-        }
-        br_vlan_ipv4.oct[sub_lsb]++;
-        if (br_vlan_ipv4 == bridge_ipv4) {
-            sub_lsb--;
+        // Increment subnet IP address by one safely.
+        auto increment_subnet_ip_safe = [&](sIpv4Addr &br_vlan_ipv4, int8_t &sub_lsb) {
+            if (sub_lsb < 0) {
+                LOG(ERROR) << "Subnetmask least significant byte is -1!";
+                return false;
+            }
             br_vlan_ipv4.oct[sub_lsb]++;
-        }
-        return true;
-    };
+            if (br_vlan_ipv4 == bridge_ipv4) {
+                sub_lsb--;
+                br_vlan_ipv4.oct[sub_lsb]++;
+            }
+            return true;
+        };
 
-    static const std::unordered_map<int8_t, std::string> subnetmasks = {
-        {0, "255.0.0.0"}, {1, "255.255.0.0"}, {2, "255.255.255.0"}};
+        static const std::unordered_map<int8_t, std::string> subnetmasks = {
+            {0, "255.0.0.0"}, {1, "255.255.0.0"}, {2, "255.255.255.0"}};
 
-    // Create a VLAN interface linked to the bridge for each secondary VLAN, and to each one, set an
-    // IP address on a different host if it running on the GW. On non GW platform the IP should be
-    // set with DHCP flow.
-    for (auto secondary_vid : db->traffic_separation.secondary_vlans_ids) {
-        auto vlan_iface_of_bridge =
-            network_utils::create_vlan_interface(db->bridge.iface_name, secondary_vid);
+        std::list<sBridgeVlanInfo> bridge_vlan_interfaces;
 
-        if (vlan_iface_of_bridge.empty()) {
-            return;
-        }
-        // Increment the subnet by one.
-        if (!increment_subnet_ip_safe(bridge_vlan_ipv4, subnetmask_lsb)) {
-            return;
-        }
+        // Create a VLAN interface linked to the bridge for each secondary VLAN, and to each one,
+        // set an IP address on a different host if it running on the GW. On non GW platform the IP
+        // should be set with DHCP flow.
+        for (auto secondary_vid : db->traffic_separation.secondary_vlans_ids) {
+            auto vlan_iface_of_bridge =
+                network_utils::create_vlan_interface(bridge_iface, secondary_vid);
 
-        auto bridge_vlan_ipv4_str       = network_utils::ipv4_to_string(bridge_vlan_ipv4);
-        auto bridge_vlan_subnetmask_str = subnetmasks.at(subnetmask_lsb);
-
-        if (db->device_conf.local_gw) {
-            subnetmask = network_utils::ipv4_from_string(bridge_vlan_subnetmask_str);
-
-            // Find subnet
-            auto &bridge_vlan_subnet = bridge_vlan_ipv4;
-            for (uint8_t i = 0; i < sizeof(sIpv4Addr::oct); i++) {
-                bridge_vlan_subnet.oct[i] &= subnetmask.oct[i];
+            if (vlan_iface_of_bridge.empty()) {
+                if (bridge_iface == db->bridge.iface_name) {
+                    return;
+                }
+                continue;
+            }
+            // Increment the subnet by one.
+            if (!increment_subnet_ip_safe(bridge_vlan_ipv4, subnetmask_lsb)) {
+                if (bridge_iface == db->bridge.iface_name) {
+                    return;
+                }
+                continue;
             }
 
-            bridge_vlan_interfaces.emplace_back(vlan_iface_of_bridge, bridge_vlan_subnet,
-                                                bridge_vlan_subnetmask_str);
-        } else {
-            bridge_vlan_interfaces.emplace_back(vlan_iface_of_bridge);
+            auto bridge_vlan_ipv4_str       = network_utils::ipv4_to_string(bridge_vlan_ipv4);
+            auto bridge_vlan_subnetmask_str = subnetmasks.at(subnetmask_lsb);
+
+            if (db->device_conf.local_gw) {
+                subnetmask = network_utils::ipv4_from_string(bridge_vlan_subnetmask_str);
+
+                // Find subnet
+                auto bridge_vlan_subnet = bridge_vlan_ipv4;
+                for (uint8_t i = 0; i < sizeof(sIpv4Addr::oct); i++) {
+                    bridge_vlan_subnet.oct[i] &= subnetmask.oct[i];
+                }
+
+                bridge_vlan_interfaces.emplace_back(vlan_iface_of_bridge, bridge_vlan_subnet,
+                                                    bridge_vlan_subnetmask_str);
+            } else {
+                bridge_vlan_interfaces.emplace_back(vlan_iface_of_bridge);
+            }
+
+            if (!network_utils::linux_iface_ctrl(vlan_iface_of_bridge, true, bridge_vlan_ipv4_str,
+                                                 bridge_vlan_subnetmask_str)) {
+                LOG(ERROR) << "Bringing interface " << vlan_iface_of_bridge << " up has failed";
+                if (bridge_iface == db->bridge.iface_name) {
+                    return;
+                }
+                continue;
+            }
         }
 
-        if (!network_utils::linux_iface_ctrl(vlan_iface_of_bridge, true, bridge_vlan_ipv4_str,
-                                             bridge_vlan_subnetmask_str)) {
-            LOG(ERROR) << "Bringing interface " << vlan_iface_of_bridge << " up has failed";
-            return;
-        }
+        all_bridge_vlan_interfaces.splice(all_bridge_vlan_interfaces.end(),
+                                          bridge_vlan_interfaces);
     }
 
     if (db->device_conf.local_gw) {
-        reconf_dhcp(bridge_vlan_interfaces);
+        reconf_dhcp(all_bridge_vlan_interfaces);
     } else {
-        assign_ip_to_vlan_iface(bridge_vlan_interfaces);
+        assign_ip_to_vlan_iface(all_bridge_vlan_interfaces);
     }
 }
 
@@ -364,14 +441,19 @@ void TrafficSeparation::apply_policy_for_new_interface(const std::string &bss_if
         return;
     }
 
-    auto bss_iface_netdevs = network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
+    auto host_bridge = network_utils::linux_iface_get_host_bridge(bss_iface);
+    if (host_bridge.empty()) {
+        host_bridge = db->bridge.iface_name;
+    }
+
+    auto bss_iface_netdevs = network_utils::get_bss_ifaces(bss_iface, host_bridge);
 
     for (const auto &bss_iface_netdev : bss_iface_netdevs) {
         // Apply rules only to the new interface
         if (bss_iface_netdev == bss_iface) {
             continue;
         }
-        if (!beerocks::net::network_utils::linux_add_iface_to_bridge(db->bridge.iface_name,
+        if (!beerocks::net::network_utils::linux_add_iface_to_bridge(host_bridge,
                                                                      bss_iface_netdev)) {
             LOG(INFO) << "The wireless interface " << bss_iface_netdev
                       << " is already in the bridge";
