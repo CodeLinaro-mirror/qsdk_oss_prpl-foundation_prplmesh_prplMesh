@@ -276,6 +276,17 @@ public:
      */
     bool get_unassociated_stations_stats();
 
+    /*
+     * @brief Reconfig Apmld by adding/removing affiliated link.
+     * @param al_mac Mac address of Agent.
+     * @param mld_mac Mac address of AP MLD.
+     * @param ruid RUID of Affiliated AP.
+     * @param add_link flag to add(1)/remove(0) Affiliated AP.
+     * @return True if Apmld Reconfig started successfully, false otherwise.
+     * */
+    bool reconfig_apmld(const sMacAddr &al_mac, const sMacAddr &mld_mac, const sMacAddr &ruid,
+                        bool add_link);
+
 private:
     /**
      * @brief Handles the client-connected event in the CMDU server.

@@ -513,6 +513,7 @@ enum class eZWDFS_flags : uint8_t {
 };
 
 constexpr int8_t DISABLED_MLDUNIT = -1;
+constexpr int8_t INVALID_LINKID   = -1;
 
 } // namespace beerocks
 
