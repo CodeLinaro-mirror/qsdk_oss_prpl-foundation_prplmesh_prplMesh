@@ -249,6 +249,12 @@ std::string wbapi_utils::search_path_ssid_by_alias(const std::string &alias)
     return search_path_ssid() + "[Alias == '" + alias + "'].";
 }
 
+std::string wbapi_utils::search_path_ssid_by_ssid_and_radio(const std::string &ssid,
+                                                            const std::string &radio_path)
+{
+    return search_path_ssid() + "[SSID == '" + ssid + "' && LowerLayers == '" + radio_path + "'].";
+}
+
 std::string wbapi_utils::search_path_ap_iface() { return search_path_ssid() + "*.Alias"; }
 
 std::string wbapi_utils::search_path_ap_by_iface(const std::string &vap_ifname)

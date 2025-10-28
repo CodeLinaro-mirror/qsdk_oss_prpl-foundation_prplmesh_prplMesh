@@ -1371,7 +1371,7 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
     auto agent_ap_mld_configuration = cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
 
     auto &mld_configuration(database.get_mld_info_configuration());
-    const auto &bss_configuration(database.get_bss_info_configuration(agent.al_mac));
+    const auto &bss_configuration(database.get_bss_info_configuration());
 
     for (auto &mld : mld_configuration) {
 
@@ -1646,6 +1646,12 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         agent_monitoring_task::add_traffic_policy_tlv(database, cmdu_tx, m1);
         agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
                                                                       m1->mac_addr());
+    }
+
+    if (agent->max_num_mlds > 0) {
+
+        // TODO: MLD Modes are not filled by Agent/bwl (PPM-3595)
+        radio->eht_supported = true;
     }
 
     if (agent->max_num_mlds != 0 && radio->eht_supported) {

@@ -165,6 +165,15 @@ public:
     static std::string search_path_ssid_by_alias(const std::string &alias);
 
     /**
+     * @brief return search path of SSID object instance by SSID.
+     *
+     * @param[in] ssid SSID name string to search for.
+     * @param[in] radio_path Radio path to match LowerLayer reference of SSID object
+     */
+    static std::string search_path_ssid_by_ssid_and_radio(const std::string &ssid,
+                                                          const std::string &radio_path);
+
+    /**
      * @brief return search path of AccessPoint object interface Name.
      */
     static std::string search_path_ap_iface();

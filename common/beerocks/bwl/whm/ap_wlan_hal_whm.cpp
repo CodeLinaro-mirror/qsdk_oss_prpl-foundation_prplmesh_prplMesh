@@ -2015,8 +2015,45 @@ bool ap_wlan_hal_whm::update_mld_mode(std::string ssid, uint8_t mld_mode)
 
 bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit)
 {
-    LOG(DEBUG) << "Not implemented yet";
+    std::string radio_path_no_dot = m_radio_path;
+    if (radio_path_no_dot.back() == '.') {
+        radio_path_no_dot.pop_back();
+    }
 
+    std::string search_path =
+        wbapi_utils::search_path_ssid_by_ssid_and_radio(ssid, radio_path_no_dot);
+    LOG(DEBUG) << "Search SSID: " << ssid << " for Radio: " << radio_path_no_dot
+               << " returned paths:\n"
+               << search_path;
+
+    auto ssids = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(search_path);
+    if (!ssids || ssids->empty()) {
+        LOG(ERROR) << "No SSID instances found with name: " << ssid
+                   << " for radio: " << m_radio_path;
+        return false;
+    }
+
+    LOG(DEBUG) << "Found " << ssids->size() << " SSID instance(s) matching SSID and radio";
+
+    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+    new_obj.add_child("MLDUnit", mld_unit);
+
+    auto it                      = ssids->begin();
+    const std::string &ssid_path = it->first;
+
+    if (!m_ambiorix_cl.update_object(ssid_path, new_obj)) {
+        LOG(ERROR) << "Failed to update MLDUnit for SSID: " << ssid << ", ssid_path: " << ssid_path
+                   << ", MLDUnit value: " << static_cast<int>(mld_unit);
+        return false;
+    }
+
+    LOG(INFO) << " Successfully updated MLDUnit. SSID: " << ssid
+              << ", MLDUnit: " << static_cast<int>(mld_unit) << ", Path: " << ssid_path;
+
+    LOG_IF(ssids->size() > 1, WARNING)
+        << "Found " << ssids->size()
+        << " SSID instances with same name on same radio (misconfiguration) "
+        << "Only first SSID updated";
     return true;
 }
 
