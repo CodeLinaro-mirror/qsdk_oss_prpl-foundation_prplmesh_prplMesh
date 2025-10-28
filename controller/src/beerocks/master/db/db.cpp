@@ -7028,7 +7028,9 @@ bool db::set_radio_utilization(const sMacAddr &bssid, uint8_t utilization)
         return false;
     }
 
+    LOG(INFO) << "path: " << radio->dm_path;
     if (radio->dm_path.empty()) {
+        LOG(ERROR) << "path empty";
         return true;
     }
 

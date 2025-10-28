@@ -1974,6 +1974,7 @@ bool Controller::handle_cmdu_1905_ap_metric_response(const sMacAddr &src_mac,
     for (auto ap_metric_tlv : cmdu_rx.getClassList<wfa_map::tlvApMetrics>()) {
         //parse tx_ap_metric_data
         sMacAddr reporting_agent_bssid = ap_metric_tlv->bssid();
+        LOG(INFO) << "channel utilization parsed: " << ap_metric_tlv->channel_utilization();
 
         if (!database.set_radio_utilization(reporting_agent_bssid,
                                             ap_metric_tlv->channel_utilization())) {
