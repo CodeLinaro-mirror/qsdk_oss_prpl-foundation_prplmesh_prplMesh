@@ -1,0 +1,58 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam defaultFontName Monospace
+skinparam rectangle {
+  RoundCorner 10
+}
+hide stereotype
+
+' === Legend (colored text) ===
+legend left
+  <color:#ff4d4d><b>Red</b></color>   : Untagged traffic (no 802.1Q tag)
+  <color:#27ae60><b>Green</b></color> : VLAN-tagged (802.1Q) frames
+endlegend
+
+' === Nodes ===
+rectangle "Controller + Agent" as CTRL
+rectangle "Agent1" as A1
+
+frame "Agent2" as A2 {
+  rectangle "br-lan\n(VLAN-aware bridge)" as BR
+
+  component "wlan1\n(uplink/BH from Agent1)" as WLAN1
+  component "wlan2.3.sta1\n(BH trunk to Agent3)" as WLAN23
+
+  ' Internal wiring (uplink -> bridge -> trunk)
+  WLAN1 -- BR
+  BR -- WLAN23
+
+  note right of BR
+    Command: bridge vlan show
+    ########################
+    port                    vlan-id
+    br-lan             10  PVID Egress Untagged
+    wlan1              10  PVID Egress Untagged
+    wlan2.3.sta1     20  PVID Egress Untagged
+  end note
+}
+
+rectangle "Agent3" as A3
+
+' === Control-plane (context only) ===
+CTRL -[#ff4d4d,thickness=3]-> A1 : untagged
+
+note right of A1
+    Multi-AP R1 Agent, no Traffic Separation
+end note
+
+' === Data-plane paths ===
+' Agent1 → Agent2 (untagged) into wlan1
+A1 -[#ff4d4d,thickness=3]-> WLAN1 : untagged
+
+' Inside Agent2: bridge trunking (tagged)
+BR -[#27ae60,thickness=3]-> WLAN23 : tagged
+
+' Agent2 → Agent3 trunk (tagged)
+WLAN23 -[#27ae60,thickness=3]-> A3 : tagged
+
+@enduml
