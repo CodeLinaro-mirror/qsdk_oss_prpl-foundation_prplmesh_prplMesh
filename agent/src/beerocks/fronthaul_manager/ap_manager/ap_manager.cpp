@@ -1382,11 +1382,10 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(DEBUG) << "Setting disabled subchannel bitmap for radio : "
                        << ap_wlan_hal->get_radio_mac();
 
-            // pending implementation of bwl function
-            /*if (!ap_wlan_hal->set_disabled_subchannels(
+            if (!ap_wlan_hal->set_disabled_subchannels(
                     request->eo_params().disabled_subchannel_bitmap)) {
                 LOG(ERROR) << "set_disabled_subchannels Failed";
-            }*/
+            }
         }
 
         // Set transmit power

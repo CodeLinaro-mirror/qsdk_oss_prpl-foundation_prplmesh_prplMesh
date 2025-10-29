@@ -39,6 +39,7 @@ public:
     virtual bool
     set_channel(int chan, beerocks::eWiFiBandwidth bw = beerocks::eWiFiBandwidth::BANDWIDTH_UNKNOWN,
                 int center_channel = 0) override;
+    virtual bool set_disabled_subchannels(uint16_t disabled_subchannel_bitmap) override;
     virtual bool sta_allow(const sMacAddr &mac, const sMacAddr &bssid) override;
     virtual bool sta_deny(const sMacAddr &mac, const sMacAddr &bssid) override;
     virtual bool clear_blacklist() override;

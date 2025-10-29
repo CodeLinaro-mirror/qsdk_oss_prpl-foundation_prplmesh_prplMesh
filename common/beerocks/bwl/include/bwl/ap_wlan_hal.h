@@ -112,6 +112,15 @@ public:
     virtual bool set_channel(int chan, beerocks::eWiFiBandwidth bw, int center_channel) = 0;
 
     /**
+     * @brief Set Disabled subchannels
+     *
+     * @param [in] disabled_subchannel_bitmap The bitmap of disabled subchannels.
+     *
+     * @return true on success or false on error.
+     */
+    virtual bool set_disabled_subchannels(uint16_t disabled_subchannel_bitmap) = 0;
+
+    /**
      * @brief Allow the station with the given MAC address to connect.
      *
      * @param [in] mac The MAC address of the station.

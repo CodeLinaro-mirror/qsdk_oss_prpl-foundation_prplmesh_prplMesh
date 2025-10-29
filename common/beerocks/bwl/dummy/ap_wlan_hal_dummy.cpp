@@ -155,6 +155,11 @@ bool ap_wlan_hal_dummy::set_channel(int chan, beerocks::eWiFiBandwidth bw, int c
     return write_status_file("channel", value.str());
 }
 
+bool ap_wlan_hal_dummy::set_disabled_subchannels(uint16_t disabled_subchannel_bitmap)
+{
+    return true;
+}
+
 bool ap_wlan_hal_dummy::sta_allow(const sMacAddr &mac, const sMacAddr &bssid)
 {
     LOG(DEBUG) << "Got client allow request for " << mac << " on bssid " << bssid;
