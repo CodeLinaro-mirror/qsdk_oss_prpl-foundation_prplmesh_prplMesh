@@ -4732,8 +4732,13 @@ bool slave_thread::agent_fsm()
         }
         LOG(TRACE) << "goto STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE";
         m_agent_state = STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE;
-        m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
-                               ApAutoConfigurationTask::eEvent::START_AP_AUTOCONFIGURATION);
+        if (db->device_conf.management_mode != BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
+            m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
+                                   ApAutoConfigurationTask::eEvent::START_AP_AUTOCONFIGURATION);
+        } else {
+            m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
+                                   ApAutoConfigurationTask::eEvent::INIT_TASK);
+        }
         break;
     }
     case STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE: {
