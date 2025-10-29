@@ -1268,6 +1268,45 @@ bool ap_wlan_hal_whm::set_primary_vlan_id(uint16_t primary_vlan_id)
     return true;
 }
 
+bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
+{
+    if (m_radio_path.empty()) {
+        m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name),
+                                   m_radio_path);
+    }
+
+    std::string channels_in_use;
+
+    // ChannelsInUse always contains channels in order
+    m_ambiorix_cl.get_param(channels_in_use, m_radio_path, "ChannelsInUse");
+
+    auto channels = beerocks::string_utils::str_split(channels_in_use, ',');
+
+    std::string disabled_subchannels;
+
+    for (size_t i = 0; i < channels.size(); ++i) {
+        if ((bitmap >> i) & 1) {
+            if (!disabled_subchannels.empty()) {
+                disabled_subchannels += ",";
+            }
+            disabled_subchannels += channels[i];
+        }
+    }
+
+    LOG(DEBUG) << "Radio " << m_radio_path << " is using " << channels_in_use
+               << " disabling: " << disabled_subchannels;
+
+    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+    new_obj.add_child("DisabledSubChannels", disabled_subchannels);
+
+    if (!m_ambiorix_cl.update_object(m_radio_path + "StaticPuncturing.", new_obj)) {
+        LOG(ERROR) << "could not set DisabledSubChannel for " << m_radio_path;
+        return false;
+    }
+
+    return true;
+}
+
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
     LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce;
