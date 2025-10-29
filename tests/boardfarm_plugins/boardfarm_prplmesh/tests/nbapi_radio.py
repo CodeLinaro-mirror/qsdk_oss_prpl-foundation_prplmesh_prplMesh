@@ -43,7 +43,7 @@ class NbapiRadio(PrplMeshBaseTest):
 
         topology = self.get_topology()
         repeater = topology[agent.mac]
-        radio = repeater.radios[agent.radios[0].mac]
+        radio = repeater.radios[agent.radios[1].mac]
 
         debug("Send AP Metrics Query message to agent 1")
         mid = controller.dev_send_1905(agent.mac,
@@ -78,7 +78,7 @@ class NbapiRadio(PrplMeshBaseTest):
         recive_other = radio_metrics_tlv[0].radio_metrics_receive_other
 
         nbapi_ruid = controller.nbapi_get_parameter(radio.path, "ID")
-        assert nbapi_ruid == agent.radios[0].mac, f"Wrong ruid: {nbapi_ruid}, expected {ruid}"
+        assert nbapi_ruid == agent.radios[1].mac, f"Wrong ruid: {nbapi_ruid}, expected {ruid}"
 
         self.assertEqual(radio.path, "Utilization", ap_metrics_tlv.ap_metrics_channel_util)
         self.assertEqual(radio.path, "ReceiveOther", recive_other)
@@ -96,7 +96,7 @@ class NbapiRadio(PrplMeshBaseTest):
                                                       self.ieee1905['eTlvTypeMap']
                                                       ['TLV_OPERATING_CHANNEL_REPORT'])
                 for op_ch_tlv in op_ch_tlvs:
-                    if op_ch_tlv.operating_channel_radio_id == agent.radios[0].mac:
+                    if op_ch_tlv.operating_channel_radio_id == agent.radios[1].mac:
                         matching_op_class = [op_class for op_class in op_ch_tlv.operating_classes
                                              if int(op_class.op_class) == nbapi_class]
                         assert len(matching_op_class) == 1, "More than one operating channel match."
@@ -105,10 +105,10 @@ class NbapiRadio(PrplMeshBaseTest):
                         # Verify that all op channels were checked:
                         op_ch_tlv.operating_channel_radio_id = ''
                         found = True
-            assert found, f"No operating channel report TLV found for {agent.radios[0].mac}"
+            assert found, f"No operating channel report TLV found for {agent.radios[1].mac}"
 
         missing_op_class = [op_ch_tlv for op_ch_tlv in [self.check_cmdu_has_tlvs(
             report, self.ieee1905['eTlvTypeMap']['TLV_OPERATING_CHANNEL_REPORT'])
             for report in op_ch_reports]
-            if op_ch_tlv[0].operating_channel_radio_id == agent.radios[0].mac]
+            if op_ch_tlv[0].operating_channel_radio_id == agent.radios[1].mac]
         assert not missing_op_class, f"CurrentOperatingClasses missing value for {missing_op_class}"
