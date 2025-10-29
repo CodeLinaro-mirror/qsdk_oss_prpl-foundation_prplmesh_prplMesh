@@ -555,6 +555,28 @@ void ApAutoConfigurationTask::configuration_complete_wait_action(const std::stri
     return;
 }
 
+bool ApAutoConfigurationTask::send_ap_mld_configuration_response_message()
+{
+    // Send AP MLD Configuration Response Message
+    auto cmdu_tx_header =
+        m_cmdu_tx.create(0, ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_RESPONSE_MESSAGE);
+
+    if (!cmdu_tx_header) {
+        LOG(ERROR) << "cmdu creation of type AP_MLD_CONFIGURATION_RESPONSE_MESSAGE, has failed";
+        return false;
+    }
+
+    if (!slave_thread::add_agent_ap_mld_configuration_tlv(m_cmdu_tx)) {
+        LOG(ERROR) << "Failed to add Agent AP MLD Configuration TLV";
+        return false;
+    }
+
+    LOG(DEBUG) << "Sending AP_MLD_CONFIGURATION_RESPONSE_MESSAGE message";
+    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+
+    return true;
+}
+
 bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
     const std::string &radio_iface)
 {

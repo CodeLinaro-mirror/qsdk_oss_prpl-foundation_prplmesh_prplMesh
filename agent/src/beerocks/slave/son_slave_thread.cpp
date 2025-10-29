@@ -42,6 +42,7 @@
 #include <mapf/common/utils.h>
 #include <tlvf/AttrList.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
+#include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvApMetricQuery.h>
 #include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
@@ -5650,6 +5651,69 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             }
         }
     }
+    return true;
+}
+
+bool slave_thread::add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto db(AgentDB::get());
+
+    if (!db->ap_mld_configurations.empty()) {
+        auto tlvAgentApMldConfiguration = cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
+        if (!tlvAgentApMldConfiguration) {
+            LOG(ERROR) << "addClass wfa_map::tlvAgentAPMLDConfiguration failed";
+            return false;
+        }
+
+        for (const auto &ap_mld_conf : db->ap_mld_configurations) {
+
+            auto ap_mld(tlvAgentApMldConfiguration->create_ap_mld());
+            ap_mld->ap_mld_mac_addr_valid().is_valid =
+                (ap_mld_conf.mld_config.mld_mac != net::network_utils::ZERO_MAC);
+            ap_mld->set_ssid(ap_mld_conf.mld_config.mld_ssid);
+            ap_mld->ap_mld_mac_addr() = ap_mld_conf.mld_config.mld_mac;
+            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::STR) {
+                ap_mld->modes().str = 1;
+            }
+            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::NSTR) {
+                ap_mld->modes().nstr = 1;
+            }
+            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLSR) {
+                ap_mld->modes().emlsr = 1;
+            }
+            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLMR) {
+                ap_mld->modes().emlmr = 1;
+            }
+
+            LOG(DEBUG) << "Sending AP MLD configuration for " << ap_mld_conf.mld_config.mld_ssid
+                       << " [mac=" << ap_mld_conf.mld_config.mld_mac << ", mode=" << std::hex
+                       << ap_mld_conf.mld_config.mld_mode << "]";
+
+            for (const auto &affiliated_ap_conf : ap_mld_conf.affiliated_aps) {
+
+                auto affiliated_ap(ap_mld->create_affiliated_ap());
+                affiliated_ap->affiliated_ap_fields_valid().affiliated_ap_mac_addr_valid =
+                    (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
+                affiliated_ap->affiliated_ap_fields_valid().linkid_valid =
+                    (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
+                affiliated_ap->ruid()                   = affiliated_ap_conf.ruid;
+                affiliated_ap->affiliated_ap_mac_addr() = affiliated_ap_conf.bssid;
+                affiliated_ap->linkid()                 = affiliated_ap_conf.link_id;
+
+                if (!ap_mld->add_affiliated_ap(affiliated_ap)) {
+                    LOG(ERROR)
+                        << "add_affiliated_ap() failed in tlvAgentApMldConfiguration.affiliated_ap";
+                    return false;
+                }
+            }
+
+            if (!tlvAgentApMldConfiguration->add_ap_mld(ap_mld)) {
+                LOG(ERROR) << "add_ap_mld() failed in tlvAgentApMldConfiguration";
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 

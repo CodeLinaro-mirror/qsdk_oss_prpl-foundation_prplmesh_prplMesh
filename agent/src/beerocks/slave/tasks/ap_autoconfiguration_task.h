@@ -270,6 +270,8 @@ private:
      */
     void configuration_complete_wait_action(const std::string &radio_iface);
 
+    bool send_ap_mld_configuration_response_message();
+
     bool send_ap_autoconfiguration_search_message(const std::string &radio_iface);
 
     bool send_ap_autoconfiguration_wsc_m1_message(const std::string &radio_iface);
