@@ -13,6 +13,7 @@
 #include "multi_vendor.h"
 
 #include <bcl/network/network_utils.h>
+#include <bpl/bpl_cfg.h>
 
 #include <beerocks/tlvf/beerocks_message_backhaul.h>
 
@@ -110,8 +111,9 @@ void TopologyTask::work()
         send_topology_notification();
     }
 
-    // Don't send topology discovery if the Controller hasn't been discovered.
-    if (db->controller_info.bridge_mac == network_utils::ZERO_MAC) {
+    // Don't send topology discovery if the Controller hasn't been discovered and in Controller Only Mode
+    if ((db->controller_info.bridge_mac == network_utils::ZERO_MAC) &&
+        (db->device_conf.management_mode != BPL_MGMT_MODE_MULTIAP_CONTROLLER)) {
         return;
     }
 
