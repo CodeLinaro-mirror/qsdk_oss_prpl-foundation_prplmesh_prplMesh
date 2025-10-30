@@ -46,6 +46,7 @@
 #include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
+#include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 #include <tlvf/wfa_map/tlvChannelSelectionResponse.h>
@@ -5677,6 +5678,65 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             }
         }
     }
+    return true;
+}
+
+bool slave_thread::add_backhaul_sta_mld_configuration_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto db(AgentDB::get());
+
+    if (!(db->bsta_mld_configuration)) {
+        LOG(DEBUG) << "No bsta_mld_configuration in agent database";
+        return true;
+    }
+    auto tlvBackhaulStaMldConfiguration =
+        cmdu_tx.addClass<wfa_map::tlvBackhaulStaMldConfiguration>();
+    if (!tlvBackhaulStaMldConfiguration) {
+        LOG(ERROR) << "addClass wfa_map::tlvBackhaulStaMldConfiguration failed";
+        return false;
+    }
+
+    tlvBackhaulStaMldConfiguration->addr_valid().bsta_mld_mac_addr_valid =
+        (db->bsta_mld_configuration->mld_config.mld_mac != net::network_utils::ZERO_MAC);
+    tlvBackhaulStaMldConfiguration->addr_valid().ap_mld_mac_addr_valid =
+        (db->bsta_mld_configuration->ap_mld_mac != net::network_utils::ZERO_MAC);
+    tlvBackhaulStaMldConfiguration->bsta_mld_mac_addr() =
+        db->bsta_mld_configuration->mld_config.mld_mac;
+    // mac to which bh is connected
+    tlvBackhaulStaMldConfiguration->ap_mld_mac_addr() = db->bsta_mld_configuration->ap_mld_mac;
+
+    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::STR) {
+        tlvBackhaulStaMldConfiguration->modes().str = 1;
+    }
+    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::NSTR) {
+        tlvBackhaulStaMldConfiguration->modes().nstr = 1;
+    }
+    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLSR) {
+        tlvBackhaulStaMldConfiguration->modes().emlsr = 1;
+    }
+    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLMR) {
+        tlvBackhaulStaMldConfiguration->modes().emlmr = 1;
+    }
+
+    LOG(DEBUG) << "Sending BH Sta MLD configuration for "
+               << db->bsta_mld_configuration->mld_config.mld_ssid
+               << " [mac=" << db->bsta_mld_configuration->mld_config.mld_mac
+               << ", mode=" << std::hex << db->bsta_mld_configuration->mld_config.mld_mode << "]";
+
+    for (const auto &affiliated_bsta_conf : db->bsta_mld_configuration->affiliated_bstas) {
+
+        auto affiliated_bsta(tlvBackhaulStaMldConfiguration->create_affiliated_bsta());
+        affiliated_bsta->affiliated_bsta_mac_addr_valid().is_valid =
+            (affiliated_bsta_conf.bssid != net::network_utils::ZERO_MAC);
+        affiliated_bsta->ruid()                     = affiliated_bsta_conf.ruid;
+        affiliated_bsta->affiliated_bsta_mac_addr() = affiliated_bsta_conf.bssid;
+
+        if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(affiliated_bsta)) {
+            LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";
+            return false;
+        }
+    }
+
     return true;
 }
 

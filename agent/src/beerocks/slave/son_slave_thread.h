@@ -122,6 +122,14 @@ public:
      */
     bool update_vaps_info(const std::string &iface, const beerocks_message::sVapInfo vaps[]);
 
+    /**
+     * @brief Add and fill backhaul_sta_mld_configuration tlv.
+     *
+     * @param cmdu_tx CMDU message to send.
+     * @return true on success, otherwise false.
+     */
+    static bool add_backhaul_sta_mld_configuration_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
     enum eEvent : uint8_t {
         CONTROLLER_DISCOVERED,
         CONTROLLER_EARLY_AP_CAPABILITY,

@@ -10,6 +10,7 @@
 #include "../agent_db.h"
 #include "../backhaul_manager/backhaul_manager.h"
 #include "../helpers/media_type.h"
+#include "../son_slave_thread.h"
 #include "multi_vendor.h"
 
 #include <bcl/network/network_utils.h>
@@ -312,7 +313,7 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
         return;
     }
 
-    if (!add_backhaul_sta_mld_configuration_tlv()) {
+    if (!slave_thread::add_backhaul_sta_mld_configuration_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Failed to add Backhaul STA MLD Configuration TLV";
         return;
     }
@@ -1121,91 +1122,6 @@ bool TopologyTask::add_agent_ap_mld_configuration_tlv()
 
             if (!tlvAgentApMldConfiguration->add_ap_mld(ap_mld)) {
                 LOG(ERROR) << "add_ap_mld() failed in tlvAgentApMldConfiguration";
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-bool TopologyTask::add_backhaul_sta_mld_configuration_tlv()
-{
-    auto db(AgentDB::get());
-
-    if (db->bsta_mld_configuration) {
-        auto tlvBackhaulStaMldConfiguration =
-            m_cmdu_tx.addClass<wfa_map::tlvBackhaulStaMldConfiguration>();
-        if (!tlvBackhaulStaMldConfiguration) {
-            LOG(ERROR) << "addClass wfa_map::tlvBackhaulStaMldConfiguration failed";
-            return false;
-        }
-        if (db->bsta_mld_configuration->mld_config.mld_mac == net::network_utils::ZERO_MAC) {
-            for (const auto &radios_info : m_btl_ctx.m_radios_info) {
-                if (radios_info->sta_wlan_hal) {
-                    if (radios_info->sta_wlan_hal->get_bsta_mld_mac() !=
-                        net::network_utils::ZERO_MAC) {
-                        db->bsta_mld_configuration->mld_config.mld_mac =
-                            radios_info->sta_wlan_hal->get_bsta_mld_mac();
-                        break;
-                    }
-                }
-            }
-        }
-        if (db->bsta_mld_configuration->ap_mld_mac == net::network_utils::ZERO_MAC) {
-            for (const auto &radios_info : m_btl_ctx.m_radios_info) {
-                if (radios_info->sta_wlan_hal) {
-                    if (radios_info->sta_wlan_hal->get_ap_mld_mac() !=
-                        net::network_utils::ZERO_MAC) {
-                        db->bsta_mld_configuration->ap_mld_mac =
-                            radios_info->sta_wlan_hal->get_ap_mld_mac();
-                        break;
-                    }
-                }
-            }
-        }
-        tlvBackhaulStaMldConfiguration->addr_valid().bsta_mld_mac_addr_valid =
-            (db->bsta_mld_configuration->mld_config.mld_mac != net::network_utils::ZERO_MAC);
-        tlvBackhaulStaMldConfiguration->addr_valid().ap_mld_mac_addr_valid =
-            (db->bsta_mld_configuration->ap_mld_mac != net::network_utils::ZERO_MAC);
-        tlvBackhaulStaMldConfiguration->bsta_mld_mac_addr() =
-            db->bsta_mld_configuration->mld_config.mld_mac;
-        // mac to which bh is connected
-        tlvBackhaulStaMldConfiguration->ap_mld_mac_addr() = db->bsta_mld_configuration->ap_mld_mac;
-
-        if (db->bsta_mld_configuration->mld_config.mld_mode &
-            AgentDB::sMLDConfiguration::mode::STR) {
-            tlvBackhaulStaMldConfiguration->modes().str = 1;
-        }
-        if (db->bsta_mld_configuration->mld_config.mld_mode &
-            AgentDB::sMLDConfiguration::mode::NSTR) {
-            tlvBackhaulStaMldConfiguration->modes().nstr = 1;
-        }
-        if (db->bsta_mld_configuration->mld_config.mld_mode &
-            AgentDB::sMLDConfiguration::mode::EMLSR) {
-            tlvBackhaulStaMldConfiguration->modes().emlsr = 1;
-        }
-        if (db->bsta_mld_configuration->mld_config.mld_mode &
-            AgentDB::sMLDConfiguration::mode::EMLMR) {
-            tlvBackhaulStaMldConfiguration->modes().emlmr = 1;
-        }
-
-        LOG(DEBUG) << "Sending BH Sta MLD configuration for "
-                   << db->bsta_mld_configuration->mld_config.mld_ssid
-                   << " [mac=" << db->bsta_mld_configuration->mld_config.mld_mac
-                   << ", mode=" << std::hex << db->bsta_mld_configuration->mld_config.mld_mode
-                   << "]";
-
-        for (const auto &affiliated_bsta_conf : db->bsta_mld_configuration->affiliated_bstas) {
-
-            auto affiliated_bsta(tlvBackhaulStaMldConfiguration->create_affiliated_bsta());
-            affiliated_bsta->affiliated_bsta_mac_addr_valid().is_valid =
-                (affiliated_bsta_conf.bssid != net::network_utils::ZERO_MAC);
-            affiliated_bsta->ruid()                     = affiliated_bsta_conf.ruid;
-            affiliated_bsta->affiliated_bsta_mac_addr() = affiliated_bsta_conf.bssid;
-
-            if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(affiliated_bsta)) {
-                LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";
                 return false;
             }
         }
