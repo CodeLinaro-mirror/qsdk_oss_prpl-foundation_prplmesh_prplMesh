@@ -139,6 +139,14 @@ public:
     static bool add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 
     /**
+     * @brief Add and fill backhaul_sta_mld_configuration tlv.
+     *
+     * @param cmdu_tx CMDU message to send.
+     * @return true on success, otherwise false.
+     */
+    static bool add_backhaul_sta_mld_configuration_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
+    /**
     * @brief Adds an EHT Operations TLV
     *
     * TLV is added to message only if radio on given interface supports EHT capabilities.
