@@ -542,6 +542,8 @@ std::shared_ptr<Station> db::add_station(const sMacAddr &al_mac, const sMacAddr 
         LOG(ERROR) << "Failed to add station datamodel, mac: " << station->mac;
     }
 
+    station->connection_timestamp = std::chrono::steady_clock::now();
+
     return station;
 }
 

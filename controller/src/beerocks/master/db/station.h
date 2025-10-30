@@ -82,6 +82,7 @@ public:
     bool supports_6ghz                 = true;
     beerocks::WifiChannel wifi_channel;
     std::chrono::steady_clock::time_point last_seen;
+    std::chrono::steady_clock::time_point connection_timestamp;
     beerocks::eIfaceType iface_type = beerocks::IFACE_TYPE_ETHERNET;
 
     /*
