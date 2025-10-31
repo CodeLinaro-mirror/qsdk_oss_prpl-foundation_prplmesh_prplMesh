@@ -598,8 +598,20 @@ public:
 
     } sAPMLD;
 
+    typedef struct {
+        typedef struct {
+            sMacAddr ruid;
+            sMacAddr bssid;
+        } sAffiliatedBSTA;
+        sMLDInfo mld_info;
+        sMacAddr ap_mld_mac;
+        // Key: RUID
+        std::unordered_map<sMacAddr, sAffiliatedBSTA> affiliated_bstas;
+    } sBSTAMLD;
+
     // Key: MLD MAC
     std::unordered_map<sMacAddr, sAPMLD> ap_mlds;
+    sBSTAMLD bsta_mld;
 
     uint8_t max_num_mlds       = 0;
     uint8_t ap_maximum_links   = 0;
