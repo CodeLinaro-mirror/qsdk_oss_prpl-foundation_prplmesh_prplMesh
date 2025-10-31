@@ -290,14 +290,29 @@ public:
 
     /*
      * @brief Reconfig Apmld by adding/removing affiliated link.
-     * @param al_mac Mac address of Agent.
-     * @param mld_mac Mac address of AP MLD.
-     * @param ruid RUID of Affiliated AP.
-     * @param add_link flag to add(1)/remove(0) Affiliated AP.
+     *
+     * @param al_mac Mac address of Agent
+     * @param mld_mac Mac address of AP MLD
+     * @param ruid RUID of Affiliated AP
+     * @param add_link flag to add(1)/remove(0) Affiliated AP
+     *
      * @return True if Apmld Reconfig started successfully, false otherwise.
      * */
     bool reconfig_apmld(const sMacAddr &al_mac, const sMacAddr &mld_mac, const sMacAddr &ruid,
                         bool add_link);
+
+    /*
+     * @brief Reconfig bStaMld by adding/removing affiliated bSta.
+     *
+     * @param al_mac Mac address of Agent
+     * @param mld_mac Mac address of bSTA MLD
+     * @param ruid RUID of Affiliated bSta
+     * @param add_link flag to add(1)/remove(0) Affiliated bSta
+     *
+     * @return True if bStaMld Reconfig started successfully, false otherwise.
+     * */
+    bool reconfig_bstamld(const sMacAddr &al_mac, const sMacAddr &mld_mac, const sMacAddr &ruid,
+                          bool add_link);
 
 private:
     /**
