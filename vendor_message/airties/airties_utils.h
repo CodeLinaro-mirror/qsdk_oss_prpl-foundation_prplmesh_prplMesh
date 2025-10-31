@@ -28,8 +28,7 @@ public:
 
     AirtiesUtils()
     {
-        LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_USP_BACKEND_PATH, AMBIORIX_PWHM_USP_BACKEND_URI),
-               FATAL)
+        LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_WBAPI_BACKEND_PATH, AMBIORIX_WBAPI_BUS_URI), FATAL)
             << "Unable to connect to the ambiorix backend!";
     }
 
