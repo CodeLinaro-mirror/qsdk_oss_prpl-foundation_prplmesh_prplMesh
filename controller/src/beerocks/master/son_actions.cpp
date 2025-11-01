@@ -25,6 +25,7 @@
 #include <tlvf/ieee_1905_1/tlvSupportedFreqBand.h>
 #include <tlvf/ieee_1905_1/tlvSupportedRole.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
+#include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 
@@ -764,5 +765,77 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
             }
         }
     }
+    return true;
+}
+
+bool son_actions::handle_backhaul_sta_mld_configuration_tlv(db &database, const sMacAddr &al_mac,
+                                                            ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    // Handle BackhaulStaMldConfiguration TLV
+    auto agent = database.m_agents.get(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with mac is not found in database mac=" << al_mac;
+        return false;
+    }
+
+    auto backhaul_sta_mld_configuration_tlv =
+        cmdu_rx.getClass<wfa_map::tlvBackhaulStaMldConfiguration>();
+    if (!backhaul_sta_mld_configuration_tlv) {
+        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received";
+        return false;
+    }
+    LOG(DEBUG) << "Received tlvBackhaulStaMldConfiguration from " << agent->al_mac;
+    if (!backhaul_sta_mld_configuration_tlv->addr_valid().bsta_mld_mac_addr_valid) {
+        LOG(ERROR)
+            << "bSTA MLD MAC address is not valid in tlvBackhaulStaMldConfiguration from agent "
+            << agent->al_mac;
+        return false;
+    }
+    if (!backhaul_sta_mld_configuration_tlv->addr_valid().ap_mld_mac_addr_valid) {
+        LOG(DEBUG)
+            << "AP MLD MAC address is not valid in tlvBackhaulStaMldConfiguration from agent "
+            << agent->al_mac;
+    }
+    database.dm_set_isbsta(backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr());
+    std::string affiliated_bsta_list;
+    agent->bsta_mld.affiliated_bstas.clear();
+    for (uint8_t affiliated_bsta_it = 0;
+         affiliated_bsta_it < backhaul_sta_mld_configuration_tlv->num_affiliated_bsta();
+         ++affiliated_bsta_it) {
+        std::tuple<bool, wfa_map::cAffiliatedBhSta &> affiliated_bsta_tuple(
+            backhaul_sta_mld_configuration_tlv->affiliated_bsta(affiliated_bsta_it));
+        if (!std::get<0>(affiliated_bsta_tuple) ||
+            !std::get<1>(affiliated_bsta_tuple).affiliated_bsta_mac_addr_valid().is_valid) {
+            continue;
+        }
+        if (affiliated_bsta_list != "") {
+            affiliated_bsta_list += ",";
+        }
+        Agent::sBSTAMLD::sAffiliatedBSTA affiliated_bsta;
+        affiliated_bsta.bssid = std::get<1>(affiliated_bsta_tuple).affiliated_bsta_mac_addr();
+        affiliated_bsta.ruid  = std::get<1>(affiliated_bsta_tuple).ruid();
+        affiliated_bsta_list += tlvf::mac_to_string(affiliated_bsta.bssid);
+        agent->bsta_mld.affiliated_bstas[affiliated_bsta.ruid] = affiliated_bsta;
+    }
+    Agent::sMLDInfo::mode mld_mode = Agent::sMLDInfo::mode::NONE;
+    if (backhaul_sta_mld_configuration_tlv->modes().str) {
+        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::STR);
+    }
+    if (backhaul_sta_mld_configuration_tlv->modes().nstr) {
+        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::NSTR);
+    }
+    if (backhaul_sta_mld_configuration_tlv->modes().emlsr) {
+        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLSR);
+    }
+    if (backhaul_sta_mld_configuration_tlv->modes().emlmr) {
+        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLMR);
+    }
+    database.dm_update_bsta_mld(*agent, backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr(),
+                                backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr(),
+                                affiliated_bsta_list, mld_mode);
+    agent->bsta_mld.mld_info.mld_mode = mld_mode;
+    agent->bsta_mld.mld_info.mld_mac  = backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr();
+    agent->bsta_mld.ap_mld_mac        = backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr();
+
     return true;
 }

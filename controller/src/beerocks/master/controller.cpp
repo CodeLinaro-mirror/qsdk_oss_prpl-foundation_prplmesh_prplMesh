@@ -298,6 +298,7 @@ bool Controller::start()
             ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE,
+            ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE,
             ieee1905_1::eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::CHANNEL_SCAN_REPORT_MESSAGE,
@@ -599,6 +600,8 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
         return handle_cmdu_1905_ap_mld_configuration_response_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE:
         return handle_cmdu_1905_beacon_response(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE:
+        return handle_cmdu_1905_bsta_mld_configuration_response_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::CHANNEL_SCAN_REPORT_MESSAGE:
         return handle_cmdu_1905_channel_scan_report(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::CLIENT_STEERING_BTM_REPORT_MESSAGE:
@@ -5796,7 +5799,7 @@ bool Controller::handle_cmdu_1905_ap_mld_configuration_response_message(
     const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto mid = cmdu_rx.getMessageId();
-    LOG(INFO) << "Received AP_MLD_CONFIGURATION_RESPONSE_MESSAGE, mid=" << std::dec << int(mid);
+    LOG(INFO) << "Received AP_MLD_CONFIGURATION_RESPONSE_MESSAGE, mid=" << std::hex << int(mid);
 
     auto agent = database.m_agents.get(src_mac);
     if (!agent) {
@@ -5811,6 +5814,27 @@ bool Controller::handle_cmdu_1905_ap_mld_configuration_response_message(
     }
 
     // TODO: Handle EHT Operations TLV (PPM-3223)
+
+    return true;
+}
+
+bool Controller::handle_cmdu_1905_bsta_mld_configuration_response_message(
+    const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto mid = cmdu_rx.getMessageId();
+    LOG(INFO) << "Received BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE, mid=" << std::hex << int(mid);
+
+    auto agent = database.m_agents.get(src_mac);
+    if (!agent) {
+        LOG(WARNING) << "Agent with mac is not found in database mac=" << src_mac;
+        return false;
+    }
+
+    // Handle Backhaul STA MLD Configuration TLV
+    if (!son_actions::handle_backhaul_sta_mld_configuration_tlv(database, src_mac, cmdu_rx)) {
+        LOG(ERROR) << "handle_backhaul_sta_mld_configuration_tlv has failed!";
+        return false;
+    }
 
     return true;
 }

@@ -366,7 +366,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     auto backhaul_sta_mld_configuration_tlv =
         cmdu_rx.getClass<wfa_map::tlvBackhaulStaMldConfiguration>();
     if (backhaul_sta_mld_configuration_tlv) {
-        handle_backhaul_sta_mld_configuration_tlv(*agent, backhaul_sta_mld_configuration_tlv);
+        son_actions::handle_backhaul_sta_mld_configuration_tlv(database, al_mac, cmdu_rx);
     }
 
     /* If this TLV is recieved in the 1905.1 Topology Response Message...
@@ -538,52 +538,6 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     }
 
     return true;
-}
-
-void topology_task::handle_backhaul_sta_mld_configuration_tlv(
-    const Agent &agent,
-    std::shared_ptr<wfa_map::tlvBackhaulStaMldConfiguration> backhaul_sta_mld_configuration_tlv)
-{
-    LOG(DEBUG) << "Received tlvBackhaulStaMldConfiguration from " << agent.al_mac;
-
-    if (backhaul_sta_mld_configuration_tlv->addr_valid().bsta_mld_mac_addr_valid) {
-        database.dm_set_isbsta(backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr());
-        if (backhaul_sta_mld_configuration_tlv->addr_valid().ap_mld_mac_addr_valid) {
-            std::string affiliated_bsta_list;
-            for (uint8_t affiliated_bsta_it = 0;
-                 affiliated_bsta_it < backhaul_sta_mld_configuration_tlv->num_affiliated_bsta();
-                 ++affiliated_bsta_it) {
-                std::tuple<bool, wfa_map::cAffiliatedBhSta &> affiliated_bsta_tuple(
-                    backhaul_sta_mld_configuration_tlv->affiliated_bsta(affiliated_bsta_it));
-                if (!std::get<0>(affiliated_bsta_tuple) ||
-                    !std::get<1>(affiliated_bsta_tuple).affiliated_bsta_mac_addr_valid().is_valid) {
-                    continue;
-                }
-                if (affiliated_bsta_list != "") {
-                    affiliated_bsta_list += ",";
-                }
-                affiliated_bsta_list += tlvf::mac_to_string(
-                    std::get<1>(affiliated_bsta_tuple).affiliated_bsta_mac_addr());
-            }
-            Agent::sMLDInfo::mode mld_mode = Agent::sMLDInfo::mode::NONE;
-            if (backhaul_sta_mld_configuration_tlv->modes().str) {
-                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::STR);
-            }
-            if (backhaul_sta_mld_configuration_tlv->modes().nstr) {
-                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::NSTR);
-            }
-            if (backhaul_sta_mld_configuration_tlv->modes().emlsr) {
-                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLSR);
-            }
-            if (backhaul_sta_mld_configuration_tlv->modes().emlmr) {
-                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLMR);
-            }
-            database.dm_update_bsta_mld(agent,
-                                        backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr(),
-                                        backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr(),
-                                        affiliated_bsta_list, mld_mode);
-        }
-    }
 }
 
 void topology_task::handle_vbss_configuration_tlv(
