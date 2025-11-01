@@ -33,6 +33,7 @@
 #include "../tlvf_utils.h"
 #include "multi_vendor.h"
 
+#include <tlvf/wfa_map/tlvAkmSuiteCapabilities.h>
 #include <tlvf/wfa_map/tlvApCapability.h>
 #include <tlvf/wfa_map/tlvApHeCapabilities.h>
 #include <tlvf/wfa_map/tlvApHtCapabilities.h>
@@ -195,6 +196,20 @@ void CapabilityReportingTask::create_early_ap_capability_report_message()
     // send the constructed report
     LOG(DEBUG) << "Sending EARLY_AP_CAPABILITY_REPORT_MESSAGE";
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+}
+
+bool CapabilityReportingTask::add_akm_suites_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto akm_suites_capabilities_tlv = cmdu_tx.addClass<wfa_map::tlvAkmSuiteCapabilities>();
+    if (!akm_suites_capabilities_tlv) {
+        LOG(ERROR) << "Error creating tlvAkmSuiteCapabilities";
+        return false;
+    }
+
+    // TODO: Fill correct values for TLV (PPM-3618)
+
+    LOG(INFO) << "Add AKM Suites capabilities TLV";
+    return true;
 }
 
 bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
@@ -555,7 +570,10 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
      * specification as "One" (multi-ap specification v2, 17.1.7).
      * the one tlv may contain information about few radios
      */
-
+    if (!add_akm_suites_capabilities_tlv(m_cmdu_tx)) {
+        LOG(ERROR) << "Error filling tlvAkmSuiteCapabilities";
+        return false;
+    }
     if (!add_wifi7_agent_capabilities_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling TLV_WIFI7_AGENT_CAPABILITIES";
         return false;
