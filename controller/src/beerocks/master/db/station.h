@@ -84,6 +84,9 @@ public:
     std::chrono::steady_clock::time_point last_seen;
     beerocks::eIfaceType iface_type = beerocks::IFACE_TYPE_ETHERNET;
 
+    std::chrono::time_point<std::chrono::steady_clock> last_assoc_sta_link_metrics_timestamp;
+    uint8_t last_assoc_sta_link_metrics_uplink_rcpi = 0;
+
     /*
      * Persistent configurations - start
      * Client persistent configuration aging is refreshed on persistent configurations set
