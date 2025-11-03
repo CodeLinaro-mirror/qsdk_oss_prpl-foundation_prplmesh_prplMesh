@@ -2470,7 +2470,7 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
             was set in previous OPERATING_CHANNEL_REPORT_MESSAGE.
             To avoid clearing a DM node and setting it right after, we reset the op_classses in db,
             set the operating classes db in handle_current_op_class and then
-            clear_empty_dm_current_op_classes.
+            dm_clear_empty_current_op_classes.
          */
         database.reset_current_op_classes_db(ruid);
 
@@ -2480,6 +2480,7 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
         auto operating_classes_list_length =
             operating_channel_report_tlv->operating_classes_list_length();
 
+        uint8_t final_op_class, final_channel = 0;
         for (uint8_t oc = 0; oc < operating_classes_list_length; oc++) {
             auto operating_class_tuple = operating_channel_report_tlv->operating_classes_list(oc);
             if (!std::get<0>(operating_class_tuple)) {
@@ -2491,9 +2492,30 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
             auto operating_class         = operating_class_struct.operating_class;
             auto channel                 = operating_class_struct.channel_number;
 
+            if (operating_class > final_op_class) {
+                final_op_class = operating_class;
+            }
+            if (wireless_utils::get_bandwidth_from_op_class(operating_class) ==
+                beerocks::eWiFiBandwidth::BANDWIDTH_20) {
+                final_channel = channel;
+            }
+
             database.handle_current_op_class(ruid, operating_class, channel, tx_power);
         }
-        database.clear_empty_dm_current_op_classes(ruid);
+        // In case of a non Intel Slave the radio wifi channel is not added at AP-Autoconfiguration
+        // reception. Fill radio wifi channel struct with primary channel and highest operating
+        // class from this operating channel report.
+        if (operating_classes_list_length != 0 && final_channel != 0) {
+            auto wifi_channel = beerocks::WifiChannel(
+                final_channel, wireless_utils::which_freq_op_cls(final_op_class),
+                wireless_utils::get_bandwidth_from_op_class(final_op_class), false);
+
+            if (!database.set_radio_wifi_channel(ruid, wifi_channel)) {
+                LOG(ERROR) << "set node wifi channel failed, mac=" << ruid;
+            }
+        }
+
+        database.dm_clear_empty_current_op_classes(ruid);
     }
 
     for (const auto &spatial_reuse_report_tlv :

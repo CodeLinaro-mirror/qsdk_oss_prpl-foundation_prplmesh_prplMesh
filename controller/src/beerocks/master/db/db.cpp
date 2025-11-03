@@ -6784,6 +6784,33 @@ bool db::dm_remove_device_element(const sMacAddr &mac)
     return true;
 }
 
+Agent::operatingClassProfileIndex db::get_db_current_op_class_index(const sMacAddr &radio_mac,
+                                                                    uint8_t op_class)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio for mac: " << radio_mac;
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW;
+    }
+
+    // Convert operating class bandwidth to index
+    switch (son::wireless_utils::get_bandwidth_from_op_class(op_class)) {
+    case beerocks::eWiFiBandwidth::BANDWIDTH_20:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_20MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_40:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_40MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_80:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_80MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_160:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_160MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_320:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_320MHZ;
+    default:
+        LOG(ERROR) << "Unknown bandwidth";
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW;
+    }
+}
+
 bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8_t op_channel,
                                  int8_t tx_power)
 {
@@ -6810,47 +6837,9 @@ bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, ui
         return true;
     }
 
-    // In case of a non Intel Slave the radio wifi channel is not added at AP-Autoconfiguration
-    // reception.
-    // Fill radio wifi channel struct with primary channel and its operating class
-    if (wireless_utils::get_bandwidth_from_op_class(op_class) ==
-        beerocks::eWiFiBandwidth::BANDWIDTH_20) {
-        beerocks::WifiChannel wifi_channel =
-            beerocks::WifiChannel(op_channel, wireless_utils::which_freq_op_cls(op_class),
-                                  wireless_utils::get_bandwidth_from_op_class(op_class), false);
-
-        if (!set_radio_wifi_channel(radio_mac, wifi_channel)) {
-            LOG(ERROR) << "set node wifi channel failed, mac=" << radio;
-        }
-    }
-
     // Prepare path to the CurrentOperatingClassProfile instance
     // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile
     auto op_class_path = radio_path + ".CurrentOperatingClassProfile";
-
-    // Convert operating class bandwidth to index
-    Agent::operatingClassProfileIndex index;
-    switch (son::wireless_utils::get_bandwidth_from_op_class(op_class)) {
-    case beerocks::eWiFiBandwidth::BANDWIDTH_20:
-        index = Agent::operatingClassProfileIndex::OPERATING_CLASS_20MHZ;
-        break;
-    case beerocks::eWiFiBandwidth::BANDWIDTH_40:
-        index = Agent::operatingClassProfileIndex::OPERATING_CLASS_40MHZ;
-        break;
-    case beerocks::eWiFiBandwidth::BANDWIDTH_80:
-        index = Agent::operatingClassProfileIndex::OPERATING_CLASS_80MHZ;
-        break;
-    case beerocks::eWiFiBandwidth::BANDWIDTH_160:
-        index = Agent::operatingClassProfileIndex::OPERATING_CLASS_160MHZ;
-        break;
-    case beerocks::eWiFiBandwidth::BANDWIDTH_320:
-        index = Agent::operatingClassProfileIndex::OPERATING_CLASS_320MHZ;
-        break;
-    default:
-        LOG(ERROR) << "Unknown bandwidth";
-        return false;
-        break;
-    }
 
     auto agent = get_agent_by_radio_uid(radio_mac);
 
@@ -6886,6 +6875,8 @@ bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, ui
 
     LOG(DEBUG) << "Fill DM op class for radio_mac=" << radio_mac << ", op_class=" << op_class
                << ", channel=" << op_channel << ", tx_power=" << tx_power;
+
+    auto index = get_db_current_op_class_index(radio_mac, op_class);
     if (!set_dm_current_op_class(radio_mac, index, op_class, op_channel, tx_power)) {
         LOG(ERROR) << "Failed to set DM op class for radio and backhaul";
         return false;
@@ -6913,7 +6904,7 @@ bool db::reset_current_op_classes_db(const sMacAddr &radio_mac)
     return true;
 }
 
-bool db::clear_empty_dm_current_op_classes(const sMacAddr &radio_mac)
+bool db::dm_clear_empty_current_op_classes(const sMacAddr &radio_mac)
 {
     auto radio = get_radio_by_uid(radio_mac);
     if (!radio) {
@@ -6973,6 +6964,11 @@ bool db::set_dm_current_op_class(const sMacAddr &radio_mac, int index, int op_cl
         return false;
     }
 
+    if (index < 0 || index >= Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW) {
+        LOG(ERROR) << "Invalid operating class profile index: " << index;
+        return false;
+    }
+
     // Set Device.WiFi.DataElements.Network.Device.x.Radio.x.CurrentOperatingClassProfile
     if (!add_current_op_class(radio->current_operating_class_profile[index].dm_path, op_class,
                               op_channel, tx_power)) {
@@ -6986,10 +6982,11 @@ bool db::set_dm_current_op_class(const sMacAddr &radio_mac, int index, int op_cl
 
     // Set if needed: Device.WiFi.DataElements.Network.Device.x.Radio.x.CurrentOperatingClassProfile
     if (radio->backhaul_station_mac != beerocks::net::network_utils::ZERO_MAC) {
+
         // If bSTA of this radio is in the list of known stations with a valid DM path, it means it's connected
-        std::shared_ptr<Station> station = get_station(radio->backhaul_station_mac);
+        auto station = get_station(radio->backhaul_station_mac);
         if (station && !station->dm_path.empty()) {
-            std::shared_ptr<Agent> agent = get_agent_by_radio_uid(radio->radio_uid);
+            auto agent = get_agent_by_radio_uid(radio->radio_uid);
             if (!agent) {
                 LOG(ERROR) << "No Agent found for radio " << radio->radio_uid;
                 return false;

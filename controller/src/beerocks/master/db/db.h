@@ -781,6 +781,15 @@ public:
                               uint8_t op_channel, int8_t tx_power);
 
     /**
+     * @brief Get index of Current Operating Class profile in database for Operating Class bandwidth.
+     * @param[in] radio_mac MAC address for Radio which reporting Operating Class.
+     * @param[in] op_class Current operating class.
+     * @return Index of Current Operating Class profile in database.
+     */
+    Agent::operatingClassProfileIndex get_db_current_op_class_index(const sMacAddr &radio_mac,
+                                                                    uint8_t op_class);
+
+    /**
      * @brief Create instances for each bandwidth possible for Radio.x.CurrentOperatingClassProfile and
      *        Backhaul.CurrentOperatingClassProfile.
      *        Fill the database and DM's Current Operating Class for Radio and Backhaul if needed.
@@ -798,7 +807,7 @@ public:
     /**
      * @brief Reset database current operating class profile for all
      * Radio.CurrentOperatingClassProfile. Does not clear DM as some of could be set directly after
-     * by handle_current_op_class, instead call clear_empty_dm_current_op_classes after handling
+     * by handle_current_op_class, instead call dm_clear_empty_current_op_classes after handling
      * is done.
      *
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
@@ -815,7 +824,7 @@ public:
      * @param[in] radio_mac MAC address for Radio which reporting Operating Class
      * @return true on success and false otherwise.
      */
-    bool clear_empty_dm_current_op_classes(const sMacAddr &radio_mac);
+    bool dm_clear_empty_current_op_classes(const sMacAddr &radio_mac);
 
     /**
      * @brief Set DM values for Radio.CurrentOperatingClassProfile and

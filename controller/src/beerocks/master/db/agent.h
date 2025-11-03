@@ -433,13 +433,6 @@ public:
         struct sOperatingClassProfile current_operating_class_profile[OPERATING_CLASS_MAX_BW];
 
         /**
-         * @brief Retrieve the current TX power of this radio
-         *
-         * @return TX Power of the widest current operating class, 0 in case of error.
-         */
-        uint8_t get_tx_power();
-
-        /**
          * Get the band this radio is currently operating on
          */
         beerocks::eFreqType get_band() const { return band; };
