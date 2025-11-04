@@ -72,6 +72,16 @@ public:
     static WSC::eWscEncr encryption_type_from_string(const std::string &encryption_type);
 
     /**
+     * @brief Chooses the appropriate encryption type based on the authentication type
+     * This function should be used when encryption_type is set to "Default",
+     * in which case auth is used to deduce the correct encryption type.
+     *
+     * @param auth Authentication type
+     * @return appropriate encryption type
+     */
+    static WSC::eWscEncr encryption_type_from_auth(WSC::eWscAuth auth);
+
+    /**
      * @brief get amxc var object id from the object path.
      * eg: "RootObj.TemplateObj.id" or "RootObj.TemplateObj.id."
      *
