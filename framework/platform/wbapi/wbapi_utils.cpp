@@ -184,6 +184,24 @@ WSC::eWscEncr wbapi_utils::encryption_type_from_string(const std::string &encryp
     return WSC::eWscEncr::WSC_ENCR_NONE;
 }
 
+WSC::eWscEncr wbapi_utils::encryption_type_from_auth(WSC::eWscAuth auth,
+                                                     son::wireless_utils::eAdditionalAuth add_auth)
+{
+    if (auth == WSC::eWscAuth::WSC_AUTH_INVALID) {
+        return WSC::eWscEncr::WSC_ENCR_INVALID;
+    } else if (auth & WSC::eWscAuth::WSC_AUTH_OPEN) {
+        return WSC::eWscEncr::WSC_ENCR_NONE;
+    } else if (auth & WSC::eWscAuth::WSC_AUTH_SHARED) {
+        return WSC::eWscEncr::WSC_ENCR_WEP;
+    } else if (auth & (WSC::eWscAuth::WSC_AUTH_WPAPSK | WSC::eWscAuth::WSC_AUTH_WPA |
+                       WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_WPA2)) {
+        return WSC::eWscEncr(uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
+                             uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP));
+    }
+
+    return WSC::eWscEncr::WSC_ENCR_AES;
+}
+
 int wbapi_utils::get_object_id(const std::string &object_path)
 {
     auto str = object_path;
