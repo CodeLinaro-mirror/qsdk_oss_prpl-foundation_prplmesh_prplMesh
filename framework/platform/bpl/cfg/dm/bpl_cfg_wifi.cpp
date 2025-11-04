@@ -222,7 +222,13 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
 
     std::string encryption_mode;
     if (ap_sec_obj->read_child(encryption_mode, "EncryptionMode")) {
-        configuration.encryption_type = wbapi_utils::encryption_type_from_string(encryption_mode);
+        if (encryption_mode == "Default") {
+            configuration.encryption_type =
+                wbapi_utils::encryption_type_from_auth(configuration.authentication_type);
+        } else {
+            configuration.encryption_type =
+                wbapi_utils::encryption_type_from_string(encryption_mode);
+        }
     }
 
     std::string key_pass_phrase;
