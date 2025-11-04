@@ -37,7 +37,7 @@ bool get_serial_number(std::string &serial_number)
 {
     std::string attr = "SerialNumber";
 
-    if (!get_string_value_dm(attr, serial_number)) {
+    if (!get_string_value_dm(attr, serial_number) || serial_number == "") {
         serial_number.assign("prplmesh12345");
     }
     return true;
@@ -47,7 +47,7 @@ bool get_software_version(std::string &software_version)
 {
     std::string attr = "SoftwareVersion";
 
-    if (!get_string_value_dm(attr, software_version)) {
+    if (!get_string_value_dm(attr, software_version) || software_version == "") {
         std::string version_string = beerocks::version::get_module_version();
         software_version.assign(version_string);
     }
@@ -58,7 +58,7 @@ bool get_model_number(std::string &model_number)
 {
     std::string attr = "ModelNumber";
 
-    if (!get_string_value_dm(attr, model_number)) {
+    if (!get_string_value_dm(attr, model_number) || model_number == "") {
         model_number.assign("modelnumber12345");
     }
     return true;
