@@ -334,7 +334,7 @@ bool ap_wlan_hal_whm::sta_deny(const sMacAddr &mac, const sMacAddr &bssid)
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("mac", tlvf::mac_to_string(mac));
-    if (mode == "Off") {
+    if (mode != "Blacklist" && mode != "WhiteList") {
         LOG(WARNING) << "change MACFiltering mode to BlackList";
         AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
         new_obj.add_child("Mode", "BlackList");
