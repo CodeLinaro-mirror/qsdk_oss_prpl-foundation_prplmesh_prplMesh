@@ -93,7 +93,7 @@ public:
         static AgentDB instance;
         return SafeDB(instance);
     }
-    AgentDB(const AgentDB &) = delete;
+    AgentDB(const AgentDB &)        = delete;
     void operator=(const AgentDB &) = delete;
 
 private:
@@ -240,7 +240,7 @@ public:
                 : iface_name(iface_name_), mac(mac_)
             {
             }
-            sEthernetPort() : mac(net::network_utils::ZERO_MAC){};
+            sEthernetPort() : mac(net::network_utils::ZERO_MAC) {};
             std::string iface_name;
             sMacAddr mac;
         } wan;
@@ -400,7 +400,7 @@ public:
 
         bool eht_supported = false;
         typedef struct {
-            bool str_support   = false;
+            bool str_support   = true;
             bool nstr_support  = false;
             bool emlsr_support = false;
             bool emlmr_support = false;
