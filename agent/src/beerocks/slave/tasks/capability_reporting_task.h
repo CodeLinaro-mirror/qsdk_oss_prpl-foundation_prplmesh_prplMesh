@@ -125,6 +125,15 @@ private:
     bool add_device_inventory_tlv();
 
     /**
+     * @brief Adds a new AKM Suites Capabilities TLV to given message.
+     *
+     * @param[in,out] cmdu_tx CDMU message.
+     *
+     * @return True on success and false otherwise.
+     */
+    bool add_akm_suites_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
+    /**
      * @brief Adds a new WiFi 7 Agent Capabilities TLV to given message.
      *
      * @param[in,out] cmdu_tx CDMU message.
