@@ -687,14 +687,15 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             new_obj.add_child("EncryptionMode", encryption_mode);
             new_obj.add_child("KeyPassPhrase", bss_info_conf.network_key);
             if (security_mode.find("WPA3") != std::string::npos) {
+                LOG(DEBUG) << "CO: SAEPassphrase update:";
                 new_obj.add_child("SAEPassphrase", bss_info_conf.network_key);
             }
         }
         ret = m_ambiorix_cl.update_object(wifi_ap_sec_path, new_obj);
 
         LOG(DEBUG) << "CO: Security Path:" << wifi_ap_sec_path << " Details: Mode:" << security_mode
-                   << " ENCR:" << encryption_mode << " KeyPassPhrase:" << KeyPassPhrase
-                   << " SAEPassphrase:" << SAEPassphrase << " ret:" << ret;
+                   << " ENCR:" << encryption_mode << " KeyPassPhrase:" << bss_info_conf.network_key
+                   << " ret:" << ret;
 
         if (!ret) {
             LOG(ERROR) << "Failed to update Security object " << wifi_ap_sec_path;
