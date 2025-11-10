@@ -2356,7 +2356,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
 
     const auto &vap_info = notification_in->vap_info();
     auto bssid           = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
-                              [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
+                                        [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
                                   return bssid.mac == vap_info.mac;
                               });
     if (bssid == radio->front.bssids.end()) {
@@ -2881,10 +2881,10 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
     infos = final_infos;
 
     // This log is very large and spamming, can be used for debugging purposes if needed.
-    // LOG(INFO) << "Config Prints: " << std::endl
-    //           << std::endl
-    //           << config_prints.str() << std::endl
-    //           << std::endl;
+    LOG(INFO) << "Config Prints: " << std::endl
+              << std::endl
+              << config_prints.str() << std::endl
+              << std::endl;
     return true;
 }
 
