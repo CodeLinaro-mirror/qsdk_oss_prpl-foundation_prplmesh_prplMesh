@@ -8,105 +8,41 @@
 
 #include "multi_vendor.h"
 #include "tlvf_vendor_example_utils.h"
-#include <iomanip>
-#include <type_traits>
-#include <vector>
 
 using namespace vendor_example;
 using namespace ieee1905_1;
 
-// Define a OUI with your <vendor-oui> like EXAMPLE_OUI.
-#define EXAMPLE_OUI 0x123456
-
 /**
- * @class multi_vendor_example
+ * @class MultiVendorExample
  * @brief Example implementation for handling vendor-specific TLVs in IEEE 1905.1 messages.
  *
- * This class demonstrates how a vendor can register their OUI and associate vendor-specific TLV
- * handlers with certain IEEE 1905.1 message types using a nested map. The outer map uses the
- * vendor OUI as the key, and the inner map associates specific message types with their corresponding
- * TLV handler functions.
- *
- * **Instructions for New Vendors:**
- * 1. **Define a unique OUI** for your vendor.
- * 2. **Implement your vendor-specific TLV functions**:
- *    - Create a utility class similar to `tlvf_vendor_example_utils` that contains your TLV functions.
- *    - Inherit from both `multi_vendor::tlvf_handler` and your utility class.
- * 3. **Register your TLV functions** for each relevant message type by adding them to the
- *    `tlv_function_table`, which is a nested map.
- *    - The first map key is the vendor OUI.
- *    - The second map key is the IEEE 1905.1 message type.
- *    - The value is a vector of function pointers to TLV handlers.
- * 4. **Handle Additional Message Types**:
- *    - If additional message types require TLV functions, update the m_message_types vector and constructor
- *      with the necessary `case` statements to register the functions accordingly.
+ * How to implement for your vendor:
+ *  1) Implement your TLV builder functions in a utility header (see tlvf_vendor_example_utils.h).
+ *     Signature must be: bool fn(ieee1905_1::CmduMessageTx &);
+ *  2) Create a small registrar class, inherit from tlvf_handler and your utils.
+ *  3) In the constructor, call register_handler(eMessageType::<...>, your_fn) for each message.
+ *  4) Create one static instance to run registrations at program startup.
  */
-class multi_vendor_example : public multi_vendor::tlvf_handler,
-                             public vendor_example::tlvf_vendor_example_utils {
+class MultiVendorExample : public multi_vendor::tlvf_handler,
+                           public vendor_example::tlvf_vendor_example_utils {
 public:
-    /**
-     * @brief Constructor for the multi_vendor_example class.
-     *
-     * The constructor registers the vendor's OUI and associates vendor-specific TLV handlers
-     * with specific IEEE 1905.1 message types using a nested map structure.
-     *
-     * **Note for New Vendors:**
-     * To extend this class for your vendor, you need to:
-     * - Add your TLV functions to the `tlv_function_table` in the nested map format.
-     * - Ensure to inherit from a utility class similar to `tlvf_vendor_example_utils` that defines
-     *   your TLV functions.
-     */
-    multi_vendor_example()
+    MultiVendorExample()
     {
-        LOG(INFO) << "Constructor called of class multi_vendor_example";
+        LOG(INFO) << "MultiVendorExample: registering vendor-specific TLV handlers";
 
-        // Step 1: Loop through each message type the vendor will handle and register the
-        // appropriate TLV handlers.
-        for (auto msg_type : m_message_types) {
-            switch (msg_type) {
-            // Register the TLV handler for the AP_AUTOCONFIGURATION_SEARCH_MESSAGE.
-            case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE: {
+        // Register handlers for the messages you support
+        multi_vendor::tlvf_handler::register_handler(
+            eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE, add_vendor_example_tlv);
 
-                tlv_function_table[EXAMPLE_OUI]
-                                  [ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE]
-                                      .push_back(add_vendor_example_tlv);
+        multi_vendor::tlvf_handler::register_handler(eMessageType::AP_CAPABILITY_REPORT_MESSAGE,
+                                                     add_vendor_example_tlv);
 
-            } break;
-            // Register the TLV handler for the AP_CAPABILITY_REPORT_MESSAGE.
-            case ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE: {
-
-                tlv_function_table[EXAMPLE_OUI]
-                                  [ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE]
-                                      .push_back(add_vendor_example_tlv);
-
-            } break;
-            default: {
-                LOG(WARNING) << "This msg type " << msg_type
-                             << " is not added in the m_message_types vector of this OUI :"
-                             << std::hex << EXAMPLE_OUI;
-            } break;
-            }
-        }
+        // Add more registrations as needed
+        // multi_vendor::tlvf_handler::register_handler(<MessageType>, <YourHandler>);
     }
-
-private:
-    /**
-     * @brief List of IEEE 1905.1 message types handled by this vendor.
-     *
-     * Vendor should specify all message types they intend to handle with their TLV in this vector.
-     * This list should include all message types that require custom TLV processing.
-     *
-     * **Note for New Vendors:**
-     * Add all message types your vendor will handle to this list. Ensure that you also
-     * add the necessary `case` statements in the constructor's `switch` to register
-     * your TLV functions.
-     */
-    const std::vector<ieee1905_1::eMessageType> m_message_types = {
-        ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE,
-        ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE};
 };
 
-//Step 3: Create a static instance of the vendor class.
-//This ensures that the vendor's handlers are registered automatically when the program starts.
-//New vendor should create a similar static object for their class to ensure proper initialization.
-static multi_vendor_example vendor_example_obj;
+// Ensure registration happens at startup.
+namespace {
+MultiVendorExample g_vendor_example_init;
+}
