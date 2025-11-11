@@ -7,7 +7,6 @@
 
 variables:
   PACKAGE_REGISTRY_BASE_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic"
-  TURRIS_OMNIA_FULLIMAGE: "openwrt-mvebu-cortexa9-cznic_turris-omnia-squashfs-sysupgrade.img.gz"
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
   HAZE_FULLIMAGE: "openwrt-qualcommax-ipq807x-prpl_haze-squashfs-sysupgrade.bin"
   FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
@@ -20,11 +19,8 @@ workflow:
 stages:
   - build
   - test
-  - certification-R1-haze
-  - certification-R1-turris-omnia
+  - certification-R1-freedom
   - certification-R4-freedom
-  - certification-R4-haze
-  - certification-R4-turris-omnia
   - upload
   - release
 
@@ -313,14 +309,14 @@ upload-release-artifacts:
         # $2 is the name of the fullimage.
         curl --fail --show-error --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file "${BUILD_FOLDER}/$1/$2" "${PACKAGE_REGISTRY_URL}/$CI_COMMIT_TAG-$2"
       }
-    - upload_command "turris-omnia" "$TURRIS_OMNIA_FULLIMAGE" "WHM"
     - upload_command "haze" "$HAZE_FULLIMAGE" "WHM"
+    - upload_command "freedom" "$FREEDOM_FULLIMAGE" "WHM"
     # need to get correct rdkb fullimage name
     - mv build/turris-omnia-rdk/rdkb-generic-broadband-image_rdkb*.rootfs.tar.gz build/turris-omnia-rdk/$TURRIS_OMNIA_RDKB_FULLIMAGE
     - mv build/turris-omnia-rdk/prplmesh_*.ipk build/turris-omnia-rdk/prplmesh.ipk
     - upload_command "turris-omnia-rdk" "$TURRIS_OMNIA_RDKB_FULLIMAGE" "WHM"
   needs:
-    - job: build-for-turris-omnia
+    - job: build-for-freedom
     - job: build-for-rdkb-turris-omnia
     - job: build-for-haze
 

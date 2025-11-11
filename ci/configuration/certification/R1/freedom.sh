@@ -9,12 +9,6 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-sh /etc/init.d/tr181-upnp stop || true
-rm -f /etc/rc.d/S*tr181-upnp
-
-sh /etc/init.d/obuspa stop || true
-rm -f /etc/rc.d/S*obuspa
-
 # Stop the default ssh server on the lan-bridge
 sh /etc/init.d/ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
@@ -22,9 +16,6 @@ rm -f /etc/rc.d/S*ssh-server
 # Stop and disable the firewall:
 sh /etc/init.d/tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
-
-# Disable restarting failing serivces by default
-sh /etc/init.d/amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 
@@ -41,15 +32,16 @@ ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" &
     ba-cli 'IP.Interface.wan.IPv4Address.+{Alias="primary", AddressingType="Static"}'
 }
 # Configure it:
-ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.130", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
+ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.150", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
 # Enable it:
 ba-cli IP.Interface.wan.IPv4Enable=1
 
 # Set the LAN bridge IP:
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.130"
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
-/etc/init.d/prplmesh stop && sleep 2
-/etc/init.d/prplmesh start && sleep 2
+# Workaround for PPM-3339: Setting prplMesh' BackhaulWireIface doesn't always persist on first boot
+/etc/init.d/prplmesh stop && sleep 1
+/etc/init.d/prplmesh start && sleep 5
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
@@ -58,36 +50,34 @@ if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR
 else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan3"
-  echo "Setting prplMesh MultiAPProfile over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.MultiAPProfile=1
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan4"
 fi
 
-# all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
+# enable Wi-Fi radios
+ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Enable": "true" } }'
+ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Enable": "true" } }'
+
+ba-cli WiFi.Radio.*.RegulatoryDomain="US"
+
+# tshark on the sniffer can not handle RM capabilities, and thinks beacons containing them are malformed
+ba-cli WiFi.AccessPoint.*.IEEE80211kEnabled=0
+
+# Set multiAP profile for primary_vlan_id support
+ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
 
 # Enable when hostapd on this target supports it
-# ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
-
-# Make sure specific channels are configured. If channel is set to 0,
-# ACS will be configured. If ACS is configured hostapd will refuse to
-# switch channels when we ask it to. Channels 1 and 48 were chosen
-# because they are NOT used in the WFA certification tests (this
-# allows to verify that the device actually switches channel as part
-# of the test).
-# See also PPM-1928.
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Channel": "1" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Channel": "48" } }'
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
-
-# Commands to start a new SSH server
+# Commands to start a new SSH server on the control port
+# Allow all incoming connections (allows SSH/CAPI connections on WAN)
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
-dropbear -F -T 10 -p192.168.250.130:22 &"
+dropbear -F -T 10 -p192.168.250.150:22 &"
 
 sleep 5
 
