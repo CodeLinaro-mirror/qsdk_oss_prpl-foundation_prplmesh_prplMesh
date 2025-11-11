@@ -1,58 +1,16 @@
-.certification:R1:turris-omnia:
-  stage: certification-R1-turris-omnia
+.certification:R1:freedom:
+  stage: certification-R1-freedom
   extends: .certification-generic-R1
   variables:
-    RUN_ON_DEVICE: "turris-omnia"
+    RUN_ON_DEVICE: "freedom"
   before_script:
-    - tools/deploy_firmware.py --device turris-omnia --target-name "$RUN_ON_DEVICE" --image "$TURRIS_OMNIA_FULLIMAGE" --whm --configuration ci/configuration/certification/R1/whm/turris-omnia.sh
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R1/whm/freedom.sh
     - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
   needs:
-    - job: build-for-turris-omnia
+    - job: build-for-freedom
   tags:
     - certs-tests
-    - turris-omnia
-
-.certification:R1:haze:
-  stage: certification-R1-haze
-  extends: .certification-generic-R1
-  variables:
-    RUN_ON_DEVICE: "haze"
-  before_script:
-    - tools/deploy_firmware.py --device haze --target-name "$RUN_ON_DEVICE" --image "$HAZE_FULLIMAGE" --whm --configuration ci/configuration/certification/R1/whm/haze.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  needs:
-    - job: build-for-haze
-  tags:
-    - certs-tests
-    - haze
-
-.certification:R4:turris-omnia:
-  stage: certification-R4-turris-omnia
-  extends: .certification-generic-R4
-  variables:
-    RUN_ON_DEVICE: "turris-omnia"
-  before_script:
-    - tools/deploy_firmware.py --device turris-omnia --target-name "$RUN_ON_DEVICE" --image "$TURRIS_OMNIA_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/whm/turris-omnia.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  needs:
-    - job: build-for-turris-omnia
-  tags:
-    - certs-tests-R4
-    - turris-omnia
-
-.certification:R4:haze:
-  stage: certification-R4-haze
-  extends: .certification-generic-R4
-  variables:
-    RUN_ON_DEVICE: "haze"
-  before_script:
-    - tools/deploy_firmware.py --device haze --target-name "$RUN_ON_DEVICE" --image "$HAZE_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/whm/haze.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  needs:
-    - job: build-for-haze
-  tags:
-    - certs-tests-R4
-    - haze
+    - freedom
 
 .certification:R4:freedom:
   stage: certification-R4-freedom
@@ -94,17 +52,14 @@
     - ssh freedom 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
 
 include:
-  - local: "ci/certification/R1/turris-omnia.yml"
-  - local: "ci/certification/R1/haze.yml"
-  - local: "ci/certification/R4/turris-omnia.yml"
-  - local: "ci/certification/R4/haze.yml"
+  - local: "ci/certification/R1/freedom.yml"
   - local: "ci/certification/R4/freedom.yml"
 
 # Merge train tests
 ##################
 
-merge-train:R1:haze:MAP-4.2.1:
-  extends: .certification:R1:haze
+merge-train:R1:freedom:MAP-4.4.2_BHWIFI_FH5GH:
+  extends: .certification:R1:freedom
   rules:
     - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'
       when: on_success
