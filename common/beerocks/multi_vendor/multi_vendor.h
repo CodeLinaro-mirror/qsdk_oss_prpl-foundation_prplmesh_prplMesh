@@ -6,83 +6,84 @@
  * See LICENSE file for more details.
  */
 
-#include <functional>
-#include <map>
+#pragma once
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <mutex>
 #include <tlvf/CmduMessageTx.h>
 #include <vector>
 
-/*
- * Framework for vendors for adding the Vendor Specific TLV to CMDU message.
- * This file multiVendor.h contains all the information
- * related to Vendor Specific TLV implementation.
- * This framework will ensure that any vendor can add their new TLVs
- * in the existing prplMesh messages.
- * Steps to follow:
- * 1) Create a Vendor Namespace. This will contain all the vendor specific data.
- * 2) Define the Vendor OUI: In the vendor-specific CPP file,
- * 3) Register TLV Handlers: In the vendor-specific class constructor,
- *    register TLV handler functions for the vendor-specific message types
- *    in the `tlv_function_table` using the vendor's OUI as the key in the
- *    outer map and the message type as the key in the inner map.
- */
-
 namespace multi_vendor {
 
+/**
+ * @brief Lightweight registry and dispatcher for vendor-specific TLV handlers.
+ *
+ * Design:
+ *  - Message type to index mapping is implemented in the .cpp (switch).
+ *  - For each index, we keep a flat vector of handler function pointers.
+ *  - Registration occurs once during program initialization (static constructors).
+ *  - add_vs_tlv() is the hot path: it linearly executes the handlers for a message type.
+ *
+ * Notes:
+ *  - We intentionally use a raw function pointer type (not std::function) to avoid
+ *    allocations and type erasure overhead on the hot path. s_handlers uses a literal
+ *    size (msgTypeCount) to keep the array type a compile-time constant.
+ *
+ * How to add a vendor:
+ *  - Derive a new class from 'multi_vendor::tlvf_handler' in your vendor module.
+ *  - In its constructor, call 'register_handler()' for each message type that should
+ *    include vendor-specific TLVs.
+ *  - Instantiate an object of that class inside an unnamed namespace in your '.cpp'
+ *    file so its constructor runs automatically at program startup and registers handlers.
+ *
+ *  For an example implementation, see:
+ *    'common/beerocks/multi_vendor/example/src/multi_vendor_example.cpp'
+ */
 class tlvf_handler {
-
 public:
-    /**
-	 * @brief Type definition for a function that processes TLV messages.
-	 *
-	 * This typedef defines a function pointer type that takes a reference to a
-	 * `ieee1905_1::CmduMessageTx` object as single TLV function pointer argument
-	 * and returns a boolean value. It is used for
-	 * mapping TLV types to their respective handling functions.
-	 */
-    typedef std::function<bool(ieee1905_1::CmduMessageTx &)> tlv_function_t;
+    // Handler signature: append vendor-specific TLVs to the given CMDU. Return true on success.
+    typedef bool (*tlv_function_t)(ieee1905_1::CmduMessageTx &);
+
+    // Total number of supported message types. See to_index method in .cpp
+    static constexpr std::size_t msgTypeCount = 89;
 
     /**
-     * @brief Maps vendor OUIs and message types to TLV handler functions.
+     * @brief Register a handler for a given IEEE 1905.1 message type.
      *
-     * This static member represents a nested map structure. The outer map uses
-     * the vendor OUI as the key, and the inner map uses the message type
-     * (`ieee1905_1::eMessageType`) as the key. Each inner map contains a
-     * vector of TLV handler functions (`tlv_function_t`) that can be
-     * registered for specific combinations of vendor OUI and message type.
+     * Thread safety: internally synchronized; safe to call from static constructors.
+     *
+     * @param msg_type IEEE 1905.1 message type
+     * @param fn       Handler function pointer
      */
-    static std::map<uint32_t, std::map<ieee1905_1::eMessageType, std::vector<tlv_function_t>>>
-        tlv_function_table;
+    static void register_handler(ieee1905_1::eMessageType msg_type, tlv_function_t fn);
 
     /**
-     * @brief Adds a vendor-specific TLV to a CMDU message.
+     * @brief Execute all registered handlers for the given message type.
      *
-     * This static method looks up the vendor-specific TLV handler functions
-     * for the given OUI and message type, and applies them to the CMDU message.
+     * Handlers are executed in registration order.
+     * Each handler returns true on success or false on failure.
+     * A failing handler only triggers a warning, the remaining handlers continue to run.
      *
-     * @param[in] inner map of tlv_function_table this will have message type and 
-     * vector of handlers
-     * @param[in,out] cmdu_tx The CMDU message to which the TLV will be added.
-     * @param[in] msg_type The message type for which the TLV should be added.
+     * The function returns true unless an internal error occurs.
+     * If no handler is registered for the given type, the function returns true.
      *
-     * @return True if the TLV was successfully added, false otherwise.
-     */
-    static bool add_vs_tlv(
-        const std::map<ieee1905_1::eMessageType, std::vector<tlv_function_t>> &function_table,
-        ieee1905_1::CmduMessageTx &cmdu_tx, ieee1905_1::eMessageType msg_type);
-
-    /**
-     * @brief Adds TLVs for all vendors based on the message type.
-     *
-     * This static method iterates through all registered vendor OUIs in
-     * `tlv_function_table` and applies their respective TLV handler functions
-     * for the specified message type to the CMDU message.
-     *
-     * @param[in,out] cmdu_tx The CMDU message to which the TLVs will be added.
-     * @param[in] msg_type The message type for which the TLVs should be added.
-     *
-     * @return True if all relevant TLVs were successfully added, false otherwise.
+     * @param cmdu_tx  CMDU message to which vendor-specific TLVs will be appended
+     * @param msg_type IEEE 1905.1 message type
+     * @return true on success, false if any handler failed
      */
     static bool add_vs_tlv(ieee1905_1::CmduMessageTx &cmdu_tx, ieee1905_1::eMessageType msg_type);
+
+private:
+    // Map an IEEE 1905.1 message type to a index [0..msgTypeCount-1]; returns (size_t)-1 if unknown.
+    static std::size_t to_index(ieee1905_1::eMessageType t);
+
+    // Per-message-type handler lists (fixed-size array).
+    static std::array<std::vector<tlv_function_t>, msgTypeCount> s_handlers;
+
+    // Synchronization for registration (one-time initialization).
+    static std::mutex s_mu;
 };
 
 } // namespace multi_vendor
