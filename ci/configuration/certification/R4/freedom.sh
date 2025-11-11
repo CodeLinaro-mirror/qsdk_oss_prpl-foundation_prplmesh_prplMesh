@@ -9,11 +9,7 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-sh /etc/init.d/tr181-upnp stop || true
-rm -f /etc/rc.d/S*tr181-upnp
-
-sh /etc/init.d/obuspa stop || true
-rm -f /etc/rc.d/S*obuspa
+# Don't stop obuspa/upnp services, they are required for USP to work correctly
 
 # Stop the default ssh server on the lan-bridge
 sh /etc/init.d/ssh-server stop || true
@@ -23,9 +19,6 @@ rm -f /etc/rc.d/S*ssh-server
 sh /etc/init.d/tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
 
-# Disable restarting failing serivces by default
-sh /etc/init.d/amx-processmonitor stop || true
-
 ubus wait_for IP.Interface
 
 # Stop and disable the DHCP clients and servers:
@@ -34,6 +27,10 @@ ba-cli DHCPv6Client.Client.wan.Enable=0
 ba-cli DHCPv4Server.Enable=0
 ba-cli DHCPv6Server.Enable=0
 
+# Fix overlapping MACs in 6GHz radio
+ba-cli Device.Ethernet.Link.ethernet_wan.MACAddress="58:E4:03:D2:10:04"
+ba-cli Device.WiFi.SSID.GUEST_RADIO3.MACAddress="58:E4:03:D2:10:50"
+
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
 ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" && {
@@ -41,12 +38,12 @@ ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" &
     ba-cli 'IP.Interface.wan.IPv4Address.+{Alias="primary", AddressingType="Static"}'
 }
 # Configure it:
-ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.190", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
+ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.150", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
 # Enable it:
 ba-cli IP.Interface.wan.IPv4Enable=1
 
 # Set the LAN bridge IP:
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.190"
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
@@ -55,23 +52,33 @@ if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR
 else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan4"
 fi
+
+# enable Wi-Fi radios
+ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Enable": "true" } }'
+ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Enable": "true" } }'
 
 # all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
 
-# Enable when hostapd on this target supports it
-# ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
+# Add all VAPs to br-lan by default
+#ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
+#ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
-# Make sure specific channels are configured. If channel is set to 0,
-# ACS will be configured. If ACS is configured hostapd will refuse to
-# switch channels when we ask it to. Channels 1 and 48 were chosen
-# because they are NOT used in the WFA certification tests (this
-# allows to verify that the device actually switches channel as part
-# of the test).
-# See also PPM-1928.
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Channel": "1" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Channel": "48" } }'
+ba-cli WiFi.Radio.*.RegulatoryDomain="US"
+
+# Set multiAP profile for primary_vlan_id support
+ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
+
+# Enable when hostapd on this target supports it
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
+
+# Configure Operating Standards
+ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g,n,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
+
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
@@ -80,7 +87,7 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidt
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="killall -9 dropbear
-dropbear -F -T 10 -p192.168.250.190:22 &"
+dropbear -F -T 10 -p192.168.250.150:22 &"
 
 sleep 5
 
