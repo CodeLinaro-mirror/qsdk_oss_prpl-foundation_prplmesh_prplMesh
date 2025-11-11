@@ -17,9 +17,7 @@
 namespace beerocks {
 namespace bpl {
 
-#ifndef KEEP_UCI_GENERAL_OPTIONS
 int cfg_set_onboarding(int enable) { return 0; }
-#endif
 
 } // namespace bpl
 } // namespace beerocks
