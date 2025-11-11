@@ -1027,6 +1027,35 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                 continue;
             }
 
+            uint32_t num_affiliated = 0;
+            associated_device_pwhm.second.read_child(num_affiliated, "ActiveNumberOfAffiliatedSta");
+
+            if (!associated_device_pwhm.second.read_child(num_affiliated, "ActiveNumberOfAffiliatedSta")) {
+                LOG(DEBUG) << "Failed reading ActiveNumberOfAffiliatedSta for MAC: " << mac_addr;
+            } else {
+                LOG(DEBUG) << "ActiveNumberOfAffiliatedSta for MAC " << mac_addr << ": " << num_affiliated;
+            }
+
+            sMacAddr msg_client_mac = tlvf::mac_from_string(mac_addr);
+            sMacAddr msg_bssid = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
+
+            // Override BSSID for MLO clients
+            if (num_affiliated > 0) {
+                std::string ssid_ref;
+                if (m_ambiorix_cl.get_param(ssid_ref, vap_path, "SSIDReference")) {
+                    std::string ap_mld_mac_str;
+                    if (m_ambiorix_cl.get_param(ap_mld_mac_str, ssid_ref + ".", "BSSID")) {
+                        msg_bssid = tlvf::mac_from_string(ap_mld_mac_str);
+                        LOG(INFO) << "  STA MLD: " << msg_client_mac
+                                  << "  AP MLD: " << msg_bssid;
+                    } else {
+                        LOG(WARNING) << "Failed to read AP MLD MAC (BSSID), using VAP BSSID";
+                    }
+                } else {
+                    LOG(WARNING) << "Failed to read SSIDReference, using VAP BSSID";
+                }
+	    }
+
             auto msg_buff =
                 ALLOC_SMART_BUFFER(sizeof(sACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION));
             LOG_IF(msg_buff == nullptr, FATAL) << "Memory allocation failed!";
@@ -1035,8 +1064,8 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                 msg_buff.get());
 
             msg->params.vap_id = vap_id;
-            msg->params.bssid  = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
-            msg->params.mac    = tlvf::mac_from_string(mac_addr);
+            msg->params.bssid  = msg_bssid;
+            msg->params.mac    = msg_client_mac;
 
             msg->params.capabilities.band_5g_capable = m_radio_info.is_5ghz;
             msg->params.capabilities.band_2g_capable =

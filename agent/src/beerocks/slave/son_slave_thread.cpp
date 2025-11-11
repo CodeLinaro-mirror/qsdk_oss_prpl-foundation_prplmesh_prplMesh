@@ -3168,6 +3168,28 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                                                  notification_in->association_frame(),
                                                  notification_in->capabilities().btm_supported});
 
+            //TODO: Extend AP manager TLV to include active_affiliated_sta,
+            //MLD modes. use notification_in to update the vector entry, then remove the Ambiorix fallback.
+            if (auto ambiorix_dm = db->get_ambiorix_dm()) {
+            std::string search_path = "Device.WiFi.AccessPoint.*.AssociatedDevice.*.[MACAddress=='" +
+                                      tlvf::mac_to_string(client_mac) + "'].";
+
+            uint32_t num_affiliated = 0;
+            if (ambiorix_dm->read_param(search_path, "ActiveNumberOfAffiliatedSta",
+                                        &num_affiliated) &&
+                num_affiliated > 0) {
+                LOG(INFO) << "MLO client detected: STA MLD=" << client_mac
+                          << ", AP MLD=" << bssid;
+
+                AgentDB::sAssociatedStaMld mld_info;
+                mld_info.mld_config.sta_mld_mac = client_mac;
+                mld_info.mld_config.ap_mld_mac = bssid;
+
+                db->associated_sta_mlds.push_back(mld_info);
+                LOG(DEBUG) << "Added to associated_sta_mlds tracking list";
+            }
+        }
+
         if (!link_to_controller()) {
             LOG(DEBUG) << "Controller is not connected";
             return true;

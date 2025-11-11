@@ -589,6 +589,7 @@ public:
 
     void dm_fronthaul_disconnected(const std::string &path);
 
+    std::shared_ptr<beerocks::nbapi::Ambiorix> get_ambiorix_dm() { return m_ambiorix_datamodel; }
     /**
      * @brief 1905.1 Neighbor device information
      * Information gathered from a neighbor device upon reception of a Topology Discovery message.
