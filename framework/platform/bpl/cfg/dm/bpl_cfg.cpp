@@ -44,44 +44,6 @@ int cfg_is_non_prplmesh_controller()
     return cfg_get_management_mode() == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
 }
 
-#ifndef KEEP_UCI_GENERAL_OPTIONS
-
-int cfg_get_management_mode()
-{
-    int management_mode{BPL_MGMT_MODE_MULTIAP_AGENT}; // Agent by default
-
-    std::string management_mode_str{};
-    cfg_get_management_mode(management_mode_str);
-
-    if (management_mode_str == "Controller+Agent") {
-        management_mode = BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT;
-    } else if (management_mode_str == "Non-Prpl-Controller-and-Agent") {
-        management_mode = BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
-    } else if (management_mode_str == "Controller") {
-        management_mode = BPL_MGMT_MODE_MULTIAP_CONTROLLER;
-    } else if (management_mode_str == "Agent") {
-        management_mode = BPL_MGMT_MODE_MULTIAP_AGENT;
-    } else {
-        MAPF_ERR("cfg_get_management_mode: unexpected management_mode");
-    }
-
-    return management_mode;
-}
-
-int cfg_get_management_mode(std::string &mode)
-{
-    return read_agent_config_param("ManagementMode", mode);
-}
-
-int cfg_get_certification_mode()
-{
-    int certification_mode{1}; // on by default
-    read_agent_config_param(certification_mode, "CertificationMode");
-    return certification_mode;
-}
-
-#endif
-
 int cfg_get_stop_on_failure_attempts()
 {
     int stop_on_failure_attempts{0};
@@ -649,9 +611,7 @@ int cfg_get_load_steer_on_vaps(int num_of_interfaces,
     return RETURN_OK;
 }
 
-#ifndef KEEP_UCI_GENERAL_OPTIONS
 bool cfg_commit_changes() { return true; }
-#endif
 
 } // namespace bpl
 } // namespace beerocks

@@ -24,8 +24,6 @@ using namespace mapf;
 namespace beerocks {
 namespace bpl {
 
-#ifndef KEEP_UCI_GENERAL_OPTIONS
-
 int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                     char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
 {
@@ -63,8 +61,6 @@ int cfg_is_master()
         return -1;
     }
 }
-
-#endif
 
 int cfg_get_management_mode()
 {
@@ -108,8 +104,6 @@ int cfg_get_certification_mode()
     }
     return retVal;
 }
-
-#ifndef KEEP_UCI_GENERAL_OPTIONS
 
 int cfg_get_load_steer_on_vaps(int num_of_interfaces,
                                char load_steer_on_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
@@ -1087,8 +1081,6 @@ bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
     client_unicast_measurements = bool(val == 1);
     return true;
 }
-
-#endif
 
 bool cfg_commit_changes() { return uci_commit_changes("prplmesh"); }
 

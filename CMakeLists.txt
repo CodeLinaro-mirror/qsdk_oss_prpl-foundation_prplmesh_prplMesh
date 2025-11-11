@@ -9,11 +9,6 @@ if(NOT DEFINED TARGET_PLATFORM)
     set(TARGET_PLATFORM "linux")
 endif()
 
-option(KEEP_UCI_GENERAL_OPTIONS "Use UCI for management and certification mode" ON)
-if (KEEP_UCI_GENERAL_OPTIONS)
-    add_definitions(-DKEEP_UCI_GENERAL_OPTIONS)
-endif()
-
 ## Function to generate defines for ODLs
 function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT_DM_FOOTER_VAR)
     string(REPLACE "." "\\." ${ROOT_DM_LITERAL_VAR} ${${ROOT_DM_VAR}})

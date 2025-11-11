@@ -13,6 +13,20 @@
 
         /* Configuration options for the agent */
         %persistent object Configuration {
+            %persistent string ManagementMode {
+                default "Multi-AP-Controller-and-Agent";
+                on action validate call check_enum [
+                            "Not-Multi-AP",
+                            "Multi-AP-Agent",
+                            "Multi-AP-Controller",
+                            "Multi-AP-Controller-and-Agent",
+                            "Non-Prpl-Controller-and-Agent"
+                        ];
+            }
+
+            %persistent bool CertificationMode {
+                default true;
+            }
 
             /* Threshold for the best channel rank, used in the channel selection task */
             %persistent uint32 BestChannelRankThreshold {

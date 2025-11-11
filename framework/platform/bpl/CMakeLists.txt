@@ -72,20 +72,8 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
             ${MODULE_PATH}/service_prioritization/tc/service_prio_utils_tc.cpp
         )
 
-        if(KEEP_UCI_GENERAL_OPTIONS) 
-            file(GLOB_RECURSE bpl_cfg_uci_sources
-                ${MODULE_PATH}/cfg/uci/*.c*
-            )
-
-            list(REMOVE_ITEM bpl_cfg_uci_sources
-                ${MODULE_PATH}/cfg/uci/bpl.cpp
-                ${MODULE_PATH}/cfg/uci/bpl_cfg_wifi.cpp
-            )
         if (USE_PRPLMESH_WHM)
             list(APPEND bpl_platform_sources ${MODULE_PATH}/board/system_ubus/bpl_board.cpp)
-        endif()
-
-            list(APPEND bpl_platform_sources ${bpl_cfg_uci_sources})
         endif()
 
         # UGW specific libraries
@@ -112,19 +100,6 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
           ${MODULE_PATH}/board/system_ubus/*.c*
           ${MODULE_PATH}/service_prioritization/tc/service_prio_utils_tc.cpp
         )
-
-        if(KEEP_UCI_GENERAL_OPTIONS) 
-            file(GLOB_RECURSE bpl_cfg_uci_sources
-                ${MODULE_PATH}/cfg/uci/*.c*
-            )
-
-            list(REMOVE_ITEM bpl_cfg_uci_sources
-                ${MODULE_PATH}/cfg/uci/bpl.cpp
-                ${MODULE_PATH}/cfg/uci/bpl_cfg_wifi.cpp
-            )
-
-            list(APPEND bpl_platform_sources ${bpl_cfg_uci_sources})
-        endif()
 
         find_package(ubus REQUIRED)
 
