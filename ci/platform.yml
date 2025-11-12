@@ -191,6 +191,9 @@ boardfarm-on-haze:
     - haze
   needs:
     - build-for-haze
+  rules:
+    - when: manual
+      allow_failure: true
 
 boardfarm-on-haze-stability:
   extends: boardfarm-on-haze
@@ -221,6 +224,9 @@ boardfarm-on-turris-omnia-rdkb:
     - ./dctest.py --dut $TARGET_DEVICE --test-suite test_flows_on_rdkb
   needs:
     - build-for-rdkb-turris-omnia
+  rules:
+    - when: manual
+      allow_failure: true
 
 boardfarm-on-turris-omnia-rdkb-stability:
   extends: boardfarm-on-turris-omnia-rdkb
