@@ -651,19 +651,6 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                    << " backhaul: " << bss_info_conf.backhaul
                    << " hidden_SSID: " << bss_info_conf.hidden_ssid;
 
-        // Skip update if no changes for FronthaulBSS/BackhaulBSS
-        std::string current_ssid, current_password, current_mode;
-        m_ambiorix_cl.get_param(current_ssid, wifi_ssid_path, "SSID");
-        m_ambiorix_cl.get_param(current_password, wifi_vap_path + "Security.", "KeyPassPhrase");
-        m_ambiorix_cl.get_param(current_mode, wifi_vap_path + "Security.", "ModeEnabled");
-        if (current_ssid == bss_info_conf.ssid && current_password == bss_info_conf.network_key &&
-            current_mode ==
-                wbapi_utils::security_mode_to_string(bss_info_conf.authentication_type)) {
-            LOG(DEBUG) << "No changes detected for " << ifname
-                       << ". Skipping update for VAP: " << wifi_vap_path;
-            continue; // Skip updating this VAP
-        }
-
         new_obj.set_type(AMXC_VAR_ID_HTABLE);
         new_obj.add_child("SSID", bss_info_conf.ssid);
         ret = m_ambiorix_cl.update_object(wifi_ssid_path, new_obj);
