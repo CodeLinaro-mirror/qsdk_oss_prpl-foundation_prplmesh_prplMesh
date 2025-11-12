@@ -9,11 +9,7 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-sh /etc/init.d/tr181-upnp stop || true
-rm -f /etc/rc.d/S*tr181-upnp
-
-sh /etc/init.d/obuspa stop || true
-rm -f /etc/rc.d/S*obuspa
+# Don't stop obuspa/upnp services, they are required for USP to work correctly
 
 # Stop the default ssh server on the lan-bridge
 sh /etc/init.d/ssh-server stop || true
@@ -22,9 +18,6 @@ rm -f /etc/rc.d/S*ssh-server
 # Stop and disable the firewall:
 sh /etc/init.d/tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
-
-# Disable restarting failing serivces by default
-sh /etc/init.d/amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 
@@ -41,12 +34,16 @@ ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" &
     ba-cli 'IP.Interface.wan.IPv4Address.+{Alias="primary", AddressingType="Static"}'
 }
 # Configure it:
-ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.170", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
+ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.150", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
 # Enable it:
 ba-cli IP.Interface.wan.IPv4Enable=1
 
 # Set the LAN bridge IP:
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.170"
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
+
+# Setting BackhaulWireIface, or persistence can fail (PPM-3339)
+/etc/init.d/prplmesh stop && sleep 2
+/etc/init.d/prplmesh start && sleep 2
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
@@ -55,25 +52,24 @@ if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR
 else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan4"
 fi
 
-# all pwhm default configuration can be found in /etc/amx/wld/wld_defaults.odl.uc
+# enable Wi-Fi radios
+ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Enable": "true" } }'
+ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Enable": "true" } }'
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
 # Enable when hostapd on this target supports it
-# ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
+ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
-# Make sure specific channels are configured. If channel is set to 0,
-# ACS will be configured. If ACS is configured hostapd will refuse to
-# switch channels when we ask it to. Channels 1 and 48 were chosen
-# because they are NOT used in the WFA certification tests (this
-# allows to verify that the device actually switches channel as part
-# of the test).
-# See also PPM-1928.
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Channel": "1" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Channel": "48" } }'
+# Configure Operating Standards
+ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g,n,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
+
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
@@ -81,8 +77,9 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwi
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
 # Commands to start a new SSH server on the control port
-start_ssh_commands="killall -9 dropbear
-dropbear -F -T 10 -p192.168.250.170:22 &"
+start_ssh_commands="iptables -P INPUT ACCEPT
+killall -9 dropbear
+dropbear -F -T 10 -p192.168.250.150:22 &"
 
 sleep 5
 
@@ -91,6 +88,6 @@ cp /etc/config/ssh_server/*_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 bootscript="/etc/rc.local"
-boot_cmd="sleep 20 && $start_ssh_commands"
+boot_cmd="sleep 60 && $start_ssh_commands"
 if ! grep -q "$boot_cmd" "$bootscript"; then { head -n -2 "$bootscript"; echo "$boot_cmd"; tail -2 "$bootscript"; } >> btscript.tmp; mv btscript.tmp "$bootscript"; fi
 set +e && eval "$start_ssh_commands"
