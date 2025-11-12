@@ -683,6 +683,8 @@ void LinkMetricsCollectionTask::handle_unassociated_sta_link_metrics_query(
         return;
     }
 
+    auto oper_class = unassociated_sta_link_metrics_query_tlv->operating_class_of_channel_list();
+
     for (size_t count = 0; count < unassociated_sta_link_metrics_query_tlv->channel_list_length();
          count++) {
         auto &one_channel_params =
@@ -691,7 +693,9 @@ void LinkMetricsCollectionTask::handle_unassociated_sta_link_metrics_query(
         auto channel = one_channel_params.channel_number();
         for (auto &radio : db->get_radios_list()) {
             //The telemtry does not contain any reference to the radio, thus the need to detect it using channel and operating_class
-            if (radio->channels_list.find(channel) != radio->channels_list.end()) {
+            if (radio->channels_list.find(channel) != radio->channels_list.end() &&
+                radio->wifi_channel.get_freq_type() ==
+                    son::wireless_utils::which_freq_op_cls(oper_class)) {
                 auto &map_stations_per_channel = map_stations_per_radio[radio->front.iface_mac];
                 if (map_stations_per_channel.find(channel) == map_stations_per_channel.end()) {
                     map_stations_per_channel.insert(std::make_pair(channel, std::list<sMacAddr>()));
