@@ -53,3 +53,6 @@ RUN apt-get update \
     wireshark-common \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Define an explicit Docker API version (see PPM-3644)
+ENV DOCKER_API_VERSION=1.40
