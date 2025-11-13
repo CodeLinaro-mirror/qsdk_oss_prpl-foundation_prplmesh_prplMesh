@@ -1001,9 +1001,19 @@ bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetri
             return false;
         }
 
-        std::string radio_id = "";
-        dev->read_child<>(radio_id, "BaseMACAddress");
-        rad_list->radio_id() = tlvf::mac_from_string(radio_id);
+        std::string radio_name;
+        if (!dev->read_child<>(radio_name, "Name")) {
+            LOG(ERROR) << "Failed to read Name from " << rad_details_path;
+            return false;
+        }
+
+        std::string radio_mac;
+        if (!beerocks::net::network_utils::linux_iface_get_mac(radio_name, radio_mac)) {
+            LOG(ERROR) << "Failed to get radio mac from ifname " << radio_name;
+            return false;
+        }
+
+        rad_list->radio_id() = tlvf::mac_from_string(radio_mac);
 
         //Temperature
         rad_details_path = dm_path + std::to_string(radio_index) + "." + stats_string;
