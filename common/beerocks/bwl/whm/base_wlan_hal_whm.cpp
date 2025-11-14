@@ -743,8 +743,44 @@ bool base_wlan_hal_whm::refresh_radio_info()
         //Wi-Fi 6 capabilities
         struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
             (struct beerocks::net::sWIFI6Capabilities *)(&m_radio_info.wifi6_capability);
+        wifi6_caps_ptr->spatial_reuse = 0;
 
-        if (radio->find_child_deep("IEEE80211ax.BssColor")) {
+        const std::string spatial_reuse_path = m_radio_path + "IEEE80211ax.";
+        bool spatial_reuse_supported         = false;
+        uint8_t tmp_bss_color                = 0;
+        bool tmp_bool                        = false;
+        std::string tmp_bitmap;
+
+        if (m_ambiorix_cl.get_param<>(tmp_bss_color, spatial_reuse_path, "BssColor")) {
+            spatial_reuse_supported = true;
+        }
+        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "BssColorPartial")) {
+            spatial_reuse_supported = true;
+        }
+        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "SRGInformationValid") &&
+            tmp_bool) {
+            spatial_reuse_supported = true;
+        }
+        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "NonSRGOffsetValid") &&
+            tmp_bool) {
+            spatial_reuse_supported = true;
+        }
+        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path, "SRGBSSColorBitmap") &&
+            !tmp_bitmap.empty()) {
+            spatial_reuse_supported = true;
+        }
+        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path, "SRGPartialBSSIDBitmap") &&
+            !tmp_bitmap.empty()) {
+            spatial_reuse_supported = true;
+        }
+        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path,
+                                      "NeighborBSSColorInUseBitmap") &&
+            !tmp_bitmap.empty()) {
+            spatial_reuse_supported = true;
+        }
+
+        if (spatial_reuse_supported) {
+            LOG(INFO) << "Spatial Reuse support is true";
             wifi6_caps_ptr->spatial_reuse = 1;
         }
 
