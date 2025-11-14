@@ -20,6 +20,7 @@
 #include <bcl/son/son_wireless_utils.h>
 #include <bpl/bpl_board.h>
 
+#include <tlvf/WSC/eWscVendorExtVapType.h>
 #include <tlvf/common/sMacAddr.h>
 #include <tlvf/ieee_1905_1/tlvReceiverLinkMetric.h>
 #include <tlvf/ieee_1905_1/tlvTransmitterLinkMetric.h>

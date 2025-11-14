@@ -468,6 +468,14 @@ public:
      **/
     static std::string vap_type_to_string(WSC::eWscVendorExtVapType type);
 
+    /*
+     * @brief Converts string to vap_type
+
+     * @param type - the string (e.g., "home", "guest").
+     * @return string - eWscVendorExtVapType enum 
+     **/
+    static WSC::eWscVendorExtVapType string_to_vap_type(const std::string &type);
+
     /**
      * @brief Get the vht central frequency object
      * 

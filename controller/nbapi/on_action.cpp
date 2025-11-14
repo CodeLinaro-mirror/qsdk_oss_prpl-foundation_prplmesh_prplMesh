@@ -279,6 +279,8 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
             amxd_object_t *access_point_inst = amxc_llist_it_get_data(it, amxd_object_t, it);
             son::wireless_utils::sBssInfoConf bss_info;
             bss_info.ssid = get_param_string(access_point_inst, "SSID");
+            bss_info.vap_type = wireless_utils::string_to_vap_type(
+                get_param_string(access_point_inst, "X_PRPLWARE_VapType"));
 
             bool access_point_enable = amxd_object_get_bool(access_point_inst, "Enable", NULL);
             std::string group_name   = get_param_string(access_point_inst, "X-PRPL_ORG_GroupName");

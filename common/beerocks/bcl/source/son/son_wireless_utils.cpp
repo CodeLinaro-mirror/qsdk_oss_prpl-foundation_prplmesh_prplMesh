@@ -1788,6 +1788,32 @@ std::string wireless_utils::vap_type_to_string(WSC::eWscVendorExtVapType type)
     }
 }
 
+WSC::eWscVendorExtVapType wireless_utils::string_to_vap_type(const std::string &type)
+{
+    if (type.empty()) {
+        LOG(WARNING) << "string_to_vap_type: type is empty, returning eWscVendorExtVapType::OTHER";
+        return WSC::eWscVendorExtVapType::OTHER;
+    }
+
+    if (type == "home") {
+        return WSC::eWscVendorExtVapType::HOME;
+    } else if (type == "guest") {
+        return WSC::eWscVendorExtVapType::GUEST;
+    } else if (type == "video") {
+        return WSC::eWscVendorExtVapType::VIDEO;
+    } else if (type == "backhaul") {
+        return WSC::eWscVendorExtVapType::BACKHAUL;
+    } else if (type == "hotspot") {
+        return WSC::eWscVendorExtVapType::HOTSPOT;
+    } else if (type == "staff") {
+        return WSC::eWscVendorExtVapType::STAFF;
+    } else if (type == "isolated") {
+        return WSC::eWscVendorExtVapType::ISOLATED;
+    } else /* if type == "other" */ {
+        return WSC::eWscVendorExtVapType::OTHER;
+    }
+}
+
 bool wireless_utils::is_channel_in_operating_class(uint8_t operating_class, uint8_t channel)
 {
     auto channel_set = operating_class_to_channel_set(operating_class);
