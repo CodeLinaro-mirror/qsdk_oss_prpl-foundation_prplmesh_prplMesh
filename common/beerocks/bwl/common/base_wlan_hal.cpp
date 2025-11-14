@@ -256,4 +256,25 @@ bool base_wlan_hal::is_filtered_event(const std::string &opcode)
     return m_filtered_events.find(opcode) != m_filtered_events.end();
 }
 
+void base_wlan_hal::apply_bitmask_to_csv(const std::string &in_csv, uint64_t bitmask,
+                                         std::string &out_csv)
+{
+    out_csv.clear();
+    auto discrete_elems = beerocks::string_utils::str_split(in_csv, ',');
+
+    LOG_IF((discrete_elems.size() > 64), DEBUG)
+        << "implicitly filtering elements outside of bitmask range";
+    // max uint64 is (1<<64) - 1; so cannot shift bitmask [>>] more than 63 times
+    auto max_i = std::min(int(discrete_elems.size()), 63);
+
+    for (auto i = 0; i < max_i; ++i) {
+        if ((bitmask >> i) & 1) {
+            if (!out_csv.empty()) {
+                out_csv += ",";
+            }
+            out_csv += discrete_elems[i];
+        }
+    }
+}
+
 } // namespace bwl
