@@ -16,6 +16,7 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 #include <tlvf/WSC/eWscVendorExt.h>
+#include <tlvf/WSC/eWscVendorExtVapType.h>
 
 #include <array>
 #include <deque>
@@ -298,6 +299,7 @@ public:
         bool backhaul                                     = false;
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
+        WSC::eWscVendorExtVapType vap_type                = WSC::eWscVendorExtVapType::OTHER;
         bool hidden_ssid                                  = false;
         std::string mld_id                                = "";
         bool bSTA                                         = false;
@@ -457,6 +459,15 @@ public:
     static std::string wsc_to_bwl_encryption(WSC::eWscEncr enctype);
     static beerocks::eBssType wsc_to_bwl_bss_type(WSC::eWscVendorExtSubelementBssType bss_type);
     static std::list<uint8_t> string_to_wsc_oper_class(const std::string &operating_class);
+
+    /*
+     * @brief Returns lower-case string representation of eWscVendorExtVapType enum (e.g., "home", "guest").
+
+     * @param type - the VapType enum
+     * @return string - lower-case representation of enum
+     **/
+    static std::string vap_type_to_string(WSC::eWscVendorExtVapType type);
+
     /**
      * @brief Get the vht central frequency object
      * 

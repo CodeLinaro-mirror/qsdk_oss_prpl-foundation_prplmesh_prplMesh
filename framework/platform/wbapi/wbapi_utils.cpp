@@ -180,6 +180,38 @@ WSC::eWscEncr wbapi_utils::encryption_type_from_string(const std::string &encryp
     return WSC::eWscEncr::WSC_ENCR_NONE;
 }
 
+WSC::eWscVendorExtVapType wbapi_utils::vap_type_from_custom_alias(const std::string &custom_alias)
+{
+    if (custom_alias.find("home") != std::string::npos)
+        return WSC::eWscVendorExtVapType::HOME;
+    else if (custom_alias.find("guest") != std::string::npos)
+        return WSC::eWscVendorExtVapType::GUEST;
+    else if (custom_alias.find("video") != std::string::npos)
+        return WSC::eWscVendorExtVapType::VIDEO;
+    else if (custom_alias.find("backhaul") != std::string::npos)
+        return WSC::eWscVendorExtVapType::BACKHAUL;
+    else if (custom_alias.find("hotspot") != std::string::npos)
+        return WSC::eWscVendorExtVapType::HOTSPOT;
+    else if (custom_alias.find("staff") != std::string::npos)
+        return WSC::eWscVendorExtVapType::STAFF;
+    else if (custom_alias.find("isolated") != std::string::npos)
+        return WSC::eWscVendorExtVapType::ISOLATED;
+    else
+        return WSC::eWscVendorExtVapType::OTHER;
+}
+
+std::string wbapi_utils::custom_alias_from_vap_type(WSC::eWscVendorExtVapType vap_type,
+                                                    const std::string &band)
+{
+    const std::string suffix = son::wireless_utils::vap_type_to_string(vap_type);
+
+    if (suffix.empty())
+        return "";
+
+    // Final form: "vap<band><suffix>" (e.g. "vap5ghome")
+    return "vap" + band + suffix;
+}
+
 int wbapi_utils::get_object_id(const std::string &object_path)
 {
     auto str = object_path;
@@ -247,6 +279,11 @@ std::string wbapi_utils::search_path_ssid_iface_by_bssid(const std::string &bssi
 std::string wbapi_utils::search_path_ssid_by_alias(const std::string &alias)
 {
     return search_path_ssid() + "[Alias == '" + alias + "'].";
+}
+
+std::string wbapi_utils::search_path_ssid_by_custom_alias(const std::string &custom_alias)
+{
+    return search_path_ssid() + "[CustomAlias == '" + custom_alias + "'].";
 }
 
 std::string wbapi_utils::search_path_ssid_by_ssid_and_radio(const std::string &ssid,

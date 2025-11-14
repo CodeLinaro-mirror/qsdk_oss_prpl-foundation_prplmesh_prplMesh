@@ -13,8 +13,10 @@
 #include <bcl/beerocks_defines.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
+
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
+#include <tlvf/WSC/eWscVendorExtVapType.h>
 
 namespace beerocks {
 namespace wbapi {
@@ -80,6 +82,32 @@ public:
      * @brief Converts a string-based encryption type to WSC::eWscEncr.
      */
     static WSC::eWscEncr encryption_type_from_string(const std::string &encryption_type);
+
+    /**
+     * @brief Convert custom_alias -> vap_type.
+     *
+     * Examples:
+     *   "vap5ghome", "vap24ghome", "vap6ghome" -> HOME
+     *
+     * @param custom_alias  Arbitrary alias string (e.g. "vap5ghome").
+     * @return WSC::eWscVendorExtVapType  Detected type or OTHER if no match.
+     */
+    static WSC::eWscVendorExtVapType vap_type_from_custom_alias(const std::string &custom_alias);
+
+    /**
+     * @brief Convert vap_type -> custom_alias in the form "vap<band><suffix>".
+     * 
+     * Examples:
+     *   (HOME, "5g")  -> "vap5ghome"
+     *   (GUEST, "24g")  -> "vap24gguest"
+     *   (VIDEO, "6g") -> "vap6gvideo"
+     *
+     * @param vap_type  VAP type to encode.
+     * @param band     Band identifier ("24g"/"5g"/"6g").
+     * @return std::string  Alias like "vap5ghome".
+     */
+    static std::string custom_alias_from_vap_type(WSC::eWscVendorExtVapType vap_type,
+                                                  const std::string &band);
 
     /**
      * @brief get amxc var object id from the object path.
@@ -163,6 +191,11 @@ public:
      * @brief return search path of SSID object instance by Alias
     */
     static std::string search_path_ssid_by_alias(const std::string &alias);
+
+    /**
+     * @brief return search path of SSID object instance by CustomAlias
+    */
+    static std::string search_path_ssid_by_custom_alias(const std::string &custom_alias);
 
     /**
      * @brief return search path of SSID object instance by SSID.

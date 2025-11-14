@@ -477,15 +477,15 @@ bool ap_wlan_hal_whm::update_vap_credentials(
 {
     LOG(DEBUG) << "updating vap credentials of radio " << get_iface_name()
                << " and bridge=" << bridge_ifname;
-    bool ret;
+    bool ret          = false;
     int new_vap_index = m_radio_info.available_vaps.size();
 
-    for (auto bss_info_conf : bss_info_conf_list) {
+    for (const auto &bss_info_conf : bss_info_conf_list) {
         std::string wifi_vap_path, wifi_ssid_path;
         std::string ifname = "new_interface";
 
-        auto bssid = tlvf::mac_to_string(bss_info_conf.bssid);
-        int vap_id = get_vap_id_with_mac(bssid);
+        const auto bssid = tlvf::mac_to_string(bss_info_conf.bssid);
+        int vap_id       = get_vap_id_with_mac(bssid);
 
         if (!check_vap_id(vap_id) || (bssid == beerocks::net::network_utils::WILD_MAC_STRING)) {
             LOG(DEBUG) << "create new vap for wildcard bssid";

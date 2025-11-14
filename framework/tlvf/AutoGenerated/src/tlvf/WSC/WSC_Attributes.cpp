@@ -391,6 +391,7 @@ bool cEncryptedSettingsPayload::alloc_ssid(size_t count) {
     m_hidden_ssid = (uint8_t *)((uint8_t *)(m_hidden_ssid) + len);
     m_bss_index = (int8_t *)((uint8_t *)(m_bss_index) + len);
     m_additional_auth = (uint8_t *)((uint8_t *)(m_additional_auth) + len);
+    m_vap_type = (eWscVendorExtVapType *)((uint8_t *)(m_vap_type) + len);
     m_ssid_idx__ += count;
     *m_ssid_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -480,6 +481,7 @@ bool cEncryptedSettingsPayload::alloc_network_key(size_t count) {
     m_hidden_ssid = (uint8_t *)((uint8_t *)(m_hidden_ssid) + len);
     m_bss_index = (int8_t *)((uint8_t *)(m_bss_index) + len);
     m_additional_auth = (uint8_t *)((uint8_t *)(m_additional_auth) + len);
+    m_vap_type = (eWscVendorExtVapType *)((uint8_t *)(m_vap_type) + len);
     m_network_key_idx__ += count;
     *m_network_key_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -511,6 +513,10 @@ int8_t& cEncryptedSettingsPayload::bss_index() {
 
 uint8_t& cEncryptedSettingsPayload::additional_auth() {
     return (uint8_t&)(*m_additional_auth);
+}
+
+eWscVendorExtVapType& cEncryptedSettingsPayload::vap_type() {
+    return (eWscVendorExtVapType&)(*m_vap_type);
 }
 
 void cEncryptedSettingsPayload::class_swap()
@@ -566,6 +572,7 @@ size_t cEncryptedSettingsPayload::get_initial_size()
     class_size += sizeof(uint8_t); // hidden_ssid
     class_size += sizeof(int8_t); // bss_index
     class_size += sizeof(uint8_t); // additional_auth
+    class_size += sizeof(eWscVendorExtVapType); // vap_type
     return class_size;
 }
 
@@ -661,6 +668,12 @@ bool cEncryptedSettingsPayload::init()
     if (!m_parse__) *m_additional_auth = 0x0;
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_vap_type = reinterpret_cast<eWscVendorExtVapType*>(m_buff_ptr__);
+    if (!m_parse__) *m_vap_type = eWscVendorExtVapType::OTHER;
+    if (!buffPtrIncrementSafe(sizeof(eWscVendorExtVapType))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eWscVendorExtVapType) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

@@ -1764,6 +1764,30 @@ std::list<uint8_t> wireless_utils::string_to_wsc_oper_class(const std::string &o
     return {};
 }
 
+std::string wireless_utils::vap_type_to_string(WSC::eWscVendorExtVapType type)
+{
+    switch (type) {
+    case WSC::eWscVendorExtVapType::HOME:
+        return "home";
+    case WSC::eWscVendorExtVapType::GUEST:
+        return "guest";
+    case WSC::eWscVendorExtVapType::VIDEO:
+        return "video";
+    case WSC::eWscVendorExtVapType::BACKHAUL:
+        return "backhaul";
+    case WSC::eWscVendorExtVapType::HOTSPOT:
+        return "hotspot";
+    case WSC::eWscVendorExtVapType::STAFF:
+        return "staff";
+    case WSC::eWscVendorExtVapType::ISOLATED:
+        return "isolated";
+    case WSC::eWscVendorExtVapType::OTHER:
+    default:
+        LOG(WARNING) << "vap_type_to_string: VapType is OTHER or UNKNOWN, returning empty string";
+        return "";
+    }
+}
+
 bool wireless_utils::is_channel_in_operating_class(uint8_t operating_class, uint8_t channel)
 {
     auto channel_set = operating_class_to_channel_set(operating_class);

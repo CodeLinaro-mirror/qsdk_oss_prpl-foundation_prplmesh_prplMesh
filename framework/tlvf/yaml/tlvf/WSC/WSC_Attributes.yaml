@@ -17,6 +17,7 @@ _include: {
   tlvf/WSC/eWscAssoc.h,
   tlvf/WSC/eWscValues16.h,
   tlvf/WSC/eWscState.h,
+  tlvf/WSC/eWscVendorExtVapType.h,
 }
 _namespace: WSC
 
@@ -156,6 +157,9 @@ cEncryptedSettingsPayload:
   additional_auth:
     _type: uint8_t
     _value: 0
+  vap_type:
+    _type: eWscVendorExtVapType
+    _value: eWscVendorExtVapType::OTHER
 
 cWscAttrEncryptedSettings:
   _type: class
