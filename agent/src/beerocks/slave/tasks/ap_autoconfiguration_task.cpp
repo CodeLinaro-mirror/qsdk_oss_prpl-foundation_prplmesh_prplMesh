@@ -9,7 +9,6 @@
 #include "ap_autoconfiguration_task.h"
 #include "link_metrics_collection_task.h"
 
-#include "../agent_db.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
 #include "../traffic_separation.h"
@@ -110,8 +109,6 @@ bool is_valid_op_std(const std::string &radio_iface,
 
 static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS = 3;
 #define HANDLE_THIRD_PARTY_ENABLE "1"
-#define VENDOR_HIDE_SSID 0x80
-#define VENDOR_BSS_CFG 0x02
 #define VENDOR_RADIO_CFG 0x05
 
 #define FSM_MOVE_STATE(radio_iface, new_state)                                                     \
@@ -1316,7 +1313,7 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
     }
 
     if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
-        validate_reconfiguration(radio->front.iface_name, bss_infos);
+        handle_bss_reconfiguration(radio->front.iface_name, bss_infos);
         if (!bss_infos.empty()) {
             // Get new credentials
             std::vector<WSC::EncryptedSettingsPayload::config> new_credentials;
@@ -1740,17 +1737,26 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             LOG(ERROR) << "Invalid Encrypted Settings, skip it";
             return false;
         }
+
+        // --- M2 Vendor Extension Attributes ---
+        info.m2_config.vap_type = m2.vap_type();
+        if (info.m2_config.vap_type == WSC::eWscVendorExtVapType::OTHER) {
+            LOG(TRACE) << "VAP type not found or not set in Vendor Extension";
+        }
+
+        // hidden_ssid is false if Vendor Extension is not found
+        info.m2_config.hidden_ssid = m2.hidden_ssid();
+
+        // EM_AP_CONTROLLER specific Vendor Extension Attributes
         if (db->em_ap_controller_found) {
             LOG(DEBUG) << "EM+ controller is found. Check for Hidden SSID parameters";
-
-            // hidden_ssid is false if Vendor Extension is not found
-            info.m2_config.hidden_ssid = m2.hidden_ssid();
 
             if (!airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
                     radio->front.iface_name, m2)) {
                 LOG(INFO) << "Radio Operational Mode Config not found in Vendor Extension";
             }
         }
+        // --- End of Vendor Extension Attributes ---
 
         bool bSTA =
             bool(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA);
@@ -1775,6 +1781,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         ss << "bBSS: " << bBSS << std::endl;
         ss << "teardown: " << teardown << std::endl;
         ss << "hidden_ssid " << info.m2_config.hidden_ssid << std::endl;
+        ss << "vap_type " << info.m2_config.vap_type << std::endl;
         if (bBSS) {
             ss << "profile1_backhaul_sta_association_disallowed: " << bBSS_p1_disallowed;
             ss << "profile2_backhaul_sta_association_disallowed: " << bBSS_p2_disallowed;
@@ -2687,8 +2694,117 @@ bool ApAutoConfigurationTask::send_error_response_message(
     return true;
 }
 
-bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_iface,
-                                                       std::vector<sBssConfig> &infos)
+bool ApAutoConfigurationTask::is_bss_config_matching(
+    const beerocks::AgentDB::sRadio::sFront::sBssid &current_bss_config,
+    const sBssConfig &incoming_bss_config) const
+{
+    // TODO: bss_index matching (PPM-3625)
+
+    const bool is_vap_type_applicable =
+        (current_bss_config.vap_type != WSC::eWscVendorExtVapType::OTHER) &&
+        (incoming_bss_config.m2_config.vap_type != WSC::eWscVendorExtVapType::OTHER);
+
+    // Match condition (any of):
+    // - vap_types are same, except for both being OTHER
+    const bool vap_type_matches =
+        is_vap_type_applicable &&
+        (current_bss_config.vap_type == incoming_bss_config.m2_config.vap_type);
+
+    return vap_type_matches;
+}
+
+bool ApAutoConfigurationTask::is_bss_config_similar(
+    const AgentDB::sRadio::sFront::sBssid &current_bss_config,
+    const sBssConfig &incoming_bss_config) const
+{
+    // TODO: Need to expand the comparison to create a stricter match (PPM-2296)
+
+    constexpr int minimal_similarity = 1;
+    int matching_fields              = 0;
+
+    const auto bss_type = incoming_bss_config.payload_config.bss_type;
+
+    // SSID
+    if (current_bss_config.ssid == incoming_bss_config.payload_config.ssid) {
+        ++matching_fields;
+    }
+
+    // BSS Type
+    const bool is_teardown =
+        static_cast<bool>(bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN);
+    const bool is_backhaul_bss =
+        static_cast<bool>(bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS);
+    const bool is_fronthaul_bss =
+        static_cast<bool>(bss_type & WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS);
+
+    if (current_bss_config.active && !is_teardown) {
+        ++matching_fields;
+    }
+    if (current_bss_config.backhaul_bss && is_backhaul_bss) {
+        ++matching_fields;
+    }
+    if (current_bss_config.fronthaul_bss && is_fronthaul_bss) {
+        ++matching_fields;
+    }
+    if (current_bss_config.hidden_ssid &&
+        static_cast<bool>(incoming_bss_config.m2_config.hidden_ssid)) {
+        ++matching_fields;
+    }
+
+    return matching_fields >= minimal_similarity;
+}
+
+bool ApAutoConfigurationTask::is_bss_reconfiguration_required(
+    const AgentDB::sRadio::sFront::sBssid &current_bss_config,
+    const sBssConfig &incoming_bss_config) const
+{
+    // TODO: Need to read the incoming config and compare it to the existing bss (PPM-2296)
+
+    const auto &payload   = incoming_bss_config.payload_config;
+    const auto &m2_config = incoming_bss_config.m2_config;
+
+    // SSID
+    if (current_bss_config.ssid != payload.ssid) {
+        LOG(DEBUG) << "SSID needs reconfiguration: " << current_bss_config.ssid
+                   << " != " << payload.ssid;
+        return true;
+    }
+
+    const auto bss_type = payload.bss_type;
+
+    // BSS Type
+    const bool is_teardown =
+        static_cast<bool>(bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN);
+    const bool is_backhaul_bss =
+        static_cast<bool>(bss_type & WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS);
+    const bool is_fronthaul_bss =
+        static_cast<bool>(bss_type & WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS);
+
+    if (current_bss_config.active && is_teardown) {
+        LOG(DEBUG) << "BSS type needs reconfiguration: bss.active: " << current_bss_config.active
+                   << " bss_type: " << bss_type;
+        return true;
+    }
+    if (current_bss_config.backhaul_bss && !is_backhaul_bss) {
+        LOG(DEBUG) << "BSS type needs reconfiguration: bss.backhaul_bss: "
+                   << current_bss_config.backhaul_bss << " bss_type: " << bss_type;
+        return true;
+    }
+    if (current_bss_config.fronthaul_bss && !is_fronthaul_bss) {
+        LOG(DEBUG) << "BSS type needs reconfiguration: bss.fronthaul_bss: "
+                   << current_bss_config.fronthaul_bss << " bss_type: " << bss_type;
+        return true;
+    }
+    if (current_bss_config.hidden_ssid && !static_cast<bool>(m2_config.hidden_ssid)) {
+        return true;
+    }
+
+    // Structures match, no need for reconfiguration
+    return false;
+}
+
+bool ApAutoConfigurationTask::handle_bss_reconfiguration(
+    const std::string &radio_iface, std::vector<sBssConfig> &incoming_bss_configs)
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
@@ -2696,217 +2812,144 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
         LOG(ERROR) << "Radio not found " << radio_iface;
         return false;
     }
-    std::stringstream config_prints;
-    config_prints << "-- Current BSS config data:" << std::endl;
-    for (const auto &bssid : radio->front.bssids) {
-        if (!bssid.active) {
+
+    // BSS configs of current AP that are on the device
+    const auto &current_bss_configs = radio->front.bssids;
+
+    // Helper containers to handle new configuration and store final list
+    auto remaining_incoming_bss_configs = incoming_bss_configs;
+    std::vector<sBssConfig> final_incoming_bss_configs;
+    final_incoming_bss_configs.reserve(current_bss_configs.size());
+
+    // Iterate over existing configuration.
+    for (const auto &current_bss_config : current_bss_configs) {
+        if (!current_bss_config.active) {
             continue;
         }
-        config_prints << " bssid: " << bssid.mac << ", ssid: " << bssid.ssid
-                      << ", fBSS: " << bssid.fronthaul_bss << ", bBSS: " << bssid.backhaul_bss
-                      << (bssid.active ? ", is active." : ", isn't active.") << std::endl;
+
+        // Prefer matching by vap_type (vap_type should be non-OTHER for both sides)
+        auto it = std::find_if(
+            remaining_incoming_bss_configs.begin(), remaining_incoming_bss_configs.end(),
+            [this, &current_bss_config](const sBssConfig &incoming_bss_config) {
+                return is_bss_config_matching(current_bss_config, incoming_bss_config);
+            });
+
+        // Legacy matching logic (fallback): similarity-based matching
+        if (it == remaining_incoming_bss_configs.end()) {
+            it = std::find_if(
+                remaining_incoming_bss_configs.begin(), remaining_incoming_bss_configs.end(),
+                [this, &current_bss_config](const sBssConfig &incoming_bss_config) {
+                    return is_bss_config_similar(current_bss_config, incoming_bss_config);
+                });
+        }
+
+        if (it != remaining_incoming_bss_configs.end()) {
+            // Found a configuration that is matching or simmilar to current bssid
+            if (is_bss_reconfiguration_required(current_bss_config, *it)) {
+                LOG(DEBUG) << "BSS " << current_bss_config.mac << " needs reconfiguration.";
+
+                // Set the BSSID of the BSS since the controller does not send this information
+                it->payload_config.bssid = current_bss_config.mac;
+
+                // Set the VAP type since vap type of the BSS is deduced from local CustomAlias
+                // (this logic important if we match by similarity)
+                it->m2_config.vap_type = current_bss_config.vap_type;
+
+                // Move BSS Config to "final" list
+                final_incoming_bss_configs.emplace_back(std::move(*it));
+                remaining_incoming_bss_configs.erase(it);
+            } else {
+                LOG(DEBUG) << "BSS " << current_bss_config.mac << " does not need reconfiguration.";
+            }
+        } else {
+            // Did not find vap in incoming configuration, need to teardown not configured vap
+            sBssConfig vap_to_teardown;
+            vap_to_teardown.payload_config.bssid    = current_bss_config.mac;
+            vap_to_teardown.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+            final_incoming_bss_configs.emplace_back(std::move(vap_to_teardown));
+        }
+    }
+
+    // -------- Deliberate reuse of existing VAPs ---------
+    // Any BSS that is flagged for teardown in the final configuration will instead
+    // be updated with the new incoming configuration
+    for (auto &remaining_bss : remaining_incoming_bss_configs) {
+        // Find if there are any BSSs that are pending for teardown
+        auto it = std::find_if(final_incoming_bss_configs.begin(), final_incoming_bss_configs.end(),
+                               [](const sBssConfig &cfg) {
+                                   return (cfg.payload_config.bss_type &
+                                           WSC::eWscVendorExtSubelementBssType::TEARDOWN) != 0;
+                               });
+
+        if (it != final_incoming_bss_configs.end()) {
+            // Override BSSs parameters
+            it->payload_config.ssid        = remaining_bss.payload_config.ssid;
+            it->payload_config.auth_type   = remaining_bss.payload_config.auth_type;
+            it->payload_config.encr_type   = remaining_bss.payload_config.encr_type;
+            it->payload_config.network_key = remaining_bss.payload_config.network_key;
+            it->payload_config.bss_type    = remaining_bss.payload_config.bss_type;
+            it->m2_config.hidden_ssid      = remaining_bss.m2_config.hidden_ssid;
+            it->m2_config.vap_type         = remaining_bss.m2_config.vap_type;
+            LOG(DEBUG) << "BSS " << it->payload_config.bssid
+                       << " will be reconfigured as SSID=" << remaining_bss.payload_config.ssid
+                       << " instead of being torn down.";
+        } else if (final_incoming_bss_configs.size() < radio->front.radio_max_bss) {
+            // use WILD_MAC as a trigger to create new VAP
+            tlvf::mac_from_string(remaining_bss.payload_config.bssid.oct,
+                                  network_utils::WILD_MAC_STRING);
+            final_incoming_bss_configs.emplace_back(std::move(remaining_bss));
+            LOG(DEBUG) << "SSID " << remaining_bss.payload_config.ssid
+                       << " will be used to create new VAP";
+        } else {
+            LOG(ERROR) << "Maximum number of VAPs reached. Can't create new VAP for SSID="
+                       << remaining_bss.payload_config.ssid;
+        }
+    }
+
+    // ------------------ LOG BSS CONFIGS ------------------
+    std::stringstream config_prints;
+
+    // Helper: log sBssConfig
+    const auto append_bss_config = [&config_prints](const sBssConfig &cfg) {
+        const auto &payload   = cfg.payload_config;
+        const auto &m2_config = cfg.m2_config;
+        config_prints << " bssid: " << payload.bssid << ", ssid: " << payload.ssid
+                      << ", network_key: " << payload.network_key
+                      << ", authentication_type: " << std::hex << int(payload.auth_type)
+                      << ", encryption_type: " << std::hex << int(payload.encr_type)
+                      << ", bss_type: " << std::hex << int(payload.bss_type) << std::endl;
+        config_prints << ", Hidden SSID: " << m2_config.hidden_ssid << ", bss_type: " << std::hex
+                      << int(payload.bss_type) << ", vap_type: " << m2_config.vap_type << std::endl;
+    };
+
+    config_prints << "-- Current BSS config data:" << std::endl;
+    for (const auto &cfg : current_bss_configs) {
+        if (!cfg.active)
+            continue;
+        config_prints << " bssid: " << cfg.mac << ", ssid: " << cfg.ssid
+                      << ", fBSS: " << cfg.fronthaul_bss << ", bBSS: " << cfg.backhaul_bss
+                      << (cfg.active ? ", is active." : ", isn't active.")
+                      << ", vap_type: " << cfg.vap_type << std::endl;
     }
 
     config_prints << "-- Incoming BSS config data:" << std::endl;
-    for (const auto &info : infos) {
-        config_prints << " bssid: " << info.payload_config.bssid
-                      << ", ssid: " << info.payload_config.ssid
-                      << ", network_key: " << info.payload_config.network_key
-                      << ", authentication_type: " << std::hex << int(info.payload_config.auth_type)
-                      << ", encryption_type: " << std::hex << int(info.payload_config.encr_type)
-                      << ", bss_type: " << std::hex << int(info.payload_config.bss_type)
-                      << std::endl;
-    }
-    config_prints << "--" << std::endl;
-
-    // Using a nested lambda to return a predicate function.
-    // The named lambda "find_by_similarity" receives a AgentDB BSS element.
-    // The anonymous returning predicate lambda, finds a "matching" WSC config element.
-    const auto find_by_similarity = [&db](const AgentDB::sRadio::sFront::sBssid &bss) {
-        return [&db, &bss](const sBssConfig &info) {
-            // Check if config's BSSID is valid
-            if (info.payload_config.bssid != db->bridge.mac) {
-                // Config BSSID is valid, can check BSSID only.
-                return (info.payload_config.bssid == bss.mac);
-            }
-            // Need to expand the comparison to create a stricter match
-            // TODO: PPM-2296
-            // The issue here is that the Agent DB's sBssid does not contain the following
-            //  - Authentication type
-            //  - Encryption type
-            //  - Network Key
-            // For now validate against the values we do have.
-            constexpr int minimal_similarity = 1;
-            int matching_fields              = 0;
-
-            // SSID
-            if (bss.ssid == info.payload_config.ssid) {
-                matching_fields++;
-            }
-
-            // BSS Type
-            if (bss.active && !bool(info.payload_config.bss_type &
-                                    WSC::eWscVendorExtSubelementBssType::TEARDOWN)) {
-                matching_fields++;
-            }
-            if (bss.backhaul_bss && bool(info.payload_config.bss_type &
-                                         WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS)) {
-                matching_fields++;
-            }
-            if (bss.fronthaul_bss && bool(info.payload_config.bss_type &
-                                          WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS)) {
-                matching_fields++;
-            }
-            if (bss.hidden_ssid && bool(info.m2_config.hidden_ssid)) {
-                matching_fields++;
-            }
-
-            return (matching_fields >= minimal_similarity);
-        };
-    };
-    const auto bss_needs_reconfiguration = [](const sBssConfig &info,
-                                              const AgentDB::sRadio::sFront::sBssid &bss) {
-        // Need to read compare the incoming config (WSC::EncryptedSettingsPayload::config)
-        // and compare it to the existing bss (AgentDB::sRadio::sFront::sBssid)
-        // TODO: PPM-2296
-        // The issue here is that the Agent DB's sBssid does not contain the following
-        //  - Authentication type
-        //  - Encryption type
-        //  - Network Key
-        // For now validate against the values we do have.
-
-        // SSID
-        if (bss.ssid != info.payload_config.ssid) {
-            LOG(DEBUG) << "SSID needs reconfiguration: " << bss.ssid
-                       << " != " << info.payload_config.ssid;
-            return true;
-        }
-
-        // BSS Type
-        if (bss.active &&
-            bool(info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN)) {
-            LOG(DEBUG) << "BSS type needs reconfiguration: bss.active: " << bss.active
-                       << " bss_type: " << info.payload_config.bss_type;
-            return true;
-        }
-        if (bss.backhaul_bss && !bool(info.payload_config.bss_type &
-                                      WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS)) {
-            LOG(DEBUG) << "BSS type needs reconfiguration: bss.backhaul_bss: " << bss.backhaul_bss
-                       << " bss_type: " << info.payload_config.bss_type;
-            return true;
-        }
-        if (bss.fronthaul_bss && !bool(info.payload_config.bss_type &
-                                       WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS)) {
-            LOG(DEBUG) << "BSS type needs reconfiguration: bss.fronthaul_bss: " << bss.fronthaul_bss
-                       << " bss_type: " << info.payload_config.bss_type;
-            return true;
-        }
-        if (bss.hidden_ssid && !bool(info.m2_config.hidden_ssid)) {
-            return true;
-        }
-
-        // Structures match
-        return true;
-    };
-
-    const auto bss_pending_teardown = [](const sBssConfig &info) {
-        return ((info.payload_config.bss_type & WSC::eWscVendorExtSubelementBssType::TEARDOWN) !=
-                0);
-    };
-
-    const auto &bssids = radio->front.bssids;
-    // Create a copy of the existing configuration.
-    // Create a container for the final configuration.
-
-    // We create these two containers, so we could remove and insert into the configuration
-    std::vector<sBssConfig> infos_copy = infos;
-    std::vector<sBssConfig> final_infos;
-
-    // Iterate over existing configuration.
-    for (const auto &bssid : bssids) {
-        if (!bssid.active) {
-            continue;
-        }
-        auto iter = std::find_if(infos_copy.begin(), infos_copy.end(), find_by_similarity(bssid));
-        if (iter != infos_copy.end()) {
-            // Found a configuration that is similar to current bssid
-            if (bss_needs_reconfiguration(*iter, bssid)) {
-
-                // BSS needs reconfiguration
-                LOG(DEBUG) << "BSS " << bssid.mac << " needs reconfiguration.";
-
-                // Set the BSSID of the BSS since the controller does not send this information.
-                iter->payload_config.bssid = bssid.mac;
-
-                // Add to the final configuration.
-                final_infos.emplace_back(std::move(*iter));
-
-                // Remove from incoming configuration so we would not match with it again by mistake.
-                infos_copy.erase(iter);
-            } else {
-                LOG(DEBUG) << "BSS " << bssid.mac << " does not need reconfiguration.";
-            }
-        } else {
-            // Did not find vap in configuration, need to teardown
-            sBssConfig vap_to_teardown;
-            vap_to_teardown.payload_config.bssid    = bssid.mac;
-            vap_to_teardown.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
-            final_infos.emplace_back(std::move(vap_to_teardown));
-        }
-    }
-
-    // Now that all the existing BSSs were updated, we need to iterate over the remaining incoming configuration.
-    // Any BSS that is flagged for teardown in the final configuration will instead be updated with the incoming configuration.
-
-    for (auto &remaining_bss : infos_copy) {
-        // Find if there are any BSSs that are pending for teardown
-        auto iter = std::find_if(final_infos.begin(), final_infos.end(), bss_pending_teardown);
-        if (iter != final_infos.end()) {
-            // Override BSSs parameters
-            LOG(DEBUG) << "BSS " << iter->payload_config.bssid
-                       << " will be reconfigured instead of being torn down.";
-            iter->payload_config.ssid        = remaining_bss.payload_config.ssid;
-            iter->payload_config.auth_type   = remaining_bss.payload_config.auth_type;
-            iter->payload_config.encr_type   = remaining_bss.payload_config.encr_type;
-            iter->payload_config.network_key = remaining_bss.payload_config.network_key;
-            iter->payload_config.bss_type    = remaining_bss.payload_config.bss_type;
-            iter->m2_config.hidden_ssid      = remaining_bss.m2_config.hidden_ssid;
-
-        } else if (final_infos.size() < radio->front.radio_max_bss) {
-            LOG(DEBUG) << "SSID " << remaining_bss.payload_config.ssid
-                       << " will be marked for a new instance of AccessPoint";
-            // use wildcard mac for 'new' vaps
-            tlvf::mac_from_string(remaining_bss.payload_config.bssid.oct,
-                                  network_utils::WILD_MAC_STRING);
-
-            final_infos.emplace_back(std::move(remaining_bss));
-        } else {
-            LOG(ERROR) << "Cannot add more VAPs then what are currently configured";
-        }
+    for (const auto &cfg : incoming_bss_configs) {
+        append_bss_config(cfg);
     }
 
     config_prints << "-- New BSS config data:" << std::endl;
-    for (const auto &info : final_infos) {
-        config_prints << " bssid: " << info.payload_config.bssid
-                      << ", ssid: " << info.payload_config.ssid
-                      << ", network_key: " << info.payload_config.network_key
-                      << ", authentication_type: " << std::hex << int(info.payload_config.auth_type)
-                      << ", encryption_type: " << std::hex << int(info.payload_config.encr_type)
-                      << ", bss_type: " << std::hex << int(info.payload_config.bss_type)
-                      << std::endl
-                      << ", Hidden SSID: " << info.m2_config.hidden_ssid
-                      << ", bss_type: " << std::hex << int(info.payload_config.bss_type)
-                      << std::endl;
+    for (const auto &cfg : final_incoming_bss_configs) {
+        append_bss_config(cfg);
     }
 
-    // Set final configuration.
-    infos = final_infos;
+    LOG(INFO) << "LOG BSS CONFIGS: " << std::endl
+              << std::endl
+              << config_prints.str() << std::endl
+              << std::endl;
+    // ------------------ END LOGGING ------------------
 
-    // This log is very large and spamming, can be used for debugging purposes if needed.
-    // LOG(INFO) << "Config Prints: " << std::endl
-    //           << std::endl
-    //           << config_prints.str() << std::endl
-    //           << std::endl;
+    // Move final configuration.
+    incoming_bss_configs = std::move(final_incoming_bss_configs);
     return true;
 }
 
@@ -2963,6 +3006,7 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
         c->bss_index()                     = info.m2_config.bss_index;
         c->additional_auth() =
             static_cast<son::wireless_utils::eAdditionalAuth>(info.additional_auth);
+        c->vap_type() = info.m2_config.vap_type;
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

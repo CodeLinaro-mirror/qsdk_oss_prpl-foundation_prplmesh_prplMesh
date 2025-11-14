@@ -9,8 +9,9 @@
 #ifndef _AP_AUTOCONFIGURATION_TASK_H_
 #define _AP_AUTOCONFIGURATION_TASK_H_
 
-#include "../traffic_separation.h"
+#include "agent_db.h"
 #include "task.h"
+#include "traffic_separation.h"
 
 #include <mapf/common/encryption.h>
 #include <tlvf/CmduMessageTx.h>
@@ -271,7 +272,59 @@ private:
 
     bool send_enable_disable_endpoint(const sMacAddr &radio_mac, const bool enable);
 
-    bool validate_reconfiguration(const std::string &radio_iface, std::vector<sBssConfig> &infos);
+    /**
+     * @brief Check if existing BSS and incoming BSS config match.
+     *
+     * @param current_bss_config  Existing BSS configuration from AgentDB.
+     * @param incoming_bss_config Incoming BSS configuration parsed from M2.
+     * @return true  if configs match
+     * @return false if configs do not match
+     */
+    bool is_bss_config_matching(const beerocks::AgentDB::sRadio::sFront::sBssid &current_bss_config,
+                                const sBssConfig &incoming_bss_config) const;
+
+    /**
+     * @brief Check if an incoming BSS configuration is similar to an existing
+     *        BSS entry in the Agent DB.
+     *
+     * @param[in] current_bss_config Existing BSS entry from the Agent DB.
+     * @param[in] incoming_bss_config Incoming WSC configuration for a BSS.
+     *
+     * @return true if the configuration is considered similar enough to match
+     *         the given BSS entry.
+     */
+    bool is_bss_config_similar(const AgentDB::sRadio::sFront::sBssid &current_bss_config,
+                               const sBssConfig &incoming_bss_config) const;
+
+    /**
+     * @brief Decide whether an existing BSS needs reconfiguration.
+     *
+     * @param[in] current_bss_config Existing BSS entry from the Agent DB.
+     * @param[in] incoming_bss_config Incoming WSC configuration for a BSS.
+     *
+     * @return true if the existing BSS should be reconfigured according to the
+     *         incoming configuration.
+     */
+    bool is_bss_reconfiguration_required(const AgentDB::sRadio::sFront::sBssid &current_bss_config,
+                                         const sBssConfig &incoming_bss_config) const;
+
+    /**
+     * @brief Validate and normalize incoming BSS configuration for a given radio.
+     * 
+     * "Normalization" means:
+     * - For matched BSS needing reconfig, overwrite incoming bssid with current BSSID MAC 
+     * as Controller does send ruid instead.
+     * - For no match BSS, create teardown config copying current BSSID and setting TEARDOWN bss_type.
+     * - If possible reuse TEARDOWN BSS for remaining BSSs that was requested to create.
+     * - Replace remaining config BSSID with WILD_MAC_STRING as a trigger to create VAP.
+     *
+     * @param[in]  radio_iface Name of the radio interface to validate against.
+     * @param[in,out] infos    Incoming BSS configuration; on success replaced
+     *                         with the final, normalized configuration.
+     *
+     * @return true on successful validation, false if the radio cannot be found.
+     */
+    bool handle_bss_reconfiguration(const std::string &radio_iface, std::vector<sBssConfig> &infos);
 
     bool send_ap_bss_info_update_request(const std::string &radio_iface);
 
@@ -344,6 +397,7 @@ private:
     bool
     airties_vs_ap_autoconfiguration_wsc_parse_service_status(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                              const std::string &radio_iface);
+
     /**
      * @brief Parse the vendor extension from m2 for Radio Operational Mode
      *
