@@ -224,6 +224,7 @@ if (BUILD_TESTS)
         ${bwl_platform_sources} 
         ${MODULE_PATH}/unit_tests/action_frame_parsing_test.cpp
         ${MODULE_PATH}/unit_tests/assoc_frame_body_extract_test.cpp
+        ${MODULE_PATH}/unit_tests/csv_bitmask_filtering.cpp
     )
     if(NOT BWL_TYPE STREQUAL "WHM")
         list(APPEND unit_tests_sources
