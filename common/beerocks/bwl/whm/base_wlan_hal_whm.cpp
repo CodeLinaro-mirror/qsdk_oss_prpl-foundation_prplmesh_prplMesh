@@ -744,7 +744,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
         struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
             (struct beerocks::net::sWIFI6Capabilities *)(&m_radio_info.wifi6_capability);
 
-        if (radio->find_child_deep("IEEE80211ax.BssColor")) {
+        if (radio->read_child(s_val, "IEEE80211ax.BssColor")) {
             wifi6_caps_ptr->spatial_reuse = 1;
         }
 
