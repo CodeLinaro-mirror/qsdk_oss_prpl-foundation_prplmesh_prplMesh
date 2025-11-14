@@ -37,12 +37,13 @@ uint8_t& tlvBssConfigurationReport::number_of_reported_radios() {
     return (uint8_t&)(*m_number_of_reported_radios);
 }
 
-bool tlvBssConfigurationReport::isPostInitSucceeded() {
-    if (!m_radios_init) {
-        TLVF_LOG(ERROR) << "radios is not initialized";
-        return false;
+std::tuple<bool, cRadio&> tlvBssConfigurationReport::radios(size_t idx) {
+    bool ret_success = ( (m_radios_idx__ > 0) && (m_radios_idx__ > idx) );
+    size_t ret_idx = ret_success ? idx : 0;
+    if (!ret_success) {
+        TLVF_LOG(ERROR) << "Requested index is greater than the number of available entries";
     }
-    return true; 
+    return std::forward_as_tuple(ret_success, *(m_radios_vector[ret_idx]));
 }
 
 std::shared_ptr<cRadio> tlvBssConfigurationReport::create_radios() {
@@ -62,6 +63,9 @@ std::shared_ptr<cRadio> tlvBssConfigurationReport::create_radios() {
     m_lock_order_counter__ = 0;
     m_lock_allocation__ = true;
     uint8_t *src = (uint8_t *)m_radios;
+    if (m_radios_idx__ > 0) {
+        src = (uint8_t *)m_radios_vector[m_radios_idx__ - 1]->getBuffPtr();
+    }
     if (!m_parse__) {
         uint8_t *dst = src + len;
         size_t move_length = getBuffRemainingBytes(src) - len;
@@ -80,6 +84,9 @@ bool tlvBssConfigurationReport::add_radios(std::shared_ptr<cRadio> ptr) {
         return false;
     }
     uint8_t *src = (uint8_t *)m_radios;
+    if (m_radios_idx__ > 0) {
+        src = (uint8_t *)m_radios_vector[m_radios_idx__ - 1]->getBuffPtr();
+    }
     if (ptr->getStartBuffPtr() != src) {
         TLVF_LOG(ERROR) << "Received entry pointer is different than expected (expecting the same pointer returned from add method)";
         return false;
@@ -88,9 +95,10 @@ bool tlvBssConfigurationReport::add_radios(std::shared_ptr<cRadio> ptr) {
         TLVF_LOG(ERROR) << "Not enough available space on buffer";
         return false;
     }
-    m_radios_init = true;
+    m_radios_idx__++;
+    if (!m_parse__) { (*m_number_of_reported_radios)++; }
     size_t len = ptr->getLen();
-    m_radios_ptr = ptr;
+    m_radios_vector.push_back(ptr);
     if (!buffPtrIncrementSafe(len)) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
         return false;
@@ -103,7 +111,9 @@ bool tlvBssConfigurationReport::add_radios(std::shared_ptr<cRadio> ptr) {
 void tlvBssConfigurationReport::class_swap()
 {
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_length));
-    if (m_radios_ptr) { m_radios_ptr->class_swap(); }
+    for (size_t i = 0; i < m_radios_idx__; i++){
+        std::get<1>(radios(i)).class_swap();
+    }
 }
 
 bool tlvBssConfigurationReport::finalize()
@@ -169,7 +179,9 @@ bool tlvBssConfigurationReport::init()
     }
     if(m_length && !m_parse__){ (*m_length) += sizeof(uint8_t); }
     m_radios = reinterpret_cast<cRadio*>(m_buff_ptr__);
-    if (m_parse__) {
+    uint8_t number_of_reported_radios = *m_number_of_reported_radios;
+    m_radios_idx__ = 0;
+    for (size_t i = 0; i < number_of_reported_radios; i++) {
         auto radios = create_radios();
         if (!radios || !radios->isInitialized()) {
             TLVF_LOG(ERROR) << "create_radios() failed";

@@ -21,10 +21,10 @@
 #include <tlvf/BaseClass.h>
 #include <tlvf/ClassList.h>
 #include "tlvf/wfa_map/eTlvTypeMap.h"
-#include "tlvf/common/sMacAddr.h"
 #include <tuple>
-#include <asm/byteorder.h>
 #include <vector>
+#include "tlvf/common/sMacAddr.h"
+#include <asm/byteorder.h>
 
 namespace wfa_map {
 
@@ -41,10 +41,9 @@ class tlvBssConfigurationReport : public BaseClass
         const eTlvTypeMap& type();
         const uint16_t& length();
         uint8_t& number_of_reported_radios();
-        bool isPostInitSucceeded() override;
+        std::tuple<bool, cRadio&> radios(size_t idx);
         std::shared_ptr<cRadio> create_radios();
         bool add_radios(std::shared_ptr<cRadio> ptr);
-        std::shared_ptr<cRadio> radios() { return m_radios_ptr; }
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -54,9 +53,9 @@ class tlvBssConfigurationReport : public BaseClass
         eTlvTypeMap* m_type = nullptr;
         uint16_t* m_length = nullptr;
         uint8_t* m_number_of_reported_radios = nullptr;
-        cRadio *m_radios = nullptr;
-        std::shared_ptr<cRadio> m_radios_ptr = nullptr;
-        bool m_radios_init = false;
+        cRadio* m_radios = nullptr;
+        size_t m_radios_idx__ = 0;
+        std::vector<std::shared_ptr<cRadio>> m_radios_vector;
         bool m_lock_allocation__ = false;
         int m_lock_order_counter__ = 0;
 };

@@ -163,6 +163,13 @@ private:
      */
     bool add_assoc_sta_mld_config_reports();
 
+    /**
+     * @brief Add and fill BSS configuration report tlv.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_bss_configuration_report_tlv();
+
     std::chrono::steady_clock::time_point m_periodic_discovery_timestamp;
 
     bool m_pending_to_send_topology_notification = false;
