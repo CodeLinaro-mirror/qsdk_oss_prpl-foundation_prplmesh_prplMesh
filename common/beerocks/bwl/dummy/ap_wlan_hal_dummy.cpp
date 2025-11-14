@@ -158,8 +158,17 @@ bool ap_wlan_hal_dummy::set_channel(int chan, beerocks::eWiFiBandwidth bw, int c
     return write_status_file("channel", value.str());
 }
 
-bool ap_wlan_hal_dummy::set_disabled_subchannels(uint16_t disabled_subchannel_bitmap)
+bool ap_wlan_hal_dummy::set_disabled_subchannels(uint16_t bitmap)
 {
+    const std::string channels_in_use = "36,40,44,48,52,56,60,64";
+    LOG(DEBUG) << "channels in use " << channels_in_use;
+    std::string disabled_subchannels = "";
+
+    bwl::base_wlan_hal::apply_bitmask_to_csv(channels_in_use, bitmap, disabled_subchannels);
+
+    LOG(DEBUG) << "Radio " << get_iface_name() << " is using " << channels_in_use
+               << " disabling: " << disabled_subchannels << " exactly";
+
     return true;
 }
 
