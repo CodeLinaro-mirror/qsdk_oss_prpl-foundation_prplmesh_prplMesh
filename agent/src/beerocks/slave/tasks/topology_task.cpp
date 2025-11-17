@@ -26,6 +26,7 @@
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
+#include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
@@ -310,6 +311,11 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     if (!add_backhaul_sta_mld_configuration_tlv()) {
         LOG(ERROR) << "Failed to add Backhaul STA MLD Configuration TLV";
+        return;
+    }
+
+    if (!add_assoc_sta_mld_config_reports()) {
+        LOG(ERROR) << "Failed to add Associated STA MLD Configuration reports";
         return;
     }
 
@@ -1188,6 +1194,63 @@ bool TopologyTask::add_backhaul_sta_mld_configuration_tlv()
 
             if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(affiliated_bsta)) {
                 LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool TopologyTask::add_assoc_sta_mld_config_reports()
+{
+    auto db(AgentDB::get());
+
+    for (const auto &sta_mld_Conf : db->associated_sta_mlds) {
+        auto tlvAssociatedStaMldConfigurationReport =
+            m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaMldConfigurationReport>();
+        if (!tlvAssociatedStaMldConfigurationReport) {
+            LOG(ERROR) << "addClass wfa_map::tlvAssociatedStaMldConfigurationReport failed";
+            return false;
+        }
+
+        tlvAssociatedStaMldConfigurationReport->sta_mld_mac_addr() =
+            sta_mld_Conf.mld_config.sta_mld_mac;
+
+        tlvAssociatedStaMldConfigurationReport->ap_mld_mac_addr() =
+            sta_mld_Conf.mld_config.ap_mld_mac;
+
+        if (sta_mld_Conf.mld_config.mld_mode & AgentDB::sAssociatedStaMld::sMLDConfiguration::STR) {
+            tlvAssociatedStaMldConfigurationReport->modes().str = 1;
+        }
+
+        if (sta_mld_Conf.mld_config.mld_mode &
+            AgentDB::sAssociatedStaMld::sMLDConfiguration::NSTR) {
+            tlvAssociatedStaMldConfigurationReport->modes().nstr = 1;
+        }
+
+        if (sta_mld_Conf.mld_config.mld_mode &
+            AgentDB::sAssociatedStaMld::sMLDConfiguration::EMLSR) {
+            tlvAssociatedStaMldConfigurationReport->modes().emlsr = 1;
+        }
+
+        if (sta_mld_Conf.mld_config.mld_mode &
+            AgentDB::sAssociatedStaMld::sMLDConfiguration::EMLMR) {
+            tlvAssociatedStaMldConfigurationReport->modes().emlmr = 1;
+        }
+
+        for (const auto &affiliated_sta_conf : sta_mld_Conf.affiliated_stas) {
+            auto affiliated_sta(tlvAssociatedStaMldConfigurationReport->create_affiliated_sta());
+            if (!affiliated_sta) {
+                LOG(ERROR) << "create_affiliated_sta failed";
+                return false;
+            }
+
+            affiliated_sta->bssid()                   = affiliated_sta_conf.bssid;
+            affiliated_sta->affiliated_sta_mac_addr() = affiliated_sta_conf.affiliated_sta_mac;
+            if (!tlvAssociatedStaMldConfigurationReport->add_affiliated_sta(affiliated_sta)) {
+                LOG(ERROR)
+                    << "add_affiliated_sta() in tlvAssociatedStaMldConfigurationReport failed";
                 return false;
             }
         }

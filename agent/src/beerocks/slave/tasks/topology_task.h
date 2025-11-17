@@ -156,6 +156,13 @@ private:
      */
     bool add_backhaul_sta_mld_configuration_tlv();
 
+    /**
+     * @brief Add and fill assoc_sta_mld_configuration reports.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_assoc_sta_mld_config_reports();
+
     std::chrono::steady_clock::time_point m_periodic_discovery_timestamp;
 
     bool m_pending_to_send_topology_notification = false;
