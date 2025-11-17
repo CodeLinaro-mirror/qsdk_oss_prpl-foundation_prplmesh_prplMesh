@@ -183,6 +183,17 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
                 configuration.backhaul = true;
             }
         }
+
+        int8_t mld_id = DISABLED_MLDUNIT;
+        auto ssid_obj = bpl_cfg_get_wifi_ssid_object(iface);
+        if (!ssid_obj) {
+            LOG(ERROR) << "Failed to get SSID object of iface " << iface;
+        } else if (!ssid_obj->read_child(mld_id, "MLDUnit")) {
+            LOG(ERROR) << "failed to read MLDUnit from SSID object of iface " << iface;
+        }
+
+        configuration.mld_id = std::to_string(mld_id);
+
         bool ap_enable = false;
         ap.read_child(ap_enable, "Enable");
         if (ap_enable && bpl_cfg_get_wifi_credentials(iface, configuration)) {
