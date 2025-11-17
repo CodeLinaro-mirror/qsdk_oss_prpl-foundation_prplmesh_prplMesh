@@ -28,6 +28,7 @@ enum eWscAuth: uint16_t {
     WSC_AUTH_WPA2 = 0x10,
     WSC_AUTH_WPA2PSK = 0x20,
     WSC_AUTH_SAE = 0x40,
+    WSC_AUTH_SAE_AKM24 = 0x100,
     WSC_AUTH_RSN = 0x200,
     WSC_AUTH_INVALID = 0xffff,
 };
@@ -35,15 +36,16 @@ enum eWscAuth: uint16_t {
 // clang-format off
 static const char *eWscAuth_str(eWscAuth enum_value) {
     switch (enum_value) {
-    case WSC_AUTH_OPEN:    return "WSC_AUTH_OPEN";
-    case WSC_AUTH_WPAPSK:  return "WSC_AUTH_WPAPSK";
-    case WSC_AUTH_SHARED:  return "WSC_AUTH_SHARED";
-    case WSC_AUTH_WPA:     return "WSC_AUTH_WPA";
-    case WSC_AUTH_WPA2:    return "WSC_AUTH_WPA2";
-    case WSC_AUTH_WPA2PSK: return "WSC_AUTH_WPA2PSK";
-    case WSC_AUTH_SAE:     return "WSC_AUTH_SAE";
-    case WSC_AUTH_RSN:     return "WSC_AUTH_RSN";
-    case WSC_AUTH_INVALID: return "WSC_AUTH_INVALID";
+    case WSC_AUTH_OPEN:      return "WSC_AUTH_OPEN";
+    case WSC_AUTH_WPAPSK:    return "WSC_AUTH_WPAPSK";
+    case WSC_AUTH_SHARED:    return "WSC_AUTH_SHARED";
+    case WSC_AUTH_WPA:       return "WSC_AUTH_WPA";
+    case WSC_AUTH_WPA2:      return "WSC_AUTH_WPA2";
+    case WSC_AUTH_WPA2PSK:   return "WSC_AUTH_WPA2PSK";
+    case WSC_AUTH_SAE:       return "WSC_AUTH_SAE";
+    case WSC_AUTH_SAE_AKM24: return "WSC_AUTH_SAE_AKM24";
+    case WSC_AUTH_RSN:       return "WSC_AUTH_RSN";
+    case WSC_AUTH_INVALID:   return "WSC_AUTH_INVALID";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
