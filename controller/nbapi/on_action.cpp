@@ -354,6 +354,9 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 continue;
             }
 
+            // MLDUnit is used also for AUTH Type
+            int8_t mld_unit = amxd_object_get_int8_t(access_point_inst, "MLDUnit", nullptr);
+
             std::string mode_enabled = get_param_string(security_inst, "ModeEnabled");
             if (mode_enabled == "WPA3-Personal" || mode_enabled == "WPA3-Personal-Transition") {
                 bss_info.network_key = get_param_string(security_inst, "SAEPassphrase");
@@ -366,6 +369,13 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 } else {
                     bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
                 }
+
+                // Add AKM24 in case of MLD for SAE
+                if (mld_unit != DISABLED_MLDUNIT) {
+                    bss_info.authentication_type = WSC::eWscAuth(bss_info.authentication_type |
+                                                                 WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+                }
+
                 bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
             } else if (mode_enabled == "WPA2-Personal") {
                 bss_info.network_key = get_param_string(security_inst, "PreSharedKey");
@@ -397,7 +407,6 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
             LOG(DEBUG) << "Add bss info configration for AP with ssid: " << bss_info.ssid
                        << " and operating classes: " << bss_info.operating_class;
 
-            int8_t mld_unit = amxd_object_get_int8_t(access_point_inst, "MLDUnit", nullptr);
             if (mld_unit != DISABLED_MLDUNIT) {
                 son::wireless_utils::sMldInfoConf mld_info;
                 mld_info.ssid = bss_info.ssid;
