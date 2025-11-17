@@ -679,6 +679,10 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         }
         ret = m_ambiorix_cl.update_object(wifi_ap_sec_path, new_obj);
 
+        LOG(DEBUG) << "CO: Security Path:" << wifi_ap_sec_path << " Details: Mode:" << security_mode
+                   << " ENCR:" << encryption_mode << " KeyPassPhrase:" << bss_info_conf.network_key
+                   << " auth type:" << bss_info_conf.authentication_type << " ret:" << ret;
+
         if (!ret) {
             LOG(ERROR) << "Failed to update Security object " << wifi_ap_sec_path;
             continue;
