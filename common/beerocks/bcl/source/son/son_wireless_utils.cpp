@@ -1691,6 +1691,9 @@ std::string wireless_utils::wsc_to_bwl_authentication(WSC::eWscAuth authtype,
     if (authtype & WSC::eWscAuth::WSC_AUTH_SAE) {
         authtype_str += "SAE ";
     }
+    if (authtype & WSC::eWscAuth::WSC_AUTH_SAE_AKM24) {
+        authtype_str += "SAE-EXT ";
+    }
 
     if (authtype & WSC::eWscAuth::WSC_AUTH_RSN &&
         additional_auth == eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {

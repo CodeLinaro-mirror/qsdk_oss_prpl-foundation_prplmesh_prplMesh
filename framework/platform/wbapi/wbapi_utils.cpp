@@ -87,8 +87,12 @@ const std::map<std::string, std::vector<WSC::eWscAuth>> wbapi_utils::security_mo
     {"WPA-WPA2-Personal",
      {WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_WPAPSK)}},
     {"WPA2-WPA3-Personal",
-     {WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_SAE)}},
-    {"WPA3-Personal", {WSC::eWscAuth::WSC_AUTH_SAE}},
+     {WSC::eWscAuth(WSC::WSC_AUTH_WPA2PSK | WSC::WSC_AUTH_SAE),
+      WSC::eWscAuth(WSC::WSC_AUTH_WPA2PSK | WSC::WSC_AUTH_SAE_AKM24),
+      WSC::eWscAuth(WSC::WSC_AUTH_WPA2PSK | WSC::WSC_AUTH_SAE | WSC::WSC_AUTH_SAE_AKM24)}},
+    {"WPA3-Personal",
+     {WSC::eWscAuth::WSC_AUTH_SAE, WSC::eWscAuth::WSC_AUTH_SAE_AKM24,
+      WSC::eWscAuth(WSC::WSC_AUTH_SAE | WSC::WSC_AUTH_SAE_AKM24)}},
     {"WPA3-Personal-Compatibility", {WSC::eWscAuth::WSC_AUTH_RSN}},
 };
 
