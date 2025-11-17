@@ -1072,7 +1072,7 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     }
     m2_cfg.auth_type_flags =
         WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
-                      WSC::eWscAuth::WSC_AUTH_SAE);
+                      WSC::eWscAuth::WSC_AUTH_SAE | WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
     // TODO Maybe the band should be taken from bss_info_conf.operating_class instead?
 
     if (m1.rf_bands() & WSC::WSC_RF_BAND_2GHZ) {

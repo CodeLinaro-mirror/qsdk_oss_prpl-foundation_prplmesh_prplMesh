@@ -344,9 +344,11 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 }
                 if (mode_enabled == "WPA3-Personal-Transition") {
                     bss_info.authentication_type = WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK |
-                                                                 WSC::eWscAuth::WSC_AUTH_SAE);
+                                                                 WSC::eWscAuth::WSC_AUTH_SAE |
+                                                                 WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
                 } else {
-                    bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+                    bss_info.authentication_type = WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_SAE |
+                                                                 WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
                 }
                 bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
             } else if (mode_enabled == "WPA2-Personal") {
