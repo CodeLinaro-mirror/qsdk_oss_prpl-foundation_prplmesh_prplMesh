@@ -1,7 +1,7 @@
 #
 ---
 _include:
-  { beerocks/tlvf/beerocks_message_action.h, bcl/beerocks_message_structs.h }
+  { beerocks/tlvf/beerocks_message_action.h, bcl/beerocks_message_structs.h, tlvf/common/eVapType.h }
 
 _namespace: beerocks_message
 
@@ -48,6 +48,7 @@ sVapInfo:
   link_id:
     _type: int8_t
   ap_mld_mac: sMacAddr
+  vap_type: eVapType
 
 sSonConfig:
   _type: struct

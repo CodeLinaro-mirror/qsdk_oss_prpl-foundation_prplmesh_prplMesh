@@ -19,6 +19,7 @@
 #include <ostream>
 #include "beerocks/tlvf/beerocks_message_action.h"
 #include "bcl/beerocks_message_structs.h"
+#include "tlvf/common/eVapType.h"
 
 namespace beerocks_message {
 
@@ -52,9 +53,11 @@ typedef struct sVapInfo {
     uint8_t profile2_backhaul_sta_association_disallowed;
     int8_t link_id;
     sMacAddr ap_mld_mac;
+    eVapType vap_type;
     void struct_swap(){
         mac.struct_swap();
         ap_mld_mac.struct_swap();
+        tlvf_swap(8*sizeof(eVapType), reinterpret_cast<uint8_t*>(&vap_type));
     }
     void struct_init(){
         mac.struct_init();

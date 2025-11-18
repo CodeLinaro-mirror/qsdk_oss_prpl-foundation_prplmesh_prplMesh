@@ -16,7 +16,7 @@
 
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
-#include <tlvf/WSC/eWscVendorExtVapType.h>
+#include <tlvf/common/eVapType.h>
 
 namespace beerocks {
 namespace wbapi {
@@ -90,9 +90,9 @@ public:
      *   "vap5ghome", "vap24ghome", "vap6ghome" -> HOME
      *
      * @param custom_alias  Arbitrary alias string (e.g. "vap5ghome").
-     * @return WSC::eWscVendorExtVapType  Detected type or OTHER if no match.
+     * @return eVapType  Detected type or OTHER if no match.
      */
-    static WSC::eWscVendorExtVapType vap_type_from_custom_alias(const std::string &custom_alias);
+    static eVapType vap_type_from_custom_alias(const std::string &custom_alias);
 
     /**
      * @brief Convert vap_type -> custom_alias in the form "vap<band><suffix>".
@@ -106,8 +106,7 @@ public:
      * @param band     Band identifier ("24g"/"5g"/"6g").
      * @return std::string  Alias like "vap5ghome".
      */
-    static std::string custom_alias_from_vap_type(WSC::eWscVendorExtVapType vap_type,
-                                                  const std::string &band);
+    static std::string custom_alias_from_vap_type(eVapType vap_type, const std::string &band);
 
     /**
      * @brief get amxc var object id from the object path.
@@ -295,6 +294,11 @@ public:
      * @brief get interface name of AccessPoint object data
      */
     static std::string get_ap_iface(const AmbiorixVariant &obj);
+
+    /**
+     * @brief get CustomAlias of AccessPoint object data
+     */
+    static std::string get_custom_alias(const AmbiorixVariant &obj);
 
     /**
      * @brief get status of AccessPoint object data

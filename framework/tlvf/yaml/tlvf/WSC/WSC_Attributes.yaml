@@ -1,13 +1,14 @@
 #
 ---
 _include: {
+  tlvf/common/sMacAddr.h,
+  tlvf/common/eVapType.h,
   tlvf/WSC/eWscLengths.h,
   tlvf/WSC/eWscAuth.h,
   tlvf/WSC/eWscVendorId.h,
   tlvf/WSC/eWscVendorExt.h,
   tlvf/WSC/eWscDev.h,
   tlvf/WSC/eWscWfaVendorExtSubelement.h,
-  tlvf/common/sMacAddr.h,
   tlvf/WSC/eWscAttributes.h,
   tlvf/WSC/eWscEncr.h,
   tlvf/WSC/eWscValues8.h,
@@ -17,7 +18,6 @@ _include: {
   tlvf/WSC/eWscAssoc.h,
   tlvf/WSC/eWscValues16.h,
   tlvf/WSC/eWscState.h,
-  tlvf/WSC/eWscVendorExtVapType.h,
 }
 _namespace: WSC
 
@@ -158,8 +158,8 @@ cEncryptedSettingsPayload:
     _type: uint8_t
     _value: 0
   vap_type:
-    _type: eWscVendorExtVapType
-    _value: eWscVendorExtVapType::OTHER
+    _type: eVapType
+    _value: eVapType::OTHER
 
 cWscAttrEncryptedSettings:
   _type: class

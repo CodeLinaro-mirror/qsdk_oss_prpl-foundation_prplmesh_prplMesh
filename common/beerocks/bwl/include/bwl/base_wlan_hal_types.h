@@ -13,6 +13,8 @@
 #include <bcl/beerocks_message_structs.h>
 #include <bcl/network/net_struct.h>
 
+#include <tlvf/common/eVapType.h>
+
 #include <stdint.h>
 
 #include <array>
@@ -66,6 +68,7 @@ struct VAPElement {
     int8_t link_id                                    = -1;
     int8_t mld_id                                     = -1;
     std::string ap_mld_mac;
+    eVapType vap_type = eVapType::OTHER;
 
     bool operator==(const VAPElement &other) const
     {

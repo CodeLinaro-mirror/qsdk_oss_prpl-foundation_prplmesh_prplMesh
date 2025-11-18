@@ -5607,6 +5607,7 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             bss.backhaul_bss                                     = false;
             bss.backhaul_bss_disallow_profile1_agent_association = false;
             bss.backhaul_bss_disallow_profile2_agent_association = false;
+            bss.vap_type                                         = eVapType::OTHER;
             continue;
         }
         bss.iface_name    = vaps[vap_idx].iface_name;
@@ -5618,11 +5619,13 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             vaps[vap_idx].profile1_backhaul_sta_association_disallowed;
         bss.backhaul_bss_disallow_profile2_agent_association =
             vaps[vap_idx].profile2_backhaul_sta_association_disallowed;
+        bss.vap_type = vaps[vap_idx].vap_type;
 
         LOG(DEBUG) << "BSS " << bss.iface_name << ", bssid: " << bss.mac << ", ssid:" << bss.ssid
                    << ", fBSS: " << bss.fronthaul_bss << ", bBSS: " << bss.backhaul_bss
                    << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
-                   << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association;
+                   << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association
+                   << ", vap_type: " << eVapType_str(bss.vap_type);
 
         for (auto &ap_mld_conf : db->ap_mld_configurations) {
             if (ap_mld_conf.mld_config.mld_ssid == bss.ssid) {

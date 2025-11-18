@@ -1764,53 +1764,53 @@ std::list<uint8_t> wireless_utils::string_to_wsc_oper_class(const std::string &o
     return {};
 }
 
-std::string wireless_utils::vap_type_to_string(WSC::eWscVendorExtVapType type)
+std::string wireless_utils::vap_type_to_string(eVapType type)
 {
     switch (type) {
-    case WSC::eWscVendorExtVapType::HOME:
+    case eVapType::HOME:
         return "home";
-    case WSC::eWscVendorExtVapType::GUEST:
+    case eVapType::GUEST:
         return "guest";
-    case WSC::eWscVendorExtVapType::VIDEO:
+    case eVapType::VIDEO:
         return "video";
-    case WSC::eWscVendorExtVapType::BACKHAUL:
+    case eVapType::BACKHAUL:
         return "backhaul";
-    case WSC::eWscVendorExtVapType::HOTSPOT:
+    case eVapType::HOTSPOT:
         return "hotspot";
-    case WSC::eWscVendorExtVapType::STAFF:
+    case eVapType::STAFF:
         return "staff";
-    case WSC::eWscVendorExtVapType::ISOLATED:
+    case eVapType::ISOLATED:
         return "isolated";
-    case WSC::eWscVendorExtVapType::OTHER:
+    case eVapType::OTHER:
     default:
         LOG(WARNING) << "vap_type_to_string: VapType is OTHER or UNKNOWN, returning empty string";
         return "";
     }
 }
 
-WSC::eWscVendorExtVapType wireless_utils::string_to_vap_type(const std::string &type)
+eVapType wireless_utils::string_to_vap_type(const std::string &type)
 {
     if (type.empty()) {
-        LOG(WARNING) << "string_to_vap_type: type is empty, returning eWscVendorExtVapType::OTHER";
-        return WSC::eWscVendorExtVapType::OTHER;
+        LOG(WARNING) << "string_to_vap_type: type is empty, returning eVapType::OTHER";
+        return eVapType::OTHER;
     }
 
     if (type == "home") {
-        return WSC::eWscVendorExtVapType::HOME;
+        return eVapType::HOME;
     } else if (type == "guest") {
-        return WSC::eWscVendorExtVapType::GUEST;
+        return eVapType::GUEST;
     } else if (type == "video") {
-        return WSC::eWscVendorExtVapType::VIDEO;
+        return eVapType::VIDEO;
     } else if (type == "backhaul") {
-        return WSC::eWscVendorExtVapType::BACKHAUL;
+        return eVapType::BACKHAUL;
     } else if (type == "hotspot") {
-        return WSC::eWscVendorExtVapType::HOTSPOT;
+        return eVapType::HOTSPOT;
     } else if (type == "staff") {
-        return WSC::eWscVendorExtVapType::STAFF;
+        return eVapType::STAFF;
     } else if (type == "isolated") {
-        return WSC::eWscVendorExtVapType::ISOLATED;
+        return eVapType::ISOLATED;
     } else /* if type == "other" */ {
-        return WSC::eWscVendorExtVapType::OTHER;
+        return eVapType::OTHER;
     }
 }
 

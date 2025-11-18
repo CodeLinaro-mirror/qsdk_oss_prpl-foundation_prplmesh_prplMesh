@@ -16,7 +16,7 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 #include <tlvf/WSC/eWscVendorExt.h>
-#include <tlvf/WSC/eWscVendorExtVapType.h>
+#include <tlvf/common/eVapType.h>
 
 #include <array>
 #include <deque>
@@ -299,7 +299,7 @@ public:
         bool backhaul                                     = false;
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
-        WSC::eWscVendorExtVapType vap_type                = WSC::eWscVendorExtVapType::OTHER;
+        eVapType vap_type                                 = eVapType::OTHER;
         bool hidden_ssid                                  = false;
         std::string mld_id                                = "";
         bool bSTA                                         = false;
@@ -461,20 +461,20 @@ public:
     static std::list<uint8_t> string_to_wsc_oper_class(const std::string &operating_class);
 
     /*
-     * @brief Returns lower-case string representation of eWscVendorExtVapType enum (e.g., "home", "guest").
+     * @brief Returns lower-case string representation of eVapType enum (e.g., "home", "guest").
 
      * @param type - the VapType enum
      * @return string - lower-case representation of enum
      **/
-    static std::string vap_type_to_string(WSC::eWscVendorExtVapType type);
+    static std::string vap_type_to_string(eVapType type);
 
     /*
      * @brief Converts string to vap_type
 
      * @param type - the string (e.g., "home", "guest").
-     * @return string - eWscVendorExtVapType enum 
+     * @return string - eVapType enum 
      **/
-    static WSC::eWscVendorExtVapType string_to_vap_type(const std::string &type);
+    static eVapType string_to_vap_type(const std::string &type);
 
     /**
      * @brief Get the vht central frequency object

@@ -180,28 +180,27 @@ WSC::eWscEncr wbapi_utils::encryption_type_from_string(const std::string &encryp
     return WSC::eWscEncr::WSC_ENCR_NONE;
 }
 
-WSC::eWscVendorExtVapType wbapi_utils::vap_type_from_custom_alias(const std::string &custom_alias)
+eVapType wbapi_utils::vap_type_from_custom_alias(const std::string &custom_alias)
 {
     if (custom_alias.find("home") != std::string::npos)
-        return WSC::eWscVendorExtVapType::HOME;
+        return eVapType::HOME;
     else if (custom_alias.find("guest") != std::string::npos)
-        return WSC::eWscVendorExtVapType::GUEST;
+        return eVapType::GUEST;
     else if (custom_alias.find("video") != std::string::npos)
-        return WSC::eWscVendorExtVapType::VIDEO;
+        return eVapType::VIDEO;
     else if (custom_alias.find("backhaul") != std::string::npos)
-        return WSC::eWscVendorExtVapType::BACKHAUL;
+        return eVapType::BACKHAUL;
     else if (custom_alias.find("hotspot") != std::string::npos)
-        return WSC::eWscVendorExtVapType::HOTSPOT;
+        return eVapType::HOTSPOT;
     else if (custom_alias.find("staff") != std::string::npos)
-        return WSC::eWscVendorExtVapType::STAFF;
+        return eVapType::STAFF;
     else if (custom_alias.find("isolated") != std::string::npos)
-        return WSC::eWscVendorExtVapType::ISOLATED;
+        return eVapType::ISOLATED;
     else
-        return WSC::eWscVendorExtVapType::OTHER;
+        return eVapType::OTHER;
 }
 
-std::string wbapi_utils::custom_alias_from_vap_type(WSC::eWscVendorExtVapType vap_type,
-                                                    const std::string &band)
+std::string wbapi_utils::custom_alias_from_vap_type(eVapType vap_type, const std::string &band)
 {
     const std::string suffix = son::wireless_utils::vap_type_to_string(vap_type);
 
@@ -431,6 +430,20 @@ std::string wbapi_utils::get_ap_iface(const AmbiorixVariant &obj)
 {
     std::string value;
     obj.read_child(value, "Alias");
+    return value;
+}
+
+std::string wbapi_utils::get_custom_alias(const AmbiorixVariant &obj)
+{
+    std::string value;
+    if (!obj.read_child(value, "CustomAlias")) {
+        LOG(ERROR) << "wbapi_utils::get_custom_alias: Failed to read CustomAlias";
+        return value;
+    }
+
+    if (value.empty())
+        LOG(WARNING) << "wbapi_utils::get_custom_alias: CustomAlias is empty";
+
     return value;
 }
 

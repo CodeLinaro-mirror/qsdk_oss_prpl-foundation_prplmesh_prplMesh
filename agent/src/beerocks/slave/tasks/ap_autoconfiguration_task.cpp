@@ -1740,7 +1740,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
 
         // --- M2 Vendor Extension Attributes ---
         info.m2_config.vap_type = m2.vap_type();
-        if (info.m2_config.vap_type == WSC::eWscVendorExtVapType::OTHER) {
+        if (info.m2_config.vap_type == eVapType::OTHER) {
             LOG(TRACE) << "VAP type not found or not set in Vendor Extension";
         }
 
@@ -2700,9 +2700,8 @@ bool ApAutoConfigurationTask::is_bss_config_matching(
 {
     // TODO: bss_index matching (PPM-3625)
 
-    const bool is_vap_type_applicable =
-        (current_bss_config.vap_type != WSC::eWscVendorExtVapType::OTHER) &&
-        (incoming_bss_config.m2_config.vap_type != WSC::eWscVendorExtVapType::OTHER);
+    const bool is_vap_type_applicable = (current_bss_config.vap_type != eVapType::OTHER) &&
+                                        (incoming_bss_config.m2_config.vap_type != eVapType::OTHER);
 
     // Match condition (any of):
     // - vap_types are same, except for both being OTHER
@@ -2851,9 +2850,9 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
                 // Set the BSSID of the BSS since the controller does not send this information
                 it->payload_config.bssid = current_bss_config.mac;
 
-                // Set the VAP type since vap type of the BSS is deduced from local CustomAlias
-                // (this logic important if we match by similarity)
-                it->m2_config.vap_type = current_bss_config.vap_type;
+                // Keep current config vap_type if controller doesn't specified any
+                if (it->m2_config.vap_type == eVapType::OTHER)
+                    it->m2_config.vap_type = current_bss_config.vap_type;
 
                 // Move BSS Config to "final" list
                 final_incoming_bss_configs.emplace_back(std::move(*it));
@@ -2928,7 +2927,7 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
             continue;
         config_prints << " bssid: " << cfg.mac << ", ssid: " << cfg.ssid
                       << ", fBSS: " << cfg.fronthaul_bss << ", bBSS: " << cfg.backhaul_bss
-                      << (cfg.active ? ", is active." : ", isn't active.")
+                      << (cfg.active ? ", active" : ", not active")
                       << ", vap_type: " << cfg.vap_type << std::endl;
     }
 

@@ -18,7 +18,7 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 
-#include <tlvf/WSC/eWscVendorExtVapType.h>
+#include <tlvf/common/eVapType.h>
 
 #include "wbapi_utils.h"
 
@@ -188,12 +188,9 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
         }
 
         // Reading CustomAlias and deducing VAP type
-        std::string custom_alias;
-        if (ap.read_child(custom_alias, "CustomAlias")) {
-            configuration.vap_type = wbapi_utils::vap_type_from_custom_alias(custom_alias);
-        }
-
-        if (configuration.vap_type == WSC::eWscVendorExtVapType::OTHER)
+        const std::string custom_alias = wbapi_utils::get_custom_alias(ap);
+        configuration.vap_type         = wbapi_utils::vap_type_from_custom_alias(custom_alias);
+        if (configuration.vap_type == eVapType::OTHER)
             LOG(WARNING) << "bpl_cfg_get_wireless_settings: vap_type is OTHER for SSID="
                          << configuration.ssid;
 

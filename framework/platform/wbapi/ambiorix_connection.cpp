@@ -64,6 +64,9 @@ bool AmbiorixConnection::init()
         LOG(ERROR) << "Failed to connect to the " << m_bus_uri.c_str() << " bus";
         return false;
     }
+
+    amxb_set_access(m_bus_ctx, AMXB_PROTECTED);
+
     m_fd        = amxb_get_fd(m_bus_ctx);
     m_signal_fd = amxp_signal_fd();
     return true;

@@ -280,7 +280,7 @@ public:
                 int8_t link_id = -1;
                 uint8_t eht_operations[10];
                 bool hidden_ssid                   = false;
-                WSC::eWscVendorExtVapType vap_type = WSC::eWscVendorExtVapType::OTHER;
+                eVapType vap_type                  = eVapType::OTHER;
             };
             uint8_t radio_max_bss = 0;
             std::array<sBssid, eBeeRocksIfaceIds::IFACE_TOTAL_VAPS> bssids{};

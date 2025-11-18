@@ -102,7 +102,8 @@ static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
 
         LOG(DEBUG) << "vap_id=" << int(vap_id) << ", iface_name=" << curr_vap.bss
                    << ", mac=" << curr_vap.mac << ", ssid=" << curr_vap.ssid
-                   << ", fronthaul=" << curr_vap.fronthaul << ", backhaul=" << curr_vap.backhaul;
+                   << ", fronthaul=" << curr_vap.fronthaul << ", backhaul=" << curr_vap.backhaul
+                   << ", vap_type=" << eVapType_str(curr_vap.vap_type);
 
         if (curr_vap.backhaul) {
             LOG(DEBUG) << "disallow_profile1="
@@ -126,6 +127,7 @@ static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
             curr_vap.profile2_backhaul_sta_association_disallowed;
         vaps[i].ap_mld_mac = tlvf::mac_from_string(curr_vap.ap_mld_mac);
         vaps[i].link_id    = curr_vap.link_id;
+        vaps[i].vap_type   = curr_vap.vap_type;
     }
 }
 

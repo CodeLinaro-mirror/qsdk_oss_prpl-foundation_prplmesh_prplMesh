@@ -76,7 +76,7 @@ public:
         bool hidden_ssid = false;
 
         /* WSC VAP Type */
-        eWscVendorExtVapType vap_type = eWscVendorExtVapType::OTHER;
+        eVapType vap_type = eVapType::OTHER;
     };
 
     m2(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}
@@ -146,7 +146,7 @@ public:
         }
         return false;
     };
-    eWscVendorExtVapType vap_type() const
+    eVapType vap_type() const
     {
         for (auto &vendor_ext_attr : getAttrList<WSC::cWscAttrVendorExtension>()) {
             if ((WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1 != vendor_ext_attr->vendor_id_0()) ||
@@ -160,10 +160,10 @@ public:
 
             // Need at least 2 bytes: [subelem_id][value]
             if (len >= 2 && data[0] == WSC::vendor_extension::airties::VENDOR_VAP_TYPE) {
-                return static_cast<eWscVendorExtVapType>(data[1]);
+                return static_cast<eVapType>(data[1]);
             }
         }
-        return eWscVendorExtVapType::OTHER;
+        return eVapType::OTHER;
     }
 };
 
