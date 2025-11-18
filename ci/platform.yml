@@ -119,17 +119,6 @@ build-for-osp-ospv2:
   tags:
     - osp-build-fetch
 
-build-for-cgr:
-  stage: build
-  variables:
-    PRPLMESH_REVISION: $CI_COMMIT_SHA
-  trigger:
-    project: essensium-mind/prplmesh/puma7
-    strategy: depend
-  needs: []
-  rules:
-    - if: '$CI_PARENT_PIPELINE_SOURCE == "schedule" && $BUILD_CGR == "yes"'
-
 test-upgrade-image-on-turris-omnia:
   extends: .test-upgrade-image
   variables:
@@ -243,9 +232,7 @@ run-certification-tests-R1-platform-essensium:
     - job: build-for-turris-omnia
     - job: build-for-haze
   rules:
-    - if: '$TESTS_TO_RUN_ESSENSIUM != "" && $DEVICE_UNDER_TEST_ESSENSIUM != "prplmesh"'
-    - when: manual
-      allow_failure: true
+    - if: '$TESTS_TO_RUN_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_ESSENSIUM != "prplmesh"'
 
 run-certification-tests-R2-platform-essensium:
   extends: .run-certification-tests-R2
@@ -254,9 +241,7 @@ run-certification-tests-R2-platform-essensium:
     - echo "$TESTS_TO_RUN_R2_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_R2_ESSENSIUM" > .device-under-test
   rules:
-    - if: '$TESTS_TO_RUN_R2_ESSENSIUM != "" && $DEVICE_UNDER_TEST_R2_ESSENSIUM != "prplmesh"'
-    - when: manual
-      allow_failure: true
+    - if: '$TESTS_TO_RUN_R2_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R2_ESSENSIUM != "prplmesh"'
   timeout: 14h
   tags:
     - certs-tests-R2-essensium
@@ -270,9 +255,7 @@ run-certification-tests-R4-platform-essensium:
     - echo "$TESTS_TO_RUN_R4_ESSENSIUM" > .tests-to-run
     - echo "$DEVICE_UNDER_TEST_R4_ESSENSIUM" > .device-under-test
   rules:
-    - if: '$TESTS_TO_RUN_R4_ESSENSIUM != "" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
-    - when: manual
-      allow_failure: true
+    - if: '$TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "prplmesh" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_osp" && $DEVICE_UNDER_TEST_R4_ESSENSIUM != "urx_ospv2"'
   timeout: 14h
   tags:
     - certs-tests-R4-essensium

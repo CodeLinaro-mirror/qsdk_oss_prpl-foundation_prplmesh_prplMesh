@@ -30,6 +30,9 @@ include:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'
     - if: $CI_COMMIT_TAG
+    - if: ($TESTS_TO_RUN_ESSENSIUM && $TESTS_TO_RUN_ESSENSIUM !~ /^\$/)
+    - if: ($TESTS_TO_RUN_R2_ESSENSIUM && $TESTS_TO_RUN_R2_ESSENSIUM !~ /^\$/)
+    - if: ($TESTS_TO_RUN_R4_ESSENSIUM && $TESTS_TO_RUN_R4_ESSENSIUM !~ /^\$/)
     - when: manual
       allow_failure: true
 
@@ -58,18 +61,14 @@ platform:
     - !reference [.rules-for-expensive-job, rules]
   variables:
     STABILITY_TESTS: $STABILITY_TESTS
-    ALTRAN_TESTS: $ALTRAN_TESTS
     TESTS_TO_RUN_ESSENSIUM: $TESTS_TO_RUN_ESSENSIUM
     DEVICE_UNDER_TEST_ESSENSIUM: $DEVICE_UNDER_TEST_ESSENSIUM
-    TESTS_TO_RUN_ISR: $TESTS_TO_RUN_ISR
-    DEVICE_UNDER_TEST_ISR: $DEVICE_UNDER_TEST_ISR
     TESTS_TO_RUN_R2_ESSENSIUM: $TESTS_TO_RUN_R2_ESSENSIUM
     DEVICE_UNDER_TEST_R2_ESSENSIUM: $DEVICE_UNDER_TEST_R2_ESSENSIUM
     TESTS_TO_RUN_R4_ESSENSIUM: $TESTS_TO_RUN_R4_ESSENSIUM
     DEVICE_UNDER_TEST_R4_ESSENSIUM: $DEVICE_UNDER_TEST_R4_ESSENSIUM
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     CI_PARENT_PIPELINE_SOURCE: $CI_PIPELINE_SOURCE
-    BUILD_CGR: $BUILD_CGR
   trigger:
     include: "ci/platform.yml"
     strategy: depend
@@ -168,7 +167,7 @@ shellcheck:
   before_script:
     - apk add --update --no-cache git
   script:
-    - git ls-files -z '*.sh' '*.sh.in'  | xargs -0 shellcheck -x -P tools:ci/owncloud
+    - git ls-files -z '*.sh' '*.sh.in'  | xargs -0 shellcheck -x -P tools
   needs: []
 
 clang-format:
@@ -298,51 +297,3 @@ boardfarm-stability-tests:
   rules:
     - if: "$STABILITY_TESTS"
   retry: 0
-
-run-certification-tests-R1-prplmesh-essensium:
-  extends: .run-certification-tests-R1
-  before_script:
-    - !reference [.run-certification-tests-R1, before_script]
-    - echo "$TESTS_TO_RUN_ESSENSIUM" > .tests-to-run
-    - echo "$DEVICE_UNDER_TEST_ESSENSIUM" > .device-under-test
-  tags:
-    - certs-tests-essensium
-  needs:
-    - job: build-in-docker
-  rules:
-    - if: '$TESTS_TO_RUN_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_ESSENSIUM == "prplmesh"'
-
-upload-artifacts:
-  stage: upload
-  extends: .in-prplmesh-builder
-  script:
-    # the owncloud password is stored in the file pointed by "$CI_OWNCLOUD_PASSWORD".
-    # We can only store the password in it, since spaces are not supported in Gitlab masked variables.
-    # We symlink the file to .netrc and pre-pend to it to avoid manipulating the password itself
-    # on the command line.
-    - ln -s "$CI_OWNCLOUD_PASSWORD" ~/.netrc
-    - sed --follow-symlinks -i 's/^/machine ftp.essensium.com login prplmesh-robot-ci password /' ~/.netrc
-    - |
-      echo "Updating the 'latest' folder"
-      # Copying takes a lot of time, and we want the "latest" folder
-      # to be updated "as fast as possible", so we rely on the script
-      # to upload to a temporary directory first, and move it to
-      # "latest" afterwards:
-      ci/owncloud/upload_to_owncloud.sh -v "artifacts/latest" ./build
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-      when: on_success
-  needs:
-    - build-in-docker
-    - platform
-    - job: build-for-turris-omnia
-      project: $CI_PROJECT_PATH
-      ref: $CI_COMMIT_REF_NAME
-      artifacts: true
-    - job: build-for-rdkb-turris-omnia
-      project: $CI_PROJECT_PATH
-      ref: $CI_COMMIT_REF_NAME
-    - job: build-for-haze
-      project: $CI_PROJECT_PATH
-      ref: $CI_COMMIT_REF_NAME
-      artifacts: true
