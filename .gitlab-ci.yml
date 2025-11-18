@@ -299,15 +299,11 @@ boardfarm-stability-tests:
     - if: "$STABILITY_TESTS"
   retry: 0
 
-run-certification-tests-R1-prplmesh-essensium:
-  extends: .run-certification-tests-R1
-  before_script:
-    - !reference [.run-certification-tests-R1, before_script]
-    - echo "$TESTS_TO_RUN_ESSENSIUM" > .tests-to-run
-    - echo "$DEVICE_UNDER_TEST_ESSENSIUM" > .device-under-test
-  tags:
-    - certs-tests-essensium
-  needs:
-    - job: build-in-docker
+testjob:
+  stage: containers
+  script:
+    - echo $TESTS_TO_RUN_ESSENSIUM
   rules:
-    - if: '$TESTS_TO_RUN_ESSENSIUM !~ /^\$/ && $DEVICE_UNDER_TEST_ESSENSIUM == "prplmesh"'
+    - if: ($TESTS_TO_RUN_ESSENSIUM && $DEVICE_UNDER_TEST_ESSENSIUM != "prplmesh")
+    - when: manual
+      allow_failure: true
