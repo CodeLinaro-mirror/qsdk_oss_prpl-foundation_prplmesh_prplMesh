@@ -314,9 +314,15 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
         return;
     }
 
-    if (!add_bss_configuration_report_tlv()) {
-        LOG(ERROR) << "Failed to add BSS Configuration Report TLV";
-        return;
+    if (db->device_conf.certification_mode &&
+        db->device_conf.multi_ap_profile !=
+            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4) {
+        LOG(DEBUG) << "skipping bss_configuration_report_tlv in cert_mode because profile < R6";
+    } else {
+        if (!add_bss_configuration_report_tlv()) {
+            LOG(ERROR) << "Failed to add BSS Configuration Report TLV";
+            return;
+        }
     }
 
     auto multiap_profile_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
@@ -629,7 +635,7 @@ bool TopologyTask::add_device_information_tlv()
                 media_info.network_membership = (is_wired_bh || is_wireless_bh_mismatch)
                                                     ? network_utils::ZERO_MAC
                                                     : db->backhaul.backhaul_bssid;
-                media_info.role = ieee1905_1::eRole::NON_AP_NON_PCP_STA;
+                media_info.role               = ieee1905_1::eRole::NON_AP_NON_PCP_STA;
             } else {
                 media_info.network_membership = iface.first;
                 media_info.role               = ieee1905_1::eRole::AP;
