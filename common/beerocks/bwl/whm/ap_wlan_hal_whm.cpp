@@ -2305,11 +2305,21 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
         return false;
     }
 
-    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
-    new_obj.add_child("OperatingStandards", op_std_str);
-    if (!m_ambiorix_cl.update_object(m_radio_path, new_obj)) {
-        LOG(ERROR) << "Could not set OperatingStandards for " << m_radio_path;
+    std::string current_standards;
+    if (!m_ambiorix_cl.get_param(current_standards, m_radio_path, "OperatingStandards")) {
+        LOG(ERROR) << "Cannot read OperatingStandards for " << m_radio_path;
         return false;
+    }
+
+    if (current_standards != op_std_str) {
+        AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+        new_obj.add_child("OperatingStandards", op_std_str);
+        if (!m_ambiorix_cl.update_object(m_radio_path, new_obj)) {
+            LOG(ERROR) << "Could not set OperatingStandards for " << m_radio_path;
+            return false;
+        }
+        refresh_radio_info();
+        event_queue_push(Event::AP_Attached);
     }
 
     return true;

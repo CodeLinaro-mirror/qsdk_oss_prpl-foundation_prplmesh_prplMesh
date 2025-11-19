@@ -563,12 +563,36 @@ bool base_wlan_hal_whm::refresh_radio_info()
         }
     }
 
-    //Capabilities
-    std::string supported_standards;
-    radio->read_child(supported_standards, "SupportedStandards");
+    // Capabilities
+    std::string op_std_format;
+    std::string operating_standards;
+    radio->read_child(op_std_format, "OperatingStandardsFormat");
+    radio->read_child(operating_standards, "OperatingStandards");
+    if (op_std_format == "Legacy") {
+        // Legacy - maximum supported operating standard
+        uint8_t rank = 0;
+        if (operating_standards == "n")
+            rank = 1;
+        if (operating_standards == "ac")
+            rank = 2;
+        if (operating_standards == "ax")
+            rank = 3;
+        if (operating_standards == "be")
+            rank = 4;
+
+        m_radio_info.ht_supported  = (rank >= 1);
+        m_radio_info.vht_supported = (rank >= 2);
+        m_radio_info.he_supported  = (rank >= 3);
+        m_radio_info.eht_supported = (rank >= 4);
+    } else {
+        // Standard - comma separated list
+        m_radio_info.ht_supported  = operating_standards.find("n") != std::string::npos ? 1 : 0;
+        m_radio_info.vht_supported = operating_standards.find("ac") != std::string::npos ? 1 : 0;
+        m_radio_info.he_supported  = operating_standards.find("ax") != std::string::npos ? 1 : 0;
+        m_radio_info.eht_supported = operating_standards.find("be") != std::string::npos ? 1 : 0;
+    }
 
     //HT capabilities
-    m_radio_info.ht_supported = supported_standards.find("n") != std::string::npos ? 1 : 0;
     if (m_radio_info.ht_supported) {
         struct beerocks::net::sHTCapabilities *ht_caps_ptr =
             (struct beerocks::net::sHTCapabilities *)(&m_radio_info.ht_capability);
@@ -634,7 +658,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
     };
 
     //VHT capabilities
-    m_radio_info.vht_supported = supported_standards.find("ac") != std::string::npos ? 1 : 0;
     if (m_radio_info.vht_supported) {
         struct beerocks::net::sVHTCapabilities *vht_caps_ptr =
             (struct beerocks::net::sVHTCapabilities *)(&m_radio_info.vht_capability);
@@ -676,7 +699,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
     }
 
     //HE capabilities
-    m_radio_info.he_supported = supported_standards.find("ax") != std::string::npos ? 1 : 0;
     if (m_radio_info.he_supported) {
         struct beerocks::net::sHECapabilities *he_caps_ptr =
             (struct beerocks::net::sHECapabilities *)(&m_radio_info.he_capability);
@@ -835,7 +857,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
         }
     }
 
-    m_radio_info.eht_supported = supported_standards.find("be") != std::string::npos ? true : false;
     if (radio->read_child(s_val, "ExtensionChannel")) {
         bool channel_ext_above = (s_val == "AboveControlChannel");
         if (!channel_ext_above && (s_val == "Auto") &&
