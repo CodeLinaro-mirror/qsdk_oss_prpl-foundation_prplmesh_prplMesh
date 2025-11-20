@@ -18,6 +18,6 @@
         %read-only uint32 SignalStrength = 0 {
             on action validate call check_range [0, 220];
         }
-        %read-only datetime TimeStamp;
+        %read-only datetime X_PRPLWARE-COM_TimeStamp;
     }
 }
