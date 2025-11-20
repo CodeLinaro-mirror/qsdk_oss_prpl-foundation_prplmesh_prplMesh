@@ -72,6 +72,7 @@ def capture_logs(device: GenericDevice, path: str):
     with open(f"{path}/all-console-{timestamp}.txt", "wb") as logfile:
         with SerialDevice(device.baudrate, device.name, device.serial_prompt,
                           expect_prompt_on_connect=False, logfile=logfile) as shell:
+            shell.logfile = open(f"{path}/ci-expect-debug.txt", "wb")
             shell.sendline("")
             time.sleep(1)
             # Interrupt any running command:
@@ -79,11 +80,15 @@ def capture_logs(device: GenericDevice, path: str):
             shell.expect(device.serial_prompt)
             # There might have been two prompts, if no command had to be interrupted:
             shell.expect([device.serial_prompt, pexpect.TIMEOUT])
-            for log in LOG_COMMANDS:
-                shell.sendline(log.cmd)
-                shell.expect(log.cmd)
-                shell.expect(device.serial_prompt)
-                cmd_output = shell.before.decode("utf-8")
-                with open(f"{path}/{log.filename}", "w", encoding="utf-8") as output_file:
-                    output_file.writelines(cmd_output)
+            try:
+                for log in LOG_COMMANDS:
+                    print(f"send command {log.cmd}")
+                    shell.sendline("")
+                    shell.sendline(log.cmd)
+                    shell.expect(device.serial_prompt)
+                    cmd_output = shell.before.decode("utf-8")
+                    with open(f"{path}/{log.filename}", "w", encoding="utf-8") as output_file:
+                        output_file.writelines(cmd_output)
+            except pexpect.exceptions.TIMEOUT:
+                print(f"Warning: I/O error hitted, refer to ci-expect-debug.txt")
     print("Done")

@@ -10,6 +10,7 @@ variables:
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
   HAZE_FULLIMAGE: "openwrt-qualcommax-ipq807x-prpl_haze-squashfs-sysupgrade.bin"
   FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
+  MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-initramfs.itb"
   OSP_PACKAGE_ID: 13754300
 
 workflow:
@@ -63,6 +64,15 @@ build-for-freedom:
     - shell
     - docker-build
     - freedom-build
+
+build-for-mozart:
+  extends: .build-for-openwrt
+  variables:
+    TARGET_DEVICE: "mozart"
+  tags:
+    - shell
+    - docker-build
+    - mozart-build
 
 build-for-osp-ospv2:
   stage: build
@@ -213,6 +223,41 @@ boardfarm-on-turris-omnia-rdkb:
 
 boardfarm-on-turris-omnia-rdkb-stability:
   extends: boardfarm-on-turris-omnia-rdkb
+  parallel: 10
+  rules:
+    - if: '$STABILITY_TESTS == "yes"'
+  retry: 0
+
+boardfarm-on-mozart:
+  extends: .test-on-target
+  variables:
+    TARGET_DEVICE: mozart
+    TARGET_DEVICE_NAME: mozart
+    OPENWRT_IMAGE: "${MOZART_FULLIMAGE}"
+  script:
+    - |
+      echo "Retrieving the job ID for 'build-in-docker-legacy'."
+      PARENT_PIPELINE_JOBS_URL="$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$PARENT_PIPELINE_ID/jobs?per_page=100"
+      echo "PARENT_PIPELINE_JOBS_URL: $PARENT_PIPELINE_JOBS_URL"
+      BUILD_IN_DOCKER_JOB_ID=$(curl  --retry 3 --location --header "PRIVATE-TOKEN: $ARTIFACTS_DOWNLOADER_TOKEN" "$PARENT_PIPELINE_JOBS_URL" | jq -c '.[] | select( .name == "build-in-docker-legacy" ) | .id')
+      echo "BUILD_IN_DOCKER_JOB_ID: $BUILD_IN_DOCKER_JOB_ID"
+      BUILD_IN_DOCKER_DOWNLOAD_URL="$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/$BUILD_IN_DOCKER_JOB_ID/artifacts"
+      echo "BUILD_IN_DOCKER_DOWNLOAD_URL: $BUILD_IN_DOCKER_DOWNLOAD_URL"
+      echo "Downloading 'build-in-docker-legacy' artifacts."
+      curl --location  --header "PRIVATE-TOKEN: $ARTIFACTS_DOWNLOADER_TOKEN" "$BUILD_IN_DOCKER_DOWNLOAD_URL" --output artifacts.zip
+      unzip artifacts.zip && rm artifacts.zip
+      echo Done
+    - ssh "$TARGET_DEVICE_NAME" 'ubus-cli WiFi.Radio.*.Enable=1' || true
+    - ./dctest.py --dut "$TARGET_DEVICE_NAME" --test-suite test_flows_on_prplwrt
+    - ssh "$TARGET_DEVICE_NAME" 'service prplmesh stop && ubus-cli WiFi.Radio.*.Enable=0' || true
+  tags:
+    - boardfarm
+    - mozart
+  needs:
+    - build-for-mozart
+
+boardfarm-on-mozart-stability:
+  extends: boardfarm-on-mozart
   parallel: 10
   rules:
     - if: '$STABILITY_TESTS == "yes"'
