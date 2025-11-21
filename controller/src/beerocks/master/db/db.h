@@ -2075,7 +2075,7 @@ public:
 
     beerocks::WifiChannel get_radio_wifi_channel(const sMacAddr &radio_mac);
     bool set_radio_wifi_channel(const sMacAddr &radio_mac,
-                                const beerocks::WifiChannel &wifi_channel);
+                                const beerocks::WifiChannel &wifi_channel, const std::string &from);
 
     bool set_sta_wifi_channel(const sMacAddr &sta_mac, const beerocks::WifiChannel &wifi_channel);
     /**

@@ -744,6 +744,15 @@ public:
      */
     static beerocks::eWiFiBandwidth get_bandwidth_from_op_class(const uint8_t &op_class);
 
+    /**
+     * @brief For applications that need to distinguish between 320-1 and 320-2
+     * @param[in] channel logical channel
+     * @param[in] op_class operating class
+     * @return bandwidth
+     */
+    static beerocks::eWiFiBandwidth get_bandwidth_from_channel_and_op_class(const uint8_t channel,
+                                                                            const uint8_t op_class);
+
 private:
     enum eAntennaFactor {
         ANT_FACTOR_1X1 = 0,

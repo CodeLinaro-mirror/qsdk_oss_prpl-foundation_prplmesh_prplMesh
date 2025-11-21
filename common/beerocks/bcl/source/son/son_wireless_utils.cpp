@@ -2430,3 +2430,24 @@ beerocks::eWiFiBandwidth wireless_utils::get_bandwidth_from_op_class(const uint8
 
     return op_class_info->second.band;
 }
+
+const std::set<uint8_t> bw_320_1 = {31, 95, 159};
+const std::set<uint8_t> bw_320_2 = {63, 127, 191};
+
+beerocks::eWiFiBandwidth
+wireless_utils::get_bandwidth_from_channel_and_op_class(const uint8_t channel,
+                                                        const uint8_t op_class)
+{
+    auto ret_bw = wireless_utils::get_bandwidth_from_op_class(op_class);
+    if (ret_bw != beerocks::BANDWIDTH_320) {
+        return ret_bw;
+    }
+    if (bw_320_1.find(channel) != bw_320_1.end()) {
+        return beerocks::BANDWIDTH_320_1;
+    }
+    if (bw_320_2.find(channel) != bw_320_2.end()) {
+        return beerocks::BANDWIDTH_320_2;
+    }
+    LOG(ERROR) << "should not happen";
+    return ret_bw;
+}

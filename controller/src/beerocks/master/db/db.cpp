@@ -5591,7 +5591,7 @@ beerocks::WifiChannel db::get_radio_wifi_channel(const sMacAddr &radio_mac)
 }
 
 bool db::set_radio_wifi_channel(const sMacAddr &radio_mac,
-                                const beerocks::WifiChannel &wifi_channel)
+                                const beerocks::WifiChannel &wifi_channel, const std::string &from)
 {
     std::shared_ptr<Agent::sRadio> radio = get_radio_by_uid(radio_mac);
     if (!radio) {
@@ -5599,7 +5599,7 @@ bool db::set_radio_wifi_channel(const sMacAddr &radio_mac,
     }
 
     LOG(INFO) << "Set Radio " << radio_mac << ", previous wifiChannel: " << radio->wifi_channel
-              << ", current wifiChannel: " << wifi_channel;
+              << ", current wifiChannel: " << wifi_channel << " from " << from;
     radio->wifi_channel = wifi_channel;
 
     radio->operating_class = son::wireless_utils::get_operating_class_by_channel(wifi_channel);
