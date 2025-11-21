@@ -579,7 +579,8 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_search_message(
     } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_5G) {
         freq_band = ieee1905_1::tlvAutoconfigFreqBand::IEEE_802_11_5_GHZ;
     } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_6G) {
-        if (db->device_conf.certification_mode) {
+        if (db->device_conf.certification_mode &&
+            db->device_conf.certification_program != std::string("mapr6")) {
             LOG(INFO) << "Certification mode: skipping AP-Autoconfiguration Search on 6GHz iface: "
                       << radio_iface;
             m_discovery_status[beerocks::eFreqType::FREQ_6G].skipped = true;
