@@ -29,7 +29,9 @@ bool ieee802_3_link_metrics_collector::get_link_metrics(
      */
     uint32_t phy_rate_mbps  = UINT32_MAX;
     uint32_t max_speed_mbps = UINT32_MAX;
-    net::network_utils::linux_iface_get_speed(local_interface_name, phy_rate_mbps, max_speed_mbps);
+    bool is_full_duplex     = false;
+    net::network_utils::linux_iface_get_link_settings(local_interface_name, phy_rate_mbps,
+                                                      max_speed_mbps, is_full_duplex);
 
     /**
      * Note: The MAC throughput capacity is a function of the physical data rate and

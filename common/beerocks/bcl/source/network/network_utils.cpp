@@ -920,183 +920,169 @@ bool network_utils::linux_iface_is_up_and_running(const std::string &iface)
     return (false);
 }
 
-#define ETHTOOL_LINK_MODE_MASK_MAX_KERNEL_NU32 (SCHAR_MAX)
+#ifdef ETHTOOL_GLINKSETTINGS
+/*
+ * Kernel exposes link mode bitmasks as arrays of u32.
+ * 32 is the commonly used size for ETHTOOL_LINK_MODE_MASK_MAX_KERNEL_NU32.
+ */
+static const unsigned ETHTOOL_LINK_MODE_MASK_MAX_LEN = 32;
 
-static bool linux_iface_get_max_speed_from_link_modes(const uint32_t *link_mode_flags,
-                                                      uint32_t link_mode_flags_nwords,
-                                                      uint32_t &max_speed)
+static bool ethtool_bit_set(const uint32_t *mask, unsigned int nr)
 {
-    if (!link_mode_flags || link_mode_flags_nwords < 1) {
+    unsigned int idx = nr / 32u;
+    uint32_t bit     = 1u << (nr % 32u);
+
+    return (idx < ETHTOOL_LINK_MODE_MASK_MAX_LEN) && (mask[idx] & bit);
+}
+
+/*
+ * Query link settings using the newer ETHTOOL_GLINKSETTINGS API.
+ * This is the modern replacement for ETHTOOL_GSET on newer kernels.
+ */
+static bool ethtool_glinksettings(int sock, const std::string &ifname, uint32_t &link_speed,
+                                  uint32_t &max_advertised_speed, bool &is_full_duplex)
+{
+    /*
+     * Kernel returns the "nwords" size as a negative value on first call.
+     * We must retry with the returned positive value.
+     */
+    static int last_link_mode_masks_nwords = 0;
+
+    struct ifreq ifr {
+    };
+    std::snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ifname.c_str());
+
+    struct {
+        struct ethtool_link_settings req;
+        // supported, advertising, link partner
+        uint32_t link_mode_data[3 * ETHTOOL_LINK_MODE_MASK_MAX_LEN];
+    } ecmd{};
+
+    ifr.ifr_data                    = reinterpret_cast<caddr_t>(&ecmd);
+    ecmd.req.cmd                    = ETHTOOL_GLINKSETTINGS;
+    ecmd.req.link_mode_masks_nwords = last_link_mode_masks_nwords;
+
+    // Retry logic required because kernel may return negative nwords on first call.
+    int retries = 2;
+    while (retries-- > 0) {
+        if (ioctl(sock, SIOCETHTOOL, &ifr) == -1) {
+            return false;
+        }
+
+        if (ecmd.req.link_mode_masks_nwords <= 0) {
+            ecmd.req.link_mode_masks_nwords = -ecmd.req.link_mode_masks_nwords;
+        } else {
+            last_link_mode_masks_nwords = ecmd.req.link_mode_masks_nwords;
+            break;
+        }
+    }
+
+    if (ecmd.req.link_mode_masks_nwords <= 0) {
         return false;
     }
 
-    /*
-     * map speed to common legacy ethtool link mode masks
-     */
-    const std::map<uint32_t, std::vector<uint32_t>, std::greater<uint32_t>>
-        legacy_link_modes_to_speed_mapping = {
-            {SPEED_10,
-             {
-                 ADVERTISED_10baseT_Half,
-                 ADVERTISED_10baseT_Full,
-             }},
-            {SPEED_100,
-             {
-                 ADVERTISED_100baseT_Half,
-                 ADVERTISED_100baseT_Full,
-             }},
-            {SPEED_1000,
-             {
-                 ADVERTISED_1000baseT_Half,
-                 ADVERTISED_1000baseT_Full,
-                 ADVERTISED_1000baseKX_Full,
-             }},
-            {SPEED_2500,
-             {
-                 ADVERTISED_2500baseX_Full,
-             }},
-            {SPEED_10000,
-             {
-                 ADVERTISED_10000baseT_Full,
-                 ADVERTISED_10000baseKX4_Full,
-                 ADVERTISED_10000baseKR_Full,
-                 ADVERTISED_10000baseR_FEC,
-             }},
-            {SPEED_20000,
-             {
-                 ADVERTISED_20000baseMLD2_Full,
-                 ADVERTISED_20000baseKR2_Full,
-             }},
-            {SPEED_40000,
-             {
-                 ADVERTISED_40000baseKR4_Full,
-                 ADVERTISED_40000baseCR4_Full,
-                 ADVERTISED_40000baseSR4_Full,
-                 ADVERTISED_40000baseLR4_Full,
-             }},
-            {SPEED_56000,
-             {
-                 ADVERTISED_56000baseKR4_Full,
-                 ADVERTISED_56000baseCR4_Full,
-                 ADVERTISED_56000baseSR4_Full,
-                 ADVERTISED_56000baseLR4_Full,
-             }},
-        };
-    for (const auto &link_mode_speed : legacy_link_modes_to_speed_mapping) {
-        for (const auto &mask : link_mode_speed.second) {
-            if (link_mode_flags[0] & mask) {
-                max_speed = link_mode_speed.first;
-                return true;
-            }
-        }
+    uint32_t *sbits = ecmd.req.link_mode_masks;
+
+    // Determine maximum advertised capability based on link mode bits.
+    if (ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_10000baseT_Full_BIT)) {
+        max_advertised_speed = SPEED_10000;
+    } else if (ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_5000baseT_Full_BIT)) {
+        max_advertised_speed = SPEED_5000;
+    } else if (ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_2500baseT_Full_BIT)) {
+        max_advertised_speed = SPEED_2500;
+    } else if (ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_1000baseT_Full_BIT) ||
+               ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_1000baseT_Half_BIT)) {
+        max_advertised_speed = SPEED_1000;
+    } else if (ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_100baseT_Full_BIT) ||
+               ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_100baseT_Half_BIT)) {
+        max_advertised_speed = SPEED_100;
+    } else if (ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_10baseT_Full_BIT) ||
+               ethtool_bit_set(sbits, ETHTOOL_LINK_MODE_10baseT_Half_BIT)) {
+        max_advertised_speed = SPEED_10;
+    } else {
+        max_advertised_speed = SPEED_UNKNOWN;
     }
 
-    return false;
+    // Current link speed and duplex mode.
+    link_speed     = ecmd.req.speed;
+    is_full_duplex = (ecmd.req.duplex == DUPLEX_FULL);
+
+    return true;
+}
+#endif // ETHTOOL_GLINKSETTINGS
+
+/*
+ * Fallback using the legacy ETHTOOL_GSET API.
+ * Older kernels use this. Modern kernels still support it but consider deprecated.
+ */
+static bool ethtool_gset(int sock, const std::string &ifname, uint32_t &link_speed,
+                         uint32_t &max_advertised_speed, bool &is_full_duplex)
+{
+    struct ifreq ifr {
+    };
+    std::snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ifname.c_str());
+
+    struct ethtool_cmd ecmd {
+    };
+    ifr.ifr_data = reinterpret_cast<caddr_t>(&ecmd);
+    ecmd.cmd     = ETHTOOL_GSET;
+
+    if (ioctl(sock, SIOCETHTOOL, &ifr) == -1) {
+        return false;
+    }
+
+    // Detect maximum supported speed
+    if (ecmd.supported & SUPPORTED_10000baseT_Full) {
+        max_advertised_speed = SPEED_10000;
+    } else if (ecmd.supported & SUPPORTED_2500baseX_Full) {
+        max_advertised_speed = SPEED_2500;
+    } else if (ecmd.supported & (SUPPORTED_1000baseT_Full | SUPPORTED_1000baseT_Half)) {
+        max_advertised_speed = SPEED_1000;
+    } else if (ecmd.supported & (SUPPORTED_100baseT_Full | SUPPORTED_100baseT_Half)) {
+        max_advertised_speed = SPEED_100;
+    } else if (ecmd.supported & (SUPPORTED_10baseT_Full | SUPPORTED_10baseT_Half)) {
+        max_advertised_speed = SPEED_10;
+    } else {
+        max_advertised_speed = SPEED_UNKNOWN;
+    }
+
+    // Current negotiated link speed
+    link_speed = ethtool_cmd_speed(&ecmd);
+
+    // Duplex mode
+    is_full_duplex = (ecmd.duplex == DUPLEX_FULL);
+
+    return true;
 }
 
-bool network_utils::linux_iface_get_speed(const std::string &iface, uint32_t &link_speed,
-                                          uint32_t &max_advertised_speed)
+bool network_utils::linux_iface_get_link_settings(const std::string &iface, uint32_t &link_speed,
+                                                  uint32_t &max_advertised_speed,
+                                                  bool &is_full_duplex)
 {
-    int sock;
-    bool result = false;
-
-    link_speed           = SPEED_UNKNOWN;
-    max_advertised_speed = link_speed;
-
-    sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+    int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
-        LOG(ERROR) << "Can't create SOCK_DGRAM socket: " << strerror(errno);
-    } else {
-        struct ifreq ifr;
-        int rc;
-
-        string_utils::copy_string(ifr.ifr_name, iface.c_str(), sizeof(ifr.ifr_name));
-#ifdef ETHTOOL_GLINKSETTINGS
-        char ecmd[sizeof(struct ethtool_link_settings) +
-                  3 * ETHTOOL_LINK_MODE_MASK_MAX_KERNEL_NU32 * sizeof(__u32)] = {};
-        struct ethtool_link_settings *req = reinterpret_cast<struct ethtool_link_settings *>(ecmd);
-        __u32 *link_mode_data             = reinterpret_cast<__u32 *>(req + 1);
-        ifr.ifr_data                      = ecmd;
-
-        /* Handshake with kernel to determine number of words for link
-         * mode bitmaps. When requested number of bitmap words is not
-         * the one expected by kernel, the latter returns the integer
-         * opposite of what it is expecting. We request length 0 below
-         * (aka. invalid bitmap length) to get this info.
-         */
-        req->cmd = ETHTOOL_GLINKSETTINGS;
-        rc       = ioctl(sock, SIOCETHTOOL, &ifr);
-        if (0 == rc) {
-            /**
-             * See above: we expect a strictly negative value from kernel.
-             */
-            if ((req->link_mode_masks_nwords >= 0) || (ETHTOOL_GLINKSETTINGS != req->cmd)) {
-                LOG(ERROR) << "ETHTOOL_GLINKSETTINGS handshake failed";
-            } else {
-                /**
-                 * Got the real req->link_mode_masks_nwords, now send the real request
-                 */
-                req->cmd                    = ETHTOOL_GLINKSETTINGS;
-                req->link_mode_masks_nwords = -req->link_mode_masks_nwords;
-                rc                          = ioctl(sock, SIOCETHTOOL, &ifr);
-                if ((0 != rc) || (req->link_mode_masks_nwords <= 0) ||
-                    (req->cmd != ETHTOOL_GLINKSETTINGS)) {
-                    LOG(ERROR) << "ETHTOOL_GLINKSETTINGS request failed";
-                } else {
-                    link_speed = req->speed;
-
-                    /* layout of link_mode_data fields:
-                     * __u32 map_supported[link_mode_masks_nwords];
-                     * __u32 map_advertising[link_mode_masks_nwords];
-                     * __u32 map_lp_advertising[link_mode_masks_nwords];
-                     */
-                    max_advertised_speed         = link_speed;
-                    const __u32 *map_advertising = &link_mode_data[req->link_mode_masks_nwords];
-                    linux_iface_get_max_speed_from_link_modes(
-                        map_advertising, req->link_mode_masks_nwords, max_advertised_speed);
-                    result = true;
-                }
-            }
-        }
-#endif
-
-        /**
-         * ETHTOOL_GSET is deprecated and must be used only if ETHTOOL_GLINKSETTINGS
-         * didn't work
-         * or when not supported
-         */
-#ifdef ETHTOOL_GLINKSETTINGS
-        if (!result)
-#endif
-        {
-            struct ethtool_cmd ecmd_legacy;
-
-            ifr.ifr_data = reinterpret_cast<char *>(&ecmd_legacy);
-
-            memset(&ecmd_legacy, 0, sizeof(ecmd_legacy));
-            ecmd_legacy.cmd = ETHTOOL_GSET;
-
-            rc = ioctl(sock, SIOCETHTOOL, &ifr);
-            if (0 == rc) {
-                link_speed           = ethtool_cmd_speed(&ecmd_legacy);
-                max_advertised_speed = link_speed;
-                linux_iface_get_max_speed_from_link_modes(&ecmd_legacy.advertising, 1,
-                                                          max_advertised_speed);
-                result = true;
-            }
-        }
-
-        if (rc < 0) {
-            LOG(ERROR) << "ioctl failed: " << strerror(errno);
-        }
-
-        close(sock);
+        return false;
     }
 
-    LOG(DEBUG) << "iface " << iface << " has speed current: " << link_speed
-               << " max: " << max_advertised_speed << " result: " << result;
+    bool success = false;
 
-    return result;
+#ifdef ETHTOOL_GLINKSETTINGS
+    // Try modern API first.
+    success = ethtool_glinksettings(sock, iface, link_speed, max_advertised_speed, is_full_duplex);
+
+    // If unsupported, fallback to legacy API.
+    if (!success)
+#endif
+    {
+        success = ethtool_gset(sock, iface, link_speed, max_advertised_speed, is_full_duplex);
+    }
+
+    close(sock);
+
+    LOG(DEBUG) << "iface " << iface << " has speed current: " << link_speed
+               << " max: " << max_advertised_speed << " result: " << success;
+
+    return success;
 }
 
 std::vector<network_utils::ip_info> network_utils::get_ip_list()
@@ -1818,4 +1804,44 @@ std::vector<std::string> network_utils::linux_get_lan_interfaces()
     }
 
     return lan_interfaces;
+}
+
+bool network_utils::linux_get_net_dev_stats(const std::string &ifname, sNetDevStats &out)
+{
+    std::string path = "/proc/net/dev";
+    std::ifstream file(path);
+    if (!file) {
+        LOG(ERROR) << "Failed to open " << path;
+        return false;
+    }
+
+    std::string line;
+
+    /* Skip the first two header lines ("Inter-| Receive | Transmit") */
+    std::getline(file, line);
+    std::getline(file, line);
+
+    while (std::getline(file, line)) {
+        auto colon = line.find(':');
+        if (colon == std::string::npos) {
+            continue;
+        }
+
+        /* Trim leading spaces and extract the interface name */
+        auto start       = line.find_first_not_of(" \t");
+        std::string name = line.substr(start, colon - start);
+        if (name != ifname) {
+            continue;
+        }
+
+        /* Extract the numeric fields after the colon into our struct */
+        std::istringstream iss(line.substr(colon + 1));
+        return static_cast<bool>(iss >> out.rx_bytes >> out.rx_packets >> out.rx_errs >>
+                                 out.rx_drop >> out.rx_fifo >> out.rx_frame >> out.rx_compressed >>
+                                 out.rx_multicast >> out.tx_bytes >> out.tx_packets >>
+                                 out.tx_errs >> out.tx_drop >> out.tx_fifo >> out.tx_colls >>
+                                 out.tx_carrier >> out.tx_compressed);
+    }
+
+    return false;
 }
