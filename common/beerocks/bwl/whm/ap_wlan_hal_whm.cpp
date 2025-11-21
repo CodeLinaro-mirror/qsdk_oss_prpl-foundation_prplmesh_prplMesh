@@ -649,7 +649,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                    << " network_key: " << bss_info_conf.network_key
                    << " fronthaul: " << bss_info_conf.fronthaul
                    << " backhaul: " << bss_info_conf.backhaul
-                   << " hidden_SSID: " << bss_info_conf.hidden_ssid;
+                   << " hidden_SSID: " << bss_info_conf.hidden_ssid
+                   << " authentication_type: " << bss_info_conf.authentication_type;
 
         new_obj.set_type(AMXC_VAR_ID_HTABLE);
         new_obj.add_child("SSID", bss_info_conf.ssid);
@@ -664,6 +665,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         std::string encryption_mode =
             wbapi_utils::encryption_type_to_string(bss_info_conf.encryption_type);
+
+        LOG(DEBUG) << "Security Mode:" << security_mode << " Encryption Mode:" << encryption_mode;
 
         std::string wifi_ap_sec_path = wifi_vap_path + "Security.";
         new_obj.set_type(AMXC_VAR_ID_HTABLE);
