@@ -1249,7 +1249,14 @@ bool ap_wlan_hal_whm::process_radio_channel_change_event(const AmbiorixVariant *
     }
     if (chan_change_reason != "MANUAL" && chan_change_reason != "AUTO") {
         LOG(DEBUG) << "chan_change_reason other than MANUAL or AUTO:" << chan_change_reason;
-        return false;
+
+        if (chan_change_reason != "DFS" || !m_accept_dfs_channel_change_after_cac_failure) {
+            return false;
+        }
+
+        LOG(DEBUG) << "Channel change event received following a failed CAC_Completed, "
+                   << "handling it as part of the radar flow...";
+        m_accept_dfs_channel_change_after_cac_failure = false;
     }
     event_queue_push(Event::CSA_Finished);
     return true;
@@ -1549,6 +1556,9 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         beerocks::string_utils::rtrim(tmp_string, "s");
         msg->params.cac_duration_sec = beerocks::string_utils::stoi(tmp_string);
 
+        // Reset the flag at CAC_Started. It will be updated again on CAC_Completed.
+        m_accept_dfs_channel_change_after_cac_failure = false;
+
         // Add the message to the queue
         event_queue_push(Event::DFS_CAC_Started, msg_buff);
         break;
@@ -1579,6 +1589,13 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
             }
         }
         msg->params.success = beerocks::string_utils::stoi(success);
+
+        /**
+         * CAC failed (success == 0), meaning the radio will switch to a non-DFS channel.
+         * In this case we expect a DFS-triggered channel change event, and we must
+         * accept it rather than ignore it.
+         */
+        m_accept_dfs_channel_change_after_cac_failure = (msg->params.success == 0);
 
         // Frequency
         msg->params.frequency = beerocks::string_utils::stoi(parsed_obj["freq"]);
