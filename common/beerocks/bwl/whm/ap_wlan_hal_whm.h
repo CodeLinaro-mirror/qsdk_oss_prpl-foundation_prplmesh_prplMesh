@@ -78,6 +78,39 @@ public:
     virtual bool hybrid_mode_supported() override;
     virtual bool restricted_channels_set(char *channel_list) override;
     virtual bool restricted_channels_get(char *channel_list) override;
+
+    /**
+     * @brief Retrieves the rank of the channel.
+     *
+     * @param chanNum channel.
+     * @param chan_survey_report channel survey report vector(channel, rank)
+     *
+     * @return rank on success, INT32_MAX on failure.
+     */
+    virtual int32_t
+    get_rank_of_channel(uint8_t chanNum,
+                        std::vector<std::tuple<uint8_t, int32_t>> &chan_survey_report);
+
+    /**
+     * @brief Assigns interference factor is directly assigned as rank to each channel
+     * to determine multi-AP preference further.
+     *
+     * @param chan_survey_report Vector of tuples (channel number, interference factor * 1e6).
+     * @return True on success, false if radio info is not available.
+     */
+    virtual bool
+    update_rank_for_channel(std::vector<std::tuple<uint8_t, int32_t>> &chan_survey_report);
+
+    /**
+     * @brief The Channel Survey Report is fetched from the pwhm module.
+     * Each channel's interference factor is reported in the format: factor * 10^6.
+     * The interference factor for each channel is directly used as its "rank".
+     * Channels with lower interference factors (better conditions) receive a lower rank value.
+     * These ranks are later translated into Multi-AP preference values in the `build_channels_list()` function.
+     * Final channel selection is performed at the controller level, based on these rankings.
+     *
+     * @return true on success, fasle on failure
+     */
     virtual bool read_acs_report() override;
     virtual bool set_tx_power_limit(int tx_pow_limit) override;
 

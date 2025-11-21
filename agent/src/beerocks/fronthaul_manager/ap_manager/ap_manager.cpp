@@ -1692,8 +1692,11 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         // Update channels ranking (From ACS Report)
         if (!ap_wlan_hal->read_acs_report()) {
+
+            // If the ACS report is available, it is used to evaluate the ranks of the channels.
+            // If it is not available or fails, the default procedure is followed.
+            // In either case, the function does not return early even if read_acs_report fails.
             LOG(ERROR) << "Failed to read acs report";
-            return;
         }
 
         auto response = beerocks::message_com::create_vs_message<
