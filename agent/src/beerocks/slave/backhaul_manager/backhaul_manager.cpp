@@ -3293,6 +3293,7 @@ void BackhaulManager::handle_dev_reset_default(
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
     }
 
+    db->device_conf.certification_program               = program;
     db->controller_info.early_ap_capability_report_sent = false;
     db->steering_policy.btm_steering_disallowed.clear();
 

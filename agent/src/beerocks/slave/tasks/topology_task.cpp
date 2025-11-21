@@ -320,9 +320,13 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
         return;
     }
 
-    if (!add_bss_configuration_report_tlv()) {
-        LOG(ERROR) << "Failed to add BSS Configuration Report TLV";
-        return;
+    // In R1,R4 testbeds tshark version could not handle this TLV, skip adding if we are in R1,R4 test beds.
+    if (!db->device_conf.certification_mode ||
+        db->device_conf.certification_program == std::string("mapr6")) {
+        if (!add_bss_configuration_report_tlv()) {
+            LOG(ERROR) << "Failed to add BSS Configuration Report TLV";
+            return;
+        }
     }
 
     auto multiap_profile_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
