@@ -92,7 +92,7 @@
     # Remove any leftover from docker-compose
     - ./dctest.py --clean
     # we need a list of all the targets to be able to kill them
-    - ALL_TARGETS="turris-omnia-1 turris-omnia-2 haze mozart"
+    - ALL_TARGETS="turris-omnia-2 mozart"
     # kill prplmesh on each target to make sure they don't interfere with the test
     - for i in $ALL_TARGETS ; do ssh -o ConnectTimeout=5 "$i" 'pgrep -f beerocks | xargs kill -9 2>/dev/null' || true ; done
     - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE_NAME" --image "$OPENWRT_IMAGE" --whm --configuration ci/configuration/boardfarm/whm/"$TARGET_DEVICE_NAME".sh
@@ -124,7 +124,7 @@
     # Use CI defined credentials to pull container images
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     # we need a list of all the targets to be able to kill them
-    - ALL_TARGETS="turris-omnia-1 turris-omnia-2"
+    - ALL_TARGETS="turris-omnia-2"
     # kill prplmesh on each target to make sure they don't interfere with the test
     - for i in $ALL_TARGETS ; do ssh "$i" 'pgrep -f beerocks | xargs kill -9 2>/dev/null' || true ; done
     - export RDKB_IMAGE_PATH=$(ls build/turris-omnia-rdk/rdkb-generic-broadband-image_rdkb*.rootfs.tar.gz)
@@ -153,12 +153,8 @@
     - export DEVICE_UNDER_TEST="$(cat .device-under-test)"
     - |
       case "$DEVICE_UNDER_TEST" in
-          turris-omnia)
-              IMAGE_NAME="$TURRIS_OMNIA_FULLIMAGE"
-              USE_WHM="y"
-          ;;
-          haze)
-              IMAGE_NAME="$HAZE_FULLIMAGE"
+          freedom)
+              IMAGE_NAME="$FREEDOM_FULLIMAGE"
               USE_WHM="y"
           ;;
           *)

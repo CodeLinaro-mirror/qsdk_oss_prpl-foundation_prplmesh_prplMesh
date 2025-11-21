@@ -17,7 +17,7 @@ usage() {
     echo "      -h|--help - show this help menu"
     echo "      -v|--verbose - add verbosity"
     echo "      --branch  - branch to use (default master)"
-    echo "      --device  - device to use (default turris-omnia)"
+    echo "      --device  - device to use (default freedom)"
     echo "      --path    - path to copy ipk to (default .)"
     
 }
