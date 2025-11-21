@@ -141,6 +141,7 @@ public:
         bool local_controller;
         uint8_t management_mode;
         bool certification_mode;
+        std::string certification_program = "mapr4";
         uint8_t stop_on_failure_attempts;
 
         bool check_connectivity_to_controller_enable;

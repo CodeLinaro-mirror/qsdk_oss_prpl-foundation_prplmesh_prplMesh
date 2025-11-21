@@ -28,6 +28,7 @@
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
 #include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
+#include <tlvf/wfa_map/tlvBssConfigurationReport.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
 
@@ -317,6 +318,15 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
     if (!add_assoc_sta_mld_config_reports()) {
         LOG(ERROR) << "Failed to add Associated STA MLD Configuration reports";
         return;
+    }
+
+    // In R1,R4 testbeds tshark version could not handle this TLV, skip adding if we are in R1,R4 test beds.
+    if (!db->device_conf.certification_mode ||
+        db->device_conf.certification_program == std::string("mapr6")) {
+        if (!add_bss_configuration_report_tlv()) {
+            LOG(ERROR) << "Failed to add BSS Configuration Report TLV";
+            return;
+        }
     }
 
     auto multiap_profile_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
@@ -1254,6 +1264,57 @@ bool TopologyTask::add_assoc_sta_mld_config_reports()
                 return false;
             }
         }
+    }
+
+    return true;
+}
+
+bool TopologyTask::add_bss_configuration_report_tlv()
+{
+    auto db     = AgentDB::get();
+    auto radios = db->get_radios_list();
+
+    if (radios.size() == 0) {
+        LOG(ERROR) << "add_bss_configuration_report_tlv(): no radios found in db";
+        return true;
+    }
+
+    auto tlvBssConfigurationReport = m_cmdu_tx.addClass<wfa_map::tlvBssConfigurationReport>();
+    if (!tlvBssConfigurationReport) {
+        LOG(ERROR) << "addClass wfa_map::tlvBssConfigurationReport failed";
+        return false;
+    }
+
+    for (const auto radio : radios) {
+        if (!radio || radio->front.iface_mac == network_utils::ZERO_MAC) {
+            continue;
+        }
+
+        auto radio_entry    = tlvBssConfigurationReport->create_radios();
+        radio_entry->ruid() = radio->front.iface_mac;
+        for (const auto &bssid : radio->front.bssids) {
+            if (bssid.mac == network_utils::ZERO_MAC || bssid.ssid.empty()) {
+                continue;
+            }
+
+            auto bss_info     = radio_entry->create_bss_info();
+            bss_info->bssid() = bssid.mac;
+
+            auto &bss_info_ie = bss_info->bss_ie();
+
+            bss_info_ie.backhaul_bss      = bssid.backhaul_bss;
+            bss_info_ie.fronthaul_bss     = bssid.fronthaul_bss;
+            bss_info_ie.r1_disallowed     = bssid.backhaul_bss_disallow_profile1_agent_association;
+            bss_info_ie.r2_disallowed     = bssid.backhaul_bss_disallow_profile2_agent_association;
+            bss_info_ie.multiple_bssid    = 0;
+            bss_info_ie.transmitted_bssid = bssid.hidden_ssid ? 0 : 1;
+
+            bss_info->set_ssid(bssid.ssid);
+
+            radio_entry->add_bss_info(bss_info);
+        }
+
+        tlvBssConfigurationReport->add_radios(radio_entry);
     }
 
     return true;

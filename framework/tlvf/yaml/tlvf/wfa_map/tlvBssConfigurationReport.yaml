@@ -12,7 +12,9 @@ tlvBssConfigurationReport:
   number_of_reported_radios:
     _type: uint8_t
     _length_var: True
-  radios: cRadio
+  radios: 
+    _type: cRadio
+    _length: [ number_of_reported_radios ]
 
 cBssConf:
   _type: class
