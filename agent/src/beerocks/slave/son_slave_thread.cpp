@@ -19,6 +19,7 @@
 #include "tasks/link_metrics_collection_task.h"
 #include "tasks/proxy_agent_dpp_task.h"
 #include "tasks/service_prioritization_task.h"
+#include "tasks/spectrum_inquiry_task.h"
 #include "tasks/vbss_task.h"
 
 #include <bcl/beerocks_cmdu_client_factory_factory.h>
