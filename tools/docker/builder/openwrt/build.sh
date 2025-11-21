@@ -102,7 +102,7 @@ main() {
 
     eval set -- "$OPTS"
 
-    SUPPORTED_TARGETS="turris-omnia haze urx_osp urx_ospv2 freedom"
+    SUPPORTED_TARGETS="freedom urx_ospv2 urx_osp haze turris-omnia"
 
     while true; do
         case "$1" in

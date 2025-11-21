@@ -76,62 +76,6 @@
             }
         ]
     },
-    "turris-omnia": {
-        "name": "agent-turris-prplOS",
-        "board_type": "prplWRT",
-        "role": "agent",
-        "docker_network": "prplMesh-net-turris-omnia-1",
-        "conn_cmd": "not used",
-        "delay": "30",
-        "iface_to_device": "to-dut",
-        "control_ip": "192.168.200.100",
-        "devices": [
-            {
-                "name": "lan",
-                "type": "prplmesh_compose",
-                "role": "controller",
-                "docker_network": "prplMesh-net-turris-omnia-1",
-                "conn_cmd": ""
-            },
-            {
-                "name": "wifi",
-                "type": "prplWRT_STA",
-                "iface": "wlan0",
-                "driver": "nl80211,wext",
-                "connection_type": "local_cmd",
-                "conn_cmd": "bash",
-                "color": "yellow"
-            }
-        ]
-    },
-    "haze": {
-        "name": "agent-haze",
-        "board_type": "prplWRT",
-        "role": "agent",
-        "docker_network": "prplMesh-net-haze",
-        "conn_cmd": "not used",
-        "delay": "7",
-        "iface_to_device": "to-dut",
-        "control_ip": "192.168.200.150",
-        "devices": [
-            {
-                "name": "lan",
-                "type": "prplmesh_compose",
-                "role": "controller",
-                "docker_network": "prplMesh-net-haze",
-                "conn_cmd": ""
-            },
-            {
-                "name": "wifi",
-                "type": "prplWRT_STA",
-                "iface": "wlp4s0",
-                "driver": "nl80211",
-                "connection_type": "local_cmd",
-                "conn_cmd": "bash",
-                "color": "yellow"
-            }
-        ]
-    },
     "mozart": {
         "name": "agent-mozart",
         "board_type": "prplWRT",

@@ -12,9 +12,7 @@ from typing import Union
 # Third party
 import device.generic
 import device.prplos
-import device.turris_prplos
 import device.turris_rdk_b
-import device.haze
 import device.urx_osp
 import device.freedom
 import device.mozart
@@ -35,10 +33,6 @@ def device_from_name(name: str, target_name: str, image: Union[str, None] = None
     """
     if name == "turris-omnia-rdk":
         dev = device.turris_rdk_b.TurrisRdkb(name, target_name, image)
-    elif name == "turris-omnia":
-        dev = device.turris_prplos.TurrisPrplOS(name, target_name, image)
-    elif name == "haze":
-        dev = device.haze.Haze(name, target_name, image)
     elif name == "urx_osp" or name == "urx_ospv2":
         dev = device.urx_osp.URXOSP(name, target_name, image)
     elif name == "freedom":
