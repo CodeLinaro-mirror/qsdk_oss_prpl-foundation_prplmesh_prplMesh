@@ -1,0 +1,51 @@
+@startmindmap
+scale 3600 width
+*:Controller
+----
+auth type
+0x0200 INVALID
+--AND--
+Question 1 ???;
+**: <Autoconf WSC M2>
+----
+auth type
+0x0200 INVALID
+--AND--
+RSN TLV hexdump:
+30140100000fac04
+0100000fac040100
+000fac028c00dd18
+506f9a290100000f
+ac040100000fac04
+0100000fac08cc00
+dd18506f9a2a0100
+000fac040100000f
+ac090100000fac18
+cc00dd05506f9a2b
+20;
+***:Agent
+----
+auth type
+0x0200 INVALID
+--AND--
+Question 2 ???;
+****:<conversion>
+agent 2 pwhm
+----
+Question 3 ???;
+*****:pwhm datamodel
+----
+AccessPoint.Security.ModeEnabled
+WPA3-Personal-Compatibility ;
+******:hostapd.conf
+----
+wpa_key_mgmt=WPA-PSK
+rsn_override_key_mgmt=SAE
+rsn_override_key_mgmt_2=SAE-EXT-KEY;
+*******: RSN IE
+AKM:2;
+*******: RSN Override IE
+AKM:8;
+*******: RSN Override 2 IE
+AKM:24;
+@endmindmap

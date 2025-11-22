@@ -1,0 +1,33 @@
+@startmindmap
+scale 3600 width
+*:pwhm datamodel
+----
+AccessPoint.Security.ModeEnabled
+WPA3-Personal-Transition ;
+**:hostapd.conf
+----
+wpa_key_mgmt=WPA-PSK SAE SAE-EXT-KEY;
+***:RSN Information Element
+--AKM List:--
+AKM:2
+AKM:8
+AKM:24;
+*:pwhm datamodel
+----
+AccessPoint.Security.ModeEnabled
+WPA3-Personal-Compatibility;
+**:hostapd.conf
+----
+wpa_key_mgmt=WPA-PSK
+rsn_override_key_mgmt=SAE
+rsn_override_key_mgmt_2=SAE-EXT-KEY;
+***: RSN IE
+----
+AKM:2;
+***: RSN Override IE
+----
+AKM:8;
+***: RSN Override 2 IE
+----
+AKM:24;
+@endmindmap
