@@ -509,8 +509,8 @@ int cfg_get_security_policy()
 }
 
 int cfg_notify_onboarding_completed(const char ssid[BPL_SSID_LEN], const char pass[BPL_PASS_LEN],
-                                    const char sec[BPL_SEC_LEN],
-                                    const char iface_name[BPL_IFNAME_LEN], const int success)
+                                    const char sec[BPL_SEC_LEN], const std::string &iface_name,
+                                    const int success)
 {
     //return (sl_beerocks_notify_onboarding_completed(ssid, pass, sec, iface_name, success) ? 0 : -1);
     return 0;
@@ -737,9 +737,9 @@ bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_re
 
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
 {
-    char ifname[BPL_IFNAME_LEN + 1] = {0};
+    char ifname[IFNAMSIZ + 1] = {0};
 
-    int retVal = cfg_get_prplmesh_param("backhaul_wire_iface", ifname, BPL_IFNAME_LEN);
+    int retVal = cfg_get_prplmesh_param("backhaul_wire_iface", ifname, IFNAMSIZ);
     if (retVal == RETURN_ERR) {
         MAPF_ERR("bpl_cfg_get_backhaul_wire_iface: Failed to read backhaul_wire_iface parameter\n");
         return false;

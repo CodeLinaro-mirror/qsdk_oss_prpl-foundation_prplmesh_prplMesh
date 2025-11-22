@@ -43,9 +43,12 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
 
     int interfaces_count = 0;
     for (int index = 0; index < *num_of_interfaces; index++) {
-        if (cfg_get_hostap_iface(index, interfaces[interfaces_count].ifname) == RETURN_ERR) {
+        std::string ifname;
+        if (cfg_get_hostap_iface(index, ifname) == RETURN_ERR) {
             MAPF_ERR("cfg_get_all_prplmesh_wifi_interfaces: failed to get wifi interface for agent"
                      << index);
+        } else {
+            mapf::utils::copy_string(interfaces[interfaces_count].ifname, ifname.c_str(), IFNAMSIZ);
         }
         interfaces[interfaces_count++].radio_num = index;
     }
@@ -55,9 +58,9 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
     return RETURN_OK;
 }
 
-int cfg_get_wifi_params(const char *iface, struct BPL_WLAN_PARAMS *wlan_params)
+int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_params)
 {
-    if (!iface || !wlan_params) {
+    if (!wlan_params) {
         return RETURN_ERR;
     }
     memset(wlan_params, 0, sizeof(struct BPL_WLAN_PARAMS));
@@ -72,7 +75,7 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
 {
     int num_of_interfaces = beerocks::MAX_RADIOS_PER_AGENT;
     for (int index = 0; index < num_of_interfaces; index++) {
-        char iface[BPL_IFNAME_LEN];
+        std::string iface;
         if (cfg_get_hostap_iface(index, iface) == RETURN_ERR) {
             break;
         }
@@ -198,18 +201,13 @@ bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces)
     return true;
 }
 
-int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAME_LEN])
+int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
 {
-    if (!iface || !sta_iface) {
-        MAPF_ERR("cfg_get_sta_iface: invalid input: iface or sta_iface are NULL");
-        return RETURN_ERR;
-    }
-
     //get sta ifname based on conf: must have a wpa_suppl ctrl sock file
     std::string wpa_ctrl_path;
-    if (!beerocks::bpl::bpl_cfg_get_wpa_supplicant_ctrl_path(std::string(iface), wpa_ctrl_path) ||
+    if (!beerocks::bpl::bpl_cfg_get_wpa_supplicant_ctrl_path(iface, wpa_ctrl_path) ||
         wpa_ctrl_path.empty()) {
-        MAPF_INFO("cfg_get_sta_iface: no sta_iface for hostap_iface (" + std::string(iface) + ")");
+        MAPF_INFO("cfg_get_sta_iface: no sta_iface for hostap_iface (" + iface + ")");
         return RETURN_ERR;
     }
     //get sock filename : last token
@@ -217,19 +215,14 @@ int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAM
     std::string token;
     while (std::getline(path, token, '/'))
         ;
-    mapf::utils::copy_string(sta_iface, token.c_str(), BPL_IFNAME_LEN);
+    sta_iface = token;
     return RETURN_OK;
 }
 
 void cfg_wifi_reset_wps_credentials() { LOG(INFO) << __func__ << " NOT IMPLEMENTED"; }
 
-int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN])
+int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface)
 {
-    if (!hostap_iface) {
-        MAPF_ERR("cfg_get_hostap_iface: invalid input: hostap_iface is NULL");
-        return RETURN_ERR;
-    }
-
     if (radio_num < 0) {
         MAPF_ERR("cfg_get_hostap_iface: invalid input: radio_num < 0");
         return RETURN_ERR;
@@ -241,7 +234,7 @@ int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN])
         return RETURN_ERR;
     }
 
-    mapf::utils::copy_string(hostap_iface, iface_str.c_str(), BPL_IFNAME_LEN);
+    hostap_iface = iface_str;
     return RETURN_OK;
 }
 

@@ -96,8 +96,7 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
                     std::to_string(interfaces_count));
                 continue;
             }
-            mapf::utils::copy_string(interfaces[interfaces_count].ifname, ifname.c_str(),
-                                     BPL_IFNAME_LEN);
+            mapf::utils::copy_string(interfaces[interfaces_count].ifname, ifname.c_str(), IFNAMSIZ);
             interfaces[interfaces_count].radio_num = interfaces_count;
 
             // Getting freq band
@@ -119,11 +118,11 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
     return RETURN_OK;
 }
 
-int cfg_get_wifi_params(const char iface[BPL_IFNAME_LEN], struct BPL_WLAN_PARAMS *wlan_params)
+int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_params)
 {
-    if (!iface || !wlan_params) {
-        MAPF_ERR("cfg_get_wifi_params: invalid input: iface = "
-                 << intptr_t(iface) << " wlan_params = " << intptr_t(wlan_params));
+    if (iface.empty() || !wlan_params) {
+        MAPF_ERR("cfg_get_wifi_params: invalid input: iface = " << iface << " wlan_params = "
+                                                                << intptr_t(wlan_params));
         return RETURN_ERR;
     }
 
@@ -277,13 +276,8 @@ bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces)
     return true;
 }
 
-int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAME_LEN])
+int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
 {
-    if (!iface || !sta_iface) {
-        MAPF_ERR("cfg_get_sta_iface: invalid input: iface or sta_iface are NULL");
-        return RETURN_ERR;
-    }
-
     // Get the current radio reference for the given iface
     std::string radio_path;
     if (!m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(iface), radio_path)) {
@@ -297,19 +291,17 @@ int cfg_get_sta_iface(const char iface[BPL_IFNAME_LEN], char sta_iface[BPL_IFNAM
         return false;
     }
     std::string ep_radio_path;
-    std::string ep_ifname;
     for (auto &it : *result) {
         auto &ep = it.second;
         if ((ep.empty()) ||
             !(m_ambiorix_cl.resolve_path(wbapi_utils::get_path_radio_reference(ep),
                                          ep_radio_path)) ||
-            (ep_radio_path != radio_path) || !(ep.read_child(ep_ifname, "IntfName"))) {
+            (ep_radio_path != radio_path) || !(ep.read_child(sta_iface, "IntfName"))) {
             continue;
         }
 
         // The sta iface is the value of the endpoint IntfName field
         // Ex: WiFi.EndPoint.ep5g0.IntfName="wlan1"
-        mapf::utils::copy_string(sta_iface, ep_ifname.c_str(), BPL_IFNAME_LEN);
         return RETURN_OK;
     }
 
@@ -329,13 +321,8 @@ void cfg_wifi_reset_wps_credentials()
     LOG(INFO) << "reset wps credentials";
 }
 
-int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN])
+int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface)
 {
-    if (!hostap_iface) {
-        MAPF_ERR("cfg_get_hostap_iface: invalid input: hostap_iface is NULL");
-        return RETURN_ERR;
-    }
-
     if (radio_num < 0) {
         MAPF_ERR("cfg_get_hostap_iface: invalid input: radio_num < 0");
         return RETURN_ERR;
@@ -349,7 +336,7 @@ int cfg_get_hostap_iface(int32_t radio_num, char hostap_iface[BPL_IFNAME_LEN])
     }
     for (int i = 0; i < num_of_interfaces; i++) {
         if (interfaces[i].radio_num == radio_num) {
-            mapf::utils::copy_string(hostap_iface, interfaces[i].ifname, BPL_IFNAME_LEN);
+            hostap_iface = std::string(interfaces[i].ifname);
             return RETURN_OK;
         }
     }
