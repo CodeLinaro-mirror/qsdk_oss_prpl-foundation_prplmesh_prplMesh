@@ -20,10 +20,7 @@ int beerocks::net::TrafficSeparation::m_profile_x_disallow_override_unsupported_
 namespace beerocks {
 namespace net {
 
-TrafficSeparation::TrafficSeparation(std::shared_ptr<btl::BrokerClient> broker_client)
-    : m_broker_client(broker_client)
-{
-}
+TrafficSeparation::TrafficSeparation() {}
 
 void TrafficSeparation::clear_configuration()
 {
@@ -66,16 +63,6 @@ void TrafficSeparation::clear_configuration()
     db->traffic_separation.secondary_vlans_ids.clear();
     db->traffic_separation.ssid_vid_mapping.clear();
     network_utils::set_vlan_filtering(db->bridge.iface_name, 0);
-
-    // Remove the Primary Vlan configuration in Transport process
-    if (!m_broker_client->configure_primary_vlan_id(0, false)) {
-        LOG(ERROR) << "Failed configuring transport process!";
-    }
-
-    // Reset the transport monitoring on bridge interfaces
-    if (!m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true, true)) {
-        LOG(ERROR) << "Failed configuring transport process!";
-    }
 }
 
 void TrafficSeparation::apply_policy(const std::string &radio_iface)
@@ -93,11 +80,6 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
     }
 
     LOG(DEBUG) << "Apply traffic separation policy";
-
-    // Configure the Primary VLAN in Transport Process
-    if (!m_broker_client->configure_primary_vlan_id(db->traffic_separation.primary_vlan_id, true)) {
-        LOG(ERROR) << "Failed configuring transport process!";
-    }
 
     // The Bridge, the WAN ports and the LAN ports should all have "Tagged Port" policy.
     // Update the Bridge Policy
