@@ -1,0 +1,116 @@
+@startuml
+package "beerocks::net" {
+
+  '-------------------------------------------------
+  ' Value types / configuration
+  '-------------------------------------------------
+  struct sTrafficSeparationConfig {
+    +private_bridge : std::string
+    +private_vid    : uint32_t
+    +guest_bridge   : std::string
+    +guest_vid      : uint32_t
+    +operator==(other : sTrafficSeparationConfig) : bool
+  }
+
+  struct sTrunkPort {
+    +iface_name       : std::string
+    +is_untagged_mode : bool
+    +is_ethernet      : bool
+  }
+
+  enum eAccessRole {
+    HOME
+    GUEST
+  }
+
+  struct sAccessPort {
+    +iface_name : std::string
+    +role       : eAccessRole
+  }
+
+  '-------------------------------------------------
+  ' Manager state
+  '-------------------------------------------------
+  enum eTsManagerState {
+    NO_CONFIG
+    CONFIGURED
+    APPLIED
+  }
+
+  '-------------------------------------------------
+  ' Plumbing abstraction
+  '-------------------------------------------------
+  abstract class PortPlumbing {
+    +apply(cfg : sTrafficSeparationConfig) : bool
+    +clear() : bool
+  }
+
+  class TrunkPortPlumbing8021q {
+    -m_trunk            : sTrunkPort
+    -m_private_subiface : std::string
+    -m_guest_subiface   : std::string
+    -m_last_cfg         : sTrafficSeparationConfig
+    -m_is_applied       : bool
+    +TrunkPortPlumbing8021q(trunk_port : sTrunkPort)
+    +apply(cfg : sTrafficSeparationConfig) : bool
+    +clear() : bool
+  }
+
+  class AccessPortPlumbing8021q {
+    -m_access_port : sAccessPort
+    -m_is_applied  : bool
+    +AccessPortPlumbing8021q(access_port : sAccessPort)
+    +apply(cfg : sTrafficSeparationConfig) : bool
+    +clear() : bool
+  }
+
+  '-------------------------------------------------
+  ' Manager
+  '-------------------------------------------------
+  class TrafficSeparationManager {
+    -m_trunk_port_plumbing_map  : std::unordered_map<std::string, std::unique_ptr<PortPlumbing>>
+    -m_access_port_plumbing_map : std::unordered_map<std::string, std::unique_ptr<PortPlumbing>>
+    -m_config : sTrafficSeparationConfig
+    -m_state : eTsManagerState
+
+    +configure(cfg : sTrafficSeparationConfig) : bool
+
+    +add_trunk_port(trunk_port : sTrunkPort) : bool
+    +remove_trunk_port(iface_name : std::string) : bool
+
+    +add_access_port(access_port : sAccessPort) : bool
+    +remove_access_port(iface_name : std::string) : bool
+
+    +apply_policies() : bool
+    +clear_policies() : bool
+    +reset() : bool
+
+    -has_config() : bool
+    -is_applied() : bool
+    -has_any_ports() : bool
+
+    -remove_all_trunk_ports() : bool
+    -remove_all_access_ports() : bool
+  }
+
+  '-------------------------------------------------
+  ' Utility
+  '-------------------------------------------------
+  class traffic_separation_utils <<static>> {
+    +is_untagged_mode(dis_p1 : bool, dis_p2 : bool,
+                      policy : eUnsupportedProfileDisallowPolicy) : bool
+  }
+}
+
+' Relationships
+sAccessPort --> eAccessRole
+
+PortPlumbing <|.. TrunkPortPlumbing8021q
+PortPlumbing <|.. AccessPortPlumbing8021q
+
+TrafficSeparationManager --> PortPlumbing
+TrafficSeparationManager --> sTrunkPort
+TrafficSeparationManager --> sAccessPort
+TrafficSeparationManager --> sTrafficSeparationConfig
+
+@enduml
