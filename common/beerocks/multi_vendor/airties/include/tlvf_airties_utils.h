@@ -45,31 +45,21 @@ public:
 
     static bool add_airties_ethernet_interface_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 
-    static uint64_t get_value_from_dm(std::string param, std::string cntr_path);
-
     static bool add_airties_ethernet_stats_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 
     static bool add_radio_capability(ieee1905_1::CmduMessageTx &cmdu_tx);
 
-    static bool
-    get_counters_info(std::shared_ptr<airties::tlvAirtiesEthernetStats> &tlvAirtiesEthStats);
-    static bool get_all_counters_info(
-        std::shared_ptr<airties::tlvAirtiesEthernetStatsallcntr> &tlvAirtiesEthStats);
-
     /**
-     * @brief Assigns a unique port ID for the given interface name.
+     * @brief Assigns a sequential port ID for the given interface name.
      *
-     * This function ensures that each interface name is assigned a unique port ID.
-     * If the interface has already been assigned an ID, it returns the same ID.
+     * Each interface name is mapped to a unique, persistent ID.
+     * If the interface was already assigned an ID, the same ID is returned.
+     * Otherwise, the next available ID is assigned, starting from 1.
      *
-     * The function attempts to extract a numeric suffix from the interface name
-     * (e.g., "eth3" → 3 or "eth0" → 0, "eth0.1" -> 1, eth3-> 2) and uses it as the port ID if it's not already used.
-     * Otherwise, it assigns the next available ID starting from 1.
-     *
-     * @param interface_name The name of the interface (e.g., "eth1", "wan0").
-     * @return A unique port ID associated with the given interface name.
+     * @param interface_name The interface name used as the key (e.g., "eth0", "lan1", "wan").
+     * @return The assigned port ID for this interface.
      */
-    static uint8_t assign_unique_port_id(const std::string &alias_raw);
+    static uint8_t assign_unique_port_id(const std::string &interface_name);
 };
 } // namespace airties
 
