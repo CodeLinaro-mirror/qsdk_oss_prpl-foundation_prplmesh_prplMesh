@@ -63,31 +63,30 @@ enum link_types_enum {
     TYPE_10GBPS
 };
 
-//Macros for different Link Speed Types
+// Macros for different Link Speed Types
 #define BITRATE_10 10
 #define BITRATE_100 100
 #define BITRATE_1K 1000
-#define BITRATE_2K 2000
 #define BITRATE_2_5K 2500
 #define BITRATE_5K 5000
 #define BITRATE_10K 10000
 
 /*
- * This enum contains all the optional counters.
- * Values are assigned based on whether the corresponding
- * counter support is present in Ethernet.Interface.Stats. data model
+ * Optional Ethernet counters.
+ * 1 = supported, 0 = not supported.
  *
- * If the DM has this counter, the value is assigned 1.
- * If the DM doesnt have this counter, the value is assigned 0.
+ * Some counters cannot currently be retrieved from the platform (/sys, ethtool, etc.),
+ * so they remain disabled. If we later find a valid source for any of them,
+ * simply switch the corresponding value to 1.
  */
 enum supported_stats_enum {
     BCAST_BYTES_SENT  = 0,
     BCAST_BYTES_RECVD = 0,
-    BCAST_PKTS_SENT   = 1,
-    BCAST_PKTS_RECVD  = 1,
+    BCAST_PKTS_SENT   = 0,
+    BCAST_PKTS_RECVD  = 0,
     MCAST_BYTES_SENT  = 0,
     MCAST_BYTES_RECVD = 0,
-    MCAST_PKTS_SENT   = 1,
+    MCAST_PKTS_SENT   = 0,
     MCAST_PKTS_RECVD  = 1
 };
 
@@ -98,14 +97,14 @@ enum supported_stats_enum {
 #define MCAST_BYTES_SUPPORTED (MCAST_BYTES_SENT && MCAST_BYTES_RECVD)
 
 /*
- * Following function returns the link speed.
+ * Following function returns the link type.
  * This is based on the requirement,
  * Bit 7:4 Supported Link Type Link type (0=undefined, 1=10Mbps, 2=100Mbps,
                                           3=1Gbps, 4=2,5Gbps, 5=5Gpbs, 6=10Gbps)
  * Bit 3:0 Current Link Type Link type (0=undefined, 1=10Mbps, 2=100Mbps,
                                           3=1Gbps, 4=2,5Gbps, 5=5Gpbs, 6=10Gbps
  */
-uint8_t get_bitvalue(uint32_t bit_rate)
+static uint8_t bitrate_to_link_type(uint32_t bit_rate)
 {
     uint8_t value;
     switch (bit_rate) {
@@ -118,7 +117,6 @@ uint8_t get_bitvalue(uint32_t bit_rate)
     case BITRATE_1K:
         value = TYPE_1GBPS;
         break;
-    case BITRATE_2K:
     case BITRATE_2_5K:
         value = TYPE_2_5GBPS;
         break;
@@ -165,11 +163,6 @@ uint16_t set_supp_stats_val()
     return var;
 }
 
-static AmbiorixVariantSmartPtr get_eth_interface_object(const std::string &path)
-{
-    return (beerocks::bpl::m_ambiorix_cl.get_object(path));
-}
-
 /*
  * Check if its WAN or LAN interface.
  * If its WAN, then dont add it to the TLV.
@@ -200,11 +193,6 @@ bool get_data_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string 
  */
 bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
-    std::string dm_path        = "Device.Ethernet.";
-    std::string interface_path = "Interface.";
-    std::string interface_dm_path;
-    uint8_t num_ports = 0;
-
     auto tlvAirtiesEthIntf = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetInterface>();
     if (!tlvAirtiesEthIntf) {
         LOG(ERROR) << "addClass wfa_map::tlvDeviceEthernetInterface failed";
@@ -216,115 +204,41 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
     tlvAirtiesEthIntf->tlv_id() =
         static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_INTERFACE);
 
-    //Get the Ambiorix object
-    auto eth_interface = get_eth_interface_object(dm_path);
-    if (!eth_interface) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
-        return false;
-    }
+    auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
+    for (const auto &lan_iface : lan_ifaces) {
+        std::string iface_mac;
 
-    //Number of Ethernet Interfaces present
-    if (!get_data_from_dm(eth_interface, "LinkNumberOfEntries", num_ports) || (!num_ports)) {
-        LOG(ERROR) << "Failed to populate Ethernet Interface TLV as "
-                      "LinkNumberOfEntries is not valid";
-        return false;
-    }
-
-    for (uint8_t i = 1; i <= num_ports; i++) {
-
-        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
-
-        eth_interface = get_eth_interface_object(interface_dm_path);
-        if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
+        if (!beerocks::net::network_utils::linux_iface_get_mac(lan_iface, iface_mac)) {
             continue;
         }
 
-        //Check if its a wan interface.
-        if (check_wan_interface(eth_interface)) {
+        uint32_t link_speed;
+        uint32_t max_speed;
+        bool is_full_duplex;
+
+        if (!net::network_utils::linux_iface_get_link_settings(lan_iface, link_speed, max_speed,
+                                                               is_full_duplex)) {
+            LOG(WARNING) << "Failed to get link settings for " << lan_iface;
             continue;
         }
 
         auto interface_list = tlvAirtiesEthIntf->create_interface_list();
 
-        std::string interface_alias;
-        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
-            (interface_alias.empty())) {
-            LOG(ERROR) << "Failed to read Alias value from " << interface_dm_path;
-            continue;
-        }
-        interface_list->port_id() =
-            airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
+        interface_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(lan_iface);
+        interface_list->eth_mac() = tlvf::mac_from_string(iface_mac);
+        interface_list->set_eth_intf_name(lan_iface);
 
-        std::string mac_addr;
-        if (!get_data_from_dm(eth_interface, "MACAddress", mac_addr)) {
-            LOG(ERROR) << "Failed to get the MAC address for port_id " << interface_list->port_id();
-            continue;
-        }
-        interface_list->eth_mac() = tlvf::mac_from_string(mac_addr);
-
-        std::string eth_interface_name;
-        if (!get_data_from_dm(eth_interface, "Name", eth_interface_name)) {
-            LOG(ERROR) << "Failed to get the Interface Name for port_id "
-                       << interface_list->port_id();
-            continue;
-        }
-        interface_list->set_eth_intf_name(eth_interface_name);
-
-        /*
-         * Port State Bitwise
-         * Bit 7 - eth_port_admin_state - Device.Ethernet.Interface.1.Enable
-         * Bit 6 - eth_port_link_state  - Device.Ethernet.Interface.1.Status
-         * Bit 5 - eth_port_duplex_mode - Device.Ethernet.Interface.1.DuplexMode
-         * Bit 4 - 0 - Reserved
-         */
-        bool port_admin_state = false;
-        if (!get_data_from_dm(eth_interface, "Enable", port_admin_state)) {
-            LOG(ERROR) << "Failed to get the admin state for the port_id "
-                       << interface_list->port_id();
-            continue;
-        }
-        interface_list->flags1().eth_port_admin_state = port_admin_state;
-
-        std::string port_link_state;
-        if (!get_data_from_dm(eth_interface, "Status", port_link_state)) {
-            LOG(ERROR) << "Failed to get the link state for the port_id "
-                       << interface_list->port_id();
-            continue;
-        }
-        interface_list->flags1().eth_port_link_state = (port_link_state == "Up" ? 1 : 0);
-
-        std::string port_dup_mode;
-        if (!get_data_from_dm(eth_interface, "DuplexMode", port_dup_mode)) {
-            LOG(ERROR) << "Failed to get the duplex mode for the port_id "
-                       << interface_list->port_id();
-            continue;
-        }
-        interface_list->flags1().eth_port_duplex_mode =
-            (((port_dup_mode == "Auto") || (port_dup_mode == "Full")) ? 1 : 0);
-
-        /*
-         * Next octet updation for Link Type
-         * Bits 7 - 4 : Supported Link Type
-         * Bits 3 - 0 : Current Link Type
-         */
-        uint32_t supp_link_type = 0, cur_link_type = 0;
-        if (!get_data_from_dm(eth_interface, "MaxBitRate", supp_link_type)) {
-            LOG(ERROR) << "Failed to get the Maximum support bit rate for port_id "
-                       << interface_list->port_id();
-            continue;
-        }
-        interface_list->flags2().supported_link_type = get_bitvalue(supp_link_type);
-
-        if (!get_data_from_dm(eth_interface, "CurrentBitRate", cur_link_type)) {
-            LOG(ERROR) << "Failed to get the current bit rate for port_id "
-                       << interface_list->port_id();
-            continue;
-        }
-        interface_list->flags2().current_link_type = get_bitvalue(cur_link_type);
+        interface_list->flags1().eth_port_admin_state =
+            beerocks::net::network_utils::linux_iface_is_up(lan_iface);
+        interface_list->flags1().eth_port_link_state =
+            beerocks::net::network_utils::linux_iface_is_up_and_running(lan_iface);
+        interface_list->flags1().eth_port_duplex_mode = is_full_duplex ? 1 : 0;
+        interface_list->flags2().supported_link_type  = bitrate_to_link_type(max_speed);
+        interface_list->flags2().current_link_type    = bitrate_to_link_type(link_speed);
 
         tlvAirtiesEthIntf->add_interface_list(interface_list);
     }
+
     return true;
 }
 
@@ -361,234 +275,20 @@ uint64_t swap_and_convert_counter(uint64_t val)
  */
 uint64_t convertBytes_to_Kb(uint64_t bytes_val) { return (bytes_val / BYTES_IN_KB); }
 
-uint64_t tlvf_airties_utils::get_value_from_dm(std::string param, std::string cntr_path)
+inline void insert_ethernet_stats_item(std::shared_ptr<airties::cPortList> &port_list,
+                                       uint64_t counter)
 {
-    uint64_t output = 0, value = 0;
-
-    auto eth_interface = get_eth_interface_object(cntr_path);
-    if (!eth_interface) {
-        LOG(ERROR) << "failed to get radio Stats object " << cntr_path;
-        return output;
-    }
-    if (!eth_interface->read_child<>(value, param.c_str())) {
-        LOG(INFO) << "Failed to read " << cntr_path << " " << param;
-        return output;
+    auto statsItem = port_list->create_statsItem();
+    if (!statsItem) {
+        LOG(ERROR) << "Failed to create stats item!";
+        return;
     }
 
-    /*
-     * As per the requirement, only bytes counter need
-     * to be be converted to KiloByte. As of now, only
-     * BytesSent and Received are supported in DM.
-     */
-    if ((param == "BytesSent") || (param == "BytesReceived")) {
-        if (value) {
-            value = convertBytes_to_Kb(value);
-        }
-    }
+    uint64_t swapped = swap_and_convert_counter(counter);
 
-    output = swap_and_convert_counter(value);
-    return output;
-}
+    statsItem->set_item(&swapped, COUNTERS_SIZE);
 
-template <typename T> void populate_cntrs_info(std::shared_ptr<T> &port_list, std::string cntr_path)
-{
-    uint64_t value = 0;
-    value          = tlvf_airties_utils::get_value_from_dm("BytesSent", cntr_path);
-    port_list->set_bytes_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("BytesReceived", cntr_path);
-    port_list->set_bytes_recvd(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("PacketsSent", cntr_path);
-    port_list->set_packets_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("PacketsReceived", cntr_path);
-    port_list->set_packets_recvd(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("ErrorsSent", cntr_path);
-    port_list->set_tx_pkt_errors(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("ErrorsReceived", cntr_path);
-    port_list->set_rx_pkt_errors(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("BroadcastPacketsSent", cntr_path);
-    port_list->set_bcast_pkts_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("BroadcastPacketsReceived", cntr_path);
-    port_list->set_bcast_pkts_recvd(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("MulticastPacketsSent", cntr_path);
-    port_list->set_mcast_pkts_sent(&value, COUNTERS_SIZE);
-
-    value = tlvf_airties_utils::get_value_from_dm("MulticastPacketsReceived", cntr_path);
-    port_list->set_mcast_pkts_recvd(&value, COUNTERS_SIZE);
-}
-
-/*
- * Function to populate the Ethernet Stats TLV
- * for all the counters present.
- */
-bool tlvf_airties_utils::get_all_counters_info(
-    std::shared_ptr<airties::tlvAirtiesEthernetStatsallcntr> &tlvEthStats)
-{
-    std::string dm_path        = "Device.Ethernet.";
-    std::string interface_path = "Interface.";
-    std::string stats_path     = "Stats.";
-    std::string cntr_path, interface_dm_path;
-    uint8_t num_ports = 0;
-
-    tlvEthStats->vendor_oui() =
-        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
-    tlvEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
-
-    //Start filling the fields
-
-    tlvEthStats->supported_extra_stats() = set_supp_stats_val();
-
-    auto eth_interf = get_eth_interface_object(dm_path);
-    if (!eth_interf) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
-        return false;
-    }
-    /*
-     * Get the number of Ethernet ports
-     * for the loop count
-     */
-    if (!get_data_from_dm(eth_interf, "InterfaceNumberOfEntries", num_ports) || !num_ports) {
-        LOG(ERROR) << "Failed to populate Ethernet Stats TLV as "
-                      "InterfaceNumberOfEntries is not valid";
-        return false;
-    }
-
-    for (uint8_t i = 1; i <= num_ports; i++) {
-
-        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
-
-        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(interface_dm_path);
-        if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
-            return false;
-        }
-
-        /*
-         * Check if its WAN or LAN interface.
-         * If its WAN, then dont add it to the TLV.
-         */
-        if (check_wan_interface(eth_interface)) {
-            continue;
-        }
-
-        auto port_list = tlvEthStats->create_port_list();
-
-        cntr_path = dm_path + interface_path + std::to_string(i) + "." + stats_path;
-
-        std::string interface_alias;
-        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
-            (interface_alias.empty())) {
-            LOG(ERROR) << "Failed to read Alias value from DM";
-            return false;
-        }
-        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
-
-        //Populate the counters
-        populate_cntrs_info(port_list, cntr_path);
-        /*
-         * TODO:
-         * Broadcast/Multicast Byte counters are not supported in Data model
-         * for which community bug has raised.
-         * This is a placeholder for fetching those counters.
-         * As of now, for all the ports, the hard coded values will be
-         * populated in the TLV fields.
-         * In future, if the solution to fetch these counters are
-         * available, it can be implemented in separate function and called
-         * here or implementented in populate_cntrs_info() itself.
-         */
-        uint64_t c_bbytes_sent = swap_and_convert_counter(100);
-        port_list->set_bcast_bytes_sent(&c_bbytes_sent, 6);
-
-        uint64_t c_bbytes_recvd = swap_and_convert_counter(200);
-        port_list->set_bcast_pkts_recvd(&c_bbytes_recvd, 6);
-
-        uint64_t c_mbytes_sent = swap_and_convert_counter(300);
-        port_list->set_mcast_bytes_sent(&c_mbytes_sent, 6);
-
-        uint64_t c_mbytes_recvd = swap_and_convert_counter(400);
-        port_list->set_mcast_bytes_recvd(&c_mbytes_recvd, 6);
-
-        tlvEthStats->add_port_list(port_list);
-    }
-    return true;
-}
-
-bool tlvf_airties_utils::get_counters_info(
-    std::shared_ptr<airties::tlvAirtiesEthernetStats> &tlvEthStats)
-{
-    std::string dm_path        = "Device.Ethernet.";
-    std::string interface_path = "Interface.";
-    std::string stats_path     = "Stats.";
-    std::string cntr_path, interface_dm_path;
-    uint8_t num_ports = 0;
-
-    tlvEthStats->vendor_oui() =
-        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
-    tlvEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
-
-    //Start filling the fields
-
-    tlvEthStats->supported_extra_stats() = set_supp_stats_val();
-
-    auto eth_interf = beerocks::bpl::m_ambiorix_cl.get_object(dm_path);
-    if (!eth_interf) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path " << dm_path;
-        return false;
-    }
-
-    /*
-     * Get the number of Ethernet ports
-     * for the loop count
-     */
-    if (!get_data_from_dm(eth_interf, "InterfaceNumberOfEntries", num_ports) || (!num_ports)) {
-        LOG(ERROR) << "Failed to populate Ethernet Stats TLV as "
-                      "InterfaceNumberOfEntries is not valid";
-        return false;
-    }
-
-    for (uint8_t i = 1; i <= num_ports; i++) {
-
-        interface_dm_path = dm_path + interface_path + std::to_string(i) + ".";
-
-        auto eth_interface = beerocks::bpl::m_ambiorix_cl.get_object(interface_dm_path);
-        if (!eth_interface) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << interface_dm_path;
-            return false;
-        }
-
-        /*
-         * Check if its WAN or LAN interface.
-         * If its WAN, then dont add it to the TLV.
-         */
-        if (check_wan_interface(eth_interface)) {
-            continue;
-        }
-
-        auto port_list = tlvEthStats->create_port_list();
-
-        cntr_path = dm_path + interface_path + std::to_string(i) + "." + stats_path;
-
-        std::string interface_alias;
-        if (!get_data_from_dm(eth_interface, "Alias", interface_alias) ||
-            (interface_alias.empty())) {
-            LOG(ERROR) << "Failed to read Alias value from DM";
-            return false;
-        }
-
-        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(interface_alias);
-
-        populate_cntrs_info(port_list, cntr_path);
-
-        tlvEthStats->add_port_list(port_list);
-    }
-    return true;
+    port_list->add_statsItem(statsItem);
 }
 
 /*
@@ -597,27 +297,58 @@ bool tlvf_airties_utils::get_counters_info(
  */
 bool tlvf_airties_utils::add_airties_ethernet_stats_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
-    /*
-     * If the optional counters support is present
-     * in the DM, then populate TLV: tlvAirtiesEthernetStatsallcntr
-     * else populate all the counters TLV:tlvAirtiesEthernetStats
-     */
-    if (BCAST_BYTES_SUPPORTED) {
-        auto tlvAirtiesEthStatsall = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStatsallcntr>();
-        if (!tlvAirtiesEthStatsall) {
-            LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
-            return false;
-        }
-        get_all_counters_info(tlvAirtiesEthStatsall);
-
-    } else {
-        auto tlvAirtiesEthStats = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStats>();
-        if (!tlvAirtiesEthStats) {
-            LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
-            return false;
-        }
-        get_counters_info(tlvAirtiesEthStats);
+    auto tlvAirtiesEthStats = m_cmdu_tx.addClass<airties::tlvAirtiesEthernetStats>();
+    if (!tlvAirtiesEthStats) {
+        LOG(ERROR) << "addClass wfa_map::tlvAirtiesEthStats failed";
+        return false;
     }
+
+    tlvAirtiesEthStats->vendor_oui() =
+        (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
+    tlvAirtiesEthStats->tlv_id() = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_ETHERNET_STATS);
+    tlvAirtiesEthStats->supported_extra_stats() = set_supp_stats_val();
+
+    auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
+    for (auto &lan_iface : lan_ifaces) {
+        auto port_list = tlvAirtiesEthStats->create_port_list();
+
+        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(lan_iface);
+
+        beerocks::net::network_utils::sNetDevStats netDevStats = {0};
+        if (!beerocks::net::network_utils::linux_get_net_dev_stats(lan_iface, netDevStats)) {
+            LOG(WARNING) << "Failed to get net dev stats for " << lan_iface;
+            continue;
+        }
+
+        /*
+         * As per the requirement, only byte counters need
+         * to be be converted to KiloBytes.
+         *
+         * The commented out items below correspond to counters that we currently
+         * cannot obtain from the platform (e.g. multicast/broadcast bytes).
+         * These fields are optional, and we keep them commented out for now.
+         * If we later find a reliable source for these counters under /sys or
+         * elsewhere, they can simply be enabled. The insertion order must remain
+         * unchanged.
+         */
+        insert_ethernet_stats_item(port_list, convertBytes_to_Kb(netDevStats.tx_bytes));
+        insert_ethernet_stats_item(port_list, convertBytes_to_Kb(netDevStats.rx_bytes));
+        insert_ethernet_stats_item(port_list, netDevStats.tx_packets);
+        insert_ethernet_stats_item(port_list, netDevStats.rx_packets);
+        insert_ethernet_stats_item(port_list, netDevStats.tx_errs);
+        insert_ethernet_stats_item(port_list, netDevStats.rx_errs);
+        //insert_ethernet_stats_item(port_list, multicast_bytes_sent);
+        //insert_ethernet_stats_item(port_list, multicast_bytes_received);
+        //insert_ethernet_stats_item(port_list, multicast_packets_sent);
+        insert_ethernet_stats_item(port_list, netDevStats.rx_multicast);
+        //insert_ethernet_stats_item(port_list, broadcast_bytes_sent);
+        //insert_ethernet_stats_item(port_list, broadcast_bytes_received);
+        //insert_ethernet_stats_item(port_list, broadcast_packets_sent);
+        //insert_ethernet_stats_item(port_list, broadcast_packets_received);
+
+        tlvAirtiesEthStats->add_port_list(port_list);
+    }
+
     return true;
 }
 
@@ -813,7 +544,6 @@ void update_client_details(std::shared_ptr<airties::tlvAirtiesDeviceInfo> &tlvDe
 bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
     uint32_t randomBootid;
-    auto db = beerocks::AgentDB::get();
 
     srand((unsigned)time(NULL));
     randomBootid = rand();
@@ -830,7 +560,12 @@ bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m
 
     update_client_details(tlvAirtiesDeviceInfo);
 
-    if (db->device_conf.local_gw) { //it's a controller
+    bool local_gw = false;
+    {
+        local_gw = beerocks::AgentDB::get()->device_conf.local_gw;
+    }
+
+    if (local_gw) { //it's a controller
         tlvAirtiesDeviceInfo->flags1().gateway_product_class  = TLV_BIT_ENABLE;
         tlvAirtiesDeviceInfo->flags2().device_role_indication = TLV_BIT_ENABLE;
     } else {
@@ -983,10 +718,11 @@ bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetri
     std::string stats_string = "Stats.";
     std::string rad_details_path;
 
-    auto db           = AgentDB::get();
     int num_of_radios = 0;
+    {
+        num_of_radios = AgentDB::get()->get_radios_list().size();
+    }
 
-    num_of_radios = db->get_radios_list().size();
     LOG(INFO) << "Device Metrics TLV: Number of radios  " << num_of_radios;
 
     for (int radio_index = 1; radio_index <= num_of_radios; radio_index++) {
@@ -1129,50 +865,6 @@ bool tlvf_airties_utils::add_airties_msgtype_tlv(ieee1905_1::CmduMessageTx &cmdu
     return true;
 }
 
-uint8_t tlvf_airties_utils::assign_unique_port_id(const std::string &interface_name)
-{
-    static std::mutex port_id_mutex;
-    std::lock_guard<std::mutex> lock(port_id_mutex);
-
-    static std::map<std::string, uint8_t> assigned_ids;
-    static std::set<uint8_t> used_ids;
-
-    // Return immediately if already assigned
-    auto it = assigned_ids.find(interface_name);
-    if (it != assigned_ids.end()) {
-        return it->second;
-    }
-
-    // Extract trailing digit if present
-    int i = interface_name.size() - 1;
-    while (i >= 0 && isdigit(interface_name[i])) {
-        --i;
-    }
-
-    uint8_t suffix = 0;
-    if (i != (int)interface_name.size() - 1) {
-        std::string number_part = interface_name.substr(i + 1);
-        suffix                  = static_cast<uint8_t>(std::stoi(number_part));
-    }
-
-    // Assign suffix if valid and unused
-    if (used_ids.find(suffix) == used_ids.end()) {
-        assigned_ids[interface_name] = suffix;
-        used_ids.insert(suffix);
-        return suffix;
-    }
-
-    // Assign next available number
-    uint8_t next_id = 1;
-    while (used_ids.find(next_id) != used_ids.end()) {
-        ++next_id;
-    }
-
-    assigned_ids[interface_name] = next_id;
-    used_ids.insert(next_id);
-    return next_id;
-}
-
 /**
  * @brief Add Airties Radio Capability TLV to the CMDU message.
  *
@@ -1230,4 +922,24 @@ bool tlvf_airties_utils::add_radio_capability(ieee1905_1::CmduMessageTx &cmdu_tx
     }
 
     return true;
+}
+
+uint8_t tlvf_airties_utils::assign_unique_port_id(const std::string &interface_name)
+{
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+
+    static std::map<std::string, uint8_t> iface_to_id;
+
+    // If already assigned, return existing ID
+    auto it = iface_to_id.find(interface_name);
+    if (it != iface_to_id.end()) {
+        return it->second;
+    }
+
+    // Assign next sequential ID starting from 1
+    uint8_t new_id              = static_cast<uint8_t>(iface_to_id.size() + 1);
+    iface_to_id[interface_name] = new_id;
+
+    return new_id;
 }
