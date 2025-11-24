@@ -1,0 +1,37 @@
+@startuml
+package "Agent" {
+
+  package "AutoConfiguration" {
+    class ApAutoConfigurationTask
+  }
+
+  package "TrafficSeparation" {
+    class TrafficSeparationManager
+    abstract class PortPlumbing
+    class TrunkPortPlumbing8021q
+    class AccessPortPlumbing8021q
+    struct sTrunkPort
+    struct sAccessPort
+    struct sTrafficSeparationConfig
+  }
+
+  class AgentDB
+  class BPL_CFG
+  class network_utils
+}
+
+' ApAutoConfigurationTask interactions
+ApAutoConfigurationTask --> AgentDB : read BH, FH BSS, \nprofiles etc
+ApAutoConfigurationTask --> BPL_CFG : reads TS configuration from Custom DM \n(bridge names, VLAN ids, etc)
+ApAutoConfigurationTask --> TrafficSeparationManager : configure(cfg)\nadd_trunk_port(trunk)\nadd_access_port(access)\napply_policies()
+
+' Manager → plumbing
+TrafficSeparationManager --> PortPlumbing : apply(cfg)\nclear()
+PortPlumbing <|-- TrunkPortPlumbing8021q
+PortPlumbing <|-- AccessPortPlumbing8021q
+
+' Plumbing → OS/network helpers
+TrunkPortPlumbing8021q --> network_utils : create_vlan_interface()\nlinux_add_iface_to_bridge()\nset_interface_state()
+AccessPortPlumbing8021q --> network_utils : set_vlan_packet_filter()
+
+@enduml
