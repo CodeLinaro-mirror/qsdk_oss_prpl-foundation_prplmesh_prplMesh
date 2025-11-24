@@ -1285,6 +1285,12 @@ bool ap_wlan_hal_nl80211::set_primary_vlan_id(uint16_t primary_vlan_id)
     return true;
 }
 
+bool ap_wlan_hal_nl80211::set_disabled_subchannels(uint16_t bitmap)
+{
+    LOG(DEBUG) << "ap_wlan_hal_nl80211: set_disabled_subchannels, bitmap=" << bitmap;
+    return true;
+}
+
 bool ap_wlan_hal_nl80211::generate_connected_clients_events(
     bool &is_finished_all_clients, std::chrono::steady_clock::time_point max_iteration_timeout)
 {

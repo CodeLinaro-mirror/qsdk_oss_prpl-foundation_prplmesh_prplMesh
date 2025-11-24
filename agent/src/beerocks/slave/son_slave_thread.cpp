@@ -1878,6 +1878,8 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
         request_out->tx_limit_valid()      = request_in->tx_limit_valid();
         request_out->sr_params()           = request_in->sr_params();
         request_out->spatial_reuse_valid() = request_in->spatial_reuse_valid();
+        request_out->eo_params()           = request_in->eo_params();
+        request_out->eht_operation_valid() = request_in->eht_operation_valid();
         send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
         break;
     }

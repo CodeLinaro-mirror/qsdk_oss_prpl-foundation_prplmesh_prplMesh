@@ -276,6 +276,57 @@ void ChannelSelectionTask::handle_channel_preference_query(ieee1905_1::CmduMessa
     }
 }
 
+bool ChannelSelectionTask::handle_eht_operation_tlv(wfa_map::tlvEHTOperations &eht_ops_tlv)
+{
+    auto db     = AgentDB::get();
+    bool status = false;
+
+    for (auto radio_idx = 0; radio_idx < eht_ops_tlv.num_radio(); ++radio_idx) {
+        auto eht_operations_radio = std::get<1>(eht_ops_tlv.radio_entries(radio_idx));
+
+        auto radio = db->get_radio_by_mac(eht_operations_radio.ruid(), AgentDB::eMacType::RADIO);
+        if (!radio) {
+            LOG(ERROR) << "Radio not found: " << eht_operations_radio.ruid();
+            continue;
+        }
+
+        const auto &radio_mac = eht_operations_radio.ruid();
+        auto &radio_request   = m_pending_selection.requests[radio_mac];
+
+        auto eht_operations_bss = std::get<1>(eht_operations_radio.bss_entries(0));
+
+        radio_request.eht_operations_received =
+            eht_operations_bss.flags().eht_operation_information_valid ||
+            eht_operations_bss.flags().disabled_subchannel_valid;
+
+        if (!radio_request.eht_operations_received) {
+            continue;
+        }
+
+        LOG(DEBUG) << "EHT Operation params are received for radio : " << radio_mac;
+        status = true;
+
+        radio_request.eht_operation.eht_operation_information_valid =
+            eht_operations_bss.flags().eht_operation_information_valid;
+        radio_request.eht_operation.disabled_subchannel_valid =
+            eht_operations_bss.flags().disabled_subchannel_valid;
+        radio_request.eht_operation.eht_default_pe_duration =
+            eht_operations_bss.flags().eht_default_pe_duration;
+        radio_request.eht_operation.group_addressed_bu_indication_limit =
+            eht_operations_bss.flags().group_addressed_bu_indication_limit;
+        radio_request.eht_operation.group_addressed_bu_indication_exponent =
+            eht_operations_bss.flags().group_addressed_bu_indication_exponent;
+        radio_request.eht_operation.basic_eht_mcs_and_nss_set =
+            eht_operations_bss.basic_eht_mcs_and_nss_set();
+        radio_request.eht_operation.control = eht_operations_bss.control();
+        radio_request.eht_operation.ccfs0   = eht_operations_bss.ccfs0();
+        radio_request.eht_operation.ccfs1   = eht_operations_bss.ccfs1();
+        radio_request.eht_operation.disabled_subchannel_bitmap =
+            eht_operations_bss.disabled_subchannel_bitmap();
+    }
+    return status;
+}
+
 void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                             const sMacAddr &src_mac)
 {
@@ -300,6 +351,19 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
     }
 
     auto db = AgentDB::get();
+
+    // Handle EHT Operations TLV
+    auto eht_ops_tlv = cmdu_rx.getClass<wfa_map::tlvEHTOperations>();
+    if (!eht_ops_tlv) {
+        LOG(DEBUG) << "Channel selection request message cmdu mid=" << mid
+                   << " does not contain EHT Operation TLV";
+    } else {
+        if (!handle_eht_operation_tlv(*eht_ops_tlv)) {
+            LOG(ERROR) << "Failed to handle eht operations params";
+        } else {
+            LOG(DEBUG) << "Handled eht operation params";
+        }
+    }
 
     // Handle Controller's Channel Preference TLV
     for (const auto &channel_preference_tlv :
@@ -448,7 +512,7 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
 
         // Check if Channel-Switch is needed
         if (!request.channel_switch_needed && !request.power_switch_received &&
-            !request.spatial_reuse_request_received) {
+            !request.spatial_reuse_request_received && !request.eht_operations_received) {
             LOG(DEBUG) << "No Channel Switch needed for radio " << radio_mac;
             request.manually_send_operating_report = true;
             continue;
@@ -1792,6 +1856,7 @@ bool ChannelSelectionTask::send_channel_switch_request(
     request_msg->cs_params().csa_count = request.outgoing_request.CSA_count;
 
     if (request.outgoing_request.bandwidth >= beerocks::eWiFiBandwidth::BANDWIDTH_40) {
+
         // Because we want to switch to a bandwidth that is greater then 20Mhz,
         // We need to find the central frequancy and set it to the VHT param.
         const auto beacon_channel = request.outgoing_request.channel;
@@ -1807,7 +1872,7 @@ bool ChannelSelectionTask::send_channel_switch_request(
     request_msg->tx_limit()       = request.outgoing_request.tx_limit;
     request_msg->tx_limit_valid() = request.outgoing_request.tx_limit_valid;
 
-    //Spatial reuse request params
+    // Spatial reuse request params
     if (request.spatial_reuse_request_received) {
         request_msg->sr_params().bss_color = request.spatial_reuse_request.bss_color;
         request_msg->sr_params().hesiga_spatial_reuse_value15_allowed =
@@ -1830,6 +1895,29 @@ bool ChannelSelectionTask::send_channel_switch_request(
     }
 
     request_msg->spatial_reuse_valid() = request.spatial_reuse_request_received;
+
+    // EHT Operation params
+    if (request.eht_operations_received) {
+        request_msg->eo_params().eht_operation_information_valid =
+            request.eht_operation.eht_operation_information_valid;
+        request_msg->eo_params().disabled_subchannel_valid =
+            request.eht_operation.disabled_subchannel_valid;
+        request_msg->eo_params().eht_default_pe_duration =
+            request.eht_operation.eht_default_pe_duration;
+        request_msg->eo_params().group_addressed_bu_indication_limit =
+            request.eht_operation.group_addressed_bu_indication_limit;
+        request_msg->eo_params().group_addressed_bu_indication_exponent =
+            request.eht_operation.group_addressed_bu_indication_exponent;
+        request_msg->eo_params().basic_eht_mcs_and_nss_set =
+            request.eht_operation.basic_eht_mcs_and_nss_set;
+        request_msg->eo_params().control = request.eht_operation.control;
+        request_msg->eo_params().ccfs0   = request.eht_operation.ccfs0;
+        request_msg->eo_params().ccfs1   = request.eht_operation.ccfs1;
+        request_msg->eo_params().disabled_subchannel_bitmap =
+            request.eht_operation.disabled_subchannel_bitmap;
+    }
+
+    request_msg->eht_operation_valid() = request.eht_operations_received;
 
     auto agent_fd = m_btl_ctx.get_agent_fd();
     if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {

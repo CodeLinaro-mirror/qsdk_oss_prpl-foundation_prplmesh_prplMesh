@@ -1137,6 +1137,19 @@ sSpatialReuseParams:
   srg_partial_bssid_bitmap: uint64_t
   neighbor_bss_color_in_use_bitmap: uint64_t
 
+sEhtOperationParams:
+  _type: struct
+  eht_operation_information_valid: uint8_t
+  disabled_subchannel_valid: uint8_t
+  eht_default_pe_duration: uint8_t
+  group_addressed_bu_indication_limit: uint8_t
+  group_addressed_bu_indication_exponent: uint8_t
+  basic_eht_mcs_and_nss_set: uint32_t
+  control: uint8_t
+  ccfs0: uint8_t
+  ccfs1: uint8_t
+  disabled_subchannel_bitmap: uint16_t
+
 sStaAssociationControl:
   _type: struct
   mac: sMacAddr
