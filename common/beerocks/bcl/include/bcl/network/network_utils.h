@@ -86,6 +86,25 @@ public:
         struct in_addr nmask;
     } raw_iface_info;
 
+    typedef struct {
+        uint64_t rx_bytes;
+        uint64_t rx_packets;
+        uint64_t rx_errs;
+        uint64_t rx_drop;
+        uint64_t rx_fifo;
+        uint64_t rx_frame;
+        uint64_t rx_compressed;
+        uint64_t rx_multicast;
+        uint64_t tx_bytes;
+        uint64_t tx_packets;
+        uint64_t tx_errs;
+        uint64_t tx_drop;
+        uint64_t tx_fifo;
+        uint64_t tx_colls;
+        uint64_t tx_carrier;
+        uint64_t tx_compressed;
+    } sNetDevStats;
+
     static bool is_valid_mac(std::string mac);
 
     static std::string ipv4_to_string(const net::sIpv4Addr &ip);
@@ -183,11 +202,13 @@ public:
      * It equals SPEED_UNKNOWN if the interface's link is down.
      * @param[out] max_advertised_speed On success, maximum advertised speed in Mbps of the network interface
      * as defined in SPEED_* macros included in ethtool.h.
+     * @param[out] is_full_duplex Set to true if the interface is in full-duplex mode,
+     * false otherwise.
      *
      * @return True if speed could be successfully obtained and false otherwise.
      */
-    static bool linux_iface_get_speed(const std::string &iface, uint32_t &link_speed,
-                                      uint32_t &max_advertised_speed);
+    static bool linux_iface_get_link_settings(const std::string &iface, uint32_t &link_speed,
+                                              uint32_t &max_advertised_speed, bool &is_full_duplex);
 
     /**
      * @brief Gets interface statistics for the given network interface.
@@ -359,6 +380,17 @@ public:
      * @return A vector of strings containing the names of the lan interfaces.
      */
     static std::vector<std::string> linux_get_lan_interfaces();
+
+    /**
+     * @brief Reads interface statistics from /proc/net/dev.
+     *
+     * Parses /proc/net/dev and fills the output struct for the given interface.
+     *
+     * @param[in] ifname Name of the interface to read statistics for.
+     * @param[out] out Structure that will be filled with the interface metrics on success.
+     * @return true on success, false if the interface is not found or cannot be read.
+     */
+    static bool linux_get_net_dev_stats(const std::string &ifname, sNetDevStats &out);
 };
 } // namespace net
 } // namespace beerocks
