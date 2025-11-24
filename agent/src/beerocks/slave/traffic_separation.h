@@ -64,7 +64,7 @@ namespace net {
 class TrafficSeparation final {
 
 public:
-    explicit TrafficSeparation(std::shared_ptr<btl::BrokerClient> broker_client);
+    explicit TrafficSeparation();
 
     /**
      * @brief Apply traffic separation policy on the given radio interfaces, and all not
@@ -168,11 +168,6 @@ private:
      * @param bridge Bridge name if the interface is inside a bridge, otherwise should be empty.
      */
     void configure_transport(const std::string &iface, bool add, const std::string &bridge);
-
-    /**
-     * Broker client to exchange CMDU messages with broker server running in transport process.
-     */
-    std::shared_ptr<btl::BrokerClient> m_broker_client;
 };
 } // namespace net
 } // namespace beerocks
