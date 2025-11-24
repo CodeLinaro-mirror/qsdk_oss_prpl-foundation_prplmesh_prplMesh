@@ -286,13 +286,23 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         db->statuses.ap_autoconfiguration_completed = false;
 
         if (!m_traffic_separation_configurator) {
-            m_traffic_separation_configurator =
-                std::make_unique<TrafficSeparation>(m_btl_ctx.m_broker_client);
+            m_traffic_separation_configurator = std::make_unique<TrafficSeparation>();
         }
 
         // Reset the traffic separation configuration as they will be reconfigured on
         // autoconfiguration.
         m_traffic_separation_configurator->clear_configuration();
+
+        // Remove the Primary Vlan configuration in Transport process
+        if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(0, false)) {
+            LOG(ERROR) << "Failed configuring transport process!";
+        }
+
+        // Reset the transport monitoring on bridge interfaces
+        if (!m_btl_ctx.m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true,
+                                                             true)) {
+            LOG(ERROR) << "Failed configuring transport process!";
+        }
 
         // Reset the discovery statuses.
         for (auto &discovery_status : m_discovery_status) {
@@ -1622,6 +1632,11 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
         const auto &conf_params = radios_conf_param_kv.second;
 
         if (conf_params.state == eState::CONFIGURED) {
+            // Configure the Primary VLAN in Transport Process
+            if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(
+                    db->traffic_separation.primary_vlan_id, true)) {
+                LOG(ERROR) << "Failed configuring transport process!";
+            }
             m_traffic_separation_configurator->apply_policy(radio_iface);
         } else {
             LOG(WARNING) << "autoconfiguration procedure is not completed yet, traffic separation "
