@@ -103,6 +103,16 @@
                 userflags %upc;
                 default false;
             }
+
+            /* Name of the lan bridge iface */
+            %persistent string PrivateBridgeIface {
+                default "br-lan";
+            }
+
+            /* Name of the guest bridge iface */
+            %persistent string GuestBridgeIface {
+                default "br-guest";
+            }
         }
 
         /* Read-only information about the agent's state and interfaces */
