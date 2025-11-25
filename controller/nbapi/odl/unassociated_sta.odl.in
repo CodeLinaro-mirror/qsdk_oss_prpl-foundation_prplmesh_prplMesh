@@ -14,10 +14,22 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.UnassociatedSTA {
-        %read-only string MACAddress = "00:00:00:00:00:00";
+
+        /**
+        * [MACAddress] The MAC address of the Non-AP STA.
+        * @version 2.19.1
+        */
+        %read-only %unique string MACAddress = "00:00:00:00:00:00";
+
+        /**
+        * An indicator of radio signal strength (RCPI) of the uplink from the Non-AP STA - measured in dBm.
+        * RCPI is encoded per [Table 9-176/802.11-2020], and described in [Section 10.3.2/EasyMesh]. Reserved: 221 - 255.
+        * @version 2.19.1
+        */
         %read-only uint32 SignalStrength = 0 {
-            on action validate call check_range [0, 220];
+            on action validate call check_range [0, 255];
         }
+
         %read-only datetime X_PRPLWARE-COM_TimeStamp;
     }
 }

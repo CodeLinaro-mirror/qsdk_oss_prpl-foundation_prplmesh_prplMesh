@@ -113,7 +113,12 @@
             %read-only string MACAddress = "";
         }
 
-        object UnassociatedSTA []{
+        /**
+        * Each instance represents a station (STA) that has been discovered by the Radio but is not associated to any of the BSS operating on the Radio.
+        * At most one entry in this table can exist with a given value for MACAddress.
+        * @version 2.19.1
+        */
+        %read-only object UnassociatedSTA []{
             counted with UnassociatedSTANumberOfEntries;
         }
 
