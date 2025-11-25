@@ -16,8 +16,19 @@
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio {
 
-        bool Enabled = false;
-        %read-only string ID = "00:00:00:00:00:00";
+        /**
+        * Indicates whether this radio is enabled or disabled.
+        * If the instance of this Radio is the same as Device.WiFi.Radio.{i}., then this parameter is the same as Device.WiFi.Radio.{i}.Enable.
+        * @version 2.19.1
+        */
+        %read-only bool Enabled = false;
+
+        /**
+        * A unique identifier for this particular Radio within the identified Access Point as defined in [Section 3.1/DataElements].
+        * @version 2.19.1
+        */
+        %read-only %unique string ID = "00:00:00:00:00:00";
+
         %read-only string ChipsetVendor;
 
         %read-only uint32 Noise = 0 {
