@@ -16,17 +16,27 @@
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device {
         
-        /*
-        ** A unique identifier for this particular device
-        ** within the Wi-Fi network
+        /**
+        * [MACAddress] A unique identifier for this particular device within the Wi-Fi network as defined in [Section 3.1/DataElements].
+        * If this Device is represented in Device.IEEE1905.AL.NetworkTopology., then this should match an IEEE 1905 AL MAC Address in Device.IEEE1905.AL.NetworkTopology.IEEE1905Device.{i}.IEEE1905Id.
+        * @version 2.19.1
         */
-        %read-only string ID = "00:00:00:00:00:00";
+        %read-only %unique string ID = "00:00:00:00:00:00";
+
         %read-only string SerialNumber;
         %read-only string Manufacturer;
         %read-only string ManufacturerModel;
         %read-only string SoftwareVersion;
         %read-only string ExecutionEnv;
-        %read-only string CountryCode;
+
+        /**
+        * Two-character country code in which the Multi-AP Agent is operating according to [ISO3166-1]. The characters are encoded as UTF-8.
+        * If the instance of this DataElements is the same as Device.WiFi.Radio.{i}., then this parameter is the same as Device.WiFi.Radio.{i}.RegulatoryDomain.
+        * @version 2.19.1
+        */
+        %read-only string CountryCode {
+            on action validate call check_maximum_length 2;
+        }
 
         uint32 MultiAPProfile {
             on action validate call check_range [0, 5];
@@ -361,9 +371,14 @@
         object Default8021Q [] {
             counted with Default8021QNumberOfEntries;
             bool Enable;
-            uint32 PrimaryVID = 0 {
+
+            /**
+            * The primary 802.1Q C-TAG (VLAN ID).
+            */
+            %unique uint32 PrimaryVID = 0 {
                 on action validate call check_range [0, 4095];
             }
+
             uint32 DefaultPCP = 0 {
                 on action validate call check_range [0, 7];
             }
