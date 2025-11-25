@@ -274,6 +274,24 @@ int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
     return success ? RETURN_OK : RETURN_ERR;
 }
 
+bool cfg_get_private_bridge_iface(std::string &bridge_iface)
+{
+    if (!read_agent_config_param("PrivateBridgeIface", bridge_iface)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read PrivateBridgeIface";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_guest_bridge_iface(std::string &bridge_iface)
+{
+    if (!read_agent_config_param("GuestBridgeIface", bridge_iface)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read GuestBridgeIface";
+        return false;
+    }
+    return true;
+}
+
 /* ============================================================
  *                        Controller Config
  * ============================================================
@@ -603,6 +621,32 @@ int cfg_get_dcs_channel_pool(const BPL_WLAN_IFACE &iface,
 
     return RETURN_OK;
 }
+
+bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled)
+{
+    if (!read_controller_config_param("TrafficSeparation.Enable", is_traffic_separation_enabled)) {
+        LOG(ERROR)
+            << "cfg_get_is_traffic_separation_enabled: failed to read TrafficSeparation.Enable";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_ssid_to_vlan_mapping(std::string &ssid_to_vlan_mapping)
+{
+    if (!read_controller_config_param("TrafficSeparation.SSIDToVLANMapping",
+                                      ssid_to_vlan_mapping)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read "
+                      "TrafficSeparation.ssid_to_vlan_mapping";
+        return false;
+    }
+    return true;
+}
+
+/* ============================================================
+ *                        Other Config
+ * ============================================================
+ */
 
 int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                     char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
