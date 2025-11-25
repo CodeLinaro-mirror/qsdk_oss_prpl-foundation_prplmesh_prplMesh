@@ -3234,9 +3234,12 @@ std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_selected_backhaul_sta_wl
 void BackhaulManager::handle_dev_reset_default(
     int fd, const std::unordered_map<std::string, std::string> &params)
 {
+    auto db      = AgentDB::get();
+    auto program = params.at("program");
+
     // Certification tests will do "dev_reset_default" multiple times without "dev_set_config" in
     // between. In that case, do nothing but reply.
-    if (m_is_in_reset_state) {
+    if (program == db->device_conf.certification_program && m_is_in_reset_state) {
         // Send back second reply to UCC client.
         m_agent_ucc_listener->send_reply(fd);
         return;
@@ -3261,7 +3264,7 @@ void BackhaulManager::handle_dev_reset_default(
             radio_info->sta_wlan_hal->clear_non_associated_devices();
         }
     }
-    auto db = AgentDB::get();
+
     for (const auto &radio : db->get_radios_list()) {
         LOG(DEBUG) << "Clearing Channel Scan results of " << radio->front.iface_mac;
         radio->channel_scan_results.clear();
@@ -3273,7 +3276,6 @@ void BackhaulManager::handle_dev_reset_default(
     auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(bridge);
     auto eth_iface     = db->ethernet.wan.iface_name;
 
-    auto program = params.at("program");
     if (program == supported_programs[0]) {
         // If certification program is map, set the multi_ap_profile to Profile 1.
         db->device_conf.multi_ap_profile =
