@@ -82,11 +82,25 @@ bool WifiManager::bss_info_config_change()
 bool WifiManager::send_ap_config_renew_msg()
 {
     m_ctx_wifi_db->clear_bss_info_configuration();
+    m_ctx_wifi_db->clear_mld_info_configuration();
 
     std::list<son::wireless_utils::sBssInfoConf> wireless_settings;
     if (beerocks::bpl::bpl_cfg_get_wireless_settings(wireless_settings)) {
         for (const auto &configuration : wireless_settings) {
             m_ctx_wifi_db->add_bss_info_configuration(configuration);
+
+            if (!configuration.mld_id.empty() &&
+                configuration.mld_id != std::to_string(DISABLED_MLDUNIT)) {
+                son::wireless_utils::sMldInfoConf mld_info;
+                mld_info.ssid = configuration.ssid;
+
+                // TODO: read MLD Configuartion from APMLD DataModel (PPM-3674)
+                mld_info.str   = true;
+                mld_info.nstr  = false;
+                mld_info.emlsr = true;
+                mld_info.emlmr = false;
+                m_ctx_wifi_db->add_mld_info_configuration(mld_info, configuration.mld_id);
+            }
         }
     } else {
         LOG(WARNING) << "failed to read wireless settings";
@@ -134,7 +148,7 @@ void WifiManager::subscribe_to_bss_info_config_change()
              " && (notification == '" +
              AMX_CL_OBJECT_CHANGED_EVT +
              "')"
-             " && contains('parameters.SSID')";
+             " && (contains('parameters.SSID') || contains('parameters.MLDUnit'))";
 
     m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ssid(), event_handler,
                                              filter);
