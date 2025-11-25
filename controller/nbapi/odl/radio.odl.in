@@ -266,7 +266,12 @@
             %read-only object OpClassChannels [] {
                 counted with OpClassChannelsNumberOfEntries;
 
-                %read-only uint32 OpClass = 0 {
+                /**
+                * The Operating Class per [Table E-4/802.11ax] For 2.4GHz and 5GHz bands, only 20MHz Operating Classes are valid.
+                * Note that the operating class identifies the band and channel width.
+                * @version 2.19.1
+                */
+                %read-only %unique uint32 OpClass = 0 {
                     on action validate call check_range [0, 255];
                 }
 
