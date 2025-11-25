@@ -247,17 +247,33 @@
         /* Latest Channel Availability Check (CAC) Status Report from the device */
         %read-only object CACStatus [] {
             counted with CACStatusNumberOfEntries;
-            %read-only datetime TimeStamp;
+
+            /**
+            * The time this group was collected.
+            * @version 2.19.1
+            */
+            %read-only %unique datetime TimeStamp;
 
             /* Describes available channels identified by CAC */
             %read-only object CACAvailableChannel [] {
                 counted with CACAvailableChannelNumberOfEntries;
-                %read-only uint32 OpClass = 0 {
+
+                /**
+                * This is the operating class of an available channel, from [Table E-4/802.11ax].
+                * @version 2.19.1
+                */
+                %read-only %key uint32 OpClass {
                     on action validate call check_range [0, 255];
                 }
-                %read-only uint32 Channel = 0 {
+
+                /**
+                * Single channel number of an available channel in the given operating class.
+                * @version 2.19.1
+                */
+                %read-only %key uint32 Channel {
                     on action validate call check_range [0, 255];
                 }
+
                 %read-only uint32 Minutes = 0 {
                     on action validate call check_range [0, 65535];
                 }
@@ -266,12 +282,23 @@
             /* Describes channels identified by CAC that may not be occupied */
             %read-only object CACNonOccupancyChannel [] {
                 counted with CACNonOccupancyChannelNumberOfEntries;
-                %read-only uint32 OpClass = 0 {
+
+                /**
+                * Operating class of a channel that is in the non-occupancy list, from [Table E-4/802.11ax].
+                * @version 2.19.1
+                */
+                %read-only %key uint32 OpClass {
                     on action validate call check_range [0, 255];
                 }
-                %read-only uint32 Channel = 0 {
+
+                /**
+                * Single channel number in the operating class on which the radar was detected.
+                * @version 2.19.1
+                */
+                %read-only %key uint32 Channel {
                     on action validate call check_range [0, 255];
                 }
+
                 %read-only uint32 Seconds = 0 {
                     on action validate call check_range [0, 65535];
                 }
@@ -280,12 +307,23 @@
             /* Describes channels with ongoing CAC */
             %read-only object CACActiveChannel [] {
                 counted with CACActiveChannelNumberOfEntries;
-                %read-only uint32 OpClass = 0 {
+
+                /**
+                * Operating class of a channel that has ongoing CAC, from [Table E-4/802.11ax].
+                * @version 2.19.1
+                */
+                %read-only %key uint32 OpClass {
                     on action validate call check_range [0, 255];
                 }
-                %read-only uint32 Channel = 0 {
+
+                /**
+                * Single channel number in the operating class that has an ongoing CAC.
+                * @version 2.19.1
+                */
+                %read-only %key uint32 Channel {
                     on action validate call check_range [0, 255];
                 }
+
                 %read-only uint32 Countdown = 0;
             }
         }
