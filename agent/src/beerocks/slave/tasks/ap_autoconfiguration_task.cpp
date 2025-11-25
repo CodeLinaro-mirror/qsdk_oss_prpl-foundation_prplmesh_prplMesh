@@ -1851,17 +1851,22 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             /**
              * We currently do not support bBSS with both profile 1/2 disallow flags set to false
              * (Combined Profile bBSS mode).
+             * 
              * When we are configured in a way we don't support, we should tear down the BSS, and
              * send an error response on that BSS.
+             * 
              * Currently R2 certified controllers (Mediatek/Marvel) have a bug (PPM-1389) that ends
              * up sending M2 with both profile 1/2 disallow flags set to false although we report 
              * combined_profile1_and_profile2 = 0 in ap_radio_advanced_capabilities_tlv.
-             * To deal with it, we using
-             * TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration integer
+             * 
+             * To deal with it, we use db->device_conf.unsupported_profile_disallow_policy enum
              * originated in the beerocks_agent.conf to resolve the conflict with predefined
-             * value. PPM-1389.
+             * value. 
+             * 
+             * Related PPM-1389 and PPM-3472
              */
-            if (TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration == 0) {
+            if (db->device_conf.unsupported_profile_disallow_policy ==
+                eUnsupportedProfileDisallowPolicy::NO_OVERRIDE) {
                 LOG(WARNING) << "Sending error and Tearing down BSS that controller configured to "
                              << config.ssid;
                 bss_errors.push_back(
@@ -1872,19 +1877,19 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
                 // Multi-AP standard requires to tear down any misconfigured BSS.
                 config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
                 continue;
-            } else if (TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration ==
-                       1) {
+            } else if (db->device_conf.unsupported_profile_disallow_policy ==
+                       eUnsupportedProfileDisallowPolicy::FORCE_PROFILE2) {
                 config.bss_type |= WSC::eWscVendorExtSubelementBssType::
                     PROFILE1_BACKHAUL_STA_ASSOCIATION_DISALLOWED;
             }
-            // TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration == 2
+            // db->device_conf.unsupported_profile_disallow_policy == eUnsupportedProfileDisallowPolicy::FORCE_PROFILE1
             else {
                 config.bss_type |= WSC::eWscVendorExtSubelementBssType::
                     PROFILE2_BACKHAUL_STA_ASSOCIATION_DISALLOWED;
             }
             LOG(DEBUG)
                 << "Override unsupported 'profile disallow' configuration and disallow profile "
-                << TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration;
+                << db->device_conf.unsupported_profile_disallow_policy;
         }
 
         configs.push_back(config);

@@ -174,6 +174,8 @@ public:
         int dwell_time;
         uint8_t max_num_mlds = 3; // Arbitrary
         bool enable_auto_chansel_handling;
+
+        eUnsupportedProfileDisallowPolicy unsupported_profile_disallow_policy;
     } device_conf;
 
     struct sControllerInfo {

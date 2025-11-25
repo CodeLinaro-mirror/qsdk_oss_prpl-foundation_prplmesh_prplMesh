@@ -53,6 +53,21 @@ static constexpr int DISCOVERY_NOTIFICATION_TIMEOUT_SEC = 60;
 static constexpr uint8_t AUTOCONFIG_M2_TIMEOUT_SECONDS  = 5;
 } // namespace ieee1905_1_consts
 
+/**
+  * @brief Certification specific config option that is used to force dissalow Profiles,
+  * that is used in Traffic Separation to force trunk to treat downstream agent as Profile 1
+  * 
+  * Possible values:
+  * - 0 → Do nothing 
+  * - 1 → force disallow Profile 1 
+  * - 2 → force disallow Profile 2 
+  */
+enum class eUnsupportedProfileDisallowPolicy : uint8_t {
+    NO_OVERRIDE    = 0,
+    FORCE_PROFILE2 = 1, /**< Force dissalow Profile-1 -> set Profile-2 (tagged). */
+    FORCE_PROFILE1 = 2, /**< Force dissalow Profile-2 -> Profile-1 (untagged). */
+};
+
 namespace message {
 
 enum eStructsConsts {
