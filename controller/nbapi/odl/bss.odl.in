@@ -16,10 +16,22 @@
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.BSS {
 
-        /* macaddress */
-        %read-only string BSSID = "0";
+        /**
+        * [MACAddress] The MAC Address of the logical BSS (BSSID).
+        * If the instance of this BSS is the same as Device.WiFi.SSID.{i}., then this parameter is the same as Device.WiFi.SSID.{i}.BSSID.
+        * @version 2.19.1
+        */
+        %read-only %unique string BSSID = "0";
+
         %read-only string SSID = "0";
-        bool Enabled = false;
+
+        /**
+        * Whether the BSSID is currently enabled (beaconing frames are being sent) or disabled.
+        * If the instance of this BSS is the same as Device.WiFi.SSID.{i}., then this parameter is the same as Device.WiFi.SSID.{i}.Enable.
+        * @version 2.19.1
+        */
+        %read-only bool Enabled = false;
+
         %read-only bool IsVBSS = false;
         %read-only uint32 LastChange = 0 {
             on action read call action_read_last_change;
@@ -51,8 +63,23 @@
 
         %read-only uint32 ByteCounterUnits = 0x0;
 
-        bool FronthaulUse = false;
-        bool BackhaulUse = false;
+        /**
+        * Indicates that this BSS is in use as a fronthaul BSS;
+        * true: fronthaul BSS in use,
+        * false: fronthaul BSS not in use.
+        * In [EasyMesh] 0 is in use and 1 is not in use.
+        * @version 2.19.1
+        */
+        %read-only bool FronthaulUse = false;
+
+        /**
+        * Indicates that this BSS is in use as a backhaul BSS;
+        * true: backhaul BSS in use,
+        * false: backhaul BSS not in use.
+        * In [EasyMesh] 0 is in use and 1 is not in use.
+        * @version 2.19.1
+        */
+        %read-only bool BackhaulUse = false;
 
         %instance bool TriggerVBSSDestruction(
             %in %mandatory string client_mac,
@@ -70,7 +97,12 @@
             %in %mandatory uint16 DisabledSubchannelBitmap
         );
 
-        object STA [] {
+        /**
+        * Object describing a single Associated Device (STA).
+        * At most one entry in this table can exist with a given value for MACAddress.
+        * @version 2.19.1
+        */
+        %read-only object STA [] {
             counted with STANumberOfEntries;
         }
 

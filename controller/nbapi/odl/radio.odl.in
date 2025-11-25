@@ -100,7 +100,12 @@
 
         object Capabilities;
 
-        object BSS [] {
+        /**
+        * A single logical BSS operating on this radio.
+        * At most one entry in this table can exist with a given value for BSSID.
+        * @version 2.19.1
+        */
+        %read-only object BSS [] {
             counted with BSSNumberOfEntries;
         }
 

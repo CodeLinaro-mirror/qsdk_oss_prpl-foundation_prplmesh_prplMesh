@@ -15,7 +15,14 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.BSS.STA {
-        %read-only string MACAddress = "00:00:00:00:00:00";
+
+        /**
+        * [MACAddress] The MAC address of an associated device.
+        * If the instance of this STA is the same as Device.WiFi.AccessPoint.{i}.AssociatedDevice.{i}, then this parameter is the same as Device.WiFi.AccessPoint.{i}.AssociatedDevice.{i}.MACAddress.
+        * @version 2.19.1
+        */
+        %read-only %unique string MACAddress = "00:00:00:00:00:00";
+
         %read-only string TimeStamp = "2020-08-31T11:22:39Z";
         %read-only string ClientCapabilities;  /* The frame body of the most recently
                                                 received (Re)Association Request frame
@@ -38,8 +45,14 @@
         %read-only uint32 EstMACDataRateDownlink = 0;
         %read-only uint32 EstMACDataRateUplink = 0;
 
+        /**
+        * An indicator of radio signal strength of the uplink from the associated STA to the access point - measured in dBm.
+        * RCPI is encoded per [Table 9-176/802.11-2020], and described in [Section 10.3.1/EasyMesh]. Reserved: 221 - 255.
+        * If the instance of this STA is the same as Device.WiFi.AccessPoint.{i}.AssociatedDevice.{i}, then this parameter is the same as Device.WiFi.AccessPoint.{i}.AssociatedDevice.{i}.SignalStrength.
+        * @version 2.19.1
+        */
         %read-only uint32 SignalStrength = 0 {
-            on action validate call check_range [0, 220];
+            on action validate call check_maximum 255;
         }
 
         %read-only uint32 LastConnectTime = 0 {
@@ -53,8 +66,23 @@
         %read-only uint64 ErrorsSent = 0;
         %read-only uint64 ErrorsReceived = 0;
         %read-only uint64 RetransCount = 0;
-        %read-only string IPV4Address = "0";
-        %read-only string IPV6Address = "0";
+
+        /**
+        * [IPv4Address] IPV4 Address assigned to the client.
+        * @version 2.19.1
+        */
+        %read-only string IPV4Address = "0" {
+            on action validate call check_maximum_length 15;
+        }
+
+        /**
+        * [IPv6Address] IPV6Address assigned to the client.
+        * @version 2.19.1
+        */
+        %read-only string IPV6Address = "0" {
+            on action validate call check_maximum_length 45;
+        }
+
         %read-only string Hostname = "0";
 
         %read-only object MeasurementReport [] {
@@ -75,7 +103,18 @@
 
         %read-only object MultiAPSTA {
             %read-only datetime AssociationTime = "2020-08-31T11:22:39Z";
-            %read-only uint32 Noise = 0;
+
+            /**
+            * This parameter was DEPRECATED in 2.18
+            *
+            * An indicator of the average radio noise plus interference power measured on the uplink from the Associated Device (STA) to the Access Point (AP).
+            * Encoded as defined for ANPI in [Section 11.10.9.4/802.11-2020].
+            * If the instance of this MultiAPSTA is the same as Device.WiFi.AccessPoint.{i}.AssociatedDevice.{i}., then this parameter is the same as Device.WiFi.AccessPoint.{i}.AssociatedDevice.{i}.Noise.
+            * @version 2.19.1
+            */
+            %read-only uint32 Noise = 0 {
+                on action validate call check_maximum 255;
+            }
 
             %instance void BTMRequest(
                 %in bool DisassociationImminent,
@@ -135,7 +174,12 @@
         /* Describes Traffic Identifiers (TIDs) and Queue Size (for each TID) for Associated Device (STA) */
         %read-only object TIDQueueSizes [] {
             counted with TIDQueueSizesNumberOfEntries;
-            %read-only uint32 TID = 0 {
+
+            /**
+            * The TID of the corresponding Queue Size field.
+            * @version 2.19.1
+            */
+            %read-only %unique uint32 TID = 0 {
                 on action validate call check_range [0, 255];
             }
 

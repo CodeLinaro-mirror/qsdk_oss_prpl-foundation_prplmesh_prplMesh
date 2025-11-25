@@ -193,10 +193,12 @@
             %read-only bool AlwaysMatch;
         }
 
-        /*
-        ** The list of Radio objects.
+        /**
+        * This object represents all of the individual Radios contained within the identified Access Point device known to the controller.
+        * At most one entry in this table can exist with a given value for ID.
+        * @version 2.19.1
         */
-        object Radio [] {
+        %read-only object Radio [] {
             counted with RadioNumberOfEntries;
         }
 
