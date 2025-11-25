@@ -338,6 +338,19 @@
                         default "0";
                     }
 
+                    /* Traffic Separation configuration */
+                    %persistent object TrafficSeparation{
+                        /* If true, then prplMesh Controller applies TS policies for the network */
+                        %persistent bool Enable{
+                            default false;
+                        }
+
+                        /* SSID to VLAN map, example "vap5ghome:10,vap5guest:10" -> SSID="vap5ghome" will be in VLAN=10 */
+                        %persistent string SSIDToVLANMapping { 
+                            default "prplOS:10,prplOS-guest:20"; 
+                        }
+                    }
+
                     /* QoS configuration */
                     %persistent object QoS {
                         /* Output queue priority mapping */
