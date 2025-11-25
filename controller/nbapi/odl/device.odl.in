@@ -312,9 +312,9 @@
         /*
         ** The list of APMLD objects.
         */
-        object APMLD [] {
+        %read-only object APMLD [] {
             counted with APMLDNumberOfEntries;
-            %read-only string MLDMACAddress = "";
+            %read-only %unique string MLDMACAddress = "";
 
             object APMLDConfig {
                 %read-only bool EMLMREnabled = false;
@@ -324,7 +324,7 @@
                 %read-only bool TIDLinkMapNegotiation = false;
             }
 
-            object TIDLinkMap [] {
+            %read-only object TIDLinkMap [] {
                 counted with TIDLinkMapNumberOfEntries;
                 %read-only string Direction {
                     default "Down";
@@ -333,16 +333,20 @@
                         "Down"
                     ];
                 }
-                %read-only uint8 TID;
+                %read-only %unique uint8 TID;
                 %read-only string BSSID = "";
-                %read-only uint8 LinkID;
+                %read-only uint8 LinkID {
+                    on action validate call check_range [0, 15];
+                }
             }
 
             /* Affiliated APs list of APMLD */
-            object AffiliatedAP [] {
+            %read-only object AffiliatedAP [] {
                 counted with AffiliatedAPNumberOfEntries;
-                %read-only string BSSID = "";
-                %read-only uint8 LinkID;
+                %read-only %unique string BSSID = "";
+                %read-only uint8 LinkID {
+                    on action validate call check_range [0, 15];
+                }
                 %read-only string RUID = "";
                 %read-only uint16 DisabledSubChannels;
                 %read-only uint32 PacketsSent = 0;
@@ -354,19 +358,31 @@
                 %read-only uint32 MulticastBytesReceived = 0;
                 %read-only uint32 BroadcastBytesSent = 0;
                 %read-only uint32 BroadcastBytesReceived = 0;
-                %read-only string EstServiceParametersBE;
-                %read-only string EstServiceParametersBK;
-                %read-only string EstServiceParametersVI;
-                %read-only string EstServiceParametersVO;
+                %read-only string EstServiceParametersBE {
+                    on action validate call check_maximum_length 3;
+                }
+                %read-only string EstServiceParametersBK {
+                    on action validate call check_maximum_length 3;
+                }
+                %read-only string EstServiceParametersVI {
+                    on action validate call check_maximum_length 3;
+                }
+                %read-only string EstServiceParametersVO {
+                    on action validate call check_maximum_length 3;
+                }
             }
 
             /* Associated STAMLD list (Client/bSTA) */
-            object STAMLD [] {
+            %read-only object STAMLD [] {
                 counted with STAMLDNumberOfEntries;
-                %read-only string MLDMACAddress = "";
+                %read-only %unique string MLDMACAddress = "";
                 %read-only string Hostname;
-                %read-only string IPv4Address;
-                %read-only string IPv6Address;
+                %read-only string IPv4Address {
+                    on action validate call check_maximum_length 15;
+                }
+                %read-only string IPv6Address {
+                    on action validate call check_maximum_length 45;
+                }
                 %read-only bool IsbSTA = false;
                 %read-only uint32 LastConnectTime = 0;
                 %read-only uint32 BytesSent = 0;
@@ -393,7 +409,7 @@
                     %read-only bool TIDLinkMapNegotiation = false;
                 }
 
-                object STATIDLinkMap [] {
+                %read-only object STATIDLinkMap [] {
                     counted with STATIDLinkMapNumberOfEntries;
                     %read-only string Direction {
                         default "Down";
@@ -403,15 +419,17 @@
                         ];
                     }
 
-                    %read-only uint8 TID;
+                    %read-only %unique uint8 TID;
                     %read-only string BSSID = "";
-                    %read-only uint8 LinkID;
+                    %read-only uint8 LinkID {
+                        on action validate call check_range [0, 15];
+                    }
                 }
 
                 /* Affiliated STAs list of STAMLD(Client/bSTA) */
-                object AffiliatedSTA [] {
+                %read-only object AffiliatedSTA [] {
                     counted with AffiliatedSTANumberOfEntries;
-                    %read-only string MACAddress = "";
+                    %read-only %unique string MACAddress = "";
                     %read-only string BSSID = "";
                     %read-only uint32 BytesSent = 0;
                     %read-only uint32 BytesReceived = 0;

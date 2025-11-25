@@ -414,7 +414,7 @@
                     /*
                         Network devices list.
                     */
-                    object Device[] {
+                    %read-only object Device[] {
                         counted with DeviceNumberOfEntries;
                     }
 
