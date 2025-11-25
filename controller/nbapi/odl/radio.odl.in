@@ -134,13 +134,13 @@
             %read-only object CACMethod [] {
                 counted with CACMethodNumberOfEntries;
 
-                %read-only uint32 Method;
+                %read-only %unique uint32 Method;
                 %read-only uint32 NumberOfSeconds = 0;
 
                 %read-only object OpClassChannels [] {
                     counted with OpClassChannelsNumberOfEntries;
 
-                    %read-only uint32 OpClass = 0 {
+                    %read-only %unique uint32 OpClass = 0 {
                         on action validate call check_range [0, 255];
                     }
 
