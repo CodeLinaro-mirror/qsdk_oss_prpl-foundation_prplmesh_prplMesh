@@ -280,7 +280,7 @@
         /* IEEE 1905 security capabilities. */
         %read-only object IEEE1905Security [] {
             counted with IEEE1905SecurityNumberOfEntries;
-            %read-only uint32 OnboardingProtocol = 0;
+            %read-only %unique uint32 OnboardingProtocol = 0;
             %read-only uint32 IntegrityAlgorithm = 0;
             %read-only uint32 EncryptionAlgorithm = 0;
         }
