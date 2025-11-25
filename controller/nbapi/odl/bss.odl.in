@@ -17,9 +17,9 @@
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.BSS {
 
         /* macaddress */
-        %read-only string BSSID = "0";
+        %read-only %unique string BSSID = "0";
         %read-only string SSID = "0";
-        bool Enabled = false;
+        %read-only bool Enabled = false;
         %read-only bool IsVBSS = false;
         %read-only uint32 LastChange = 0 {
             on action read call action_read_last_change;
@@ -51,8 +51,8 @@
 
         %read-only uint32 ByteCounterUnits = 0x0;
 
-        bool FronthaulUse = false;
-        bool BackhaulUse = false;
+        %read-only bool FronthaulUse = false;
+        %read-only bool BackhaulUse = false;
 
         %instance bool TriggerVBSSDestruction(
             %in %mandatory string client_mac,
@@ -70,7 +70,7 @@
             %in %mandatory uint16 DisabledSubchannelBitmap
         );
 
-        object STA [] {
+        %read-only object STA [] {
             counted with STANumberOfEntries;
         }
 

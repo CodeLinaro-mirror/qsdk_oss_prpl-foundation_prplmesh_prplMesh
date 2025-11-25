@@ -15,7 +15,7 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.BSS.STA {
-        %read-only string MACAddress = "00:00:00:00:00:00";
+        %read-only %unique string MACAddress = "00:00:00:00:00:00";
         %read-only string TimeStamp = "2020-08-31T11:22:39Z";
         %read-only string ClientCapabilities;  /* The frame body of the most recently
                                                 received (Re)Association Request frame
@@ -39,7 +39,7 @@
         %read-only uint32 EstMACDataRateUplink = 0;
 
         %read-only uint32 SignalStrength = 0 {
-            on action validate call check_range [0, 220];
+            on action validate call check_maximum 255;
         }
 
         %read-only uint32 LastConnectTime = 0 {
@@ -53,8 +53,12 @@
         %read-only uint64 ErrorsSent = 0;
         %read-only uint64 ErrorsReceived = 0;
         %read-only uint64 RetransCount = 0;
-        %read-only string IPV4Address = "0";
-        %read-only string IPV6Address = "0";
+        %read-only string IPV4Address = "0" {
+            on action validate call check_maximum_length 15;
+        }
+        %read-only string IPV6Address = "0" {
+            on action validate call check_maximum_length 45;
+        }
         %read-only string Hostname = "0";
 
         %read-only object MeasurementReport [] {
@@ -75,7 +79,9 @@
 
         %read-only object MultiAPSTA {
             %read-only datetime AssociationTime = "2020-08-31T11:22:39Z";
-            %read-only uint32 Noise = 0;
+            %read-only uint32 Noise = 0 {
+                on action validate call check_maximum 255;
+            }
 
             %instance void BTMRequest(
                 %in bool DisassociationImminent,
@@ -135,7 +141,7 @@
         /* Describes Traffic Identifiers (TIDs) and Queue Size (for each TID) for Associated Device (STA) */
         %read-only object TIDQueueSizes [] {
             counted with TIDQueueSizesNumberOfEntries;
-            %read-only uint32 TID = 0 {
+            %read-only %unique uint32 TID = 0 {
                 on action validate call check_range [0, 255];
             }
 

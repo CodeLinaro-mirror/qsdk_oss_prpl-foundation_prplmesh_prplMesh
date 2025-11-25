@@ -100,7 +100,7 @@
 
         object Capabilities;
 
-        object BSS [] {
+        %read-only object BSS [] {
             counted with BSSNumberOfEntries;
         }
 

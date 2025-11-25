@@ -183,7 +183,7 @@
         /*
         ** The list of Radio objects.
         */
-        object Radio [] {
+        %read-only object Radio [] {
             counted with RadioNumberOfEntries;
         }
 
