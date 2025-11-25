@@ -179,8 +179,12 @@
         %read-only object SPRule [] {
             counted with SPRuleNumberOfEntries;
 
-            /* The Service Prioritization (SP) rule */
-            %read-only uint32 ID;
+            /**
+            * Service prioritization rule Identifier.
+            * @version 2.19.1
+            */
+            %read-only %unique uint32 ID;
+
             /* Rule precedence – higher number means higher priority */
             %read-only uint32 Precedence = 0 {
                 on action validate call check_range [0, 254];
