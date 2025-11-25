@@ -19,15 +19,28 @@
 
         %read-only object OpClassScan [] {
             counted with OpClassScanNumberOfEntries;
-            %read-only uint32 OperatingClass = 0 {
+
+            /**
+            * The Operating Class per [Table E-4/802.11ax] of the OpClass and Channel tuple scanned by the Radio. For 2.4GHz and 5GHz bands, only 20MHz Operating Classes are valid.
+            * Note that the Operating Class identifies the band and channel width.
+            * @version 2.19.1
+            */
+            %read-only %unique uint32 OperatingClass = 0 {
                 on action validate call check_range [0, 255];
             }
+
             %read-only object ChannelScan [] {
                 counted with ChannelScanNumberOfEntries;
                 %read-only string TimeStamp = "2020-08-31T11:22:39Z";
-                %read-only uint32 Channel = 0 {
+
+                /**
+                * The channel number of the Channel scanned by the Radio given the Operating Class.
+                * @version 2.19.1
+                */
+                %read-only %unique uint32 Channel = 0 {
                     on action validate call check_range [0, 255];
                 }
+
                 %read-only uint32 Utilization = 0 {
                     on action validate call check_range [0, 255];
                 }
