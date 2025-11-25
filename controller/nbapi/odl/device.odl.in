@@ -20,13 +20,15 @@
         ** A unique identifier for this particular device
         ** within the Wi-Fi network
         */
-        %read-only string ID = "00:00:00:00:00:00";
+        %read-only %unique string ID = "00:00:00:00:00:00";
         %read-only string SerialNumber;
         %read-only string Manufacturer;
         %read-only string ManufacturerModel;
         %read-only string SoftwareVersion;
         %read-only string ExecutionEnv;
-        %read-only string CountryCode;
+        %read-only string CountryCode {
+            on action validate call check_maximum_length 2;
+        }
 
         uint32 MultiAPProfile {
             on action validate call check_range [0, 5];
@@ -291,7 +293,7 @@
         object Default8021Q [] {
             counted with Default8021QNumberOfEntries;
             bool Enable;
-            uint32 PrimaryVID = 0 {
+            %unique uint32 PrimaryVID = 0 {
                 on action validate call check_range [0, 4095];
             }
             uint32 DefaultPCP = 0 {
