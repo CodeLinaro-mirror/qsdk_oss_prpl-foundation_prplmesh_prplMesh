@@ -2549,6 +2549,10 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         radio->eht_supported = notification->params().eht_supported;
 
+        // TODO: To not block R6 certification, fix with (PPM-3655)
+        if (radio->eht_supported)
+            radio->ap_modes_support.str_support = true;
+
         save_channel_params_to_db(fronthaul_iface, notification->cs_params());
         if (notification->params().frequency_band != radio->wifi_channel.get_freq_type()) {
             LOG(ERROR) << "Radio wifi channel's frequncy types does not match the frequency type "
