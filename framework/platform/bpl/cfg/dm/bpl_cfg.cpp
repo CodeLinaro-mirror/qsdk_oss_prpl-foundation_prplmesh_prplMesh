@@ -274,6 +274,64 @@ int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
     return success ? RETURN_OK : RETURN_ERR;
 }
 
+bool cfg_get_private_bridge_iface(std::string &bridge_iface)
+{
+    if (!read_agent_config_param("PrivateBridgeIface", bridge_iface)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read PrivateBridgeIface";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_guest_bridge_iface(std::string &bridge_iface)
+{
+    if (!read_agent_config_param("GuestBridgeIface", bridge_iface)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read GuestBridgeIface";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled)
+{
+    if (!read_agent_config_param("TrafficSeparation.Enable", is_traffic_separation_enabled)) {
+        LOG(ERROR)
+            << "cfg_get_is_traffic_separation_enabled: failed to read TrafficSeparation.Enable";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_private_vlan_id(uint32_t &vlan_id)
+{
+    if (!read_agent_config_param("TrafficSeparation.PrivateVlanId", vlan_id)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read "
+                      "TrafficSeparation.PrivateVlanId";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_guest_vlan_id(uint32_t &vlan_id)
+{
+    if (!read_agent_config_param("TrafficSeparation.GuestVlanId", vlan_id)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read "
+                      "TrafficSeparation.GuestVlanId";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_ssid_to_vlan_mapping(std::string &ssid_to_vlan_mapping)
+{
+    if (!read_agent_config_param("TrafficSeparation.SSIDToVLANMapping", ssid_to_vlan_mapping)) {
+        LOG(ERROR) << "cfg_get_is_traffic_separation_enabled: failed to read "
+                      "TrafficSeparation.ssid_to_vlan_mapping";
+        return false;
+    }
+    return true;
+}
+
 /* ============================================================
  *                        Controller Config
  * ============================================================
