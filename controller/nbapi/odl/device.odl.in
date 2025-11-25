@@ -170,7 +170,15 @@
         %read-only object SSIDtoVIDMapping [] {
             /* The Service Set Identifier (SSID) to VLAN ID mapping for EasyMesh traffic separation */
             counted with SSIDtoVIDMappingNumberOfEntries;
-            %read-only string SSID;
+
+            /**
+            * The SSID.
+            * @version 2.19.1
+            */
+            %read-only %unique string SSID {
+                on action validate call check_maximum_length 64;
+            }
+
             %read-only uint64 VID = 0 {
                 on action validate call check_range [0, 4095];
             }
