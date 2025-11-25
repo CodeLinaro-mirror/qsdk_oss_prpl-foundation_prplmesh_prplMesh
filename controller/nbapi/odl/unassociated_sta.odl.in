@@ -14,9 +14,9 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.UnassociatedSTA {
-        %read-only string MACAddress = "00:00:00:00:00:00";
+        %read-only %unique string MACAddress = "00:00:00:00:00:00";
         %read-only uint32 SignalStrength = 0 {
-            on action validate call check_range [0, 220];
+            on action validate call check_range [0, 255];
         }
         %read-only datetime X_PRPLWARE-COM_TimeStamp;
     }

@@ -108,7 +108,7 @@
             %read-only string MACAddress = "";
         }
 
-        object UnassociatedSTA []{
+        %read-only object UnassociatedSTA []{
             counted with UnassociatedSTANumberOfEntries;
         }
 
