@@ -139,13 +139,28 @@
             %read-only object CACMethod [] {
                 counted with CACMethodNumberOfEntries;
 
-                %read-only uint32 Method;
+                /**
+                * CAC method supported;
+                *
+                * 0: Continuous CAC,
+                * 1: Continuous with dedicated radio,
+                * 2: Multi-Input Multi-Output (MIMO) dimension reduced,
+                * 3: Time sliced CAC.
+                * @version 2.19.1
+                */
+                %read-only %unique uint32 Method;
+
                 %read-only uint32 NumberOfSeconds = 0;
 
                 %read-only object OpClassChannels [] {
                     counted with OpClassChannelsNumberOfEntries;
 
-                    %read-only uint32 OpClass = 0 {
+                    /**
+                    * The Operating Class per [Table E-4/802.11ax].
+                    * Note that the operating class identifies the band and channel width.
+                    * @version 2.19.1
+                    */
+                    %read-only %unique uint32 OpClass = 0 {
                         on action validate call check_range [0, 255];
                     }
 
