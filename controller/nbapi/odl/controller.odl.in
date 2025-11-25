@@ -411,10 +411,12 @@
 
                     %read-only string ControllerID = "0";
 
-                    /*
-                        Network devices list.
+                    /**
+                    * Each instance of this object represents an individual EasyMesh Agent or single-AP device in the Wi-Fi network.
+                    * At most one entry in this table can exist with a given value for ID.
+                    * @version 2.19.1
                     */
-                    object Device[] {
+                    %read-only object Device[] {
                         counted with DeviceNumberOfEntries;
                     }
 
