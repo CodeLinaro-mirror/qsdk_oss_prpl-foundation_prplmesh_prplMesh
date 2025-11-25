@@ -91,6 +91,39 @@
                 userflags %upc;
                 default false;
             }
+
+            /* Name of the lan bridge iface */
+            %persistent string PrivateBridgeIface {
+                default "br-lan";
+            }
+
+            /* Name of the guest bridge iface */
+            %persistent string GuestBridgeIface {
+                default "br-guest";
+            }
+            
+            /* Traffic Separation configuration */
+            object TrafficSeparation {
+                /* If true, then prplMesh applies TS policies on startup */
+                %persistent bool Enable {
+                    default false;
+                }
+
+                /* Private network VLAN ID */
+                %persistent uint32 PrivateVlanId{
+                    default 10;
+                }
+
+                /* Guest network VLAN ID */
+                %persistent uint32 GuestVlanId{
+                    default 20;
+                }
+
+                /* SSID to VLAN map, example "vap5ghome:10,vap5guest:10" -> SSID="vap5ghome" will be in VLAN=10 */
+                %persistent string SSIDToVLANMapping{
+                    default "prplOS:10,prplOS-guest:20";
+                }
+            }
         }
 
         /* Read-only information about the agent's state and interfaces */

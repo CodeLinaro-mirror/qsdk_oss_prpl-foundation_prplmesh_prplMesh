@@ -1082,6 +1082,43 @@ bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
     return true;
 }
 
+bool cfg_get_private_bridge_iface(std::string &bridge_iface)
+{
+    bridge_iface = DEFAULT_PRIVATE_BRIDGE_IFACE;
+    return true;
+}
+
+bool cfg_get_guest_bridge_iface(std::string &bridge_iface)
+{
+    bridge_iface = DEFAULT_GUEST_BRIDGE_IFACE;
+    return true;
+}
+
+bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled)
+{
+    is_traffic_separation_enabled = DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    return true;
+}
+
+bool cfg_get_private_vlan_id(uint32_t &vlan_id)
+{
+    vlan_id = DEFAULT_PRIVATE_VLAN_ID;
+    return true;
+}
+
+bool cfg_get_guest_vlan_id(uint32_t &vlan_id)
+{
+
+    vlan_id = DEFAULT_GUEST_VLAN_ID;
+    return true;
+}
+
+bool cfg_get_ssid_to_vlan_mapping(std::string &ssid_to_vlan_mapping)
+{
+    ssid_to_vlan_mapping = DEFAULT_SSID_TO_VLAN_MAPPING;
+    return true;
+}
+
 #endif
 
 bool cfg_commit_changes() { return uci_commit_changes("prplmesh"); }
