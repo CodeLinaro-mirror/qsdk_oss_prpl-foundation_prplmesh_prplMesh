@@ -165,13 +165,13 @@
             %read-only uint32 NonSRGOBSSPDMaxOffset;
             %read-only uint32 SRGOBSSPDMinOffset;
             %read-only uint32 SRGOBSSPDMaxOffset;
-            string SRGBSSColorBitmap {
+            %read-only string SRGBSSColorBitmap {
                 on action validate call check_range [0, 8];
             }
-            string SRGPartialBSSIDBitmap {
+            %read-only string SRGPartialBSSIDBitmap {
                 on action validate call check_range [0, 8];
             }
-            string NeighborBSSColorInUseBitmap {
+            %read-only string NeighborBSSColorInUseBitmap {
                 on action validate call check_range [0, 8];
             }
         }
