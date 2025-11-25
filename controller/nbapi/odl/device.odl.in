@@ -167,7 +167,7 @@
             counted with SPRuleNumberOfEntries;
 
             /* The Service Prioritization (SP) rule */
-            %read-only uint32 ID;
+            %read-only %unique uint32 ID;
             /* Rule precedence – higher number means higher priority */
             %read-only uint32 Precedence = 0 {
                 on action validate call check_range [0, 254];
