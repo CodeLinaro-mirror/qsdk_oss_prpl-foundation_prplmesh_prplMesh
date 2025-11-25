@@ -179,6 +179,8 @@ public:
         uint8_t ap_maximum_links     = 0;
         uint8_t bsta_maximum_links   = 0;
         bool enable_auto_chansel_handling;
+
+        eUnsupportedProfileDisallowPolicy unsupported_profile_disallow_policy;
     } device_conf;
 
     struct sControllerInfo {
