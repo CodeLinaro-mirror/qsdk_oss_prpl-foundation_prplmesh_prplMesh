@@ -13,6 +13,7 @@ file(GLOB beerocks_agent_sources
     ${MODULE_PATH}/helpers/*.c*
     ${MODULE_PATH}/helpers/link_metrics/*.c*
     ${MODULE_PATH}/tasks/*.c*
+    ${MODULE_PATH}/traffic_separation/*.c*
     ${MODULE_PATH}/gate/*.c*
     ${MODULE_PATH}/nbapi/*.c*
     ${MODULE_PATH}/*.c*
@@ -42,6 +43,7 @@ if (TARGET_PLATFORM STREQUAL "ugw")
 endif()
 
 add_executable(${PROJECT_NAME} ${beerocks_agent_sources})
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 target_link_libraries(${PROJECT_NAME} rt dl bcl btl tlvf elpp btlvf bwl bpl nbapi multi_vendor ${LIBS})
 
