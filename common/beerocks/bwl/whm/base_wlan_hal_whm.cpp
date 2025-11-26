@@ -836,6 +836,55 @@ bool base_wlan_hal_whm::refresh_radio_info()
     }
 
     m_radio_info.eht_supported = supported_standards.find("be") != std::string::npos ? true : false;
+    if (m_radio_info.eht_supported) {
+        struct beerocks::net::sApRoleCapabilities *ap_mode_support =
+            (struct beerocks::net::sApRoleCapabilities *)(&m_radio_info.ap_modes_support);
+
+        bool ap_role_supported    = false;
+        std::string ap_role_path  = m_radio_path + "Capabilities.WiFi7APRole.";
+        std::string sta_role_path = m_radio_path + "Capabilities.WiFi7STARole.";
+
+        // Wi-Fi 7 AP Role
+        m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "EMLMRSupport");
+        ap_mode_support->emlmr_support = ap_role_supported;
+
+        m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "EMLSRSupport");
+        ap_mode_support->emlsr_support = ap_role_supported;
+
+        m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "NSTRSupport");
+        ap_mode_support->nstr_support = ap_role_supported;
+
+        m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "STRSupport");
+        ap_mode_support->str_support = ap_role_supported;
+
+        // Wi-Fi 7 STA Role
+        struct beerocks::net::sSTARoleCapabilities *sta_mode_support =
+            (struct beerocks::net::sSTARoleCapabilities *)(&m_radio_info.bsta_modes_support);
+        bool sta_role_supported = false;
+
+        m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "EMLMRSupport");
+        sta_mode_support->emlmr_support = sta_role_supported;
+
+        m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "EMLSRSupport");
+        sta_mode_support->emlsr_support = sta_role_supported;
+
+        m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "NSTRSupport");
+        sta_mode_support->nstr_support = sta_role_supported;
+
+        m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "STRSupport");
+        sta_mode_support->str_support = sta_role_supported;
+
+        LOG(DEBUG) << "Param method, EHT Supported: " << m_radio_info.eht_supported << "\n"
+                   << "AP Modes [STR=" << ap_mode_support->str_support
+                   << ", NSTR=" << ap_mode_support->nstr_support
+                   << ", EMLSR=" << ap_mode_support->emlsr_support
+                   << ", EMLMR=" << ap_mode_support->emlmr_support << "]\n"
+                   << "STA Modes [STR=" << sta_mode_support->str_support
+                   << ", NSTR=" << sta_mode_support->nstr_support
+                   << ", EMLSR=" << sta_mode_support->emlsr_support
+                   << ", EMLMR=" << sta_mode_support->emlmr_support << "]";
+    }
+
     if (radio->read_child(s_val, "ExtensionChannel")) {
         bool channel_ext_above = (s_val == "AboveControlChannel");
         if (!channel_ext_above && (s_val == "Auto") &&

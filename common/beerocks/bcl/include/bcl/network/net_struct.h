@@ -280,6 +280,20 @@ typedef struct sEHTOperations {
     void struct_init() {}
 } __attribute__((packed)) sEHTOperations;
 
+typedef struct sApRoleCapabilities {
+    bool str_support;   // Single link STR support
+    bool nstr_support;  // Non-STR support
+    bool emlsr_support; // Enhanced Multi-Link Single Radio support
+    bool emlmr_support; // Enhanced Multi-Link Multi Radio support
+} __attribute__((packed)) sApRoleCapabilities;
+
+typedef struct sSTARoleCapabilities {
+    bool str_support;   // Single link STR support
+    bool nstr_support;  // Non-STR support
+    bool emlsr_support; // Enhanced Multi-Link Single Radio support
+    bool emlmr_support; // Enhanced Multi-Link Multi Radio support
+} __attribute__((packed)) sSTARoleCapabilities;
+
 } // namespace net
 } // namespace beerocks
 
