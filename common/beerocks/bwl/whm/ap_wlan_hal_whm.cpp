@@ -1348,15 +1348,24 @@ bool ap_wlan_hal_whm::process_radio_event(const std::string &interface, const st
         if (status.empty()) {
             return true;
         }
-        LOG(WARNING) << "radio " << interface << " status " << status;
+        LOG(WARNING) << "Event: radio " << interface << ": changed to status " << status;
     } else if (key == "Channel") {
+        std::string channel = value->get<std::string>();
+        if (channel.empty()) {
+            return true;
+        }
+        LOG(WARNING) << "Event: radio " << interface << ": changed to channel " << channel;
 
         refresh_radio_info();
         // Event not processed by ap_manager.cpp (agent)
         event_queue_push(Event::CTRL_Channel_Switch);
         return true;
     } else if (key == "AccessPointNumberOfEntries") {
-        LOG(WARNING) << "request updating vaps list of radio " << interface;
+        std::string num = value->get<std::string>();
+        if (num.empty()) {
+            return true;
+        }
+        LOG(WARNING) << "Event: radio " << " changed vap list to " << num << " vaps";
         event_queue_push(Event::APS_update_list);
         return true;
     }
@@ -1396,7 +1405,7 @@ bool ap_wlan_hal_whm::process_ap_event(const std::string &interface, const std::
         if (status.empty()) {
             return true;
         }
-        LOG(WARNING) << "vap " << interface << " status " << status;
+        LOG(WARNING) << "Event: vap " << interface << ": changed status to " << status;
         if (status == "Enabled") {
             auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sHOSTAP_ENABLED_NOTIFICATION));
             auto msg      = reinterpret_cast<sHOSTAP_ENABLED_NOTIFICATION *>(msg_buff.get());
@@ -1443,7 +1452,8 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
 
             msg->params.vap_id = vap_id;
             msg->params.bssid  = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
-            LOG(WARNING) << "Connected station " << sta_mac << " over vap " << interface;
+            LOG(WARNING) << "Event: vap "
+                         << interface << ": has new connected station:  " << sta_mac;
 
             msg->params.mac          = tlvf::mac_from_string(sta_mac);
             msg->params.capabilities = {};
@@ -1548,9 +1558,8 @@ bool ap_wlan_hal_whm::process_sta_disassoc_event(const std::string &interface,
         (*data_map)["DeauthReason"].get(msg->params.reason);
     }
 
-    LOG(INFO) << "disconnected station " << sta_mac << " from vap "
-              << interface << " reason: " << msg->params.reason;
-
+    LOG(WARNING) << "Event: vap " << interface << ": disconnected station:  " << sta_mac
+                 << "with reason: " << msg->params.reason;
     event_queue_push(Event::STA_Disconnected, msg_buff);
 
     return true;
@@ -1596,15 +1605,14 @@ bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
                        << " has been rejected with Status code = " << msg->params.status_code;
         }
 
-        LOG(DEBUG) << "BTM Response with mac= " << msg->params.mac
-                   << " status_code= " << msg->params.status_code
-                   << " source_bssid= " << msg->params.source_bssid
-                   << " target_bssid= " << msg->params.target_bssid;
+        LOG(WARNING) << "Event: vap " << interface << ": BTM Response with mac= " << msg->params.mac
+                     << " status_code= " << msg->params.status_code
+                     << " source_bssid= " << msg->params.source_bssid
+                     << " target_bssid= " << msg->params.target_bssid;
 
         // Add the message to the queue
         event_queue_push(Event::BSS_TM_Response, msg_buff);
     } else if (name_notification == AMX_CL_MGMT_ACT_FRAME_EVT) {
-
         std::string frame_body_str;
         if (!event_data->read_child<>(frame_body_str, "frame") || frame_body_str.empty()) {
             LOG(WARNING) << "Unable to retrieve MGMT Frame from pwhm notification";
@@ -1612,9 +1620,12 @@ bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
 
         auto management_frame = create_mgmt_frame_notification(frame_body_str.c_str());
         if (management_frame) {
+            LOG(WARNING) << "Event: vap " << interface << ": received management frame of type: "
+                         << management_frame->type << " from STA: " << management_frame->mac;
+
             event_queue_push(Event::MGMT_Frame, management_frame);
         } else {
-            LOG(ERROR) << "creage_mgmt_frame_notification failed";
+            LOG(ERROR) << "create_mgmt_frame_notification failed";
         }
     }
     return true;
@@ -1634,7 +1645,6 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         LOG(WARNING) << "Unable to retrieve ifName from pwhm notification";
         return false;
     }
-    LOG(DEBUG) << "interface: " << interface;
 
     bwl::parsed_line_t parsed_obj;
     parse_event(event_str, parsed_obj);
@@ -1646,6 +1656,7 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
     }
 
     auto event = wpaCtrl_to_bwl_event(opcode);
+    LOG(WARNING) << "Event: endpoint: " << interface << ": received event: " << event;
 
     switch (event) {
 
