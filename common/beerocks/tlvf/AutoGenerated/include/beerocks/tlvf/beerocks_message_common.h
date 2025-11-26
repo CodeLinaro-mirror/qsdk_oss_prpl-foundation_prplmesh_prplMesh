@@ -338,6 +338,13 @@ typedef struct sNodeRssiMeasurement {
     }
 } __attribute__((packed)) sNodeRssiMeasurement;
 
+enum eMLOModes: uint8_t {
+    eMLOModes_str = 0x80,
+    eMLOModes_nstr = 0x40,
+    eMLOModes_emlsr = 0x20,
+    eMLOModes_emlmr = 0x10,
+};
+
 typedef struct sNodeHostap {
     char iface_name[beerocks::message::IFACE_NAME_LENGTH];
     uint8_t iface_type;
@@ -358,6 +365,8 @@ typedef struct sNodeHostap {
     uint64_t wifi6_capability;
     uint8_t he_mcs_set[beerocks::message::HE_MCS_SET_NL802_SIZE];
     uint8_t eht_supported;
+    uint8_t ap_modes_support;
+    uint8_t bsta_modes_support;
     //Boolean. When set to 'true', the radio can be used only for zwdfs purpose.
     uint8_t zwdfs;
     //Boolean
