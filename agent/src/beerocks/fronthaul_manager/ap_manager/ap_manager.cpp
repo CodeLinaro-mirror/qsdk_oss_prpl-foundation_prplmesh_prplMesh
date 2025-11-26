@@ -1832,6 +1832,15 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         std::string target_bssid  = tlvf::mac_to_string(request->params().target.bssid);
         uint8_t disassoc_imminent = request->params().disassoc_imminent;
 
+        // Matches the bit layout expected by pwhm: pref->bit0, abr->bit1, disassoc->bit2
+        auto build_btm_req_mode = [](uint8_t pref, uint8_t abr, uint8_t disassoc) -> uint8_t {
+            return static_cast<uint8_t>((pref << 0) | (abr << 1) | (disassoc << 2));
+        };
+
+        // Preferred Candidate List Included = 1 since a valid target BSSID is always assumed
+        uint8_t req_mode =
+            build_btm_req_mode(1, request->params().abridged, request->params().disassoc_imminent);
+
         LOG(DEBUG) << "CLIENT_BSS_STEER (802.11v) for sta_mac = " << sta_mac
                    << " to bssid = " << target_bssid
                    << " channel = " << int(request->params().target.channel);
@@ -1840,7 +1849,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             request->params().target.channel,
             (disassoc_imminent) ? (request->params().disassoc_timer_ms / BEACON_TRANSMIT_TIME_MS)
                                 : 0,
-            bss_steer_valid_int, request->params().target.reason);
+            bss_steer_valid_int, request->params().target.reason, req_mode);
         break;
     }
     case beerocks_message::ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST: {
@@ -3125,8 +3134,10 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             LOG(DEBUG) << "CLIENT_BSS_STEER (802.11v) for sta_mac = " << sta_mac
                        << " to bssid = " << target_bssid << " channel = " << channel
                        << " op_class = " << op_class;
-            ap_wlan_hal->sta_bss_steer(it->first, sta_mac, target_bssid, op_class, channel, 0, 2,
-                                       0);
+
+            // 0x03: pref_candidate_list_included 1, abridged 1, disassoc_imminent 0
+            ap_wlan_hal->sta_bss_steer(it->first, sta_mac, target_bssid, op_class, channel, 0, 2, 0,
+                                       0x03);
         }
     } break;
     case Event::WPA_Event_EAP_Failure:

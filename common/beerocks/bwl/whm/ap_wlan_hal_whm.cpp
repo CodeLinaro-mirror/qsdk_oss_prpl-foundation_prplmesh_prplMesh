@@ -443,7 +443,7 @@ bool ap_wlan_hal_whm::sta_deauth(int8_t vap_id, const std::string &mac, uint32_t
 
 bool ap_wlan_hal_whm::sta_bss_steer(int8_t vap_id, const std::string &mac, const std::string &bssid,
                                     int oper_class, int chan, int disassoc_timer_btt,
-                                    int valid_int_btt, int reason)
+                                    int valid_int_btt, int reason, uint8_t req_mode)
 {
     if (!check_vap_id(vap_id)) {
         LOG(ERROR) << "invalid vap_id " << vap_id;
@@ -460,6 +460,7 @@ bool ap_wlan_hal_whm::sta_bss_steer(int8_t vap_id, const std::string &mac, const
     args.add_child("validity", valid_int_btt);
     args.add_child("disassoc", disassoc_timer_btt);
     args.add_child("transitionReason", reason);
+    args.add_child("mode", req_mode);
     auto wifi_ap_path = wbapi_utils::search_path_ap_by_iface(ifname);
     bool ret          = m_ambiorix_cl.call(wifi_ap_path, "sendBssTransferRequest", args, result);
 

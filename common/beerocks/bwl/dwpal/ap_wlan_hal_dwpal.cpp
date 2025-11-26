@@ -1182,7 +1182,8 @@ bool ap_wlan_hal_dwpal::set_cce_indication(uint16_t advertise_cce)
 
 bool ap_wlan_hal_dwpal::sta_bss_steer(int8_t vap_id, const std::string &mac,
                                       const std::string &bssid, int oper_class, int chan,
-                                      int disassoc_timer_btt, int valid_int_btt, int reason)
+                                      int disassoc_timer_btt, int valid_int_btt, int reason,
+                                      uint8_t req_mode)
 {
 
     LOG(TRACE) << __func__ << " mac: " << mac << ", BSS: " << bssid

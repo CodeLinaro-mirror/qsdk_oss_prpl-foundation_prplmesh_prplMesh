@@ -209,7 +209,7 @@ public:
      */
     virtual bool sta_bss_steer(int8_t vap_id, const std::string &mac, const std::string &bssid,
                                int oper_class, int chan, int disassoc_timer_btt, int valid_int_btt,
-                               int reason) = 0;
+                               int reason, uint8_t req_mode) = 0;
 
     /**
      * @brief Update wifi credentials.

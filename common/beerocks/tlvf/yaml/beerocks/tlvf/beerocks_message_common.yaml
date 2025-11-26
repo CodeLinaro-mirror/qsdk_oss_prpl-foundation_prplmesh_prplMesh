@@ -338,6 +338,7 @@ sNodeBssSteerRequest:
   cur_bssid: sMacAddr
   disassoc_timer_ms: uint16_t
   disassoc_imminent: uint8_t
+  abridged: uint8_t
   target: sNodeBssSteerTarget
 
 sNodeBssSteerResponse:
