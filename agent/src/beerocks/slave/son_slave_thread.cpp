@@ -2550,9 +2550,36 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         radio->eht_supported = notification->params().eht_supported;
 
-        // TODO: To not block R6 certification, fix with (PPM-3655)
-        if (radio->eht_supported)
-            radio->ap_modes_support.str_support = true;
+        if (radio->eht_supported) {
+            radio->ap_modes_support.str_support    = (notification->params().ap_modes_support &
+                                                   beerocks_message::eMLOModes::eMLOModes_str);
+            radio->ap_modes_support.nstr_support   = (notification->params().ap_modes_support &
+                                                    beerocks_message::eMLOModes::eMLOModes_nstr);
+            radio->ap_modes_support.emlsr_support  = (notification->params().ap_modes_support &
+                                                     beerocks_message::eMLOModes::eMLOModes_emlsr);
+            radio->ap_modes_support.emlmr_support  = (notification->params().ap_modes_support &
+                                                     beerocks_message::eMLOModes::eMLOModes_emlmr);
+            radio->bsta_modes_support.str_support  = (notification->params().bsta_modes_support &
+                                                     beerocks_message::eMLOModes::eMLOModes_str);
+            radio->bsta_modes_support.nstr_support = (notification->params().bsta_modes_support &
+                                                      beerocks_message::eMLOModes::eMLOModes_nstr);
+            radio->bsta_modes_support.emlsr_support =
+                (notification->params().bsta_modes_support &
+                 beerocks_message::eMLOModes::eMLOModes_emlsr);
+            radio->bsta_modes_support.emlmr_support =
+                (notification->params().bsta_modes_support &
+                 beerocks_message::eMLOModes::eMLOModes_emlmr);
+
+            LOG(DEBUG) << "Param method, EHT Supported: " << radio->eht_supported << "\n"
+                       << "[WiFi7] AP MLO Modes [STR=" << radio->ap_modes_support.str_support
+                       << ", NSTR=" << radio->ap_modes_support.nstr_support
+                       << ", EMLSR=" << radio->ap_modes_support.emlsr_support
+                       << ", EMLMR=" << radio->ap_modes_support.emlmr_support << "]\n"
+                       << "| BSTA MLO Modes [STR=" << radio->bsta_modes_support.str_support
+                       << ", NSTR=" << radio->bsta_modes_support.nstr_support
+                       << ", EMLSR=" << radio->bsta_modes_support.emlsr_support
+                       << ", EMLMR=" << radio->bsta_modes_support.emlmr_support << "]";
+        }
 
         save_channel_params_to_db(fronthaul_iface, notification->cs_params());
         if (notification->params().frequency_band != radio->wifi_channel.get_freq_type()) {

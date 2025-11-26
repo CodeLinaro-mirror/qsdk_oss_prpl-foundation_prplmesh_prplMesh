@@ -3318,6 +3318,37 @@ void ApManager::handle_hostapd_attached()
                 notification->params().he_mcs_set);
     notification->params().eht_supported = ap_wlan_hal->get_radio_info().eht_supported;
 
+    uint8_t bsta_modes_support = 0, ap_modes_support = 0;
+    if (ap_wlan_hal->get_radio_info().ap_modes_support.str_support) {
+        ap_modes_support |= beerocks_message::eMLOModes::eMLOModes_str;
+    }
+    if (ap_wlan_hal->get_radio_info().ap_modes_support.nstr_support) {
+        ap_modes_support |= beerocks_message::eMLOModes::eMLOModes_nstr;
+    }
+    if (ap_wlan_hal->get_radio_info().ap_modes_support.emlsr_support) {
+        ap_modes_support |= beerocks_message::eMLOModes::eMLOModes_emlsr;
+    }
+    if (ap_wlan_hal->get_radio_info().ap_modes_support.emlmr_support) {
+        ap_modes_support |= beerocks_message::eMLOModes::eMLOModes_emlmr;
+    }
+    notification->params().ap_modes_support = ap_modes_support;
+
+    if (ap_wlan_hal->get_radio_info().bsta_modes_support.str_support) {
+        bsta_modes_support |= beerocks_message::eMLOModes::eMLOModes_str;
+    }
+    if (ap_wlan_hal->get_radio_info().bsta_modes_support.nstr_support) {
+        bsta_modes_support |= beerocks_message::eMLOModes::eMLOModes_nstr;
+    }
+    if (ap_wlan_hal->get_radio_info().bsta_modes_support.emlsr_support) {
+        bsta_modes_support |= beerocks_message::eMLOModes::eMLOModes_emlsr;
+    }
+    if (ap_wlan_hal->get_radio_info().bsta_modes_support.emlmr_support) {
+        bsta_modes_support |= beerocks_message::eMLOModes::eMLOModes_emlmr;
+    }
+    notification->params().bsta_modes_support = bsta_modes_support;
+    LOG(DEBUG) << "[WiFi7]AP MLO Modes Support " << notification->params().ap_modes_support
+               << "\n | BSTA Mode Support " << notification->params().bsta_modes_support;
+
     notification->params().zwdfs = m_ap_support_zwdfs;
 
     string_utils::copy_string(notification->params().chipset_vendor,
