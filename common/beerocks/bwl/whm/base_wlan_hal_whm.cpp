@@ -1262,6 +1262,88 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
             m_ambiorix_cl.resolve_path(wifi_ssid_path, vap_extInfo.ssid_path);
             vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
             LOG(INFO) << "status for " << ifname << " " << vap_extInfo.status;
+
+	    int8_t mld_unit = -1;
+            std::string ssid_bssid;
+
+            if (!ssid_obj || !ssid_obj->read_child(mld_unit, "MLDUnit") || mld_unit < 0) {
+                LOG(DEBUG) << "MLDUnit not found or invalid (< 0) for VAP " << ifname;
+            } else {
+                vap_element.mld_id = mld_unit;
+
+                if (!ssid_obj->read_child(ssid_bssid, "BSSID")) {
+                    ssid_bssid = mac;
+                }
+                std::transform(ssid_bssid.begin(), ssid_bssid.end(), ssid_bssid.begin(), ::tolower);
+
+                auto apmld_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+                    "Device.WiFi.APMLD.");
+
+                if (!apmld_objects || apmld_objects->empty()) {
+                    LOG(DEBUG) << "No APMLD objects found in data model";
+                } else {
+                    bool found_match = false;
+                    for (auto &apmld_entry : *apmld_objects) {
+                        int8_t mld_id = -1;
+
+                        if (!apmld_entry.second.read_child(mld_id, "MLDID") || mld_id != mld_unit) {
+                            continue;
+                        }
+
+                        LOG(INFO) << "MLDID match found in APMLD: " << apmld_entry.first;
+
+                        auto affiliated_ap_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+                            apmld_entry.first + "AffiliatedAP.");
+
+                        if (!affiliated_ap_objects || affiliated_ap_objects->empty()) {
+                            LOG(DEBUG) << "No AffiliatedAP entries for APMLD: " << apmld_entry.first;
+                            continue;
+                        }
+
+			 for (auto &aff_ap_entry : *affiliated_ap_objects) {
+                            std::string aff_ap_bssid;
+
+                            if (!aff_ap_entry.second.read_child(aff_ap_bssid, "BSSID")) {
+                                LOG(DEBUG) << "Failed to read BSSID from AffiliatedAP: " << aff_ap_entry.first;
+                                continue;
+                            }
+
+                            std::transform(aff_ap_bssid.begin(), aff_ap_bssid.end(), aff_ap_bssid.begin(), ::tolower);
+
+                            if (aff_ap_bssid != ssid_bssid) {
+                                LOG(DEBUG) << "BSSID mismatch - AffiliatedAP: '" << aff_ap_bssid
+                                           << "' != SSID: '" << ssid_bssid << "'";
+                                continue;
+                            }
+
+                            found_match = true;
+                            int8_t link_id = -1;
+                            if (aff_ap_entry.second.read_child(link_id, "LinkID")) {
+                                vap_element.link_id = link_id;
+                            }
+
+                            std::string mld_mac_address;
+                            if (apmld_entry.second.read_child(mld_mac_address, "MLDMACAddress")) {
+                                vap_element.ap_mld_mac = mld_mac_address;
+                            }
+
+                            LOG(INFO) << "MLO fields populated - MLDID: "
+                                       << static_cast<int>(mld_unit) << ", LinkID: "
+                                       << static_cast<int>(link_id) << ", AP MLD MAC: " << mld_mac_address;
+                            break;
+                        }
+
+                        if (found_match) {
+                            break;
+                        }
+                    }
+
+		    if (!found_match) {
+                        LOG(DEBUG) << "No match found - MLDID: " << static_cast<int>(mld_unit)
+                                   << ", BSSID: " << ssid_bssid;
+                    }
+                }
+            }
         }
     }
 
