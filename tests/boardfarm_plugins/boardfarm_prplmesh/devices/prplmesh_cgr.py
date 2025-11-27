@@ -140,12 +140,15 @@ class PrplMeshCGR(OpenWrtRouter, PrplMeshBase):
 
     def get_prplMesh_status(self) -> bool:
         """ Check prplMesh status. Return True if operational."""
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh status")
+        self.sendline("/opt/prplmesh/bin/prplmesh_cli -c status -o pretty")
         self.expect(
-            ["(?P<main_agent>OK) Main agent.+"
-             "(?P<wlan0>OK) wlan0.+"
-             "(?P<wlan2>OK) wlan2", pexpect.TIMEOUT],
-            timeout=5)
+            ["Agent:.+"
+             "current state: OPERATIONAL.+"
+             "Fronthaul:.+"
+             "interface: wlan0.+"
+             "current state: OPERATIONAL.+"
+             "interface: wlan2.+"
+             "current state: OPERATIONAL.+", pexpect.TIMEOUT], timeout=5)
         if self.match is not pexpect.TIMEOUT:
             return True
         else:

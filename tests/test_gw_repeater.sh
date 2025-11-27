@@ -55,11 +55,24 @@ check_wsl() {
     RP_EXTRA_OPT=(--expose "${RP_UCC_PORT}" --publish "127.0.0.1::${RP_UCC_PORT}")
 }
 
-get_repater_bridge_mac() {
+check_prplmesh_status() {
     if [ "$#" -eq 1 ]; then
-        REPEATER_BRIDGE_MAC=$(run docker container exec "$1" ifconfig br-lan | grep ether | tr -s ' ' | cut --delimiter=' ' -f 3)
-        echo "$REPEATER_BRIDGE_MAC"
+        local output
+        local status
+
+        output=$(run docker container exec "$1" "${rootdir}/build/install/bin/prplmesh_cli" -c status -o json)
+        echo "${output}"
+
+        status=$(echo "${output}" \
+            | grep -o '"CurrentState":[^,]*' \
+            | head -n1 \
+            | sed 's/.*"CurrentState":[[:space:]]*"\([^"]*\)".*/\1/')
+
+        if [ "${status}" == "OPERATIONAL" ] ; then
+            return 0
+        fi
     fi
+    return 1
 }
 
 main() {
@@ -129,15 +142,14 @@ main() {
 
     error=0
     [ "$START_GATEWAY" = "true" ] && report "GW operational" \
-        "${rootdir}"/tools/docker/test.sh ${VERBOSE_OPT} -n "${GW_NAME}"
+        check_prplmesh_status "${GW_NAME}"
 
 
     [ "$START_REPEATER" = "true" ] && {
         for repeater in $REPEATER_NAMES
         do
-            REPEATER_BRIDGE_MAC=$(get_repater_bridge_mac "${repeater}")
             report "Repeater $repeater operational" \
-            "${rootdir}"/tools/docker/test.sh ${VERBOSE_OPT} -n "${GW_NAME}" -b "${REPEATER_BRIDGE_MAC}"
+            check_prplmesh_status "${repeater}"
         done
     }
 
