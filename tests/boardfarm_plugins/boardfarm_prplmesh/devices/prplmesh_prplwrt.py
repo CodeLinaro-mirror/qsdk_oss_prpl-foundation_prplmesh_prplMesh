@@ -151,11 +151,15 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
 
     def get_prplMesh_status(self) -> bool:
         """ Check prplMesh status. Return True if operational."""
-        self.sendline("/etc/init.d/prplmesh status")
+        self.sendline("/opt/prplmesh/bin/prplmesh_cli -c status -o pretty")
         self.expect(
-            ["OK Main agent.+"
-             "OK {}.+"
-             "OK {}".format(
+            ["Agent:.+"
+             "current state: OPERATIONAL.+"
+             "Fronthaul:.+"
+             "interface: {}.+"
+             "current state: OPERATIONAL.+"
+             "interface: {}.+"
+             "current state: OPERATIONAL.+".format(
                  self.agent_entity.radios[0].iface_name,
                  self.agent_entity.radios[1].iface_name), pexpect.TIMEOUT],
             timeout=5)
