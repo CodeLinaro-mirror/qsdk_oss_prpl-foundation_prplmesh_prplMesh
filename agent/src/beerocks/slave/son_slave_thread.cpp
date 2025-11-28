@@ -5667,9 +5667,13 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         for (auto &ap_mld_conf : db->ap_mld_configurations) {
             if (ap_mld_conf.mld_config.mld_ssid == bss.ssid) {
                 ap_mld_conf.mld_config.mld_mac = vaps[vap_idx].ap_mld_mac;
+                LOG(DEBUG) << "AP MLD MAC for SSID: " << bss.ssid
+                          << ", BSSID: " << bss.mac
+                          << ", AP MLD MAC: " << ap_mld_conf.mld_config.mld_mac;
                 for (auto &affiliated_ap : ap_mld_conf.affiliated_aps) {
                     if (affiliated_ap.ruid == radio->front.iface_mac) {
                         affiliated_ap.bssid = bss.mac;
+                        affiliated_ap.link_id = bss.link_id;
                         break;
                     }
                 }

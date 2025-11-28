@@ -8,6 +8,7 @@
 
 #include "base_wlan_hal_whm.h"
 
+#include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_string_utils.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/network/network_utils.h>
@@ -1292,84 +1293,98 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
             vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
             LOG(INFO) << "status for " << ifname << " " << vap_extInfo.status;
 
-	    int8_t mld_unit = -1;
-            std::string ssid_bssid;
+	    int8_t mld_unit = DISABLED_MLDUNIT;
+            sMacAddr ssid_bssid;
 
-            if (!ssid_obj || !ssid_obj->read_child(mld_unit, "MLDUnit") || mld_unit < 0) {
-                LOG(DEBUG) << "MLDUnit not found or invalid (< 0) for VAP " << ifname;
-            } else {
-                vap_element.mld_id = mld_unit;
+            if (ssid_obj->read_child(mld_unit, "MLDUnit") && mld_unit != DISABLED_MLDUNIT) {
+                if (!vap_element.mac.empty()) {
+                    ssid_bssid = tlvf::mac_from_string(vap_element.mac);
+                    std::string ssid_bssid_str = tlvf::mac_to_string(ssid_bssid);
+                    std::transform(ssid_bssid_str.begin(), ssid_bssid_str.end(), ssid_bssid_str.begin(), ::tolower);
 
-                if (!ssid_obj->read_child(ssid_bssid, "BSSID")) {
-                    ssid_bssid = mac;
-                }
-                std::transform(ssid_bssid.begin(), ssid_bssid.end(), ssid_bssid.begin(), ::tolower);
+                    auto apmld_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+                        wbapi_utils::search_path_apmld_by_mldid(mld_unit));
 
-                auto apmld_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
-                    "Device.WiFi.APMLD.");
+                    if (apmld_objects && !apmld_objects->empty()) {
+                        bool found_match = false;
+                        for (auto &apmld_entry : *apmld_objects) {
+                            int8_t mld_id = DISABLED_MLDUNIT;
 
-                if (!apmld_objects || apmld_objects->empty()) {
-                    LOG(DEBUG) << "No APMLD objects found in data model";
-                } else {
-                    bool found_match = false;
-                    for (auto &apmld_entry : *apmld_objects) {
-                        int8_t mld_id = -1;
-
-                        if (!apmld_entry.second.read_child(mld_id, "MLDID") || mld_id != mld_unit) {
-                            continue;
-                        }
-
-                        LOG(INFO) << "MLDID match found in APMLD: " << apmld_entry.first;
-
-                        auto affiliated_ap_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
-                            apmld_entry.first + "AffiliatedAP.");
-
-                        if (!affiliated_ap_objects || affiliated_ap_objects->empty()) {
-                            LOG(DEBUG) << "No AffiliatedAP entries for APMLD: " << apmld_entry.first;
-                            continue;
-                        }
-
-			 for (auto &aff_ap_entry : *affiliated_ap_objects) {
-                            std::string aff_ap_bssid;
-
-                            if (!aff_ap_entry.second.read_child(aff_ap_bssid, "BSSID")) {
-                                LOG(DEBUG) << "Failed to read BSSID from AffiliatedAP: " << aff_ap_entry.first;
+                            if (!apmld_entry.second.read_child(mld_id, "MLDID")) {
+                                LOG(DEBUG) << "Failed to read MLDID from APMLD: " << apmld_entry.first;
                                 continue;
                             }
 
-                            std::transform(aff_ap_bssid.begin(), aff_ap_bssid.end(), aff_ap_bssid.begin(), ::tolower);
+                            auto affiliated_ap_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+                                apmld_entry.first + "AffiliatedAP.");
 
-                            if (aff_ap_bssid != ssid_bssid) {
-                                LOG(DEBUG) << "BSSID mismatch - AffiliatedAP: '" << aff_ap_bssid
-                                           << "' != SSID: '" << ssid_bssid << "'";
+                            if (!affiliated_ap_objects || affiliated_ap_objects->empty()) {
+                                LOG(DEBUG) << "No AffiliatedAP entries for APMLD: " << apmld_entry.first;
                                 continue;
                             }
 
-                            found_match = true;
-                            int8_t link_id = -1;
-                            if (aff_ap_entry.second.read_child(link_id, "LinkID")) {
-                                vap_element.link_id = link_id;
-                            }
+                            for (auto &aff_ap_entry : *affiliated_ap_objects) {
+                                std::string aff_ap_bssid_str;
+                                if (!aff_ap_entry.second.read_child(aff_ap_bssid_str, "BSSID")) {
+                                    LOG(DEBUG) << "Failed to read BSSID from AffiliatedAP: " << aff_ap_entry.first;
+                                    continue;
+                                }
 
-                            std::string mld_mac_address;
-                            if (apmld_entry.second.read_child(mld_mac_address, "MLDMACAddress")) {
+                                if (aff_ap_bssid_str.empty()) {
+                                    LOG(DEBUG) << "AffiliatedAP BSSID is empty: " << aff_ap_entry.first;
+                                    continue;
+                                }
+
+                                std::transform(aff_ap_bssid_str.begin(), aff_ap_bssid_str.end(), aff_ap_bssid_str.begin(), ::tolower);
+                                sMacAddr aff_ap_bssid = tlvf::mac_from_string(aff_ap_bssid_str);
+
+                                std::string ssid_bssid_str = tlvf::mac_to_string(ssid_bssid);
+                                std::transform(ssid_bssid_str.begin(), ssid_bssid_str.end(), ssid_bssid_str.begin(), ::tolower);
+                                if (memcmp(aff_ap_bssid.oct, ssid_bssid.oct, sizeof(sMacAddr::oct)) != 0) {
+                                    LOG(DEBUG) << "BSSID mismatch - AffiliatedAP: '" << aff_ap_bssid_str
+                                               << "' != SSID: '" << ssid_bssid_str << "'";
+                                    continue;
+                                }
+
+                                std::string mld_mac_address;
+                                if (!apmld_entry.second.read_child(mld_mac_address, "MLDMACAddress")) {
+                                    LOG(DEBUG) << "Failed to read MLDMACAddress from: " << apmld_entry.first;
+                                    continue;
+                                }
+
+                                if (!beerocks::net::network_utils::is_valid_mac(mld_mac_address)) {
+                                    LOG(DEBUG) << "Invalid AP MLD MAC address: '" << mld_mac_address
+                                               << "' - Ignoring this match and skipping MLO field assignments";
+                                    continue;
+                                }
+
+                                found_match = true;
+
+                                vap_element.mld_id = mld_id;
+
+                                int8_t link_id = DISABLED_MLDUNIT;
+                                if (aff_ap_entry.second.read_child(link_id, "LinkID")) {
+                                    vap_element.link_id = link_id;
+                                }
+
                                 vap_element.ap_mld_mac = mld_mac_address;
+
+                                LOG(INFO) << "MLO fields populated - MLDID: "
+                                           << static_cast<int>(mld_id) << ", LinkID: "
+                                           << static_cast<int>(link_id) << ", AP MLD MAC: " << mld_mac_address;
+                                break;
                             }
 
-                            LOG(INFO) << "MLO fields populated - MLDID: "
-                                       << static_cast<int>(mld_unit) << ", LinkID: "
-                                       << static_cast<int>(link_id) << ", AP MLD MAC: " << mld_mac_address;
-                            break;
+                            if (found_match) {
+                                break;
+                            }
                         }
 
-                        if (found_match) {
-                            break;
+                        if (!found_match) {
+                            std::string ssid_bssid_str_t = tlvf::mac_to_string(ssid_bssid);
+                            LOG(DEBUG) << "No match found - SSID.MLDUnit: " << static_cast<int>(mld_unit)
+                                       << ", SSID BSSID: " << ssid_bssid_str_t << " - mld_id will not be set";
                         }
-                    }
-
-		    if (!found_match) {
-                        LOG(DEBUG) << "No match found - MLDID: " << static_cast<int>(mld_unit)
-                                   << ", BSSID: " << ssid_bssid;
                     }
                 }
             }
