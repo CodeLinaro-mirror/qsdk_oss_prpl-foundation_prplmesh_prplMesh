@@ -200,6 +200,16 @@ public:
     static std::string search_path_ap_by_ssidRef(const std::string &ssidRef);
 
     /**
+     * @brief return search path of APMLD template object.
+     */
+    static std::string search_path_apmld();
+
+    /**
+     * @brief return search path of APMLD object instance by MLDID.
+     */
+    static std::string search_path_apmld_by_mldid(int8_t mld_id);
+
+    /**
      * @brief return search path of associated device object instance
      * filter by MAC address.
      */
