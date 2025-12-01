@@ -4638,6 +4638,114 @@ bool Controller::reconfig_apmld(const sMacAddr &al_mac, const sMacAddr &mld_mac,
     return son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
 }
 
+bool Controller::reconfig_bstamld(const sMacAddr &al_mac, const sMacAddr &mld_mac,
+                                  const sMacAddr &ruid, bool add_link)
+{
+    auto agent = database.get_agent(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with MAC:" << tlvf::mac_to_string(al_mac) << " not found in database";
+        return false;
+    }
+
+    // Modify a copy of bsta_mld based on reconfig_bstamld params
+    auto bsta_mld = agent->bsta_mld;
+
+    // Check bSTA MLD MAC match
+    if (bsta_mld.mld_info.mld_mac != mld_mac) {
+        LOG(ERROR) << "bSTA MLD with MAC: " << tlvf::mac_to_string(mld_mac) << " not found";
+        return false;
+    }
+
+    // Check RUID match
+    auto affl_bsta = bsta_mld.affiliated_bstas.find(ruid);
+    if (add_link) {
+
+        // Add Affiliated bSTA
+        if (affl_bsta != bsta_mld.affiliated_bstas.end()) {
+            LOG(ERROR) << "Duplicated Affiliated bSTA addition with RUID: "
+                       << tlvf::mac_to_string(ruid);
+            return false;
+        }
+        bsta_mld.affiliated_bstas[ruid]      = Agent::sBSTAMLD::sAffiliatedBSTA();
+        bsta_mld.affiliated_bstas[ruid].ruid = ruid;
+    } else {
+
+        // Remove Affiliated BSTA
+        if (affl_bsta != bsta_mld.affiliated_bstas.end()) {
+            if (bsta_mld.affiliated_bstas.size() > 1) {
+                bsta_mld.affiliated_bstas.erase(ruid);
+            } else {
+                LOG(ERROR) << "Affiliated BSTA with RUID: " << tlvf::mac_to_string(ruid)
+                           << " is the last link of bSTAMLD. Hence can't be removed";
+                return false;
+            }
+        } else {
+            LOG(ERROR) << "Affiliated bSTA with RUID: " << tlvf::mac_to_string(ruid)
+                       << " not found";
+            return false;
+        }
+    }
+
+    // Create BSTA MLD Configuration Request Message
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "CMDU creation of type BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE, has failed";
+        return false;
+    }
+
+    // Add Backhaul STA MLD Configuration TLV
+    auto tlvBackhaulStaMldConfiguration =
+        cmdu_tx.addClass<wfa_map::tlvBackhaulStaMldConfiguration>();
+
+    if (!tlvBackhaulStaMldConfiguration) {
+        LOG(ERROR) << "addClass wfa_map::tlvBackhaulStaMldConfiguration failed";
+        return false;
+    }
+
+    tlvBackhaulStaMldConfiguration->addr_valid().bsta_mld_mac_addr_valid =
+        (bsta_mld.mld_info.mld_mac != beerocks::net::network_utils::ZERO_MAC);
+    tlvBackhaulStaMldConfiguration->addr_valid().ap_mld_mac_addr_valid =
+        (bsta_mld.ap_mld_mac != beerocks::net::network_utils::ZERO_MAC);
+    tlvBackhaulStaMldConfiguration->bsta_mld_mac_addr() = bsta_mld.mld_info.mld_mac;
+    tlvBackhaulStaMldConfiguration->ap_mld_mac_addr()   = bsta_mld.ap_mld_mac;
+
+    if (bsta_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::STR) {
+        tlvBackhaulStaMldConfiguration->modes().str = 1;
+    }
+    if (bsta_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::NSTR) {
+        tlvBackhaulStaMldConfiguration->modes().nstr = 1;
+    }
+    if (bsta_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLSR) {
+        tlvBackhaulStaMldConfiguration->modes().emlsr = 1;
+    }
+    if (bsta_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLMR) {
+        tlvBackhaulStaMldConfiguration->modes().emlmr = 1;
+    }
+    LOG(DEBUG) << "Sending BH Sta MLD configuration for " << bsta_mld.mld_info.mld_ssid
+               << " [mac=" << bsta_mld.mld_info.mld_mac << ", mode=" << std::hex
+               << bsta_mld.mld_info.mld_mode << "]";
+
+    for (const auto &affl_bsta_map : bsta_mld.affiliated_bstas) {
+        auto affiliated_bsta_conf = affl_bsta_map.second;
+        auto affiliated_bsta(tlvBackhaulStaMldConfiguration->create_affiliated_bsta());
+        affiliated_bsta->affiliated_bsta_mac_addr_valid().is_valid =
+            (affiliated_bsta_conf.bssid != beerocks::net::network_utils::ZERO_MAC);
+        affiliated_bsta->ruid()                     = affiliated_bsta_conf.ruid;
+        affiliated_bsta->affiliated_bsta_mac_addr() = affiliated_bsta_conf.bssid;
+
+        if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(affiliated_bsta)) {
+            LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";
+            return false;
+        }
+    }
+
+    LOG(DEBUG) << "Sending BSTAMLD Reconfig request to " << (add_link ? "add" : "remove")
+               << " Affiliated bSTA with RUID: " << tlvf::mac_to_string(ruid)
+               << " for bSTAMLD with MLD MAC: " << tlvf::mac_to_string(mld_mac)
+               << " on Agent: " << tlvf::mac_to_string(al_mac);
+
+    return son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
+}
+
 #define BEACON_INTERVAL_MS_IN_BI 100
 bool Controller::send_btm_request(const bool &disassoc_imminent,
                                   const uint32_t &disassoc_timer,    // beacon interval count
