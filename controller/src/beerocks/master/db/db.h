@@ -310,8 +310,8 @@ public:
 
     class link_metrics_data {
     public:
-        link_metrics_data(){};
-        ~link_metrics_data(){};
+        link_metrics_data() {};
+        ~link_metrics_data() {};
 
         std::vector<ieee1905_1::tlvTransmitterLinkMetric::sInterfacePairInfo>
             transmitterLinkMetrics;
@@ -325,8 +325,8 @@ public:
 
     class ap_metrics_data {
     public:
-        ap_metrics_data(){};
-        ~ap_metrics_data(){};
+        ap_metrics_data() {};
+        ~ap_metrics_data() {};
 
         sMacAddr bssid                               = beerocks::net::network_utils::ZERO_MAC;
         uint8_t channel_utilization                  = 0;
@@ -372,7 +372,7 @@ public:
         settings.service_fairness &= config_.load_service_fairness;
         settings.daisy_chaining_disabled &= config_.daisy_chaining_disabled;
     }
-    ~db(){};
+    ~db() {};
 
     //static
 
@@ -2778,6 +2778,23 @@ public:
     bool dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
                             const sMacAddr &ap_mld_mac, const std::string &affiliated_bsta_list,
                             const Agent::sMLDInfo::mode &mld_mode);
+
+    /**
+     * @brief Fill associated STAMLD node
+     *
+     * @param[in] agent Agent to which the associated STA MLD is connected
+     * @param[in] sta_mld_mac MAC Address of the STA MLD
+     * @param[in] ap_mld_mac MAC Address of the AP MLD it is connected
+     * @param[in] affiliated_sta_vector vector of affiliated STAs
+     * @param[in] mld_mode configuration of STA MLD
+     *
+     * @return true if the associated STAMLD node has been filled
+     */
+    bool dm_update_assoc_sta_mld(
+        const Agent &agent, const sMacAddr &sta_mld_mac, const sMacAddr &ap_mld_mac,
+        const std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta>
+            &affiliated_sta_vector,
+        const Agent::sMLDInfo::mode &mld_mode);
 
     //
     // tasks

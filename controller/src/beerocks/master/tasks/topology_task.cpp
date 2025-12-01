@@ -23,6 +23,7 @@
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
+#include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvClientAssociationEvent.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
@@ -369,6 +370,12 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         handle_backhaul_sta_mld_configuration_tlv(*agent, backhaul_sta_mld_configuration_tlv);
     }
 
+    auto assoc_sta_mld_configuration_tlv =
+        cmdu_rx.getClass<wfa_map::tlvAssociatedStaMldConfigurationReport>();
+    if (assoc_sta_mld_configuration_tlv) {
+        handle_assoc_sta_mld_configuration_tlv(cmdu_rx, *agent, assoc_sta_mld_configuration_tlv);
+    }
+
     /* If this TLV is recieved in the 1905.1 Topology Response Message...
          then the src agent is hosting VBSSes (which were sent in the AP Operational BSS TLV) which now need to be marked as virtual
     */
@@ -540,7 +547,6 @@ void topology_task::handle_backhaul_sta_mld_configuration_tlv(
     std::shared_ptr<wfa_map::tlvBackhaulStaMldConfiguration> backhaul_sta_mld_configuration_tlv)
 {
     LOG(DEBUG) << "Received tlvBackhaulStaMldConfiguration from " << agent.al_mac;
-
     if (backhaul_sta_mld_configuration_tlv->addr_valid().bsta_mld_mac_addr_valid) {
         database.dm_set_isbsta(backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr());
         if (backhaul_sta_mld_configuration_tlv->addr_valid().ap_mld_mac_addr_valid) {
@@ -577,6 +583,65 @@ void topology_task::handle_backhaul_sta_mld_configuration_tlv(
                                         backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr(),
                                         backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr(),
                                         affiliated_bsta_list, mld_mode);
+        }
+    }
+}
+
+void topology_task::handle_assoc_sta_mld_configuration_tlv(
+    ieee1905_1::CmduMessageRx &cmdu_rx, const Agent &agent,
+    std::shared_ptr<wfa_map::tlvAssociatedStaMldConfigurationReport>
+        assoc_sta_mld_configuration_tlv)
+{
+    LOG(DEBUG) << "Received tlvAssociatedStaMldConfigurationReport from " << agent.al_mac;
+
+    for (auto assoc_sta_mld_conf_tlv :
+         cmdu_rx.getClassList<wfa_map::tlvAssociatedStaMldConfigurationReport>()) {
+        if (assoc_sta_mld_configuration_tlv) {
+            const auto &st_mac = assoc_sta_mld_conf_tlv->sta_mld_mac_addr();
+            //auto STATION       = database.m_stations.get(st_mac);
+            Station STATION(st_mac);
+            //if (STATION) {
+            LOG(DEBUG) << "STATION with mac " << STATION.mac;
+            Agent::sMLDInfo::mode mld_mode = Agent::sMLDInfo::mode::NONE;
+
+            if (assoc_sta_mld_conf_tlv->modes().str) {
+                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::STR);
+            }
+            if (assoc_sta_mld_conf_tlv->modes().nstr) {
+                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::NSTR);
+            }
+            if (assoc_sta_mld_conf_tlv->modes().emlsr) {
+                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLSR);
+            }
+            if (assoc_sta_mld_conf_tlv->modes().emlmr) {
+                mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLMR);
+            }
+            std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta>
+                affiliated_sta_vector;
+            for (uint8_t aff_ap = 0; aff_ap < assoc_sta_mld_conf_tlv->num_affiliated_sta();
+                 aff_ap++) {
+                Station::sAssociatedStaMldConfiguration::sAffiliatedSta affiliated_sta;
+                std::tuple<bool, wfa_map::cAffiliatedSta &> affiliated_sta_tuple(
+                    assoc_sta_mld_conf_tlv->affiliated_sta(aff_ap));
+                if (std::get<0>(affiliated_sta_tuple)) {
+                    //BSSID
+                    affiliated_sta.bssid = std::get<1>(affiliated_sta_tuple).bssid();
+                    //AFF STA MAC
+                    affiliated_sta.affiliated_sta_mac =
+                        std::get<1>(affiliated_sta_tuple).affiliated_sta_mac_addr();
+                } else {
+                    LOG(ERROR) << "Couldn't get Affiliated STA from STA MLD ";
+                }
+                affiliated_sta_vector.push_back(affiliated_sta);
+            }
+
+            if (!database.dm_update_assoc_sta_mld(agent, assoc_sta_mld_conf_tlv->sta_mld_mac_addr(),
+                                                  assoc_sta_mld_conf_tlv->ap_mld_mac_addr(),
+                                                  affiliated_sta_vector, mld_mode)) {
+                LOG(ERROR) << "Failed to update data model for associated Station";
+            }
+        } else {
+            LOG(ERROR) << " Associated STA MLD Configuration Report TLV not received.";
         }
     }
 }

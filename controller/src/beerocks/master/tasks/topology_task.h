@@ -13,6 +13,7 @@
 #include "../db/db.h"
 #include "task.h"
 #include "task_pool.h"
+#include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvVbssConfigurationReport.h>
 
@@ -73,6 +74,11 @@ private:
     void handle_backhaul_sta_mld_configuration_tlv(
         const Agent &agent, std::shared_ptr<wfa_map::tlvBackhaulStaMldConfiguration>
                                 backhaul_sta_mld_configuration_tlv);
+
+    void handle_assoc_sta_mld_configuration_tlv(
+        ieee1905_1::CmduMessageRx &cmdu_rx, const Agent &agent,
+        std::shared_ptr<wfa_map::tlvAssociatedStaMldConfigurationReport>
+            assoc_sta_mld_configuration_tlv);
 
     db &database;
     ieee1905_1::CmduMessageTx &cmdu_tx;
