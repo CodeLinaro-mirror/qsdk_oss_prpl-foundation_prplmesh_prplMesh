@@ -229,7 +229,7 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
         self._run_shell_cmd("ip", ip_args)
 
     def prplmesh_start_mode(self, mode: str = "agent"):
-        """Start prplMesh in certification_mode and wait for it to initialize.
+        """Start prplMesh and wait for it to initialize.
 
         Parameters
         ----------
@@ -250,7 +250,7 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
             raise ValueError("Unknown prplMesh mode: {}".format(mode))
 
         print("Starting prplmesh as {}".format(mode))
-        self._prplMesh_exec("certification_mode {}".format(mode))
+        self._prplMesh_exec(" {}".format(mode))
         self.expect(self.prompt, timeout=120)
         if self.delay:
             print("Waiting {} seconds for prplMesh to initialize".format(self.delay))
