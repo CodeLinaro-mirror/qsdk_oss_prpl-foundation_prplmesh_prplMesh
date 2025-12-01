@@ -693,6 +693,61 @@ amxd_status_t trigger_set_spatial_reuse(amxd_object_t *object, amxd_function_t *
     return amxd_status_ok;
 }
 
+/**
+ * @brief Initiates setting Channel Selection parameters with the Creation TLV at the current Radio and the given parameters
+ *
+ * Example of usage:
+ * ubus call Device.WiFi.DataElements.Network.Device.1.Radio.1 ChannelSelectionRequest 
+ * '{"Class":[{"Channel": [{"Channel":1,"Preference":1}], "OpClass":80}]}'
+ *
+ */
+amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *func,
+                                       amxc_var_t *args, amxc_var_t *ret)
+{
+    auto controller_ctx = g_database->get_controller_ctx();
+
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context.";
+        return amxd_status_unknown_error;
+    }
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+    amxd_object_get_param(object, "ID", &value);
+    std::string radio_mac_str = amxc_var_constcast(cstring_t, &value);
+
+    if (radio_mac_str.empty()) {
+        LOG(ERROR) << "radio_mac is empty";
+        return amxd_status_parameter_not_found;
+    }
+
+    sMacAddr radio_uid = tlvf::mac_from_string(radio_mac_str);
+
+    amxc_var_clean(ret);
+    amxd_object_t *channel_selection = amxd_object_get_child(object, "ChannelSelection");
+
+    if (!channel_selection) {
+        LOG(WARNING) << "Fail to get ChannelSelection object from data model";
+        return amxd_status_unknown_error;
+    }
+
+    uint32_t channel;
+    uint32_t op_class;
+    uint32_t preference;
+
+    channel = GET_UINT32(args, "Channel") ?: get_param_uint32(channel_selection, "Channel");
+    op_class = GET_UINT32(args, "OpClass") ?: get_param_uint32(channel_selection, "OpClass");
+    preference = GET_UINT32(args, "Preference") ?: get_param_uint32(channel_selection, "Preference");
+    LOG(INFO) << "ChannelSelectionRequest: " << channel << " " << op_class << " " << preference << " " << radio_uid;    
+    // if (!controller_ctx->trigger_channel_selection_request(radio_uid, channel, op_class, preference)) {
+    //     LOG(ERROR) << "Failed to set channel selection parameters";
+    //     return amxd_status_unknown_error;
+    // }
+
+    return amxd_status_ok;
+}
+
+
 // VBSS Functions
 
 /**
