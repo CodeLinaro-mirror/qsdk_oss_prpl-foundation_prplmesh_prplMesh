@@ -2522,7 +2522,7 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
             // In case of a non Intel Slave the radio wifi channel is not added at AP-Autoconfiguration
             // reception.
             // Fill radio wifi channel struct with primary channel and its operating class
-            if (wireless_utils::get_bandwidth_from_op_class(operating_class) ==
+            if (wireless_utils::get_bandwidth_from_channel_and_op_class(channel, operating_class) ==
                 beerocks::eWiFiBandwidth::BANDWIDTH_20) {
                 beerocks::WifiChannel wifi_channel = beerocks::WifiChannel(
                     channel, wireless_utils::which_freq_op_cls(operating_class),
