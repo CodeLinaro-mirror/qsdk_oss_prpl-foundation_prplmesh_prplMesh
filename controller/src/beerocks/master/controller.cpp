@@ -2560,6 +2560,7 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
         auto operating_classes_list_length =
             operating_channel_report_tlv->operating_classes_list_length();
 
+        uint8_t final_op_class = 0, final_chan_num = 0, beacon_channel = 0;
         for (uint8_t oc = 0; oc < operating_classes_list_length; oc++) {
             auto operating_class_tuple = operating_channel_report_tlv->operating_classes_list(oc);
             if (!std::get<0>(operating_class_tuple)) {
@@ -2571,8 +2572,39 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
             auto operating_class         = operating_class_struct.operating_class;
             auto channel                 = operating_class_struct.channel_number;
 
+            if (operating_class > final_op_class) {
+                final_op_class = operating_class;
+                final_chan_num = channel;
+            }
+
+            if (wireless_utils::get_bandwidth_from_op_class(operating_class) ==
+                beerocks::eWiFiBandwidth::BANDWIDTH_20) {
+                beacon_channel = channel;
+            }
+
             database.handle_current_op_class(ruid, operating_class, channel, tx_power);
         }
+
+        if (operating_classes_list_length != 0) {
+            if (beacon_channel != 0) {
+                auto tmp_bw = wireless_utils::get_bandwidth_from_channel_and_op_class(
+                    final_chan_num, final_op_class);
+                auto final_wifi_channel = beerocks::WifiChannel(
+                    beacon_channel, wireless_utils::which_freq_op_cls(final_op_class), tmp_bw,
+                    false);
+
+                // In case of a non Intel Slave the radio wifi channel is not added at
+                // AP-Autoconfiguration reception.
+                if (!database.set_radio_wifi_channel(ruid, final_wifi_channel,
+                                                     "operating_channel_report")) {
+                    LOG(ERROR) << "Set node wifi channel failed, mac=" << ruid;
+                }
+            } else {
+                LOG(WARNING) << "Unable to find primary channel for operating class "
+                             << final_op_class;
+            }
+        }
+
         database.dm_clear_empty_current_op_classes(ruid);
     }
 
@@ -4103,7 +4135,7 @@ bool Controller::handle_cmdu_control_message(
             notification->params().channel, notification->params().center_frequency1,
             static_cast<beerocks::eWiFiBandwidth>(notification->params().bandwidth),
             channel_ext_above);
-        if (!database.set_radio_wifi_channel(radio_mac, wifi_channel)) {
+        if (!database.set_radio_wifi_channel(radio_mac, wifi_channel, "hostap_dfs_cac")) {
             LOG(ERROR) << "set radio wifi channel failed, mac=" << radio_mac;
         }
 
