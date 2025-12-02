@@ -23,7 +23,7 @@ def main():
                                      or using sysupgrade, depending on the target device.""")
     parser.add_argument('-d', '--device',
                         help="""Device to upgrade. Currently supported targets are:
-                        freedom urx_osp urx_ospv2""", required=True)
+                        freedom urx_osp urx_ospv2 mozart""", required=True)
     parser.add_argument(
         '-t',
         '--target-name',

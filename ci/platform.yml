@@ -21,6 +21,7 @@ stages:
   - test
   - certification-R1-freedom
   - certification-R4-freedom
+  - certification-R4-mozart
   - upload
   - release
 
