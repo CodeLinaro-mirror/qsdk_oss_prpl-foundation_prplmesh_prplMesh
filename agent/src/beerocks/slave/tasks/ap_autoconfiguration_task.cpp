@@ -3319,7 +3319,7 @@ bool ApAutoConfigurationTask::add_backhaul_connection_trunk()
     case AgentDB::sBackhaul::eConnectionType::Wireless:
         trunk.iface_name       = wifi_bh_candidate;
         trunk.is_ethernet      = false;
-        trunk.is_untagged_mode = db->backhaul.backhaul_bss_multi_ap_profile > 1;
+        trunk.is_untagged_mode = db->backhaul.bssid_multi_ap_profile > 1;
         break;
     case AgentDB::sBackhaul::eConnectionType::Wired:
         trunk.iface_name       = eth_bh_candidate;
