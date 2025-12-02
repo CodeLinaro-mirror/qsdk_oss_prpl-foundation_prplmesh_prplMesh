@@ -99,6 +99,8 @@
         );
 
         %instance bool ChannelSelectionRequest(
+            %in uint32 Channel,
+            %in uint32 OpClass
         );
 
         object Capabilities;

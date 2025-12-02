@@ -724,21 +724,10 @@ amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *
     sMacAddr radio_uid = tlvf::mac_from_string(radio_mac_str);
 
     amxc_var_clean(ret);
-    amxd_object_t *channel_selection = amxd_object_get_child(object, "ChannelSelection");
 
-    if (!channel_selection) {
-        LOG(WARNING) << "Fail to get ChannelSelection object from data model";
-        return amxd_status_unknown_error;
-    }
-
-    uint32_t channel;
-    uint32_t op_class;
-    uint32_t preference;
-
-    channel = GET_UINT32(args, "Channel") ?: get_param_uint32(channel_selection, "Channel");
-    op_class = GET_UINT32(args, "OpClass") ?: get_param_uint32(channel_selection, "OpClass");
-    preference = GET_UINT32(args, "Preference") ?: get_param_uint32(channel_selection, "Preference");
-    LOG(INFO) << "ChannelSelectionRequest: " << channel << " " << op_class << " " << preference << " " << radio_uid;    
+    const uint32_t channel = GET_UINT32(args, "Channel");
+    const uint32_t op_class = GET_UINT32(args, "OpClass");
+    LOG(INFO) << "ChannelSelectionRequest: " << channel << " " << op_class << " " << radio_uid;
     // if (!controller_ctx->trigger_channel_selection_request(radio_uid, channel, op_class, preference)) {
     //     LOG(ERROR) << "Failed to set channel selection parameters";
     //     return amxd_status_unknown_error;
