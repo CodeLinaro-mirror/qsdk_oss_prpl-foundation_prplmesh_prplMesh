@@ -65,7 +65,6 @@
 
 #include "gate/1905_beacon_query_to_vs.h"
 #include "gate/vs_beacon_response_to_1905.h"
-#include "traffic_separation.h"
 
 // BPL Error Codes
 #include <bpl/bpl_cfg.h>
