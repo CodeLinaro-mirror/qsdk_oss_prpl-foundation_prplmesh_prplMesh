@@ -225,6 +225,13 @@ struct RadioInfo {
 
     uint8_t radio_max_bss_supported = 0;
     std::string chipset_vendor;
+    typedef struct {
+        bool str_support   = false;
+        bool nstr_support  = false;
+        bool emlsr_support = false;
+        bool emlmr_support = false;
+    } sMloModesSupport;
+    sMloModesSupport ap_modes_support, bsta_modes_support;
 };
 
 struct hal_conf_t {

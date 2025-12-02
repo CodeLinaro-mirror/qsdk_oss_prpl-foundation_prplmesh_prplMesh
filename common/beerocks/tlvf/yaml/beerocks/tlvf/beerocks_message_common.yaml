@@ -231,6 +231,21 @@ sNodeRssiMeasurement:
   src_module: uint8_t
   vap_id: int8_t
 
+eMLOModes:
+  _type: enum
+  _enum_storage: uint8_t
+  eMLOModes_str: 0x80
+  eMLOModes_nstr: 0x40
+  eMLOModes_emlsr: 0x20
+  eMLOModes_emlmr: 0x10
+  _comment: |
+    Bitmask enum for MLO modes in sModes field.
+    Bit 7: STR
+    Bit 6: NSTR
+    Bit 5: EMLSR
+    Bit 4: EMLMR
+    Bits 3-0: Reserved
+
 sNodeHostap:
   _type: struct
   iface_name:
@@ -260,6 +275,8 @@ sNodeHostap:
     _type: uint8_t
     _length: ["beerocks::message::HE_MCS_SET_NL802_SIZE"]
   eht_supported: uint8_t #bool
+  ap_modes_support: uint8_t
+  bsta_modes_support: uint8_t
   zwdfs:
     _type: uint8_t
     _comment: Boolean. When set to 'true', the radio can be used only for zwdfs purpose.
