@@ -11,7 +11,6 @@
 
 #include "agent_db.h"
 #include "task.h"
-#include "traffic_separation.h"
 
 #include <mapf/common/encryption.h>
 #include <tlvf/CmduMessageTx.h>
@@ -147,8 +146,6 @@ private:
     // To make unordered_map work with an enum as key, std::hash<int> function was added as third
     // template argument.
     std::unordered_map<eFreqType, sDiscoveryStatus, std::hash<int>> m_discovery_status;
-
-    std::unique_ptr<net::TrafficSeparation> m_traffic_separation_configurator;
 
     bool m_task_is_active = false;
 

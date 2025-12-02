@@ -29,7 +29,7 @@ class TrafficSeparationManager {
 public:
     TrafficSeparationManager() = default;
     virtual ~TrafficSeparationManager() { clear_policies(); }
-    TrafficSeparationManager(const TrafficSeparationManager &)            = delete;
+    TrafficSeparationManager(const TrafficSeparationManager &) = delete;
     TrafficSeparationManager &operator=(const TrafficSeparationManager &) = delete;
 
     /**
