@@ -1433,6 +1433,8 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
          btm_request},
         {"trigger_set_spatial_reuse", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.SetSpatialReuse",
          trigger_set_spatial_reuse},
+        {"channel_selection_request", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ChannelSelectionRequest",
+         channel_selection_request},
         {"update_vbss_capabilities", DATAELEMENTS_ROOT_DM ".Network.Device.UpdateVBSSCapabilities",
          update_vbss_capabilities},
         {"trigger_vbss_creation", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.TriggerVBSSCreation",
