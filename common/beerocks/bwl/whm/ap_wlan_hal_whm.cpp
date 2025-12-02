@@ -107,6 +107,7 @@ ap_wlan_hal_whm::ap_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t c
     subscribe_to_sta_events();
     subscribe_to_ap_bss_tm_events();
     subscribe_to_ap_mgmt_frame_events();
+    subscribe_to_afc_update_events();
 }
 
 ap_wlan_hal_whm::~ap_wlan_hal_whm() {}
@@ -1802,6 +1803,30 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         break;
     }
 
+    return true;
+}
+
+bool ap_wlan_hal_whm::process_afc_update_event(const AmbiorixVariant *value)
+{
+    auto parameters = value->find_child("Updates");
+    if (!parameters || parameters->empty()) {
+        LOG(ERROR) << "Received AFC Update event without Updates parameter";
+        return false;
+    }
+
+    std::string status;
+    if (!parameters->read_child(status, "InquiryStatus")) {
+        LOG(ERROR) << "Received AFC Update event without InquiryStatus parameter";
+        return false;
+    }
+
+    if (status != "UPDATE") {
+        LOG(ERROR) << "AFC Update status other than UPDATE: " << status;
+        return false;
+    }
+
+    // Emit AFCUpdate event when status is UPDATE
+    event_queue_push(Event::AFCUpdate);
     return true;
 }
 

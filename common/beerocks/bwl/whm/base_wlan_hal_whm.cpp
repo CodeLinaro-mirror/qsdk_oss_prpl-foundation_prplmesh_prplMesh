@@ -392,6 +392,33 @@ void base_wlan_hal_whm::subscribe_to_rssi_eventing_events()
     };
 }
 
+void base_wlan_hal_whm::subscribe_to_afc_update_events()
+{
+    auto event_handler        = std::make_shared<sAmbiorixEventHandler>();
+    event_handler->event_type = AMX_CL_AFC_UPDATE_EVT;
+
+    event_handler->callback_fn = [this](AmbiorixVariant &event_data) -> void {
+        std::string notif_name;
+        if (!event_data.read_child(notif_name, "notification")) {
+            LOG(ERROR) << "Received AFC Update Notification without 'notification' param!";
+            return;
+        }
+
+        if (notif_name != AMX_CL_AFC_UPDATE_EVT) {
+            LOG(ERROR) << "Received wrong Notification: " << notif_name
+                       << " instead of: " << AMX_CL_AFC_UPDATE_EVT;
+            return;
+        }
+
+        process_afc_update_event(&event_data);
+    };
+
+    std::string filter = "(path matches '" + m_radio_path + "$') && (notification == '" +
+                         AMX_CL_AFC_UPDATE_EVT + "')";
+
+    m_ambiorix_cl.subscribe_to_object_event(m_radio_path, event_handler, filter);
+}
+
 bool base_wlan_hal_whm::process_radio_event(const std::string &interface, const std::string &key,
                                             const AmbiorixVariant *value)
 {
@@ -422,6 +449,8 @@ bool base_wlan_hal_whm::process_sta_disassoc_event(
 {
     return true;
 }
+
+bool base_wlan_hal_whm::process_afc_update_event(const AmbiorixVariant *value) { return true; }
 
 void base_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
                                                     beerocks::wbapi::AmbiorixVariant *updates)

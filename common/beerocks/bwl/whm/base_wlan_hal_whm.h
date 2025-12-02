@@ -124,6 +124,9 @@ protected:
     virtual bool process_sta_disassoc_event(const std::string &interface,
                                             const beerocks::wbapi::AmbiorixVariant *event_data);
 
+    void subscribe_to_afc_update_events();
+    virtual bool process_afc_update_event(const beerocks::wbapi::AmbiorixVariant *value);
+
     /**
      * @brief subscribe to WiFi.Radio. ScanComplete dm notification
      */
