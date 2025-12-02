@@ -80,6 +80,7 @@ public:
         Interface_Reconnected_OK,
         Interface_Disconnected,
         APS_update_list,
+        AFCUpdate,
     };
 
     // Public methods
