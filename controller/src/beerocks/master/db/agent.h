@@ -568,13 +568,13 @@ public:
         mode mld_mode;
     } sMLDInfo;
 
-    typedef struct {
-        typedef struct {
+    struct sAPMLD {
+        struct sAffiliatedAP {
             std::string dm_path; // AffiliatedAP data model path
             sMacAddr ruid;
             sMacAddr bssid;
             int8_t link_id;
-        } sAffiliatedAP;
+        };
 
         std::string dm_path; // ApMld data model path
         sMLDInfo mld_info;
@@ -596,9 +596,9 @@ public:
         };
         beerocks::mac_map<sStaMLD> sta_mlds;
 
-    } sAPMLD;
+    };
 
-    typedef struct {
+    struct sBSTAMLD {
         typedef struct {
             sMacAddr ruid;
             sMacAddr bssid;
@@ -607,7 +607,7 @@ public:
         sMacAddr ap_mld_mac;
         // Key: RUID
         std::unordered_map<sMacAddr, sAffiliatedBSTA> affiliated_bstas;
-    } sBSTAMLD;
+    };
 
     // Key: MLD MAC
     std::unordered_map<sMacAddr, sAPMLD> ap_mlds;
