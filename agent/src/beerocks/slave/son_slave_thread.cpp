@@ -20,6 +20,7 @@
 #include "tasks/proxy_agent_dpp_task.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/spectrum_inquiry_task.h"
+#include "tasks/traffic_separation_task.h"
 #include "tasks/vbss_task.h"
 
 #include <bcl/beerocks_cmdu_client_factory_factory.h>
@@ -68,7 +69,6 @@
 
 #include "gate/1905_beacon_query_to_vs.h"
 #include "gate/vs_beacon_response_to_1905.h"
-#include "traffic_separation.h"
 
 // BPL Error Codes
 #include <bpl/bpl_cfg.h>
@@ -376,6 +376,7 @@ bool slave_thread::thread_init()
     }
 
     m_task_pool.add_task(std::make_shared<ApAutoConfigurationTask>(*this, cmdu_tx));
+    m_task_pool.add_task(std::make_shared<TrafficSeparationTask>(*this, cmdu_tx));
     m_task_pool.add_task(m_service_prioritization_task_configurator =
                              std::make_shared<ServicePrioritizationTask>(*this, cmdu_tx));
     m_task_pool.add_task(std::make_shared<ProxyAgentDppTask>(*this, cmdu_tx));
@@ -2275,6 +2276,11 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
         if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
             LOG(ERROR) << "Failed to send cmdu!";
         }
+        break;
+    }
+    case beerocks_message::ACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST: {
+        m_task_pool.send_event(eTaskType::TRAFFIC_SEPARATION,
+                               TrafficSeparationTask::eEvent::TS_ENABLE);
         break;
     }
     default: {

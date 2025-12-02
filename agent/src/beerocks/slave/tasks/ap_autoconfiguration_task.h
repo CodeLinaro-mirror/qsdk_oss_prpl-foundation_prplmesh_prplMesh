@@ -9,7 +9,6 @@
 #ifndef _AP_AUTOCONFIGURATION_TASK_H_
 #define _AP_AUTOCONFIGURATION_TASK_H_
 
-#include "../traffic_separation.h"
 #include "task.h"
 
 #include <mapf/common/encryption.h>
@@ -146,8 +145,6 @@ private:
     // To make unordered_map work with an enum as key, std::hash<int> function was added as third
     // template argument.
     std::unordered_map<eFreqType, sDiscoveryStatus, std::hash<int>> m_discovery_status;
-
-    std::unique_ptr<net::TrafficSeparation> m_traffic_separation_configurator;
 
     bool m_task_is_active = false;
 

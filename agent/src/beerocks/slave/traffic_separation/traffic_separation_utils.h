@@ -82,12 +82,18 @@ inline bool is_untagged_mode(bool dis_p1, bool dis_p2, eUnsupportedProfileDisall
     const bool valid_p1 = (!dis_p1 && dis_p2);
     const bool valid_p2 = (dis_p1 && !dis_p2);
 
+    // if Profile 1 disallow is valid, then we do "tagged mode"
     if (valid_p1)
         return false;
+
+    // if Profile 2 disallow is valid, then we do "untagged mode"
     if (valid_p2)
         return true;
 
-    return (policy == eUnsupportedProfileDisallowPolicy::FORCE_PROFILE2);
+    // Forced policy:
+    const bool is_forced_p1 = policy == eUnsupportedProfileDisallowPolicy::FORCE_PROFILE1;
+
+    return is_forced_p1;
 }
 
 } // namespace beerocks::net

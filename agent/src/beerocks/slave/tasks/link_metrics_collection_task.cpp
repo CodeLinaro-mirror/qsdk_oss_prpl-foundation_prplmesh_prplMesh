@@ -13,7 +13,6 @@
 #include "../helpers/link_metrics/ieee802_3_link_metrics_collector.h"
 #include "../helpers/media_type.h"
 #include "../son_slave_thread.h"
-#include "../traffic_separation.h"
 #include "multi_vendor.h"
 
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
