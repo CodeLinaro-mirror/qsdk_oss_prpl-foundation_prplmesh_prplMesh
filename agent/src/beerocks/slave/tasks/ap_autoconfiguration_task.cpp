@@ -8,11 +8,11 @@
 
 #include "ap_autoconfiguration_task.h"
 #include "link_metrics_collection_task.h"
+#include "traffic_separation_task.h"
 
 #include "../agent_db.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
-#include "../traffic_separation.h"
 #include "multi_vendor.h"
 #include <bcl/beerocks_config_file.h>
 
@@ -108,6 +108,7 @@ bool is_valid_op_std(const std::string &radio_iface,
 
     return true;
 }
+
 } // namespace
 
 static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS = 3;
@@ -287,25 +288,6 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
 
         db->statuses.ap_autoconfiguration_completed = false;
 
-        if (!m_traffic_separation_configurator) {
-            m_traffic_separation_configurator = std::make_unique<TrafficSeparation>();
-        }
-
-        // Reset the traffic separation configuration as they will be reconfigured on
-        // autoconfiguration.
-        m_traffic_separation_configurator->clear_configuration();
-
-        // Remove the Primary Vlan configuration in Transport process
-        if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(0, false)) {
-            LOG(ERROR) << "Failed configuring transport process!";
-        }
-
-        // Reset the transport monitoring on bridge interfaces
-        if (!m_btl_ctx.m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true,
-                                                             true)) {
-            LOG(ERROR) << "Failed configuring transport process!";
-        }
-
         // Reset the discovery statuses.
         for (auto &discovery_status : m_discovery_status) {
             discovery_status.second = {};
@@ -364,18 +346,9 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         break;
     }
     case APPLY_CONFIG_FOR_NEW_IFACE: {
-        auto db = AgentDB::get();
-        for (const auto radio : db->get_radios_list()) {
-            if (!radio) {
-                continue;
-            }
-            for (auto &bss : radio->front.bssids) {
-                if (bss.backhaul_bss) {
-                    m_traffic_separation_configurator->apply_policy_for_new_interface(
-                        bss.iface_name);
-                }
-            }
-        }
+        LOG(DEBUG) << "Trigger traffic separation on APPLY_CONFIG_FOR_NEW_IFACE";
+        m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                       TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
         break;
     }
     default: {
@@ -442,10 +415,6 @@ bool ApAutoConfigurationTask::handle_vendor_specific(
     }
     case beerocks_message::ACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION: {
         handle_vs_vaps_list_update_notification(cmdu_rx, sd, beerocks_header);
-        break;
-    }
-    case beerocks_message::ACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST: {
-        handle_vs_apply_vlan_policy_request(cmdu_rx, sd, beerocks_header);
         break;
     }
 
@@ -560,7 +529,10 @@ void ApAutoConfigurationTask::configuration_complete_wait_action(const std::stri
     FSM_MOVE_STATE(radio_iface, eState::CONFIGURED);
 
     LOG(TRACE) << "Finished configuration on " << radio_iface;
-    m_traffic_separation_configurator->apply_policy(radio_iface);
+
+    LOG(DEBUG) << "Trigger traffic separation on ApAutoConfigurationTask eState::CONFIGURED";
+    m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                   TrafficSeparationTask::eEvent::TS_ENABLE);
 
     return;
 }
@@ -1637,19 +1609,13 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
     }
 
     for (const auto &radios_conf_param_kv : m_radios_conf_params) {
-        const auto &radio_iface = radios_conf_param_kv.first;
         const auto &conf_params = radios_conf_param_kv.second;
 
         if (conf_params.state == eState::CONFIGURED) {
-            // Configure the Primary VLAN in Transport Process
-            if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(
-                    db->traffic_separation.primary_vlan_id, true)) {
-                LOG(ERROR) << "Failed configuring transport process!";
-            }
-            m_traffic_separation_configurator->apply_policy(radio_iface);
-        } else {
-            LOG(WARNING) << "autoconfiguration procedure is not completed yet, traffic separation "
-                         << "policy cannot be applied";
+            // Trigger TrafficSeparationTask on Multi-AP Policy Request received
+            LOG(DEBUG) << "Trigger traffic separation on Multi-AP Policy Request";
+            m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_ENABLE);
         }
     }
 
@@ -2530,12 +2496,6 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
                       [](beerocks::AgentDB::sRadio::sFront::sBssid b) {
                           return b.mac != net::network_utils::ZERO_MAC;
                       });
-}
-
-void ApAutoConfigurationTask::handle_vs_apply_vlan_policy_request(
-    ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
-{
-    m_traffic_separation_configurator->apply_policy();
 }
 
 bool ApAutoConfigurationTask::

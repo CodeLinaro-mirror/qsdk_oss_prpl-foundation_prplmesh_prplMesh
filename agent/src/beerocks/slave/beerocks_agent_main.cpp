@@ -21,7 +21,6 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include "backhaul_manager/backhaul_manager.h"
 #include "platform_manager/platform_manager.h"
 #include "son_slave_thread.h"
-#include "traffic_separation.h"
 
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_config_file.h>
@@ -398,7 +397,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     beerocks::bpl::set_ambiorix_impl_ptr(amb_dm_obj);
 
     {
-        auto db           = beerocks::AgentDB::get();
+        auto db = beerocks::AgentDB::get();
 
         // Load and set traffic separation profile_x_disallow_override (See beerocks_agent.conf)
         auto profile = beerocks::string_utils::stoi(
