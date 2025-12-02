@@ -99,21 +99,6 @@
         );
 
         %instance bool ChannelSelectionRequest(
-            %in object Class [] {
-                counted with ClassNumberOfEntries;
-                uint32 OpClass = 0 {
-                    on action validate call check_range [0, 255];
-                }
-                object Channel [] {
-                    counted with ChannelNumberOfEntries;
-                    uint32 Channel = 0 {
-                        on action validate call check_range [0, 255];
-                    }
-                    uint32 Preference = 0 {
-                        on action validate call check_range [0, 15];
-                    }
-                }
-            }
         );
 
         object Capabilities;
