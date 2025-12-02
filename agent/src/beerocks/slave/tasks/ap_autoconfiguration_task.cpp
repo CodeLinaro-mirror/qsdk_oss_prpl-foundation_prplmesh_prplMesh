@@ -12,7 +12,6 @@
 #include "../agent_db.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
-#include "../traffic_separation.h"
 #include "multi_vendor.h"
 #include <bcl/beerocks_config_file.h>
 
@@ -108,6 +107,7 @@ bool is_valid_op_std(const std::string &radio_iface,
 
     return true;
 }
+
 } // namespace
 
 static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS = 3;
@@ -287,23 +287,27 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
 
         db->statuses.ap_autoconfiguration_completed = false;
 
-        if (!m_traffic_separation_configurator) {
-            m_traffic_separation_configurator = std::make_unique<TrafficSeparation>();
-        }
+        if (!m_traffic_separation_manager) {
+            m_traffic_separation_manager = std::make_unique<TrafficSeparationManager>();
 
-        // Reset the traffic separation configuration as they will be reconfigured on
-        // autoconfiguration.
-        m_traffic_separation_configurator->clear_configuration();
+            // If TS is enabled in custom configuration -> apply it on prplmesh start
+            if (!bpl::cfg_get_is_traffic_separation_enabled(m_on_boot_traffic_separation_enabled)) {
+                m_on_boot_traffic_separation_enabled = bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+            }
+        } else {
+            // Reset TS manager as there should be no TS applied at this point
+            m_traffic_separation_manager->reset();
 
-        // Remove the Primary Vlan configuration in Transport process
-        if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(0, false)) {
-            LOG(ERROR) << "Failed configuring transport process!";
-        }
+            // Remove the Primary Vlan configuration in Transport process
+            if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(0, false)) {
+                LOG(ERROR) << "Failed configuring transport process!";
+            }
 
-        // Reset the transport monitoring on bridge interfaces
-        if (!m_btl_ctx.m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true,
-                                                             true)) {
-            LOG(ERROR) << "Failed configuring transport process!";
+            // Reset the transport monitoring on bridge interfaces
+            if (!m_btl_ctx.m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true,
+                                                                 true)) {
+                LOG(ERROR) << "Failed configuring transport process!";
+            }
         }
 
         // Reset the discovery statuses.
@@ -314,6 +318,15 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         break;
     }
     case START_AP_AUTOCONFIGURATION: {
+
+        // Places it here, because AgentDB does not have info about lan or wireless backhaul on INIT_TASK
+        if (m_on_boot_traffic_separation_enabled) {
+            if (!setup_traffic_separation_policies()) {
+                LOG(ERROR)
+                    << "Failed to apply Traffic Separation policies on START_AP_AUTOCONFIGURATION";
+            }
+        }
+
         auto db = AgentDB::get();
         for (const auto radio : db->get_radios_list()) {
             if (!radio) {
@@ -371,8 +384,15 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
             }
             for (auto &bss : radio->front.bssids) {
                 if (bss.backhaul_bss) {
-                    m_traffic_separation_configurator->apply_policy_for_new_interface(
-                        bss.iface_name);
+                    // All wireless downstream trunks are configured here
+                    sTrunkPort trunk;
+                    trunk.iface_name = bss.iface_name;
+                    trunk.is_untagged_mode =
+                        is_untagged_mode(bss.backhaul_bss_disallow_profile1_agent_association,
+                                         bss.backhaul_bss_disallow_profile2_agent_association,
+                                         db->device_conf.unsupported_profile_disallow_policy);
+
+                    m_traffic_separation_manager->add_trunk_port(trunk);
                 }
             }
         }
@@ -560,7 +580,11 @@ void ApAutoConfigurationTask::configuration_complete_wait_action(const std::stri
     FSM_MOVE_STATE(radio_iface, eState::CONFIGURED);
 
     LOG(TRACE) << "Finished configuration on " << radio_iface;
-    m_traffic_separation_configurator->apply_policy(radio_iface);
+
+    if (!setup_traffic_separation_policies()) {
+        LOG(ERROR)
+            << "Failed to apply Traffic Separation policies on configuration_complete_wait_action";
+    }
 
     return;
 }
@@ -1637,7 +1661,6 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
     }
 
     for (const auto &radios_conf_param_kv : m_radios_conf_params) {
-        const auto &radio_iface = radios_conf_param_kv.first;
         const auto &conf_params = radios_conf_param_kv.second;
 
         if (conf_params.state == eState::CONFIGURED) {
@@ -1646,7 +1669,10 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
                     db->traffic_separation.primary_vlan_id, true)) {
                 LOG(ERROR) << "Failed configuring transport process!";
             }
-            m_traffic_separation_configurator->apply_policy(radio_iface);
+            if (!setup_traffic_separation_policies()) {
+                LOG(ERROR) << "Failed to apply Traffic Separation policies on handle Multi-AP "
+                              "Policy Config Request";
+            }
         } else {
             LOG(WARNING) << "autoconfiguration procedure is not completed yet, traffic separation "
                          << "policy cannot be applied";
@@ -2535,7 +2561,10 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
 void ApAutoConfigurationTask::handle_vs_apply_vlan_policy_request(
     ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
 {
-    m_traffic_separation_configurator->apply_policy();
+    if (!setup_traffic_separation_policies()) {
+        LOG(ERROR)
+            << "Failed to apply Traffic Separation policies on handle_vs_apply_vlan_policy_request";
+    }
 }
 
 bool ApAutoConfigurationTask::
@@ -3259,6 +3288,132 @@ bool ApAutoConfigurationTask::send_monitor_son_config(
                << std::endl
                << "monitor_disable_initiative_arp=" << son_config.monitor_disable_initiative_arp
                << std::endl;
+
+    return true;
+}
+
+sTrafficSeparationConfig ApAutoConfigurationTask::read_custom_traffic_separation_configuration()
+{
+    sTrafficSeparationConfig cfg;
+    if (!bpl::cfg_get_private_bridge_iface(cfg.private_bridge)) {
+        cfg.private_bridge = bpl::DEFAULT_PRIVATE_BRIDGE_IFACE;
+    }
+    if (!bpl::cfg_get_guest_bridge_iface(cfg.guest_bridge)) {
+        cfg.guest_bridge = bpl::DEFAULT_GUEST_BRIDGE_IFACE;
+    }
+    if (!bpl::cfg_get_private_vlan_id(cfg.private_vid)) {
+        cfg.private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
+    }
+    if (!bpl::cfg_get_guest_vlan_id(cfg.guest_vid)) {
+        cfg.guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
+    }
+
+    return cfg;
+}
+
+bool ApAutoConfigurationTask::add_backhaul_connection_trunk()
+{
+    // Resolve if there is ETH or WiFi backhaul
+    auto db                              = AgentDB::get();
+    const auto con_type                  = db->backhaul.connection_type;
+    const std::string &wifi_bh_candidate = db->backhaul.selected_iface_name;
+    const std::string &eth_bh_candidate  = db->ethernet.wan.iface_name;
+
+    LOG(TRACE) << "Adding backhaul connection trunk. con_type=" << con_type
+               << " | wifi_bh_candidate=" << wifi_bh_candidate
+               << " | eth_bh_candidate=" << eth_bh_candidate;
+
+    sTrunkPort trunk;
+    switch (con_type) {
+    case AgentDB::sBackhaul::eConnectionType::Wireless:
+        trunk.iface_name       = wifi_bh_candidate;
+        trunk.is_ethernet      = false;
+        trunk.is_untagged_mode = db->backhaul.backhaul_bss_multi_ap_profile > 1;
+        break;
+    case AgentDB::sBackhaul::eConnectionType::Wired:
+        trunk.iface_name       = eth_bh_candidate;
+        trunk.is_ethernet      = true;
+        trunk.is_untagged_mode = false;
+        break;
+    default:
+        LOG(ERROR)
+            << "ApAutoConfigurationTask::add_backhaul_connection_trunk: Unknown connection type";
+    }
+
+    // Add new trunk
+    if (!m_traffic_separation_manager->add_trunk_port(trunk)) {
+        LOG(ERROR) << "ApAutoConfigurationTask::add_backhaul_connection_trunk: failed to add trunk="
+                   << trunk.iface_name;
+        return false;
+    }
+
+    return true;
+}
+
+bool ApAutoConfigurationTask::setup_traffic_separation_policies()
+{
+    // On every run reset manager
+    if (!m_traffic_separation_manager->reset()) {
+        LOG(ERROR) << "setup_traffic_separation_policies: failed to remove all trunks from manager";
+        return false;
+    }
+
+    if (!m_traffic_separation_manager->configure(read_custom_traffic_separation_configuration())) {
+        LOG(ERROR) << "setup_traffic_separation_policies : failed to read TS config from custom DM";
+        return false;
+    }
+
+    auto db = AgentDB::get();
+
+    // Add BH trunk
+    if (!add_backhaul_connection_trunk()) {
+        LOG(ERROR) << "setup_traffic_separation_policies: "
+                   << "Failed to add backhaul upstream trunk";
+        return false;
+    }
+
+    // Add LAN trunks
+    for (const auto &lan_iface_info : db->ethernet.lan) {
+        sTrunkPort trunk;
+        trunk.iface_name       = lan_iface_info.iface_name;
+        trunk.is_untagged_mode = false;
+        trunk.is_ethernet      = true;
+
+        if (!m_traffic_separation_manager->add_trunk_port(trunk)) {
+            LOG(ERROR) << "setup_traffic_separation_policies: "
+                       << "Failed to add LAN trunk iface=" << trunk.iface_name;
+            return false;
+        }
+    }
+
+    // Add fronthaul BSS ports from all radios
+    for (const auto *radio : db->get_radios_list()) {
+        for (const auto &bss : radio->front.bssids) {
+            const bool is_pure_fh = bss.fronthaul_bss && !bss.backhaul_bss;
+
+            // if not active or not pure fronthaul -> skip
+            if (!bss.active || !is_pure_fh) {
+                continue;
+            }
+
+            sAccessPort access_port;
+            access_port.iface_name = bss.iface_name;
+            // access_port.role is not needed for now
+
+            if (!m_traffic_separation_manager->add_access_port(access_port)) {
+                LOG(WARNING) << "setup_traffic_separation_policies: "
+                             << "Failed to add access_port for Fronhaul BSS iface="
+                             << access_port.iface_name;
+            }
+        }
+    }
+
+    // Apply TS policies for all configured trunks
+    if (!m_traffic_separation_manager->apply_policies()) {
+        LOG(ERROR) << "setup_traffic_separation_policies: "
+                   << "Failed to apply Traffic Separation policies";
+        return false;
+    }
 
     return true;
 }

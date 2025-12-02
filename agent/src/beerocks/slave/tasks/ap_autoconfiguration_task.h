@@ -9,8 +9,8 @@
 #ifndef _AP_AUTOCONFIGURATION_TASK_H_
 #define _AP_AUTOCONFIGURATION_TASK_H_
 
-#include "../traffic_separation.h"
 #include "task.h"
+#include "traffic_separation/traffic_separation_manager.h"
 
 #include <mapf/common/encryption.h>
 #include <tlvf/CmduMessageTx.h>
@@ -147,7 +147,7 @@ private:
     // template argument.
     std::unordered_map<eFreqType, sDiscoveryStatus, std::hash<int>> m_discovery_status;
 
-    std::unique_ptr<net::TrafficSeparation> m_traffic_separation_configurator;
+    std::unique_ptr<net::TrafficSeparationManager> m_traffic_separation_manager;
 
     bool m_task_is_active = false;
 
@@ -159,6 +159,9 @@ private:
     // <iface, <<ssid, mld_unit, mld_mode>>>
     std::unordered_map<std::string, std::vector<std::tuple<std::string, int8_t, uint8_t>>>
         ap_mld_requests_infos;
+
+    // Custom configuration to enable Traffic Separation on_boot
+    bool m_on_boot_traffic_separation_enabled = false;
 
     /* Message handlers: */
 
@@ -365,6 +368,27 @@ private:
         const std::string &radio_iface, const WSC::m2 &m2);
 
     bool add_wsc_m1_tlv(const std::string &radio_iface);
+
+    /**
+     * @brief function to read custom configuration for Traffic Separation
+     * 
+     * @return true if success, false otherwise
+     */
+    net::sTrafficSeparationConfig read_custom_traffic_separation_configuration();
+
+    /**
+     * @brief Add traffic separation trunks for upstream BH links
+     * 
+     * @return true if success, false otherwise
+     */
+    bool add_backhaul_connection_trunk();
+
+    /**
+     * @brief Add traffic separation trunks for upstream BH links
+     * 
+     * @return true if success, false otherwise
+     */
+    bool setup_traffic_separation_policies();
 };
 
 } // namespace beerocks
