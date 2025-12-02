@@ -60,9 +60,9 @@
     - tools/deploy_firmware.py --device mozart --target-name "$RUN_ON_DEVICE" --image "$MOZART_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/mozart.sh
     - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
     - echo "Setting no on-boot scan for prplMesh"
-    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
+    - ssh mozart 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
     - echo "Setting no profile disallow for prplMesh"
-    - ssh freedom 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+    - ssh mozart 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=1/g" /opt/prplmesh/config/beerocks_agent.conf'
   needs:
     - job: build-for-mozart
   tags:

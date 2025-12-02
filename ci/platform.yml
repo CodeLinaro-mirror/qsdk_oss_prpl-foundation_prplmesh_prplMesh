@@ -9,7 +9,7 @@ variables:
   PACKAGE_REGISTRY_BASE_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic"
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
   FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
-  MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-initramfs.itb"
+  MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.itb"
   OSP_PACKAGE_ID: 13754300
 
 workflow:

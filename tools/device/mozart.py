@@ -24,32 +24,26 @@ class Mozart(GenericPrplOS):
     and 'ipaddr' should already be set in the bootloader.
     """
 
-    bootloader_prompt = r"MT7988> "
     """The u-boot prompt on the target."""
+    bootloader_prompt = r"MT7988> "
+    boot_stop_expression = "ESC to quit"
     boot_stop_sequence = "0"
-    """
-    fakereset is an alias in the deployed device u-boot environment
-    ramfsfile=openwrt-mediatek-filogic-arcadyan_mozart-initramfs.itb
-    fakereset=tftpboot ${loadaddr} ${ramfsfile}; bootm ${loadaddr}
-    """
-    bootloader_reboot_command = "run fakereset"
+    bootloader_reboot_command = "run boot_production"
 
     def upgrade_from_u_boot(self, shell: pexpect.fdpexpect.fdspawn):
-        """
-        Note: do nothing here
-        Mozart in boardfarm does not do real upgrade
-        """
         shell.sendline("")
         shell.expect(self.bootloader_prompt)
+        # Give the ethernet interfaces some time to initialize:
         time.sleep(10)
-        # do nothing
+        shell.sendline(f"setenv noboot 1; setenv replacevol 1; run boot_tftp_production")
+        shell.sendline("")
+        shell.expect("Loading: ")
+        shell.expect("done")
+        shell.expect("blocks erased: OK")
+        shell.expect("blocks written: OK")
+        shell.expect(self.bootloader_prompt)
 
     def reboot(self, serial_type: ShellType, stop_in_bootloader: bool = False):
-        """
-        Note: do load initramfs via tftp
-        Mozart in boardfarm do "upgrade" in this step
-        By sendline(bootloader_reboot_command)
-        """
         with SerialDevice(self.baudrate, self.name,
                           self.serial_prompt, expect_prompt_on_connect=False) as shell:
             print("Reset board.")
