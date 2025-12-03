@@ -4855,6 +4855,82 @@ bool Controller::trigger_set_spatial_reuse(
     return true;
 }
 
+bool Controller::trigger_channel_selection_request(
+    const sMacAddr &ruid,
+    const std::vector<
+        std::tuple<
+            uint8_t /* op class */
+           ,uint8_t /* preference */
+           ,std::vector<uint8_t> /* channels */
+        >
+    > &channel_preferences)
+{
+    LOG(DEBUG) << "Channel selection request:";
+
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "CMDU creation of type CHANNEL_SELECTION_REQUEST_MESSAGE, has failed";
+        return false;
+    }
+
+    for (const auto &i : channel_preferences) {
+        auto chan_pref_tlv = cmdu_tx.addClass<wfa_map::tlvChannelPreference>();
+        if (!chan_pref_tlv) {
+            LOG(ERROR) << "addClass wfa_map::tlvChannelPreference has failed";
+            return false;
+        }
+
+        chan_pref_tlv->radio_uid() = ruid;
+
+        const uint8_t &op_class = std::get<0>(i);
+        const uint8_t &preference = std::get<1>(i);
+        const std::vector<uint8_t> &channels = std::get<2>(i);
+
+        std::string channels_str;
+        for (const auto &ch : channels) {
+            channels_str += std::to_string(ch) + " ";
+        }
+
+        LOG(DEBUG) << "Channel selection request:"
+                   << " OpClass: " << op_class
+                   << ", Preference: " << preference
+                   << ", Channels: [ " << channels_str << "]";
+
+        auto op_class_list = chan_pref_tlv->create_operating_classes_list();
+        op_class_list->operating_class() = op_class;
+        op_class_list->flags().preference = preference;
+        op_class_list->flags().reason_code = wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED;
+
+        if (channels.size() > 0) {
+            if (!op_class_list->set_channel_list(channels.data(), channels.size())) {
+                LOG(ERROR) << "set_channel_list failed";
+                return false;
+            }
+        }
+
+        if (!chan_pref_tlv->add_operating_classes_list(op_class_list)) {
+            LOG(ERROR) << "add_operating_classes_list() failed in tlvChannelPreference";
+            return false;
+        }
+    }
+
+    // FIXME: EHT Operations TLV is going to be necessary to:
+    //
+    //  - disambiguate 320MHz. There is just 1 op_class that denotes all
+    //    flavors of 320MHz, both "plus" and "minus" ones.
+    //
+    //  - puncture subchannels "atomically"
+
+    for (const auto &agent : database.get_all_connected_agents()) {
+        son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
+        LOG(DEBUG) << "send CHANNEL_SELECTION_REQUEST_MESSAGE with channel"
+                   << " preferences to agent with mac_address "
+                   << tlvf::mac_to_string(agent->al_mac);
+    }
+
+    return true;
+}
+
+
 bool Controller::trigger_vbss_creation(const sMacAddr &dest_ruid, const sMacAddr &vbssid,
                                        const sMacAddr &client_mac, const std::string &new_bss_ssid,
                                        const std::string &new_bss_pass)

@@ -702,7 +702,7 @@ amxd_status_t trigger_set_spatial_reuse(amxd_object_t *object, amxd_function_t *
  *
  */
 amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *func,
-                                       amxc_var_t *args, amxc_var_t *ret)
+                                        amxc_var_t *args, amxc_var_t *ret)
 {
     auto controller_ctx = g_database->get_controller_ctx();
 
@@ -711,27 +711,78 @@ amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *
         return amxd_status_unknown_error;
     }
 
-    amxc_var_t value;
-    amxc_var_init(&value);
-    amxd_object_get_param(object, "ID", &value);
-    std::string radio_mac_str = amxc_var_constcast(cstring_t, &value);
+    amxc_var_t radio_mac;
+    amxc_var_init(&radio_mac);
+    amxd_object_get_param(object, "ID", &radio_mac);
 
+    std::string radio_mac_str = amxc_var_constcast(cstring_t, &radio_mac);
     if (radio_mac_str.empty()) {
         LOG(ERROR) << "radio_mac is empty";
         return amxd_status_parameter_not_found;
     }
 
-    sMacAddr radio_uid = tlvf::mac_from_string(radio_mac_str);
+    amxd_object_t *capabilities = amxd_object_get_child(object, "Capabilities");
+    if (!capabilities) {
+        LOG(ERROR) << "Capabilities object is not found!";
+        return amxd_status_object_not_found;
+    }
 
+    amxd_object_t *op_classes = amxd_object_get_child(capabilities, "OperatingClasses");
+    if (!op_classes) {
+        LOG(ERROR) << "OperatingClasses object is not found!";
+        return amxd_status_object_not_found;
+    }
+
+    const uint8_t preference_low = 1;
+    const uint8_t preference_high = 15;
+
+    std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> non_preferred;
+    amxd_object_for_each(instance, it, op_classes)
+    {
+        amxd_object_t *op_class = amxc_llist_it_get_data(it, amxd_object_t, it);
+        const uint32_t op_class_id = get_param_uint32(op_class, "Class");
+        LOG(DEBUG) << "ChannelSelectionRequest: demote: Operating Class ID: " << op_class_id;
+        non_preferred.push_back({(uint8_t)op_class_id, preference_low, {}});
+    }
+
+    sMacAddr radio_uid = tlvf::mac_from_string(radio_mac_str);
     amxc_var_clean(ret);
 
     const uint32_t channel = GET_UINT32(args, "Channel");
     const uint32_t op_class = GET_UINT32(args, "OpClass");
-    LOG(INFO) << "ChannelSelectionRequest: " << channel << " " << op_class << " " << radio_uid;
-    // if (!controller_ctx->trigger_channel_selection_request(radio_uid, channel, op_class, preference)) {
-    //     LOG(ERROR) << "Failed to set channel selection parameters";
-    //     return amxd_status_unknown_error;
-    // }
+
+    LOG(DEBUG) << "ChannelSelectionRequest: promote: " << channel << " " << op_class << " " << radio_uid;
+
+    if (channel > UINT8_MAX) {
+        LOG(ERROR) << "ChannelSelectionRequest: channel value out of range: " << channel;
+        return amxd_status_invalid_value;
+    }
+
+    if (op_class > UINT8_MAX) {
+        LOG(ERROR) << "ChannelSelectionRequest: op_class value out of range: " << op_class;
+        return amxd_status_invalid_value;
+    }
+
+    const std::vector<uint8_t> channels = { (uint8_t)channel };
+    const std::tuple<uint8_t, uint8_t, std::vector<uint8_t>> preference = {
+        (uint8_t)op_class,
+        preference_high,
+        channels
+    };
+    const std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> preferred = { preference };
+    std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> preferences;
+
+    /* The order is important. First all channels on all op classes are marked
+     * as less preferred by the controler. Only then one of the channels is
+     * selected as preferred.
+     */
+    preferences.insert(preferences.end(), non_preferred.begin(), non_preferred.end());
+    preferences.insert(preferences.end(), preferred.begin(), preferred.end());
+
+    if (!controller_ctx->trigger_channel_selection_request(radio_uid, preferences)) {
+        LOG(ERROR) << "Failed to set channel selection parameters";
+        return amxd_status_unknown_error;
+    }
 
     return amxd_status_ok;
 }

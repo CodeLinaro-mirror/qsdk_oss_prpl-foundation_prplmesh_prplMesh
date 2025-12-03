@@ -157,6 +157,22 @@ public:
                                    uint64_t srg_partial_bssid_bitmap);
 
     /**
+     * @brief Trigger channel selection request by NBAPI.
+     *
+     * @param ruid ruid of radio for wich channel selection requested.
+     * @param channel_preferences List of channel preferences.
+     * @return True if channel selection request tiggered, false otherwise.
+     */
+    bool trigger_channel_selection_request(const sMacAddr &ruid,
+                                           const std::vector<
+                                               std::tuple<
+                                                     uint8_t /* op class */
+                                                    ,uint8_t /* preference */
+                                                    ,std::vector<uint8_t> /* channels */
+                                               >
+                                           > &channel_preferences);
+
+    /**
      * @brief Triggers VBSS creation for the given VBSSID on the given radio/agent
      * 
      * @param dest_ruid The UID of the radio to create the VBSS on
