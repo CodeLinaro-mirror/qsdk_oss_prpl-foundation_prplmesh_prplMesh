@@ -41,12 +41,12 @@ ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" &
     ba-cli 'IP.Interface.wan.IPv4Address.+{Alias="primary", AddressingType="Static"}'
 }
 # Configure it:
-ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.165.100.180", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
+ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.180", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
 # Enable it:
 ba-cli IP.Interface.wan.IPv4Enable=1
 
 # Set the LAN bridge IP:
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.250.180"
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.180"
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
