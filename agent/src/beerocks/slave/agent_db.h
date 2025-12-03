@@ -93,7 +93,7 @@ public:
         static AgentDB instance;
         return SafeDB(instance);
     }
-    AgentDB(const AgentDB &) = delete;
+    AgentDB(const AgentDB &)        = delete;
     void operator=(const AgentDB &) = delete;
 
 private:
@@ -241,7 +241,7 @@ public:
                 : iface_name(iface_name_), mac(mac_)
             {
             }
-            sEthernetPort() : mac(net::network_utils::ZERO_MAC){};
+            sEthernetPort() : mac(net::network_utils::ZERO_MAC) {};
             std::string iface_name;
             sMacAddr mac;
         } wan;
@@ -556,6 +556,15 @@ public:
      * @return true if the mac/bssid was found, false otherwise.
      */
     bool get_mac_by_ssid(const sMacAddr &ruid, const std::string &ssid, sMacAddr &value);
+
+    /**
+     * @brief Get the MLD MAC of a MLO AP based on the SSID
+     *
+     * @param[in] ssid The ssid of the MLO AP.
+     * @param[out] value The MLD mac if found, else an invalid MAC (zero).
+     * @return true if the MLD mac was found, false otherwise.
+     */
+    bool get_mdl_mac_by_ssid(const std::string &ssid, sMacAddr &value);
 
     /**
      * @brief Initialize Agent Data model.
