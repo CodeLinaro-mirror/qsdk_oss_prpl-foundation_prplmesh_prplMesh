@@ -194,10 +194,10 @@ static bool get_param_bool(amxd_object_t *object, const char *param_name)
     return param_val;
 }
 
-static bool get_param_uint32(amxd_object_t *object, const char *param_name)
+static uint32_t get_param_uint32(amxd_object_t *object, const char *param_name)
 {
     amxc_var_t param;
-    uint32_t param_val = false;
+    uint32_t param_val = 0;
 
     amxc_var_init(&param);
     if (amxd_object_get_param(object, param_name, &param) == amxd_status_ok) {
