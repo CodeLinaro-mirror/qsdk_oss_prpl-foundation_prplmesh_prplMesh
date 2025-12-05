@@ -721,35 +721,20 @@ amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *
         return amxd_status_parameter_not_found;
     }
 
-    amxd_object_t *capabilities = amxd_object_get_child(object, "Capabilities");
-    if (!capabilities) {
-        LOG(ERROR) << "Capabilities object is not found!";
-        return amxd_status_object_not_found;
-    }
-
-    amxd_object_t *op_classes = amxd_object_get_child(capabilities, "OperatingClasses");
-    if (!op_classes) {
-        LOG(ERROR) << "OperatingClasses object is not found!";
-        return amxd_status_object_not_found;
-    }
-
-    const uint8_t preference_low = 1;
-    const uint8_t preference_high = 15;
-
-    std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> non_preferred;
-    amxd_object_for_each(instance, it, op_classes)
-    {
-        amxd_object_t *op_class = amxc_llist_it_get_data(it, amxd_object_t, it);
-        const uint32_t op_class_id = get_param_uint32(op_class, "Class");
-        LOG(DEBUG) << "ChannelSelectionRequest: demote: Operating Class ID: " << op_class_id;
-        non_preferred.push_back({(uint8_t)op_class_id, preference_low, {}});
-    }
-
     sMacAddr radio_uid = tlvf::mac_from_string(radio_mac_str);
     amxc_var_clean(ret);
 
     const uint32_t channel = GET_UINT32(args, "Channel");
     const uint32_t op_class = GET_UINT32(args, "OpClass");
+
+    /* The protocol actually allows only 1..14 to represent preference values
+     * (14 being the highest). 0 is "non-operable" and 15 is reserved in the
+     * protocol, and intended to be used internally for when the Channel
+     * Preference TLV does not imply any preference explicitly for a given
+     * OpClass + Channel.
+     */
+    const uint8_t preference_block = (uint8_t)beerocks::eChannelPreferenceRankingConsts::NON_OPERABLE;
+    const uint8_t preference_highest = (uint8_t)beerocks::eChannelPreferenceRankingConsts::BEST - 1;
 
     LOG(DEBUG) << "ChannelSelectionRequest: promote: " << channel << " " << op_class << " " << radio_uid;
 
@@ -763,21 +748,46 @@ amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *
         return amxd_status_invalid_value;
     }
 
-    const std::vector<uint8_t> channels = { (uint8_t)channel };
-    const std::tuple<uint8_t, uint8_t, std::vector<uint8_t>> preference = {
-        (uint8_t)op_class,
-        preference_high,
-        channels
-    };
-    const std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> preferred = { preference };
-    std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> preferences;
+    std::unordered_map<
+        uint16_t /* opclass 0xff00, preference 0x00ff */,
+        std::vector<uint8_t> /* channels */
+    > preference_map;
 
-    /* The order is important. First all channels on all op classes are marked
-     * as less preferred by the controler. Only then one of the channels is
-     * selected as preferred.
-     */
-    preferences.insert(preferences.end(), non_preferred.begin(), non_preferred.end());
-    preferences.insert(preferences.end(), preferred.begin(), preferred.end());
+        const auto &radio_preference = g_database->get_radio_channel_preference(radio_uid);
+        for (const auto &iter : radio_preference) {
+            const uint8_t it_op_class = iter.first.first;
+            const uint8_t it_channel = iter.first.second;
+            const uint8_t it_preference = iter.second;
+            (void)it_preference; /* ignored */
+            const bool matching_channel = (it_channel == (uint8_t)channel)
+                                       && (it_op_class == (uint8_t)op_class);
+            const uint8_t preference = matching_channel ? preference_highest : preference_block;
+            const std::vector<uint8_t> channels = { (uint8_t)it_channel };
+            const uint16_t pref_key = (it_op_class << 8) | preference;
+            preference_map[pref_key].push_back((uint8_t)it_channel);
+        }
+
+    std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> preferences;
+    for (const auto &iter : preference_map) {
+        const uint8_t it_op_class = iter.first >> 8;
+        const uint8_t it_preference = iter.first & 0x00FF;
+        const std::vector<uint8_t> it_channels = iter.second;
+        std::string channels_str;
+        for (const auto &chan : it_channels) {
+            channels_str += std::to_string((uint32_t)chan) + " ";
+        }
+        LOG(DEBUG) << "Final preference to send: "
+            << "Radio: " << radio_mac_str
+            << " OpClass: " << (uint32_t)it_op_class
+            << " Preference: " << (uint32_t)it_preference
+            << " Channels: " << channels_str;
+        const std::tuple<uint8_t, uint8_t, std::vector<uint8_t>> channel_preference = {
+            (uint8_t)it_op_class,
+            it_preference,
+            it_channels
+        };
+        preferences.push_back(channel_preference);
+    }
 
     if (!controller_ctx->trigger_channel_selection_request(radio_uid, preferences)) {
         LOG(ERROR) << "Failed to set channel selection parameters";
