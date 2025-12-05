@@ -351,6 +351,10 @@ bool prplmesh_cli::print_status(const std::string &format)
         amxc_var_t *network_obj = m_amx_client->get_object(network_path);
         state.bridge_mac        = GET_CHAR(network_obj, "ControllerID");
         state.num_devices       = GET_UINT32(network_obj, "DeviceNumberOfEntries");
+
+        // For easier and more uniform usage in scripts and tests
+        transform(state.bridge_mac.begin(), state.bridge_mac.end(), state.bridge_mac.begin(),
+                  ::toupper);
     }
 
     if (state.mode & PPM_OPMODE_AGENT_ONLY) {
@@ -363,6 +367,10 @@ bool prplmesh_cli::print_status(const std::string &format)
         string agent_currentstate = GET_CHAR(agent_obj, "CurrentState");
         string agent_beststate    = GET_CHAR(agent_obj, "BestState");
 
+        // For easier and more uniform usage in scripts and tests
+        transform(state.agent_mac.begin(), state.agent_mac.end(), state.agent_mac.begin(),
+                  ::toupper);
+
         // Trim state number
         state.agent_currentstate = agent_currentstate.substr(0, agent_currentstate.find(' '));
         state.agent_beststate    = agent_beststate.substr(0, agent_beststate.find(' '));
@@ -372,7 +380,7 @@ bool prplmesh_cli::print_status(const std::string &format)
             state.agent_ifaces.insert(std::move(s));
         }
 
-        auto fronthaul_iface_root = agent_path + "Fronthaul.*";
+        auto fronthaul_iface_root = agent_path + "Fronthaul.*.";
         auto fronthaul_ifaces     = m_amx_client->get_htable_object(fronthaul_iface_root);
 
         amxc_htable_iterate(iface_it, fronthaul_ifaces)
@@ -396,7 +404,7 @@ bool prplmesh_cli::print_status(const std::string &format)
         print_mode_(state.mode, state.agt_timed_out, state.ctl_timed_out);
 
         if (state.mode & PPM_OPMODE_CONTROLLER_ONLY) {
-            cout << "Controller:\n\tbridge mac: " << state.bridge_mac << endl;
+            cout << "Controller:\n\tbridge MAC: " << state.bridge_mac << endl;
             cout << '\t' << state.num_devices << " agent(s) connected" << endl;
         }
 
@@ -411,7 +419,7 @@ bool prplmesh_cli::print_status(const std::string &format)
             }
 
             cout << "Agent:" << endl
-                 << "\tmac address: " << state.agent_mac << endl
+                 << "\tMAC address: " << state.agent_mac << endl
                  << "\tmanagement mode: " << state.agent_mmode << endl
                  << "\tfronthaul ifaces: " << agent_fh_ifaces << endl
                  << "\tcurrent state: " << state.agent_currentstate << endl
