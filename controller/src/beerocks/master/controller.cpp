@@ -4872,15 +4872,15 @@ bool Controller::trigger_channel_selection_request(
         return false;
     }
 
+    auto chan_pref_tlv = cmdu_tx.addClass<wfa_map::tlvChannelPreference>();
+    if (!chan_pref_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvChannelPreference has failed";
+        return false;
+    }
+
+    chan_pref_tlv->radio_uid() = ruid;
+
     for (const auto &i : channel_preferences) {
-        auto chan_pref_tlv = cmdu_tx.addClass<wfa_map::tlvChannelPreference>();
-        if (!chan_pref_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvChannelPreference has failed";
-            return false;
-        }
-
-        chan_pref_tlv->radio_uid() = ruid;
-
         const uint8_t &op_class = std::get<0>(i);
         const uint8_t &preference = std::get<1>(i);
         const std::vector<uint8_t> &channels = std::get<2>(i);
