@@ -2434,7 +2434,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
 
     const auto &vap_info = notification_in->vap_info();
     auto bssid           = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
-                              [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
+                                        [&vap_info](const beerocks::AgentDB::sRadio::sFront::sBssid &bssid) {
                                   return bssid.mac == vap_info.mac;
                               });
     if (bssid == radio->front.bssids.end()) {
@@ -3310,31 +3310,40 @@ bool ApAutoConfigurationTask::add_backhaul_connection_trunk()
     const std::string &wifi_bh_candidate = db->backhaul.selected_iface_name;
     const std::string &eth_bh_candidate  = db->ethernet.wan.iface_name;
 
-    LOG(TRACE) << "Adding backhaul connection trunk. con_type=" << con_type
+    LOG(TRACE) << "add_backhaul_connection_trunk: con_type=" << con_type
                << " | wifi_bh_candidate=" << wifi_bh_candidate
                << " | eth_bh_candidate=" << eth_bh_candidate;
 
     sTrunkPort trunk;
     switch (con_type) {
-    case AgentDB::sBackhaul::eConnectionType::Wireless:
-        trunk.iface_name       = wifi_bh_candidate;
-        trunk.is_ethernet      = false;
-        trunk.is_untagged_mode = db->backhaul.bssid_multi_ap_profile > 1;
+    case AgentDB::sBackhaul::eConnectionType::Wireless: {
+        trunk.iface_name  = wifi_bh_candidate;
+        trunk.is_ethernet = false;
+
+        // Effective Multi-AP Profile = minimum of local capability, and bBSS
+        // (upstream AP) profile. This ensures the link never advertises or enables
+        // features (TS, SP, R3/4) that are unsupported by any participant in the path.
+        const uint8_t profile_min = static_cast<uint8_t>(db->backhaul.bssid_multi_ap_profile);
+        LOG(INFO) << "add_backhaul_connection_trunk: TS decision: local ="
+                  << "infinity"
+                  << " peer =" << db->backhaul.bssid_multi_ap_profile
+                  << " -> effective=" << profile_min;
+        trunk.is_untagged_mode = profile_min <= 1;
         break;
-    case AgentDB::sBackhaul::eConnectionType::Wired:
+    }
+    case AgentDB::sBackhaul::eConnectionType::Wired: {
         trunk.iface_name       = eth_bh_candidate;
         trunk.is_ethernet      = true;
         trunk.is_untagged_mode = false;
         break;
+    }
     default:
-        LOG(ERROR)
-            << "ApAutoConfigurationTask::add_backhaul_connection_trunk: Unknown connection type";
+        LOG(ERROR) << "add_backhaul_connection_trunk: Unknown connection type";
     }
 
     // Add new trunk
     if (!m_traffic_separation_manager->add_trunk_port(trunk)) {
-        LOG(ERROR) << "ApAutoConfigurationTask::add_backhaul_connection_trunk: failed to add trunk="
-                   << trunk.iface_name;
+        LOG(ERROR) << "add_backhaul_connection_trunk: failed to add trunk=" << trunk.iface_name;
         return false;
     }
 
