@@ -110,6 +110,81 @@
             %in string srg_partial_bssid_bitmap
         );
 
+        /**
+         * Values represent Channel Preference TLV values in the most recent
+         * Channel Preference Report message [Section 17.2.13/EasyMesh].
+         *
+         * Each entry in this table describes one of the operating classes for
+         * which Channel Preference has been reported.
+         *
+         * A Preference score of 15 must be inferred for all channel/operating
+         * classes not present in this table, unless that channel/operating
+         * class has been reported as statically non-operable in the most
+         * recent AP Radio Basic Capabilities TLV [Section 17.2.7/EasyMesh].
+         *
+         * At most one entry in this table can exist with the same values for
+         * both OpClass and Preference.
+         *
+         * @version 2.19
+         */
+        object OpClassPreference [] {
+            counted with OpClassPreferenceNumberOfEntries;
+
+            /**
+             * The operating class [Table E-4/802.11ax]. Note that the
+             * operating class identifies the band and channel width.
+             *
+             * Values represent the OpClass field of the Channel Preference TLV
+             * in the most recent Channel Preference Report message [Section
+             * 17.2.13/EasyMesh].
+             *
+             * @version 2.19
+             */
+            %read-only uint32 OpClass = 0 {
+                on action validate call check_range [0, 255];
+            }
+
+            /**
+             * The channel numbers in this operating class.
+             *
+             * Comma-separated list of unsigned integers (up to 255). Values
+             * represent the Channel List field of the Channel Preference TLV
+             * in the most recent Channel Preference Report message [Section
+             * 17.2.13/EasyMesh].
+             *
+             * @version 2.19
+             */
+            %read-only csv_string ChannelList;
+
+            /**
+             * The reported preference for this OpClass and ChannelList, as
+             * defined in [Section 17.2.13/EasyMesh].
+             *
+             * Values represent the Preference field of the Channel Preference
+             * TLV in the most recent Channel Preference Report message
+             * [Section 17.2.13/EasyMesh].
+             *
+             * @version 2.19
+             */
+            %read-only uint32 Preference {
+                on action validate call check_range [0, 15];
+            }
+
+            /*
+             * Reason Code. Indicates the reason for the Preference, as defined
+             * in [Section 17.2.13/EasyMesh].
+             *
+             * Values represent the Reason_Code field of the Channel Preference
+             * TLV in the most recent Channel Preference Report message
+             * [Section 17.2.13/EasyMesh].
+             *
+             * @version 2.19
+             */
+            %read-only uint32 ReasonCode {
+                on action validate call check_range [0, 15];
+            }
+        }
+
         object Capabilities;
 
         /**

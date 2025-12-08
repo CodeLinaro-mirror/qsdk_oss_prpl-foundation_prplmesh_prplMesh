@@ -1722,6 +1722,7 @@ bool dynamic_channel_selection_r2_task::handle_tlv_channel_preference(
                 return false;
             }
         }
+        database.update_op_class_preference(radio_uid);
         LOG(DEBUG) << "All channels set to highest preference due to empty operating classes list "
                       "for radio: "
                    << radio_uid;
@@ -1795,6 +1796,7 @@ bool dynamic_channel_selection_r2_task::handle_tlv_channel_preference(
         }
     }
 
+    database.update_op_class_preference(radio_uid);
     LOG(INFO) << ss.str();
     return true;
 }
