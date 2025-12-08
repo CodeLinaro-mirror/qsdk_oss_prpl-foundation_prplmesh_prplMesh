@@ -3007,6 +3007,8 @@ public:
                                            UnassociatedStation::Stats &new_stats,
                                            const std::string &radio_dm_path);
 
+    void update_op_class_preference(const sMacAddr &mac_address);
+
     std::shared_ptr<Agent::sEthSwitch> get_eth_switch(const sMacAddr &mac);
 
 private:

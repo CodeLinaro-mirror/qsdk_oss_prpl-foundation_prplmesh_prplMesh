@@ -20,6 +20,7 @@
 #include <easylogging++.h>
 
 #include <algorithm>
+#include <numeric>
 
 using namespace beerocks;
 using namespace beerocks_message;
@@ -9163,6 +9164,83 @@ bool db::remove_unassociated_station(sMacAddr const &mac_address, sMacAddr const
 const beerocks::mac_map<UnassociatedStation> &db::get_unassociated_stations() const
 {
     return m_unassociated_stations;
+}
+
+static void dm_add_op_class_preference(std::shared_ptr<beerocks::nbapi::Ambiorix> m_ambiorix_datamodel,
+                                       const std::string &prefs_path, uint8_t op_class,
+                                       uint8_t preference, uint8_t reason_code,
+                                       std::vector<uint8_t> channel_list)
+{
+    const std::string instance = m_ambiorix_datamodel->add_instance(prefs_path);
+    if (instance.empty()) {
+        LOG(ERROR) << "Failed to add OpClassPreference instance under path " << prefs_path;
+        return;
+    }
+
+    const std::string channel_list_str = std::accumulate(
+        channel_list.begin(),
+        channel_list.end(),
+        std::string(),
+        [](const std::string &a, uint8_t b) {
+            return a + (a.empty() ? "" : ",") + std::to_string(b);
+        });
+
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(instance, "OpClass", op_class);
+    ret_val &= m_ambiorix_datamodel->set(instance, "Preference", preference);
+    ret_val &= m_ambiorix_datamodel->set(instance, "ReasonCode", reason_code);
+    ret_val &= m_ambiorix_datamodel->set(instance, "ChannelList", channel_list_str);
+
+    if (!ret_val) {
+        LOG(ERROR) << "Failed to set OpClassPreference parameters under path "
+                   << instance;
+    }
+}
+
+void db::update_op_class_preference(const sMacAddr &radio_mac)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio with MAC: " << tlvf::mac_to_string(radio_mac);
+        return;
+    }
+
+    std::string prefs_path = radio->dm_path + ".OpClassPreference";
+
+    /* FIXME: This isn't great for notifications. If a slight change occurs it
+     * will always result in a complete refresh of the object.
+     *
+     * It would be most efficient to compute the new set of instances, and
+     * "merge" that into the existing one, by either inserting missing
+     * instances, updating existing ones, or removing unneeded ones.
+     */
+
+    m_ambiorix_datamodel->remove_all_instances(prefs_path);
+
+    /* This reduces the number of instances by grouping multiple channels into
+     * an OpClass + Preference.
+     */
+    std::unordered_map<uint8_t /* op_class */, std::unordered_map<uint8_t /* preference */, std::vector<uint8_t /* channel */>>> grouped_prefs;
+    Agent::sRadio::PreferenceReportMap prefs = get_radio_channel_preference(radio_mac);
+    for (const auto &pref : prefs) {
+        const uint8_t op_class   = pref.first.first;
+        const uint8_t channel    = pref.first.second;
+        const uint8_t preference = pref.second;
+
+        grouped_prefs[op_class][preference].push_back(channel);
+    }
+
+    for (const auto &pref : grouped_prefs) {
+        const uint8_t op_class = pref.first;
+        for (const auto &channels_by_pref : pref.second) {
+            const uint8_t preference = channels_by_pref.first;
+            const uint8_t reason_code = 0; // TODO: set proper reason code, not stored in database right now
+            const std::vector<uint8_t> &channels = channels_by_pref.second;
+
+            dm_add_op_class_preference(m_ambiorix_datamodel, prefs_path, op_class,
+                                       preference, reason_code, channels);
+        }
+    }
 }
 
 void db::update_unassociated_station_stats(const sMacAddr &mac_address,

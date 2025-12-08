@@ -103,6 +103,21 @@
             %in uint32 OpClass
         );
 
+        object OpClassPreference [] {
+            %read-only uint32 OpClass = 0 {
+                on action validate call check_range [0, 255];
+            }
+            /* Comma-separated list of channel numbers. Each
+             * channel number is 0..255 */
+            %read-only string ChannelList;
+            %read-only uint32 Preference {
+                on action validate call check_range [0, 15];
+            }
+            %read-only uint32 ReasonCode {
+                on action validate call check_range [0, 15];
+            }
+        }
+
         object Capabilities;
 
         object BSS [] {
