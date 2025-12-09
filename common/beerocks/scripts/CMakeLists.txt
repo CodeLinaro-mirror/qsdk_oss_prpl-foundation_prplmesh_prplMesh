@@ -12,6 +12,7 @@ configure_file(
         )
 
 set(scripts ${CMAKE_CURRENT_BINARY_DIR}/prplmesh_utils.sh)
+list(APPEND scripts ${CMAKE_CURRENT_SOURCE_DIR}/prplmesh_set_chan.sh)
 
 if (NOT TARGET_PLATFORM STREQUAL "linux")
 list(APPEND scripts ${CMAKE_CURRENT_BINARY_DIR}/beerocks_watchdog.sh)
