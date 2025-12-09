@@ -43,8 +43,7 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
 # Workaround for PPM-3339: Setting prplMesh' BackhaulWireIface doesn't always persist on first boot
-/etc/init.d/prplmesh stop && sleep 1
-/etc/init.d/prplmesh start && sleep 5
+/etc/init.d/prplmesh setmode --mode Multi-AP-Controller-and-Agent --cert true
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then

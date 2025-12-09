@@ -55,18 +55,21 @@ deploy() {
       ! -path "/opt/prplmesh/share" \
       ! -path "/opt/prplmesh/share/agent" \
       ! -path "/opt/prplmesh/share/agent/*" \
-      -exec rm -rf {} +
+      -exec rm -rf {} + || return 0
 EOF
 
 # The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.
 # Therefore, set up a new connection just to install the prplMesh ipk
+    echo "Installing prplMesh"
 
     eval ssh "$SSH_OPTIONS" "$TARGET" <<EOF
 # rdkb platforms require --force-dependencies
-if [ "$BOARD_TYPE" = "rdk" ]; then 
+if [ "$BOARD_TYPE" = "rdk" ]; then
     opkg install -V2 --force-depends "$DEST_FOLDER/$IPK_FILENAME"; 
 else
-    opkg install -V2  "$DEST_FOLDER/$IPK_FILENAME"; 
+    echo "board=$BOARD_TYPE"
+    opkg install -V2 --force-depends "$DEST_FOLDER/$IPK_FILENAME";
+    echo "opkg exit with=$?"
 fi
 EOF
 

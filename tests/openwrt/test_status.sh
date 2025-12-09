@@ -22,7 +22,7 @@ echo "Attempting to start/restart prplMesh ..."
 ssh "$TARGET" <<"EOF"
 # Some devices still use the old path (outside of "scripts")
 ln -s /opt/prplmesh/scripts/prplmesh_utils.sh /opt/prplmesh/prplmesh_utils.sh || true
-/opt/prplmesh/prplmesh_utils.sh restart -d
+/opt/prplmesh/prplmesh_utils.sh restart
 TIMEOUT=30
 for _ in $(seq 1 "$TIMEOUT") ; do
     local status=$(/opt/prplmesh/bin/prplmesh_cli -c status -o json \
