@@ -306,22 +306,24 @@ bool ChannelSelectionTask::handle_eht_operation_tlv(wfa_map::tlvEHTOperations &e
         LOG(DEBUG) << "EHT Operation params are received for radio : " << radio_mac;
         status = true;
 
-        radio_request.eht_operation.eht_operation_information_valid =
+        radio_request.eht_operation.first = eht_operations_bss.bssid();
+
+        radio_request.eht_operation.second.eht_operation_information_valid =
             eht_operations_bss.flags().eht_operation_information_valid;
-        radio_request.eht_operation.disabled_subchannel_valid =
+        radio_request.eht_operation.second.disabled_subchannel_valid =
             eht_operations_bss.flags().disabled_subchannel_valid;
-        radio_request.eht_operation.eht_default_pe_duration =
+        radio_request.eht_operation.second.eht_default_pe_duration =
             eht_operations_bss.flags().eht_default_pe_duration;
-        radio_request.eht_operation.group_addressed_bu_indication_limit =
+        radio_request.eht_operation.second.group_addressed_bu_indication_limit =
             eht_operations_bss.flags().group_addressed_bu_indication_limit;
-        radio_request.eht_operation.group_addressed_bu_indication_exponent =
+        radio_request.eht_operation.second.group_addressed_bu_indication_exponent =
             eht_operations_bss.flags().group_addressed_bu_indication_exponent;
-        radio_request.eht_operation.basic_eht_mcs_and_nss_set =
+        radio_request.eht_operation.second.basic_eht_mcs_and_nss_set =
             eht_operations_bss.basic_eht_mcs_and_nss_set();
-        radio_request.eht_operation.control = eht_operations_bss.control();
-        radio_request.eht_operation.ccfs0   = eht_operations_bss.ccfs0();
-        radio_request.eht_operation.ccfs1   = eht_operations_bss.ccfs1();
-        radio_request.eht_operation.disabled_subchannel_bitmap =
+        radio_request.eht_operation.second.control = eht_operations_bss.control();
+        radio_request.eht_operation.second.ccfs0   = eht_operations_bss.ccfs0();
+        radio_request.eht_operation.second.ccfs1   = eht_operations_bss.ccfs1();
+        radio_request.eht_operation.second.disabled_subchannel_bitmap =
             eht_operations_bss.disabled_subchannel_bitmap();
     }
     return status;
@@ -462,8 +464,12 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
         LOG(DEBUG) << "Radio " << radio_mac << " is returning " << response_code
                    << " as a response!";
 
-        if (request_iter != m_pending_selection.requests.end() &&
-            request_iter->second.spatial_reuse_request_received) {
+        if (request_iter == m_pending_selection.requests.end()) {
+            continue;
+        }
+        m_pending_selection.requests[radio_mac].chan_sel_state = NO_CHANNEL_SWITCH;
+
+        if (request_iter->second.spatial_reuse_request_received) {
             auto spatial_reuse_config_response_tlv =
                 m_cmdu_tx.addClass<wfa_map::tlvSpatialReuseConfigResponse>();
             if (!spatial_reuse_config_response_tlv) {
@@ -483,7 +489,8 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
                     wfa_map::tlvSpatialReuseConfigResponse::DECLINE;
             }
         }
-        m_pending_selection.requests[radio_mac].chan_sel_state = NO_CHANNEL_SWITCH;
+
+        add_eht_operations_tlv(m_cmdu_tx, radio_mac, request_iter->second.eht_operation, false);
     }
     // Send response back to the sender.
     LOG(DEBUG) << "Sending Channel-Selection-Response to broker";
@@ -1921,22 +1928,22 @@ bool ChannelSelectionTask::send_channel_switch_request(
     // EHT Operation params
     if (request.eht_operations_received) {
         request_msg->eo_params().eht_operation_information_valid =
-            request.eht_operation.eht_operation_information_valid;
+            request.eht_operation.second.eht_operation_information_valid;
         request_msg->eo_params().disabled_subchannel_valid =
-            request.eht_operation.disabled_subchannel_valid;
+            request.eht_operation.second.disabled_subchannel_valid;
         request_msg->eo_params().eht_default_pe_duration =
-            request.eht_operation.eht_default_pe_duration;
+            request.eht_operation.second.eht_default_pe_duration;
         request_msg->eo_params().group_addressed_bu_indication_limit =
-            request.eht_operation.group_addressed_bu_indication_limit;
+            request.eht_operation.second.group_addressed_bu_indication_limit;
         request_msg->eo_params().group_addressed_bu_indication_exponent =
-            request.eht_operation.group_addressed_bu_indication_exponent;
+            request.eht_operation.second.group_addressed_bu_indication_exponent;
         request_msg->eo_params().basic_eht_mcs_and_nss_set =
-            request.eht_operation.basic_eht_mcs_and_nss_set;
-        request_msg->eo_params().control = request.eht_operation.control;
-        request_msg->eo_params().ccfs0   = request.eht_operation.ccfs0;
-        request_msg->eo_params().ccfs1   = request.eht_operation.ccfs1;
+            request.eht_operation.second.basic_eht_mcs_and_nss_set;
+        request_msg->eo_params().control = request.eht_operation.second.control;
+        request_msg->eo_params().ccfs0   = request.eht_operation.second.ccfs0;
+        request_msg->eo_params().ccfs1   = request.eht_operation.second.ccfs1;
         request_msg->eo_params().disabled_subchannel_bitmap =
-            request.eht_operation.disabled_subchannel_bitmap;
+            request.eht_operation.second.disabled_subchannel_bitmap;
     }
 
     request_msg->eht_operation_valid() = request.eht_operations_received;
@@ -1958,7 +1965,10 @@ bool ChannelSelectionTask::send_channel_switch_request(
                << "- bandwidth: " << request_msg->cs_params().bandwidth << std::endl
                << "- CSA count: " << request_msg->cs_params().csa_count << std::endl
                << "- TX limit: " << (int)request_msg->tx_limit() << std::endl
-               << "- TX limit valid: " << (request_msg->tx_limit_valid() ? "True" : "False");
+               << "- TX limit valid: " << (request_msg->tx_limit_valid() ? "True" : "False")
+               << std::endl
+               << "- EHT Operations valid "
+               << (request_msg->eht_operation_valid() ? "True" : "False");
 
     m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx);
     return true;
@@ -2685,6 +2695,11 @@ bool ChannelSelectionTask::send_operating_channel_report(const sMacAddr &radio_m
             LOG(ERROR) << "Failed adding Operating Channel Report TLV";
             return false;
         }
+
+        if (m_pending_selection.requests.find(radio) != m_pending_selection.requests.end()) {
+            add_eht_operations_tlv(m_cmdu_tx, radio,
+                                   m_pending_selection.requests[radio].eht_operation, true);
+        }
     }
 
     return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
@@ -2800,6 +2815,64 @@ bool ChannelSelectionTask::send_acs_list_to_platform(const sMacAddr &radio_mac)
     action_header->radio_mac() = radio_mac;
 
     m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx);
+    return true;
+}
+
+bool ChannelSelectionTask::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                  const sMacAddr &ruid,
+                                                  bssid_eht_op_pair &request_info, bool reset)
+{
+
+    if (!request_info.second.eht_operation_information_valid &&
+        !request_info.second.disabled_subchannel_valid) {
+        LOG(INFO) << "EHT Operations TLV not needed";
+        return true;
+    }
+    auto eht_operation_tlv = cmdu_tx.addClass<wfa_map::tlvEHTOperations>();
+    if (!eht_operation_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvEHTOperations has failed";
+        return false;
+    }
+
+    auto eht_operations_radio = eht_operation_tlv->create_radio_entries();
+    if (!eht_operations_radio) {
+        LOG(ERROR) << "Failed creating eht_operations_radio";
+        return false;
+    }
+    eht_operations_radio->ruid() = ruid;
+    LOG(DEBUG) << "Creating eht_operations_bss";
+
+    // eht operations tlv bss
+    auto eht_operations_bss = eht_operations_radio->create_bss_entries();
+    if (!eht_operations_bss) {
+        LOG(ERROR) << "Failed creating eht_operations_bss";
+        return false;
+    }
+
+    eht_operations_bss->bssid() = request_info.first;
+    eht_operations_bss->flags().eht_operation_information_valid =
+        request_info.second.eht_operation_information_valid;
+    eht_operations_bss->flags().disabled_subchannel_valid =
+        request_info.second.disabled_subchannel_valid;
+    eht_operations_bss->disabled_subchannel_bitmap() =
+        request_info.second.disabled_subchannel_bitmap;
+
+    if (!eht_operations_radio->add_bss_entries(eht_operations_bss)) {
+        LOG(ERROR) << "Failed adding BSS entry in eht operation TLV for bssid "
+                   << request_info.first;
+        ;
+        return false;
+    }
+    if (!eht_operation_tlv->add_radio_entries(eht_operations_radio)) {
+        LOG(ERROR) << "Failed adding Radio entry in eht operation TLV for mac " << ruid;
+        return false;
+    }
+
+    if (reset) {
+        request_info.first                                  = net::network_utils::ZERO_MAC;
+        request_info.second.eht_operation_information_valid = false;
+        request_info.second.disabled_subchannel_valid       = false;
+    }
     return true;
 }
 

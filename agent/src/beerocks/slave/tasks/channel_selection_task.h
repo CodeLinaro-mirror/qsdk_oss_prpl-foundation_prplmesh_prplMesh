@@ -72,6 +72,9 @@ private:
     };
     // task sends ACS_START but reply from base_bwl_hal is CSA_NOTIFICATION
 
+    // first : bssid; second : EhtOperationsParams
+    typedef std::pair<sMacAddr, son::wireless_utils::sEhtOperationParams> bssid_eht_op_pair;
+
     struct sIncomingChannelSelectionRequest {
         // Assume response will be successful
         wfa_map::tlvChannelSelectionResponse::eResponseCode response_code =
@@ -89,7 +92,7 @@ private:
             uint8_t CSA_count                  = 5;
         } outgoing_request;
         son::wireless_utils::sSpatialReuseParams spatial_reuse_request;
-        son::wireless_utils::sEhtOperationParams eht_operation;
+        bssid_eht_op_pair eht_operation;
         sSelectedChannel selected_channel;
         bool power_switch_received          = false;
         bool channel_switch_needed          = false;
@@ -313,6 +316,20 @@ private:
     bool build_acs_list(const sMacAddr &radio_mac,
                         const sIncomingChannelSelectionRequest &radio_request);
     bool send_acs_list_to_platform(const sMacAddr &radio_mac);
+
+    /**
+     * @brief if @param[in] request_info contains an EHTOperationsTLV, add it back to a EasyMesh packet
+     * usually added to Channel Selection Response : per EMR6.1 Certification 4.5.4 test case
+     * Operating Channel Report : per spec section 17.1.13 and Certification 4.5.4 test case
+     *
+     * @param [in] cmdu_tx class holding the EasyMesh packet
+     * @param [in] ruid Radio Unique ID - MAC Addr of the Radio
+     * @param [in] request_info a local copy of the incoming Channel Selection Request information
+     * @param [in] reset bool - in case we need the info later - do not reset it
+     * @return true if success, false otherwise
+     */
+    bool add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &ruid,
+                                bssid_eht_op_pair &request_info, bool reset);
 };
 
 } // namespace beerocks
