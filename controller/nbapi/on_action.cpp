@@ -698,7 +698,7 @@ amxd_status_t trigger_set_spatial_reuse(amxd_object_t *object, amxd_function_t *
  *
  * Example of usage:
  * ubus call Device.WiFi.DataElements.Network.Device.1.Radio.1 ChannelSelectionRequest 
- * '{"Class":[{"Channel": [{"Channel":1,"Preference":1}], "OpClass":80}]}'
+ * '{"Class":{"1": {"Channel": {"1": {"Channel":1,"Preference":1}}, "OpClass":81}}}'
  *
  */
 amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *func,
@@ -724,49 +724,42 @@ amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *
     sMacAddr radio_uid = tlvf::mac_from_string(radio_mac_str);
     amxc_var_clean(ret);
 
-    const uint32_t channel = GET_UINT32(args, "Channel");
-    const uint32_t op_class = GET_UINT32(args, "OpClass");
-
-    /* The protocol actually allows only 1..14 to represent preference values
-     * (14 being the highest). 0 is "non-operable" and 15 is reserved in the
-     * protocol, and intended to be used internally for when the Channel
-     * Preference TLV does not imply any preference explicitly for a given
-     * OpClass + Channel.
-     */
-    const uint8_t preference_block = (uint8_t)beerocks::eChannelPreferenceRankingConsts::NON_OPERABLE;
-    const uint8_t preference_highest = (uint8_t)beerocks::eChannelPreferenceRankingConsts::BEST - 1;
-
-    LOG(DEBUG) << "ChannelSelectionRequest: promote: " << channel << " " << op_class << " " << radio_uid;
-
-    if (channel > UINT8_MAX) {
-        LOG(ERROR) << "ChannelSelectionRequest: channel value out of range: " << channel;
-        return amxd_status_invalid_value;
-    }
-
-    if (op_class > UINT8_MAX) {
-        LOG(ERROR) << "ChannelSelectionRequest: op_class value out of range: " << op_class;
-        return amxd_status_invalid_value;
-    }
-
     std::unordered_map<
         uint16_t /* opclass 0xff00, preference 0x00ff */,
         std::vector<uint8_t> /* channels */
     > preference_map;
 
-        const auto &radio_preference = g_database->get_radio_channel_preference(radio_uid);
-        for (const auto &iter : radio_preference) {
-            const uint8_t it_op_class = iter.first.first;
-            const uint8_t it_channel = iter.first.second;
-            const uint8_t it_preference = iter.second;
-            (void)it_preference; /* ignored */
-            const bool matching_channel = (it_channel == (uint8_t)channel)
-                                       && (it_op_class == (uint8_t)op_class);
-            const uint8_t preference = matching_channel ? preference_highest : preference_block;
-            const std::vector<uint8_t> channels = { (uint8_t)it_channel };
-            const uint16_t pref_key = (it_op_class << 8) | preference;
-            preference_map[pref_key].push_back((uint8_t)it_channel);
-        }
+    const amxc_htable_t *classes = amxc_var_constcast(amxc_htable_t, GET_ARG(args, "Class"));
+    amxc_htable_iterate(class_instance, classes) {
+        amxc_var_t *obj = amxc_var_from_htable_it(class_instance);
+        amxc_var_t *opclass_var = GET_ARG(obj, "OpClass");
+        amxc_var_t *channel_var = GET_ARG(obj, "Channel");
+        if (opclass_var == NULL) continue;
+        const uint32_t opclass_val = amxc_var_dyncast(uint32_t, opclass_var);
 
+        if (channel_var) {
+            const amxc_htable_t *channels = amxc_var_constcast(amxc_htable_t, channel_var);
+            amxc_htable_iterate(channel_instance, channels) {
+                amxc_var_t *channel_obj = amxc_var_from_htable_it(channel_instance);
+                amxc_var_t *channel_num_var = GET_ARG(channel_obj, "Channel");
+                amxc_var_t *channel_pref_var = GET_ARG(channel_obj, "Preference");
+                if (channel_num_var == NULL) continue;
+                if (channel_pref_var == NULL) continue;
+
+                const uint32_t channel_num = amxc_var_dyncast(uint32_t, channel_num_var);
+                const uint32_t pref = amxc_var_dyncast(uint32_t, channel_pref_var);
+
+                const uint16_t pref_key = (opclass_val << 8) | pref;
+                preference_map[pref_key].push_back((uint8_t)channel_num);
+            }
+        }
+    }
+
+    /* This virtually compresses the per-channel preferences
+     * into per-opclass preferences. Not only reduces the
+     * report size on the wire, it makes it easier to
+     * inspect too.
+     */
     std::vector<std::tuple<uint8_t, uint8_t, std::vector<uint8_t>>> preferences;
     for (const auto &iter : preference_map) {
         const uint8_t it_op_class = iter.first >> 8;
