@@ -72,6 +72,11 @@ private:
     };
     // task sends ACS_START but reply from base_bwl_hal is CSA_NOTIFICATION
 
+    struct sEhtOperParams {
+        sMacAddr bssid = beerocks::net::network_utils::ZERO_MAC;
+        son::wireless_utils::sEhtOperationParams eht_params;
+    };
+
     struct sIncomingChannelSelectionRequest {
         // Assume response will be successful
         wfa_map::tlvChannelSelectionResponse::eResponseCode response_code =
@@ -89,7 +94,7 @@ private:
             uint8_t CSA_count                  = 5;
         } outgoing_request;
         son::wireless_utils::sSpatialReuseParams spatial_reuse_request;
-        son::wireless_utils::sEhtOperationParams eht_operation;
+        sEhtOperParams eht_operation;
         sSelectedChannel selected_channel;
         bool power_switch_received          = false;
         bool channel_switch_needed          = false;
@@ -313,6 +318,20 @@ private:
     bool build_acs_list(const sMacAddr &radio_mac,
                         const sIncomingChannelSelectionRequest &radio_request);
     bool send_acs_list_to_platform(const sMacAddr &radio_mac);
+
+    /**
+     * @brief if @param[in] request_info contains an EHTOperationsTLV, add it back to a EasyMesh packet
+     * usually added to Channel Selection Response : per EMR6.1 Certification 4.5.4 test case
+     * Operating Channel Report : per spec section 17.1.13 and Certification 4.5.4 test case
+     *
+     * @param [in] cmdu_tx class holding the EasyMesh packet
+     * @param [in] ruid Radio Unique ID - MAC Addr of the Radio
+     * @param [in] request_info a local copy of the incoming Channel Selection Request information
+     * @param [in] clear_config bool - if this is the last 1905 message where we need to add the TLV: clear config
+     * @return true if success, false otherwise
+     */
+    bool add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &ruid,
+                                sEhtOperParams &request_info, bool clear_config);
 };
 
 } // namespace beerocks
