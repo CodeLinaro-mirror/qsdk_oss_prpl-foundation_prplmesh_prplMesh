@@ -333,6 +333,31 @@
         %instance bool UpdateVBSSCapabilities();
 
         /*
+        ** MLO-capable backhaul STA (only one per Agent).
+        */
+        object bSTAMLD {
+            /* MLD MAC of the MLO-capable bSTA (Backhaul STA MLD Configuration TLV). */
+            %read-only string MLDMACAddress = "";
+            /* Upstream APMLD MLD MAC this bSTAMLD is associated to (Associated Clients TLV). */
+            %read-only string BSSID = "";
+            /* Comma-separated list of affiliated bSTA MACs (Backhaul STA MLD Configuration TLV). */
+            %read-only string AffiliatedbSTAList = "";
+
+            object bSTAMLDConfig {
+                /* Enhanced Multi-Link Multi-Radio (EMLMR) operation enabled. */
+                bool EMLMREnabled = false;
+                /* Enhanced Multi-Link Single-Radio (EMLSR) operation enabled. */
+                bool EMLSREnabled = false;
+                /* Simultaneous Transmit and Receive (STR) operation enabled. */
+                bool STREnabled = false;
+                /* Non-Simultaneous Transmit and Receive (NSTR) operation enabled. */
+                bool NSTREnabled = false;
+                /* TID-to-Link Mapping negotiation enabled. */
+                bool TIDLinkMapNegotiation = false;
+            }
+        }
+
+        /*
         ** The list of APMLD objects.
         */
         object APMLD [] {
