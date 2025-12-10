@@ -7,6 +7,10 @@
  */
 
 #include "on_action.h"
+#include "amxd/amxd_types.h"
+#include "bcl/beerocks_wifi_channel.h"
+#include "bcl/son/son_wireless_utils.h"
+#include "db/agent.h"
 
 #include <bcl/beerocks_defines.h>
 #include <beerocks/tlvf/beerocks_message_bml.h>
@@ -27,7 +31,20 @@ namespace actions {
 
 // Actions
 
+struct SteerWiFiBackhaulRequest;
+
 son::db *g_database = nullptr;
+std::shared_ptr<TimerManager> g_timer_manager = nullptr;
+std::unordered_map<sMacAddr /* al_mac */, std::shared_ptr<SteerWiFiBackhaulRequest>> g_steer_wifi_backhaul_requests;
+
+#define X_PRPLWARE_REASON "X_PRPLWARE-COM_Reason"
+#define STEER_WIFI_BACKHAUL_STATUS_KEY "Status"
+#define STEER_WIFI_BACKHAUL_STATUS_SUCCESS "Success"
+#define STEER_WIFI_BACKHAUL_STATUS_ERROR_NOT_READY "Error_Not_Ready"
+#define STEER_WIFI_BACKHAUL_STATUS_ERROR_TIMEOUT "Error_Timeout"
+#define STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT "Error_Invalid_Input"
+#define STEER_WIFI_BACKHAUL_STATUS_ERROR_INTERFACE_DOWN "Error_Interface_Down"
+#define STEER_WIFI_BACKHAUL_STATUS_ERROR_OTHER "Error_Other"
 
 /*
 ** Set the number of seconds since this Associated Device was last attempted to be steered.
@@ -1211,6 +1228,299 @@ amxd_status_t update_unassociatedStations_stats(amxd_object_t *object, amxd_func
     return result;
 }
 
+static const std::shared_ptr<db::Agent::sRadio::sBss> find_agent_bss(const sMacAddr &bssid)
+{
+    const auto agents = g_database->get_all_connected_agents();
+    for (const auto &agent : agents) {
+        for (const auto &radio_it : agent->radios) {
+            const auto radio = radio_it.second;
+            const auto bss = radio->bsses.find(bssid);
+            if (bss != radio->bsses.end()) {
+                return bss->second;
+            }
+        }
+    }
+    return nullptr;
+}
+
+static const std::shared_ptr<db::Agent::sRadio> find_agent_radio_with_channel_capability(const uint8_t primary_channel)
+{
+    const auto agents = g_database->get_all_connected_agents();
+    for (const auto &agent : agents) {
+        for (const auto &radio_it : agent->radios) {
+            const auto radio = radio_it.second;
+            if (std::find_if(radio->supported_channels.begin(),
+                             radio->supported_channels.end(),
+                                [&primary_channel](const beerocks::WifiChannel &ch) {
+                                    return ch.get_channel() == primary_channel;
+                                }) != radio->supported_channels.end()) {
+                return radio;
+            }
+        }
+    }
+    return nullptr;
+}
+
+struct SteerWiFiBackhaulRequest {
+    sMacAddr m_al_mac;
+    uint64_t m_call_id;
+    int m_timeout_fd;
+
+    SteerWiFiBackhaulRequest(const SteerWiFiBackhaulRequest &) = delete;
+    SteerWiFiBackhaulRequest(SteerWiFiBackhaulRequest &&) noexcept = delete;
+    SteerWiFiBackhaulRequest &operator=(const SteerWiFiBackhaulRequest &) = delete;
+    SteerWiFiBackhaulRequest &operator=(SteerWiFiBackhaulRequest &&) = delete;
+
+    ~SteerWiFiBackhaulRequest() {
+        if (m_timeout_fd >= 0) {
+            g_timer_manager->remove_timer(m_timeout_fd);
+            m_timeout_fd = -1;
+        }
+    }
+
+    SteerWiFiBackhaulRequest(const sMacAddr &al_mac, uint64_t call_id, int32_t timeout_msec)
+        : m_al_mac(al_mac),
+          m_call_id(call_id),
+          m_timeout_fd(-1)
+    {
+        const auto delay = std::chrono::milliseconds(timeout_msec);
+        const auto repeat = std::chrono::milliseconds::zero();
+        LOG(DEBUG) << "Starting Steer WiFi Backhaul request timeout timer for AL: "
+                   << tlvf::mac_to_string(m_al_mac) << " with timeout: " << timeout_msec << " msec";
+        const auto cb = [this](int fd, beerocks::EventLoop &loop) {
+            LOG(ERROR) << "Steer WiFi Backhaul request timed out for AL: "
+                       << tlvf::mac_to_string(m_al_mac);
+
+            amxc_var_t ret;
+            amxc_var_init(&ret);
+            amxc_var_set_type(&ret, AMXC_VAR_ID_HTABLE);
+            amxc_var_add_key(cstring_t, &ret, "Status", STEER_WIFI_BACKHAUL_STATUS_ERROR_TIMEOUT);
+            amxd_function_deferred_done(m_call_id, amxd_status_ok, NULL, &ret);
+            amxc_var_clean(&ret);
+
+            const auto entry = g_steer_wifi_backhaul_requests.find(m_al_mac);
+            if (entry != g_steer_wifi_backhaul_requests.end()) {
+                g_steer_wifi_backhaul_requests.erase(entry);
+            }
+            else {
+                LOG(ERROR) << "No matching Steer WiFi Backhaul request found for AL: "
+                           << tlvf::mac_to_string(m_al_mac);
+            }
+
+            return true;
+        };
+        m_timeout_fd = g_timer_manager->add_timer("Steering Backhaul Response timeout", delay, repeat, cb);
+        LOG(DEBUG) << "Steer WiFi Backhaul request timeout timer started, fd: " << m_timeout_fd;
+    }
+};
+
+void steer_wifi_backhaul_response_cb(const sMacAddr &al_mac,
+                                     const sMacAddr &bsta,
+                                     const sMacAddr &target_bssid,
+                                     const bool success)
+{
+    LOG(INFO) << "Steer WiFi Backhaul response received for "
+              << " AL: " << tlvf::mac_to_string(al_mac)
+              << " Backhaul STA: " << tlvf::mac_to_string(bsta)
+              << " TargetBSS: " << tlvf::mac_to_string(target_bssid)
+              << " Success: " << (success ? "true" : "false");
+
+    const auto entry = g_steer_wifi_backhaul_requests.find(al_mac);
+    if (entry == g_steer_wifi_backhaul_requests.end()) {
+        LOG(ERROR) << "No matching Steer WiFi Backhaul request found for AL: "
+                   << tlvf::mac_to_string(al_mac);
+        return;
+    }
+
+    const auto call_id = entry->second->m_call_id;
+    g_steer_wifi_backhaul_requests.erase(entry);
+
+    const char *status_str = success
+        ? STEER_WIFI_BACKHAUL_STATUS_SUCCESS
+        : STEER_WIFI_BACKHAUL_STATUS_ERROR_OTHER;
+
+    amxc_var_t ret;
+    amxc_var_init(&ret);
+    amxc_var_set_type(&ret, AMXC_VAR_ID_HTABLE);
+    amxc_var_add_key(cstring_t, &ret, "Status", status_str);
+    amxd_function_deferred_done(call_id, amxd_status_ok, NULL, &ret);
+    amxc_var_clean(&ret);
+}
+
+/**
+ * @brief Initiates a Steer WiFi Backhaul Request with the given parameters
+ *
+ * Example of usage:
+ * ubus call Device.WiFi.DataElements.Network.Device.1 MultiAPDevice.Backhaul.SteerWiFiBackhaul 
+ * '{"TargetBSS": "aa:bb:cc:dd:ee:ff", "Channel": 36, "TimeOut": 3000}'
+ *
+ */
+amxd_status_t steer_wifi_backhaul(amxd_object_t *object, amxd_function_t *func,
+                                       amxc_var_t *args, amxc_var_t *ret)
+{
+    auto controller_ctx = g_database->get_controller_ctx();
+
+    const auto target_bssid_arg = GET_CHAR(args, "TargetBSS");
+    const auto channel_arg = GET_INT32(args, "Channel");
+    const auto timeout_msec_arg = GET_INT32(args, "TimeOut");
+
+    amxc_var_clean(ret);
+    amxc_var_set_type(ret, AMXC_VAR_ID_HTABLE);
+
+    if (!controller_ctx) {
+        const std::string reason("Controller context is not available");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_NOT_READY);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_unknown_error;
+    }
+
+    if (!target_bssid_arg) {
+        const std::string reason("TargetBSS argument is missing");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_parameter_not_found;
+    }
+
+    if (!network_utils::is_valid_mac(target_bssid_arg)) {
+        const std::string reason("TargetBSS: " + std::string(target_bssid_arg) + " is not a valid MAC address");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_invalid_value;
+    }
+
+    const auto target_bssid = tlvf::mac_from_string(target_bssid_arg);
+
+    if (!timeout_msec_arg) {
+        const std::string reason("TimeOut argument is missing");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_parameter_not_found;
+    }
+
+    LOG(INFO) << "Steering WiFi Backhaul with TargetBSS: " << target_bssid_arg
+              << ", Channel: " << (channel_arg ? std::to_string(channel_arg) : "N/A")
+              << ", TimeOut: " << timeout_msec_arg << "msec";
+
+    // <DM>.Network.Device.{i}.MultiAPDevice.Backhaul
+    //   ->
+    // <DM>.Network.Device.{i}.ID
+    amxd_object_t *backhaul_obj = object;
+    amxd_object_t *map_obj = amxd_object_get_parent(backhaul_obj);
+    if (!map_obj) {
+        const std::string reason("Failed to get parent of Backhaul object");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_NOT_READY);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_object_not_found;
+    }
+
+    amxd_object_t *device_instance_obj = amxd_object_get_parent(map_obj);
+    if (!device_instance_obj) {
+        const std::string reason("Failed to get parent of MultiAPDevice object");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_NOT_READY);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_object_not_found;
+    }
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+    amxd_object_get_param(device_instance_obj, "ID", &value);
+    const std::string al_mac_str = amxc_var_constcast(cstring_t, &value);
+    if (!network_utils::is_valid_mac(al_mac_str)) {
+        const std::string reason("AL MAC: " + al_mac_str + " is not a valid MAC address");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_invalid_value;
+    }
+    const auto al_mac = tlvf::mac_from_string(al_mac_str);
+
+    const auto target_bss = find_agent_bss(target_bssid);
+    if (!target_bss) {
+        const std::string reason("TargetBSS: " + std::string(target_bssid_arg) + " not found in database");
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_object_not_found;
+    }
+
+    const auto target_channel = channel_arg ?: target_bss->radio.wifi_channel.get_channel();
+    const auto freq_type = target_bss->radio.wifi_channel.get_freq_type();
+    // FIXME: This probably should use target bandwidth.
+    // However current Agent implementation uses channel
+    // as-is for scanning. It would need to be reworked to
+    // handle this properly.
+    const auto bandwidth = eWiFiBandwidth::BANDWIDTH_20;
+    const beerocks::WifiChannel primary(target_channel, freq_type, bandwidth);
+    const uint8_t target_op_class = son::wireless_utils::get_operating_class_by_channel(primary);
+
+    if (target_op_class == 0) {
+        const std::string reason("Failed to determine operating class for channel: "
+                                 + std::to_string(target_channel));
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_invalid_value;
+    }
+
+    const auto al_radio = find_agent_radio_with_channel_capability(target_channel);
+    if (!al_radio) {
+        const std::string reason("No agent radio found that supports channel: "
+                                 + std::to_string(target_channel));
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_INVALID_INPUT);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_object_not_found;
+    }
+
+    const auto entry = g_steer_wifi_backhaul_requests.find(al_mac);
+    const bool already_requesting = (entry != g_steer_wifi_backhaul_requests.end());
+    if (already_requesting) {
+        const std::string reason("Steer WiFi Backhaul request is already in progress for AL: " + al_mac_str);
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_NOT_READY);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_duplicate;
+    }
+
+    const auto backhaul_sta_mac = al_radio->backhaul_station_mac;
+    if (backhaul_sta_mac == net::network_utils::ZERO_MAC) {
+        const std::string reason("Backhaul STA MAC is not known for AL: " + al_mac_str);
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_NOT_READY);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_object_not_found;
+    }
+
+    if (!controller_ctx->send_backhaul_steering_request(al_mac, backhaul_sta_mac, target_bssid, target_op_class, target_channel)) {
+        const std::string reason("Failed to send Steer WiFi Backhaul request from NBAPI for AL: "
+                                 + al_mac_str + " to TargetBSS: " + target_bssid_arg);
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_OTHER);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_unknown_error;
+    }
+
+    uint64_t call_id;
+    const amxd_status_t deferred = amxd_function_defer(func, &call_id, ret, nullptr, nullptr);
+    if (deferred != amxd_status_ok) {
+        const std::string reason("amxd_function_defer failed for Steer WiFi Backhaul request for AL: "
+                                 + al_mac_str);
+        LOG(ERROR) << reason;
+        amxc_var_add_key(cstring_t, ret, STEER_WIFI_BACKHAUL_STATUS_KEY, STEER_WIFI_BACKHAUL_STATUS_ERROR_OTHER);
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_REASON, reason.c_str());
+        return amxd_status_unknown_error;
+    }
+
+    auto shared = std::make_shared<SteerWiFiBackhaulRequest>(al_mac, call_id, timeout_msec_arg);
+    g_steer_wifi_backhaul_requests.emplace(al_mac, shared);
+    return amxd_status_deferred;
+}
+
 // Events
 
 /**
@@ -1411,6 +1721,8 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
         {"remove_unassociated_station",
          DATAELEMENTS_ROOT_DM ".Network.Device.Radio.RemoveUnassociatedStation",
          remove_unassociated_station},
+        {"steer_wifi_backhaul", DATAELEMENTS_ROOT_DM ".Network.Device.MultiAPDevice.Backhaul.SteerWiFiBackhaul",
+         steer_wifi_backhaul},
         {"update_unassociatedStations_stats",
          DATAELEMENTS_ROOT_DM ".Network.UpdateUnassociatedStationsStats",
          update_unassociatedStations_stats}};
