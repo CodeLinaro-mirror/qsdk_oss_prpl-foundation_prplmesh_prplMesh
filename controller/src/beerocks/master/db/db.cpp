@@ -1765,7 +1765,7 @@ bool db::set_wifi7_agent_capabilities(wfa_map::tlvWifi7AgentCapabilities &wifi7_
             path_to_obj_agent, "bSTAMLDMaxLinks",
             static_cast<uint8_t>(wifi7_agt_caps_tlv.flags1().bsta_maximum_links));
         ret_val &= m_ambiorix_datamodel->set(
-            path_to_obj_agent, "TIDLinkMapCapacity",
+            path_to_obj_agent, "TIDLinkMapCapability",
             std::to_string(
                 static_cast<uint8_t>(wifi7_agt_caps_tlv.flags2().tid_to_link_mapping_capability)));
     }
