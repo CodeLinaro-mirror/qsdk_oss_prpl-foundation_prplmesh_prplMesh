@@ -733,6 +733,7 @@ int main(int argc, char *argv[])
     }
 
 #ifdef ENABLE_NBAPI
+    prplmesh::controller::actions::g_timer_manager = timer_manager;
     auto on_action_handlers = prplmesh::controller::actions::get_actions_callback_list();
     auto events_list        = prplmesh::controller::actions::get_events_list();
     auto funcs_list         = prplmesh::controller::actions::get_func_list();
@@ -828,6 +829,11 @@ int main(int argc, char *argv[])
     };
 
     LOG_IF(!controller.start(), FATAL) << "Unable to start controller!";
+
+#ifdef ENABLE_NBAPI
+    controller.set_steering_response_cb(
+        prplmesh::controller::actions::steer_wifi_backhaul_response_cb);
+#endif
 
     auto touch_time_stamp_timeout = std::chrono::steady_clock::now();
     while (g_running) {

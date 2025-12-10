@@ -114,6 +114,12 @@
                     ];
             }
             %read-only object Backhaul {
+                %instance htable SteerWiFiBackhaul(
+                    %in %mandatory string TargetBSS,
+                    %in uint32 Channel,
+                    %in %mandatory uint32 TimeOut
+                );
+
                 %read-only string LinkType {
                     default "None";
                     on action validate call check_enum [
