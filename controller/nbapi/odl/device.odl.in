@@ -307,6 +307,29 @@
 
         %read-only bool X_PRPLWARE-COM_SupportsVBSS = false;
 
+        /* The maximum number of MLDs the EasyMesh Agent can support (from Wi‑Fi 7 Agent Capabilities TLV). */
+        %read-only uint32 MaxNumMLDs = 0;
+
+        /* Max affiliated APs per APMLD, encoded as links-1; valid range 0–14, 15 reserved (Wi‑Fi 7 Agent Capabilities TLV). */
+        %read-only uint8 APMLDMaxLinks = 0 {
+            on action validate call check_range [0, 15];
+        }
+
+        /* Max affiliated bSTAs per bSTAMLD, encoded as links-1; valid range 0–14, 15 reserved (Wi‑Fi 7 Agent Capabilities TLV). */
+        %read-only uint8 bSTAMLDMaxLinks = 0 {
+            on action validate call check_range [0, 15];
+        }
+
+        /* TID-to-link mapping capability of the Agent (Wi‑Fi 7 Agent Capabilities TLV). */
+        %read-only string TIDLinkMapCapability {
+            default "0";
+            on action validate call check_enum [
+                "0", /* Does not support TID-to-link mapping */
+                "1", /* Supports mapping of each TID to the same or different link set */
+                "2"  /* Only supports mapping all TIDs to the same link set */
+            ];
+        }
+
         %instance bool UpdateVBSSCapabilities();
 
         /*
