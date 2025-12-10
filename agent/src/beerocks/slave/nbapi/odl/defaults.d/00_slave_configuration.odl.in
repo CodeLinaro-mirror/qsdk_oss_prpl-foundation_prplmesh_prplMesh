@@ -2,6 +2,8 @@
 	object '@AGENT_ROOT_DM@' {
 		object 'Configuration' {
 			parameter BackhaulWireInterface = '@BEEROCKS_BH_WIRE_IFACE@';
+			parameter ManagementMode = "Multi-AP-Controller-and-Agent";
+			parameter CertificationMode = false;
 		}
 	}
 }
