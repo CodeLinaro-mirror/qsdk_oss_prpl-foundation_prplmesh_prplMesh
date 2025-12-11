@@ -175,7 +175,9 @@ public:
         bool is_multiap_profile_1_as_of_r4 = false;
         int dwell_time;
         bool send_btm_to_non_11v_sta = false;
-        uint8_t max_num_mlds         = 3; // Arbitrary
+        uint8_t max_num_mlds         = 0;
+        uint8_t ap_maximum_links     = 0;
+        uint8_t bsta_maximum_links   = 0;
         bool enable_auto_chansel_handling;
     } device_conf;
 

@@ -237,10 +237,14 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
     // Hard-coded for now, may be specified somehwere in the DM
     wifi7_agent_capabilities_tlv->max_num_mlds() = db->device_conf.max_num_mlds;
 
-    // Corresponds to the number of APs on other radios that can be linked to an AP on this radio
-    wifi7_agent_capabilities_tlv->flags1().ap_maximum_links   = eht_capable_radio_nb - 1;
-    wifi7_agent_capabilities_tlv->flags1().bsta_maximum_links = eht_capable_radio_nb - 1;
+    wifi7_agent_capabilities_tlv->flags1().ap_maximum_links   = db->device_conf.ap_maximum_links;
+    wifi7_agent_capabilities_tlv->flags1().bsta_maximum_links = db->device_conf.bsta_maximum_links;
     wifi7_agent_capabilities_tlv->flags2().tid_to_link_mapping_capability = 0;
+
+    LOG(DEBUG) << "Max AP MLD Links " << wifi7_agent_capabilities_tlv->flags1().ap_maximum_links
+               << ", Max bSTA MLD Links ="
+               << wifi7_agent_capabilities_tlv->flags1().bsta_maximum_links
+               << ", Max num of MLDs =" << wifi7_agent_capabilities_tlv->max_num_mlds();
 
     for (auto radio : db->get_radios_list()) {
         if (!radio) {

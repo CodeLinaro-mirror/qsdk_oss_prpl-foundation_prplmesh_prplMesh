@@ -2579,6 +2579,13 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                        << ", NSTR=" << radio->bsta_modes_support.nstr_support
                        << ", EMLSR=" << radio->bsta_modes_support.emlsr_support
                        << ", EMLMR=" << radio->bsta_modes_support.emlmr_support << "]";
+
+            db->device_conf.max_num_mlds       = notification->params().max_num_mlds;
+            db->device_conf.ap_maximum_links   = notification->params().ap_maximum_links;
+            db->device_conf.bsta_maximum_links = notification->params().bsta_maximum_links;
+            LOG(DEBUG) << " Max num of MLDs " << db->device_conf.max_num_mlds
+                       << ", Max AP MLD Links " << db->device_conf.ap_maximum_links
+                       << ", Max bSTA MLD Links " << db->device_conf.bsta_maximum_links;
         }
 
         save_channel_params_to_db(fronthaul_iface, notification->cs_params());

@@ -3349,6 +3349,10 @@ void ApManager::handle_hostapd_attached()
     LOG(DEBUG) << "[WiFi7]AP MLO Modes Support " << notification->params().ap_modes_support
                << "\n | BSTA Mode Support " << notification->params().bsta_modes_support;
 
+    notification->params().max_num_mlds       = ap_wlan_hal->get_radio_info().max_num_mlds;
+    notification->params().ap_maximum_links   = ap_wlan_hal->get_radio_info().ap_maximum_links;
+    notification->params().bsta_maximum_links = ap_wlan_hal->get_radio_info().bsta_maximum_links;
+
     notification->params().zwdfs = m_ap_support_zwdfs;
 
     string_utils::copy_string(notification->params().chipset_vendor,
@@ -3386,6 +3390,9 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " wifi6_capability = " << std::hex
               << ap_wlan_hal->get_radio_info().wifi6_capability;
     LOG(INFO) << " eht_supported = " << ap_wlan_hal->get_radio_info().eht_supported;
+    LOG(INFO) << " max_num_mld = " << ap_wlan_hal->get_radio_info().max_num_mlds;
+    LOG(INFO) << " ap_maximum_links = " << ap_wlan_hal->get_radio_info().ap_maximum_links;
+    LOG(INFO) << " bsta_maximum_links = " << ap_wlan_hal->get_radio_info().bsta_maximum_links;
     LOG(INFO) << " zwdfs = " << m_ap_support_zwdfs;
     LOG(INFO) << " radio_max_bss = " << ap_wlan_hal->get_radio_info().radio_max_bss_supported;
     LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
