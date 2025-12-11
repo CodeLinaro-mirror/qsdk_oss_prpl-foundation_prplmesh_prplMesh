@@ -200,11 +200,10 @@ bool ap_wlan_hal_dummy::sta_deauth(int8_t vap_id, const std::string &mac, uint32
     return true;
 }
 
-bool ap_wlan_hal_dummy::sta_bss_steer(int8_t vap_id, const std::string &mac,
-                                      const std::string &bssid, int oper_class, int chan,
-                                      int disassoc_timer_btt, int valid_int_btt, int reason)
+bool ap_wlan_hal_dummy::sta_bss_steer(const sBtmRequestParams &params)
 {
-    LOG(DEBUG) << "Got steer request for " << mac << " steer to " << bssid;
+    LOG(DEBUG) << "Got steer request for " << tlvf::mac_to_string(params.mac) << " steer to "
+               << tlvf::mac_to_string(params.bssid);
 
     auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_APMANAGER_CLIENT_BSS_STEER_RESPONSE));
     auto msg      = reinterpret_cast<sACTION_APMANAGER_CLIENT_BSS_STEER_RESPONSE *>(msg_buff.get());
@@ -212,7 +211,7 @@ bool ap_wlan_hal_dummy::sta_bss_steer(int8_t vap_id, const std::string &mac,
 
     memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_CLIENT_BSS_STEER_RESPONSE));
 
-    msg->params.mac         = tlvf::mac_from_string(mac);
+    msg->params.mac         = params.mac;
     msg->params.status_code = 0;
     // source_bssid should be the vap bssid and not radio_mac, but
     // dummy mode doesn't use vaps yet

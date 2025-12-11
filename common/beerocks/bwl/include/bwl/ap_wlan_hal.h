@@ -83,6 +83,20 @@ public:
         AFCUpdate,
     };
 
+    struct sBtmRequestParams {
+        int8_t vap_id           = 0;
+        sMacAddr mac            = {};
+        sMacAddr bssid          = {};
+        int oper_class          = 0;
+        int chan                = 0;
+        int disassoc_timer_btt  = 0;
+        int valid_int_btt       = 0;
+        int reason              = 0;
+        bool pref_list_included = 0;
+        bool abridged           = 0;
+        bool disassoc_imminent  = 0;
+    };
+
     // Public methods
 public:
     virtual ~ap_wlan_hal() = default;
@@ -208,9 +222,7 @@ public:
      * @param [in] reason The reason code for the steer based on Table 18 @ Wi-Fi Agile Multiband Technical Specification
      * @return true on success or false on error.
      */
-    virtual bool sta_bss_steer(int8_t vap_id, const std::string &mac, const std::string &bssid,
-                               int oper_class, int chan, int disassoc_timer_btt, int valid_int_btt,
-                               int reason) = 0;
+    virtual bool sta_bss_steer(const sBtmRequestParams &params) = 0;
 
     /**
      * @brief Update wifi credentials.
