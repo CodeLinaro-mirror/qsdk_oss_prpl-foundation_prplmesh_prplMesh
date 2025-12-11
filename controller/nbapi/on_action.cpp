@@ -1243,7 +1243,7 @@ static const std::shared_ptr<db::Agent::sRadio::sBss> find_agent_bss(const sMacA
     return nullptr;
 }
 
-static const std::shared_ptr<db::Agent::sRadio> find_agent_radio_with_channel_capability(const uint8_t primary_channel)
+static const std::shared_ptr<db::Agent::sRadio> find_agent_radio_with_channel_capability(const eFreqType freq_type, const uint8_t primary_channel)
 {
     const auto agents = g_database->get_all_connected_agents();
     for (const auto &agent : agents) {
@@ -1251,8 +1251,8 @@ static const std::shared_ptr<db::Agent::sRadio> find_agent_radio_with_channel_ca
             const auto radio = radio_it.second;
             if (std::find_if(radio->supported_channels.begin(),
                              radio->supported_channels.end(),
-                                [&primary_channel](const beerocks::WifiChannel &ch) {
-                                    return ch.get_channel() == primary_channel;
+                                [&primary_channel, &freq_type](const beerocks::WifiChannel &ch) {
+                                    return ch.get_channel() == primary_channel && ch.get_freq_type() == freq_type;
                                 }) != radio->supported_channels.end()) {
                 return radio;
             }
@@ -1468,7 +1468,7 @@ amxd_status_t steer_wifi_backhaul(amxd_object_t *object, amxd_function_t *func,
         return amxd_status_invalid_value;
     }
 
-    const auto al_radio = find_agent_radio_with_channel_capability(target_channel);
+    const auto al_radio = find_agent_radio_with_channel_capability(freq_type, target_channel);
     if (!al_radio) {
         const std::string reason("No agent radio found that supports channel: "
                                  + std::to_string(target_channel));

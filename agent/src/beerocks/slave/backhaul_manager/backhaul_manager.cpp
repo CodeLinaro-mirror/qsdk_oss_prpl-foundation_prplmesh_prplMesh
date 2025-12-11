@@ -563,18 +563,6 @@ bool BackhaulManager::handle_backhaul_connect()
     // will be overriden in the loop below.
     db->backhaul.backhaul_bssid = {};
 
-    for (auto &radio_info : m_radios_info) { // Detach from unused stations first
-        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
-            radio_info->sta_iface == db->backhaul.selected_iface_name) {
-            continue;
-        } else {
-            clear_radio_handlers(radio_info);
-            if (radio_info->sta_wlan_hal) {
-                radio_info->sta_wlan_hal.reset();
-            }
-        }
-    }
-
     for (auto &radio_info : m_radios_info) {
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
             radio_info->sta_iface == db->backhaul.selected_iface_name) {
@@ -2335,6 +2323,20 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
 
             LOG(DEBUG) << "Received scan results while a steering bssid is set.";
 
+            if (iface != m_backhaul_steering_iface) {
+                LOG(DEBUG) << "Scan results are for iface " << iface
+                           << ", but steering iface is " << m_backhaul_steering_iface
+                           << ", ignoring event";
+                return true;
+            }
+
+            auto db = AgentDB::get();
+            auto iface_hal = get_wireless_hal(m_backhaul_steering_iface);
+            if (!iface_hal) {
+                LOG(ERROR) << "Couldn't get HAL for iface " << m_backhaul_steering_iface;
+                return false;
+            }
+
             auto active_hal = get_wireless_hal();
             if (!active_hal) {
                 LOG(ERROR) << "Couldn't get active HAL";
@@ -2344,8 +2346,39 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             LOG(DEBUG) << "Steering to BSSID " << m_backhaul_steering_bssid
                        << ", channel=" << m_backhaul_steering_channel.first
                        << ", freq type=" << m_backhaul_steering_channel.second;
-            auto associate =
-                active_hal->roam(m_backhaul_steering_bssid, m_backhaul_steering_channel);
+
+            bool associate = false;
+
+            // FIXME: This should move the Radio to the new channel first, if necessary, with CSA
+
+            const bool different_radio_switch = (active_hal != iface_hal);
+            if (different_radio_switch) {
+                LOG(DEBUG) << "Steering requires a radio switch"
+                           << " from iface " << active_hal->get_iface_name()
+                           << " to iface " << iface_hal->get_iface_name();
+
+                // FIXME: This could probably become more fancy with
+                // make-before-break orchestration. For now, it's
+                // simple break-and-try-to-make.
+                active_hal->disconnect();
+                db->backhaul.selected_iface_name = m_backhaul_steering_iface;
+
+                // FIXME: Is this properly going to do CSA of the
+                // local APs to the new channel ,or will it stop-start
+                // then? It should do CSA preferably.
+                associate = iface_hal->connect(
+                    db->device_conf.back_radio.ssid,
+                    db->device_conf.back_radio.pass,
+                    db->device_conf.back_radio.security_type,
+                    db->device_conf.back_radio.mem_only_psk,
+                    tlvf::mac_to_string(m_backhaul_steering_bssid),
+                    m_backhaul_steering_channel, false);
+            }
+            else {
+                associate =
+                    active_hal->roam(m_backhaul_steering_bssid, m_backhaul_steering_channel);
+            }
+
             if (!associate) {
                 LOG(ERROR) << "Couldn't associate active HAL with bssid: "
                            << m_backhaul_steering_bssid;
@@ -2838,9 +2871,63 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
     LOG(DEBUG) << "Sending ACK message to the originator, mid=" << std::hex << mid;
     send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
 
+    auto sta_addr   = bh_sta_steering_req->backhaul_station_mac();
     auto channel    = bh_sta_steering_req->target_channel_number();
     auto oper_class = bh_sta_steering_req->operating_class();
     auto bssid      = bh_sta_steering_req->target_bssid();
+
+    const auto sta_iface_it = std::find_if(m_radios_info.begin(),
+                                         m_radios_info.end(),
+                                         [&sta_addr](const auto &radio_info) {
+                                             return radio_info->radio_mac == sta_addr;
+                                         });
+    if (sta_iface_it == m_radios_info.end()) {
+        LOG(WARNING) << "Unable to steer to BSSID " << bssid
+                     << ": No radio found for STA address " << sta_addr;
+
+        auto response = create_backhaul_steering_response(
+            wfa_map::tlvErrorCode::eReasonCode::
+            CLIENT_CAPABILITY_REPORT_UNSPECIFIED_FAILURE,
+            bssid);
+
+        if (!response) {
+            LOG(ERROR) << "Failed to build Backhaul Steering Response message.";
+            return false;
+        }
+
+        send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+        return false;
+    }
+    const std::string sta_iface = sta_iface_it->get()->sta_iface;
+
+    LOG(DEBUG) << "Backhaul Steering Request parameters: "
+               << " STA MAC=" << sta_addr << " BSSID=" << bssid
+               << " Operating Class=" << int(oper_class)
+               << " Channel=" << int(channel)
+               << " Current STA iface=" << db->backhaul.selected_iface_name
+               << " Next STA iface=" << sta_iface;
+
+    // The new BSS may have been requested on a different STA interface than
+    // the currently used one. Backhaul switch is driven by a scan completion,
+    // so schedule the scan on the target STA interface.
+    auto iface_hal = get_wireless_hal(sta_iface);
+    if (!iface_hal) {
+        LOG(WARNING) << "Unable to steer to BSSID " << bssid
+                     << ": No radio found for STA address " << sta_addr;
+
+        auto response = create_backhaul_steering_response(
+            wfa_map::tlvErrorCode::eReasonCode::
+            CLIENT_CAPABILITY_REPORT_UNSPECIFIED_FAILURE,
+            bssid);
+
+        if (!response) {
+            LOG(ERROR) << "Failed to build Backhaul Steering Response message.";
+            return false;
+        }
+
+        send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+        return false;
+    }
 
     auto is_valid_channel = son::wireless_utils::is_channel_in_operating_class(oper_class, channel);
 
@@ -2906,7 +2993,7 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
     // Backhaul Steering Response message with "error" result code if this function fails nor return
     // false, just log a warning and let the execution continue. If we do not steer after the
     // timeout elapses, a response will anyway be sent to the controller.
-    auto scan_result = active_hal->scan_bss(bssid, channel, freq_type);
+    auto scan_result = iface_hal->scan_bss(bssid, channel, freq_type);
     if (!scan_result) {
         LOG(WARNING) << "Failed to scan for the target BSSID: " << bssid << " on channel "
                      << channel << ".";
@@ -2924,6 +3011,7 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
     // We should only send a Backhaul Steering Response message with "success" result code if we
     // succeed to associate with the specified BSSID within 10 seconds.
     // Set the channel and BSSID of the target BSS so we can use them later.
+    m_backhaul_steering_iface   = sta_iface;
     m_backhaul_steering_bssid   = bssid;
     m_backhaul_steering_channel = {channel, freq_type};
 
