@@ -1309,9 +1309,17 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
                         bool found_match = false;
                         for (auto &apmld_entry : *apmld_objects) {
                             int8_t mld_id = DISABLED_MLDUNIT;
+                            std::string mldmac;
 
                             if (!apmld_entry.second.read_child(mld_id, "MLDID")) {
                                 LOG(DEBUG) << "Failed to read MLDID from APMLD: " << apmld_entry.first;
+                                continue;
+                            }
+                            if (!apmld_entry.second.read_child(mldmac, "MLDMACAddress")) {
+                                LOG(DEBUG) << "Failed to read MLDMACAddress: " << apmld_entry.first;
+                                continue;
+                            }
+                            if (mldmac == network_utils::ZERO_MAC_STRING) {
                                 continue;
                             }
 
