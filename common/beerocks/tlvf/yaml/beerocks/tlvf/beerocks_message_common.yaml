@@ -277,6 +277,9 @@ sNodeHostap:
   eht_supported: uint8_t #bool
   ap_modes_support: uint8_t
   bsta_modes_support: uint8_t
+  max_num_mlds: uint8_t
+  ap_maximum_links: uint8_t
+  bsta_maximum_links: uint8_t
   zwdfs:
     _type: uint8_t
     _comment: Boolean. When set to 'true', the radio can be used only for zwdfs purpose.
