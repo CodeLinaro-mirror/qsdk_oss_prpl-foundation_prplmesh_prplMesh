@@ -503,6 +503,12 @@ public:
 
 private:
     /**
+     * The interface name of the currently used backhaul connection.
+     * Empty string if no backhaul is connected.
+     */
+    std::string m_backhaul_steering_iface = "";
+
+    /**
      * The BSSID of the target BSS in an ongoing backhaul steering operation.
      * Empty MAC address if no steering operation is in progress.
      */
