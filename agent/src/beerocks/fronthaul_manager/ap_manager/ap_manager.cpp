@@ -1811,19 +1811,28 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         send_cmdu(cmdu_tx);
 
-        std::string sta_mac       = tlvf::mac_to_string(request->params().mac);
-        std::string target_bssid  = tlvf::mac_to_string(request->params().target.bssid);
-        uint8_t disassoc_imminent = request->params().disassoc_imminent;
+        bwl::ap_wlan_hal::sBtmRequestParams btm_params;
+        btm_params.vap_id     = it->first;
+        btm_params.mac        = request->params().mac;
+        btm_params.bssid      = request->params().target.bssid;
+        btm_params.oper_class = request->params().target.operating_class;
+        btm_params.chan       = request->params().target.channel;
+        btm_params.disassoc_timer_btt =
+            request->params().disassoc_imminent
+                ? (request->params().disassoc_timer_ms / BEACON_TRANSMIT_TIME_MS)
+                : 0;
+        btm_params.valid_int_btt      = bss_steer_valid_int;
+        btm_params.reason             = request->params().target.reason;
+        btm_params.pref_list_included = true; // since a valid target BSSID is always assumed
+        btm_params.abridged           = request->params().abridged;
+        btm_params.disassoc_imminent  = request->params().disassoc_imminent;
 
-        LOG(DEBUG) << "CLIENT_BSS_STEER (802.11v) for sta_mac = " << sta_mac
-                   << " to bssid = " << target_bssid
-                   << " channel = " << int(request->params().target.channel);
-        ap_wlan_hal->sta_bss_steer(
-            it->first, sta_mac, target_bssid, request->params().target.operating_class,
-            request->params().target.channel,
-            (disassoc_imminent) ? (request->params().disassoc_timer_ms / BEACON_TRANSMIT_TIME_MS)
-                                : 0,
-            bss_steer_valid_int, request->params().target.reason);
+        LOG(DEBUG) << "CLIENT_BSS_STEER (802.11v) for sta_mac = "
+                   << tlvf::mac_to_string(btm_params.mac)
+                   << " to bssid = " << tlvf::mac_to_string(btm_params.bssid)
+                   << " channel = " << btm_params.chan << " op_class = " << btm_params.oper_class;
+
+        ap_wlan_hal->sta_bss_steer(btm_params);
         break;
     }
     case beerocks_message::ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST: {
@@ -3076,20 +3085,31 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
                 break;
             }
 
-            std::string sta_mac      = tlvf::mac_to_string(mgmt_frame->mac);
-            std::string target_bssid = tlvf::mac_to_string(mgmt_frame->bssid);
-            uint8_t channel          = ap_wlan_hal->get_radio_info().channel;
-            auto freq_type           = ap_wlan_hal->get_radio_info().frequency_band;
+            uint8_t channel = ap_wlan_hal->get_radio_info().channel;
+            auto freq_type  = ap_wlan_hal->get_radio_info().frequency_band;
             beerocks::WifiChannel wifi_ch(channel, freq_type,
                                           ap_wlan_hal->get_radio_info().bandwidth);
 
-            uint8_t op_class = son::wireless_utils::get_operating_class_by_channel(wifi_ch);
+            bwl::ap_wlan_hal::sBtmRequestParams btm_params;
+            btm_params.vap_id     = it->first;
+            btm_params.mac        = mgmt_frame->mac;
+            btm_params.bssid      = mgmt_frame->bssid;
+            btm_params.oper_class = son::wireless_utils::get_operating_class_by_channel(wifi_ch);
+            btm_params.chan       = channel;
+            btm_params.disassoc_timer_btt = 0;
+            btm_params.valid_int_btt      = 2;
+            btm_params.reason             = 0;
+            btm_params.pref_list_included = true; // since a valid target BSSID is always assumed
+            btm_params.abridged           = true;
+            btm_params.disassoc_imminent  = false;
 
-            LOG(DEBUG) << "CLIENT_BSS_STEER (802.11v) for sta_mac = " << sta_mac
-                       << " to bssid = " << target_bssid << " channel = " << channel
-                       << " op_class = " << op_class;
-            ap_wlan_hal->sta_bss_steer(it->first, sta_mac, target_bssid, op_class, channel, 0, 2,
-                                       0);
+            LOG(DEBUG) << "CLIENT_BSS_STEER (802.11v) for sta_mac = "
+                       << tlvf::mac_to_string(btm_params.mac)
+                       << " to bssid = " << tlvf::mac_to_string(btm_params.bssid)
+                       << " channel = " << btm_params.chan
+                       << " op_class = " << btm_params.oper_class;
+
+            ap_wlan_hal->sta_bss_steer(btm_params);
         }
     } break;
     case Event::WPA_Event_EAP_Failure:

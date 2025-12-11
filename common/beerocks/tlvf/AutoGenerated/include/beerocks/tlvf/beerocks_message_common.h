@@ -474,6 +474,7 @@ typedef struct sNodeBssSteerRequest {
     sMacAddr cur_bssid;
     uint16_t disassoc_timer_ms;
     uint8_t disassoc_imminent;
+    uint8_t abridged;
     sNodeBssSteerTarget target;
     void struct_swap(){
         mac.struct_swap();

@@ -1198,55 +1198,55 @@ bool ap_wlan_hal_dwpal::set_cce_indication(uint16_t advertise_cce)
     return true;
 }
 
-bool ap_wlan_hal_dwpal::sta_bss_steer(int8_t vap_id, const std::string &mac,
-                                      const std::string &bssid, int oper_class, int chan,
-                                      int disassoc_timer_btt, int valid_int_btt, int reason)
+bool ap_wlan_hal_dwpal::sta_bss_steer(const sBtmRequestParams &params)
 {
 
-    LOG(TRACE) << __func__ << " mac: " << mac << ", BSS: " << bssid
-               << ", oper_class: " << oper_class << ", channel: " << chan
-               << ", disassoc: " << disassoc_timer_btt << ", valid_int: " << valid_int_btt;
+    LOG(TRACE) << __func__ << " mac: " << tlvf::mac_to_string(params.mac)
+               << ", BSS: " << tlvf::mac_to_string(params.bssid)
+               << ", oper_class: " << params.oper_class << ", channel: " << params.chan
+               << ", disassoc: " << params.disassoc_timer_btt
+               << ", valid_int: " << params.valid_int_btt;
 
     // Build command string
     std::string cmd =
         // Set the STA MAC address
         "BSS_TM_REQ " +
-        mac
+        tlvf::mac_to_string(params.mac)
 
         // Transition management parameters
         + " dialog_token=" + "0" + " pref=" + "1" + " abridged=" + "1";
 
     // Divide disassoc_timer by 100, because the hostapd expects it to be in beacon interval
     // which is 100ms.
-    if (disassoc_timer_btt) {
+    if (params.disassoc_timer_btt) {
         cmd += std::string() + " disassoc_imminent=" + "1" +
-               " disassoc_timer=" + std::to_string(disassoc_timer_btt);
+               " disassoc_timer=" + std::to_string(params.disassoc_timer_btt);
     }
 
     // Add only valid (positive) reason codes
     // Upper layers may set the reason value to a (-1) value to mark that the reason is not present
-    if (reason >= 0) {
+    if (params.reason >= 0) {
         // mbo format is mbo=<reason>:<reassoc_delay>:<cell_pref>
         // since the <reassoc_delay>:<cell_pref> variables are not part of the Steering Request TLV, we hard code it.
         // See discussion here:
         // https://gitlab.com/prpl-foundation/prplmesh/prplMesh/-/merge_requests/1948#note_457733802
-        cmd += " mbo=" + std::to_string(reason);
+        cmd += " mbo=" + std::to_string(params.reason);
 
         // BTM request (MBO): Assoc retry delay is only valid in disassoc imminent mode
-        if (disassoc_timer_btt) {
+        if (params.disassoc_timer_btt) {
             cmd += ":100:0";
         } else {
             cmd += ":0:0";
         }
     }
 
-    if (valid_int_btt) {
-        cmd += " valid_int=" + std::to_string(valid_int_btt);
+    if (params.valid_int_btt) {
+        cmd += " valid_int=" + std::to_string(params.valid_int_btt);
     }
 
     // Target BSSID
-    cmd += std::string() + " neighbor=" + bssid + ",0," + std::to_string(oper_class) + "," +
-           std::to_string(chan) + ",0,255";
+    cmd += std::string() + " neighbor=" + tlvf::mac_to_string(params.bssid) + ",0," +
+           std::to_string(params.oper_class) + "," + std::to_string(params.chan) + ",0,255";
 
     // Send command
     if (!dwpal_send_cmd(cmd)) {
