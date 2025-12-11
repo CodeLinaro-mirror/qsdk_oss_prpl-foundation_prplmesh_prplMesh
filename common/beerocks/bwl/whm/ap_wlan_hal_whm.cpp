@@ -1375,16 +1375,16 @@ bool ap_wlan_hal_whm::process_radio_channel_change_event(const AmbiorixVariant *
 
     auto parameters = value->find_child("Updates");
     if (!parameters || parameters->empty()) {
-        LOG(DEBUG) << "Received event without Updates parameter";
+        LOG(ERROR) << "Received event without Updates parameter";
         return false;
     }
     std::string chan_change_reason;
     if (!parameters->read_child(chan_change_reason, "ChannelChangeReason")) {
-        LOG(DEBUG) << "Received event without ChannelChangeReason parameter" << chan_change_reason;
+        LOG(ERROR) << "Received event without ChannelChangeReason parameter" << chan_change_reason;
         return false;
     }
     if (chan_change_reason != "MANUAL" && chan_change_reason != "AUTO") {
-        LOG(DEBUG) << "chan_change_reason other than MANUAL or AUTO:" << chan_change_reason;
+        LOG(ERROR) << "chan_change_reason other than MANUAL or AUTO:" << chan_change_reason;
         return false;
     }
     event_queue_push(Event::CSA_Finished);
