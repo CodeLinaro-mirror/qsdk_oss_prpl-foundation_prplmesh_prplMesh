@@ -558,6 +558,15 @@ public:
     bool get_mac_by_ssid(const sMacAddr &ruid, const std::string &ssid, sMacAddr &value);
 
     /**
+     * @brief Get the MLD MAC of a MLO AP based on the SSID
+     *
+     * @param[in] ssid The ssid of the MLO AP.
+     * @param[out] value The MLD mac if found, else an invalid MAC (zero).
+     * @return true if the MLD mac was found, false otherwise.
+     */
+    bool get_mdl_mac_by_ssid(const std::string &ssid, sMacAddr &value);
+
+    /**
      * @brief Initialize Agent Data model.
      *
      * This method should be called in initialization state, otherwise data-model methods fail.

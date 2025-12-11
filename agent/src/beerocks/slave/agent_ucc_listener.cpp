@@ -109,6 +109,20 @@ bool agent_ucc_listener::handle_dev_get_param(std::unordered_map<std::string, st
         }
         value = tlvf::mac_to_string(mac_value);
         return true;
+    } else if (parameter == "mldaddr") {
+        if (params.find("ssid") == params.end()) {
+            value = "missing ssid";
+            return false;
+        }
+        auto ssid = params["ssid"];
+
+        if (!db->get_mdl_mac_by_ssid(ssid, mac_value)) {
+            LOG(ERROR) << " failed to find the MLD MAC for SSID " << ssid;
+            value = "MLD MAC not found for SSID " + ssid;
+            return false;
+        }
+        value = tlvf::mac_to_string(mac_value);
+        return true;
     }
     value = "parameter " + parameter + " not supported";
     return false;
