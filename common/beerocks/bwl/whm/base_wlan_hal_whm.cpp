@@ -123,11 +123,11 @@ void base_wlan_hal_whm::subscribe_to_radio_channel_change_events()
     event_handler->callback_fn = [this](AmbiorixVariant &event_data) -> void {
         std::string notif_name;
         if (!event_data.read_child(notif_name, "notification")) {
-            LOG(DEBUG) << "Received Notification  without 'notification' param!";
+            LOG(ERROR) << "Received Notification  without 'notification' param!";
             return;
         }
         if (notif_name != AMX_CL_CHANNEL_CHANGE_EVT) {
-            LOG(DEBUG) << "Received wrong Notification : " << notif_name
+            LOG(ERROR) << "Received wrong Notification : " << notif_name
                        << " instead of: " << AMX_CL_CHANNEL_CHANGE_EVT;
             return;
         }
