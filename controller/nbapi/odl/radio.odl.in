@@ -185,6 +185,43 @@
             }
         }
 
+        /**
+         * Request to set the channel on a radio. This command triggers an
+         * EasyMesh controller to send a Channel Selection Request message
+         * [Section 8.2/EasyMesh].
+         *
+         * @version 2.19
+         */
+        void ChannelSelectionRequest(
+            /**
+             * Due to ambiorix limitation the argument is wrapped around in a
+             * htable. The underlying schema is:
+             *
+             *   Class.{i}.OpClass - uint32, 0..255
+             *   Class.{i}.Channel.{i}.Channel - uint32, 0.255
+             *   Class.{i}.Channel.{i}.Preference - uint32, 0.15
+             */
+            %in htable Class,
+
+            /**
+             * Indicates the type of outcome of this command to send an AP
+             * Metrics Query Message. Enumeration of:
+             *  - Success
+             *  - Error_Invalid_Input
+             *  - Error_Timeout
+             *  - Error_Other (OPTIONAL)
+             *
+             * @version 2.19
+             */
+            %out string Status,
+
+            /**
+             * If the Status indicates any error, this field contains a string
+             * describing the error in more detail.
+             */
+            %out string X_PRPLWARE-COM_Reason
+        );
+
         object Capabilities;
 
         /**
