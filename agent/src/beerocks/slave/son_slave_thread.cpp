@@ -5322,6 +5322,8 @@ bool slave_thread::handle_client_steering_request(ieee1905_1::CmduMessageRx &cmd
                 std::get<1>(bssid_list).target_bss_channel_number;
             request_out->params().disassoc_imminent =
                 steering_request_tlv_profile2->request_flags().btm_disassociation_imminent_bit;
+            request_out->params().abridged =
+                steering_request_tlv_profile2->request_flags().btm_abridged_bit;
             request_out->params().target.reason = std::get<1>(bssid_list).target_bss_reason_code;
         } else {
             auto bssid_list = steering_request_tlv->target_bssid_list(0);
@@ -5334,6 +5336,7 @@ bool slave_thread::handle_client_steering_request(ieee1905_1::CmduMessageRx &cmd
                 std::get<1>(bssid_list).target_bss_channel_number;
             request_out->params().disassoc_imminent =
                 steering_request_tlv->request_flags().btm_disassociation_imminent_bit;
+            request_out->params().abridged = steering_request_tlv->request_flags().btm_abridged_bit;
             request_out->params().target.reason = -1; // Mark that reason is not added
         }
 

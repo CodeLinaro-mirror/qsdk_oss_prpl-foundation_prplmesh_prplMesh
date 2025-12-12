@@ -442,25 +442,32 @@ bool ap_wlan_hal_whm::sta_deauth(int8_t vap_id, const std::string &mac, uint32_t
     return true;
 }
 
-bool ap_wlan_hal_whm::sta_bss_steer(int8_t vap_id, const std::string &mac, const std::string &bssid,
-                                    int oper_class, int chan, int disassoc_timer_btt,
-                                    int valid_int_btt, int reason)
+bool ap_wlan_hal_whm::sta_bss_steer(const sBtmRequestParams &params)
 {
-    if (!check_vap_id(vap_id)) {
-        LOG(ERROR) << "invalid vap_id " << vap_id;
+    if (!check_vap_id(params.vap_id)) {
+        LOG(ERROR) << "invalid vap_id " << params.vap_id;
         return false;
     }
-    std::string ifname = m_radio_info.available_vaps[vap_id].bss;
+    std::string ifname = m_radio_info.available_vaps[params.vap_id].bss;
+
+    // Matches the bit layout expected by pwhm: pref->bit0, abr->bit1, disassoc->bit2
+    auto build_req_mode = [](bool pref, bool abr, bool disassoc) {
+        return uint8_t((pref << 0) | (abr << 1) | (disassoc << 2));
+    };
+
+    uint8_t req_mode =
+        build_req_mode(params.pref_list_included, params.abridged, params.disassoc_imminent);
 
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
-    args.add_child("mac", mac);
-    args.add_child("target", bssid);
-    args.add_child("class", oper_class);
-    args.add_child("channel", chan);
-    args.add_child("validity", valid_int_btt);
-    args.add_child("disassoc", disassoc_timer_btt);
-    args.add_child("transitionReason", reason);
+    args.add_child("mac", tlvf::mac_to_string(params.mac));
+    args.add_child("target", tlvf::mac_to_string(params.bssid));
+    args.add_child("class", params.oper_class);
+    args.add_child("channel", params.chan);
+    args.add_child("validity", params.valid_int_btt);
+    args.add_child("disassoc", params.disassoc_timer_btt);
+    args.add_child("transitionReason", params.reason);
+    args.add_child("mode", req_mode);
     auto wifi_ap_path = wbapi_utils::search_path_ap_by_iface(ifname);
     bool ret          = m_ambiorix_cl.call(wifi_ap_path, "sendBssTransferRequest", args, result);
 
