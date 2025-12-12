@@ -36,6 +36,14 @@ namespace actions {
 
 son::db *g_database = nullptr;
 
+static constexpr const char X_PRPLWARE_COM_REASON[] = "X_PRPLWARE-COM_Reason";
+
+static constexpr const char CHAN_SEL_REQ_STATUS_KEY[]                 = "Status";
+static constexpr const char CHAN_SEL_REQ_STATUS_SUCCESS[]             = "Success";
+static constexpr const char CHAN_SEL_REQ_STATUS_ERROR_INVALID_INPUT[] = "Error_Invalid_Input";
+static constexpr const char CHAN_SEL_REQ_STATUS_ERROR_TIMEOUT[]       = "Error_Timeout";
+static constexpr const char CHAN_SEL_REQ_STATUS_ERROR_OTHER[]         = "Error_Other";
+
 /*
 ** Set the number of seconds since this Associated Device was last attempted to be steered.
 */
@@ -724,6 +732,287 @@ amxd_status_t trigger_set_spatial_reuse(amxd_object_t *object, amxd_function_t *
         return amxd_status_unknown_error;
     }
 
+    return amxd_status_ok;
+}
+
+static void chan_sel_req_status(amxc_var_t *ret, const char *status, const char *reason)
+{
+    if (reason) {
+        LOG(ERROR) << reason;
+    }
+
+    amxc_var_set_type(ret, AMXC_VAR_ID_HTABLE);
+    amxc_var_add_key(cstring_t, ret, CHAN_SEL_REQ_STATUS_KEY, status);
+
+    if (reason) {
+        amxc_var_add_key(cstring_t, ret, X_PRPLWARE_COM_REASON, reason);
+    }
+}
+
+static void chan_sel_req_invalid_param(amxc_var_t *ret, const char *reason)
+{
+    chan_sel_req_status(ret, CHAN_SEL_REQ_STATUS_ERROR_INVALID_INPUT, reason);
+}
+
+static void chan_sel_req_unknown_error(amxc_var_t *ret, const char *reason)
+{
+    chan_sel_req_status(ret, CHAN_SEL_REQ_STATUS_ERROR_OTHER, reason);
+}
+
+static void chan_sel_req_success(amxc_var_t *ret)
+{
+    chan_sel_req_status(ret, CHAN_SEL_REQ_STATUS_SUCCESS, nullptr);
+}
+
+static bool chan_sel_req_get_al_mac(amxd_object_t *object, sMacAddr *al_mac,
+                                    std::stringstream *reason)
+{
+    // Device.WiFi.DataElements.Network.Device.1.Radio.1
+    //  into
+    // Device.WiFi.DataElements.Network.Device.1.ID
+
+    amxd_object_t *radio_table = amxd_object_get_parent(object);
+    if (!radio_table) {
+        *reason << "Failed to get parent of radio object";
+        return false;
+    }
+
+    amxd_object_t *device_instance = amxd_object_get_parent(radio_table);
+    if (!device_instance) {
+        *reason << "Failed to get parent of radio table object";
+        return false;
+    }
+
+    const amxc_var_t *device_id_param = amxd_object_get_param_value(device_instance, "ID");
+    if (!device_id_param) {
+        *reason << "Failed to get 'ID' parameter of device instance object";
+        return false;
+    }
+
+    const char *device_id_cstr = amxc_var_constcast(cstring_t, device_id_param);
+    if (!device_id_cstr) {
+        *reason << "Failed to get 'ID' parameter of device instance object as string";
+        return false;
+    }
+
+    *al_mac = tlvf::mac_from_string(device_id_cstr);
+    if (*al_mac == network_utils::ZERO_MAC) {
+        *reason << "AL MAC is zero, that's not expected";
+        return false;
+    }
+
+    return true;
+}
+
+static bool chan_sel_req_get_radio_mac(amxd_object_t *object, sMacAddr *radio_mac,
+                                       std::stringstream *reason)
+{
+    // Device.WiFi.DataElements.Network.Device.1.Radio.1
+    //  into
+    // Device.WiFi.DataElements.Network.Device.1.Radio.1.ID
+
+    const amxc_var_t *radio_mac_param = amxd_object_get_param_value(object, "ID");
+    if (!radio_mac_param) {
+        *reason << "Failed to get radio MAC address object";
+        return false;
+    }
+
+    const char *radio_mac_cstr = amxc_var_constcast(cstring_t, radio_mac_param);
+    if (!radio_mac_cstr) {
+        *reason << "Failed to get radio MAC address as string value";
+        return false;
+    }
+
+    *radio_mac = tlvf::mac_from_string(radio_mac_cstr);
+    if (*radio_mac == network_utils::ZERO_MAC) {
+        *reason << "Radio MAC is zero, that's not expected";
+        return false;
+    }
+
+    return true;
+}
+
+static bool chan_sel_req_parse_classes(const amxc_var_t *classes, Controller::ChanPref *preferences,
+                                       std::stringstream *reason)
+{
+    if (classes) {
+        const bool no_instances = amxc_htable_size(amxc_var_constcast(amxc_htable_t, classes)) == 0;
+        if (no_instances) {
+            *reason << "'Class' table is empty, at least one Class instance is expected";
+            return false;
+        }
+    } else {
+        // `classes` can be NULL. amxc_var_for_each() is NULL-safe. It will
+        // perform 0 iterations, as if the list is empty. That's intended. No
+        // need in allocating dummy on-stack empty htable.
+    }
+
+    amxc_var_for_each(class_instance, classes)
+    {
+        const char *class_key = amxc_var_key(class_instance);
+        if (!class_key) {
+            // Can this really happen? Probably no, but defensive null check it is.
+            *reason << "Empty class key for 'Class' instance";
+            return false;
+        }
+
+        *reason << "Class." << class_key;
+
+        const amxc_var_t *opclass_var = GET_ARG(class_instance, "OpClass");
+        if (!opclass_var) {
+            *reason << ": Missing 'OpClass' parameter";
+            return false;
+        }
+
+        const uint8_t opclass_val = amxc_var_dyncast(uint8_t, opclass_var);
+        if (!opclass_val) {
+            char *opclass_str = amxc_var_get_cstring_t(opclass_var);
+            *reason << ": Invalid 'OpClass' value" << opclass_str;
+            free(opclass_str);
+            return false;
+        }
+
+        const amxc_var_t *channels = GET_ARG(class_instance, "Channel");
+        if (!channels) {
+            *reason << ": Missing 'Channel' table";
+            return false;
+        }
+
+        const bool no_instances =
+            amxc_htable_size(amxc_var_constcast(amxc_htable_t, channels)) == 0;
+        if (no_instances) {
+            *reason << ": 'Channel' table is empty, at least one channel instance is expected";
+            return false;
+        }
+
+        amxc_var_for_each(channel_instance, channels)
+        {
+            const char *channel_key = amxc_var_key(channel_instance);
+            if (!channel_key) {
+                *reason << ": Empty channel key";
+                return false;
+            }
+
+            *reason << ".Channel." << channel_key;
+
+            const amxc_var_t *channel_num_var = GET_ARG(channel_instance, "Channel");
+            if (!channel_num_var) {
+                *reason << ": Missing 'Channel' parameter";
+                return false;
+            }
+
+            const amxc_var_t *channel_pref_var = GET_ARG(channel_instance, "Preference");
+            if (!channel_pref_var) {
+                *reason << ": Missing 'Preference' parameter";
+                return false;
+            }
+
+            const uint8_t channel_num = amxc_var_dyncast(uint8_t, channel_num_var);
+            if (!channel_num) {
+                char *channel_str = amxc_var_get_cstring_t(channel_num_var);
+                *reason << ": Invalid 'Channel' value: " << (channel_str ?: "?");
+                free(channel_str);
+                return false;
+            }
+
+            amxc_var_t casted_pref_var;
+            amxc_var_init(&casted_pref_var);
+            const int pref_convert_result =
+                amxc_var_convert(&casted_pref_var, channel_pref_var, AMXC_VAR_ID_UINT8);
+            const uint8_t pref = amxc_var_constcast(uint8_t, &casted_pref_var);
+            amxc_var_clean(&casted_pref_var);
+
+            const bool pref_convert_failed = (pref_convert_result != 0);
+            if (pref_convert_failed) {
+                char *pref_str = amxc_var_get_cstring_t(channel_pref_var);
+                *reason << ": Invalid 'Preference' value: " << (pref_str ?: "?");
+                free(pref_str);
+                return false;
+            }
+
+            constexpr const uint8_t max_pref = (uint8_t)eChannelPreferenceRankingConsts::BEST;
+            const bool pref_within_range     = (pref <= max_pref);
+            if (pref_within_range == false) {
+                *reason << ": 'Preference' value out of range: " << static_cast<int>(pref)
+                        << ", expected 0-" << static_cast<int>(max_pref);
+                return false;
+            }
+
+            const Controller::ChanPrefKey pref_key = {
+                static_cast<Controller::ChanPrefOpClass>(opclass_val),
+                static_cast<Controller::ChanPrefValue>(pref),
+            };
+            const Controller::ChanPrefChanNum channel_num_casted =
+                static_cast<Controller::ChanPrefChanNum>(channel_num);
+            (*preferences)[pref_key].push_back(channel_num_casted);
+        }
+    }
+
+    return true;
+}
+
+/**
+ * @brief Sends a Channel Selection Request with Channel Preference TLVs.
+ *
+ * Initiates setting Channel Selection parameters with the Creation TLV at the
+ * current Radio and the given parameters
+ *
+ * Example of usage from the shell:
+ * @code{.sh}
+ * $ args="Class={1={OpClass=81,Channel={1={Channel=1,Preference=1}}}}'
+ * $ ba-cli "Device.WiFi.DataElements.Network.Device.1.Radio.1.ChannelSelectionRequest($args)"
+ * @endcode
+ *
+ * @param object The DM object pointing at the Radio for which the Channel Selection Request will be sent on
+ * @param func The function context in case deferred execution is needed
+ * @param args The arguments passed from the caller, expected to contain a
+ *     "Class" htable. Output arguments `Status` and `X_PRPLWARE-COM_Reason` will
+ *     be added into this object.
+ * @param ret Not used.
+ * @return amxd_status_t amxd_status_ok always, errors are signalled through
+ *     `Status` output argument.
+ */
+amxd_status_t channel_selection_request(amxd_object_t *object, amxd_function_t *func,
+                                        amxc_var_t *args, amxc_var_t *ret)
+{
+    std::stringstream reason;
+
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        reason << "Failed to get controller context.";
+        chan_sel_req_unknown_error(args, reason.str().c_str());
+        return amxd_status_ok;
+    }
+
+    sMacAddr al_mac;
+    if (!chan_sel_req_get_al_mac(object, &al_mac, &reason)) {
+        chan_sel_req_unknown_error(args, reason.str().c_str());
+        return amxd_status_ok;
+    }
+
+    sMacAddr radio_mac;
+    if (!chan_sel_req_get_radio_mac(object, &radio_mac, &reason)) {
+        chan_sel_req_unknown_error(args, reason.str().c_str());
+        return amxd_status_ok;
+    }
+
+    Controller::ChanPref radio_preferences;
+    const amxc_var_t *classes = GET_ARG(args, "Class");
+    if (!chan_sel_req_parse_classes(classes, &radio_preferences, &reason)) {
+        chan_sel_req_invalid_param(args, reason.str().c_str());
+        return amxd_status_ok;
+    }
+
+    const Controller::ChanPrefs preferences = {
+        {radio_mac, radio_preferences},
+    };
+
+    if (!controller_ctx->trigger_channel_selection_request(al_mac, preferences)) {
+        chan_sel_req_unknown_error(args, "Controller failed to trigger channel selection request");
+        return amxd_status_ok;
+    }
+
+    chan_sel_req_success(args);
     return amxd_status_ok;
 }
 
@@ -1923,6 +2212,9 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
          btm_request},
         {"trigger_set_spatial_reuse", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.SetSpatialReuse",
          trigger_set_spatial_reuse},
+        {"channel_selection_request",
+         DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ChannelSelectionRequest",
+         channel_selection_request},
         {"update_vbss_capabilities", DATAELEMENTS_ROOT_DM ".Network.Device.UpdateVBSSCapabilities",
          update_vbss_capabilities},
         {"trigger_vbss_creation", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.TriggerVBSSCreation",

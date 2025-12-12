@@ -1246,6 +1246,64 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
     return true;
 }
 
+/**
+ * @brief add Channel Preference TLV to the given CMDU
+ *
+ * @param cmdu_tx CMDU to add the TLV to
+ * @param radio_mac Radio MAC address to add the TLV for
+ * @param radio_preferences Radio channel preferences to add to the TLVs
+ * @return true on success
+ * @return false on failure
+ */
+static bool add_chan_pref_tlv(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &radio_mac,
+                              const Controller::ChanPref &radio_preferences)
+{
+    auto chan_pref_tlv = cmdu_tx.addClass<wfa_map::tlvChannelPreference>();
+    if (!chan_pref_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvChannelPreference has failed";
+        return false;
+    }
+
+    LOG(DEBUG) << "Channel preference TLV: Radio: " << radio_mac;
+    chan_pref_tlv->radio_uid() = radio_mac;
+
+    for (const auto &chan_pref_entry : radio_preferences) {
+        const uint8_t &op_class              = chan_pref_entry.first.first;
+        const uint8_t &preference_value      = chan_pref_entry.first.second;
+        const std::vector<uint8_t> &channels = chan_pref_entry.second;
+
+        std::stringstream channels_ss;
+        for (const auto &ch : channels) {
+            channels_ss << (uint32_t)ch << " ";
+        }
+
+        LOG(DEBUG) << "Channel preference TLV:"
+                   << " Radio: " << radio_mac << " OpClass: " << op_class
+                   << " Preference: " << preference_value << " Channels: [ " << channels_ss.rdbuf()
+                   << "]";
+
+        auto op_class_list                = chan_pref_tlv->create_operating_classes_list();
+        op_class_list->operating_class()  = op_class;
+        op_class_list->flags().preference = preference_value;
+        op_class_list->flags().reason_code =
+            wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED;
+
+        if (channels.size() > 0) {
+            if (!op_class_list->set_channel_list(channels.data(), channels.size())) {
+                LOG(ERROR) << "set_channel_list failed";
+                return false;
+            }
+        }
+
+        if (!chan_pref_tlv->add_operating_classes_list(std::move(op_class_list))) {
+            LOG(ERROR) << "add_operating_classes_list() failed in tlvChannelPreference";
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static bool add_rsn_parameters_configuration_tlv(
     db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agt_mac, const sMacAddr ruid,
     const std::list<son::wireless_utils::sBssInfoConf> &bss_info_confs, beerocks::eFreqType band)
@@ -5113,6 +5171,38 @@ bool Controller::trigger_set_spatial_reuse(
                       "mac_address "
                    << tlvf::mac_to_string(agent->al_mac);
     }
+    return true;
+}
+
+bool Controller::trigger_channel_selection_request(const sMacAddr &al_mac,
+                                                   const ChanPrefs &preferences)
+{
+    LOG(DEBUG) << "Channel selection request";
+
+    const auto agent = database.get_agent(al_mac);
+    if (!agent) {
+        return false;
+    }
+
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "CMDU creation of type CHANNEL_SELECTION_REQUEST_MESSAGE, has failed";
+        return false;
+    }
+
+    for (const auto &preference_entry : preferences) {
+        const sMacAddr &radio_mac         = preference_entry.first;
+        const ChanPref &radio_preferences = preference_entry.second;
+
+        if (!add_chan_pref_tlv(cmdu_tx, radio_mac, radio_preferences)) {
+            LOG(ERROR) << "Failed to add channel preference TLV for radio " << radio_mac;
+            return false;
+        }
+    }
+
+    son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
+    LOG(DEBUG) << "send CHANNEL_SELECTION_REQUEST_MESSAGE with channel"
+               << " preferences to agent with mac_address " << agent->al_mac;
+
     return true;
 }
 

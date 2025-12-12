@@ -156,6 +156,34 @@ public:
                                    uint64_t srg_bss_color_bitmap,
                                    uint64_t srg_partial_bssid_bitmap);
 
+    using ChanPrefOpClass = uint8_t;
+    using ChanPrefValue   = uint8_t;
+    using ChanPrefChanNum = uint8_t;
+    using ChanPrefKey     = std::pair<ChanPrefOpClass, ChanPrefValue>;
+
+    struct ChanPrefKeyHash {
+        size_t operator()(const ChanPrefKey &key) const
+        {
+            const uint16_t combined =
+                (static_cast<uint16_t>(key.first) << 8) | (static_cast<uint16_t>(key.second) << 0);
+            return std::hash<uint16_t>()(combined);
+        }
+    };
+
+    using ChanPref = std::unordered_map<ChanPrefKey, std::vector<ChanPrefChanNum>, ChanPrefKeyHash>;
+    using ChanPrefRadioId = sMacAddr;
+    using ChanPrefs       = std::unordered_map<ChanPrefRadioId, ChanPref>;
+
+    /**
+     * @brief Trigger channel selection request by NBAPI.
+     *
+     * @param al_mac Mac address of the intended Agent recipient.
+     * @param channel_preferences List of channel preferences: a map keyed by RUID of Agent's radios. May include just one radio.
+     * @return true if channel selection request tiggered, false otherwise.
+     */
+    bool trigger_channel_selection_request(const sMacAddr &al_mac,
+                                           const ChanPrefs &channel_preferences);
+
     /**
      * @brief Triggers VBSS creation for the given VBSSID on the given radio/agent
      * 
