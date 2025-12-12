@@ -157,6 +157,7 @@ private:
     bool fsm_setup();
     void populate_channels_max_tx_power();
     void update_eht_capabilities();
+    void update_max_mld_links();
 
 protected:
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_rssi_event_handler;

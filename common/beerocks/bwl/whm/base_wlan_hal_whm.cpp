@@ -475,6 +475,31 @@ HALState base_wlan_hal_whm::attach(bool block)
     return (m_hal_state = HALState::Operational);
 }
 
+void base_wlan_hal_whm::update_max_mld_links()
+{
+    uint8_t ap_max_links   = 0;
+    uint8_t bsta_max_links = 0;
+    uint8_t max_num_mld    = 0;
+
+    std::string wifi_path = wbapi_utils::search_path_wifi();
+    if (wifi_path.empty()) {
+        m_ambiorix_cl.resolve_path(wbapi_utils::search_path_wifi(), wifi_path);
+    }
+
+    m_ambiorix_cl.get_param(ap_max_links, wifi_path, "APMLDMaxLinks");
+    m_radio_info.ap_maximum_links = ap_max_links;
+
+    m_ambiorix_cl.get_param(bsta_max_links, wifi_path, "BSTAMLDMaxLinks");
+    m_radio_info.bsta_maximum_links = bsta_max_links;
+
+    m_ambiorix_cl.get_param(max_num_mld, wifi_path, "MaxNumMLDs");
+    m_radio_info.max_num_mlds = max_num_mld;
+
+    LOG(DEBUG) << "[ Max AP MLD Links " << m_radio_info.ap_maximum_links << "\t"
+               << ", Max bSTA MLD Links =" << m_radio_info.bsta_maximum_links << "\t"
+               << ", Max num of MLDs =" << m_radio_info.max_num_mlds << "]\n";
+}
+
 void base_wlan_hal_whm::update_eht_capabilities()
 {
 
@@ -936,6 +961,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
 
     if (m_radio_info.eht_supported) {
         update_eht_capabilities();
+        update_max_mld_links();
     }
 
     if (radio->read_child(s_val, "ExtensionChannel")) {

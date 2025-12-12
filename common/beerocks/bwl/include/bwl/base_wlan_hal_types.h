@@ -232,6 +232,9 @@ struct RadioInfo {
         bool emlmr_support = false;
     } sMloModesSupport;
     sMloModesSupport ap_modes_support, bsta_modes_support;
+    uint8_t max_num_mlds       = 0;
+    uint8_t ap_maximum_links   = 0;
+    uint8_t bsta_maximum_links = 0;
 };
 
 struct hal_conf_t {
