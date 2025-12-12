@@ -133,6 +133,18 @@ bool AgentDB::get_mac_by_ssid(const sMacAddr &ruid, const std::string &ssid, sMa
     return false;
 }
 
+bool AgentDB::get_ap_mld_mac_by_ssid(const std::string &ssid, sMacAddr &value)
+{
+    value = net::network_utils::ZERO_MAC;
+    for (auto &ap_mld_conf : ap_mld_configurations) {
+        if (ap_mld_conf.mld_config.mld_ssid == ssid) {
+            value = ap_mld_conf.mld_config.mld_mac;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool AgentDB::init_data_model(std::shared_ptr<beerocks::nbapi::Ambiorix> dm)
 {
     LOG_IF(!dm, FATAL) << "Ambiorix datamodel not specified";
