@@ -179,6 +179,13 @@ private:
     std::unordered_set<std::string> m_unassociated_stations;
 
     /**
+     * Set to true when CAC fails (success == 0). In this case, the next
+     * DFS-triggered channel change event is accepted and processed instead
+     * of being ignored.
+     */
+    bool m_accept_dfs_channel_change_after_cac_failure = false;
+
+    /**
      * @brief Process event "wpaCtrlEvents"
      */
     bool process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data) override;

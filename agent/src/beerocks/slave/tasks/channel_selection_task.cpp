@@ -567,9 +567,12 @@ void ChannelSelectionTask::handle_vs_csa_notification(
 
     LOG(TRACE) << "received ACTION_BACKHAUL_HOSTAP_CSA_NOTIFICATION from " << sender_iface_name;
 
-    if (!is_waiting_for_csa_notification(radio->front.iface_mac)) {
-        send_operating_channel_report(radio->front.iface_mac);
-        // unsolicited OPERATING_CHANNEL_REPORT
+    const bool waiting = is_waiting_for_csa_notification(radio->front.iface_mac);
+    const bool is_radar =
+        (notification->cs_params().switch_reason == beerocks::CH_SWITCH_REASON_RADAR);
+
+    if (!waiting && !is_radar) {
+        send_operating_channel_report(radio->front.iface_mac); // unsolicited OCR
     }
 
     // send inner task message
@@ -587,8 +590,7 @@ void ChannelSelectionTask::handle_vs_csa_notification(
 
     // Clear the m_pending_preference struct and m_pending_selection struct
     // if there are no pending selection request/preference query
-    if (!m_pending_preference.mid && !m_pending_selection.mid &&
-        notification->cs_params().switch_reason == beerocks::CH_SWITCH_REASON_RADAR) {
+    if (!m_pending_preference.mid && !m_pending_selection.mid && is_radar) {
 
         // Clear and set the specific radio in the the preference ready map.
         m_pending_preference.preference_ready.clear();
@@ -821,19 +823,13 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
     }
 
     const auto &sender_iface_name = radio->front.iface_name;
+    const auto radio_mac          = radio->front.iface_mac;
 
     LOG(TRACE) << "received ACTION_BACKHAUL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION from "
                << sender_iface_name << ", status=" << notification->params().success;
 
-    /**
-     * The Controller is not familiar with ZWDFS radio interface, so
-     * avoid sending CMDU to the controller when the radio
-     * interface is a ZWDFS radio interface.
-     */
-    if (!radio->front.zwdfs) {
-        send_operating_channel_report(radio->front.iface_mac);
-        // unsolicited OPERATING_CHANNEL_REPORT
-    }
+    // success == 1 means CAC completed normally, otherwise it was interrupted (e.g. due to radar)
+    const bool cac_success = (notification->params().success == 1);
 
     // send inner task message
     auto cac_completed_notification = std::make_shared<sCacCompletedNotification>();
@@ -847,16 +843,36 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
     m_btl_ctx.m_task_pool.send_event(eTaskEvent::CAC_COMPLETED_NOTIFICATION,
                                      cac_completed_notification);
 
-    // Clear the m_pending_preference struct and m_pending_selection struct
-    // if there are no pending selection request/preference query
-    if (!m_pending_preference.mid && !m_pending_selection.mid) {
-        // Clear and set the specific radio in the the preference ready map.
-        m_pending_preference.preference_ready.clear();
-        m_pending_preference.preference_ready[radio->front.iface_mac] = false;
+    if (m_pending_preference.mid || m_pending_selection.mid) {
+        LOG(DEBUG) << "Pending selection/preference exists, skip unsolicited CPR for CAC completed "
+                   << "on radio " << tlvf::mac_to_string(radio_mac);
+    } else if (!radio->front.zwdfs && cac_success) {
 
-        // Set to true to trigger the Channel Preference Report to the Controller
-        m_send_preference_report_after_cac_completion_event = true;
+        /**
+         * If CAC succeeded, send an unsolicited Channel Preference Report (CPR) here.
+         * If CAC failed, a channel change event will follow (likely due to radar).
+         * In that case, CPR and OCR will be sent later during CSA_Finished handling.
+         */
+        m_pending_preference.preference_ready.clear();
+        m_pending_preference.preference_ready[radio_mac] = false;
+        m_pending_preference.mid                         = cmdu_rx.getMessageId();
+
+        // Build and send CPR. No need to return on error
+        if (!build_channel_preference_report(radio_mac)) {
+            LOG(ERROR) << "Failed to build channel preference report for radio "
+                       << tlvf::mac_to_string(radio_mac);
+        } else if (channel_preference_report_ready()) {
+            if (!send_channel_preference_report()) {
+                LOG(ERROR) << "Failed to send CHANNEL_PREFERENCE_REPORT_MESSAGE "
+                           << "for radio " << tlvf::mac_to_string(radio_mac);
+            }
+        }
+
+        m_pending_preference.mid = 0;
+        m_pending_preference.preference_ready.clear();
     }
+
+    m_send_preference_report_after_cac_completion_event = !cac_success;
 
     if (m_zwdfs_state == eZwdfsState::WAIT_FOR_ZWDFS_CAC_COMPLETED) {
         db->statuses.zwdfs_cac_remaining_time_sec = 0;
@@ -887,6 +903,7 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
     } else if (is_there_a_pending_preference || m_send_preference_report_after_cac_started_event ||
                m_send_preference_report_after_cac_completion_event ||
                m_send_preference_report_after_csa_finished_event) {
+
         // If there is a pending preference query, need to build a preference report
         build_channel_preference_report(radio_mac);
 
@@ -896,6 +913,11 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
             // Need to send the preference report back to the controller
             if (!send_channel_preference_report()) {
                 LOG(ERROR) << "Failed to send the CHANNEL_PREFERENCE_REPORT_MESSAGE!";
+            }
+
+            if (m_send_preference_report_after_cac_completion_event ||
+                m_send_preference_report_after_csa_finished_event) {
+                send_operating_channel_report(radio_mac);
             }
 
             // Clear the pending preference MID.
