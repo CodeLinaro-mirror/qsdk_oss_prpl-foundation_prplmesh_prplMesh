@@ -224,6 +224,7 @@ struct RadioInfo {
     std::unordered_map<int, VAPElement> available_vaps; // key = vap_id
 
     uint8_t radio_max_bss_supported = 0;
+    bool rsn_override_support       = false;
     std::string chipset_vendor;
     typedef struct {
         bool str_support   = false;

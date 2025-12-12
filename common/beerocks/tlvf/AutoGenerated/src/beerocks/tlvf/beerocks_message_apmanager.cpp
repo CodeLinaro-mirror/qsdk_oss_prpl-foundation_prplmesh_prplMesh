@@ -288,6 +288,7 @@ std::shared_ptr<cChannelList> cACTION_APMANAGER_JOINED_NOTIFICATION::create_chan
     }
     m_vap_list = (sVapsList *)((uint8_t *)(m_vap_list) + len);
     m_radio_max_bss = (uint8_t *)((uint8_t *)(m_radio_max_bss) + len);
+    m_radio_rsn_override_support = (uint8_t *)((uint8_t *)(m_radio_rsn_override_support) + len);
     return std::make_shared<cChannelList>(src, getBuffRemainingBytes(src), m_parse__);
 }
 
@@ -313,6 +314,7 @@ bool cACTION_APMANAGER_JOINED_NOTIFICATION::add_channel_list(std::shared_ptr<cCh
     size_t len = ptr->getLen();
     m_vap_list = (sVapsList *)((uint8_t *)(m_vap_list) + len - ptr->get_initial_size());
     m_radio_max_bss = (uint8_t *)((uint8_t *)(m_radio_max_bss) + len - ptr->get_initial_size());
+    m_radio_rsn_override_support = (uint8_t *)((uint8_t *)(m_radio_rsn_override_support) + len - ptr->get_initial_size());
     m_channel_list_ptr = ptr;
     if (!buffPtrIncrementSafe(len)) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
@@ -328,6 +330,10 @@ sVapsList& cACTION_APMANAGER_JOINED_NOTIFICATION::vap_list() {
 
 uint8_t& cACTION_APMANAGER_JOINED_NOTIFICATION::radio_max_bss() {
     return (uint8_t&)(*m_radio_max_bss);
+}
+
+uint8_t& cACTION_APMANAGER_JOINED_NOTIFICATION::radio_rsn_override_support() {
+    return (uint8_t&)(*m_radio_rsn_override_support);
 }
 
 void cACTION_APMANAGER_JOINED_NOTIFICATION::class_swap()
@@ -373,6 +379,7 @@ size_t cACTION_APMANAGER_JOINED_NOTIFICATION::get_initial_size()
     class_size += sizeof(sApChannelSwitch); // cs_params
     class_size += sizeof(sVapsList); // vap_list
     class_size += sizeof(uint8_t); // radio_max_bss
+    class_size += sizeof(uint8_t); // radio_rsn_override_support
     return class_size;
 }
 
@@ -415,6 +422,11 @@ bool cACTION_APMANAGER_JOINED_NOTIFICATION::init()
     }
     if (!m_parse__) { m_vap_list->struct_init(); }
     m_radio_max_bss = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_radio_rsn_override_support = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;

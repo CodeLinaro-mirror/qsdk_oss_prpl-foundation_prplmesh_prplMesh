@@ -33,6 +33,11 @@ class NbapiAssociationEvent(PrplMeshBaseTest):
             raise SkipTest(ae)
 
         self.dev.DUT.wired_sniffer.start(self.__class__.__name__ + "-" + self.dev.DUT.name)
+
+        debug("roll logs for controller")
+        controller.command("killall", "-SIGUSR1", "beerocks_controller")
+        self.checkpoint()
+
         self.configure_ssids(["NbapiAssociationEvent"])
         time.sleep(3)
 

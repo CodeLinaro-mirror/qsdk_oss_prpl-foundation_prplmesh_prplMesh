@@ -285,6 +285,10 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
     g_database->clear_mld_info_configuration();
 
     if (network_enable) {
+
+        // TODO: centralize bss_index generation and propagation across different TLVs (PPM-3625)
+        uint8_t bss_index_generator = 1;
+
         amxd_object_for_each(instance, it, access_point)
         {
             amxd_object_t *access_point_inst = amxc_llist_it_get_data(it, amxd_object_t, it);
@@ -367,6 +371,15 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 }
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+            } else if (mode_enabled == "WPA3-Personal-Compatibility") {
+                bss_info.network_key = get_param_string(security_inst, "KeyPassphrase");
+                if (bss_info.network_key.empty()) {
+                    bss_info.network_key = get_param_string(security_inst, "SAEPassphrase");
+                }
+                bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_RSN;
+                bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+                bss_info.additional_auth =
+                    son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
             } else {
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_OPEN;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_NONE;
@@ -396,6 +409,7 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 bss_info.mld_id = std::to_string(mld_unit);
                 LOG(DEBUG) << " Set bss_info.mld_id='" << bss_info.mld_id << "'";
             }
+            bss_info.bss_index = bss_index_generator++;
             g_database->add_bss_info_configuration(bss_info);
         }
     }

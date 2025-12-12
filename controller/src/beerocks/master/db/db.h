@@ -2116,9 +2116,14 @@ public:
 
     /**
      * @brief Store a BSS configured on the given radio.
+     * will create a copy of bss_info
+     *
+     * @param [in] ruid - radio to which this config is expected to be applied
+     * @param [in] bss_info - an instance of sBssInfoConf, everything needed to fill an WSC M2 TLV
+     * @return reference to the fresh copy of bss_info
      */
-    void add_configured_bss_info(const sMacAddr &ruid,
-                                 const wireless_utils::sBssInfoConf &bss_info);
+    wireless_utils::sBssInfoConf &
+    add_configured_bss_info(const sMacAddr &ruid, const wireless_utils::sBssInfoConf &bss_info);
 
     /**
      * @brief Get the list of BSS configured on a given radio.
