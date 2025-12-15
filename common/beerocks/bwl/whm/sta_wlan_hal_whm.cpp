@@ -502,7 +502,7 @@ bool sta_wlan_hal_whm::disconnect()
         return false;
     }
 
-    if (remove_profile(m_active_profile_id)) {
+    if (!remove_profile(m_active_profile_id)) {
         LOG(ERROR) << "Failed to disconnect profile " << m_active_profile_id;
         return false;
     }
@@ -712,7 +712,7 @@ int sta_wlan_hal_whm::remove_profile(int profile_id)
     if (!ret) {
         LOG(ERROR) << "Failed to remove profile instance with id:" << profile_id;
     }
-    return profile_id;
+    return ret;
 }
 
 bool sta_wlan_hal_whm::set_profile_params(const Profile &profile)
