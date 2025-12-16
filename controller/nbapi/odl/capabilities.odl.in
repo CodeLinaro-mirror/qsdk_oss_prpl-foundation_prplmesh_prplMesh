@@ -157,5 +157,70 @@
             %read-only string VBSSIDFixedBitsMask;
             %read-only string VBSSIDFixedBitsValue;
         }
+
+        %read-only object WiFi7APRole {
+            %read-only bool EMLMRSupport;
+            %read-only bool EMLSRSupport;
+            %read-only bool STRSupport;
+            %read-only bool NSTRSupport;
+            %read-only bool TIDLinkMapNegotiation;
+
+            %read-only object EMLMRFreqSeparation[] {
+                counted with EMLMRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+
+            %read-only object EMLSRFreqSeparation[] {
+                counted with EMLSRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+
+            %read-only object STRFreqSeparation[] {
+                counted with STRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+
+            %read-only object NSTRFreqSeparation[] {
+                counted with NSTRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+
+        }
+
+        %read-only object WiFi7bSTARole {
+            %read-only bool EMLMRSupport;
+            %read-only bool EMLSRSupport;
+            %read-only bool STRSupport;
+            %read-only bool NSTRSupport;
+            %read-only bool TIDLinkMapNegotiation;
+
+            %read-only object EMLMRFreqSeparation[] {
+                counted with EMLMRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+
+            %read-only object EMLSRFreqSeparation[] {
+                counted with EMLSRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+
+            %read-only object STRFreqSeparation[] {
+                counted with STRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+
+            %read-only object NSTRFreqSeparation[] {
+                counted with NSTRFreqSeparationNumberOfEntries;
+                %read-only string RUID;
+                %read-only uint32 FreqSeparation;
+            }
+        }
     }
 }
