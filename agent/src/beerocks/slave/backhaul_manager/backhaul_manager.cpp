@@ -64,6 +64,11 @@ constexpr auto fsm_timer_period = std::chrono::milliseconds(500);
 constexpr auto backhaul_steering_timeout = std::chrono::milliseconds(10000);
 
 /**
+ * Retry interval for Backhaul Steering scan.
+ */
+constexpr auto backhaul_steering_scan_retry = std::chrono::milliseconds(1000);
+
+/**
  * Timeout to process a "dev_reset_default" WFA-CA command.
  */
 constexpr auto dev_reset_default_timeout = std::chrono::seconds(UCC_REPLY_COMPLETE_TIMEOUT_SEC);
@@ -2058,6 +2063,44 @@ bool BackhaulManager::send_slaves_tear_down()
     return true;
 }
 
+bool BackhaulManager::retry_steer_scan()
+{
+    if (m_backhaul_steering_scan_retry_timer != beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(DEBUG) << "Removing existing backhaul steering scan retry timer";
+        m_timer_manager->remove_timer(m_backhaul_steering_scan_retry_timer);
+    }
+
+    m_backhaul_steering_scan_retry_timer = m_timer_manager->add_timer(
+        "Backhaul Steering Scan Retry", backhaul_steering_scan_retry,
+        std::chrono::milliseconds::zero(), [&](int fd, beerocks::EventLoop &loop) {
+            auto iface_hal = get_wireless_hal(m_backhaul_steering_iface);
+            if (!iface_hal) {
+                LOG(ERROR) << "Failed to get iface_hal for iface " << m_backhaul_steering_iface
+                           << " to restart steering scan";
+                return true;
+            }
+
+            const bool scan_started =
+                iface_hal->scan_bss(m_backhaul_steering_bssid, m_backhaul_steering_channel.first,
+                                    m_backhaul_steering_channel.second);
+            if (!scan_started) {
+                LOG(ERROR) << "Failed to restart steering scan on iface "
+                           << m_backhaul_steering_iface;
+                return true;
+            }
+
+            return true;
+        });
+
+    if (m_backhaul_steering_scan_retry_timer == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "Failed to create backhaul steering scan retry timer";
+        return false;
+    }
+
+    LOG(DEBUG) << "Created backhaul steering scan retry timer";
+    return false;
+}
+
 bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr,
                                         std::string iface)
 {
@@ -2133,6 +2176,11 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
 
             m_backhaul_steering_bssid = beerocks::net::network_utils::ZERO_MAC;
             m_timer_manager->remove_timer(m_backhaul_steering_timer);
+
+            if (m_backhaul_steering_scan_retry_timer !=
+                beerocks::net::FileDescriptor::invalid_descriptor) {
+                m_timer_manager->remove_timer(m_backhaul_steering_scan_retry_timer);
+            }
 
             create_backhaul_steering_response(wfa_map::tlvErrorCode::eReasonCode::RESERVED, bssid);
 
@@ -2339,6 +2387,25 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             auto active_hal = get_wireless_hal();
             if (!active_hal) {
                 LOG(ERROR) << "Couldn't get active HAL";
+                return false;
+            }
+
+            // Scanning can sometimes fail to discover the target BSSID. It
+            // makes sense to retry it before trying to commit and/or try doing
+            // the impossible.
+            std::vector<bwl::sScanResult> bsses;
+            const int bsses_count =
+                iface_hal->get_scan_results(db->device_conf.back_radio.ssid, bsses);
+            const bool bssid_found =
+                std::find_if(bsses.begin(), bsses.end(), [&](const bwl::sScanResult &bss) {
+                    return m_backhaul_steering_bssid == bss.bssid;
+                }) != bsses.end();
+
+            if (!bssid_found) {
+                LOG(WARNING) << "BSSID " << m_backhaul_steering_bssid
+                             << " not found in scan results (count=" << bsses_count << ")"
+                             << ". Scheduling another scan.";
+                retry_steer_scan();
                 return false;
             }
 
@@ -3101,6 +3168,10 @@ void BackhaulManager::cancel_backhaul_steering_operation()
     m_backhaul_steering_channel = {0, eFreqType::FREQ_UNKNOWN};
 
     m_timer_manager->remove_timer(m_backhaul_steering_timer);
+
+    if (m_backhaul_steering_scan_retry_timer != beerocks::net::FileDescriptor::invalid_descriptor) {
+        m_timer_manager->remove_timer(m_backhaul_steering_scan_retry_timer);
+    }
 }
 
 std::string BackhaulManager::freq_to_radio_mac(eFreqType freq) const
