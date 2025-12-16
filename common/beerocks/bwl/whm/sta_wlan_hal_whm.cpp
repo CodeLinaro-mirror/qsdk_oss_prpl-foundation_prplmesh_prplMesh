@@ -425,6 +425,21 @@ bool sta_wlan_hal_whm::connect(const std::string &ssid, const std::string &pass,
         return false;
     }
 
+    // The underlying driver may not be smart enough to handle gracefully a
+    // case where the target BSS is on another channel. Even if it does, this
+    // shouldn't hurt. This is best-effort because it doesn't wait either.
+    const auto channel_number = channel.first;
+    if (channel_number) {
+        AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
+        params.add_child("Channel", channel_number);
+        const bool ok = m_ambiorix_cl.update_object(m_radio_path, params);
+        if (!ok) {
+            LOG(ERROR) << "Failed to set channel " << int(channel_number)
+                       << " on radio: " << m_radio_path
+                       << ", expect connection issues";
+        }
+    }
+
     // Set profile
     Profile profile = {-1, "prplMesh", ssid, bssid, sec, mem_only_psk, pass, hidden_ssid, channel};
     if (!set_profile(profile)) {
