@@ -12,6 +12,8 @@
 #include <bcl/network/swap.h>
 
 #include <arpa/inet.h>
+#include <cerrno>
+#include <cstring>
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
@@ -42,6 +44,8 @@ using namespace beerocks::net;
 #define IPV4_ADDR_CHAR_SIZE 15
 #define MAX_FDB_ENTRIES 128
 
+namespace {
+
 struct route_info {
     struct in_addr dstAddr;
     struct in_addr srcAddr;
@@ -49,6 +53,21 @@ struct route_info {
     char ifName[IF_NAMESIZE];
 };
 
+/*
+ *  @brief Simple RAII protection for descriptor to prevent leaks if early return or anything else
+ */
+struct FdGuard {
+    explicit FdGuard(int fd_) : fd(fd_) {}
+    ~FdGuard()
+    {
+        if (fd >= 0)
+            close(fd);
+    }
+    int fd;
+    FdGuard(const FdGuard &) = delete;
+    FdGuard &operator=(const FdGuard &) = delete;
+};
+} // namespace
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Fucntions ///////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -602,42 +621,59 @@ bool network_utils::linux_add_iface_to_bridge(const std::string &bridge, const s
 {
     LOG(DEBUG) << "add iface " << iface << " to bridge " << bridge;
 
-    struct ifreq ifr;
-    int err;
-    unsigned long ifindex = if_nametoindex(iface.c_str());
+    // Early exit: already correct.
+    if (linux_get_iface_state_from_bridge(bridge, iface) >= 0) {
+        LOG(WARNING) << "iface " << iface << " is already in bridge " << bridge;
+        return true;
+    }
+
+    struct ifreq ifr {
+    };
+    int err = 0;
+
+    const auto ifindex = linux_get_iface_index(iface);
     if (ifindex == 0) {
         LOG(ERROR) << "invalid iface index=" << ifindex << " for " << iface;
         return false;
     }
 
-    int br_socket_fd;
-    if ((br_socket_fd = socket(AF_LOCAL, SOCK_STREAM, 0)) < 0) {
-        LOG(ERROR) << "can't open br_socket_fd";
+    const int fd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (fd < 0) {
+        LOG(ERROR) << "can't open br_socket_fd: errno=" << errno << " (" << strerror(errno) << ")";
         return false;
     }
 
     string_utils::copy_string(ifr.ifr_name, bridge.c_str(), IFNAMSIZ);
+
 #ifdef SIOCBRADDIF
-    ifr.ifr_ifindex = ifindex;
-    err             = ioctl(br_socket_fd, SIOCBRADDIF, &ifr);
+    ifr.ifr_ifindex = static_cast<int>(ifindex);
+    err             = ioctl(fd, SIOCBRADDIF, &ifr);
     if (err < 0)
 #endif
     {
-        unsigned long args[4] = {BRCTL_ADD_IF, ifindex, 0, 0};
-
-        ifr.ifr_data = (char *)args;
-        err          = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
+        unsigned long args[4] = {BRCTL_ADD_IF, static_cast<unsigned long>(ifindex), 0, 0};
+        ifr.ifr_data          = reinterpret_cast<char *>(args);
+        err                   = ioctl(fd, SIOCDEVPRIVATE, &ifr);
     }
 
-    close(br_socket_fd);
-    return err < 0 ? false : true;
-    /*
-    std::string cmd;
-    cmd = "brctl addif " + bridge + " " + iface;
-    system(cmd.c_str());
-    LOG(DEBUG) << cmd;
-    return true;
-    */
+    const int saved_errno = (err < 0) ? errno : 0;
+    close(fd);
+
+    if (err >= 0) {
+        return true;
+    }
+
+    // Classification: if already correct -> warn + succeed.
+    if (linux_get_iface_state_from_bridge(bridge, iface) >= 0) {
+        LOG(WARNING) << "failed to add iface " << iface << " to bridge " << bridge
+                     << " (errno=" << saved_errno << " - " << strerror(saved_errno)
+                     << "), but configuration is already correct";
+        return true;
+    }
+
+    LOG(ERROR) << "failed to add iface " << iface << " to bridge " << bridge
+               << " (errno=" << saved_errno << " - " << strerror(saved_errno) << ")";
+    return false;
 }
 
 bool network_utils::linux_remove_iface_from_bridge(const std::string &bridge,
@@ -645,43 +681,59 @@ bool network_utils::linux_remove_iface_from_bridge(const std::string &bridge,
 {
     LOG(DEBUG) << "remove iface " << iface << " from bridge " << bridge;
 
-    struct ifreq ifr;
-    int err;
-    unsigned long ifindex = if_nametoindex(iface.c_str());
+    // Early exit: already correct (not in this bridge).
+    if (linux_get_iface_state_from_bridge(bridge, iface) < 0) {
+        LOG(WARNING) << "iface " << iface << " is already not in bridge " << bridge;
+        return true;
+    }
 
+    struct ifreq ifr {
+    };
+    int err = 0;
+
+    const auto ifindex = linux_get_iface_index(iface);
     if (ifindex == 0) {
         LOG(ERROR) << "invalid iface index=" << ifindex << " for " << iface;
         return false;
     }
 
-    int br_socket_fd;
-    if ((br_socket_fd = socket(AF_LOCAL, SOCK_STREAM, 0)) < 0) {
-        LOG(ERROR) << "can't open br_socket_fd";
+    const int fd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (fd < 0) {
+        LOG(ERROR) << "can't open br_socket_fd: errno=" << errno << " (" << strerror(errno) << ")";
         return false;
     }
 
     string_utils::copy_string(ifr.ifr_name, bridge.c_str(), IFNAMSIZ);
+
 #ifdef SIOCBRDELIF
-    ifr.ifr_ifindex = ifindex;
-    err             = ioctl(br_socket_fd, SIOCBRDELIF, &ifr);
+    ifr.ifr_ifindex = static_cast<int>(ifindex);
+    err             = ioctl(fd, SIOCBRDELIF, &ifr);
     if (err < 0)
 #endif
     {
-        unsigned long args[4] = {BRCTL_DEL_IF, ifindex, 0, 0};
-
-        ifr.ifr_data = (char *)args;
-        err          = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
+        unsigned long args[4] = {BRCTL_DEL_IF, static_cast<unsigned long>(ifindex), 0, 0};
+        ifr.ifr_data          = reinterpret_cast<char *>(args);
+        err                   = ioctl(fd, SIOCDEVPRIVATE, &ifr);
     }
 
-    close(br_socket_fd);
-    return err < 0 ? false : true;
-    /*
-    std::string cmd;
-    cmd = "brctl delif " + bridge + " " + iface;
-    system(cmd.c_str());
-    LOG(DEBUG) << cmd;
-    return true;
-    */
+    const int saved_errno = (err < 0) ? errno : 0;
+    close(fd);
+
+    if (err >= 0) {
+        return true;
+    }
+
+    // Classification: if already correct -> warn + succeed.
+    if (linux_get_iface_state_from_bridge(bridge, iface) < 0) {
+        LOG(WARNING) << "failed to remove iface " << iface << " from bridge " << bridge
+                     << " (errno=" << saved_errno << " - " << strerror(saved_errno)
+                     << "), but configuration is already correct";
+        return true;
+    }
+
+    LOG(ERROR) << "failed to remove iface " << iface << " from bridge " << bridge
+               << " (errno=" << saved_errno << " - " << strerror(saved_errno) << ")";
+    return false;
 }
 
 bool network_utils::linux_iface_ctrl(const std::string &iface, bool up, std::string ip,
