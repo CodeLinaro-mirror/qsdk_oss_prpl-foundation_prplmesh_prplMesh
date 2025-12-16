@@ -208,6 +208,7 @@ bool sta_wlan_hal_whm::process_scan_complete_event(const std::string &result)
 
     if (result == "error") {
         LOG(DEBUG) << " received ScanComplete event with Error indication!";
+        event_queue_push(Event::ScanFailed);
         m_scan_active = false;
         return false;
     }
