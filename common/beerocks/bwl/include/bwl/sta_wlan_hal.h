@@ -31,6 +31,7 @@ public:
         Terminating,
         Affiliated_Link_Connected,
         ScanResults,
+        ScanFailed,
         ChannelSwitch,
 
         STA_Unassoc_RSSI,

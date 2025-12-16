@@ -2368,6 +2368,19 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
 
     } break;
 
+    case Event::ScanFailed: {
+        if (FSM_IS_IN_STATE(WAIT_WPS)) {
+            return true;
+        }
+        if (FSM_IS_IN_STATE(OPERATIONAL) &&
+            m_backhaul_steering_bssid != beerocks::net::network_utils::ZERO_MAC) {
+
+            LOG(DEBUG) << "Received scan failed while a steering bssid is set. Scheduling another scan";
+            return retry_steer_scan();
+        }
+
+    } break;
+
     case Event::ScanResults: {
         if (FSM_IS_IN_STATE(WAIT_WPS)) {
             return true;
