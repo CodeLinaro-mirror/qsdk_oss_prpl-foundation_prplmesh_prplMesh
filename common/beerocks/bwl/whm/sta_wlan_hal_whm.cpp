@@ -319,7 +319,7 @@ bool sta_wlan_hal_whm::scan_bss(const sMacAddr &bssid, uint8_t channel,
             false; // if for some reasons, no scan is active, stopScan will return error, thus the need to reset m_scan_active
     }
 
-    const auto channel_str = std::to_string(channel);
+    const auto channel_str = std::to_string(channel) + ",";
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("BSSID", tlvf::mac_to_string(bssid));
