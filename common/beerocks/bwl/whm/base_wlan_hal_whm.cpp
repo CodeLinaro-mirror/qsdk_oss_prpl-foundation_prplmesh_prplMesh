@@ -38,8 +38,10 @@ base_wlan_hal_whm::base_wlan_hal_whm(HALType type, const std::string &iface_name
       m_iso_nl80211_client(nl80211_client_factory::create_instance())
 {
 
-    LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_USP_BACKEND_PATH, AMBIORIX_PWHM_USP_BACKEND_URI), FATAL)
+    LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_WBAPI_BACKEND_PATH, AMBIORIX_WBAPI_BUS_URI), FATAL)
         << "Unable to connect to the ambiorix backend!";
+    //LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_USP_BACKEND_PATH, AMBIORIX_PWHM_USP_BACKEND_URI), FATAL)
+        //<< "Unable to connect to the ambiorix backend!";
 
     m_fds_ext_events.clear();
     m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(iface_name), m_radio_path);
