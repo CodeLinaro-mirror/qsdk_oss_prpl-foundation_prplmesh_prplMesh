@@ -1527,7 +1527,8 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
             }
 
             if (m8) {
-                send_bsta_configuration(radio->front.iface_mac, bsta_info);
+                // Disable m8 reconfiguration
+                // send_bsta_configuration(radio->front.iface_mac, bsta_info);
             } else if (db->controller_info.early_ap_capability) {
                 send_enable_disable_endpoint(radio->front.iface_mac, false);
             }
