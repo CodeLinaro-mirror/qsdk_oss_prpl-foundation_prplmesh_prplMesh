@@ -298,6 +298,7 @@ private:
     bool select_bssid();
     void platform_notify_error(bpl::eErrorCode code, const std::string &error_data);
     bool send_slaves_enable();
+    bool retry_steer_scan();
 
     /**
      * @brief Tears down all VAPs in all radios.
@@ -524,6 +525,11 @@ private:
      * File descriptor of the timer to check if a backhaul steering request timed out.
      */
     int m_backhaul_steering_timer = beerocks::net::FileDescriptor::invalid_descriptor;
+
+    /**
+     * File descriptor of the timer to retry backhaul steering scan.
+      */
+    int m_backhaul_steering_scan_retry_timer = beerocks::net::FileDescriptor::invalid_descriptor;
 
     /*
  * State Machines
