@@ -514,7 +514,10 @@ bool mon_wlan_hal_whm::channel_scan_dump_cached_results()
 
         results.channel = std::stoul(map["Channel"]);
 
-        WifiChannel wifi_channel(results.channel, center_channel,
+        uint16_t center_frequency = son::wireless_utils::channel_to_vht_center_freq(
+            center_channel, utils::convert_bandwidth_to_enum(bandwidth), false);
+
+        WifiChannel wifi_channel(results.channel, center_frequency,
                                  utils::convert_bandwidth_to_enum(bandwidth));
         results.operating_frequency_band =
             utils_wlan_hal_whm::eFreqType_to_eCh_scan_Op_Fr_Ba(wifi_channel.get_freq_type());
