@@ -60,10 +60,28 @@ else
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth0_2"
 fi
 
+ba-cli WiFi.Radio.*.RegulatoryDomain="US"
+
+# Configure Operating Standards
+ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
+
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
+
+# Drop all iptables rules (Guest TS)
+iptables -F && iptables -X && iptables -P INPUT ACCEPT && iptables -P OUTPUT ACCEPT && iptables -P FORWARD ACCEPT
+
+# Disable rp_filter
+sysctl -w net.ipv4.conf.br-guest.rp_filter=0
+sysctl -w net.ipv4.conf.all.rp_filter=0
+
+# Increase inactivity timeout
+printf 'protected\nWiFi.AccessPoint.*.StaInactivityTimeout=1500\nexit\n' | ba-cli
 
 # Make sure specific channels are configured. If channel is set to 0,
 # ACS will be configured. If ACS is configured hostapd will refuse to
@@ -97,9 +115,13 @@ ba-cli "WiFi.set_trace_zone(zone=mxlRad, level=500)"
 # Reduce DWELL time of channel scans to 20ms
 printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
 
-#iw dev wlan0 iwlwav sCoCPower 0 1 1
-#sleep 1
-#iw dev wlan2 iwlwav sCoCPower 0 1 1
+# Radio's need to be up to set the antenna configuration (workaroud for missing sniffer captures)
+ba-cli WiFi.Radio.*.Enable=1
+sleep 10
+
+iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
+sleep 1
+iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
