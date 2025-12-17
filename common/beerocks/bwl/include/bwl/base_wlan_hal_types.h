@@ -95,51 +95,67 @@ enum class WiFiSec {
     WPA3_PCM
 };
 
-inline std::ostream &operator<<(std::ostream &out, const bwl::WiFiSec &sec)
+inline const char *wifi_sec_to_c_str(const WiFiSec &sec)
 {
     switch (sec) {
-    case bwl::WiFiSec::Invalid:
-        out << "Invalid";
-        break;
-    case bwl::WiFiSec::None:
-        out << "None";
-        break;
-    case bwl::WiFiSec::WEP_64:
-        out << "WEP-64";
-        break;
-    case bwl::WiFiSec::WEP_128:
-        out << "WEP-128";
-        break;
-    case bwl::WiFiSec::WPA_PSK:
-        out << "WPA-Personal";
-        break;
-    case bwl::WiFiSec::WPA2_PSK:
-        out << "WPA2-Personal";
-        break;
-    case bwl::WiFiSec::WPA_WPA2_PSK:
-        out << "WPA-WPA2-Personal";
-        break;
-    case bwl::WiFiSec::WPA2_WPA3_PSK:
-        out << "WPA2-WPA3-Personal";
-        break;
-    case bwl::WiFiSec::WPA3_PSK:
-        out << "WPA3-Personal";
-        break;
-    case bwl::WiFiSec::WPA_ENTERPRISE:
-        out << "WPA-Enterprise";
-        break;
-    case bwl::WiFiSec::WPA2_ENTERPRISE:
-        out << "WPA2-Enterprise";
-        break;
-    case bwl::WiFiSec::WPA_WPA2_ENTERPRISE:
-        out << "WPA-WPA2-Enterprise";
-        break;
-    case bwl::WiFiSec::OWE:
-        out << "OWE";
-        break;
-    case bwl::WiFiSec::WPA3_PCM:
-        out << "WPA3-Personal-Compatibility";
-        break;
+    case bwl::WiFiSec::Invalid: return "Invalid";
+    case bwl::WiFiSec::None: return "None";
+    case bwl::WiFiSec::WEP_64: return "WEP-64";
+    case bwl::WiFiSec::WEP_128: return "WEP-128";
+    case bwl::WiFiSec::WPA_PSK: return "WPA-Personal";
+    case bwl::WiFiSec::WPA2_PSK: return "WPA2-Personal";
+    case bwl::WiFiSec::WPA_WPA2_PSK: return "WPA-WPA2-Personal";
+    case bwl::WiFiSec::WPA2_WPA3_PSK: return "WPA2-WPA3-Personal";
+    case bwl::WiFiSec::WPA3_PSK: return "WPA3-Personal";
+    case bwl::WiFiSec::WPA_ENTERPRISE: return "WPA-Enterprise";
+    case bwl::WiFiSec::WPA2_ENTERPRISE: return "WPA2-Enterprise";
+    case bwl::WiFiSec::WPA_WPA2_ENTERPRISE: return "WPA-WPA2-Enterprise";
+    case bwl::WiFiSec::OWE: return "OWE";
+    case bwl::WiFiSec::WPA3_PCM: return "WPA3-Personal-Compatibility";
+    }
+    return "";
+}
+
+inline WiFiSec wifi_sec_from_c_str(const char *c_str)
+{
+    if (strcmp(c_str, "None") == 0) {
+        return WiFiSec::None;
+    } else if (strcmp(c_str, "WEP-64") == 0) {
+        return WiFiSec::WEP_64;
+    } else if (strcmp(c_str, "WEP-128") == 0) {
+        return WiFiSec::WEP_128;
+    } else if (strcmp(c_str, "WPA-Personal") == 0) {
+        return WiFiSec::WPA_PSK;
+    } else if (strcmp(c_str, "WPA2-Personal") == 0) {
+        return WiFiSec::WPA2_PSK;
+    } else if (strcmp(c_str, "WPA-WPA2-Personal") == 0) {
+        return WiFiSec::WPA_WPA2_PSK;
+    } else if (strcmp(c_str, "WPA2-WPA3-Personal") == 0) {
+        return WiFiSec::WPA2_WPA3_PSK;
+    } else if (strcmp(c_str, "WPA3-Personal") == 0) {
+        return WiFiSec::WPA3_PSK;
+    } else if (strcmp(c_str, "WPA-Enterprise") == 0) {
+        return WiFiSec::WPA_ENTERPRISE;
+    } else if (strcmp(c_str, "WPA2-Enterprise") == 0) {
+        return WiFiSec::WPA2_ENTERPRISE;
+    } else if (strcmp(c_str, "WPA-WPA2-Enterprise") == 0) {
+        return WiFiSec::WPA_WPA2_ENTERPRISE;
+    } else if (strcmp(c_str, "OWE") == 0) {
+        return WiFiSec::OWE;
+    } else if (strcmp(c_str, "WPA3-Personal-Compatibility") == 0) {
+        return WiFiSec::WPA3_PCM;
+    } else {
+        return WiFiSec::Invalid;
+    }
+}
+
+inline std::ostream &operator<<(std::ostream &out, const bwl::WiFiSec &sec)
+{
+    const char *c_str = wifi_sec_to_c_str(sec);
+    if (c_str) {
+        out << c_str;
+    } else {
+        out << "Unknown";
     }
     return out;
 }
