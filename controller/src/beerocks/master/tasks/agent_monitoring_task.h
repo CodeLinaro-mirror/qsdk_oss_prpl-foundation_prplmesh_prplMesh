@@ -29,8 +29,8 @@ public:
     static bool add_profile_2default_802q_settings_tlv(db &database,
                                                        ieee1905_1::CmduMessageTx &cmdu_tx,
                                                        const sMacAddr &al_mac);
-    static bool add_traffic_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                       std::shared_ptr<WSC::m1> m1);
+    static bool add_traffic_separation_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                  std::shared_ptr<WSC::m1> m1);
 
     enum Event : uint8_t { DISCONNECTED, CONFIGURE_QOS };
 
@@ -231,6 +231,9 @@ private:
      */
     bool dm_set_agent_disconnected_event_params(const std::string &agent_discon_path,
                                                 const sMacAddr &agent_mac);
+
+private:
+    static bool m_is_custom_ts_enabled;
 };
 
 } // namespace son
