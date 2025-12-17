@@ -42,6 +42,7 @@
 #include <bpl/bpl_err.h>
 
 #include <net/if.h> // if_nametoindex
+#include <numeric>
 
 namespace beerocks {
 
@@ -1181,6 +1182,29 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                 UTILS_SLEEP_MSEC(1000);
             }
             break;
+        }
+
+        /* If for some reason the device was provisioned but there's no
+         * connection chances are the underlying HAL (eg. relying on TR-181
+         * EndPoint Profile configurations) lost its data. Try to reconnect as
+         * if connection was lost at runtime.
+         */
+        const bool provisioned = !db->device_conf.back_radio.ssid.empty();
+        if (provisioned) {
+            const int num_connected =
+                std::accumulate(m_radios_info.begin(), m_radios_info.end(), false,
+                                [](bool acc, const std::shared_ptr<sRadioInfo> &radio_info) {
+                                    return acc + ((radio_info->sta_wlan_hal &&
+                                                   radio_info->sta_wlan_hal->is_connected())
+                                                      ? 1
+                                                      : 0);
+                                });
+            const bool nothing_is_connected = (num_connected == 0);
+            if (nothing_is_connected) {
+                LOG(DEBUG) << "No connected backhaul interface, initiating scan";
+                FSM_MOVE_STATE(INITIATE_SCAN);
+                break;
+            }
         }
 
         state_attempts = 0;     // for next state
