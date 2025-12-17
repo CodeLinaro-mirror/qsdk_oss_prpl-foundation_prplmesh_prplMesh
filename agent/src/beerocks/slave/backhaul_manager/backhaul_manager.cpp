@@ -2090,6 +2090,23 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
 
     switch (event) {
 
+    case Event::Provisioned: {
+        LOG(DEBUG) << "WPA EVENT_PROVISIONED on iface=" << iface;
+
+        if (FSM_IS_IN_STATE(WAIT_WPS)) {
+            auto msg = static_cast<bwl::sACTION_BACKHAUL_UPDATE_CREDENTIALS_NOTIFICATION *>(data);
+            if (!msg) {
+                LOG(ERROR)
+                    << "ACTION_BACKHAUL_PROVISIONED_NOTIFICATION not found on Provisioned event";
+                return false;
+            }
+
+            LOG(INFO) << "Storing new credentials from WPS";
+            const std::string security_str(bwl::wifi_sec_to_c_str(msg->sec));
+            bpl::cfg_set_beerocks_credentials(msg->ssid, msg->pass, security_str);
+        }
+    } break;
+
     case Event::Connected: {
 
         auto iface_hal = get_wireless_hal(iface);

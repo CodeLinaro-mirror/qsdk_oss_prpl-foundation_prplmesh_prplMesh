@@ -323,6 +323,12 @@ typedef struct {
     sMacAddr ruid;
 } sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION;
 
+typedef struct {
+    char ssid[64];
+    char pass[64];
+    WiFiSec sec;
+} sACTION_BACKHAUL_UPDATE_CREDENTIALS_NOTIFICATION;
+
 //ap_wlan_hal
 
 enum eWiFiStandard : uint8_t {

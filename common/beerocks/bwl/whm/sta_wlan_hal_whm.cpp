@@ -1041,6 +1041,21 @@ bool sta_wlan_hal_whm::process_ep_wps_event(const std::string &interface,
             .pass         = key,
             .hidden_ssid  = false,
         };
+
+        auto msg_buff =
+            ALLOC_SMART_BUFFER(sizeof(sACTION_BACKHAUL_UPDATE_CREDENTIALS_NOTIFICATION));
+        auto msg =
+            reinterpret_cast<sACTION_BACKHAUL_UPDATE_CREDENTIALS_NOTIFICATION *>(msg_buff.get());
+        const char *ssid_c_str = ssid.c_str();
+        const char *key_c_str  = key.c_str();
+        memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_UPDATE_CREDENTIALS_NOTIFICATION));
+        if (ssid_c_str)
+            strncpy(msg->ssid, ssid_c_str, sizeof(msg->ssid) - 1);
+        if (key_c_str)
+            strncpy(msg->pass, key_c_str, sizeof(msg->pass) - 1);
+        msg->sec = sec;
+        event_queue_push(Event::Provisioned, msg_buff);
+
         return set_profile(profile);
     }
 
