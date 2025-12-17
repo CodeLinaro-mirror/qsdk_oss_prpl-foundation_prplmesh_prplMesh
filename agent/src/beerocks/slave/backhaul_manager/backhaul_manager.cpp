@@ -1878,12 +1878,10 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
             return false;
         }
 
-        // This parameter is unused in connect function for a STA, which is our case.
-        // We just create a valid parameter for compilation purpose.
-        std::pair<uint8_t, beerocks::eFreqType> channel =
-            std::make_pair(0, beerocks::eFreqType::FREQ_24G);
-        sta_wlan_hal->connect(config_data->ssid_str(), config_data->network_key_str(), sec, false,
-                              tlvf::mac_to_string(config_data->bssid_attr().data), channel, false);
+        const std::string ssid = config_data->ssid_str();
+        const std::string pass = config_data->network_key_str();
+        const std::string security(bwl::wifi_sec_to_c_str(sec));
+        bpl::cfg_set_beerocks_credentials(ssid, pass, security);
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_MLD_UPDATE_REQUEST: {
