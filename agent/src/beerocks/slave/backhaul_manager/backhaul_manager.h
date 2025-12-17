@@ -154,6 +154,16 @@ public:
     bool initiate_wps_pbc_auto();
 
     /**
+     * @brief Reconnects the backhaul STA to the BSSID implied by AgentDB.
+     *
+     * This function is mostly intended to be used as a callback proxy whenever
+     * AgentDB configuration revolving backhaul has changed.
+     *
+     * @return true on success, false on failure.
+     */
+    bool reconnect();
+
+    /**
      * @brief Triggers WPS PBC (backhaul STA) on provided frequency
      *
      * @param freq frequency on which WPS PBC will be triggerd
