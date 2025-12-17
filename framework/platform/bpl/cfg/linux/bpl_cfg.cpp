@@ -479,11 +479,50 @@ int cfg_get_backhaul_vaps(char *backhaul_vaps_buf, const int buf_len)
     return RETURN_OK;
 }
 
+int cfg_set_beerocks_credentials(const std::string &ssid, const std::string &pass,
+                                 const std::string &security)
+{
+    std::unordered_map<std::string, std::string> parameters;
+
+    if (!cfg_get_params(parameters)) {
+        MAPF_ERR("Failed getting beerocks credentials");
+        return RETURN_ERR;
+    }
+
+    parameters["ssid"] = ssid;
+    parameters["pass"] = pass;
+    parameters["sec"]  = security;
+
+    if (!cfg_set_params(parameters)) {
+        MAPF_ERR("Failed setting beerocks credentials");
+        return RETURN_ERR;
+    }
+
+    return RETURN_OK;
+}
+
 int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
                                  char pass[BPL_PASS_LEN], char sec[BPL_SEC_LEN])
 {
-    mapf::utils::copy_string(ssid, "test_beerocks_ssid", BPL_SSID_LEN);
-    mapf::utils::copy_string(sec, "None", BPL_SEC_LEN);
+    std::unordered_map<std::string, std::string> parameters;
+
+    if (!cfg_get_params(parameters)) {
+        MAPF_ERR("Failed getting beerocks credentials");
+        return RETURN_ERR;
+    }
+
+    const auto ssid_iter = parameters.find("ssid");
+    const auto pass_iter = parameters.find("pass");
+    const auto sec_iter  = parameters.find("sec");
+    const std::string saved_ssid =
+        (ssid_iter != parameters.end()) ? ssid_iter->second : "test_beerocks_ssid";
+    const std::string saved_pass = (pass_iter != parameters.end()) ? pass_iter->second : "";
+    const std::string saved_sec  = (sec_iter != parameters.end()) ? sec_iter->second : "None";
+
+    mapf::utils::copy_string(ssid, saved_ssid.c_str(), BPL_SSID_LEN);
+    mapf::utils::copy_string(pass, saved_pass.c_str(), BPL_PASS_LEN);
+    mapf::utils::copy_string(sec, saved_sec.c_str(), BPL_SEC_LEN);
+
     return RETURN_OK;
 }
 

@@ -229,6 +229,23 @@ bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measureme
     return true;
 }
 
+int cfg_set_beerocks_credentials(const std::string &ssid, const std::string &pass,
+                                 const std::string &security)
+{
+    bool ret_val = true;
+
+    ret_val &= set_agent_config_param("SSID", ssid);
+    ret_val &= set_agent_config_param("Passphrase", pass);
+    ret_val &= set_agent_config_param("Security", security);
+
+    if (!ret_val) {
+        LOG(WARNING) << "cfg: failed to set beerocks credentials";
+        return RETURN_ERR;
+    }
+
+    return RETURN_OK;
+}
+
 int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
                                  char pass[BPL_PASS_LEN], char sec[BPL_SEC_LEN])
 {

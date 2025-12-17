@@ -482,6 +482,20 @@ int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_
 
 int cfg_get_backhaul_vaps(char *backhaul_vaps_buf, const int buf_len) { return 0; }
 
+int cfg_set_beerocks_credentials(const std::string &ssid, const std::string &pass,
+                                 const std::string &security)
+{
+    bool success         = true;
+    const bool is_wep    = (security == "WEP-64" || security == "WEP-128");
+    const char *key_name = is_wep ? "wep_key" : "key_passphrase";
+
+    success &= cfg_set_prplmesh_config("ssid", ssid);
+    success &= cfg_set_prplmesh_config("mode_enabled", sec);
+    success &= cfg_set_prplmesh_config(key_name, pass);
+
+    return success ? RETURN_OK : RETURN_ERR;
+}
+
 int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
                                  char pass[BPL_PASS_LEN], char sec[BPL_SEC_LEN])
 {
