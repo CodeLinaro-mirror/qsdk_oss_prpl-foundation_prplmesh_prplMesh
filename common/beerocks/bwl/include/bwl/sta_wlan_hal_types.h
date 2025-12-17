@@ -23,6 +23,7 @@ struct sScanResult {
         : bssid({0}), channel(0), freq_type(beerocks::eFreqType::FREQ_UNKNOWN),
           rssi(UINT8_MAX){}; //used UINT8_MAX to initialise it with non-valid value
     sMacAddr bssid;
+    std::string ssid;
     uint8_t channel;
     beerocks::eFreqType freq_type;
     int8_t rssi;
