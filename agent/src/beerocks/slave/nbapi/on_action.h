@@ -24,10 +24,30 @@ namespace actions {
 using WpsAutoCb = std::function<bool()>;
 
 /**
+ * @brief Callback type used by the Configuration handler. Should be run when
+ * Configuration changes to prompt the BH manager to (re)connect to the new BH
+ * AP.
+ *
+ * @return true on success, false on failure.
+ */
+using ConnectCb = std::function<bool()>;
+
+/**
  * @brief Install the callback.
  * Must be set during agent startup (after BackhaulManager is constructed).
  */
 void set_wps_callback(WpsAutoCb auto_cb);
+
+/**
+ * @brief Install the callback.
+ * Must be set during agent startup (after BackhaulManager is constructed).
+ */
+void set_connect_callback(WpsAutoCb cb);
+
+/**
+ * @brief Register the NBAPI events exposed by the Agent.
+ */
+std::vector<beerocks::nbapi::sEvents> get_events_list(void);
 
 /**
  * @brief Register the NBAPI functions exposed by the Agent.

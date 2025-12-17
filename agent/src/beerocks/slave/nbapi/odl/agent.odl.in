@@ -136,3 +136,8 @@
 
     @AGENT_ROOT_DM_Footer@
 }
+
+%populate {
+    on event "dm:object-changed" call event_configuration_changed
+        filter 'object matches "@AGENT_ROOT_DM_literal@\.Configuration\."';
+}
