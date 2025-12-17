@@ -35,6 +35,8 @@ public:
 
         STA_Unassoc_RSSI,
 
+        Provisioned,
+
         Interface_Connected_OK,
         Interface_Reconnected_OK,
         Interface_Disconnected
