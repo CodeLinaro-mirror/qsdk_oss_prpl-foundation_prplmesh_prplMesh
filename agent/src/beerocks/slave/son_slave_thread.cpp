@@ -470,8 +470,8 @@ bool slave_thread::read_platform_configuration()
         LOG(ERROR) << "Failed reading Wi-Fi back credentials!";
         return false;
     }
-    db->device_conf.back_radio.ssid = std::string(ssid, beerocks::message::WIFI_SSID_MAX_LENGTH);
-    db->device_conf.back_radio.pass = std::string(pass, beerocks::message::WIFI_PASS_MAX_LENGTH);
+    db->device_conf.back_radio.ssid = std::string(ssid);
+    db->device_conf.back_radio.pass = std::string(pass);
     db->device_conf.back_radio.security_type = bwl::wifi_sec_from_c_str(security_type);
 
     int mem_only_psk = bpl::cfg_get_security_policy();
