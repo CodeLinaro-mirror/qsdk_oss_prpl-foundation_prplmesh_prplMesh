@@ -29,8 +29,9 @@ ba-cli DHCPv6Server.Enable=0
 
 sleep 2
 
-# Set the LAN bridge IP:
+# Set the LAN/GUEST bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].IPAddress=192.165.100.120"
+ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.200.120"
 
 # We use WAN - eth0_6 for the control interface.
 # Add the IP address if there is none yet:
