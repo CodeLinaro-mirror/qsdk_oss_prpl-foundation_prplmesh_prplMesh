@@ -379,6 +379,9 @@ int sta_wlan_hal_whm::get_scan_results(const std::string &ssid, std::vector<sSca
         if (map.find("CentreChannel") != map.end()) {
             map["CentreChannel"].get(center_channel);
         }
+        if (map.find("SSID") != map.end()) {
+            map["SSID"].get(ap.ssid);
+        }
         int32_t bandwidth(0);
         if (map.find("Bandwidth") != map.end()) {
             map["Bandwidth"].get(bandwidth);
