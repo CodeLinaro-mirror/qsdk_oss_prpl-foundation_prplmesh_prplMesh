@@ -458,29 +458,7 @@ bool slave_thread::read_platform_configuration()
         return false;
     }
 
-    const auto platform_to_bwl_security = [](const std::string &sec) -> bwl::WiFiSec {
-        if (!sec.compare("None")) {
-            return bwl::WiFiSec::None;
-        } else if (!sec.compare("WEP-64")) {
-            return bwl::WiFiSec::WEP_64;
-        } else if (!sec.compare("WEP-128")) {
-            return bwl::WiFiSec::WEP_128;
-        } else if (!sec.compare("WPA-Personal")) {
-            return bwl::WiFiSec::WPA_PSK;
-        } else if (!sec.compare("WPA2-Personal")) {
-            return bwl::WiFiSec::WPA2_PSK;
-        } else if (!sec.compare("WPA-WPA2-Personal")) {
-            return bwl::WiFiSec::WPA_WPA2_PSK;
-        } else if (!sec.compare("WPA2-WPA3-Personal")) {
-            return bwl::WiFiSec::WPA2_WPA3_PSK;
-        } else if (!sec.compare("WPA3-Personal")) {
-            return bwl::WiFiSec::WPA3_PSK;
-        } else {
-            return bwl::WiFiSec::Invalid;
-        }
-    };
-
-    db->device_conf.front_radio.security_type = platform_to_bwl_security(security_type);
+    db->device_conf.front_radio.security_type = bwl::wifi_sec_from_c_str(security_type);
 
     LOG(DEBUG) << "Front Credentials:"
                << " ssid=" << db->device_conf.front_radio.ssid
@@ -494,7 +472,7 @@ bool slave_thread::read_platform_configuration()
     }
     db->device_conf.back_radio.ssid = std::string(ssid, beerocks::message::WIFI_SSID_MAX_LENGTH);
     db->device_conf.back_radio.pass = std::string(pass, beerocks::message::WIFI_PASS_MAX_LENGTH);
-    db->device_conf.back_radio.security_type = platform_to_bwl_security(security_type);
+    db->device_conf.back_radio.security_type = bwl::wifi_sec_from_c_str(security_type);
 
     int mem_only_psk = bpl::cfg_get_security_policy();
     if (mem_only_psk < 0) {
