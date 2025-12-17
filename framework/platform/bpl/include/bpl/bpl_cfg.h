@@ -692,6 +692,21 @@ int cfg_get_backhaul_vaps(char *backhaul_vaps_buf, const int buf_len);
 int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
                                  char pass[BPL_PASS_LEN], char sec[BPL_SEC_LEN]);
 
+
+/**
+ * Sets the platform Wi-Fi settings.
+ *
+ * @param [in] ssid SSID (up to 32 bytes in length).
+ * @param [in] pass Password (up to 64 bytes in length).
+ * @param [in] sec Security Mode (up to 32 bytes in length).
+ *
+ * @return 0 Success.
+ * @return -1 Error.
+ */
+int cfg_set_beerocks_credentials(const std::string &ssid,
+                                 const std::string &pass,
+                                 const std::string &security);
+
 /**
  * @brief Returns the platform SDL policy which is represented by 'mem_only_psk' flag.
  * 'mem_only_psk' flag sets whether the platform shall save the credentials in some encrypted DB so
