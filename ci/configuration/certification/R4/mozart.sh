@@ -59,14 +59,11 @@ else
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
 fi
 
-
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
-
-ba-cli WiFi.AccessPoint.*.MBOEnable=1
 
 # Configure Operating Standards
 ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g,n,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g\""
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
 
@@ -86,6 +83,16 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Channel=48"
 # (see PPM-258)
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
+
+# Drop all iptables rules (Guest TS)
+iptables -F && iptables -X && iptables -P INPUT ACCEPT && iptables -P OUTPUT ACCEPT && iptables -P FORWARD ACCEPT
+
+# Disable rp_filter
+sysctl -w net.ipv4.conf.br-guest.rp_filter=0
+sysctl -w net.ipv4.conf.all.rp_filter=0
+
+# Increase inactivity timeout
+printf 'protected\nWiFi.AccessPoint.*.StaInactivityTimeout=1500\nexit\n' | ba-cli
 
 # Traffic Separation Configuration
 ba-cli WiFi.AccessPoint.*.MultiAPProfile=3
