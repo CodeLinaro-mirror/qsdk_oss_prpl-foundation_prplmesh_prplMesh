@@ -48,15 +48,17 @@ bool AmbiorixConnection::init()
     amxc_var_t *usp_section = amxc_var_add_key(amxc_htable_t, m_config, "usp", NULL);
     amxc_var_add_key(bool, usp_section, "requires-device-prefix", true);
 
+    // set usp configuration
+    if (amxb_set_config(m_config) != 0) {
+        LOG(ERROR) << "Failed to set amxb config";
+    }
+
     int ret = 0;
     // Load the backend .so file
     ret = amxb_be_load(m_amxb_backend.c_str());
     if (ret != 0) {
         LOG(ERROR) << "Failed to load the " << m_amxb_backend.c_str() << " backend";
         return false;
-    }
-    if (amxb_set_config(m_config) != 0) {
-        LOG(ERROR) << "Failed to set amxb config";
     }
     // Connect to the bus
     ret = amxb_connect(&m_bus_ctx, m_bus_uri.c_str());
