@@ -30,6 +30,16 @@ ba-cli DHCPv6Client.Client.wan.Enable=0
 ba-cli DHCPv4Server.Enable=0
 ba-cli DHCPv6Server.Enable=0
 
+# Drop all iptables rules (Guest TS)
+iptables -F && iptables -X && iptables -P INPUT ACCEPT && iptables -P OUTPUT ACCEPT && iptables -P FORWARD ACCEPT
+
+# Disable rp_filter
+sysctl -w net.ipv4.conf.br-guest.rp_filter=0
+sysctl -w net.ipv4.conf.all.rp_filter=0
+
+# Increase inactivity timeout
+printf 'protected\nWiFi.AccessPoint.*.StaInactivityTimeout=1500\nexit\n' | ba-cli
+
 # We use WAN for the control interface.
 # Add the IP address if there is none yet:
 ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" && {
@@ -43,6 +53,20 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
+
+# Set guest bridge IP:
+ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.100.155"
+
+# Force guest APs to be in br-guest bridge
+# TODO: remove
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan0.2\"].DefaultDeviceType = \"Guest\""
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan0.2\"].BridgeInterface=\"br-guest\""
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan1.2\"].DefaultDeviceType = \"Guest\""
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan1.2\"].BridgeInterface=\"br-guest\""
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan2.2\"].DefaultDeviceType = \"Guest\""
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan2.2\"].BridgeInterface=\"br-guest\""
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan4.2\"].DefaultDeviceType = \"Guest\""
+ba-cli "WiFi.AccessPoint.[Alias == \"wlan4.2\"].BridgeInterface=\"br-guest\""
 
 # Setting BackhaulWireIface, or persistence can fail (PPM-3339)
 /etc/init.d/prplmesh stop && sleep 2
