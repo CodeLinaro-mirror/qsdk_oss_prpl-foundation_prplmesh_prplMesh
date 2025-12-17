@@ -2639,7 +2639,13 @@ bool BackhaulManager::select_bssid()
             auto bssid = tlvf::mac_to_string(scan_result.bssid);
             LOG(DEBUG) << "select_bssid: bssid = " << bssid
                        << ", channel = " << int(scan_result.channel) << " iface = " << iface
+                       << ", ssid = " << scan_result.ssid << "(len=" << scan_result.ssid.length() << ")"
                        << ", rssi=" << int(scan_result.rssi);
+
+            if (scan_result.ssid != db->device_conf.back_radio.ssid) {
+                LOG(DEBUG) << "ssid mismatch, skipping";
+                continue;
+            }
 
             auto ap_blacklist_it = ap_blacklist.find(bssid);
             if (ap_blacklist_it != ap_blacklist.end()) {
