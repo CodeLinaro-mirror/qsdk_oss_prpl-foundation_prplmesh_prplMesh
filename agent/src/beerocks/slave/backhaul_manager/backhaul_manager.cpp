@@ -3130,6 +3130,32 @@ bool BackhaulManager::start_wps_pbc_ep_freq(eFreqType freq)
     return false;
 }
 
+bool BackhaulManager::reconnect()
+{
+    LOG(INFO) << "Reconnecting to backhaul SSID";
+
+    // FIXME: How should this behave when dearing with Ethernet backhaul?
+    auto active_hal = get_wireless_hal();
+    if (!active_hal) {
+        LOG(ERROR) << "Couldn't get active HAL";
+        return false;
+    }
+
+    const auto channel      = std::make_pair(0, eFreqType::FREQ_UNKNOWN);
+    const std::string bssid = "";
+    auto db                 = AgentDB::get();
+    const bool ok =
+        active_hal->connect(db->device_conf.back_radio.ssid, db->device_conf.back_radio.pass,
+                            db->device_conf.back_radio.security_type,
+                            db->device_conf.back_radio.mem_only_psk, bssid, channel, false);
+    if (!ok) {
+        LOG(ERROR) << "Failed to connect to SSID: " << db->device_conf.back_radio.ssid;
+        return false;
+    }
+
+    return true;
+}
+
 bool BackhaulManager::initiate_wps_pbc_auto()
 {
     auto db = AgentDB::get();
