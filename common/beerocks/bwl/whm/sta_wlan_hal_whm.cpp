@@ -392,6 +392,9 @@ int sta_wlan_hal_whm::get_scan_results(const std::string &ssid, std::vector<sSca
                                       utils::convert_bandwidth_to_enum(bandwidth));
                 ap.freq_type = wifi_chan.get_freq_type();
             }
+            if (ap.freq_type == beerocks::eFreqType::FREQ_UNKNOWN) {
+                ap.freq_type = get_radio_info().frequency_band;
+            }
         }
 
         if (map.find("RSSI") != map.end()) {
