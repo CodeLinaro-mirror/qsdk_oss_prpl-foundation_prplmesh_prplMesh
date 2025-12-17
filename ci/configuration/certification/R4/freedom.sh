@@ -45,6 +45,13 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
+# Set guest bridge IP:
+ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.100.155"
+
+# Setting BackhaulWireIface, or persistence can fail (PPM-3339)
+/etc/init.d/prplmesh stop && sleep 2
+/etc/init.d/prplmesh start && sleep 2
+
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
   # Prplmesh agent is not running. Data model isn't up.
@@ -75,15 +82,27 @@ ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 
 # Configure Operating Standards
 ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g,n,ax\""
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g\""
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
 
+
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].PacketAggregationEnable=0"
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
+
+# Drop all iptables rules (Guest TS)
+iptables -F && iptables -X && iptables -P INPUT ACCEPT && iptables -P OUTPUT ACCEPT && iptables -P FORWARD ACCEPT
+
+# Disable rp_filter
+sysctl -w net.ipv4.conf.br-guest.rp_filter=0
+sysctl -w net.ipv4.conf.all.rp_filter=0
+
+# Increase inactivity timeout
+printf 'protected\nWiFi.AccessPoint.*.StaInactivityTimeout=1500\nexit\n' | ba-cli
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="killall -9 dropbear
