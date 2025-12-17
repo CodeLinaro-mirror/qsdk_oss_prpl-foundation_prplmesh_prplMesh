@@ -24,14 +24,112 @@
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 
+#include <cctype>
+#include <cstdint>
+#include <string>
+#include <vector>
+
 using namespace beerocks;
 using namespace net;
 using namespace son;
+
+namespace {
+std::list<wireless_utils::sTrafficSeparationSsid> parse_ts_ssid_vlan_list(const std::string &input,
+                                                                          std::string &err)
+{
+    err.clear();
+    std::list<wireless_utils::sTrafficSeparationSsid> parsed;
+
+    auto trim = [](std::string &s) {
+        size_t b = 0;
+        while (b < s.size() && std::isspace(static_cast<unsigned char>(s[b]))) {
+            ++b;
+        }
+        size_t e = s.size();
+        while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) {
+            --e;
+        }
+        s = s.substr(b, e - b);
+    };
+
+    if (input.empty()) {
+        return parsed;
+    }
+
+    for (size_t i = 0, idx = 0; i < input.size(); ++idx) {
+        // item = [i..j)
+        size_t j = input.find(',', i);
+        if (j == std::string::npos) {
+            j = input.size();
+        }
+        std::string item = input.substr(i, j - i);
+        trim(item);
+
+        if (item.empty()) {
+            err = "Empty item at index " + std::to_string(idx);
+            return {};
+        }
+
+        size_t colon = item.find(':');
+        if (colon == std::string::npos || colon == 0 || colon + 1 >= item.size() ||
+            item.find(':', colon + 1) != std::string::npos) {
+            err = "Invalid format at index " + std::to_string(idx) + " (expected ssid:vlan)";
+            return {};
+        }
+
+        std::string ssid = item.substr(0, colon);
+        std::string vlan = item.substr(colon + 1);
+        trim(ssid);
+        trim(vlan);
+
+        if (ssid.empty() || vlan.empty()) {
+            err = "Empty ssid or vlan at index " + std::to_string(idx);
+            return {};
+        }
+
+        // Parse decimal VLAN id (no exceptions).
+        uint32_t vlan_id = 0;
+        for (char c : vlan) {
+            if (c < '0' || c > '9') {
+                err = "Non-numeric vlan at index " + std::to_string(idx);
+                return {};
+            }
+            vlan_id = vlan_id * 10u + static_cast<uint32_t>(c - '0');
+            if (vlan_id > 4094u) { // early bound
+                err = "vlan out of range at index " + std::to_string(idx);
+                return {};
+            }
+        }
+        if (vlan_id < 1u || vlan_id > 4094u) {
+            err = "vlan out of range at index " + std::to_string(idx);
+            return {};
+        }
+
+        wireless_utils::sTrafficSeparationSsid conf;
+        conf.ssid    = std::move(ssid);
+        conf.vlan_id = static_cast<uint16_t>(vlan_id);
+        parsed.emplace_back(std::move(conf));
+
+        i = (j == input.size()) ? j : (j + 1);
+    }
+
+    return parsed;
+}
+} // namespace
+
+bool agent_monitoring_task::m_is_custom_ts_enabled{false};
 
 agent_monitoring_task::agent_monitoring_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_,
                                              task_pool &tasks_, const std::string &task_name_)
     : task(task_name_), database(database_), cmdu_tx(cmdu_tx_), tasks(tasks_)
 {
+    m_is_custom_ts_enabled = bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    if (!bpl::cfg_get_is_traffic_separation_enabled(m_is_custom_ts_enabled)) {
+        LOG(ERROR) << "agent_monitoring_task: failed to read "
+                      "is_traffic_separation_enabled, "
+                      "using default is_ts_enabled="
+                   << bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    }
 }
 
 void agent_monitoring_task::work()
@@ -289,8 +387,8 @@ bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &
         return false;
     }
 
-    if (num_bsss) {
-        add_traffic_policy_tlv(database, cmdu_tx, m1);
+    if (num_bsss || m_is_custom_ts_enabled) {
+        add_traffic_separation_policy_tlv(database, cmdu_tx, m1);
         add_profile_2default_802q_settings_tlv(database, cmdu_tx, m1->mac_addr());
     }
 
@@ -523,6 +621,11 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
     tlv_default_8021q_settings->primary_vlan_id() = default_8021q_config.primary_vlan_id;
     tlv_default_8021q_settings->default_pcp()     = default_8021q_config.default_pcp;
 
+    // Try custom value if vlan_id is 0 and custom TS is enabled
+    if (tlv_default_8021q_settings->primary_vlan_id() == 0 && m_is_custom_ts_enabled) {
+        tlv_default_8021q_settings->primary_vlan_id() = bpl::DEFAULT_PRIVATE_VLAN_ID;
+    }
+
     if (!database.dm_set_default_8021q(*agent, default_8021q_config.primary_vlan_id,
                                        default_8021q_config.default_pcp)) {
         LOG(ERROR) << "Failed to set default 802.1Q parameters for agent" << al_mac;
@@ -532,8 +635,9 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
     return true;
 }
 
-bool agent_monitoring_task::add_traffic_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                   std::shared_ptr<WSC::m1> m1)
+bool agent_monitoring_task::add_traffic_separation_policy_tlv(db &database,
+                                                              ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                              std::shared_ptr<WSC::m1> m1)
 {
     auto traffic_separation_configs = database.get_traffic_separation_configuration(m1->mac_addr());
     auto al_mac                     = m1->mac_addr();
@@ -544,6 +648,26 @@ bool agent_monitoring_task::add_traffic_policy_tlv(db &database, ieee1905_1::Cmd
         return false;
     }
 
+    // if traffic_separation_configs is empty -> check custom configuration
+    if (traffic_separation_configs.empty() && m_is_custom_ts_enabled) {
+        std::string ssid_to_vlan_mapping = bpl::DEFAULT_SSID_TO_VLAN_MAPPING;
+        if (!bpl::cfg_get_ssid_to_vlan_mapping(ssid_to_vlan_mapping)) {
+            LOG(ERROR) << "add_traffic_separation_policy_tlv: failed to read "
+                          "is_traffic_separation_enabled, "
+                          "using default is_ts_enabled="
+                       << bpl::DEFAULT_SSID_TO_VLAN_MAPPING;
+        }
+
+        std::string err;
+        traffic_separation_configs = parse_ts_ssid_vlan_list(ssid_to_vlan_mapping, err);
+        if (traffic_separation_configs.empty()) {
+            LOG(WARNING) << "add_traffic_separation_policy_tlv: custom SSIDToVIDMapping set "
+                            "failed, err: "
+                         << err;
+        }
+    }
+
+    // Make TrafficSeparationPolicy TLV
     if (!traffic_separation_configs.empty()) {
         auto tlv_traffic_policy = cmdu_tx.addClass<wfa_map::tlvProfile2TrafficSeparationPolicy>();
         if (!tlv_traffic_policy) {

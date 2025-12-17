@@ -1678,6 +1678,20 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         }
     }
 
+    bool is_custom_ts_enabled = beerocks::bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    if (!beerocks::bpl::cfg_get_is_traffic_separation_enabled(is_custom_ts_enabled)) {
+        LOG(ERROR) << "agent_monitoring_task: failed to read "
+                      "is_traffic_separation_enabled, "
+                      "using default is_ts_enabled="
+                   << beerocks::bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    }
+
+    if (is_custom_ts_enabled) {
+        agent_monitoring_task::add_traffic_separation_policy_tlv(database, cmdu_tx, m1);
+        agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
+                                                                      m1->mac_addr());
+    }
+
     // If no BSS (either because none are configured, or because they don't match), tear down.
     if (database.get_configured_bss_info(ruid).size() == 0) {
         if (!autoconfig_wsc_add_m2(*m1, nullptr, *agent)) {
@@ -1685,7 +1699,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             return false;
         }
     } else {
-        agent_monitoring_task::add_traffic_policy_tlv(database, cmdu_tx, m1);
+        agent_monitoring_task::add_traffic_separation_policy_tlv(database, cmdu_tx, m1);
         agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
                                                                       m1->mac_addr());
     }
