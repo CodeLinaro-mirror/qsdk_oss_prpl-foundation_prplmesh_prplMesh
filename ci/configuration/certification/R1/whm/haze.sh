@@ -45,8 +45,13 @@ ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.130", Subne
 # Enable it:
 ba-cli IP.Interface.wan.IPv4Enable=1
 
-# Set the LAN bridge IP:
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.130"
+# Set the LAN/GUEST bridge IP:
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].IPAddress=192.165.100.150"
+ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.200.150"
+
+# Setting BackhaulWireIface, or persistence can fail (PPM-3339)
+/etc/init.d/prplmesh stop && sleep 2
+/etc/init.d/prplmesh certification_mode agent && sleep 2
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
