@@ -845,8 +845,22 @@ bool ChannelScanTask::store_radio_scan_result(const std::shared_ptr<sScanRequest
              * the channel element's channel number.
              */
             if (_20MHz_channels.find(results.channel) != _20MHz_channels.end()) {
-                LOG(DEBUG) << "Setting result in channel " << ch_elem.channel_number;
-                request->radio_scans->cached_results[ch_elem.channel_number].push_back(results);
+                auto &results_vector = request->radio_scans->cached_results[ch_elem.channel_number];
+                auto it              = std::find_if(results_vector.begin(), results_vector.end(),
+                                       [&](const beerocks_message::sChannelScanResults &rhs) {
+                                           return rhs.bssid == results.bssid &&
+                                                  rhs.spectrum_info_present ==
+                                                      results.spectrum_info_present;
+                                       });
+
+                if (it == results_vector.end()) {
+                    LOG(DEBUG) << "Setting result in channel " << ch_elem.channel_number;
+                    results_vector.push_back(results);
+                } else {
+                    LOG(DEBUG) << "Ignoring duplicated result in channel "
+                               << ch_elem.channel_number;
+                }
+
                 // Move on to next operating class in radio scan
                 break;
             }
