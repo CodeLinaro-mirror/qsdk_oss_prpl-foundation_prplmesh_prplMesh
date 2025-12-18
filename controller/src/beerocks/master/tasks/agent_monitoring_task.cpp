@@ -135,6 +135,8 @@ bool agent_monitoring_task::start_agent_monitoring(const sMacAddr &src_mac,
         return false;
     }
 
+    try_send_profile_2_bootstrap(src_mac);
+
     const auto &al_mac = tlvDeviceInformation->mac();
     auto ap_op_bss_tlv = cmdu_rx.getClass<wfa_map::tlvApOperationalBSS>();
     if (!ap_op_bss_tlv) {
@@ -246,9 +248,26 @@ bool agent_monitoring_task::start_task(const sMacAddr &src_mac, std::shared_ptr<
         son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
     }
 
+    m_profile_2_bootstrap_done.erase(src_mac);
+    try_send_profile_2_bootstrap(src_mac);
+
+    return true;
+}
+
+void agent_monitoring_task::try_send_profile_2_bootstrap(const sMacAddr &src_mac)
+{
     auto agent = database.m_agents.get(src_mac);
+
+    /* When controller is restarting it may not know the Profile is >=2 until
+     * after start_task() is called to handle WSC. This allows to re-try this
+     * on best-effort basis.
+     */
     if (agent &&
         agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
+
+        LOG(DEBUG) << "Sending Profile 2 bootstrap messages to agent " << src_mac;
+
+        m_profile_2_bootstrap_done.insert(src_mac);
 
         if (!send_backhaul_sta_capability_query(src_mac, cmdu_tx)) {
             LOG(ERROR) << "Failed to send Backhaul STA Capability Query to agent=" << src_mac;
@@ -260,8 +279,6 @@ bool agent_monitoring_task::start_task(const sMacAddr &src_mac, std::shared_ptr<
             }
         }
     }
-
-    return true;
 }
 
 bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &dst_mac,
