@@ -16,6 +16,7 @@
 #include <tlvf/WSC/m1.h>
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
+#include <unordered_set>
 
 namespace son {
 class agent_monitoring_task : public task {
@@ -112,6 +113,17 @@ private:
     */
     bool start_task(const sMacAddr &src_mac, std::shared_ptr<WSC::m1> m1,
                     ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    std::unordered_set<sMacAddr> m_profile_2_bootstrap_done;
+
+    /**
+     * @brief Sends Profile 2 (or newer) specific messages.
+     * This includes Backhaul STA Capability Query an and Prioritization
+     * configuration request.
+     *
+     * @param src_mac MAC address of agent.
+     */
+    void try_send_profile_2_bootstrap(const sMacAddr &src_mac);
 
     /**
      * @brief Sends 'CHANNEL_SELECTION_REQUEST_MESSAGE' without any TLVs included,
