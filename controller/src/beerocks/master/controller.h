@@ -118,6 +118,22 @@ public:
                           const std::string &sta_mac, const std::string &target_bssid);
 
     /**
+     * @brief Send Backhaul Steering Request on NBAPI RPC.
+     *
+     * @param al_mac Mac address of the Agent.
+     * @param backhaul_sta_mac Mac address of the backhaul STA or bSTA MLD.
+     * @param target_bssid Target BSSID.
+     * @param target_op_class Target operating class.
+     * @param target_channel Target channel.
+     * @return True if backhaul steering request sent successfully, false otherwise.
+     */
+    bool send_backhaul_steering_request(const sMacAddr &al_mac,
+                                        const sMacAddr &backhaul_sta_mac,
+                                        const sMacAddr &target_bssid,
+                                        const uint8_t target_op_class,
+                                        const uint8_t target_channel);
+
+    /**
      * @brief Trigger channel scan initiated by NBAPI.
      *
      * @param ruid ruid of radio for wich scan requested.

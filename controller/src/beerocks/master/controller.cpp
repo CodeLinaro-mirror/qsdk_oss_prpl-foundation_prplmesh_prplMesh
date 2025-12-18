@@ -69,6 +69,7 @@
 #include <tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
+#include <tlvf/wfa_map/tlvBackhaulSteeringRequest.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
 #include <tlvf/wfa_map/tlvBssid.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
@@ -4797,6 +4798,46 @@ bool Controller::send_btm_request(const bool &disassoc_imminent,
     son_actions::start_btm_request_task(database, cmdu_tx, m_task_pool, disassoc_imminent,
                                         disassoc_timer_ms, bss_term_duration, validity_interval_ms,
                                         steering_timer_ms, sta_mac, target_bssid, triggered_by);
+
+    return true;
+}
+
+bool Controller::send_backhaul_steering_request(const sMacAddr &al_mac,
+                                                const sMacAddr &backhaul_sta_mac,
+                                                const sMacAddr &target_bssid,
+                                                const uint8_t target_op_class,
+                                                const uint8_t target_channel)
+{
+    LOG(DEBUG) << "Sending Backhaul Steering Request:"
+               << " AL: " << tlvf::mac_to_string(al_mac)
+               << " bSTA: " << tlvf::mac_to_string(backhaul_sta_mac)
+               << " BSSID: " << tlvf::mac_to_string(target_bssid)
+               << " op_class: " << int(target_op_class)
+               << " channel: " << int(target_channel);
+
+    auto agent = database.get_agent(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with MAC:" << tlvf::mac_to_string(al_mac) << " not found in database";
+        return false;
+    }
+
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::BACKHAUL_STEERING_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "CMDU creation of type BACKHAUL_STEERING_REQUEST_MESSAGE, has failed";
+        return false;
+    }
+
+    auto request_tlv = cmdu_tx.addClass<wfa_map::tlvBackhaulSteeringRequest>();
+    request_tlv->backhaul_station_mac()  = backhaul_sta_mac;
+    request_tlv->target_bssid()          = target_bssid;
+    request_tlv->target_channel_number() = target_channel;
+    request_tlv->operating_class()       = target_op_class;
+
+    const bool ok = son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
+    if (!ok) {
+        LOG(ERROR) << "Failed to send BACKHAUL_STEERING_REQUEST_MESSAGE to agent "
+                   << tlvf::mac_to_string(al_mac);
+        return false;
+    }
 
     return true;
 }
