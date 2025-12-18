@@ -156,7 +156,7 @@ public:
         std::string dm_path; /**< data model path */
 
         /** MAC of the Backhaul STA */
-        sMacAddr backhaul_station_mac;
+        sMacAddr backhaul_station_mac = beerocks::net::network_utils::ZERO_MAC;
 
         beerocks::eNodeState state = beerocks::STATE_CONNECTED;
         std::chrono::steady_clock::time_point last_state_change;
