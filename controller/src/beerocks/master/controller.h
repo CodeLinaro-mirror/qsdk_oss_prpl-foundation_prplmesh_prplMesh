@@ -328,6 +328,17 @@ public:
     bool reconfig_bstamld(const sMacAddr &al_mac, const sMacAddr &mld_mac, const sMacAddr &ruid,
                           bool add_link);
 
+    using SteeringResponseCb = std::function<void(const sMacAddr &al, const sMacAddr &bsta,
+                                                  const sMacAddr &bssid, bool success)>;
+
+    /**
+     * @brief Sets the steering response callback function.
+     *
+     * @param cb Callback function to be set.
+     * @return The previous callback function, or nullptr if none was present.
+     */
+    SteeringResponseCb set_steering_response_cb(SteeringResponseCb cb);
+
 private:
     /**
      * @brief Handles the client-connected event in the CMDU server.
@@ -846,6 +857,11 @@ private:
      * Broker client to exchange CMDU messages with broker server running in transport process.
      */
     std::shared_ptr<beerocks::btl::BrokerClient> m_broker_client;
+
+    /**
+     * Callback function to be called when a steering response message is received.
+     */
+    SteeringResponseCb m_steering_response_cb;
 
     /**
      * @brief sends a message of type UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE, it contains list/ddata of unassociated stations 

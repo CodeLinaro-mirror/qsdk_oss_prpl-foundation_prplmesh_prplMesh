@@ -2611,6 +2611,13 @@ bool Controller::handle_cmdu_1905_higher_layer_data_message(const sMacAddr &src_
     return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
 }
 
+Controller::SteeringResponseCb Controller::set_steering_response_cb(SteeringResponseCb callback)
+{
+    SteeringResponseCb old_callback = m_steering_response_cb;
+    m_steering_response_cb          = callback;
+    return old_callback;
+}
+
 bool Controller::handle_cmdu_1905_backhaul_sta_steering_response(const sMacAddr &src_mac,
                                                                  ieee1905_1::CmduMessageRx &cmdu_rx)
 {
@@ -2626,6 +2633,13 @@ bool Controller::handle_cmdu_1905_backhaul_sta_steering_response(const sMacAddr 
 
     auto bh_steering_resp_code = tlv_backhaul_sta_steering_resp->result_code();
     LOG(DEBUG) << "BACKHAUL_STA_STEERING_MESSAGE result_code: " << int(bh_steering_resp_code);
+
+    if (m_steering_response_cb != nullptr) {
+        const auto bsta    = tlv_backhaul_sta_steering_resp->backhaul_station_mac();
+        const auto bssid   = tlv_backhaul_sta_steering_resp->target_bssid();
+        const bool success = bh_steering_resp_code == 0;
+        m_steering_response_cb(src_mac, bsta, bssid, success);
+    }
 
     if (bh_steering_resp_code) {
         auto error_code_tlv = cmdu_rx.getClass<wfa_map::tlvErrorCode>();
