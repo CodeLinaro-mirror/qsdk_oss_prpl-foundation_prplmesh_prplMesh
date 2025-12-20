@@ -454,7 +454,7 @@ bool monitor_stats::add_ap_metrics(ieee1905_1::CmduMessageTx &cmdu_tx,
     }
 
     auto bssid               = tlvf::mac_from_string(vap_node.get_mac());
-    auto channel_utilization = radio_node.get_channel_utilization();
+    auto channel_utilization = radio_node.get_stats().hal_stats.utilization;
     auto sta_count           = vap_node.sta_get_count();
 
     ap_metrics_response_tlv->bssid()                               = bssid;
@@ -596,7 +596,7 @@ bool monitor_stats::add_ap_assoc_wifi_6_sta_status_report(ieee1905_1::CmduMessag
 }
 
 bool monitor_stats::add_radio_metrics(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &radio_mac,
-                                      monitor_radio_node &radio_node) const
+                                      const monitor_radio_node &radio_node) const
 {
     // add profile-2 radio metrics tlv
     auto radio_metrics_tlv = cmdu_tx.addClass<wfa_map::tlvProfile2RadioMetrics>();

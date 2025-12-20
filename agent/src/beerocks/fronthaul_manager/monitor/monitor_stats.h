@@ -45,7 +45,7 @@ public:
     bool add_ap_assoc_wifi_6_sta_status_report(ieee1905_1::CmduMessageTx &cmdu_tx,
                                                const monitor_sta_node &sta_node);
     bool add_radio_metrics(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &radio_mac,
-                           monitor_radio_node &radio_node) const;
+                           const monitor_radio_node &radio_node) const;
 
     int8_t conf_total_ch_load_notification_lo_th_percent    = 20;
     int8_t conf_total_ch_load_notification_hi_th_percent    = 90;
