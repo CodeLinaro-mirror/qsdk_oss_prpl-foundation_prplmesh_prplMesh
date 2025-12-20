@@ -259,8 +259,8 @@ bool mon_wlan_hal_whm::update_radio_stats(SRadioStats &radio_stats)
         uint32_t, "Timestamp"
     */
 
-    std::vector<std::string> required_elements = {"Noise", "TxTime", "RxTime", "ObssTime",
-                                                  "TotalTime"};
+    std::vector<std::string> required_elements = {"Load",   "Noise",    "TxTime",
+                                                  "RxTime", "ObssTime", "TotalTime"};
     for (auto &r_e : required_elements) {
         if (data_map_2->find(r_e) == data_map_2->end()) {
             LOG(ERROR) << "RadioAirStats missing " << r_e;
@@ -268,7 +268,7 @@ bool mon_wlan_hal_whm::update_radio_stats(SRadioStats &radio_stats)
         }
     }
 
-    uint16_t total, txt, rxt, obt;
+    uint16_t load = 0, total = 0, txt = 0, rxt = 0, obt = 0;
     int32_t noise;
 
     (*data_map_2)["TotalTime"].get(total);
@@ -277,6 +277,7 @@ bool mon_wlan_hal_whm::update_radio_stats(SRadioStats &radio_stats)
         return true;
     }
 
+    (*data_map_2)["Load"].get(load);
     (*data_map_2)["TxTime"].get(txt);
     (*data_map_2)["RxTime"].get(rxt);
     (*data_map_2)["ObssTime"].get(obt);
@@ -284,6 +285,7 @@ bool mon_wlan_hal_whm::update_radio_stats(SRadioStats &radio_stats)
     (*data_map_2)["Noise"].get(noise);
 
     radio_stats.anpi_noise    = (noise < 0) ? ((noise + 110) * 2) : 220;
+    radio_stats.utilization   = scaled_metric(load, 100);
     radio_stats.transmit      = scaled_metric(txt, total);
     radio_stats.receive_self  = scaled_metric(rxt, total);
     radio_stats.receive_other = scaled_metric(obt, total);
