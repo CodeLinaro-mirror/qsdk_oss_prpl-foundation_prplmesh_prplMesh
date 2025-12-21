@@ -28,7 +28,9 @@ deploy() {
     echo "Removing previous ipks"
     eval ssh "$SSH_OPTIONS" "$TARGET" \""rm -rf \"$DEST_FOLDER\" ; mkdir -p \"$DEST_FOLDER\"\""
     echo "Copying $IPK to $TARGET:$DEST_FOLDER/$IPK_FILENAME"
-    eval scp "$SSH_OPTIONS" "$IPK" "$TARGET:$DEST_FOLDER/$IPK_FILENAME"
+
+    # Add -O when host openSSH >8.9 (defaults to sftp instead of legacy SCP)
+    eval scp "-O" "$SSH_OPTIONS" "$IPK" "$TARGET:$DEST_FOLDER/$IPK_FILENAME"
 
     # get board type
     BOARD_TYPE=$(eval ssh "$SSH_OPTIONS" "$TARGET" \""grep '^ID' -- /etc/os-release | cut -d '=' -f 2"\")
