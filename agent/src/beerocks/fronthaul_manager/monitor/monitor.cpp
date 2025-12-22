@@ -528,29 +528,6 @@ bool Monitor::monitor_fsm()
         // HAL is attached and operational
     } else {
 
-        // Process external events
-        auto itFdMax =
-            std::max_element(std::begin(m_mon_hal_ext_events), std::end(m_mon_hal_ext_events));
-        if (itFdMax == std::end(m_mon_hal_ext_events) || *itFdMax == 0) {
-            // There is no socket for external events, so we simply try
-            // to process any available periodically
-            if (!mon_wlan_hal->process_ext_events()) {
-                LOG(ERROR) << "process_ext_events() failed!";
-                return false;
-            }
-        }
-
-        if (pending_11k_events.size() > 0) {
-            auto now_time = std::chrono::steady_clock::now();
-            for (auto it = pending_11k_events.begin(); it != pending_11k_events.end();) {
-                if (std::chrono::milliseconds(5000) <= (now_time - it->second.timestamp)) {
-                    it = pending_11k_events.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        }
-
         auto now = std::chrono::steady_clock::now();
         // Long running operations prevent the event loop from doing anything else (i.e.: the
         // event loop is not able to react to any incoming request in the meantime).
@@ -646,6 +623,29 @@ bool Monitor::monitor_fsm()
                     LOG(DEBUG) << "wifi_ctrl_enabled=2 on already attached to Hostapd";
                 }
                 mon_db.set_hostapd_enabled(new_hostap_enabled_state);
+            }
+        }
+
+        // Process external events
+        auto itFdMax =
+            std::max_element(std::begin(m_mon_hal_ext_events), std::end(m_mon_hal_ext_events));
+        if (itFdMax == std::end(m_mon_hal_ext_events) || *itFdMax == 0) {
+
+            // There is no socket for external events, so we simply try
+            // to process any available periodically
+            if (!mon_wlan_hal->process_ext_events()) {
+                LOG(ERROR) << "process_ext_events() failed!";
+                return false;
+            }
+        }
+
+        if (pending_11k_events.size() > 0) {
+            for (auto it = pending_11k_events.begin(); it != pending_11k_events.end();) {
+                if (std::chrono::milliseconds(5000) <= (now - it->second.timestamp)) {
+                    it = pending_11k_events.erase(it);
+                } else {
+                    ++it;
+                }
             }
         }
 
