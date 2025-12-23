@@ -1424,8 +1424,6 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
             }
             if (!bss_conf.ssid.empty() && bss_conf.ssid == mld.second.ssid &&
                 bss_conf.mld_id == mld.first) {
-                auto bss_conf_freq =
-                    son::wireless_utils::which_freq_op_cls(bss_conf.operating_class.front());
 
                 for (const auto &affiliated_radio : agent.radios) {
                     if (!affiliated_radio.second) {
@@ -1433,9 +1431,16 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                         continue;
                     }
 
+                    const auto op_class = son::wireless_utils::get_operating_classes_of_freq_type(
+                                              affiliated_radio.second->band)
+                                              .front();
+
+                    const bool radio_band_found =
+                        (std::find(bss_conf.operating_class.begin(), bss_conf.operating_class.end(),
+                                   op_class) != bss_conf.operating_class.end());
+
                     // Check if bss conf freq matches radio freq and EHT is supported
-                    if (bss_conf_freq != affiliated_radio.second->band ||
-                        !affiliated_radio.second->eht_supported ||
+                    if (!radio_band_found || !affiliated_radio.second->eht_supported ||
                         (!affiliated_radio.second->wifi7_capabilities.ap_role.str_support &&
                          mld_configuration.at(bss_conf.mld_id).str) ||
                         (!affiliated_radio.second->wifi7_capabilities.ap_role.nstr_support &&
