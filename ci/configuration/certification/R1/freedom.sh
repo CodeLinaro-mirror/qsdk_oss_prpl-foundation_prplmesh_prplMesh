@@ -59,6 +59,11 @@ ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
+# Workaround to bring up Radios after Regulatory Domain Change
+ba-cli WiFi.EndPoint.*.Enable=0
+sleep 5
+ba-cli WiFi.EndPoint.*.Enable=1
+
 # tshark on the sniffer can not handle RM capabilities, and thinks beacons containing them are malformed
 ba-cli WiFi.AccessPoint.*.IEEE80211kEnabled=0
 
