@@ -175,6 +175,26 @@ cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION:
       0 - Not Multi-AP station
       1 - Profile 1 Agent
       2 - Profile 2 Agent
+  is_mlo:
+    _type: uint8_t
+    _comment: |
+      0 - Legacy STA
+      1 - MLO STA
+  mlo_modes:
+    _type: uint8_t
+    _comment: |
+      Bitmap field for MLO modes:
+      Bit 7: str (0: disabled, 1: enabled)
+      Bit 6: nstr (0: disabled, 1: enabled)
+      Bit 5: emlsr (0: disabled, 1: enabled)
+      Bit 4: emlmr (0: disabled, 1: enabled)
+      Bits 3-0: reserved
+  num_affiliated_sta:
+    _type: uint8_t
+    _length_var: True
+  affiliated_sta:
+    _type: cAffiliatedSta
+    _length: [ num_affiliated_sta ]
   association_frame:
     _type: uint8_t
     _length: []

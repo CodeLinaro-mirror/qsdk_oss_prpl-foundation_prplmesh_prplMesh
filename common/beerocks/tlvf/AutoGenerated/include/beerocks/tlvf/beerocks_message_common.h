@@ -17,6 +17,11 @@
 #include <stdint.h>
 #include <tlvf/swap.h>
 #include <ostream>
+#include <string.h>
+#include <memory>
+#include <tlvf/BaseClass.h>
+#include <tlvf/ClassList.h>
+#include <tuple>
 #include "beerocks/tlvf/beerocks_message_action.h"
 #include "bcl/beerocks_message_structs.h"
 
@@ -1568,6 +1573,30 @@ typedef struct sStaAssociationControl {
     }
 } __attribute__((packed)) sStaAssociationControl;
 
+
+class cAffiliatedSta : public BaseClass
+{
+    public:
+        cAffiliatedSta(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cAffiliatedSta(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cAffiliatedSta();
+
+        sMacAddr& bssid();
+        sMacAddr& mac();
+        uint8_t* reserved(size_t idx = 0);
+        bool set_reserved(const void* buffer, size_t size);
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        sMacAddr* m_bssid = nullptr;
+        sMacAddr* m_mac = nullptr;
+        uint8_t* m_reserved = nullptr;
+        size_t m_reserved_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+};
 
 }; // close namespace: beerocks_message
 

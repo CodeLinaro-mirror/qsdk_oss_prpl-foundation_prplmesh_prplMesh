@@ -718,6 +718,20 @@ class cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION : public BaseClass
         //1 - Profile 1 Agent
         //2 - Profile 2 Agent
         uint8_t& multi_ap_profile();
+        //0 - Legacy STA
+        //1 - MLO STA
+        uint8_t& is_mlo();
+        //Bitmap field for MLO modes:
+        //Bit 7: str (0: disabled, 1: enabled)
+        //Bit 6: nstr (0: disabled, 1: enabled)
+        //Bit 5: emlsr (0: disabled, 1: enabled)
+        //Bit 4: emlmr (0: disabled, 1: enabled)
+        //Bits 3-0: reserved
+        uint8_t& mlo_modes();
+        uint8_t& num_affiliated_sta();
+        std::tuple<bool, cAffiliatedSta&> affiliated_sta(size_t idx);
+        std::shared_ptr<cAffiliatedSta> create_affiliated_sta();
+        bool add_affiliated_sta(std::shared_ptr<cAffiliatedSta> ptr);
         size_t association_frame_length() { return m_association_frame_idx__ * sizeof(uint8_t); }
         uint8_t* association_frame(size_t idx = 0);
         bool set_association_frame(const void* buffer, size_t size);
@@ -734,9 +748,16 @@ class cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION : public BaseClass
         beerocks::message::sRadioCapabilities* m_capabilities = nullptr;
         int8_t* m_vap_id = nullptr;
         uint8_t* m_multi_ap_profile = nullptr;
+        uint8_t* m_is_mlo = nullptr;
+        uint8_t* m_mlo_modes = nullptr;
+        uint8_t* m_num_affiliated_sta = nullptr;
+        cAffiliatedSta* m_affiliated_sta = nullptr;
+        size_t m_affiliated_sta_idx__ = 0;
+        std::vector<std::shared_ptr<cAffiliatedSta>> m_affiliated_sta_vector;
+        bool m_lock_allocation__ = false;
+        int m_lock_order_counter__ = 0;
         uint8_t* m_association_frame = nullptr;
         size_t m_association_frame_idx__ = 0;
-        int m_lock_order_counter__ = 0;
 };
 
 class cACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION : public BaseClass
