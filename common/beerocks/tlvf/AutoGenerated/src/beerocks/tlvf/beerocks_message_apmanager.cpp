@@ -2449,6 +2449,90 @@ uint8_t& cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::multi_ap_profile() {
     return (uint8_t&)(*m_multi_ap_profile);
 }
 
+uint8_t& cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::is_mlo() {
+    return (uint8_t&)(*m_is_mlo);
+}
+
+uint8_t& cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::mlo_modes() {
+    return (uint8_t&)(*m_mlo_modes);
+}
+
+uint8_t& cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::num_affiliated_sta() {
+    return (uint8_t&)(*m_num_affiliated_sta);
+}
+
+std::tuple<bool, cAffiliatedSta&> cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::affiliated_sta(size_t idx) {
+    bool ret_success = ( (m_affiliated_sta_idx__ > 0) && (m_affiliated_sta_idx__ > idx) );
+    size_t ret_idx = ret_success ? idx : 0;
+    if (!ret_success) {
+        TLVF_LOG(ERROR) << "Requested index is greater than the number of available entries";
+    }
+    return std::forward_as_tuple(ret_success, *(m_affiliated_sta_vector[ret_idx]));
+}
+
+std::shared_ptr<cAffiliatedSta> cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::create_affiliated_sta() {
+    if (m_lock_order_counter__ > 0) {
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list affiliated_sta, abort!";
+        return nullptr;
+    }
+    size_t len = cAffiliatedSta::get_initial_size();
+    if (m_lock_allocation__) {
+        TLVF_LOG(ERROR) << "Can't create new element before adding the previous one";
+        return nullptr;
+    }
+    if (getBuffRemainingBytes() < len) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer";
+        return nullptr;
+    }
+    m_lock_order_counter__ = 0;
+    m_lock_allocation__ = true;
+    uint8_t *src = (uint8_t *)m_affiliated_sta;
+    if (m_affiliated_sta_idx__ > 0) {
+        src = (uint8_t *)m_affiliated_sta_vector[m_affiliated_sta_idx__ - 1]->getBuffPtr();
+    }
+    if (!m_parse__) {
+        uint8_t *dst = src + len;
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_association_frame = (uint8_t *)((uint8_t *)(m_association_frame) + len);
+    return std::make_shared<cAffiliatedSta>(src, getBuffRemainingBytes(src), m_parse__);
+}
+
+bool cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::add_affiliated_sta(std::shared_ptr<cAffiliatedSta> ptr) {
+    if (ptr == nullptr) {
+        TLVF_LOG(ERROR) << "Received entry is nullptr";
+        return false;
+    }
+    if (m_lock_allocation__ == false) {
+        TLVF_LOG(ERROR) << "No call to create_affiliated_sta was called before add_affiliated_sta";
+        return false;
+    }
+    uint8_t *src = (uint8_t *)m_affiliated_sta;
+    if (m_affiliated_sta_idx__ > 0) {
+        src = (uint8_t *)m_affiliated_sta_vector[m_affiliated_sta_idx__ - 1]->getBuffPtr();
+    }
+    if (ptr->getStartBuffPtr() != src) {
+        TLVF_LOG(ERROR) << "Received entry pointer is different than expected (expecting the same pointer returned from add method)";
+        return false;
+    }
+    if (ptr->getLen() > getBuffRemainingBytes(ptr->getStartBuffPtr())) {;
+        TLVF_LOG(ERROR) << "Not enough available space on buffer";
+        return false;
+    }
+    m_affiliated_sta_idx__++;
+    if (!m_parse__) { (*m_num_affiliated_sta)++; }
+    size_t len = ptr->getLen();
+    m_association_frame = (uint8_t *)((uint8_t *)(m_association_frame) + len - ptr->get_initial_size());
+    m_affiliated_sta_vector.push_back(ptr);
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    m_lock_allocation__ = false;
+    return true;
+}
+
 uint8_t* cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::association_frame(size_t idx) {
     if ( (m_association_frame_idx__ == 0) || (m_association_frame_idx__ <= idx) ) {
         TLVF_LOG(ERROR) << "Requested index is greater than the number of available entries";
@@ -2471,7 +2555,7 @@ bool cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::set_association_frame(con
     return true;
 }
 bool cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::alloc_association_frame(size_t count) {
-    if (m_lock_order_counter__ > 0) {;
+    if (m_lock_order_counter__ > 1) {;
         TLVF_LOG(ERROR) << "Out of order allocation for variable length list association_frame, abort!";
         return false;
     }
@@ -2480,7 +2564,7 @@ bool cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::alloc_association_frame(s
         TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
         return false;
     }
-    m_lock_order_counter__ = 0;
+    m_lock_order_counter__ = 1;
     uint8_t *src = (uint8_t *)&m_association_frame[m_association_frame_idx__];
     uint8_t *dst = src + len;
     if (!m_parse__) {
@@ -2501,6 +2585,9 @@ void cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::class_swap()
     m_mac->struct_swap();
     m_bssid->struct_swap();
     m_capabilities->struct_swap();
+    for (size_t i = 0; i < m_affiliated_sta_idx__; i++){
+        std::get<1>(affiliated_sta(i)).class_swap();
+    }
 }
 
 bool cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::finalize()
@@ -2538,6 +2625,9 @@ size_t cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::get_initial_size()
     class_size += sizeof(beerocks::message::sRadioCapabilities); // capabilities
     class_size += sizeof(int8_t); // vap_id
     class_size += sizeof(uint8_t); // multi_ap_profile
+    class_size += sizeof(uint8_t); // is_mlo
+    class_size += sizeof(uint8_t); // mlo_modes
+    class_size += sizeof(uint8_t); // num_affiliated_sta
     return class_size;
 }
 
@@ -2574,6 +2664,38 @@ bool cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::init()
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;
+    }
+    m_is_mlo = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_mlo_modes = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_num_affiliated_sta = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_num_affiliated_sta = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_affiliated_sta = reinterpret_cast<cAffiliatedSta*>(m_buff_ptr__);
+    uint8_t num_affiliated_sta = *m_num_affiliated_sta;
+    m_affiliated_sta_idx__ = 0;
+    for (size_t i = 0; i < num_affiliated_sta; i++) {
+        auto affiliated_sta = create_affiliated_sta();
+        if (!affiliated_sta || !affiliated_sta->isInitialized()) {
+            TLVF_LOG(ERROR) << "create_affiliated_sta() failed";
+            return false;
+        }
+        if (!add_affiliated_sta(affiliated_sta)) {
+            TLVF_LOG(ERROR) << "add_affiliated_sta() failed";
+            return false;
+        }
+        // swap back since affiliated_sta will be swapped as part of the whole class swap
+        affiliated_sta->class_swap();
     }
     m_association_frame = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (m_parse__) {
