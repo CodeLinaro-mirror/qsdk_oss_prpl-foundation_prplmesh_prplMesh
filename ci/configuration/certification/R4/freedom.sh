@@ -12,12 +12,15 @@ rm -f /var/log/messages && syslog-ng-ctl reload
 # Don't stop obuspa/upnp services, they are required for USP to work correctly
 
 # Stop the default ssh server on the lan-bridge
-sh /etc/init.d/ssh-server stop || true
+service ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
 
 # Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop || true
+service tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
+
+# Disable restarting failing serivces by default
+service amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 

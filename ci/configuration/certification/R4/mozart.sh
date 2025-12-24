@@ -10,15 +10,18 @@ set -e
 rm -f /var/log/messages && syslog-ng-ctl reload
 
 # Stop the default ssh server on the lan-bridge
-sh /etc/init.d/ssh-server stop || true
+service ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
 
 # Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop || true
+service tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
 
+# Disable restarting failing serivces by default
+service amx-processmonitor stop || true
+
 # Stop and disable the DHCPv4 client: (PPW-888)
-sh /etc/init.d/tr181-dhcpv4client stop || true
+service tr181-dhcpv4client stop || true
 rm -f /etc/rc.d/*dhcpv4client
 pkill -f -9 tr181-dhcpv4client || true
 
