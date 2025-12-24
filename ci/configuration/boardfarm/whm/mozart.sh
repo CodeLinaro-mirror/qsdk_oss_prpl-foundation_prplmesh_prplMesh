@@ -9,22 +9,22 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-sh /etc/init.d/tr181-upnp stop || true
+service tr181-upnp stop || true
 rm -f /etc/rc.d/S*tr181-upnp
 
-sh /etc/init.d/obuspa stop || true
+service obuspa stop || true
 rm -f /etc/rc.d/S*obuspa
 
 # Stop the default ssh server on the lan-bridge
-sh /etc/init.d/ssh-server stop || true
+service ssh-server stop || true
 rm -f /etc/rc.d/S*ssh-server
 
 # Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop || true
+service tr181-firewall stop || true
 rm -f /etc/rc.d/S*tr181-firewall
 
 # Disable restarting failing serivces by default
-sh /etc/init.d/amx-processmonitor stop || true
+service amx-processmonitor stop || true
 
 ubus wait_for IP.Interface
 
