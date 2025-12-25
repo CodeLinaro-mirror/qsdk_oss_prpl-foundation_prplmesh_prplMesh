@@ -420,8 +420,8 @@ bool ApAutoConfigurationTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, ui
 bool ApAutoConfigurationTask::handle_ap_mld_configuration_request(
     ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    auto db  = AgentDB::get();
-    auto mid = cmdu_rx.getMessageId();
+    auto db        = AgentDB::get();
+    const auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "Received AP_MLD_CONFIGURATION_REQUEST_MESSAGE, mid=" << std::hex << int(mid);
 
     // Send ACK_MESSAGE back to the controller
@@ -430,7 +430,11 @@ bool ApAutoConfigurationTask::handle_ap_mld_configuration_request(
         return false;
     }
     LOG(DEBUG) << "Sending ACK message to the originator, mid=" << std::hex << mid;
-    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+    if (!m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx)) {
+        LOG(ERROR) << "Failed sending ACK message to controller, mid=" << std::hex << mid
+                   << std::dec;
+        return false;
+    }
 
     // Handle Agent AP MLD Configuration TLV for reconfig
     // Empty radio_iface indicates this is for AP MLD Configuration Request (not WSC M2)
