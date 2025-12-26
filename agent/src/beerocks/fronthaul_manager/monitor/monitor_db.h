@@ -375,11 +375,6 @@ public:
         return m_ap_metrics_reporting_info;
     }
 
-    uint8_t get_channel_utilization() const
-    {
-        return m_ap_metrics_reporting_info.ap_metrics_channel_utilization_reporting_value;
-    }
-
     // Statistics //
     struct SRadioStats {
         uint16_t delta_ms                                      = 0;
@@ -414,6 +409,7 @@ public:
     };
 
     SRadioStats &get_stats() { return m_radio_stats; }
+    const SRadioStats &get_stats() const { return m_radio_stats; }
 
     void clear_stats();
 

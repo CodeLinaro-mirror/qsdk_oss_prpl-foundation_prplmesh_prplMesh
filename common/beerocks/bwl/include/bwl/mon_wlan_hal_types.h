@@ -35,14 +35,32 @@ struct SRadioStats {
     uint32_t errors_received;
     int8_t noise;
     uint8_t anpi_noise;
+
+    /**
+     * Percentage of time, linearly scaled with 255 representing 100%,
+     * that the radio was sensed busy in its primary channel.
+     */
+    uint8_t utilization;
+
+    /**
+     * Percentage of time, linearly scaled with 255 representing 100%,
+     * that the radio spent transmitting in its primary channel.
+     */
     uint8_t transmit;
+
+    /**
+     * Percentage of time, linearly scaled with 255 representing 100%,
+     * that the radio spent receiving valid 802.11 from any STA associated with any VAP
+     * on its radio in its primary channel.
+     */
     uint8_t receive_self;
+
+    /**
+     * Percentage of time, linearly scaled with 255 representing 100%,
+     * that the radio spent receiving valid 802.11 PPDUs that are not associated with any
+     * of its operating VAPs in its primary channel.
+     */
     uint8_t receive_other;
-    // uint8_t  channel_load_tot_prev;
-    // uint8_t  channel_load_tot_curr;
-    // uint8_t  channel_load_others;
-    // uint8_t  channel_load_idle;
-    // uint8_t  channel_load_tot_is_above_hi_th;
 };
 
 struct sMloStats {

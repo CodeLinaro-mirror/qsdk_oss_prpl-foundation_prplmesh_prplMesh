@@ -710,23 +710,15 @@ bool Monitor::monitor_fsm()
 void Monitor::on_channel_utilization_measurement_period_elapsed()
 {
     /**
-     * Measure current channel utilization on the radio.
-     */
-    uint8_t channel_utilization;
-    if (!mon_wlan_hal->get_channel_utilization(channel_utilization)) {
-        LOG(ERROR) << "Unable to get channel utilization";
-        return;
-    }
-
-    /**
      * If previous channel utilization was lower than the threshold and now it is higher than the
      * threshold, report it.
      * Or if previous channel utilization was higher than the threshold and now it's lower than
      * the threshold, report it.
      */
-    auto radio_node        = mon_db.get_radio_node();
-    auto &info             = radio_node->ap_metrics_reporting_info();
-    bool threshold_crossed = false;
+    auto radio_node             = mon_db.get_radio_node();
+    auto &info                  = radio_node->ap_metrics_reporting_info();
+    uint8_t channel_utilization = radio_node->get_stats().hal_stats.utilization;
+    bool threshold_crossed      = false;
 
     /**
      * If the channel utilization threshold is set for the first time in Multi-AP Policy Config
