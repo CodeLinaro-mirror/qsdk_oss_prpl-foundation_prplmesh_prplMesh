@@ -11,6 +11,7 @@
 #include <bcl/beerocks_event_loop_impl.h>
 #include <bcl/beerocks_logging.h>
 #include <bcl/beerocks_version.h>
+#include <bcl/network/file_descriptor.h>
 #include <bpl/bpl.h>
 
 #include <easylogging++.h>
@@ -28,22 +29,21 @@ using namespace vendor_message;
 using namespace beerocks;
 
 static bool g_running = true;
-static int s_signal   = 0;
 
 // Pointer to logger instance
 static std::vector<std::shared_ptr<beerocks::logging>> g_loggers;
 
-static void handle_signal()
+static void handle_signal(int signal_num)
 {
-    if (!s_signal)
+    if (!signal_num)
         return;
 
-    switch (s_signal) {
+    switch (signal_num) {
 
     // Terminate
     case SIGTERM:
     case SIGINT:
-        LOG(INFO) << "Caught signal '" << strsignal(s_signal) << "' Exiting...";
+        LOG(INFO) << "Caught signal '" << strsignal(signal_num) << "' Exiting...";
         g_running = false;
         break;
 
@@ -59,35 +59,76 @@ static void handle_signal()
     }
 
     default:
-        LOG(WARNING) << "Unhandled Signal: '" << strsignal(s_signal) << "' Ignoring...";
+        LOG(WARNING) << "Unhandled Signal: '" << strsignal(signal_num) << "' Ignoring...";
         break;
     }
-
-    s_signal = 0;
 }
 
-static void init_signals()
+/**
+ * @brief Set up process signal handling using signalfd.
+ *
+ * This function configures synchronous handling of process signals by:
+ *  - Initializing a signal mask for the signals of interest (SIGTERM,
+ *    SIGUSR1, SIGINT)
+ *  - Blocking these signals from default asynchronous delivery
+ *  - Creating a non-blocking signalfd file descriptor for the blocked signals
+ *
+ * The returned signal file descriptor can be monitored using epoll
+ * and allows signals to be handled in the main event loop like regular I/O
+ * events, avoiding traditional signal handlers.
+ *
+ * @param[out] sig_mask Signal set containing the blocked signals.
+ * @param[out] signal_fd File descriptor used to receive signal events.
+ * @returns true on success
+ *          false otherwise
+ */
+
+static bool setup_signals(sigset_t &sig_mask, int &signal_fd)
 {
-    // Signal handler function
-    auto signal_handler = [](int signum) { s_signal = signum; };
+    sigemptyset(&sig_mask);
+    sigaddset(&sig_mask, SIGTERM);
+    sigaddset(&sig_mask, SIGINT);
+    sigaddset(&sig_mask, SIGUSR1);
 
-    struct sigaction sigterm_action;
-    sigterm_action.sa_handler = signal_handler;
-    sigemptyset(&sigterm_action.sa_mask);
-    sigterm_action.sa_flags = 0;
-    sigaction(SIGTERM, &sigterm_action, NULL);
+    if (sigprocmask(SIG_BLOCK, &sig_mask, nullptr) == -1) {
+        LOG(ERROR) << "sigprocmask blocking async delivery of"
+                      " signals failed";
+        return false;
+    }
 
-    struct sigaction sigint_action;
-    sigint_action.sa_handler = signal_handler;
-    sigemptyset(&sigint_action.sa_mask);
-    sigint_action.sa_flags = 0;
-    sigaction(SIGINT, &sigint_action, NULL);
+    signal_fd = signalfd(-1, &sig_mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (signal_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "signalfd failed";
+        return false;
+    }
+    return true;
+}
 
-    struct sigaction sigusr1_action;
-    sigusr1_action.sa_handler = signal_handler;
-    sigemptyset(&sigusr1_action.sa_mask);
-    sigusr1_action.sa_flags = 0;
-    sigaction(SIGUSR1, &sigusr1_action, NULL);
+/**
+ * @brief Clean up signalfd-based signal handling.
+ *
+ * This function reverses the setup performed by setup_signals() by:
+ *  - Unblocking the previously blocked signals
+ *  - Closing the associated signalfd file descriptor
+ *  - Resetting the file descriptor to an invalid state
+ *
+ * It should be called during graceful shutdown or error handling
+ * to ensure proper signal delivery and resource cleanup.
+ *
+ * @param[in] sig_mask Signal set containing the signals to unblock.
+ * @param[in,out] signal_fd Signalfd file descriptor to close and invalidate.
+ *
+ * @note The caller must ensure no other threads are using signal_fd.
+ */
+static void cleanup_signals(const sigset_t &sig_mask, int &signal_fd)
+{
+    if (signal_fd != beerocks::net::FileDescriptor::invalid_descriptor) {
+        if (sigprocmask(SIG_UNBLOCK, &sig_mask, nullptr) == -1) {
+            LOG(ERROR) << "sigprocmask signals unblock failed";
+        }
+        close(signal_fd);
+        signal_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+    }
 }
 
 static void
@@ -173,6 +214,43 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
     auto event_loop = std::make_shared<beerocks::EventLoopImpl>();
     LOG_IF(!event_loop, FATAL) << "Unable to create event loop!";
 
+    int signal_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+    sigset_t sig_mask{};
+
+    if (!setup_signals(sig_mask, signal_fd)) {
+        return 1;
+    }
+
+    // Define the event handlers for SIGTERM and SIGUSR1 signals
+    beerocks::EventLoop::EventHandlers handlers;
+    handlers.name = "vendor_message_signal_handler";
+
+    handlers.on_read = [&](int fd, EventLoop &loop) {
+        signalfd_siginfo si{};
+        ssize_t bytes = read(fd, &si, sizeof(si));
+
+        if (bytes != sizeof(si)) {
+            LOG(ERROR) << "failed to read from signalfd";
+        } else {
+            handle_signal(si.ssi_signo);
+        }
+        return true;
+    };
+
+    handlers.on_error = [&](int fd, EventLoop &loop) {
+        LOG(ERROR) << "vendor_message_signal events error! on fd " << fd;
+        event_loop->remove_handlers(fd);
+        cleanup_signals(sig_mask, signal_fd);
+        return false;
+    };
+
+    // Register the event handlers with epoll
+    if (!event_loop->register_handlers(signal_fd, handlers)) {
+        cleanup_signals(sig_mask, signal_fd);
+        LOG(ERROR) << "Unable to register signal handlers for Vendor_message!";
+        return 1;
+    }
+
     // Write pid file
     beerocks::os_utils::write_pid_file(beerocks_vendor_message_slave_conf.temp_path,
                                        BEEROCKS_V_MESSAGE);
@@ -182,15 +260,19 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
     auto vendor_message =
         start_vendor_message_thread(beerocks_vendor_message_slave_conf, argc, argv);
     if (!vendor_message) {
+        event_loop->remove_handlers(signal_fd);
+        cleanup_signals(sig_mask, signal_fd);
         LOG(ERROR) << "Failed to start vendor message thread";
         return 1;
     }
 
+    auto touch_time_stamp_timeout = std::chrono::steady_clock::now();
     while (g_running) {
 
-        if (s_signal) {
-            handle_signal();
-            continue;
+        if (std::chrono::steady_clock::now() > touch_time_stamp_timeout) {
+            beerocks::os_utils::touch_pid_file(pid_file_path);
+            touch_time_stamp_timeout = std::chrono::steady_clock::now() +
+                                       std::chrono::seconds(beerocks::TOUCH_PID_TIMEOUT_SECONDS);
         }
 
         // Check if all vendor_message_slave are still running and break on error.
@@ -204,7 +286,11 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
             break;
         }
     }
+
+    event_loop->remove_handlers(signal_fd);
+    cleanup_signals(sig_mask, signal_fd);
     vendor_message->stop();
+
     LOG(DEBUG) << "Bye Bye!";
     return 0;
 }
@@ -213,8 +299,6 @@ int main(int argc, char *argv[])
 {
 
     std::cout << "Beerocks Vendor Message Process Start" << std::endl;
-
-    init_signals();
 
     // read slave config file
     std::string vendor_message_slave_config_file_path =
