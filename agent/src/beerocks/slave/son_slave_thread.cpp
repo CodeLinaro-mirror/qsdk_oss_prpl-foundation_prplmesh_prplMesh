@@ -260,6 +260,7 @@ bool slave_thread::thread_init()
             ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE,
             ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RENEW_MESSAGE,
+            ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::CLIENT_SECURITY_CONTEXT_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE,

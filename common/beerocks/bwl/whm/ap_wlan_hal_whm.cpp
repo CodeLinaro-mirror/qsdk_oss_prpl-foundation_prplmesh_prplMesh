@@ -652,16 +652,23 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             continue;
         }
 
+        const int8_t mld_unit = bss_info_conf.mld_id.empty()
+                                    ? DISABLED_MLDUNIT
+                                    : beerocks::string_utils::stoi(bss_info_conf.mld_id);
+
         LOG(DEBUG) << "Autoconfiguration for ssid: " << bss_info_conf.ssid
                    << " auth_type: " << auth_type << " encr_type: " << enc_type
                    << " network_key: " << bss_info_conf.network_key
                    << " fronthaul: " << bss_info_conf.fronthaul
                    << " backhaul: " << bss_info_conf.backhaul
                    << " hidden_SSID: " << bss_info_conf.hidden_ssid
-                   << " authentication_type: " << bss_info_conf.authentication_type;
+                   << " authentication_type: " << bss_info_conf.authentication_type
+                   << " mld_unit: " << mld_unit;
 
         new_obj.set_type(AMXC_VAR_ID_HTABLE);
         new_obj.add_child("SSID", bss_info_conf.ssid);
+        new_obj.add_child("MLDUnit", mld_unit);
+
         ret = m_ambiorix_cl.update_object(wifi_ssid_path, new_obj);
 
         if (!ret) {
@@ -740,6 +747,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         vap_info.mac       = bssid;
         vap_info.fronthaul = bss_info_conf.fronthaul;
         vap_info.backhaul  = bss_info_conf.backhaul;
+        vap_info.mld_id    = mld_unit;
         if (vap_info.backhaul) {
             vap_info.ssid = backhaul_wps_ssid;
             vap_info.profile1_backhaul_sta_association_disallowed =

@@ -156,9 +156,9 @@ private:
 
     // <RUID, <mld_unit, mld_mode>>
     std::unordered_map<sMacAddr, std::pair<int8_t, uint8_t>> bsta_mld_requests_infos;
-    // <iface, <<ssid, mld_unit, mld_mode>>>
-    std::unordered_map<std::string, std::vector<std::tuple<std::string, int8_t, uint8_t>>>
-        ap_mld_requests_infos;
+    // <iface, <ssid, <mld_unit, mld_mode>>>
+    std::unordered_map<std::string, std::unordered_map<std::string, std::tuple<int8_t, uint8_t>>>
+        m_ap_mld_requests_infos;
 
     /* Message handlers: */
 
@@ -190,6 +190,15 @@ private:
     void handle_ap_autoconfiguration_wsc_renew(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
+     * @brief Parse AP MLD Configuration Request message.
+     *
+     * This function implements the handling of Agent AP MLD Configuration TLV. If OK, it ACK.
+     *
+     * @param cmdu_rx received CMDU containing AP MLD Configuration Request message.
+     */
+    bool handle_ap_mld_configuration_request(ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    /**
      * @brief Parse BSTA MLD Configuration Request message.
      *
      * This function implements the handling of BSTA MLD Configuration TLV. If OK, it ACK.
@@ -218,8 +227,20 @@ private:
                            sBStaConfig &info);
     bool send_ap_mld_configuration(const std::string &radio_iface, std::string ssid,
                                    int8_t mld_unit, uint8_t mld_mode);
+    /**
+     * @brief Handle Agent AP MLD Configuration TLV from the controller.
+     *
+     * Parses the Agent AP MLD Configuration TLV and populates the internal MLD configuration
+     * structures.
+     *
+     * @param[in] cmdu_rx Received CMDU
+     * @param[in] radio_iface Radio interface name. If empty, processes all radios(AP MLD Configuration Request Message); otherwise,
+     *                        processes only the specified radio interface(AutoConfiguration WSC M2 Message)
+     *
+     * @return true on success, false if TLV parsing fails or configuration is invalid.
+     *
+     */
     bool handle_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                               std::vector<sBssConfig> &infos,
                                                const std::string &radio_iface);
     bool send_bsta_mld_configuration(const sMacAddr &ruid, int8_t mld_unit, uint8_t mld_mode,
                                      bool initilaization = false);
@@ -233,6 +254,17 @@ private:
                                                  std::vector<sBssConfig> &infos,
                                                  const sMacAddr &ruid,
                                                  beerocks::eFreqType freq_type);
+
+    /**
+     * @brief Populate MLD ID in BSS infos based on SSID match.
+     *
+     * @param[in] radio_iface Radio interface name
+     * @param[in,out] bss_infos Vector of BSS configurations
+     *
+     * @return true on success, false if radio_iface is not found
+     */
+    bool populate_mld_id_in_bss_infos(const std::string &radio_iface,
+                                      std::vector<sBssConfig> &bss_infos);
     /**
      * @brief Handles Vendor Specific messages.
      *
@@ -365,6 +397,16 @@ private:
         const std::string &radio_iface, const WSC::m2 &m2);
 
     bool add_wsc_m1_tlv(const std::string &radio_iface);
+
+    /**
+     * @brief Find an available MLD unit ID for AP MLD.
+     *
+     * Searches for an unused MLD unit by checking which units are already assigned
+     * to AP MLD configurations.
+     *
+     * @return Available MLD unit ID (0 to max_mlds-1), or DISABLED_MLDUNIT if none available.
+     */
+    int8_t find_available_ap_mld_unit();
 };
 
 } // namespace beerocks
