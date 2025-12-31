@@ -2519,6 +2519,28 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
             vap_info.profile2_backhaul_sta_association_disallowed;
     }
 
+    bssid->link_id   = vap_info.link_id;
+    bssid->apmld_mac = vap_info.ap_mld_mac;
+
+    for (auto &ap_mld_conf : db->ap_mld_configurations) {
+        if (ap_mld_conf.mld_config.mld_ssid == vap_info.ssid) {
+            ap_mld_conf.mld_config.mld_mac = vap_info.ap_mld_mac;
+            LOG(DEBUG) << "AP MLD MAC for SSID: " << vap_info.ssid << ", BSSID: " << vap_info.mac
+                       << ", AP MLD MAC: " << ap_mld_conf.mld_config.mld_mac;
+            for (auto &affiliated_ap : ap_mld_conf.affiliated_aps) {
+                if (affiliated_ap.ruid == radio->front.iface_mac) {
+                    LOG(DEBUG) << "Affiliated AP found ruid: " << affiliated_ap.ruid
+                               << ", ap bssid: " << vap_info.mac
+                               << ", link_id: " << vap_info.link_id;
+                    affiliated_ap.bssid   = vap_info.mac;
+                    affiliated_ap.link_id = vap_info.link_id;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
     auto notification_out = message_com::create_vs_message<
         beerocks_message::cACTION_CONTROL_HOSTAP_AP_ENABLED_NOTIFICATION>(m_cmdu_tx);
     if (!notification_out) {
@@ -2826,6 +2848,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
         }
         config_prints << " bssid: " << bssid.mac << ", ssid: " << bssid.ssid
                       << ", fBSS: " << bssid.fronthaul_bss << ", bBSS: " << bssid.backhaul_bss
+                      << ", mld_id: " << bssid.mld_id
                       << (bssid.active ? ", is active." : ", isn't active.") << std::endl;
     }
 

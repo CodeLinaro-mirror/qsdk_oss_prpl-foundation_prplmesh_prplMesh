@@ -292,22 +292,6 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
         return;
     }
 
-    auto db = AgentDB::get();
-    for (auto ap_mld_config : db->ap_mld_configurations) {
-        // Next step, registering callback to avoid "get" method
-        for (auto affiliated_ap : ap_mld_config.affiliated_aps) {
-            if (affiliated_ap.ruid != net::network_utils::ZERO_MAC &&
-                affiliated_ap.bssid != net::network_utils::ZERO_MAC) {
-                auto radio = db->get_radio_by_mac(affiliated_ap.ruid);
-                for (const auto &bss : radio->front.bssids) {
-                    if (bss.mac == affiliated_ap.bssid) {
-                        affiliated_ap.link_id = bss.link_id;
-                    }
-                }
-            }
-        }
-    }
-
     if (!slave_thread::add_agent_ap_mld_configuration_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Failed to add Agent AP MLD Configuration TLV";
         return;
@@ -324,6 +308,7 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
     }
 
     // In R1,R4 testbeds tshark version could not handle this TLV, skip adding if we are in R1,R4 test beds.
+    auto db = AgentDB::get();
     if (!db->device_conf.certification_mode ||
         db->device_conf.certification_program == std::string("mapr6")) {
         if (!add_bss_configuration_report_tlv()) {
