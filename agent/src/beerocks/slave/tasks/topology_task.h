@@ -143,13 +143,6 @@ private:
     bool add_vs_tlv_bssid_iface_mapping();
 
     /**
-     * @brief Add and fill agent_ap_mld_configuration tlv.
-     *
-     * @return true on success, otherwise false.
-     */
-    bool add_agent_ap_mld_configuration_tlv();
-
-    /**
      * @brief Add and fill backhaul_sta_mld_configuration tlv.
      *
      * @return true on success, otherwise false.

@@ -122,6 +122,13 @@ public:
      */
     bool update_vaps_info(const std::string &iface, const beerocks_message::sVapInfo vaps[]);
 
+    /**
+     * @brief Add and fill agent_ap_mld_configuration tlv.
+     *
+     * @return true on success, otherwise false.
+     */
+    static bool add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
     enum eEvent : uint8_t {
         CONTROLLER_DISCOVERED,
         CONTROLLER_EARLY_AP_CAPABILITY,
