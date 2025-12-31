@@ -1938,23 +1938,32 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             UTILS_SLEEP_MSEC(500);
         }
 
+        // Enabling VAPs and MLDs takes time to apply to the driver
         if (perform_update && !bss_info_conf_list.empty()) {
             ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
                                                 backhaul_wps_passphrase, bridge_name);
 
             auto vap_timeout = std::chrono::steady_clock::now() + wait_for_vaps_enable_timeout_sec;
-            bool all_vaps_enabled = false;
+            bool all_vaps_enabled = false, all_mld_updated = false;
             while (std::chrono::steady_clock::now() < vap_timeout) {
-                LOG(INFO) << "Checking vap status";
-                if (ap_wlan_hal->get_vap_status(bss_info_conf_list)) {
-                    LOG(INFO) << "All vaps are enabled, break";
+                LOG(INFO) << "Checking vap and mld status";
+                if (!all_vaps_enabled && ap_wlan_hal->get_vap_status(bss_info_conf_list)) {
+                    LOG(INFO) << "All vaps are enabled";
                     all_vaps_enabled = true;
-                    break;
                 }
+
+                if (!all_mld_updated && ap_wlan_hal->update_mld_status(bss_info_conf_list)) {
+                    LOG(INFO) << "MLD fields are updated";
+                    all_mld_updated = true;
+                }
+
+                if (all_vaps_enabled && all_mld_updated)
+                    break;
+
                 UTILS_SLEEP_MSEC(500);
             }
-            if (all_vaps_enabled == false) {
-                LOG(ERROR) << "All the vaps are not yet enabled";
+            if (all_vaps_enabled == false || all_mld_updated == false) {
+                LOG(ERROR) << "All the vaps are not yet enabled or mld updated";
                 return;
             }
 
@@ -3479,7 +3488,8 @@ bool ApManager::handle_ap_enabled(int vap_id)
 
     LOG(INFO) << "vap_id = " << int(vap_id) << ", bssid = " << vap_info.mac
               << ", ssid = " << vap_info.ssid << ", fronthaul = " << vap_info.fronthaul
-              << ", backhaul = " << vap_info.backhaul;
+              << ", backhaul = " << vap_info.backhaul << ", apmld mac = " << vap_info.ap_mld_mac
+              << ", link_id = " << vap_info.link_id;
 
     if (vap_info.backhaul) {
         LOG(DEBUG) << "disallow_profile1=" << vap_info.profile1_backhaul_sta_association_disallowed
@@ -3509,6 +3519,9 @@ bool ApManager::handle_ap_enabled(int vap_id)
         vap_info.profile1_backhaul_sta_association_disallowed;
     notification->vap_info().profile2_backhaul_sta_association_disallowed =
         vap_info.profile2_backhaul_sta_association_disallowed;
+
+    notification->vap_info().link_id    = vap_info.link_id;
+    notification->vap_info().ap_mld_mac = tlvf::mac_from_string(vap_info.ap_mld_mac);
 
     send_cmdu(cmdu_tx);
 
