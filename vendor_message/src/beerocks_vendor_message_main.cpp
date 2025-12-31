@@ -43,7 +43,8 @@ static void handle_signal()
     // Terminate
     case SIGTERM:
     case SIGINT:
-        LOG(INFO) << "step 2.1: signal was captured by ISR, we know that because the flag is set, now we set the flag for the loop control";
+        LOG(INFO) << "step 2.1: signal was captured by ISR, we know that because the flag is set, "
+                     "now we set the flag for the loop control";
         g_running = false;
         break;
 
@@ -208,7 +209,6 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
         } else {
             LOG(DEBUG) << "step 1.1: return non-zero";
         }
-
     }
     LOG(DEBUG) << "step 3.1: loop ended, try to stop thread B";
     vendor_message->stop();
