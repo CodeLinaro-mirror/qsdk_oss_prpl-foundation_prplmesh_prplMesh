@@ -5654,9 +5654,9 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         return false;
     }
     for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
-        auto &bss   = radio->front.bssids[vap_idx];
-        bss.link_id = vaps[vap_idx].link_id;
-        bss.active  = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
+        auto &bss = radio->front.bssids[vap_idx];
+
+        bss.active = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
         if (!bss.active) {
             // Set all values to their default state
             bss.iface_name                                       = "";
@@ -5666,6 +5666,8 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             bss.backhaul_bss                                     = false;
             bss.backhaul_bss_disallow_profile1_agent_association = false;
             bss.backhaul_bss_disallow_profile2_agent_association = false;
+            bss.link_id                                          = DISABLED_MLDUNIT;
+            bss.apmld_mac                                        = network_utils::ZERO_MAC;
             continue;
         }
         bss.iface_name    = vaps[vap_idx].iface_name;
@@ -5678,17 +5680,27 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         bss.backhaul_bss_disallow_profile2_agent_association =
             vaps[vap_idx].profile2_backhaul_sta_association_disallowed;
 
+        bss.link_id   = vaps[vap_idx].link_id;
+        bss.apmld_mac = vaps[vap_idx].ap_mld_mac;
+
         LOG(DEBUG) << "BSS " << bss.iface_name << ", bssid: " << bss.mac << ", ssid:" << bss.ssid
                    << ", fBSS: " << bss.fronthaul_bss << ", bBSS: " << bss.backhaul_bss
                    << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
-                   << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association;
+                   << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association
+                   << ", mld_id: " << bss.mld_id << ", link_id: " << bss.link_id
+                   << ", apmld_mac: " << bss.apmld_mac;
 
         for (auto &ap_mld_conf : db->ap_mld_configurations) {
             if (ap_mld_conf.mld_config.mld_ssid == bss.ssid) {
                 ap_mld_conf.mld_config.mld_mac = vaps[vap_idx].ap_mld_mac;
+                LOG(DEBUG) << "AP MLD MAC for SSID: " << bss.ssid << ", BSSID: " << bss.mac
+                           << ", AP MLD MAC: " << ap_mld_conf.mld_config.mld_mac;
                 for (auto &affiliated_ap : ap_mld_conf.affiliated_aps) {
                     if (affiliated_ap.ruid == radio->front.iface_mac) {
-                        affiliated_ap.bssid = bss.mac;
+                        LOG(DEBUG) << "Affiliated AP found ruid: " << affiliated_ap.ruid
+                                   << ", ap bssid: " << bss.mac << ", link_id: " << bss.link_id;
+                        affiliated_ap.bssid   = bss.mac;
+                        affiliated_ap.link_id = bss.link_id;
                         break;
                     }
                 }

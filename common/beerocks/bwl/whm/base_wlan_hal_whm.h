@@ -67,6 +67,8 @@ public:
     virtual bool refresh_vaps_info(int id) override;
     virtual bool
     get_vap_status(const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list) override;
+    virtual bool update_mld_status(
+        const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list) override;
     virtual bool process_ext_events(int fd = 0) override;
     virtual bool process_nl_events() override { return true; };
     virtual std::string get_radio_mac() override;
@@ -164,6 +166,35 @@ private:
     void populate_channels_max_tx_power();
     void update_eht_capabilities();
     void update_max_mld_links();
+
+    /**
+     * @brief update link_id and ap mld mac address for enabled vap which has mld_id is enabled
+     *
+     * @see base_wlan_hal::populate_mlo_fields
+     *
+     * @param[in] vap_element vap element with config with mld_id
+     *
+     * @return True on success and false otherwise.
+     */
+    bool update_vap_mlo_fields(VAPElement &vap_element);
+
+    /** 
+     * @brief Gets channel utilization.
+     *
+     * @see base_wlan_hal::update_vap_mlo_fields
+     *
+     * Function reads MLDUnit from SSID datamodel object, updates the vap element
+     * Later to read and update LinkID and AP MLD MacAddr
+     *
+     * @param[in] vap_element vap element with config with mld_id
+     * @param[in] ssid_obj ssid datamodel object
+     * @param[in] ifname interface name
+     *
+     * @return None
+     */
+    void populate_mlo_fields(VAPElement &vap_element,
+                             const std::unique_ptr<beerocks::wbapi::AmbiorixVariant> &ssid_obj,
+                             const std::string &ifname);
 
 protected:
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_rssi_event_handler;

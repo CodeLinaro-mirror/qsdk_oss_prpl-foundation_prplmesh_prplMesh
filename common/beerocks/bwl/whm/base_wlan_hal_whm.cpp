@@ -8,6 +8,7 @@
 
 #include "base_wlan_hal_whm.h"
 
+#include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_string_utils.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/network/network_utils.h>
@@ -1239,6 +1240,31 @@ bool base_wlan_hal_whm::get_vap_status(
     return ret;
 }
 
+bool base_wlan_hal_whm::update_mld_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    for (const auto &bss_info_conf : bss_info_conf_list) {
+
+        const auto &vap = m_radio_info.available_vaps.find(
+            get_vap_id_with_mac(tlvf::mac_to_string(bss_info_conf.bssid)));
+        if (vap == m_radio_info.available_vaps.end()) {
+            LOG(ERROR) << "Failed to get vap for BSS: " << bss_info_conf.bssid;
+            continue;
+        }
+
+        // Skip disabled BSS and MLO
+        auto vap_info = vap->second;
+        if (bss_info_conf.teardown || vap_info.ssid.empty() ||
+            (vap_info.mld_id == DISABLED_MLDUNIT))
+            continue;
+
+        if (!update_vap_mlo_fields(vap_info))
+            return false;
+    }
+
+    return true;
+}
+
 bool base_wlan_hal_whm::refresh_vaps_info(int id)
 {
     bool ret = false;
@@ -1332,6 +1358,88 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
     return ret;
 }
 
+bool base_wlan_hal_whm::update_vap_mlo_fields(VAPElement &vap_element)
+{
+    std::string apmld_path;
+    m_ambiorix_cl.resolve_path(wbapi_utils::search_path_apmld_by_mldid(vap_element.mld_id),
+                               apmld_path);
+    if (apmld_path.empty()) {
+        LOG(ERROR) << "APMLD Path could not be resolved for MLDUnit: " << vap_element.mld_id;
+        return false;
+    }
+
+    std::string mld_mac_address;
+    if (!m_ambiorix_cl.get_param(mld_mac_address, apmld_path, "MLDMACAddress")) {
+        LOG(ERROR) << "Failed to read MLDMACAddress from APMLD: " << apmld_path;
+        return false;
+    }
+
+    if (mld_mac_address == beerocks::net::network_utils::ZERO_MAC_STRING ||
+        !beerocks::net::network_utils::is_valid_mac(mld_mac_address)) {
+        LOG(ERROR) << "Invalid MLDMACAddress: " << mld_mac_address;
+        return false;
+    }
+    vap_element.ap_mld_mac = mld_mac_address;
+
+    std::string affiliated_ap_path;
+    m_ambiorix_cl.resolve_path(wbapi_utils::search_path_affiliated_ap(apmld_path, vap_element.mac),
+                               affiliated_ap_path);
+    if (affiliated_ap_path.empty()) {
+        LOG(ERROR) << "Affiliated AP Path could not be resolved for BSSID: " << vap_element.mac;
+        return false;
+    }
+
+    LOG(DEBUG) << "Resolved affiliated_ap_path: " << affiliated_ap_path;
+
+    int8_t link_id = DISABLED_MLDUNIT;
+    if (!m_ambiorix_cl.get_param(link_id, affiliated_ap_path, "LinkID")) {
+        LOG(ERROR) << "LinkID could not be read from : " << affiliated_ap_path;
+        return false;
+    }
+    vap_element.link_id = link_id;
+
+    LOG(INFO) << "MLO fields populated - bss: " << vap_element.bss
+              << ", MLDID: " << vap_element.mld_id << ", LinkID: " << vap_element.link_id
+              << ", BSSID: " << vap_element.mac << ", AP MLD MAC: " << vap_element.ap_mld_mac;
+
+    return true;
+}
+
+void base_wlan_hal_whm::populate_mlo_fields(
+    VAPElement &vap_element, const std::unique_ptr<beerocks::wbapi::AmbiorixVariant> &ssid_obj,
+    const std::string &ifname)
+{
+    LOG(DEBUG) << "Populate MLO fields for ifname: " << ifname << " ssid: " << vap_element.ssid;
+
+    if (vap_element.mac.empty()) {
+        LOG(ERROR) << "VAP element MAC is empty, skipping MLO field population for " << ifname;
+        return;
+    }
+
+    vap_element.link_id = DISABLED_MLDUNIT;
+    vap_element.ap_mld_mac.clear();
+
+    if (vap_element.ssid.empty()) {
+        LOG(DEBUG) << "VAP is disabled, clear MLO fileds ifname:" << ifname;
+        return;
+    }
+
+    int8_t mld_unit = DISABLED_MLDUNIT;
+    if (!ssid_obj->read_child(mld_unit, "MLDUnit")) {
+        LOG(ERROR) << "MLDUnit could not be read for ifname: " << ifname;
+        return;
+    }
+
+    vap_element.mld_id = mld_unit;
+    if (mld_unit == DISABLED_MLDUNIT) {
+        LOG(DEBUG) << "MLDUnit is disabled for ifname: " << ifname;
+        return;
+    }
+
+    update_vap_mlo_fields(vap_element);
+    return;
+}
+
 bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
 {
     VAPElement vap_element;
@@ -1373,6 +1481,8 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
             m_ambiorix_cl.resolve_path(wifi_ssid_path, vap_extInfo.ssid_path);
             vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
             LOG(INFO) << "status for " << ifname << " " << vap_extInfo.status;
+
+            populate_mlo_fields(vap_element, ssid_obj, ifname);
         }
     }
 
@@ -1415,6 +1525,10 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
 
     mapped_vap_element.mac    = vap_element.mac;
     mapped_vap_extInfo.status = vap_extInfo.status;
+
+    mapped_vap_element.mld_id     = vap_element.mld_id;
+    mapped_vap_element.link_id    = vap_element.link_id;
+    mapped_vap_element.ap_mld_mac = vap_element.ap_mld_mac;
 
     return true;
 }

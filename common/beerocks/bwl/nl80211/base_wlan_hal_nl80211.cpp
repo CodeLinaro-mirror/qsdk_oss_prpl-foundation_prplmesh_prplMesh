@@ -772,6 +772,11 @@ bool base_wlan_hal_nl80211::get_vap_status(
 {
     return true;
 }
+bool base_wlan_hal_nl80211::update_mld_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    return true;
+}
 bool base_wlan_hal_nl80211::refresh_vaps_info(int id)
 {
     LOG(TRACE) << __func__ << " - id = " << id;

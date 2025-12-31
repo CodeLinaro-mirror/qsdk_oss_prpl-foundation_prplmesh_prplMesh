@@ -210,6 +210,45 @@ public:
     static std::string search_path_ap_by_ssidRef(const std::string &ssidRef);
 
     /**
+     * @brief Return search path of APMLD template object.
+     *
+     * Constructs and returns the base search path for the APMLD (Access Point
+     * Multi-Link Device) template object in the WiFi data model.
+     *
+     * @return Search path string for APMLD template object (e.g., "WiFi.APMLD.")
+     */
+    static std::string search_path_apmld();
+
+    /**
+     * @brief Return search path of APMLD object instance filtered by MLDID.
+     *
+     * Constructs and returns the search path for a specific APMLD instance
+     * by filtering on the MLDID (Multi-Link Device Identifier).
+     *
+     * @param[in] mld_id The Multi-Link Device identifier to filter by.
+     *
+     * @return Search path string for the specific APMLD instance
+     *         (e.g., "WiFi.APMLD.[MLDID == 1].")
+     */
+    static std::string search_path_apmld_by_mldid(int8_t mld_id);
+
+    /**
+     * @brief Return search path of AffiliatedAP object instance filtered by BSSID.
+     *
+     * Constructs and returns the search path for an AffiliatedAP instance
+     * within an APMLD object, filtered by BSSID (MAC address). The function
+     * handles both lowercase and uppercase MAC address formats to ensure
+     * reliable path resolution regardless of MAC address case in the data model.
+     *
+     * @param[in] apmld The APMLD object path (e.g., from search_path_apmld_by_mldid()).
+     * @param[in] mac The BSSID (MAC address) to filter by.
+     *
+     * @return Search path string for the AffiliatedAP instance
+     *         (e.g., "WiFi.APMLD.1.AffiliatedAP.[BSSID == 'aa:bb:cc:dd:ee:ff' || BSSID == 'AA:BB:CC:DD:EE:FF'].")
+     */
+    static std::string search_path_affiliated_ap(const std::string &apmld, const std::string &mac);
+
+    /**
      * @brief return search path of associated device object instance
      * filter by MAC address.
      */

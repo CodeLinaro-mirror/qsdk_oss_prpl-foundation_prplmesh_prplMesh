@@ -439,6 +439,11 @@ bool base_wlan_hal_dummy::get_vap_status(
 {
     return true;
 }
+bool base_wlan_hal_dummy::update_mld_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    return true;
+}
 
 /**
  * @brief process simulated events

@@ -298,6 +298,23 @@ std::string wbapi_utils::search_path_ap_by_ssidRef(const std::string &ssidRef)
     return search_path_ap() + "[SSIDReference == '" + ssidRef + "'].";
 }
 
+std::string wbapi_utils::search_path_apmld() { return search_path_wifi() + "APMLD."; }
+
+std::string wbapi_utils::search_path_apmld_by_mldid(int8_t mld_id)
+{
+    return search_path_apmld() + "[MLDID == " + std::to_string(mld_id) + "].";
+}
+
+std::string wbapi_utils::search_path_affiliated_ap(const std::string &apmld, const std::string &mac)
+{
+    std::string macLc(mac);
+    std::transform(macLc.begin(), macLc.end(), macLc.begin(), ::tolower);
+    std::string macUc(mac);
+    std::transform(macUc.begin(), macUc.end(), macUc.begin(), ::toupper);
+
+    return apmld + "AffiliatedAP.[BSSID == '" + macLc + "' || BSSID == '" + macUc + "'].";
+}
+
 std::string wbapi_utils::search_path_assocDev_by_mac(const std::string &vap_ifname,
                                                      const std::string &mac)
 {
