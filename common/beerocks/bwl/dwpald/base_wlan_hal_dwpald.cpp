@@ -944,6 +944,11 @@ bool base_wlan_hal_dwpal::get_vap_status(
 {
     return true;
 }
+bool base_wlan_hal_dwpal::update_mld_status(
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_conf_list)
+{
+    return true;
+}
 bool base_wlan_hal_dwpal::refresh_vaps_info(int id)
 {
     if (id > beerocks::IFACE_RADIO_ID)
