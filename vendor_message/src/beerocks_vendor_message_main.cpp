@@ -43,7 +43,7 @@ static void handle_signal()
     // Terminate
     case SIGTERM:
     case SIGINT:
-        LOG(INFO) << "Caught signal '" << strsignal(s_signal) << "' Exiting...";
+        LOG(INFO) << "step 2.1: signal was captured by ISR, we know that because the flag is set, now we set the flag for the loop control";
         g_running = false;
         break;
 
@@ -69,6 +69,7 @@ static void handle_signal()
 static void init_signals()
 {
     // Signal handler function
+    // this lamda should be called first, step 0
     auto signal_handler = [](int signum) { s_signal = signum; };
 
     struct sigaction sigterm_action;
@@ -189,7 +190,9 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
     while (g_running) {
 
         if (s_signal) {
+            LOG(DEBUG) << "step 2.0: after ISR set the flag, now we handle it";
             handle_signal();
+            LOG(DEBUG) << "step 2.2: already set the loop flag, it will enter the next iteration";
             continue;
         }
 
@@ -202,9 +205,15 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
         if (event_loop->run() < 0) {
             LOG(ERROR) << "Event loop failure!";
             break;
+        } else {
+            LOG(DEBUG) << "step 1.1: return non-zero";
         }
+
     }
+    LOG(DEBUG) << "step 3.1: loop ended, try to stop thread B";
     vendor_message->stop();
+    LOG(DEBUG) << "step 3.2: thread B stopped";
+    LOG(DEBUG) << "note: it maybe not printed, due to the KILL";
     LOG(DEBUG) << "Bye Bye!";
     return 0;
 }

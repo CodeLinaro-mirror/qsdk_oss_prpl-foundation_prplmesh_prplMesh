@@ -174,6 +174,8 @@ int EventLoopImpl::run()
 
     if (num_events == -1) {
         if (EINTR == err) {
+            LOG(DEBUG) << " step 1.0: thread A return, due to interrupt";
+            LOG(DEBUG) << " note: this msg maybe printed twice, thread B";
             LOG(INFO) << strerror(err) << " during epoll_wait";
             return 0;
         }
