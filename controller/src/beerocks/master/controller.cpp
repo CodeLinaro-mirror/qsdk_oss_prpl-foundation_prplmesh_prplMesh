@@ -2535,10 +2535,13 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
         auto tx_power = operating_channel_report_tlv->current_transmit_power();
 
         /*
-            Here need to remove the CurrentOperatingClass data from the Controller Data Model which was
-            set in previous OPERATING_CHANNEL_REPORT_MESSAGE.
+            Here need to remove the CurrentOperatingClass data from the Controller Data Model which
+            was set in previous OPERATING_CHANNEL_REPORT_MESSAGE.
+            To avoid clearing a DM node and setting it right after, we reset the op_classses in db,
+            set the operating classes db in handle_current_op_class and then
+            dm_clear_empty_current_op_classes.
          */
-        database.remove_current_op_classes(ruid);
+        database.reset_current_op_classes_db(ruid);
 
         LOG(INFO) << "operating channel report, ruid=" << ruid << ", tx_power=" << std::dec
                   << int(tx_power);
@@ -2557,22 +2560,9 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
             auto operating_class         = operating_class_struct.operating_class;
             auto channel                 = operating_class_struct.channel_number;
 
-            // In case of a non Intel Slave the radio wifi channel is not added at AP-Autoconfiguration
-            // reception.
-            // Fill radio wifi channel struct with primary channel and its operating class
-            if (wireless_utils::get_bandwidth_from_op_class(operating_class) ==
-                beerocks::eWiFiBandwidth::BANDWIDTH_20) {
-                beerocks::WifiChannel wifi_channel = beerocks::WifiChannel(
-                    channel, wireless_utils::which_freq_op_cls(operating_class),
-                    beerocks::eWiFiBandwidth::BANDWIDTH_20, false);
-
-                if (!database.set_radio_wifi_channel(ruid, wifi_channel)) {
-                    LOG(ERROR) << "set node wifi channel failed, mac=" << ruid;
-                }
-            }
-
-            database.add_current_op_class(ruid, operating_class, channel, tx_power);
+            database.handle_current_op_class(ruid, operating_class, channel, tx_power);
         }
+        database.dm_clear_empty_current_op_classes(ruid);
     }
 
     for (const auto &spatial_reuse_report_tlv :

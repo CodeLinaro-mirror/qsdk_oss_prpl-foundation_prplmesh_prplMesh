@@ -573,13 +573,13 @@ TEST_F(DbTest, test_add_hostap_supported_operating_class)
 TEST_F(DbTest, test_add_current_op_class)
 {
     const std::string radio_path_1_operating_classes =
-        std::string(g_radio_path_1) + ".CurrentOperatingClasses";
+        std::string(g_radio_path_1) + ".CurrentOperatingClassProfile";
 
     //device always exists
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
 
-    // must fail because parent does not exists
-    EXPECT_FALSE(m_db->add_current_op_class(tlvf::mac_from_string(g_radio_mac_1), 0x01, 0x02, 10));
+    // must fail because path is empty
+    EXPECT_FALSE(m_db->add_current_op_class("", 0x01, 0x02, 10));
 
     //expectations for add_radio
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_1)).WillRepeatedly(Return(1));
@@ -597,8 +597,6 @@ TEST_F(DbTest, test_add_current_op_class)
               m_db->get_radio_data_model_path(tlvf::mac_from_string(g_radio_mac_1)));
 
     //expectations for add_current_op_class
-    EXPECT_CALL(*m_ambiorix, add_instance(radio_path_1_operating_classes))
-        .WillOnce(Return(radio_path_1_operating_classes + ".1"));
     EXPECT_CALL(*m_ambiorix,
                 set_current_time(std::string(radio_path_1_operating_classes + ".1"), _))
         .WillOnce(Return(true));
@@ -613,7 +611,7 @@ TEST_F(DbTest, test_add_current_op_class)
         .WillOnce(Return(true));
 
     //execute test
-    EXPECT_TRUE(m_db->add_current_op_class(tlvf::mac_from_string(g_radio_mac_1), 0x01, 0x02, 10));
+    EXPECT_TRUE(m_db->add_current_op_class(radio_path_1_operating_classes + ".1", 0x01, 0x02, 10));
 }
 
 TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)

@@ -6792,18 +6792,52 @@ bool db::dm_remove_device_element(const sMacAddr &mac)
     return true;
 }
 
-bool db::add_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8_t op_channel,
-                              int8_t tx_power)
+Agent::operatingClassProfileIndex db::get_db_current_op_class_index(const sMacAddr &radio_mac,
+                                                                    uint8_t op_class)
 {
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio for mac: " << radio_mac;
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW;
+    }
+
+    // Convert operating class bandwidth to index
+    switch (son::wireless_utils::get_bandwidth_from_op_class(op_class)) {
+    case beerocks::eWiFiBandwidth::BANDWIDTH_20:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_20MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_40:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_40MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_80:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_80MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_160:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_160MHZ;
+    case beerocks::eWiFiBandwidth::BANDWIDTH_320:
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_320MHZ;
+    default:
+        LOG(ERROR) << "Unknown bandwidth";
+        return Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW;
+    }
+}
+
+bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8_t op_channel,
+                                 int8_t tx_power)
+{
+    if (op_channel == 0 || (son::wireless_utils::get_bandwidth_from_op_class(op_class) ==
+                            beerocks::BANDWIDTH_UNKNOWN)) {
+        LOG(ERROR) << "Invalid op class or op channel provided for radio: " << radio_mac;
+        return false;
+    }
+
     auto radio = get_radio_by_uid(radio_mac);
     if (!radio) {
         LOG(ERROR) << "Failed to get radio for mac: " << radio_mac;
         return false;
     }
 
-    if (radio->band != utils::get_freq_type_from_op_class(op_class)) {
+    if (radio->band != son::wireless_utils::which_freq_op_cls(op_class)) {
         LOG(ERROR) << "This should not happen. Radio band changed from " << radio->band << " to "
-                   << utils::get_freq_type_from_op_class(op_class);
+                   << son::wireless_utils::which_freq_op_cls(op_class);
+        return false;
     }
 
     auto radio_path = radio->dm_path;
@@ -6811,34 +6845,133 @@ bool db::add_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8
         return true;
     }
 
-    // Prepare path to the CurrentOperatingClasses instance
-    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses
-    auto op_class_path = radio_path + ".CurrentOperatingClasses";
-
-    auto op_class_path_instance = m_ambiorix_datamodel->add_instance(op_class_path);
-    if (op_class_path_instance.empty()) {
-        LOG(ERROR) << "Failed to add instance " << op_class_path;
+    auto agent = get_agent_by_radio_uid(radio_mac);
+    if (!agent) {
+        LOG(ERROR) << "Failed to get agent for radio mac: " << radio_mac;
         return false;
     }
 
-    m_ambiorix_datamodel->set_current_time(op_class_path_instance);
+    // In case of a non Intel Slave the radio wifi channel is not added at AP-Autoconfiguration
+    // reception.
+    // Fill radio wifi channel struct with primary channel and its operating class
+    if (wireless_utils::get_bandwidth_from_op_class(op_class) ==
+        beerocks::eWiFiBandwidth::BANDWIDTH_20) {
+        beerocks::WifiChannel wifi_channel =
+            beerocks::WifiChannel(op_channel, wireless_utils::which_freq_op_cls(op_class),
+                                  wireless_utils::get_bandwidth_from_op_class(op_class), false);
 
-    //Set Operating class
-    //Data model path: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses.Class
+        if (!set_radio_wifi_channel(radio_mac, wifi_channel)) {
+            LOG(ERROR) << "set node wifi channel failed, mac=" << radio;
+        }
+    }
+
+    // Prepare path to the CurrentOperatingClassProfile instance
+    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClassProfile
+    auto op_class_path = radio_path + ".CurrentOperatingClassProfile";
+
+    // The first time, instanciate one Radio.CurrentOperatingClassProfile and
+    // MultiAPDevice.Backhaul.CurrentOperatingClassProfile for all bandwidth.
+    for (int i = 0; i < Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW; i++) {
+        if (radio->current_operating_class_profile[i].dm_path.empty()) {
+            radio->current_operating_class_profile[i].dm_path =
+                m_ambiorix_datamodel->add_instance(op_class_path);
+            if (radio->current_operating_class_profile[i].dm_path.empty()) {
+                LOG(ERROR) << "Failed to add instance " << op_class_path;
+                return false;
+            }
+        }
+        if (!agent->is_gateway && agent->backhaul_op_class_profile_dm_path[i].empty()) {
+            auto pos_radio = radio_path.find(".Radio");
+            if (pos_radio == std::string::npos) {
+                LOG(ERROR) << "Radio DM path: " << radio_path << ", for radio: " << radio_mac
+                           << ", does not contain .Radio";
+                return false;
+            }
+            std::string multi_ap_device_backhaul_op_class_path =
+                radio_path.substr(0, pos_radio) +
+                ".MultiAPDevice.Backhaul.CurrentOperatingClassProfile";
+            agent->backhaul_op_class_profile_dm_path[i] =
+                m_ambiorix_datamodel->add_instance(multi_ap_device_backhaul_op_class_path);
+            if (agent->backhaul_op_class_profile_dm_path[i].empty()) {
+                LOG(ERROR) << "Failed to add instance " << multi_ap_device_backhaul_op_class_path;
+                return false;
+            }
+        }
+    }
+
+    LOG(DEBUG) << "Fill DM op class for radio_mac=" << radio_mac << ", op_class=" << op_class
+               << ", channel=" << op_channel << ", tx_power=" << tx_power;
+    auto index = get_db_current_op_class_index(radio_mac, op_class);
+    if (!set_dm_current_op_class(radio_mac, index, op_class, op_channel, tx_power)) {
+        LOG(ERROR) << "Failed to set DM op class for radio and backhaul";
+        return false;
+    }
+
+    return true;
+}
+
+bool db::reset_current_op_classes_db(const sMacAddr &radio_mac)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio for mac: " << radio_mac;
+        return false;
+    }
+
+    for (int i = 0; i < Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW; i++) {
+        if (radio->current_operating_class_profile[i].op_class != 0) {
+            radio->current_operating_class_profile[i].op_class = 0;
+            radio->current_operating_class_profile[i].channel  = 0;
+            radio->current_operating_class_profile[i].tx_power = 0;
+        }
+    }
+
+    return true;
+}
+
+bool db::dm_clear_empty_current_op_classes(const sMacAddr &radio_mac)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio for mac: " << radio_mac;
+        return false;
+    }
+
+    for (int i = 0; i < Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW; i++) {
+        if (radio->current_operating_class_profile[i].op_class == 0) {
+            set_dm_current_op_class(radio_mac, i, 0, 0, 0);
+        }
+    }
+    return true;
+}
+
+bool db::add_current_op_class(std::string op_class_path_instance, uint8_t op_class,
+                              uint8_t op_channel, int8_t tx_power)
+{
+    if (op_class_path_instance.empty()) {
+        LOG(ERROR) << "op_class_path_instance is empty";
+        return false;
+    }
+
+    // Set timestamp for Radio or Backhaul in CurrentOperatingClassProfile.TimeStamp
+    if (!m_ambiorix_datamodel->set_current_time(op_class_path_instance)) {
+        LOG(ERROR) << "Failed to set " << op_class_path_instance << ".TimeStamp: " << op_class;
+        return false;
+    }
+
+    // Set Operating class for Radio or Backhaul in CurrentOperatingClassProfile.Class
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "Class", op_class)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".Class: " << op_class;
         return false;
     }
 
-    //Set Operating channel
-    //Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses.Channel
+    // Set Operating channel for Radio or Backhaul in CurrentOperatingClassProfile.Channel
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "Channel", op_channel)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".Channel: " << op_channel;
         return false;
     }
 
-    //Set TX power
-    //Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses.TxPower
+    // Set TX power for Radio or Backhaul in CurrentOperatingClassProfile.TxPower
     if (!m_ambiorix_datamodel->set(op_class_path_instance, "TxPower", tx_power)) {
         LOG(ERROR) << "Failed to set " << op_class_path_instance << ".TxPower: " << tx_power;
         return false;
@@ -6847,7 +6980,8 @@ bool db::add_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, uint8
     return true;
 }
 
-bool db::remove_current_op_classes(const sMacAddr &radio_mac)
+bool db::set_dm_current_op_class(const sMacAddr &radio_mac, int index, int op_class, int op_channel,
+                                 int tx_power)
 {
     auto radio = get_radio_by_uid(radio_mac);
     if (!radio) {
@@ -6855,18 +6989,42 @@ bool db::remove_current_op_classes(const sMacAddr &radio_mac)
         return false;
     }
 
-    auto radio_path = radio->dm_path;
-    if (radio_path.empty()) {
-        return true;
+    if (index < 0 || index >= Agent::operatingClassProfileIndex::OPERATING_CLASS_MAX_BW) {
+        LOG(ERROR) << "Invalid operating class profile index: " << index;
+        return false;
     }
 
-    // Prepare path to the CurrentOperatingClasses instance
-    // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.CurrentOperatingClasses
-    auto op_class_path = radio_path + ".CurrentOperatingClasses";
-
-    if (!m_ambiorix_datamodel->remove_all_instances(op_class_path)) {
-        LOG(ERROR) << "Failed to remove all instances for: " << op_class_path;
+    // Set Device.WiFi.DataElements.Network.Device.x.Radio.x.CurrentOperatingClasses
+    if (!add_current_op_class(radio->current_operating_class_profile[index].dm_path, op_class,
+                              op_channel, tx_power)) {
+        LOG(DEBUG) << "Failed to set: " << radio->current_operating_class_profile[index].dm_path;
         return false;
+    }
+
+    radio->current_operating_class_profile[index].op_class = op_class;
+    radio->current_operating_class_profile[index].channel  = op_channel;
+    radio->current_operating_class_profile[index].tx_power = tx_power;
+
+    // Set if needed: Device.WiFi.DataElements.Network.Device.x.Radio.x.CurrentOperatingClassProfile
+    if (radio->backhaul_station_mac != beerocks::net::network_utils::ZERO_MAC) {
+        // If bSTA of this radio is in the list of known stations with a valid DM path, it means it's connected
+        auto station = get_station(radio->backhaul_station_mac);
+        if (station && !station->dm_path.empty()) {
+            auto agent = get_agent_by_radio_uid(radio->radio_uid);
+            if (!agent) {
+                LOG(ERROR) << "No Agent found for radio " << radio->radio_uid;
+                return false;
+            }
+
+            if (!agent->is_gateway) {
+                if (!add_current_op_class(agent->backhaul_op_class_profile_dm_path[index], op_class,
+                                          op_channel, tx_power)) {
+                    LOG(ERROR) << "Failed to set "
+                               << agent->backhaul_op_class_profile_dm_path[index];
+                    return false;
+                }
+            }
+        }
     }
 
     return true;
