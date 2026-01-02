@@ -101,17 +101,36 @@ AgentDB::sRadio *AgentDB::get_radio_by_mac(const sMacAddr &mac, eMacType mac_typ
 
 void AgentDB::erase_client(const sMacAddr &client_mac, sMacAddr bssid)
 {
+
+    bool client_removed = false;
+    // Try to remove from specific radio if BSSID provided
     if (bssid != net::network_utils::ZERO_MAC) {
-        auto radio = get_radio_by_mac(bssid, eMacType::BSSID);
-        if (!radio) {
-            return;
+        if (auto radio = get_radio_by_mac(bssid, eMacType::BSSID)) {
+            client_removed = radio->associated_clients.erase(client_mac) > 0;
+            if (client_removed) {
+                LOG(DEBUG) << "Removed client " << client_mac << " from radio with BSSID " << bssid;
+            }
         }
-        radio->associated_clients.erase(client_mac);
-        return;
     }
 
-    for (auto &radio : m_radios) {
-        radio.associated_clients.erase(client_mac);
+    // Fallback: Remove from all radios if BSSID not provided or specific removal failed
+    if (bssid == net::network_utils::ZERO_MAC || !client_removed) {
+        for (auto &radio : m_radios) {
+            radio.associated_clients.erase(client_mac);
+        }
+        if (bssid == net::network_utils::ZERO_MAC) {
+            LOG(DEBUG) << "Removed client " << client_mac
+                       << " from all radios (BSSID not specified)";
+        }
+    }
+
+    // Always remove MLO client entry if present (harmless for legacy clients)
+    auto mld_it = associated_sta_mlds.find(client_mac);
+    if (mld_it != associated_sta_mlds.end()) {
+        LOG(DEBUG) << "Removing MLO client from associated_sta_mlds: STA MLD=" << client_mac
+                   << ", AP MLD=" << mld_it->second.mld_config.ap_mld_mac
+                   << " (remaining: " << (associated_sta_mlds.size() - 1) << ")";
+        associated_sta_mlds.erase(mld_it);
     }
 }
 

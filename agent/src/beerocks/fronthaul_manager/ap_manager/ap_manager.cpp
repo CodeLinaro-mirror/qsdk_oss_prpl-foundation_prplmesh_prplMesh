@@ -2532,14 +2532,36 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         notification->vap_id()       = msg->params.vap_id;
         notification->bssid()        = tlvf::mac_from_string(vap_node->second.mac);
         notification->capabilities() = msg->params.capabilities;
+
+        notification->multi_ap_profile()   = msg->params.multi_ap_profile;
+        notification->is_mlo()             = msg->params.is_mlo;
+        notification->num_affiliated_sta() = 0;
+        notification->mlo_modes()          = msg->params.mlo_modes;
+
+        if (msg->params.num_affiliated_sta > 0) {
+            LOG(INFO) << "Processing " << int(msg->params.num_affiliated_sta)
+                      << " affiliated STAs, notification BSSID=" << notification->bssid();
+            for (size_t idx = 0; idx < msg->params.num_affiliated_sta; ++idx) {
+                auto affiliated_sta_ptr = notification->create_affiliated_sta();
+                if (!affiliated_sta_ptr) {
+                    LOG(ERROR) << "Failed to create affiliated_sta_ptr for index " << idx;
+                    continue;
+                }
+                affiliated_sta_ptr->bssid() = msg->params.affiliated_sta[idx].bssid;
+                affiliated_sta_ptr->mac()   = msg->params.affiliated_sta[idx].affiliated_sta_mac;
+
+                if (!notification->add_affiliated_sta(affiliated_sta_ptr)) {
+                    LOG(ERROR) << "Failed to add affiliated_sta[" << idx << "] to notification";
+                }
+            }
+        }
+
         if (msg->params.association_frame_length == 0) {
             LOG(DEBUG) << "no association frame";
         } else {
             notification->set_association_frame(msg->params.association_frame,
                                                 msg->params.association_frame_length);
         }
-
-        notification->multi_ap_profile() = msg->params.multi_ap_profile;
 
         send_cmdu(cmdu_tx);
     } break;
@@ -3374,6 +3396,7 @@ void ApManager::handle_hostapd_attached()
     if (ap_wlan_hal->get_radio_info().bsta_modes_support.emlmr_support) {
         bsta_modes_support |= beerocks_message::eMLOModes::eMLOModes_emlmr;
     }
+
     notification->params().bsta_modes_support = bsta_modes_support;
     LOG(DEBUG) << "[WiFi7]AP MLO Modes Support " << notification->params().ap_modes_support
                << "\n | BSTA Mode Support " << notification->params().bsta_modes_support;

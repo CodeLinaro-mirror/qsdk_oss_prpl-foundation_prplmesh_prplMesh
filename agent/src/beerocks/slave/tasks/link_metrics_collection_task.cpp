@@ -1383,7 +1383,8 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
 
             // Add Affiliated STA Metrics TLV only for Affiliated STAs
             bool is_affiliated_sta = false;
-            for (auto &associated_sta_mld : db->associated_sta_mlds) {
+            for (auto &mld_entry : db->associated_sta_mlds) {
+                auto &associated_sta_mld = mld_entry.second;
                 for (auto &affiliated_sta : associated_sta_mld.affiliated_stas) {
                     if (affiliated_sta.affiliated_sta_mac == stat.sta_mac) {
                         is_affiliated_sta = true;
