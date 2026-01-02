@@ -87,7 +87,15 @@ enum eStructsConsts {
     HE_MCS_SET_NL802_SIZE                = 32,
     DEV_MAX_RADIOS                       = 3,
     DSCP_MAPPING_LIST_LENGTH             = 64,
+    MAX_ASSOCIATED_MLO_LINKS             = 20,
     CHIPSET_VENDOR_LENGTH                = 64,
+};
+
+enum eMLOModes : uint8_t {
+    MLO_MODE_STR   = 0x80,
+    MLO_MODE_NSTR  = 0x40,
+    MLO_MODE_EMLSR = 0x20,
+    MLO_MODE_EMLMR = 0x10,
 };
 
 enum eMessageConsts {

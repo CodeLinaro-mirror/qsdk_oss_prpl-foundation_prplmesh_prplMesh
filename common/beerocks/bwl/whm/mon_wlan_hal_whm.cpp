@@ -716,7 +716,8 @@ bool mon_wlan_hal_whm::process_ap_event(const std::string &interface, const std:
 bool mon_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                                                    const std::string &sta_mac,
                                                    const std::string &key,
-                                                   const AmbiorixVariant *value)
+                                                   const AmbiorixVariant *value,
+                                                   const std::string &sta_path)
 {
     auto vap_id = get_vap_id_with_bss(interface);
     if (vap_id == beerocks::IFACE_ID_INVALID) {

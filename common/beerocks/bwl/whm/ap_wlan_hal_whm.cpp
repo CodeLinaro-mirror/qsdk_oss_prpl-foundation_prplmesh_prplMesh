@@ -8,6 +8,7 @@
 
 #include "ap_wlan_hal_whm.h"
 
+#include <algorithm>
 #include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_os_utils.h>
 #include <bcl/beerocks_string_utils.h>
@@ -19,7 +20,7 @@
 #include <math.h>
 #include <numeric>
 #include <sstream>
-
+#include <vector>
 using namespace beerocks;
 using namespace wbapi;
 
@@ -1120,11 +1121,19 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                 // we are only interested in connected stations
                 continue;
             }
-
             std::string mac_addr;
             if (!associated_device_pwhm.second.read_child(mac_addr, "MACAddress")) {
                 LOG(DEBUG) << "Failed reading MACAddress";
                 continue;
+            }
+            LOG(INFO) << "Processing active device MAC: " << mac_addr;
+
+            // Use common function to collect MLO client association info
+            sMloClientInfo mlo_info;
+            std::string sta_path = associated_device_pwhm.first;
+            if (!collect_mlo_client_association_info(mac_addr, sta_path, vap_id, vap_path,
+                                                     mlo_info)) {
+                LOG(ERROR) << "Failed to collect MLO client information for " << mac_addr;
             }
 
             auto msg_buff =
@@ -1135,15 +1144,26 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                 msg_buff.get());
 
             msg->params.vap_id = vap_id;
-            msg->params.bssid  = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
-            msg->params.mac    = tlvf::mac_from_string(mac_addr);
-
+            msg->params.bssid  = mlo_info.ap_mld_bssid;
+            msg->params.mac    = mlo_info.client_mld_mac;
+            LOG(DEBUG) << " Set notification params - VAP ID: " << int(vap_id)
+                       << ", MAC: " << mlo_info.client_mld_mac
+                       << ", BSSID: " << mlo_info.ap_mld_bssid;
             msg->params.capabilities.band_5g_capable = m_radio_info.is_5ghz;
             msg->params.capabilities.band_2g_capable =
                 (son::wireless_utils::which_freq_type(m_radio_info.vht_center_freq) ==
                  beerocks::eFreqType::FREQ_24G);
             msg->params.association_frame_length = 0;
-
+            msg->params.is_mlo                   = mlo_info.is_mlo;
+            msg->params.num_affiliated_sta       = static_cast<uint8_t>(std::min<size_t>(
+                mlo_info.affiliated_links.size(), beerocks::message::MAX_ASSOCIATED_MLO_LINKS));
+            msg->params.mlo_modes                = mlo_info.mlo_modes;
+            for (size_t i = 0; i < msg->params.num_affiliated_sta; ++i) {
+                msg->params.affiliated_sta[i] = mlo_info.affiliated_links[i];
+                LOG(INFO) << "affiliated_sta[" << i
+                          << "]: MAC=" << msg->params.affiliated_sta[i].affiliated_sta_mac
+                          << ", BSSID=" << msg->params.affiliated_sta[i].bssid;
+            }
             auto answer = get_last_assoc_frame(vap.first, mac_addr);
             if (!answer) {
                 LOG(ERROR) << "fail to get last frame";
@@ -1185,7 +1205,6 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
             } else {
                 sta_it->second.path = associated_device_pwhm.first; //enforce the path
             }
-
             event_queue_push(Event::STA_Connected, msg_buff);
         }
     }
@@ -1447,12 +1466,145 @@ bool ap_wlan_hal_whm::process_ap_event(const std::string &interface, const std::
     return true;
 }
 
+bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta_mac,
+                                                          const std::string &sta_path,
+                                                          int8_t vap_id,
+                                                          const std::string &vap_path,
+                                                          sMloClientInfo &mlo_info)
+{
+    mlo_info.is_mlo         = 0;
+    mlo_info.mlo_modes      = 0;
+    mlo_info.client_mld_mac = {};
+    mlo_info.ap_mld_bssid   = {};
+    mlo_info.affiliated_links.clear();
+
+    uint32_t num_affiliated    = 0;
+    bool has_active_affiliated = false;
+
+    if (!m_ambiorix_cl.get_param(num_affiliated, sta_path, "ActiveNumberOfAffiliatedSta")) {
+        LOG(ERROR) << "failed to get ActiveNumberOfAffiliatedSta for " << sta_path;
+    }
+    has_active_affiliated = (num_affiliated > 0);
+    LOG(INFO) << " ActiveNumberOfAffiliatedSta for " << sta_mac << ": " << num_affiliated
+              << ", has_active_affiliated: " << (has_active_affiliated ? "true" : "false");
+
+    std::string affiliated_sta_path = sta_path + "AffiliatedSta.";
+    auto affiliated_sta_pwhm =
+        m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(affiliated_sta_path);
+    bool has_affiliated_sta_entries = (affiliated_sta_pwhm && !affiliated_sta_pwhm->empty());
+
+    bool is_mlo_client = has_active_affiliated || has_affiliated_sta_entries;
+
+    mlo_info.client_mld_mac = tlvf::mac_from_string(sta_mac);
+    mlo_info.ap_mld_bssid   = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
+    LOG(DEBUG) << " Initial client MAC: " << mlo_info.client_mld_mac
+               << ", Initial BSSID: " << mlo_info.ap_mld_bssid;
+
+    if (is_mlo_client) {
+        LOG(INFO) << "MLO client detected: " << sta_mac << " (ActiveLinks: " << num_affiliated
+                  << ", AffiliatedStaEntries: "
+                  << (has_affiliated_sta_entries ? affiliated_sta_pwhm->size() : 0) << ")";
+
+        mlo_info.is_mlo = 1;
+
+        // Read MLOMode from AssociatedDevice
+        std::string mlo_mode_str;
+        if (!m_ambiorix_cl.get_param(mlo_mode_str, sta_path, "MLOMode")) {
+            LOG(ERROR) << "Failed to get MLOMode for " << sta_path;
+        }
+        LOG(INFO) << " MLOMode read from data model: " << mlo_mode_str;
+
+        std::string mode_upper = mlo_mode_str;
+        std::transform(mode_upper.begin(), mode_upper.end(), mode_upper.begin(), ::toupper);
+        std::transform(mode_upper.begin(), mode_upper.end(), mode_upper.begin(), ::toupper);
+
+        if (mode_upper.find("NSTR") != std::string::npos) {
+            mlo_info.mlo_modes |= beerocks::message::MLO_MODE_NSTR;
+        } else if (mode_upper.find("STR") != std::string::npos) {
+            mlo_info.mlo_modes |= beerocks::message::MLO_MODE_STR;
+        } else if (mode_upper.find("EMLSR") != std::string::npos) {
+            mlo_info.mlo_modes |= beerocks::message::MLO_MODE_EMLSR;
+        } else if (mode_upper.find("EMLMR") != std::string::npos) {
+            mlo_info.mlo_modes |= beerocks::message::MLO_MODE_EMLMR;
+        } else {
+            LOG(ERROR) << "MLO read failed";
+        }
+
+        // For MLO clients, use AP MLD MAC address from AssociatedDevice.APMLDMacAddress
+        std::string ap_mld_mac_str;
+        if (!m_ambiorix_cl.get_param(ap_mld_mac_str, sta_path, "APMLDMacAddress")) {
+            LOG(ERROR) << "Failed to read APMLDMacAddress from " << sta_path;
+        }
+        mlo_info.ap_mld_bssid = tlvf::mac_from_string(ap_mld_mac_str);
+
+        if (!has_affiliated_sta_entries) {
+            LOG(WARNING) << " No AffiliatedSta entries found for " << sta_mac
+                         << " (detected via ActiveNumberOfAffiliatedSta)";
+        } else {
+            LOG(INFO) << " Found " << affiliated_sta_pwhm->size() << " AffiliatedSta entries for "
+                      << sta_mac;
+            for (auto &affiliated_sta : *affiliated_sta_pwhm) {
+                if (mlo_info.affiliated_links.size() >=
+                    beerocks::message::MAX_ASSOCIATED_MLO_LINKS) {
+                    LOG(INFO) << "AffiliatedSta list truncated for " << sta_mac
+                              << " (max: " << int(beerocks::message::MAX_ASSOCIATED_MLO_LINKS)
+                              << ")";
+                    break;
+                }
+
+                std::string affiliated_mac;
+                if (!affiliated_sta.second.read_child(affiliated_mac, "MACAddress")) {
+                    LOG(ERROR) << "Failed reading AffiliatedSta MACAddress for " << sta_mac;
+                    continue;
+                }
+
+                std::string affiliated_bssid_str;
+                sMacAddr affiliated_bssid = mlo_info.ap_mld_bssid;
+                if (!affiliated_sta.second.read_child(affiliated_bssid_str, "BSSID")) {
+                    LOG(ERROR) << "Failed reading AffiliatedSta BSSID, using AP MLD BSSID: "
+                               << affiliated_bssid;
+                }
+                affiliated_bssid = tlvf::mac_from_string(affiliated_bssid_str);
+
+                sAffiliatedStaInfo affiliated_info{};
+                affiliated_info.affiliated_sta_mac = tlvf::mac_from_string(affiliated_mac);
+                affiliated_info.bssid              = affiliated_bssid;
+
+                mlo_info.affiliated_links.push_back(affiliated_info);
+                LOG(INFO) << "Added affiliated link [" << int(mlo_info.affiliated_links.size())
+                          << "]: MAC=" << affiliated_info.affiliated_sta_mac
+                          << ", BSSID=" << affiliated_info.bssid;
+            }
+        }
+        LOG(DEBUG) << "MLO params - is_mlo: " << int(mlo_info.is_mlo) << ", mlo_modes: " << std::hex
+                   << int(mlo_info.mlo_modes) << std::dec
+                   << " (str=" << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_STR) ? 1 : 0)
+                   << ", nstr=" << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_NSTR) ? 1 : 0)
+                   << ", emlsr="
+                   << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_EMLSR) ? 1 : 0)
+                   << ", emlmr="
+                   << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_EMLMR) ? 1 : 0) << ")";
+    }
+    return true;
+}
+
 bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                                                   const std::string &sta_mac,
                                                   const std::string &key,
-                                                  const AmbiorixVariant *value)
+                                                  const AmbiorixVariant *value,
+                                                  const std::string &sta_path)
 {
-    auto vap_id = get_vap_id_with_bss(interface);
+    auto vap_id          = get_vap_id_with_bss(interface);
+    const auto &vap_info = m_radio_info.available_vaps[vap_id];
+    const auto &vap_it   = m_vapsExtInfo.find(vap_info.bss);
+
+    if (vap_it == m_vapsExtInfo.end()) {
+        LOG(ERROR) << "Failed to get VAP path for BSS: " << vap_info.bss;
+    }
+
+    const std::string &vap_path = vap_it->second.path;
+    LOG(DEBUG) << "vap_path: " << vap_path;
+
     if (key == "AuthenticationState") {
         bool connected = value->get<bool>();
         if (connected) {
@@ -1462,7 +1614,12 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                 msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
 
-            // Initialize the message
+            sMloClientInfo mlo_info;
+            if (!collect_mlo_client_association_info(sta_mac, sta_path, vap_id, vap_path,
+                                                     mlo_info)) {
+                LOG(ERROR) << " Failed to collect MLO client information for " << sta_mac;
+            }
+
             memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION));
 
             auto answer = get_last_assoc_frame(interface, sta_mac);
@@ -1472,18 +1629,37 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
             }
 
             msg->params.vap_id = vap_id;
-            msg->params.bssid  = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
-            LOG(WARNING) << "Connected station " << sta_mac << " over vap " << interface;
+            msg->params.bssid  = mlo_info.ap_mld_bssid;
+            msg->params.mac    = mlo_info.client_mld_mac;
+            LOG(ERROR) << " Set notification params - VAP ID: " << int(vap_id)
+                       << ", MAC: " << mlo_info.client_mld_mac
+                       << ", BSSID: " << mlo_info.ap_mld_bssid;
 
-            msg->params.mac          = tlvf::mac_from_string(sta_mac);
             msg->params.capabilities = {};
-
             //init the freq band cap with the target radio freq band info
             msg->params.capabilities.band_5g_capable = m_radio_info.is_5ghz;
             msg->params.capabilities.band_2g_capable =
                 (son::wireless_utils::which_freq_type(m_radio_info.vht_center_freq) ==
                  beerocks::eFreqType::FREQ_24G);
             msg->params.association_frame_length = 0;
+
+            LOG(DEBUG) << " Before setting msg->params - is_mlo: " << int(mlo_info.is_mlo)
+                       << ", affiliated_links.size(): " << mlo_info.affiliated_links.size()
+                       << ", mlo_modes: 0x" << std::hex << int(mlo_info.mlo_modes) << std::dec;
+            msg->params.is_mlo = mlo_info.is_mlo;
+
+            LOG(WARNING) << "Connected station " << sta_mac << " over vap " << interface;
+
+            msg->params.num_affiliated_sta = static_cast<uint8_t>(std::min<size_t>(
+                mlo_info.affiliated_links.size(), beerocks::message::MAX_ASSOCIATED_MLO_LINKS));
+            msg->params.mlo_modes          = mlo_info.mlo_modes;
+
+            for (size_t i = 0; i < msg->params.num_affiliated_sta; ++i) {
+                msg->params.affiliated_sta[i] = mlo_info.affiliated_links[i];
+                LOG(DEBUG) << "Affiliated_sta[" << i
+                           << "]: MAC=" << msg->params.affiliated_sta[i].affiliated_sta_mac
+                           << ", BSSID=" << msg->params.affiliated_sta[i].bssid;
+            }
 
             std::string frame_body_str;
             if (!answer->read_child(frame_body_str, "frame") || frame_body_str.empty()) {
@@ -1523,7 +1699,9 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                     }
                 }
             }
-
+            LOG(DEBUG) << "Pushing STA_Connected event for MAC: " << mlo_info.client_mld_mac
+                       << ", is_mlo: " << int(mlo_info.is_mlo)
+                       << ", num_affiliated: " << int(msg->params.num_affiliated_sta);
             // Add the message to the queue
             event_queue_push(Event::STA_Connected, msg_buff);
         }
