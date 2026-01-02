@@ -30,7 +30,8 @@
 // Forward decleration
 namespace beerocks_message {
 class cChannelList;
-}
+class cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION;
+} // namespace beerocks_message
 
 namespace beerocks {
 namespace bpl {
@@ -506,6 +507,17 @@ private:
     bool handle_unassoc_sta_link_metric_query(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
 
     bool read_platform_configuration();
+
+    /**
+     * @brief Process client association information from notification and store in database.
+     * Handles both MLO and legacy (non-MLO) clients internally.
+     *
+     * @param notification_in Pointer to the client associated notification
+     * @return true on success, false on failure
+     */
+    bool process_client_association(
+        std::shared_ptr<beerocks_message::cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION>
+            notification_in);
 
     /**
      * @brief Save channel list into AgentDB from beerocks_message::cChannelList class.

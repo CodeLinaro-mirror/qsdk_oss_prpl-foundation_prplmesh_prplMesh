@@ -2447,6 +2447,104 @@ bool slave_thread::handle_cmdu_platform_manager_message(
     return true;
 }
 
+bool slave_thread::process_client_association(
+    std::shared_ptr<beerocks_message::cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION>
+        notification_in)
+{
+    if (!notification_in) {
+        LOG(ERROR) << "Invalid notification pointer";
+        return false;
+    }
+
+    auto db          = AgentDB::get();
+    auto &client_mac = notification_in->mac();
+    auto &bssid      = notification_in->bssid();
+
+    // Get radio for the client
+    auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+    if (!radio) {
+        LOG(DEBUG) << "Radio containing bssid " << bssid << " not found";
+        return false;
+    }
+
+    if (notification_in->is_mlo()) {
+        // Handle MLO client
+        const auto num_affiliated = notification_in->num_affiliated_sta();
+
+        if (num_affiliated > beerocks::message::MAX_ASSOCIATED_MLO_LINKS) {
+            LOG(ERROR) << "Invalid num_affiliated_sta=" << int(num_affiliated)
+                       << " (max=" << int(beerocks::message::MAX_ASSOCIATED_MLO_LINKS) << ")";
+            return false;
+        }
+
+        AgentDB::sAssociatedStaMld mld_info;
+        mld_info.mld_config.sta_mld_mac = client_mac;
+        mld_info.mld_config.ap_mld_mac  = bssid;
+
+        uint8_t mlo_modes     = notification_in->mlo_modes();
+        uint8_t mld_mode_bits = ((mlo_modes & beerocks_message::eMLOModes::eMLOModes_str) >> 7) |
+                                ((mlo_modes & beerocks_message::eMLOModes::eMLOModes_nstr) >> 5) |
+                                ((mlo_modes & beerocks_message::eMLOModes::eMLOModes_emlsr) >> 3) |
+                                ((mlo_modes & beerocks_message::eMLOModes::eMLOModes_emlmr) >> 1);
+        mld_info.mld_config.mld_mode =
+            static_cast<AgentDB::sAssociatedStaMld::sMLDConfiguration::mode>(mld_mode_bits);
+        LOG(INFO) << "Converted mlo_modes to mld_mode: 0x" << std::hex
+                  << static_cast<int>(mld_info.mld_config.mld_mode) << std::dec
+                  << ", Number of affiliated STAs=" << int(num_affiliated);
+
+        for (size_t idx = 0; idx < num_affiliated; ++idx) {
+            auto affiliated_tuple = notification_in->affiliated_sta(idx);
+
+            if (!std::get<0>(affiliated_tuple)) {
+                LOG(ERROR) << "Affiliated STA[" << idx
+                           << "] tuple read failed - invalid index or corrupted data";
+                continue;
+            }
+
+            auto &affiliated_sta_obj = std::get<1>(affiliated_tuple);
+
+            if (!affiliated_sta_obj.isInitialized()) {
+                LOG(ERROR) << "Affiliated STA[" << idx << "] object is not initialized!";
+                continue;
+            }
+
+            AgentDB::sAssociatedStaMld::sAffiliatedSta affiliated_entry{};
+            affiliated_entry.bssid              = affiliated_sta_obj.bssid();
+            affiliated_entry.affiliated_sta_mac = affiliated_sta_obj.mac();
+
+            if (affiliated_entry.affiliated_sta_mac == beerocks::net::network_utils::ZERO_MAC) {
+                LOG(ERROR) << "Affiliated STA[" << idx << "] has ZERO MAC address!";
+                continue;
+            }
+
+            LOG(INFO) << "Affiliated STA[" << idx << "] MAC=" << affiliated_entry.affiliated_sta_mac
+                      << ", BSSID=" << affiliated_entry.bssid;
+
+            mld_info.affiliated_stas.push_back(affiliated_entry);
+        }
+
+        if (!mld_info.affiliated_stas.empty()) {
+            LOG(INFO) << "Storing MLO client in associated_sta_mlds: STA MLD=" << client_mac
+                      << ", AP MLD=" << bssid
+                      << ", affiliated_stas count=" << mld_info.affiliated_stas.size();
+            db->associated_sta_mlds[client_mac] = std::move(mld_info);
+            LOG(INFO) << "MLO client stored successfully (total in map: "
+                      << db->associated_sta_mlds.size() << ")";
+            return true;
+        } else {
+            LOG(WARNING) << " MLO client has no affiliated STAs, not storing";
+            return false;
+        }
+    } else {
+        // Handle legacy (non-MLO) client
+        radio->associated_clients.emplace(
+            client_mac, AgentDB::sRadio::sClient{bssid, notification_in->association_frame_length(),
+                                                 notification_in->association_frame(),
+                                                 notification_in->capabilities().btm_supported});
+        return true;
+    }
+}
+
 bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_iface, int fd,
                                                   ieee1905_1::CmduMessageRx &cmdu_rx,
                                                   std::shared_ptr<beerocks_header> beerocks_header)
@@ -3188,7 +3286,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         LOG(TRACE) << "received ACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION";
         auto &client_mac = notification_in->mac();
         auto &bssid      = notification_in->bssid();
-        LOG(INFO) << "Client associated sta_mac=" << client_mac << " to bssid=" << bssid;
+        LOG(INFO) << "Client associated sta_mac=" << client_mac << " to bssid=" << bssid
+                  << " is_mlo=" << notification_in->is_mlo();
 
         // Check if the client is an Multi-AP Agent, '0' means a regular station.
         if (notification_in->multi_ap_profile() != 0) {
@@ -3215,10 +3314,9 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             }
         }
 
-        radio->associated_clients.emplace(
-            client_mac, AgentDB::sRadio::sClient{bssid, notification_in->association_frame_length(),
-                                                 notification_in->association_frame(),
-                                                 notification_in->capabilities().btm_supported});
+        if (!process_client_association(notification_in)) {
+            LOG(WARNING) << "Failed to process client association for " << client_mac;
+        }
 
         if (!link_to_controller()) {
             LOG(DEBUG) << "Controller is not connected";
@@ -3268,7 +3366,6 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             vs_tlv->vap_id()       = notification_in->vap_id();
             vs_tlv->capabilities() = notification_in->capabilities();
         }
-
         send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
 
         break;

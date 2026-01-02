@@ -33,6 +33,7 @@
 #include <thread>
 #include <unordered_set>
 
+#include <unordered_map>
 #ifdef ENABLE_NBAPI
 #include "ambiorix_impl.h"
 
@@ -689,7 +690,20 @@ public:
 
     std::vector<sAPMLDConfiguration> ap_mld_configurations;
     std::unique_ptr<sBStaMLDConfiguration> bsta_mld_configuration;
-    std::vector<sAssociatedStaMld> associated_sta_mlds;
+    /**
+     * @brief Map of associated MLO (Multi-Link Operation) client stations.
+     *
+     * Key: STA MLD MAC address (the MAC address of the MLO client's MLD)
+     * Value: sAssociatedStaMld structure containing:
+     *   - mld_config: MLO configuration (STA MLD MAC, AP MLD MAC, MLO mode)
+     *   - affiliated_stas: Vector of affiliated STA links, each containing:
+     *     - bssid: BSSID of the affiliated link
+     *     - mac: MAC address of the affiliated STA
+     *
+     * This map stores information about MLO clients that are associated with the AP,
+     * including their MLD configuration and all affiliated STA links.
+     */
+    std::unordered_map<sMacAddr, sAssociatedStaMld> associated_sta_mlds;
 
     std::string em_handle_third_party;
     bool em_ap_controller_found = false;
