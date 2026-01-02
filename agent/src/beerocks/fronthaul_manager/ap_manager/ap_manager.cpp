@@ -2513,7 +2513,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         auto msg = static_cast<bwl::sACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION *>(data);
         std::string client_mac = tlvf::mac_to_string(msg->params.mac);
 
-        LOG(INFO) << "STA_Connected mac = " << client_mac;
+        LOG(INFO) << "STA_Connected mac = " << client_mac << " BSSID = " << msg->params.bssid;
 
         auto notification = message_com::create_vs_message<
             beerocks_message::cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION>(cmdu_tx);
@@ -2530,16 +2530,38 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
         notification->mac()          = msg->params.mac;
         notification->vap_id()       = msg->params.vap_id;
-        notification->bssid()        = tlvf::mac_from_string(vap_node->second.mac);
+        notification->bssid()        = msg->params.bssid;
         notification->capabilities() = msg->params.capabilities;
+
+        notification->multi_ap_profile()   = msg->params.multi_ap_profile;
+        notification->is_mlo()             = msg->params.is_mlo;
+        notification->mlo_modes()          = msg->params.mlo_modes;
+        notification->num_affiliated_sta() = 0;
+
+        if (msg->params.num_affiliated_sta > 0) {
+            LOG(INFO) << "Processing " << int(msg->params.num_affiliated_sta)
+                      << " affiliated STAs, notification APMLD=" << notification->bssid();
+            for (size_t idx = 0; idx < msg->params.num_affiliated_sta; ++idx) {
+                auto affiliated_sta_ptr = notification->create_affiliated_sta();
+                if (!affiliated_sta_ptr) {
+                    LOG(ERROR) << "Failed to create affiliated_sta_ptr for index " << idx;
+                    continue;
+                }
+                affiliated_sta_ptr->bssid() = msg->params.affiliated_sta[idx].bssid;
+                affiliated_sta_ptr->mac()   = msg->params.affiliated_sta[idx].affiliated_sta_mac;
+
+                if (!notification->add_affiliated_sta(affiliated_sta_ptr)) {
+                    LOG(ERROR) << "Failed to add affiliated_sta[" << idx << "] to notification";
+                }
+            }
+        }
+
         if (msg->params.association_frame_length == 0) {
             LOG(DEBUG) << "no association frame";
         } else {
             notification->set_association_frame(msg->params.association_frame,
                                                 msg->params.association_frame_length);
         }
-
-        notification->multi_ap_profile() = msg->params.multi_ap_profile;
 
         send_cmdu(cmdu_tx);
     } break;
@@ -3374,6 +3396,7 @@ void ApManager::handle_hostapd_attached()
     if (ap_wlan_hal->get_radio_info().bsta_modes_support.emlmr_support) {
         bsta_modes_support |= beerocks_message::eMLOModes::eMLOModes_emlmr;
     }
+
     notification->params().bsta_modes_support = bsta_modes_support;
     LOG(DEBUG) << "[WiFi7]AP MLO Modes Support " << notification->params().ap_modes_support
                << "\n | BSTA Mode Support " << notification->params().bsta_modes_support;

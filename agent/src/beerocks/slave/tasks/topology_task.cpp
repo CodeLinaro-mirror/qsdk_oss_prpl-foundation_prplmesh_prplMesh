@@ -1146,7 +1146,7 @@ bool TopologyTask::add_assoc_sta_mld_config_reports()
 {
     auto db(AgentDB::get());
 
-    for (const auto &sta_mld_Conf : db->associated_sta_mlds) {
+    for (const auto &sta_mld : db->associated_sta_mlds) {
         auto tlvAssociatedStaMldConfigurationReport =
             m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaMldConfigurationReport>();
         if (!tlvAssociatedStaMldConfigurationReport) {
@@ -1155,39 +1155,40 @@ bool TopologyTask::add_assoc_sta_mld_config_reports()
         }
 
         tlvAssociatedStaMldConfigurationReport->sta_mld_mac_addr() =
-            sta_mld_Conf.mld_config.sta_mld_mac;
+            sta_mld.second.mld_config.sta_mld_mac;
 
         tlvAssociatedStaMldConfigurationReport->ap_mld_mac_addr() =
-            sta_mld_Conf.mld_config.ap_mld_mac;
+            sta_mld.second.mld_config.ap_mld_mac;
 
-        if (sta_mld_Conf.mld_config.mld_mode & AgentDB::sAssociatedStaMld::sMLDConfiguration::STR) {
+        if (sta_mld.second.mld_config.mld_mode &
+            AgentDB::sAssociatedStaMld::sMLDConfiguration::STR) {
             tlvAssociatedStaMldConfigurationReport->modes().str = 1;
         }
 
-        if (sta_mld_Conf.mld_config.mld_mode &
+        if (sta_mld.second.mld_config.mld_mode &
             AgentDB::sAssociatedStaMld::sMLDConfiguration::NSTR) {
             tlvAssociatedStaMldConfigurationReport->modes().nstr = 1;
         }
 
-        if (sta_mld_Conf.mld_config.mld_mode &
+        if (sta_mld.second.mld_config.mld_mode &
             AgentDB::sAssociatedStaMld::sMLDConfiguration::EMLSR) {
             tlvAssociatedStaMldConfigurationReport->modes().emlsr = 1;
         }
 
-        if (sta_mld_Conf.mld_config.mld_mode &
+        if (sta_mld.second.mld_config.mld_mode &
             AgentDB::sAssociatedStaMld::sMLDConfiguration::EMLMR) {
             tlvAssociatedStaMldConfigurationReport->modes().emlmr = 1;
         }
 
-        for (const auto &affiliated_sta_conf : sta_mld_Conf.affiliated_stas) {
+        for (const auto &affiliated_sta_conf : sta_mld.second.affiliated_stas) {
             auto affiliated_sta(tlvAssociatedStaMldConfigurationReport->create_affiliated_sta());
             if (!affiliated_sta) {
                 LOG(ERROR) << "create_affiliated_sta failed";
                 return false;
             }
 
-            affiliated_sta->bssid()                   = affiliated_sta_conf.bssid;
-            affiliated_sta->affiliated_sta_mac_addr() = affiliated_sta_conf.affiliated_sta_mac;
+            affiliated_sta->bssid() = affiliated_sta_conf.bssid;
+            affiliated_sta->mac()   = affiliated_sta_conf.affiliated_sta_mac;
             if (!tlvAssociatedStaMldConfigurationReport->add_affiliated_sta(affiliated_sta)) {
                 LOG(ERROR)
                     << "add_affiliated_sta() in tlvAssociatedStaMldConfigurationReport failed";
