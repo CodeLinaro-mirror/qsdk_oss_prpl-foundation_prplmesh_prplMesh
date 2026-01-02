@@ -347,6 +347,11 @@ typedef struct {
 } sSteeringEvAuthFail;
 
 typedef struct {
+    sMacAddr affiliated_sta_mac;
+    sMacAddr bssid;
+} sAffiliatedStaInfo;
+
+typedef struct {
     sSteeringEvAuthFail params;
 } sACTION_APMANAGER_STEERING_EVENT_AUTH_FAIL_NOTIFICATION;
 
@@ -358,6 +363,10 @@ typedef struct {
     uint8_t reserved1;
     uint8_t reserved2;
     uint8_t multi_ap_profile;
+    uint8_t is_mlo;
+    uint8_t mlo_modes;
+    uint8_t num_affiliated_sta;
+    sAffiliatedStaInfo affiliated_sta[beerocks::message::DEV_MAX_RADIOS];
     size_t association_frame_length;
     uint8_t association_frame[beerocks::message::ASSOCIATION_MAX_LENGTH];
 } sClientAssociationParams;

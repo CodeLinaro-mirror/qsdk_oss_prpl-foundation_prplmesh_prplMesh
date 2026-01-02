@@ -463,6 +463,12 @@ bool ap_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj)
             LOG(ERROR) << "Failed reading mac parameter!";
             return false;
         }
+
+        const auto vap_node = m_radio_info.available_vaps.find(msg->params.vap_id);
+        if (vap_node != m_radio_info.available_vaps.end()) {
+            msg->params.bssid = tlvf::mac_from_string(vap_node->second.mac);
+        }
+
         msg->params.mac = tlvf::mac_from_string(tmp_str);
         const char assoc_req[] =
             "00003A01029A96FB591100504322565F029A96FB591110E431141400000E4D756C74692D41502D3234472D"
