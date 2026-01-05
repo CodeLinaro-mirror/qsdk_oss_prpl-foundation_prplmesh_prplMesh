@@ -142,18 +142,6 @@ private:
      */
     bool add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 
-    /**
-    * @brief Adds an EHT Operations TLV to AP Capability Report message.
-    *
-    * TLV is added to message only if radio on given interface supports EHT capabilities.
-    * See section 17.2.103 of Wi-Fi EasyMesh Specification for details.
-    *
-    * @param cmdu_tx CDMU message.
-    *
-    * @return True on success and false otherwise.
-    */
-    bool add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
-
 public:
     /* Note:
      * Profile-2 AP Capability TLV is being added by to the AutoConfiguration Message with M1, and

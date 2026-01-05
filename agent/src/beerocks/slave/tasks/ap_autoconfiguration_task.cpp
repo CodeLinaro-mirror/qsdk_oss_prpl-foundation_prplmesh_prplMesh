@@ -616,6 +616,11 @@ bool ApAutoConfigurationTask::send_ap_mld_configuration_response_message()
         return false;
     }
 
+    if (!slave_thread::add_eht_operations_tlv(m_cmdu_tx)) {
+        LOG(ERROR) << "Failed to add EHT Operations TLV";
+        return false;
+    }
+
     LOG(DEBUG) << "Sending AP_MLD_CONFIGURATION_RESPONSE_MESSAGE message";
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 
