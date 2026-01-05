@@ -27,16 +27,7 @@ LOG_COMMANDS = \
         LogCommand('ubus call IP _get \'{ "depth": "10" }\'', "dm-IP.txt"),
         LogCommand('ubus call Bridging _get \'{ "depth": "10" }\'', "dm-Bridge.txt"),
         LogCommand('ubus call Ethernet _get \'{ "depth": "10" }\'', "dm-Ethernet.txt"),
-        LogCommand('ubus call DHCPv4 _get \'{ "depth": "10" }\'', "dm-DHCPv4.txt"),
-        LogCommand('ubus call DHCPv6 _get \'{ "depth": "10" }\'', "dm-DHCPv6.txt"),
-        LogCommand('ubus call Firewall _get \'{ "depth": "10" }\'', "dm-Firewall.txt"),
-        LogCommand('ubus call WiFi _get \'{ "depth": "10" }\'', "dm-WiFi.txt"),
-        LogCommand('logread', "syslog.txt"),
         LogCommand('iptables -L', "iptables-filter.txt"),
-        LogCommand('find /etc/config/tr181-bridging/ -type f -print -exec cat {} \';\'',
-                   "config-tr181-bridging.txt"),
-        LogCommand('find /etc/amx/tr181-bridging/ -type f -print -exec cat {} \';\'',
-                   "amx-tr181-bridging.txt"),
     ]
 
 
@@ -75,6 +66,7 @@ def capture_logs(device: GenericDevice, path: str):
             shell.logfile = open(f"{path}/ci-expect-debug.txt", "wb")
             shell.sendline("")
             time.sleep(1)
+            shell.flush()
             # Interrupt any running command:
             shell.send("\003")
             shell.expect(device.serial_prompt)
@@ -83,10 +75,9 @@ def capture_logs(device: GenericDevice, path: str):
             try:
                 for log in LOG_COMMANDS:
                     print(f"send command {log.cmd}")
-                    shell.sendline("")
                     shell.sendline(log.cmd)
                     shell.expect(device.serial_prompt)
-                    cmd_output = shell.before.decode("utf-8")
+                    cmd_output = shell.before.decode("utf-8", errors="replace")
                     with open(f"{path}/{log.filename}", "w", encoding="utf-8") as output_file:
                         output_file.writelines(cmd_output)
             except pexpect.exceptions.TIMEOUT:
