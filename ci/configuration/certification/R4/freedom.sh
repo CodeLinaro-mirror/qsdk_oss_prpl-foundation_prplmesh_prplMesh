@@ -63,7 +63,9 @@ ba-cli "WiFi.AccessPoint.[Alias == \"wlan4.2\"].BridgeInterface=\"br-guest\""
 
 # Setting BackhaulWireIface, or persistence can fail (PPM-3339)
 /etc/init.d/prplmesh stop && sleep 2
-/etc/init.d/prplmesh start && sleep 2
+/etc/init.d/prplmesh start && sleep 5
+
+sleep 22
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
