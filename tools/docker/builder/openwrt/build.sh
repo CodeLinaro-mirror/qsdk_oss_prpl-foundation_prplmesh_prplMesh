@@ -163,9 +163,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-01-02 - MR2066"
-        OPENWRT_TOOLCHAIN_VERSION='c77b00bcba210001150b4d741a7e68d57f55efb4'
-        OPENWRT_VERSION='c77b00bcba210001150b4d741a7e68d57f55efb4'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-01-06: fixes MLD link numbers and QCA WPS MFP assoc"
+        OPENWRT_TOOLCHAIN_VERSION='192bac0dcc2927af21ddfa6d71c508ac461f2af4'
+        OPENWRT_VERSION='192bac0dcc2927af21ddfa6d71c508ac461f2af4'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -205,8 +205,8 @@ VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos latest-24.10_2026-01-02
-OPENWRT_TOOLCHAIN_VERSION='c77b00bcba210001150b4d741a7e68d57f55efb4'
-OPENWRT_VERSION='c77b00bcba210001150b4d741a7e68d57f55efb4'
+OPENWRT_TOOLCHAIN_VERSION='192bac0dcc2927af21ddfa6d71c508ac461f2af4'
+OPENWRT_VERSION='192bac0dcc2927af21ddfa6d71c508ac461f2af4'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
