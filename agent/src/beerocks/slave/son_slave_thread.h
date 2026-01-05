@@ -129,6 +129,18 @@ public:
      */
     static bool add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 
+    /**
+    * @brief Adds an EHT Operations TLV to AP Capability Report message.
+    *
+    * TLV is added to message only if radio on given interface supports EHT capabilities.
+    * See section 17.2.103 of Wi-Fi EasyMesh Specification for details.
+    *
+    * @param cmdu_tx CMDU message.
+    *
+    * @return True on success and false otherwise.
+    */
+    static bool add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
     enum eEvent : uint8_t {
         CONTROLLER_DISCOVERED,
         CONTROLLER_EARLY_AP_CAPABILITY,

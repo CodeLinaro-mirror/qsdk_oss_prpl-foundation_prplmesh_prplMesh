@@ -582,7 +582,7 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
         LOG(ERROR) << "Error filling TLV_WIFI7_AGENT_CAPABILITIES";
         return false;
     }
-    if (!add_eht_operations_tlv(m_cmdu_tx)) {
+    if (!slave_thread::add_eht_operations_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling TLV_EHT_OPERATIONS";
         return false;
     }
@@ -1184,99 +1184,4 @@ bool CapabilityReportingTask::add_profile2_ap_capability_tlv(ieee1905_1::CmduMes
     return true;
 }
 
-bool CapabilityReportingTask::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
-{
-    LOG(DEBUG) << "adding tlvEHTOperations";
-    auto db = AgentDB::get();
-
-    bool any_eht_radio = false;
-    for (const auto radio : db->get_radios_list()) {
-        if (radio->eht_supported) {
-            any_eht_radio = true;
-            break;
-        }
-    }
-    if (!any_eht_radio) {
-        LOG(INFO) << "no radio with EHT support";
-        return true;
-    }
-
-    auto tlv = cmdu_tx.addClass<wfa_map::tlvEHTOperations>();
-
-    if (!tlv) {
-        LOG(ERROR) << "Error creating TLV_EHT_OPERATIONS";
-        return false;
-    }
-
-    for (auto radio : db->get_radios_list()) {
-        if (!radio) {
-            LOG(ERROR) << "Radio " << radio->front.iface_mac << "doesn't exist";
-            continue;
-        }
-
-        if (!radio->eht_supported) {
-            continue;
-        }
-
-        // eht operations tlv radio
-        auto eht_operations_radio = tlv->create_radio_entries();
-        if (!eht_operations_radio) {
-            LOG(ERROR) << "Failed creating eht_operations_radio";
-            return false;
-        }
-
-        // only front provided for now
-        eht_operations_radio->ruid() = radio->front.iface_mac;
-        for (const auto &bss : radio->front.bssids) {
-            if (bss.mac == beerocks::net::network_utils::ZERO_MAC) {
-                continue;
-            }
-
-            // eht operations tlv bss
-            auto eht_operations_bss = eht_operations_radio->create_bss_entries();
-            if (!eht_operations_bss) {
-                LOG(ERROR) << "Failed creating eht_operations_bss";
-                return false;
-            }
-
-            eht_operations_bss->bssid() = bss.mac;
-
-            const auto eht_ops =
-                reinterpret_cast<const beerocks::net::sEHTOperations *>(&bss.eht_operations);
-
-            // operation parameters
-            eht_operations_bss->flags().eht_operation_information_valid =
-                eht_ops->operation_parameters.eht_operation_information_valid;
-            eht_operations_bss->flags().disabled_subchannel_valid =
-                eht_ops->operation_parameters.disabled_subchannel_valid;
-            eht_operations_bss->flags().group_addressed_bu_indication_limit =
-                eht_ops->operation_parameters.group_addressed_bu_indication_limit;
-            eht_operations_bss->flags().group_addressed_bu_indication_exponent =
-                eht_ops->operation_parameters.group_addressed_bu_indication_exponent;
-
-            // basic eht-mcs and nss set
-            eht_operations_bss->basic_eht_mcs_and_nss_set() = eht_ops->basic_eht_mcs_and_nss_set;
-
-            // operation informations
-            eht_operations_bss->control() = eht_ops->operation_informations.control;
-            eht_operations_bss->ccfs0()   = eht_ops->operation_informations.ccfs0;
-            eht_operations_bss->ccfs1()   = eht_ops->operation_informations.ccfs1;
-            eht_operations_bss->disabled_subchannel_bitmap() =
-                eht_ops->operation_informations.disabled_subchannel_bitmap;
-
-            if (!eht_operations_radio->add_bss_entries(eht_operations_bss)) {
-                LOG(ERROR) << "Failed adding BSS entry in eht operation TLV for ssid " << bss.ssid;
-                return false;
-            }
-        }
-
-        if (!tlv->add_radio_entries(eht_operations_radio)) {
-            LOG(ERROR) << "Failed adding Radio entry in eht operation TLV for mac "
-                       << radio->front.iface_mac;
-            return false;
-        }
-    }
-
-    return true;
-}
 } // namespace beerocks
