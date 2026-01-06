@@ -287,8 +287,8 @@ sMacAddr& cAffiliatedSta::bssid() {
     return (sMacAddr&)(*m_bssid);
 }
 
-sMacAddr& cAffiliatedSta::affiliated_sta_mac_addr() {
-    return (sMacAddr&)(*m_affiliated_sta_mac_addr);
+sMacAddr& cAffiliatedSta::mac() {
+    return (sMacAddr&)(*m_mac);
 }
 
 uint8_t* cAffiliatedSta::reserved(size_t idx) {
@@ -314,7 +314,7 @@ bool cAffiliatedSta::set_reserved(const void* buffer, size_t size) {
 void cAffiliatedSta::class_swap()
 {
     m_bssid->struct_swap();
-    m_affiliated_sta_mac_addr->struct_swap();
+    m_mac->struct_swap();
 }
 
 bool cAffiliatedSta::finalize()
@@ -348,7 +348,7 @@ size_t cAffiliatedSta::get_initial_size()
 {
     size_t class_size = 0;
     class_size += sizeof(sMacAddr); // bssid
-    class_size += sizeof(sMacAddr); // affiliated_sta_mac_addr
+    class_size += sizeof(sMacAddr); // mac
     class_size += 19 * sizeof(uint8_t); // reserved
     return class_size;
 }
@@ -365,12 +365,12 @@ bool cAffiliatedSta::init()
         return false;
     }
     if (!m_parse__) { m_bssid->struct_init(); }
-    m_affiliated_sta_mac_addr = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    m_mac = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
         return false;
     }
-    if (!m_parse__) { m_affiliated_sta_mac_addr->struct_init(); }
+    if (!m_parse__) { m_mac->struct_init(); }
     m_reserved = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t) * (19))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) * (19) << ") Failed!";
