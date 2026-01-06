@@ -104,3 +104,11 @@ class SerialDevice(pexpect.fdpexpect.fdspawn):
         for char in s:
             self.send(char)
             time.sleep(self.send_delay / 1000.)
+
+    def flush(self):
+        """Flush the serial read buffer"""
+        if self.serial.is_open:
+            if hasattr(self.serial, "reset_input_buffer"):
+                self.serial.reset_input_buffer()
+            else:
+                self.serial.flushInput()
