@@ -241,8 +241,8 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                            << " parent agent=" << parent_agent->al_mac
                            << " parent's bss=" << parent_bss->bssid << " with bSTA=" << iface_mac;
 
-                agent->backhaul.parent_agent = parent_agent;
-
+                agent->backhaul.parent_agent        = parent_agent;
+                agent->backhaul.backhaul_media_type = media_type;
                 // Set backhaul link type as wireless
                 agent->backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
 

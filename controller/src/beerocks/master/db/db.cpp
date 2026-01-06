@@ -18,6 +18,7 @@
 #include <bpl/bpl_db.h>
 #include <cmath>
 #include <easylogging++.h>
+#include <tlvf/ieee_1905_1/eMediaType.h>
 
 #include <algorithm>
 
@@ -8294,40 +8295,80 @@ bool db::dm_set_device_multi_ap_backhaul(const Agent &agent)
         return true;
     }
 
-    const auto multiap_backhaul_path = agent.dm_path + ".MultiAPDevice.Backhaul";
+    const auto multiap_backhaul_path = agent.dm_path;
 
     // Controller does not have any Backhaul, so leave it as TR-181 states it.
     if (agent.is_gateway) {
-        ret_val &=
-            m_ambiorix_datamodel->set(multiap_backhaul_path, "LinkType", std::string{"None"});
-        ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "MACAddress", std::string{});
+        ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulMediaType",
+                                             std::string{"Generic PHY"});
         ret_val &=
             m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulMACAddress", std::string{});
-        ret_val &=
-            m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulDeviceID", std::string{});
+        ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulALID", std::string{});
         return ret_val;
     }
 
-    // TODO: Implement different link types (PPM-1656)
+    // Device.WiFi.DataElements.Network.Device.{i}.BackhaulMediaType
     std::string iface_link_str;
-    switch (agent.backhaul.backhaul_iface_type) {
-    case beerocks::IFACE_TYPE_WIFI_UNSPECIFIED:
-    case beerocks::IFACE_TYPE_WIFI_INTEL:
-        iface_link_str = "Wi-Fi";
+    switch (agent.backhaul.backhaul_media_type) {
+    case ieee1905_1::eMediaType::IEEE_802_3U_FAST_ETHERNET:
+        iface_link_str = "IEEE 802.3u";
         break;
-    case beerocks::IFACE_TYPE_ETHERNET:
-        iface_link_str = "Ethernet";
+    case ieee1905_1::eMediaType::IEEE_802_3AB_GIGABIT_ETHERNET:
+        iface_link_str = "IEEE 802.3ab";
         break;
+    case ieee1905_1::eMediaType::IEEE_802_11B_2_4_GHZ:
+        iface_link_str = "IEEE 802.11b";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11G_2_4_GHZ:
+        iface_link_str = "IEEE 802.11g";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11A_5_GHZ:
+        iface_link_str = "IEEE 802.11a";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11N_2_4_GHZ:
+        iface_link_str = "IEEE 802.11n 2.4";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11N_5_GHZ:
+        iface_link_str = "IEEE 802.11n 5.0";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11AC_5_GHZ:
+        iface_link_str = "IEEE 802.11ac";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11AD_60_GHZ:
+        iface_link_str = "IEEE 802.11ad";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11AF:
+        iface_link_str = "IEEE 802.11af";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11AX:
+        iface_link_str = "IEEE 802.11ax";
+        break;
+    case ieee1905_1::eMediaType::IEEE_802_11BE:
+        iface_link_str = "IEEE 802.11be";
+        break;
+    case ieee1905_1::eMediaType::IEEE_1901_WAVELET:
+        iface_link_str = "IEEE 1901 Wavelet";
+        break;
+    case ieee1905_1::eMediaType::IEEE_1901_FFT:
+        iface_link_str = "IEEE 1901 FFT";
+        break;
+    case ieee1905_1::eMediaType::MOCA_V1_1:
+        iface_link_str = "MoCAv1.1";
+        break;
+    case ieee1905_1::eMediaType::UNKNOWN_MEDIA:
+        iface_link_str = "Generic PHY";
+        break;
+    // TODO : Add handling for IEEE 802.11ah (IEEE 802.11ah HaLow, added in 2.19)
+    // case ieee1905_1::eMediaType::IEEE_802_11AH:
+    //     iface_link_str = "IEEE 802.11ah";
+    //     break;
     default:
-        LOG(INFO) << "Uncovered interface link type " << agent.backhaul.backhaul_iface_type
-                  << " assign as None";
-        iface_link_str = "None";
+        iface_link_str = "Generic PHY";
         break;
     }
 
-    ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "LinkType", iface_link_str);
-    ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "MACAddress",
-                                         agent.backhaul.backhaul_interface);
+    ret_val &=
+        m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulMediaType", iface_link_str);
     ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulMACAddress",
                                          agent.backhaul.parent_interface);
 
@@ -8335,11 +8376,11 @@ bool db::dm_set_device_multi_ap_backhaul(const Agent &agent)
     if (!parent_agent) {
 
         //TODO: Error log could be added after (PPM-2043), otherwise it floods logs
-        m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulDeviceID", std::string{});
+        m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulALID", std::string{});
         return false;
     }
     ret_val &=
-        m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulDeviceID", parent_agent->al_mac);
+        m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulALID", parent_agent->al_mac);
 
     return ret_val;
 }
