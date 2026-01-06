@@ -511,6 +511,9 @@ public:
         //TODO: Implement diffrent iface types (PPM-1656)
         beerocks::eIfaceType backhaul_iface_type;
 
+        // Backhaul media type as per TR181::2.20 specification
+        ieee1905_1::eMediaType backhaul_media_type;
+
         // Local radio the backhaul station use. If `nullptr` the backhaul is wired.
         std::shared_ptr<Agent::sRadio> wireless_backhaul_radio;
 

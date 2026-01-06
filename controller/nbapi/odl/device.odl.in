@@ -92,6 +92,40 @@
             %read-only bool AgentInitiatedRCPIBasedSteering = false;
         }
 
+        /*
+        **   Media type of the backhaul link of this EasyMesh Agent.
+        **   This value can be derived from the neighbor's topology response message 1905 device
+        **   information type TLV Media Type field defined in [Table 6-12/IEEE1905.1a]. Enumeration of:
+        */
+        %read-only string BackhaulMediaType {
+            default "Generic PHY";
+            on action validate call check_enum [
+                "IEEE 802.3u", /* IEEE 802.3u Fast Ethernet */
+                "IEEE 802.3ab", /* IEEE 802.3ab Gigabit Ethernet */
+                "IEEE 802.11b", /* IEEE 802.11b (2.4GHz) */
+                "IEEE 802.11g", /* IEEE 802.11g (2.4GHz) */
+                "IEEE 802.11a", /* IEEE 802.11a (5GHz) */
+                "IEEE 802.11n 2.4", /* IEEE 802.11n (2.4GHz) */
+                "IEEE 802.11n 5.0", /* IEEE 802.11n (5GHz) */
+                "IEEE 802.11ac", /* IEEE 802.11ac (5GHz) */
+                "IEEE 802.11ad", /* IEEE 802.11ad (60GHz) */
+                "IEEE 802.11af", /* IEEE 802.11af */
+                "IEEE 802.11ax", /* IEEE 802.11ax */
+                "IEEE 802.11be", /* IEEE 802.11be */
+                "IEEE 1901 Wavelet", /* IEEE 1901 Wavelet */
+                "IEEE 1901 FFT", /* IEEE 1901 FFT */
+                "MoCAv1.1", /* MoCAv1.1 */
+                "Generic PHY",
+                "IEEE 802.11ah" /* IEEE 802.11ah HaLow, added in 2.19 */
+            ];
+        }
+
+        /* AL-MAC address of the backhaul link of this EasyMesh Agent */
+        %read-only string BackhaulMACAddress = "00:00:00:00:00:00";
+
+        /* AL-ID of the backhaul link of this EasyMesh Agent */
+        %read-only string BackhaulALID = "00:00:00:00:00:00";
+
         %read-only object MultiAPDevice {
             /* Represented as a six hexadecimal-digit value using all upper-case letters [0-9A-F] {6} */
             %read-only string ManufacturerOUI;
@@ -120,26 +154,6 @@
                     %in %mandatory uint32 TimeOut
                 );
 
-                %read-only string LinkType {
-                    default "None";
-                    on action validate call check_enum [
-                        "None",
-                        "Wi-Fi",
-                        "MoCA",
-                        "Ethernet",
-                        "G.hn",
-                        "HPNA",
-                        "HomePlug",
-                        "UPA"
-                    ];
-                }
-                /**
-                * An empty string value is reserved for the APDevice instance
-                * that represents the Multi-AP Controller.
-                */
-                %read-only string BackhaulMACAddress = "";
-                %read-only string BackhaulDeviceID = "";
-                %read-only string MACAddress = "";
                 object Stats {
                     %read-only uint64 BytesSent = 0;
                     %read-only uint64 BytesReceived = 0;
