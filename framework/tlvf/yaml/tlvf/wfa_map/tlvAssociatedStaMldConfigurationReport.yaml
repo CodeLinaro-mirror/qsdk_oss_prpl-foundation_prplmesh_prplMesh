@@ -54,7 +54,7 @@ cAffiliatedSta:
   _type: class
   bssid:
     _type: sMacAddr
-  affiliated_sta_mac_addr:
+  mac:
     _type: sMacAddr
   reserved:
     _type: uint8_t

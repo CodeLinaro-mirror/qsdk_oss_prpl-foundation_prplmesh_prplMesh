@@ -99,7 +99,7 @@ class cAffiliatedSta : public BaseClass
         ~cAffiliatedSta();
 
         sMacAddr& bssid();
-        sMacAddr& affiliated_sta_mac_addr();
+        sMacAddr& mac();
         uint8_t* reserved(size_t idx = 0);
         bool set_reserved(const void* buffer, size_t size);
         void class_swap() override;
@@ -109,7 +109,7 @@ class cAffiliatedSta : public BaseClass
     private:
         bool init();
         sMacAddr* m_bssid = nullptr;
-        sMacAddr* m_affiliated_sta_mac_addr = nullptr;
+        sMacAddr* m_mac = nullptr;
         uint8_t* m_reserved = nullptr;
         size_t m_reserved_idx__ = 0;
         int m_lock_order_counter__ = 0;
