@@ -568,10 +568,13 @@ bool TopologyTask::add_device_information_tlv()
             continue;
         }
 
+        auto radio_ifname =
+            radio->back.iface_name.empty() ? radio->front.iface_name : radio->back.iface_name;
+
         ieee1905_1::eMediaTypeGroup media_type_group = ieee1905_1::eMediaTypeGroup::IEEE_802_11;
         ieee1905_1::eMediaType media_type            = ieee1905_1::eMediaType::UNKNOWN_MEDIA;
-        if (!MediaType::get_media_type(radio->back.iface_name, media_type_group, media_type)) {
-            LOG(WARNING) << "Unable to compute media type for radio " << radio->back.iface_name;
+        if (!MediaType::get_media_type(radio_ifname, media_type_group, media_type)) {
+            LOG(WARNING) << "Unable to compute media type for radio " << radio_ifname;
             continue;
         }
 
@@ -584,15 +587,17 @@ bool TopologyTask::add_device_information_tlv()
             .ap_chan_index1 = radio->wifi_channel.get_channel(),
             .ap_chan_index2 = static_cast<uint8_t>(radio->wifi_channel.get_center_frequency_2())};
 
-        std::string bh_mac_str;
-        if (!network_utils::linux_iface_get_mac(radio->back.iface_name, bh_mac_str)) {
-            LOG(WARNING) << "Failed getting MAC address for bh interface: "
-                         << radio->back.iface_name;
-            continue;
-        }
+        /* do not add backhaul when the radio is configured in AP-only mode */
+        if (!radio->back.iface_name.empty()) {
+            std::string bh_mac_str;
+            if (!network_utils::linux_iface_get_mac(radio->back.iface_name, bh_mac_str)) {
+                LOG(WARNING) << "Failed getting MAC address for bh interface: "
+                             << radio->back.iface_name;
+                continue;
+            }
 
-        /* backhaul interface */
-        iface_map[tlvf::mac_from_string(bh_mac_str)] = info;
+            iface_map[tlvf::mac_from_string(bh_mac_str)] = info;
+        }
 
         /* fronthaul interfaces */
         for (beerocks::AgentDB::sRadio::sFront::sBssid &bssid : radio->front.bssids) {
