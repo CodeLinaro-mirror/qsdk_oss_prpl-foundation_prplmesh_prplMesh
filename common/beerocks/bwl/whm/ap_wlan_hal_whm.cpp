@@ -1671,9 +1671,9 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                 auto management_frame = create_mgmt_frame_notification(frame_body_str.c_str());
                 if (management_frame) {
                     event_queue_push(Event::MGMT_Frame, management_frame);
-                    msg->params.bssid = management_frame->bssid;
-                    auto mac          = tlvf::mac_to_string(management_frame->bssid);
-                    vap_id            = get_vap_id_with_mac(mac);
+                    //msg->params.bssid = management_frame->bssid;
+                    auto mac = tlvf::mac_to_string(management_frame->bssid);
+                    vap_id   = get_vap_id_with_mac(mac);
                     if (check_vap_id(vap_id)) {
                         msg->params.vap_id = vap_id;
                     }
