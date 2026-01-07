@@ -919,7 +919,7 @@ void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
                 .key_idx = 0,
                 .mac     = virtual_bss_creation_tlv->client_mac(),
                 .key     = {virtual_bss_creation_tlv->ptk(),
-                        virtual_bss_creation_tlv->ptk() + virtual_bss_creation_tlv->key_length()},
+                            virtual_bss_creation_tlv->ptk() + virtual_bss_creation_tlv->key_length()},
                 .key_seq = pw_key_seq,
 
                 // TODO: PPM-2368: We need to know the pairwise cipher. For now, use CCMP
@@ -943,7 +943,7 @@ void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
                 .key_idx = 1,
                 .mac     = beerocks::net::network_utils::ZERO_MAC,
                 .key     = {virtual_bss_creation_tlv->gtk(),
-                        virtual_bss_creation_tlv->gtk() + virtual_bss_creation_tlv->key_length()},
+                            virtual_bss_creation_tlv->gtk() + virtual_bss_creation_tlv->key_length()},
                 .key_seq = group_key_seq,
 
                 // TODO: PPM-2368: We need to know the groupwise cipher. For now, use CCMP
@@ -1911,9 +1911,9 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.encryption_type     = config_data.encryption_type_attr().data;
             bss_info_conf.network_key         = config_data.network_key_str();
             bss_info_conf.mld_id              = (config_data.mld_id() == DISABLED_MLDUNIT)
-                                       ? ""
-                                       : std::to_string(config_data.mld_id());
-            bss_info_conf.hidden_ssid = config_data.hidden_ssid();
+                                                    ? ""
+                                                    : std::to_string(config_data.mld_id());
+            bss_info_conf.hidden_ssid         = config_data.hidden_ssid();
             bss_info_conf.additional_auth =
                 static_cast<son::wireless_utils::eAdditionalAuth>(config_data.additional_auth());
 
@@ -2513,7 +2513,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         auto msg = static_cast<bwl::sACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION *>(data);
         std::string client_mac = tlvf::mac_to_string(msg->params.mac);
 
-        LOG(INFO) << "STA_Connected mac = " << client_mac;
+        LOG(INFO) << "STA_Connected mac = " << client_mac << " ";
 
         auto notification = message_com::create_vs_message<
             beerocks_message::cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION>(cmdu_tx);
@@ -2530,7 +2530,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
         notification->mac()          = msg->params.mac;
         notification->vap_id()       = msg->params.vap_id;
-        notification->bssid()        = tlvf::mac_from_string(vap_node->second.mac);
+        notification->bssid()        = msg->params.bssid;
         notification->capabilities() = msg->params.capabilities;
 
         notification->multi_ap_profile()   = msg->params.multi_ap_profile;
