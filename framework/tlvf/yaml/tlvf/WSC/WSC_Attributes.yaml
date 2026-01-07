@@ -17,6 +17,7 @@ _include: {
   tlvf/WSC/eWscAssoc.h,
   tlvf/WSC/eWscValues16.h,
   tlvf/WSC/eWscState.h,
+  tlvf/WSC/eWscVendorExtHiddenSsid.h,
 }
 _namespace: WSC
 
@@ -148,8 +149,8 @@ cEncryptedSettingsPayload:
     _type: int8_t
     _value: 0
   hidden_ssid:
-    _type: uint8_t
-    _value: 0
+    _type: eWscVendorExtHiddenSsid
+    _value: eWscVendorExtHiddenSsid::UNSET
 
 cWscAttrEncryptedSettings:
   _type: class

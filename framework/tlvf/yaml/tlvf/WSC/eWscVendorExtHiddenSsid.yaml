@@ -1,0 +1,14 @@
+#
+---
+_namespace: WSC
+
+eWscVendorExtHiddenSsid:
+  _type: enum_class
+  _enum_storage: uint8_t
+  DISABLED: 0x00
+  ENABLED: 0x01
+  _comment: |
+    Represents that the Hidden SSID feature is enabled.
+    When enabled, SSIDAdvertisementEnabled will be set to 0.
+  # 2-254 = UNSPECIFIED
+  UNSET: 0xFF
