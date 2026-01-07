@@ -72,7 +72,7 @@ public:
         uint8_t bss_index{0};
 
         /* Hidden SSID flag (Airties Vendor Extension subelement: hidden_ssid) */
-        bool hidden_ssid = false;
+        eWscVendorExtHiddenSsid hidden_ssid = WSC::eWscVendorExtHiddenSsid::UNSET;
     };
 
     m2(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}
@@ -123,7 +123,7 @@ public:
         }
         return 0;
     };
-    bool hidden_ssid() const
+    eWscVendorExtHiddenSsid hidden_ssid() const
     {
         for (auto &vendor_ext_attr : getAttrList<WSC::cWscAttrVendorExtension>()) {
             if ((WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1 != vendor_ext_attr->vendor_id_0()) ||
@@ -136,11 +136,12 @@ public:
             if (vendor_data[0] == WSC::vendor_extension::airties::VENDOR_BSS_CFG) {
 
                 // Hidden BSS attribute is set
-                return (vendor_data[1] == WSC::vendor_extension::airties::VENDOR_HIDE_SSID) ? true
-                                                                                            : false;
+                return (vendor_data[1] == WSC::vendor_extension::airties::VENDOR_HIDE_SSID)
+                           ? eWscVendorExtHiddenSsid::ENABLED
+                           : eWscVendorExtHiddenSsid::DISABLED;
             }
         }
-        return false;
+        return eWscVendorExtHiddenSsid::UNSET;
     };
 };
 

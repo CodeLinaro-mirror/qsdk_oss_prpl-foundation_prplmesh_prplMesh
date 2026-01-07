@@ -1232,7 +1232,7 @@ bool TopologyTask::add_bss_configuration_report_tlv()
             bss_info_ie.r1_disallowed     = bssid.backhaul_bss_disallow_profile1_agent_association;
             bss_info_ie.r2_disallowed     = bssid.backhaul_bss_disallow_profile2_agent_association;
             bss_info_ie.multiple_bssid    = 0;
-            bss_info_ie.transmitted_bssid = bssid.hidden_ssid ? 0 : 1;
+            bss_info_ie.transmitted_bssid = 0;
 
             bss_info->set_ssid(bssid.ssid);
 
