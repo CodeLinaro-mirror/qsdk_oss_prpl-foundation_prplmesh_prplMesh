@@ -1700,7 +1700,7 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                 }
             }
             LOG(DEBUG) << "Pushing STA_Connected event for MAC: " << mlo_info.client_mld_mac
-                       << ", is_mlo: " << int(mlo_info.is_mlo)
+                       << ", bss: " << msg->params.bssid << ", is_mlo: " << int(mlo_info.is_mlo)
                        << ", num_affiliated: " << int(msg->params.num_affiliated_sta);
             // Add the message to the queue
             event_queue_push(Event::STA_Connected, msg_buff);
