@@ -139,8 +139,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              " && (contains('parameters.OperatingClass') || contains('parameters.Channel')"
              " || contains('parameters.AP_Mode') || contains('parameters.MultiAPType'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_radio(), event_handler,
-                                             filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_radio(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.Radio changes";
+    }
 
     filter = "(path matches '" + wbapi_utils::search_path_ssid() +
              "[0-9]+.$')"
@@ -149,8 +151,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              "')"
              " && (contains('parameters.SSID') || contains('parameters.MLDUnit'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ssid(), event_handler,
-                                             filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ssid(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.SSID changes";
+    }
 
     filter = "(path matches '" + wbapi_utils::search_path_ap() +
              "[0-9]+.Security.$')"
@@ -160,7 +164,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              " && (contains('parameters.ModeEnabled') || contains('parameters.EncryptionMode')"
              " || contains('parameters.KeyPassPhrase'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.AccessPoint.Security changes";
+    }
 
     // subscribe for VAPs enabling to re-trigger autoConf when new BSS is enabled
     // and potentially resume previously timeouted agent configuration
@@ -171,7 +178,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              "')"
              " && (contains('parameters.Enable'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.AccessPoint changes";
+    }
 
     filter = "(path matches '" + wbapi_utils::search_path_apmld() +
              "[0-9]+.APMLDConfig.$')"
@@ -181,8 +191,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              " && (contains('parameters.STREnabled') || contains('parameters.NSTREnabled') || "
              "contains('parameters.EMLSREnabled') || contains('parameters.EMLMREnabled'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_apmld(), event_handler,
-                                             filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_apmld(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.APMLD.*.APMLDConfig changes";
+    }
 }
 
 WifiManager::~WifiManager()
