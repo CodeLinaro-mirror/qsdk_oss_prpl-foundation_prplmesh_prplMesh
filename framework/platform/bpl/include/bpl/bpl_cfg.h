@@ -898,6 +898,17 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
                                   son::wireless_utils::sBssInfoConf &configuration);
 
 /**
+ * @brief Reads MLD configuration from Device.WiFi.APMLD.*.MLDConfig for a given mld_id 
+ *
+ * @param [in] ssid SSID of an access point 
+ * @param [in] mld_id MLD id of corresponding APMLD
+ * @param [out] mld_info_config MLD configuration
+ * @return true on success and false otherwise.
+ */
+bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
+                                 son::wireless_utils::sMldInfoConf &mld_info_config);
+
+/**
  * @brief Reads link metrics request interval configuration for periodic requests from agents.
  *
  * @param [out] link_metrics_request_interval_sec Interval for periodic link metrics request.

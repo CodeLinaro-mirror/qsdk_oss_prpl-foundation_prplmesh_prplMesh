@@ -253,6 +253,47 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
     return true;
 }
 
+bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
+                                 son::wireless_utils::sMldInfoConf &mld_info_config)
+{
+    if (mld_id == DISABLED_MLDUNIT) {
+        LOG(ERROR) << "Trying to read MLD configuration with mld_id=DISABLED_MLDUNIT";
+        return false;
+    }
+
+    mld_info_config.ssid  = ssid;
+    mld_info_config.str   = true;
+    mld_info_config.nstr  = true;
+    mld_info_config.emlsr = true;
+    mld_info_config.emlmr = true;
+
+    std::string apmld_path;
+    m_ambiorix_cl.resolve_path(wbapi_utils::search_path_apmld_by_mldid(mld_id), apmld_path);
+    if (apmld_path.empty()) {
+        LOG(ERROR) << "Failed to resolve path of APMLD with MLDID of " << (int)mld_id
+                   << ", using default values instead";
+        return true;
+    }
+
+    if (!m_ambiorix_cl.get_param(mld_info_config.str, apmld_path, "APMLDConfig.STREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.STREnabled";
+    }
+
+    if (!m_ambiorix_cl.get_param(mld_info_config.nstr, apmld_path, "APMLDConfig.NSTREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.NSTREnabled";
+    }
+
+    if (!m_ambiorix_cl.get_param(mld_info_config.emlsr, apmld_path, "APMLDConfig.EMLSREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.EMLSREnabled";
+    }
+
+    if (!m_ambiorix_cl.get_param(mld_info_config.emlmr, apmld_path, "APMLDConfig.EMLMREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.EMLMREnabled";
+    }
+
+    return true;
+}
+
 bool bpl_cfg_set_wifi_credentials(const std::string &iface,
                                   const son::wireless_utils::sBssInfoConf &configuration)
 {
