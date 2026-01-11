@@ -1032,7 +1032,7 @@ bool TopologyTask::add_associated_clients_tlv()
                                    << " AP MLD: " << sta_mld.second.mld_config.ap_mld_mac;
 
                         bss_list->add_clients_associated_list(client_info);
-                        sta_mld_list.erase(sta_mld.first)
+                        sta_mld_list.erase(sta_mld.first);
                     }
                 }
 
