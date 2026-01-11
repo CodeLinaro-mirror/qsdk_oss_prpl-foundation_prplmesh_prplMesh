@@ -282,11 +282,6 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
         return;
     }
 
-    if (!add_associated_clients_tlv()) {
-        LOG(ERROR) << "Failed to add associated clients TLV";
-        return;
-    }
-
     if (!add_vs_tlv_bssid_iface_mapping()) {
         LOG(ERROR) << "Failed to add VS TLV BSSID iface mapping";
         return;
@@ -304,6 +299,11 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     if (!add_assoc_sta_mld_config_reports()) {
         LOG(ERROR) << "Failed to add Associated STA MLD Configuration reports";
+        return;
+    }
+
+    if (!add_associated_clients_tlv()) {
+        LOG(ERROR) << "Failed to add associated clients TLV";
         return;
     }
 
@@ -627,7 +627,7 @@ bool TopologyTask::add_device_information_tlv()
                 media_info.network_membership = (is_wired_bh || is_wireless_bh_mismatch)
                                                     ? network_utils::ZERO_MAC
                                                     : db->backhaul.backhaul_bssid;
-                media_info.role = ieee1905_1::eRole::NON_AP_NON_PCP_STA;
+                media_info.role               = ieee1905_1::eRole::NON_AP_NON_PCP_STA;
             } else {
                 media_info.network_membership = iface.first;
                 media_info.role               = ieee1905_1::eRole::AP;
@@ -953,7 +953,7 @@ bool TopologyTask::add_associated_clients_tlv()
         if (!radio) {
             continue;
         }
-        if (radio->associated_clients.size() > 0) {
+        if (radio->associated_clients.size() > 0 || db->associated_sta_mlds.size() > 0) {
             include_associated_clients_tlv = true;
             break;
         }
@@ -969,6 +969,9 @@ bool TopologyTask::add_associated_clients_tlv()
 
         // Get current time to compute elapsed time since last client association
         auto now = std::chrono::steady_clock::now();
+
+        // list to pop after adding to prevent duplicates
+        auto sta_mld_list = db->associated_sta_mlds;
 
         // Fill in Associated Clients TLV
         for (const auto radio : db->get_radios_list()) {
@@ -1004,6 +1007,60 @@ bool TopologyTask::add_associated_clients_tlv()
                     LOG(DEBUG) << "Adding client_info for client " << client_info->mac();
 
                     bss_list->add_clients_associated_list(client_info);
+                }
+
+                // Check if any MLD STA has same BSSID as AP MLD MAC
+                for (const auto &sta_mld : db->associated_sta_mlds) {
+                    if (bssid.mac == sta_mld.second.mld_config.ap_mld_mac) {
+                        auto client_info = bss_list->create_clients_associated_list();
+
+                        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                                           now - sta_mld.second.association_time)
+                                           .count();
+                        if ((elapsed < 0) || (elapsed > UINT16_MAX)) {
+                            elapsed = UINT16_MAX;
+                        }
+
+                        client_info->mac()                             = sta_mld.first;
+                        client_info->time_since_last_association_sec() = elapsed;
+                        LOG(DEBUG) << "Adding MLO client_info for client " << client_info->mac()
+                                   << " AP MLD: " << sta_mld.second.mld_config.ap_mld_mac;
+
+                        bss_list->add_clients_associated_list(client_info);
+                        sta_mld_list.erase(sta_mld.first)
+                    }
+                }
+
+                tlvAssociatedClients->add_bss_list(bss_list);
+            }
+
+            // Check unique AP MLD MAC addresses from BSSIDs
+            for (const auto &ap_mld : db->ap_mld_configurations) {
+
+                auto bss_list     = tlvAssociatedClients->create_bss_list();
+                bss_list->bssid() = ap_mld.mld_config.mld_mac;
+
+                for (const auto &sta_mld : sta_mld_list) {
+
+                    if (ap_mld.mld_config.mld_mac != sta_mld.second.mld_config.ap_mld_mac) {
+                        continue;
+                    }
+
+                    auto client_info = bss_list->create_clients_associated_list();
+                    auto elapsed     = std::chrono::duration_cast<std::chrono::seconds>(
+                                       now - sta_mld.second.association_time)
+                                       .count();
+                    if ((elapsed < 0) || (elapsed > UINT16_MAX)) {
+                        elapsed = UINT16_MAX;
+                    }
+
+                    client_info->mac()                             = sta_mld.first;
+                    client_info->time_since_last_association_sec() = elapsed;
+                    LOG(DEBUG) << "Adding MLO client_info for client " << client_info->mac()
+                               << " AP MLD: " << sta_mld.second.mld_config.ap_mld_mac;
+
+                    bss_list->add_clients_associated_list(client_info);
+                    sta_mld_list.erase(sta_mld.first);
                 }
                 tlvAssociatedClients->add_bss_list(bss_list);
             }
