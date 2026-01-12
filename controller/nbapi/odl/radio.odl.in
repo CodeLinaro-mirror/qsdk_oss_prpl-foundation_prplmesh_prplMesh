@@ -78,6 +78,24 @@
             %in %mandatory uint32 channels_num
         );
 
+        %instance bool ChannelScanRequest(
+            %in uint32 OpClass {
+                on action validate call check_range [0, 255];
+            },
+            %in uint32 ChannelList[],
+            %in string ScanType {
+                on action validate call check_enum [
+                    "Interrupt_Radio",
+                    "Time_Sliced",
+                    "Spatial_Stream",
+                    "Unused_Radio"
+                ];
+            },
+            %in uint32 DwellTime,
+            %in uint32 DFSDwellTime,
+            %in uint32 HomeTime
+        );
+
         %instance bool TriggerVBSSCreation(
             %in %mandatory string vbssid,
             %in %mandatory string client_mac,
