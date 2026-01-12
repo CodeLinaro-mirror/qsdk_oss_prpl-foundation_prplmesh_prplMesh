@@ -189,7 +189,7 @@ public:
     typedef struct {
         sMacAddr sta_mld_mac = beerocks::net::network_utils::ZERO_MAC;
         sMacAddr ap_mld_mac  = beerocks::net::network_utils::ZERO_MAC;
-        enum mode { NONE = 0, STR = 1 << 0, NSTR = 1 << 1, EMLSR = 1 << 2, EMLMR = 1 << 3 };
+        enum mode { NONE = 0, STR = 0x80, NSTR = 0x40, EMLSR = 0x20, EMLMR = 0x10 };
         mode mld_mode;
     } sMLDConfiguration;
 
