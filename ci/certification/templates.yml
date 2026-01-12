@@ -30,6 +30,20 @@
     - certs-tests-R4
     - freedom
 
+.certification:R6:freedom:
+  stage: certification-R6-freedom
+  extends: .certification-generic-R6
+  variables:
+    RUN_ON_DEVICE: "freedom"
+  before_script:
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/freedom.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-freedom
+  tags:
+    - certs-tests-R6
+    - freedom
+
 .certification:R4:freedom_on_boot_24:
   extends: .certification:R4:freedom
   before_script:
@@ -94,6 +108,7 @@ include:
   - local: "ci/certification/R1/freedom.yml"
   - local: "ci/certification/R4/freedom.yml"
   - local: "ci/certification/R4/mozart.yml"
+  - local: "ci/certification/R6/freedom.yml"
 
 # Merge train tests
 ##################
