@@ -47,10 +47,9 @@ class URXOSP(GenericPrplOS):
         time.sleep(5)
 
         # Changes the default image name to upgrade
-        # shell.sendline(f"setenv fullimage {self.image}")
-        # shell.sendline("")
-        # shell.sendline("saveenv")
-        # shell.expect("OK")
+        if self.image:
+            shell.sendline(f"env set fullimage {self.image}")
+            shell.expect(self.bootloader_prompt)
 
         shell.sendline("run update_fullimage")
         shell.expect("done", timeout=30)
