@@ -32,6 +32,11 @@ if [ "$TARGET_SYSTEM" = "mxl_x86_osp_tb341" ]; then
     args+=("mxl_wlan_hostap_ng")
 fi
 
+if [ "$TARGET_SYSTEM" = "mxl_x86_osp_tb341_v2" ]; then
+    # add open source hostap introduced in MXL 9.1.15 code base
+    args+=("mxl_wlan_hostap_ng_wav700")
+fi
+
 # args+=("webui")
 
 # feed-prpl is in the prpl profile:
@@ -43,6 +48,7 @@ else
     args+=("prpl-no-whm")
 fi
 
+git config --global url."https://git.w1.fi/hostap.git".insteadOf "https://w1.fi/hostap.git"
 ./scripts/gen_config.py "${args[@]}"
 
 # The initial 'make defconfig' invocation generates a wrong config, so
@@ -53,6 +59,11 @@ for profile in "${args[@]}" ; do
     printf "\nProfile %s:\n" "${profile}" >> files/etc/prplwrt-version
     cat "profiles/${profile}.yml" >> files/etc/prplwrt-version
 done
+
+#Overwrite networklayout on OSPv2, to set eth0_1 as WAN-port
+if [ "$TARGET_SYSTEM" = "mxl_x86_osp_tb341_v2" ]; then
+    cp -f scripts/patches/ospv2/networklayout.json feeds/rootfs/base-files-prpl/files/etc/networklayout.json
+fi
 
 printf '\033[1;35m%s Building prplWrt\n\033[0m' "$(date --iso-8601=seconds --universal)"
 make -j"$(nproc)" V=sc

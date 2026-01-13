@@ -56,59 +56,14 @@ build-for-mozart:
     - docker-build
     - mozart-build
 
-build-for-osp-ospv2:
-  stage: build
+build-for-ospv2:
+  extends: .build-for-openwrt
   variables:
-    POLLING_RATE: "120"
-    TESTS_TO_RUN_R4_ESSENSIUM: ""
-    DEVICE_UNDER_TEST_R4_ESSENSIUM: ""
-  script:
-    - echo "Triggering OSP runner to start external build"
-    - |
-      trigger_details=$(curl -X POST --retry 3 -s -f -F \
-      token=${OSP_PIPELINE_TRIGGER_TOKEN_2} \
-      -F ref="main-UPDK-9.2.3-filename" \
-      -F variables[PRPLMESH_REVISION]="$CI_COMMIT_SHA" \
-      -F variables[PRPLMESH_COMMIT_REF_NAME]="$CI_COMMIT_REF_NAME" \
-      -F variables[PARENT_PIPELINE_ID]="$CI_PIPELINE_ID" \
-      -F variables[PARENT_PROJECT_ID]="$CI_PROJECT_ID" \
-      -F variables[MR_TARGET_SHA]="$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" \
-      -F variables[MR_SOURCE_SHA]="$CI_MERGE_REQUEST_SOURCE_BRANCH_SHA" \
-      -F variables[TESTS_TO_RUN_R4_ESSENSIUM]="$TESTS_TO_RUN_R4_ESSENSIUM" \
-      -F variables[DEVICE_UNDER_TEST_R4_ESSENSIUM]="$DEVICE_UNDER_TEST_R4_ESSENSIUM" \
-      ${CI_API_V4_URL}/projects/52461766/trigger/pipeline)
-    - if [ $? -ne 0 ] ; then echo "Triggering external runner failed" && exit 1; fi
-    - downstream_pipeline_url=$(echo "$trigger_details" | jq -e -r -c ".web_url")
-    - echo "External builder running at ${downstream_pipeline_url}"
-    - mkdir -p "build"
-    - |
-      # Checks if package file exists in the OSP package and fills the OSP_PACKAGE_FILE_ID var
-      OSP_PACKAGE_FILE_ID=0
-      check_package_file () {
-          OSP_PACKAGE_FILE_ID=0
-          local package_files=$(curl --fail --show-error --retry 3 -s --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/${OSP_PACKAGE_ID}/package_files?per_page=100")
-          OSP_PACKAGE_FILE_ID=$(echo "$package_files" | jq -e -c ".[] | select ( .file_name == \"${1}\") | .id" | sed -n \$p)
-      }
-      # Wait for successfull build start
-      until check_package_file "${CI_PIPELINE_ID}.build_started"
-      do
-          sleep "$POLLING_RATE"
-      done
-      echo "Build started on external runner!"
-      # Wait for successfull build
-      until check_package_file "${CI_PIPELINE_ID}.build_success"
-      do
-          # Check if build failed
-          if check_package_file "${CI_PIPELINE_ID}.build_failed" ; then
-              echo "Build FAILED!" && exit 1
-          fi
-          sleep "$POLLING_RATE"
-      done
-    - echo "OSP build succeeded! Visit pipeline at ${downstream_pipeline_url}"
-  needs: []
-  timeout: 5h
+    TARGET_DEVICE: "urx_ospv2"
   tags:
-    - osp-build-fetch
+    - shell
+    - docker-build
+    - ospv2-build
 
 test-upgrade-image-on-turris-rdkb:
   extends: .test-upgrade-image
