@@ -10,7 +10,7 @@
 
 using namespace vendor_message;
 
-bool VendorMessageSlave::thread_init()
+bool VendorMessageSlave::init()
 {
     LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
     return false;

@@ -10,7 +10,7 @@
 
 #include "ambiorix_client.h"
 #include "wbapi_utils.h"
-#include <bcl/beerocks_eventloop_thread.h>
+#include <bcl/beerocks_event_loop.h>
 #include <bcl/beerocks_logging.h>
 #include <btl/broker_client_factory.h>
 
@@ -23,16 +23,10 @@ extern beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
 } // namespace beerocks
 
 namespace vendor_message {
-
-class VendorMessageSlave : public EventLoopThread {
+class VendorMessageSlave {
 public:
-    struct sVendorMessageConfig {
-        // Common configuration from Agent configuration file.
-        std::string temp_path;
-        std::string bridge_iface;
-    };
-
-    VendorMessageSlave(sVendorMessageConfig conf, logging &logger_);
+    VendorMessageSlave(std::string broker_uds_path,
+                       std::shared_ptr<beerocks::EventLoop> event_loop);
     virtual ~VendorMessageSlave();
 
     /**
@@ -40,7 +34,7 @@ public:
      *
      * @return true on success and false otherwise.
      */
-    bool thread_init() override;
+    bool init();
 
     /**
      * Broker client to exchange CMDU messages with broker server running in transport process.
@@ -49,6 +43,8 @@ public:
 
     bool send_cmdu_to_controller(const sMacAddr &dst_mac, ieee1905_1::CmduMessageTx &cmdu_tx,
                                  const uint16_t &mid, ieee1905_1::eMessageType msg_type);
+
+    bool should_stop() const { return m_should_stop; };
 
 private:
     sMacAddr agent_almac = {0};
@@ -62,9 +58,11 @@ private:
      */
     ieee1905_1::CmduMessageTx cmdu_tx;
 
-    sVendorMessageConfig config;
+    std::string m_broker_uds_path;
 
-    logging &logger;
+    std::shared_ptr<beerocks::EventLoop> m_event_loop;
+
+    bool m_should_stop = false;
 
     /**
      * @brief Handles CMDU message received from broker.
