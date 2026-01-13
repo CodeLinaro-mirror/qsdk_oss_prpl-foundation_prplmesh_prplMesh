@@ -61,9 +61,6 @@ fi
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
-# Disable MBO to let WFA MTK associate without PMF
-ba-cli "WiFi.AccessPoint.*.MBOEnable=0"
-
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
