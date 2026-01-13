@@ -8,7 +8,7 @@
 #ifndef VENDOR_MESSAGE_SLAVE_DUMMY_H
 #define VENDOR_MESSAGE_SLAVE_DUMMY_H
 
-#include <bcl/beerocks_eventloop_thread.h>
+#include <bcl/beerocks_event_loop.h>
 #include <bcl/beerocks_logging.h>
 #include <btl/broker_client_factory.h>
 
@@ -16,14 +16,14 @@ using namespace beerocks;
 
 namespace vendor_message {
 
-class VendorMessageSlave : public EventLoopThread {
+class VendorMessageSlave {
 public:
     /**
      * @brief Initialize the Vendor Message.
      *
      * @return true on success and false otherwise.
      */
-    bool thread_init() override;
+    bool init();
 
     /**
      * Broker client to exchange CMDU messages with broker server running in transport process.

@@ -90,14 +90,6 @@ static void init_signals()
     sigaction(SIGUSR1, &sigusr1_action, NULL);
 }
 
-static void
-fill_son_slave_config(const beerocks::config_file::sConfigSlave &beerocks_vendor_message_slave_conf,
-                      vendor_message::VendorMessageSlave::sVendorMessageConfig &vendor_message_conf)
-{
-    vendor_message_conf.temp_path    = beerocks_vendor_message_slave_conf.temp_path;
-    vendor_message_conf.bridge_iface = beerocks_vendor_message_slave_conf.bridge_iface;
-}
-
 static std::shared_ptr<beerocks::logging>
 init_logger(const std::string &file_name, const beerocks::config_file::SConfigLog &log_config,
             int argc, char **argv, const std::string &logger_id = std::string())
@@ -123,36 +115,23 @@ init_logger(const std::string &file_name, const beerocks::config_file::SConfigLo
     return logger;
 }
 
-static std::shared_ptr<vendor_message::VendorMessageSlave> start_vendor_message_thread(
-    const beerocks::config_file::sConfigSlave &beerocks_vendor_message_slave_conf, int argc,
-    char *argv[])
+static std::shared_ptr<vendor_message::VendorMessageSlave>
+start_vendor_message(const beerocks::config_file::sConfigSlave &beerocks_vendor_message_slave_conf,
+                     std::shared_ptr<beerocks::EventLoop> event_loop, int argc, char *argv[])
 {
-    std::string base_vendor_message_name(BEEROCKS_V_MESSAGE);
 
-    // Init logger
-    auto vendor_message_logger =
-        init_logger(base_vendor_message_name, beerocks_vendor_message_slave_conf.sLog, argc, argv,
-                    base_vendor_message_name);
-    if (!vendor_message_logger) {
-        return nullptr;
-    }
-    g_loggers.push_back(vendor_message_logger);
+    std::string broker_uds_path =
+        beerocks_vendor_message_slave_conf.temp_path + std::string(BEEROCKS_BROKER_UDS);
 
-    vendor_message::VendorMessageSlave::sVendorMessageConfig vendor_message_conf;
-
-    fill_son_slave_config(beerocks_vendor_message_slave_conf, vendor_message_conf);
-
-    auto vendor_message_slave = std::make_shared<vendor_message::VendorMessageSlave>(
-        vendor_message_conf, *vendor_message_logger);
+    auto vendor_message_slave =
+        std::make_shared<vendor_message::VendorMessageSlave>(broker_uds_path, event_loop);
     if (!vendor_message_slave) {
-        CLOG(ERROR, vendor_message_logger->get_logger_id())
-            << "beerocks::slave_thread allocating has failed!";
+        LOG(ERROR) << "VendorMessageSlave allocating has failed!";
         return nullptr;
     }
 
-    if (!vendor_message_slave->start()) {
-        CLOG(ERROR, vendor_message_logger->get_logger_id())
-            << "vendor_message_slave.start() has failed";
+    if (!vendor_message_slave->init()) {
+        LOG(ERROR) << "vendor_message_slave.init() has failed";
         return nullptr;
     }
     return vendor_message_slave;
@@ -180,9 +159,9 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
                                 BEEROCKS_V_MESSAGE; // for file touching
 
     auto vendor_message =
-        start_vendor_message_thread(beerocks_vendor_message_slave_conf, argc, argv);
+        start_vendor_message(beerocks_vendor_message_slave_conf, event_loop, argc, argv);
     if (!vendor_message) {
-        LOG(ERROR) << "Failed to start vendor message thread";
+        LOG(ERROR) << "Failed to start vendor message";
         return 1;
     }
 
@@ -193,8 +172,8 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
             continue;
         }
 
-        // Check if all vendor_message_slave are still running and break on error.
-        if (!vendor_message->is_running()) {
+        if (vendor_message->should_stop()) {
+            LOG(ERROR) << "VendorMessageSlave should stop!";
             break;
         }
 
@@ -204,7 +183,7 @@ bool createDaemon(beerocks::config_file::sConfigSlave &beerocks_vendor_message_s
             break;
         }
     }
-    vendor_message->stop();
+
     LOG(DEBUG) << "Bye Bye!";
     return 0;
 }

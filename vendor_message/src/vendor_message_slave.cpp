@@ -15,10 +15,11 @@
 using namespace vendor_message;
 using namespace net;
 
-VendorMessageSlave::VendorMessageSlave(sVendorMessageConfig conf, beerocks::logging &logger_)
-    : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), config(conf), logger(logger_)
+VendorMessageSlave::VendorMessageSlave(std::string broker_uds_path,
+                                       std::shared_ptr<beerocks::EventLoop> event_loop)
+    : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), m_broker_uds_path(broker_uds_path),
+      m_event_loop(event_loop)
 {
-    thread_name = BEEROCKS_V_MESSAGE;
 }
 
 VendorMessageSlave::~VendorMessageSlave() { LOG(DEBUG) << "destructor - VendorMessageSlave"; }
@@ -70,18 +71,12 @@ bool VendorMessageSlave::handle_cmdu(const sMacAddr &dst_mac, ieee1905_1::CmduMe
     return true;
 }
 
-bool VendorMessageSlave::thread_init()
+bool VendorMessageSlave::init()
 {
-    /** Logger Initialization **/
-    logger.set_thread_name(logger.get_module_name());
-    logger.attach_current_thread_to_logger_id();
-
     /**  Broker Client  **/
-
     // Create broker client factory to create broker clients when requested
-    std::string broker_uds_path = config.temp_path + std::string(BEEROCKS_BROKER_UDS);
     m_broker_client_factory =
-        beerocks::btl::create_broker_client_factory(broker_uds_path, m_event_loop);
+        beerocks::btl::create_broker_client_factory(m_broker_uds_path, m_event_loop);
     LOG_IF(!m_broker_client_factory, FATAL) << "Unable to create broker client factory!";
 
     // Create an instance of a broker client connected to the broker server that is running in the
@@ -107,6 +102,7 @@ bool VendorMessageSlave::thread_init()
     // (something that happens if the transport process dies). Just log a message and exit
     broker_client_handlers.on_connection_closed = [&]() {
         LOG(ERROR) << "Broker client got disconnected!";
+        m_should_stop = true;
         return false;
     };
 
