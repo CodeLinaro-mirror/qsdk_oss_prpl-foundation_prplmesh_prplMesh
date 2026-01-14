@@ -174,6 +174,17 @@ protected:
     virtual bool set(const std::string &param, const std::string &value, int vap_id) override;
 
 private:
+    /**
+     * @brief MLO client association information
+     */
+    struct sMloClientInfo {
+        uint8_t mlo_modes;
+        sMacAddr client_mld_mac;
+        sMacAddr ap_mld_bssid;
+        std::vector<sAffiliatedStaInfo> affiliated_links;
+        sMloClientInfo() : mlo_modes(0) {}
+    };
+
     beerocks::wbapi::AmbiorixVariantSmartPtr get_last_assoc_frame(const std::string &vap_iface,
                                                                   const std::string &sta_mac);
     bool process_radio_event(const std::string &interface, const std::string &key,
@@ -183,7 +194,9 @@ private:
                           const beerocks::wbapi::AmbiorixVariant *value) override;
     bool process_sta_connected_event(const std::string &interface, const std::string &sta_mac,
                                      const std::string &key,
-                                     const beerocks::wbapi::AmbiorixVariant *value) override;
+                                     const beerocks::wbapi::AmbiorixVariant *value,
+                                     const std::string &sta_path,
+                                     const std::string &vap_path) override;
     bool process_sta_disassoc_event(const std::string &interface,
                                     const beerocks::wbapi::AmbiorixVariant *event_data) override;
     bool process_afc_update_event(const beerocks::wbapi::AmbiorixVariant *value) override;
@@ -223,6 +236,20 @@ private:
      * @brief Process event "wpaCtrlEvents"
      */
     bool process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data) override;
+
+    /**
+     * @brief Collect MLO client association information from data model
+     *
+     * @param[in] sta_mac Station MAC address
+     * @param[in] sta_path Station path in data model
+     * @param[in] ap_mld_bssid AP MLD BSSID
+     * @param[out] mlo_info Output structure containing MLO client information
+     * @return true on success, false on failure
+     */
+    bool collect_mlo_client_association_info(const std::string &sta_mac,
+                                             const std::string &sta_path,
+                                             const sMacAddr &ap_mld_bssid,
+                                             sMloClientInfo &mlo_info);
 };
 
 } // namespace whm

@@ -33,6 +33,7 @@
 #include <thread>
 #include <unordered_set>
 
+#include <unordered_map>
 #ifdef ENABLE_NBAPI
 #include "ambiorix_impl.h"
 
@@ -546,9 +547,11 @@ public:
      * @brief Erase client from associated_clients list.
      * If @a bssid is given, then remove client only from its radio, otherwise remove from all
      * radios.
+     * Also removes MLO client entry from associated_sta_mlds if present independent from bssid argument.
      *
      * @param client_mac The client MAC address.
-     * @param bssid The bssid that the client will be removed from its radio.
+     * @param bssid The bssid that the client will be removed from its radio. Defaults to ZERO_MAC
+     *              to remove from all radios.
      */
     void erase_client(const sMacAddr &client_mac, sMacAddr bssid = net::network_utils::ZERO_MAC);
 
@@ -644,7 +647,7 @@ public:
         std::string mld_ssid = "";
         sMacAddr mld_mac     = net::network_utils::ZERO_MAC;
         int8_t mld_unit      = DISABLED_MLDUNIT;
-        enum mode { NONE = 0, STR = 1 << 0, NSTR = 1 << 1, EMLSR = 1 << 2, EMLMR = 1 << 3 };
+        enum mode { NONE = 0, STR = 0x80, NSTR = 0x40, EMLSR = 0x20, EMLMR = 0x10 };
         mode mld_mode;
     } sMLDConfiguration;
 
@@ -674,7 +677,7 @@ public:
         typedef struct {
             sMacAddr sta_mld_mac = beerocks::net::network_utils::ZERO_MAC;
             sMacAddr ap_mld_mac  = beerocks::net::network_utils::ZERO_MAC;
-            enum mode { NONE = 0, STR = 1 << 0, NSTR = 1 << 1, EMLSR = 1 << 2, EMLMR = 1 << 3 };
+            enum mode { NONE = 0, STR = 0x80, NSTR = 0x40, EMLSR = 0x20, EMLMR = 0x10 };
             mode mld_mode;
         } sMLDConfiguration;
 
@@ -689,7 +692,21 @@ public:
 
     std::vector<sAPMLDConfiguration> ap_mld_configurations;
     std::unique_ptr<sBStaMLDConfiguration> bsta_mld_configuration;
-    std::vector<sAssociatedStaMld> associated_sta_mlds;
+
+    /**
+     * @brief Map of associated MLO (Multi-Link Operation) client stations.
+     *
+     * Key: STA MLD MAC address (the MAC address of the MLO client's MLD)
+     * Value: sAssociatedStaMld structure containing:
+     *   - mld_config: MLO configuration (STA MLD MAC, AP MLD MAC, MLO mode)
+     *   - affiliated_stas: Vector of affiliated STA links, each containing:
+     *     - bssid: BSSID of the affiliated link
+     *     - mac: MAC address of the affiliated STA
+     *
+     * This map stores information about MLO clients that are associated with the AP,
+     * including their MLD configuration and all affiliated STA links.
+     */
+    std::unordered_map<sMacAddr, sAssociatedStaMld> associated_sta_mlds;
 
     std::string em_handle_third_party;
     bool em_ap_controller_found = false;

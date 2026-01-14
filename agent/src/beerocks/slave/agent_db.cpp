@@ -101,17 +101,30 @@ AgentDB::sRadio *AgentDB::get_radio_by_mac(const sMacAddr &mac, eMacType mac_typ
 
 void AgentDB::erase_client(const sMacAddr &client_mac, sMacAddr bssid)
 {
+
     if (bssid != net::network_utils::ZERO_MAC) {
+        // Remove legacy client from specific radio with given BSSID
         auto radio = get_radio_by_mac(bssid, eMacType::BSSID);
         if (!radio) {
+            LOG(WARNING) << "Radio not found with bssid:" << bssid;
             return;
         }
+
         radio->associated_clients.erase(client_mac);
-        return;
+        LOG(DEBUG) << "Removed client " << client_mac << " from radio with BSSID " << bssid;
+    } else {
+        // Remove client from all radios
+        for (auto &radio : m_radios) {
+            radio.associated_clients.erase(client_mac);
+        }
     }
 
-    for (auto &radio : m_radios) {
-        radio.associated_clients.erase(client_mac);
+    // Always remove MLO client entry if present independent from bssid argument
+    auto mld_it = associated_sta_mlds.find(client_mac);
+    if (mld_it != associated_sta_mlds.end()) {
+        LOG(DEBUG) << "Removing MLO client from associated_sta_mlds: STA MLD=" << client_mac
+                   << ", AP MLD=" << mld_it->second.mld_config.ap_mld_mac;
+        associated_sta_mlds.erase(mld_it);
     }
 }
 

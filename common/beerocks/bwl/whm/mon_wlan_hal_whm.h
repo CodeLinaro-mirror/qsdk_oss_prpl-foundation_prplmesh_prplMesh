@@ -97,7 +97,9 @@ private:
                           const beerocks::wbapi::AmbiorixVariant *value) override;
     bool process_sta_connected_event(const std::string &interface, const std::string &sta_mac,
                                      const std::string &key,
-                                     const beerocks::wbapi::AmbiorixVariant *value) override;
+                                     const beerocks::wbapi::AmbiorixVariant *value,
+                                     const std::string &sta_path,
+                                     const std::string &vap_path) override;
     bool process_sta_disassoc_event(const std::string &interface,
                                     const beerocks::wbapi::AmbiorixVariant *event_data) override;
 

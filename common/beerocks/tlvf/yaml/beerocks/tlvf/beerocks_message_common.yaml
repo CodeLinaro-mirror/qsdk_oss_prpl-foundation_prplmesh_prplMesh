@@ -239,7 +239,7 @@ eMLOModes:
   eMLOModes_emlsr: 0x20
   eMLOModes_emlmr: 0x10
   _comment: |
-    Bitmask enum for MLO modes in sModes field.
+    Bitmask enum for MLO modes in mlo_modes field.
     Bit 7: STR
     Bit 6: NSTR
     Bit 5: EMLSR
@@ -1175,3 +1175,13 @@ sStaAssociationControl:
   _type: struct
   mac: sMacAddr
   disassoc: uint8_t # bool
+
+cAffiliatedSta:
+  _type: class
+  bssid:
+    _type: sMacAddr
+  mac:
+    _type: sMacAddr
+  reserved:
+    _type: uint8_t
+    _length: [19]

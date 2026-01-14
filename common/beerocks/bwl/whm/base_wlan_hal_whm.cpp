@@ -282,7 +282,8 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
             if (key.empty() || key == "MACAddress" || !value || value->empty()) {
                 continue;
             }
-            process_sta_connected_event(vap_it->first, sta_mac, key, value.get());
+            process_sta_connected_event(vap_it->first, sta_mac, key, value.get(), sta_path,
+                                        vap_it->second.path);
         }
     };
 
@@ -437,10 +438,9 @@ bool base_wlan_hal_whm::process_ap_event(const std::string &interface, const std
     return true;
 }
 
-bool base_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
-                                                    const std::string &sta_mac,
-                                                    const std::string &key,
-                                                    const AmbiorixVariant *value)
+bool base_wlan_hal_whm::process_sta_connected_event(
+    const std::string &interface, const std::string &sta_mac, const std::string &key,
+    const AmbiorixVariant *value, const std::string &sta_path, const std::string &vap_path)
 {
     return true;
 }
