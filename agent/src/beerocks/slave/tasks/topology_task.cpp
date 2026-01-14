@@ -958,7 +958,7 @@ bool TopologyTask::add_associated_clients_tlv()
         if (!radio) {
             continue;
         }
-        if (radio->associated_clients.size() > 0) {
+        if (radio->associated_clients.size() > 0 || db->associated_sta_mlds.size() > 0) {
             include_associated_clients_tlv = true;
             break;
         }
@@ -974,6 +974,9 @@ bool TopologyTask::add_associated_clients_tlv()
 
         // Get current time to compute elapsed time since last client association
         auto now = std::chrono::steady_clock::now();
+
+        // copied list to mld stations
+        auto sta_mld_list = db->associated_sta_mlds;
 
         // Fill in Associated Clients TLV
         for (const auto radio : db->get_radios_list()) {
@@ -1010,8 +1013,70 @@ bool TopologyTask::add_associated_clients_tlv()
 
                     bss_list->add_clients_associated_list(client_info);
                 }
+
+                // Check if any MLD STA connected to same BSSID as their AP MLD MAC
+                for (const auto &sta_mld : db->associated_sta_mlds) {
+                    if (bssid.mac == sta_mld.second.mld_config.ap_mld_mac) {
+                        auto client_info = bss_list->create_clients_associated_list();
+
+                        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                                           now - sta_mld.second.association_time)
+                                           .count();
+                        if ((elapsed < 0) || (elapsed > UINT16_MAX)) {
+                            elapsed = UINT16_MAX;
+                        }
+
+                        client_info->mac()                             = sta_mld.first;
+                        client_info->time_since_last_association_sec() = elapsed;
+                        LOG(DEBUG) << "Adding MLO client_info for client " << client_info->mac()
+                                   << " AP MLD: " << sta_mld.second.mld_config.ap_mld_mac;
+
+                        bss_list->add_clients_associated_list(client_info);
+
+                        // clear mld sta from copied list
+                        sta_mld_list.erase(sta_mld.first);
+                    }
+                }
                 tlvAssociatedClients->add_bss_list(bss_list);
             }
+        }
+
+        // This section is added for systems which have unique AP MLD MAC Addresses
+        // Below MLD STA check will not find any occurrence
+        // New BSS Lists needs to be created with MLD MACs
+        if (sta_mld_list.size() == 0) {
+            return true;
+        }
+
+        // Check unique AP MLD MAC addresses from BSSIDs
+        for (const auto &ap_mld : db->ap_mld_configurations) {
+
+            auto bss_list     = tlvAssociatedClients->create_bss_list();
+            bss_list->bssid() = ap_mld.mld_config.mld_mac;
+
+            for (auto sta_mld_itr = sta_mld_list.begin(); sta_mld_itr != sta_mld_list.end();) {
+
+                if (ap_mld.mld_config.mld_mac == sta_mld_itr->second.mld_config.ap_mld_mac) {
+                    auto client_info = bss_list->create_clients_associated_list();
+                    auto elapsed     = std::chrono::duration_cast<std::chrono::seconds>(
+                                       now - sta_mld_itr->second.association_time)
+                                       .count();
+                    if ((elapsed < 0) || (elapsed > UINT16_MAX)) {
+                        elapsed = UINT16_MAX;
+                    }
+
+                    client_info->mac()                             = sta_mld_itr->first;
+                    client_info->time_since_last_association_sec() = elapsed;
+                    LOG(DEBUG) << "Adding MLO client_info for client " << client_info->mac()
+                               << " AP MLD: " << sta_mld_itr->second.mld_config.ap_mld_mac;
+
+                    bss_list->add_clients_associated_list(client_info);
+                    sta_mld_itr = sta_mld_list.erase(sta_mld_itr);
+                } else {
+                    sta_mld_itr++;
+                }
+            }
+            tlvAssociatedClients->add_bss_list(bss_list);
         }
     }
     return true;

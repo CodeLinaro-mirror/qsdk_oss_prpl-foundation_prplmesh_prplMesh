@@ -688,6 +688,7 @@ public:
 
         sMLDConfiguration mld_config;
         std::vector<sAffiliatedSta> affiliated_stas;
+        std::chrono::steady_clock::time_point association_time = std::chrono::steady_clock::now();
     } sAssociatedStaMld;
 
     std::vector<sAPMLDConfiguration> ap_mld_configurations;
