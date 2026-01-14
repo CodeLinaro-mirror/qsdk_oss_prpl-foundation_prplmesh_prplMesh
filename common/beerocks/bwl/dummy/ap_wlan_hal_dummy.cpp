@@ -128,6 +128,9 @@ HALState ap_wlan_hal_dummy::attach(bool block)
     std::list<son::wireless_utils::sBssInfoConf> bss_info_conf_list;
     update_vap_credentials(bss_info_conf_list, "", "", "");
 
+    // predefined_vaps_num is a const; we need to have the radio_max_bss_supported before AP_Attached event
+    m_radio_info.radio_max_bss_supported = predefined_vaps_num;
+
     // On Operational send the AP_Attached event to the AP Manager
     if (state == HALState::Operational) {
         event_queue_push(Event::AP_Attached);
