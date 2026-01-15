@@ -583,7 +583,12 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
 
     auto agent_ap_mld_configuration = cmdu_rx.getClass<wfa_map::tlvAgentApMldConfiguration>();
     if (!agent_ap_mld_configuration) {
-        LOG(DEBUG) << "No tlvAgentApMldConfiguration TLV received";
+        if (!agent->ap_mlds.empty()) {
+            LOG(DEBUG)
+                << "No tlvAgentApMldConfiguration TLV received, clearing agent MLD configurations";
+            agent->ap_mlds.clear();
+            database.dm_clear_agent_mld_configuration(al_mac);
+        }
     } else {
         // Update APMLD Database and Data Model based on received AgentApMldConfiguration TLV
         for (uint8_t ap_mld_it = 0; ap_mld_it < agent_ap_mld_configuration->num_ap_mld();
