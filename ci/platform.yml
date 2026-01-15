@@ -10,7 +10,8 @@ variables:
   TURRIS_OMNIA_RDKB_FULLIMAGE: "rdkb-generic-broadband-image_turris-omnia.rootfs.tar.gz"
   FREEDOM_FULLIMAGE: "openwrt-ipq95xx-generic-prpl_freedom-squashfs-sysupgrade.bin"
   MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.itb"
-  OSP_PACKAGE_ID: 13754300
+  URX_OSP_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img"
+  URX_OSPV2_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_v2-tb341_wav700_fullimage.fit"
 
 workflow:
   rules:
@@ -21,6 +22,8 @@ stages:
   - test
   - certification-R1-freedom
   - certification-R4-freedom
+  - R4-certification-OSPv2
+  - R4-certification-OSPv2-controller
   - certification-R4-mozart
   - upload
   - release
