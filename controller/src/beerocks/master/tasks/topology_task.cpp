@@ -377,6 +377,11 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         handle_vbss_configuration_tlv(src_mac, vbss_config_report_tlv);
     }
 
+    auto tlvBssConfigurationReport = cmdu_rx.getClass<wfa_map::tlvBssConfigurationReport>();
+    if (tlvBssConfigurationReport) {
+        handle_bss_configuration_report_tlv(src_mac, tlvBssConfigurationReport);
+    }
+
     for (const auto &iface_mac : interface_macs) {
 
         auto interface = database.get_interface_on_agent(al_mac, iface_mac);
@@ -615,6 +620,37 @@ void topology_task::handle_vbss_configuration_tlv(
 
             existing_bss->is_vbss = true;
             database.get_ambiorix_obj()->set(existing_bss->dm_path, "IsVBSS", true);
+        }
+    }
+}
+
+void topology_task::handle_bss_configuration_report_tlv(
+    const sMacAddr &src_mac,
+    std::shared_ptr<wfa_map::tlvBssConfigurationReport> bss_configuration_report_tlv)
+{
+    LOG(DEBUG) << "Received tlvBssConfigurationReport from " << src_mac;
+
+    for (uint8_t i = 0; i < bss_configuration_report_tlv->number_of_reported_radios(); i++) {
+        auto radio = std::get<1>(bss_configuration_report_tlv->radios(i));
+
+        for (uint8_t j = 0; j < radio.number_of_bss(); j++) {
+            auto bss_conf_entry = std::get<1>(radio.bss_info(j));
+
+            auto bss = database.get_bss(bss_conf_entry.bssid());
+            if (!bss) {
+                LOG(WARNING) << "BSS Configuration Report on unknown BSS " << bss_conf_entry.bssid()
+                             << " on " << src_mac << ", radio " << radio.ruid();
+                continue;
+            }
+
+            // TODO: Missed parameters r1_disallowed, multiple_bssid and transmitted_bssid (PPM-3776)
+            bss->backhaul  = bss_conf_entry.bss_ie().backhaul_bss;
+            bss->fronthaul = bss_conf_entry.bss_ie().fronthaul_bss;
+
+            // datamodels are going to be updated within update_bss
+            if (!database.update_bss(src_mac, radio.ruid(), bss->bssid, bss->ssid)) {
+                LOG(ERROR) << "Failed to update BSS in DM for BSS " << bss->bssid;
+            }
         }
     }
 }
