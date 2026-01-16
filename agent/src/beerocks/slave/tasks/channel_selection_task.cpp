@@ -2619,25 +2619,18 @@ bool ChannelSelectionTask::build_acs_list(const sMacAddr &radio_mac,
         const auto &operating_class_channels_list = preference.second;
         auto opclass                              = operating_class_info.operating_class;
 
-        auto opclass_it = son::wireless_utils::operating_classes_list.find(opclass);
-        if (opclass_it == son::wireless_utils::operating_classes_list.end()) {
-            return false;
-        }
-
         if (operating_class_info.flags.preference == 0) {
-            std::copy(opclass_it->second.channels.begin(), opclass_it->second.channels.end(),
-                      std::back_inserter(m_acs_list.second[opclass]));
-            continue;
-        }
-
-        if (!operating_class_channels_list.empty()) {
-            for (auto iter = operating_class_channels_list.begin();
-                 iter != operating_class_channels_list.end(); ++iter) {
-                if (!m_acs_list.second[opclass].empty()) {
-                    m_acs_list.second[opclass].erase(std::find(m_acs_list.second[opclass].begin(),
-                                                               m_acs_list.second[opclass].end(),
-                                                               *iter));
+            if (operating_class_channels_list.empty()) {
+                auto opclass_it = son::wireless_utils::operating_classes_list.find(opclass);
+                if (opclass_it == son::wireless_utils::operating_classes_list.end()) {
+                    return false;
                 }
+                std::copy(opclass_it->second.channels.begin(), opclass_it->second.channels.end(),
+                          std::back_inserter(m_acs_list.second[opclass]));
+            } else {
+                std::copy(operating_class_channels_list.begin(),
+                          operating_class_channels_list.end(),
+                          std::back_inserter(m_acs_list.second[opclass]));
             }
         }
     }
