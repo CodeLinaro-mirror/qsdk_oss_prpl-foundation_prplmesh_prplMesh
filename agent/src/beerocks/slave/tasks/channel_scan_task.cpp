@@ -1816,8 +1816,9 @@ ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest
     using ScanResults = std::tuple<eScanStatus, std::chrono::system_clock::time_point,
                                    std::vector<beerocks_message::sChannelScanResults>>;
     using ResultsMap  = std::unordered_map<uint8_t, ScanResults>;
+    std::vector<uint8_t> appended_channels;
     // Add found results to final results
-    auto add_scan_result = [&final_results](
+    auto add_scan_result = [&final_results, &appended_channels](
                                bool fresh_scan_requested, const sMacAddr &ruid,
                                const int dwell_time, const uint8_t operating_class,
                                const uint8_t channel, const eScanStatus status,
@@ -1844,8 +1845,20 @@ ChannelScanTask::get_scan_results_for_request(const std::shared_ptr<sScanRequest
                 noise       = (it->noise_dBm < 0) ? ((it->noise_dBm + 110) * 2) : 220;
                 results.erase(it);
             }
-            final_results->emplace_back(ruid, operating_class, channel, status, results_timestamp,
-                                        dwell_time, utilization, noise, results);
+            if (std::find(appended_channels.begin(), appended_channels.end(), channel) !=
+                appended_channels.end()) {
+                LOG(DEBUG) << "Results for channel " << channel
+                           << " is already appended, adding only spectrum results for opclass: "
+                           << operating_class;
+                final_results->emplace_back(ruid, operating_class, channel, status,
+                                            results_timestamp, dwell_time, utilization, noise,
+                                            std::vector<beerocks_message::sChannelScanResults>());
+            } else {
+                final_results->emplace_back(ruid, operating_class, channel, status,
+                                            results_timestamp, dwell_time, utilization, noise,
+                                            results);
+                appended_channels.push_back(channel);
+            }
         }
     };
 
