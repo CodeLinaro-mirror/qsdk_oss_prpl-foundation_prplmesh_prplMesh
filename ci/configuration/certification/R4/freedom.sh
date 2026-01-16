@@ -55,7 +55,7 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
 
 # Set guest bridge IP:
-ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.100.155"
+ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.200.150"
 
 # Force guest APs to be in br-guest bridge
 # TODO: remove
