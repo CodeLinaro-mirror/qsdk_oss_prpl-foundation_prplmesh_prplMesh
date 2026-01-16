@@ -983,37 +983,70 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
     };
 
     // Create a sOperatingClass element from the given operating class entry that was received in the request.
-    auto create_fresh_operating_class = [this, &create_channel_vector, &print_channel_vector](
-                                            wfa_map::cOperatingClasses &class_entry,
-                                            AgentDB::sRadio *db_radio) -> sOperatingClass {
-        const auto class_number = class_entry.operating_class();
-        const auto bandwidth    = son::wireless_utils::operating_class_to_bandwidth(class_number);
-        const auto channel_list_length = class_entry.channel_list_length();
-        std::vector<uint8_t> channel_list;
-        if (channel_list_length > 0) {
-            const auto &channel_array = class_entry.channel_list();
-            channel_list.insert(channel_list.end(), channel_array,
-                                channel_array + channel_list_length);
-        }
-        std::vector<sChannel> channel_vector =
-            create_channel_vector(channel_list, class_number, bandwidth, db_radio);
-        LOG(TRACE) << "Operating class: #" << int(class_number) << std::endl
-                   << "\tChannel list length:" << int(channel_vector.size()) << std::endl
-                   << "\tChannel list: " << print_channel_vector(channel_vector) << ".";
+    auto create_fresh_operating_class =
+        [this, &create_channel_vector,
+         &print_channel_vector](const std::vector<wfa_map::cOperatingClasses *> &class_entries,
+                                AgentDB::sRadio *db_radio) -> std::vector<sOperatingClass> {
+        std::vector<sOperatingClass> result;
+        result.reserve(class_entries.size());
 
-        return sOperatingClass(class_number, bandwidth, channel_vector);
+        for (std::size_t i = 0; i < class_entries.size(); ++i) {
+            wfa_map::cOperatingClasses *class_entry = class_entries[i];
+            if (!class_entry) {
+                LOG(WARNING) << "Null operating class ptr at index " << i << ". Skipping...";
+                continue;
+            }
+
+            const auto class_number = class_entry->operating_class();
+            const auto bandwidth = son::wireless_utils::operating_class_to_bandwidth(class_number);
+            const auto channel_list_length = class_entry->channel_list_length();
+            std::vector<uint8_t> channel_list;
+            channel_list.reserve(channel_list_length);
+            if (channel_list_length > 0) {
+                const auto &channel_array = class_entry->channel_list();
+                channel_list.insert(channel_list.end(), channel_array,
+                                    channel_array + channel_list_length);
+            }
+
+            std::vector<sChannel> channel_vector =
+                create_channel_vector(channel_list, class_number, bandwidth, db_radio);
+
+            LOG(INFO) << "Operating class: #" << int(class_number) << std::endl
+                      << "\tChannel list length:" << int(channel_vector.size()) << std::endl
+                      << "\tChannel list: " << print_channel_vector(channel_vector) << ".";
+
+            result.emplace_back(class_number, bandwidth, std::move(channel_vector));
+        }
+
+        return result;
     };
 
     // Create a sOperatingClass for StoredScan
     auto create_stored_operating_classes =
         [this, &print_channel_vector](
+            const std::vector<wfa_map::cOperatingClasses *> &class_entries,
             beerocks::AgentDB::sRadio *const radio) -> std::vector<sOperatingClass> {
         std::vector<sOperatingClass> operating_vector;
+
+        std::unordered_set<uint8_t> requested_classes;
+        requested_classes.reserve(class_entries.size());
+        for (std::size_t i = 0; i < class_entries.size(); ++i) {
+            if (class_entries[i]) {
+                requested_classes.insert(class_entries[i]->operating_class());
+            }
+        }
+
         std::map<uint8_t, std::vector<uint8_t>> scan_map;
         tlvf_utils::get_channel_scan_map(radio, scan_map);
 
         for (auto elem : scan_map) {
+            if (class_entries.size() > 0 &&
+                requested_classes.find(elem.first) == requested_classes.end()) {
+                continue;
+            }
+
             std::vector<sChannel> channel_vector;
+            channel_vector.reserve(elem.second.size());
             for (auto chan_num : elem.second) {
                 // extract status from database
                 eScanStatus new_status = eScanStatus::SCAN_NOT_COMPLETED;
@@ -1141,21 +1174,25 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
         new_radio_scan->dwell_time    = m_preferred_dwell_time_ms;
         new_radio_scan->current_state = eState::PENDING_TRIGGER;
 
-        if (!perform_fresh_scan) {
-            new_radio_scan->operating_classes = create_stored_operating_classes(radio);
-        } else {
-            // Iterate over operating classes
-            for (int class_idx = 0; class_idx < class_list_len; class_idx++) {
-                const auto &class_tuple = radio_list_entry.operating_classes_list(class_idx);
-                if (!std::get<0>(class_tuple)) {
-                    LOG(ERROR) << "Failed to get operating class[" << class_idx
-                               << "]. Continuing...";
-                    continue;
-                }
-                auto &class_entry = std::get<1>(class_tuple);
-                new_radio_scan->operating_classes.push_back(
-                    create_fresh_operating_class(class_entry, radio));
+        std::vector<wfa_map::cOperatingClasses *> class_entries;
+        class_entries.reserve(class_list_len);
+
+        // Iterate over operating classes
+        for (int class_idx = 0; class_idx < class_list_len; class_idx++) {
+            const auto &class_tuple = radio_list_entry.operating_classes_list(class_idx);
+            if (!std::get<0>(class_tuple)) {
+                LOG(ERROR) << "Failed to get operating class[" << class_idx << "]. Continuing...";
+                continue;
             }
+            auto &class_entry = std::get<1>(class_tuple);
+            class_entries.push_back(&class_entry);
+        }
+
+        if (!perform_fresh_scan) {
+            new_radio_scan->operating_classes =
+                create_stored_operating_classes(class_entries, radio);
+        } else {
+            new_radio_scan->operating_classes = create_fresh_operating_class(class_entries, radio);
         }
 
         // Add radio scan info to radio scans map in the request
