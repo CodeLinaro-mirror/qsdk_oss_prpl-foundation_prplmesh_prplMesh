@@ -28,6 +28,8 @@ int cfg_get_management_mode()
         return management_mode;
     }
 
+    MAPF_INFO("[igor] management_mode = " << management_mode_str);
+
     if (management_mode_str == "Multi-AP-Controller-and-Agent") {
         management_mode = BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT;
     } else if (management_mode_str == "Non-Prpl-Controller-and-Agent") {
@@ -84,8 +86,11 @@ int cfg_get_certification_mode_process_manager(int &certification_mode)
 
 int cfg_get_certification_mode_agent(int &certification_mode)
 {
-    return read_agent_config_param("CertificationMode", certification_mode) ? RETURN_OK
-                                                                            : RETURN_ERR;
+    bool value = false;
+    bool ret   = read_agent_config_param("CertificationMode", value);
+
+    certification_mode = value ? 1 : 0;
+    return ret ? RETURN_OK : RETURN_ERR;
 }
 
 int cfg_get_certification_mode()
@@ -102,6 +107,8 @@ int cfg_get_certification_mode()
     if (ret == RETURN_ERR)
         MAPF_ERR(
             "cfg_get_certification_mode(): failed to read certification_mode, using default value");
+
+    MAPF_INFO("[igor] certification_mode = " << certification_mode);
 
     return certification_mode;
 }

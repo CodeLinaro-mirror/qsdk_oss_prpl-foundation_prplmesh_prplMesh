@@ -132,9 +132,9 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
 
     def _prplMesh_exec(self, mode: str):
         """Send line to prplmesh initd script."""
-        utils = "/opt/prplmesh/scripts/prplmesh_utils.sh"
-        self.sendline("{} start --cert true --mode {}".format(utils, mode))
-        time.sleep(10)
+        self.sendline("/etc/init.d/prplmesh setmode --cert true --mode {}".format(mode))
+        time.sleep(20)
+        self.sendline("ba-cli \"X_PRPLWARE-COM_Agent.?\"")
 
     def _prplmesh_status_poll(self, timeout: int = 120) -> bool:
         """Poll prplMesh status for timeout time.
