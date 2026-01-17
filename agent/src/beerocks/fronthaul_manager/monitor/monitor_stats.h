@@ -57,6 +57,14 @@ public:
     uint32_t conf_ap_active_threshold_B                     = 20000;
     uint16_t conf_ap_idle_stable_time_sec                   = 600;
 
+    enum eByteCounterUnits : uint8_t {
+        BYTES     = 0x0,
+        KIBIBYTES = 0x1,
+        MEBIBYTES = 0x2,
+    };
+
+    void set_byte_counter_units(eByteCounterUnits units) { m_byte_counter_units = units; }
+
     //const uint32_t AP_IDLE_BYTES_THRESHOLD = 10000;
     const uint32_t AP_ACTIVE_BYTES_THRESHOLD = 20000;
     //const uint32_t AP_IDLE_TIME_SEC_THRESHOLD = 70; //600;
@@ -69,6 +77,19 @@ private:
     void calculate_client_load(monitor_sta_node *sta_node, monitor_radio_node *radio_node,
                                int active_sta_th);
 
+    /**
+     * @brief Recalculate single value of byte units to support R2 spec
+     *
+     * R2 specification require associated station traffic stats to be in KB units while R1 only
+     * support Byte units. The monitor produces the value in Byte units so it need to be recalculated
+     * according to the controller expectation.
+     *
+     * @param[in] bytes Number of bytes to recalculate
+     *
+     * @return Recalculated value of the bytes
+     */
+    uint32_t recalculate_byte_units(uint64_t bytes) const;
+
     std::string parent_thread_name;
     monitor_db *mon_db   = nullptr;
     bool stats_requested = false;
@@ -77,6 +98,8 @@ private:
      * CMDU client to send messages to the CMDU server running in slave.
      */
     std::shared_ptr<beerocks::CmduClient> m_slave_client;
+
+    eByteCounterUnits m_byte_counter_units = eByteCounterUnits::BYTES;
 
     struct sMeasurementsRequest {
         sMeasurementsRequest(uint16_t _mid, const sMacAddr &_mac) : message_id(_mid), mac(_mac) {}
