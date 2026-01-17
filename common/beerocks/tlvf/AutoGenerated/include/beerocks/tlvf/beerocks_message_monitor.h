@@ -97,6 +97,27 @@ class cACTION_MONITOR_SON_CONFIG_UPDATE : public BaseClass
         sSonConfig* m_config = nullptr;
 };
 
+class cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION : public BaseClass
+{
+    public:
+        cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION();
+
+        static eActionOp_MONITOR get_action_op(){
+            return (eActionOp_MONITOR)(ACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION);
+        }
+        eByteCounterUnits& byte_counter_units();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_MONITOR* m_action_op = nullptr;
+        eByteCounterUnits* m_byte_counter_units = nullptr;
+};
+
 class cACTION_MONITOR_CHANGE_MODULE_LOGGING_LEVEL : public BaseClass
 {
     public:
