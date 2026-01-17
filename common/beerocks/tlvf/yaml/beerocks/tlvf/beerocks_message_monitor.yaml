@@ -28,6 +28,10 @@ cACTION_MONITOR_SON_CONFIG_UPDATE:
   _type: class
   config: sSonConfig
 
+cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION:
+  _type: class
+  byte_counter_units: eByteCounterUnits
+
 cACTION_MONITOR_CHANGE_MODULE_LOGGING_LEVEL:
   _type: class
   params: sLoggingLevelChange

@@ -67,6 +67,13 @@ sSonConfig:
 
   ire_rssi_report_rate_sec: uint8_t
 
+eByteCounterUnits:
+  _type: enum
+  _enum_storage: uint8_t
+  BYTES: 0x00
+  KIBIBYTES: 0x01
+  MEBIBYTES: 0x02
+
 sPlatformSettings:
   _type: struct
   local_master: uint8_t
