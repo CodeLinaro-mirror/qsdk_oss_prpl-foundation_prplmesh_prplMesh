@@ -1121,6 +1121,19 @@ void Monitor::handle_cmdu_vs_message(ieee1905_1::CmduMessageRx &cmdu_rx)
         mon_db.set_hostapd_enabled(false);
         break;
     }
+    case beerocks_message::ACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION: {
+        auto update = beerocks_header->addClass<
+            beerocks_message::cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION>();
+        if (update == nullptr) {
+            LOG(ERROR) << "addClass cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION failed";
+            return;
+        }
+        const auto unit_tlvf = update->byte_counter_units();
+        mon_stats.set_byte_counter_units(
+            static_cast<monitor_stats::eByteCounterUnits>(static_cast<uint8_t>(unit_tlvf)));
+
+        break;
+    }
     case beerocks_message::ACTION_MONITOR_HOSTAP_STATS_MEASUREMENT_REQUEST: {
         // LOG(TRACE) << "received ACTION_MONITOR_HOSTAP_STATS_MEASUREMENT_REQUEST"; // floods the log
         auto request =
