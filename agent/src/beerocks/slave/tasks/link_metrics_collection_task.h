@@ -168,32 +168,6 @@ private:
                        std::map<sLinkInterface, std::vector<sLinkNeighbor>> &neighbor_links_map);
 
     /**
-     * @brief Recalculate single value of byte units to support R2 spec
-     * 
-     * R2 specification require associated station traffic stats to be in KB units while R1 only
-     * support Byte units. The monitor produces the value in Byte units so it need to be recalculated
-     * according to the controller expectation.
-     *
-     * @param[in] bytes Number of bytes to recalculate
-     * 
-     * @return Recalculated value of the bytes
-     */
-    uint32_t recalculate_byte_units(uint32_t bytes);
-
-    /**
-     * @brief Recalculate all byte units of TLVs to support R2 spec
-     * 
-     * R2 specification require associated station traffic stats to be in KB units while R1 only
-     * support Byte units. The monitor produces the value in Byte units so it need to be recalculated
-     * according to the controller expectation.
-     *
-     * @param[in] cmdu_rx CMDU message containing associated station traffic stats TLVs
-     * 
-     * @return None
-     */
-    void recalculate_byte_units(ieee1905_1::CmduMessageRx &cmdu_rx);
-
-    /**
      * @brief Callback of the timer that sends periodic AP Metrics Report
      *
      * @return None

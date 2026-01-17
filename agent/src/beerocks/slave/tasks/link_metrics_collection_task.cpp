@@ -881,49 +881,6 @@ bool LinkMetricsCollectionTask::send_ap_metric_query_message(
     return true;
 }
 
-uint32_t LinkMetricsCollectionTask::recalculate_byte_units(uint32_t bytes)
-{
-    const auto &byte_counter_units = AgentDB::get()->device_conf.byte_counter_units;
-    if (byte_counter_units == wfa_map::tlvProfile2ApCapability::eByteCounterUnits::KIBIBYTES) {
-        bytes = bytes / 1024;
-    } else if (byte_counter_units ==
-               wfa_map::tlvProfile2ApCapability::eByteCounterUnits::MEBIBYTES) {
-        bytes = bytes / 1024 / 1024;
-    }
-    return bytes;
-}
-
-void LinkMetricsCollectionTask::recalculate_byte_units(ieee1905_1::CmduMessageRx &cmdu_rx)
-{
-    for (auto &sta_traffic : cmdu_rx.getClassList<wfa_map::tlvAssociatedStaTrafficStats>()) {
-        if (!sta_traffic) {
-            LOG(ERROR) << "Failed to get class list for tlvAssociatedStaTrafficStats";
-            continue;
-        }
-        sta_traffic->byte_sent()     = recalculate_byte_units(sta_traffic->byte_sent());
-        sta_traffic->byte_received() = recalculate_byte_units(sta_traffic->byte_received());
-    }
-
-    for (auto &extended_metric : cmdu_rx.getClassList<wfa_map::tlvApExtendedMetrics>()) {
-        if (!extended_metric) {
-            LOG(ERROR) << "Failed to get class list for tlvApExtendedMetrics";
-            continue;
-        }
-        extended_metric->broadcast_bytes_sent() =
-            recalculate_byte_units(extended_metric->broadcast_bytes_sent());
-        extended_metric->broadcast_bytes_received() =
-            recalculate_byte_units(extended_metric->broadcast_bytes_received());
-        extended_metric->multicast_bytes_sent() =
-            recalculate_byte_units(extended_metric->multicast_bytes_sent());
-        extended_metric->multicast_bytes_received() =
-            recalculate_byte_units(extended_metric->multicast_bytes_received());
-        extended_metric->unicast_bytes_sent() =
-            recalculate_byte_units(extended_metric->unicast_bytes_sent());
-        extended_metric->unicast_bytes_received() =
-            recalculate_byte_units(extended_metric->unicast_bytes_received());
-    }
-}
-
 void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                            const sMacAddr &src_mac)
 {
@@ -936,8 +893,6 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
         LOG(ERROR) << "controller_info.bridge_mac == ZERO_MAC. Skip AP_METRICS_RESPONSE_MESSAGE";
         return;
     }
-
-    recalculate_byte_units(cmdu_rx);
 
     /**
      * If AP Metrics Response message does not correspond to a previously received and forwarded
