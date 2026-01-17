@@ -4758,6 +4758,22 @@ bool slave_thread::agent_fsm()
             }
         }
 
+        const auto &radio = db->get_radios_list();
+        for (const auto &radio_to_update : radio) {
+            auto counter_update = message_com::create_vs_message<
+                beerocks_message::cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION>(cmdu_tx);
+            if (!counter_update) {
+                LOG(ERROR) << "Failed building message!";
+                return false;
+            }
+
+            auto units = static_cast<uint8_t>(db->device_conf.byte_counter_units);
+            counter_update->byte_counter_units() =
+                static_cast<beerocks_message::eByteCounterUnits>(units);
+
+            send_cmdu(m_radio_managers[radio_to_update->front.iface_name].monitor_fd, cmdu_tx);
+        }
+
         // On certification mode, if on boot scan is enabled, trigger On Boot Scan
         if (db->device_conf.certification_mode && db->device_conf.on_boot_scan > 0) {
             // If on_boot_scan=1 then the On Boot Scan needs to be done on 5GHz radio.
@@ -4769,7 +4785,6 @@ bool slave_thread::agent_fsm()
                 LOG(ERROR) << "Failed building message!";
                 return false;
             }
-            const auto &radio = db->get_radios_list();
             beerocks::eFreqType freq_type_to_scan;
             switch (db->device_conf.on_boot_scan) {
             case 1:
