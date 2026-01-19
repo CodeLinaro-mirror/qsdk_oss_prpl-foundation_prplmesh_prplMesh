@@ -4761,7 +4761,7 @@ bool Controller::reconfig_bstamld(const sMacAddr &al_mac, const sMacAddr &mld_ma
         affiliated_bsta->ruid()                     = affiliated_bsta_conf.ruid;
         affiliated_bsta->affiliated_bsta_mac_addr() = affiliated_bsta_conf.bssid;
 
-        if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(affiliated_bsta)) {
+        if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(std::move(affiliated_bsta))) {
             LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";
             return false;
         }
@@ -5028,11 +5028,11 @@ bool Controller::set_eht_operations(const sMacAddr &agent_mac_addr, const sMacAd
     eht_operations_bss->flags().disabled_subchannel_valid       = 1;
     eht_operations_bss->disabled_subchannel_bitmap()            = bitmap;
 
-    if (!eht_operations_radio->add_bss_entries(eht_operations_bss)) {
+    if (!eht_operations_radio->add_bss_entries(std::move(eht_operations_bss))) {
         LOG(ERROR) << "Failed adding BSS entry in eht operation TLV for bssid " << bssid;
         return false;
     }
-    if (!eht_operation_tlv->add_radio_entries(eht_operations_radio)) {
+    if (!eht_operation_tlv->add_radio_entries(std::move(eht_operations_radio))) {
         LOG(ERROR) << "Failed adding Radio entry in eht operation TLV for mac " << radio_mac;
         return false;
     }
