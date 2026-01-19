@@ -388,7 +388,7 @@ bool cEncryptedSettingsPayload::alloc_ssid(size_t count) {
     m_bssid_attr = (sWscAttrBssid *)((uint8_t *)(m_bssid_attr) + len);
     m_bss_type = (uint8_t *)((uint8_t *)(m_bss_type) + len);
     m_mld_id = (int8_t *)((uint8_t *)(m_mld_id) + len);
-    m_hidden_ssid = (uint8_t *)((uint8_t *)(m_hidden_ssid) + len);
+    m_hidden_ssid = (eWscVendorExtHiddenSsid *)((uint8_t *)(m_hidden_ssid) + len);
     m_bss_index = (int8_t *)((uint8_t *)(m_bss_index) + len);
     m_additional_auth = (uint8_t *)((uint8_t *)(m_additional_auth) + len);
     m_ssid_idx__ += count;
@@ -477,7 +477,7 @@ bool cEncryptedSettingsPayload::alloc_network_key(size_t count) {
     m_bssid_attr = (sWscAttrBssid *)((uint8_t *)(m_bssid_attr) + len);
     m_bss_type = (uint8_t *)((uint8_t *)(m_bss_type) + len);
     m_mld_id = (int8_t *)((uint8_t *)(m_mld_id) + len);
-    m_hidden_ssid = (uint8_t *)((uint8_t *)(m_hidden_ssid) + len);
+    m_hidden_ssid = (eWscVendorExtHiddenSsid *)((uint8_t *)(m_hidden_ssid) + len);
     m_bss_index = (int8_t *)((uint8_t *)(m_bss_index) + len);
     m_additional_auth = (uint8_t *)((uint8_t *)(m_additional_auth) + len);
     m_network_key_idx__ += count;
@@ -501,8 +501,8 @@ int8_t& cEncryptedSettingsPayload::mld_id() {
     return (int8_t&)(*m_mld_id);
 }
 
-uint8_t& cEncryptedSettingsPayload::hidden_ssid() {
-    return (uint8_t&)(*m_hidden_ssid);
+eWscVendorExtHiddenSsid& cEncryptedSettingsPayload::hidden_ssid() {
+    return (eWscVendorExtHiddenSsid&)(*m_hidden_ssid);
 }
 
 int8_t& cEncryptedSettingsPayload::bss_index() {
@@ -563,7 +563,7 @@ size_t cEncryptedSettingsPayload::get_initial_size()
     class_size += sizeof(sWscAttrBssid); // bssid_attr
     class_size += sizeof(uint8_t); // bss_type
     class_size += sizeof(int8_t); // mld_id
-    class_size += sizeof(uint8_t); // hidden_ssid
+    class_size += sizeof(eWscVendorExtHiddenSsid); // hidden_ssid
     class_size += sizeof(int8_t); // bss_index
     class_size += sizeof(uint8_t); // additional_auth
     return class_size;
@@ -645,10 +645,10 @@ bool cEncryptedSettingsPayload::init()
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(int8_t) << ") Failed!";
         return false;
     }
-    m_hidden_ssid = reinterpret_cast<uint8_t*>(m_buff_ptr__);
-    if (!m_parse__) *m_hidden_ssid = 0x0;
-    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
-        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+    m_hidden_ssid = reinterpret_cast<eWscVendorExtHiddenSsid*>(m_buff_ptr__);
+    if (!m_parse__) *m_hidden_ssid = eWscVendorExtHiddenSsid::UNSET;
+    if (!buffPtrIncrementSafe(sizeof(eWscVendorExtHiddenSsid))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eWscVendorExtHiddenSsid) << ") Failed!";
         return false;
     }
     m_bss_index = reinterpret_cast<int8_t*>(m_buff_ptr__);

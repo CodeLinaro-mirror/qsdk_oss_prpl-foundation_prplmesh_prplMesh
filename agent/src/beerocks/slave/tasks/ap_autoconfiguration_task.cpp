@@ -1872,7 +1872,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         ss << "fBSS: " << fBSS << std::endl;
         ss << "bBSS: " << bBSS << std::endl;
         ss << "teardown: " << teardown << std::endl;
-        ss << "hidden_ssid " << info.m2_config.hidden_ssid << std::endl;
+        ss << "hidden_ssid: " << info.m2_config.hidden_ssid << std::endl;
         if (bBSS) {
             ss << "profile1_backhaul_sta_association_disallowed: " << bBSS_p1_disallowed;
             ss << "profile2_backhaul_sta_association_disallowed: " << bBSS_p2_disallowed;
@@ -2907,7 +2907,8 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
                                           WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS)) {
                 matching_fields++;
             }
-            if (bss.hidden_ssid && bool(info.m2_config.hidden_ssid)) {
+            if ((bss.hidden_ssid == WSC::eWscVendorExtHiddenSsid::ENABLED) &&
+                (info.m2_config.hidden_ssid == WSC::eWscVendorExtHiddenSsid::ENABLED)) {
                 matching_fields++;
             }
 
@@ -2951,7 +2952,7 @@ bool ApAutoConfigurationTask::validate_reconfiguration(const std::string &radio_
                        << " bss_type: " << info.payload_config.bss_type;
             return true;
         }
-        if (bss.hidden_ssid && !bool(info.m2_config.hidden_ssid)) {
+        if (bss.hidden_ssid != info.m2_config.hidden_ssid) {
             return true;
         }
 

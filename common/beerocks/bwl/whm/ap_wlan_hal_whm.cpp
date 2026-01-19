@@ -615,23 +615,14 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             LOG(DEBUG) << "set multiapprofile " << (get_hal_conf().multi_ap_profile);
             new_obj.add_child("MultiAPProfile", get_hal_conf().multi_ap_profile);
 
-            std::string is_hide_ssid    = "";
-            std::string is_ssid_adv_set = "";
-            m_ambiorix_cl.get_param(is_hide_ssid, wifi_ssid_path, "SSID");
-            if ((is_hide_ssid == bss_info_conf.ssid)) {
-                if (bss_info_conf.hidden_ssid) {
-                    new_obj.add_child("SSIDAdvertisementEnabled", 0);
-                    is_ssid_adv_set = "disabled";
-                } else {
-                    new_obj.add_child("SSIDAdvertisementEnabled", 1);
-                    is_ssid_adv_set = "enabled";
-                }
-            } else {
-                is_ssid_adv_set = "unset";
+            if (bss_info_conf.hidden_ssid == WSC::eWscVendorExtHiddenSsid::ENABLED) {
+                new_obj.add_child("SSIDAdvertisementEnabled", 0);
+            } else if (bss_info_conf.hidden_ssid == WSC::eWscVendorExtHiddenSsid::DISABLED) {
+                new_obj.add_child("SSIDAdvertisementEnabled", 1);
             }
 
             LOG(INFO) << "Hidden SSID-Bss_info: " << bss_info_conf.ssid
-                      << ", SSIDAdvertisementEnabled is " << is_ssid_adv_set;
+                      << ", SSIDAdvertisementEnabled is " << bss_info_conf.hidden_ssid;
             ret = m_ambiorix_cl.update_object(wifi_vap_path, new_obj);
             if (!ret) {
                 LOG(ERROR) << "Failed to enable vap " << wifi_vap_path

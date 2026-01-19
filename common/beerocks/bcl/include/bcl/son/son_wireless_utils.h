@@ -16,6 +16,7 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 #include <tlvf/WSC/eWscVendorExt.h>
+#include <tlvf/WSC/eWscVendorExtHiddenSsid.h>
 
 #include <array>
 #include <deque>
@@ -298,7 +299,7 @@ public:
         bool backhaul                                     = false;
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
-        bool hidden_ssid                                  = false;
+        WSC::eWscVendorExtHiddenSsid hidden_ssid          = WSC::eWscVendorExtHiddenSsid::UNSET;
         std::string mld_id                                = "";
         bool bSTA                                         = false;
         uint8_t bss_index                                 = 0;

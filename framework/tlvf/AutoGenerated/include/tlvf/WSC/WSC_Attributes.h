@@ -37,6 +37,7 @@
 #include "tlvf/WSC/eWscAssoc.h"
 #include "tlvf/WSC/eWscValues16.h"
 #include "tlvf/WSC/eWscState.h"
+#include "tlvf/WSC/eWscVendorExtHiddenSsid.h"
 
 namespace WSC {
 
@@ -229,7 +230,7 @@ class cEncryptedSettingsPayload : public BaseClass
         sWscAttrBssid& bssid_attr();
         uint8_t& bss_type();
         int8_t& mld_id();
-        uint8_t& hidden_ssid();
+        eWscVendorExtHiddenSsid& hidden_ssid();
         int8_t& bss_index();
         uint8_t& additional_auth();
         void class_swap() override;
@@ -252,7 +253,7 @@ class cEncryptedSettingsPayload : public BaseClass
         sWscAttrBssid* m_bssid_attr = nullptr;
         uint8_t* m_bss_type = nullptr;
         int8_t* m_mld_id = nullptr;
-        uint8_t* m_hidden_ssid = nullptr;
+        eWscVendorExtHiddenSsid* m_hidden_ssid = nullptr;
         int8_t* m_bss_index = nullptr;
         uint8_t* m_additional_auth = nullptr;
 };
