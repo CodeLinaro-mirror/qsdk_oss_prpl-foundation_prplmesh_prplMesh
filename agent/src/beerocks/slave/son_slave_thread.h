@@ -122,6 +122,14 @@ public:
      */
     bool update_vaps_info(const std::string &iface, const beerocks_message::sVapInfo vaps[]);
 
+    /**
+     * @brief Update the vap types in the Agent DB.
+     * @param iface The interface to use to find the radio in the DB.
+     * @param vap_types the array of VAP types to use for the update.
+     * @return true on success, false on failure.
+     */
+    bool update_vaps_type(const std::string &iface, const beerocks_message::sVapType vap_types[]);
+
     enum eEvent : uint8_t {
         CONTROLLER_DISCOVERED,
         CONTROLLER_EARLY_AP_CAPABILITY,

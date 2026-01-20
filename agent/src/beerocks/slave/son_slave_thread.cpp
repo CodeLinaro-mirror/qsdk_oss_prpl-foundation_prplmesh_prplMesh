@@ -2555,6 +2555,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         fill_channel_list_to_agent_db(fronthaul_iface, notification->channel_list());
 
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
+        update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
 
         radio->chipset_vendor = notification->params().chipset_vendor;
 
@@ -5621,6 +5622,44 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             }
         }
     }
+    return true;
+}
+
+bool slave_thread::update_vaps_type(const std::string &iface,
+                                    const beerocks_message::sVapType vap_types[])
+{
+    auto db    = AgentDB::get();
+    auto radio = db->radio(iface);
+    if (!radio) {
+        return false;
+    }
+
+    for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
+        auto &bss = radio->front.bssids[vap_idx];
+
+        if (!bss.active) {
+            bss.vap_type = eVapType::OTHER;
+            continue;
+        }
+
+        // Optional safety: validate sender kept the same mapping
+        const int expected_vap_id = int(beerocks::IFACE_VAP_ID_MIN) + int(vap_idx);
+        if (vap_types[vap_idx].vap_id != expected_vap_id) {
+            LOG(WARNING) << "vap_types mapping mismatch: idx=" << int(vap_idx)
+                         << " expected_vap_id=" << expected_vap_id
+                         << " got=" << int(vap_types[vap_idx].vap_id) << " (keeping OTHER)";
+            bss.vap_type = eVapType::OTHER;
+            continue;
+        }
+
+        const auto raw = static_cast<uint8_t>(vap_types[vap_idx].vap_type);
+        bss.vap_type = eVapTypeValidate::check(raw) ? vap_types[vap_idx].vap_type : eVapType::OTHER;
+
+        LOG(DEBUG) << "Updated vap_type: iface=" << bss.iface_name << " idx=" << int(vap_idx)
+                   << " vap_id=" << int(vap_types[vap_idx].vap_id)
+                   << " vap_type=" << eVapType_str(bss.vap_type);
+    }
+
     return true;
 }
 
