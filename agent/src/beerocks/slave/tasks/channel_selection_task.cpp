@@ -1540,10 +1540,11 @@ bool ChannelSelectionTask::check_is_there_better_channel_than_current(const sMac
 
     const auto operating_class =
         son::wireless_utils::get_operating_class_by_channel(radio->wifi_channel);
-    auto &radio_request = m_pending_selection.requests[radio_mac];
-    const auto current_preference =
-        get_cumulative_preference(radio, radio_request.controller_preferences, operating_class,
-                                  radio->wifi_channel.get_channel());
+
+    const auto current_channel    = radio->wifi_channel.get_channel();
+    auto &radio_request           = m_pending_selection.requests[radio_mac];
+    const auto current_preference = get_cumulative_preference(
+        radio, radio_request.controller_preferences, operating_class, current_channel);
 
     LOG(DEBUG) << "Current Channel is [" << radio->wifi_channel
                << "] Operating Class:" << (int)operating_class
@@ -1588,6 +1589,39 @@ bool ChannelSelectionTask::check_is_there_better_channel_than_current(const sMac
         LOG(DEBUG) << "Currect channel is better than the next best channel, no need "
                       "to switch";
         return true;
+    }
+
+    // if channel selection request does not explicitly point to a beaconing channel,
+    // pick one arbitrarily
+    if (son::wireless_utils::is_operating_class_using_central_channel(
+            selected_channel.operating_class) &&
+        son::wireless_utils::is_channel_in_operating_class(selected_channel.operating_class,
+                                                           selected_channel.channel)) {
+        LOG(INFO) << "channel " << int(selected_channel.channel) << " in operating class "
+                  << int(selected_channel.operating_class)
+                  << " needs to be converted to beaconing channel";
+
+        auto freq_type = son::wireless_utils::which_freq_op_cls(selected_channel.operating_class);
+
+        auto beaconing_channels = son::wireless_utils::center_channel_to_beacon_channels(
+            selected_channel.channel, selected_channel.bw, freq_type);
+
+        // if current beaconing channel is in the new chanspec, do not change it;
+        if (std::find(beaconing_channels.begin(), beaconing_channels.end(), current_channel) !=
+            beaconing_channels.end()) {
+
+            selected_channel.channel = current_channel;
+            LOG(INFO) << "new chanspec contains current beaconing channel " << int(current_channel);
+        } else if (beaconing_channels.size() > 1) {
+
+            // in case of 6GHz, this is the Preferred Scanning Channel (PSC)
+            selected_channel.channel = beaconing_channels[1];
+            LOG(INFO) << "new chanspec does not contain current beaconing channel, switch to "
+                      << int(selected_channel.channel);
+        } else {
+            LOG(WARNING) << "cannot extract beacon channels for " << int(selected_channel.channel)
+                         << "-" << int(selected_channel.operating_class);
+        }
     }
 
     radio_request.selected_channel         = selected_channel;
