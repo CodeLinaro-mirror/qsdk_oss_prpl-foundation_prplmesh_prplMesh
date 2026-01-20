@@ -1,0 +1,15 @@
+#
+---
+
+eVapType:
+  _type: enum_class
+  _enum_storage: uint8_t
+  HOME: 0x00
+  GUEST: 0x01
+  VIDEO: 0x02
+  BACKHAUL: 0x03
+  HOTSPOT: 0x04
+  STAFF: 0x05
+  ISOLATED: 0x06
+  # 7-254 = UNSPECIFIED
+  OTHER: 0xFF

@@ -24,6 +24,7 @@
 #include <tuple>
 #include "beerocks/tlvf/beerocks_message_action.h"
 #include "bcl/beerocks_message_structs.h"
+#include "tlvf/common/eVapType.h"
 
 namespace beerocks_message {
 
@@ -66,6 +67,16 @@ typedef struct sVapInfo {
         ap_mld_mac.struct_init();
     }
 } __attribute__((packed)) sVapInfo;
+
+typedef struct sVapType {
+    int8_t vap_id;
+    eVapType vap_type;
+    void struct_swap(){
+        tlvf_swap(8*sizeof(eVapType), reinterpret_cast<uint8_t*>(&vap_type));
+    }
+    void struct_init(){
+    }
+} __attribute__((packed)) sVapType;
 
 typedef struct sSonConfig {
     uint8_t monitor_total_ch_load_notification_lo_th_percent;
@@ -448,6 +459,20 @@ typedef struct sVapsList {
             }
     }
 } __attribute__((packed)) sVapsList;
+
+typedef struct sVapTypesList {
+    sVapType vap_types[beerocks::IFACE_TOTAL_VAPS];
+    void struct_swap(){
+        for (size_t i = 0; i < beerocks::IFACE_TOTAL_VAPS; i++){
+            (vap_types[i]).struct_swap();
+        }
+    }
+    void struct_init(){
+            for (size_t i = 0; i < beerocks::IFACE_TOTAL_VAPS; i++) {
+                (vap_types[i]).struct_init();
+            }
+    }
+} __attribute__((packed)) sVapTypesList;
 
 typedef struct sArpMonitorData {
     sMacAddr mac;

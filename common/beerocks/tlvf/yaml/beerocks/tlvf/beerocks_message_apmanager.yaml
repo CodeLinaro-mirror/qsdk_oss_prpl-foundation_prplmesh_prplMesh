@@ -43,6 +43,7 @@ cACTION_APMANAGER_JOINED_NOTIFICATION:
   cs_params: sApChannelSwitch
   channel_list: cChannelList
   vap_list: sVapsList
+  vap_type_list: sVapTypesList
   radio_max_bss: uint8_t
   radio_rsn_override_support : uint8_t #bool
 
@@ -82,6 +83,7 @@ cACTION_APMANAGER_HOSTAP_GENERATE_CLIENT_ASSOCIATION_NOTIFICATIONS_REQUEST:
 cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION:
   _type: class
   params: sVapsList
+  vap_type_list: sVapTypesList
 
 cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START:
   _type: class
