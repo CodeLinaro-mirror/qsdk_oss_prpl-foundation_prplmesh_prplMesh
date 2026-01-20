@@ -288,6 +288,75 @@ bool cACTION_MONITOR_SON_CONFIG_UPDATE::init()
     return true;
 }
 
+cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::~cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION() {
+}
+eByteCounterUnits& cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::byte_counter_units() {
+    return (eByteCounterUnits&)(*m_byte_counter_units);
+}
+
+void cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_MONITOR), reinterpret_cast<uint8_t*>(m_action_op));
+    tlvf_swap(8*sizeof(eByteCounterUnits), reinterpret_cast<uint8_t*>(m_byte_counter_units));
+}
+
+bool cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(eByteCounterUnits); // byte_counter_units
+    return class_size;
+}
+
+bool cACTION_MONITOR_BYTE_COUNTER_UNITS_UPDATE_NOTIFICATION::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_byte_counter_units = reinterpret_cast<eByteCounterUnits*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(eByteCounterUnits))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eByteCounterUnits) << ") Failed!";
+        return false;
+    }
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cACTION_MONITOR_CHANGE_MODULE_LOGGING_LEVEL::cACTION_MONITOR_CHANGE_MODULE_LOGGING_LEVEL(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();

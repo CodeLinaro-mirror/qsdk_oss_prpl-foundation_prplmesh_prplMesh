@@ -90,6 +90,12 @@ typedef struct sSonConfig {
     }
 } __attribute__((packed)) sSonConfig;
 
+enum eByteCounterUnits: uint8_t {
+    BYTES = 0x0,
+    KIBIBYTES = 0x1,
+    MEBIBYTES = 0x2,
+};
+
 typedef struct sPlatformSettings {
     uint8_t local_master;
     uint8_t client_band_steering_enabled;
