@@ -77,8 +77,9 @@ constexpr auto wait_for_vaps_enable_timeout_sec = std::chrono::seconds(10);
 /////////////////////////// Local Module Functions ///////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
-static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
-                           beerocks_message::sVapInfo vaps[])
+static void copy_vaps_info_and_type(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
+                                    beerocks_message::sVapInfo vaps[],
+                                    beerocks_message::sVapType vap_types[])
 {
     if (!ap_wlan_hal->refresh_vaps_info()) {
         LOG(ERROR) << "Failed to refresh vaps info!";
@@ -91,8 +92,11 @@ static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
     for (int vap_id = beerocks::IFACE_VAP_ID_MIN, i = 0; vap_id <= beerocks::IFACE_VAP_ID_MAX;
          vap_id++, i++) {
 
-        // Clear the memory
-        vaps[i] = {};
+        // init / clear
+        vaps[i]               = {};
+        vap_types[i]          = {};
+        vap_types[i].vap_id   = vap_id;
+        vap_types[i].vap_type = eVapType::OTHER;
 
         // If the VAP ID exists
         if (radio_vaps.find(vap_id) == radio_vaps.end()) {
@@ -102,7 +106,8 @@ static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
 
         LOG(DEBUG) << "vap_id=" << int(vap_id) << ", iface_name=" << curr_vap.bss
                    << ", mac=" << curr_vap.mac << ", ssid=" << curr_vap.ssid
-                   << ", fronthaul=" << curr_vap.fronthaul << ", backhaul=" << curr_vap.backhaul;
+                   << ", fronthaul=" << curr_vap.fronthaul << ", backhaul=" << curr_vap.backhaul
+                   << ", vap_type=" << eVapType_str(curr_vap.vap_type);
 
         if (curr_vap.backhaul) {
             LOG(DEBUG) << "disallow_profile1="
@@ -111,7 +116,7 @@ static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
                        << curr_vap.profile2_backhaul_sta_association_disallowed;
         }
 
-        // Copy the VAP MAC and SSID
+        // copy sVapInfo
         beerocks::string_utils::copy_string(vaps[i].iface_name, curr_vap.bss.c_str(),
                                             beerocks::message::IFACE_NAME_LENGTH);
         vaps[i].mac = tlvf::mac_from_string(curr_vap.mac);
@@ -126,6 +131,9 @@ static void copy_vaps_info(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
             curr_vap.profile2_backhaul_sta_association_disallowed;
         vaps[i].ap_mld_mac = tlvf::mac_from_string(curr_vap.ap_mld_mac);
         vaps[i].link_id    = curr_vap.link_id;
+
+        // copy sVapType
+        vap_types[i].vap_type = curr_vap.vap_type;
     }
 }
 
@@ -1916,6 +1924,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.hidden_ssid = config_data.hidden_ssid();
             bss_info_conf.additional_auth =
                 static_cast<son::wireless_utils::eAdditionalAuth>(config_data.additional_auth());
+            bss_info_conf.vap_type = config_data.vap_type();
 
             bss_info_conf_list.push_back(bss_info_conf);
         }
@@ -3450,7 +3459,8 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " radio_max_bss = " << ap_wlan_hal->get_radio_info().radio_max_bss_supported;
     LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
 
-    copy_vaps_info(ap_wlan_hal, notification->vap_list().vaps);
+    copy_vaps_info_and_type(ap_wlan_hal, notification->vap_list().vaps,
+                            notification->vap_type_list().vap_types);
 
     // Send CMDU
     send_cmdu(cmdu_tx);
@@ -3480,7 +3490,9 @@ bool ApManager::handle_aps_update_list()
         return false;
     }
 
-    copy_vaps_info(ap_wlan_hal, notification->params().vaps);
+    copy_vaps_info_and_type(ap_wlan_hal, notification->params().vaps,
+                            notification->vap_type_list().vap_types);
+
     LOG(DEBUG) << "Sending Vap List update to controller";
     if (!send_cmdu(cmdu_tx)) {
         LOG(ERROR) << "Failed sending cmdu!";
