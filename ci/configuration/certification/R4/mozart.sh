@@ -46,18 +46,7 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.180"
 
 # Setting BackhaulWireIface, or persistence can fail (PPM-3339)
-/etc/init.d/prplmesh setmode --mode Multi-AP-Controller-and-Agent --cert true
-
-# Set the wired backhaul interface:
-if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
-  # Prplmesh agent is not running. Data model isn't up.
-  echo "Prplmesh agent is not running"
-else
-  # Prplmesh agent is running, configure it over the bus
-  echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
-fi
-
+/etc/init.d/prplmesh setmode --mode Multi-AP-Controller-and-Agent --cert true --backhaul lan0
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
