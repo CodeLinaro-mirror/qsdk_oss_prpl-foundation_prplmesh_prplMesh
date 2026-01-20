@@ -21,13 +21,14 @@
 #include <tlvf/BaseClass.h>
 #include <tlvf/ClassList.h>
 #include <tuple>
+#include "tlvf/common/sMacAddr.h"
+#include "tlvf/common/eVapType.h"
 #include "tlvf/WSC/eWscLengths.h"
 #include "tlvf/WSC/eWscAuth.h"
 #include "tlvf/WSC/eWscVendorId.h"
 #include "tlvf/WSC/eWscVendorExt.h"
 #include "tlvf/WSC/eWscDev.h"
 #include "tlvf/WSC/eWscWfaVendorExtSubelement.h"
-#include "tlvf/common/sMacAddr.h"
 #include "tlvf/WSC/eWscAttributes.h"
 #include "tlvf/WSC/eWscEncr.h"
 #include "tlvf/WSC/eWscValues8.h"
@@ -230,6 +231,7 @@ class cEncryptedSettingsPayload : public BaseClass
         uint8_t& bss_type();
         int8_t& mld_id();
         eWscVendorExtHiddenSsid& hidden_ssid();
+        eVapType& vap_type();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -251,6 +253,7 @@ class cEncryptedSettingsPayload : public BaseClass
         uint8_t* m_bss_type = nullptr;
         int8_t* m_mld_id = nullptr;
         eWscVendorExtHiddenSsid* m_hidden_ssid = nullptr;
+        eVapType* m_vap_type = nullptr;
 };
 
 class cWscAttrEncryptedSettings : public BaseClass

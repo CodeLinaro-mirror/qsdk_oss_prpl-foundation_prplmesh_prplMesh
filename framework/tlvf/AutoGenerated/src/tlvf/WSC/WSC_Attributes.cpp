@@ -389,6 +389,7 @@ bool cEncryptedSettingsPayload::alloc_ssid(size_t count) {
     m_bss_type = (uint8_t *)((uint8_t *)(m_bss_type) + len);
     m_mld_id = (int8_t *)((uint8_t *)(m_mld_id) + len);
     m_hidden_ssid = (eWscVendorExtHiddenSsid *)((uint8_t *)(m_hidden_ssid) + len);
+    m_vap_type = (eVapType *)((uint8_t *)(m_vap_type) + len);
     m_ssid_idx__ += count;
     *m_ssid_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -476,6 +477,7 @@ bool cEncryptedSettingsPayload::alloc_network_key(size_t count) {
     m_bss_type = (uint8_t *)((uint8_t *)(m_bss_type) + len);
     m_mld_id = (int8_t *)((uint8_t *)(m_mld_id) + len);
     m_hidden_ssid = (eWscVendorExtHiddenSsid *)((uint8_t *)(m_hidden_ssid) + len);
+    m_vap_type = (eVapType *)((uint8_t *)(m_vap_type) + len);
     m_network_key_idx__ += count;
     *m_network_key_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -499,6 +501,10 @@ int8_t& cEncryptedSettingsPayload::mld_id() {
 
 eWscVendorExtHiddenSsid& cEncryptedSettingsPayload::hidden_ssid() {
     return (eWscVendorExtHiddenSsid&)(*m_hidden_ssid);
+}
+
+eVapType& cEncryptedSettingsPayload::vap_type() {
+    return (eVapType&)(*m_vap_type);
 }
 
 void cEncryptedSettingsPayload::class_swap()
@@ -552,6 +558,7 @@ size_t cEncryptedSettingsPayload::get_initial_size()
     class_size += sizeof(uint8_t); // bss_type
     class_size += sizeof(int8_t); // mld_id
     class_size += sizeof(eWscVendorExtHiddenSsid); // hidden_ssid
+    class_size += sizeof(eVapType); // vap_type
     return class_size;
 }
 
@@ -635,6 +642,12 @@ bool cEncryptedSettingsPayload::init()
     if (!m_parse__) *m_hidden_ssid = eWscVendorExtHiddenSsid::UNSET;
     if (!buffPtrIncrementSafe(sizeof(eWscVendorExtHiddenSsid))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eWscVendorExtHiddenSsid) << ") Failed!";
+        return false;
+    }
+    m_vap_type = reinterpret_cast<eVapType*>(m_buff_ptr__);
+    if (!m_parse__) *m_vap_type = eVapType::OTHER;
+    if (!buffPtrIncrementSafe(sizeof(eVapType))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eVapType) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

@@ -591,9 +591,9 @@ wireless_utils::estimate_ul_params(int ul_rssi, uint16_t sta_phy_tx_rate_100kb,
     const int max_mcs = (is_5ghz && (sta_capabilities->wifi_standard & int(beerocks::STANDARD_AC)))
                             ? sta_capabilities->vht_mcs
                             : sta_capabilities->ht_mcs;
-    uint8_t max_bw = (is_5ghz && (sta_capabilities->wifi_standard & int(beerocks::STANDARD_AC)))
-                         ? sta_capabilities->vht_bw
-                         : sta_capabilities->ht_bw;
+    uint8_t max_bw    = (is_5ghz && (sta_capabilities->wifi_standard & int(beerocks::STANDARD_AC)))
+                            ? sta_capabilities->vht_bw
+                            : sta_capabilities->ht_bw;
     if ((ap_bw < max_bw) || (max_bw == beerocks::BANDWIDTH_UNKNOWN)) {
         max_bw = ap_bw;
     }
@@ -673,7 +673,7 @@ wireless_utils::estimate_ul_params(int ul_rssi, uint16_t sta_phy_tx_rate_100kb,
                         estimated_ul_rssi_lut_delta_min = estimated_ul_rssi_lut_delta;
                         estimation.tx_power = is_5ghz ? phy_rate_table[ant_mode][mcs].tx_power_5
                                                       : phy_rate_table[ant_mode][mcs].tx_power_2_4;
-                        estimation.rssi = int(ceil(estimated_ul_rssi_lut / 10.0));
+                        estimation.rssi     = int(ceil(estimated_ul_rssi_lut / 10.0));
                     }
                     continue;
                 }
@@ -762,12 +762,12 @@ double wireless_utils::estimate_ap_tx_phy_rate(
     int max_ant_mode = (sta_capabilities->ant_num == beerocks::ANT_1X1)
                            ? beerocks::ANT_MODE_1X1_SS1
                            : beerocks::ANT_MODE_2X2_SS2;
-    int max_mcs = (is_5ghz && (sta_capabilities->wifi_standard & int(beerocks::STANDARD_AC)))
-                      ? sta_capabilities->vht_mcs
-                      : sta_capabilities->ht_mcs;
-    uint8_t max_bw = (is_5ghz && (sta_capabilities->wifi_standard & int(beerocks::STANDARD_AC)))
-                         ? sta_capabilities->vht_bw
-                         : sta_capabilities->ht_bw;
+    int max_mcs      = (is_5ghz && (sta_capabilities->wifi_standard & int(beerocks::STANDARD_AC)))
+                           ? sta_capabilities->vht_mcs
+                           : sta_capabilities->ht_mcs;
+    uint8_t max_bw   = (is_5ghz && (sta_capabilities->wifi_standard & int(beerocks::STANDARD_AC)))
+                           ? sta_capabilities->vht_bw
+                           : sta_capabilities->ht_bw;
     if ((ap_bw < max_bw) || (max_bw == beerocks::BANDWIDTH_UNKNOWN)) {
         max_bw = ap_bw;
     }
@@ -1731,7 +1731,7 @@ std::list<uint8_t> wireless_utils::string_to_wsc_oper_class(const std::string &o
 {
     std::list<uint8_t> radio_24g = {81, 82, 83, 84};
     std::list<uint8_t> radio_5g  = {115, 116, 117, 118, 119, 120, 121, 122,
-                                   123, 124, 125, 126, 127, 128, 129, 130};
+                                    123, 124, 125, 126, 127, 128, 129, 130};
     std::list<uint8_t> radio_6g  = {131, 132, 133, 134, 135, 136, 137};
 
     if (operating_class == "24g") {
@@ -1755,6 +1755,32 @@ std::list<uint8_t> wireless_utils::string_to_wsc_oper_class(const std::string &o
     }
     LOG(WARNING) << "Operating class [" << operating_class << "] was not converted.";
     return {};
+}
+
+eVapType wireless_utils::string_to_vap_type(const std::string &type)
+{
+    if (type.empty()) {
+        LOG(WARNING) << "string_to_vap_type: type is empty, returning eVapType::OTHER";
+        return eVapType::OTHER;
+    }
+
+    if (type == "home") {
+        return eVapType::HOME;
+    } else if (type == "guest") {
+        return eVapType::GUEST;
+    } else if (type == "video") {
+        return eVapType::VIDEO;
+    } else if (type == "backhaul") {
+        return eVapType::BACKHAUL;
+    } else if (type == "hotspot") {
+        return eVapType::HOTSPOT;
+    } else if (type == "staff") {
+        return eVapType::STAFF;
+    } else if (type == "isolated") {
+        return eVapType::ISOLATED;
+    } else /* if type == "other" */ {
+        return eVapType::OTHER;
+    }
 }
 
 bool wireless_utils::is_channel_in_operating_class(uint8_t operating_class, uint8_t channel)

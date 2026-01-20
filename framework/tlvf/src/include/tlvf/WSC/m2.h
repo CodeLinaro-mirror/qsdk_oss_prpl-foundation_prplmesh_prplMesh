@@ -15,8 +15,9 @@ namespace WSC {
 namespace vendor_extension {
 namespace airties {
 
-constexpr int VENDOR_HIDE_SSID = 0x80;
-constexpr int VENDOR_BSS_CFG   = 0x02;
+constexpr uint8_t VENDOR_HIDE_SSID = 0x80;
+constexpr uint8_t VENDOR_BSS_CFG   = 0x02;
+constexpr uint8_t VENDOR_VAP_TYPE  = 0x00;
 
 } // namespace airties
 } // namespace vendor_extension
@@ -70,6 +71,9 @@ public:
 
         /* Hidden SSID flag (Airties Vendor Extension subelement: hidden_ssid) */
         eWscVendorExtHiddenSsid hidden_ssid = WSC::eWscVendorExtHiddenSsid::UNSET;
+
+        /* WSC VAP Type */
+        eVapType vap_type = eVapType::OTHER;
     };
 
     m2(uint8_t *buff, size_t buff_len, bool parse) : WscAttrList(buff, buff_len, parse) {}
@@ -131,6 +135,35 @@ public:
         }
         return eWscVendorExtHiddenSsid::UNSET;
     };
+    eVapType vap_type() const
+    {
+        for (auto &vendor_ext_attr : getAttrList<WSC::cWscAttrVendorExtension>()) {
+            if ((WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1 != vendor_ext_attr->vendor_id_0()) ||
+                (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_2 != vendor_ext_attr->vendor_id_1()) ||
+                (WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_3 != vendor_ext_attr->vendor_id_2())) {
+                continue;
+            }
+
+            const auto *data = vendor_ext_attr->vendor_data();
+            const size_t len = vendor_ext_attr->vendor_data_length();
+
+            // Need at least 2 bytes: [subelem_id][value]
+            if (len >= 2 && data[0] == WSC::vendor_extension::airties::VENDOR_VAP_TYPE) {
+
+                const uint8_t raw = data[1];
+
+                if (!eVapTypeValidate::check(raw)) {
+                    LOG(WARNING) << "Invalid VAP type received in vendor extension: " << int(raw)
+                                 << " -> using OTHER";
+                    return eVapType::OTHER;
+                }
+
+                return static_cast<eVapType>(raw);
+            }
+        }
+
+        return eVapType::OTHER;
+    }
 };
 
 } // namespace WSC

@@ -1,13 +1,14 @@
 #
 ---
 _include: {
+  tlvf/common/sMacAddr.h,
+  tlvf/common/eVapType.h,
   tlvf/WSC/eWscLengths.h,
   tlvf/WSC/eWscAuth.h,
   tlvf/WSC/eWscVendorId.h,
   tlvf/WSC/eWscVendorExt.h,
   tlvf/WSC/eWscDev.h,
   tlvf/WSC/eWscWfaVendorExtSubelement.h,
-  tlvf/common/sMacAddr.h,
   tlvf/WSC/eWscAttributes.h,
   tlvf/WSC/eWscEncr.h,
   tlvf/WSC/eWscValues8.h,
@@ -151,6 +152,9 @@ cEncryptedSettingsPayload:
   hidden_ssid:
     _type: eWscVendorExtHiddenSsid
     _value: eWscVendorExtHiddenSsid::UNSET
+  vap_type:
+    _type: eVapType
+    _value: eVapType::OTHER
 
 cWscAttrEncryptedSettings:
   _type: class

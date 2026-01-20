@@ -162,6 +162,26 @@ WSC::eWscEncr wbapi_utils::encryption_type_from_auth(WSC::eWscAuth auth)
     return WSC::eWscEncr::WSC_ENCR_AES;
 }
 
+eVapType wbapi_utils::vap_type_from_custom_alias(const std::string &custom_alias)
+{
+    if (custom_alias.find("home") != std::string::npos)
+        return eVapType::HOME;
+    else if (custom_alias.find("guest") != std::string::npos)
+        return eVapType::GUEST;
+    else if (custom_alias.find("video") != std::string::npos)
+        return eVapType::VIDEO;
+    else if (custom_alias.find("backhaul") != std::string::npos)
+        return eVapType::BACKHAUL;
+    else if (custom_alias.find("hotspot") != std::string::npos)
+        return eVapType::HOTSPOT;
+    else if (custom_alias.find("staff") != std::string::npos)
+        return eVapType::STAFF;
+    else if (custom_alias.find("isolated") != std::string::npos)
+        return eVapType::ISOLATED;
+    else
+        return eVapType::OTHER;
+}
+
 int wbapi_utils::get_object_id(const std::string &object_path)
 {
     auto str = object_path;
@@ -224,6 +244,11 @@ std::string wbapi_utils::search_path_ssid_iface_by_bssid(const std::string &bssi
 std::string wbapi_utils::search_path_ssid_by_alias(const std::string &alias)
 {
     return search_path_ssid() + "[Alias == '" + alias + "'].";
+}
+
+std::string wbapi_utils::search_path_ssid_by_custom_alias(const std::string &custom_alias)
+{
+    return search_path_ssid() + "[CustomAlias == '" + custom_alias + "'].";
 }
 
 std::string wbapi_utils::search_path_ap_iface() { return search_path_ssid() + "*.Alias"; }
@@ -365,6 +390,21 @@ std::string wbapi_utils::get_ap_iface(const AmbiorixVariant &obj)
 {
     std::string value;
     obj.read_child(value, "Alias");
+    return value;
+}
+
+std::string wbapi_utils::get_custom_alias(const AmbiorixVariant &obj)
+{
+    std::string value;
+    if (!obj.read_child(value, "CustomAlias")) {
+        LOG(ERROR) << "wbapi_utils::get_custom_alias: Failed to read CustomAlias";
+        return {};
+    }
+
+    if (value.empty()) {
+        LOG(WARNING) << "wbapi_utils::get_custom_alias: CustomAlias is empty";
+    }
+
     return value;
 }
 

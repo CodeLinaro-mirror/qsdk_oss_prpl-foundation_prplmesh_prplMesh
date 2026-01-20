@@ -12,8 +12,10 @@
 #include "ambiorix_variant.h"
 #include <bcl/beerocks_defines.h>
 #include <easylogging++.h>
+
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
+#include <tlvf/common/eVapType.h>
 
 namespace beerocks {
 namespace wbapi {
@@ -80,6 +82,19 @@ public:
      * @return appropriate encryption type
      */
     static WSC::eWscEncr encryption_type_from_auth(WSC::eWscAuth auth);
+
+    /**
+     * @brief Convert custom_alias -> vap_type.
+     *
+     * Examples:
+     *   "vap5ghome", "homevap24g", "vaphome6g" -> HOME
+     *   "vap5gguest", "guestvap24g", "6gguestvap" -> GUEST
+     *   "vap5gbackhaul", "backhaulvap24g", "6gvapbackhaul" -> BACKHAUL
+     *
+     * @param custom_alias  Arbitrary alias string (e.g. "vap5ghome").
+     * @return eVapType  Detected type or OTHER if no match.
+     */
+    static eVapType vap_type_from_custom_alias(const std::string &custom_alias);
 
     /**
      * @brief get amxc var object id from the object path.
@@ -158,6 +173,11 @@ public:
      * @brief return search path of SSID object instance by Alias
     */
     static std::string search_path_ssid_by_alias(const std::string &alias);
+
+    /**
+     * @brief return search path of SSID object instance by CustomAlias
+    */
+    static std::string search_path_ssid_by_custom_alias(const std::string &custom_alias);
 
     /**
      * @brief return search path of AccessPoint object interface Name.
@@ -248,6 +268,11 @@ public:
      * @brief get interface name of AccessPoint object data
      */
     static std::string get_ap_iface(const AmbiorixVariant &obj);
+
+    /**
+     * @brief get CustomAlias of AccessPoint object data
+     */
+    static std::string get_custom_alias(const AmbiorixVariant &obj);
 
     /**
      * @brief get status of AccessPoint object data

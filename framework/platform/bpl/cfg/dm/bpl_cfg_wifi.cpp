@@ -18,6 +18,8 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 
+#include <tlvf/common/eVapType.h>
+
 #include "wbapi_utils.h"
 
 #include "bpl_cfg_pwhm.h"
@@ -184,6 +186,13 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
                 configuration.backhaul = true;
             }
         }
+        
+        // Reading CustomAlias and deducing VAP type
+        const std::string custom_alias = wbapi_utils::get_custom_alias(ap);
+        configuration.vap_type         = wbapi_utils::vap_type_from_custom_alias(custom_alias);
+        LOG(DEBUG) << "bpl_cfg_get_wireless_settings: vap_type is "
+                   << eVapType_str(configuration.vap_type) << " for SSID=" << configuration.ssid;
+
         bool ap_enable = false;
         ap.read_child(ap_enable, "Enable");
         if (ap_enable && bpl_cfg_get_wifi_credentials(iface, configuration)) {
