@@ -166,7 +166,7 @@
           echo "Checking if the firmware on $DEVICE_UNDER_TEST needs to be updated"
           if [ -n "$USE_WHM" ] ; then
               BUILD_FOLDER="build"
-              tools/deploy_firmware.py --device "$DEVICE_UNDER_TEST" --target-name "$DEVICE_UNDER_TEST" --image "$IMAGE_NAME" --whm --configuration ci/configuration/certification/"$EASYMESH_REVISION"/whm/"$DEVICE_UNDER_TEST".sh
+              tools/deploy_firmware.py --device "$DEVICE_UNDER_TEST" --target-name "$DEVICE_UNDER_TEST" --image "$IMAGE_NAME" --whm --configuration ci/configuration/certification/"$EASYMESH_REVISION"/"$DEVICE_UNDER_TEST".sh
           else
               BUILD_FOLDER="build"
               tools/deploy_firmware.py --device "$DEVICE_UNDER_TEST" --target-name "$DEVICE_UNDER_TEST" --image "$IMAGE_NAME" --configuration ci/configuration/certification/"$EASYMESH_REVISION"/"$DEVICE_UNDER_TEST".sh
