@@ -224,6 +224,8 @@
   extends: .certification-generic
   variables:
     EASYMESH_REVISION: "R4"
+  after_script:
+    - du -h --max-depth=6 logs || true
 
 .certification-generic-R6:
   extends: .certification-generic
