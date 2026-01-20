@@ -86,20 +86,19 @@ bool WifiManager::send_ap_config_renew_msg()
 
     std::list<son::wireless_utils::sBssInfoConf> wireless_settings;
     if (beerocks::bpl::bpl_cfg_get_wireless_settings(wireless_settings)) {
-        for (const auto &configuration : wireless_settings) {
-            m_ctx_wifi_db->add_bss_info_configuration(configuration);
+        for (const son::wireless_utils::sBssInfoConf &bss_config : wireless_settings) {
+            m_ctx_wifi_db->add_bss_info_configuration(bss_config);
+            if (!bss_config.mld_id.empty() &&
+                bss_config.mld_id != std::to_string(DISABLED_MLDUNIT)) {
+                son::wireless_utils::sMldInfoConf mld_config;
+                if (!beerocks::bpl::bpl_cfg_get_mld_info_config(
+                        bss_config.ssid, std::stoi(bss_config.mld_id), mld_config)) {
+                    LOG(ERROR) << "Failed to read MLD configuartion from APMLD for mld id="
+                               << bss_config.mld_id;
+                    continue;
+                }
 
-            if (!configuration.mld_id.empty() &&
-                configuration.mld_id != std::to_string(DISABLED_MLDUNIT)) {
-                son::wireless_utils::sMldInfoConf mld_info;
-                mld_info.ssid = configuration.ssid;
-
-                // TODO: read MLD Configuartion from APMLD DataModel (PPM-3674)
-                mld_info.str   = true;
-                mld_info.nstr  = false;
-                mld_info.emlsr = true;
-                mld_info.emlmr = false;
-                m_ctx_wifi_db->add_mld_info_configuration(mld_info, configuration.mld_id);
+                m_ctx_wifi_db->add_mld_info_configuration(mld_config, bss_config.mld_id);
             }
         }
     } else {
@@ -140,8 +139,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              " && (contains('parameters.OperatingClass') || contains('parameters.Channel')"
              " || contains('parameters.AP_Mode') || contains('parameters.MultiAPType'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_radio(), event_handler,
-                                             filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_radio(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.Radio changes";
+    }
 
     filter = "(path matches '" + wbapi_utils::search_path_ssid() +
              "[0-9]+.$')"
@@ -150,8 +151,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              "')"
              " && (contains('parameters.SSID') || contains('parameters.MLDUnit'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ssid(), event_handler,
-                                             filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ssid(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.SSID changes";
+    }
 
     filter = "(path matches '" + wbapi_utils::search_path_ap() +
              "[0-9]+.Security.$')"
@@ -161,7 +164,10 @@ void WifiManager::subscribe_to_bss_info_config_change()
              " && (contains('parameters.ModeEnabled') || contains('parameters.EncryptionMode')"
              " || contains('parameters.KeyPassPhrase'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.AccessPoint.Security changes";
+    }
 
     // subscribe for VAPs enabling to re-trigger autoConf when new BSS is enabled
     // and potentially resume previously timeouted agent configuration
@@ -172,7 +178,23 @@ void WifiManager::subscribe_to_bss_info_config_change()
              "')"
              " && (contains('parameters.Enable'))";
 
-    m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.AccessPoint changes";
+    }
+
+    filter = "(path matches '" + wbapi_utils::search_path_apmld() +
+             "[0-9]+.APMLDConfig.$')"
+             " && (notification == '" +
+             AMX_CL_OBJECT_CHANGED_EVT +
+             "')"
+             " && (contains('parameters.STREnabled') || contains('parameters.NSTREnabled') || "
+             "contains('parameters.EMLSREnabled') || contains('parameters.EMLMREnabled'))";
+
+    if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_apmld(), event_handler,
+                                                  filter)) {
+        LOG(ERROR) << "Failed to subscribe to Device.WiFi.APMLD.*.APMLDConfig changes";
+    }
 }
 
 WifiManager::~WifiManager()
