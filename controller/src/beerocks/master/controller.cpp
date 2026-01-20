@@ -1376,7 +1376,16 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
     auto agent_ap_mld_configuration = cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
 
     auto &mld_configuration(database.get_mld_info_configuration());
-    const auto &bss_configuration(database.get_bss_info_configuration());
+    auto &bss_configuration(database.get_bss_info_configuration());
+
+    // if global config is empty, find the corresponding agent config. Certification uses agent based config
+    if (bss_configuration.size() == 0) {
+        LOG(DEBUG) << "CO: global config is empty";
+        bss_configuration = database.get_bss_info_configuration(agent.al_mac);
+    }
+
+    LOG(DEBUG) << "CO: mld_configuration size: " << mld_configuration.size();
+    LOG(DEBUG) << "CO: bss_configuration size: " << bss_configuration.size();
 
     for (auto &mld : mld_configuration) {
 
@@ -1401,6 +1410,11 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
         LOG(INFO) << "SSID " << bss_conf_check->ssid << " for MLDID " << mld.first;
         mld.second.ssid = bss_conf_check->ssid;
 
+        if (agent_ap_mld_configuration->num_ap_mld() >= (agent.max_num_mlds)) {
+            LOG(INFO) << "We should not exceed AP MLD for max (" << (agent.max_num_mlds) << ")";
+            continue;
+        }
+
         auto ap_mld(agent_ap_mld_configuration->create_ap_mld());
         ap_mld->ap_mld_mac_addr_valid().is_valid = 0;
         ap_mld->set_ssid(mld.second.ssid);
@@ -1423,8 +1437,12 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                 LOG(ERROR) << "Empty operating_class in bss configuration";
                 continue;
             }
+            LOG(DEBUG) << "CO: 1";
+
             if (!bss_conf.ssid.empty() && bss_conf.ssid == mld.second.ssid &&
                 bss_conf.mld_id == mld.first) {
+
+                LOG(DEBUG) << "CO: 2 ";
 
                 for (const auto &affiliated_radio : agent.radios) {
                     if (!affiliated_radio.second) {
@@ -1434,13 +1452,13 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
 
                     const auto op_classes = son::wireless_utils::get_operating_classes_of_freq_type(
                         affiliated_radio.second->band);
-                    if (op_classes.size() == 0) {
-                        continue;
-                    }
 
                     const bool radio_band_found =
-                        (std::find(bss_conf.operating_class.begin(), bss_conf.operating_class.end(),
-                                   op_classes.front()) != bss_conf.operating_class.end());
+                        std::any_of(bss_conf.operating_class.begin(),
+                                    bss_conf.operating_class.end(), [&](int v) {
+                                        return std::find(op_classes.begin(), op_classes.end(), v) !=
+                                               op_classes.end();
+                                    });
 
                     // Check if bss conf freq matches radio freq and EHT is supported
                     if (!radio_band_found || !affiliated_radio.second->eht_supported ||
@@ -1460,6 +1478,7 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                                    << (agent.ap_maximum_links) << ")";
                         break;
                     }
+
                     LOG(DEBUG) << "Adding radio " << affiliated_radio.first
                                << " to AP MLD Configuration";
                     auto affiliated_ap(ap_mld->create_affiliated_ap());
@@ -1610,11 +1629,23 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         radio->band = beerocks::FREQ_5G;
     } else if (m1->rf_bands() & WSC::WSC_RF_BAND_6GHZ) {
         radio->band = beerocks::FREQ_6G;
+    } else {
+        LOG(ERROR) << "CO: Invalid Band ";
     }
+
+    LOG(DEBUG) << "CO: RF Bands " << m1->rf_bands();
 
     database.clear_configured_bss_info(ruid);
 
     for (auto &bss_info_conf : bss_info_confs) {
+
+        LOG(DEBUG) << "CO: bss_info_conf.ssid: " << bss_info_conf.ssid;
+        LOG(DEBUG) << "CO: bss_info_conf.mld_id: " << bss_info_conf.mld_id;
+        LOG(DEBUG) << "CO: bss_info_conf authentication_type: "
+                   << bss_info_conf.authentication_type;
+        LOG(DEBUG) << "CO: bss_info_conf.encryption_type: " << bss_info_conf.encryption_type;
+        LOG(DEBUG) << "CO: bss_info_conf.operating_class: " << bss_info_conf.operating_class;
+
         // Check if the radio supports it
         if (!son_actions::has_matching_operating_class(*radio_basic_caps, bss_info_conf)) {
             LOG(INFO) << "Skipping " << bss_info_conf.ssid << " due to operclass mismatch";
@@ -1697,6 +1728,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         // TODO: MLD Modes are not filled by Agent/bwl (PPM-3595)
         radio->eht_supported = true;
     }
+
+    LOG(DEBUG) << "CO: agent->max_num_mlds:" << agent->max_num_mlds;
 
     if (agent->max_num_mlds != 0 && radio->eht_supported) {
         if (!add_backhaul_sta_mld_configuration_tlv(database, cmdu_tx, *agent)) {
@@ -3904,7 +3937,7 @@ bool Controller::handle_cmdu_control_message(
             new_event.snr        = notification->params().rx_snr;
             new_event.client_mac = notification->params().result.mac;
             new_event.bssid      = database.get_radio_bss_mac(tlvf::mac_from_string(ap_mac),
-                                                         notification->params().vap_id);
+                                                              notification->params().vap_id);
             m_task_pool.push_event(database.get_pre_association_steering_task_id(),
                                    pre_association_steering_task::eEvents::
                                        STEERING_EVENT_RSSI_MEASUREMENT_SNR_NOTIFICATION,
@@ -5496,6 +5529,8 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
 
         // Remove all previously set Capabilities of radio from data model
         database.clear_ap_capabilities(radio_tlv->radio_uid());
+
+        autoconfig_wsc_parse_radio_caps(radio_tlv->radio_uid(), radio_tlv);
     }
 
     auto removed = agent->radios.keep_new_remove_old();
@@ -5573,6 +5608,18 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         !handle_tlv_profile3_1905_layer_security_capabilities(*agent, cmdu_rx)) {
         LOG(ERROR) << "Profile3 1905 Layer Security Capability is not supplied for Agent "
                    << src_mac << " with profile enum " << agent->profile;
+    }
+
+    //
+    for (const auto &radio : agent->radios) {
+        LOG(DEBUG) << "CO: get_band: " << radio.second->get_band();
+
+        if (radio.second->supported_channels.size() > 0) {
+
+            radio.second->band = radio.second->supported_channels[0].get_freq_type();
+            LOG(DEBUG) << "CO: get_freq_type: "
+                       << radio.second->supported_channels[0].get_freq_type();
+        }
     }
 
     return all_radio_capabilities_saved_successfully;

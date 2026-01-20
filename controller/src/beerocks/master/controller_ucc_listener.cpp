@@ -59,6 +59,7 @@ bool controller_ucc_listener::clear_configuration()
     m_database.clear_traffic_separation_configurations();
     m_database.clear_default_8021q_settings();
     m_database.disable_periodic_link_metrics_requests();
+    m_database.clear_mld_info_configuration();
     return true;
 }
 
@@ -467,9 +468,21 @@ bool controller_ucc_listener::handle_dev_set_config(
         return false;
     }
 
-    key = "mld_groupID";
-    if (params.find(key) != params.end()) {
-        bss_info_conf.mld_id = params.at(key)[0] - 'A' + 1;
+    key = "mld_groupid";
+    if (params.find("mld_groupID") != params.end() || params.find("mld_groupid") != params.end()) {
+        bss_info_conf.mld_id = params.at(key)[0];
+        LOG(DEBUG) << "MLD GroupID: " << bss_info_conf.mld_id;
+    }
+    if (!bss_info_conf.mld_id.empty()) {
+        son::wireless_utils::sMldInfoConf mld_info;
+        mld_info.ssid = bss_info_conf.ssid;
+
+        mld_info.str   = true;
+        mld_info.nstr  = false;
+        mld_info.emlsr = true;
+        mld_info.emlmr = false;
+
+        m_database.add_mld_info_configuration(mld_info, bss_info_conf.mld_id);
     }
 
     auto mac = tlvf::mac_from_string(al_mac);
@@ -594,6 +607,7 @@ controller_ucc_listener::parse_bss_info(const std::string &bss_info_str,
         bss_info_conf.operating_class = {131, 132, 133, 134, 135, 136, 137};
     } else {
         err_string = "invalid operating class " + operating_class_str;
+        LOG(DEBUG) << "CO: Invalid Oper Class";
         return std::string();
     }
 
@@ -618,6 +632,8 @@ controller_ucc_listener::parse_bss_info(const std::string &bss_info_str,
     uint16_t authentication_type = std::strtol(authentication_type_str.c_str(), nullptr, 16);
 
     bss_info_conf.authentication_type = static_cast<WSC::eWscAuth>(authentication_type);
+
+    LOG(DEBUG) << "CO: authentication_type: " << bss_info_conf.authentication_type;
 
     // Encryption type
     auto &encryption_type_str = confs[4];
