@@ -91,7 +91,6 @@ RUN printf '\033[1;35m%s Cloning prplWrt\n\033[0m' "$(date --iso-8601=seconds --
     && printf '\033[1;35m%s Building base prplWrt tree\n\033[0m' "$(date --iso-8601=seconds --universal)" \
     && cd openwrt \
     && git checkout "$OPENWRT_TOOLCHAIN_VERSION" \
-    && git config --global url."https://git.w1.fi/hostap.git".insteadOf "https://w1.fi/hostap.git" \
     && ./scripts/gen_config.py "$TARGET_SYSTEM" prpl \
     && make defconfig \
     && make -j"$(nproc)" tools/tar/compile \
