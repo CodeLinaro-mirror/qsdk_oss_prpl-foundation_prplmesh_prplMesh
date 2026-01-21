@@ -630,6 +630,11 @@ public:
     static const std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, sChannel>> channels_table_5g;
     static const std::map<uint8_t, std::map<uint8_t, uint8_t>> channels_table_24g;
 
+    typedef struct sta_statistic {
+        std::chrono::time_point<std::chrono::steady_clock> timestamp;
+        int rcpi;
+    } sta_statistic_t;
+
     struct sOperatingClass {
         std::set<uint8_t> channels;
         beerocks::eWiFiBandwidth band;

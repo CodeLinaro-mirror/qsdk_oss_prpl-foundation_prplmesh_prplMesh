@@ -6056,6 +6056,9 @@ bool db::dm_set_sta_link_metrics(const sMacAddr &sta_mac, uint32_t downlink_est_
         return true;
     }
 
+    station->last_assoc_sta_link_metrics_timestamp   = std::chrono::steady_clock::now();
+    station->last_assoc_sta_link_metrics_uplink_rcpi = signal_strength;
+
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "EstMACDataRateDownlink",
                                          downlink_est_mac_data_rate);
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "EstMACDataRateUplink",
@@ -7026,6 +7029,20 @@ bool db::set_dm_current_op_class(const sMacAddr &radio_mac, int index, int op_cl
             }
         }
     }
+
+    return true;
+}
+
+bool db::get_last_sta_stats(const sMacAddr &sta_mac, wireless_utils::sta_statistic_t &sta_stats)
+{
+    auto station = get_station(sta_mac);
+    if (!station) {
+        LOG(ERROR) << "STA " << sta_mac << " does not exist";
+        return false;
+    }
+
+    sta_stats.timestamp = station->last_assoc_sta_link_metrics_timestamp;
+    sta_stats.rcpi      = station->last_assoc_sta_link_metrics_uplink_rcpi;
 
     return true;
 }

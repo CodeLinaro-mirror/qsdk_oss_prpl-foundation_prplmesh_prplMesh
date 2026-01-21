@@ -1282,6 +1282,15 @@ public:
     bool set_ap_vht_capabilities(wfa_map::tlvApVhtCapabilities &vht_caps_tlv);
 
     /**
+     * @brief Get last statistics for given STA from DB
+     *
+     * @param sta_mac Station MAC address.
+     * @param sta_stats Reference to structure where statistics will be stored.
+     * @return True on success, false otherwise.
+     */
+    bool get_last_sta_stats(const sMacAddr &sta_mac, wireless_utils::sta_statistic_t &sta_stats);
+
+    /**
      * @brief Add 'SpatialReuse' data element, set values to its parameters.
      * Example of full path to object:
      * "Device.WiFi.DataElements.Netwok.Device.1.Radio.1.SpatialReuse"
