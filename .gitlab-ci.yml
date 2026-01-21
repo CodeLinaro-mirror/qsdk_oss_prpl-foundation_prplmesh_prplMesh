@@ -72,6 +72,7 @@ platform:
   trigger:
     include: "ci/platform.yml"
     strategy: depend
+  needs: []
 
 dco:
   stage: build
