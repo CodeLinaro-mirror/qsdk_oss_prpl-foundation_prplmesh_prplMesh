@@ -28,6 +28,7 @@
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetricQuery.h>
 #include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
+#include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvAssociatedWiFi6StaStatusReport.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsQuery.h>
@@ -603,49 +604,123 @@ void LinkMetricsCollectionTask::handle_associated_sta_link_metrics_query(
 
     auto db = AgentDB::get();
 
-    // Check if it is an error scenario - if the STA specified in the STA link Query message
-    // is not associated with any of the BSS operated by the Multi-AP Agent
-    auto radio = db->get_radio_by_mac(mac->sta_mac(), AgentDB::eMacType::CLIENT);
-    if (!radio) {
-        LOG(ERROR) << "client with mac address " << mac->sta_mac() << " not found";
-        //Add an Error Code TLV
-        auto error_code_tlv = m_cmdu_tx.addClass<wfa_map::tlvErrorCode>();
-        if (!error_code_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvErrorCode has failed";
+    // First check for MLD STA if it is found send the TLV and return else check for Legacy device
+    auto it = db->associated_sta_mlds.find(mac->sta_mac());
+    if (it != db->associated_sta_mlds.end()) {
+        LOG(DEBUG) << "STA MLD MAC " << mac->sta_mac() << " found in associated_sta_mlds DB";
+        const auto &sta_mld_data = it->second;
+        if (!add_assoc_sta_mld_config_report(m_cmdu_tx, sta_mld_data)) {
+            LOG(ERROR) << "Failed to add Associated STA MLD Configuration report";
             return;
         }
-        error_code_tlv->reason_code() =
-            wfa_map::tlvErrorCode::STA_NOT_ASSOCIATED_WITH_ANY_BSS_OPERATED_BY_THE_AGENT;
-        error_code_tlv->sta_mac() = mac->sta_mac();
 
-        LOG(DEBUG) << "Send a ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE back to controller";
+        // adding (currently empty) an associated sta EXTENDED link metrics tlv
+        auto extended = m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaExtendedLinkMetrics>();
+        if (!extended) {
+            LOG(ERROR) << "adding wfa_map::tlvAssociatedStaExtendedLinkMetrics failed";
+            return;
+        }
+        LOG(DEBUG) << "Send a ASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE back to controller with "
+                      "config report & extended metrics TLV";
         m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
         return;
     }
-    auto client_it = radio->associated_clients.find(mac->sta_mac());
-    if (client_it == radio->associated_clients.end()) {
-        LOG(ERROR) << "Cannot find sta sta " << mac->sta_mac();
-        return;
-    }
-    if (client_it->second.bssid == net::network_utils::ZERO_MAC) {
-        LOG(ERROR) << "Cannot find sta bssid";
-        return;
-    }
-    LOG(DEBUG) << "Client with mac address " << mac->sta_mac() << " connected to "
-               << client_it->second.bssid;
+    LOG(ERROR) << "STA MLD MAC " << mac->sta_mac() << " not found in associated_sta_mlds DB";
 
-    auto request_out = message_com::create_vs_message<
-        beerocks_message::cACTION_MONITOR_CLIENT_ASSOCIATED_STA_LINK_METRIC_REQUEST>(m_cmdu_tx,
-                                                                                     mid);
+    // Check if it is an error scenario - if the STA specified in the STA link Query message
+    // is not associated with any of the BSS operated by the Multi-AP Agent
+    // Check for STA in legacy device list
+    auto radio     = db->get_radio_by_mac(mac->sta_mac(), AgentDB::eMacType::CLIENT);
+    if(radio){
+        auto client_it = radio->associated_clients.find(mac->sta_mac());
 
-    if (!request_out) {
-        LOG(ERROR) << "Failed to build ACTION_MONITOR_CLIENT_ASSOCIATED_STA_LINK_METRIC_REQUEST";
-        return;
+        // STA found in legacy with bss connected
+        if (client_it != radio->associated_clients.end() &&
+            client_it->second.bssid != net::network_utils::ZERO_MAC) {
+            LOG(DEBUG) << "Client with mac address " << mac->sta_mac() << " connected to "
+                    << client_it->second.bssid;
+
+            // adding (currently empty) an associated sta link metrics tlv.
+            auto assoc_link_metrics = m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaLinkMetrics>();
+            if (!assoc_link_metrics) {
+                LOG(ERROR) << "Failed to create tlvAssociatedStaLinkMetrics tlv";
+                return;
+            }
+
+            // adding (currently empty) an associated sta EXTENDED link metrics tlv
+            /*auto extended = m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaExtendedLinkMetrics>();
+            if (!extended) {
+                LOG(ERROR) << "adding wfa_map::tlvAssociatedStaExtendedLinkMetrics failed";
+                return;
+            }*/
+
+            auto request_out = message_com::create_vs_message<
+                beerocks_message::cACTION_MONITOR_CLIENT_ASSOCIATED_STA_LINK_METRIC_REQUEST>(m_cmdu_tx,
+                                                                                            mid);
+            if (!request_out) {
+                LOG(ERROR)
+                    << "Failed to build ACTION_MONITOR_CLIENT_ASSOCIATED_STA_LINK_METRIC_REQUEST";
+                return;
+            }
+            request_out->sta_mac() = mac->sta_mac();
+
+            auto monitor_fd = m_btl_ctx.get_monitor_fd(radio->front.iface_name);
+            m_btl_ctx.send_cmdu(monitor_fd, m_cmdu_tx);
+            return;
+        }
     }
-    request_out->sta_mac() = mac->sta_mac();
+    LOG(ERROR) << "client with mac address " << mac->sta_mac() << " not found";
+    return;
+}
 
-    auto monitor_fd = m_btl_ctx.get_monitor_fd(radio->front.iface_name);
-    m_btl_ctx.send_cmdu(monitor_fd, m_cmdu_tx);
+bool LinkMetricsCollectionTask::add_assoc_sta_mld_config_report(
+    ieee1905_1::CmduMessageTx &cmdu_tx, const AgentDB::sAssociatedStaMld &mld_info)
+{
+    auto tlvAssociatedStaMldConfigurationReport =
+        cmdu_tx.addClass<wfa_map::tlvAssociatedStaMldConfigurationReport>();
+
+    if (!tlvAssociatedStaMldConfigurationReport) {
+        LOG(ERROR) << "addClass wfa_map::tlvAssociatedStaMldConfigurationReport failed";
+        return false;
+    }
+
+    tlvAssociatedStaMldConfigurationReport->sta_mld_mac_addr() = mld_info.mld_config.sta_mld_mac;
+    tlvAssociatedStaMldConfigurationReport->ap_mld_mac_addr()  = mld_info.mld_config.ap_mld_mac;
+
+    // Set Modes
+    if (mld_info.mld_config.mld_mode & AgentDB::sAssociatedStaMld::sMLDConfiguration::STR) {
+        tlvAssociatedStaMldConfigurationReport->modes().str = 1;
+    }
+
+    if (mld_info.mld_config.mld_mode & AgentDB::sAssociatedStaMld::sMLDConfiguration::NSTR) {
+        tlvAssociatedStaMldConfigurationReport->modes().nstr = 1;
+    }
+
+    if (mld_info.mld_config.mld_mode & AgentDB::sAssociatedStaMld::sMLDConfiguration::EMLSR) {
+        tlvAssociatedStaMldConfigurationReport->modes().emlsr = 1;
+    }
+
+    if (mld_info.mld_config.mld_mode & AgentDB::sAssociatedStaMld::sMLDConfiguration::EMLMR) {
+        tlvAssociatedStaMldConfigurationReport->modes().emlmr = 1;
+    }
+
+    for (const auto &affiliated_sta_conf : mld_info.affiliated_stas) {
+        auto affiliated_sta(tlvAssociatedStaMldConfigurationReport->create_affiliated_sta());
+        if (!affiliated_sta) {
+            LOG(ERROR) << "create_affiliated_sta failed";
+            return false;
+        }
+
+        affiliated_sta->bssid() = affiliated_sta_conf.bssid;
+        affiliated_sta->mac()   = affiliated_sta_conf.affiliated_sta_mac;
+
+        if (!tlvAssociatedStaMldConfigurationReport->add_affiliated_sta(affiliated_sta)) {
+            LOG(ERROR) << "add_affiliated_sta() in tlvAssociatedStaMldConfigurationReport failed";
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void LinkMetricsCollectionTask::handle_unassociated_sta_link_metrics_query(
