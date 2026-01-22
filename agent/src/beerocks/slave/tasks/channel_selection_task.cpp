@@ -1304,6 +1304,27 @@ bool ChannelSelectionTask::create_channel_preference_tlv(const sMacAddr &radio_m
         auto &operating_class_info          = preference.first;
         auto &operating_class_channels_list = preference.second;
 
+        if (operating_class_channels_list.empty()) {
+            continue;
+        }
+
+        auto static_non_oper_channels = get_operating_class_non_oper_channels(
+            radio->channels_list, operating_class_info.operating_class);
+
+        std::unordered_set<uint8_t> static_non_oper_set(static_non_oper_channels.begin(),
+                                                        static_non_oper_channels.end());
+
+        std::vector<uint8_t> dynamic_non_oper_channels;
+        std::copy_if(operating_class_channels_list.begin(), operating_class_channels_list.end(),
+                     std::back_inserter(dynamic_non_oper_channels), [&](uint8_t channel) {
+                         return static_non_oper_set.find(channel) == static_non_oper_set.end();
+                     });
+
+        // dynamic_non_oper_channels is empty only if all channels are statically non-operable
+        if (dynamic_non_oper_channels.empty()) {
+            continue;
+        }
+
         auto op_class_channels = channel_preference_tlv->create_operating_classes_list();
         if (!op_class_channels) {
             LOG(ERROR) << "create_operating_classes_list() has failed!";
@@ -1315,14 +1336,13 @@ bool ChannelSelectionTask::create_channel_preference_tlv(const sMacAddr &radio_m
         ss << " preference: " << int(operating_class_info.flags.preference);
         ss << " reason code: " << int(operating_class_info.flags.reason_code) << std::endl;
 
-        if (!op_class_channels->alloc_channel_list(operating_class_channels_list.size())) {
+        if (!op_class_channels->alloc_channel_list(dynamic_non_oper_channels.size())) {
             LOG(ERROR) << "alloc_channel_list() has failed!";
             return false;
         }
-
-        ss << " channels: [";
+        ss << " channels: [ ";
         uint8_t idx = 0;
-        for (auto channel : operating_class_channels_list) {
+        for (auto channel : dynamic_non_oper_channels) {
             ss << int(channel) << " ";
             *op_class_channels->channel_list(idx) = channel;
             idx++;

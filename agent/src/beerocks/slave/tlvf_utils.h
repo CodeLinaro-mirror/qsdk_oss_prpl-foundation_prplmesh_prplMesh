@@ -55,4 +55,8 @@ public:
 
 } // namespace beerocks
 
+std::vector<uint8_t> get_operating_class_non_oper_channels(
+    const std::unordered_map<uint8_t, beerocks::AgentDB::sRadio::sChannelInfo> &channels_list,
+    uint8_t operating_class);
+
 #endif // __TLVF_UTILS_H__
