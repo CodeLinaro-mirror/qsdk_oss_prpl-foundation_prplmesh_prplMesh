@@ -1432,13 +1432,15 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                         continue;
                     }
 
-                    const auto op_class = son::wireless_utils::get_operating_classes_of_freq_type(
-                                              affiliated_radio.second->band)
-                                              .front();
+                    const auto op_classes = son::wireless_utils::get_operating_classes_of_freq_type(
+                        affiliated_radio.second->band);
+                    if (op_classes.size() == 0) {
+                        continue;
+                    }
 
                     const bool radio_band_found =
                         (std::find(bss_conf.operating_class.begin(), bss_conf.operating_class.end(),
-                                   op_class) != bss_conf.operating_class.end());
+                                   op_classes.front()) != bss_conf.operating_class.end());
 
                     // Check if bss conf freq matches radio freq and EHT is supported
                     if (!radio_band_found || !affiliated_radio.second->eht_supported ||
