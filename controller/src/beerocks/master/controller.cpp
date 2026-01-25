@@ -3150,7 +3150,11 @@ bool Controller::handle_intel_slave_join(
     } else {
         database.set_radio_band_capability(radio_mac, beerocks::SUBBAND_CAPABILITY_UNKNOWN);
     }
-    autoconfig_wsc_parse_radio_caps(radio_mac, radio_caps);
+
+    // Parse incase of Early AP Capabilties not arrived
+    if (radio->supported_channels.size() == 0) {
+        autoconfig_wsc_parse_radio_caps(radio_mac, radio_caps);
+    }
 
     // send JOINED_RESPONSE with son config
     {
@@ -3397,7 +3401,11 @@ bool Controller::handle_non_intel_slave_join(
     database.set_radio_active(radio_mac, true);
     // TODO ipv4 will not be set
 
-    autoconfig_wsc_parse_radio_caps(radio_mac, radio_caps);
+    // Parse incase of Early AP Capabilties not arrived
+    if (database.get_radio_supported_channels(radio_mac).size() == 0) {
+        autoconfig_wsc_parse_radio_caps(radio_mac, radio_caps);
+    }
+
     // TODO assume SSIDs are not hidden
 
     // TODO
@@ -5499,11 +5507,11 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         LOG(DEBUG) << "Radio is reported in AP Capabilites with ruid=" << radio_tlv->radio_uid();
         database.add_radio(radio_tlv->radio_uid(), agent->al_mac);
 
-        //TODO: We can decide to parse Radio CAPs here instead of WSC (autoconfig_wsc_parse_radio_caps)
-        // to lower CPU usage on onboarding (PPM-1727)
-
         // Remove all previously set Capabilities of radio from data model
         database.clear_ap_capabilities(radio_tlv->radio_uid());
+
+        // Same information is also send in Autoconfig WSC
+        autoconfig_wsc_parse_radio_caps(radio_tlv->radio_uid(), radio_tlv);
     }
 
     auto removed = agent->radios.keep_new_remove_old();
@@ -5525,9 +5533,15 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         all_radio_capabilities_saved_successfully = false;
     }
 
-    // Reset Radios Capabilities
     for (const auto &radio : agent->radios) {
+
+        // Reset EHT Capabilities
         radio.second->eht_supported = false;
+
+        // Update Radio Band
+        if (radio.second->supported_channels.size() > 0) {
+            radio.second->band = radio.second->supported_channels[0].get_freq_type();
+        }
     }
     if (!handle_tlv_ap_ht_capabilities(cmdu_rx)) {
         LOG(ERROR) << "Couldn't handle TLV AP HT Capabilities";
