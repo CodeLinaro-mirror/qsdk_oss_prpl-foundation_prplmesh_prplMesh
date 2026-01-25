@@ -1376,7 +1376,7 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
     auto agent_ap_mld_configuration = cmdu_tx.addClass<wfa_map::tlvAgentApMldConfiguration>();
 
     auto &mld_configuration(database.get_mld_info_configuration());
-    const auto &bss_configuration(database.get_bss_info_configuration());
+    const auto &bss_configuration(database.get_bss_info_configuration(agent.al_mac));
 
     for (auto &mld : mld_configuration) {
 
@@ -1396,6 +1396,11 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
         if (bss_conf_check->ssid.empty()) {
             LOG(ERROR) << "No SSID for MLDID " << mld.first;
             continue;
+        }
+
+        if (agent_ap_mld_configuration->num_ap_mld() >= (agent.max_num_mlds)) {
+            LOG(INFO) << "More AP MLDs than maximum MLD (" << (agent.max_num_mlds) << ")";
+            break;
         }
 
         LOG(INFO) << "SSID " << bss_conf_check->ssid << " for MLDID " << mld.first;
@@ -1439,8 +1444,11 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                     }
 
                     const bool radio_band_found =
-                        (std::find(bss_conf.operating_class.begin(), bss_conf.operating_class.end(),
-                                   op_classes.front()) != bss_conf.operating_class.end());
+                        std::any_of(bss_conf.operating_class.begin(),
+                                    bss_conf.operating_class.end(), [&](int v) {
+                                        return std::find(op_classes.begin(), op_classes.end(), v) !=
+                                               op_classes.end();
+                                    });
 
                     // Check if bss conf freq matches radio freq and EHT is supported
                     if (!radio_band_found || !affiliated_radio.second->eht_supported ||
