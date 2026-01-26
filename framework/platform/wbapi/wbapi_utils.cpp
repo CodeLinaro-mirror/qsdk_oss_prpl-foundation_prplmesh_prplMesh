@@ -157,7 +157,9 @@ wbapi_utils::security_rsn_mode_from_string(const std::string &security_mode)
 const std::map<std::string, std::vector<WSC::eWscEncr>> wbapi_utils::encryption_type_table = {
     {"AES", {WSC::eWscEncr::WSC_ENCR_AES}},
     {"TKIP", {WSC::eWscEncr::WSC_ENCR_TKIP}},
-    {"TKIP-AES", {WSC::eWscEncr::WSC_ENCR_AES}},
+    {"TKIP-AES",
+     {WSC::eWscEncr(uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
+                    uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP))}},
 };
 
 std::string wbapi_utils::encryption_type_to_string(const WSC::eWscEncr &encryption_type)
@@ -192,10 +194,12 @@ WSC::eWscEncr wbapi_utils::encryption_type_from_auth(WSC::eWscAuth auth)
         return WSC::eWscEncr::WSC_ENCR_NONE;
     } else if (auth & WSC::eWscAuth::WSC_AUTH_SHARED) {
         return WSC::eWscEncr::WSC_ENCR_WEP;
-    } else if (auth & (WSC::eWscAuth::WSC_AUTH_WPAPSK | WSC::eWscAuth::WSC_AUTH_WPA |
-                       WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_WPA2)) {
-        return WSC::eWscEncr(uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
-                             uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP));
+    } else if (auth & (WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_WPA2 |
+                       WSC::eWscAuth::WSC_AUTH_SAE | WSC::eWscAuth::WSC_AUTH_SAE_AKM24 |
+                       WSC::eWscAuth::WSC_AUTH_RSN)) {
+        return WSC::eWscEncr::WSC_ENCR_AES;
+    } else if (auth & (WSC::eWscAuth::WSC_AUTH_WPAPSK | WSC::eWscAuth::WSC_AUTH_WPA)) {
+        return WSC::eWscEncr::WSC_ENCR_TKIP;
     }
 
     return WSC::eWscEncr::WSC_ENCR_AES;
