@@ -123,7 +123,7 @@ inline std::ostream &operator<<(std::ostream &out, const bwl::WiFiSec &sec)
         out << "WPA-WPA2-Personal";
         break;
     case bwl::WiFiSec::WPA2_WPA3_PSK:
-        out << "WPA2-WPA3-Personal";
+        out << "WPA3-Personal-Transition";
         break;
     case bwl::WiFiSec::WPA3_PSK:
         out << "WPA3-Personal";
