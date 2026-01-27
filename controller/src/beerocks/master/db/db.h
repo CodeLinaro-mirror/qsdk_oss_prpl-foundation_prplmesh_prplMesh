@@ -2815,6 +2815,14 @@ public:
     bool dm_remove_ap_mld(const sMacAddr &al_mac, const sMacAddr &mld_mac);
 
     /**
+     * @brief Remove all instance of "APMLD" data element.
+     *
+     * @param al_mac AL MAC of the Agent on whose MLD configuration has to be removed.
+     * @return true on success, false otherwise.
+     */
+    bool dm_clear_agent_mld_configuration(const sMacAddr &al_mac);
+
+    /**
      * @brief Remove instance of "AffiliatedAP" data element.
      *
      * @param al_mac AL MAC of the Agent on which Affiliated AP has to be removed.

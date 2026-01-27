@@ -2003,6 +2003,17 @@ bool db::dm_remove_ap_mld(const sMacAddr &al_mac, const sMacAddr &mld_mac)
     return true;
 }
 
+bool db::dm_clear_agent_mld_configuration(const sMacAddr &al_mac)
+{
+    auto agent = m_agents.get(al_mac);
+    if (!m_ambiorix_datamodel->remove_all_instances(agent->dm_path + ".APMLD")) {
+        LOG(ERROR) << "Failed to remove all instances of " << agent->dm_path << ".APMLD";
+        return false;
+    }
+
+    return true;
+}
+
 bool db::dm_remove_affiliated_ap(const sMacAddr &al_mac, const sMacAddr &mld_mac,
                                  const sMacAddr &ruid)
 {
