@@ -5602,7 +5602,7 @@ beerocks::WifiChannel db::get_radio_wifi_channel(const sMacAddr &radio_mac)
 }
 
 bool db::set_radio_wifi_channel(const sMacAddr &radio_mac,
-                                const beerocks::WifiChannel &wifi_channel)
+                                const beerocks::WifiChannel &wifi_channel, const std::string &from)
 {
     std::shared_ptr<Agent::sRadio> radio = get_radio_by_uid(radio_mac);
     if (!radio) {
@@ -5610,12 +5610,12 @@ bool db::set_radio_wifi_channel(const sMacAddr &radio_mac,
     }
 
     LOG(INFO) << "Set Radio " << radio_mac << ", previous wifiChannel: " << radio->wifi_channel
-              << ", current wifiChannel: " << wifi_channel;
+              << ", current wifiChannel: " << wifi_channel << " from " << from;
     radio->wifi_channel = wifi_channel;
 
     radio->operating_class = son::wireless_utils::get_operating_class_by_channel(wifi_channel);
     if (radio->operating_class == 0) {
-        LOG(ERROR) << "failed to get operating class of " << wifi_channel;
+        LOG(ERROR) << "failed to get operating class of " << wifi_channel << " from " << from;
     }
 
     switch (radio->wifi_channel.get_freq_type()) {
@@ -6816,6 +6816,8 @@ Agent::operatingClassProfileIndex db::get_db_current_op_class_index(const sMacAd
     }
 
     // Convert operating class bandwidth to index
+    // For now DM CurrentOperatingClassProfiles index doesn't differentiate 320_1 and 320_2
+    // so we use get_bandwidth_from_op_class instead of get_bandwidth_from_channel_and_op_class
     switch (son::wireless_utils::get_bandwidth_from_op_class(op_class)) {
     case beerocks::eWiFiBandwidth::BANDWIDTH_20:
         return Agent::operatingClassProfileIndex::OPERATING_CLASS_20MHZ;
@@ -6863,20 +6865,6 @@ bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, ui
     if (!agent) {
         LOG(ERROR) << "Failed to get agent for radio mac: " << radio_mac;
         return false;
-    }
-
-    // In case of a non Intel Slave the radio wifi channel is not added at AP-Autoconfiguration
-    // reception.
-    // Fill radio wifi channel struct with primary channel and its operating class
-    if (wireless_utils::get_bandwidth_from_op_class(op_class) ==
-        beerocks::eWiFiBandwidth::BANDWIDTH_20) {
-        beerocks::WifiChannel wifi_channel =
-            beerocks::WifiChannel(op_channel, wireless_utils::which_freq_op_cls(op_class),
-                                  wireless_utils::get_bandwidth_from_op_class(op_class), false);
-
-        if (!set_radio_wifi_channel(radio_mac, wifi_channel)) {
-            LOG(ERROR) << "set node wifi channel failed, mac=" << radio;
-        }
     }
 
     // Prepare path to the CurrentOperatingClassProfile instance
