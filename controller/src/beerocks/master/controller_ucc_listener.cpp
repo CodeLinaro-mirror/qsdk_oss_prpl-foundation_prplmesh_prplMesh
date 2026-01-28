@@ -59,6 +59,7 @@ bool controller_ucc_listener::clear_configuration()
     m_database.clear_traffic_separation_configurations();
     m_database.clear_default_8021q_settings();
     m_database.disable_periodic_link_metrics_requests();
+    m_database.clear_mld_info_configuration();
     return true;
 }
 
@@ -467,9 +468,24 @@ bool controller_ucc_listener::handle_dev_set_config(
         return false;
     }
 
-    key = "mld_groupID";
+    // original key is mld_groupID, but all converted to lowercase
+    key = "mld_groupid";
     if (params.find(key) != params.end()) {
-        bss_info_conf.mld_id = params.at(key)[0] - 'A' + 1;
+        bss_info_conf.mld_id = params.at(key)[0];
+
+        if (!bss_info_conf.mld_id.empty()) {
+            son::wireless_utils::sMldInfoConf mld_info;
+            mld_info.ssid = bss_info_conf.ssid;
+
+            // Certification expects minumum STR, but enable with our defaults of reference platforms
+            mld_info.str   = true;
+            mld_info.nstr  = false;
+            mld_info.emlsr = true;
+            mld_info.emlmr = false;
+
+            m_database.add_mld_info_configuration(mld_info, bss_info_conf.mld_id);
+            LOG(DEBUG) << "MLD Group has been added for MLD ID: " << bss_info_conf.mld_id;
+        }
     }
 
     auto mac = tlvf::mac_from_string(al_mac);
