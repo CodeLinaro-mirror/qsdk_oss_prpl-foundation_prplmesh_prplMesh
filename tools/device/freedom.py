@@ -42,7 +42,7 @@ class Freedom(GenericPrplOS):
         shell.sendline(f"tftpboot 0x44000000 {self.image}")
         shell.sendline("")
         shell.expect("Loading: ")
-        shell.expect("done")
+        shell.expect("done", timeout=80)
         shell.expect(self.bootloader_prompt)
 
         shell.sendline("setenv untar_addr_kernel; setenv untar_addr_root")

@@ -1,0 +1,184 @@
+R6:urx_ospv2:MAP-4.2.5:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.2.5:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.2.6:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.2.6:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.2.7_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.2.7_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.2.7_BHWIFI:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.2.7_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.3.5_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.3.5_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.3.5_BHWIFI:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.3.5_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.4.4_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.4.4_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.4.4_BHWIFI:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.4.4_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.4.5:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.4.5:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.5.4_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.5.4_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.5.4_BHWIFI:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.5.4_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.18.9_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.9_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.18.9_BHWIFI:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.9_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.20.1_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.20.1_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-4.20.1_BHWIFI:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.20.1_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-5.4.4_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-5.4.4_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+R6:urx_ospv2:MAP-5.4.5_ETH:
+  extends: .certification:R6:urx_ospv2
+  rules:
+    # If the last commit description contains the test name and we're not on master, run it.
+    # Otherwise, make it a manual job
+    - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-5.4.5_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
+      when: on_success
+    - when: manual
+      allow_failure: true
+# Agent
+# MAP-4.2.5	    -> Multi-AP Ethernet Onboarding and Initialization test (for Wi-Fi 7 devices) (ETH backhaul to controller)
+# MAP-4.2.6	    -> Multi-AP Wi-Fi Onboarding and Initialization test 1 (for Wi-Fi 7 devices) (ETH backhaul to agent)
+# MAP-4.2.7	    -> Multi-AP Wi-Fi Onboarding and Initialization test 2 (for Wi-Fi 7 devices) (WIFI backhaul/ daisy chain)
+# MAP-4.3.5	    -> Client association and disassociation test (for Wi-Fi 7 devices)
+# MAP-4.4.4	    -> Multi-AP Affiliated AP Removal and Addition
+# MAP-4.4.5	    -> bSTA link addition and removal
+# MAP-4.5.4	    -> Channel puncturing test
+# MAP-4.18.8	-> Uplink SCS - Client Activated
+# MAP-4.18.9	-> Uplink SCS - Controller Activated
+# MAP-4.20.1	-> TID-to-Link Mapping
+#
+# # Controller
+# MAP-5.4.4	-> MLD configuration of MLD AP with limited capabilities
+# MAP-5.4.5	-> Initial MLD FH AP configuration test
