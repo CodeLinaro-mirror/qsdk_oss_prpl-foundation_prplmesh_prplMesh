@@ -867,7 +867,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
             wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3) {
             agent->profile = tlvProfile2MultiApProfileAgent->profile();
         } else {
-            agent->profile = tlvProfile2MultiApProfileController->profile();
+            agent->profile = wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
         }
 
         LOG(DEBUG) << "Agent profile is updated with enum " << agent->profile;
