@@ -48,18 +48,8 @@
     //pcm_svc_config = {
     //    "Objects" = "@CONTROLLER_ROOT_DM@"
     //};
-
-    auto-detect = false;
-    usp.connect-retry = true;
-    backends = [
-      "/usr/bin/mods/amxb/mod-amxb-ubus.so",
-      "/usr/bin/mods/usp/mod-amxb-usp.so"
-    ];
-    uris = [
-      "ubus:/var/run/ubus/ubus.sock",
-      "usp:/var/run/dm-mapper-controller.sock"
-    ];
 }
+@INCLUDE_DM_MAPPER_CONFIG@
 include "$@@{definition_file}";
 //include "mod_pcm_svc.odl";
 import "mod-dmext.so";

@@ -34,6 +34,11 @@ message(STATUS "${BoldGreen}Agent data model parsed successfully!${ColourReset}"
 # Install ODL files
 install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/agent)
 
+# Verify that DM Mapper config file enabled and install it to the agent odl folder
+if(NOT "${INCLUDE_DM_MAPPER_CONFIG}" STREQUAL "")
+    install(FILES "${CMAKE_SOURCE_DIR}/controller/nbapi/odl/dm_mapper_cfg" DESTINATION "config/agent/odl" RENAME "dm_mapper_cfg.odl" )
+endif()
+
 if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d)
     install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d DESTINATION config/agent/odl)
 endif()

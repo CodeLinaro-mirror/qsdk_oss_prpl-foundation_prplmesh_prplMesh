@@ -162,6 +162,10 @@ set(BEEROCKS_MONITOR_POLLING_RATE_MSEC 250)
 
 # Platform specific flags
 if (TARGET_PLATFORM STREQUAL "openwrt")
+
+    # Enable DM mapper related configuration for Controller and Agent
+    set(INCLUDE_DM_MAPPER_CONFIG "include \"dm_mapper_cfg.odl\";")
+
     if (TARGET_PLATFORM_TYPE STREQUAL "ugw")
         add_definitions(-DBEEROCKS_UGW)
         list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")

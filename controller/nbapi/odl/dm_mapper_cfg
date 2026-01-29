@@ -1,0 +1,12 @@
+ %config {
+    %global auto-detect = false;
+    %global usp.connect-retry = true;
+    %global backends = [
+      "/usr/bin/mods/amxb/mod-amxb-ubus.so",
+      "/usr/bin/mods/usp/mod-amxb-usp.so"
+    ];
+    %global uris = [
+      "ubus:/var/run/ubus/ubus.sock",
+      "usp:/var/run/dm-mapper-controller.sock"
+    ];
+}
