@@ -648,7 +648,7 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
 bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_mac,
                                                            ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_SEARCH_MESSAGE";
+    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_SEARCH_MESSAGE from src_mac: " << src_mac;
 
     auto tlvAlMacAddress = cmdu_rx.getClass<ieee1905_1::tlvAlMacAddress>();
     if (!tlvAlMacAddress) {
@@ -677,7 +677,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
     }
 
     auto al_mac = tlvAlMacAddress->mac();
-    LOG(DEBUG) << "mac=" << al_mac;
+    LOG(DEBUG) << "originator al_mac=" << al_mac;
 
     LOG(DEBUG) << "searched_role=" << int(tlvSearchedRole->value());
     if (tlvSearchedRole->value() != ieee1905_1::tlvSearchedRole::REGISTRAR) {
@@ -863,8 +863,19 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
             return false;
         }
 
-        agent->profile = tlvProfile2MultiApProfileAgent->profile();
-        LOG(DEBUG) << "Agent profile is updated with enum " << agent->profile;
+        LOG(DEBUG) << "Agent reports profile as: " << tlvProfile2MultiApProfileAgent->profile();
+
+        // If profile has Reserved value, profile should be used as same as receiver according to spec
+        if (tlvProfile2MultiApProfileAgent->profile() >
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3 ||
+            tlvProfile2MultiApProfileAgent->profile() ==
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN) {
+
+            agent->profile = wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+            LOG(INFO) << "Agent profile has Reserved Value, update profile: " << agent->profile;
+        } else {
+            agent->profile = tlvProfile2MultiApProfileAgent->profile();
+        }
 
         if (!database.dm_set_device_multi_ap_profile(*agent)) {
             LOG(ERROR) << "Failed to set Multi-AP profile in DM for Agent " << agent->al_mac;
