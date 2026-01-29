@@ -31,6 +31,10 @@ using namespace wbapi;
 namespace bwl {
 namespace whm {
 
+// Status & Reason codes used in Failed Connection message
+constexpr char CODE_OK[]                     = "0";
+constexpr char CODE_UNSPECIFIED[]            = "1";
+constexpr char CODE_INSUFFICIENT_BANDWIDTH[] = "33";
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Functions ///////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -2029,16 +2033,23 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         msg->bssid = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
         LOG(DEBUG) << "STA connection failure: interface BSSID: " << msg->bssid;
 
-        // status
-        std::string status_str = parsed_obj["status"];
-        // reason
-        std::string reason_str = parsed_obj["reason"];
+        std::string status_str;
+        std::string reason_str;
+        if (event == Event::ACL_DENY) {
 
-        if (status_str.empty()) {
-            status_str = reason_str.empty() ? "1" : "0";
-        }
-        if (reason_str.empty()) {
-            reason_str = "0";
+            // As specified in Wi-Fi EasyMesh® Specification,
+            // Section 11.6, "Client Association Control Mechanism"
+            status_str = CODE_INSUFFICIENT_BANDWIDTH;
+            reason_str = CODE_OK;
+        } else {
+            status_str = parsed_obj["status"];
+            reason_str = parsed_obj["reason"];
+            if (status_str.empty()) {
+                status_str = reason_str.empty() ? CODE_UNSPECIFIED : CODE_OK;
+            }
+            if (reason_str.empty()) {
+                reason_str = CODE_OK;
+            }
         }
 
         msg->status = beerocks::string_utils::stoi(status_str);
