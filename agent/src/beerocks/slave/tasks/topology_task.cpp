@@ -41,7 +41,8 @@ using namespace net;
 using namespace son;
 using namespace multi_vendor;
 
-constexpr uint8_t TOPOLOGY_DISCOVERY_TX_CYCLE_SEC = 60;
+constexpr uint8_t TOPOLOGY_DISCOVERY_TX_CYCLE_SEC     = 60;
+constexpr uint8_t TOPOLOGY_NOTIFICATION_MAX_DELAY_SEC = 1;
 
 // Convert beerocks bw to 802_11 bw
 uint8_t convert_bandwidth(eWiFiBandwidth bw)
@@ -369,6 +370,10 @@ bool TopologyTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         handle_vs_client_disassociated(cmdu_rx, beerocks_header);
         break;
     }
+    case beerocks_message::ACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND: {
+        handle_vs_topology_notification_command(cmdu_rx, beerocks_header);
+        break;
+    }
     default: {
         // Message was not handled, therfore return false.
         return false;
@@ -389,6 +394,19 @@ void TopologyTask::handle_vs_client_disassociated(ieee1905_1::CmduMessageRx &cmd
 {
     // TODO: Move handling of "ACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION" to here when
     // moving this task to unified agent context.
+}
+
+void TopologyTask::handle_vs_topology_notification_command(
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::shared_ptr<beerocks_header> beerocks_header)
+{
+    LOG(DEBUG) << "Received ACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND";
+
+    // Trigger topology notification after the configured delay
+    auto now = std::chrono::steady_clock::now();
+    m_topology_notification_timeout =
+        now + std::chrono::seconds(TOPOLOGY_NOTIFICATION_MAX_DELAY_SEC);
+
+    send_topology_notification();
 }
 
 void TopologyTask::send_topology_discovery()
@@ -465,7 +483,7 @@ void TopologyTask::send_topology_notification()
         m_pending_to_send_topology_notification = true;
         return;
     }
-    constexpr uint8_t TOPOLOGY_NOTIFICATION_MAX_DELAY_SEC = 1;
+
     m_topology_notification_timeout =
         now + std::chrono::seconds(TOPOLOGY_NOTIFICATION_MAX_DELAY_SEC);
     m_pending_to_send_topology_notification = false;
