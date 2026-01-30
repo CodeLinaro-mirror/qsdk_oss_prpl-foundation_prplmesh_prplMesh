@@ -1279,6 +1279,9 @@ bool ap_wlan_hal_whm::process_radio_channel_change_event(const AmbiorixVariant *
         LOG(INFO) << "Channel change event received following a failed CAC_Completed, "
                   << "handling it as part of the radar flow...";
         m_accept_dfs_channel_change_after_cac_failure = false;
+        m_radio_info.last_csa_sw_reason               = ChanSwReason::Radar;
+    } else {
+        m_radio_info.last_csa_sw_reason = ChanSwReason::Unknown;
     }
     event_queue_push(Event::CSA_Finished);
     return true;

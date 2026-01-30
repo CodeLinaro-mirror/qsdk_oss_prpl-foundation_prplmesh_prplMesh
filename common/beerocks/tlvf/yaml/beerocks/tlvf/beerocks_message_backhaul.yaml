@@ -166,6 +166,9 @@ cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST:
   wifi_credentials:
     _type: WSC::cEncryptedSettingsPayload
 
+cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND:
+  _type: class
+
 ################################################
 # CHANNEL SCAN REQUESTS/RESPONSES
 ################################################

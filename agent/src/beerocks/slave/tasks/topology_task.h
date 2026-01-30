@@ -90,6 +90,15 @@ private:
     void handle_vs_client_disassociated(ieee1905_1::CmduMessageRx &cmdu_rx,
                                         std::shared_ptr<beerocks_header> beerocks_header);
 
+    /**
+     * @brief Handles Vendor Specific Topology Notification message.
+     *
+     * @param[in] cmdu_rx Received CMDU.
+     * @param[in] beerocks_header Shared pointer to beerocks header.
+     */
+    void handle_vs_topology_notification_command(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                                 std::shared_ptr<beerocks_header> beerocks_header);
+
     /* Helper functions */
     void send_topology_discovery();
     void send_topology_notification();

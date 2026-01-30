@@ -767,6 +767,25 @@ class cACTION_BACKHAUL_WIFI_CREDENTIALS_UPDATE_REQUEST : public BaseClass
         int m_lock_order_counter__ = 0;
 };
 
+class cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND : public BaseClass
+{
+    public:
+        cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND();
+
+        static eActionOp_BACKHAUL get_action_op(){
+            return (eActionOp_BACKHAUL)(ACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND);
+        }
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_BACKHAUL* m_action_op = nullptr;
+};
+
 class cACTION_BACKHAUL_TRIGGER_ON_BOOT_SCAN : public BaseClass
 {
     public:
