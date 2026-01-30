@@ -1292,6 +1292,11 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
     std::string backhaul_ssid;
     std::string backhaul_mld_id;
     for (const auto &bss_conf : bss_configuration) {
+        if (bss_conf.operating_class.empty()) {
+            LOG(ERROR) << "Empty operating_class in bss configuration";
+            continue;
+        }
+
         if (backhaul_mld_id.empty() && !bss_conf.mld_id.empty() && bss_conf.backhaul &&
             mld_configuration.find(bss_conf.mld_id) != mld_configuration.end() &&
             !bss_conf.ssid.empty()) {
@@ -1315,8 +1320,6 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
 
         if (!backhaul_mld_id.empty() && bss_conf.mld_id == backhaul_mld_id &&
             bss_conf.ssid == backhaul_ssid) {
-            auto bss_conf_freq =
-                son::wireless_utils::which_freq_op_cls(bss_conf.operating_class.front());
 
             for (const auto &affiliated_radio : agent.radios) {
                 if (!affiliated_radio.second) {
@@ -1324,9 +1327,20 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
                     continue;
                 }
 
+                const auto op_classes = son::wireless_utils::get_operating_classes_of_freq_type(
+                    affiliated_radio.second->band);
+                if (op_classes.size() == 0) {
+                    continue;
+                }
+
+                const bool radio_band_found = std::any_of(
+                    bss_conf.operating_class.begin(), bss_conf.operating_class.end(), [&](int v) {
+                        return std::find(op_classes.begin(), op_classes.end(), v) !=
+                               op_classes.end();
+                    });
+
                 // Check if bss conf freq matches radio freq and EHT is supported
-                if (bss_conf_freq != affiliated_radio.second->band ||
-                    !affiliated_radio.second->eht_supported ||
+                if (!radio_band_found || !affiliated_radio.second->eht_supported ||
                     (!affiliated_radio.second->wifi7_capabilities.bsta_role.str_support &&
                      mld_configuration.at(backhaul_mld_id).str) ||
                     (!affiliated_radio.second->wifi7_capabilities.bsta_role.nstr_support &&
