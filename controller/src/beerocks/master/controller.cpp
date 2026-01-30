@@ -648,7 +648,7 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
 bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_mac,
                                                            ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_SEARCH_MESSAGE";
+    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_SEARCH_MESSAGE from src_mac: " << src_mac;
 
     auto tlvAlMacAddress = cmdu_rx.getClass<ieee1905_1::tlvAlMacAddress>();
     if (!tlvAlMacAddress) {
@@ -677,7 +677,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
     }
 
     auto al_mac = tlvAlMacAddress->mac();
-    LOG(DEBUG) << "mac=" << al_mac;
+    LOG(DEBUG) << "originator al_mac=" << al_mac;
 
     LOG(DEBUG) << "searched_role=" << int(tlvSearchedRole->value());
     if (tlvSearchedRole->value() != ieee1905_1::tlvSearchedRole::REGISTRAR) {
@@ -863,8 +863,19 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
             return false;
         }
 
-        agent->profile = tlvProfile2MultiApProfileAgent->profile();
-        LOG(DEBUG) << "Agent profile is updated with enum " << agent->profile;
+        LOG(DEBUG) << "Agent reports profile as: " << tlvProfile2MultiApProfileAgent->profile();
+
+        // If profile has Reserved value, profile should be used as same as receiver according to spec
+        if (tlvProfile2MultiApProfileAgent->profile() >
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3 ||
+            tlvProfile2MultiApProfileAgent->profile() ==
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN) {
+
+            agent->profile = wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+            LOG(INFO) << "Agent profile has Reserved Value, update profile: " << agent->profile;
+        } else {
+            agent->profile = tlvProfile2MultiApProfileAgent->profile();
+        }
 
         if (!database.dm_set_device_multi_ap_profile(*agent)) {
             LOG(ERROR) << "Failed to set Multi-AP profile in DM for Agent " << agent->al_mac;
@@ -1281,6 +1292,11 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
     std::string backhaul_ssid;
     std::string backhaul_mld_id;
     for (const auto &bss_conf : bss_configuration) {
+        if (bss_conf.operating_class.empty()) {
+            LOG(ERROR) << "Empty operating_class in bss configuration";
+            continue;
+        }
+
         if (backhaul_mld_id.empty() && !bss_conf.mld_id.empty() && bss_conf.backhaul &&
             mld_configuration.find(bss_conf.mld_id) != mld_configuration.end() &&
             !bss_conf.ssid.empty()) {
@@ -1304,8 +1320,6 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
 
         if (!backhaul_mld_id.empty() && bss_conf.mld_id == backhaul_mld_id &&
             bss_conf.ssid == backhaul_ssid) {
-            auto bss_conf_freq =
-                son::wireless_utils::which_freq_op_cls(bss_conf.operating_class.front());
 
             for (const auto &affiliated_radio : agent.radios) {
                 if (!affiliated_radio.second) {
@@ -1313,9 +1327,20 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
                     continue;
                 }
 
+                const auto op_classes = son::wireless_utils::get_operating_classes_of_freq_type(
+                    affiliated_radio.second->band);
+                if (op_classes.size() == 0) {
+                    continue;
+                }
+
+                const bool radio_band_found = std::any_of(
+                    bss_conf.operating_class.begin(), bss_conf.operating_class.end(), [&](int v) {
+                        return std::find(op_classes.begin(), op_classes.end(), v) !=
+                               op_classes.end();
+                    });
+
                 // Check if bss conf freq matches radio freq and EHT is supported
-                if (bss_conf_freq != affiliated_radio.second->band ||
-                    !affiliated_radio.second->eht_supported ||
+                if (!radio_band_found || !affiliated_radio.second->eht_supported ||
                     (!affiliated_radio.second->wifi7_capabilities.bsta_role.str_support &&
                      mld_configuration.at(backhaul_mld_id).str) ||
                     (!affiliated_radio.second->wifi7_capabilities.bsta_role.nstr_support &&
