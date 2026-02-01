@@ -1045,6 +1045,9 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     m2_cfg.encr_type_flags     = uint16_t(WSC::eWscEncr::WSC_ENCR_NONE) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP);
+    if (bss_info_conf != nullptr) {
+        m2_cfg.vap_type = bss_info_conf->vap_type;
+    }
     m2_cfg.auth_type_flags =
         WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
                       WSC::eWscAuth::WSC_AUTH_SAE);
@@ -1082,14 +1085,15 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     // Finally, add HMAC
 
     uint8_t buf[1024];
-    WSC::EncryptedSettingsPayload::config cfg =
+    WSC::EncryptedSettingsPayload::config payload_cfg =
         prepare_encrypted_settings_config(m1.mac_addr(), bss_info_conf, false);
-    auto payload = WSC::EncryptedSettingsPayload::create(cfg, buf, sizeof(buf));
+    auto payload = WSC::EncryptedSettingsPayload::create(payload_cfg, buf, sizeof(buf));
     if (!payload) {
         LOG(ERROR) << "Failed to create EncryptedSettingsPayload";
         return false;
     }
-    payload->finalize();
+    // No need to call payload->finalize
+    // since it's done during the WSC::EncryptedSettingsPayload::create
 
     if (!autoconfig_wsc_add_encrypted_settings(*m2_cfg.iv, m2_cfg.encrypted_settings, *payload,
                                                authkey, keywrapkey))
@@ -1099,8 +1103,7 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     if (!m2)
         return false;
 
-    // Finalize m2 since it needs to be in network byte order for global authentication
-    m2->finalize();
+    // No need to call m2->finalize since it's done during the WSC::m2::create
 
     if (!autoconfig_wsc_authentication(m1, m2, authkey))
         return false;

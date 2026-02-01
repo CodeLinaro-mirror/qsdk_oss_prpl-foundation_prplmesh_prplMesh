@@ -186,7 +186,7 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
                 configuration.backhaul = true;
             }
         }
-        
+
         // Reading CustomAlias and deducing VAP type
         const std::string custom_alias = wbapi_utils::get_custom_alias(ap);
         configuration.vap_type         = wbapi_utils::vap_type_from_custom_alias(custom_alias);
