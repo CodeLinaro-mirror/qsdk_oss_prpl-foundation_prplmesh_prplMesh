@@ -589,11 +589,16 @@ bool sta_wlan_hal_whm::reassociate()
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
-            if (endpoint.multi_ap_profile) {
+            if (endpoint.peer_multi_ap_profile) {
+                msg->multi_ap_profile = endpoint.peer_multi_ap_profile;
+            } else if (endpoint.multi_ap_profile) {
                 msg->multi_ap_profile = endpoint.multi_ap_profile;
+                LOG(WARNING) << "Failed reading 'PeerMultiAPProfile' parameter, fallback to "
+                             << "'MultiAPProfile'";
             } else {
                 msg->multi_ap_profile = 1;
-                LOG(ERROR) << "Failed reading 'multi_ap_profile' parameter!";
+                LOG(ERROR) << "Failed reading 'PeerMultiAPProfile' and 'MultiAPProfile' "
+                              "parameters!";
             }
 
             // Multi-AP Primary VLAN ID - Not mandatory
@@ -823,6 +828,7 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
 
     ep_obj->read_child(endpoint.connection_status, "ConnectionStatus");
     ep_obj->read_child(endpoint.multi_ap_profile, "MultiAPProfile");
+    ep_obj->read_child(endpoint.peer_multi_ap_profile, "PeerMultiAPProfile");
     ep_obj->read_child(endpoint.multi_ap_primary_vlanid, "MultiAPVlanId");
 
     auto ssid_obj = m_ambiorix_cl.get_object(wbapi_utils::get_path_ssid_reference(*ep_obj));
@@ -961,11 +967,16 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
-            if (endpoint.multi_ap_profile) {
+            if (endpoint.peer_multi_ap_profile) {
+                msg->multi_ap_profile = endpoint.peer_multi_ap_profile;
+            } else if (endpoint.multi_ap_profile) {
                 msg->multi_ap_profile = endpoint.multi_ap_profile;
+                LOG(WARNING) << "Failed reading 'PeerMultiAPProfile' parameter, fallback to "
+                             << "'MultiAPProfile'";
             } else {
                 msg->multi_ap_profile = 1;
-                LOG(ERROR) << "Failed reading 'multi_ap_profile' parameter!";
+                LOG(ERROR) << "Failed reading 'PeerMultiAPProfile' and 'MultiAPProfile' "
+                              "parameters!";
             }
 
             // Multi-AP Primary VLAN ID - Not mandatory
