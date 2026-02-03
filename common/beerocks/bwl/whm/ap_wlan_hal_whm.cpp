@@ -637,11 +637,11 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                        << int(bss_info_conf.authentication_type);
             continue;
         }
-        auto enc_type = son::wireless_utils::wsc_to_bwl_encryption(bss_info_conf.encryption_type);
-        if (enc_type == "INVALID") {
-            LOG(ERROR) << "Autoconfiguration: invalid enc_type "
-                       << int(bss_info_conf.encryption_type);
-            continue;
+        std::string encryption_mode =
+            wbapi_utils::encryption_type_to_string(bss_info_conf.encryption_type);
+        if (encryption_mode == "Default") {
+            LOG(WARNING) << "Autoconfiguration: unsupported enc_type "
+                         << int(bss_info_conf.encryption_type) << ", using Default";
         }
 
         const int8_t mld_unit = bss_info_conf.mld_id.empty()
@@ -649,7 +649,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                                     : beerocks::string_utils::stoi(bss_info_conf.mld_id);
 
         LOG(DEBUG) << "Autoconfiguration for ssid: " << bss_info_conf.ssid
-                   << " auth_type: " << auth_type << " encr_type: " << enc_type
+                   << " auth_type: " << auth_type << " encr_type: " << encryption_mode
                    << " network_key: " << bss_info_conf.network_key
                    << " fronthaul: " << bss_info_conf.fronthaul
                    << " backhaul: " << bss_info_conf.backhaul
@@ -670,8 +670,6 @@ bool ap_wlan_hal_whm::update_vap_credentials(
 
         std::string security_mode = wbapi_utils::security_mode_to_string(
             bss_info_conf.authentication_type, bss_info_conf.additional_auth);
-        std::string encryption_mode =
-            wbapi_utils::encryption_type_to_string(bss_info_conf.encryption_type);
 
         LOG(DEBUG) << "Security Mode:" << security_mode << " Encryption Mode:" << encryption_mode;
 
