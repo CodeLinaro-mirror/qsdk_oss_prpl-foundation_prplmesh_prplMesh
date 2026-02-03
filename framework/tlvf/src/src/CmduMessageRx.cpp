@@ -147,6 +147,82 @@
 #include <tlvf/wfa_map/tlvVirtualBssEvent.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 
+#define MYLOG(CONTENT)                                                                             \
+    {                                                                                              \
+        LOG(DEBUG) << "(my) " << CONTENT;                                                          \
+        std::ofstream file("/tmp/mylog", std::ios_base::app);                                      \
+        if (file.is_open()) {                                                                      \
+            file << CONTENT << std::endl;                                                          \
+            file.close();                                                                          \
+        } else {                                                                                   \
+            LOG(DEBUG) << "(my) failed to open a log file";                                        \
+        }                                                                                          \
+    }
+
+#include <cstdint>
+#include <iomanip>
+#include <sstream>
+#include <string>
+
+#define MYLOGF() MYLOG(__PRETTY_FUNCTION__ << ":" << __LINE__)
+
+#ifdef __has_include
+#if __has_include(<dlfcn.h>)
+#include <dlfcn.h>
+#define HAVE_DLADDR 1
+#endif
+#endif
+
+// Maximum stack frames to unwind
+#ifndef MAX_FRAMES
+#define MAX_FRAMES 32
+#endif
+
+inline std::string get_callstack_string()
+{
+    void *addrs[MAX_FRAMES];
+    int n = 0;
+
+    // Start from the current frame
+    void **frame = (void **)__builtin_frame_address(0);
+
+    // Walk up the frame pointer chain
+    while (frame && n < MAX_FRAMES) {
+        if ((uintptr_t)frame < 4096)
+            break; // sanity check
+        void *ret = frame[1];
+        if (!ret)
+            break;
+        addrs[n++] = ret;
+
+        void *prev = frame[0];
+        if (!prev || prev <= (void *)frame)
+            break;
+        frame = (void **)prev;
+    }
+
+    std::ostringstream oss;
+    oss << "---- Callstack ----\n";
+
+    for (int i = 0; i < n; ++i) {
+#ifdef HAVE_DLADDR
+        Dl_info info{};
+        if (dladdr(addrs[i], &info) && info.dli_sname) {
+            uintptr_t addr = reinterpret_cast<uintptr_t>(addrs[i]);
+            uintptr_t sym  = reinterpret_cast<uintptr_t>(info.dli_saddr);
+            oss << "#" << std::setw(2) << i << " " << addrs[i] << " " << info.dli_sname << " + 0x"
+                << std::hex << (addr - sym) << std::dec << " ("
+                << (info.dli_fname ? info.dli_fname : "?") << ")\n";
+        } else
+#endif
+        {
+            oss << "#" << std::setw(2) << i << " " << addrs[i] << "\n";
+        }
+    }
+
+    return oss.str();
+}
+
 using namespace ieee1905_1;
 
 int CmduMessageRx::getNextTlvType() const
@@ -347,6 +423,7 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
         return msg.addClass<wfa_map::tlvUnassociatedStaLinkMetricsQuery>();
     }
     case (wfa_map::eTlvTypeMap::TLV_UNASSOCIATED_STA_LINK_METRICS_RESPONSE): {
+        MYLOG("addClass tlvUnassociatedStaLinkMetricsResponse 3")
         return msg.addClass<wfa_map::tlvUnassociatedStaLinkMetricsResponse>();
     }
     case (wfa_map::eTlvTypeMap::TLV_BEACON_METRICS_QUERY): {

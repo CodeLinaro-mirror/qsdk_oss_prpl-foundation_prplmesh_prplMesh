@@ -958,8 +958,11 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
         return false;
     }
 
+    MYLOGF();
+
     //Lets iterate through all instances
     for (auto &non_ass_device : *non_ass_devices) {
+        MYLOG("unassoc device")
         int32_t signal_strength(0);
         uint8_t channel(0);
         uint8_t operating_class(0);
@@ -990,6 +993,7 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
                 timestamp_ms,
             };
             stats.push_back(new_stat);
+            MYLOG("push_back unassoc device")
             LOG(DEBUG) << " read unassociated station stats for mac_address: " << mac_address_amx
                        << " SignalStrength: " << signal_strength << " channel: " << channel
                        << " operating_class: " << operating_class

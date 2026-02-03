@@ -3904,16 +3904,20 @@ bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_ifac
 
         auto mid = beerocks_header->id();
 
+        MYLOG("created UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE")
         if (!cmdu_tx.create(
                 mid, ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE)) {
             LOG(ERROR) << "cmdu creation of type UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE "
                           "has failed";
+            MYLOG(
+                "cmdu creation of type UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE has failed");
             return false;
         }
 
         using stations_stats = wfa_map::tlvUnassociatedStaLinkMetricsResponse::sStaMetrics;
         std::unordered_map<uint8_t, std::list<stations_stats>> map_stations_per_operating_class;
 
+        MYLOG("response_in->stations_list_length(): " << (int)response_in->stations_list_length());
         for (size_t count = 0; count < response_in->stations_list_length(); count++) {
             beerocks_message::sUnassociatedStationStats &station_in =
                 std::get<1>(response_in->stations_list(count));
@@ -3941,8 +3945,10 @@ bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_ifac
         //Now send a telemetries to the controller, each telemetry with only 1 operating_class
         for (auto &operating_class : map_stations_per_operating_class) {
             auto response_out = cmdu_tx.addClass<wfa_map::tlvUnassociatedStaLinkMetricsResponse>();
+            MYLOG("addClass tlvUnassociatedStaLinkMetricsResponse 2")
             if (!response_out) {
-                LOG(ERROR) << "adding wfa_map::tlvUnassociatedStaLinkMetricsResponse failed";
+                LOG(ERROR) << "adding tlvUnassociatedStaLinkMetricsResponse failed";
+                MYLOG("adding tlvUnassociatedStaLinkMetricsResponse failed");
                 return false;
             }
             response_out->operating_class_of_channel_list() = operating_class.first;
@@ -3960,7 +3966,9 @@ bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_ifac
             LOG(DEBUG)
                 << "Send tlvUnassociatedStaLinkMetricsResponse to controller with operating_class= "
                 << operating_class.first << "and  mid = " << mid;
-            send_cmdu_to_controller({}, cmdu_tx);
+            MYLOG("sending cmdu_tx");
+            bool result = send_cmdu_to_controller({}, cmdu_tx);
+            MYLOG("result: " << (int)result);
         }
         break;
     }

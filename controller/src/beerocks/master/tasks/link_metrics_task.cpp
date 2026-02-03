@@ -135,6 +135,7 @@ bool LinkMetricsTask::handle_ieee1905_1_msg(const sMacAddr &src_mac,
         return handle_cmdu_1905_link_metric_response(src_mac, cmdu_rx);
     }
     case ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE: {
+        MYLOG("received UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE 2")
         return handle_cmdu_1905_unassociated_station_link_metric_response(src_mac, cmdu_rx);
     }
     default: {
@@ -333,9 +334,12 @@ bool LinkMetricsTask::handle_cmdu_1905_unassociated_station_link_metric_response
 
     auto unassoc_sta_link_metrics_tlv =
         cmdu_rx.getClass<wfa_map::tlvUnassociatedStaLinkMetricsResponse>();
+    MYLOG("getClass tlvUnassociatedStaLinkMetricsResponse")
     if (!unassoc_sta_link_metrics_tlv) {
         LOG(ERROR) << "Unassociated STA Link Metrics Response message did not contain an "
                       "Unassociated STA Link Metrics TLV!";
+        MYLOG("Unassociated STA Link Metrics Response message did not contain an "
+              "Unassociated STA Link Metrics TLV!");
         return false;
     }
 

@@ -630,7 +630,10 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
     case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE:
     case ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE:
     case ieee1905_1::eMessageType::LINK_METRIC_RESPONSE_MESSAGE:
+        return true;
     case ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE:
+        MYLOG("received UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE 1")
+        return true;
     case ieee1905_1::eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE:
     case ieee1905_1::eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE:
     case ieee1905_1::eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE:
@@ -3977,7 +3980,7 @@ bool Controller::handle_cmdu_control_message(
             new_event.snr        = notification->params().rx_snr;
             new_event.client_mac = notification->params().result.mac;
             new_event.bssid      = database.get_radio_bss_mac(tlvf::mac_from_string(ap_mac),
-                                                         notification->params().vap_id);
+                                                              notification->params().vap_id);
             m_task_pool.push_event(database.get_pre_association_steering_task_id(),
                                    pre_association_steering_task::eEvents::
                                        STEERING_EVENT_RSSI_MEASUREMENT_SNR_NOTIFICATION,
@@ -5696,8 +5699,10 @@ bool Controller::get_unassociated_stations_stats()
 bool Controller::send_unassociated_sta_link_metrics_query_message(
     ieee1905_1::CmduMessageTx &cmdu_tx, db &database)
 {
+    MYLOG("created UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE")
     if (!cmdu_tx.create(0, ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE)) {
         LOG(ERROR) << "Failed building message UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE!";
+        MYLOG("Failed building message UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE!");
         return false;
     }
 
@@ -5744,6 +5749,7 @@ bool Controller::send_unassociated_sta_link_metrics_query_message(
     } else { // this is a command to remove all monitored stations
         for (const auto &agent : database.get_all_connected_agents()) {
             cmdu_tx.addClass<wfa_map::tlvUnassociatedStaLinkMetricsQuery>();
+            MYLOG("addClass tlvUnassociatedStaLinkMetricsQuery")
             son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
             LOG(DEBUG) << "removed  non_associated stations from  agent with mac_address "
                        << tlvf::mac_to_string(agent->al_mac);
@@ -5757,6 +5763,7 @@ bool Controller::send_unassociated_sta_link_metrics_query_message(
         for (auto &operating_class : agent.second) {
             auto unassociated_sta_query =
                 cmdu_tx.addClass<wfa_map::tlvUnassociatedStaLinkMetricsQuery>();
+            MYLOG("addClass tlvUnassociatedStaLinkMetricsQuery 2")
             if (operating_class.second.size() == 0) {
                 continue; // no stations so nothing to do
             }

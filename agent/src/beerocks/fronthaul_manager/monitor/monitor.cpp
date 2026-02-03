@@ -2184,6 +2184,7 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         LOG(DEBUG) << " received an internal event of type Event::Unassociation_Stations_Stats";
         auto msg = static_cast<bwl::sUnassociatedStationsStats *>(data);
 
+        MYLOG("create vs message cACTION_MONITOR_CLIENT_UNASSOCIATED_STA_LINK_METRIC_RESPONSE")
         auto response = message_com::create_vs_message<
             beerocks_message::cACTION_MONITOR_CLIENT_UNASSOCIATED_STA_LINK_METRIC_RESPONSE>(
             cmdu_tx);
@@ -2191,8 +2192,11 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             LOG(ERROR)
                 << "Failed building cACTION_MONITOR_CLIENT_UNASSOCIATED_STA_LINK_METRIC_RESPONSE "
                    "message!";
+            MYLOG("Failed building cACTION_MONITOR_CLIENT_UNASSOCIATED_STA_LINK_METRIC_RESPONSE "
+                  "message!");
             break;
         }
+        MYLOG("msg->un_stations_stats.size()" << msg->un_stations_stats.size());
         if (!response->alloc_stations_list(msg->un_stations_stats.size())) {
             LOG(ERROR) << "Failed to allocate un_stations_stats of size "
                        << msg->un_stations_stats.size();
@@ -2215,6 +2219,7 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             iter++;
         }
 
+        MYLOG("sending it")
         send_cmdu(cmdu_tx);
         break;
     }
