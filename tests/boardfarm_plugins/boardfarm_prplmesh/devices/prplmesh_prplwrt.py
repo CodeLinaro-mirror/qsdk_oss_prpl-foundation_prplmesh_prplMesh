@@ -130,9 +130,16 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
         else:
             self.agent_entity = ALEntityPrplWrt(self, is_controller=False)
 
+    def _ba_cli_set(self, obj: str, param: str, value):
+        self.sendline("ba-cli {}.{}={}".format(obj, param, value))
+
     def _prplMesh_exec(self, mode: str):
         """Send line to prplmesh initd script."""
-        self.sendline("/etc/init.d/prplmesh {}".format(mode))
+        dm_obj = "X_PRPLWARE-COM_ProcessManager.PrplMesh"
+        self._ba_cli_set(dm_obj, "ManagementMode", mode)
+        self._ba_cli_set(dm_obj, "CertificationMode", 1)
+        self._ba_cli_set(dm_obj, "Enable", 1)
+        time.sleep(5)
 
     def _prplmesh_status_poll(self, timeout: int = 120) -> bool:
         """Poll prplMesh status for timeout time.
@@ -253,8 +260,14 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
         if mode not in ["controller", "agent"]:
             raise ValueError("Unknown prplMesh mode: {}".format(mode))
 
+        # This needed for starting via prplmesh_utils.sh
+        if mode == "agent":
+            mode = "Multi-AP-Agent"
+        else:
+            mode = "Multi-AP-Controller-and-Agent"
+
         print("Starting prplmesh as {}".format(mode))
-        self._prplMesh_exec("certification_mode {}".format(mode))
+        self._prplMesh_exec(mode)
         self.expect(self.prompt, timeout=120)
         if self.delay:
             print("Waiting {} seconds for prplMesh to initialize".format(self.delay))

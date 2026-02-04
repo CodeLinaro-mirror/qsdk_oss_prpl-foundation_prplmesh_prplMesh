@@ -79,9 +79,9 @@ cd "${INSTALL_DIR}" || exit 1
 type="$1"; shift
 
 if [ "$type" = "start-agent" ]; then
-    start_arg=(--mode a)
+    start_arg=(--cert true --mode Multi-AP-Agent)
 else
-    start_arg=(--mode ca)
+    start_arg=(--cert true --mode Multi-AP-Controller-and-Agent)
 fi
 
 # After new change for ubus, socket creates in /var/run/ubus
