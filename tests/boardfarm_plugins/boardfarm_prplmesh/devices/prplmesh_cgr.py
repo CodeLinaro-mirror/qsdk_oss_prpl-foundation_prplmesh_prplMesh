@@ -119,9 +119,9 @@ class PrplMeshCGR(OpenWrtRouter, PrplMeshBase):
 
     def _prplMesh_exec(self, mode: str):
         """Send line to prplmesh initd script."""
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh stop")
+        utils = "/opt/prplmesh/scripts/prplmesh_utils.sh"
+        self.sendline("{} start --cert true --mode {}".format(utils, mode))
         time.sleep(5)
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh start {}".format(mode))
 
     def _prplmesh_status_poll(self, timeout: int = 120) -> bool:
         """Poll prplMesh status for timeout time.
@@ -229,12 +229,12 @@ class PrplMeshCGR(OpenWrtRouter, PrplMeshBase):
 
         # This needed for starting via prplmesh_utils.sh
         if mode == "agent":
-            mode = "A"
+            mode = "Multi-AP-Agent"
         else:
-            mode = "CA"
+            mode = "Multi-AP-Controller-and-Agent"
 
         print("Starting prplmesh as {}".format(mode))
-        self._prplMesh_exec("--mode {}".format(mode))
+        self._prplMesh_exec(mode)
         self.expect(self.prompt)
         if self.delay:
             print("Waiting {} seconds for prplMesh to initialize".format(self.delay))

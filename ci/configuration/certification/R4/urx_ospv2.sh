@@ -46,9 +46,11 @@ ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"].?" | grep
 
 sleep 5
 
-# Setting BackhaulWireIface, or persistence can fail (PPM-3339)
-/etc/init.d/prplmesh stop && sleep 2
-/etc/init.d/prplmesh start && sleep 2
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
+sleep 5
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
 sleep 5
 
 # Set the wired backhaul interface:
