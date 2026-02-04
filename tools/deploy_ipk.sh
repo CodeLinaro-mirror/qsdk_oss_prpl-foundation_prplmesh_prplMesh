@@ -55,7 +55,7 @@ deploy() {
       ! -path "/opt/prplmesh/share" \
       ! -path "/opt/prplmesh/share/agent" \
       ! -path "/opt/prplmesh/share/agent/*" \
-      -exec rm -rf {} +
+      -exec rm -rf {} + || return 0
 EOF
 
 # The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.
@@ -63,16 +63,16 @@ EOF
 
     eval ssh "$SSH_OPTIONS" "$TARGET" <<EOF
 # rdkb platforms require --force-dependencies
-if [ "$BOARD_TYPE" = "rdk" ]; then 
+if [ "$BOARD_TYPE" = "rdk" ]; then
     opkg install -V2 --force-depends "$DEST_FOLDER/$IPK_FILENAME"; 
 else
-    opkg install -V2  "$DEST_FOLDER/$IPK_FILENAME"; 
+    opkg install -V2 "$DEST_FOLDER/$IPK_FILENAME";
 fi
 EOF
 
     if [ "$CERTIFICATION_MODE" = true ] && [ "$BOARD_TYPE" != "rdk" ]; then
         echo "Certification mode will be enabled on the target"
-        eval ssh "$SSH_OPTIONS" "$TARGET" \""uci set prplmesh.config.certification_mode=1 && uci commit"\"
+        eval ssh "$SSH_OPTIONS" "$TARGET" \""ba-cli X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"\"
         echo "Certification mode enabled on the target."
     fi
 }

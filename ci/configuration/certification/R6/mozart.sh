@@ -44,9 +44,12 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.180"
 
-# Setting BackhaulWireIface, or persistence can fail (PPM-3339)
-/etc/init.d/prplmesh stop && sleep 2
-/etc/init.d/prplmesh certification_mode agent && sleep 2
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
+sleep 5
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
+sleep 5
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then

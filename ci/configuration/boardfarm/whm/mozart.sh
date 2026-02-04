@@ -37,6 +37,12 @@ ba-cli DHCPv6Server.Enable=0
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.1.180"
 
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Controller-and-Agent\""
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
+
+sleep 5
+
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
   # Prplmesh agent is not running. Data model isn't up.
