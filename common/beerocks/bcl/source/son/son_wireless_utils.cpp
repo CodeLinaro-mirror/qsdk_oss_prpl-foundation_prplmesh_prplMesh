@@ -1708,6 +1708,13 @@ std::string wireless_utils::wsc_to_bwl_authentication(WSC::eWscAuth authtype,
 
 std::string wireless_utils::wsc_to_bwl_encryption(WSC::eWscEncr enctype)
 {
+    const auto enc  = uint16_t(enctype);
+    const auto aes  = uint16_t(WSC::eWscEncr::WSC_ENCR_AES);
+    const auto tkip = uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP);
+
+    if ((enc & (aes | tkip)) == (aes | tkip) && (enc & ~(aes | tkip)) == 0) {
+        return "TKIP-AES";
+    }
     switch (enctype) {
     case WSC::eWscEncr::WSC_ENCR_NONE:
         return "NONE";
