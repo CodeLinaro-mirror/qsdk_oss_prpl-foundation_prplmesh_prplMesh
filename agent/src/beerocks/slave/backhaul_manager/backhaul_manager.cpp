@@ -1024,6 +1024,9 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                     hal_conf.is_repeater = true;
                 }
 
+                hal_conf.multi_ap_profile = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
+                LOG(DEBUG) << "Set MultiAPProfile=" << hal_conf.multi_ap_profile;
+
                 using namespace std::placeholders; // for `_1`
                 radio_info->sta_wlan_hal = bwl::sta_wlan_hal_create(
                     radio_info->sta_iface,
