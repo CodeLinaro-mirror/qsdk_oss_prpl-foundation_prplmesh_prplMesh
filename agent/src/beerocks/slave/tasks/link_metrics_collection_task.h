@@ -9,6 +9,7 @@
 #ifndef _LINK_METRICS_COLLECTION_TASK_H_
 #define _LINK_METRICS_COLLECTION_TASK_H_
 
+#include "agent_db.h"
 #include "task.h"
 
 #include <beerocks/tlvf/beerocks_message_monitor.h>
@@ -134,6 +135,16 @@ private:
      * @brief Adds radio meteric tlv (profile2) to the cmdu-tx member
      */
     void add_radio_metrics_tlv();
+
+    /**
+     * @brief Add and fill assoc_sta_mld_configuration reports.
+     *
+     * @param[in] cmdu_tx CMDU to be send.
+     * @param[in] mld_info structure of the MLD Station.
+     * @return true on success, otherwise false.
+     */
+    bool add_assoc_sta_mld_config_report(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                         const AgentDB::sAssociatedStaMld &mld_info);
 
     /**
      * @brief Creates a new link metrics collector for given media type.
