@@ -2153,6 +2153,7 @@ bool Controller::handle_tlv_ap_wifi6_capabilities(ieee1905_1::CmduMessageRx &cmd
             ret_val = false;
         }
     }
+
     return ret_val;
 }
 
@@ -5615,8 +5616,7 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
     if (!handle_tlv_apCapability(cmdu_rx, agent, early)) {
         LOG(ERROR) << "Couldn't handle TLV tlvApCapability";
     }
-    if (agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3 &&
-        !handle_tlv_ap_wifi6_capabilities(cmdu_rx)) {
+    if (!handle_tlv_ap_wifi6_capabilities(cmdu_rx)) {
         LOG(ERROR) << "Couldn't handle TLV AP WIFI6Capabilities";
         return false;
     }
