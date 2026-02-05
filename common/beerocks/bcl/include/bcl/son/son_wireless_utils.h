@@ -17,6 +17,7 @@
 #include <tlvf/WSC/eWscEncr.h>
 #include <tlvf/WSC/eWscVendorExt.h>
 #include <tlvf/WSC/eWscVendorExtHiddenSsid.h>
+#include <tlvf/common/eVapType.h>
 
 #include <array>
 #include <deque>
@@ -300,6 +301,7 @@ public:
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
         WSC::eWscVendorExtHiddenSsid hidden_ssid          = WSC::eWscVendorExtHiddenSsid::UNSET;
+        eVapType vap_type                                 = eVapType::OTHER;
         std::string mld_id                                = "";
         bool bSTA                                         = false;
         uint8_t bss_index                                 = 0;
@@ -471,6 +473,15 @@ public:
     static std::string wsc_to_bwl_encryption(WSC::eWscEncr enctype);
     static beerocks::eBssType wsc_to_bwl_bss_type(WSC::eWscVendorExtSubelementBssType bss_type);
     static std::list<uint8_t> string_to_wsc_oper_class(const std::string &operating_class);
+
+    /*
+     * @brief Converts string to vap_type
+     *
+     * @param type - the string (e.g., "home", "guest").
+     * @return string - eVapType enum 
+     **/
+    static eVapType string_to_vap_type(const std::string &type);
+
     /**
      * @brief Get the vht central frequency object
      * 

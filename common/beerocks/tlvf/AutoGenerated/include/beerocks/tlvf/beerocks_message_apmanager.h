@@ -104,6 +104,7 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         bool add_channel_list(std::shared_ptr<cChannelList> ptr);
         std::shared_ptr<cChannelList> channel_list() { return m_channel_list_ptr; }
         sVapsList& vap_list();
+        sVapTypesList& vap_type_list();
         uint8_t& radio_max_bss();
         uint8_t& radio_rsn_override_support();
         void class_swap() override;
@@ -121,6 +122,7 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         bool m_lock_allocation__ = false;
         int m_lock_order_counter__ = 0;
         sVapsList* m_vap_list = nullptr;
+        sVapTypesList* m_vap_type_list = nullptr;
         uint8_t* m_radio_max_bss = nullptr;
         uint8_t* m_radio_rsn_override_support = nullptr;
 };
@@ -306,6 +308,7 @@ class cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION : public BaseClass
             return (eActionOp_APMANAGER)(ACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION);
         }
         sVapsList& params();
+        sVapTypesList& vap_type_list();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -314,6 +317,7 @@ class cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION : public BaseClass
         bool init();
         eActionOp_APMANAGER* m_action_op = nullptr;
         sVapsList* m_params = nullptr;
+        sVapTypesList* m_vap_type_list = nullptr;
 };
 
 class cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START : public BaseClass

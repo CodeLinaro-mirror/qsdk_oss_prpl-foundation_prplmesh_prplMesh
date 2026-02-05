@@ -1,0 +1,40 @@
+@startuml
+title vap_type flow: DM change -> WiFiManager -> DB -> WSC config -> M2 to Agent
+autonumber
+
+'==== Global groups ====
+box "Controller"
+participant "DM\n(Ambiorix client)" as DM
+participant "WiFiManager" as WM
+participant "DB" as DB
+participant "Controller\n(Autoconfig/WSC)" as CTRL
+end box
+participant "Agent" as AGT
+
+DM -> WM : AMX_CL_OBJECT_CHANGED_EVT
+
+WM -> WM : bss_info_config_change()
+activate WM
+WM -> DB : clear_bss_info_configuration()
+WM -> DB : add_bss_info_configuration(configuration)
+deactivate WM
+...
+note over DB, AGT
+Controller receives Autoconfiguration WSC message from Agent
+end note
+AGT -> CTRL : WSC M1 (per Radio)
+loop for each bss_info_conf in list
+  CTRL -> DB : get_bss_info_configuration()
+  CTRL -> CTRL : autoconfig_wsc_add_m2(bss_info_conf)
+  activate CTRL
+
+  CTRL -> CTRL : prepare_wsc_config(ruid, &bss_info_conf, m8=false)
+  note right of CTRL
+  cfg.vap_type = bss_info_conf->vap_type;
+end note
+
+  CTRL -> AGT : WSC M2
+  deactivate CTRL
+end loop
+
+@enduml
