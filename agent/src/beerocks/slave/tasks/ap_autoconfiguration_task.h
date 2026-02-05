@@ -92,9 +92,7 @@ private:
     struct sBssConfig {
         WSC::m2::config m2_config;
         WSC::EncryptedSettingsPayload::config payload_config;
-        int8_t mld_id = DISABLED_MLDUNIT;
-        son::wireless_utils::eAdditionalAuth additional_auth =
-            son::wireless_utils::eAdditionalAuth::NONE;
+        int8_t mld_id = -1;
     };
 
     /**
