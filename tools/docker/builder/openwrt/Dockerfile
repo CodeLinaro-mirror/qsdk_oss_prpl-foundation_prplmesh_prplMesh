@@ -123,7 +123,6 @@ ENV WHM_ENABLE=$WHM_ENABLE
 WORKDIR /home/openwrt/openwrt
 
 COPY --chown=openwrt:openwrt scripts/build-openwrt.sh /home/openwrt/openwrt/scripts/build-openwrt.sh
-COPY --chown=openwrt:openwrt scripts/patches/ospv2/networklayout.json /home/openwrt/openwrt/scripts/patches/ospv2/networklayout.json
 
 ####
 ## Prebuilt OpenWrt and prplMesh dependencies, but not the prplMesh ipk itself
