@@ -60,11 +60,6 @@ for profile in "${args[@]}" ; do
     cat "profiles/${profile}.yml" >> files/etc/prplwrt-version
 done
 
-#Overwrite networklayout on OSPv2, to set eth0_1 as WAN-port
-if [ "$TARGET_SYSTEM" = "mxl_x86_osp_tb341_v2" ]; then
-    cp -f scripts/patches/ospv2/networklayout.json feeds/rootfs/base-files-prpl/files/etc/networklayout.json
-fi
-
 printf '\033[1;35m%s Building prplWrt\n\033[0m' "$(date --iso-8601=seconds --universal)"
 make -j"$(nproc)" V=sc
 
