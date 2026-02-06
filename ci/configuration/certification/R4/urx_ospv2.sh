@@ -27,26 +27,18 @@ ba-cli DHCPv6Client.Client.wan.Enable=0
 ba-cli DHCPv4Server.Enable=0
 ba-cli DHCPv6Server.Enable=0
 
-sleep 5
-
-# Workaround for mainline-23.05+ components selecting the wrong WAN interface lowerlayers (eth0_2 i.s.o eth0_1)
-ba-cli IP.Interface.wan.LowerLayers="Device.Ethernet.Interface.2"
-/etc/init.d/ip-manager restart
-sleep 15
-
-# We use the 10G ETH port as a WAN port, instead of the SFP cage. So remove that from br-lan
-ba-cli "Bridging.Bridge.lan.Port.[LowerLayers == \"Device.Ethernet.Interface.2\"].?" | grep -Eq "No data found|ERROR" || {
-    echo "Removing the 10G WAN port from the LAN bridge"
-    ba-cli "Bridging.Bridge.lan.Port.[LowerLayers == \"Device.Ethernet.Interface.2\"].-"
-}
+sleep 2
 
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].IPAddress=192.165.100.160"
 
-# We use WAN - eth0_1 for the control interface.
+# We use WAN - eth1/sfp for the control interface.
 # Add the IP address if there is none yet:
 ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"].?" | grep -Eq "No data found|ERROR" && {
     echo "Adding IP address 192.168.250.160 on WAN"
+    ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.*.-" || true
+    ba-cli "IP.Interface.[Alias == \"wan\"].IPv6Address.*.-" || true
+    ba-cli "IP.Interface.[Alias == \"wan\"].IPv6Prefix.*.-" || true
     ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.+{Alias=wan, AddressingType=Static, SubnetMask=255.255.255.0, IPAddress=192.168.250.160}"
     ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"].Enable=1"
 }
@@ -56,6 +48,7 @@ sleep 5
 # Setting BackhaulWireIface, or persistence can fail (PPM-3339)
 /etc/init.d/prplmesh stop && sleep 2
 /etc/init.d/prplmesh start && sleep 2
+sleep 5
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
@@ -66,10 +59,6 @@ else
   echo "Setting prplMesh BackhaulWireInterface over DM"
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth0_2"
 fi
-
-ba-cli WiFi.AccessPoint.*.MBOEnable=1
-ba-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
-ba-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
@@ -95,13 +84,6 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].STASupported_Mode=1"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].STA_Mode=1"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].STASupported_Mode=1"
 
-sleep 5
-
-# enable Wi-Fi radios
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].Enable=1"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Enable=1"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].Enable=1"
-
 ba-cli "WiFi.set_trace_zone(zone=genHapd, level=500)"
 ba-cli "WiFi.set_trace_zone(zone=hapdAP, level=500)"
 ba-cli "WiFi.set_trace_zone(zone=chanMgt, level=500)"
@@ -112,13 +94,8 @@ ba-cli "WiFi.set_trace_zone(zone=mxlRad, level=500)"
 # Reduce DWELL time of channel scans to 20ms
 printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
 
-# Traffic Separation Configuration
-ba-cli WiFi.AccessPoint.*.MultiAPProfile=3
-sleep 2
-ba-cli WiFi.EndPoint.*.Vendor.MultiApProfile=3
-sleep 2
 #iw dev wlan0 iwlwav sCoCPower 0 1 1
-sleep 1
+#sleep 1
 #iw dev wlan2 iwlwav sCoCPower 0 1 1
 
 # Commands to start a new SSH server on the control port
@@ -126,7 +103,7 @@ start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
 dropbear -F -T 10 -p192.168.250.160:22 &"
 
-sleep 5
+sleep 2
 
 # Copy generated SSH host keys
 cp /etc/config/ssh_server/*_key /etc/dropbear/
