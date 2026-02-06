@@ -9,14 +9,22 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
+# Stop and disable the firewall:
+sh /etc/init.d/tr181-firewall stop || true
+rm -f /etc/rc.d/S*tr181-firewall
+
 ubus wait_for IP.Interface
 
 sleep 5
 
-
 # Set the LAN bridge IP:
 ubus call "IP.Interface" _set '{ "rel_path": ".[Name == \"br-lan\"].IPv4Address.[Alias == \"lan\"].", "parameters": { "IPAddress": "192.168.1.99" } }'
 sleep 10
+
+# Setting BackhaulWireIface, or persistence can fail (PPM-3339)
+/etc/init.d/prplmesh stop && sleep 2
+/etc/init.d/prplmesh start && sleep 2
+sleep 5
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
@@ -28,46 +36,13 @@ else
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth0_2"
 fi
 
-uci batch << 'EOF'
-set prplmesh.radio0.hostap_iface='wlan2'
-set prplmesh.radio0.hostap_iface_steer_vaps='wlan2.1'
-set prplmesh.radio0.sta_iface='wlan3'
-set prplmesh.radio1.hostap_iface='wlan0'
-set prplmesh.radio1.hostap_iface_steer_vaps='wlan0.1'
-set prplmesh.radio1.sta_iface='wlan1'
-EOF
-
-uci commit
-
-# Required for config_load:
-. /lib/functions/system.sh
-# Required for config_foreach:
-. /lib/functions.sh
-
-# Unset STA credentials from previous test
-ubus-cli WiFi.EndPoint.1.ProfileReference=0
-ubus-cli WiFi.EndPoint.1.Enable=0
-ubus-cli WiFi.EndPoint.1.Enable=1
-
-ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
-ubus-cli WiFi.AccessPoint.*.DefaultDeviceType="Data"
-ubus-cli WiFi.AccessPoint.*.BridgeInterface="br-lan"
-
 sleep 5
 
 # enable STA-mode on 2.4 and 5GHz
-# ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "STA_Mode": "true" } }'
-# ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "STASupported_Mode": "true" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "STA_Mode": "true" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "STASupported_Mode": "true" } }'
-
-sleep 5
-
-# enable Wi-Fi radios
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Enable": "true" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Enable": "true" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"6GHz\"].", "parameters": { "Enable": "true" } }'
-
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].STA_Mode=1"
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].STASupported_Mode=1"
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].STA_Mode=1"
+ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].STASupported_Mode=1"
 
 # Increase log trace
 ubus-cli "WiFi.set_trace_zone(zone=genHapd, level=500)"
@@ -76,16 +51,13 @@ ubus-cli "WiFi.set_trace_zone(zone=chanMgt, level=500)"
 ubus-cli "WiFi.set_trace_zone(zone=wpaCtrl, level=500)"
 ubus-cli "WiFi.set_trace_zone(zone=mxlRad, level=500)"
 
-# Automatic setting is not supported yet
-# ubus-cli WiFi.Vendor.ModuleMode.CertificationMode=1
+# Reduce DWELL time of channel scans to 20ms
+printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
 
 sleep 3
-ubus-cli WiFi.AccessPoint.*.MultiAPProfile=3
-sleep 2
-ubus-cli WiFi.EndPoint.*.Vendor.MultiApProfile=3
-sleep 2
+
 #iw dev wlan0 iwlwav sCoCPower 0 1 1
-sleep 1
+#sleep 1
 #iw dev wlan2 iwlwav sCoCPower 0 1 1
 
 # Copy generated host keys
