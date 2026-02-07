@@ -28,7 +28,7 @@ PRPLMESH_VERSION=${PRPLMESH_VERSION}
 EOT
 
 # If the target is OSP URX; move the build files from the intel_x86 target directory
-TARGET_SYSTEM=${TARGET_SYSTEM//mxl_x86_osp_tb341/intel_x86}
+TARGET_SYSTEM=${TARGET_SYSTEM//mxl_x86_osp_tb341*/intel_x86}
 TARGET_SYSTEM=${TARGET_SYSTEM//qca_ipq95xx/ipq95xx}
 
 TARGET_SYSTEM=${TARGET_SYSTEM//ipq807x/qualcommax}
@@ -38,6 +38,8 @@ TARGET_SYSTEM=${TARGET_SYSTEM//mtk_filogic/mediatek}
 
 find bin -name 'prplmesh_*.ipk' -exec cp -v {} "artifacts/prplmesh.ipk" \;
 find bin/targets/"$TARGET_SYSTEM"/*/ -type f -maxdepth 1 -exec cp -v {} "artifacts/" \;
+[ -d bin/targets/intel_x86/lgm/single-images ] && find bin/targets/intel_x86/lgm/single-images/ -type f -maxdepth 1 -exec cp -v {} "artifacts/" \;
+
 # Rename the prplos image
 find artifacts/ -type f -name 'prplos-*' -exec bash -c 'mv $0 ${0/\prplos/openwrt}' {} \;
 cp .config artifacts/openwrt.config

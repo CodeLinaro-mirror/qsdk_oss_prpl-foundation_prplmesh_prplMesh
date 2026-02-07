@@ -104,9 +104,87 @@
     - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
     - ssh mozart 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
 
+.certification:R4:urx_osp:
+  stage: R4-certification-OSP
+  extends: .certification-generic-R4
+  variables:
+    RUN_ON_DEVICE: "urx_osp"
+  before_script:
+    - tools/deploy_firmware.py --device urx_osp --target-name "$RUN_ON_DEVICE" --image "$URX_OSP_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/urx_osp.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+    - echo "Setting no on-boot scan for prplMesh"
+    - ssh urx_osp 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
+  needs:
+    - job: build-for-osp
+  tags:
+    - certs-tests-R4
+    - osp
+
+.certification:R4:urx_osp_on_boot_24:
+  extends: .certification:R4:urx_osp
+  before_script:
+    - !reference [.certification:R4:urx_osp, before_script]
+    - echo "Setting 2.4GHz on-boot scan for prplMesh"
+    - ssh urx_osp 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_osp_on_boot_5:
+  extends: .certification:R4:urx_osp
+  before_script:
+    - !reference [.certification:R4:urx_osp, before_script]
+    - echo "Setting 5GHz on-boot scan for prplMesh"
+    - ssh urx_osp 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_osp_controller:
+  stage: R4-certification-OSP-controller
+  extends: .certification:R4:urx_osp
+
+.certification:R4:urx_ospv2:
+  stage: R4-certification-OSPv2
+  extends: .certification-generic-R4
+  variables:
+    RUN_ON_DEVICE: "urx_ospv2"
+  before_script:
+    - tools/deploy_firmware.py --device urx_ospv2 --target-name "$RUN_ON_DEVICE" --image "$URX_OSPV2_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/urx_ospv2.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+    - echo "Setting no on-boot scan for prplMesh"
+    - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
+    - echo "Setting no profile disallow for prplMesh"
+    - ssh urx_ospv2 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+  needs:
+    - job: build-for-ospv2
+  tags:
+    - certs-tests-R4
+    - ospv2_new_layout
+
+.certification:R4:urx_ospv2_on_boot_24:
+  extends: .certification:R4:urx_ospv2
+  before_script:
+    - !reference [.certification:R4:urx_ospv2, before_script]
+    - echo "Setting 2.4GHz on-boot scan for prplMesh"
+    - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_ospv2_on_boot_5:
+  extends: .certification:R4:urx_ospv2
+  before_script:
+    - !reference [.certification:R4:urx_ospv2, before_script]
+    - echo "Setting 5GHz on-boot scan for prplMesh"
+    - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_ospv2_downstream_R1_agent:
+  extends: .certification:R4:urx_ospv2
+  before_script:
+    - !reference [.certification:R4:urx_ospv2, before_script]
+    - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
+    - ssh urx_ospv2 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_ospv2_controller:
+  stage: R4-certification-OSPv2-controller
+  extends: .certification:R4:urx_ospv2
+
 include:
   - local: "ci/certification/R1/freedom.yml"
   - local: "ci/certification/R4/freedom.yml"
+  - local: "ci/certification/R4/ospv2.yml"
   - local: "ci/certification/R4/mozart.yml"
   - local: "ci/certification/R6/freedom.yml"
 

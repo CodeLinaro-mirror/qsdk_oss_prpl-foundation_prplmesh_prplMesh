@@ -32,6 +32,11 @@ if [ "$TARGET_SYSTEM" = "mxl_x86_osp_tb341" ]; then
     args+=("mxl_wlan_hostap_ng")
 fi
 
+if [ "$TARGET_SYSTEM" = "mxl_x86_osp_tb341_v2" ]; then
+    # add open source hostap introduced in MXL 9.1.15 code base
+    args+=("mxl_wlan_hostap_ng_wav700")
+fi
+
 # args+=("webui")
 
 # feed-prpl is in the prpl profile:
@@ -43,6 +48,7 @@ else
     args+=("prpl-no-whm")
 fi
 
+git config --global url."https://git.w1.fi/hostap.git".insteadOf "https://w1.fi/hostap.git"
 ./scripts/gen_config.py "${args[@]}"
 
 # The initial 'make defconfig' invocation generates a wrong config, so
