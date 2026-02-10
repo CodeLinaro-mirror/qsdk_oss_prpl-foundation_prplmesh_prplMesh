@@ -44,6 +44,34 @@
     - certs-tests-R6
     - freedom
 
+.certification:R6:urx_ospv2:
+  stage: certification-R6-ospv2
+  extends: .certification-generic-R6
+  variables:
+    RUN_ON_DEVICE: "urx_ospv2"
+  before_script:
+    - tools/deploy_firmware.py --device urx_ospv2 --target-name "$RUN_ON_DEVICE" --image "$URX_OSPV2_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/urx_ospv2.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-ospv2
+  tags:
+    - certs-tests-R6
+    - ospv2
+
+.certification:R6:mozart:
+  stage: certification-R6-mozart
+  extends: .certification-generic-R6
+  variables:
+    RUN_ON_DEVICE: "mozart"
+  before_script:
+    - tools/deploy_firmware.py --device mozart --target-name "$RUN_ON_DEVICE" --image "$MOZART_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/mozart.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-mozart
+  tags:
+    - certs-tests-R6
+    - mozart
+
 .certification:R4:freedom_on_boot_24:
   extends: .certification:R4:freedom
   before_script:
@@ -187,6 +215,8 @@ include:
   - local: "ci/certification/R4/ospv2.yml"
   - local: "ci/certification/R4/mozart.yml"
   - local: "ci/certification/R6/freedom.yml"
+  - local: "ci/certification/R6/ospv2.yml"
+  - local: "ci/certification/R6/mozart.yml"
 
 # Merge train tests
 ##################

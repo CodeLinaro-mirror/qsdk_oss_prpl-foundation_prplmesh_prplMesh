@@ -26,6 +26,8 @@ stages:
   - R4-certification-OSPv2-controller
   - certification-R4-mozart
   - certification-R6-freedom
+  - certification-R6-ospv2
+  - certification-R6-mozart
   - upload
   - release
 
