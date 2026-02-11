@@ -860,10 +860,12 @@ bool TopologyTask::add_supported_service_tlv()
     }
 
     auto db = AgentDB::get();
+    bool is_local_prpl_controller =
+        db->device_conf.local_controller && !db->device_conf.local_non_prplmesh_controller;
 
-    // only agent or controller+agent
+    // only for prplMesh Controller with local agent
     size_t number_of_supported_services = 2;
-    if (db->device_conf.local_controller) {
+    if (is_local_prpl_controller) {
         number_of_supported_services += 2;
     }
 
@@ -878,7 +880,7 @@ bool TopologyTask::add_supported_service_tlv()
             LOG(ERROR) << "Invalid tlvSupportedService";
             return false;
         }
-        if (db->device_conf.local_controller) {
+        if (is_local_prpl_controller) {
             if (i == 0) {
                 std::get<1>(supportedServiceTuple) =
                     wfa_map::tlvSupportedService::eSupportedService::MULTI_AP_CONTROLLER;
