@@ -139,6 +139,7 @@ public:
 
         bool local_gw;
         bool local_controller;
+        bool local_non_prplmesh_controller;
         uint8_t management_mode;
         bool certification_mode;
         uint8_t stop_on_failure_attempts;

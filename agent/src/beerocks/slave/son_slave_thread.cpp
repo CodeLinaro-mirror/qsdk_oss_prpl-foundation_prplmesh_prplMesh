@@ -564,6 +564,12 @@ bool slave_thread::read_platform_configuration()
     }
     db->device_conf.local_controller = temp_int;
 
+    if ((temp_int = bpl::cfg_is_non_prplmesh_controller()) < 0) {
+        LOG(ERROR) << "Failed reading 'local_non_prplmesh_controller'";
+        return false;
+    }
+    db->device_conf.local_non_prplmesh_controller = temp_int;
+
     std::string mgmt_mode;
     bpl::cfg_get_management_mode(mgmt_mode);
     db->dm_set_management_mode(mgmt_mode);
