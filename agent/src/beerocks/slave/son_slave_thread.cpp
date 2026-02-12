@@ -482,6 +482,10 @@ bool slave_thread::read_platform_configuration()
             return bwl::WiFiSec::WPA2_WPA3_PSK;
         } else if (!sec.compare("WPA3-Personal")) {
             return bwl::WiFiSec::WPA3_PSK;
+        } else if (!sec.compare("OWE")) {
+            return bwl::WiFiSec::OWE;
+        } else if (!sec.compare("WPA3-Personal-Compatibility")) {
+            return bwl::WiFiSec::WPA3_PCM;
         } else {
             return bwl::WiFiSec::Invalid;
         }
