@@ -164,6 +164,8 @@ class Sniffer:
             debug(tshark_result.stderr)
             debug("tshark failed: {}".format(tshark_result.returncode))
         # Regardless of the exit code, try to make something of the JSON that comes out, if any.
+        if "NbapiRadio-agent" in self.current_outputfile:
+            debug(tshark_result.stdout.decode('utf-8'))
         try:
             # tlvs which have the same type are all recorded with the same key therefore we lose
             # all but one of them if we use json.loads(tshark_result.stdout) directly.
@@ -188,6 +190,8 @@ class Sniffer:
 
             decoder = json.JSONDecoder(object_pairs_hook=rename_duplicates)
             capture = decoder.decode(tshark_result.stdout.decode('utf8'))
+            if "NbapiRadio-agent" in self.current_outputfile:
+                debug(json.dumps(capture, indent=2))
 
             return [Packet(x) for x in capture]
         except json.JSONDecodeError as error:
