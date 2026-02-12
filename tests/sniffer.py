@@ -248,7 +248,7 @@ class Sniffer:
 
         Any subsequent calls to get_packet_capture will only return packets capture after now.
         '''
-        debug("current output file {}.pcap".format(current_outputfile))
+        debug("current output file {}.pcap".format(self.current_outputfile))
         traceback.print_stack()
         capture = self.get_packet_capture()
         if capture:
