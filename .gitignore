@@ -21,3 +21,8 @@ ipkg-*/
 /rdk
 .dccache
 .vscode/**
+.devcontainer/
+*.code-workspace
+.cache/
+.clangd
+compile_commands.json
