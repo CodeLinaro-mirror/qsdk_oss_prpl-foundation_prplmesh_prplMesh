@@ -12,8 +12,6 @@ import subprocess
 import re
 from opts import debug, err, status
 from typing import Callable
-import traceback
-
 
 class TlvStruct:
     '''Represents part of an IEEE1905.1 TLV in a Packet.'''
@@ -166,6 +164,7 @@ class Sniffer:
         # Regardless of the exit code, try to make something of the JSON that comes out, if any.
         if "NbapiRadioBackhaulSta-agent" in self.current_outputfile:
             debug(tshark_result.stdout.decode('utf-8'))
+            debug("current frame number {}".format(self.checkpoint_frame_number))
         try:
             # tlvs which have the same type are all recorded with the same key therefore we lose
             # all but one of them if we use json.loads(tshark_result.stdout) directly.
@@ -252,12 +251,13 @@ class Sniffer:
 
         Any subsequent calls to get_packet_capture will only return packets capture after now.
         '''
-        debug("current output file {}.pcap".format(self.current_outputfile))
-        traceback.print_stack()
+        debug("current output file {}".format(self.current_outputfile))
+        debug("current frame number {}".format(self.checkpoint_frame_number))
         capture = self.get_packet_capture()
         if capture:
             self.checkpoint_frame_number = capture[-1].frame_number + 1
         # else keep last checkpoint
+        debug("current frame number {}".format(self.checkpoint_frame_number))
 
     def stop(self):
         '''Stop tcpdump if it is running.'''
