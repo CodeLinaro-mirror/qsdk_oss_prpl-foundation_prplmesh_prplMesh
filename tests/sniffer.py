@@ -12,6 +12,7 @@ import subprocess
 import re
 from opts import debug, err, status
 from typing import Callable
+import traceback
 
 
 class TlvStruct:
@@ -247,6 +248,8 @@ class Sniffer:
 
         Any subsequent calls to get_packet_capture will only return packets capture after now.
         '''
+        debug("current output file {}.pcap".format(current_outputfile))
+        traceback.print_stack()
         capture = self.get_packet_capture()
         if capture:
             self.checkpoint_frame_number = capture[-1].frame_number + 1
