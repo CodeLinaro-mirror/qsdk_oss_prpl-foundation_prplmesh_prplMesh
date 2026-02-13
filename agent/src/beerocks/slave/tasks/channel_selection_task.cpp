@@ -57,6 +57,20 @@ uint8_t
 get_preference_for_channel(const AgentDB::sRadio::channel_preferences_map &channel_preferences,
                            uint8_t operating_class, uint8_t channel_number)
 {
+    auto db = AgentDB::get();
+    if (db->device_conf.certification_mode) {
+        /*
+            If certification mode is enabled, then the channels falling under
+            the operating classes range 125 to 130 needs to be given low priority
+            since the controller may not block these in it's channel selection
+            request, which can lead to the agent switching unintentionally to
+            one of these channels.
+
+        */
+        LOG(INFO) << "expecting certification_mode to be false";
+        if (operating_class >= 125 && operating_class <= 130)
+            return (uint8_t)beerocks::eChannelPreferenceRankingConsts::LOWEST;
+    }
     // Check if channel present in operating class
     if (!son::wireless_utils::is_channel_in_operating_class(operating_class, channel_number)) {
         // Channel is not present in Operating Class, returning Non-Operable
