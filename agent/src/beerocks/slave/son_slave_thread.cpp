@@ -587,6 +587,7 @@ bool slave_thread::read_platform_configuration()
     }
     db->device_conf.certification_mode = temp_int;
 
+    LOG(INFO) << "son_slave_thread certification_mode " << int(db->device_conf.certification_mode);
     if ((temp_int = bpl::cfg_get_stop_on_failure_attempts()) < 0) {
         LOG(ERROR) << "Failed reading 'stop_on_failure_attempts'";
         return false;
