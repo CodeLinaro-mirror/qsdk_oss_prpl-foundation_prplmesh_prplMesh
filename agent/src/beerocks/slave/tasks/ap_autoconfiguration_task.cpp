@@ -2461,7 +2461,11 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         }
 
         AgentDB::sBStaMLDConfiguration::sAffiliatedBSta affiliated_conf;
-        affiliated_conf.ruid = std::get<1>(affiliated_bsta_tuple).ruid();
+        wfa_map::cAffiliatedBhSta &affiliated_bsta = std::get<1>(affiliated_bsta_tuple);
+        affiliated_conf.ruid                       = affiliated_bsta.ruid();
+        affiliated_conf.bssid = affiliated_bsta.affiliated_bsta_mac_addr_valid().is_valid
+                                    ? affiliated_bsta.affiliated_bsta_mac_addr()
+                                    : net::network_utils::ZERO_MAC;
         db->bsta_mld_configuration->affiliated_bstas.push_back(affiliated_conf);
         radio_list_ss << " " << tlvf::mac_to_string(affiliated_conf.ruid);
 

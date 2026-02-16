@@ -1046,8 +1046,8 @@ bool base_wlan_hal_whm::get_radio_vaps(AmbiorixVariantMap &aps)
     auto radio_index = wbapi_utils::get_object_id(m_radio_path);
     std::string radio_path;
     for (auto &it : *result) {
-        auto ap_path = it.first;
-        auto &ap_obj = it.second;
+        const std::string &ap_path = it.first;
+        auto &ap_obj               = it.second;
 
         if (ap_obj.empty()) {
             LOG(ERROR) << "iteration on ap " << ap_path << " empty AP object";
@@ -1149,8 +1149,8 @@ void base_wlan_hal_whm::read_rsn_support()
     std::string radio_path;
 
     for (auto &it : *result) {
-        auto ap_path = it.first;
-        auto &ap_obj = it.second;
+        const std::string &ap_path = it.first;
+        auto &ap_obj               = it.second;
 
         if (ap_obj.empty()) {
             LOG(DEBUG) << "iteration on ap " << ap_path << " empty AP object";
