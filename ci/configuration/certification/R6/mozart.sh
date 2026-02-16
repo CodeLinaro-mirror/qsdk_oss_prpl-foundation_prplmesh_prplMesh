@@ -21,6 +21,7 @@ rm -f /etc/rc.d/S*tr181-firewall
 
 # Disable restarting failing serivces by default
 service amx-processmonitor stop || true
+rm -f /etc/rc.d/S*amx-processmonitor
 
 ubus wait_for IP.Interface
 
@@ -55,7 +56,7 @@ if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR
 else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan1"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
 fi
 
 
