@@ -21,6 +21,7 @@ rm -f /etc/rc.d/S*tr181-firewall
 
 # Disable restarting failing serivces by default
 service amx-processmonitor stop || true
+rm -f /etc/rc.d/S*amx-processmonitor
 
 ubus wait_for IP.Interface
 
