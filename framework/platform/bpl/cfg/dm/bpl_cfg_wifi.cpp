@@ -210,6 +210,15 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
             LOG(DEBUG) << "add " << configuration.ssid << " to wireless settings size "
                        << wireless_settings.size() << " path " << it.first;
             configuration.bss_index = bss_index_generator++;
+
+            // Add AKM24 in case of MLD for SAE
+            if (mld_id != DISABLED_MLDUNIT) {
+                if (configuration.authentication_type & WSC::eWscAuth::WSC_AUTH_SAE) {
+                    configuration.authentication_type = WSC::eWscAuth(
+                        configuration.authentication_type | WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+                }
+            }
+
             wireless_settings.push_back(configuration);
         } else {
             LOG(DEBUG) << " ap " << it.first << " is disabled";
