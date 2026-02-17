@@ -45,7 +45,7 @@ class NbapiRadioBackhaulSta(PrplMeshBaseTest):
                        r"BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE, mid=0x{:02x}".format(mid))
 
         # Waiting for CMDU
-        time.sleep(0.5)
+        time.sleep(3)
 
         backhaul_sta_cap_report = self.check_cmdu_type_single(
             "Backhaul STA Capability Report",
