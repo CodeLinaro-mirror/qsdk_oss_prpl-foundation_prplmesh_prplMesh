@@ -20,14 +20,16 @@ workflow:
 stages:
   - build
   - test
-  - certification-R1-freedom
-  - certification-R4-freedom
-  - R4-certification-OSPv2
-  - R4-certification-OSPv2-controller
-  - certification-R4-mozart
-  - certification-R6-freedom
-  - certification-R6-ospv2
-  - certification-R6-mozart
+  - R1-cert-freedom
+  - R4-cert-freedom
+  - R4-cert-OSPv2
+  - R4-cert-mozart
+  - R4-cert-freedom-controller
+  - R4-cert-OSPv2-controller
+  - R4-cert-mozart-controller
+  - R6-cert-freedom
+  - R6-cert-OSPv2
+  - R6-cert-mozart
   - upload
   - release
 

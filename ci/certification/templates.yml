@@ -1,5 +1,5 @@
 .certification:R1:freedom:
-  stage: certification-R1-freedom
+  stage: R1-cert-freedom
   extends: .certification-generic-R1
   variables:
     RUN_ON_DEVICE: "freedom"
@@ -13,7 +13,7 @@
     - freedom
 
 .certification:R4:freedom:
-  stage: certification-R4-freedom
+  stage: R4-cert-freedom
   extends: .certification-generic-R4
   variables:
     RUN_ON_DEVICE: "freedom"
@@ -29,48 +29,6 @@
   tags:
     - certs-tests-R4
     - freedom
-
-.certification:R6:freedom:
-  stage: certification-R6-freedom
-  extends: .certification-generic-R6
-  variables:
-    RUN_ON_DEVICE: "freedom"
-  before_script:
-    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/freedom.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  needs:
-    - job: build-for-freedom
-  tags:
-    - certs-tests-R6
-    - freedom
-
-.certification:R6:urx_ospv2:
-  stage: certification-R6-ospv2
-  extends: .certification-generic-R6
-  variables:
-    RUN_ON_DEVICE: "urx_ospv2"
-  before_script:
-    - tools/deploy_firmware.py --device urx_ospv2 --target-name "$RUN_ON_DEVICE" --image "$URX_OSPV2_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/urx_ospv2.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  needs:
-    - job: build-for-ospv2
-  tags:
-    - certs-tests-R6
-    - ospv2
-
-.certification:R6:mozart:
-  stage: certification-R6-mozart
-  extends: .certification-generic-R6
-  variables:
-    RUN_ON_DEVICE: "mozart"
-  before_script:
-    - tools/deploy_firmware.py --device mozart --target-name "$RUN_ON_DEVICE" --image "$MOZART_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/mozart.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  needs:
-    - job: build-for-mozart
-  tags:
-    - certs-tests-R6
-    - mozart
 
 .certification:R4:freedom_on_boot_24:
   extends: .certification:R4:freedom
@@ -94,7 +52,7 @@
     - ssh freedom 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
 
 .certification:R4:mozart:
-  stage: certification-R4-mozart
+  stage: R4-cert-mozart
   extends: .certification-generic-R4
   variables:
     RUN_ON_DEVICE: "mozart"
@@ -132,21 +90,6 @@
     - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
     - ssh mozart 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
 
-.certification:R4:urx_osp:
-  stage: R4-certification-OSP
-  extends: .certification-generic-R4
-  variables:
-    RUN_ON_DEVICE: "urx_osp"
-  before_script:
-    - tools/deploy_firmware.py --device urx_osp --target-name "$RUN_ON_DEVICE" --image "$URX_OSP_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/urx_osp.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-    - echo "Setting no on-boot scan for prplMesh"
-    - ssh urx_osp 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
-  needs:
-    - job: build-for-osp
-  tags:
-    - certs-tests-R4
-    - osp
 
 .certification:R4:urx_osp_on_boot_24:
   extends: .certification:R4:urx_osp
@@ -162,12 +105,8 @@
     - echo "Setting 5GHz on-boot scan for prplMesh"
     - ssh urx_osp 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
 
-.certification:R4:urx_osp_controller:
-  stage: R4-certification-OSP-controller
-  extends: .certification:R4:urx_osp
-
 .certification:R4:urx_ospv2:
-  stage: R4-certification-OSPv2
+  stage: R4-cert-OSPv2
   extends: .certification-generic-R4
   variables:
     RUN_ON_DEVICE: "urx_ospv2"
@@ -205,9 +144,60 @@
     - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
     - ssh urx_ospv2 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
 
-.certification:R4:urx_ospv2_controller:
-  stage: R4-certification-OSPv2-controller
+.certification:R4:freedom_controller:
+  stage: R4-cert-OSPv2-controller
   extends: .certification:R4:urx_ospv2
+
+.certification:R4:urx_ospv2_controller:
+  stage: R4-cert-OSPv2-controller
+  extends: .certification:R4:urx_ospv2
+
+.certification:R4:mozart_controller:
+  stage: R4-cert-OSPv2-controller
+  extends: .certification:R4:urx_ospv2
+
+
+.certification:R6:freedom:
+  stage: R6-cert-freedom
+  extends: .certification-generic-R6
+  variables:
+    RUN_ON_DEVICE: "freedom"
+  before_script:
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/freedom.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-freedom
+  tags:
+    - certs-tests-R6
+    - freedom
+
+.certification:R6:urx_ospv2:
+  stage: R6-cert-OSPv2
+  extends: .certification-generic-R6
+  variables:
+    RUN_ON_DEVICE: "urx_ospv2"
+  before_script:
+    - tools/deploy_firmware.py --device urx_ospv2 --target-name "$RUN_ON_DEVICE" --image "$URX_OSPV2_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/urx_ospv2.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-ospv2
+  tags:
+    - certs-tests-R6
+    - ospv2
+
+.certification:R6:mozart:
+  stage: R6-cert-mozart
+  extends: .certification-generic-R6
+  variables:
+    RUN_ON_DEVICE: "mozart"
+  before_script:
+    - tools/deploy_firmware.py --device mozart --target-name "$RUN_ON_DEVICE" --image "$MOZART_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/mozart.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-mozart
+  tags:
+    - certs-tests-R6
+    - mozart
 
 include:
   - local: "ci/certification/R1/freedom.yml"
