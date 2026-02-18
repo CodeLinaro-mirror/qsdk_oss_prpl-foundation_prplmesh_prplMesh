@@ -117,6 +117,13 @@ bool is_bss_config_matching(const beerocks::AgentDB::sRadio::sFront::sBssid &loc
                             const BssConfig &requested_bss)
 {
     // TODO: bss_index matching (PPM-3625)
+
+    // If both sides have vap_label, use it for matching.
+    if (!local_bss.vap_label.empty() && !requested_bss.m2_config.vap_label.empty()) {
+        return local_bss.vap_label == requested_bss.m2_config.vap_label;
+    }
+
+    // Fall back to vap_type matching
     const bool is_vap_type_applicable = (local_bss.vap_type != eVapType::OTHER) &&
                                         (requested_bss.m2_config.vap_type != eVapType::OTHER);
 
@@ -223,7 +230,7 @@ static inline std::string dump_bssid_compact(const beerocks::AgentDB::sRadio::sF
     std::ostringstream out;
     out << "bssid{"
         << "mac=" << cfg.mac << " ssid=" << cfg.ssid << " vap=" << cfg.vap_type
-        << " fh=" << cfg.fronthaul_bss << " bh=" << cfg.backhaul_bss
+        << " label=" << cfg.vap_label << " fh=" << cfg.fronthaul_bss << " bh=" << cfg.backhaul_bss
         << " hidden=" << cfg.hidden_ssid << "}";
     return out.str();
 }
@@ -237,8 +244,9 @@ template <typename BssConfig> static inline std::string dump_bssconfig_compact(c
 
     out << "bss{"
         << "bssid=" << p.bssid << " ssid=" << p.ssid << " vap=" << m2.vap_type
-        << " auth=" << eWscAuth_str(p.auth_type) << " encr=" << eWscEncr_str(p.encr_type)
-        << " key=" << p.network_key << " hidden=" << m2.hidden_ssid << " type="
+        << " label=" << m2.vap_label << " auth=" << eWscAuth_str(p.auth_type)
+        << " encr=" << eWscEncr_str(p.encr_type) << " key=" << p.network_key
+        << " hidden=" << m2.hidden_ssid << " type="
         << eWscVendorExtSubelementBssType_str(
                static_cast<WSC::eWscVendorExtSubelementBssType>(p.bss_type))
         << "}";
@@ -1643,6 +1651,10 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_renew(
         }
 
         m_task_is_active = true;
+
+        // Refresh VAP info to ensure accurate BSS configuration matching
+        send_ap_bss_info_update_request(radio->front.iface_name);
+
         FSM_MOVE_STATE(radio->front.iface_name, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
     }
 }
@@ -1962,6 +1974,11 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             LOG(INFO) << "VAP type not found or not set in Vendor Extension";
         }
 
+        info.m2_config.vap_label = m2.vap_label();
+        if (info.m2_config.vap_label.empty()) {
+            LOG(INFO) << "VAP label not found or not set in Vendor Extension";
+        }
+
         info.m2_config.hidden_ssid = m2.hidden_ssid();
 
         // EM_AP_CONTROLLER specific Vendor Extension Attributes
@@ -1999,6 +2016,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         ss << "teardown: " << teardown << std::endl;
         ss << "hidden_ssid: " << info.m2_config.hidden_ssid << std::endl;
         ss << "vap_type " << info.m2_config.vap_type << std::endl;
+        ss << "vap_label " << info.m2_config.vap_label << std::endl;
         if (bBSS) {
             ss << "profile1_backhaul_sta_association_disallowed: " << bBSS_p1_disallowed;
             ss << "profile2_backhaul_sta_association_disallowed: " << bBSS_p2_disallowed;
@@ -2745,6 +2763,7 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
               << fronthaul_iface << " waiting for it? " << radio_conf_params.sent_vaps_list_update;
 
     m_btl_ctx.update_vaps_info(fronthaul_iface, notification_in->params().vaps);
+    m_btl_ctx.update_vaps_type(fronthaul_iface, notification_in->vap_type_list().vap_types);
 
     auto notification_out = message_com::create_vs_message<
         beerocks_message::cACTION_CONTROL_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION>(m_cmdu_tx);
@@ -3039,8 +3058,9 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
             // Controller does not send BSSID -> pin to existing local BSSID.
             it->payload_config.bssid = local_bss.mac;
 
-            // Controller can't reconfigure local VAP type -> keep local.
-            it->m2_config.vap_type = local_bss.vap_type;
+            // Controller can't reconfigure local VAP type/label -> keep local.
+            it->m2_config.vap_type  = local_bss.vap_type;
+            it->m2_config.vap_label = local_bss.vap_label;
 
             if (is_bss_reconfiguration_required(local_bss, *it)) {
                 LOG(DEBUG) << "BSS " << local_bss.mac << " needs reconfiguration.";
@@ -3089,6 +3109,7 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
         sBssConfig teardown_bss;
         teardown_bss.payload_config.bssid    = local_bss.mac;
         teardown_bss.m2_config.vap_type      = local_bss.vap_type;
+        teardown_bss.m2_config.vap_label     = local_bss.vap_label;
         teardown_bss.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
 
         reconfig_bss_list.emplace_back(std::move(teardown_bss));
@@ -3222,6 +3243,7 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
         c->additional_auth() =
             static_cast<son::wireless_utils::eAdditionalAuth>(info.additional_auth);
         c->vap_type() = info.m2_config.vap_type;
+        c->set_vap_label(info.m2_config.vap_label);
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

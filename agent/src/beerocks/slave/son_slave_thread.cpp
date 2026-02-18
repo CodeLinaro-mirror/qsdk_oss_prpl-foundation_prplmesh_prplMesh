@@ -5858,6 +5858,7 @@ bool slave_thread::update_vaps_type(const std::string &iface,
 
         if (!bss.active) {
             bss.vap_type = eVapType::OTHER;
+            bss.vap_label.clear();
             continue;
         }
 
@@ -5868,15 +5869,17 @@ bool slave_thread::update_vaps_type(const std::string &iface,
                          << " expected_vap_id=" << expected_vap_id
                          << " got=" << int(vap_types[vap_idx].vap_id) << " (keeping OTHER)";
             bss.vap_type = eVapType::OTHER;
+            bss.vap_label.clear();
             continue;
         }
 
         const auto raw = static_cast<uint8_t>(vap_types[vap_idx].vap_type);
         bss.vap_type = eVapTypeValidate::check(raw) ? vap_types[vap_idx].vap_type : eVapType::OTHER;
+        bss.vap_label = std::string(vap_types[vap_idx].vap_label);
 
         LOG(DEBUG) << "Updated vap_type: iface=" << bss.iface_name << " idx=" << int(vap_idx)
                    << " vap_id=" << int(vap_types[vap_idx].vap_id)
-                   << " vap_type=" << eVapType_str(bss.vap_type);
+                   << " vap_type=" << eVapType_str(bss.vap_type) << " vap_label=" << bss.vap_label;
     }
 
     return true;
