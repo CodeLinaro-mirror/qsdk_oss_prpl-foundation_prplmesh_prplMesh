@@ -1483,8 +1483,11 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
             // Reading CustomAlias and deducing VAP type
             const std::string custom_alias = wbapi_utils::get_custom_alias(ap_obj);
             vap_element.vap_type           = wbapi_utils::vap_type_from_custom_alias(custom_alias);
+            vap_element.vap_label          = custom_alias;
             LOG(DEBUG) << "base_wlan_hal_whm::refresh_vap_info: vap_type = "
-                       << eVapType_str(vap_element.vap_type) << " for SSID=" << vap_element.ssid;
+                       << eVapType_str(vap_element.vap_type)
+                       << " vap_label=" << vap_element.vap_label
+                       << " for SSID=" << vap_element.ssid;
 
             m_ambiorix_cl.resolve_path(wifi_ssid_path, vap_extInfo.ssid_path);
             vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
@@ -1531,8 +1534,10 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
         return true;
     }
 
-    mapped_vap_element.mac    = vap_element.mac;
-    mapped_vap_extInfo.status = vap_extInfo.status;
+    mapped_vap_element.mac       = vap_element.mac;
+    mapped_vap_element.vap_type  = vap_element.vap_type;
+    mapped_vap_element.vap_label = vap_element.vap_label;
+    mapped_vap_extInfo.status    = vap_extInfo.status;
 
     mapped_vap_element.mld_id     = vap_element.mld_id;
     mapped_vap_element.link_id    = vap_element.link_id;

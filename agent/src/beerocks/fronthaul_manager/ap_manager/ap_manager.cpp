@@ -107,7 +107,8 @@ static void copy_vaps_info_and_type(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_h
         LOG(DEBUG) << "vap_id=" << int(vap_id) << ", iface_name=" << curr_vap.bss
                    << ", mac=" << curr_vap.mac << ", ssid=" << curr_vap.ssid
                    << ", fronthaul=" << curr_vap.fronthaul << ", backhaul=" << curr_vap.backhaul
-                   << ", vap_type=" << eVapType_str(curr_vap.vap_type);
+                   << ", vap_type=" << eVapType_str(curr_vap.vap_type)
+                   << ", vap_label=" << curr_vap.vap_label;
 
         if (curr_vap.backhaul) {
             LOG(DEBUG) << "disallow_profile1="
@@ -134,6 +135,8 @@ static void copy_vaps_info_and_type(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_h
 
         // copy sVapType
         vap_types[i].vap_type = curr_vap.vap_type;
+        beerocks::string_utils::copy_string(vap_types[i].vap_label, curr_vap.vap_label.c_str(),
+                                            beerocks::message::VAP_LABEL_MAX_LENGTH);
     }
 }
 
@@ -1924,7 +1927,8 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.hidden_ssid = config_data.hidden_ssid();
             bss_info_conf.additional_auth =
                 static_cast<son::wireless_utils::eAdditionalAuth>(config_data.additional_auth());
-            bss_info_conf.vap_type = config_data.vap_type();
+            bss_info_conf.vap_type  = config_data.vap_type();
+            bss_info_conf.vap_label = config_data.vap_label_str();
 
             bss_info_conf_list.push_back(bss_info_conf);
         }
