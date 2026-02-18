@@ -140,6 +140,7 @@ public:
 
         bool local_gw;
         bool local_controller;
+        bool local_non_prplmesh_controller;
         uint8_t management_mode;
         bool certification_mode;
         std::string certification_program = "mapr4";
