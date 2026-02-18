@@ -302,10 +302,11 @@ public:
         bool profile2_backhaul_sta_association_disallowed = false;
         WSC::eWscVendorExtHiddenSsid hidden_ssid          = WSC::eWscVendorExtHiddenSsid::UNSET;
         eVapType vap_type                                 = eVapType::OTHER;
-        std::string mld_id                                = "";
-        bool bSTA                                         = false;
-        uint8_t bss_index                                 = 0;
-        eAdditionalAuth additional_auth                   = eAdditionalAuth::NONE;
+        std::string vap_label;
+        std::string mld_id              = "";
+        bool bSTA                       = false;
+        uint8_t bss_index               = 0;
+        eAdditionalAuth additional_auth = eAdditionalAuth::NONE;
     } sBssInfoConf;
 
     typedef struct sMldInfoConf {
