@@ -632,12 +632,6 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // Initialize the BPL (Beerocks Platform Library)
-    if (beerocks::bpl::bpl_init() < 0) {
-        LOG(ERROR) << "Failed to initialize BPL!";
-        return false;
-    }
-
     // read master config file
     std::string master_config_file_path =
         CONF_FILES_WRITABLE_PATH + std::string(BEEROCKS_CONTROLLER) +
@@ -745,6 +739,12 @@ int main(int argc, char *argv[])
 #else
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI
+
+    // Initialize the BPL (Beerocks Platform Library).
+    if (beerocks::bpl::bpl_init() < 0) {
+        LOG(ERROR) << "Failed to initialize BPL!";
+        return false;
+    }
 
     beerocks::bpl::set_ambiorix_impl_ptr(amb_dm_obj);
 
