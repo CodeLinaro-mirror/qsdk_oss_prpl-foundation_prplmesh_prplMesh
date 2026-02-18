@@ -64,6 +64,7 @@ typedef struct sVapInfo {
 typedef struct sVapType {
     int8_t vap_id;
     eVapType vap_type;
+    char vap_label[beerocks::message::VAP_LABEL_MAX_LENGTH];
     void struct_swap(){
         tlvf_swap(8*sizeof(eVapType), reinterpret_cast<uint8_t*>(&vap_type));
     }

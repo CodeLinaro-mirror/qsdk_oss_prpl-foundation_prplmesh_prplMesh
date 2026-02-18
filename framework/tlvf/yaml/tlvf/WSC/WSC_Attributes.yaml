@@ -155,6 +155,13 @@ cEncryptedSettingsPayload:
   vap_type:
     _type: eVapType
     _value: eVapType::OTHER
+  vap_label_length:
+    _type: uint16_t
+    _length_var: True
+  vap_label:
+    _type: char
+    _length: [vap_label_length]
+    _length_max: WSC_MAX_VAP_LABEL_LENGTH
 
 cWscAttrEncryptedSettings:
   _type: class

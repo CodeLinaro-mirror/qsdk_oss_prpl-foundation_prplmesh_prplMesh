@@ -232,6 +232,12 @@ class cEncryptedSettingsPayload : public BaseClass
         int8_t& mld_id();
         eWscVendorExtHiddenSsid& hidden_ssid();
         eVapType& vap_type();
+        uint16_t& vap_label_length();
+        std::string vap_label_str();
+        char* vap_label(size_t length = 0);
+        bool set_vap_label(const std::string& str);
+        bool set_vap_label(const char buffer[], size_t size);
+        bool alloc_vap_label(size_t count = 1);
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -254,6 +260,9 @@ class cEncryptedSettingsPayload : public BaseClass
         int8_t* m_mld_id = nullptr;
         eWscVendorExtHiddenSsid* m_hidden_ssid = nullptr;
         eVapType* m_vap_type = nullptr;
+        uint16_t* m_vap_label_length = nullptr;
+        char* m_vap_label = nullptr;
+        size_t m_vap_label_idx__ = 0;
 };
 
 class cWscAttrEncryptedSettings : public BaseClass

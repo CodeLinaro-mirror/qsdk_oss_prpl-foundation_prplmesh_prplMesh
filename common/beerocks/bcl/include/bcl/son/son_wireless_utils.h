@@ -129,7 +129,8 @@ public:
         WSC::eWscVendorExtHiddenSsid hidden_ssid          = WSC::eWscVendorExtHiddenSsid::UNSET;
         int8_t mld_id                                     = -1;
         eVapType vap_type                                 = eVapType::OTHER;
-        bool bSTA                                         = false;
+        std::string vap_label;
+        bool bSTA = false;
     } sBssInfoConf;
 
     typedef struct {
