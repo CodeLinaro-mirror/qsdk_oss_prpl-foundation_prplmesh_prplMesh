@@ -30,81 +30,6 @@
     - certs-tests-R4
     - freedom
 
-.certification:R4:freedom_on_boot_24:
-  extends: .certification:R4:freedom
-  before_script:
-    - !reference [.certification:R4:freedom, before_script]
-    - echo "Setting 2.4GHz on-boot scan for prplMesh"
-    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:freedom_on_boot_5:
-  extends: .certification:R4:freedom
-  before_script:
-    - !reference [.certification:R4:freedom, before_script]
-    - echo "Setting 5GHz on-boot scan for prplMesh"
-    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:freedom_downstream_R1_agent:
-  extends: .certification:R4:freedom
-  before_script:
-    - !reference [.certification:R4:freedom, before_script]
-    - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
-    - ssh freedom 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:mozart:
-  stage: R4-cert-mozart
-  extends: .certification-generic-R4
-  variables:
-    RUN_ON_DEVICE: "mozart"
-  before_script:
-    - tools/deploy_firmware.py --device mozart --target-name "$RUN_ON_DEVICE" --image "$MOZART_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/mozart.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-    - echo "Setting no on-boot scan for prplMesh"
-    - ssh mozart 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
-    - echo "Setting no profile disallow for prplMesh"
-    - ssh mozart 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=1/g" /opt/prplmesh/config/beerocks_agent.conf'
-  needs:
-    - job: build-for-mozart
-  tags:
-    - certs-tests-R4
-    - mozart
-
-.certification:R4:mozart_on_boot_24:
-  extends: .certification:R4:mozart
-  before_script:
-    - !reference [.certification:R4:mozart, before_script]
-    - echo "Setting 2.4GHz on-boot scan for prplMesh"
-    - ssh mozart 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:mozart_on_boot_5:
-  extends: .certification:R4:mozart
-  before_script:
-    - !reference [.certification:R4:mozart, before_script]
-    - echo "Setting 5GHz on-boot scan for prplMesh"
-    - ssh mozart 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:mozart_downstream_R1_agent:
-  extends: .certification:R4:mozart
-  before_script:
-    - !reference [.certification:R4:mozart, before_script]
-    - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
-    - ssh mozart 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-
-.certification:R4:urx_osp_on_boot_24:
-  extends: .certification:R4:urx_osp
-  before_script:
-    - !reference [.certification:R4:urx_osp, before_script]
-    - echo "Setting 2.4GHz on-boot scan for prplMesh"
-    - ssh urx_osp 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:urx_osp_on_boot_5:
-  extends: .certification:R4:urx_osp
-  before_script:
-    - !reference [.certification:R4:urx_osp, before_script]
-    - echo "Setting 5GHz on-boot scan for prplMesh"
-    - ssh urx_osp 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
-
 .certification:R4:urx_ospv2:
   stage: R4-cert-OSPv2
   extends: .certification-generic-R4
@@ -123,39 +48,23 @@
     - certs-tests-R4
     - ospv2_new_layout
 
-.certification:R4:urx_ospv2_on_boot_24:
-  extends: .certification:R4:urx_ospv2
+.certification:R4:mozart:
+  stage: R4-cert-mozart
+  extends: .certification-generic-R4
+  variables:
+    RUN_ON_DEVICE: "mozart"
   before_script:
-    - !reference [.certification:R4:urx_ospv2, before_script]
-    - echo "Setting 2.4GHz on-boot scan for prplMesh"
-    - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:urx_ospv2_on_boot_5:
-  extends: .certification:R4:urx_ospv2
-  before_script:
-    - !reference [.certification:R4:urx_ospv2, before_script]
-    - echo "Setting 5GHz on-boot scan for prplMesh"
-    - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:urx_ospv2_downstream_R1_agent:
-  extends: .certification:R4:urx_ospv2
-  before_script:
-    - !reference [.certification:R4:urx_ospv2, before_script]
-    - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
-    - ssh urx_ospv2 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
-
-.certification:R4:freedom_controller:
-  stage: R4-cert-OSPv2-controller
-  extends: .certification:R4:urx_ospv2
-
-.certification:R4:urx_ospv2_controller:
-  stage: R4-cert-OSPv2-controller
-  extends: .certification:R4:urx_ospv2
-
-.certification:R4:mozart_controller:
-  stage: R4-cert-OSPv2-controller
-  extends: .certification:R4:urx_ospv2
-
+    - tools/deploy_firmware.py --device mozart --target-name "$RUN_ON_DEVICE" --image "$MOZART_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/mozart.sh
+    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
+    - echo "Setting no on-boot scan for prplMesh"
+    - ssh mozart 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
+    - echo "Setting no profile disallow for prplMesh"
+    - ssh mozart 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+  needs:
+    - job: build-for-mozart
+  tags:
+    - certs-tests-R4
+    - mozart
 
 .certification:R6:freedom:
   stage: R6-cert-freedom
@@ -198,6 +107,81 @@
   tags:
     - certs-tests-R6
     - mozart
+
+.certification:R4:freedom_on_boot_24:
+  extends: .certification:R4:freedom
+  before_script:
+    - !reference [.certification:R4:freedom, before_script]
+    - echo "Setting 2.4GHz on-boot scan for prplMesh"
+    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_ospv2_on_boot_24:
+  extends: .certification:R4:urx_ospv2
+  before_script:
+    - !reference [.certification:R4:urx_ospv2, before_script]
+    - echo "Setting 2.4GHz on-boot scan for prplMesh"
+    - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:mozart_on_boot_24:
+  extends: .certification:R4:mozart
+  before_script:
+    - !reference [.certification:R4:mozart, before_script]
+    - echo "Setting 2.4GHz on-boot scan for prplMesh"
+    - ssh mozart 'sed -ri "s/on_boot_scan=.*/on_boot_scan=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:freedom_on_boot_5:
+  extends: .certification:R4:freedom
+  before_script:
+    - !reference [.certification:R4:freedom, before_script]
+    - echo "Setting 5GHz on-boot scan for prplMesh"
+    - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_ospv2_on_boot_5:
+  extends: .certification:R4:urx_ospv2
+  before_script:
+    - !reference [.certification:R4:urx_ospv2, before_script]
+    - echo "Setting 5GHz on-boot scan for prplMesh"
+    - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:mozart_on_boot_5:
+  extends: .certification:R4:mozart
+  before_script:
+    - !reference [.certification:R4:mozart, before_script]
+    - echo "Setting 5GHz on-boot scan for prplMesh"
+    - ssh mozart 'sed -ri "s/on_boot_scan=.*/on_boot_scan=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:freedom_downstream_R1_agent:
+  extends: .certification:R4:freedom
+  before_script:
+    - !reference [.certification:R4:freedom, before_script]
+    - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
+    - ssh freedom 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:urx_ospv2_downstream_R1_agent:
+  extends: .certification:R4:urx_ospv2
+  before_script:
+    - !reference [.certification:R4:urx_ospv2, before_script]
+    - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
+    - ssh urx_ospv2 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:mozart_downstream_R1_agent:
+  extends: .certification:R4:mozart
+  before_script:
+    - !reference [.certification:R4:mozart, before_script]
+    - echo "Setting Multi-AP profile 2 disallow for prplMesh (downstream R1 agent)"
+    - ssh mozart 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=2/g" /opt/prplmesh/config/beerocks_agent.conf'
+
+.certification:R4:freedom_controller:
+  stage: R4-cert-freedom-controller
+  extends: .certification:R4:freedom
+
+.certification:R4:urx_ospv2_controller:
+  stage: R4-cert-OSPv2-controller
+  extends: .certification:R4:urx_ospv2
+
+.certification:R4:mozart_controller:
+  stage: R4-cert-mozart-controller
+  extends: .certification:R4:mozart
 
 include:
   - local: "ci/certification/R1/freedom.yml"
