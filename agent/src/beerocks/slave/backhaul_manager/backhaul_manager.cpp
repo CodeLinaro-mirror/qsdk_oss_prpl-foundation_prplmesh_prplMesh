@@ -2767,6 +2767,8 @@ bool BackhaulManager::handle_slave_failed_connection_message(ieee1905_1::CmduMes
         return true;
     }
 
+    db->link_metrics_policy.number_of_reports_in_last_minute++;
+
     // Calculate if reporting is needed
     auto now = std::chrono::steady_clock::now();
     auto elapsed_time_m =
@@ -2774,9 +2776,16 @@ bool BackhaulManager::handle_slave_failed_connection_message(ieee1905_1::CmduMes
             now - db->link_metrics_policy.failed_association_last_reporting_time_point)
             .count();
 
+    // When we receive the first failed connection,
+    // store the time to failed_association_last_reporting_time_point
+    if (db->link_metrics_policy.failed_association_last_reporting_time_point ==
+        std::chrono::steady_clock::time_point::min()) {
+        db->link_metrics_policy.failed_association_last_reporting_time_point = now;
+    }
+
     // Start the counting from the beginning if the last report was more then a minute ago also sets
     // the last reporting time to now.
-    if (elapsed_time_m > 1) {
+    if (elapsed_time_m >= 1) {
         db->link_metrics_policy.number_of_reports_in_last_minute             = 0;
         db->link_metrics_policy.failed_association_last_reporting_time_point = now;
     }
@@ -2790,9 +2799,6 @@ bool BackhaulManager::handle_slave_failed_connection_message(ieee1905_1::CmduMes
             << db->link_metrics_policy.failed_associations_maximum_reporting_rate;
         return true;
     }
-
-    // report
-    db->link_metrics_policy.number_of_reports_in_last_minute++;
 
     const auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "Sending FAILED_CONNECTION_MESSAGE, mid=" << std::hex << int(mid);
