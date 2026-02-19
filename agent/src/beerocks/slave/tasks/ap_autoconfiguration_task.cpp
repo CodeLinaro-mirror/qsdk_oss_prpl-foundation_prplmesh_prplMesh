@@ -1659,7 +1659,8 @@ void ApAutoConfigurationTask::handle_bsta_mld_configuration_request(
         return;
     }
 
-    // TODO: Send BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE
+    // Send BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE
+    send_bsta_mld_configuration_response_message();
     return;
 }
 
@@ -2293,6 +2294,27 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
     for (auto radio : db->get_radios_list()) {
         process_missing_mld_links(radio->front.iface_name);
     }
+
+    return true;
+}
+
+bool ApAutoConfigurationTask::send_bsta_mld_configuration_response_message()
+{
+    auto cmdu_tx_header =
+        m_cmdu_tx.create(0, ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE);
+
+    if (!cmdu_tx_header) {
+        LOG(ERROR) << "cmdu creation of type BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE, has failed";
+        return false;
+    }
+
+    if (!slave_thread::add_backhaul_sta_mld_configuration_tlv(m_cmdu_tx)) {
+        LOG(ERROR) << "Failed to add Backhaul STA MLD Configuration TLV";
+        return false;
+    }
+
+    LOG(DEBUG) << "Sending BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE message";
+    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 
     return true;
 }

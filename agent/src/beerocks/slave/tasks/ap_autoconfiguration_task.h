@@ -312,6 +312,8 @@ private:
     bool send_ap_bss_configuration_message(const std::string &radio_iface,
                                            const std::vector<sBssConfig> &infos);
 
+    bool send_bsta_mld_configuration_response_message();
+
     bool send_bsta_configuration(const sMacAddr &radio_mac, const sBStaConfig &info);
 
     bool send_enable_disable_endpoint(const sMacAddr &radio_mac, const bool enable);
