@@ -11,8 +11,13 @@ import subprocess
 import re
 import datetime
 import argparse
+import textwrap
 
 generation_datetime = datetime.datetime.now().isoformat(sep=' ', timespec='minutes')
+args = ""
+preamble_commit = "profiles: prpl: prplMesh: bump to {}-{}"\
+                  "\n\nIntegrates following changes:"
+
 preamble = f"""\
 # Changelog
 
@@ -30,6 +35,55 @@ Generated on {generation_datetime}
 """
 
 
+def insert_item(commithash: str, itemtype: str, descr: str, jira: str, items: list):
+    changes = []
+    for change in items:
+        changes.append(change[2])
+
+    # only add if the change isn't a duplicate
+    if descr not in changes:
+        items += [(commithash, itemtype, descr, jira)]
+
+
+def get_branchname(githash: str):
+    branchname = subprocess.run(['git', 'rev-parse', '--abbrev-ref', githash],
+                                capture_output=True,
+                                text=True).stdout
+    return branchname.strip()
+
+
+def get_commitdate(githash: str):
+    date = subprocess.run(['git', 'show', '--no-patch', '--format=%cs', githash],
+                          capture_output=True,
+                          text=True).stdout
+    return date.strip()
+
+
+def parse_merge_commit(logline: str, items: list):
+    # ... look for merge commits that merge a bugfix, feature or hotfix branch ...
+    item = re.match("([0-9a-f]+) Merge branch '(bugfix|feature|dev)/(PPM-\\d+|PPM_\\d+|PPW-\\d+|PPW_\\d+|PCF-\\d+|PCF_\\d+)", logline) # noqa E501 # pylint: disable=line-too-long
+    if not item:
+        item = re.match("([0-9a-f]+) Merge branch '(hotfix)/", logline)
+    if item:
+        # ... extract the hash, type (bugfix, feature, hotfix) and JIRA from it ...
+        githash = item.group(1)
+        itemtype = item.group(2).title()
+        jira = item.group(3) if len(item.groups()) > 2 else ''
+        # ... use the hash to obtain the full description text ...
+        change_desc = subprocess.run(['git', 'show', '--format=%b', '-s', githash],
+                                     capture_output=True,
+                                     text=True).stdout
+        # ... only add the first line, and sanitize it for inclusion in markdown ...
+        change = change_desc.split('\n')[0].strip()
+        bad_char = r"\*_()[]<>{}!@#$%^&~|"
+        if not args.bump_commit:
+            for c in bad_char:
+                change = change.replace(c, '\\'+c)
+        # Purge merges with empty descriptions
+        if change:
+            insert_item(githash, itemtype, change, jira, items)
+
+
 def get_log_entry(current_version: str, prev_version: str):
     items = []
     version_filter = f"{prev_version}..{current_version}" if prev_version else current_version
@@ -38,27 +92,38 @@ def get_log_entry(current_version: str, prev_version: str):
                           stdout=subprocess.PIPE,
                           universal_newlines=True) as log:
         for line in log.stdout.readlines():
-            # ... look for merge commits that merge a bugfix, feature or hotfix branch ...
-            item = re.match("([0-9a-f]+) Merge branch '(bugfix|feature)/(PPM-\\d+)", line)
-            if not item:
-                item = re.match("([0-9a-f]+) Merge branch '(hotfix)/", line)
-            if item:
-                # ... extract the hash, type (bugfix, feature, hotfix) and JIRA from it ...
-                githash = item.group(1)
-                itemtype = item.group(2).title()
-                jira = item.group(3) if len(item.groups()) > 2 else ''
-                # ... use the hash to obtain the full description text ...
-                change_desc = subprocess.run(['git', 'show', '--format=%b', '-s', githash],
-                                             capture_output=True,
-                                             text=True).stdout
-                # ... only add the first line, and sanitize it for inclusion in markdown ...
-                change = change_desc.split('\n')[0].strip()
-                bad_char = r"\*_()[]<>{}!@#$%^&~|"
-                for c in bad_char:
-                    change = change.replace(c, '\\'+c)
-                if not change:
-                    continue    # Purge merges with empty descriptions here.
-                items += [(itemtype, change, jira)]
+            parse_merge_commit(line, items)
+
+    with subprocess.Popen(["git", "log", "--oneline", "--no-merges", version_filter],
+                          stdout=subprocess.PIPE,
+                          universal_newlines=True) as log:
+        for line in log.stdout.readlines():
+            # Go over all non-merge commits
+            commit = re.match("([0-9a-f]+)", line)
+            if not commit:
+                continue
+
+            # Try to look into the commit description if this commit is cherry-picked
+            commit_desc = subprocess.run(['git', 'show', '--format=%b', '-s', commit.group(1)],
+                                         capture_output=True,
+                                         text=True).stdout
+            cherry_picked_from = re.search(r"\(cherry picked from commit ([0-9a-f]+)\)",
+                                           commit_desc)
+
+            if cherry_picked_from:
+                gitlog = subprocess.Popen((['git', 'log', cherry_picked_from.group(1)+'..master',
+                                          '--ancestry-path', '--merges', '--oneline']),
+                                          stderr=subprocess.PIPE,
+                                          stdout=subprocess.PIPE)
+                mergecommit = subprocess.check_output(('tail', '-1'),
+                                                      stdin=gitlog.stdout,
+                                                      text=True)
+                gitlog.wait()
+
+                mergecommithash = re.match("([0-9a-f]+)", mergecommit)
+                if mergecommithash:
+                    parse_merge_commit(mergecommit, items)
+
     return items
 
 
@@ -69,19 +134,25 @@ def main():
                         help="Display the changelog since this version")
     parser.add_argument('-l', '--latest-version', action='store_true',
                         help="Only show the changes in the latest version (since latest-1)")
+    parser.add_argument('-b', '--bump-commit', type=str, default=None,
+                        help="Generate a bump commit description (since specified commit)")
     parser.add_argument('-P', '--no-preamble', action='store_true',
                         help="Disable the preamble, just print the raw changelog")
     parser.add_argument('-U', '--no-unreleased', action='store_true',
                         help="By default, we start with 'unreleased' changes."
                              "This option suppresses that.")
+    global args
     args = parser.parse_args()
 
     # Get all tags in logical order, remove ones that are not releases (x.y.z)
-    tags = subprocess.run(['git', 'tag', '--sort=upstream'], capture_output=True, text=True).stdout
+    tags = subprocess.run(['git', 'tag', '--merged', get_branchname("HEAD")],
+                          capture_output=True, text=True).stdout
     versions = [tag for tag in tags.split('\n') if re.match(r'^\d+.\d+.\d+$', tag)]
 
     if args.start_version and args.latest_version:
         raise argparse.ArgumentError('-s', "-s and -l are mutually exclusive options!")
+    if args.bump_commit and (args.start_version or args.latest_version or args.no_unreleased):
+        raise argparse.ArgumentError('-b', "-b cannot be used with any other option!")
     if args.latest_version:
         versions = versions[-2:]
     if args.start_version and args.start_version not in versions:
@@ -95,46 +166,67 @@ def main():
 
     prev = None
     output = []
-    for version in versions:
-        # Skip the first version, since otherwise we would list ALL changes
-        # before the first selected version as belonging to that version, which is usually wrong
-        if version == versions[0]:
-            prev = version
-            continue
 
-        release_date = subprocess.run(
-                            ['git', 'tag', '-l', '--format=%(taggerdate:iso8601)', version],
-                            capture_output=True,
-                            text=True).stdout
-        o = f"\n## [{version}]"\
-            f"(https://gitlab.com/prpl-foundation/prplmesh/prplMesh/-/releases/{version})"\
-            f" - {release_date}\n"\
-            if version != "HEAD" else "## Unreleased\n"
-        changes = get_log_entry(version, prev)
-        bugs = [c for c in changes if c[0] in ('Bugfix', 'Hotfix')]
-        features = [c for c in changes if c[0] == 'Feature']
+    if args.bump_commit:
+        print(preamble_commit.format(get_branchname("HEAD"), get_commitdate("HEAD")))
+        changes = get_log_entry("HEAD", args.bump_commit)
+        jiras = "\n\n"
+        for c in changes:
+            print("- {} ({})".format(c[2], c[0]))
+            if c[3]:
+                jiras += "{}, ".format(c[3])
+        print()
 
-        o += "\n### Changed\n\n"
-        for f in features:
-            o += "- [{}]({})\n".format(
-                    f[1],
-                    'https://prplfoundationcloud.atlassian.net/browse/' + f[2])
+        # Clean up and wrap the jira list
+        jiras = jiras.rstrip(', ')
+        references_list = textwrap.wrap(text=jiras, width=75,
+                                        initial_indent='References:',
+                                        subsequent_indent='             ')
 
-        o += "\n### Fixed\n\n"
-        for b in bugs:
-            if b[2]:
+        for reference_line in references_list:
+            print(reference_line)
+
+    else:
+        for version in versions:
+            # Skip the first version, since otherwise we would list ALL changes
+            # before the first selected version as belonging to that version, which is usually wrong
+            if version == versions[0]:
+                prev = version
+                continue
+
+            release_date = subprocess.run(
+                                ['git', 'tag', '-l', '--format=%(taggerdate:iso8601)', version],
+                                capture_output=True,
+                                text=True).stdout
+            o = f"\n## [{version}]"\
+                f"(https://gitlab.com/prpl-foundation/prplmesh/prplMesh/-/releases/{version})"\
+                f" - {release_date}\n"\
+                if version != "HEAD" else "## Unreleased\n"
+            changes = get_log_entry(version, prev)
+            bugs = [c for c in changes if c[1] in ('Bugfix', 'Hotfix')]
+            features = [c for c in changes if c[1] == 'Feature']
+
+            o += "\n### Changed\n\n"
+            for f in features:
                 o += "- [{}]({})\n".format(
-                        b[1],
-                        'https://prplfoundationcloud.atlassian.net/browse/' + b[2])
-            else:
-                o += "- {}\n".format(b[1])
+                        f[2],
+                        'https://prplfoundationcloud.atlassian.net/browse/' + f[3])
 
-        output.append(o)
-        prev = version
+            o += "\n### Fixed\n\n"
+            for b in bugs:
+                if b[2]:
+                    o += "- [{}]({})\n".format(
+                            b[2],
+                            'https://prplfoundationcloud.atlassian.net/browse/' + b[3])
+                else:
+                    o += "- {}\n".format(b[1])
 
-    if not args.no_preamble:
-        print(preamble)
-    print('\n'.join(reversed(output)))
+            output.append(o)
+            prev = version
+
+        if not args.no_preamble:
+            print(preamble)
+        print('\n'.join(reversed(output)))
 
 
 main()
