@@ -42,7 +42,7 @@ const std::map<std::string, WiFiSec> security_type_map = {
     {"WPA-Personal", WiFiSec::WPA_PSK},
     {"WPA2-Personal", WiFiSec::WPA2_PSK},
     {"WPA-WPA2-Personal", WiFiSec::WPA_WPA2_PSK},
-    {"WPA2-WPA3-Personal", WiFiSec::WPA2_WPA3_PSK},
+    {"WPA3-Personal-Transition", WiFiSec::WPA2_WPA3_PSK},
     {"WPA3-Personal", WiFiSec::WPA3_PSK},
     {"WPA3-Personal-Compatibility", WiFiSec::WPA3_PCM},
 };
