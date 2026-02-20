@@ -530,7 +530,174 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         }
     }
 
-    //TODO: After handling Device and Neighbor Information, identify Parent Agent (PPM-2043)
+    // Build an agent tree from the Ethernet IEEE1905 neighbor graph and infer wired parents.
+    // Wireless parents are resolved earlier from Device Information and are left unchanged.
+    std::shared_ptr<Agent> root_agent = database.get_gw();
+    if (!root_agent) {
+        root_agent = database.get_local_agent();
+    }
+    if (!root_agent) {
+        root_agent = database.get_agent(database.get_local_bridge_mac());
+    }
+
+    if (root_agent) {
+        std::unordered_set<sMacAddr> connected_agent_al_macs;
+        for (const auto &agent_pair : database.m_agents) {
+            if (agent_pair.second && (agent_pair.second->state == beerocks::STATE_CONNECTED)) {
+                connected_agent_al_macs.insert(agent_pair.first);
+            }
+        }
+
+        using neighbors_map_t = std::unordered_map<sMacAddr, std::unordered_set<sMacAddr>>;
+        neighbors_map_t directed_eth_neighbors;
+        neighbors_map_t undirected_eth_neighbors;
+
+        for (const auto &agent_pair : database.m_agents) {
+            const auto &agent_candidate = agent_pair.second;
+            if (!agent_candidate || (agent_candidate->state != beerocks::STATE_CONNECTED)) {
+                continue;
+            }
+
+            for (const auto &interface_pair : agent_candidate->interfaces) {
+                const auto &agent_interface = interface_pair.second;
+                if (!agent_interface) {
+                    continue;
+                }
+
+                const auto media_type_group = (uint16_t(agent_interface->m_media_type) >> 8);
+                if (media_type_group != uint16_t(ieee1905_1::eMediaTypeGroup::IEEE_802_3)) {
+                    continue;
+                }
+
+                for (const auto &neighbor_pair : agent_interface->m_neighbors) {
+                    if (!neighbor_pair.second->ieee1905_flag) {
+                        continue;
+                    }
+
+                    const auto &neighbor_al_mac = neighbor_pair.first;
+                    if ((neighbor_al_mac == agent_pair.first) ||
+                        (connected_agent_al_macs.find(neighbor_al_mac) ==
+                         connected_agent_al_macs.end())) {
+                        continue;
+                    }
+
+                    directed_eth_neighbors[agent_pair.first].insert(neighbor_al_mac);
+                    undirected_eth_neighbors[agent_pair.first].insert(neighbor_al_mac);
+                    undirected_eth_neighbors[neighbor_al_mac].insert(agent_pair.first);
+                }
+            }
+        }
+
+        std::unordered_map<sMacAddr, sMacAddr> predecessor;
+        std::unordered_set<sMacAddr> visited;
+        std::queue<sMacAddr> bfs_queue;
+
+        if (connected_agent_al_macs.find(root_agent->al_mac) != connected_agent_al_macs.end()) {
+            visited.insert(root_agent->al_mac);
+            bfs_queue.push(root_agent->al_mac);
+        }
+
+        while (!bfs_queue.empty()) {
+            const auto current_al_mac = bfs_queue.front();
+            bfs_queue.pop();
+
+            auto neighbors_it = undirected_eth_neighbors.find(current_al_mac);
+            if (neighbors_it == undirected_eth_neighbors.end()) {
+                continue;
+            }
+
+            std::vector<sMacAddr> reciprocal_neighbors;
+            std::vector<sMacAddr> one_way_neighbors;
+            reciprocal_neighbors.reserve(neighbors_it->second.size());
+            one_way_neighbors.reserve(neighbors_it->second.size());
+
+            for (const auto &neighbor_al_mac : neighbors_it->second) {
+                if (visited.find(neighbor_al_mac) != visited.end()) {
+                    continue;
+                }
+
+                const bool current_reports_neighbor =
+                    (directed_eth_neighbors[current_al_mac].find(neighbor_al_mac) !=
+                     directed_eth_neighbors[current_al_mac].end());
+                const bool neighbor_reports_current =
+                    (directed_eth_neighbors[neighbor_al_mac].find(current_al_mac) !=
+                     directed_eth_neighbors[neighbor_al_mac].end());
+
+                if (current_reports_neighbor && neighbor_reports_current) {
+                    reciprocal_neighbors.push_back(neighbor_al_mac);
+                } else {
+                    one_way_neighbors.push_back(neighbor_al_mac);
+                }
+            }
+
+            auto enqueue_neighbors = [&](const std::vector<sMacAddr> &neighbors) {
+                for (const auto &neighbor_al_mac : neighbors) {
+                    if (visited.find(neighbor_al_mac) != visited.end()) {
+                        continue;
+                    }
+                    visited.insert(neighbor_al_mac);
+                    predecessor[neighbor_al_mac] = current_al_mac;
+                    bfs_queue.push(neighbor_al_mac);
+                }
+            };
+
+            enqueue_neighbors(reciprocal_neighbors);
+            enqueue_neighbors(one_way_neighbors);
+        }
+
+        for (const auto &pred : predecessor) {
+            const auto &child_al_mac  = pred.first;
+            const auto &parent_al_mac = pred.second;
+
+            auto child_agent  = database.get_agent(child_al_mac);
+            auto parent_agent = database.get_agent(parent_al_mac);
+            if (!child_agent || !parent_agent || child_agent->is_gateway) {
+                continue;
+            }
+
+            // Keep wireless backhaul hierarchy determined from Device Information.
+            const bool has_wireless_backhaul_parent =
+                (child_agent->backhaul.backhaul_iface_type != beerocks::IFACE_TYPE_ETHERNET) &&
+                !child_agent->backhaul.parent_agent.expired();
+            if (has_wireless_backhaul_parent) {
+                continue;
+            }
+
+            child_agent->backhaul.parent_agent            = parent_agent;
+            child_agent->backhaul.backhaul_iface_type     = beerocks::IFACE_TYPE_ETHERNET;
+            child_agent->backhaul.backhaul_interface      = child_agent->al_mac;
+            child_agent->backhaul.parent_interface        = beerocks::net::network_utils::ZERO_MAC;
+            child_agent->backhaul.wireless_backhaul_radio = nullptr;
+
+            for (const auto &parent_iface_pair : parent_agent->interfaces) {
+                const auto &parent_iface = parent_iface_pair.second;
+                if (!parent_iface) {
+                    continue;
+                }
+
+                const auto media_type_group = (uint16_t(parent_iface->m_media_type) >> 8);
+                if (media_type_group != uint16_t(ieee1905_1::eMediaTypeGroup::IEEE_802_3)) {
+                    continue;
+                }
+
+                if (parent_iface->m_neighbors.get(child_al_mac)) {
+                    child_agent->backhaul.parent_interface = parent_iface_pair.first;
+                    break;
+                }
+            }
+
+            if (!database.dm_set_device_multi_ap_backhaul(*child_agent)) {
+                LOG(ERROR) << "Failed to set Multi-AP backhaul after graph inference for "
+                           << child_agent->al_mac;
+            }
+
+            LOG(DEBUG) << "Graph inferred wired parent for " << child_agent->al_mac << " -> "
+                       << parent_agent->al_mac
+                       << " parent_interface=" << child_agent->backhaul.parent_interface;
+        }
+    } else {
+        LOG(DEBUG) << "Skipping wired parent inference: root agent not found";
+    }
 
     // Handle Agent APMLD Configuration TLV
     if (!son_actions::handle_agent_ap_mld_configuration_tlv(database, al_mac, cmdu_rx)) {
