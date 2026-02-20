@@ -1764,6 +1764,26 @@ bool ap_wlan_hal_whm::process_sta_disassoc_event(const std::string &interface,
     return true;
 }
 
+bool ap_wlan_hal_whm::process_affiliated_link_changed_event(const std::string &interface,
+                                                            std::shared_ptr<void> event_data)
+{
+    if (!event_data) {
+        LOG(ERROR) << "Invalid event data pointer";
+        return false;
+    }
+
+    auto msg = static_cast<bwl::sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION *>(
+        event_data.get());
+
+    LOG(INFO) << " Affiliated link changed event - Interface: " << interface << ", STA MLD: "
+              << msg->sta_mld_mac << ", Affiliated MAC: " << msg->affiliated_sta_mac
+              << ", BSSID: " << msg->bssid << ", Action: "
+              << (msg->action == bwl::AFFILIATED_LINK_ACTION_ADD ? "ADD" : "REMOVE");
+
+    event_queue_push(Event::AFFILIATED_Link_Changed, event_data);
+    return true;
+}
+
 bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
                                            const beerocks::wbapi::AmbiorixVariant *event_data)
 {

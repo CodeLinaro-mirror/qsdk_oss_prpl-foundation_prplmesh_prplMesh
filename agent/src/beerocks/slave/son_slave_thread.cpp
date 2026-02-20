@@ -3382,6 +3382,95 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         break;
     }
+
+    case beerocks_message::ACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION: {
+
+        auto notification_in = beerocks_header->addClass<
+            beerocks_message::cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION>();
+        if (!notification_in) {
+            LOG(ERROR) << " addClass cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION failed";
+            return false;
+        }
+
+        auto &sta_mld_mac        = notification_in->sta_mld_mac();
+        auto &affiliated_sta_mac = notification_in->affiliated_sta_mac();
+        auto &bssid              = notification_in->bssid();
+        uint8_t action           = notification_in->action();
+
+        LOG(INFO) << " Processing affiliated link change - STA MLD: " << sta_mld_mac
+                  << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid
+                  << ", Action: " << (action == bwl::AFFILIATED_LINK_ACTION_ADD ? "ADD" : "REMOVE");
+
+        auto db     = AgentDB::get();
+        auto mld_it = db->associated_sta_mlds.find(sta_mld_mac);
+
+        if (mld_it == db->associated_sta_mlds.end()) {
+            if (action == bwl::AFFILIATED_LINK_ACTION_REMOVE) {
+                // REMOVE operation: Client doesn't exist, nothing to remove - this is OK (idempotent)
+                // This can happen when:
+                // 1. Client disassociated and was removed from DB before REMOVE events arrived
+                // 2. REMOVE events arrive after disassociation cleanup
+                LOG(DEBUG) << "MLO client not found for REMOVE operation - "
+                           << "client may have already been removed (idempotent operation): "
+                           << sta_mld_mac;
+                return true;
+            } else {
+                // ADD operation: Client doesn't exist
+                // Client should be added to DB first via association event
+                // Client not associated yet - associateion event will populate DB with teh all active links
+                LOG(DEBUG) << "MLO client not found for ADD operation: " << sta_mld_mac
+                           << " - client must be associated first";
+                return true;
+            }
+        }
+
+        auto &mld_info = mld_it->second;
+
+        if (action == bwl::AFFILIATED_LINK_ACTION_ADD) {
+            LOG(DEBUG) << " Adding affiliated link";
+
+            bool link_exists = false;
+            for (const auto &aff_sta : mld_info.affiliated_stas) {
+                if (aff_sta.affiliated_sta_mac == affiliated_sta_mac && aff_sta.bssid == bssid) {
+                    link_exists = true;
+                    LOG(DEBUG) << "Affiliated link already exists, skipping ADD";
+                    break;
+                }
+            }
+
+            if (!link_exists) {
+                AgentDB::sAssociatedStaMld::sAffiliatedSta new_link{};
+                new_link.affiliated_sta_mac = affiliated_sta_mac;
+                new_link.bssid              = bssid;
+                mld_info.affiliated_stas.push_back(new_link);
+                LOG(INFO) << "Affiliated link added - STA MLD: " << sta_mld_mac
+                          << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid
+                          << ", Total links: " << mld_info.affiliated_stas.size();
+            }
+        } else if (action == bwl::AFFILIATED_LINK_ACTION_REMOVE) {
+            LOG(DEBUG) << "Removing affiliated link";
+
+            auto it =
+                std::remove_if(mld_info.affiliated_stas.begin(), mld_info.affiliated_stas.end(),
+                               [&](const AgentDB::sAssociatedStaMld::sAffiliatedSta &aff_sta) {
+                                   return aff_sta.affiliated_sta_mac == affiliated_sta_mac &&
+                                          aff_sta.bssid == bssid;
+                               });
+
+            if (it != mld_info.affiliated_stas.end()) {
+                mld_info.affiliated_stas.erase(it, mld_info.affiliated_stas.end());
+                LOG(INFO) << "Affiliated link removed - STA MLD: " << sta_mld_mac
+                          << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid
+                          << ", Remaining links: " << mld_info.affiliated_stas.size();
+            } else {
+                LOG(WARNING) << "Affiliated link not found for removal - STA MLD: " << sta_mld_mac
+                             << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid;
+            }
+        }
+        LOG(DEBUG) << "Current affiliated links count: " << mld_info.affiliated_stas.size();
+        return true;
+    }
+
     case beerocks_message::ACTION_APMANAGER_STEERING_EVENT_PROBE_REQ_NOTIFICATION: {
         auto notification_in = beerocks_header->addClass<
             beerocks_message::cACTION_APMANAGER_STEERING_EVENT_PROBE_REQ_NOTIFICATION>();

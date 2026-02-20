@@ -785,6 +785,35 @@ class cACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION : public BaseClass
         sClientDisconnectionParams* m_params = nullptr;
 };
 
+class cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION);
+        }
+        sMacAddr& sta_mld_mac();
+        sMacAddr& affiliated_sta_mac();
+        sMacAddr& bssid();
+        //0 - ADD (link added, Active: 0 → 1)
+        //1 - REMOVE (link removed, Active: 1 → 0 or instance deleted)
+        uint8_t& action();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_sta_mld_mac = nullptr;
+        sMacAddr* m_affiliated_sta_mac = nullptr;
+        sMacAddr* m_bssid = nullptr;
+        uint8_t* m_action = nullptr;
+};
+
 class cACTION_APMANAGER_CLIENT_DISCONNECT_REQUEST : public BaseClass
 {
     public:

@@ -52,6 +52,7 @@ public:
         STA_Steering_Auth_Fail,
         STA_Unassoc_Link_Metrics,
 
+        AFFILIATED_Link_Changed, /* New event for MLO affiliate link changes */
         Interface_Enabled,
         Interface_Disabled,
 

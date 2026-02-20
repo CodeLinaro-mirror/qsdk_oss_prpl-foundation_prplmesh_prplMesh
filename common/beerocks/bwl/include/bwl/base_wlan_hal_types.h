@@ -386,6 +386,18 @@ typedef struct {
     sClientDisconnectionParams params;
 } sACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION;
 
+enum eAffiliatedLinkAction : uint8_t {
+    AFFILIATED_LINK_ACTION_ADD    = 0, // Link added (Active: 0 → 1)
+    AFFILIATED_LINK_ACTION_REMOVE = 1, // Link removed (Active: 1 → 0 or instance deleted)
+};
+
+typedef struct {
+    sMacAddr sta_mld_mac;        // STA MLD MAC (parent AssociatedDevice)
+    sMacAddr affiliated_sta_mac; // Affiliated STA MAC
+    sMacAddr bssid;              // BSSID of the affiliated link
+    eAffiliatedLinkAction action;
+} sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION;
+
 typedef struct {
     char hash[65];
     sMacAddr enrollee_mac;

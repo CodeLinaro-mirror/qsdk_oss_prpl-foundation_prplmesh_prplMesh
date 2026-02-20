@@ -134,6 +134,10 @@ protected:
     virtual bool process_sta_disassoc_event(const std::string &interface,
                                             const beerocks::wbapi::AmbiorixVariant *event_data);
 
+    // Add new virtual function for affiliate link changes
+    virtual bool process_affiliated_link_changed_event(const std::string &interface,
+                                                       std::shared_ptr<void> event_data);
+    void subscribe_to_affiliated_sta_events();
     void subscribe_to_afc_update_events();
     virtual bool process_afc_update_event(const beerocks::wbapi::AmbiorixVariant *value);
 

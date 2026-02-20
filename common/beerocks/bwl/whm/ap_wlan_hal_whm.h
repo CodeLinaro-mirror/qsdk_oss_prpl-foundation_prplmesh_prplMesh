@@ -200,6 +200,8 @@ private:
     bool process_sta_disassoc_event(const std::string &interface,
                                     const beerocks::wbapi::AmbiorixVariant *event_data) override;
     bool process_afc_update_event(const beerocks::wbapi::AmbiorixVariant *value) override;
+    bool process_affiliated_link_changed_event(const std::string &interface,
+                                               std::shared_ptr<void> event_data) override;
 
     /**
      * @brief Subscribe to Ap event "BSS-TM-RESP" from pwhm
