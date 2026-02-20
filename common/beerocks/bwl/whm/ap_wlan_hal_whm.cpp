@@ -600,9 +600,12 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             new_obj.add_child("Enable", true);
             std::string multi_ap;
             if (bss_info_conf.fronthaul) {
-                multi_ap += "FronthaulBSS,";
+                multi_ap += "FronthaulBSS";
             }
             if (bss_info_conf.backhaul) {
+                if (!multi_ap.empty()) {
+                    multi_ap += ",";
+                }
                 multi_ap += "BackhaulBSS";
             }
             LOG(DEBUG) << "set multiaptype " << multi_ap;
