@@ -86,7 +86,7 @@ const std::map<std::string, std::vector<WSC::eWscAuth>> wbapi_utils::security_mo
     {"WPA2-Personal", {WSC::eWscAuth::WSC_AUTH_WPA2PSK, WSC::eWscAuth::WSC_AUTH_WPA2}},
     {"WPA-WPA2-Personal",
      {WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_WPAPSK)}},
-    {"WPA3-Personal-Transition",
+    {"WPA2-WPA3-Personal",
      {WSC::eWscAuth(WSC::WSC_AUTH_WPA2PSK | WSC::WSC_AUTH_SAE),
       WSC::eWscAuth(WSC::WSC_AUTH_WPA2PSK | WSC::WSC_AUTH_SAE_AKM24),
       WSC::eWscAuth(WSC::WSC_AUTH_WPA2PSK | WSC::WSC_AUTH_SAE | WSC::WSC_AUTH_SAE_AKM24)}},

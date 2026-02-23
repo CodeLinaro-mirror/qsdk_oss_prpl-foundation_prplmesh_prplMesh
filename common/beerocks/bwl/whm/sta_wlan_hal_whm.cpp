@@ -753,7 +753,7 @@ bool sta_wlan_hal_whm::set_profile_params(const Profile &profile)
 
     // Configure Profile.Security object
     params.set_type(AMXC_VAR_ID_HTABLE);
-    params.add_child("ModeEnabled", "WPA3-Personal-Transition");
+    params.add_child("ModeEnabled", "WPA2-WPA3-Personal");
     params.add_child("KeyPassPhrase", profile.pass);
     params.add_child("SAEPassphrase", profile.pass);
     params.add_child("MFPConfig", "Optional");

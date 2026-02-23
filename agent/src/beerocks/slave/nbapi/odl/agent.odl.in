@@ -79,9 +79,6 @@
 
             /* Network credentials: Security */
             %persistent string Security {
-                on action validate call check_enum ["None", "OWE",
-                "WPA2-Personal","WPA3-Personal","WPA3-Personal-Transition",
-                "WPA3-Personal-Compatibility"];
                 default "WPA2-Personal";
             }
 
