@@ -73,6 +73,8 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
 
+# Don't hide the BH AP SSID (PPW-1399)
+ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
 
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
