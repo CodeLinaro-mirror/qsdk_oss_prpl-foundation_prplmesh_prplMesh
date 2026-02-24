@@ -53,6 +53,56 @@ static constexpr int DISCOVERY_NOTIFICATION_TIMEOUT_SEC = 60;
 static constexpr uint8_t AUTOCONFIG_M2_TIMEOUT_SECONDS  = 5;
 } // namespace ieee1905_1_consts
 
+/**
+ * @brief Certification-specific workaround policy for unsupported Profile-Disallow flags.
+ *
+ * Config values are read from
+ * `profile_x_disallow_override_unsupported_configuration` in `beerocks_agent.conf`.
+ *
+ * - 0: no override
+ * - 1: force "disallow Profile-1"
+ * - 2: force "disallow Profile-2"
+ */
+enum class eUnsupportedProfileDisallowPolicy : uint8_t {
+    NO_OVERRIDE             = 0,
+    FORCE_DISALLOW_PROFILE1 = 1,
+    FORCE_DISALLOW_PROFILE2 = 2,
+};
+
+inline const char *
+unsupported_profile_disallow_policy_to_string(eUnsupportedProfileDisallowPolicy policy)
+{
+    switch (policy) {
+    case eUnsupportedProfileDisallowPolicy::NO_OVERRIDE:
+        return "NO_OVERRIDE";
+    case eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE1:
+        return "FORCE_DISALLOW_PROFILE1";
+    case eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE2:
+        return "FORCE_DISALLOW_PROFILE2";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+inline bool
+unsupported_profile_disallow_policy_from_config_value(uint8_t value,
+                                                      eUnsupportedProfileDisallowPolicy &policy)
+{
+    switch (value) {
+    case static_cast<uint8_t>(eUnsupportedProfileDisallowPolicy::NO_OVERRIDE):
+        policy = eUnsupportedProfileDisallowPolicy::NO_OVERRIDE;
+        return true;
+    case static_cast<uint8_t>(eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE1):
+        policy = eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE1;
+        return true;
+    case static_cast<uint8_t>(eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE2):
+        policy = eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE2;
+        return true;
+    default:
+        return false;
+    }
+}
+
 namespace message {
 
 enum eStructsConsts {

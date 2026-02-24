@@ -15,8 +15,6 @@
 
 constexpr char DOT_PVID_SUFFIX[] = ".pvid";
 #define PVID_SUFFIX &DOT_PVID_SUFFIX[1]
-
-int beerocks::net::TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration = 0;
 namespace beerocks {
 namespace net {
 
@@ -168,17 +166,20 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
                              << "profile1_disallow == profile2_disallow == "
                              << bss.backhaul_bss_disallow_profile1_agent_association;
 
-                if (m_profile_x_disallow_override_unsupported_configuration == 0) {
+                if (db->device_conf.unsupported_profile_disallow_policy ==
+                    eUnsupportedProfileDisallowPolicy::NO_OVERRIDE) {
                     continue;
                 }
                 LOG(DEBUG) << "profile_x_disallow_override is set on profile "
-                           << m_profile_x_disallow_override_unsupported_configuration;
+                           << db->device_conf.unsupported_profile_disallow_policy;
 
-                //Overriding bBSS profile disallow configuration if m_profile_x_disallow_override_unsupported_configuration > 0
+                //Overriding bBSS profile disallow configuration if db->device_conf.unsupported_profile_disallow_policy not NO_OVERRIDE
                 bss.backhaul_bss_disallow_profile1_agent_association =
-                    (m_profile_x_disallow_override_unsupported_configuration == 1);
+                    (db->device_conf.unsupported_profile_disallow_policy ==
+                     eUnsupportedProfileDisallowPolicy::FORCE_PROFILE2);
                 bss.backhaul_bss_disallow_profile2_agent_association =
-                    (m_profile_x_disallow_override_unsupported_configuration == 2);
+                    (db->device_conf.unsupported_profile_disallow_policy ==
+                     eUnsupportedProfileDisallowPolicy::FORCE_PROFILE1);
             }
             auto bss_iface_netdevs =
                 network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name);
@@ -186,7 +187,8 @@ void TrafficSeparation::apply_policy(const std::string &radio_iface)
             for (const auto &iface_name : bss_iface_netdevs) {
                 // Profile-2 backhaul BSS -> tagged primary + tagged secondary.
                 if (bss.backhaul_bss_disallow_profile1_agent_association ||
-                    m_profile_x_disallow_override_unsupported_configuration == 1) {
+                    db->device_conf.unsupported_profile_disallow_policy ==
+                        eUnsupportedProfileDisallowPolicy::FORCE_PROFILE2) {
                     set_vlan_policy(iface_name, ePortMode::TAGGED_PORT_PRIMARY_TAGGED, is_bridge);
                 }
                 // Profile-1 backhaul BSS -> untagged primary VID.
@@ -255,7 +257,8 @@ void TrafficSeparation::apply_policy_for_new_interface(const std::string &bss_if
                       << " is already in the bridge";
         }
         // Profile-2 Backhaul BSS
-        if (m_profile_x_disallow_override_unsupported_configuration == 1) {
+        if (db->device_conf.unsupported_profile_disallow_policy ==
+            eUnsupportedProfileDisallowPolicy::FORCE_PROFILE2) {
             set_vlan_policy(bss_iface_netdev, ePortMode::TAGGED_PORT_PRIMARY_TAGGED, is_bridge);
         }
         // Profile-1 Backhaul BSS

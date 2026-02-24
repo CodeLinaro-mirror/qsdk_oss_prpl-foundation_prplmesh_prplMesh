@@ -176,6 +176,9 @@ public:
         bool send_btm_to_non_11v_sta = false;
         uint8_t max_num_mlds         = 3; // Arbitrary
         bool enable_auto_chansel_handling;
+
+        eUnsupportedProfileDisallowPolicy unsupported_profile_disallow_policy =
+            eUnsupportedProfileDisallowPolicy::NO_OVERRIDE;
     } device_conf;
 
     struct sControllerInfo {
