@@ -58,6 +58,8 @@ else
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan1"
 fi
 
+# Don't hide the BH AP SSID (PPW-1399)
+ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 

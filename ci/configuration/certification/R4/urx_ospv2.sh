@@ -76,6 +76,9 @@ ba-cli WiFi.Radio.*.AutoChannelEnable=0
 #ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].Channel=6"
 #ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Channel=36"
 
+# Don't hide the BH AP SSID (PPW-1399)
+ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
+
 sleep 5
 
 # enable STA-mode on 2.4 and 5GHz

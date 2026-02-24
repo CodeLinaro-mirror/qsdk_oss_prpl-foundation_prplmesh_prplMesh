@@ -76,6 +76,9 @@ ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
+# Don't hide the BH AP SSID (PPW-1399)
+ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
+
 # Commands to start a new SSH server on the control port
 # Allow all incoming connections (allows SSH/CAPI connections on WAN)
 start_ssh_commands="iptables -P INPUT ACCEPT

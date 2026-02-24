@@ -37,16 +37,16 @@ ba-cli IP.Interface.wan.IPv4Address.primary.? | grep -Eq "No data found|ERROR" &
     ba-cli 'IP.Interface.wan.IPv4Address.+{Alias="primary", AddressingType="Static"}'
 }
 # Configure it:
-ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.150", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
+ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.160", SubnetMask="255.255.255.0", AddressingType="Static", Enable=1}'
 # Enable it:
 ba-cli IP.Interface.wan.IPv4Enable=1
 
 # Set the LAN bridge IP:
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.150"
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.160"
 
 # Setting BackhaulWireIface, or persistence can fail (PPM-3339)
 /etc/init.d/prplmesh stop && sleep 2
-/etc/init.d/prplmesh start && sleep 2
+/etc/init.d/prplmesh certification_mode agent && sleep 2
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
@@ -55,36 +55,16 @@ if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR
 else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan4"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan1"
 fi
 
-# enable Wi-Fi radios
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"2.4GHz\"].", "parameters": { "Enable": "true" } }'
-ubus call "WiFi.Radio" _set '{ "rel_path": ".[OperatingFrequencyBand == \"5GHz\"].", "parameters": { "Enable": "true" } }'
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
-
-# Enable when hostapd on this target supports it
-ubus-cli "WiFi.AccessPoint.*.MBOEnable=1"
-
-# Configure Operating Standards
-ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g,n,ax\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
-
-# Don't hide the BH AP SSID (PPW-1399)
-ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
-
-# Restrict channel bandwidth or the certification test could miss beacons
-# (see PPM-258)
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
-dropbear -F -T 10 -p192.168.250.150:22 &"
+dropbear -F -T 10 -p192.168.250.160:22 &"
 
 sleep 5
 
