@@ -79,7 +79,8 @@ bool TrunkPortPlumbing8021q::apply(const sTrafficSeparationConfig &cfg)
             return false;
         }
 
-        private_subiface = network_utils::create_vlan_interface(m_trunk.iface_name, cfg.private_vid);
+        private_subiface =
+            network_utils::create_vlan_interface(m_trunk.iface_name, cfg.private_vid);
         if (private_subiface.empty()) {
             LOG(ERROR) << "failed to create private subiface";
             rollback();

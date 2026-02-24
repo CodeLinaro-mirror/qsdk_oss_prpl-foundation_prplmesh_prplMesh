@@ -14,7 +14,8 @@
 
 #include <bcl/beerocks_defines.h>
 
-namespace beerocks::net {
+namespace beerocks {
+namespace net {
 
 /**
  * @brief Traffic separation configuration that includes information about 
@@ -111,6 +112,7 @@ inline bool is_untagged_mode(bool dis_p1, bool dis_p2, eUnsupportedProfileDisall
     return (!dis_p1 && dis_p2);
 }
 
-} // namespace beerocks::net
+} // namespace net
+} // namespace beerocks
 
 #endif // TRAFFIC_SEPARATION_UTILS_H

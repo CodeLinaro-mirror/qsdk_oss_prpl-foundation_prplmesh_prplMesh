@@ -12,8 +12,8 @@
 #include "task_pool_interface.h"
 #include <beerocks/tlvf/beerocks_header.h>
 #include <chrono>
-#include <tlvf/common/sMacAddr.h>
 #include <tlvf/CmduMessageRx.h>
+#include <tlvf/common/sMacAddr.h>
 
 namespace beerocks {
 
