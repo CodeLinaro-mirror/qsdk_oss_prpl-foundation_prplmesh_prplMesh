@@ -1,0 +1,50 @@
+@startuml
+package "Agent" {
+
+  package "AutoConfiguration" {
+    class ApAutoConfigurationTask
+  }
+
+  package "Tasks" {
+    class TrafficSeparationTask
+  }
+
+  package "TrafficSeparation" {
+    class TrafficSeparationManager
+    abstract class PortPlumbing
+    class TrunkPortPlumbing8021q
+    class AccessPortPlumbing8021q
+    struct sTrunkPort
+    struct sAccessPort
+    struct sTrafficSeparationConfig
+  }
+
+  class AgentDB
+  class slave_thread
+  class broker_client
+  class BPL_CFG
+  class network_utils
+}
+
+' ApAutoConfigurationTask -> TrafficSeparationTask
+ApAutoConfigurationTask --> AgentDB : read BH, FH BSS, \nprofiles etc
+ApAutoConfigurationTask --> TrafficSeparationTask : task_pool_send_event(TS_ENABLE)\n task_pool_send_event(TS_NEW_BH_STA_IFACE)
+
+' TrafficSeparationTask interactions
+TrafficSeparationTask --> AgentDB : read TS DB state,\nradio/BSS/port inventory
+TrafficSeparationTask --> BPL_CFG : read private/guest bridge names
+TrafficSeparationTask --> broker_client : configure_primary_vlan_id()\nconfigure_interfaces()
+TrafficSeparationTask --> TrafficSeparationManager : reset()\nconfigure(cfg)\nadd_trunk_port(trunk)\nadd_access_port(access)\napply_policies()\nclear_policies()
+TrafficSeparationTask --> network_utils : linux_get_iface_list()\n(scan wlanX.Y.staN)
+TrafficSeparationTask --> slave_thread
+
+' Manager → plumbing
+TrafficSeparationManager --> PortPlumbing : apply(cfg)\nclear()
+PortPlumbing <|-- TrunkPortPlumbing8021q
+PortPlumbing <|-- AccessPortPlumbing8021q
+
+' Plumbing → OS/network helpers
+TrunkPortPlumbing8021q --> network_utils : create_vlan_interface()\nlinux_add_iface_to_bridge()\nset_interface_state()
+AccessPortPlumbing8021q --> network_utils : set_vlan_packet_filter()
+
+@enduml

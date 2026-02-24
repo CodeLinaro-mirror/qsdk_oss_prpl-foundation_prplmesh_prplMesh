@@ -1,0 +1,79 @@
+@startuml
+participant "ApAutoConfigurationTask" as ACT
+participant "TrafficSeparationTask" as TST
+participant "TrafficSeparationManager" as TSM
+participant "TrunkPortPlumbing8021q" as TPQ
+participant "AccessPortPlumbing8021q" as APQ
+participant "network_utils" as NU
+participant "broker_client" as BC
+participant "BPL cfg" as BPL
+participant "AgentDB" as DB
+
+== Trigger ==
+ACT -> TST : TS_ENABLE event
+TST -> TST : schedule_apply(Full)\nwait debounce
+
+== work(): Full apply ==
+TST -> BC : configure_primary_vlan_id(primary_vid, add=true)
+TST -> TSM : reset()
+TST -> BPL : cfg_get_private_bridge_iface()\ncfg_get_guest_bridge_iface()
+TST -> DB : collect trunks/access ports + VIDs
+TST -> TSM : configure(cfg)
+
+loop for each discovered trunk port
+  TST -> TSM : add_trunk_port(trunk_port)
+  ' TS not yet applied, so no plumbing->apply() here
+end
+
+loop for each discovered access port (BSS)
+  TST -> TSM : add_access_port(access_port)
+  ' TS not yet applied, so no plumbing->apply() here
+end
+
+TST -> TSM : apply_policies()
+
+loop for each [iface, plumbing] in m_trunk_port_plumbing_map
+  TSM -> TPQ : apply(cfg)
+
+  alt trunk is UNTAGGED (trunk.is_untagged_mode == true)
+    TPQ -> TPQ : m_last_cfg = cfg\nm_is_applied = true\n(no L2 changes)
+  else trunk is TAGGED
+    TPQ -> NU : linux_remove_iface_from_bridge(cfg.private_bridge,\n                                           trunk.iface_name)
+    TPQ -> NU : create_vlan_interface(trunk.iface_name, cfg.private_vid)
+    TPQ -> NU : create_vlan_interface(trunk.iface_name, cfg.guest_vid)
+    TPQ -> NU : set_interface_state(m_private_subiface, up)
+    TPQ -> NU : set_interface_state(m_guest_subiface, up)
+    TPQ -> NU : linux_add_iface_to_bridge(cfg.private_bridge,\n                                        m_private_subiface)
+    TPQ -> NU : linux_add_iface_to_bridge(cfg.guest_bridge,\n                                        m_guest_subiface)
+    TPQ -> TPQ : m_last_cfg = cfg\nm_is_applied = true
+  end
+end
+
+loop for each [iface, plumbing] in m_access_port_plumbing_map
+  TSM -> APQ : apply(cfg)
+
+  APQ -> APQ : check m_is_applied, iface_name
+  APQ -> NU  : set_vlan_packet_filter(true, access_port.iface_name)
+  APQ -> APQ : m_is_applied = true
+end
+
+TSM -> TSM : m_state = APPLIED
+
+== Add new ports at runtime, TS already applied ==
+
+ACT -> TST : TS_NEW_BH_STA_IFACE event
+TST -> TST : schedule_apply(AddNewSta)\nwait debounce
+TST -> DB : scan backhaul BSS iface names
+TST -> NU : linux_get_iface_list()\nfilter wlanX.Y.staN
+loop each new sta iface
+  TST -> TSM : add_trunk_port(new_sta_trunk)
+  TSM -> TPQ : apply(cfg)  ' immediate because manager is APPLIED
+end
+
+== Clear ==
+ACT -> TST : TS_CLEAR event
+TST -> TSM : reset()
+TST -> BC : configure_primary_vlan_id(0, add=false)
+TST -> BC : configure_interfaces(bridge, {}, true, true)
+
+@enduml
