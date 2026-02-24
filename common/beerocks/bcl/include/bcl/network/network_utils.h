@@ -300,8 +300,25 @@ public:
                                      bool is_bridge, bool pvid = false, bool untagged = false);
 
     /**
+     * @brief Set or clear a simple VLAN packet filter rule per BSS interface.
+     *
+     * Adds exactly one rule:
+     *   ebtables -t nat -A PREROUTING -i <bss_iface> -p 802_1Q -j DROP
+     *
+     * When @a set is false, all existing PREROUTING rules containing @a bss_iface
+     * in the nat table are removed.
+     *
+     * @param set       If true, add the rule; if false, only remove existing rules.
+     * @param bss_iface Interface name to apply the rule on.
+     * @return true on success, false otherwise.
+     */
+    static bool set_vlan_packet_filter(bool set, const std::string &bss_iface);
+
+    /**
      * @brief Filter (or Remove Filter) packets containing a given VLAN ID and double-tagged packets
      * with S-Tag, by adding new rules to the nat table.
+     * 
+     * TODO: remove after new TS impl is integrated (PPM-3472)
      *
      * @param set If true, set the filter, otherwise clear all rule containing the
      *  @a bss_iface name.
@@ -310,7 +327,7 @@ public:
      *  packets.
      * @return true on success, false otherwise.
      */
-    static bool set_vlan_packet_filter(bool set, const std::string &bss_iface, uint16_t vid = 0);
+    static bool set_vlan_packet_filter(bool set, const std::string &bss_iface, uint16_t vid);
 
     /**
      * @brief Generate a locally administrated mac address

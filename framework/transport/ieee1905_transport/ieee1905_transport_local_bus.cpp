@@ -129,6 +129,11 @@ void Ieee1905Transport::handle_broker_interface_configuration_request_message(
             added_updated_network_interfaces[bridge_name].is_bridge   = true;
 
             for (const auto &ifname : bridge_state) {
+                if (if_nametoindex(ifname.c_str()) == 0) {
+                    MAPF_WARN("Skipping stale bridge member " << ifname << " on bridge "
+                                                              << bridge_name << ".");
+                    continue;
+                }
                 MAPF_INFO("  Using interface: " << ifname);
                 added_updated_network_interfaces[ifname].ifname      = ifname;
                 added_updated_network_interfaces[ifname].bridge_name = bridge_name;
