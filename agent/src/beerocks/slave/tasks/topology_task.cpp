@@ -990,6 +990,9 @@ bool TopologyTask::add_associated_clients_tlv()
                 if (bssid.mac == network_utils::ZERO_MAC) {
                     continue;
                 }
+                if (bssid.ssid.empty()) {
+                    continue;
+                }
 
                 auto bss_list     = tlvAssociatedClients->create_bss_list();
                 bss_list->bssid() = bssid.mac;
