@@ -24,14 +24,67 @@
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 
+#include <cstdint>
+#include <set>
+#include <string>
+#include <vector>
+
 using namespace beerocks;
 using namespace net;
 using namespace son;
+
+namespace {
+constexpr int MIN_TS_VID = 1;
+constexpr int MAX_TS_VID = 4094;
+
+bool is_valid_ts_vid(const int vid) { return (vid >= MIN_TS_VID) && (vid <= MAX_TS_VID); }
+
+std::list<wireless_utils::sTrafficSeparationSsid>
+build_custom_ts_config(const std::list<wireless_utils::sBssInfoConf> &bss_infos,
+                       const int private_vid, const int guest_vid)
+{
+    std::list<wireless_utils::sTrafficSeparationSsid> configs;
+    std::set<std::string> unique_ssids;
+
+    for (const auto &bss_info : bss_infos) {
+        if (bss_info.ssid.empty()) {
+            continue;
+        }
+
+        // Skip backhaul-only BSS entries.
+        if (bss_info.backhaul && !bss_info.fronthaul) {
+            continue;
+        }
+
+        if (!unique_ssids.insert(bss_info.ssid).second) {
+            continue;
+        }
+
+        wireless_utils::sTrafficSeparationSsid config;
+        config.ssid = bss_info.ssid;
+        config.vlan_id =
+            static_cast<uint16_t>(bss_info.vap_type == eVapType::GUEST ? guest_vid : private_vid);
+        configs.push_back(config);
+    }
+
+    return configs;
+}
+} // namespace
+
+bool agent_monitoring_task::m_is_custom_ts_enabled{false};
 
 agent_monitoring_task::agent_monitoring_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_,
                                              task_pool &tasks_, const std::string &task_name_)
     : task(task_name_), database(database_), cmdu_tx(cmdu_tx_), tasks(tasks_)
 {
+    // "custom TS" here means local PrivateVID/GuestVID fallback when no per-SSID TS policy exists.
+    m_is_custom_ts_enabled = bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    if (!bpl::cfg_get_is_traffic_separation_enabled(m_is_custom_ts_enabled)) {
+        LOG(ERROR) << "Failed to read "
+                      "is_traffic_separation_enabled, "
+                      "using default is_ts_enabled="
+                   << bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    }
 }
 
 void agent_monitoring_task::work()
@@ -290,7 +343,7 @@ bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &
     }
 
     if (num_bsss) {
-        add_traffic_policy_tlv(database, cmdu_tx, m1);
+        add_traffic_separation_policy_tlv(database, cmdu_tx, m1);
         add_profile_2default_802q_settings_tlv(database, cmdu_tx, m1->mac_addr());
     }
 
@@ -523,7 +576,24 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
     tlv_default_8021q_settings->primary_vlan_id() = default_8021q_config.primary_vlan_id;
     tlv_default_8021q_settings->default_pcp()     = default_8021q_config.default_pcp;
 
-    if (!database.dm_set_default_8021q(*agent, default_8021q_config.primary_vlan_id,
+    // In MAP default 802.1Q settings, VLAN ID 0 means "not configured".
+    // Use configured PrivateVID as fallback only in custom TS mode.
+    if (tlv_default_8021q_settings->primary_vlan_id() == 0 && m_is_custom_ts_enabled) {
+        int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
+        if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
+            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID (or legacy HomeVid), "
+                          "using default value="
+                       << bpl::DEFAULT_PRIVATE_VLAN_ID;
+        }
+        if (!is_valid_ts_vid(private_vid)) {
+            LOG(WARNING) << "Invalid PrivateVID=" << private_vid
+                         << ", using default value=" << bpl::DEFAULT_PRIVATE_VLAN_ID;
+            private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
+        }
+        tlv_default_8021q_settings->primary_vlan_id() = static_cast<uint16_t>(private_vid);
+    }
+
+    if (!database.dm_set_default_8021q(*agent, tlv_default_8021q_settings->primary_vlan_id(),
                                        default_8021q_config.default_pcp)) {
         LOG(ERROR) << "Failed to set default 802.1Q parameters for agent" << al_mac;
         return false;
@@ -532,8 +602,9 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
     return true;
 }
 
-bool agent_monitoring_task::add_traffic_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                   std::shared_ptr<WSC::m1> m1)
+bool agent_monitoring_task::add_traffic_separation_policy_tlv(db &database,
+                                                              ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                              std::shared_ptr<WSC::m1> m1)
 {
     auto traffic_separation_configs = database.get_traffic_separation_configuration(m1->mac_addr());
     auto al_mac                     = m1->mac_addr();
@@ -544,6 +615,43 @@ bool agent_monitoring_task::add_traffic_policy_tlv(db &database, ieee1905_1::Cmd
         return false;
     }
 
+    // if traffic_separation_configs is empty -> check custom configuration
+    if (traffic_separation_configs.empty() && m_is_custom_ts_enabled) {
+        int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
+        if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
+            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID (or legacy HomeVid), "
+                          "using default value="
+                       << bpl::DEFAULT_PRIVATE_VLAN_ID;
+        }
+
+        int guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
+        if (!bpl::cfg_get_traffic_separation_guest_vid(guest_vid)) {
+            LOG(ERROR) << "Failed to read TrafficSeparation.GuestVID (or legacy GuestVid), "
+                          "using default value="
+                       << bpl::DEFAULT_GUEST_VLAN_ID;
+        }
+
+        if (!is_valid_ts_vid(private_vid)) {
+            LOG(WARNING) << "Invalid PrivateVID=" << private_vid
+                         << ", using default value=" << bpl::DEFAULT_PRIVATE_VLAN_ID;
+            private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
+        }
+
+        if (!is_valid_ts_vid(guest_vid)) {
+            LOG(WARNING) << "Invalid GuestVID=" << guest_vid
+                         << ", using default value=" << bpl::DEFAULT_GUEST_VLAN_ID;
+            guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
+        }
+
+        // No per-SSID TS policy exists; derive private/guest VLAN from BSS vap_type.
+        traffic_separation_configs = build_custom_ts_config(
+            database.get_bss_info_configuration(al_mac), private_vid, guest_vid);
+        if (traffic_separation_configs.empty()) {
+            LOG(WARNING) << "No fronthaul SSIDs found for custom TrafficSeparation policy";
+        }
+    }
+
+    // Make TrafficSeparationPolicy TLV
     if (!traffic_separation_configs.empty()) {
         auto tlv_traffic_policy = cmdu_tx.addClass<wfa_map::tlvProfile2TrafficSeparationPolicy>();
         if (!tlv_traffic_policy) {

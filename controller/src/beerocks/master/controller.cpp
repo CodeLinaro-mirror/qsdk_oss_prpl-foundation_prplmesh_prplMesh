@@ -1329,16 +1329,31 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         num_bsss++;
     }
 
+    bool is_custom_ts_enabled = beerocks::bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    if (!beerocks::bpl::cfg_get_is_traffic_separation_enabled(is_custom_ts_enabled)) {
+        LOG(ERROR) << "failed to read "
+                      "is_traffic_separation_enabled, "
+                      "using default is_ts_enabled="
+                   << beerocks::bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    }
+
+    const bool has_configured_bss = !database.get_configured_bss_info(ruid).empty();
+
     // If no BSS (either because none are configured, or because they don't match), tear down.
-    if (num_bsss == 0) {
+    if (!has_configured_bss) {
         if (!autoconfig_wsc_add_m2(*m1, nullptr)) {
             LOG(ERROR) << "Failed setting M2 attributes";
             return false;
         }
     } else {
-        agent_monitoring_task::add_traffic_policy_tlv(database, cmdu_tx, m1);
+        agent_monitoring_task::add_traffic_separation_policy_tlv(database, cmdu_tx, m1);
         agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
                                                                       m1->mac_addr());
+    }
+
+    if (!has_configured_bss && is_custom_ts_enabled) {
+        LOG(DEBUG) << "Custom traffic separation is enabled, but no configured BSS matched ruid="
+                   << ruid << "; skipping TS TLVs in teardown flow";
     }
 
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
