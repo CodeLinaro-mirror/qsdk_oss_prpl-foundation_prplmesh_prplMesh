@@ -28,17 +28,25 @@ class MultiVendorExample : public multi_vendor::tlvf_handler,
 public:
     MultiVendorExample()
     {
-        LOG(INFO) << "MultiVendorExample: registering vendor-specific TLV handlers";
+        LOG(INFO) << "MultiVendorExample: registering vendor-specific TLV handlers and parsers";
 
-        // Register handlers for the messages you support
+        // Register SEND handlers for the messages you support
         multi_vendor::tlvf_handler::register_handler(
             eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE, add_vendor_example_tlv);
 
         multi_vendor::tlvf_handler::register_handler(eMessageType::AP_CAPABILITY_REPORT_MESSAGE,
                                                      add_vendor_example_tlv);
 
+        // Register RECEIVE parsers for the messages you support
+        multi_vendor::tlvf_handler::register_parser(
+            eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE, parse_vendor_example_tlv);
+
+        multi_vendor::tlvf_handler::register_parser(eMessageType::AP_CAPABILITY_REPORT_MESSAGE,
+                                                    parse_vendor_example_tlv);
+
         // Add more registrations as needed
-        // multi_vendor::tlvf_handler::register_handler(<MessageType>, <YourHandler>);
+        // multi_vendor::tlvf_handler::register_handler(<MessageType>, <YourSendHandler>);
+        // multi_vendor::tlvf_handler::register_parser(<MessageType>, <YourReceiveParser>);
     }
 };
 

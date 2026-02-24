@@ -149,6 +149,9 @@
 
 using namespace ieee1905_1;
 
+// Initialize static member
+CmduMessageRx::VendorTlvParserCallback CmduMessageRx::s_vendor_tlv_parser = nullptr;
+
 int CmduMessageRx::getNextTlvType() const
 {
     if (!getCmduHeader())
@@ -237,6 +240,16 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(ieee1905_1::eTlvType tlv_
         return msg.addClass<tlvReceiverLinkMetric>();
     }
     case (ieee1905_1::eTlvType::TLV_VENDOR_SPECIFIC): {
+        // Try vendor-specific parser first if registered
+        if (s_vendor_tlv_parser) {
+            auto msg_type   = getCmduHeader()->message_type();
+            auto parsed_tlv = s_vendor_tlv_parser(*this, msg_type);
+            if (parsed_tlv) {
+                // Vendor parser successfully handled the TLV
+                return parsed_tlv;
+            }
+        }
+        // Fallback to generic vendor-specific TLV
         return msg.addClass<tlvVendorSpecific>();
     }
     case (ieee1905_1::eTlvType::TLV_LINK_METRIC_RESULT_CODE): {
@@ -625,20 +638,6 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     return msg.addClass<tlvUnknown>();
 }
 
-// Instruction for New Vendors:**
-// - Follow the structure of this function to implement your own TLV parsing.
-std::shared_ptr<BaseClass>
-CmduMessageRx::parseNextTlv(vendor_example::eVendorExampleTlvTypeMap tlv_type)
-{
-    switch (tlv_type) {
-    case (vendor_example::eVendorExampleTlvTypeMap::TLV_VENDOR_SPECIFIC): {
-        return msg.addClass<vendor_example::tlvVendorExample>();
-    }
-    }
-    LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
-    return msg.addClass<tlvUnknown>();
-}
-
 std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv()
 {
     auto tlv_type = getNextTlvType();
@@ -647,8 +646,6 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv()
         return parseNextTlv(ieee1905_1::eTlvType(tlv_type));
     } else if (wfa_map::eTlvTypeMapValidate::check(tlv_type)) {
         return parseNextTlv(wfa_map::eTlvTypeMap(tlv_type));
-    } else if (vendor_example::eVendorExampleTlvTypeMapValidate::check(tlv_type)) {
-        return parseNextTlv(vendor_example::eVendorExampleTlvTypeMap(tlv_type));
     } else {
         LOG(INFO) << "Unknown TLV type: " << tlv_type;
         return msg.addClass<tlvUnknown>();
