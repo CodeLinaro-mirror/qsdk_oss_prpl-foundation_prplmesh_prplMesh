@@ -12,6 +12,7 @@
 #include "task_pool_interface.h"
 #include <beerocks/tlvf/beerocks_header.h>
 #include <chrono>
+#include <tlvf/common/sMacAddr.h>
 #include <tlvf/CmduMessageRx.h>
 
 namespace beerocks {
@@ -32,6 +33,7 @@ enum eTaskType : uint8_t {
     LINK_METRICS_COLLECTION,
     SWITCH_CHANNEL,
     TOPOLOGY,
+    TRAFFIC_SEPARATION,
     SERVICE_PRIORITIZATION,
     PROXY_AGENT_DPP,
     CONTROLLER_CONNECTIVITY,

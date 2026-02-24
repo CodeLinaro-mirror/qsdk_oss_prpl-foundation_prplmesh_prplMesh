@@ -66,28 +66,49 @@ struct sAccessPort {
 };
 
 /**
- * @brief Function to derrive if trunk is expected to be TAGGED or UNTAGGED
- * 
- * @param[in] dis_p1 - disallow Profile-1 flag
- * @param[in] dis_p2 - disallow Profile-1 flag
- * @param[in] policy - eUnsupportedProfileDisallowPolicy enum to force settings if unresolved via dissaloved flags
- * 
- * @return true if untagged mode, false otherwise
- * 
- * @details https://prplfoundationcloud.atlassian.net/wiki/spaces/PRPLMESH/pages/1364426774/TS+Design.+Two+bridges+with+802.1Q+subinterfaces#Allow%2Fdissallow-legacy-logic
- * 
+ * @brief Resolve unsupported disallow flags using certification policy.
+ *
+ * Valid inputs have exactly one disallow bit set:
+ * - disallow Profile-1 => tagged mode
+ * - disallow Profile-2 => untagged mode
+ *
+ * Unsupported inputs (both true or both false) may be overridden by policy.
+ *
+ * @return true if flags are valid after resolution, false if unresolved.
+ */
+inline bool resolve_profile_disallow_flags(bool &dis_p1, bool &dis_p2,
+                                           eUnsupportedProfileDisallowPolicy policy)
+{
+    if (dis_p1 != dis_p2) {
+        return true;
+    }
+
+    switch (policy) {
+    case eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE1:
+        dis_p1 = true;
+        dis_p2 = false;
+        return true;
+    case eUnsupportedProfileDisallowPolicy::FORCE_DISALLOW_PROFILE2:
+        dis_p1 = false;
+        dis_p2 = true;
+        return true;
+    case eUnsupportedProfileDisallowPolicy::NO_OVERRIDE:
+    default:
+        return false;
+    }
+}
+
+/**
+ * @brief Derive trunk mode (tagged/untagged) from profile-disallow flags and policy.
+ *
+ * @return true for untagged mode, false for tagged mode.
  */
 inline bool is_untagged_mode(bool dis_p1, bool dis_p2, eUnsupportedProfileDisallowPolicy policy)
 {
-    const bool valid_p1 = (!dis_p1 && dis_p2);
-    const bool valid_p2 = (dis_p1 && !dis_p2);
-
-    if (valid_p1)
+    if (!resolve_profile_disallow_flags(dis_p1, dis_p2, policy)) {
         return false;
-    if (valid_p2)
-        return true;
-
-    return (policy == eUnsupportedProfileDisallowPolicy::FORCE_PROFILE2);
+    }
+    return (!dis_p1 && dis_p2);
 }
 
 } // namespace beerocks::net
