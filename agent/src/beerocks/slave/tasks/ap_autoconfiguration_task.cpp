@@ -228,8 +228,7 @@ static inline std::string dump_bssid_compact(const beerocks::AgentDB::sRadio::sF
     return out.str();
 }
 
-template <typename BssConfig>
-static inline std::string dump_bssconfig_compact(const BssConfig &cfg)
+template <typename BssConfig> static inline std::string dump_bssconfig_compact(const BssConfig &cfg)
 {
     std::ostringstream out;
 

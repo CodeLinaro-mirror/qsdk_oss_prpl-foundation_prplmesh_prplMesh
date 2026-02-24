@@ -330,8 +330,7 @@ private:
      *
      * @return true on successful validation, false if the radio cannot be found.
      */
-    bool handle_bss_reconfiguration(const std::string &radio_iface,
-                                    std::vector<sBssConfig> &infos);
+    bool handle_bss_reconfiguration(const std::string &radio_iface, std::vector<sBssConfig> &infos);
 
     bool send_ap_bss_info_update_request(const std::string &radio_iface);
 

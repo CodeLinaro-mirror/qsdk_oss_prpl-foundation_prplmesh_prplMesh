@@ -119,7 +119,7 @@ def deflate_and_encode(text: str) -> str:
 
     encoded = []
     for index in range(0, len(compressed), 3):
-        chunk = compressed[index : index + 3]
+        chunk = compressed[index:index + 3]
         if len(chunk) == 3:
             encoded.append(_append_3bytes(chunk[0], chunk[1], chunk[2]))
         elif len(chunk) == 2:

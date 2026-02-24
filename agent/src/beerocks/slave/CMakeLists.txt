@@ -65,6 +65,7 @@ if (BUILD_TESTS)
     set(TEST_PROJECT_NAME ${PROJECT_NAME}_unit_tests)
     set(unit_tests_sources
         gate/unit_tests/gate_test.cpp
+        traffic_separation/unit_tests/traffic_separation_utils_test.cpp
         ${MODULE_PATH}/gate/1905_beacon_query_to_vs.cpp
         ${MODULE_PATH}/gate/vs_beacon_response_to_1905.cpp
     )
