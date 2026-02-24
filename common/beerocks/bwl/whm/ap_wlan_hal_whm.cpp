@@ -21,6 +21,7 @@
 #include <numeric>
 #include <sstream>
 #include <tlvf/tlvftypes.h>
+#include <utility>
 #include <vector>
 using namespace beerocks;
 using namespace wbapi;
@@ -1326,15 +1327,48 @@ bool ap_wlan_hal_whm::pre_generate_connected_clients_events()
 
 bool ap_wlan_hal_whm::start_wps_pbc()
 {
-    AmbiorixVariant args, result;
-    std::string main_vap_ifname = m_radio_info.available_vaps[0].bss;
-    std::string wps_path        = wbapi_utils::search_path_ap_by_iface(main_vap_ifname) + "WPS.";
-    bool ret                    = m_ambiorix_cl.call(wps_path, "InitiateWPSPBC", args, result);
-
-    if (!ret) {
-        LOG(ERROR) << "start_wps_pbc() failed!";
+    if (!refresh_vaps_info(beerocks::IFACE_RADIO_ID)) {
+        LOG(ERROR) << "start_wps_pbc() failed to refresh VAP info";
         return false;
     }
+
+    // WPS.Enable is operator-controlled and identifies the AP selected for WPS on this radio.
+    std::vector<std::pair<std::string, std::string>> wps_enabled_vaps;
+
+    for (const auto &vap_it : m_radio_info.available_vaps) {
+        const auto &vap_info = vap_it.second;
+        const auto wps_path  = wbapi_utils::search_path_ap_by_iface(vap_info.bss) + "WPS.";
+
+        bool wps_enabled = false;
+        if (!m_ambiorix_cl.get_param(wps_enabled, wps_path, "Enable")) {
+            LOG(WARNING) << "start_wps_pbc() failed to read WPS.Enable for VAP " << vap_info.bss;
+            continue;
+        }
+
+        if (wps_enabled) {
+            wps_enabled_vaps.emplace_back(vap_info.bss, wps_path);
+        }
+    }
+
+    if (wps_enabled_vaps.empty()) {
+        LOG(ERROR) << "start_wps_pbc() no WPS-enabled VAP found";
+        return false;
+    }
+
+    if (wps_enabled_vaps.size() > 1) {
+        LOG(ERROR) << "start_wps_pbc() found " << wps_enabled_vaps.size()
+                   << " WPS-enabled VAPs, expected exactly one";
+        return false;
+    }
+
+    const auto &wps_vap = wps_enabled_vaps.front();
+    AmbiorixVariant args, result;
+    if (!m_ambiorix_cl.call(wps_vap.second, "InitiateWPSPBC", args, result)) {
+        LOG(ERROR) << "start_wps_pbc() failed on VAP " << wps_vap.first;
+        return false;
+    }
+
+    LOG(INFO) << "start_wps_pbc() started on VAP " << wps_vap.first;
     return true;
 }
 
