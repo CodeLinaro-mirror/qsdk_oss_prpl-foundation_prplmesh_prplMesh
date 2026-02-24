@@ -25,7 +25,6 @@
 #include <netinet/in.h>
 #include <netinet/ip_icmp.h>
 #include <netlink/route/neighbour.h>
-#include <regex>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,20 +53,6 @@ struct route_info {
     char ifName[IF_NAMESIZE];
 };
 
-/*
- *  @brief Simple RAII protection for descriptor to prevent leaks if early return or anything else
- */
-struct FdGuard {
-    explicit FdGuard(int fd_) : fd(fd_) {}
-    ~FdGuard()
-    {
-        if (fd >= 0)
-            close(fd);
-    }
-    int fd;
-    FdGuard(const FdGuard &) = delete;
-    FdGuard &operator=(const FdGuard &) = delete;
-};
 } // namespace
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Fucntions ///////////////////////////
@@ -624,7 +609,7 @@ bool network_utils::linux_add_iface_to_bridge(const std::string &bridge, const s
 
     // Early exit: already correct.
     if (linux_iface_get_host_bridge(iface) == bridge) {
-        LOG(WARNING) << "iface " << iface << " is already in bridge " << bridge;
+        LOG(DEBUG) << "iface " << iface << " is already in bridge " << bridge;
         return true;
     }
 
@@ -666,9 +651,9 @@ bool network_utils::linux_add_iface_to_bridge(const std::string &bridge, const s
 
     // Classification: if already correct -> warn + succeed.
     if (linux_iface_get_host_bridge(iface) == bridge) {
-        LOG(WARNING) << "failed to add iface " << iface << " to bridge " << bridge
-                     << " (errno=" << saved_errno << " - " << strerror(saved_errno)
-                     << "), but configuration is already correct";
+        LOG(DEBUG) << "failed to add iface " << iface << " to bridge " << bridge
+                   << " (errno=" << saved_errno << " - " << strerror(saved_errno)
+                   << "), but configuration is already correct";
         return true;
     }
 
@@ -688,7 +673,8 @@ bool network_utils::linux_remove_iface_from_bridge(const std::string &bridge,
         return true;
     }
 
-    struct ifreq ifr{};
+    struct ifreq ifr {
+    };
     int err = 0;
 
     const auto ifindex = linux_get_iface_index(iface);
@@ -725,9 +711,9 @@ bool network_utils::linux_remove_iface_from_bridge(const std::string &bridge,
 
     // Classification: if already correct -> warn + succeed.
     if (linux_iface_get_host_bridge(iface) != bridge) {
-        LOG(WARNING) << "failed to remove iface " << iface << " from bridge " << bridge
-                     << " (errno=" << saved_errno << " - " << strerror(saved_errno)
-                     << "), but configuration is already correct";
+        LOG(DEBUG) << "failed to remove iface " << iface << " from bridge " << bridge
+                   << " (errno=" << saved_errno << " - " << strerror(saved_errno)
+                   << "), but configuration is already correct";
         return true;
     }
 
@@ -1434,10 +1420,29 @@ std::string network_utils::create_vlan_interface(const std::string &iface, uint1
     }
 
     // Shorten "sta<digits>" -> "s<digits>" only for the new interface name
-    // to avoid issue with exceeding linux limit IFNAMSIZ
+    // to avoid IFNAMSIZ overflows on long BSS/STA names.
     std::string iface_short = iface;
-    static const std::regex sta_regex(R"(sta([0-9]+))");
-    iface_short = std::regex_replace(iface_short, sta_regex, "s$1");
+    for (size_t pos = 0; pos + 3 < iface_short.size();) {
+        if (iface_short.compare(pos, 3, "sta") != 0) {
+            ++pos;
+            continue;
+        }
+
+        size_t digit_pos = pos + 3;
+        while (digit_pos < iface_short.size() &&
+               std::isdigit(static_cast<unsigned char>(iface_short[digit_pos]))) {
+            ++digit_pos;
+        }
+
+        // Replace only "sta" prefixes that are immediately followed by digits.
+        if (digit_pos == pos + 3) {
+            ++pos;
+            continue;
+        }
+
+        iface_short.replace(pos, 3, "s");
+        pos = digit_pos - 2;
+    }
 
     std::string vid_str = std::to_string(vid);
 
@@ -1592,110 +1597,95 @@ bool network_utils::set_iface_vid_policy(const std::string &iface, bool del, uin
 }
 bool network_utils::set_vlan_packet_filter(bool set, const std::string &bss_iface)
 {
+    static constexpr char TC_PROTO_8021Q[]    = "802.1Q";
+    static constexpr char TC_PROTO_8021AD[]   = "802.1ad";
+    static constexpr int FILTER_PREF_8021Q    = 1911;
+    static constexpr int FILTER_PREF_8021AD   = 1912;
+    static constexpr int FILTER_HANDLE_8021Q  = 1911;
+    static constexpr int FILTER_HANDLE_8021AD = 1912;
+
     if (bss_iface.empty()) {
         LOG(ERROR) << "Given BSS interface name is empty!";
         return false;
     }
 
-    // Base command prefix
-    std::string cmd;
-    cmd.reserve(150);
-    cmd.append("ebtables -t nat ");
-
-    // 1) Remove all existing rules in nat/PREROUTING
-    const std::string list_cmd = cmd + "-L PREROUTING | grep " + bss_iface;
-    const std::string output   = os_utils::system_call_with_output(list_cmd, true);
-
-    const auto lines = string_utils::str_split(output, '\n');
-    for (const auto &line : lines) {
-        if (line.empty()) {
-            continue;
+    auto run_tc_cmd = [&](const std::string &cmd, bool ignore_missing_filter) -> bool {
+        const auto output = os_utils::system_call_with_output(cmd, true);
+        if (output.empty()) {
+            return true;
         }
 
+        // Removing a missing tc filter is expected during idempotent cleanup.
+        if (ignore_missing_filter &&
+            (output.find("Cannot find specified filter") != std::string::npos ||
+             output.find("No such file or directory") != std::string::npos ||
+             output.find("RTNETLINK answers: Invalid argument") != std::string::npos ||
+             output.find("We have an error talking to the kernel") != std::string::npos)) {
+            return true;
+        }
+
+        LOG(ERROR) << "failed command='" << cmd << "', output='" << output << "'";
+        return false;
+    };
+
+    bool success = true;
+
+    if (set) {
+        std::string qdisc_cmd;
+        qdisc_cmd.reserve(96);
+        qdisc_cmd.append("tc qdisc replace dev ").append(bss_iface).append(" clsact");
+        if (!run_tc_cmd(qdisc_cmd, false)) {
+            success = false;
+        }
+    }
+
+    auto remove_drop_filter = [&](int pref, int handle) -> bool {
         std::string del_cmd;
-        del_cmd.reserve(150);
-        del_cmd.append(cmd).append("-D PREROUTING ").append(line);
-        os_utils::system_call(del_cmd);
+        del_cmd.reserve(160);
+        del_cmd.append("tc filter del dev ")
+            .append(bss_iface)
+            .append(" ingress pref ")
+            .append(std::to_string(pref))
+            .append(" handle ")
+            .append(std::to_string(handle))
+            .append(" flower");
+        return run_tc_cmd(del_cmd, true);
+    };
+
+    if (!remove_drop_filter(FILTER_PREF_8021Q, FILTER_HANDLE_8021Q)) {
+        success = false;
+    }
+    if (!remove_drop_filter(FILTER_PREF_8021AD, FILTER_HANDLE_8021AD)) {
+        success = false;
     }
 
-    // if cleanup, that's all
     if (!set) {
-        return true;
+        return success;
     }
 
-    // 2) Add new rule
-    std::string add_cmd;
-    add_cmd.reserve(150);
-    add_cmd.append(cmd).append("-A PREROUTING -i ").append(bss_iface).append(" -p 802_1Q -j DROP");
+    auto add_drop_filter = [&](const char *proto, int pref, int handle) -> bool {
+        std::string add_cmd;
+        add_cmd.reserve(200);
+        add_cmd.append("tc filter add dev ")
+            .append(bss_iface)
+            .append(" ingress pref ")
+            .append(std::to_string(pref))
+            .append(" handle ")
+            .append(std::to_string(handle))
+            .append(" protocol ")
+            .append(proto)
+            .append(" flower action drop");
+        return run_tc_cmd(add_cmd, false);
+    };
 
-    os_utils::system_call(add_cmd);
-
-    return true;
-}
-
-bool network_utils::set_vlan_packet_filter(bool set, const std::string &bss_iface, uint16_t vid)
-{
-    if (bss_iface.empty()) {
-        LOG(ERROR) << "Given BSS interface name is empty!";
-        return false;
+    if (!add_drop_filter(TC_PROTO_8021Q, FILTER_PREF_8021Q, FILTER_HANDLE_8021Q)) {
+        success = false;
+    }
+    if (!add_drop_filter(TC_PROTO_8021AD, FILTER_PREF_8021AD, FILTER_HANDLE_8021AD)) {
+        success = false;
     }
 
-    // VID
-    if (vid > MAX_VLAN_ID) {
-        LOG(ERROR) << "Skip invalid VID: " << vid;
-        return false;
-    }
-
-    // Command example:
-    // ebtables -t <table> -{A (Append)|D (Delete)} <Chain> [-p <protocol>]
-    // [-J <jump target {ACCEPT|DROP|CONTINUE|RETURN}>] [-i <iface>]
-    // If "-p 802_1q":
-    //      [--vlan-id <vid>] [--vlan-encap <protocol>]
-    //
-    // Using like this:
-    // ebtables -t nat -{A|D} PREROUTING -p 802_1Q -j DROP -i <iface> --vlan-id <vid>
-    // ebtables -t nat -{A|D} PREROUTING -p 802_1Q -j DROP -i <iface> --vlan-encap 802_1Q
-
-    std::string cmd;
-    cmd.reserve(150);
-
-    cmd.append("ebtables -t nat ");
-
-    // Before adding rule, remove existing rules.
-    std::string vlan_filter_entry_cmd = cmd + "-L PREROUTING | grep " + bss_iface;
-    std::string vlan_filter_entry_cmd_output =
-        os_utils::system_call_with_output(vlan_filter_entry_cmd, true);
-    auto lines = string_utils::str_split(vlan_filter_entry_cmd_output, '\n');
-    for (const auto &line : lines) {
-        std::string cmd_delete_old;
-        cmd_delete_old.reserve(150);
-        cmd_delete_old.append(cmd).append("-D PREROUTING ").append(line);
-        os_utils::system_call(cmd_delete_old);
-    }
-
-    // If function called for removeing, the removal of rules finished above.
-    if (!set) {
-        return true;
-    }
-
-    // Append rule.
-    cmd.append("-A ");
-
-    cmd.append("PREROUTING -p 802_1Q -j DROP -i ").append(bss_iface);
-    auto cmd_base_len = cmd.length();
-
-    if (vid != 0) {
-        // Filter packets carrying the VLAN tag of the interface.
-        cmd.append(" --vlan-id ").append(std::to_string(vid));
-        os_utils::system_call(cmd);
-        cmd.erase(cmd_base_len);
-    }
-
-    // Filter double-tagged packets that are encapsulated with an S-Tag.
-    cmd.append(" --vlan-encap 802_1Q");
-    os_utils::system_call(cmd);
-
-    return true;
+    return success;
 }
 
 sMacAddr network_utils::get_eth_sw_mac_from_bridge_mac(const sMacAddr &bridge_mac)

@@ -21,7 +21,6 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include "backhaul_manager/backhaul_manager.h"
 #include "platform_manager/platform_manager.h"
 #include "son_slave_thread.h"
-#include "traffic_separation.h"
 
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_config_file.h>
@@ -168,6 +167,24 @@ static std::string get_sta_iface_from_hostap_iface(const std::string &hostap_ifa
         }
     }
     return sta_iface;
+}
+
+static bool
+parse_unsupported_profile_disallow_policy(const std::string &config_value,
+                                          beerocks::eUnsupportedProfileDisallowPolicy &policy)
+{
+    const std::string trimmed_value = beerocks::string_utils::trimmed_substr(config_value);
+    if (trimmed_value.empty()) {
+        policy = beerocks::eUnsupportedProfileDisallowPolicy::NO_OVERRIDE;
+        return true;
+    }
+
+    if (trimmed_value.size() != 1 || trimmed_value[0] < '0' || trimmed_value[0] > '2') {
+        return false;
+    }
+
+    const auto value = static_cast<uint8_t>(trimmed_value[0] - '0');
+    return beerocks::unsupported_profile_disallow_policy_from_config_value(value, policy);
 }
 
 static void fill_son_slave_config(const beerocks::config_file::sConfigSlave &beerocks_slave_conf,
@@ -398,18 +415,22 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     beerocks::bpl::set_ambiorix_impl_ptr(amb_dm_obj);
 
     {
-        auto db           = beerocks::AgentDB::get();
+        auto db = beerocks::AgentDB::get();
 
-        // Load and set traffic separation profile_x_disallow_override (See beerocks_agent.conf)
-        auto profile = beerocks::string_utils::stoi(
-            beerocks_slave_conf.profile_x_disallow_override_unsupported_configuration);
-        if (profile < 0 || profile > 2) {
-            LOG(ERROR) << "profile value is invalid, accept only values 0 <= profile <= 2";
+        // Load and set traffic separation profile-disallow override (see beerocks_agent.conf).
+        const auto &policy_cfg =
+            beerocks_slave_conf.profile_x_disallow_override_unsupported_configuration;
+        beerocks::eUnsupportedProfileDisallowPolicy policy;
+        if (!parse_unsupported_profile_disallow_policy(policy_cfg, policy)) {
+            LOG(ERROR) << "Invalid profile_x_disallow_override_unsupported_configuration value '"
+                       << policy_cfg << "'. Accepted values: 0 (NO_OVERRIDE), 1 "
+                       << "(FORCE_DISALLOW_PROFILE1), 2 (FORCE_DISALLOW_PROFILE2)";
             return 1;
         }
-        LOG(DEBUG) << "Set profile_x_disallow_override_unsupported_configuration to " << profile;
-        db->device_conf.unsupported_profile_disallow_policy =
-            static_cast<beerocks::eUnsupportedProfileDisallowPolicy>(profile);
+        db->device_conf.unsupported_profile_disallow_policy = policy;
+        LOG(DEBUG) << "Set profile_x_disallow_override_unsupported_configuration to "
+                   << beerocks::unsupported_profile_disallow_policy_to_string(policy)
+                   << " (raw=" << policy_cfg << ")";
 
         auto on_boot_scan = beerocks::string_utils::stoi(beerocks_slave_conf.on_boot_scan);
         db->device_conf.on_boot_scan = on_boot_scan;

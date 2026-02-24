@@ -9,9 +9,7 @@
 #ifndef _AP_AUTOCONFIGURATION_TASK_H_
 #define _AP_AUTOCONFIGURATION_TASK_H_
 
-#include "agent_db.h"
 #include "task.h"
-#include "traffic_separation.h"
 
 #include <mapf/common/encryption.h>
 #include <tlvf/CmduMessageTx.h>
@@ -26,31 +24,6 @@ namespace beerocks {
 
 // Forward declaration for Agent context saving
 class slave_thread;
-
-/**
-  * @brief Per-BSS configuration received via WSC/1905 TLVs.
-  *
-  * Holds all data needed to (re)configure a single AP BSS on the Agent side.
-  * It aggregates attributes parsed from:
-  *   - WSC M2 TLV and it's "Encrypted Settings" (e.g. SSID, keying)
-  *   - Agent AP MLD Configuration TLV 
-  *   - RSN Parameters Configuration TLV 
-  **/
-struct sBssConfig {
-    WSC::m2::config m2_config;
-    WSC::EncryptedSettingsPayload::config payload_config;
-    int8_t mld_id = DISABLED_MLDUNIT;
-    son::wireless_utils::eAdditionalAuth additional_auth =
-        son::wireless_utils::eAdditionalAuth::NONE;
-};
-
-/**
-  * @brief Backhaul STA (bSTA) configuration and targeting from WSC M8.
-  **/
-struct sBStaConfig {
-    WSC::m8::config m8_config;
-    WSC::EncryptedSettingsPayload::config payload_config;
-};
 
 class ApAutoConfigurationTask : public Task {
 public:
@@ -107,6 +80,31 @@ private:
     };
 
     /**
+     * @brief Per-BSS configuration received via WSC/1905 TLVs.
+     *
+     * Holds all data needed to (re)configure a single AP BSS on the Agent side.
+     * It aggregates attributes parsed from:
+     *   - WSC M2 TLV and it's "Encrypted Settings" (e.g. SSID, keying)
+     *   - Agent AP MLD Configuration TLV
+     *   - RSN Parameters Configuration TLV
+     **/
+    struct sBssConfig {
+        WSC::m2::config m2_config;
+        WSC::EncryptedSettingsPayload::config payload_config;
+        int8_t mld_id = DISABLED_MLDUNIT;
+        son::wireless_utils::eAdditionalAuth additional_auth =
+            son::wireless_utils::eAdditionalAuth::NONE;
+    };
+
+    /**
+     * @brief Backhaul STA (bSTA) configuration and targeting from WSC M8.
+     **/
+    struct sBStaConfig {
+        WSC::m8::config m8_config;
+        WSC::EncryptedSettingsPayload::config payload_config;
+    };
+
+    /**
      * @brief State of AP-Autoconfiguration task on mapped by front radio interface name.
      * 
      * Key:     Front radio interface name.
@@ -147,8 +145,6 @@ private:
     // To make unordered_map work with an enum as key, std::hash<int> function was added as third
     // template argument.
     std::unordered_map<eFreqType, sDiscoveryStatus, std::hash<int>> m_discovery_status;
-
-    std::unique_ptr<net::TrafficSeparation> m_traffic_separation_configurator;
 
     bool m_task_is_active = false;
 
@@ -320,10 +316,10 @@ private:
 
     /**
      * @brief Validate and normalize incoming BSS configuration for a given radio.
-     * 
+     *
      * "Normalization" means:
-     * - For matched BSS needing reconfig, overwrite incoming bssid with current BSSID MAC 
-     * as Controller does send ruid instead.
+     * - For matched BSS needing reconfig, overwrite incoming bssid with current BSSID MAC
+     *   as Controller does send ruid instead.
      * - For no match BSS, create teardown config copying current BSSID and setting TEARDOWN bss_type.
      * - If possible reuse TEARDOWN BSS for remaining BSSs that was requested to create.
      * - Replace remaining config BSSID with WILD_MAC_STRING as a trigger to create VAP.
@@ -334,7 +330,8 @@ private:
      *
      * @return true on successful validation, false if the radio cannot be found.
      */
-    bool handle_bss_reconfiguration(const std::string &radio_iface, std::vector<sBssConfig> &infos);
+    bool handle_bss_reconfiguration(const std::string &radio_iface,
+                                    std::vector<sBssConfig> &infos);
 
     bool send_ap_bss_info_update_request(const std::string &radio_iface);
 
@@ -407,7 +404,6 @@ private:
     bool
     airties_vs_ap_autoconfiguration_wsc_parse_service_status(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                              const std::string &radio_iface);
-
     /**
      * @brief Parse the vendor extension from m2 for Radio Operational Mode
      *
