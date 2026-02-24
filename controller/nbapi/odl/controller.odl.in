@@ -350,6 +350,26 @@
                         default "0";
                     }
 
+                    /* Traffic Separation configuration */
+                    %persistent object TrafficSeparation {
+                        /* If true, then prplMesh Controller applies TS policies for the network */
+                        %persistent bool Enable {
+                            default false;
+                        }
+
+                        /* VLAN ID to use for private/home SSIDs */
+                        %persistent int32 PrivateVID {
+                            default 10;
+                            on action validate call check_range [1, 4094];
+                        }
+
+                        /* VLAN ID to use for guest SSIDs */
+                        %persistent int32 GuestVID {
+                            default 20;
+                            on action validate call check_range [1, 4094];
+                        }
+                    }
+
                     /* QoS configuration */
                     %persistent object QoS {
                         /* Output queue priority mapping */

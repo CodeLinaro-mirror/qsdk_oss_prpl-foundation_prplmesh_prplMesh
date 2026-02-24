@@ -1095,6 +1095,36 @@ bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
     return true;
 }
 
+bool cfg_get_private_bridge_iface(std::string &bridge_iface)
+{
+    bridge_iface = DEFAULT_PRIVATE_BRIDGE_IFACE;
+    return true;
+}
+
+bool cfg_get_guest_bridge_iface(std::string &bridge_iface)
+{
+    bridge_iface = DEFAULT_GUEST_BRIDGE_IFACE;
+    return true;
+}
+
+bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled)
+{
+    is_traffic_separation_enabled = DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    return true;
+}
+
+bool cfg_get_traffic_separation_private_vid(int &private_vid)
+{
+    private_vid = DEFAULT_PRIVATE_VLAN_ID;
+    return true;
+}
+
+bool cfg_get_traffic_separation_guest_vid(int &guest_vid)
+{
+    guest_vid = DEFAULT_GUEST_VLAN_ID;
+    return true;
+}
+
 #endif
 
 bool cfg_commit_changes() { return uci_commit_changes("prplmesh"); }

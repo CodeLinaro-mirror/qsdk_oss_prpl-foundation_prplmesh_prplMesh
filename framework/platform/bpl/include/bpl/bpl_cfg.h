@@ -219,6 +219,18 @@ constexpr unsigned int DEFAULT_CHANNEL_UTILIZATION_THRESHOLD{0};
 // Default value for RCPI steering threshold (encoded per [Table 9-176/802.11-2020])
 constexpr unsigned int DEFAULT_RCPI_STEERING_THRESHOLD{0};
 
+/* Bridge names */
+constexpr char DEFAULT_PRIVATE_BRIDGE_IFACE[] = "br-lan";
+constexpr char DEFAULT_GUEST_BRIDGE_IFACE[]   = "br-guest";
+
+/* Traffic separation configuration */
+// Default enable flag for traffic separation
+constexpr bool DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED = false;
+// Default private network VLAN id
+constexpr int DEFAULT_PRIVATE_VLAN_ID = 10;
+// Default guest network VLAN id
+constexpr int DEFAULT_GUEST_VLAN_ID = 20;
+
 /****************************************************************************/
 /******************************* Structures *********************************/
 /****************************************************************************/
@@ -1264,6 +1276,52 @@ bool get_controller_message_timeout_seconds(std::chrono::seconds &timeout_second
 bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeout_seconds);
 
 bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements);
+
+/**
+ * @brief Reads private bridge iface name
+ * 
+ * @param[out] bridge_iface - name of the private bridge iface
+ * @return true if success, false otherwise
+ */
+bool cfg_get_private_bridge_iface(std::string &bridge_iface);
+
+/**
+ * @brief Reads guest bridge iface name
+ * 
+ * @param[out] bridge_iface - name of the guest bridge iface
+ * @return true if success, false otherwise
+ */
+bool cfg_get_guest_bridge_iface(std::string &bridge_iface);
+
+/**
+ * @brief Reads flag that specifies if traffic separation is enabled
+ * 
+ * @param[out] is_traffic_separation_enabled - flag that says if TS is enabled
+ * @return true if success, false otherwise
+ */
+bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled);
+
+/**
+ * @brief Reads VLAN ID for private/home SSIDs used by Traffic Separation.
+ *
+ * Reads `TrafficSeparation.PrivateVID` and falls back to legacy
+ * `TrafficSeparation.HomeVid` when needed.
+ * 
+ * @param[out] private_vid - VLAN ID for private/home SSIDs
+ * @return true if success, false otherwise
+ */
+bool cfg_get_traffic_separation_private_vid(int &private_vid);
+
+/**
+ * @brief Reads VLAN ID for guest SSIDs used by Traffic Separation.
+ *
+ * Reads `TrafficSeparation.GuestVID` and falls back to legacy
+ * `TrafficSeparation.GuestVid` when needed.
+ * 
+ * @param[out] guest_vid - VLAN ID for guest SSIDs
+ * @return true if success, false otherwise
+ */
+bool cfg_get_traffic_separation_guest_vid(int &guest_vid);
 
 /**
  * @brief Commit changes to prplmesh. uci package

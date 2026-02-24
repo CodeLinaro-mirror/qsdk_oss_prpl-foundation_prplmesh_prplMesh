@@ -83,6 +83,16 @@
             %persistent string WEPKey {
                 default "123456789a";
             }
+            
+            /* Name of the lan bridge iface */
+            %persistent string PrivateBridgeIface {
+                default "@AGENT_PRIVATE_BRIDGE_IFACE_DEFAULT@";
+            }
+
+            /* Name of the guest bridge iface */
+            %persistent string GuestBridgeIface {
+                default "br-guest";
+            }
         }
 
         /* Read-only information about the agent's state and interfaces */
