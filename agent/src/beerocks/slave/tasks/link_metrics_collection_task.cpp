@@ -900,7 +900,7 @@ bool LinkMetricsCollectionTask::send_ap_metric_query_message(
             // we were given an empty list,
             // therefore we copy ALL non ZERO_MAC bssids
             for (const auto &bssid : radio->front.bssids) {
-                if (bssid.mac != net::network_utils::ZERO_MAC) {
+                if (bssid.mac != net::network_utils::ZERO_MAC && !bssid.ssid.empty()) {
                     bssid_query.emplace_back(bssid.mac);
                 }
             }
@@ -909,7 +909,7 @@ bool LinkMetricsCollectionTask::send_ap_metric_query_message(
             // therefore we copy only those that are both in the
             // radio and in the given list
             for (const auto &bssid : radio->front.bssids) {
-                if (bssid.mac != net::network_utils::ZERO_MAC &&
+                if (bssid.mac != net::network_utils::ZERO_MAC && !bssid.ssid.empty() &&
                     bssid_list.find(bssid.mac) != bssid_list.end()) {
                     bssid_query.emplace_back(bssid.mac);
                 }
