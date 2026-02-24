@@ -413,13 +413,23 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         db->statuses.ap_autoconfiguration_completed = false;
 
         if (!m_traffic_separation_configurator) {
-            m_traffic_separation_configurator =
-                std::make_unique<TrafficSeparation>(m_btl_ctx.m_broker_client);
+            m_traffic_separation_configurator = std::make_unique<TrafficSeparation>();
         }
 
         // Reset the traffic separation configuration as they will be reconfigured on
         // autoconfiguration.
         m_traffic_separation_configurator->clear_configuration();
+
+        // Remove the Primary Vlan configuration in Transport process
+        if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(0, false)) {
+            LOG(ERROR) << "Failed configuring transport process!";
+        }
+
+        // Reset the transport monitoring on bridge interfaces
+        if (!m_btl_ctx.m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true,
+                                                             true)) {
+            LOG(ERROR) << "Failed configuring transport process!";
+        }
 
         // Reset the discovery statuses.
         for (auto &discovery_status : m_discovery_status) {
@@ -1573,20 +1583,22 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
 
     std::unordered_set<std::string> misconfigured_ssids;
     auto db = AgentDB::get();
-    // tlvProfile2TrafficSeparationPolicy is not mandatory. But if it does not exist, need to clear
-    // traffic separation settings.
-    if (!cmdu_rx.getClass<wfa_map::tlvProfile2TrafficSeparationPolicy>()) {
-        LOG(INFO) << "tlvProfile2TrafficSeparationPolicy not found";
-        db->traffic_separation.ssid_vid_mapping.clear();
+    auto ts_policy_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2TrafficSeparationPolicy>();
+    // tlvProfile2TrafficSeparationPolicy is not mandatory. Preserve the current TS policy when
+    // this TLV is absent, because Multi-AP Policy messages may be received per-radio.
+    const bool ts_policy_tlv_present = static_cast<bool>(ts_policy_tlv);
+    if (!ts_policy_tlv_present) {
+        LOG(INFO) << "tlvProfile2TrafficSeparationPolicy not found; preserving current TS policy";
     } else if (!handle_profile2_traffic_separation_policy_tlv(cmdu_rx, misconfigured_ssids)) {
         LOG(ERROR) << "handle_profile2_traffic_separation_policy_tlv has failed!";
         return;
     }
 
-    if (db->traffic_separation.ssid_vid_mapping.empty()) {
-        // If SSID VID map is empty, need to clear traffic separation policy.
+    if (ts_policy_tlv_present && db->traffic_separation.ssid_vid_mapping.empty()) {
+        // Explicit empty TS TLV means TS policy is disabled.
         db->traffic_separation.primary_vlan_id = 0;
         db->traffic_separation.default_pcp     = 0;
+        db->traffic_separation.secondary_vlans_ids.clear();
     }
 
     std::vector<std::pair<wfa_map::tlvProfile2ErrorCode::eReasonCode, sMacAddr>> bss_errors;
@@ -1711,6 +1723,11 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
         const auto &conf_params = radios_conf_param_kv.second;
 
         if (conf_params.state == eState::CONFIGURED) {
+            // Configure the Primary VLAN in Transport Process
+            if (!m_btl_ctx.m_broker_client->configure_primary_vlan_id(
+                    db->traffic_separation.primary_vlan_id, true)) {
+                LOG(ERROR) << "Failed configuring transport process!";
+            }
             m_traffic_separation_configurator->apply_policy(radio_iface);
         } else {
             LOG(WARNING) << "autoconfiguration procedure is not completed yet, traffic separation "
@@ -1788,14 +1805,6 @@ bool ApAutoConfigurationTask::handle_profile2_traffic_separation_policy_tlv(
     // old configuration from previous configurations messages.
     db->traffic_separation.ssid_vid_mapping = tmp_ssid_vid_mapping;
 
-    // Fill secondary VLANs IDs to the database.
-    for (const auto &ssid_vid_pair : db->traffic_separation.ssid_vid_mapping) {
-        auto vlan_id = ssid_vid_pair.second;
-        if (vlan_id != db->traffic_separation.primary_vlan_id) {
-            db->traffic_separation.secondary_vlans_ids.insert(vlan_id);
-        }
-    }
-
     // Erase excessive secondary VIDs.
     if (db->traffic_separation.ssid_vid_mapping.size() >
         db->traffic_separation.max_number_of_vlans_ids) {
@@ -1809,6 +1818,16 @@ bool ApAutoConfigurationTask::handle_profile2_traffic_separation_policy_tlv(
             it = db->traffic_separation.ssid_vid_mapping.erase(it);
         }
     }
+
+    // Rebuild secondary VLAN IDs from the effective SSID->VID map.
+    db->traffic_separation.secondary_vlans_ids.clear();
+    for (const auto &ssid_vid_pair : db->traffic_separation.ssid_vid_mapping) {
+        auto vlan_id = ssid_vid_pair.second;
+        if (vlan_id != db->traffic_separation.primary_vlan_id) {
+            db->traffic_separation.secondary_vlans_ids.insert(vlan_id);
+        }
+    }
+
     return true;
 }
 
