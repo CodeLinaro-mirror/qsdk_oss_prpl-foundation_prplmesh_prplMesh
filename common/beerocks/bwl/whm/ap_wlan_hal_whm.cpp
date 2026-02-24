@@ -1238,16 +1238,38 @@ bool ap_wlan_hal_whm::pre_generate_connected_clients_events()
 
 bool ap_wlan_hal_whm::start_wps_pbc()
 {
-    AmbiorixVariant args, result;
-    std::string main_vap_ifname = m_radio_info.available_vaps[0].bss;
-    std::string wps_path        = wbapi_utils::search_path_ap_by_iface(main_vap_ifname) + "WPS.";
-    bool ret                    = m_ambiorix_cl.call(wps_path, "InitiateWPSPBC", args, result);
-
-    if (!ret) {
-        LOG(ERROR) << "start_wps_pbc() failed!";
+    if (!refresh_vaps_info(beerocks::IFACE_RADIO_ID)) {
+        LOG(ERROR) << "start_wps_pbc() failed to refresh VAP info";
         return false;
     }
-    return true;
+
+    bool triggered = false;
+    bool success   = true;
+
+    for (const auto &vap_it : m_radio_info.available_vaps) {
+        const auto &vap_info = vap_it.second;
+
+        const bool eligible_fh = vap_info.fronthaul && !vap_info.backhaul;
+        const bool is_guest    = (vap_info.vap_type == eVapType::GUEST);
+        if (!eligible_fh || is_guest) {
+            continue;
+        }
+
+        triggered = true;
+        AmbiorixVariant args, result;
+        std::string wps_path = wbapi_utils::search_path_ap_by_iface(vap_info.bss) + "WPS.";
+        if (!m_ambiorix_cl.call(wps_path, "InitiateWPSPBC", args, result)) {
+            LOG(ERROR) << "start_wps_pbc() failed on VAP " << vap_info.bss;
+            success = false;
+        }
+    }
+
+    if (!triggered) {
+        LOG(ERROR) << "start_wps_pbc() no eligible fronthaul (non-guest, non-backhaul) VAP found";
+        return false;
+    }
+
+    return success;
 }
 
 static bool set_mbo_assoc_disallow_vap(beerocks::wbapi::AmbiorixClient &ambiorix_cl,
