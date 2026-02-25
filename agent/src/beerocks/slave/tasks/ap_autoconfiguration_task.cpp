@@ -143,6 +143,17 @@ bool is_bss_config_similar(const AgentDB::sRadio::sFront::sBssid &local_bss,
     const bool is_fronthaul_bss =
         static_cast<bool>(bss_type & WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS);
 
+    // For non-teardown requests, require exact role compatibility to prevent
+    // fronthaul<->backhaul remapping in similarity fallback.
+    if (!is_teardown) {
+        if (local_bss.backhaul_bss != is_backhaul_bss) {
+            return false;
+        }
+        if (local_bss.fronthaul_bss != is_fronthaul_bss) {
+            return false;
+        }
+    }
+
     if (local_bss.active && !is_teardown) {
         ++matching_fields;
     }
