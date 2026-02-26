@@ -121,9 +121,12 @@ class PrplMeshRDKB(OpenWrtRouter, PrplMeshBase):
         """Send line to prplmesh initd script."""
         utils = "/opt/prplmesh/scripts/prplmesh_utils.sh"
         self.sendline("{} stop".format(utils))
+        self.expect(self.prompt, timeout=60)
         time.sleep(5)
         self.sendline("{} start --cert true --mode {}".format(utils, mode))
+        self.expect(self.prompt, timeout=60)
         time.sleep(5)
+        self.sendline("ps aux | grep beerocks; netstat -atlnp")
 
     def _prplmesh_status_poll(self, timeout: int = 120) -> bool:
         """Poll prplMesh status for timeout time.
