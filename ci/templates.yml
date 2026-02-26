@@ -121,7 +121,9 @@
     # we need a list of all the targets to be able to kill them
     - ALL_TARGETS="turris-omnia-2"
     # kill prplmesh on each target to make sure they don't interfere with the test
-    - for i in $ALL_TARGETS ; do ssh "$i" 'pgrep -f beerocks | xargs kill -9 2>/dev/null' || true ; done
+    - for i in $ALL_TARGETS ; do ssh "$i" '/opt/prplmesh/scripts/prplmesh_utils.sh stop 2>/dev/null' || true ; done
+    - cp ../build.zip .
+    - unzip -o build.zip
     - export RDKB_IMAGE_PATH=$(ls build/turris-omnia-rdk/rdkb-generic-broadband-image_rdkb*.rootfs.tar.gz)
     - export RDKB_IMAGE_NAME=${RDKB_IMAGE_PATH##*/}
     - tools/deploy_firmware.py --device turris-omnia-rdk --target-name "$TARGET_DEVICE_NAME" --image $RDKB_IMAGE_NAME --full --configuration ci/configuration/boardfarm/"$TARGET_DEVICE_NAME".sh

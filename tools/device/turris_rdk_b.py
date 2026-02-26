@@ -236,12 +236,13 @@ class TurrisRdkb(GenericDevice):
 
             shell.sendline("run mmcboot")
             shell.expect(["TurrisOmnia-GW login", pexpect.TIMEOUT])
-            time.sleep(30)
+            time.sleep(130)
 
             # Set ip to erouter0 to disable some error messages
             # This causes the CcspPandMSsp process to not interrupt the configuration after flashing
             # See PPM-2247
             shell.sendline("ifconfig erouter0 10.0.0.10")
+            time.sleep(10)
 
     def sysupgrade(self):
         """Upgrade RDKB image on Turris Omnia and launch it.
