@@ -14,6 +14,14 @@ ${PRPLMESH_DIR}/share/agent/odl/agent.odl
 ${PRPLMESH_DIR}/config/agent/odl/defaults.d/00_slave_configuration.odl
 "
 
+# Explicitely ignore SIGPIPE to make sure the processes we start in
+# the background do not stop in case stdout/stderr gets closed early
+# (because the SSH connection calling the script is closed as soon as
+# the utils script exits for example). Similarly, ignore SIGHUP to
+# make sure the processes do not stop when the session leader
+# terminates:
+trap '' HUP PIPE
+
 send_signal_to_prplmesh_process() {
     PROGRAM_NAME=$1
     SIG=${2:-TERM}
