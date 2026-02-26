@@ -2859,6 +2859,31 @@ public:
                             const sMacAddr &ap_mld_mac, const std::string &affiliated_bsta_list,
                             const Agent::sMLDInfo::mode &mld_mode);
 
+    /**
+     * @brief Fill associated STAMLD node
+     *
+     * @param[in] agent Agent to which the associated STA MLD is connected
+     * @param[in] sta_mld_mac MAC Address of the STA MLD
+     * @param[in] ap_mld_mac MAC Address of the AP MLD it is connected
+     * @param[in] affiliated_sta_vector vector of affiliated STAs
+     * @param[in] mld_mode configuration of STA MLD
+     *
+     * @return true if the associated STAMLD node has been filled
+     */
+    bool
+    update_assoc_sta_mld(Agent &agent, const sMacAddr &sta_mld_mac, const sMacAddr &ap_mld_mac,
+                         const std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta>
+                             &affiliated_sta_vector,
+                         const Agent::sMLDInfo::mode &mld_mode);
+
+    /**
+     * @brief Remove a STAMLD instance by its dm_path.
+     *
+     * @param[in] sta_mld_dm_path STAMLD instance path.
+     * @return true on success, otherwise false.
+     */
+    bool dm_remove_sta_mld(const std::string &sta_mld_dm_path);
+
     //
     // tasks
     //

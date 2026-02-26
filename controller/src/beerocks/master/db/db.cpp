@@ -9025,6 +9025,178 @@ bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
     return ret_val;
 }
 
+bool db::update_assoc_sta_mld(
+    Agent &agent, const sMacAddr &sta_mld_mac, const sMacAddr &ap_mld_mac,
+    const std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta>
+        &affiliated_sta_vector,
+    const Agent::sMLDInfo::mode &mld_mode)
+{
+    if (agent.dm_path.empty()) {
+        LOG(DEBUG) << "agent.dm_path is empty";
+        return true;
+    }
+    bool ret_val = true;
+
+    // Retrieve the existing AP MLD object from the agent's database.
+    auto ap_mld_it = agent.ap_mlds.find(ap_mld_mac);
+    if (ap_mld_it == agent.ap_mlds.end()) {
+        LOG(ERROR) << "AP MLD with MAC " << ap_mld_mac << " not found in agent " << agent.al_mac;
+        return false;
+    }
+
+    auto &ap_mld = ap_mld_it->second;
+    if (ap_mld.dm_path.empty()) {
+        LOG(DEBUG) << "AP MLD dm_path is empty for MAC " << ap_mld_mac;
+        return true;
+    }
+
+    // Reuse STAMLD object by MLD MAC, create DM instance only when missing.
+    auto sta_mld = ap_mld.sta_mlds.add(sta_mld_mac);
+    if (!sta_mld) {
+        LOG(ERROR) << "Failed to get or create STAMLD object for " << sta_mld_mac;
+        return false;
+    }
+
+    if (sta_mld->dm_path.empty()) {
+        sta_mld->dm_path = m_ambiorix_datamodel->add_instance(ap_mld.dm_path + ".STAMLD");
+        if (sta_mld->dm_path.empty()) {
+            LOG(ERROR) << "Failed to add STAMLD instance on agent " << agent.al_mac;
+            return false;
+        }
+    }
+    std::string sta_mld_instance_path = sta_mld->dm_path;
+
+    // Update data model STA MLD parameters.
+    if (!m_ambiorix_datamodel->set(sta_mld_instance_path, "MLDMACAddress", sta_mld_mac)) {
+        LOG(ERROR) << "Failed to set MLDMACAddress " << sta_mld_mac;
+        ret_val = false;
+    }
+
+    std::string sta_mld_config = sta_mld_instance_path + ".STAMLDConfig";
+
+    // Properly set all MLD modes using bitwise checks
+    if (!m_ambiorix_datamodel->set(sta_mld_config, "STREnabled",
+                                   (mld_mode & Agent::sMLDInfo::mode::STR) != 0)) {
+        LOG(ERROR) << "Failed to set STR mode";
+        ret_val = false;
+    }
+
+    if (!m_ambiorix_datamodel->set(sta_mld_config, "NSTREnabled",
+                                   (mld_mode & Agent::sMLDInfo::mode::NSTR) != 0)) {
+        LOG(ERROR) << "Failed to set NSTR mode";
+        ret_val = false;
+    }
+
+    if (!m_ambiorix_datamodel->set(sta_mld_config, "EMLSREnabled",
+                                   (mld_mode & Agent::sMLDInfo::mode::EMLSR) != 0)) {
+        LOG(ERROR) << "Failed to set EMLSR mode";
+        ret_val = false;
+    }
+
+    if (!m_ambiorix_datamodel->set(sta_mld_config, "EMLMREnabled",
+                                   (mld_mode & Agent::sMLDInfo::mode::EMLMR) != 0)) {
+        LOG(ERROR) << "Failed to set EMLMR mode";
+        ret_val = false;
+    }
+
+    // Reconcile affiliated STAs under this STAMLD instance.
+    sta_mld->affiliated_stas.keep_new_prepare();
+
+    for (const auto &affiliated_sta : affiliated_sta_vector) {
+        if (affiliated_sta.affiliated_sta_mac == beerocks::net::network_utils::ZERO_MAC) {
+            LOG(DEBUG) << "Skipping affiliated STA with zero MAC in STA MLD " << sta_mld_mac;
+            continue;
+        }
+
+        auto affiliated_sta_db = sta_mld->affiliated_stas.add(affiliated_sta.affiliated_sta_mac);
+        if (!affiliated_sta_db) {
+            LOG(ERROR) << "Failed to get or create affiliated STA object for "
+                       << affiliated_sta.affiliated_sta_mac;
+            ret_val = false;
+            continue;
+        }
+
+        affiliated_sta_db->bssid = affiliated_sta.bssid;
+
+        if (affiliated_sta_db->dm_path.empty()) {
+            affiliated_sta_db->dm_path =
+                m_ambiorix_datamodel->add_instance(sta_mld_instance_path + ".AffiliatedSTA");
+            if (affiliated_sta_db->dm_path.empty()) {
+                LOG(ERROR) << "Failed to add AffiliatedSTA instance";
+                ret_val = false;
+                continue;
+            }
+        }
+
+        if (!m_ambiorix_datamodel->set(affiliated_sta_db->dm_path, "BSSID", affiliated_sta.bssid)) {
+            LOG(ERROR) << "Failed to set BSSID for affiliated station "
+                       << affiliated_sta.affiliated_sta_mac;
+            ret_val = false;
+        }
+
+        if (!m_ambiorix_datamodel->set(affiliated_sta_db->dm_path, "MACAddress",
+                                       affiliated_sta.affiliated_sta_mac)) {
+            LOG(ERROR) << "Failed to set MACAddress for affiliated station "
+                       << affiliated_sta.affiliated_sta_mac;
+            ret_val = false;
+        }
+    }
+
+    auto removed_affiliated_stas = sta_mld->affiliated_stas.keep_new_remove_old();
+    for (const auto &removed_affiliated_sta : removed_affiliated_stas) {
+        if (!removed_affiliated_sta || removed_affiliated_sta->dm_path.empty()) {
+            continue;
+        }
+
+        auto aff_sta_dm_path = get_dm_index_from_path(removed_affiliated_sta->dm_path);
+        if (!m_ambiorix_datamodel->remove_instance(aff_sta_dm_path.first, aff_sta_dm_path.second)) {
+            LOG(ERROR) << "Failed to remove stale affiliated STA instance "
+                       << removed_affiliated_sta->dm_path;
+            ret_val = false;
+        }
+    }
+
+    // TODO: Implement tests and review MLD STA Flow. PPM-3766.
+    auto station = m_stations.get(sta_mld_mac);
+    if (station) {
+        station->sta_mld_configuration.dm_path                = sta_mld->dm_path;
+        station->sta_mld_configuration.mld_config.sta_mld_mac = sta_mld_mac;
+        station->sta_mld_configuration.mld_config.ap_mld_mac  = ap_mld_mac;
+        station->sta_mld_configuration.mld_config.mld_mode =
+            Station::sMLDConfiguration::mode(mld_mode);
+
+        station->sta_mld_configuration.affiliated_stas.clear();
+        for (const auto &affiliated_sta_db : sta_mld->affiliated_stas) {
+            if (!affiliated_sta_db.second) {
+                continue;
+            }
+            Station::sAssociatedStaMldConfiguration::sAffiliatedSta affiliated_sta;
+            affiliated_sta.dm_path            = affiliated_sta_db.second->dm_path;
+            affiliated_sta.bssid              = affiliated_sta_db.second->bssid;
+            affiliated_sta.affiliated_sta_mac = affiliated_sta_db.second->mac;
+            station->sta_mld_configuration.affiliated_stas.push_back(affiliated_sta);
+        }
+    }
+
+    return ret_val;
+}
+
+bool db::dm_remove_sta_mld(const std::string &sta_mld_dm_path)
+{
+    if (sta_mld_dm_path.empty()) {
+        return true;
+    }
+
+    auto sta_mld_dm_path_index = get_dm_index_from_path(sta_mld_dm_path);
+    if (!m_ambiorix_datamodel->remove_instance(sta_mld_dm_path_index.first,
+                                               sta_mld_dm_path_index.second)) {
+        LOG(ERROR) << "Failed to remove " << sta_mld_dm_path;
+        return false;
+    }
+
+    return true;
+}
+
 bool db::add_unassociated_station(sMacAddr const &new_station_mac_add, uint8_t channel,
                                   uint8_t operating_class, sMacAddr const &agent_mac_addr,
                                   sMacAddr const &radio_mac_addr)
