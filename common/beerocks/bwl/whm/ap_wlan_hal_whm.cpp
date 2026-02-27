@@ -1670,6 +1670,11 @@ bool ap_wlan_hal_whm::process_sta_connected_event(
                 // Tunnel the Management request to the controller
                 auto management_frame = create_mgmt_frame_notification(frame_body_str.c_str());
                 if (management_frame) {
+
+                    // create_mgmt_frame_notification will fill mac with 802.11 source address
+                    // sta_mac may hold MLD Station MAC if present
+                    management_frame->mac = tlvf::mac_from_string(sta_mac);
+
                     event_queue_push(Event::MGMT_Frame, management_frame);
                     // For MLO, preserve the MLD BSSID - don't overwrite with link-specific BSSID
                     if (!msg->params.is_mlo) {
