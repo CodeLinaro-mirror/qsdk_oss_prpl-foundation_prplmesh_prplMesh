@@ -23,6 +23,7 @@
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
+#include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvClientAssociationEvent.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
@@ -537,6 +538,10 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         return false;
     }
 
+    if (cmdu_rx.getClass<wfa_map::tlvAssociatedStaMldConfigurationReport>()) {
+        handle_assoc_sta_mld_configuration_tlv(cmdu_rx, *agent);
+    }
+
     return true;
 }
 
@@ -582,6 +587,85 @@ void topology_task::handle_backhaul_sta_mld_configuration_tlv(
                                         backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr(),
                                         backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr(),
                                         affiliated_bsta_list, mld_mode);
+        }
+    }
+}
+
+void topology_task::handle_assoc_sta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                                           Agent &agent)
+{
+    LOG(DEBUG) << "Received tlvAssociatedStaMldConfigurationReport from " << agent.al_mac;
+
+    for (auto &ap_mld : agent.ap_mlds) {
+        ap_mld.second.sta_mlds.keep_new_prepare();
+    }
+
+    for (const auto &assoc_sta_mld_conf_tlv :
+         cmdu_rx.getClassList<wfa_map::tlvAssociatedStaMldConfigurationReport>()) {
+        if (!assoc_sta_mld_conf_tlv) {
+            LOG(ERROR) << "Invalid Associated STA MLD Configuration Report TLV";
+            continue;
+        }
+
+        Agent::sMLDInfo::mode mld_mode = Agent::sMLDInfo::mode::NONE;
+        if (assoc_sta_mld_conf_tlv->modes().str) {
+            mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::STR);
+        }
+        if (assoc_sta_mld_conf_tlv->modes().nstr) {
+            mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::NSTR);
+        }
+        if (assoc_sta_mld_conf_tlv->modes().emlsr) {
+            mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLSR);
+        }
+        if (assoc_sta_mld_conf_tlv->modes().emlmr) {
+            mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLMR);
+        }
+
+        std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta> affiliated_sta_vector;
+        for (uint8_t aff_sta = 0; aff_sta < assoc_sta_mld_conf_tlv->num_affiliated_sta();
+             ++aff_sta) {
+            std::tuple<bool, wfa_map::cAffiliatedSta &> affiliated_sta_tuple(
+                assoc_sta_mld_conf_tlv->affiliated_sta(aff_sta));
+            if (!std::get<0>(affiliated_sta_tuple)) {
+                LOG(ERROR) << "Couldn't get affiliated STA at index " << int(aff_sta)
+                           << " for STA MLD " << assoc_sta_mld_conf_tlv->sta_mld_mac_addr();
+                continue;
+            }
+
+            Station::sAssociatedStaMldConfiguration::sAffiliatedSta affiliated_sta;
+            affiliated_sta.bssid              = std::get<1>(affiliated_sta_tuple).bssid();
+            affiliated_sta.affiliated_sta_mac = std::get<1>(affiliated_sta_tuple).mac();
+            affiliated_sta_vector.push_back(affiliated_sta);
+        }
+
+        if (!database.update_assoc_sta_mld(agent, assoc_sta_mld_conf_tlv->sta_mld_mac_addr(),
+                                           assoc_sta_mld_conf_tlv->ap_mld_mac_addr(),
+                                           affiliated_sta_vector, mld_mode)) {
+            LOG(ERROR) << "Failed to update data model for associated STA MLD "
+                       << assoc_sta_mld_conf_tlv->sta_mld_mac_addr();
+        }
+    }
+
+    for (auto &ap_mld : agent.ap_mlds) {
+        auto removed_sta_mlds = ap_mld.second.sta_mlds.keep_new_remove_old();
+        for (const auto &removed_sta_mld : removed_sta_mlds) {
+            if (!removed_sta_mld || removed_sta_mld->dm_path.empty()) {
+                continue;
+            }
+
+            const auto removed_dm_path = removed_sta_mld->dm_path;
+            if (!database.dm_remove_sta_mld(removed_dm_path)) {
+                LOG(ERROR) << "Failed to remove STAMLD instance " << removed_dm_path;
+                continue;
+            }
+            LOG(DEBUG) << "Removed stale STAMLD instance " << removed_dm_path;
+            removed_sta_mld->dm_path.clear();
+
+            auto station = database.m_stations.get(removed_sta_mld->mac);
+            if (station && station->sta_mld_configuration.dm_path == removed_dm_path) {
+                station->sta_mld_configuration.dm_path.clear();
+                station->sta_mld_configuration.affiliated_stas.clear();
+            }
         }
     }
 }
