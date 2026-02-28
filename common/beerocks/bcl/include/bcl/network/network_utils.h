@@ -300,17 +300,20 @@ public:
                                      bool is_bridge, bool pvid = false, bool untagged = false);
 
     /**
-     * @brief Filter (or Remove Filter) packets containing a given VLAN ID and double-tagged packets
-     * with S-Tag, by adding new rules to the nat table.
+     * @brief Set or clear a simple VLAN packet filter rule per BSS interface.
      *
-     * @param set If true, set the filter, otherwise clear all rule containing the
-     *  @a bss_iface name.
-     * @param bss_iface An interface name to apply the rule on.
-     * @param vid VLAN IDs for add command. If zero (default value), only filter double-tagged
-     *  packets.
+     * Adds ingress drop filters using tc for VLAN-tagged packets:
+     *   tc qdisc replace dev <bss_iface> clsact
+     *   tc filter add dev <bss_iface> ingress ... protocol 802.1Q flower action drop
+     *   tc filter add dev <bss_iface> ingress ... protocol 802.1ad flower action drop
+     *
+     * When @a set is false, the function removes its tc ingress filters from @a bss_iface.
+     *
+     * @param set If true, add filters; if false, remove filters.
+     * @param bss_iface Interface name to apply filters on.
      * @return true on success, false otherwise.
      */
-    static bool set_vlan_packet_filter(bool set, const std::string &bss_iface, uint16_t vid = 0);
+    static bool set_vlan_packet_filter(bool set, const std::string &bss_iface);
 
     /**
      * @brief Generate a locally administrated mac address

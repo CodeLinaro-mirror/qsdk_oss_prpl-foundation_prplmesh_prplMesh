@@ -1,0 +1,69 @@
+@startuml
+participant Controller
+participant "ApAutoConfigurationTask" as AC
+participant "AgentDB" as DB
+participant "TrafficSeparationTask" as TST
+participant "TrafficSeparationManager" as TSM
+participant "broker_client" as BC
+participant "System / net utils" as SYS
+
+== 1. Handle Multi AP Policy ==
+Controller -> AC: MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE
+
+AC -> AC: handle_multi_ap_policy_config_request()
+AC -> Controller: ACK_MESSAGE
+AC -> DB: Set primary_vlan_id, default_pcp
+note left: handle_profile2_default_802dotq_settings_tlv
+
+alt No tlvProfile2TrafficSeparationPolicy received
+    AC -> DB: clear ssid_vid_mapping\nset primary_vlan_id=0, default_pcp=0
+else Traffic Separation Policy received
+    AC -> DB: save ssid_vid_mapping + secondary_vlans_ids
+    note left: handle_profile2_traffic_separation_policy_tlv
+end
+
+== 2. Trigger TS task ==
+AC -> TST: task_pool_send_event(TS_ENABLE)
+TST -> TST: schedule_apply(Full)\ndebounce
+
+== 3. TS task applies config ==
+TST -> DB: read profile + TS policy + ports inventory
+
+alt multi_ap_profile == 1
+    TST -> TSM: reset()
+    TST -> BC: configure_primary_vlan_id(0, add=false)
+    TST -> BC: configure_interfaces(bridge, {}, true, true)
+else primary VLAN valid
+    TST -> BC: configure_primary_vlan_id(primary_vid, add=true)
+    TST -> TSM: reset()
+    TST -> TSM: configure(cfg from BPL + DB)
+    loop each trunk/access port found in DB
+        TST -> TSM: add_trunk_port()/add_access_port()
+    end
+    TST -> TSM: apply_policies()
+    TSM -> SYS: create VLAN subifaces + attach bridges (trunks)
+    TSM -> SYS: set_vlan_packet_filter(true) on access ports
+else primary VLAN missing/invalid
+    TST -> TST: skip (nothing to apply)
+end
+
+== 4. New STA iface incremental path ==
+AC -> TST: task_pool_send_event(TS_NEW_BH_STA_IFACE)
+TST -> DB: read active backhaul BSS
+TST -> SYS: linux_get_iface_list() and match wlanX.Y.staN
+loop each discovered STA iface
+    TST -> TSM: add_trunk_port(sta trunk)
+    note right: if manager state is APPLIED,\nnew trunk is applied immediately
+end
+
+== 5. Clear path ==
+AC -> TST: task_pool_send_event(TS_CLEAR)
+TST -> TSM: reset()
+TST -> BC: configure_primary_vlan_id(0, add=false)
+TST -> BC: configure_interfaces(bridge, {}, true, true)
+
+alt no configured radios
+    AC -> AC: skip TS trigger until radios become CONFIGURED
+    end
+
+@enduml

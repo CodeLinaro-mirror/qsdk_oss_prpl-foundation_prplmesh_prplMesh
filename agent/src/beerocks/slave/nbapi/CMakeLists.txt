@@ -10,6 +10,7 @@ include("${CMAKE_SOURCE_DIR}/cmake/ConfigureOdl.cmake")
 
 #search for all available .odl.in files in the odl folder and parse them
 set(ODL_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/agent)
+set(AGENT_PRIVATE_BRIDGE_IFACE_DEFAULT "${BEEROCKS_BRIDGE_IFACE}")
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/odl/*.odl.in")
 foreach(file ${files})

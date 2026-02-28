@@ -274,6 +274,24 @@ int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
     return success ? RETURN_OK : RETURN_ERR;
 }
 
+bool cfg_get_private_bridge_iface(std::string &bridge_iface)
+{
+    if (!read_agent_config_param("PrivateBridgeIface", bridge_iface)) {
+        LOG(ERROR) << "failed to read PrivateBridgeIface";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_guest_bridge_iface(std::string &bridge_iface)
+{
+    if (!read_agent_config_param("GuestBridgeIface", bridge_iface)) {
+        LOG(ERROR) << "failed to read GuestBridgeIface";
+        return false;
+    }
+    return true;
+}
+
 /* ============================================================
  *                        Controller Config
  * ============================================================
@@ -603,6 +621,102 @@ int cfg_get_dcs_channel_pool(const BPL_WLAN_IFACE &iface,
 
     return RETURN_OK;
 }
+
+bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled)
+{
+    if (!read_controller_config_param("TrafficSeparation.Enable", is_traffic_separation_enabled)) {
+        LOG(ERROR) << "failed to read TrafficSeparation.Enable";
+        return false;
+    }
+    return true;
+}
+
+bool cfg_get_traffic_separation_private_vid(int &private_vid)
+{
+    int new_private_vid = DEFAULT_PRIVATE_VLAN_ID;
+    int legacy_vid      = DEFAULT_PRIVATE_VLAN_ID;
+
+    const bool has_private_vid =
+        read_controller_config_param("TrafficSeparation.PrivateVID", new_private_vid);
+    const bool has_legacy_vid =
+        read_controller_config_param("TrafficSeparation.HomeVid", legacy_vid);
+
+    if (has_private_vid && has_legacy_vid && new_private_vid != legacy_vid) {
+        if (new_private_vid == DEFAULT_PRIVATE_VLAN_ID && legacy_vid != DEFAULT_PRIVATE_VLAN_ID) {
+            LOG(INFO) << "TrafficSeparation.PrivateVID is default while legacy "
+                         "TrafficSeparation.HomeVid is customized; using legacy value="
+                      << legacy_vid;
+            private_vid = legacy_vid;
+            return true;
+        }
+
+        LOG(INFO) << "Both TrafficSeparation.PrivateVID and legacy TrafficSeparation.HomeVid are "
+                     "configured with different values ("
+                  << new_private_vid << " vs " << legacy_vid << "), using PrivateVID";
+    }
+
+    if (has_private_vid) {
+        private_vid = new_private_vid;
+        return true;
+    }
+
+    if (has_legacy_vid) {
+        LOG(DEBUG) << "failed to read TrafficSeparation.PrivateVID, using legacy key "
+                      "TrafficSeparation.HomeVid";
+        private_vid = legacy_vid;
+        return true;
+    }
+
+    LOG(ERROR) << "failed to read TrafficSeparation.PrivateVID and legacy "
+                  "TrafficSeparation.HomeVid";
+    return false;
+}
+
+bool cfg_get_traffic_separation_guest_vid(int &guest_vid)
+{
+    int new_guest_vid    = DEFAULT_GUEST_VLAN_ID;
+    int legacy_guest_vid = DEFAULT_GUEST_VLAN_ID;
+
+    const bool has_new_guest_vid =
+        read_controller_config_param("TrafficSeparation.GuestVID", new_guest_vid);
+    const bool has_legacy_guest_vid =
+        read_controller_config_param("TrafficSeparation.GuestVid", legacy_guest_vid);
+
+    if (has_new_guest_vid && has_legacy_guest_vid && new_guest_vid != legacy_guest_vid) {
+        if (new_guest_vid == DEFAULT_GUEST_VLAN_ID && legacy_guest_vid != DEFAULT_GUEST_VLAN_ID) {
+            LOG(INFO) << "TrafficSeparation.GuestVID is default while legacy "
+                         "TrafficSeparation.GuestVid is customized; using legacy value="
+                      << legacy_guest_vid;
+            guest_vid = legacy_guest_vid;
+            return true;
+        }
+
+        LOG(INFO) << "Both TrafficSeparation.GuestVID and legacy TrafficSeparation.GuestVid are "
+                     "configured with different values ("
+                  << new_guest_vid << " vs " << legacy_guest_vid << "), using GuestVID";
+    }
+
+    if (has_new_guest_vid) {
+        guest_vid = new_guest_vid;
+        return true;
+    }
+
+    if (has_legacy_guest_vid) {
+        LOG(DEBUG) << "failed to read TrafficSeparation.GuestVID, using legacy key "
+                      "TrafficSeparation.GuestVid";
+        guest_vid = legacy_guest_vid;
+        return true;
+    }
+
+    LOG(ERROR) << "failed to read TrafficSeparation.GuestVID and legacy "
+                  "TrafficSeparation.GuestVid";
+    return false;
+}
+
+/* ============================================================
+ *                        Other Config
+ * ============================================================
+ */
 
 int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                     char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])

@@ -13,6 +13,7 @@ file(GLOB beerocks_agent_sources
     ${MODULE_PATH}/helpers/*.c*
     ${MODULE_PATH}/helpers/link_metrics/*.c*
     ${MODULE_PATH}/tasks/*.c*
+    ${MODULE_PATH}/traffic_separation/*.c*
     ${MODULE_PATH}/gate/*.c*
     ${MODULE_PATH}/nbapi/*.c*
     ${MODULE_PATH}/*.c*
@@ -42,6 +43,7 @@ if (TARGET_PLATFORM STREQUAL "ugw")
 endif()
 
 add_executable(${PROJECT_NAME} ${beerocks_agent_sources})
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 target_link_libraries(${PROJECT_NAME} rt dl bcl btl tlvf elpp btlvf bwl bpl nbapi multi_vendor ${LIBS})
 
@@ -63,6 +65,7 @@ if (BUILD_TESTS)
     set(TEST_PROJECT_NAME ${PROJECT_NAME}_unit_tests)
     set(unit_tests_sources
         gate/unit_tests/gate_test.cpp
+        traffic_separation/unit_tests/traffic_separation_utils_test.cpp
         ${MODULE_PATH}/gate/1905_beacon_query_to_vs.cpp
         ${MODULE_PATH}/gate/vs_beacon_response_to_1905.cpp
     )

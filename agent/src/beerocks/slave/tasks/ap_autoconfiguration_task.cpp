@@ -8,10 +8,11 @@
 
 #include "ap_autoconfiguration_task.h"
 #include "link_metrics_collection_task.h"
+#include "traffic_separation_task.h"
 
+#include "../agent_db.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
-#include "../traffic_separation.h"
 #include "multi_vendor.h"
 #include <bcl/beerocks_config_file.h>
 
@@ -57,6 +58,7 @@
 #include <bpl/bpl_board.h>
 #include <bpl/bpl_cfg.h>
 
+#include <functional>
 #include <sstream>
 
 #include <easylogging++.h>
@@ -110,24 +112,25 @@ bool is_valid_op_std(const std::string &radio_iface,
     return true;
 }
 
+template <typename BssConfig>
 bool is_bss_config_matching(const beerocks::AgentDB::sRadio::sFront::sBssid &local_bss,
-                            const sBssConfig &requested_bss)
+                            const BssConfig &requested_bss)
 {
-
     // TODO: bss_index matching (PPM-3625)
     const bool is_vap_type_applicable = (local_bss.vap_type != eVapType::OTHER) &&
                                         (requested_bss.m2_config.vap_type != eVapType::OTHER);
 
-    // Match condition (any of):
-    // - vap_types are same, except for both being OTHER
+    // Match condition:
+    // - vap_types are the same, except for both being OTHER
     const bool vap_type_matches =
         is_vap_type_applicable && (local_bss.vap_type == requested_bss.m2_config.vap_type);
 
     return vap_type_matches;
 }
 
+template <typename BssConfig>
 bool is_bss_config_similar(const AgentDB::sRadio::sFront::sBssid &local_bss,
-                           const sBssConfig &requested_bss)
+                           const BssConfig &requested_bss)
 {
     LOG(TRACE) << "is_bss_config_similar for ssid=" << requested_bss.payload_config.ssid;
     // TODO: Need to expand the comparison to create a stricter match (PPM-2296)
@@ -176,8 +179,9 @@ bool is_bss_config_similar(const AgentDB::sRadio::sFront::sBssid &local_bss,
     return matching_fields >= minimal_similarity;
 }
 
+template <typename BssConfig>
 bool is_bss_reconfiguration_required(const AgentDB::sRadio::sFront::sBssid &local_bss,
-                                     const sBssConfig &requested_bss)
+                                     const BssConfig &requested_bss)
 {
     const auto &payload   = requested_bss.payload_config;
     const auto &m2_config = requested_bss.m2_config;
@@ -224,7 +228,7 @@ static inline std::string dump_bssid_compact(const beerocks::AgentDB::sRadio::sF
     return out.str();
 }
 
-static inline std::string dump_bssconfig_compact(const sBssConfig &cfg)
+template <typename BssConfig> static inline std::string dump_bssconfig_compact(const BssConfig &cfg)
 {
     std::ostringstream out;
 
@@ -391,6 +395,12 @@ void ApAutoConfigurationTask::work()
         m_task_is_active                            = false;
         LOG(DEBUG) << "Link to the controller is established";
 
+        // Trigger TS once per completed autoconfiguration cycle.
+        // Per-radio triggering causes repeated full TS resets while radios are still settling.
+        LOG(DEBUG) << "Trigger traffic separation after all radios are configured";
+        m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                       TrafficSeparationTask::eEvent::TS_ENABLE);
+
         // Send pre-associated sta notification request to all radio
         for (const auto &radios_conf_param_kv : m_radios_conf_params) {
             const auto &radio_iface = radios_conf_param_kv.first;
@@ -417,15 +427,6 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         auto db = AgentDB::get();
 
         db->statuses.ap_autoconfiguration_completed = false;
-
-        if (!m_traffic_separation_configurator) {
-            m_traffic_separation_configurator =
-                std::make_unique<TrafficSeparation>(m_btl_ctx.m_broker_client);
-        }
-
-        // Reset the traffic separation configuration as they will be reconfigured on
-        // autoconfiguration.
-        m_traffic_separation_configurator->clear_configuration();
 
         // Reset the discovery statuses.
         for (auto &discovery_status : m_discovery_status) {
@@ -485,18 +486,9 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         break;
     }
     case APPLY_CONFIG_FOR_NEW_IFACE: {
-        auto db = AgentDB::get();
-        for (const auto radio : db->get_radios_list()) {
-            if (!radio) {
-                continue;
-            }
-            for (auto &bss : radio->front.bssids) {
-                if (bss.backhaul_bss) {
-                    m_traffic_separation_configurator->apply_policy_for_new_interface(
-                        bss.iface_name);
-                }
-            }
-        }
+        LOG(DEBUG) << "Trigger traffic separation on APPLY_CONFIG_FOR_NEW_IFACE";
+        m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                       TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
         break;
     }
     default: {
@@ -606,10 +598,6 @@ bool ApAutoConfigurationTask::handle_vendor_specific(
     }
     case beerocks_message::ACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION: {
         handle_vs_vaps_list_update_notification(cmdu_rx, sd, beerocks_header);
-        break;
-    }
-    case beerocks_message::ACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST: {
-        handle_vs_apply_vlan_policy_request(cmdu_rx, sd, beerocks_header);
         break;
     }
 
@@ -724,7 +712,6 @@ void ApAutoConfigurationTask::configuration_complete_wait_action(const std::stri
     FSM_MOVE_STATE(radio_iface, eState::CONFIGURED);
 
     LOG(TRACE) << "Finished configuration on " << radio_iface;
-    m_traffic_separation_configurator->apply_policy(radio_iface);
 
     return;
 }
@@ -1696,21 +1683,23 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
     }
 
     std::unordered_set<std::string> misconfigured_ssids;
-    auto db = AgentDB::get();
-    // tlvProfile2TrafficSeparationPolicy is not mandatory. But if it does not exist, need to clear
-    // traffic separation settings.
-    if (!cmdu_rx.getClass<wfa_map::tlvProfile2TrafficSeparationPolicy>()) {
-        LOG(INFO) << "tlvProfile2TrafficSeparationPolicy not found";
-        db->traffic_separation.ssid_vid_mapping.clear();
+    auto db            = AgentDB::get();
+    auto ts_policy_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2TrafficSeparationPolicy>();
+    // tlvProfile2TrafficSeparationPolicy is not mandatory. Preserve the current TS policy when
+    // this TLV is absent, because Multi-AP Policy messages may be received per-radio.
+    const bool ts_policy_tlv_present = static_cast<bool>(ts_policy_tlv);
+    if (!ts_policy_tlv_present) {
+        LOG(INFO) << "tlvProfile2TrafficSeparationPolicy not found; preserving current TS policy";
     } else if (!handle_profile2_traffic_separation_policy_tlv(cmdu_rx, misconfigured_ssids)) {
         LOG(ERROR) << "handle_profile2_traffic_separation_policy_tlv has failed!";
         return;
     }
 
-    if (db->traffic_separation.ssid_vid_mapping.empty()) {
-        // If SSID VID map is empty, need to clear traffic separation policy.
+    if (ts_policy_tlv_present && db->traffic_separation.ssid_vid_mapping.empty()) {
+        // Explicit empty TS TLV means TS policy is disabled.
         db->traffic_separation.primary_vlan_id = 0;
         db->traffic_separation.default_pcp     = 0;
+        db->traffic_separation.secondary_vlans_ids.clear();
     }
 
     std::vector<std::pair<wfa_map::tlvProfile2ErrorCode::eReasonCode, sMacAddr>> bss_errors;
@@ -1831,14 +1820,13 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
     }
 
     for (const auto &radios_conf_param_kv : m_radios_conf_params) {
-        const auto &radio_iface = radios_conf_param_kv.first;
         const auto &conf_params = radios_conf_param_kv.second;
 
         if (conf_params.state == eState::CONFIGURED) {
-            m_traffic_separation_configurator->apply_policy(radio_iface);
-        } else {
-            LOG(WARNING) << "autoconfiguration procedure is not completed yet, traffic separation "
-                         << "policy cannot be applied";
+            // Trigger TrafficSeparationTask on Multi-AP Policy Request received
+            LOG(DEBUG) << "Trigger traffic separation on Multi-AP Policy Request";
+            m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_ENABLE);
         }
     }
 
@@ -1912,14 +1900,6 @@ bool ApAutoConfigurationTask::handle_profile2_traffic_separation_policy_tlv(
     // old configuration from previous configurations messages.
     db->traffic_separation.ssid_vid_mapping = tmp_ssid_vid_mapping;
 
-    // Fill secondary VLANs IDs to the database.
-    for (const auto &ssid_vid_pair : db->traffic_separation.ssid_vid_mapping) {
-        auto vlan_id = ssid_vid_pair.second;
-        if (vlan_id != db->traffic_separation.primary_vlan_id) {
-            db->traffic_separation.secondary_vlans_ids.insert(vlan_id);
-        }
-    }
-
     // Erase excessive secondary VIDs.
     if (db->traffic_separation.ssid_vid_mapping.size() >
         db->traffic_separation.max_number_of_vlans_ids) {
@@ -1933,6 +1913,16 @@ bool ApAutoConfigurationTask::handle_profile2_traffic_separation_policy_tlv(
             it = db->traffic_separation.ssid_vid_mapping.erase(it);
         }
     }
+
+    // Rebuild secondary VLAN IDs from the effective SSID->VID map.
+    db->traffic_separation.secondary_vlans_ids.clear();
+    for (const auto &ssid_vid_pair : db->traffic_separation.ssid_vid_mapping) {
+        auto vlan_id = ssid_vid_pair.second;
+        if (vlan_id != db->traffic_separation.primary_vlan_id) {
+            db->traffic_separation.secondary_vlans_ids.insert(vlan_id);
+        }
+    }
+
     return true;
 }
 
@@ -2063,17 +2053,25 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             /**
              * We currently do not support bBSS with both profile 1/2 disallow flags set to false
              * (Combined Profile bBSS mode).
+             * 
              * When we are configured in a way we don't support, we should tear down the BSS, and
              * send an error response on that BSS.
+             * 
              * Currently R2 certified controllers (Mediatek/Marvel) have a bug (PPM-1389) that ends
              * up sending M2 with both profile 1/2 disallow flags set to false although we report 
              * combined_profile1_and_profile2 = 0 in ap_radio_advanced_capabilities_tlv.
-             * To deal with it, we using
-             * TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration integer
+             * 
+             * To deal with it, we use db->device_conf.unsupported_profile_disallow_policy enum
              * originated in the beerocks_agent.conf to resolve the conflict with predefined
-             * value. PPM-1389.
+             * value. 
+             * 
+             * Related PPM-1389 and PPM-3472
              */
-            if (TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration == 0) {
+            bool resolved_disallow_profile1 = bBSS_p1_disallowed;
+            bool resolved_disallow_profile2 = bBSS_p2_disallowed;
+            if (!net::resolve_profile_disallow_flags(
+                    resolved_disallow_profile1, resolved_disallow_profile2,
+                    db->device_conf.unsupported_profile_disallow_policy)) {
                 LOG(WARNING) << "Sending error and Tearing down BSS that controller configured to "
                              << info.payload_config.ssid;
                 bss_errors.push_back(
@@ -2084,19 +2082,18 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
                 // Multi-AP standard requires to tear down any misconfigured BSS.
                 info.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
                 continue;
-            } else if (TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration ==
-                       1) {
+            }
+
+            if (resolved_disallow_profile1) {
                 info.payload_config.bss_type |= WSC::eWscVendorExtSubelementBssType::
                     PROFILE1_BACKHAUL_STA_ASSOCIATION_DISALLOWED;
-            }
-            // TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration == 2
-            else {
+            } else if (resolved_disallow_profile2) {
                 info.payload_config.bss_type |= WSC::eWscVendorExtSubelementBssType::
                     PROFILE2_BACKHAUL_STA_ASSOCIATION_DISALLOWED;
             }
-            LOG(DEBUG)
-                << "Override unsupported 'profile disallow' configuration and disallow profile "
-                << TrafficSeparation::m_profile_x_disallow_override_unsupported_configuration;
+            LOG(DEBUG) << "Override unsupported profile-disallow flags by policy "
+                       << unsupported_profile_disallow_policy_to_string(
+                              db->device_conf.unsupported_profile_disallow_policy);
         }
 
         infos.push_back(info);
@@ -2784,12 +2781,6 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
                       });
 }
 
-void ApAutoConfigurationTask::handle_vs_apply_vlan_policy_request(
-    ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
-{
-    m_traffic_separation_configurator->apply_policy();
-}
-
 bool ApAutoConfigurationTask::
     airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
         const std::string &radio_iface, const WSC::m2 &m2)
@@ -3000,13 +2991,11 @@ bool ApAutoConfigurationTask::send_error_response_message(
 bool ApAutoConfigurationTask::handle_bss_reconfiguration(
     const std::string &radio_iface, std::vector<sBssConfig> &requested_bss_list)
 {
-    auto db    = AgentDB::get();
-    auto radio = db->radio(radio_iface);
+    auto radio = AgentDB::get()->radio(radio_iface);
     if (!radio) {
         LOG(ERROR) << "Radio not found " << radio_iface;
         return false;
     }
-
     using sBssid = beerocks::AgentDB::sRadio::sFront::sBssid;
 
     // Local device BSS configs list (only active)
