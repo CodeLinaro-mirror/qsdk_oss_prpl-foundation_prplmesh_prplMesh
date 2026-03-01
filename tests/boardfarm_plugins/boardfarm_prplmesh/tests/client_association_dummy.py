@@ -46,6 +46,11 @@ class ClientAssociationDummy(PrplMeshBaseTest):
 
         debug("Connect dummy STA to wlan0 with SSID ClientAssocDummy")
         self.configure_ssids(['ClientAssocDummy'])
+        # On dummy setup, AP-STA-CONNECTED injected before SSID autoconfig can be lost.
+        # Wait until wlan0 VAP is reconfigured with the target SSID before connect.
+        self.check_log(agent.radios[0],
+                       r"Autoconfiguration for bssid: .* ssid: ClientAssocDummy",
+                       timeout=20)
         sta.wifi_connect_check(agent.radios[0].vaps[0])
 
         time.sleep(1)
