@@ -654,22 +654,22 @@ bool monitor_stats::add_affiliated_ap_metrics(ieee1905_1::CmduMessageTx &cmdu_tx
 
     // populate Affiliated AP metrics TLV
     affiliated_ap_metrics_tlv->bssid()               = tlvf::mac_from_string(vap_node.get_mac());
-    const auto &mlo_stats                            = vap_node.get_stats().hal_stats.mlo_stats;
-    affiliated_ap_metrics_tlv->packets_sent()        = mlo_stats.tx_packets_cnt;
-    affiliated_ap_metrics_tlv->packets_received()    = mlo_stats.rx_packets_cnt;
-    affiliated_ap_metrics_tlv->packets_sent_errors() = mlo_stats.tx_packets_err_cnt;
+    const auto &mld_stats                            = vap_node.get_stats().hal_stats.mld_stats;
+    affiliated_ap_metrics_tlv->packets_sent()        = mld_stats.tx_packets_cnt;
+    affiliated_ap_metrics_tlv->packets_received()    = mld_stats.rx_packets_cnt;
+    affiliated_ap_metrics_tlv->packets_sent_errors() = mld_stats.tx_packets_err_cnt;
     affiliated_ap_metrics_tlv->unicast_bytes_sent() =
-        recalculate_byte_units(mlo_stats.tx_ucast_bytes);
+        recalculate_byte_units(mld_stats.tx_ucast_bytes);
     affiliated_ap_metrics_tlv->unicast_bytes_received() =
-        recalculate_byte_units(mlo_stats.rx_ucast_bytes);
+        recalculate_byte_units(mld_stats.rx_ucast_bytes);
     affiliated_ap_metrics_tlv->multicast_bytes_sent() =
-        recalculate_byte_units(mlo_stats.tx_mcast_bytes);
+        recalculate_byte_units(mld_stats.tx_mcast_bytes);
     affiliated_ap_metrics_tlv->multicast_bytes_received() =
-        recalculate_byte_units(mlo_stats.rx_mcast_bytes);
+        recalculate_byte_units(mld_stats.rx_mcast_bytes);
     affiliated_ap_metrics_tlv->broadcast_bytes_sent() =
-        recalculate_byte_units(mlo_stats.tx_bcast_bytes);
+        recalculate_byte_units(mld_stats.tx_bcast_bytes);
     affiliated_ap_metrics_tlv->broadcast_bytes_received() =
-        recalculate_byte_units(mlo_stats.rx_bcast_bytes);
+        recalculate_byte_units(mld_stats.rx_bcast_bytes);
 
     return true;
 }

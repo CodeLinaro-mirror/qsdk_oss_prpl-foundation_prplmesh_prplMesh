@@ -295,41 +295,74 @@ bool mon_wlan_hal_whm::update_radio_stats(SRadioStats &radio_stats)
 
 bool mon_wlan_hal_whm::update_vap_stats(const std::string &vap_iface_name, SVapStats &vap_stats)
 {
-    std::string ssid_stats_path = wbapi_utils::search_path_ssid_by_iface(vap_iface_name) + "Stats.";
 
-    auto ssid_stats_obj = m_ambiorix_cl.get_object(ssid_stats_path);
+    std::string ssid_path = wbapi_utils::search_path_ssid_by_iface(vap_iface_name);
+
+    // Update SSID stats
+    AmbiorixVariantSmartPtr ssid_stats_obj = m_ambiorix_cl.get_object(ssid_path + "Stats.");
     if (!ssid_stats_obj) {
-        LOG(ERROR) << "failed to get SSID Stats object, path:" << ssid_stats_path;
+        LOG(WARNING) << "Failed to get SSID Stats object, path: " << ssid_path;
+    } else {
+        ssid_stats_obj->read_child(vap_stats.tx_bytes_cnt, "BytesSent");
+        ssid_stats_obj->read_child(vap_stats.rx_bytes_cnt, "BytesReceived");
+        ssid_stats_obj->read_child(vap_stats.tx_packets_cnt, "PacketsSent");
+        ssid_stats_obj->read_child(vap_stats.rx_packets_cnt, "PacketsReceived");
+        ssid_stats_obj->read_child(vap_stats.errors_sent, "ErrorsSent");
+        ssid_stats_obj->read_child(vap_stats.errors_received, "ErrorsReceived");
+        ssid_stats_obj->read_child(vap_stats.retrans_count, "RetransCount");
+    }
+
+    // Update MLD stats
+    // Missing MLD Stats, MLDUnit, BSSID should not be treated as fatal
+    // to not brake non-MLO/MLD configuration
+    AmbiorixVariantSmartPtr ssid_obj = m_ambiorix_cl.get_object(ssid_path);
+    if (!ssid_obj) {
+        LOG(ERROR) << "Failed to get SSID object path=" << ssid_path;
         return true;
     }
 
-    ssid_stats_obj->read_child(vap_stats.tx_bytes_cnt, "BytesSent");
-    ssid_stats_obj->read_child(vap_stats.rx_bytes_cnt, "BytesReceived");
-    ssid_stats_obj->read_child(vap_stats.tx_packets_cnt, "PacketsSent");
-    ssid_stats_obj->read_child(vap_stats.rx_packets_cnt, "PacketsReceived");
-    ssid_stats_obj->read_child(vap_stats.errors_sent, "ErrorsSent");
-    ssid_stats_obj->read_child(vap_stats.errors_received, "ErrorsReceived");
-    ssid_stats_obj->read_child(vap_stats.retrans_count, "RetransCount");
-
-    // update MLO stats
-    std::string ap_mlostats_path =
-        wbapi_utils::search_path_ap_by_iface(vap_iface_name) + "MLOStats.";
-
-    auto ap_mlostats_obj = m_ambiorix_cl.get_object(ap_mlostats_path);
-    if (!ap_mlostats_obj) {
-        LOG(ERROR) << "failed to get AP MLOStats object, path:" << ap_mlostats_path;
+    int32_t mldunit;
+    if (!ssid_obj->read_child(mldunit, "MLDUnit") || (mldunit == DISABLED_MLDUNIT)) {
+        LOG(ERROR) << "Failed to get MLDUnit from " << ssid_path;
         return true;
     }
 
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_packets_cnt, "PacketsSent");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_packets_cnt, "PacketsReceived");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_packets_err_cnt, "ErrorsSent");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_ucast_bytes, "UnicastBytesSent");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_ucast_bytes, "UnicastBytesReceived");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_mcast_bytes, "MulticastBytesSent");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_mcast_bytes, "MulticastBytesReceived");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.tx_bcast_bytes, "BroadcastBytesSent");
-    ap_mlostats_obj->read_child(vap_stats.mlo_stats.rx_bcast_bytes, "BroadcastBytesReceived");
+    std::string ssid_bssid;
+    if (!ssid_obj->read_child(ssid_bssid, "BSSID")) {
+        LOG(ERROR) << "Failed to read BSSID from " << ssid_path;
+        return true;
+    }
+
+    // No need to resolve apmld_path here
+    std::string apmld_path = wbapi_utils::search_path_apmld_by_mldid(mldunit);
+    std::string affiliated_ap_path;
+
+    // Resolve affiliated_ap_path with apmld_path filter included
+    m_ambiorix_cl.resolve_path(wbapi_utils::search_path_affiliated_ap(apmld_path, ssid_bssid),
+                               affiliated_ap_path);
+    if (affiliated_ap_path.empty()) {
+        LOG(ERROR) << "Affiliated AP Path could not be resolved for BSSID: " << ssid_bssid;
+        return true;
+    }
+
+    AmbiorixVariantSmartPtr affiliated_ap_stats_obj =
+        m_ambiorix_cl.get_object(affiliated_ap_path + "Stats.");
+    if (!affiliated_ap_stats_obj) {
+        LOG(ERROR) << "Failed to get AffiliatedAP Stats object, path: " << affiliated_ap_path;
+        return true;
+    }
+
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.rx_bcast_bytes,
+                                        "BroadcastBytesReceived");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.tx_bcast_bytes, "BroadcastBytesSent");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.tx_packets_err_cnt, "ErrorsSent");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.tx_packets_cnt, "PacketsSent");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.rx_mcast_bytes,
+                                        "MulticastBytesReceived");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.tx_mcast_bytes, "MulticastBytesSent");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.rx_packets_cnt, "PacketsReceived");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.rx_ucast_bytes, "UnicastBytesReceived");
+    affiliated_ap_stats_obj->read_child(vap_stats.mld_stats.tx_ucast_bytes, "UnicastBytesSent");
 
     return true;
 }
