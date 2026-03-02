@@ -25,12 +25,13 @@
         dm-save-on-changed = true,
         dm-save-init-delay = 2000,
         dm-save-delay = 1000,
-        dm-defaults = "defaults.d",
+        dm-defaults = "config/$@@{name}/odl/defaults.d",
         directory = "$@@{storage-path}/odl"
     };
     cfg-dir = "/etc/amx";
     include-dirs = [
         ".",
+        "config/$@@{name}/odl",
         "$@@{cfg-dir}/prplmesh",
         "$@@{cfg-dir}/modules",
         "/opt/prplmesh/config/$@@{name}/odl"
