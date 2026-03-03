@@ -167,9 +167,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='a5811e5a3df01e6a78c43caa1d4fe793745351ed'
         OPENWRT_VERSION='a5811e5a3df01e6a78c43caa1d4fe793745351ed'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS mainline-23.05_2026-02-19"
-        OPENWRT_TOOLCHAIN_VERSION='55ae68eee067a6775402eacb2ba71842a5ded1aa'
-        OPENWRT_VERSION='55ae68eee067a6775402eacb2ba71842a5ded1aa'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS mainline-23.05_2026-03-03 - test fix for guest VAPS as fronthaul"
+        OPENWRT_TOOLCHAIN_VERSION='13f442d5023c184d3406bcfe43c3113326ea4464'
+        OPENWRT_VERSION='13f442d5023c184d3406bcfe43c3113326ea4464'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -208,9 +208,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos mainline-23.05_2026-02-19
-OPENWRT_TOOLCHAIN_VERSION='55ae68eee067a6775402eacb2ba71842a5ded1aa'
-OPENWRT_VERSION='55ae68eee067a6775402eacb2ba71842a5ded1aa'
+# prplos mainline-23.05_2026-03-03
+OPENWRT_TOOLCHAIN_VERSION='13f442d5023c184d3406bcfe43c3113326ea4464'
+OPENWRT_VERSION='13f442d5023c184d3406bcfe43c3113326ea4464'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
