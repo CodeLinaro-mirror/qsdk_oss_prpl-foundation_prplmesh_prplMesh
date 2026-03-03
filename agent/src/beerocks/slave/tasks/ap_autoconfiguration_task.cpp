@@ -1650,10 +1650,24 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_renew(
             return;
         }
 
+        auto &radio_conf_params = m_radios_conf_params[radio->front.iface_name];
+        const bool renew_already_in_progress =
+            (radio_conf_params.state == eState::SEND_AP_AUTOCONFIGURATION_WSC_M1) ||
+            (radio_conf_params.state == eState::WAIT_AP_AUTOCONFIGURATION_WSC_M2) ||
+            (radio_conf_params.state == eState::WAIT_AP_CONFIGURATION_COMPLETE);
+        if (renew_already_in_progress) {
+            LOG(DEBUG) << "Ignore duplicate renew on " << radio->front.iface_name
+                       << " while state is " << fsm_state_to_string(radio_conf_params.state);
+            continue;
+        }
+
         m_task_is_active = true;
 
         // Refresh VAP info to ensure accurate BSS configuration matching
-        send_ap_bss_info_update_request(radio->front.iface_name);
+        if (!send_ap_bss_info_update_request(radio->front.iface_name)) {
+            LOG(WARNING) << "send_ap_bss_info_update_request has failed for "
+                         << radio->front.iface_name;
+        }
 
         FSM_MOVE_STATE(radio->front.iface_name, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
     }
