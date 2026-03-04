@@ -1038,8 +1038,8 @@ bool Monitor::update_ap_stats()
 
         // Update the stats
         if (!mon_wlan_hal->update_vap_stats(vap_node->get_iface(), vap_stats.hal_stats)) {
-            LOG(ERROR) << "Failed updating VAP statistics!";
-            return false;
+            LOG(ERROR) << "Failed updating VAP statistics for iface=" << vap_node->get_iface();
+            continue;
         }
 
         /**
