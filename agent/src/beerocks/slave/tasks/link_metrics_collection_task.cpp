@@ -886,7 +886,11 @@ void LinkMetricsCollectionTask::handle_ap_metrics_query(ieee1905_1::CmduMessageR
 bool LinkMetricsCollectionTask::send_ap_metric_query_message(
     uint16_t mid, const std::unordered_set<sMacAddr> &bssid_list)
 {
-    auto db = AgentDB::get();
+    auto db                 = AgentDB::get();
+    auto &ap_metric_queries = m_ap_metric_query[mid];
+    auto &pending_responses = m_ap_metric_query_pending_responses[mid];
+    ap_metric_queries.clear();
+    pending_responses = 0;
 
     for (const auto radio : db->get_radios_list()) {
         if (!radio) {
@@ -948,14 +952,24 @@ bool LinkMetricsCollectionTask::send_ap_metric_query_message(
 
             // responses are coming one by one - each bssid alone,
             // so we keep track of each bssid in the query
-            m_ap_metric_query.insert(std::make_pair(mid, std::vector<sApMetricsQuery>()));
-            m_ap_metric_query[mid].push_back({bssid_query[i]});
+            ap_metric_queries.push_back({bssid_query[i]});
         }
 
         auto monitor_fd = m_btl_ctx.get_monitor_fd(radio->front.iface_name);
         if (!m_btl_ctx.send_cmdu(monitor_fd, m_cmdu_tx)) {
             LOG(ERROR) << "Failed forwarding AP_METRICS_QUERY_MESSAGE message to fronthaul";
+            continue;
         }
+
+        ++pending_responses;
+    }
+
+    if (!pending_responses) {
+        LOG(ERROR) << "Failed sending AP_METRICS_QUERY_MESSAGE to monitor for mid=" << std::hex
+                   << mid;
+        m_ap_metric_query.erase(mid);
+        m_ap_metric_query_pending_responses.erase(mid);
+        return false;
     }
     return true;
 }
@@ -1032,6 +1046,11 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
     if (ap_metric_queries_map == m_ap_metric_query.end()) {
         LOG(ERROR) << "No AP_Metrics_Query map found for MID : " << std::hex << mid_index
                    << " found";
+        return;
+    }
+    auto pending_responses_map = m_ap_metric_query_pending_responses.find(mid_index);
+    if (pending_responses_map == m_ap_metric_query_pending_responses.end()) {
+        LOG(ERROR) << "No pending AP_Metrics responses found for MID : " << std::hex << mid_index;
         return;
     }
 
@@ -1235,12 +1254,27 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                            }),
             ap_metric_queries_map->second.end());
     }
-    if (!ap_metric_queries_map->second.empty()) {
-        LOG(DEBUG) << "Still expecting " << ap_metric_queries_map->second.size()
-                   << " ap metric responses.";
+    auto &pending_responses = pending_responses_map->second;
+    if (pending_responses == 0) {
+        LOG(ERROR) << "pending AP_Metrics responses is already zero for MID : " << std::hex
+                   << mid_index;
         return;
     }
+
+    --pending_responses;
+    if (pending_responses > 0) {
+        LOG(DEBUG) << "Still expecting " << pending_responses << " AP metrics monitor responses.";
+        return;
+    }
+
+    if (!ap_metric_queries_map->second.empty()) {
+        LOG(WARNING) << "Missing " << ap_metric_queries_map->second.size()
+                     << " AP metrics entries for MID : " << std::hex << mid_index
+                     << ". Sending partial AP_METRICS_RESPONSE_MESSAGE";
+    }
+
     m_ap_metric_query.erase(ap_metric_queries_map);
+    m_ap_metric_query_pending_responses.erase(pending_responses_map);
 
     // We received all responses - prepare and send response message to the controller
     auto cmdu_header = m_cmdu_tx.create(mid, ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE);
@@ -1783,6 +1817,7 @@ void LinkMetricsCollectionTask::ap_metrics_reporting_cb(void)
      * query can be cleared in case of query is sent to all bissids.
      */
     m_ap_metric_query.clear();
+    m_ap_metric_query_pending_responses.clear();
 
     /**
      * AP metrics response message will be sent only when there is respective AP metric
@@ -1850,6 +1885,7 @@ void LinkMetricsCollectionTask::handle_event(uint8_t event_enum_value, const voi
         }
 
         m_ap_metric_query.clear();
+        m_ap_metric_query_pending_responses.clear();
         m_ap_metrics_reporting_info.reporting_interval_s = 0;
 
         break;
