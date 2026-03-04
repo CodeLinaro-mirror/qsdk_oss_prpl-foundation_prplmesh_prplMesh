@@ -244,6 +244,26 @@ public:
                                                    const std::string &bridge_iface);
 
     /**
+     * @brief Build a normalized VLAN interface name.
+     *
+     * The function normalizes the base interface token for TS-related aliases
+     * and appends the VLAN suffix:
+     * - leading `wlan<digits>` becomes `w<digits>`
+     * - every `sta<digits>` token becomes `s<digits>`
+     *
+     * If @a suffix is empty, @a vid is used as suffix.
+     * Returns empty string on invalid input or when resulting name would
+     * exceed Linux IFNAMSIZ-1 visible characters.
+     *
+     * @param iface Base interface name.
+     * @param vid VLAN ID.
+     * @param suffix Optional suffix.
+     * @return Normalized VLAN interface name or empty on error.
+     */
+    static std::string build_vlan_interface_name(const std::string &iface, uint16_t vid,
+                                                 const std::string &suffix = {});
+
+    /**
      * @brief Create a VLAN interface.
      *
      * The function creates a new VLAN interface with ID @a vid.

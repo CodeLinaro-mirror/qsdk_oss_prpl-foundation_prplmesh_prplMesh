@@ -1406,8 +1406,8 @@ std::vector<std::string> network_utils::get_bss_ifaces(const std::string &bss_if
     return bss_ifaces;
 }
 
-std::string network_utils::create_vlan_interface(const std::string &iface, uint16_t vid,
-                                                 const std::string &suffix)
+std::string network_utils::build_vlan_interface_name(const std::string &iface, uint16_t vid,
+                                                     const std::string &suffix)
 {
     if (iface.empty()) {
         LOG(ERROR) << "iface is empty!";
@@ -1422,6 +1422,14 @@ std::string network_utils::create_vlan_interface(const std::string &iface, uint1
     // Shorten "sta<digits>" -> "s<digits>" only for the new interface name
     // to avoid IFNAMSIZ overflows on long BSS/STA names.
     std::string iface_short = iface;
+
+    // Shorten leading "wlan<digits>" -> "w<digits>" to keep generated
+    // interface names within Linux IFNAMSIZ constraints.
+    if (iface_short.compare(0, 4, "wlan") == 0 && iface_short.size() > 4 &&
+        std::isdigit(static_cast<unsigned char>(iface_short[4]))) {
+        iface_short.replace(0, 4, "w");
+    }
+
     for (size_t pos = 0; pos + 3 < iface_short.size();) {
         if (iface_short.compare(pos, 3, "sta") != 0) {
             ++pos;
@@ -1444,11 +1452,30 @@ std::string network_utils::create_vlan_interface(const std::string &iface, uint1
         pos = digit_pos - 2;
     }
 
-    std::string vid_str = std::to_string(vid);
-
     std::string new_iface_name;
     new_iface_name.reserve(IFNAMSIZ);
-    new_iface_name.assign(iface_short).append(".").append(suffix.empty() ? vid_str : suffix);
+    new_iface_name.assign(iface_short)
+        .append(".")
+        .append(suffix.empty() ? std::to_string(vid) : suffix);
+
+    if (new_iface_name.size() >= IFNAMSIZ) {
+        LOG(ERROR) << "Generated VLAN interface name '" << new_iface_name
+                   << "' exceeds maximum visible length " << (IFNAMSIZ - 1);
+        return {};
+    }
+
+    return new_iface_name;
+}
+
+std::string network_utils::create_vlan_interface(const std::string &iface, uint16_t vid,
+                                                 const std::string &suffix)
+{
+    const std::string new_iface_name = build_vlan_interface_name(iface, vid, suffix);
+    if (new_iface_name.empty()) {
+        return {};
+    }
+
+    const std::string vid_str = std::to_string(vid);
 
     std::string cmd;
     cmd.reserve(80);
@@ -1460,6 +1487,13 @@ std::string network_utils::create_vlan_interface(const std::string &iface, uint1
         .append(vid_str);
 
     beerocks::os_utils::system_call(cmd);
+
+    if (!linux_iface_exists(new_iface_name)) {
+        LOG(ERROR) << "Failed to create VLAN interface '" << new_iface_name << "' on link '"
+                   << iface << "'";
+        return {};
+    }
+
     return new_iface_name;
 }
 
