@@ -44,6 +44,7 @@ RUN \
     subversion \
     sudo \
     swig \
+    coccinelle \
     unzip \
     wget && \
     apt-get -y autoremove && \
