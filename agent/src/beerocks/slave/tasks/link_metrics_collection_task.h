@@ -22,6 +22,7 @@
 #include "bcl/network/network_utils.h"
 #include <bcl/beerocks_timer_manager.h>
 #include <bcl/network/file_descriptor.h>
+#include <cstddef>
 
 #include "../helpers/link_metrics/link_metrics.h"
 
@@ -210,6 +211,10 @@ private:
     };
 
     std::unordered_map<uint16_t, std::vector<sApMetricsQuery>> m_ap_metric_query;
+    /**
+     * Number of monitor AP_METRICS_RESPONSE messages expected per MID.
+     */
+    std::unordered_map<uint16_t, size_t> m_ap_metric_query_pending_responses;
 
     struct sStaTrafficStats {
         sMacAddr sta_mac;
