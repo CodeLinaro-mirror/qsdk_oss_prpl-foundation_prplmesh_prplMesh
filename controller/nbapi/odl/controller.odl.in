@@ -58,8 +58,12 @@
 
 %define {
     mib WiFi6Capabilities {
-        /* Coming from 17.2.72 of the Multi-AP Specification R4 and TR-181 spec v2.15 */
-        object WiFi6Capabilities {
+
+        /**
+        * Describes the Wi-Fi 6 capabilities of the Associated Device (STA).
+        * @version 2.19.1
+        */
+        %read-only object WiFi6Capabilities {
             /* Supported HE MCS and NSS indicating set of supported HE Tx and Rx MCS/NSS. */
             object MCSNSS[] {
                 counted with MCSNSSNumberOfEntries;
@@ -431,10 +435,12 @@
 
                     %read-only string ControllerID = "0";
 
-                    /*
-                        Network devices list.
+                    /**
+                    * Each instance of this object represents an individual EasyMesh Agent or single-AP device in the Wi-Fi network.
+                    * At most one entry in this table can exist with a given value for ID.
+                    * @version 2.19.1
                     */
-                    object Device[] {
+                    %read-only object Device[] {
                         counted with DeviceNumberOfEntries;
                     }
 

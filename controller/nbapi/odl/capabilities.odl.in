@@ -24,7 +24,12 @@
         %read-only object AKMFrontHaul [] {
             counted with AKMFrontHaulNumberOfEntries;
 
-            %read-only string OUI;
+            /**
+            * Any Organizationally Unique Identifier (OUI) value specified in [Table 9-151/802.11-2020].
+            * @version 2.19.1
+            */
+            %read-only %unique string OUI;
+
             %read-only uint32 Type {
                 on action validate call check_range [0, 255];
             }
@@ -34,7 +39,12 @@
         %read-only object AKMBackhaul [] {
             counted with AKMBackhaulNumberOfEntries;
 
-            %read-only string OUI;
+            /**
+            * Any Organizationally Unique Identifier (OUI) value specified in [Table 9-151/802.11-2020].
+            * @version 2.19.1
+            */
+            %read-only %unique string OUI;
+
             %read-only uint32 Type {
                 on action validate call check_range [0, 255];
             }

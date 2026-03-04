@@ -16,17 +16,27 @@
 %define {
     select @DATAELEMENTS_ROOT_DM@.Network.Device {
         
-        /*
-        ** A unique identifier for this particular device
-        ** within the Wi-Fi network
+        /**
+        * [MACAddress] A unique identifier for this particular device within the Wi-Fi network as defined in [Section 3.1/DataElements].
+        * If this Device is represented in Device.IEEE1905.AL.NetworkTopology., then this should match an IEEE 1905 AL MAC Address in Device.IEEE1905.AL.NetworkTopology.IEEE1905Device.{i}.IEEE1905Id.
+        * @version 2.19.1
         */
-        %read-only string ID = "00:00:00:00:00:00";
+        %read-only %unique string ID = "00:00:00:00:00:00";
+
         %read-only string SerialNumber;
         %read-only string Manufacturer;
         %read-only string ManufacturerModel;
         %read-only string SoftwareVersion;
         %read-only string ExecutionEnv;
-        %read-only string CountryCode;
+
+        /**
+        * Two-character country code in which the Multi-AP Agent is operating according to [ISO3166-1]. The characters are encoded as UTF-8.
+        * If the instance of this DataElements is the same as Device.WiFi.Radio.{i}., then this parameter is the same as Device.WiFi.Radio.{i}.RegulatoryDomain.
+        * @version 2.19.1
+        */
+        %read-only string CountryCode {
+            on action validate call check_maximum_length 2;
+        }
 
         uint32 MultiAPProfile {
             on action validate call check_range [0, 5];
@@ -170,7 +180,15 @@
         %read-only object SSIDtoVIDMapping [] {
             /* The Service Set Identifier (SSID) to VLAN ID mapping for EasyMesh traffic separation */
             counted with SSIDtoVIDMappingNumberOfEntries;
-            %read-only string SSID;
+
+            /**
+            * The SSID.
+            * @version 2.19.1
+            */
+            %read-only %unique string SSID {
+                on action validate call check_maximum_length 64;
+            }
+
             %read-only uint64 VID = 0 {
                 on action validate call check_range [0, 4095];
             }
@@ -179,8 +197,12 @@
         %read-only object SPRule [] {
             counted with SPRuleNumberOfEntries;
 
-            /* The Service Prioritization (SP) rule */
-            %read-only uint32 ID;
+            /**
+            * Service prioritization rule Identifier.
+            * @version 2.19.1
+            */
+            %read-only %unique uint32 ID;
+
             /* Rule precedence – higher number means higher priority */
             %read-only uint32 Precedence = 0 {
                 on action validate call check_range [0, 254];
@@ -193,10 +215,12 @@
             %read-only bool AlwaysMatch;
         }
 
-        /*
-        ** The list of Radio objects.
+        /**
+        * This object represents all of the individual Radios contained within the identified Access Point device known to the controller.
+        * At most one entry in this table can exist with a given value for ID.
+        * @version 2.19.1
         */
-        object Radio [] {
+        %read-only object Radio [] {
             counted with RadioNumberOfEntries;
         }
 
@@ -247,17 +271,33 @@
         /* Latest Channel Availability Check (CAC) Status Report from the device */
         %read-only object CACStatus [] {
             counted with CACStatusNumberOfEntries;
-            %read-only datetime TimeStamp;
+
+            /**
+            * The time this group was collected.
+            * @version 2.19.1
+            */
+            %read-only %unique datetime TimeStamp;
 
             /* Describes available channels identified by CAC */
             %read-only object CACAvailableChannel [] {
                 counted with CACAvailableChannelNumberOfEntries;
-                %read-only uint32 OpClass = 0 {
+
+                /**
+                * This is the operating class of an available channel, from [Table E-4/802.11ax].
+                * @version 2.19.1
+                */
+                %read-only %key uint32 OpClass {
                     on action validate call check_range [0, 255];
                 }
-                %read-only uint32 Channel = 0 {
+
+                /**
+                * Single channel number of an available channel in the given operating class.
+                * @version 2.19.1
+                */
+                %read-only %key uint32 Channel {
                     on action validate call check_range [0, 255];
                 }
+
                 %read-only uint32 Minutes = 0 {
                     on action validate call check_range [0, 65535];
                 }
@@ -266,12 +306,23 @@
             /* Describes channels identified by CAC that may not be occupied */
             %read-only object CACNonOccupancyChannel [] {
                 counted with CACNonOccupancyChannelNumberOfEntries;
-                %read-only uint32 OpClass = 0 {
+
+                /**
+                * Operating class of a channel that is in the non-occupancy list, from [Table E-4/802.11ax].
+                * @version 2.19.1
+                */
+                %read-only %key uint32 OpClass {
                     on action validate call check_range [0, 255];
                 }
-                %read-only uint32 Channel = 0 {
+
+                /**
+                * Single channel number in the operating class on which the radar was detected.
+                * @version 2.19.1
+                */
+                %read-only %key uint32 Channel {
                     on action validate call check_range [0, 255];
                 }
+
                 %read-only uint32 Seconds = 0 {
                     on action validate call check_range [0, 65535];
                 }
@@ -280,12 +331,23 @@
             /* Describes channels with ongoing CAC */
             %read-only object CACActiveChannel [] {
                 counted with CACActiveChannelNumberOfEntries;
-                %read-only uint32 OpClass = 0 {
+
+                /**
+                * Operating class of a channel that has ongoing CAC, from [Table E-4/802.11ax].
+                * @version 2.19.1
+                */
+                %read-only %key uint32 OpClass {
                     on action validate call check_range [0, 255];
                 }
-                %read-only uint32 Channel = 0 {
+
+                /**
+                * Single channel number in the operating class that has an ongoing CAC.
+                * @version 2.19.1
+                */
+                %read-only %key uint32 Channel {
                     on action validate call check_range [0, 255];
                 }
+
                 %read-only uint32 Countdown = 0;
             }
         }
@@ -293,7 +355,14 @@
         /* IEEE 1905 security capabilities. */
         %read-only object IEEE1905Security [] {
             counted with IEEE1905SecurityNumberOfEntries;
-            %read-only uint32 OnboardingProtocol = 0;
+
+            /**
+            * Onboarding protocols supported;
+            * 0: 1905 Device Provisioning Protocol as defined in the EasyMesh [EasyMesh] 1905 Layer Security Capability TLV.
+            * @version 2.19.1
+            */
+            %read-only %unique uint32 OnboardingProtocol = 0;
+
             %read-only uint32 IntegrityAlgorithm = 0;
             %read-only uint32 EncryptionAlgorithm = 0;
         }
@@ -302,9 +371,14 @@
         object Default8021Q [] {
             counted with Default8021QNumberOfEntries;
             bool Enable;
-            uint32 PrimaryVID = 0 {
+
+            /**
+            * The primary 802.1Q C-TAG (VLAN ID).
+            */
+            %unique uint32 PrimaryVID = 0 {
                 on action validate call check_range [0, 4095];
             }
+
             uint32 DefaultPCP = 0 {
                 on action validate call check_range [0, 7];
             }
@@ -372,10 +446,20 @@
 
         /*
         ** The list of APMLD objects.
+        /**
+        * Table of Multi-Link Operation (MLO) capable Access Points (APs) on this EasyMesh Agent or Single AP device.
+        * [EasyMesh] source: Agent AP MLD Configuration TLV.
+        * At most one entry in this table can exist with a given value for MLDMACAddress.
+        * @version 2.19.1
         */
-        object APMLD [] {
+        %read-only object APMLD [] {
             counted with APMLDNumberOfEntries;
-            %read-only string MLDMACAddress = "";
+
+            /**
+            * [MACAddress] The Multi-Link Device (MLD) MAC Address of the MLO Capable access point (AP). [EasyMesh] Source: Agent AP MLD Configuration TLV.
+            * @version 2.19.1
+            */
+            %read-only %unique string MLDMACAddress = "";
 
             object APMLDConfig {
                 %read-only bool EMLMREnabled = false;
@@ -385,7 +469,14 @@
                 %read-only bool TIDLinkMapNegotiation = false;
             }
 
-            object TIDLinkMap [] {
+            /**
+            * Table of Traffic Identifier (TID) to Link Mappings of the Multi-Link Operation (MLO) capable access point (AP).
+            * Each table entry describes the mapping between a particular TID and direction and preferred link.
+            * [EasyMesh] source: TID-to-Link Mapping Policy TLV.
+            * At most one entry in this table can exist with a given value for TID.
+            * @version 2.19.1
+            */
+            %read-only object TIDLinkMap [] {
                 counted with TIDLinkMapNumberOfEntries;
                 %read-only string Direction {
                     default "Down";
@@ -394,16 +485,47 @@
                         "Down"
                     ];
                 }
-                %read-only uint8 TID;
+
+                /**
+                * The traffic identifier (TID) for this mapping.
+                * @version 2.19.1
+                */
+                %read-only %unique uint8 TID;
+
                 %read-only string BSSID = "";
-                %read-only uint8 LinkID;
+
+                /**
+                * Comma-separated list of unsigned integers (0 to 15). The Link ID of the preferred link (affiliated AP) to use for traffic with matching direction and TID values.
+                * @version 2.19.1
+                */
+                %read-only uint8 LinkID {
+                    on action validate call check_range [0, 15];
+                }
             }
 
-            /* Affiliated APs list of APMLD */
-            object AffiliatedAP [] {
+            /**
+            * The Access Points (APs) affiliated to the AP MLD. [EasyMesh] Source: Agent AP MLD Configuration TLV.
+            * Counters in this object only include MLD traffic.
+            * At most one entry in this table can exist with a given value for BSSID.
+            * @version 2.19.1
+            */
+            %read-only object AffiliatedAP [] {
                 counted with AffiliatedAPNumberOfEntries;
-                %read-only string BSSID = "";
-                %read-only uint8 LinkID;
+
+                /**
+                * [MACAddress] The BSSID of the affiliated AP. This should be set to one of the values of Radio.{i}.BSS.{i}.BSSID.
+                * [EasyMesh] source: Agent AP MLD Configuration TLV.
+                * @version 2.19.1
+                */
+                %read-only %unique string BSSID = "";
+
+                /**
+                * The Link ID assigned to this affiliated AP. [EasyMesh] source: Agent AP MLD Configuration TLV.
+                * @version 2.19.1
+                */
+                %read-only uint8 LinkID {
+                    on action validate call check_range [0, 15];
+                }
                 %read-only string RUID = "";
                 %read-only uint16 DisabledSubChannels;
                 %read-only uint32 PacketsSent = 0;
@@ -415,19 +537,72 @@
                 %read-only uint32 MulticastBytesReceived = 0;
                 %read-only uint32 BroadcastBytesSent = 0;
                 %read-only uint32 BroadcastBytesReceived = 0;
-                %read-only string EstServiceParametersBE;
-                %read-only string EstServiceParametersBK;
-                %read-only string EstServiceParametersVI;
-                %read-only string EstServiceParametersVO;
+
+                /**
+                * Estimated Service Parameters information field for AC=BE, defined per [Figure 9-637/802.11-2020] and referenced in [Section 17.2.22/EasyMesh].
+                * @version 2.19.1
+                */
+                %read-only string EstServiceParametersBE {
+                    on action validate call check_maximum_length 3;
+                }
+
+                /**
+                * Estimated Service Parameters information field for AC=BK, defined per [Figure 9-637/802.11-2020] and referenced in [Section 17.2.22/EasyMesh].
+                * @version 2.19.1
+                */
+                %read-only string EstServiceParametersBK {
+                    on action validate call check_maximum_length 3;
+                }
+
+                /**
+                * Estimated Service Parameters information field for AC=VI, defined per [Figure 9-637/802.11-2020] and referenced in [Section 17.2.22/EasyMesh].
+                * @version 2.19.1
+                */
+                %read-only string EstServiceParametersVI {
+                    on action validate call check_maximum_length 3;
+                }
+
+                /**
+                * Estimated Service Parameters information field for AC=VO, defined per [Figure 9-637/802.11-2020] and referenced in [Section 17.2.22/EasyMesh].
+                * @version 2.19.1
+                */
+                %read-only string EstServiceParametersVO {
+                    on action validate call check_maximum_length 3;
+                }
             }
 
-            /* Associated STAMLD list (Client/bSTA) */
-            object STAMLD [] {
+            /**
+            * This object describes Multi-Link Operation (MLO) capable stations (STAs), also known as client Multilink Devices (MLDs), associated to this MLO capable Access Point.
+            * [EasyMesh] source: Associated Clients TLV.
+            * At most one entry in this table can exist with a given value for MLDMACAddress.
+            * @version 2.19.1
+            */
+            %read-only object STAMLD [] {
                 counted with STAMLDNumberOfEntries;
-                %read-only string MLDMACAddress = "";
+
+                /**
+                * [MACAddress] The Multi-Link Device (MLD) MAC Address of the client MLD STA. [EasyMesh] source: Associated STA MLD Configuration Report TLV.
+                * @version 2.19.1
+                */
+                %read-only %unique string MLDMACAddress = "";
+
                 %read-only string Hostname;
-                %read-only string IPv4Address;
-                %read-only string IPv6Address;
+
+                /**
+                * [IPv4Address] The IPv4 address allocated to the MLD MAC Address of this device.
+                * @version 2.19.1
+                */
+                %read-only string IPv4Address {
+                    on action validate call check_maximum_length 15;
+                }
+
+                /**
+                * [IPv6Address] The IPv6 address allocated to the MLD MAC Address of this device.
+                * @version 2.19.1
+                */
+                %read-only string IPv6Address {
+                    on action validate call check_maximum_length 45;
+                }
                 %read-only bool IsbSTA = false;
                 %read-only uint32 LastConnectTime = 0;
                 %read-only uint32 BytesSent = 0;
@@ -454,7 +629,14 @@
                     %read-only bool TIDLinkMapNegotiation = false;
                 }
 
-                object STATIDLinkMap [] {
+                /**
+                * Table of Traffic Identifier (TID) to Link Mappings of the Multi-Link Operation (MLO) capable station (STA).
+                * Each table entry describes the mapping between a particular TID and direction and preferred link.
+                * [EasyMesh] source: TID-to-Link Mapping Policy TLV.
+                * At most one entry in this table can exist with a given value for TID.
+                * @version 2.19.1
+                */
+                %read-only object STATIDLinkMap [] {
                     counted with STATIDLinkMapNumberOfEntries;
                     %read-only string Direction {
                         default "Down";
@@ -464,15 +646,39 @@
                         ];
                     }
 
-                    %read-only uint8 TID;
+                    /**
+                    * The traffic identifier (TID) for this mapping.
+                    * @version 2.19.1
+                    */
+                    %read-only %unique uint8 TID;
+
                     %read-only string BSSID = "";
-                    %read-only uint8 LinkID;
+
+                    /**
+                    * Comma-separated list of unsigned integers (0 to 15). The Link ID of the preferred link (affiliated AP) to use for traffic with matching direction and TID values.
+                    * @version 2.19.1
+                    */
+                    %read-only uint8 LinkID {
+                        on action validate call check_range [0, 15];
+                    }
                 }
 
-                /* Affiliated STAs list of STAMLD(Client/bSTA) */
-                object AffiliatedSTA [] {
+                /**
+                * This object describes stations (STAs, also called associated devices) that are affiliated to this Multi-Link Device (MLD) STA.
+                * [EasyMesh] source: Associated STA MLD Configuration TLV.
+                * At most one entry in this table can exist with a given value for MACAddress.
+                * @version 2.19.1
+                */
+                %read-only object AffiliatedSTA [] {
                     counted with AffiliatedSTANumberOfEntries;
-                    %read-only string MACAddress = "";
+
+                    /**
+                    * [MACAddress] The MAC address of the affiliated STA.
+                    * [EasyMesh] source: Associated STA MLD Configuration Report TLV.
+                    * @version 2.19.1
+                    */
+                    %read-only %unique string MACAddress = "";
+
                     %read-only string BSSID = "";
                     %read-only uint32 BytesSent = 0;
                     %read-only uint32 BytesReceived = 0;
