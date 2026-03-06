@@ -574,6 +574,33 @@ enum class eZWDFS_flags : uint8_t {
 constexpr int8_t DISABLED_MLDUNIT = -1;
 constexpr int8_t INVALID_LINKID   = -1;
 
+enum class BandFlag {
+    BAND_2_4,
+    BAND_5,
+    BAND_6,
+    BAND_5_UNII_1,
+    BAND_5_UNII_2,
+    BAND_5_UNII_3,
+    BAND_5_UNII_4,
+    BAND_6_UNII_5,
+    BAND_6_UNII_6,
+    BAND_6_UNII_7,
+    BAND_6_UNII_8,
+    BAND_SUB_1GHZ,
+    UNKNOWN
+};
+
+enum class AKMType { PSK, DPP, SAE, SAE_EXT_KEY, SUITE_SELECTOR, UNKNOWN };
+
+enum class SecurityMode {
+    WPA2_PERSONAL,
+    WPA3_PERSONAL,
+    WPA3_PERSONAL_TRANSITION,
+    DPP,
+    OPEN,
+    UNKNOWN
+};
+
 } // namespace beerocks
 
 #endif //_BEEROCKS_DEFINES_H_

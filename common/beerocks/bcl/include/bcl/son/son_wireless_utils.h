@@ -482,6 +482,11 @@ public:
      **/
     static eVapType string_to_vap_type(const std::string &type);
 
+    static bool validate_op_class(const std::string &str, uint8_t &op_class);
+    static beerocks::BandFlag get_op_class_band(const uint8_t op_cls);
+    static std::list<uint8_t>
+    parse_op_class_flag_to_wsc_oper_class(const std::string &op_class_flag);
+
     /**
      * @brief Get the vht central frequency object
      * 

@@ -1223,7 +1223,977 @@ amxd_status_t update_unassociatedStations_stats(amxd_object_t *object, amxd_func
     return result;
 }
 
+/**
+ * @brief Build a parameter filter targeting an object instance by a linked TemplateID.
+ *
+ * Example:
+ *   If BSSTemplate has LinkedSSCTemplateID="PRIV" (Device.WiFi.Templates.BSSTemplate.1.LinkedSSCTemplateID="PRIV"),
+ *   this builds a filter to read HaulType from the SSCTemplate with ID "PRIV":
+ *   Device.WiFi.Templates.SSCTemplate.[SSCTemplateID=='PRIV'].HaulType?
+ *
+ * @param linked_template_id_name  Name of the TemplateID attribute (e.g., "SSCTemplateID").
+ * @param linked_template_id_value Value of the TemplateID to match (e.g., "PRIV").
+ * @param param_name               Target parameter name (e.g., "HaulType").
+ * @return Filter string
+ */
+std::string filter_param_name_with_linked_template_id(const char *linked_template_id_name,
+                                                      const std::string &linked_template_id_value,
+                                                      const char *param_name)
+{
+    return "[" + std::string(linked_template_id_name) + "== '" + linked_template_id_value + "']." +
+           param_name;
+}
+
+beerocks::BandFlag str_to_band_flag(const std::string &band_str)
+{
+    if (band_str == "2.4")
+        return beerocks::BandFlag::BAND_2_4;
+    if (band_str == "5")
+        return beerocks::BandFlag::BAND_5;
+    if (band_str == "6")
+        return beerocks::BandFlag::BAND_6;
+    if (band_str == "5_UNII_1")
+        return beerocks::BandFlag::BAND_5_UNII_1;
+    if (band_str == "5_UNII_2")
+        return beerocks::BandFlag::BAND_5_UNII_2;
+    if (band_str == "5_UNII_3")
+        return beerocks::BandFlag::BAND_5_UNII_3;
+    if (band_str == "5_UNII_4")
+        return beerocks::BandFlag::BAND_5_UNII_4;
+    if (band_str == "6_UNII_5")
+        return beerocks::BandFlag::BAND_6_UNII_5;
+    if (band_str == "6_UNII_6")
+        return beerocks::BandFlag::BAND_6_UNII_6;
+    if (band_str == "6_UNII_7")
+        return beerocks::BandFlag::BAND_6_UNII_7;
+    if (band_str == "6_UNII_8")
+        return beerocks::BandFlag::BAND_6_UNII_8;
+    if (band_str == "Sub_1GHz")
+        return beerocks::BandFlag::BAND_SUB_1GHZ;
+    return beerocks::BandFlag::UNKNOWN;
+}
+
+std::string band_flag_to_str(beerocks::BandFlag band)
+{
+    switch (band) {
+    case beerocks::BandFlag::BAND_2_4:
+        return std::string("24g");
+    case beerocks::BandFlag::BAND_5:
+        return std::string("5g");
+    case beerocks::BandFlag::BAND_6:
+        return std::string("6g");
+    case beerocks::BandFlag::BAND_5_UNII_1:
+        return std::string("5_UNII_1");
+    case beerocks::BandFlag::BAND_5_UNII_2:
+        return std::string("5_UNII_2");
+    case beerocks::BandFlag::BAND_5_UNII_3:
+        return std::string("5_UNII_3");
+    case beerocks::BandFlag::BAND_5_UNII_4:
+        return std::string("5_UNII_4");
+    case beerocks::BandFlag::BAND_6_UNII_5:
+        return std::string("6_UNII_5");
+    case beerocks::BandFlag::BAND_6_UNII_6:
+        return std::string("6_UNII_6");
+    case beerocks::BandFlag::BAND_6_UNII_7:
+        return std::string("6_UNII_7");
+    case beerocks::BandFlag::BAND_6_UNII_8:
+        return std::string("6_UNII_8");
+    case beerocks::BandFlag::BAND_SUB_1GHZ:
+        return std::string("Sub_1GHz");
+    default:
+        return std::string("UNKNOWN");
+    }
+}
+
+// Simple trim helpers (ASCII whitespace) - Left Trim
+static inline void ltrim(std::string &s)
+{
+    s.erase(s.begin(),
+            std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+}
+
+// Simple trim helpers (ASCII whitespace) - right Trim
+static inline void rtrim(std::string &s)
+{
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); })
+                .base(),
+            s.end());
+}
+
+static inline void trim(std::string &s)
+{
+    ltrim(s);
+    rtrim(s);
+}
+
+/**
+ * @brief Parse a comma-separated band list and validate composition rules.
+ *
+ * Rules:
+ *  - Either zero items (returns empty vector).
+ *  - OR exactly one frequency band: Sub_1GHz, 2.4, 5, or 6.
+ *  - OR one or more UNII bands (any of 5_UNII_* or 6_UNII_*), exclusively.
+ *
+ * @param band_flag Comma-separated bands (e.g., "5_UNII_1, 5_UNII_3", or "2.4").
+ * @return Validated band list; empty if composition invalid or tokens unknown.
+ */
+std::vector<beerocks::BandFlag> parse_and_validate_band_flag(const std::string &band_flag)
+{
+    std::vector<beerocks::BandFlag> bands;
+    std::stringstream ss(band_flag);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+        trim(token);
+        if (!token.empty()) {
+            beerocks::BandFlag band = str_to_band_flag(token);
+            if (band != beerocks::BandFlag::UNKNOWN) {
+                bands.push_back(band);
+            } else {
+                LOG(WARNING) << "Skipping unknown frequency band: " << token;
+            }
+        }
+    }
+
+    if (bands.empty()) {
+        LOG(DEBUG) << "No valid bands parsed from input: '" << band_flag << "'";
+        return {};
+    }
+
+    auto is_frequency_band = [](const beerocks::BandFlag band) {
+        return band == beerocks::BandFlag::BAND_SUB_1GHZ || band == beerocks::BandFlag::BAND_2_4 ||
+               band == beerocks::BandFlag::BAND_5 || band == beerocks::BandFlag::BAND_6;
+    };
+    auto is_unii_band = [](const beerocks::BandFlag band) {
+        return band == beerocks::BandFlag::BAND_5_UNII_1 ||
+               band == beerocks::BandFlag::BAND_5_UNII_2 ||
+               band == beerocks::BandFlag::BAND_5_UNII_3 ||
+               band == beerocks::BandFlag::BAND_5_UNII_4 ||
+               band == beerocks::BandFlag::BAND_6_UNII_5 ||
+               band == beerocks::BandFlag::BAND_6_UNII_6 ||
+               band == beerocks::BandFlag::BAND_6_UNII_7 ||
+               band == beerocks::BandFlag::BAND_6_UNII_8;
+    };
+
+    bool all_frequency = std::all_of(bands.begin(), bands.end(), is_frequency_band);
+    bool all_unii      = std::all_of(bands.begin(), bands.end(), is_unii_band);
+
+    if ((bands.size() == 1 && all_frequency) || all_unii) {
+        LOG(DEBUG) << "Validated bands: count=" << bands.size()
+                   << ", composition=" << (all_unii ? "UNII-only" : "single-frequency");
+        return bands;
+    }
+
+    LOG(WARNING)
+        << "Invalid band composition. Must be a single frequency band OR only UNII bands. Input: '"
+        << band_flag << "'";
+    return {};
+}
+
+std::vector<std::string>
+parse_security_template_id_list(const std::string &linked_security_group_id)
+{
+    std::vector<std::string> security_template_id_list;
+    std::stringstream ss(linked_security_group_id);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+        trim(token);
+
+        if (!token.empty()) {
+            security_template_id_list.push_back(token);
+        }
+    }
+
+    if (security_template_id_list.empty()) {
+        LOG(DEBUG) << "No SecurityTemplateIDs parsed from: '" << linked_security_group_id << "'";
+    } else {
+        LOG(DEBUG) << "Parsed SecurityTemplateIDs (" << security_template_id_list.size()
+                   << "): " << linked_security_group_id;
+    }
+
+    return security_template_id_list;
+}
+
+/**
+ * @brief Among the given SecurityTemplateIDs, find the enabled one with the highest Priority.
+ *
+ * @param security_template_object Object holding security template parameters (Priority, Enable).
+ * @param linked_security_group_id Comma-separated IDs to consider.
+ * @return The ID with the highest priority (if enabled). Empty string if none found/enabled.
+ */
+std::string
+find_security_template_id_with_the_highest_priority(amxd_object_t *security_template_object,
+                                                    const std::string &linked_security_group_id)
+{
+    auto security_template_id_list = parse_security_template_id_list(linked_security_group_id);
+    std::string highest_security_template_id        = "";
+    unsigned int highest_security_template_priority = 0;
+
+    if (security_template_id_list.empty()) {
+        LOG(WARNING) << "No SecurityTemplateIDs to evaluate.";
+        return "";
+    }
+
+    for (const auto &security_template_id : security_template_id_list) {
+        uint32_t security_template_priority = get_param_uint32(
+            security_template_object, filter_param_name_with_linked_template_id(
+                                          "SecurityTemplateID", security_template_id, "Priority")
+                                          .c_str());
+        bool security_template_enable = get_param_bool(
+            security_template_object, filter_param_name_with_linked_template_id(
+                                          "SecurityTemplateID", security_template_id, "Enable")
+                                          .c_str());
+
+        LOG(DEBUG) << "TemplateID='" << security_template_id
+                   << "' priority=" << security_template_priority
+                   << ", enable=" << (security_template_enable ? "true" : "false");
+
+        if (!security_template_enable) {
+            continue; // Skip disabled security templates
+        }
+
+        if (security_template_priority > highest_security_template_priority) {
+            highest_security_template_priority = security_template_priority;
+            highest_security_template_id       = security_template_id;
+        }
+    }
+
+    if (highest_security_template_id.empty()) {
+        LOG(WARNING) << "No enabled SecurityTemplate found with a positive priority.";
+    } else {
+        LOG(INFO) << "Selected SecurityTemplateID with highest priority: '"
+                  << highest_security_template_id
+                  << "' (priority=" << highest_security_template_priority << ")";
+    }
+
+    return highest_security_template_id;
+}
+
+beerocks::AKMType str_to_akm_suite(const std::string &akm_suite)
+{
+    if (akm_suite == "psk")
+        return beerocks::AKMType::PSK;
+    if (akm_suite == "dpp")
+        return beerocks::AKMType::DPP;
+    if (akm_suite == "sae")
+        return beerocks::AKMType::SAE;
+    if (akm_suite == "sae-ext-key")
+        return beerocks::AKMType::SAE_EXT_KEY;
+    if (akm_suite == "SuiteSelector")
+        return beerocks::AKMType::SUITE_SELECTOR;
+    return beerocks::AKMType::UNKNOWN;
+}
+
+std::vector<beerocks::AKMType> parse_and_validate_akm_suite(const std::string &akm_suite)
+{
+    std::vector<beerocks::AKMType> akm_suite_list;
+    std::stringstream ss(akm_suite);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+        trim(token);
+        if (!token.empty()) {
+            beerocks::AKMType akm_type = str_to_akm_suite(token);
+            if (akm_type != beerocks::AKMType::UNKNOWN) {
+                akm_suite_list.push_back(akm_type);
+            } else {
+                LOG(WARNING) << "Skipping unknown Authentication type: " << token;
+            }
+        }
+    }
+
+    LOG(DEBUG) << "Parsed AKM suite list size=" << akm_suite_list.size() << " from input: '"
+               << akm_suite << "'";
+    return akm_suite_list;
+}
+
+std::string security_mode_to_string(beerocks::SecurityMode mode)
+{
+    switch (mode) {
+    case beerocks::SecurityMode::WPA2_PERSONAL:
+        return "WPA2-Personal";
+    case beerocks::SecurityMode::WPA3_PERSONAL:
+        return "WPA3-Personal";
+    case beerocks::SecurityMode::WPA3_PERSONAL_TRANSITION:
+        return "WPA3-Personal-Transition";
+    case beerocks::SecurityMode::DPP:
+        return "DPP";
+    case beerocks::SecurityMode::OPEN:
+        return "OPEN";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+// Utility function to check if a vector contains a specific AKMType
+bool contains_akm(const std::vector<AKMType> &akm_list, AKMType akm_type)
+{
+    return std::find(akm_list.begin(), akm_list.end(), akm_type) != akm_list.end();
+}
+
+beerocks::SecurityMode
+configure_security_parameters_in_bss_info(son::wireless_utils::sBssInfoConf &bss_info,
+                                          const std::vector<beerocks::AKMType> &akm_suite_list,
+                                          const std::string &key_pass_phrase)
+{
+    bool has_psk = contains_akm(akm_suite_list, beerocks::AKMType::PSK);
+    bool has_sae = contains_akm(akm_suite_list, beerocks::AKMType::SAE);
+    bool has_dpp = contains_akm(akm_suite_list, beerocks::AKMType::DPP);
+
+    beerocks::SecurityMode security_mode;
+    // Set common defaults
+    bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
+    bss_info.network_key     = key_pass_phrase;
+
+    // Only DPP
+    if (has_dpp && akm_suite_list.size() == 1) {
+        security_mode                = beerocks::SecurityMode::DPP;
+        bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_DPP;
+        // DPP uses public key cryptography and bootstrapping rather than network key
+        bss_info.network_key.clear();
+        LOG(DEBUG) << "Selected DPP security";
+    }
+    // Only PSK
+    else if (has_psk && akm_suite_list.size() == 1) {
+        security_mode                = beerocks::SecurityMode::WPA2_PERSONAL;
+        bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
+        LOG(DEBUG) << "Selected WPA2-Personal (PSK)";
+    }
+    // SAE (with or without SAE_EXT_KEY), and no PSK
+    else if (has_sae && !has_psk) {
+        security_mode                = beerocks::SecurityMode::WPA3_PERSONAL;
+        bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+        LOG(DEBUG) << "Selected WPA3-Personal (SAE-only)";
+    }
+    // PSK + SAE => Transition mode (with or without SAE_EXT_KEY)
+    else if (has_psk && has_sae) {
+        security_mode = beerocks::SecurityMode::WPA3_PERSONAL_TRANSITION;
+        bss_info.authentication_type =
+            WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_SAE);
+        LOG(DEBUG) << "Selected WPA3-Personal-Transition (PSK + SAE)";
+    } else {
+        // Default to OPEN
+        security_mode                = beerocks::SecurityMode::OPEN;
+        bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_OPEN;
+        bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_NONE;
+        bss_info.network_key.clear();
+        LOG(DEBUG) << "Selected OPEN network (no valid AKMs)";
+    }
+
+    LOG(INFO) << "Authentication Mode: " << security_mode_to_string(security_mode);
+    return security_mode;
+}
+
+/**
+ * @brief Parse WiFi operating generations from input and optionally include future generations.
+ *
+ * Input examples:
+ *   "4,5,6"  -> ["4","5","6"]
+ *   "6+"     -> ["6","7"]  (future generations after 6, up to the highest known)
+ *   "5, 6+"  -> ["5","6","7"] (the '+' only applies to last token)
+ */
+std::vector<std::string> get_wifi_generations(const std::string &operating_generation)
+{
+    // Known generations and their ordering reference
+    static const std::unordered_map<std::string, int> gen_order = {
+        {"1", 1}, {"2", 2}, {"3", 3}, {"4", 4}, {"5", 5}, {"6", 6}, {"7", 7}};
+
+    if (operating_generation.empty()) {
+        LOG(WARNING)
+            << "Empty input provided. Please specify WiFi generations (e.g., '4,5,6' or '6+')";
+        return {};
+    }
+
+    std::stringstream ss(operating_generation);
+    std::string token;
+    std::vector<std::string> generation_tokens;
+    while (std::getline(ss, token, ',')) {
+        trim(token);
+        if (!token.empty()) {
+            generation_tokens.push_back(token);
+        }
+    }
+
+    bool include_future_generations = false;
+    std::vector<std::string> parsed_generations;
+
+    for (size_t i = 0; i < generation_tokens.size(); ++i) {
+        std::string raw_token    = generation_tokens[i];
+        const bool is_last_token = (i == generation_tokens.size() - 1);
+
+        // only treat a trailing '+' on the last token as a future-generation marker.
+        if (!raw_token.empty() && raw_token.back() == '+') {
+            size_t len = raw_token.length();
+            // base is token without trailing '+'
+            std::string base_token = raw_token.substr(0, len - 1);
+
+            if (len >= 2 && std::isspace(static_cast<unsigned char>(raw_token[len - 2]))) {
+                rtrim(base_token);
+                if (base_token.empty()) {
+                    LOG(WARNING) << "'+' cannot be standalone; ignoring.";
+                    continue;
+                }
+                LOG(WARNING)
+                    << "Space is not allowed between the generation and '+'. Ignoring '+' in '"
+                    << raw_token << "'.";
+                parsed_generations.push_back(base_token);
+                continue;
+            }
+            trim(base_token);
+            if (base_token.empty()) {
+                LOG(WARNING) << "'+' cannot be standalone; ignoring.";
+                continue;
+            }
+
+            if (!is_last_token) {
+                LOG(WARNING) << "'+' is only allowed on the last list item; ignoring '+' in '"
+                             << raw_token << "'.";
+                parsed_generations.push_back(base_token);
+                continue;
+            }
+
+            if (gen_order.find(base_token) != gen_order.end()) {
+                include_future_generations = true;
+                parsed_generations.push_back(base_token);
+            } else {
+                LOG(DEBUG)
+                    << "Warning: '+' is only accepted when the last item is a valid generation. '"
+                    << base_token << "' is not a known generation.";
+                parsed_generations.push_back(base_token);
+            }
+        } else {
+            parsed_generations.push_back(raw_token);
+        }
+    }
+
+    if (parsed_generations.empty()) {
+        LOG(WARNING) << "No valid WiFi generations found in input: '" << operating_generation
+                     << "'";
+        return {};
+    }
+
+    // Collect valid generations (preserve order, avoid duplicates)
+    std::vector<std::string> valid_generations;
+    for (const auto &gen_token : parsed_generations) {
+        if (gen_order.find(gen_token) != gen_order.end()) {
+            if (std::find(valid_generations.begin(), valid_generations.end(), gen_token) ==
+                valid_generations.end()) {
+                valid_generations.push_back(gen_token);
+            }
+        } else {
+            LOG(WARNING) << "Unknown WiFi generation: " << gen_token;
+        }
+    }
+
+    if (include_future_generations && !valid_generations.empty()) {
+        int max_generation_ord = 0;
+        for (const auto &gen_token : valid_generations) {
+            max_generation_ord = std::max(max_generation_ord, gen_order.at(gen_token));
+        }
+
+        // Build ordered list and append future gens beyond max (up to the highest known; 7 is top now)
+        std::vector<std::pair<std::string, int>> ordered_gen_pairs;
+        ordered_gen_pairs.reserve(gen_order.size());
+        for (const auto &kv : gen_order)
+            ordered_gen_pairs.emplace_back(kv.first, kv.second);
+        std::sort(ordered_gen_pairs.begin(), ordered_gen_pairs.end(),
+                  [](const std::pair<std::string, int> &a, const std::pair<std::string, int> &b) {
+                      return a.second < b.second || (a.second == b.second && a.first < b.first);
+                  });
+
+        for (const auto &gen_pair : ordered_gen_pairs) {
+            if (gen_pair.second > max_generation_ord) {
+                if (std::find(valid_generations.begin(), valid_generations.end(), gen_pair.first) ==
+                    valid_generations.end()) {
+                    valid_generations.push_back(gen_pair.first);
+                }
+            }
+        }
+    }
+
+    LOG(DEBUG) << "Final WiFi generations (" << valid_generations.size()
+               << "): " << operating_generation;
+    return valid_generations;
+}
+
 // Events
+
+/**
+* @brief Overwrite an action 'get' aka 'read' to fetch data about Access Point from ubus and store it in the controller database.
+*  When this element is triggered the bss information from "Device.WiFi.Templates.BSSTemplate.", "Device.WiFi.Templates.RadioTemplate.",
+* "Device.WiFi.Templates.SSCTemplate.", "Device.WiFi.Templates.SecurityGroup", and "Device.WiFi.Templates.SecurityTemplate" objects will be stored in sBssInfoConf structure.
+*/
+amxd_status_t templates_commit(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
+                               amxc_var_t *ret)
+{
+    amxc_var_clean(ret);
+    amxd_object_t *bss_template_object = amxd_object_get_child(object, "BSSTemplate");
+
+    if (!bss_template_object) {
+        LOG(ERROR) << "Failed to get BSSTemplate object from Templates object!";
+        return amxd_status_object_not_found;
+    }
+
+    amxd_object_t *network_object = amxd_object_get_child(object, "Network");
+    if (!network_object) {
+        LOG(ERROR) << "Failed to get Network object from Templates object!";
+        return amxd_status_object_not_found;
+    }
+    bool network_enable = get_param_bool(network_object, "Enable");
+
+    amxd_object_t *ssc_template_object = amxd_object_get_child(object, "SSCTemplate");
+    if (!ssc_template_object) {
+        LOG(ERROR) << "Failed to get SSCTemplate object from Templates object!";
+        return amxd_status_object_not_found;
+    }
+
+    amxd_object_t *radio_template_object = amxd_object_get_child(object, "RadioTemplate");
+    if (!radio_template_object) {
+        LOG(ERROR) << "Failed to get RadioTemplate object from Templates object!";
+        return amxd_status_object_not_found;
+    }
+
+    amxd_object_t *apmld_template_object = amxd_object_get_child(object, "APMLDTemplate");
+    if (!apmld_template_object) {
+        LOG(ERROR) << "Failed to get APMLDTemplate object from Templates object!";
+        return amxd_status_object_not_found;
+    }
+
+    // Build a map of key=Name-->Enable for SSCTemplate
+    std::unordered_map<std::string, bool> ssc_template_status;
+    amxd_object_for_each(instance, it, ssc_template_object)
+    {
+        amxd_object_t *ssc_template_inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+        std::string ssc_template_id      = get_param_string(ssc_template_inst, "SSCTemplateID");
+        bool ssc_template_enable         = get_param_bool(ssc_template_inst, "SSCEnable");
+
+        if (!ssc_template_id.empty()) {
+            ssc_template_status[ssc_template_id] = ssc_template_enable;
+            LOG(DEBUG) << "SSC map: id=" << ssc_template_id
+                       << " enable=" << (ssc_template_enable ? "true" : "false");
+        } else {
+            LOG(WARNING) << "SSCTemplateID param in SSCTemplate object is empty!";
+        }
+    }
+    LOG(DEBUG) << "SSC map built. size=" << ssc_template_status.size();
+
+    // Build a map of key=Name-->Enable for RadioTemplate
+    std::unordered_map<std::string, bool> radio_template_status;
+    amxd_object_for_each(instance, it, radio_template_object)
+    {
+        amxd_object_t *radio_template_inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+        std::string radio_template_id = get_param_string(radio_template_inst, "RadioTemplateID");
+        bool radio_template_enable    = get_param_bool(radio_template_inst, "Enable");
+
+        if (!radio_template_id.empty()) {
+            radio_template_status[radio_template_id] = radio_template_enable;
+            LOG(DEBUG) << "Radio map: id=" << radio_template_id
+                       << " enable=" << (radio_template_enable ? "true" : "false");
+        } else {
+            LOG(WARNING) << "RadioTemplateID param in RadioTemplate object is empty!";
+        }
+    }
+    LOG(DEBUG) << "Radio map built. size=" << radio_template_status.size();
+
+    // Build a map of key=Name-->Enable for APMLDTemplate
+    std::unordered_map<std::string, bool> apmld_template_status;
+    amxd_object_for_each(instance, it, apmld_template_object)
+    {
+        amxd_object_t *apmld_template_inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+        std::string apmld_template_id = get_param_string(apmld_template_inst, "APMLDTemplateID");
+        bool apmld_template_enable    = get_param_bool(apmld_template_inst, "MLOEnable");
+
+        if (!apmld_template_id.empty()) {
+            apmld_template_status[apmld_template_id] = apmld_template_enable;
+            LOG(DEBUG) << "APMLD map: id=" << apmld_template_id
+                       << " MLOEnable=" << (apmld_template_enable ? "true" : "false");
+        } else {
+            LOG(WARNING) << "APMLDTemplateID param in APMLDTemplate object is empty!";
+        }
+    }
+    LOG(DEBUG) << "APMLD map built. size=" << apmld_template_status.size();
+
+    // --------- Clear previously staged configs ---------
+    g_database->clear_bss_info_configuration();
+    g_database->clear_mld_info_configuration();
+    LOG(DEBUG) << " Cleared previous BSS/MLD info configuration";
+
+    // Coarse upper bound on how many BSS templates will be added to the BSS info configuration.
+    // This uses the MAX across connected agents because a later stage
+    // enforces per-agent/per-radio constraints on effective deployment
+    size_t max_supported_bss = 0;
+    {
+        auto agents = g_database->get_all_connected_agents();
+        LOG(DEBUG) << "Connected agents: " << agents.size();
+
+        if (!agents.empty()) {
+            for (const auto &agent : agents) {
+                LOG(DEBUG) << "Agent " << agent->al_mac;
+                size_t max_bss_on_any_radio = 0;
+                size_t radios_count         = 0;
+
+                for (const auto &radio_kv : agent->radios) {
+                    const auto &radio_uid = radio_kv.first;
+                    const auto &radio_sp  = radio_kv.second;
+
+                    if (!radio_sp) {
+                        LOG(WARNING) << "Agent " << agent->al_mac << " radio " << radio_uid
+                                     << " is null, skipping.";
+                        continue;
+                    }
+
+                    ++radios_count;
+                    const size_t bss_count = radio_sp->bsses.size();
+                    max_bss_on_any_radio   = std::max(max_bss_on_any_radio, bss_count);
+                    LOG(DEBUG) << "Radio " << radio_uid << " has " << bss_count << " BSS(es)";
+                }
+
+                const size_t agent_supported_bss = max_bss_on_any_radio * radios_count;
+                LOG(DEBUG) << "Agent " << agent->al_mac << " => radios=" << radios_count
+                           << ", max_bss_on_any_radio=" << max_bss_on_any_radio
+                           << ", agent_supported_bss=" << agent_supported_bss;
+
+                max_supported_bss = std::max(max_supported_bss, agent_supported_bss);
+            }
+            LOG(DEBUG) << "Max supported BSS across connected agents: " << max_supported_bss;
+        } else {
+            LOG(INFO) << "No connected agents found, so no BSS templates will be selected";
+        }
+    }
+
+    // --------- Select & stage BSS configs ---------
+
+    if (network_enable) {
+        // Collect all BSSTemplate instances with their Priority (as pair<priority, object>)
+        std::vector<std::pair<uint32_t, amxd_object_t *>> bss_ordered;
+        {
+            size_t bss_inst_count = 0;
+            amxd_object_for_each(instance, it, bss_template_object)
+            {
+                amxd_object_t *inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+                uint32_t prio       = get_param_uint32(inst, "Priority");
+                bss_ordered.emplace_back(prio, inst);
+                bss_inst_count++;
+            }
+            LOG(DEBUG) << "Collected " << bss_inst_count
+                       << " BSSTemplate instance(s) prior to sorting";
+        }
+
+        // Sort by Priority descending so higher Priority BSS templates get selected first
+        std::sort(bss_ordered.begin(), bss_ordered.end(),
+                  [](const std::pair<uint32_t, amxd_object_t *> &a,
+                     const std::pair<uint32_t, amxd_object_t *> &b) { return a.first > b.first; });
+
+        size_t selected_bss_count = 0;
+        for (const auto &entry : bss_ordered) {
+            if (selected_bss_count >= max_supported_bss) {
+                LOG(INFO) << "Reached maximum number of BSS capacity (" << max_supported_bss
+                          << "). Remaining BSSTemplates will be ignored.";
+                break;
+            }
+
+            uint32_t priority                = entry.first;
+            amxd_object_t *bss_template_inst = entry.second;
+
+            son::wireless_utils::sBssInfoConf bss_info;
+            bss_info.ssid = get_param_string(bss_template_inst, "SSID");
+
+            bool bss_template_enable = amxd_object_get_bool(bss_template_inst, "Enable", NULL);
+            std::string linked_ssc_template_id =
+                get_param_string(bss_template_inst, "LinkedSSCTemplateID");
+            std::string linked_radio_template_id =
+                get_param_string(bss_template_inst, "LinkedRadioTemplateID");
+
+            if (!linked_ssc_template_id.empty() && !linked_radio_template_id.empty()) {
+                // The BSS should be enabled for operation, and both related RadioTemplate & SSCTemplate should be set to true.
+                bool new_enable_value = network_enable && bss_template_enable &&
+                                        ssc_template_status[linked_ssc_template_id] &&
+                                        radio_template_status[linked_radio_template_id];
+
+                if (!new_enable_value) {
+                    LOG(DEBUG) << "Skipping BSS \"" << bss_info.ssid
+                               << "\" because effective enable=false"
+                               << " (network=" << (network_enable ? "true" : "false")
+                               << ", bss_enable=" << (bss_template_enable ? "true" : "false")
+                               << ", ssc_enable="
+                               << (ssc_template_status[linked_ssc_template_id] ? "true" : "false")
+                               << ", radio_enable="
+                               << (radio_template_status[linked_radio_template_id] ? "true"
+                                                                                   : "false")
+                               << ")";
+                    continue;
+                }
+                LOG(DEBUG) << "Enabling AP with ssid: " << bss_info.ssid
+                           << ", linked SSC ID: " << linked_ssc_template_id
+                           << ", linked Radio ID: " << linked_radio_template_id
+                           << ", Priority: " << priority;
+
+            } else {
+                LOG(WARNING)
+                    << "AccessPoint:" << bss_info.ssid
+                    << " has an empty LinkedSSCTemplateID or LinkedRadioTemplateID parameters!";
+                if (!bss_template_enable) {
+                    LOG(DEBUG) << "Skipping BSS \"" << bss_info.ssid
+                               << "\" because BSS is disabled and linkage missing";
+                    continue;
+                }
+            }
+
+            // Multi-AP mode configuration
+            auto haul_type = get_param_string(
+                ssc_template_object, filter_param_name_with_linked_template_id(
+                                         "SSCTemplateID", linked_ssc_template_id, "HaulType")
+                                         .c_str());
+
+            bss_info.backhaul  = (haul_type.find("Backhaul") != std::string::npos);
+            bss_info.fronthaul = (haul_type.find("Fronthaul") != std::string::npos);
+            LOG(DEBUG) << "HaulType=\"" << (haul_type.empty() ? "[empty]" : haul_type)
+                       << "\" => backhaul=" << (bss_info.backhaul ? "true" : "false")
+                       << ", fronthaul=" << (bss_info.fronthaul ? "true" : "false");
+
+            if (!bss_info.backhaul && !bss_info.fronthaul) {
+                LOG(DEBUG) << "MultiAp Mode for AccessPoint: \"" << bss_info.ssid
+                           << "\" is not set. Skipping.";
+                continue;
+            }
+
+            // Operating classes configuration
+            std::string band_flag = get_param_string(
+                radio_template_object, filter_param_name_with_linked_template_id(
+                                           "RadioTemplateID", linked_radio_template_id, "BandFlag")
+                                           .c_str());
+
+            if (band_flag.empty()) {
+                std::string op_class_flag =
+                    get_param_string(radio_template_object,
+                                     filter_param_name_with_linked_template_id(
+                                         "RadioTemplateID", linked_radio_template_id, "OpclassFlag")
+                                         .c_str());
+                LOG(DEBUG) << "Using OpclassFlag=\""
+                           << (op_class_flag.empty() ? "[empty]" : op_class_flag)
+                           << "\" for ssid=\"" << bss_info.ssid << "\"";
+                bss_info.operating_class.splice(
+                    bss_info.operating_class.end(),
+                    son::wireless_utils::parse_op_class_flag_to_wsc_oper_class(op_class_flag));
+
+            } else {
+                LOG(DEBUG) << "Using BandFlag=\"" << band_flag << "\" for ssid=\"" << bss_info.ssid
+                           << "\"";
+                auto bands = parse_and_validate_band_flag(band_flag);
+                if (bands.empty()) {
+                    LOG(WARNING) << "No valid frequency band was provided for ssid=\""
+                                 << bss_info.ssid << "\". Skipping.";
+                    continue;
+                }
+
+                for (const auto &band : bands) {
+                    bss_info.operating_class.splice(
+                        bss_info.operating_class.end(),
+                        son::wireless_utils::string_to_wsc_oper_class(band_flag_to_str(band)));
+                }
+            }
+
+            if (bss_info.operating_class.empty()) {
+                LOG(WARNING) << "Operating classes for Access Point: \"" << bss_info.ssid
+                             << "\" is not set. Skipping.";
+                continue;
+            }
+
+            // Security Configuration
+            amxd_object_t *security_group_object = amxd_object_get_child(object, "SecurityGroup");
+            if (!security_group_object) {
+                LOG(WARNING) << "Failed to get SecurityGroup object from Templates object!";
+                return amxd_status_object_not_found;
+            }
+
+            std::string linked_security_Group_id_in_bss_template =
+                get_param_string(bss_template_inst, "LinkedSecurityGroupID");
+            LOG(DEBUG) << "SecurityGroup link in BSS \"" << bss_info.ssid << "\": id="
+                       << (linked_security_Group_id_in_bss_template.empty()
+                               ? "[empty]"
+                               : linked_security_Group_id_in_bss_template);
+
+            std::string linked_security_Group_id_in_security_group =
+                get_param_string(security_group_object,
+                                 filter_param_name_with_linked_template_id(
+                                     "SecurityGroupID", linked_security_Group_id_in_bss_template,
+                                     "LinkedSecurityGroupID")
+                                     .c_str());
+
+            if (!linked_security_Group_id_in_security_group.empty()) {
+
+                amxd_object_t *security_template_object =
+                    amxd_object_get_child(object, "SecurityTemplate");
+                if (!security_template_object) {
+                    LOG(WARNING) << "Failed to get SecurityTemplate object from Templates object!";
+                    return amxd_status_object_not_found;
+                }
+
+                std::string sec_tmpl_id = find_security_template_id_with_the_highest_priority(
+                    security_template_object, linked_security_Group_id_in_security_group);
+
+                LOG(DEBUG) << "Chosen SecurityTemplateID for ssid=\"" << bss_info.ssid
+                           << "\": " << (sec_tmpl_id.empty() ? "[none]" : sec_tmpl_id);
+
+                if (!sec_tmpl_id.empty()) {
+                    std::string akm_suite_in_rsne =
+                        get_param_string(security_template_object,
+                                         filter_param_name_with_linked_template_id(
+                                             "SecurityTemplateID", sec_tmpl_id, "RSNE.AKMSuite")
+                                             .c_str());
+                    LOG(DEBUG) << "AKMSuite for ssid=\"" << bss_info.ssid << "\": \""
+                               << (akm_suite_in_rsne.empty() ? "[empty]" : akm_suite_in_rsne)
+                               << "\"";
+
+                    // Determine authentication mode based on Device.WiFi.Templates.SecurityTemplate.{i}.RSNE.AKMSuite
+                    std::vector<AKMType> akm_suite_list =
+                        parse_and_validate_akm_suite(akm_suite_in_rsne);
+
+                    std::string key_pass_phrase =
+                        get_param_string(bss_template_inst, "KeyPassphrase");
+                    LOG(DEBUG) << "Passphrase present="
+                               << (!key_pass_phrase.empty() ? "yes" : "no");
+
+                    beerocks::SecurityMode security_mode =
+                        configure_security_parameters_in_bss_info(bss_info, akm_suite_list,
+                                                                  key_pass_phrase);
+
+                    if (bss_info.authentication_type != WSC::eWscAuth::WSC_AUTH_OPEN &&
+                        bss_info.network_key.empty()) {
+                        LOG(WARNING) << "BSS: " << bss_info.ssid
+                                     << " with mode: " << security_mode_to_string(security_mode)
+                                     << " missing value for network key. Skipping.";
+                        continue;
+                    }
+
+                } else {
+                    LOG(WARNING) << "Failed to find a valid Security Template to apply for ssid=\""
+                                 << bss_info.ssid << "\". Skipping.";
+                    continue;
+                }
+
+            } else {
+                //For each selected BSS Template, the Configuration Template Manager shall select a Security Template
+                LOG(WARNING)
+                    << "Linked Security Template to SecurityGroup object is empty for ssid=\""
+                    << bss_info.ssid << "\". Skipping.";
+                continue;
+            }
+
+            LOG(DEBUG) << "Add bss info configuration for ssid: " << bss_info.ssid
+                       << " operating classes: " << bss_info.operating_class;
+
+            std::string operating_generation = get_param_string(
+                radio_template_object,
+                filter_param_name_with_linked_template_id(
+                    "RadioTemplateID", linked_radio_template_id, "OperatingGeneration")
+                    .c_str());
+            LOG(DEBUG) << "Operating Generation for ssid=\"" << bss_info.ssid << "\": "
+                       << (operating_generation.empty() ? "[empty]" : operating_generation);
+
+            auto gens = get_wifi_generations(operating_generation);
+            if (gens.empty()) {
+                LOG(DEBUG) << "No valid Wi-Fi generations parsed for ssid=\"" << bss_info.ssid
+                           << "\"";
+            } else {
+                bool wifi7_deployed = std::find(gens.begin(), gens.end(), "7") != gens.end();
+
+                if (wifi7_deployed) {
+                    LOG(INFO) << "[MLO] Wi-Fi 7 detected -> Will activate MLO if enabled in APMLD "
+                                 "Template (ssid=\""
+                              << bss_info.ssid << "\")";
+                } else {
+                    LOG(INFO) << "[MLO] Wi-Fi 7 not deployed -> MLO remains disabled (ssid=\""
+                              << bss_info.ssid << "\")";
+                }
+
+                // Configure MLD if applicable
+                std::string linked_apmld_template_id =
+                    get_param_string(bss_template_inst, "LinkedAPMLDTemplateID");
+                LOG(DEBUG) << "Linked APMLDTemplateID for ssid=\"" << bss_info.ssid << "\": "
+                           << (linked_apmld_template_id.empty() ? "[empty]"
+                                                                : linked_apmld_template_id);
+
+                if (!linked_apmld_template_id.empty()) {
+                    bool apmld_template_enable = apmld_template_status[linked_apmld_template_id];
+                    if (apmld_template_enable && wifi7_deployed) {
+                        son::wireless_utils::sMldInfoConf mld_info;
+                        mld_info.ssid = bss_info.ssid;
+                        LOG(DEBUG) << "[MLO] APMLD Template enabled -> MLO activated (ssid=\""
+                                   << bss_info.ssid << "\")";
+                        // Read Modes from Configuration
+                        mld_info.str = get_param_bool(
+                            apmld_template_object,
+                            filter_param_name_with_linked_template_id(
+                                "APMLDTemplateID", linked_apmld_template_id, "STREnable")
+                                .c_str());
+                        LOG(DEBUG) << "MLD STR=" << (mld_info.str ? "enabled" : "disabled")
+                                   << " (ssid=\"" << mld_info.ssid << "\")";
+                        mld_info.nstr = get_param_bool(
+                            apmld_template_object,
+                            filter_param_name_with_linked_template_id(
+                                "APMLDTemplateID", linked_apmld_template_id, "NSTREnable")
+                                .c_str());
+                        LOG(DEBUG) << "MLD NSTR=" << (mld_info.nstr ? "enabled" : "disabled")
+                                   << " (ssid=\"" << mld_info.ssid << "\")";
+                        mld_info.emlsr = get_param_bool(
+                            apmld_template_object,
+                            filter_param_name_with_linked_template_id(
+                                "APMLDTemplateID", linked_apmld_template_id, "EMLSREnable")
+                                .c_str());
+                        LOG(DEBUG) << "MLD EMLSR=" << (mld_info.emlsr ? "enabled" : "disabled")
+                                   << " (ssid=\"" << mld_info.ssid << "\")";
+                        mld_info.emlmr = get_param_bool(
+                            apmld_template_object,
+                            filter_param_name_with_linked_template_id(
+                                "APMLDTemplateID", linked_apmld_template_id, "EMLMREnable")
+                                .c_str());
+                        LOG(DEBUG) << "MLD EMLMR=" << (mld_info.emlmr ? "enabled" : "disabled")
+                                   << " (ssid=\"" << mld_info.ssid << "\")";
+
+                        g_database->add_mld_info_configuration(mld_info, linked_apmld_template_id);
+                        // Update mld_id in bss_info to ensure each BSS entry is correctly linked to its corresponding MLD unit.
+                        bss_info.mld_id = linked_apmld_template_id;
+                        LOG(DEBUG) << "Set MLD ID: " << bss_info.mld_id
+                                   << " for BSS with SSID: " << bss_info.ssid;
+                    } else {
+                        LOG(INFO) << "[MLO] APMLD Template disabled or Wi-Fi 7 not deployed -> MLO "
+                                     "disabled (ssid=\""
+                                  << bss_info.ssid << "\")";
+                    }
+                }
+            }
+            // Add the configured BSS info to the database
+            g_database->add_bss_info_configuration(bss_info);
+            selected_bss_count++;
+            LOG(DEBUG) << " BSS staged: ssid=\"" << bss_info.ssid
+                       << "\" (selected=" << selected_bss_count << "/" << max_supported_bss << ")";
+        }
+    } else {
+        LOG(INFO) << " Network is disabled. Skipping BSS selection/staging.";
+    }
+
+    // --------- Push configuration to agents ---------
+    uint8_t m_tx_buffer[beerocks::message::MESSAGE_BUFFER_LENGTH];
+    ieee1905_1::CmduMessageTx cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer));
+    auto connected_agents = g_database->get_all_connected_agents();
+
+    LOG(DEBUG) << "Connected agents eligible for AP Config Renew: " << connected_agents.size();
+
+    if (!connected_agents.empty()) {
+        if (!son_actions::send_ap_config_renew_msg(cmdu_tx, *g_database)) {
+            LOG(ERROR) << "Failed son_actions::send_ap_config_renew_msg ! ";
+        } else {
+            LOG(INFO) << "AP Config Renew message sent to " << connected_agents.size()
+                      << " agent(s)";
+        }
+    } else {
+        LOG(INFO) << "No connected agents -> Skipping AP Config Renew message";
+    }
+
+    return amxd_status_ok;
+}
 
 /**
  * @brief Renew configurations on agents.
@@ -1354,6 +2324,287 @@ static void event_network_group_changed(const char *const sig_name, const amxc_v
 }
 
 /**
+ * @brief Event handler for templates change.
+ * event_templates_network_configuration_changed is invoked when value of a parameter of
+ * Device.WiFi.Templates.Network is changed with set command.
+ */
+static void event_templates_network_configuration_changed(const char *const sig_name,
+                                                          const amxc_var_t *const data,
+                                                          void *const priv)
+{
+    amxd_object_t *templates_network_configuration =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!templates_network_configuration) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.Network";
+        return;
+    }
+
+    g_database->templates_network_config.enable =
+        amxd_object_get_bool(templates_network_configuration, "Enable", nullptr);
+    g_database->templates_network_config.topology_flag =
+        get_param_string(templates_network_configuration, "TopologyFlag");
+
+    LOG(INFO) << "New configuration Templates received ; Enable: "
+              << g_database->templates_network_config.enable
+              << ", TopologyFlag: " << g_database->templates_network_config.topology_flag;
+
+    templates_commit(amxd_object_get_parent(templates_network_configuration), nullptr, nullptr,
+                     nullptr);
+}
+
+/**
+ * @brief Event handler for BSSTemplate change.
+ *
+ * event_bss_template_configuration_changed is invoked when BSSTemplate object is modified
+ *
+ */
+static void event_bss_template_configuration_changed(const char *const sig_name,
+                                                     const amxc_var_t *const data, void *const priv)
+{
+    amxd_object_t *bss_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!bss_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.BSSTemplate.X";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(amxd_object_get_parent(bss_template)), nullptr, nullptr,
+                     nullptr);
+}
+
+/**
+ * @brief Event handler for BSSTemplate instance's change.
+ *
+ * event_bss_template_instance_changed is invoked when BSSTemplate instances are modified (i.e. added or removed)
+ *
+ */
+static void event_bss_template_instance_changed(const char *const sig_name,
+                                                const amxc_var_t *const data, void *const priv)
+{
+    amxd_object_t *bss_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!bss_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.BSSTemplate";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(bss_template), nullptr, nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for RadioTemplate change.
+ *
+ * event_radio_template_configuration_changed is invoked when RadioTemplate object is modified
+ *
+ */
+static void event_radio_template_configuration_changed(const char *const sig_name,
+                                                       const amxc_var_t *const data,
+                                                       void *const priv)
+{
+    amxd_object_t *radio_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!radio_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.RadioTemplate.X";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(amxd_object_get_parent(radio_template)), nullptr,
+                     nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for RadioTemplate instance's change.
+ *
+ * event_radio_template_instance_changed is invoked when RadioTemplate instances are modified (i.e. added or removed)
+ *
+ */
+static void event_radio_template_instance_changed(const char *const sig_name,
+                                                  const amxc_var_t *const data, void *const priv)
+{
+    amxd_object_t *radio_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!radio_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.RadioTemplate";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(radio_template), nullptr, nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for SSCTemplate change.
+ *
+ * event_ssc_template_configuration_changed is invoked when SSCTemplate object is modified
+ *
+ */
+static void event_ssc_template_configuration_changed(const char *const sig_name,
+                                                     const amxc_var_t *const data, void *const priv)
+{
+    amxd_object_t *ssc_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!ssc_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.SSCTemplate.X";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(amxd_object_get_parent(ssc_template)), nullptr, nullptr,
+                     nullptr);
+}
+
+/**
+ * @brief Event handler for SSCTemplate instance's change.
+ *
+ * event_ssc_template_instance_changed is invoked when SSCTemplate instances are modified (i.e. added or removed)
+ *
+ */
+static void event_ssc_template_instance_changed(const char *const sig_name,
+                                                const amxc_var_t *const data, void *const priv)
+{
+    amxd_object_t *ssc_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!ssc_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.SSCTemplate";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(ssc_template), nullptr, nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for SecurityTemplate change.
+ *
+ * event_security_template_configuration_changed is invoked when SecurityTemplate object is modified
+ *
+ */
+static void event_security_template_configuration_changed(const char *const sig_name,
+                                                          const amxc_var_t *const data,
+                                                          void *const priv)
+{
+    amxd_object_t *security_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!security_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.SecurityTemplate.X";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(amxd_object_get_parent(security_template)), nullptr,
+                     nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for SecurityTemplate instance's change.
+ *
+ * event_security_template_instance_changed is invoked when SecurityTemplate instances are modified (i.e. added or removed)
+ *
+ */
+static void event_security_template_instance_changed(const char *const sig_name,
+                                                     const amxc_var_t *const data, void *const priv)
+{
+    amxd_object_t *security_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!security_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.SecurityTemplate";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(security_template), nullptr, nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for SecurityGroup change.
+ *
+ * event_templates_security_group_configuration_changed is invoked when SecurityGroup object is modified
+ *
+ */
+static void event_templates_security_group_configuration_changed(const char *const sig_name,
+                                                                 const amxc_var_t *const data,
+                                                                 void *const priv)
+{
+    amxd_object_t *security_group =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!security_group) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.SecurityGroup.X";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(amxd_object_get_parent(security_group)), nullptr,
+                     nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for SecurityGroup instance's change.
+ *
+ * event_templates_security_group_instance_changed is invoked when SecurityGroup instances are modified (i.e. added or removed)
+ *
+ */
+static void event_templates_security_group_instance_changed(const char *const sig_name,
+                                                            const amxc_var_t *const data,
+                                                            void *const priv)
+{
+    amxd_object_t *security_group =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!security_group) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.SecurityGroup";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(security_group), nullptr, nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for APMLDTemplate change.
+ *
+ * event_apmld_template_configuration_changed is invoked when APMLDTemplate object is modified
+ *
+ */
+static void event_apmld_template_configuration_changed(const char *const sig_name,
+                                                       const amxc_var_t *const data,
+                                                       void *const priv)
+{
+    amxd_object_t *apmld_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!apmld_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.APMLDTemplate.X";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(amxd_object_get_parent(apmld_template)), nullptr,
+                     nullptr, nullptr);
+}
+
+/**
+ * @brief Event handler for APMLDTemplate instance's change.
+ *
+ * event_apmld_template_instance_changed is invoked when APMLDTemplate instances are modified (i.e. added or removed)
+ *
+ */
+static void event_apmld_template_instance_changed(const char *const sig_name,
+                                                  const amxc_var_t *const data, void *const priv)
+{
+    amxd_object_t *apmld_template =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!apmld_template) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.APMLDTemplate";
+        return;
+    }
+
+    templates_commit(amxd_object_get_parent(apmld_template), nullptr, nullptr, nullptr);
+}
+
+/**
  * @brief Event handler for controller Network.Enable change.
  *
  * event_group_enable_changed is invoked when value of parameter Device.WiFi.DataElements.Network.Enable is changed
@@ -1389,6 +2640,23 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
         {"event_network_group_changed", event_network_group_changed},
+        {"event_templates_network_configuration_changed",
+         event_templates_network_configuration_changed},
+        {"event_bss_template_configuration_changed", event_bss_template_configuration_changed},
+        {"event_bss_template_instance_changed", event_bss_template_instance_changed},
+        {"event_radio_template_configuration_changed", event_radio_template_configuration_changed},
+        {"event_radio_template_instance_changed", event_radio_template_instance_changed},
+        {"event_ssc_template_configuration_changed", event_ssc_template_configuration_changed},
+        {"event_ssc_template_instance_changed", event_ssc_template_instance_changed},
+        {"event_security_template_configuration_changed",
+         event_security_template_configuration_changed},
+        {"event_security_template_instance_changed", event_security_template_instance_changed},
+        {"event_templates_security_group_configuration_changed",
+         event_templates_security_group_configuration_changed},
+        {"event_templates_security_group_instance_changed",
+         event_templates_security_group_instance_changed},
+        {"event_apmld_template_configuration_changed", event_apmld_template_configuration_changed},
+        {"event_apmld_template_instance_changed", event_apmld_template_instance_changed},
         {"event_network_enable_changed", event_network_enable_changed}};
     return events_list;
 }

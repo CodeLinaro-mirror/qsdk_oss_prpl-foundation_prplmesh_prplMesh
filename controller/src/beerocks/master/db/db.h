@@ -196,6 +196,12 @@ public:
         unsigned int rcpi_steering_threshold;
     } sDbMasterConfig;
 
+    struct sTemplates_network_config {
+        bool enable;
+        std::string topology_flag;
+    };
+    struct sTemplates_network_config templates_network_config;
+
     typedef struct {
         // Features
         bool enable_dfs_reentry          = true;

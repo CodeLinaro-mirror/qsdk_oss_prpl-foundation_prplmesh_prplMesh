@@ -19,6 +19,8 @@
 
 using namespace son;
 
+#define OPERATING_CLASS_SUB_1GHZ_FIRST 66
+#define OPERATING_CLASS_SUB_1GHZ_LAST 77
 #define OPERATING_CLASS_24GHZ_FIRST 81
 #define OPERATING_CLASS_24GHZ_LAST 84
 #define OPERATING_CLASS_5GHZ_FIRST 115
@@ -1798,6 +1800,124 @@ eVapType wireless_utils::string_to_vap_type(const std::string &type)
     } else /* if type == "other" */ {
         return eVapType::OTHER;
     }
+}
+
+bool wireless_utils::validate_op_class(const std::string &str, uint8_t &op_class)
+{
+    if (str.empty())
+        return false;
+
+    std::stringstream ss(str);
+    int value;
+    ss >> value;
+    // Check if conversion succeeded and consumed entire string
+    if (ss.fail() || !ss.eof())
+        return false;
+
+    // Range check
+    if ((value >= OPERATING_CLASS_SUB_1GHZ_FIRST && value <= OPERATING_CLASS_SUB_1GHZ_LAST) ||
+        (value >= OPERATING_CLASS_24GHZ_FIRST && value <= OPERATING_CLASS_24GHZ_LAST) ||
+        (value >= OPERATING_CLASS_5GHZ_FIRST && value <= OPERATING_CLASS_6GHZ_LAST)) {
+        op_class = static_cast<uint8_t>(value);
+        return true;
+    }
+
+    return false;
+}
+
+beerocks::BandFlag wireless_utils::get_op_class_band(const uint8_t op_cls)
+{
+    if ((OPERATING_CLASS_SUB_1GHZ_FIRST <= op_cls) && (op_cls <= OPERATING_CLASS_SUB_1GHZ_LAST)) {
+        return beerocks::BandFlag::BAND_SUB_1GHZ;
+    }
+    if ((OPERATING_CLASS_24GHZ_FIRST <= op_cls) && (op_cls <= OPERATING_CLASS_24GHZ_LAST)) {
+        return beerocks::BandFlag::BAND_2_4;
+    }
+    if ((OPERATING_CLASS_5GHZ_FIRST <= op_cls) && (op_cls <= OPERATING_CLASS_5GHZ_LAST)) {
+        return beerocks::BandFlag::BAND_5;
+    }
+    if ((OPERATING_CLASS_6GHZ_FIRST <= op_cls) && (op_cls <= OPERATING_CLASS_6GHZ_LAST)) {
+        return beerocks::BandFlag::BAND_6;
+    }
+    return beerocks::BandFlag::UNKNOWN;
+}
+
+std::list<uint8_t>
+wireless_utils::parse_op_class_flag_to_wsc_oper_class(const std::string &op_class_flag)
+{
+    std::list<uint8_t> operating_classes_list;
+    std::stringstream ss(op_class_flag);
+    std::string token;
+
+    LOG(INFO) << "Start parsing OpclassFlag: [" << op_class_flag << "]";
+
+    while (std::getline(ss, token, ',')) {
+        if (token.empty())
+            continue;
+
+        uint8_t op_class;
+        if (validate_op_class(token, op_class)) {
+            operating_classes_list.push_back(op_class);
+            LOG(INFO) << "Add Operating Class: " << op_class;
+        } else {
+            LOG(WARNING) << "Invalid operating class: " << token << ", skipping.";
+        }
+    }
+
+    if (operating_classes_list.empty())
+        return operating_classes_list;
+
+    auto first_op_class_band = get_op_class_band(operating_classes_list.front());
+    for (const auto &op_class : operating_classes_list) {
+        if (get_op_class_band(op_class) != first_op_class_band) {
+            LOG(ERROR)
+                << "Operating class " << int(op_class)
+                << " is in a different band, all operating classes shall be in the same band";
+            operating_classes_list.clear();
+            return operating_classes_list;
+        }
+    }
+
+    LOG(INFO) << "All operating classes are in the same band";
+
+    /**
+    * If the only supported Operating Classes reported for a Radio are for Channel Spacing of 40MHz or wider,
+    * it’s implicitly assumed that the corresponding 20MHz-wide Operating Classes are supported as well.
+    */
+    if (first_op_class_band != beerocks::BandFlag::BAND_SUB_1GHZ) {
+        bool has_40mhz_or_wider_only = true;
+        for (const auto &op_class : operating_classes_list) {
+            if (get_bandwidth_from_op_class(op_class) == beerocks::BANDWIDTH_20) {
+                has_40mhz_or_wider_only = false;
+                break;
+            }
+        }
+
+        if (has_40mhz_or_wider_only) {
+            LOG(INFO) << "Only 40MHz or wider operating classes found - adding corresponding "
+                         "20MHz-wide Operating Classes";
+            std::list<uint8_t> expanded_list;
+
+            switch (first_op_class_band) {
+            case beerocks::BandFlag::BAND_2_4:
+                expanded_list.insert(expanded_list.end(), {81, 82});
+                break;
+            case beerocks::BandFlag::BAND_5:
+                expanded_list.insert(expanded_list.end(), {115, 118, 121, 124, 125});
+                break;
+            case beerocks::BandFlag::BAND_6:
+                expanded_list.push_back(131);
+                break;
+            default:
+                break;
+            }
+
+            expanded_list.insert(expanded_list.end(), operating_classes_list.begin(),
+                                 operating_classes_list.end());
+            operating_classes_list = std::move(expanded_list);
+        }
+    }
+    return operating_classes_list;
 }
 
 bool wireless_utils::is_channel_in_operating_class(uint8_t operating_class, uint8_t channel)

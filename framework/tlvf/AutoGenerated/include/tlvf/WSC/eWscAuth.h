@@ -29,6 +29,7 @@ enum eWscAuth: uint16_t {
     WSC_AUTH_WPA2PSK = 0x20,
     WSC_AUTH_SAE = 0x40,
     WSC_AUTH_SAE_AKM24 = 0x100,
+    WSC_AUTH_DPP = 0x80,
     WSC_AUTH_RSN = 0x200,
     WSC_AUTH_INVALID = 0xffff,
 };
@@ -44,6 +45,7 @@ static const char *eWscAuth_str(eWscAuth enum_value) {
     case WSC_AUTH_WPA2PSK:   return "WSC_AUTH_WPA2PSK";
     case WSC_AUTH_SAE:       return "WSC_AUTH_SAE";
     case WSC_AUTH_SAE_AKM24: return "WSC_AUTH_SAE_AKM24";
+    case WSC_AUTH_DPP:       return "WSC_AUTH_DPP";
     case WSC_AUTH_RSN:       return "WSC_AUTH_RSN";
     case WSC_AUTH_INVALID:   return "WSC_AUTH_INVALID";
     }
