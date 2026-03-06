@@ -1,0 +1,334 @@
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
+ */
+
+%config {
+    define-behavior = {
+        existing-object = "update"
+    };
+}
+
+%define {
+    object Device {
+        object WiFi {
+            object Templates {
+                object Network {
+
+                    // Indicates whether any BSS may be deployed in the Wi-Fi network.
+                    bool Enable;
+
+                    /* The TopologyFlag is used to specify a list of EasyMesh Agents on which BSS(es) are deployed according to the template matching process.
+                     * If an EasyMesh Agent does not match any value in the list, then no BSS is deployed on this EasyMesh Agent.
+                     * These values refer to the network topology role of the EasyMesh Agent as determined by the EasyMesh Controller.
+                     */
+                    string TopologyFlag;
+
+                    string IEEE1905ALID;
+ 
+                    /* The value MUST be the Path Name of a row in the SSCTemplate. table.
+                     * If the referenced object is deleted, the parameter value MUST be set to an empty string. Incicates the Primary SSCTemplate.
+                     */
+                    string PrimarySSCTemplateReference;
+
+                    // The value must be an instance of SSCTemplate.{i}.SSCTemplateID. If this value is empty, then Traffic Separation is not used.
+                    %read-only string PrimarySSCTemplateID;
+                }
+
+                object BSSTemplate [] {
+                    counted with BSSTemplateNumberOfEntries;
+                    string Alias;
+                    %persistent string BSSTemplateID;
+
+                    /* Indicates in which order the BSSTemplate are to be matched for a reported radio.
+                     * 255 is the highest priority, 0 is the lowest priority.
+                     */
+                    uint32 Priority {
+                        on action validate call check_range [0, 255];
+                    }
+
+                    string RadioTemplateReference;
+                    string SSCTemplateReference;
+                    string APMLDTemplateReference;
+                    string SecurityGroupReference;
+                    // Indicates the RadioTemplate.{i}.RadioTemplateID that is linked with this BSSTemplate.
+                    %read-only string LinkedRadioTemplateID;
+                    // Indicates the SSCTemplate.{i}.SSCTemplateID that is linked with this BSSTemplate.
+                    %read-only string LinkedSSCTemplateID;
+                    // Indicates the APMLDTemplate.{i}.APMLDTemplateID that is linked with this BSSTemplate.
+                    %read-only string LinkedAPMLDTemplateID;
+                    // Indicates the SecurityGroup.{i}.SecurityGroupID of the SecurityGroup.{i} in which a matching SecurityTemplate is searched.
+                    %read-only string LinkedSecurityGroupID;
+
+                    /* The TopologyFlag is used to specify a list of EasyMesh Agents on which BSS(es) are deployed according to the template matching process.
+                     * If an EasyMesh Agent does not match any value in the list, then no BSS is deployed on this EasyMesh Agent.
+                     * These values refer to the network topology role of the EasyMesh Agent as determined by the EasyMesh Controller.
+                     */
+                    string TopologyFlag;
+
+                    string IEEE1905ALID;
+
+                    // Indicates the maximum number of wireless hops (consecutive or not) allowed between the EasyMesh Controller and the EasyMesh Agent.
+                    uint32 MaxWLANHopLimitFlag {
+                        on action validate call check_range [0, 255];
+                    }
+
+                    // Indicates the 1905 Security of the EasyMesh Agent.
+                    string SecureEquipmentFlag {
+                        default "null";
+                        on action validate call check_enum [
+                            "true",
+                            "false",
+                            "null"                        
+                        ];
+                    }
+
+                    // Determines if this template is considered by the Configuration Template Manager in the template matching process.
+                    bool Enable;
+                    string SSID;
+                    string KeyPassphrase;
+                    bool AdvertisementEnable;
+                }
+
+                object RadioTemplate [] {
+                    counted with RadioTemplateNumberOfEntries;
+                    string Alias;
+                    %persistent string RadioTemplateID;
+                    bool Enable;
+                    string OperatingGeneration;
+
+                    %read-only int32 TransmitPowerLimit {
+                        on action validate call check_range [-128, 127];
+                    }
+
+                    /* Indicates in which order the BSSTemplate are to be matched for a reported radio.
+                     * 255 is the highest priority, 0 is the lowest priority.
+                     */
+                    uint32 Priority {
+                        on action validate call check_range [0, 255];
+                    }
+
+                    /* Comma-separated list of unsigned integers (up to 255).
+                     * Indicates the Operating Classes the Radio can operate on.
+                     * Exactly one of OpclassFlag or BandFlag must be empty and exactly one must be filled in.
+                     */
+                    string OpclassFlag;
+
+                    // Indicates frequency bands. All listed UNII bands are to be in the same 2.4, 5 or 6 GHz band.
+                    string BandFlag;
+
+                    // Comma-separated list of unsigned integers (1 to 255). Each list item indicates a supported Wi-Fi Generation.
+                    string SupportedGenerationFlag;
+
+                    // Indicates Dynamic Frequency Selection (DFS) support.
+                    string DFSSupportFlag {
+                        default "null";
+                        on action validate call check_enum [
+                            "true",
+                            "false",
+                            "null"                        
+                        ];
+                    }
+
+                    // Indicates Automated Frequency Coordination (AFC) support
+                    string AFCSupportFlag {
+                        default "null";
+                        on action validate call check_enum [
+                            "true",
+                            "false",
+                            "null"                        
+                        ];
+                    }
+
+                }
+
+                object APMLDTemplate [] {
+                    counted with APMLDTemplateNumberOfEntries;
+                    string Alias;
+                    %persistent string APMLDTemplateID;
+                    bool MLOEnable;
+
+                    // Indicates whether or not Simultaneous Transmit and Receive (STR) mode is to be enabled on the AP MLD.
+                    bool STREnable;
+
+                    // Indicates whether or not Non-Simultaneous Transmit and Receive (NSTR) mode is to be enabled on the AP MLD.
+                    bool NSTREnable;
+
+                    // Indicates whether or not Enhanced Multi-Link Single-Radio (EMLSR) mode is to be enabled on the AP MLD.
+                    bool EMLSREnable;
+
+                    // Indicates whether or not Enhanced Multi-Link Multi-Radio (EMLMR) mode is to be enabled on the AP MLD.
+                    bool EMLMREnable;
+
+                    // Indicates whether the TID-to-link Mapping Negotiation Support subfield in the MLD Capabilities and Operations field of the Basic Multi-Link element is (to be) enabled by any deployed AP MLD linked to this APMLDTemplate.
+                    bool TIDToLinkMapNegotiation;
+
+                }
+
+                object SSCTemplate [] {
+                    counted with SSCTemplateNumberOfEntries;
+                    string Alias;
+                    %persistent string SSCTemplateID;
+                    
+                    // If this parameter is set to false, then all BSSs that are linked with this SSCTemplate are disabled, which means that these BSSs cease to offer service.
+                    bool SSCEnable;
+
+                    /* The VLAN ID (VID) for all BSSs that are part of this SSCTemplate. 
+                     * A value of 0 indicates that no VLAN shall be configured on the BSSs belonging to this SSCTemplate.
+                     */
+                    uint32 VID {
+                        on action validate call check_range [0, 4095];
+                    }
+
+                    // Indicates the use of the BSSs that are part of this SSCTemplate.
+                    string HaulType;
+                }
+
+                object SecurityGroup [] {
+                    counted with SecurityGroupNumberOfEntries;
+                    string SecurityGroupID;
+                    string SecurityGroupReference;
+                    %read-only string LinkedSecurityGroupID;
+                }
+
+                object SecurityTemplate [] {
+                    counted with SecurityTemplateNumberOfEntries;
+                    string Alias;
+                    %persistent string SecurityTemplateID;
+                    bool Enable;
+
+                    /* Concatenation of all BSS Security related IEs with Element IDs, without delimiters as hex encoded octets
+                     * Note that this SecurityIEs and the RSNE, RSNOE, RSNO2E, RSNXE, RSNXOE objects are independent and may be set separately.
+                     * If this SecurityIEs is not empty, the Configuration Template Manager (CTM) uses the value of this SecurityIEs and ignores the content of the RSNE/RSNOE/RSNO2E/RSNXE/RSNXOE objects.
+                     */
+                    string SecurityIEs;
+
+                    /* Indicates in which order the BSSTemplate are to be matched for a reported radio.
+                     * 255 is the highest priority, 0 is the lowest priority.
+                     */
+                    uint32 Priority {
+                        on action validate call check_range [0, 255];
+                    }
+
+                    // Indicates support for Robust Security Network (RSN) Overriding (RSNO). RSN Overriding (RSNO) is also known as MRSNO and is used in WPA3-Personal Compatibility Mode.
+                    string RSNOSupportFlag {
+                        default "null";
+                        on action validate call check_enum [
+                            "true",
+                            "false",
+                            "null"                        
+                        ];
+                    }
+
+                    // Authentication and Key Management (AKM) suite selector.
+                    string SupportedAKMSuiteFlag;
+
+                    // AKM suite selector, the AKM suite selector (OUI and type) is encoded as a 4-octet hex-encoded value without internal delimiters
+                    string SupportedAKMSuiteSelectorFlag {
+                        on action validate call check_range [0, 4];
+                    }
+
+                    /* Comma-separated list of unsigned integers (1 to 255).
+                     * The AP advertises support in its beacon frames for each Wi-Fi generation in this list for this flag to match.
+                     */
+                    string OperatingGenerationFlag;
+
+                    object RSNE {
+                        // Cipher suite selector used to protect group addressed data frames. This is the name of a cipher suite, as defined in [Table 9-149/802.11-2020].
+                        string GroupDataCipherSuite;
+                        string PairwiseCipherSuite;
+                        // Authentication and Key Management (AKM) suite
+                        string AKMSuite;
+
+                        // AKM suite selector, the AKM suite selector (OUI and type) is encoded as a 4-octet hex-encoded value without internal delimiters
+                        string AKMSuiteSelector {
+                            on action validate call check_range [0, 4];
+                        }
+
+                        // Indicates the expected support for Management Frame Protection (MFP), aka Protected Management Frame (PMF).
+                        string MFP {
+                            default "Optional";
+                            on action validate call check_enum [
+                                "Disabled",
+                                "Optional",
+                                "Mandatory"
+                            ];
+                        }
+
+                        // Cipher suite selector used to protect group addressed robust Management frames. This is the name of a cipher suite, as defined in [Table 9-149/802.11-2020].
+                        string GroupManagementCipherSuite;
+                    }
+
+                    object RSNOE {
+                        // Cipher suite selector used to protect group addressed data frames. This is the name of a cipher suite, as defined in [Table 9-149/802.11-2020].
+                        string GroupDataCipherSuite;
+                        string PairwiseCipherSuite;
+                        // Authentication and Key Management (AKM) suite
+                        string AKMSuite;
+
+                        // AKM suite selector, the AKM suite selector (OUI and type) is encoded as a 4-octet hex-encoded value without internal delimiters
+                        string AKMSuiteSelector {
+                            on action validate call check_range [0, 4];
+                        }
+
+                        // Indicates the expected support for Management Frame Protection (MFP), aka Protected Management Frame (PMF).
+                        string MFP {
+                            default "Optional";
+                            on action validate call check_enum [
+                                "Disabled",
+                                "Optional",
+                                "Mandatory"
+                            ];
+                        }
+
+                        // Cipher suite selector used to protect group addressed robust Management frames. This is the name of a cipher suite, as defined in [Table 9-149/802.11-2020].
+                        string GroupManagementCipherSuite;
+                    }
+
+                    object RSNO2E {
+                        // Cipher suite selector used to protect group addressed data frames. This is the name of a cipher suite, as defined in [Table 9-149/802.11-2020].
+                        string GroupDataCipherSuite;
+                        string PairwiseCipherSuite;
+                        // Authentication and Key Management (AKM) suite
+                        string AKMSuite;
+
+                        // AKM suite selector, the AKM suite selector (OUI and type) is encoded as a 4-octet hex-encoded value without internal delimiters
+                        string AKMSuiteSelector {
+                            on action validate call check_range [0, 4];
+                        }
+
+                        // Indicates the expected support for Management Frame Protection (MFP), aka Protected Management Frame (PMF).
+                        string MFP {
+                            default "Optional";
+                            on action validate call check_enum [
+                                "Disabled",
+                                "Optional",
+                                "Mandatory"
+                            ];
+                        }
+
+                        // Cipher suite selector used to protect group addressed robust Management frames. This is the name of a cipher suite, as defined in [Table 9-149/802.11-2020].
+                        string GroupManagementCipherSuite;
+                    }
+
+                    object RSNXE {
+
+                        // Indicates if the BSS will support Simultaneous Authentication of Equals (SAE) hash-to-element true, or not false.
+                        bool SAEH2E;
+
+                    }
+
+                    object RSNXOE {
+
+                        // Indicates if the BSS will support Simultaneous Authentication of Equals (SAE) hash-to-element true, or not false.
+                        bool SAEH2E;
+
+                    }
+                }
+            }
+        }
+    }
+}

@@ -24,6 +24,11 @@ foreach(file ${files})
   configure_file_odl(${file} ${ODL_OUTPUT_DIR})
 endforeach()
 
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/odl/templates/*.odl.in")
+foreach(file ${files})
+  configure_file_odl(${file} ${ODL_OUTPUT_DIR})
+endforeach()
+
 # Parse master_config.odl file
 message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : master_config.odl")
 execute_process(COMMAND amxo-cg ${ODL_OUTPUT_DIR}/odl/master_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
@@ -39,4 +44,8 @@ install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/controller)
 
 if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d)
     install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d DESTINATION config/controller/odl)
+endif()
+
+if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/templates)
+    install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/templates DESTINATION config/controller/odl)
 endif()

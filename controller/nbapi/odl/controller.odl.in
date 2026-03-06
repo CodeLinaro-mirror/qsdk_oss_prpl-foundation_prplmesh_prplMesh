@@ -511,3 +511,4 @@ include "agent_connected_event.odl";
 include "failed_connection_event.odl";
 include "agent_disconnected_event.odl";
 include "unassociated_sta.odl";
+include "templates/templates.odl";
