@@ -119,9 +119,11 @@ class PrplMeshRDKB(OpenWrtRouter, PrplMeshBase):
 
     def _prplMesh_exec(self, mode: str):
         """Send line to prplmesh initd script."""
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh stop")
+        utils = "/opt/prplmesh/scripts/prplmesh_utils_rdkb.sh"
+        self.sendline("{} stop".format(utils))
+        self.expect(self.prompt, timeout=60)
         time.sleep(5)
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh start {}".format(mode))
+        self.sendline("{} start --mode {}".format(utils, mode))
 
     def _prplmesh_status_poll(self, timeout: int = 120) -> bool:
         """Poll prplMesh status for timeout time.
@@ -140,12 +142,15 @@ class PrplMeshRDKB(OpenWrtRouter, PrplMeshBase):
 
     def get_prplMesh_status(self) -> bool:
         """ Check prplMesh status. Return True if operational."""
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh status")
+        self.sendline("/opt/prplmesh/bin/prplmesh_cli -c status -o pretty")
         self.expect(
-            ["(?P<main_agent>OK) Main agent.+"
-             "(?P<wifi0>OK) wifi0.+"
-             "(?P<wifi1>OK) wifi1", pexpect.TIMEOUT],
-            timeout=5)
+            ["Agent:.+"
+             "current state: OPERATIONAL.+"
+             "Fronthaul:.+"
+             "interface: wifi0.+"
+             "current state: OPERATIONAL.+"
+             "interface: wifi1.+"
+             "current state: OPERATIONAL.+", pexpect.TIMEOUT], timeout=5)
         if self.match is not pexpect.TIMEOUT:
             return True
         else:
@@ -231,7 +236,7 @@ class PrplMeshRDKB(OpenWrtRouter, PrplMeshBase):
             mode = "CA"
 
         print("Starting prplmesh as {}".format(mode))
-        self._prplMesh_exec("--mode {}".format(mode))
+        self._prplMesh_exec(mode)
         self.expect(self.prompt)
         if self.delay:
             print("Waiting {} seconds for prplMesh to initialize".format(self.delay))

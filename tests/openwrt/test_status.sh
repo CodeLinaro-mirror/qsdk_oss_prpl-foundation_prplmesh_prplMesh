@@ -22,10 +22,14 @@ echo "Attempting to start/restart prplMesh ..."
 ssh "$TARGET" <<"EOF"
 # Some devices still use the old path (outside of "scripts")
 ln -s /opt/prplmesh/scripts/prplmesh_utils.sh /opt/prplmesh/prplmesh_utils.sh || true
-/opt/prplmesh/prplmesh_utils.sh restart -d
+/opt/prplmesh/prplmesh_utils.sh restart
 TIMEOUT=30
 for _ in $(seq 1 "$TIMEOUT") ; do
-    if /opt/prplmesh/prplmesh_utils.sh status ; then
+    status=$(/opt/prplmesh/bin/prplmesh_cli -c status -o json \
+        | grep -o '"CurrentState":[^,]*' \
+        | head -n1 \
+        | sed 's/.*"CurrentState":[[:space:]]*"\([^"]*\)".*/\1/')
+    if [ "${status}" = "OPERATIONAL" ] ; then
         exit 0
     fi
     sleep 1

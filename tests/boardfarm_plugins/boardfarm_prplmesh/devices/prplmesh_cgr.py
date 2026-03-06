@@ -119,9 +119,9 @@ class PrplMeshCGR(OpenWrtRouter, PrplMeshBase):
 
     def _prplMesh_exec(self, mode: str):
         """Send line to prplmesh initd script."""
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh stop")
+        utils = "/opt/prplmesh/scripts/prplmesh_utils.sh"
+        self.sendline("{} start --cert true --mode {}".format(utils, mode))
         time.sleep(5)
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh start {}".format(mode))
 
     def _prplmesh_status_poll(self, timeout: int = 120) -> bool:
         """Poll prplMesh status for timeout time.
@@ -140,12 +140,15 @@ class PrplMeshCGR(OpenWrtRouter, PrplMeshBase):
 
     def get_prplMesh_status(self) -> bool:
         """ Check prplMesh status. Return True if operational."""
-        self.sendline("/opt/prplmesh/scripts/prplmesh_utils.sh status")
+        self.sendline("/opt/prplmesh/bin/prplmesh_cli -c status -o pretty")
         self.expect(
-            ["(?P<main_agent>OK) Main agent.+"
-             "(?P<wlan0>OK) wlan0.+"
-             "(?P<wlan2>OK) wlan2", pexpect.TIMEOUT],
-            timeout=5)
+            ["Agent:.+"
+             "current state: OPERATIONAL.+"
+             "Fronthaul:.+"
+             "interface: wlan0.+"
+             "current state: OPERATIONAL.+"
+             "interface: wlan2.+"
+             "current state: OPERATIONAL.+", pexpect.TIMEOUT], timeout=5)
         if self.match is not pexpect.TIMEOUT:
             return True
         else:
@@ -226,12 +229,12 @@ class PrplMeshCGR(OpenWrtRouter, PrplMeshBase):
 
         # This needed for starting via prplmesh_utils.sh
         if mode == "agent":
-            mode = "A"
+            mode = "Multi-AP-Agent"
         else:
-            mode = "CA"
+            mode = "Multi-AP-Controller-and-Agent"
 
         print("Starting prplmesh as {}".format(mode))
-        self._prplMesh_exec("--mode {}".format(mode))
+        self._prplMesh_exec(mode)
         self.expect(self.prompt)
         if self.delay:
             print("Waiting {} seconds for prplMesh to initialize".format(self.delay))
