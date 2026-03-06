@@ -73,6 +73,13 @@ bool get_string_value_dm(const std::string &attr, std::string &value)
     return true;
 }
 
+bool get_friendly_name(std::string &friendly_name)
+{
+    // The dummy backend has no independent DeviceInfo bus client.
+    friendly_name.clear();
+    return false;
+}
+
 /*
  * Function to get the Serial Number from data model
  * On failure, assign the default value.

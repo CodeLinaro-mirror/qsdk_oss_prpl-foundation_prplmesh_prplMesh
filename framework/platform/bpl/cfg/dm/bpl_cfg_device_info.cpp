@@ -38,6 +38,11 @@ static bool get_string_value_dm(const std::string &attr, std::string &value)
     return true;
 }
 
+bool get_friendly_name(std::string &friendly_name)
+{
+    return read_device_info_param("FriendlyName", friendly_name);
+}
+
 bool get_serial_number(std::string &serial_number)
 {
     if (!get_string_value_dm("SerialNumber", serial_number) || serial_number.empty()) {

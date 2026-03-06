@@ -1118,6 +1118,14 @@ bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &
 bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature);
 
 /**
+ * @brief Get the device friendly name.
+ *
+ * @param[out] friendly_name Friendly name of the device.
+ * @return true on success, otherwise false.
+ */
+bool get_friendly_name(std::string &friendly_name);
+
+/**
  * @brief Get a string identifying the particular device that is unique for the indicated model
  * and manufacturer.
  *
