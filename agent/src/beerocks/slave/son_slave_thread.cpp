@@ -16,6 +16,8 @@
 #include "tasks/ap_autoconfiguration_task.h"
 #include "tasks/capability_reporting_task.h"
 #include "tasks/controller_connectivity_task.h"
+#include "tasks/higher_layer_collection_task.h"
+#include "tasks/higher_layer_collection_task_ifaddrs_impl.h"
 #include "tasks/link_metrics_collection_task.h"
 #include "tasks/proxy_agent_dpp_task.h"
 #include "tasks/service_prioritization_task.h"
@@ -297,6 +299,7 @@ bool slave_thread::thread_init()
             ieee1905_1::eMessageType::CLIENT_CAPABILITY_QUERY_MESSAGE,
             ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE,
             ieee1905_1::eMessageType::BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE,
+            ieee1905_1::eMessageType::HIGHER_LAYER_QUERY_MESSAGE,
         })) {
         LOG(FATAL) << "Failed subscribing to the Bus";
     }
@@ -403,6 +406,18 @@ bool slave_thread::thread_init()
     m_task_pool.add_task(
         std::make_shared<LinkMetricsCollectionTask>(*this, cmdu_tx, m_timer_manager));
     m_task_pool.add_task(std::make_shared<VbssTask>(*this, cmdu_tx));
+
+    auto interface_provider = std::make_unique<HigherLayerCollectionTaskIfAddrsImpl>();
+
+    m_task_pool.add_task(std::make_shared<HigherLayerCollectionTask>(
+        [&](const sMacAddr &dst_mac, ieee1905_1::CmduMessageTx &cmdu_tx) {
+            return send_cmdu_to_mac(dst_mac, cmdu_tx);
+        },
+        [&]() {
+            auto db = AgentDB::get();
+            return db->bridge.mac;
+        },
+        std::move(interface_provider), cmdu_tx));
 
     m_agent_state = STATE_INIT;
     LOG(DEBUG) << "Agent Started";
