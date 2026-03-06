@@ -232,6 +232,20 @@ static void fill_son_slave_config(const beerocks::config_file::sConfigSlave &bee
 
     db->device_conf.operating_system = beerocks::os_utils::get_os_name();
     db->em_handle_third_party        = beerocks_slave_conf.em_handle_third_party;
+
+    if (!beerocks::bpl::get_string_from_device_info_dm("FriendlyName",
+                                                       db->device_conf.device_friendly_name)) {
+        db->device_conf.device_friendly_name.clear();
+    }
+    if (!beerocks::bpl::get_string_from_device_info_dm("Manufacturer",
+                                                       db->device_conf.device_manufacturer)) {
+        db->device_conf.device_manufacturer.clear();
+    }
+    if (!beerocks::bpl::get_string_from_device_info_dm("ModelName",
+                                                       db->device_conf.device_model_name)) {
+        db->device_conf.device_model_name.clear();
+    }
+
     //Get the Serial number of the device and current running software version
     //using Ambiorix dm.
     beerocks::bpl::get_software_version(db->device_conf.software_version);

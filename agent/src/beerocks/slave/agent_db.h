@@ -158,6 +158,9 @@ public:
 
         std::string vendor;
         std::string model;
+        std::string device_friendly_name;
+        std::string device_manufacturer;
+        std::string device_model_name;
         std::string software_version;
         std::string operating_system;
         std::string device_serial_number;

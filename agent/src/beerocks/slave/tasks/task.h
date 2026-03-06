@@ -39,6 +39,7 @@ enum eTaskType : uint8_t {
     CONTROLLER_CONNECTIVITY,
     VBSS,
     SPECTRUM_INQUIRY,
+    HIGHER_LAYER_COLLECTION_TASK,
 };
 
 class Task {

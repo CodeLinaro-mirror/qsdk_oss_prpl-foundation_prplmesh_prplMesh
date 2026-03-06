@@ -13,6 +13,8 @@
 #include "../tasks/channel_scan_task.h"
 #include "../tasks/channel_selection_task.h"
 #include "../tasks/coordinated_cac_task.h"
+#include "../tasks/higher_layer_collection_task.h"
+#include "../tasks/higher_layer_collection_task_ifaddrs_impl.h"
 #include "../tasks/spectrum_inquiry_task.h"
 #include "../tasks/switch_channel_task.h"
 #include "../tasks/topology_task.h"
@@ -126,6 +128,30 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     // Need add TopologyTask to the dummy Agent workflow, for the
     // handling TOPOLOGY_QUERY messages from the easyMesh Agents
     m_task_pool.add_task(std::make_shared<TopologyTask>(*this, cmdu_tx));
+
+    auto interface_provider = std::make_unique<HigherLayerCollectionTaskIfAddrsImpl>();
+#ifdef USE_PRPLMESH_WHM
+    // FriendlyName is the only DeviceInfo field that can change at runtime,
+    // so query it on demand and keep Manufacturer/ModelName on the existing AgentDB path
+    // However, this is safe only with the DM BPL implementation (used when USE_PRPLMESH_WHM),
+    // the dummy BPL would use NBAPI UBUS ctx/fd, which is handled by the event loop,
+    // and would hang trying to do synchronous read from a non-main thread
+    HigherLayerCollectionTask::get_friendly_name_f get_friendly_name = []() {
+        std::string friendly_name;
+        if (!beerocks::bpl::get_string_from_device_info_dm("FriendlyName", friendly_name)) {
+            friendly_name.clear();
+        }
+        return friendly_name;
+    };
+#else
+    HigherLayerCollectionTask::get_friendly_name_f get_friendly_name = {};
+#endif
+    m_task_pool.add_task(std::make_shared<HigherLayerCollectionTask>(
+        [this](const sMacAddr &dst_mac, ieee1905_1::CmduMessageTx &cmdu_tx) {
+            return send_cmdu_to_broker(cmdu_tx, dst_mac, AgentDB::get()->bridge.mac);
+        },
+        [] { return AgentDB::get()->bridge.mac; }, std::move(interface_provider), cmdu_tx,
+        std::move(get_friendly_name)));
 
     if (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
 
@@ -298,6 +324,7 @@ bool BackhaulManager::thread_init()
             ieee1905_1::eMessageType::CHANNEL_SCAN_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::HIGHER_LAYER_DATA_MESSAGE,
+            ieee1905_1::eMessageType::HIGHER_LAYER_QUERY_MESSAGE,
             ieee1905_1::eMessageType::TOPOLOGY_DISCOVERY_MESSAGE,
             ieee1905_1::eMessageType::TOPOLOGY_QUERY_MESSAGE,
             ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE,

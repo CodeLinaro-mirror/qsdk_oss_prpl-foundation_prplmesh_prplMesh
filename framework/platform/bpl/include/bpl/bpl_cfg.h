@@ -1088,6 +1088,21 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
                                                std::set<std::string> &monitored_BSSs);
 
 /**
+ * @brief Retrieves a string parameter from the DeviceInfo data model object.
+ *
+ * This function connects to the Ambiorix ubus client to fetch a specific
+ * attribute from the "DeviceInfo." object. If the object or
+ * parameter is not found, the value is set to "invalid".
+ *
+ * @param[in] attr The name of the attribute (parameter) to read from DeviceInfo.
+ * @param[out] value Reference to a string where the retrieved value will be stored.
+ * Set to "invalid" on failure.
+ *
+ * @return true if the parameter was successfully read, false otherwise.
+ */
+bool get_string_from_device_info_dm(const std::string &attr, std::string &value);
+
+/**
  * @brief Get a string identifying the particular device that is unique for the indicated model
  * and manufacturer.
  *
