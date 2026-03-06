@@ -1,0 +1,49 @@
+#
+---
+_namespace: wfa_map
+
+tlvBssAdvancedConfiguration:
+  _type: class
+  _is_tlv_class : True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_BSS_ADVANCED_CONFIGURATION
+  length: uint16_t
+  num_radio:
+    _type: uint8_t
+    _length_var: True
+  radios:
+    _type: cBssAdvancedConfigurationRadio
+    _length: [ num_radio ]
+
+cBssAdvancedConfigurationRadio:
+  _type: class
+  ruid:
+    _type: sMacAddr
+  num_bss:
+    _type: uint8_t
+    _length_var: True
+  bsss: 
+    _type: cBssAdvancedConfigurationBss
+    _length: [ num_bss ]  
+
+cBssAdvancedConfigurationBss:
+  _type: class
+  bssid:
+    _type: sMacAddr
+  bss_index: uint8_t
+  bss_infos: sBssInfos
+  reserved:
+    _type: uint8_t
+    _length: [4]
+
+sBssInfos:
+  _type: struct
+  _bit_field: uint8_t
+  ssid_advertisement:
+    _bit_range: [7,7]
+    _comment: |
+      0: disabled
+      1: enabled
+  reserved:
+    _bit_range: [6,0]
