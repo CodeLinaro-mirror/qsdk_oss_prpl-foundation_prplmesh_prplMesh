@@ -100,10 +100,17 @@ public:
      */
     bool reset();
 
-private:
+    /**
+     * @brief Return true when a TS configuration is loaded into the manager.
+     */
     bool has_config() const { return m_state != eTsManagerState::NO_CONFIG; }
+
+    /**
+     * @brief Return true when TS policies are currently applied on managed ports.
+     */
     bool is_applied() const { return m_state == eTsManagerState::APPLIED; }
 
+private:
     bool has_any_ports() const
     {
         return !m_trunk_port_plumbing_map.empty() || !m_access_port_plumbing_map.empty();
