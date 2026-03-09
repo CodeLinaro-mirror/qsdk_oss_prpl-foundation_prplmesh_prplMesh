@@ -85,7 +85,8 @@ protected:
         return base_wlan_hal::event_queue_push(int(event), data);
     }
 
-    bool sta_unassoc_rssi_measurement(std::unordered_map<std::string, uint8_t> &new_list) final;
+    bool sta_unassoc_rssi_measurement(
+        std::unordered_map<std::string, sUnassocStaParams> &new_list) final;
 
     // Private data-members:
 private:

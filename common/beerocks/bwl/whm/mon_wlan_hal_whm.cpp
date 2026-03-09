@@ -895,7 +895,7 @@ bool mon_wlan_hal_whm::set_estimated_service_parameters(uint8_t *esp_info_field)
 /*  will get the unassociated stations stats from Ambirorix
 */
 bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
-    std::unordered_map<std::string, uint8_t> &new_list)
+    std::unordered_map<std::string, sUnassocStaParams> &new_list)
 {
     /*
         Example of NonAssociatedDevice object:
@@ -914,14 +914,16 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
 
     std::string nasta_monitor_path = m_radio_path + "NaStaMonitor";
     //Now add the new unassociated stations
-    for (auto &new_station : new_list) {
-        std::string mac_address(new_station.first);
-        const uint8_t chan = new_station.second;
+    for (const auto &new_station : new_list) {
+        const std::string mac_address(new_station.first);
+        const uint8_t chan     = new_station.second.channel;
+        const uint8_t op_class = new_station.second.operating_class;
 
         AmbiorixVariant result;
         AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
         args.add_child("macaddress", mac_address);
         args.add_child("channel", chan);
+        args.add_child("operatingClass", op_class);
         if (!m_ambiorix_cl.call(nasta_monitor_path, "createNonAssociatedDevice", args, result)) {
             LOG(ERROR) << " remote function call createNonAssociatedDevice for object "
                        << nasta_monitor_path << " Failed!";

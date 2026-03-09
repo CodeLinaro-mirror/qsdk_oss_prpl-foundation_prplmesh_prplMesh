@@ -80,7 +80,8 @@ public:
         wfa_map::tlvApMetrics::sEstimatedService &estimated_service_parameters) override;
     virtual bool set_estimated_service_parameters(uint8_t *esp_info_field) override;
 
-    bool sta_unassoc_rssi_measurement(std::unordered_map<std::string, uint8_t> &new_list) final;
+    bool sta_unassoc_rssi_measurement(
+        std::unordered_map<std::string, sUnassocStaParams> &new_list) final;
 
     // Protected methods:
 protected:
