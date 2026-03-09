@@ -16,6 +16,8 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace beerocks {
@@ -35,7 +37,7 @@ public:
      */
     explicit TrafficSeparationTask(slave_thread &btl_ctx);
 
-    TrafficSeparationTask(const TrafficSeparationTask &)            = delete;
+    TrafficSeparationTask(const TrafficSeparationTask &) = delete;
     TrafficSeparationTask &operator=(const TrafficSeparationTask &) = delete;
 
     /**
@@ -63,13 +65,14 @@ public:
      * @brief Event IDs for TrafficSeparationTask.
      */
     enum eEvent : uint8_t {
-        TS_ENABLE           = 0, /**< Rebuild config and apply TS on all ports. */
-        TS_NEW_BH_STA_IFACE = 1, /**< Scan and add new wlanX.Y.staN trunk ports. */
-        TS_CLEAR            = 2  /**< Clear config + reset transport primary VLAN. */
+        TS_ENABLE             = 0, /**< Rebuild config and apply TS on all ports. */
+        TS_NEW_BH_STA_IFACE   = 1, /**< Track new wlanX.Y.staN trunk ports. */
+        TS_CLEAR_BH_STA_IFACE = 2, /**< Clear stale tracked wlanX.Y.staN trunk ports. */
+        TS_CLEAR              = 3  /**< Clear config + reset transport primary VLAN. */
     };
 
 private:
-    enum class eApplyMode : uint8_t { None = 0, AddNewSta = 1, Full = 2 };
+    enum class eApplyMode : uint8_t { None = 0, AddNewSta = 1, ClearSta = 2, Full = 3 };
 
 private:
     /**
@@ -100,9 +103,19 @@ private:
     bool reset();
 
     /**
-     * @brief Incremental TS update for newly created backhaul STA interfaces.
+     * @brief Incrementally add new tracked backhaul STA interfaces.
      */
     bool handle_new_sta_iface();
+
+    /**
+     * @brief Incrementally clear stale tracked backhaul STA interfaces.
+     */
+    bool handle_clear_sta_iface();
+
+    /**
+     * @brief Discover current backhaul STA interfaces and their TS mode.
+     */
+    std::unordered_map<std::string, bool> collect_current_wds_ifaces() const;
 
     /**
      * @brief Clear TS state and restore transport defaults used outside TS mode.
@@ -154,6 +167,8 @@ private:
     eApplyMode m_mode = eApplyMode::None;
 
     uint16_t m_last_primary_vid = 0;
+    // Temporary scan-based WDS tracking used until explicit iface binding is available.
+    std::unordered_set<std::string> m_tracked_wds_ifaces;
 
 private:
     // Debounce TS apply events to coalesce short bursts (e.g. multiple iface updates)

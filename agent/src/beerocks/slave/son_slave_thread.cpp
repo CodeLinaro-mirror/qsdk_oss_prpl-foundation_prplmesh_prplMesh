@@ -3013,9 +3013,27 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         auto &bssid      = notification_in->params().bssid;
         LOG(INFO) << "client disconnected sta_mac=" << client_mac << " from bssid=" << bssid;
 
+        auto db                      = AgentDB::get();
+        auto radio                   = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+        bool reconcile_ts_sta_ifaces = false;
+
+        if (radio) {
+            for (const auto &bss : radio->front.bssids) {
+                if (bss.mac == bssid && bss.backhaul_bss) {
+                    reconcile_ts_sta_ifaces = true;
+                    break;
+                }
+            }
+        }
+
         // If exists, remove client association information for disconnected client.
-        auto db = AgentDB::get();
         db->erase_client(client_mac, bssid);
+
+        if (reconcile_ts_sta_ifaces) {
+            LOG(DEBUG) << "Trigger traffic separation WDS clear on backhaul-BSS disconnect";
+            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                     TrafficSeparationTask::eEvent::TS_CLEAR_BH_STA_IFACE);
+        }
 
         // notify master
         if (!link_to_controller()) {
