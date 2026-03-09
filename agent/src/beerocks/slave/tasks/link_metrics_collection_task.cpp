@@ -843,6 +843,7 @@ void LinkMetricsCollectionTask::handle_unassociated_sta_link_metrics_query(
             for (auto &single_station : stations_per_channel.second) {
                 std::get<1>(request_out->stations_list(count)).sta_mac = single_station;
                 std::get<1>(request_out->stations_list(count)).channel = stations_per_channel.first;
+                std::get<1>(request_out->stations_list(count)).operating_class = oper_class;
                 count++;
             }
         }
