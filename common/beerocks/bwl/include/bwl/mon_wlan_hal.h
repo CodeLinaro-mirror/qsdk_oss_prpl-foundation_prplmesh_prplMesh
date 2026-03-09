@@ -52,6 +52,10 @@ public:
 public:
     virtual ~mon_wlan_hal() = default;
 
+    struct sUnassocStaParams {
+        uint8_t channel         = 0;
+        uint8_t operating_class = 0;
+    };
     virtual bool update_radio_stats(SRadioStats &radio_stats)                              = 0;
     virtual bool update_vap_stats(const std::string &vap_iface_name, SVapStats &vap_stats) = 0;
     virtual bool update_stations_stats(const std::string &vap_iface_name,
@@ -133,7 +137,7 @@ public:
      * @return true on success or false on error.
      */
     virtual bool
-    sta_unassoc_rssi_measurement(std::unordered_map<std::string, uint8_t> &new_list) = 0;
+    sta_unassoc_rssi_measurement(std::unordered_map<std::string, sUnassocStaParams> &new_list) = 0;
 };
 
 // mon HAL factory types
