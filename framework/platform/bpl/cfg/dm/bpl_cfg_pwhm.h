@@ -24,6 +24,7 @@ namespace bpl {
 constexpr char DEFAULT_DM_LAN_INTERFACE_NAMES[] = "eth0_1 eth0_2 eth0_3 eth0_4 lan0 lan1 lan2 lan3";
 
 extern beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
+extern beerocks::wbapi::AmbiorixClient m_ambiorix_cl_ubus;
 
 } // namespace bpl
 } // namespace beerocks

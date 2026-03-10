@@ -47,7 +47,7 @@ int cfg_get_management_mode()
 
 int cfg_get_management_mode_process_manager(std::string &mode)
 {
-    auto config_obj = m_ambiorix_cl.get_object(PROCESS_MANAGER_DM_PATH ".");
+    auto config_obj = m_ambiorix_cl_ubus.get_object(PROCESS_MANAGER_DM_PATH ".");
     if (!config_obj)
         return RETURN_ERR;
     else if (!config_obj->read_child(mode, "ManagementMode"))
@@ -75,7 +75,7 @@ int cfg_get_management_mode(std::string &mode)
 
 int cfg_get_certification_mode_process_manager(int &certification_mode)
 {
-    auto pm_obj = m_ambiorix_cl.get_object(PROCESS_MANAGER_DM_PATH ".");
+    auto pm_obj = m_ambiorix_cl_ubus.get_object(PROCESS_MANAGER_DM_PATH ".");
     if (!pm_obj)
         return RETURN_ERR;
     else if (!pm_obj->read_child(certification_mode, "CertificationMode"))
