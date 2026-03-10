@@ -30,7 +30,7 @@ public:
                                                        ieee1905_1::CmduMessageTx &cmdu_tx,
                                                        const sMacAddr &al_mac);
     static bool add_traffic_separation_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                  std::shared_ptr<WSC::m1> m1);
+                                                  const sMacAddr &al_mac);
 
     enum Event : uint8_t { DISCONNECTED, CONFIGURE_QOS };
 
@@ -73,6 +73,17 @@ private:
     bool m_ap_autoconfig_renew_sent = false;
 
     /**
+     * Flag indicating whether M1-triggered agent requests and queries are currently deferred.
+     */
+    bool m_m1_task_defer_armed = false;
+
+    /**
+     * Time point representing the earliest moment at which deferred
+     * M1-triggered agent requests and queries may begin to be launched.
+     */
+    std::chrono::steady_clock::time_point m_m1_task_not_before{};
+
+    /**
      * @brief Key = Agents mac, value = list with paths to AgentConnectedEvent
      * NBAPI object.
      */
@@ -103,15 +114,21 @@ private:
     bool start_agent_monitoring(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
-    * @brief Sends topology query, policy configuration,
-    * AP capability query, start dynamic channel selection task.
-    *
-    * @param mac MAC address of agent.
-    * @param m1 M1 message.
-    * @param cmdu_rx AP Autoconfiguration WSC message.
-    */
-    bool start_task(const sMacAddr &src_mac, std::shared_ptr<WSC::m1> m1,
-                    ieee1905_1::CmduMessageRx &cmdu_rx);
+     * @brief Schedules the agent requests and queries triggered by the reception of an M1 message.
+     *
+     * @param m1 M1 message.
+     * @param cmdu_rx AP Autoconfiguration WSC message.
+     * @return true on success, false otherwise.
+     */
+    bool schedule_task(std::shared_ptr<WSC::m1> m1, ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    /**
+     * @brief Launches the deferred requests and queries triggered by M1 for the specified agent.
+     *
+     * @param agent Target agent to which the requests and queries are sent.
+     * @return true on success, false otherwise.
+     */
+    bool execute_deferred_task(const Agent &agent);
 
     /**
      * @brief Sends 'CHANNEL_SELECTION_REQUEST_MESSAGE' without any TLVs included,
@@ -135,13 +152,10 @@ private:
      * @brief Sends Multi-AP Policy Config Request message.
      *
      * @param dst_mac Destination MAC address.
-     * @param m1 M1 message.
-     * @param cmdu_rx AP-Autoconfiguration WSC message.
      * @param cmdu_tx CMDU to be transmitted.
      * @return True on success, false otherwise.
     */
-    bool send_multi_ap_policy_config_request(const sMacAddr &dst_mac, std::shared_ptr<WSC::m1> m1,
-                                             ieee1905_1::CmduMessageRx &cmdu_rx,
+    bool send_multi_ap_policy_config_request(const sMacAddr &dst_mac,
                                              ieee1905_1::CmduMessageTx &cmdu_tx);
 
     /**

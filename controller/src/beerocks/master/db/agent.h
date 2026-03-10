@@ -138,6 +138,9 @@ public:
     std::string name;
     std::string ipv4;
 
+    /** Flag indicating whether this agent has pending M1-triggered requests and queries to be launched. */
+    bool is_m1_task_pending = false;
+
     /** Stations for which local steering is disallowed */
     beerocks::mac_map<Station> disallowed_local_steering_stations;
     /** Stations for which BTM steering is disallowed */
