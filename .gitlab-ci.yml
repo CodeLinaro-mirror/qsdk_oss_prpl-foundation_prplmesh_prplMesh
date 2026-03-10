@@ -298,3 +298,19 @@ boardfarm-stability-tests:
   rules:
     - if: "$STABILITY_TESTS"
   retry: 0
+
+
+testjob:
+  stage: containers
+  tags:
+    - shell2
+  script:
+    - echo "test"
+
+testjob2:
+  stage: containers
+  tags:
+    - shell2
+  script:
+    - echo "fail"
+    - cat /test
