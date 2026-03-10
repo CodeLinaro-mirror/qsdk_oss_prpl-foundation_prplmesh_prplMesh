@@ -1731,7 +1731,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             return false;
         }
     } else {
-        agent_monitoring_task::add_traffic_separation_policy_tlv(database, cmdu_tx, m1);
+        agent_monitoring_task::add_traffic_separation_policy_tlv(database, cmdu_tx, m1->mac_addr());
         agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
                                                                       m1->mac_addr());
     }
