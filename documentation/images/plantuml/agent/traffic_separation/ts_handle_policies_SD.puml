@@ -1,5 +1,7 @@
 @startuml
 participant "ApAutoConfigurationTask" as ACT
+participant "slave_thread" as ST
+participant "TaskPool" as TP
 participant "TrafficSeparationTask" as TST
 participant "TrafficSeparationManager" as TSM
 participant "TrunkPortPlumbing8021q" as TPQ
@@ -9,11 +11,28 @@ participant "broker_client" as BC
 participant "BPL cfg" as BPL
 participant "AgentDB" as DB
 
+== Boot-time registration ==
+ST -> DB : read multi_ap_profile\n+ is_multiap_profile_1_as_of_r4
+
+alt profile supports TS or R4-as-R1 compatibility mode
+  ST -> TP : add_task(TrafficSeparationTask)
+else plain Profile-1 boot
+  ST -> ST : do not add TrafficSeparationTask
+end
+
 == Trigger ==
-ACT -> TST : TS_ENABLE event
-TST -> TST : schedule_apply(Full)\nwait debounce
+ACT -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
+ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
+
+alt TrafficSeparationTask registered
+  TP -> TST : TS_ENABLE event
+  TST -> TST : schedule_apply(Full)\nwait debounce
+else task absent for Profile-1 boot config
+  TP -> TP : return false
+end
 
 == work(): Full apply ==
+opt TrafficSeparationTask registered
 TST -> BC : configure_primary_vlan_id(primary_vid, add=true)
 TST -> TSM : reset()
 TST -> BPL : cfg_get_private_bridge_iface()\ncfg_get_guest_bridge_iface()
@@ -58,22 +77,52 @@ loop for each [iface, plumbing] in m_access_port_plumbing_map
 end
 
 TSM -> TSM : m_state = APPLIED
+end
 
 == Add new ports at runtime, TS already applied ==
 
-ACT -> TST : TS_NEW_BH_STA_IFACE event
-TST -> TST : schedule_apply(AddNewSta)\nwait debounce
-TST -> DB : scan backhaul BSS iface names
-TST -> NU : linux_get_iface_list()\nfilter wlanX.Y.staN
-loop each new sta iface
-  TST -> TSM : add_trunk_port(new_sta_trunk)
-  TSM -> TPQ : apply(cfg)  ' immediate because manager is APPLIED
+ACT -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
+ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
+alt TrafficSeparationTask registered
+  TP -> TST : TS_NEW_BH_STA_IFACE event
+  TST -> TST : schedule_apply(AddNewSta)\nwait debounce
+  TST -> DB : scan backhaul BSS iface names
+  TST -> NU : linux_get_iface_list()\nfilter <bss_iface>.staN
+  loop each newly discovered sta iface
+    TST -> TSM : add_trunk_port(new_sta_trunk)
+    TSM -> TPQ : apply(cfg)  ' immediate because manager is APPLIED
+  end
+else task absent for Profile-1 boot config
+  TP -> TP : return false
 end
 
-== Clear ==
-ACT -> TST : TS_CLEAR event
-TST -> TSM : reset()
-TST -> BC : configure_primary_vlan_id(0, add=false)
-TST -> BC : configure_interfaces(bridge, {}, true, true)
+== Clear stale tracked STA ifaces ==
+
+ST -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
+ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
+alt TrafficSeparationTask registered
+  TP -> TST : TS_CLEAR_BH_STA_IFACE event
+  TST -> TST : schedule_apply(ClearSta)\nwait debounce
+  TST -> DB : scan backhaul BSS iface names
+  TST -> NU : linux_get_iface_list()\nfilter <bss_iface>.staN
+  loop each stale tracked sta iface
+    TST -> TSM : remove_trunk_port(stale_sta_trunk)
+  end
+  loop each newly discovered sta iface
+    TST -> TSM : add_trunk_port(new_sta_trunk)
+    TSM -> TPQ : apply(cfg)  ' immediate because manager is APPLIED
+  end
+else task absent for Profile-1 boot config
+  TP -> TP : return false
+end
+
+== Clear all TS state ==
+opt TrafficSeparationTask registered and TS_CLEAR is emitted
+  ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_CLEAR)
+  TP -> TST : TS_CLEAR event
+  TST -> TSM : reset()
+  TST -> BC : configure_primary_vlan_id(0, add=false)
+  TST -> BC : configure_interfaces(bridge, {}, true, true)
+end
 
 @enduml

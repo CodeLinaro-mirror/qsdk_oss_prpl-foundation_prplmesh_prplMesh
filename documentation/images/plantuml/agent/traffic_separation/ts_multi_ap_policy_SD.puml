@@ -2,10 +2,20 @@
 participant Controller
 participant "ApAutoConfigurationTask" as AC
 participant "AgentDB" as DB
+participant "slave_thread" as ST
+participant "TaskPool" as TP
 participant "TrafficSeparationTask" as TST
 participant "TrafficSeparationManager" as TSM
 participant "broker_client" as BC
 participant "System / net utils" as SYS
+
+== 0. Boot-time TS task registration ==
+ST -> DB: read multi_ap_profile\n+ is_multiap_profile_1_as_of_r4
+alt profile supports TS or R4-as-R1 compatibility mode
+    ST -> TP: add_task(TrafficSeparationTask)
+else plain Profile-1 boot
+    ST -> ST: do not add TrafficSeparationTask
+end
 
 == 1. Handle Multi AP Policy ==
 Controller -> AC: MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE
@@ -23,44 +33,75 @@ else Traffic Separation Policy received
 end
 
 == 2. Trigger TS task ==
-AC -> TST: task_pool_send_event(TS_ENABLE)
-TST -> TST: schedule_apply(Full)\ndebounce
+AC -> ST: task_pool_try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
+ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
+alt TrafficSeparationTask registered
+    TP -> TST: TS_ENABLE event
+    TST -> TST: schedule_apply(Full)\ndebounce
+else task absent for plain Profile-1 boot config
+    TP -> TP: return false
+end
 
 == 3. TS task applies config ==
-TST -> DB: read profile + TS policy + ports inventory
-
-alt multi_ap_profile == 1
-    TST -> TSM: reset()
-    TST -> BC: configure_primary_vlan_id(0, add=false)
-    TST -> BC: configure_interfaces(bridge, {}, true, true)
-else primary VLAN valid
-    TST -> BC: configure_primary_vlan_id(primary_vid, add=true)
-    TST -> TSM: reset()
-    TST -> TSM: configure(cfg from BPL + DB)
-    loop each trunk/access port found in DB
-        TST -> TSM: add_trunk_port()/add_access_port()
+opt TrafficSeparationTask registered
+    TST -> DB: read TS policy + ports inventory
+    alt primary VLAN valid
+        TST -> BC: configure_primary_vlan_id(primary_vid, add=true)
+        TST -> TSM: reset()
+        TST -> TSM: configure(cfg from BPL + DB)
+        loop each trunk/access port found in DB
+            TST -> TSM: add_trunk_port()/add_access_port()
+        end
+        TST -> TSM: apply_policies()
+        TSM -> SYS: create VLAN subifaces + attach bridges (trunks)
+        TSM -> SYS: set_vlan_packet_filter(true) on access ports
+    else primary VLAN missing/invalid
+        TST -> TST: cleanup_ts_runtime_state()
     end
-    TST -> TSM: apply_policies()
-    TSM -> SYS: create VLAN subifaces + attach bridges (trunks)
-    TSM -> SYS: set_vlan_packet_filter(true) on access ports
-else primary VLAN missing/invalid
-    TST -> TST: skip (nothing to apply)
 end
 
 == 4. New STA iface incremental path ==
-AC -> TST: task_pool_send_event(TS_NEW_BH_STA_IFACE)
-TST -> DB: read active backhaul BSS
-TST -> SYS: linux_get_iface_list() and match wlanX.Y.staN
-loop each discovered STA iface
-    TST -> TSM: add_trunk_port(sta trunk)
-    note right: if manager state is APPLIED,\nnew trunk is applied immediately
+AC -> ST: task_pool_try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
+ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
+alt TrafficSeparationTask registered
+    TP -> TST: TS_NEW_BH_STA_IFACE event
+    TST -> TST: schedule_apply(AddNewSta)\ndebounce
+    TST -> DB: read active backhaul BSS
+    TST -> SYS: linux_get_iface_list() and match <bss_iface>.staN
+    loop each discovered new STA iface
+        TST -> TSM: add_trunk_port(sta trunk)
+        note right: if manager state is APPLIED,\nnew trunk is applied immediately
+    end
+else task absent for plain Profile-1 boot config
+    TP -> TP: return false
 end
 
-== 5. Clear path ==
-AC -> TST: task_pool_send_event(TS_CLEAR)
-TST -> TSM: reset()
-TST -> BC: configure_primary_vlan_id(0, add=false)
-TST -> BC: configure_interfaces(bridge, {}, true, true)
+== 5. Clear stale STA iface path ==
+ST -> ST: task_pool_try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
+ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
+alt TrafficSeparationTask registered
+    TP -> TST: TS_CLEAR_BH_STA_IFACE event
+    TST -> TST: schedule_apply(ClearSta)\ndebounce
+    TST -> DB: read active backhaul BSS
+    TST -> SYS: linux_get_iface_list() and match <bss_iface>.staN
+    loop each stale tracked STA iface
+        TST -> TSM: remove_trunk_port(sta trunk)
+    end
+    loop each newly discovered STA iface
+        TST -> TSM: add_trunk_port(sta trunk)
+    end
+else task absent for plain Profile-1 boot config
+    TP -> TP: return false
+end
+
+== 6. Clear path ==
+opt TrafficSeparationTask registered and TS_CLEAR is emitted
+    ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR)
+    TP -> TST: TS_CLEAR event
+    TST -> TSM: reset()
+    TST -> BC: configure_primary_vlan_id(0, add=false)
+    TST -> BC: configure_interfaces(bridge, {}, true, true)
+end
 
 alt no configured radios
     AC -> AC: skip TS trigger until radios become CONFIGURED
