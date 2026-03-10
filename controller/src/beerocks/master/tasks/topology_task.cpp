@@ -23,6 +23,7 @@
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
+#include <tlvf/wfa_map/tlvAssociatedClients.h>
 #include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvClientAssociationEvent.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
@@ -709,6 +710,10 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         handle_assoc_sta_mld_configuration_tlv(cmdu_rx, *agent);
     }
 
+    if (!handle_associated_clients_tlv(cmdu_rx, *agent)) {
+        LOG(ERROR) << "handle_associated_clients_tlv failed";
+    }
+
     return true;
 }
 
@@ -835,6 +840,80 @@ void topology_task::handle_assoc_sta_mld_configuration_tlv(ieee1905_1::CmduMessa
             }
         }
     }
+}
+
+bool topology_task::handle_associated_clients_tlv(ieee1905_1::CmduMessageRx &cmdu_rx, Agent &agent)
+{
+    auto assoc_client_tlv = cmdu_rx.getClass<wfa_map::tlvAssociatedClients>();
+    if (!assoc_client_tlv) {
+        LOG(DEBUG) << "tlvAssociatedClients not present";
+        return true;
+    }
+
+    // map of stations mac -> bssid it is connected to
+    std::unordered_map<sMacAddr, sMacAddr> previous_connected;
+    for (auto &radio_pair : agent.radios) {
+        std::shared_ptr<Agent::sRadio> &radio = radio_pair.second;
+        for (auto &bss_pair : radio->bsses) {
+            std::shared_ptr<Agent::sRadio::sBss> &bss = bss_pair.second;
+            for (auto &connected_pair : bss->connected_stations) {
+                previous_connected.insert({connected_pair.first, bss->bssid});
+            }
+        }
+    }
+
+    // map of stations mac -> bssid it is connected to
+    std::unordered_map<sMacAddr, sMacAddr> current_connected;
+    for (int i = 0; i < assoc_client_tlv->bss_list_length(); i++) {
+        wfa_map::cBssInfo &bss = std::get<1>(assoc_client_tlv->bss_list(i));
+        for (int j = 0; j < bss.clients_associated_list_length(); j++) {
+            wfa_map::cClientInfo &client    = std::get<1>(bss.clients_associated_list(j));
+            current_connected[client.mac()] = bss.bssid();
+        }
+    }
+
+    // Add stations that where not present before
+    for (std::pair<sMacAddr, sMacAddr> connected_pair : current_connected) {
+        sMacAddr mac   = connected_pair.first;
+        sMacAddr bssid = connected_pair.second;
+        if (previous_connected.find(mac) != previous_connected.end()) {
+            continue;
+        }
+
+        database.add_station(agent.al_mac, mac, bssid);
+    }
+
+    // Remove previously connected stations that are not connected anymore
+    for (std::pair<sMacAddr, sMacAddr> prev_connection : previous_connected) {
+        sMacAddr sta_mac = prev_connection.first;
+        if (current_connected.find(sta_mac) == current_connected.end()) {
+            son_actions::handle_dead_station(tlvf::mac_to_string(sta_mac), true, database, tasks);
+            std::shared_ptr<Station> sta = database.get_station(sta_mac);
+            if (sta) {
+                database.dm_remove_sta(*sta);
+                database.remove_sta(sta_mac);
+            }
+        }
+    }
+
+    // Move stations that reconnected to another BSS
+    for (std::pair<sMacAddr, sMacAddr> connected_pair : current_connected) {
+        sMacAddr sta_mac       = connected_pair.first;
+        sMacAddr current_bssid = connected_pair.second;
+        auto prev_connected_it = previous_connected.find(sta_mac);
+        if (prev_connected_it == previous_connected.end()) {
+            continue;
+        }
+
+        sMacAddr old_bssid = prev_connected_it->second;
+        if (old_bssid == current_bssid) {
+            continue;
+        }
+
+        database.add_station(agent.al_mac, sta_mac, current_bssid);
+    }
+
+    return true;
 }
 
 void topology_task::handle_vbss_configuration_tlv(

@@ -95,6 +95,14 @@ private:
      */
     void handle_assoc_sta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx, Agent &agent);
 
+    /**
+     * @brief Handles Associated Clients TLV.
+     *
+     * @param[in] cmdu_rx Received CMDU.
+     * @param[in] agent agent db object.
+     */
+    bool handle_associated_clients_tlv(ieee1905_1::CmduMessageRx &cmdu_rx, Agent &agent);
+
     db &database;
     ieee1905_1::CmduMessageTx &cmdu_tx;
     task_pool &tasks;
