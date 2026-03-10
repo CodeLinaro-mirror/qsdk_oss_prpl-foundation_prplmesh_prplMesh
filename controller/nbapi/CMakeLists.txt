@@ -37,6 +37,10 @@ message(STATUS "${BoldGreen}Controller data model parsed successfully!${ColourRe
 # Install ODL files
 install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/controller)
 
+if(NOT "${INCLUDE_DM_MAPPER_CONFIG}" STREQUAL "")
+  install(FILES "${CMAKE_SOURCE_DIR}/controller/nbapi/odl/dm_mapper_cfg" DESTINATION "config/controller/odl" RENAME "dm_mapper_cfg.odl" )
+endif()
+
 if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d)
     install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d DESTINATION config/controller/odl)
 endif()

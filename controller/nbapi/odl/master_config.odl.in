@@ -50,6 +50,7 @@
     //    "Objects" = "@CONTROLLER_ROOT_DM@"
     //};
 }
+@INCLUDE_DM_MAPPER_CONFIG@
 include "$@@{definition_file}";
 //include "mod_pcm_svc.odl";
 import "mod-dmext.so";
