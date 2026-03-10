@@ -587,11 +587,7 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
         return false;
     }
 
-    if (!early) {
-        /* 2.1 radio dependent tlvs */
-
-        tlvf_utils::add_tlv_channel_scan_capabilities(m_cmdu_tx);
-    }
+    tlvf_utils::add_tlv_channel_scan_capabilities(m_cmdu_tx);
 
     /* 2.2 radio independent tlvs */
 
