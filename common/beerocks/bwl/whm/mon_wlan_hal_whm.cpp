@@ -987,16 +987,15 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
                        << " and TimeStamp(seconds): " << time.sec
                        << " and TimeStamp(milliseconds): " << timestamp_ms;
             new_list.erase(mac_address_amx); // consumed!
-        } else { // -->controller is not interested on it any more--> remove it from the dm
-            amx_un_stations_to_be_removed.push_back(mac_address_amx);
         }
+        amx_un_stations_to_be_removed.push_back(mac_address_amx);
     }
 
     // Now lets remove all stations the controller do not want them anymore
     for (auto &station_to_remove : amx_un_stations_to_be_removed) {
         AmbiorixVariant result;
         AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
-        args.add_child("MACAddress", station_to_remove);
+        args.add_child("macaddress", station_to_remove);
         if (!m_ambiorix_cl.call(nasta_monitor_path, "deleteNonAssociatedDevice", args, result)) {
             LOG(ERROR) << " remote function call deleteNonAssociatedDevice"
                        << " for object " << nasta_monitor_path
