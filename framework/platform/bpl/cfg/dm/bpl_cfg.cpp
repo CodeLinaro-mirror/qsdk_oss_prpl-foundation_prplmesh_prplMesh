@@ -615,84 +615,26 @@ bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled)
 
 bool cfg_get_traffic_separation_private_vid(int &private_vid)
 {
-    int new_private_vid = DEFAULT_PRIVATE_VLAN_ID;
-    int legacy_vid      = DEFAULT_PRIVATE_VLAN_ID;
-
-    const bool has_private_vid =
-        read_controller_config_param("TrafficSeparation.PrivateVID", new_private_vid);
-    const bool has_legacy_vid =
-        read_controller_config_param("TrafficSeparation.HomeVid", legacy_vid);
-
-    if (has_private_vid && has_legacy_vid && new_private_vid != legacy_vid) {
-        if (new_private_vid == DEFAULT_PRIVATE_VLAN_ID && legacy_vid != DEFAULT_PRIVATE_VLAN_ID) {
-            LOG(INFO) << "TrafficSeparation.PrivateVID is default while legacy "
-                         "TrafficSeparation.HomeVid is customized; using legacy value="
-                      << legacy_vid;
-            private_vid = legacy_vid;
-            return true;
-        }
-
-        LOG(INFO) << "Both TrafficSeparation.PrivateVID and legacy TrafficSeparation.HomeVid are "
-                     "configured with different values ("
-                  << new_private_vid << " vs " << legacy_vid << "), using PrivateVID";
+    int configured_private_vid = DEFAULT_PRIVATE_VLAN_ID;
+    if (!read_controller_config_param("TrafficSeparation.PrivateVID", configured_private_vid)) {
+        LOG(ERROR) << "failed to read TrafficSeparation.PrivateVID";
+        return false;
     }
 
-    if (has_private_vid) {
-        private_vid = new_private_vid;
-        return true;
-    }
-
-    if (has_legacy_vid) {
-        LOG(DEBUG) << "failed to read TrafficSeparation.PrivateVID, using legacy key "
-                      "TrafficSeparation.HomeVid";
-        private_vid = legacy_vid;
-        return true;
-    }
-
-    LOG(ERROR) << "failed to read TrafficSeparation.PrivateVID and legacy "
-                  "TrafficSeparation.HomeVid";
-    return false;
+    private_vid = configured_private_vid;
+    return true;
 }
 
 bool cfg_get_traffic_separation_guest_vid(int &guest_vid)
 {
-    int new_guest_vid    = DEFAULT_GUEST_VLAN_ID;
-    int legacy_guest_vid = DEFAULT_GUEST_VLAN_ID;
-
-    const bool has_new_guest_vid =
-        read_controller_config_param("TrafficSeparation.GuestVID", new_guest_vid);
-    const bool has_legacy_guest_vid =
-        read_controller_config_param("TrafficSeparation.GuestVid", legacy_guest_vid);
-
-    if (has_new_guest_vid && has_legacy_guest_vid && new_guest_vid != legacy_guest_vid) {
-        if (new_guest_vid == DEFAULT_GUEST_VLAN_ID && legacy_guest_vid != DEFAULT_GUEST_VLAN_ID) {
-            LOG(INFO) << "TrafficSeparation.GuestVID is default while legacy "
-                         "TrafficSeparation.GuestVid is customized; using legacy value="
-                      << legacy_guest_vid;
-            guest_vid = legacy_guest_vid;
-            return true;
-        }
-
-        LOG(INFO) << "Both TrafficSeparation.GuestVID and legacy TrafficSeparation.GuestVid are "
-                     "configured with different values ("
-                  << new_guest_vid << " vs " << legacy_guest_vid << "), using GuestVID";
+    int configured_guest_vid = DEFAULT_GUEST_VLAN_ID;
+    if (!read_controller_config_param("TrafficSeparation.GuestVID", configured_guest_vid)) {
+        LOG(ERROR) << "failed to read TrafficSeparation.GuestVID";
+        return false;
     }
 
-    if (has_new_guest_vid) {
-        guest_vid = new_guest_vid;
-        return true;
-    }
-
-    if (has_legacy_guest_vid) {
-        LOG(DEBUG) << "failed to read TrafficSeparation.GuestVID, using legacy key "
-                      "TrafficSeparation.GuestVid";
-        guest_vid = legacy_guest_vid;
-        return true;
-    }
-
-    LOG(ERROR) << "failed to read TrafficSeparation.GuestVID and legacy "
-                  "TrafficSeparation.GuestVid";
-    return false;
+    guest_vid = configured_guest_vid;
+    return true;
 }
 
 /* ============================================================

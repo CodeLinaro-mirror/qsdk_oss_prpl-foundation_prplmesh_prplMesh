@@ -581,8 +581,7 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
     if (tlv_default_8021q_settings->primary_vlan_id() == 0 && m_is_custom_ts_enabled) {
         int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
         if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID (or legacy HomeVid), "
-                          "using default value="
+            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="
                        << bpl::DEFAULT_PRIVATE_VLAN_ID;
         }
         if (!is_valid_ts_vid(private_vid)) {
@@ -619,15 +618,13 @@ bool agent_monitoring_task::add_traffic_separation_policy_tlv(db &database,
     if (traffic_separation_configs.empty() && m_is_custom_ts_enabled) {
         int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
         if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID (or legacy HomeVid), "
-                          "using default value="
+            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="
                        << bpl::DEFAULT_PRIVATE_VLAN_ID;
         }
 
         int guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
         if (!bpl::cfg_get_traffic_separation_guest_vid(guest_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.GuestVID (or legacy GuestVid), "
-                          "using default value="
+            LOG(ERROR) << "Failed to read TrafficSeparation.GuestVID, using default value="
                        << bpl::DEFAULT_GUEST_VLAN_ID;
         }
 
