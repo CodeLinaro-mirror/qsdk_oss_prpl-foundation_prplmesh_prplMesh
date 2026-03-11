@@ -375,11 +375,6 @@ bool tlvf_utils::create_operating_channel_report(ieee1905_1::CmduMessageTx &cmdu
 bool tlvf_utils::add_tlv_channel_scan_capabilities(ieee1905_1::CmduMessageTx &cmdu_tx)
 {
 
-    if (cmdu_tx.getMessageType() != ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE) {
-        LOG(ERROR) << "wrong calling context";
-        return false;
-    }
-
     LOG(DEBUG) << "add tlvChannelScanCapabilities to mid:" << std::hex << cmdu_tx.getMessageId();
 
     auto channel_scan_capabilities_tlv = cmdu_tx.addClass<wfa_map::tlvChannelScanCapabilities>();
