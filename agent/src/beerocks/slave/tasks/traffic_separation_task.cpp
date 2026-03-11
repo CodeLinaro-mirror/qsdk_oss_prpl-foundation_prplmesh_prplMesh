@@ -65,10 +65,7 @@ void TrafficSeparationTask::handle_event(uint8_t event_enum_value, const void * 
             LOG(ERROR) << "cleanup_ts_runtime_state failed";
         }
 
-        m_pending  = false;
-        m_mode     = eApplyMode::None;
-        m_next_run = m_next_run.min();
-
+        clear_pending_apply();
         break;
     }
     default:
@@ -94,6 +91,13 @@ void TrafficSeparationTask::schedule_apply(eApplyMode mode)
     }
 }
 
+void TrafficSeparationTask::clear_pending_apply()
+{
+    m_pending  = false;
+    m_mode     = eApplyMode::None;
+    m_next_run = m_next_run.min();
+}
+
 bool TrafficSeparationTask::should_run_now() const
 {
     if (!m_pending) {
@@ -108,11 +112,8 @@ void TrafficSeparationTask::work()
         return;
     }
 
-    m_pending  = false;
-    m_next_run = m_next_run.min();
-
     const auto mode = m_mode;
-    m_mode          = eApplyMode::None;
+    clear_pending_apply();
 
     switch (mode) {
     case eApplyMode::Full: {
@@ -221,19 +222,6 @@ bool TrafficSeparationTask::reset()
 {
     auto db = AgentDB::get();
 
-    // If we are R1 device, we don't do TS
-    if (db->device_conf.multi_ap_profile ==
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-        LOG(DEBUG)
-            << "Multi-AP profile=1, Traffic Separation is disabled -> clearing and returning";
-
-        if (!cleanup_ts_runtime_state()) {
-            LOG(ERROR) << "cleanup_ts_runtime_state failed (Profile-1 mode)";
-            return false;
-        }
-        return true;
-    }
-
     const uint16_t primary_vid = db->traffic_separation.primary_vlan_id;
     if (primary_vid == 0 || primary_vid > net::MAX_VLAN_ID) {
         if (!cleanup_ts_runtime_state()) {
@@ -310,13 +298,6 @@ bool TrafficSeparationTask::reset()
 bool TrafficSeparationTask::handle_new_sta_iface()
 {
     auto db = AgentDB::get();
-
-    // If we are R1 device, we don't apply TS to the newly created iface
-    if (db->device_conf.multi_ap_profile ==
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-        LOG(DEBUG) << "Multi-AP profile=1, skip TS on new STA iface";
-        return true;
-    }
 
     if (db->traffic_separation.primary_vlan_id == 0 ||
         db->traffic_separation.primary_vlan_id > net::MAX_VLAN_ID) {

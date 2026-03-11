@@ -160,6 +160,11 @@ private:
                              const sMacAddr &src_mac, const std::string &iface_name = "");
 
     /**
+     * @brief Return true when the boot-time agent profile should enable TS handling.
+     */
+    bool is_traffic_separation_supported() const;
+
+    /**
      * @brief Handles CMDU message received from broker.
      *
      * This handler is slightly different than the handler for CMDU messages received from other
@@ -242,6 +247,11 @@ public:
     }
 
     inline const sAgentConfig &get_agent_conf() { return config; }
+
+    inline bool task_pool_try_send_event(eTaskType task_type, uint8_t event)
+    {
+        return m_task_pool.try_send_event(task_type, event);
+    }
 
     inline void task_pool_send_event(eTaskType task_type, uint8_t event)
     {

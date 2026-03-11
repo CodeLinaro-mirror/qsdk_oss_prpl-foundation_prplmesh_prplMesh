@@ -402,8 +402,8 @@ void ApAutoConfigurationTask::work()
         // Trigger TS once per completed autoconfiguration cycle.
         // Per-radio triggering causes repeated full TS resets while radios are still settling.
         LOG(DEBUG) << "Trigger traffic separation after all radios are configured";
-        m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                       TrafficSeparationTask::eEvent::TS_ENABLE);
+        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_ENABLE);
 
         // Send pre-associated sta notification request to all radio
         for (const auto &radios_conf_param_kv : m_radios_conf_params) {
@@ -491,8 +491,8 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
     }
     case APPLY_CONFIG_FOR_NEW_IFACE: {
         LOG(DEBUG) << "Trigger traffic separation on APPLY_CONFIG_FOR_NEW_IFACE";
-        m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                       TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
+        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
         break;
     }
     default: {
@@ -1719,8 +1719,8 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
         if (conf_params.state == eState::CONFIGURED) {
             // Trigger TrafficSeparationTask on Multi-AP Policy Request received
             LOG(DEBUG) << "Trigger traffic separation on Multi-AP Policy Request";
-            m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                           TrafficSeparationTask::eEvent::TS_ENABLE);
+            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                               TrafficSeparationTask::eEvent::TS_ENABLE);
         }
     }
 
