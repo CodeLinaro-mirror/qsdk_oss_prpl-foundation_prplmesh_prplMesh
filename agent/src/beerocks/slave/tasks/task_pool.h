@@ -28,6 +28,16 @@ public:
     void add_task(const std::shared_ptr<Task> new_task) override;
 
     /**
+     * @brief Try sending an event to a task if the task is registered.
+     *
+     * @param task_type Task type defined on Task base class.
+     * @param event Event type, defined on the task itself.
+     * @param event_obj Pointer to some chunk of memory used to pass data to the event handler.
+     * @return true if the event was delivered, otherwise false.
+     */
+    bool try_send_event(eTaskType task_type, uint8_t event, const void *event_obj = nullptr);
+
+    /**
      * @brief Run all tasks on the pool, by calling each task work() function.
      * 
      * @param max_exec_duration_ms Maximal duration (in milliseconds) for tasks execution.
