@@ -35,7 +35,7 @@ public:
      */
     explicit TrafficSeparationTask(slave_thread &btl_ctx);
 
-    TrafficSeparationTask(const TrafficSeparationTask &) = delete;
+    TrafficSeparationTask(const TrafficSeparationTask &)            = delete;
     TrafficSeparationTask &operator=(const TrafficSeparationTask &) = delete;
 
     /**
@@ -81,6 +81,11 @@ private:
      * @brief Queue a TS apply action with debounce.
      */
     void schedule_apply(eApplyMode mode);
+
+    /**
+     * @brief Reset pending debounced apply state.
+     */
+    void clear_pending_apply();
 
     /**
      * @brief Check whether the debounce timeout expired and apply can run now.
