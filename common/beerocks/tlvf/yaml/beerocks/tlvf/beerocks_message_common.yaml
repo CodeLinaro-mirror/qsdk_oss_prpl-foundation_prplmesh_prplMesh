@@ -1143,6 +1143,9 @@ sUnassociatedStationInfo:
   channel:
     _comment: The preferable channel to use for the monitoing
     _type: uint8_t
+  operating_class:
+    _comment: The preferable op_class to use for the monitoing
+    _type: uint8_t
 
 sUnassociatedStationStats:
   _type: struct

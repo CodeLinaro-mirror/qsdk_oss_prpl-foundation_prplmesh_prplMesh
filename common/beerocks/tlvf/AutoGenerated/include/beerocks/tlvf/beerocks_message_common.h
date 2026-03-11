@@ -1517,6 +1517,8 @@ typedef struct sUnassociatedStationInfo {
     sMacAddr sta_mac;
     //The preferable channel to use for the monitoing
     uint8_t channel;
+    //The preferable op_class to use for the monitoing
+    uint8_t operating_class;
     void struct_swap(){
         sta_mac.struct_swap();
     }
