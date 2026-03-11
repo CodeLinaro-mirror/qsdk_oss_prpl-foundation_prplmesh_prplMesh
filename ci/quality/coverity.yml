@@ -1,0 +1,41 @@
+include:
+  - project: blackduck-inc/black-duck-security-scan
+    ref: v2.3.0
+    file: templates/security_scan.yml
+
+coverity:
+  stage: quality
+  image: "registry.gitlab.com/prpl-foundation/prplmesh/prplmesh/prplmesh-builder-ubuntu-bionic:latest"
+  tags:
+    - coverity
+    - docker
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+      when: manual
+    - when: never
+  variables:
+    BRIDGE_COVERITY_CONNECT_URL: https://coverity.prplfoundation.org
+    BRIDGE_COVERITY_CONNECT_USER_NAME: prplbot
+    BRIDGE_COVERITY_CONNECT_USER_PASSWORD: $COVERITY_PASSPHRASE
+    BRIDGE_GITLAB_USER_TOKEN: $GITLAB_API_KEY_EXTERNAL
+    BRIDGE_COVERITY_LOCAL: true
+    BRIDGE_BREAK: false
+    MARK_BUILD_STATUS: 'success'
+    BRIDGE_COVERITY_CLEAN_COMMAND: ninja -C build -t clean
+    BRIDGE_COVERITY_BUILD_COMMAND: ninja -C build
+    BRIDGE_COVERITY_PRCOMMENT_ENABLED: 'true'
+    BRIDGE_COVERITY_PRCOMMENT_IMPACTS: 'High,Medium,Low,Audit'
+    INCLUDE_DIAGNOSTICS: $COVERITY_ENABLE_DIAGNOSTICS
+  before_script:
+    - apt update && apt install unzip -y
+    - cmake -S . -B build -G Ninja
+  extends: .run-black-duck-tools
+  needs: []
+  after_script:
+    - mkdir -p bin
+    - tar -czf bin/coverity-scan-output.tar.gz .bridge/coverity_connect_scan/comparison-report 2>/dev/null || true
+  artifacts:
+    expire_in: 1 month
+    when: always
+    paths:
+      - bin/coverity-scan-output.tar.gz
