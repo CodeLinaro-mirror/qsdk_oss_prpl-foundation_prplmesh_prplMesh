@@ -392,6 +392,8 @@ bool cEncryptedSettingsPayload::alloc_ssid(size_t count) {
     m_bss_index = (int8_t *)((uint8_t *)(m_bss_index) + len);
     m_additional_auth = (uint8_t *)((uint8_t *)(m_additional_auth) + len);
     m_vap_type = (eVapType *)((uint8_t *)(m_vap_type) + len);
+    m_vap_label_length = (uint16_t *)((uint8_t *)(m_vap_label_length) + len);
+    m_vap_label = (char *)((uint8_t *)(m_vap_label) + len);
     m_ssid_idx__ += count;
     *m_ssid_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -482,6 +484,8 @@ bool cEncryptedSettingsPayload::alloc_network_key(size_t count) {
     m_bss_index = (int8_t *)((uint8_t *)(m_bss_index) + len);
     m_additional_auth = (uint8_t *)((uint8_t *)(m_additional_auth) + len);
     m_vap_type = (eVapType *)((uint8_t *)(m_vap_type) + len);
+    m_vap_label_length = (uint16_t *)((uint8_t *)(m_vap_label_length) + len);
+    m_vap_label = (char *)((uint8_t *)(m_vap_label) + len);
     m_network_key_idx__ += count;
     *m_network_key_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -519,6 +523,77 @@ eVapType& cEncryptedSettingsPayload::vap_type() {
     return (eVapType&)(*m_vap_type);
 }
 
+uint16_t& cEncryptedSettingsPayload::vap_label_length() {
+    return (uint16_t&)(*m_vap_label_length);
+}
+
+std::string cEncryptedSettingsPayload::vap_label_str() {
+    char *vap_label_ = vap_label();
+    if (!vap_label_) { return std::string(); }
+    auto str = std::string(vap_label_, m_vap_label_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cEncryptedSettingsPayload::vap_label(size_t length) {
+    if( (m_vap_label_idx__ == 0) || (m_vap_label_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "vap_label length is smaller than requested length";
+        return nullptr;
+    }
+    if (m_vap_label_idx__ > WSC_MAX_VAP_LABEL_LENGTH )  {
+        TLVF_LOG(ERROR) << "Invalid length -  " << m_vap_label_idx__ << " elements (max length is " << WSC_MAX_VAP_LABEL_LENGTH << ")";
+        return nullptr;
+    }
+    return ((char*)m_vap_label);
+}
+
+bool cEncryptedSettingsPayload::set_vap_label(const std::string& str) { return set_vap_label(str.c_str(), str.size()); }
+bool cEncryptedSettingsPayload::set_vap_label(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_vap_label received a null pointer.";
+        return false;
+    }
+    if (m_vap_label_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_vap_label was already allocated!";
+        return false;
+    }
+    if (!alloc_vap_label(size)) { return false; }
+    std::copy(str, str + size, m_vap_label);
+    return true;
+}
+bool cEncryptedSettingsPayload::alloc_vap_label(size_t count) {
+    if (m_lock_order_counter__ > 2) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list vap_label, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    if (m_vap_label_idx__ + count > WSC_MAX_VAP_LABEL_LENGTH )  {
+        TLVF_LOG(ERROR) << "Can't allocate " << count << " elements (max length is " << WSC_MAX_VAP_LABEL_LENGTH << " current length is " << m_vap_label_idx__ << ")";
+        return false;
+    }
+    m_lock_order_counter__ = 2;
+    uint8_t *src = (uint8_t *)&m_vap_label[*m_vap_label_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_vap_label_idx__ += count;
+    *m_vap_label_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
 void cEncryptedSettingsPayload::class_swap()
 {
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_ssid_type));
@@ -528,6 +603,7 @@ void cEncryptedSettingsPayload::class_swap()
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_network_key_type));
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_network_key_length));
     m_bssid_attr->struct_swap();
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_vap_label_length));
 }
 
 bool cEncryptedSettingsPayload::finalize()
@@ -573,6 +649,7 @@ size_t cEncryptedSettingsPayload::get_initial_size()
     class_size += sizeof(int8_t); // bss_index
     class_size += sizeof(uint8_t); // additional_auth
     class_size += sizeof(eVapType); // vap_type
+    class_size += sizeof(uint16_t); // vap_label_length
     return class_size;
 }
 
@@ -674,6 +751,20 @@ bool cEncryptedSettingsPayload::init()
     if (!m_parse__) *m_vap_type = eVapType::OTHER;
     if (!buffPtrIncrementSafe(sizeof(eVapType))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eVapType) << ") Failed!";
+        return false;
+    }
+    m_vap_label_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_vap_label_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_vap_label = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t vap_label_length = *m_vap_label_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&vap_label_length)); }
+    m_vap_label_idx__ = vap_label_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (vap_label_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (vap_label_length) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }
