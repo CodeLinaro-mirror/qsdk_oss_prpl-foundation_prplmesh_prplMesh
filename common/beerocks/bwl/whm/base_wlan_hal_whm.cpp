@@ -490,7 +490,7 @@ void base_wlan_hal_whm::update_max_mld_links()
     m_ambiorix_cl.get_param(ap_max_links, wifi_path, "APMLDMaxLinks");
     m_radio_info.ap_maximum_links = ap_max_links;
 
-    m_ambiorix_cl.get_param(bsta_max_links, wifi_path, "BSTAMLDMaxLinks");
+    m_ambiorix_cl.get_param(bsta_max_links, wifi_path, "bSTAMLDMaxLinks");
     m_radio_info.bsta_maximum_links = bsta_max_links;
 
     m_ambiorix_cl.get_param(max_num_mld, wifi_path, "MaxNumMLDs");
