@@ -52,7 +52,10 @@ ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
 sleep 5
 
-ip l set dev lan1 up
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan1\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Alias == \"cpe-lan1\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Alias == \"cpe-lan1\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan1\"].Enable=1"
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
