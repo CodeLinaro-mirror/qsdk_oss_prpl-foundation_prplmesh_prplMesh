@@ -52,6 +52,8 @@ ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
 sleep 5
 
+ip l set dev lan1 up
+
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
   # Prplmesh agent is not running. Data model isn't up.
