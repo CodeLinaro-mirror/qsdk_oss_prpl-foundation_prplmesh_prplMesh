@@ -46,6 +46,12 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.180"
 ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.200.180"
 
+# The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan0\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"lan0\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"lan0\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan0\"].Enable=1"
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
 sleep 5
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""

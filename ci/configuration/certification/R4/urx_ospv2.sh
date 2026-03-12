@@ -46,6 +46,12 @@ ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"].?" | grep
 
 sleep 5
 
+# The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=1"
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
 sleep 5
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""

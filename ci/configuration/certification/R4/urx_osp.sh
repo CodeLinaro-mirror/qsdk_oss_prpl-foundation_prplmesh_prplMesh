@@ -46,6 +46,12 @@ ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].", "parameters
 
 sleep 5
 
+# The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_5\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_5\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_5\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_5\"].Enable=1"
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
 sleep 5
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
