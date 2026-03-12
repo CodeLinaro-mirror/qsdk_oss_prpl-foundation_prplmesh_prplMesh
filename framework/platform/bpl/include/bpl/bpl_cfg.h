@@ -1355,8 +1355,7 @@ bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled);
 /**
  * @brief Reads VLAN ID for private/home SSIDs used by Traffic Separation.
  *
- * Reads `TrafficSeparation.PrivateVID` and falls back to legacy
- * `TrafficSeparation.HomeVid` when needed.
+ * Reads `TrafficSeparation.PrivateVID`.
  * 
  * @param[out] private_vid - VLAN ID for private/home SSIDs
  * @return true if success, false otherwise
@@ -1366,8 +1365,7 @@ bool cfg_get_traffic_separation_private_vid(int &private_vid);
 /**
  * @brief Reads VLAN ID for guest SSIDs used by Traffic Separation.
  *
- * Reads `TrafficSeparation.GuestVID` and falls back to legacy
- * `TrafficSeparation.GuestVid` when needed.
+ * Reads `TrafficSeparation.GuestVID`.
  * 
  * @param[out] guest_vid - VLAN ID for guest SSIDs
  * @return true if success, false otherwise
