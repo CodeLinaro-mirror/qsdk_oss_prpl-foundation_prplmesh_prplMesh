@@ -197,6 +197,15 @@ slave_thread::~slave_thread()
     stop_slave_thread();
 }
 
+bool slave_thread::is_traffic_separation_supported() const
+{
+    auto db = AgentDB::get();
+
+    return db->device_conf.is_multiap_profile_1_as_of_r4 ||
+           db->device_conf.multi_ap_profile >
+               wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+}
+
 bool slave_thread::thread_init()
 {
     /** Logger Initialization **/
@@ -377,7 +386,15 @@ bool slave_thread::thread_init()
     }
 
     m_task_pool.add_task(std::make_shared<ApAutoConfigurationTask>(*this, cmdu_tx));
-    m_task_pool.add_task(std::make_shared<TrafficSeparationTask>(*this));
+
+    // Plain Profile-1 agents skip TS task registration.
+    // The R4 compatibility mode is tracked separately and still enables TS handling.
+    if (is_traffic_separation_supported()) {
+        m_task_pool.add_task(std::make_shared<TrafficSeparationTask>(*this));
+    } else {
+        LOG(DEBUG) << "Skip TrafficSeparationTask for plain Multi-AP profile=1 agent";
+    }
+
     m_task_pool.add_task(m_service_prioritization_task_configurator =
                              std::make_shared<ServicePrioritizationTask>(*this, cmdu_tx));
     m_task_pool.add_task(std::make_shared<ProxyAgentDppTask>(*this, cmdu_tx));
@@ -2292,8 +2309,8 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST: {
-        m_task_pool.send_event(eTaskType::TRAFFIC_SEPARATION,
-                               TrafficSeparationTask::eEvent::TS_ENABLE);
+        task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                 TrafficSeparationTask::eEvent::TS_ENABLE);
         break;
     }
     default: {
@@ -3000,9 +3017,27 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         auto &bssid      = notification_in->params().bssid;
         LOG(INFO) << "client disconnected sta_mac=" << client_mac << " from bssid=" << bssid;
 
+        auto db                      = AgentDB::get();
+        auto radio                   = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+        bool reconcile_ts_sta_ifaces = false;
+
+        if (radio) {
+            for (const auto &bss : radio->front.bssids) {
+                if (bss.mac == bssid && bss.backhaul_bss) {
+                    reconcile_ts_sta_ifaces = true;
+                    break;
+                }
+            }
+        }
+
         // If exists, remove client association information for disconnected client.
-        auto db = AgentDB::get();
         db->erase_client(client_mac, bssid);
+
+        if (reconcile_ts_sta_ifaces) {
+            LOG(DEBUG) << "Trigger traffic separation WDS clear on backhaul-BSS disconnect";
+            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                     TrafficSeparationTask::eEvent::TS_CLEAR_BH_STA_IFACE);
+        }
 
         // notify master
         if (!link_to_controller()) {

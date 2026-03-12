@@ -114,6 +114,18 @@ void TaskPool::run_tasks(int max_exec_duration_ms)
     m_exec_iteration_start_time = std::chrono::steady_clock::time_point::max();
 }
 
+bool TaskPool::try_send_event(eTaskType task_type, uint8_t event, const void *event_obj)
+{
+    auto task_it = m_task_pool.find(task_type);
+    if (task_it == m_task_pool.end()) {
+        return false;
+    }
+
+    auto &task = task_it->second;
+    task->handle_event(event, event_obj);
+    return true;
+}
+
 void TaskPool::send_event(eTaskType task_type, uint8_t event, const void *event_obj)
 {
     auto task_it = m_task_pool.find(task_type);
