@@ -170,6 +170,13 @@ private:
     void update_max_mld_links();
 
     /**
+    * @brief Read EHT Operations from pWHM and store in RadioInfo
+    *
+    * Reads EHT Operations from WiFi.Radio.X.getEHTOperations() API
+    * and stores in m_radio_info.eht_operations
+    */
+    void update_eht_operations();
+    /**
      * @brief update link_id and ap mld mac address for enabled vap which has mld_id is enabled
      *
      * @see base_wlan_hal::populate_mlo_fields

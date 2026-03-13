@@ -549,6 +549,99 @@ void base_wlan_hal_whm::update_eht_capabilities()
                << ", EMLMR=" << sta_mode_support->emlmr_support << "]";
 }
 
+void base_wlan_hal_whm::update_eht_operations()
+{
+    AmbiorixVariant result, args;
+
+    // Clear so we don't reuse stale data on failure or empty result
+    memset(&m_radio_info.eht_operations, 0, sizeof(m_radio_info.eht_operations));
+
+    // Call WiFi.Radio.x.getEHTOperations()
+    if (!m_ambiorix_cl.call(m_radio_path, "getEHTOperations", args, result)) {
+        LOG(DEBUG) << "Failed to call getEHTOperations for radio: " << m_radio_path;
+        return;
+    }
+
+    auto results_as_list = result.read_children<AmbiorixVariantListSmartPtr>();
+    if (!results_as_list || (*results_as_list).empty()) {
+        LOG(DEBUG) << "getEHTOperations returned empty result";
+        return;
+    }
+    auto &eht_ops_result = (*results_as_list)[0];
+    auto *eht_ops = reinterpret_cast<beerocks::net::sEHTOperations *>(&m_radio_info.eht_operations);
+
+    bool eht_operation_information_present = false;
+    if (eht_ops_result.read_child(eht_operation_information_present,
+                                  "EHT Operation Information Present")) {
+        eht_ops->operation_parameters.eht_operation_information_valid =
+            eht_operation_information_present;
+    }
+
+    bool disabled_subchannel_bitmap_present = false;
+    if (eht_ops_result.read_child(disabled_subchannel_bitmap_present,
+                                  "Disabled Subchannel Bitmap Present")) {
+        eht_ops->operation_parameters.disabled_subchannel_valid =
+            disabled_subchannel_bitmap_present;
+    }
+
+    if (eht_operation_information_present) {
+        uint8_t control = 0, ccfs0 = 0, ccfs1 = 0;
+
+        eht_ops_result.read_child(control, "Control Channel Width");
+        eht_ops_result.read_child(ccfs0, "CCFS0");
+        eht_ops_result.read_child(ccfs1, "CCFS1");
+
+        eht_ops->operation_informations.control = control;
+        eht_ops->operation_informations.ccfs0   = ccfs0;
+        eht_ops->operation_informations.ccfs1   = ccfs1;
+    }
+
+    if (disabled_subchannel_bitmap_present) {
+        uint16_t disabled_subchannel_bitmap = 0;
+        if (eht_ops_result.read_child(disabled_subchannel_bitmap, "Disabled Subchannel Bitmap")) {
+            eht_ops->operation_informations.disabled_subchannel_bitmap = disabled_subchannel_bitmap;
+        }
+    }
+
+    uint32_t basic_eht_mcs_and_nss_set = 0;
+    if (eht_ops_result.read_child(basic_eht_mcs_and_nss_set, "Basic EHT-MCS And Nss Set")) {
+        eht_ops->basic_eht_mcs_and_nss_set = basic_eht_mcs_and_nss_set;
+    }
+
+    bool eht_default_pe_duration = false;
+    if (eht_ops_result.read_child(eht_default_pe_duration, "EHT Default PE Duration")) {
+        eht_ops->operation_parameters.eht_default_pe_duration = eht_default_pe_duration;
+    }
+
+    bool group_addressed_bu_indication_limit = false;
+    if (eht_ops_result.read_child(group_addressed_bu_indication_limit,
+                                  "Group Addressed BU Indication Limit")) {
+        eht_ops->operation_parameters.group_addressed_bu_indication_limit =
+            group_addressed_bu_indication_limit;
+    }
+
+    uint8_t group_addressed_bu_indication_exponent = 0;
+    if (eht_ops_result.read_child(group_addressed_bu_indication_exponent,
+                                  "Group Addressed BU Indication Exponent")) {
+        eht_ops->operation_parameters.group_addressed_bu_indication_exponent =
+            group_addressed_bu_indication_exponent;
+    }
+
+    LOG(DEBUG) << " EHT Operations parsed - "
+               << " EHT_OP_INFO_VALID="
+               << eht_ops->operation_parameters.eht_operation_information_valid
+               << ", DISABLED_SUBCH_VALID="
+               << eht_ops->operation_parameters.disabled_subchannel_valid
+               << ", DISABLED_SUBCH_BITMAP="
+               << static_cast<int>(eht_ops->operation_informations.disabled_subchannel_bitmap)
+               << ", BASIC_EHT_MCS_NSS=" << eht_ops->basic_eht_mcs_and_nss_set
+               << ", CONTROL=" << static_cast<int>(eht_ops->operation_informations.control)
+               << ", CCFS0=" << static_cast<int>(eht_ops->operation_informations.ccfs0)
+               << ", CCFS1=" << static_cast<int>(eht_ops->operation_informations.ccfs1);
+
+    LOG(DEBUG) << "EHT Operations updated from DM for radio: " << m_radio_path;
+}
+
 bool base_wlan_hal_whm::detach() { return true; }
 
 bool base_wlan_hal_whm::set(const std::string &param, const std::string &value, int vap_id)
@@ -963,6 +1056,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
     if (m_radio_info.eht_supported) {
         update_eht_capabilities();
         update_max_mld_links();
+        update_eht_operations();
     }
 
     if (radio->read_child(s_val, "ExtensionChannel")) {
