@@ -136,6 +136,7 @@ enum eStructsConsts {
     VHT_MCS_SET_NL802_SIZE               = 32,
     HE_MCS_SET_SIZE                      = 12,
     HE_MCS_SET_NL802_SIZE                = 32,
+    EHT_OPERATIONS_SIZE                  = 10,
     DEV_MAX_RADIOS                       = 3,
     DSCP_MAPPING_LIST_LENGTH             = 64,
     CHIPSET_VENDOR_LENGTH                = 64,
