@@ -295,6 +295,10 @@ sNodeHostap:
   max_num_mlds: uint8_t
   ap_maximum_links: uint8_t
   bsta_maximum_links: uint8_t
+  eht_operations:
+    _type: uint8_t
+    _length: [10]
+    _comment: EHT Operations structure (beerocks::net::sEHTOperations) is 10 bytes, radio-level
   zwdfs:
     _type: uint8_t
     _comment: Boolean. When set to 'true', the radio can be used only for zwdfs purpose.
