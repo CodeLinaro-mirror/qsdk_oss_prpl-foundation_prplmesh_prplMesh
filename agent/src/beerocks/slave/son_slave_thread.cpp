@@ -2757,6 +2757,43 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
         update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
 
+        /* EHT Operations: distribute radio-level data to each BSS after bssids are populated */
+        if (radio->eht_supported) {
+            beerocks::net::sEHTOperations radio_eht_ops;
+            std::copy_n(notification->params().eht_operations,
+                        sizeof(beerocks::net::sEHTOperations),
+                        reinterpret_cast<uint8_t *>(&radio_eht_ops));
+
+            LOG(DEBUG)
+                << " EHT Operations received from notification for radio "
+                << radio->front.iface_name
+                << " - Basic MCS:" << radio_eht_ops.basic_eht_mcs_and_nss_set
+                << ", Control: " << (int)radio_eht_ops.operation_informations.control
+                << ", CCFS0: " << (int)radio_eht_ops.operation_informations.ccfs0
+                << ", CCFS1: " << (int)radio_eht_ops.operation_informations.ccfs1
+                << ", Disabled Bitmap: "
+                << radio_eht_ops.operation_informations.disabled_subchannel_bitmap
+                << ", EHT Op Info Valid: "
+                << (int)radio_eht_ops.operation_parameters.eht_operation_information_valid
+                << ", Disabled Subchannel Valid: "
+                << (int)radio_eht_ops.operation_parameters.disabled_subchannel_valid
+                << ", Default PE Duration: "
+                << (int)radio_eht_ops.operation_parameters.eht_default_pe_duration
+                << ", Group BU Limit: "
+                << (int)radio_eht_ops.operation_parameters.group_addressed_bu_indication_limit
+                << ", Group BU Exponent: "
+                << (int)radio_eht_ops.operation_parameters.group_addressed_bu_indication_exponent;
+
+            for (auto &bss : radio->front.bssids) {
+                if (bss.mac != network_utils::ZERO_MAC) {
+                    std::copy_n(reinterpret_cast<const uint8_t *>(&radio_eht_ops),
+                                sizeof(beerocks::net::sEHTOperations), bss.eht_operations);
+                    LOG(DEBUG) << "EHT Operations distributed to BSS "
+                               << tlvf::mac_to_string(bss.mac);
+                }
+            }
+        }
+
         radio->chipset_vendor = notification->params().chipset_vendor;
 
         // cac
@@ -6089,8 +6126,9 @@ bool slave_thread::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
 
         // only front provided for now
         eht_operations_radio->ruid() = radio->front.iface_mac;
+
         for (const auto &bss : radio->front.bssids) {
-            if (bss.mac == beerocks::net::network_utils::ZERO_MAC) {
+            if (bss.mac == beerocks::net::network_utils::ZERO_MAC || !bss.active) {
                 continue;
             }
 

@@ -3382,6 +3382,16 @@ void ApManager::handle_hostapd_attached()
                 notification->params().he_mcs_set);
     notification->params().eht_supported = ap_wlan_hal->get_radio_info().eht_supported;
 
+    if (ap_wlan_hal->get_radio_info().eht_supported) {
+        std::copy_n(
+            reinterpret_cast<const uint8_t *>(&ap_wlan_hal->get_radio_info().eht_operations),
+            sizeof(beerocks::net::sEHTOperations), notification->params().eht_operations);
+    } else {
+        // Clear EHT Operations if not available
+        std::fill_n(notification->params().eht_operations,
+                    sizeof(notification->params().eht_operations), 0);
+    }
+
     uint8_t bsta_modes_support = 0, ap_modes_support = 0;
     if (ap_wlan_hal->get_radio_info().ap_modes_support.str_support) {
         ap_modes_support |= beerocks_message::eMLOModes::eMLOModes_str;
