@@ -284,7 +284,7 @@ public:
                 sMacAddr apmld_mac;
                 int8_t mld_id  = -1;
                 int8_t link_id = -1;
-                uint8_t eht_operations[10];
+                beerocks::net::sEHTOperations eht_operations{};
                 WSC::eWscVendorExtHiddenSsid hidden_ssid = WSC::eWscVendorExtHiddenSsid::UNSET;
                 eVapType vap_type                        = eVapType::OTHER;
                 std::string vap_label;

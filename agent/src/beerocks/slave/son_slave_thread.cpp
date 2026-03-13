@@ -2976,6 +2976,41 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
         update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
 
+        // EHT Operations: distribute radio-level data to each BSS after bssids are populated
+        if (radio->eht_supported) {
+            beerocks::net::sEHTOperations radio_eht_ops;
+            std::copy_n(notification->params().eht_operations,
+                        sizeof(beerocks::net::sEHTOperations),
+                        reinterpret_cast<uint8_t *>(&radio_eht_ops));
+
+            LOG(DEBUG)
+                << " EHT Operations received from notification for radio "
+                << radio->front.iface_name
+                << " - Basic MCS:" << radio_eht_ops.basic_eht_mcs_and_nss_set
+                << ", Control: " << (int)radio_eht_ops.operation_informations.control
+                << ", CCFS0: " << (int)radio_eht_ops.operation_informations.ccfs0
+                << ", CCFS1: " << (int)radio_eht_ops.operation_informations.ccfs1
+                << ", Disabled Bitmap: "
+                << radio_eht_ops.operation_informations.disabled_subchannel_bitmap
+                << ", EHT Op Info Valid: "
+                << (int)radio_eht_ops.operation_parameters.eht_operation_information_valid
+                << ", Disabled Subchannel Valid: "
+                << (int)radio_eht_ops.operation_parameters.disabled_subchannel_valid
+                << ", Default PE Duration: "
+                << (int)radio_eht_ops.operation_parameters.eht_default_pe_duration
+                << ", Group BU Limit: "
+                << (int)radio_eht_ops.operation_parameters.group_addressed_bu_indication_limit
+                << ", Group BU Exponent: "
+                << (int)radio_eht_ops.operation_parameters.group_addressed_bu_indication_exponent;
+
+            for (auto &bss : radio->front.bssids) {
+                if (bss.mac != network_utils::ZERO_MAC) {
+                    bss.eht_operations = radio_eht_ops;
+                    LOG(DEBUG) << "EHT Operations distributed to BSS " << bss.mac;
+                }
+            }
+        }
+
         radio->chipset_vendor = notification->params().chipset_vendor;
 
         // cac
@@ -6617,8 +6652,9 @@ bool slave_thread::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
 
         // only front provided for now
         eht_operations_radio->ruid() = radio->front.iface_mac;
+
         for (const auto &bss : radio->front.bssids) {
-            if (bss.mac == beerocks::net::network_utils::ZERO_MAC) {
+            if (bss.mac == beerocks::net::network_utils::ZERO_MAC || !bss.active) {
                 continue;
             }
 
@@ -6631,28 +6667,27 @@ bool slave_thread::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
 
             eht_operations_bss->bssid() = bss.mac;
 
-            const auto eht_ops =
-                reinterpret_cast<const beerocks::net::sEHTOperations *>(&bss.eht_operations);
+            const auto &eht_ops = bss.eht_operations;
 
             // operation parameters
             eht_operations_bss->flags().eht_operation_information_valid =
-                eht_ops->operation_parameters.eht_operation_information_valid;
+                eht_ops.operation_parameters.eht_operation_information_valid;
             eht_operations_bss->flags().disabled_subchannel_valid =
-                eht_ops->operation_parameters.disabled_subchannel_valid;
+                eht_ops.operation_parameters.disabled_subchannel_valid;
             eht_operations_bss->flags().group_addressed_bu_indication_limit =
-                eht_ops->operation_parameters.group_addressed_bu_indication_limit;
+                eht_ops.operation_parameters.group_addressed_bu_indication_limit;
             eht_operations_bss->flags().group_addressed_bu_indication_exponent =
-                eht_ops->operation_parameters.group_addressed_bu_indication_exponent;
+                eht_ops.operation_parameters.group_addressed_bu_indication_exponent;
 
             // basic eht-mcs and nss set
-            eht_operations_bss->basic_eht_mcs_and_nss_set() = eht_ops->basic_eht_mcs_and_nss_set;
+            eht_operations_bss->basic_eht_mcs_and_nss_set() = eht_ops.basic_eht_mcs_and_nss_set;
 
             // operation informations
-            eht_operations_bss->control() = eht_ops->operation_informations.control;
-            eht_operations_bss->ccfs0()   = eht_ops->operation_informations.ccfs0;
-            eht_operations_bss->ccfs1()   = eht_ops->operation_informations.ccfs1;
+            eht_operations_bss->control() = eht_ops.operation_informations.control;
+            eht_operations_bss->ccfs0()   = eht_ops.operation_informations.ccfs0;
+            eht_operations_bss->ccfs1()   = eht_ops.operation_informations.ccfs1;
             eht_operations_bss->disabled_subchannel_bitmap() =
-                eht_ops->operation_informations.disabled_subchannel_bitmap;
+                eht_ops.operation_informations.disabled_subchannel_bitmap;
 
             if (!eht_operations_radio->add_bss_entries(eht_operations_bss)) {
                 LOG(ERROR) << "Failed adding BSS entry in eht operation TLV for ssid " << bss.ssid;
