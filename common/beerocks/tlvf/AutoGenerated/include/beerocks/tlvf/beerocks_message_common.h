@@ -387,6 +387,8 @@ typedef struct sNodeHostap {
     uint8_t max_num_mlds;
     uint8_t ap_maximum_links;
     uint8_t bsta_maximum_links;
+    //EHT Operations structure (beerocks::net::sEHTOperations) is 10 bytes, radio-level
+    uint8_t eht_operations[beerocks::message::EHT_OPERATIONS_SIZE];
     //Boolean. When set to 'true', the radio can be used only for zwdfs purpose.
     uint8_t zwdfs;
     //Boolean
