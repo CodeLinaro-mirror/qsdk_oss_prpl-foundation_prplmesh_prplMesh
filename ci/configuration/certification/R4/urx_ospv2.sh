@@ -46,6 +46,12 @@ ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"].?" | grep
 
 sleep 5
 
+# The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=1"
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
 sleep 5
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
@@ -120,8 +126,9 @@ printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | 
 
 # Radio's need to be up to set the antenna configuration (workaroud for missing sniffer captures)
 ba-cli WiFi.Radio.*.Enable=1
+ba-cli "WiFi.SSID.[Alias == \"VAP2G0PRIV\"].Enable=1"
+ba-cli "WiFi.SSID.[Alias == \"VAP5G0PRIV\"].Enable=1"
 sleep 10
-
 iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
 sleep 1
 iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1

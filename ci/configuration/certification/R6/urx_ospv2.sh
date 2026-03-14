@@ -44,6 +44,12 @@ ba-cli IP.Interface.wan.IPv4Enable=1
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.160"
 
+# The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=1"
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
 sleep 5
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
@@ -58,11 +64,30 @@ if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR
 else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan1"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth0_2"
 fi
 
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
+
+ba-cli "WiFi.set_trace_zone(zone=genHapd, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=hapdAP, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=chanMgt, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=wpaCtrl, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=mxlRad, level=500)"
+
+
+# Reduce DWELL time of channel scans to 20ms
+printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
+
+# Radio's need to be up to set the antenna configuration (workaroud for missing sniffer captures in default 4x4 configuration)
+ba-cli WiFi.Radio.*.Enable=1
+ba-cli "WiFi.SSID.[Alias == \"VAP2G0PRIV\"].Enable=1"
+ba-cli "WiFi.SSID.[Alias == \"VAP5G0PRIV\"].Enable=1"
+sleep 10
+iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
+sleep 1
+iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT

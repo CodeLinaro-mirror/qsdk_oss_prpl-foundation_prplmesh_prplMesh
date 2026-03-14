@@ -37,6 +37,14 @@ ba-cli DHCPv6Server.Enable=0
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.1.180"
 
+# The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan0\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"lan0\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"lan0\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan0\"].Enable=1"
+
+sleep 5
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Controller-and-Agent\""
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
