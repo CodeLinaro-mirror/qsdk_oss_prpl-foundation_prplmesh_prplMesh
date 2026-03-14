@@ -126,8 +126,9 @@ printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | 
 
 # Radio's need to be up to set the antenna configuration (workaroud for missing sniffer captures)
 ba-cli WiFi.Radio.*.Enable=1
+ba-cli "WiFi.SSID.[Alias == \"VAP2G0PRIV\"].Enable=1"
+ba-cli "WiFi.SSID.[Alias == \"VAP5G0PRIV\"].Enable=1"
 sleep 10
-
 iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
 sleep 1
 iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1

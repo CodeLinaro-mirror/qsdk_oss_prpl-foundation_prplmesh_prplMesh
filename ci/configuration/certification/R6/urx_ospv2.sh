@@ -70,6 +70,25 @@ fi
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
+ba-cli "WiFi.set_trace_zone(zone=genHapd, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=hapdAP, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=chanMgt, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=wpaCtrl, level=500)"
+ba-cli "WiFi.set_trace_zone(zone=mxlRad, level=500)"
+
+
+# Reduce DWELL time of channel scans to 20ms
+printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
+
+# Radio's need to be up to set the antenna configuration (workaroud for missing sniffer captures in default 4x4 configuration)
+ba-cli WiFi.Radio.*.Enable=1
+ba-cli "WiFi.SSID.[Alias == \"VAP2G0PRIV\"].Enable=1"
+ba-cli "WiFi.SSID.[Alias == \"VAP5G0PRIV\"].Enable=1"
+sleep 10
+iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
+sleep 1
+iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
+
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
