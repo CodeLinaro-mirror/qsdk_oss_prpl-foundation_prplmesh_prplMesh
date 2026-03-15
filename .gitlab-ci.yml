@@ -296,5 +296,5 @@ boardfarm-stability-tests:
   extends: boardfarm-tests
   parallel: 10
   rules:
-    - if: "$STABILITY_TESTS"
+    - when: always
   retry: 0
