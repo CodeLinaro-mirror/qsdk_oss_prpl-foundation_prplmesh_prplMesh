@@ -35,7 +35,7 @@ namespace bpl {
 bool get_string_value_dm(std::string &attr, std::string &value)
 {
     std::string dm                 = "DeviceInfo";
-    std::string dev_string         = "0.'DeviceInfo.'";
+    std::string dev_string         = "0.DeviceInfo";
     constexpr int amxb_get_timeout = 3;
     value                          = std::string("invalid");
 
@@ -45,16 +45,19 @@ bool get_string_value_dm(std::string &attr, std::string &value)
     amxb_bus_ctx_t *ctx = amxb_be_who_has(dm.c_str());
     if (ctx == NULL) {
         LOG(WARNING) << "Failed to get the bus context";
+        amxc_var_clean(&data);
         return false;
     }
 
-    dm += attr;
+    dm += "." + attr;
     if (amxb_get(ctx, dm.c_str(), 0, &data, amxb_get_timeout) != AMXB_STATUS_OK) {
         LOG(WARNING) << "amxb_get timedout";
+        amxc_var_clean(&data);
         return false;
     }
 
     if (amxc_var_is_null(&data)) {
+        amxc_var_clean(&data);
         return false;
     }
 
