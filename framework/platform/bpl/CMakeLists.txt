@@ -180,6 +180,7 @@ if (USE_PRPLMESH_WHM)
 
     list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl.cpp)
     list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_wifi.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_device_info.cpp)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
 
