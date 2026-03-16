@@ -41,8 +41,10 @@ struct FakeIEEE1905QuerySender : son::IEEE1905QuerySender {
 
 class TestableIEEE1905Task : public son::ieee1905_task {
 public:
+    using son::ieee1905_task::ensure_al_in_dm;
     using son::ieee1905_task::handle_event;
     using son::ieee1905_task::ieee1905_task;
+    using son::ieee1905_task::update_al_in_dm;
     using son::ieee1905_task::work;
 };
 
@@ -124,6 +126,48 @@ protected:
         m_query_sender->higher_layer_queries.clear();
     }
 
+    std::string read_al_param(const sMacAddr &al_mac, const std::string &param)
+    {
+        const auto al_it = m_database->ieee1905_network->al.find(al_mac);
+        EXPECT_NE(al_it, m_database->ieee1905_network->al.end());
+
+        std::string value;
+        EXPECT_TRUE(m_ambiorix->read_param(al_it->second.dm_path.path, param, &value));
+        return value;
+    }
+
+    std::string read_interface_param(const sMacAddr &al_mac, const sMacAddr &if_mac,
+                                     const std::string &param)
+    {
+        const auto al_it = m_database->ieee1905_network->al.find(al_mac);
+        EXPECT_NE(al_it, m_database->ieee1905_network->al.end());
+
+        const auto iface_it = al_it->second.interfaces.find(if_mac);
+        EXPECT_NE(iface_it, al_it->second.interfaces.end());
+
+        std::string value;
+        EXPECT_TRUE(m_ambiorix->read_param(iface_it->second.dm_path.path, param, &value));
+        return value;
+    }
+
+    std::string read_ieee1905_neighbor_param(const sMacAddr &al_mac, const sMacAddr &if_mac,
+                                             const sMacAddr &neighbor_al_mac,
+                                             const std::string &param)
+    {
+        const auto al_it = m_database->ieee1905_network->al.find(al_mac);
+        EXPECT_NE(al_it, m_database->ieee1905_network->al.end());
+
+        const auto iface_it = al_it->second.interfaces.find(if_mac);
+        EXPECT_NE(iface_it, al_it->second.interfaces.end());
+
+        const auto neighbor_it = iface_it->second.ieee1905_neighbors.find(neighbor_al_mac);
+        EXPECT_NE(neighbor_it, iface_it->second.ieee1905_neighbors.end());
+
+        std::string value;
+        EXPECT_TRUE(m_ambiorix->read_param(neighbor_it->second.dm_path.path, param, &value));
+        return value;
+    }
+
     beerocks::config_file::SConfigLog m_log_conf{};
     son::db::sDbMasterConfig m_master_conf;
     std::shared_ptr<beerocks::nbapi::Amxrt> m_amxrt;
@@ -171,6 +215,57 @@ TEST_F(IEEE1905TaskTest, network_enable_event_true_restarts_local_discovery)
     ASSERT_TRUE(topology_query_sent_to(m_local_al_mac));
     EXPECT_TRUE(m_query_sender->higher_layer_queries.empty());
     EXPECT_EQ("Incomplete", read_network_status());
+}
+
+TEST_F(IEEE1905TaskTest, ensure_al_in_dm_materializes_al_version)
+{
+    auto &local_al            = m_database->ieee1905_network->al[m_local_al_mac];
+    local_al.version_is_1905a = true;
+
+    ASSERT_TRUE(m_task->ensure_al_in_dm(m_local_al_mac));
+    ASSERT_TRUE(local_al.dm_path);
+    EXPECT_EQ("1905.1a", read_al_param(m_local_al_mac, "Version"));
+}
+
+TEST_F(IEEE1905TaskTest, update_al_in_dm_materializes_interface_and_non_1905_neighbor)
+{
+    const auto iface_mac         = tlvf::mac_from_string("11:22:33:44:55:77");
+    const auto non_1905_neighbor = tlvf::mac_from_string("aa:bb:cc:dd:ee:f1");
+
+    auto &local_al                              = m_database->ieee1905_network->al[m_local_al_mac];
+    local_al.version_is_1905a                   = true;
+    auto &iface                                 = local_al.interfaces[iface_mac];
+    iface.type                                  = ieee1905_1::UNKNOWN_MEDIA;
+    iface.non_1905_neighbors[non_1905_neighbor] = {};
+
+    ASSERT_TRUE(m_task->ensure_al_in_dm(m_local_al_mac));
+    EXPECT_EQ(tlvf::mac_to_string(iface_mac),
+              read_interface_param(m_local_al_mac, iface_mac, "InterfaceId"));
+}
+
+TEST_F(IEEE1905TaskTest, ensure_al_in_dm_updates_existing_ieee1905_device_refs)
+{
+    using sNeighbor = son::db::ieee1905_network_db::sAL::sNeighbor;
+
+    const auto source_al_mac = m_local_al_mac;
+    const auto source_if_mac = m_local_al_mac;
+    const auto target_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:21");
+    auto &als                = m_database->ieee1905_network->al;
+    auto &source_al          = als[source_al_mac];
+    auto &source_iface       = source_al.interfaces[source_if_mac];
+    auto ref_handle = sNeighbor::sRefHandle{als, target_al_mac, {source_al_mac, source_if_mac}};
+    source_iface.ieee1905_neighbors.emplace(target_al_mac,
+                                            sNeighbor{{}, false, std::move(ref_handle)});
+
+    ASSERT_TRUE(m_task->ensure_al_in_dm(source_al_mac));
+    EXPECT_TRUE(read_ieee1905_neighbor_param(source_al_mac, source_if_mac, target_al_mac,
+                                             "IEEE1905DeviceRef")
+                    .empty());
+
+    ASSERT_TRUE(m_task->ensure_al_in_dm(target_al_mac));
+    EXPECT_EQ("Device." + als[target_al_mac].dm_path.path,
+              read_ieee1905_neighbor_param(source_al_mac, source_if_mac, target_al_mac,
+                                           "IEEE1905DeviceRef"));
 }
 
 } // namespace
