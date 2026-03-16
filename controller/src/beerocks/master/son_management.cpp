@@ -438,7 +438,15 @@ void son_management::handle_cli_message(int sd, std::shared_ptr<beerocks_header>
             break;
         }
         std::string hostap_mac = tlvf::mac_to_string(cli_request->mac());
-        auto agent_mac         = database.get_bss_parent_agent(cli_request->mac());
+        auto parent_radio      = database.get_bss_parent_radio(hostap_mac);
+
+        auto agent_mac = database.get_bss_parent_agent(cli_request->mac());
+
+        // in case command is called with RADIO_MAC isof VAP MAC
+        if (agent_mac == network_utils::ZERO_MAC) {
+            agent_mac    = database.get_radio_parent_agent(cli_request->mac());
+            parent_radio = hostap_mac;
+        }
         LOG(DEBUG) << "CLI ap channel switch request for " << hostap_mac;
 
         /*
@@ -471,7 +479,6 @@ void son_management::handle_cli_message(int sd, std::shared_ptr<beerocks_header>
 
         request->cs_params() = cli_request->cs_params();
 
-        const auto parent_radio = database.get_bss_parent_radio(hostap_mac);
         son_actions::send_cmdu_to_agent(agent_mac, cmdu_tx, database, parent_radio);
         break;
     }
