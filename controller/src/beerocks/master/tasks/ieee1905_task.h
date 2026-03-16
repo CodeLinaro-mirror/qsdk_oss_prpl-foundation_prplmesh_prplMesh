@@ -51,6 +51,8 @@ protected:
     void set_ieee1905_network_enabled(bool enabled);
     bool set_network_status(const std::string &status);
     bool start_local_al_discovery();
+    bool ensure_al_in_dm(const sMacAddr &al_mac);
+    bool update_al_in_dm(const sMacAddr &al_mac);
 
     db &database;
     ieee1905_1::CmduMessageTx &cmdu_tx;
