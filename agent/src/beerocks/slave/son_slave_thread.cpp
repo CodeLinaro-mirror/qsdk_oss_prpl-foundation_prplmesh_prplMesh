@@ -1122,7 +1122,7 @@ bool slave_thread::handle_cmdu_control_message(int fd,
             return false;
         }
 
-        LOG(DEBUG) << "send cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START";
+        LOG(DEBUG) << "send cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START " << fronthaul_iface;
         request_out->cs_params() = request_in->cs_params();
         send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
         break;
