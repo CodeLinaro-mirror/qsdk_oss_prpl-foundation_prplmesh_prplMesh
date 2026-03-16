@@ -15,6 +15,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 
 namespace son {
 
@@ -38,6 +39,9 @@ public:
         IEEE1905_NETWORK_ENABLE_CHANGED = 1,
     };
 
+    static constexpr std::chrono::seconds topology_response_timeout{2};
+    static constexpr std::chrono::seconds higher_layer_response_timeout{1};
+
     ieee1905_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                   std::unique_ptr<IEEE1905QuerySender> query_sender, now_f now = steady_clock::now);
 
@@ -45,19 +49,54 @@ public:
                                ieee1905_1::CmduMessageRx &cmdu_rx) override;
 
 protected:
+    /**
+     * @brief Sidecar to db::ieee1905_network_db::sAL, contains lifetime management data
+     *
+     * Whenever the sidecar exist, the sAL exists too (possibly default-constructed).
+     * The opposite may not be true (failed first topology response).
+     */
+    struct AL {
+        time_point first_topology_query_deadline     = time_point::max();
+        time_point first_higher_layer_query_deadline = time_point::max();
+
+        SingleShotCounter info_pending;
+        SingleShotCounter topology_response_pending;
+        SingleShotCounter higher_layer_response_pending;
+    };
+
     void work() override;
     void handle_event(int event_type, void *obj) override;
 
     void set_ieee1905_network_enabled(bool enabled);
     bool set_network_status(const std::string &status);
     bool start_local_al_discovery();
+    bool start_remote_al_discovery(const sMacAddr &al_mac);
+    bool materialize_local_al();
+    void complete_remote_al(const sMacAddr &al_mac);
+    void handle_topology_timeout(const sMacAddr &al_mac);
+    void handle_higher_layer_timeout(const sMacAddr &al_mac);
     bool ensure_al_in_dm(const sMacAddr &al_mac);
     bool update_al_in_dm(const sMacAddr &al_mac);
+
+    /**
+     * @brief Remove ALs which are no longer reachable from the local AL.
+     *
+     * Called after topology processing to garbage-collect disappeared devices.
+     */
+    void cleanup_orphan_als();
+
+    bool handle_higher_layer_response(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool handle_topology_response(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool handle_topology_notification(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
 
     db &database;
     ieee1905_1::CmduMessageTx &cmdu_tx;
     std::unique_ptr<IEEE1905QuerySender> query_sender;
     now_f now;
+
+    /** updates Network.Status to Available once initial AL info is gathered */
+    SingleShotCounter status_pending;
+    std::unordered_map<sMacAddr, AL> m_als; ///< sidecar data to \ref database.ieee1905_network.al
 };
 
 } // namespace son
