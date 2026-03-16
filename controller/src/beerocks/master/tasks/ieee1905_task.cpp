@@ -8,9 +8,26 @@
 
 #include "ieee1905_task.h"
 
+#include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
+#include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
+#include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
+#include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
+#include <tlvf/wfa_map/tlvClientAssociationEvent.h>
+
 #include <easylogging++.h>
 
+#include <cstring>
+#include <unordered_set>
+
 using namespace son;
+
+constexpr std::chrono::seconds ieee1905_task::topology_response_timeout;
+constexpr std::chrono::seconds ieee1905_task::higher_layer_response_timeout;
+
+template <typename Tuple> static auto unwrap(Tuple &&result)
+{
+    return std::get<0>(result) ? &std::get<1>(result) : nullptr;
+}
 
 static std::string add_device_prefix(const std::string &path)
 {
@@ -50,24 +67,66 @@ ieee1905_task::ieee1905_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
 
 void ieee1905_task::work()
 {
-    // Skeleton: no periodic flow yet.
+    if (!database.ieee1905_network) {
+        return;
+    }
+
+    std::vector<sMacAddr> topology_timeouts;
+    std::vector<sMacAddr> higher_layer_timeouts;
+    const auto current_time = now();
+
+    // Check for first topology/higher layer response timeouts
+    for (const auto &entry : m_als) {
+        const auto &al_mac = entry.first;
+        const auto &al     = entry.second;
+
+        if (current_time >= al.first_topology_query_deadline) {
+            topology_timeouts.push_back(al_mac);
+            continue; // we'll remove this AL, so don't care about anything else
+        }
+
+        if (current_time >= al.first_higher_layer_query_deadline) {
+            higher_layer_timeouts.push_back(al_mac);
+        }
+    }
+
+    for (const auto &al_mac : topology_timeouts) {
+        handle_topology_timeout(al_mac);
+    }
+
+    for (const auto &al_mac : higher_layer_timeouts) {
+        handle_higher_layer_timeout(al_mac);
+    }
 }
 
-bool ieee1905_task::handle_ieee1905_1_msg(const sMacAddr &, ieee1905_1::CmduMessageRx &)
+bool ieee1905_task::handle_ieee1905_1_msg(const sMacAddr &src_mac,
+                                          ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    // Skeleton: message handling is added in follow-up commits.
-    return false;
+    switch (cmdu_rx.getMessageType()) {
+    case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE:
+        return handle_topology_response(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE:
+        return handle_higher_layer_response(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE:
+        return handle_topology_notification(src_mac, cmdu_rx);
+    default:
+        return false;
+    }
 }
 
 void ieee1905_task::set_ieee1905_network_enabled(bool enabled)
 {
     if (!enabled) {
+        status_pending = {};
         database.ieee1905_network.reset();
+        m_als.clear();
         return;
     }
 
     if (!database.ieee1905_network) {
         database.ieee1905_network = std::make_unique<db::ieee1905_network_db>();
+        m_als.clear();
+        status_pending = single_shot_counter(1, [this]() { set_network_status("Available"); });
         set_network_status("Incomplete");
 
         if (!start_local_al_discovery()) {
@@ -94,9 +153,80 @@ bool ieee1905_task::set_network_status(const std::string &status)
 
 bool ieee1905_task::start_local_al_discovery()
 {
-    if (!query_sender->send_topology_query(database.get_local_bridge_mac(), cmdu_tx)) {
-        LOG(ERROR) << "Failed to send topology query to local bridge "
-                   << database.get_local_bridge_mac();
+    const auto &al_mac = database.get_local_bridge_mac();
+    auto &al           = m_als[al_mac];
+
+    al.info_pending = single_shot_counter(1, [this]() { status_pending.count_down(); });
+    al.topology_response_pending = single_shot_counter(1, [this, al_mac]() {
+        auto al_it = m_als.find(al_mac);
+        if (al_it == m_als.end()) {
+            return;
+        }
+        al_it->second.info_pending.count_down();
+    });
+
+    al.first_topology_query_deadline = now() + topology_response_timeout;
+    if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
+        LOG(ERROR) << "Failed to send topology query to " << al_mac;
+        return false;
+    }
+
+    return true;
+}
+
+bool ieee1905_task::start_remote_al_discovery(const sMacAddr &al_mac)
+{
+    auto &al = m_als[al_mac];
+    database.ieee1905_network->al[al_mac];
+    status_pending.count_up();
+
+    al.info_pending = single_shot_counter(2, [this, al_mac]() { complete_remote_al(al_mac); });
+    al.topology_response_pending     = single_shot_counter(1, [this, al_mac]() {
+        auto al_it = m_als.find(al_mac);
+        if (al_it == m_als.end()) {
+            return;
+        }
+        al_it->second.info_pending.count_down();
+    });
+    al.higher_layer_response_pending = single_shot_counter(1, [this, al_mac]() {
+        auto al_it = m_als.find(al_mac);
+        if (al_it == m_als.end()) {
+            return;
+        }
+        al_it->second.info_pending.count_down();
+    });
+
+    const auto start                     = now();
+    al.first_topology_query_deadline     = start + topology_response_timeout;
+    al.first_higher_layer_query_deadline = start + higher_layer_response_timeout;
+
+    bool ret = true;
+    if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
+        LOG(ERROR) << "Failed to send topology query to " << al_mac;
+        ret = false;
+    }
+
+    if (!query_sender->send_higher_layer_query(al_mac, cmdu_tx)) {
+        LOG(ERROR) << "Failed to send higher layer query to " << al_mac;
+        ret = false;
+    }
+
+    return ret;
+}
+
+bool ieee1905_task::materialize_local_al()
+{
+    const auto &al_mac = database.get_local_bridge_mac();
+
+    auto al_it = m_als.find(al_mac);
+    if (al_it == m_als.end()) {
+        return false;
+    }
+
+    auto &db_al            = database.ieee1905_network->al[al_mac];
+    db_al.version_is_1905a = true;
+    if (!ensure_al_in_dm(al_mac)) {
+        LOG(ERROR) << "Failed to materialize local AL " << al_mac << " in DM";
         return false;
     }
 
@@ -287,6 +417,139 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
     return ok;
 }
 
+void ieee1905_task::complete_remote_al(const sMacAddr &al_mac)
+{
+    auto db_al_it = database.ieee1905_network->al.find(al_mac);
+    if (db_al_it == database.ieee1905_network->al.end()) {
+        return;
+    }
+
+    if (!ensure_al_in_dm(al_mac)) {
+        LOG(ERROR) << "Failed to materialize AL " << al_mac << " in DM";
+    }
+
+    status_pending.count_down();
+}
+
+void ieee1905_task::handle_topology_timeout(const sMacAddr &al_mac)
+{
+    auto al_it = m_als.find(al_mac);
+    if (al_it == m_als.end()) {
+        return;
+    }
+
+    const auto &al = al_it->second;
+    if (al.first_topology_query_deadline == time_point::max()) {
+        return;
+    }
+
+    LOG(INFO) << "Topology response timed out for AL " << al_mac;
+
+    // this is extremely unlikely, but whatever, lets retry
+    if (al_mac == database.get_local_bridge_mac()) {
+        m_als.erase(al_it);
+        start_local_al_discovery();
+        return;
+    }
+
+    // Consider this remote AL discovery failed: drop only sidecar state.
+    // DB node is kept until orphan cleanup drops references to it.
+    if (al.info_pending) {
+        status_pending.count_down();
+    }
+    m_als.erase(al_it);
+    cleanup_orphan_als();
+}
+
+void ieee1905_task::handle_higher_layer_timeout(const sMacAddr &al_mac)
+{
+    auto al_it = m_als.find(al_mac);
+    if (al_it == m_als.end()) {
+        return;
+    }
+
+    auto &al = al_it->second;
+    if (al.first_higher_layer_query_deadline == time_point::max()) {
+        return;
+    }
+
+    LOG(INFO) << "Higher layer response timed out for AL " << al_mac;
+    al.first_higher_layer_query_deadline = time_point::max();
+    al.higher_layer_response_pending.count_down();
+}
+
+/**
+ * @brief Collect ALs reachable from the given root through outgoing IEEE1905 neighbor links.
+ *
+ * @param db_als      IEEE1905 AL database indexed by AL MAC.
+ * @param root_al_mac Root AL from which reachability is evaluated.
+ *
+ * @return Set of AL MACs reachable from @p root_al_mac, excluding @p root_al_mac itself.
+ */
+static auto reachable_from(const db::ieee1905_network_db::ALMap &db_als,
+                           const sMacAddr &root_al_mac)
+{
+    std::unordered_set<sMacAddr> reachable;
+    std::vector<sMacAddr> pending;
+
+    auto root_al_it = db_als.find(root_al_mac);
+    if (root_al_it == db_als.end()) {
+        return reachable;
+    }
+
+    pending.push_back(root_al_mac);
+
+    while (!pending.empty()) {
+        const auto al_mac = pending.back();
+        pending.pop_back();
+
+        auto al_it = db_als.find(al_mac);
+        if (al_it == db_als.end()) {
+            continue;
+        }
+
+        for (const auto &iface_entry : al_it->second.interfaces) {
+            for (const auto &neighbor_entry : iface_entry.second.ieee1905_neighbors) {
+                const auto &neighbor_al_mac = neighbor_entry.first;
+                if (reachable.insert(neighbor_al_mac).second) {
+                    pending.push_back(neighbor_al_mac);
+                }
+            }
+        }
+    }
+
+    return reachable;
+}
+
+void ieee1905_task::cleanup_orphan_als()
+{
+    if (!database.ieee1905_network) {
+        return;
+    }
+
+    auto &db_als             = database.ieee1905_network->al;
+    const auto local_al_mac  = database.get_local_bridge_mac();
+    const auto reachable_als = reachable_from(db_als, local_al_mac);
+
+    for (auto it = db_als.begin(); it != db_als.end();) {
+        if (it->first == local_al_mac || reachable_als.count(it->first) != 0) {
+            ++it;
+            continue;
+        }
+
+        LOG(DEBUG) << it->first << " is an orphan AL, removing";
+
+        auto al_it = m_als.find(it->first);
+        if (al_it != m_als.end()) {
+            if (al_it->second.info_pending) {
+                status_pending.count_down();
+            }
+            m_als.erase(al_it);
+        }
+        it = db_als.erase(it);
+    }
+}
+
 void ieee1905_task::handle_event(int event_type, void *obj)
 {
     if (event_type != IEEE1905_NETWORK_ENABLE_CHANGED) {
@@ -301,4 +564,243 @@ void ieee1905_task::handle_event(int event_type, void *obj)
     auto enabled = *static_cast<bool *>(obj);
     LOG(INFO) << IEEE1905_ROOT_DM << ".Network.Enable changed to " << enabled;
     set_ieee1905_network_enabled(enabled);
+}
+
+bool ieee1905_task::handle_topology_response(const sMacAddr &src_mac,
+                                             ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    if (!database.ieee1905_network) {
+        return true;
+    }
+
+    auto mid = cmdu_rx.getMessageId();
+    LOG(DEBUG) << "Received TOPOLOGY_RESPONSE_MESSAGE from " << src_mac << ", mid=" << std::hex
+               << mid;
+
+    auto tlv_device_information = cmdu_rx.getClass<ieee1905_1::tlvDeviceInformation>();
+    if (!tlv_device_information) {
+        LOG(ERROR) << "ieee1905_1::tlvDeviceInformation not found";
+        return false;
+    }
+
+    const auto &al_mac = tlv_device_information->mac();
+    auto al_it         = m_als.find(al_mac);
+    if (al_it == m_als.end()) {
+        LOG(WARNING) << "Unexpected topology response from AL " << al_mac << ", ignoring";
+        return false;
+    }
+    LOG(DEBUG) << "Topology response about AL " << al_mac;
+
+    auto &al    = al_it->second;
+    auto &db_al = database.ieee1905_network->al[al_mac];
+
+    const bool first_local_response = (al_mac == database.get_local_bridge_mac()) && !db_al.dm_path;
+    if (first_local_response) {
+        if (!materialize_local_al()) {
+            return false;
+        }
+
+        if (!query_sender->send_higher_layer_query(al_mac, cmdu_tx)) {
+            LOG(ERROR) << "Failed to send higher layer query to local " << al_mac;
+        }
+    }
+
+    using sInterface = db::ieee1905_network_db::sAL::sInterface;
+
+    // snapshot and (re)build interfaces
+    auto &ifs = db_al.interfaces;
+    decltype(db_al.interfaces) prev_ifs;
+    prev_ifs.swap(ifs);
+
+    for (int i = 0; i < tlv_device_information->local_interface_list_length(); i++) {
+        const auto iface_info = unwrap(tlv_device_information->local_interface_list(i));
+        if (!iface_info) {
+            LOG(ERROR) << "Failed to get " << i
+                       << " element of local iface info on Device Information TLV";
+            continue;
+        }
+
+        const auto &if_mac = iface_info->mac();
+        auto prev_iface_it = prev_ifs.find(if_mac);
+        if (prev_iface_it == prev_ifs.end()) {
+            prev_iface_it = prev_ifs.emplace(if_mac, sInterface{}).first;
+        }
+
+        auto &iface   = ifs[if_mac];
+        iface.dm_path = std::move(prev_iface_it->second.dm_path);
+        iface.links   = std::move(prev_iface_it->second.links);
+        iface.type    = iface_info->media_type();
+
+        if (iface_info->media_info_length() == sizeof(iface.spec)) {
+            std::memcpy(&iface.spec, iface_info->media_info(), sizeof(iface.spec));
+        }
+    }
+
+    // (re)build non-1905 neighbors
+    auto tlv_non_1905_neighbors = cmdu_rx.getClassList<ieee1905_1::tlvNon1905neighborDeviceList>();
+    for (const auto &tlv_non_1905_neighbor : tlv_non_1905_neighbors) {
+        if (!tlv_non_1905_neighbor) {
+            LOG(ERROR) << "ieee1905_1::tlvNon1905neighborDeviceList has invalid pointer";
+            continue;
+        }
+
+        const auto &if_mac = tlv_non_1905_neighbor->mac_local_iface();
+        auto iface_it      = ifs.find(if_mac);
+        if (iface_it == ifs.end()) {
+            LOG(WARNING) << "Non-1905 neighbor on interface " << if_mac
+                         << ", which is not in the list of interfaces, skipping";
+            continue;
+        }
+
+        auto &neighbors      = iface_it->second.non_1905_neighbors;
+        auto &prev_neighbors = prev_ifs[if_mac].non_1905_neighbors;
+
+        const auto count = tlv_non_1905_neighbor->mac_non_1905_device_length() / sizeof(sMacAddr);
+        for (size_t i = 0; i < count; ++i) {
+            const auto neighbor = unwrap(tlv_non_1905_neighbor->mac_non_1905_device(i));
+            if (!neighbor) {
+                LOG(ERROR) << "Failed to read non-1905 neighbor TLV entry";
+                continue;
+            }
+
+            const auto &neighbor_mac = *neighbor;
+            neighbors[neighbor_mac]  = std::move(prev_neighbors[neighbor_mac]);
+        }
+    }
+
+    using sNeighbor = db::ieee1905_network_db::sAL::sNeighbor;
+
+    // (re)build ieee1905 neigbors, gather new ALs
+    std::unordered_set<sMacAddr> seen_new_1905_neighbors;
+    std::vector<sMacAddr> new_1905_neighbors;
+    auto tlv_1905_neighbors = cmdu_rx.getClassList<ieee1905_1::tlv1905NeighborDevice>();
+    for (const auto &tlv_1905_neighbor : tlv_1905_neighbors) {
+        if (!tlv_1905_neighbor) {
+            LOG(ERROR) << "ieee1905_1::tlv1905NeighborDevice has invalid pointer";
+            continue;
+        }
+
+        const auto &if_mac = tlv_1905_neighbor->mac_local_iface();
+        auto iface_it      = ifs.find(if_mac);
+        if (iface_it == ifs.end()) {
+            LOG(WARNING) << "IEEE1905 neighbor on interface " << if_mac
+                         << ", which is not in the list of interfaces, skipping";
+            continue;
+        }
+
+        auto &neighbors      = iface_it->second.ieee1905_neighbors;
+        auto &prev_neighbors = prev_ifs[if_mac].ieee1905_neighbors;
+
+        const auto count = tlv_1905_neighbor->mac_al_1905_device_length() /
+                           sizeof(ieee1905_1::tlv1905NeighborDevice::sMacAl1905Device);
+        for (size_t i = 0; i < count; ++i) {
+            const auto neighbor = unwrap(tlv_1905_neighbor->mac_al_1905_device(i));
+            if (!neighbor) {
+                LOG(ERROR) << "Failed to read IEEE1905 neighbor TLV entry";
+                continue;
+            }
+
+            const auto &neighbor_al_mac = neighbor->mac;
+            if (m_als.find(neighbor_al_mac) == m_als.end() &&
+                seen_new_1905_neighbors.insert(neighbor_al_mac).second) {
+                new_1905_neighbors.push_back(neighbor_al_mac);
+            }
+
+            auto prev_neighbor_it = prev_neighbors.find(neighbor_al_mac);
+            if (prev_neighbor_it != prev_neighbors.end()) {
+                // move from prev to new
+                auto &prev_neighbor = prev_neighbor_it->second;
+                auto &db_neighbor =
+                    neighbors.emplace(neighbor_al_mac, std::move(prev_neighbor)).first->second;
+                db_neighbor.ieee802dot1_bridge =
+                    neighbor->bridges_exist ==
+                    ieee1905_1::tlv1905NeighborDevice::AT_LEAST_ONE_BRIDGES_EXIST;
+                continue;
+            }
+
+            auto &als = database.ieee1905_network->al;
+            auto ref  = sNeighbor::sRefHandle{als, neighbor_al_mac, {al_mac, if_mac}};
+            const auto ieee802dot1_bridge =
+                neighbor->bridges_exist ==
+                ieee1905_1::tlv1905NeighborDevice::AT_LEAST_ONE_BRIDGES_EXIST;
+            neighbors.emplace(neighbor_al_mac, sNeighbor{{}, ieee802dot1_bridge, std::move(ref)});
+        }
+    }
+
+    prev_ifs.clear(); // dereferences lost/moved ALs
+    cleanup_orphan_als();
+    for (const auto &neighbor_al_mac : new_1905_neighbors) {
+        LOG(DEBUG) << "Starting " << neighbor_al_mac << " AL discovery";
+        if (!start_remote_al_discovery(neighbor_al_mac)) {
+            LOG(ERROR) << "Failed to start discovery for neighbor AL " << neighbor_al_mac;
+        }
+    }
+
+    update_al_in_dm(al_mac);
+
+    al.first_topology_query_deadline = time_point::max();
+    al.topology_response_pending.count_down();
+
+    return true;
+}
+
+bool ieee1905_task::handle_higher_layer_response(const sMacAddr &src_mac,
+                                                 ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    if (!database.ieee1905_network) {
+        return false;
+    }
+
+    auto al_it = m_als.find(src_mac);
+    if (al_it == m_als.end()) {
+        LOG(WARNING) << "Higher layer response from unknown AL " << src_mac << ", ignoring";
+        return false;
+    }
+
+    auto &al = al_it->second;
+
+    al.first_higher_layer_query_deadline = time_point::max();
+    al.higher_layer_response_pending.count_down();
+
+    return true;
+}
+
+bool ieee1905_task::handle_topology_notification(const sMacAddr &src_mac,
+                                                 ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    if (!database.ieee1905_network) {
+        return false;
+    }
+
+    auto mid = cmdu_rx.getMessageId();
+    LOG(DEBUG) << "Received TOPOLOGY_NOTIFICATION_MESSAGE from " << src_mac << ", mid=" << std::hex
+               << mid;
+
+    auto tlv_al_mac = cmdu_rx.getClass<ieee1905_1::tlvAlMacAddress>();
+    if (!tlv_al_mac) {
+        LOG(ERROR) << "ieee1905_1::tlvAlMacAddress not found";
+        return false;
+    }
+
+    const auto &al_mac = tlv_al_mac->mac();
+
+    if (m_als.find(al_mac) == m_als.end()) {
+        LOG(WARNING) << "Topology notification from unknown AL " << al_mac << ", ignoring";
+        return false;
+    }
+
+    // this is a microoptimization to not to duplicate topology queries when we're sure we would
+    auto client_association_event_tlv = cmdu_rx.getClass<wfa_map::tlvClientAssociationEvent>();
+    if (!client_association_event_tlv && database.get_agent(al_mac)) {
+        LOG(DEBUG) << "Skipping topology query for known agent " << al_mac
+                   << " on topology notification without Client Association Event TLV";
+        return true;
+    }
+
+    if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
+        LOG(ERROR) << "Failed to send topology query to " << al_mac;
+        return false;
+    }
+
+    return true;
 }
