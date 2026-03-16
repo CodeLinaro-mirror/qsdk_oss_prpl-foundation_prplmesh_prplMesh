@@ -5,7 +5,6 @@
 
 from .prplmesh_base_test import PrplMeshBaseTest
 from boardfarm.exceptions import SkipTest
-from capi import tlv
 
 from opts import debug
 
@@ -53,12 +52,10 @@ class NbapiStaticPuncturing(PrplMeshBaseTest):
         controller.nbapi_set_parameters(ssid_nbapi_sec_path, {"ModeEnabled": "WPA2-Personal"})
         controller.nbapi_set_parameters(ssid_nbapi_sec_path, {"KeyPassphrase": "password"})
         controller.nbapi_command(de_network, "AccessPointCommit")
-        sleep(1)
+        sleep(5)
 
         # set 5GHz radio on 160MHz BW
-        chan_sel_payload = env.ChannelTlvs.CHANNEL_36_160.value
-        chan_sel_tlv = tlv(self.ieee1905['eTlvTypeMap']['TLV_CHANNEL_PREFERENCE'],
-                           '{} {}'.format(agent.radios[1].mac, chan_sel_payload))
+        ap_channel_switch_args = "{} 36 160 0 5250".format(agent.radios[1].mac)
 
         # bwl::dummy has a hardcoded list of possible channels
         # "36,40,44,48,52,56,60,64"
@@ -72,6 +69,7 @@ class NbapiStaticPuncturing(PrplMeshBaseTest):
             "001111": "36,40,44,48",
             "110000": "52,56",
         }
+        # not up to date with PPM-3836
 
         topology = self.get_topology()
         repeater = topology[agent.mac]
@@ -81,12 +79,16 @@ class NbapiStaticPuncturing(PrplMeshBaseTest):
 
         function_name = "SetEHTOperations"
         for input, result in expected_results.items():
-            # as seen in ChannelSelection test; 0x8006 is ChannelSelectionRequest
-            controller.dev_send_1905(agent.mac, 0x8006, chan_sel_tlv)
-            sleep(1)
 
+            # ap_channel_switch immediately triggers the OperatingChannelReport
+            controller.beerocks_cli_command('ap_channel_switch {}'.format(ap_channel_switch_args))
+            sleep(2)
+
+            # SetEHTOPerations Channel Selection Request (without channel switch)
+            # will result in agent channel_selection_task timeout and send OperatingChannelReport
+            # after 5500[ms]
             function_args = {"DisabledSubchannelBitmap": int(input, 2)}
             controller.nbapi_command_not_fail(bss.path, function_name, function_args)
+            sleep(6)
 
-            sleep(15)
             self.check_log(agent.radios[1], "disabling: {} exactly".format(result))
