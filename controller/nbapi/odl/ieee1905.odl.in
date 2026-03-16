@@ -524,3 +524,8 @@
     }
     @IEEE1905_ROOT_DM_Footer@
 }
+
+%populate {
+    on event "dm:object-changed" call event_ieee1905_network_enable_changed
+        filter 'object matches "^@IEEE1905_ROOT_DM_literal@\.Network\.$" && contains("parameters.Enable")';
+}
