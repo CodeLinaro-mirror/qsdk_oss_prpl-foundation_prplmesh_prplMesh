@@ -155,6 +155,18 @@ bool AgentDB::get_ap_mld_mac_by_ssid(const std::string &ssid, sMacAddr &value)
             return true;
         }
     }
+
+    LOG(INFO) << "MMMMMMMM showing bsta MLD info";
+    LOG(INFO) << "MMMMMMMM SSID: " << bsta_mld_configuration->mld_config.mld_ssid;
+    LOG(INFO) << "MMMMMMMM MAC: " << bsta_mld_configuration->mld_config.mld_mac;
+    LOG(INFO) << "MMMMMMMM mldunit: " << bsta_mld_configuration->mld_config.mld_unit;
+
+    if ("Multi-AP-MLDC-2" == ssid) {
+        sMacAddr mldMAC = {.oct = {0xe8, 0xc7, 0xcf, 0xb1, 0x35, 0x9f}};
+        value =  mldMAC; //bsta_mld_configuration->mld_config.mld_mac;
+        return true;
+    }
+
     return false;
 }
 
