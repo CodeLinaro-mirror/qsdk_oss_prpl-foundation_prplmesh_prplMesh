@@ -6,6 +6,11 @@ include:
 coverity:
   stage: quality
   image: "registry.gitlab.com/prpl-foundation/prplmesh/prplmesh/prplmesh-builder-ubuntu-bionic:latest"
+  cache:
+    key: coverity-binaries
+    paths:
+      - .bridge
+      - build
   tags:
     - coverity
     - docker
@@ -21,13 +26,13 @@ coverity:
     BRIDGE_COVERITY_LOCAL: true
     BRIDGE_BREAK: false
     MARK_BUILD_STATUS: 'success'
-    BRIDGE_COVERITY_CLEAN_COMMAND: ninja -C build -t clean
     BRIDGE_COVERITY_BUILD_COMMAND: ninja -C build
     BRIDGE_COVERITY_PRCOMMENT_ENABLED: 'true'
     BRIDGE_COVERITY_PRCOMMENT_IMPACTS: 'High,Medium,Low,Audit'
     INCLUDE_DIAGNOSTICS: $COVERITY_ENABLE_DIAGNOSTICS
   before_script:
     - apt update && apt install unzip -y
+    - find . -name CMakeLists.txt -print0 | xargs -0 sed -i 's/-DBEEROCKS_BUILD_DATE="[^"]*"/-DBEEROCKS_BUILD_DATE="FIXED_DATE"/g'
     - cmake -S . -B build -G Ninja
   extends: .run-black-duck-tools
   needs: []
