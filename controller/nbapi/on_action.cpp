@@ -1761,6 +1761,41 @@ static void event_network_enable_changed(const char *const sig_name, const amxc_
     access_point_commit(network_obj, nullptr, nullptr, nullptr);
 }
 
+/**
+ * @brief Event handler for IEEE1905 Network.Enable change.
+ */
+static void event_ieee1905_network_enable_changed(const char *const sig_name,
+                                                  const amxc_var_t *const data, void *const priv)
+{
+    if (!g_database) {
+        LOG(WARNING) << "Database is not initialized yet";
+        return;
+    }
+
+    auto *network_obj = amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+    if (!network_obj) {
+        LOG(WARNING) << "Failed to get object " << IEEE1905_ROOT_DM << ".Network.";
+        return;
+    }
+
+    amxd_status_t status;
+    const bool enabled = amxd_object_get_bool(network_obj, "Enable", &status);
+    if (status != amxd_status_ok) {
+        LOG(ERROR) << "Failed to get " << IEEE1905_ROOT_DM << ".Network.Enable";
+        return;
+    }
+
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        LOG(WARNING) << "Failed to get controller context.";
+        return;
+    }
+
+    if (!controller_ctx->handle_ieee1905_network_enable_changed(enabled)) {
+        LOG(WARNING) << "Failed to handle " << IEEE1905_ROOT_DM << ".Network.Enable change.";
+    }
+}
+
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
 {
     const std::vector<beerocks::nbapi::sActionsCallback> actions_list = {
@@ -1776,6 +1811,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
         {"event_traffic_separation_changed", event_traffic_separation_changed},
+        {"event_ieee1905_network_enable_changed", event_ieee1905_network_enable_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed}};
     return events_list;

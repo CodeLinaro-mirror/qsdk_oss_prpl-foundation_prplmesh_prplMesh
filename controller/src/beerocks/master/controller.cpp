@@ -17,6 +17,8 @@
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
+#include "tasks/ieee1905_query_sender_impl.h"
+#include "tasks/ieee1905_task.h"
 #include "tasks/load_balancer_task.h"
 #include "tasks/optimal_path_task.h"
 #include "tasks/service_prioritization_task.h"
@@ -371,6 +373,11 @@ void Controller::start_mandatory_tasks()
     LOG_IF(!m_task_pool.add_task(std::make_shared<bml_task>(database, cmdu_tx, m_task_pool)), FATAL)
         << "Failed adding BML task!";
 
+    LOG_IF(!m_task_pool.add_task(std::make_shared<ieee1905_task>(
+               database, cmdu_tx, std::make_unique<RealIEEE1905QuerySender>(database))),
+           FATAL)
+        << "Failed adding ieee1905 task!";
+
     LOG_IF(!m_task_pool.add_task(std::make_shared<topology_task>(database, cmdu_tx, m_task_pool)),
            FATAL)
         << "Failed adding topology task!";
@@ -456,6 +463,21 @@ void Controller::start_optional_tasks()
                                                   m_network_health_check_task_id,
                                                   "network_health_check_task");
     // database has no member network_health_check_task_id, so we are not setting it
+}
+
+bool Controller::handle_ieee1905_network_enable_changed(bool enabled)
+{
+    auto ieee1905_task_id = database.get_ieee1905_task_id();
+
+    if (ieee1905_task_id == db::TASK_ID_NOT_FOUND ||
+        !m_task_pool.is_task_running(ieee1905_task_id)) {
+        LOG(WARNING) << "IEEE1905 task is not running";
+        return false;
+    }
+
+    m_task_pool.push_event(ieee1905_task_id, ieee1905_task::IEEE1905_NETWORK_ENABLE_CHANGED,
+                           &enabled);
+    return true;
 }
 
 bool Controller::send_cmdu(int fd, ieee1905_1::CmduMessageTx &cmdu_tx)
@@ -633,6 +655,7 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
     // Empty cases are used to prevent error logs. Below message types are processed within tasks.
     case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE:
     case ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE:
+    case ieee1905_1::eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE:
     case ieee1905_1::eMessageType::LINK_METRIC_RESPONSE_MESSAGE:
     case ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE:
     case ieee1905_1::eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE:

@@ -6007,6 +6007,10 @@ bool db::assign_bml_task_id(int new_task_id)
 
 int db::get_bml_task_id() { return bml_task_id; }
 
+void db::assign_ieee1905_task_id(int new_task_id) { ieee1905_task_id = new_task_id; }
+
+int db::get_ieee1905_task_id() { return ieee1905_task_id; }
+
 bool db::assign_pre_association_steering_task_id(int new_task_id)
 {
     pre_association_steering_task_id = new_task_id;
