@@ -308,6 +308,7 @@ bool Controller::start()
             ieee1905_1::eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE,
             ieee1905_1::eMessageType::CLIENT_STEERING_BTM_REPORT_MESSAGE,
             ieee1905_1::eMessageType::HIGHER_LAYER_DATA_MESSAGE,
+            ieee1905_1::eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::LINK_METRIC_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::OPERATING_CHANNEL_REPORT_MESSAGE,
