@@ -440,6 +440,21 @@ TEST_F(IEEE1905TaskTest, topology_timeout_restarts_local_discovery)
     EXPECT_EQ("Incomplete", read_network_status());
 }
 
+TEST_F(IEEE1905TaskTest, periodic_topology_query_is_sent_after_interval_from_last_response)
+{
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+
+    clear_sent_queries();
+
+    advance_time(son::ieee1905_task::periodic_topology_requery_interval - std::chrono::seconds(1));
+    EXPECT_TRUE(m_query_sender->topology_queries.empty());
+
+    advance_time(std::chrono::seconds(1));
+    EXPECT_TRUE(topology_query_sent_to(m_local_al_mac));
+}
+
 TEST_F(IEEE1905TaskTest, topology_timeout_clears_remote_sidecar_without_removing_db_al)
 {
     const auto remote_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:35");
