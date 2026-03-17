@@ -239,14 +239,12 @@ void ChannelSelectionTask::handle_channel_preference_query(ieee1905_1::CmduMessa
 {
     const auto mid = cmdu_rx.getMessageId();
 
-    LOG(DEBUG) << "Received CHANNEL_PREFERENCE_QUERY_MESSAGE from " << src_mac
-               << " with mid=" << std::hex << mid;
+    LOG(DEBUG) << "Received CHANNEL_PREFERENCE_QUERY_MESSAGE from " << src_mac << " mid["
+               << std::hex << mid << "]";
 
     // Clear previous request, if any
     m_pending_preference.preference_ready.clear();
     m_pending_preference.mid = mid;
-
-    LOG(DEBUG) << "Received CHANNEL_PREFERENCE_QUERY_MESSAGE, mid=" << std::dec << int(mid);
 
     auto db = AgentDB::get();
 
@@ -334,8 +332,8 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
 {
     const auto mid = cmdu_rx.getMessageId();
 
-    LOG(DEBUG) << "Received CHANNEL_SELECTION_REQUEST for src_mac " << src_mac
-               << ", mid = " << std::hex << mid;
+    LOG(DEBUG) << "Received CHANNEL_SELECTION_REQUEST for src_mac " << src_mac << " mid["
+               << std::hex << mid << "]";
     if (m_pending_selection.mid) {
         LOG(ERROR) << "still handling previous CHANNEL_SELECTION_REQUEST from << " << src_mac
                    << " mid[" << std::hex << m_pending_selection.mid << "]";
@@ -357,7 +355,8 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
     // Handle EHT Operations TLV
     auto eht_ops_tlv = cmdu_rx.getClass<wfa_map::tlvEHTOperations>();
     if (!eht_ops_tlv) {
-        LOG(DEBUG) << "Channel selection request message cmdu mid=" << mid
+        LOG(DEBUG) << "Channel selection request message cmdu mid="
+                   << " mid[" << std::hex << m_pending_selection.mid << "]"
                    << " does not contain EHT Operation TLV";
     } else {
         if (!handle_eht_operation_tlv(*eht_ops_tlv)) {
@@ -498,7 +497,9 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
     }
 
     // Send response back to the sender.
-    LOG(DEBUG) << "Sending Channel-Selection-Response to broker";
+    LOG(DEBUG) << "Sending CHANNEL_SELECTION_RESPONSE mid[" << std::hex << m_pending_selection.mid
+               << "] to broker ";
+
     m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
 
     // Handle pending Outgoing requests.
@@ -1242,7 +1243,9 @@ bool ChannelSelectionTask::channel_preference_report_ready()
 bool ChannelSelectionTask::send_channel_preference_report()
 {
 
-    LOG(INFO) << "Building CHANNEL_PREFERENCE_REPORT_MESSAGE";
+    LOG(INFO) << "Building CHANNEL_PREFERENCE_REPORT_MESSAGE"
+              << " mid[" << std::hex << m_pending_preference.mid << "]";
+
     // build channel preference report with the same MID as the query
     auto cmdu_tx_header = m_cmdu_tx.create(
         m_pending_preference.mid, ieee1905_1::eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE);
@@ -2699,13 +2702,14 @@ void ChannelSelectionTask::send_operating_channel_report_if_ready()
     if (!ready && !timeout) {
         return;
     }
+
+    send_operating_channel_report(beerocks::net::network_utils::ZERO_MAC);
+
     // reset context
     m_pending_selection.mid = 0;
     for (auto it : m_pending_selection.requests) {
         it.second.chan_sel_state = eRadioChanSwitchState::INVALID;
     }
-
-    send_operating_channel_report(beerocks::net::network_utils::ZERO_MAC);
 }
 
 bool ChannelSelectionTask::send_operating_channel_report(const sMacAddr &radio_mac)
@@ -2723,7 +2727,8 @@ bool ChannelSelectionTask::send_operating_channel_report(const sMacAddr &radio_m
         for (const auto radio : db->get_radios_list()) {
             radio_list.push_back(radio->front.iface_mac);
         }
-        LOG(DEBUG) << "OPERATING_CHANNEL_REPORT message";
+        LOG(DEBUG) << "OPERATING_CHANNEL_REPORT message mid[" << std::hex << m_pending_selection.mid
+                   << "]";
     } else {
         LOG(DEBUG) << "unsolicited OPERATING_CHANNEL_REPORT message";
         radio_list.push_back(radio_mac);
