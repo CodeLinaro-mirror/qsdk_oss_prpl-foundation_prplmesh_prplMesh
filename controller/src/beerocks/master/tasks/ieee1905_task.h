@@ -27,6 +27,8 @@ public:
                                      ieee1905_1::CmduMessageTx &cmdu_tx)     = 0;
     virtual bool send_higher_layer_query(const sMacAddr &dest_mac,
                                          ieee1905_1::CmduMessageTx &cmdu_tx) = 0;
+    virtual bool send_link_metric_query(const sMacAddr &dest_mac,
+                                        ieee1905_1::CmduMessageTx &cmdu_tx)  = 0;
 };
 
 class ieee1905_task : public task {
@@ -42,6 +44,8 @@ public:
     static constexpr std::chrono::seconds topology_response_timeout{2};
     static constexpr std::chrono::seconds higher_layer_response_timeout{1};
     static constexpr std::chrono::seconds periodic_topology_requery_interval{30};
+    /** to not to interfere with link metric task: */
+    static constexpr std::chrono::seconds link_metric_response_requery_delay_guard{1};
 
     ieee1905_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                   std::unique_ptr<IEEE1905QuerySender> query_sender, now_f now = steady_clock::now);
@@ -65,7 +69,8 @@ protected:
         single_shot_counter higher_layer_response_pending;
 
         // in case Topology Notification/Response was lost
-        time_point next_periodic_topology_query_deadline = time_point::max();
+        time_point next_periodic_topology_query_deadline    = time_point::max();
+        time_point next_periodic_link_metric_query_deadline = time_point::min();
     };
 
     void work() override;

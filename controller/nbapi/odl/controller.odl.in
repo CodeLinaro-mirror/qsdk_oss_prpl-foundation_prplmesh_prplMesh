@@ -177,7 +177,7 @@
                         default 200;
                     }
 
-                    /* Interval for periodic link metrics requests from all agents (set to 0 to disable). */
+                    /* Interval for periodic link metrics requests from all agents and 1905 devices (set to 0 to disable). */
                     %persistent uint32 LinkMetricsRequestIntervalSec {
                         default 60;
                     }
