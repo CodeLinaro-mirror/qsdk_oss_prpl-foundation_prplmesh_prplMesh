@@ -1557,7 +1557,9 @@ static void adjust_security_mode_for_agent(std::shared_ptr<Agent> agent,
 bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
                                                         ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE";
+    const auto mid = cmdu_rx.getMessageId();
+
+    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE mid[" << std::hex << mid << "]";
     auto tlvWsc = cmdu_rx.getClass<ieee1905_1::tlvWsc>();
     if (!tlvWsc) {
         LOG(ERROR) << "getClass<ieee1905_1::tlvWsc> failed";
@@ -2637,8 +2639,10 @@ bool Controller::handle_cmdu_1905_operating_channel_report(const sMacAddr &src_m
 
                 // In case of a non Intel Slave the radio wifi channel is not added at
                 // AP-Autoconfiguration reception.
+                std::ostringstream debug_string;
+                debug_string << "operating_channel_report mid[" << std::hex << mid << "]";
                 if (!database.set_radio_wifi_channel(ruid, final_wifi_channel,
-                                                     "operating_channel_report")) {
+                                                     debug_string.str())) {
                     LOG(ERROR) << "Set node wifi channel failed, mac=" << ruid;
                 }
             } else {
