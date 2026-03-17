@@ -11,8 +11,15 @@
 #include "on_action.h"
 
 #include <bcl/beerocks_event_loop_impl.h>
+#include <bcl/network/network_utils.h>
 #include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
+#include <tlvf/ieee_1905_1/tlv1905ProfileVersion.h>
+#include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
+#include <tlvf/ieee_1905_1/tlvControlUrl.h>
+#include <tlvf/ieee_1905_1/tlvDeviceIdentification.h>
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
+#include <tlvf/ieee_1905_1/tlvIpv4.h>
+#include <tlvf/ieee_1905_1/tlvIpv6.h>
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
 
 #include <ambiorix_impl.h>
@@ -20,16 +27,27 @@
 
 #include <gtest/gtest.h>
 
+#include <arpa/inet.h>
+
 #include <algorithm>
+#include <array>
 #include <deque>
 #include <unordered_map>
 #include <vector>
+
+using net_utils = beerocks::net::network_utils;
 
 namespace {
 
 template <typename Tuple> auto unwrap(Tuple &&result)
 {
     return std::get<0>(result) ? &std::get<1>(result) : nullptr;
+}
+
+static uint32_t ipv4_to_u32(const beerocks::net::sIpv4Addr &ipv4)
+{
+    return (static_cast<uint32_t>(ipv4.oct[0]) << 24) | (static_cast<uint32_t>(ipv4.oct[1]) << 16) |
+           (static_cast<uint32_t>(ipv4.oct[2]) << 8) | static_cast<uint32_t>(ipv4.oct[3]);
 }
 struct FakeIEEE1905QuerySender : son::IEEE1905QuerySender {
     bool send_topology_query(const sMacAddr &dest_mac, ieee1905_1::CmduMessageTx &) override
@@ -63,6 +81,32 @@ protected:
         std::vector<sMacAddr> interfaces;
         std::unordered_map<sMacAddr, std::vector<sMacAddr>> ieee1905_neighbors;
         std::unordered_map<sMacAddr, std::vector<sMacAddr>> non_1905_neighbors;
+    };
+
+    struct sHigherLayerResponsePacket {
+        struct sIPv4Address {
+            sMacAddr mac;
+            beerocks::net::sIpv4Addr address     = {};
+            ieee1905_1::eIpv4AddressType type    = ieee1905_1::eIpv4AddressType::UNKNOWN;
+            beerocks::net::sIpv4Addr dhcp_server = {};
+        };
+
+        struct sIPv6Address {
+            sMacAddr mac;
+            std::string address;
+            ieee1905_1::eIpv6AddressType type = ieee1905_1::eIpv6AddressType::UNKNOWN;
+            std::string origin;
+        };
+
+        std::string friendly_name;
+        std::string manufacturer_name;
+        std::string manufacturer_model;
+        std::string control_url;
+        std::vector<sIPv4Address> ipv4_addresses;
+        std::vector<sIPv6Address> ipv6_addresses;
+        bool set_profile_version = false;
+        ieee1905_1::e1905ProfileVersion profile_version =
+            ieee1905_1::e1905ProfileVersion::IEEE_1905_1;
     };
 
     void SetUp() override
@@ -223,10 +267,149 @@ protected:
         return cmdu_rx.parse();
     }
 
-    bool build_higher_layer_response_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
+    bool build_higher_layer_response_cmdu(const sMacAddr &al_mac,
+                                          ieee1905_1::CmduMessageRx &cmdu_rx)
+    {
+        return build_higher_layer_response_cmdu(al_mac, cmdu_rx, sHigherLayerResponsePacket{});
+    }
+
+    bool build_higher_layer_response_cmdu(const sMacAddr &al_mac,
+                                          ieee1905_1::CmduMessageRx &cmdu_rx,
+                                          const sHigherLayerResponsePacket &packet)
     {
         if (!m_cmdu_tx->create(0, ieee1905_1::eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE)) {
             return false;
+        }
+
+        auto tlv_al_mac = m_cmdu_tx->addClass<ieee1905_1::tlvAlMacAddress>();
+        if (!tlv_al_mac) {
+            return false;
+        }
+        tlv_al_mac->mac() = al_mac;
+
+        if (packet.set_profile_version) {
+            auto profile_tlv = m_cmdu_tx->addClass<ieee1905_1::tlv1905ProfileVersion>();
+            if (!profile_tlv) {
+                return false;
+            }
+            profile_tlv->version() = packet.profile_version;
+        }
+
+        if (!packet.friendly_name.empty() || !packet.manufacturer_name.empty() ||
+            !packet.manufacturer_model.empty()) {
+            auto device_id_tlv = m_cmdu_tx->addClass<ieee1905_1::tlvDeviceIdentification>();
+            if (!device_id_tlv) {
+                return false;
+            }
+
+            constexpr size_t kDeviceIdentificationStringSize                        = 64;
+            std::array<uint8_t, kDeviceIdentificationStringSize> friendly_name      = {};
+            std::array<uint8_t, kDeviceIdentificationStringSize> manufacturer_name  = {};
+            std::array<uint8_t, kDeviceIdentificationStringSize> manufacturer_model = {};
+
+            std::copy_n(packet.friendly_name.begin(),
+                        std::min(packet.friendly_name.size(), friendly_name.size()),
+                        friendly_name.begin());
+            std::copy_n(packet.manufacturer_name.begin(),
+                        std::min(packet.manufacturer_name.size(), manufacturer_name.size()),
+                        manufacturer_name.begin());
+            std::copy_n(packet.manufacturer_model.begin(),
+                        std::min(packet.manufacturer_model.size(), manufacturer_model.size()),
+                        manufacturer_model.begin());
+
+            if (!device_id_tlv->set_friendly_name(friendly_name.data(), friendly_name.size())) {
+                return false;
+            }
+            if (!device_id_tlv->set_manufacturer_name(manufacturer_name.data(),
+                                                      manufacturer_name.size())) {
+                return false;
+            }
+            if (!device_id_tlv->set_manufacturer_model(manufacturer_model.data(),
+                                                       manufacturer_model.size())) {
+                return false;
+            }
+        }
+
+        for (const auto &ipv4_address : packet.ipv4_addresses) {
+            auto ipv4_tlv = m_cmdu_tx->addClass<ieee1905_1::tlvIpv4>();
+            if (!ipv4_tlv) {
+                return false;
+            }
+
+            auto ipv4_iface = ipv4_tlv->create_ipv4_interfaces_list();
+            if (!ipv4_iface) {
+                return false;
+            }
+
+            ipv4_iface->mac_address() = ipv4_address.mac;
+            if (!ipv4_iface->alloc_ipv4_address_entries(1)) {
+                return false;
+            }
+
+            auto ipv4_entry = unwrap(ipv4_iface->ipv4_address_entries(0));
+            if (!ipv4_entry) {
+                return false;
+            }
+
+            ipv4_entry->ipv4_address_type = ipv4_address.type;
+            ipv4_entry->ipv4_address      = ipv4_to_u32(ipv4_address.address);
+            ipv4_entry->ipv4_dhcp_server  = ipv4_to_u32(ipv4_address.dhcp_server);
+
+            if (!ipv4_tlv->add_ipv4_interfaces_list(ipv4_iface)) {
+                return false;
+            }
+        }
+
+        for (const auto &ipv6_address : packet.ipv6_addresses) {
+            auto ipv6_tlv = m_cmdu_tx->addClass<ieee1905_1::tlvIpv6>();
+            if (!ipv6_tlv) {
+                return false;
+            }
+
+            auto ipv6_iface = ipv6_tlv->create_ipv6_interfaces_list();
+            if (!ipv6_iface) {
+                return false;
+            }
+
+            ipv6_iface->mac_address() = ipv6_address.mac;
+
+            constexpr uint8_t kEmptyIpv6LinkLocal[16] = {};
+            if (!ipv6_iface->set_ipv6_link_local_address(kEmptyIpv6LinkLocal,
+                                                         sizeof(kEmptyIpv6LinkLocal))) {
+                return false;
+            }
+            if (!ipv6_iface->alloc_ipv6_address_entries(1)) {
+                return false;
+            }
+
+            auto ipv6_entry = unwrap(ipv6_iface->ipv6_address_entries(0));
+            if (!ipv6_entry) {
+                return false;
+            }
+
+            ipv6_entry->ipv6_address_type = ipv6_address.type;
+            if (inet_pton(AF_INET6, ipv6_address.address.c_str(), ipv6_entry->ipv6_address) != 1) {
+                return false;
+            }
+            if (inet_pton(AF_INET6, ipv6_address.origin.c_str(), ipv6_entry->ipv6_address_origin) !=
+                1) {
+                return false;
+            }
+
+            if (!ipv6_tlv->add_ipv6_interfaces_list(ipv6_iface)) {
+                return false;
+            }
+        }
+
+        if (!packet.control_url.empty()) {
+            auto control_url_tlv = m_cmdu_tx->addClass<ieee1905_1::tlvControlUrl>();
+            if (!control_url_tlv) {
+                return false;
+            }
+            if (!control_url_tlv->set_control_url(packet.control_url.data(),
+                                                  packet.control_url.size())) {
+                return false;
+            }
         }
 
         if (!m_cmdu_tx->finalize()) {
@@ -425,6 +608,95 @@ TEST_F(IEEE1905TaskTest, ensure_al_in_dm_updates_existing_ieee1905_device_refs)
                                            "IEEE1905DeviceRef"));
 }
 
+TEST_F(IEEE1905TaskTest, higher_layer_response_materializes_identification_and_ip_addresses)
+{
+    const auto remote_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:26");
+
+    sTopologyResponsePacket local_packet;
+    local_packet.ieee1905_neighbors[m_local_al_mac] = {remote_al_mac};
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx, local_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+
+    ieee1905_1::CmduMessageRx remote_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(remote_al_mac, remote_topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(remote_al_mac, remote_topology_rx));
+
+    sHigherLayerResponsePacket higher_layer_packet;
+    higher_layer_packet.set_profile_version = true;
+    higher_layer_packet.profile_version     = ieee1905_1::e1905ProfileVersion::IEEE_1905_1_A;
+    higher_layer_packet.friendly_name       = u8"Контроллер πрплМеш";
+    higher_layer_packet.manufacturer_name   = u8"Inango";
+    higher_layer_packet.manufacturer_model  = u8"Модель-1";
+    higher_layer_packet.control_url         = "https://example.com/control";
+    higher_layer_packet.ipv4_addresses.push_back(
+        {remote_al_mac, net_utils::ipv4_from_string("192.168.10.2"),
+         ieee1905_1::eIpv4AddressType::DHCP, net_utils::ipv4_from_string("192.168.10.1")});
+    higher_layer_packet.ipv6_addresses.push_back(
+        {remote_al_mac, "2001:db8::2", ieee1905_1::eIpv6AddressType::SLAAC, "2001:db8::1"});
+
+    ieee1905_1::CmduMessageRx higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(
+        build_higher_layer_response_cmdu(remote_al_mac, higher_layer_rx, higher_layer_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(remote_al_mac, higher_layer_rx));
+
+    const auto &db_al = m_database->ieee1905_network->al.at(remote_al_mac);
+    ASSERT_TRUE(db_al.dm_path);
+
+    EXPECT_EQ("1905.1a", read_al_param(remote_al_mac, "Version"));
+    EXPECT_EQ(higher_layer_packet.friendly_name, read_al_param(remote_al_mac, "FriendlyName"));
+    EXPECT_EQ(higher_layer_packet.manufacturer_name,
+              read_al_param(remote_al_mac, "ManufacturerName"));
+    EXPECT_EQ(higher_layer_packet.manufacturer_model,
+              read_al_param(remote_al_mac, "ManufacturerModel"));
+    EXPECT_EQ(higher_layer_packet.control_url, read_al_param(remote_al_mac, "ControlURL"));
+
+    auto ipv4_addr = net_utils::ipv4_from_string("192.168.10.2");
+    auto ipv4_it   = db_al.ipv4_addresses.find({remote_al_mac, ipv4_addr});
+    ASSERT_NE(ipv4_it, db_al.ipv4_addresses.end());
+    EXPECT_EQ(ieee1905_1::eIpv4AddressType::DHCP, ipv4_it->second.type);
+    EXPECT_EQ(net_utils::ipv4_from_string("192.168.10.1"), ipv4_it->second.dhcp_server);
+    std::string ipv4_value;
+    EXPECT_TRUE(m_ambiorix->read_param(ipv4_it->second.dm_path.path, "IPv4Address", &ipv4_value));
+    EXPECT_EQ("192.168.10.2", ipv4_value);
+
+    auto ipv6_it = db_al.ipv6_addresses.find({remote_al_mac, "2001:db8::2"});
+    ASSERT_NE(ipv6_it, db_al.ipv6_addresses.end());
+    EXPECT_EQ(ieee1905_1::eIpv6AddressType::SLAAC, ipv6_it->second.type);
+    EXPECT_EQ("2001:db8::1", ipv6_it->second.origin);
+    std::string ipv6_value;
+    EXPECT_TRUE(m_ambiorix->read_param(ipv6_it->second.dm_path.path, "IPv6Address", &ipv6_value));
+    EXPECT_EQ("2001:db8::2", ipv6_value);
+}
+
+TEST_F(IEEE1905TaskTest, higher_layer_response_serializes_ipv4_in_network_byte_order)
+{
+    const auto remote_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:26");
+
+    sHigherLayerResponsePacket higher_layer_packet;
+    higher_layer_packet.ipv4_addresses.push_back(
+        {remote_al_mac, net_utils::ipv4_from_string("192.168.10.2"),
+         ieee1905_1::eIpv4AddressType::DHCP, net_utils::ipv4_from_string("192.168.10.1")});
+
+    ieee1905_1::CmduMessageRx higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(
+        build_higher_layer_response_cmdu(remote_al_mac, higher_layer_rx, higher_layer_packet));
+
+    const std::array<uint8_t, 16> expected_ipv4_tlv_payload = {
+        0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x26, // iface_mac
+        0x01,                               // ipv4_entry_cnt
+        0x01,                               // eIpv4AddressType::DHCP
+        0xc0, 0xa8, 0x0a, 0x02,             // 192.168.10.2
+        0xc0, 0xa8, 0x0a, 0x01,             // 192.168.10.1
+    };
+
+    const auto *payload_begin = m_tx_buffer;
+    const auto *payload_end   = m_tx_buffer + m_cmdu_tx->getMessageLength();
+    const auto it = std::search(payload_begin, payload_end, expected_ipv4_tlv_payload.begin(),
+                                expected_ipv4_tlv_payload.end());
+    EXPECT_NE(payload_end, it);
+}
+
 TEST_F(IEEE1905TaskTest, topology_timeout_restarts_local_discovery)
 {
     EXPECT_TRUE(topology_query_sent_to(m_local_al_mac));
@@ -501,11 +773,11 @@ TEST_F(IEEE1905TaskTest, topology_response_removes_orphan_chain_local_mac1_mac2)
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(mac2_al_mac, mac2_topology_rx));
 
     ieee1905_1::CmduMessageRx mac1_higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
-    ASSERT_TRUE(build_higher_layer_response_cmdu(mac1_higher_layer_rx));
+    ASSERT_TRUE(build_higher_layer_response_cmdu(mac1_al_mac, mac1_higher_layer_rx));
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(mac1_al_mac, mac1_higher_layer_rx));
 
     ieee1905_1::CmduMessageRx mac2_higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
-    ASSERT_TRUE(build_higher_layer_response_cmdu(mac2_higher_layer_rx));
+    ASSERT_TRUE(build_higher_layer_response_cmdu(mac2_al_mac, mac2_higher_layer_rx));
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(mac2_al_mac, mac2_higher_layer_rx));
 
     ASSERT_EQ(1, m_database->ieee1905_network->al.count(mac1_al_mac));
@@ -592,7 +864,7 @@ TEST_F(IEEE1905TaskTest, orphan_cleanup_does_not_complete_status_for_already_com
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(mac1_al_mac, mac1_topology_rx));
 
     ieee1905_1::CmduMessageRx mac1_higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
-    ASSERT_TRUE(build_higher_layer_response_cmdu(mac1_higher_layer_rx));
+    ASSERT_TRUE(build_higher_layer_response_cmdu(mac1_al_mac, mac1_higher_layer_rx));
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(mac1_al_mac, mac1_higher_layer_rx));
 
     ASSERT_EQ("Incomplete", read_network_status());
@@ -692,7 +964,7 @@ TEST_F(IEEE1905TaskTest, topology_response_move_ieee1905_neighbor_between_interf
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(n1_al_mac, n1_topology_on_if1));
 
     ieee1905_1::CmduMessageRx n1_higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
-    ASSERT_TRUE(build_higher_layer_response_cmdu(n1_higher_layer_rx));
+    ASSERT_TRUE(build_higher_layer_response_cmdu(n1_al_mac, n1_higher_layer_rx));
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(n1_al_mac, n1_higher_layer_rx));
 
     auto &n1_db = m_database->ieee1905_network->al[n1_al_mac];
@@ -741,7 +1013,7 @@ TEST_F(IEEE1905TaskTest, topology_response_moves_neighbor_between_non_1905_and_i
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(n1_al_mac, n1_non_1905_topology_rx));
 
     ieee1905_1::CmduMessageRx n1_higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
-    ASSERT_TRUE(build_higher_layer_response_cmdu(n1_higher_layer_rx));
+    ASSERT_TRUE(build_higher_layer_response_cmdu(n1_al_mac, n1_higher_layer_rx));
     ASSERT_TRUE(m_task->handle_ieee1905_1_msg(n1_al_mac, n1_higher_layer_rx));
 
     auto &n1_db = m_database->ieee1905_network->al[n1_al_mac];
