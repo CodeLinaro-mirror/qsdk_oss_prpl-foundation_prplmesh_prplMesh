@@ -8,18 +8,28 @@
 
 #include "ieee1905_task.h"
 
+#include <bcl/network/network_utils.h>
 #include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
+#include <tlvf/ieee_1905_1/tlv1905ProfileVersion.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
+#include <tlvf/ieee_1905_1/tlvControlUrl.h>
+#include <tlvf/ieee_1905_1/tlvDeviceIdentification.h>
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
+#include <tlvf/ieee_1905_1/tlvIpv4.h>
+#include <tlvf/ieee_1905_1/tlvIpv6.h>
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
 #include <tlvf/wfa_map/tlvClientAssociationEvent.h>
 
 #include <easylogging++.h>
 
+#include <arpa/inet.h>
+
 #include <cstring>
 #include <unordered_set>
 
 using namespace son;
+
+using net_utils = beerocks::net::network_utils;
 
 constexpr std::chrono::seconds ieee1905_task::topology_response_timeout;
 constexpr std::chrono::seconds ieee1905_task::higher_layer_response_timeout;
@@ -43,6 +53,82 @@ static std::string add_device_prefix(const std::string &path)
     }
 
     return device_prefix + path;
+}
+
+static std::string fixed_utf8_string(const uint8_t *data, size_t len)
+{
+    if (!data) {
+        return {};
+    }
+
+    while (len > 0 && data[len - 1] == '\0') {
+        --len;
+    }
+
+    return std::string(reinterpret_cast<const char *>(data), len);
+}
+
+static std::string ipv6_to_string(const uint8_t *ipv6)
+{
+    if (!ipv6) {
+        return {};
+    }
+
+    char out[INET6_ADDRSTRLEN] = {};
+    if (!inet_ntop(AF_INET6, ipv6, out, sizeof(out))) {
+        return {};
+    }
+
+    return out;
+}
+
+static auto ipv4_from_u32(uint32_t ipv4)
+{
+    beerocks::net::sIpv4Addr addr = {};
+
+    addr.oct[0] = (ipv4 >> 24) & 0xFF;
+    addr.oct[1] = (ipv4 >> 16) & 0xFF;
+    addr.oct[2] = (ipv4 >> 8) & 0xFF;
+    addr.oct[3] = ipv4 & 0xFF;
+
+    return addr;
+}
+
+static const char *ipv4_address_type_to_dm_string(ieee1905_1::eIpv4AddressType type)
+{
+    switch (type) {
+    case ieee1905_1::eIpv4AddressType::UNKNOWN:
+        return "Unknown";
+    case ieee1905_1::eIpv4AddressType::DHCP:
+        return "DHCP";
+    case ieee1905_1::eIpv4AddressType::STATIC:
+        return "Static";
+    case ieee1905_1::eIpv4AddressType::AUTO_IP:
+        return "Auto-IP";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char *ipv6_address_type_to_dm_string(ieee1905_1::eIpv6AddressType type,
+                                                  const std::string &address)
+{
+    // Detect link-local by fe80::/10 prefix (inet_ntop always produces lowercase)
+    if (address.compare(0, 4, "fe80") == 0) {
+        return "LinkLocal";
+    }
+    switch (type) {
+    case ieee1905_1::eIpv6AddressType::UNKNOWN:
+        return "Unknown";
+    case ieee1905_1::eIpv6AddressType::DHCP:
+        return "DHCP";
+    case ieee1905_1::eIpv6AddressType::STATIC:
+        return "Static";
+    case ieee1905_1::eIpv6AddressType::SLAAC:
+        return "SLAAC";
+    default:
+        return "Unknown";
+    }
 }
 
 ieee1905_task::ieee1905_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
@@ -336,6 +422,43 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
     ok &= al.dm_path.set("ManufacturerName", al.manufacturer_name);
     ok &= al.dm_path.set("ManufacturerModel", al.manufacturer_model);
     ok &= al.dm_path.set("ControlURL", al.control_url);
+
+    for (auto &ipv4_entry : al.ipv4_addresses) {
+        const auto &key = ipv4_entry.first;
+        auto &ipv4      = ipv4_entry.second;
+
+        if (!ipv4.dm_path) {
+            ipv4.dm_path = al.dm_path.add_instance(".IPv4Address");
+            if (!ipv4.dm_path) {
+                ok = false;
+                continue;
+            }
+        }
+
+        ok &= ipv4.dm_path.set("MACAddress", key.mac);
+        ok &= ipv4.dm_path.set("IPv4Address", net_utils::ipv4_to_string(key.address));
+        ok &= ipv4.dm_path.set("IPv4AddressType", ipv4_address_type_to_dm_string(ipv4.type));
+        ok &= ipv4.dm_path.set("DHCPServer", net_utils::ipv4_to_string(ipv4.dhcp_server));
+    }
+
+    for (auto &ipv6_entry : al.ipv6_addresses) {
+        const auto &key = ipv6_entry.first;
+        auto &ipv6      = ipv6_entry.second;
+
+        if (!ipv6.dm_path) {
+            ipv6.dm_path = al.dm_path.add_instance(".IPv6Address");
+            if (!ipv6.dm_path) {
+                ok = false;
+                continue;
+            }
+        }
+
+        ok &= ipv6.dm_path.set("MACAddress", key.mac);
+        ok &= ipv6.dm_path.set("IPv6Address", key.address);
+        ok &= ipv6.dm_path.set("IPv6AddressType",
+                               ipv6_address_type_to_dm_string(ipv6.type, key.address));
+        ok &= ipv6.dm_path.set("IPv6AddressOrigin", ipv6.origin);
+    }
 
     for (auto &iface_entry : al.interfaces) {
         const auto &if_mac = iface_entry.first;
@@ -767,11 +890,130 @@ bool ieee1905_task::handle_higher_layer_response(const sMacAddr &src_mac,
         return false;
     }
 
-    auto al_it = m_als.find(src_mac);
-    if (al_it == m_als.end()) {
-        LOG(WARNING) << "Higher layer response from unknown AL " << src_mac << ", ignoring";
+    auto mid = cmdu_rx.getMessageId();
+    LOG(DEBUG) << "Received HIGHER_LAYER_RESPONSE_MESSAGE from " << src_mac << ", mid=" << std::hex
+               << mid;
+
+    auto tlv_al_mac = cmdu_rx.getClass<ieee1905_1::tlvAlMacAddress>();
+    if (!tlv_al_mac) {
+        LOG(ERROR) << "ieee1905_1::tlvAlMacAddress not found";
         return false;
     }
+
+    auto al_mac = tlv_al_mac->mac();
+    auto al_it  = m_als.find(al_mac);
+    if (al_it == m_als.end()) {
+        LOG(WARNING) << "Higher layer response from unknown AL " << al_mac << ", ignoring";
+        return false;
+    }
+    LOG(DEBUG) << "Higher layer response about AL " << al_mac;
+
+    using sAL      = db::ieee1905_network_db::sAL;
+    using sIPv4Key = sAL::sIPv4Address::sKey;
+    using sIPv6Key = sAL::sIPv6Address::sKey;
+
+    constexpr size_t kDeviceIdStringSize = 64;
+
+    auto &db_al = database.ieee1905_network->al[al_mac];
+
+    if (auto tlv_profile_version = cmdu_rx.getClass<ieee1905_1::tlv1905ProfileVersion>()) {
+        db_al.version_is_1905a =
+            tlv_profile_version->version() == ieee1905_1::e1905ProfileVersion::IEEE_1905_1_A;
+    }
+
+    if (auto tlv_device_identification = cmdu_rx.getClass<ieee1905_1::tlvDeviceIdentification>()) {
+        db_al.friendly_name =
+            fixed_utf8_string(tlv_device_identification->friendly_name(), kDeviceIdStringSize);
+        db_al.manufacturer_name =
+            fixed_utf8_string(tlv_device_identification->manufacturer_name(), kDeviceIdStringSize);
+        db_al.manufacturer_model =
+            fixed_utf8_string(tlv_device_identification->manufacturer_model(), kDeviceIdStringSize);
+    }
+
+    if (auto tlv_control_url = cmdu_rx.getClass<ieee1905_1::tlvControlUrl>()) {
+        db_al.control_url =
+            fixed_utf8_string(tlv_control_url->control_url(), tlv_control_url->length());
+    }
+
+    // snapshot and (re)build
+    decltype(db_al.ipv4_addresses) prev_ipv4_addresses;
+    prev_ipv4_addresses.swap(db_al.ipv4_addresses);
+
+    auto tlv_ipv4_list = cmdu_rx.getClassList<ieee1905_1::tlvIpv4>();
+    for (const auto &tlv_ipv4 : tlv_ipv4_list) {
+        if (!tlv_ipv4) {
+            LOG(ERROR) << "ieee1905_1::tlvIpv4 has invalid pointer";
+            continue;
+        }
+
+        for (int i = 0; i < tlv_ipv4->number_of_entries(); ++i) {
+            auto iface_block = unwrap(tlv_ipv4->ipv4_interfaces_list(i));
+            if (!iface_block) {
+                LOG(ERROR) << "Failed to read IPv4 interface block #" << i;
+                continue;
+            }
+
+            const auto &mac = iface_block->mac_address();
+            for (int j = 0; j < iface_block->number_of_ipv4_addresses(); ++j) {
+                auto ipv4_entry = unwrap(iface_block->ipv4_address_entries(j));
+                if (!ipv4_entry) {
+                    LOG(ERROR) << "Failed to read IPv4 address entry #" << j;
+                    continue;
+                }
+
+                sIPv4Key key{mac, ipv4_from_u32(ipv4_entry->ipv4_address)};
+                auto prev_ipv4_it = prev_ipv4_addresses.find(key);
+                auto &db_ipv4     = db_al.ipv4_addresses[key];
+                if (prev_ipv4_it != prev_ipv4_addresses.end()) {
+                    db_ipv4.dm_path = std::move(prev_ipv4_it->second.dm_path);
+                }
+                db_ipv4.type        = ipv4_entry->ipv4_address_type;
+                db_ipv4.dhcp_server = ipv4_from_u32(ipv4_entry->ipv4_dhcp_server);
+            }
+        }
+    }
+    prev_ipv4_addresses.clear();
+
+    decltype(db_al.ipv6_addresses) prev_ipv6_addresses;
+    prev_ipv6_addresses.swap(db_al.ipv6_addresses);
+
+    auto tlv_ipv6_list = cmdu_rx.getClassList<ieee1905_1::tlvIpv6>();
+    for (const auto &tlv_ipv6 : tlv_ipv6_list) {
+        if (!tlv_ipv6) {
+            LOG(ERROR) << "ieee1905_1::tlvIpv6 has invalid pointer";
+            continue;
+        }
+
+        for (int i = 0; i < tlv_ipv6->number_of_entries(); ++i) {
+            auto iface_block = unwrap(tlv_ipv6->ipv6_interfaces_list(i));
+            if (!iface_block) {
+                LOG(ERROR) << "Failed to read IPv6 interface block #" << i;
+                continue;
+            }
+
+            const auto &mac = iface_block->mac_address();
+            for (int j = 0; j < iface_block->number_of_ipv6_addresses(); ++j) {
+                auto ipv6_entry = unwrap(iface_block->ipv6_address_entries(j));
+                if (!ipv6_entry) {
+                    LOG(ERROR) << "Failed to read IPv6 address entry #" << j;
+                    continue;
+                }
+
+                const auto ipv6_address_string = ipv6_to_string(ipv6_entry->ipv6_address);
+                sIPv6Key key{mac, ipv6_address_string};
+                auto prev_ipv6_it = prev_ipv6_addresses.find(key);
+                auto &db_ipv6     = db_al.ipv6_addresses[key];
+                if (prev_ipv6_it != prev_ipv6_addresses.end()) {
+                    db_ipv6.dm_path = std::move(prev_ipv6_it->second.dm_path);
+                }
+                db_ipv6.type   = ipv6_entry->ipv6_address_type;
+                db_ipv6.origin = ipv6_to_string(ipv6_entry->ipv6_address_origin);
+            }
+        }
+    }
+    prev_ipv6_addresses.clear();
+
+    update_al_in_dm(al_mac);
 
     auto &al = al_it->second;
 
