@@ -30,6 +30,12 @@ bool AccessPortPlumbing8021q::apply(const sTrafficSeparationConfig &cfg)
         return false;
     }
 
+    if (!network_utils::linux_iface_exists(m_access_port.iface_name)) {
+        LOG(WARNING) << "skip VLAN filter, iface=" << m_access_port.iface_name << " does not exist";
+        m_is_applied = false;
+        return true;
+    }
+
     if (m_is_applied) {
         LOG(TRACE) << "iface=" << m_access_port.iface_name << " already applied";
         return true;
