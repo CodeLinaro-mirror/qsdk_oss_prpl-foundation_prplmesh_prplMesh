@@ -90,6 +90,7 @@ protected:
     void cleanup_orphan_als();
 
     bool handle_higher_layer_response(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool handle_link_metric_response(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_topology_response(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_topology_notification(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
 

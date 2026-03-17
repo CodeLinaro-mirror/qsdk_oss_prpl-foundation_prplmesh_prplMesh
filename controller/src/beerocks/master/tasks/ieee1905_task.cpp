@@ -207,6 +207,8 @@ bool ieee1905_task::handle_ieee1905_1_msg(const sMacAddr &src_mac,
         return handle_topology_response(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE:
         return handle_higher_layer_response(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::LINK_METRIC_RESPONSE_MESSAGE:
+        return handle_link_metric_response(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE:
         return handle_topology_notification(src_mac, cmdu_rx);
     default:
@@ -1021,6 +1023,178 @@ bool ieee1905_task::handle_higher_layer_response(const sMacAddr &src_mac,
 
     al.first_higher_layer_query_deadline = time_point::max();
     al.higher_layer_response_pending.count_down();
+
+    return true;
+}
+
+bool ieee1905_task::handle_link_metric_response(const sMacAddr &src_mac,
+                                                ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    if (!database.ieee1905_network) {
+        return false;
+    }
+
+    auto mid = cmdu_rx.getMessageId();
+    LOG(DEBUG) << "Received LINK_METRIC_RESPONSE_MESSAGE from " << src_mac << ", mid=" << std::hex
+               << mid;
+
+    auto tx_link_metrics = cmdu_rx.getClassList<ieee1905_1::tlvTransmitterLinkMetric>();
+    auto rx_link_metrics = cmdu_rx.getClassList<ieee1905_1::tlvReceiverLinkMetric>();
+
+    sMacAddr reporting_agent_al_mac    = beerocks::net::network_utils::ZERO_MAC;
+    auto update_reporting_agent_al_mac = [&](const sMacAddr &reporter_al_mac,
+                                             const char *metric_type) {
+        if (reporter_al_mac == beerocks::net::network_utils::ZERO_MAC) {
+            LOG(ERROR) << metric_type << " link metric reporter AL is zero";
+            return false;
+        }
+
+        if (reporting_agent_al_mac != beerocks::net::network_utils::ZERO_MAC &&
+            reporting_agent_al_mac != reporter_al_mac) {
+            LOG(ERROR) << metric_type << " link metric reporter AL mismatch: expected "
+                       << reporting_agent_al_mac << " got " << reporter_al_mac;
+            return false;
+        }
+
+        reporting_agent_al_mac = reporter_al_mac;
+        return true;
+    };
+
+    for (const auto &tx_link_metric : tx_link_metrics) {
+        if (!tx_link_metric) {
+            LOG(ERROR) << "ieee1905_1::tlvTransmitterLinkMetric has invalid pointer";
+            continue;
+        }
+
+        if (!update_reporting_agent_al_mac(tx_link_metric->reporter_al_mac(), "TX")) {
+            return false;
+        }
+    }
+
+    for (const auto &rx_link_metric : rx_link_metrics) {
+        if (!rx_link_metric) {
+            LOG(ERROR) << "ieee1905_1::tlvReceiverLinkMetric has invalid pointer";
+            continue;
+        }
+
+        if (!update_reporting_agent_al_mac(rx_link_metric->reporter_al_mac(), "RX")) {
+            return false;
+        }
+    }
+
+    if (reporting_agent_al_mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Link metric response without valid reporter AL, ignoring";
+        return false;
+    }
+
+    auto al_it = m_als.find(reporting_agent_al_mac);
+    if (al_it == m_als.end()) {
+        LOG(WARNING) << "Link metric response from unexpected AL " << reporting_agent_al_mac
+                     << ", ignoring";
+        return false;
+    }
+
+    using sAL      = db::ieee1905_network_db::sAL;
+    using sRef     = sAL::sRef;
+    using sLink    = sAL::sInterface::sLink;
+    using LinksMap = decltype(sAL::sInterface::links);
+
+    auto &db_al = database.ieee1905_network->al[reporting_agent_al_mac];
+    std::unordered_map<sMacAddr, LinksMap> new_links;
+
+    auto get_or_create_link = [&](const sMacAddr &rc_if_mac, const sRef &link_ref) -> sLink * {
+        auto iface_it = db_al.interfaces.find(rc_if_mac);
+        if (iface_it == db_al.interfaces.end()) {
+            LOG(WARNING) << "Link metric on unknown interface " << rc_if_mac << ", skipping";
+            return nullptr;
+        }
+
+        auto &links  = new_links[rc_if_mac];
+        auto link_it = links.find(link_ref);
+        if (link_it != links.end()) {
+            return &link_it->second;
+        }
+
+        auto inserted = links.emplace(link_ref, sLink{});
+        auto &link    = inserted.first->second;
+
+        auto prev_link_it = iface_it->second.links.find(link_ref);
+        if (prev_link_it != iface_it->second.links.end()) {
+            link.dm_path = std::move(prev_link_it->second.dm_path);
+        }
+
+        return &link;
+    };
+
+    bool has_link_metric = false;
+
+    for (const auto &tx_link_metric : tx_link_metrics) {
+        if (!tx_link_metric) {
+            LOG(ERROR) << "ieee1905_1::tlvTransmitterLinkMetric has invalid pointer";
+            continue;
+        }
+
+        const auto count = tx_link_metric->interface_pair_info_length() /
+                           sizeof(ieee1905_1::tlvTransmitterLinkMetric::sInterfacePairInfo);
+        for (size_t i = 0; i < count; ++i) {
+            auto pair_info = unwrap(tx_link_metric->interface_pair_info(i));
+            if (!pair_info) {
+                LOG(ERROR) << "Failed to read TX link metric pair #" << i;
+                continue;
+            }
+
+            sRef link_ref{tx_link_metric->neighbor_al_mac(), pair_info->neighbor_interface_mac};
+            auto link = get_or_create_link(pair_info->rc_interface_mac, link_ref);
+            if (!link) {
+                continue;
+            }
+
+            link->tx_link_metric = pair_info->link_metric_info;
+            has_link_metric      = true;
+        }
+    }
+
+    for (const auto &rx_link_metric : rx_link_metrics) {
+        if (!rx_link_metric) {
+            LOG(ERROR) << "ieee1905_1::tlvReceiverLinkMetric has invalid pointer";
+            continue;
+        }
+
+        const auto count = rx_link_metric->interface_pair_info_length() /
+                           sizeof(ieee1905_1::tlvReceiverLinkMetric::sInterfacePairInfo);
+        for (size_t i = 0; i < count; ++i) {
+            auto pair_info = unwrap(rx_link_metric->interface_pair_info(i));
+            if (!pair_info) {
+                LOG(ERROR) << "Failed to read RX link metric pair #" << i;
+                continue;
+            }
+
+            sRef link_ref{rx_link_metric->neighbor_al_mac(), pair_info->neighbor_interface_mac};
+            auto *link = get_or_create_link(pair_info->rc_interface_mac, link_ref);
+            if (!link) {
+                continue;
+            }
+
+            link->rx_link_metric = pair_info->link_metric_info;
+            has_link_metric      = true;
+        }
+    }
+
+    if (!has_link_metric) {
+        return true;
+    }
+
+    for (auto &iface_entry : db_al.interfaces) {
+        auto new_iface_links_it = new_links.find(iface_entry.first);
+        if (new_iface_links_it == new_links.end()) {
+            iface_entry.second.links.clear();
+            continue;
+        }
+
+        iface_entry.second.links.swap(new_iface_links_it->second);
+    }
+
+    update_al_in_dm(reporting_agent_al_mac);
 
     return true;
 }
