@@ -23,6 +23,7 @@ using namespace son;
 
 constexpr std::chrono::seconds ieee1905_task::topology_response_timeout;
 constexpr std::chrono::seconds ieee1905_task::higher_layer_response_timeout;
+constexpr std::chrono::seconds ieee1905_task::periodic_topology_requery_interval;
 
 template <typename Tuple> static auto unwrap(Tuple &&result)
 {
@@ -96,6 +97,20 @@ void ieee1905_task::work()
 
     for (const auto &al_mac : higher_layer_timeouts) {
         handle_higher_layer_timeout(al_mac);
+    }
+
+    // periodic (re-)queries
+    for (auto &entry : m_als) {
+        const auto &al_mac = entry.first;
+        auto &al           = entry.second;
+
+        if (current_time >= al.next_periodic_topology_query_deadline) {
+            if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
+                LOG(ERROR) << "Failed to send periodic topology query to " << al_mac;
+            }
+            al.next_periodic_topology_query_deadline =
+                current_time + periodic_topology_requery_interval;
+        }
     }
 }
 
@@ -741,6 +756,7 @@ bool ieee1905_task::handle_topology_response(const sMacAddr &src_mac,
 
     al.first_topology_query_deadline = time_point::max();
     al.topology_response_pending.count_down();
+    al.next_periodic_topology_query_deadline = now() + periodic_topology_requery_interval;
 
     return true;
 }
