@@ -549,7 +549,7 @@ public:
             struct sIPv4Address {
                 sDmPath dm_path;
                 ieee1905_1::eIpv4AddressType type;
-                std::string dhcp_server;
+                beerocks::net::sIpv4Addr dhcp_server = {};
 
                 struct sKey {
                     sMacAddr mac;
