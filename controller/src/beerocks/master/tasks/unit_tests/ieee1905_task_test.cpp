@@ -64,8 +64,15 @@ struct FakeIEEE1905QuerySender : son::IEEE1905QuerySender {
         return true;
     }
 
+    bool send_link_metric_query(const sMacAddr &dest_mac, ieee1905_1::CmduMessageTx &) override
+    {
+        link_metric_queries.push_back(dest_mac);
+        return true;
+    }
+
     std::deque<sMacAddr> topology_queries;
     std::deque<sMacAddr> higher_layer_queries;
+    std::deque<sMacAddr> link_metric_queries;
 };
 
 class TestableIEEE1905Task : public son::ieee1905_task {
@@ -498,10 +505,18 @@ protected:
                            [&](const sMacAddr &mac) { return mac == al_mac; });
     }
 
+    bool link_metric_query_sent_to(const sMacAddr &al_mac) const
+    {
+        return std::any_of(m_query_sender->link_metric_queries.begin(),
+                           m_query_sender->link_metric_queries.end(),
+                           [&](const sMacAddr &mac) { return mac == al_mac; });
+    }
+
     void clear_sent_queries()
     {
         m_query_sender->topology_queries.clear();
         m_query_sender->higher_layer_queries.clear();
+        m_query_sender->link_metric_queries.clear();
     }
 
     std::string read_al_param(const sMacAddr &al_mac, const std::string &param)
@@ -571,7 +586,7 @@ protected:
     }
 
     beerocks::config_file::SConfigLog m_log_conf{};
-    son::db::sDbMasterConfig m_master_conf;
+    son::db::sDbMasterConfig m_master_conf{};
     std::shared_ptr<beerocks::nbapi::Amxrt> m_amxrt;
     std::shared_ptr<beerocks::EventLoopImpl> m_event_loop;
     std::shared_ptr<beerocks::nbapi::AmbiorixImpl> m_ambiorix;
@@ -1002,6 +1017,92 @@ TEST_F(IEEE1905TaskTest, periodic_topology_query_is_sent_after_interval_from_las
 
     advance_time(std::chrono::seconds(1));
     EXPECT_TRUE(topology_query_sent_to(m_local_al_mac));
+}
+
+TEST_F(IEEE1905TaskTest, periodic_link_metric_query_is_sent_immediately_and_then_rearmed)
+{
+    const auto interval = std::chrono::seconds(5);
+
+    m_database->config.link_metrics_request_interval_seconds = interval;
+
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+
+    clear_sent_queries();
+
+    // With min() sentinel, the first periodic query is emitted on first work() tick.
+    advance_time(std::chrono::seconds(1));
+    EXPECT_TRUE(link_metric_query_sent_to(m_local_al_mac));
+
+    clear_sent_queries();
+
+    advance_time(interval + son::ieee1905_task::link_metric_response_requery_delay_guard -
+                 std::chrono::seconds(1));
+    EXPECT_TRUE(m_query_sender->link_metric_queries.empty());
+
+    advance_time(std::chrono::seconds(1));
+    EXPECT_TRUE(link_metric_query_sent_to(m_local_al_mac));
+}
+TEST_F(IEEE1905TaskTest, link_metric_response_delays_next_periodic_query_with_guard)
+{
+    const auto interval        = std::chrono::seconds(5);
+    const auto local_if_mac    = tlvf::mac_from_string("11:22:33:44:55:77");
+    const auto neighbor_if_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:77");
+
+    m_database->config.link_metrics_request_interval_seconds = interval;
+
+    sTopologyResponsePacket local_packet;
+    local_packet.interfaces = {local_if_mac};
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx, local_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+
+    clear_sent_queries();
+
+    advance_time(interval);
+    EXPECT_TRUE(link_metric_query_sent_to(m_local_al_mac));
+
+    ieee1905_1::tlvTransmitterLinkMetric::sInterfacePairInfo tx_pair = {
+        .rc_interface_mac       = local_if_mac,
+        .neighbor_interface_mac = neighbor_if_mac,
+        .link_metric_info =
+            {
+                .intfType = ieee1905_1::IEEE_802_11AX,
+                .IEEE802_1BridgeFlag =
+                    ieee1905_1::tlvTransmitterLinkMetric::LINK_DOES_INCLUDE_ONE_OR_MORE_BRIDGE,
+                .packet_errors           = 1,
+                .transmitted_packets     = 2,
+                .mac_throughput_capacity = 3,
+                .link_availability       = 4,
+                .phy_rate                = 5,
+            },
+    };
+
+    ieee1905_1::tlvReceiverLinkMetric::sInterfacePairInfo rx_pair = {
+        .rc_interface_mac       = local_if_mac,
+        .neighbor_interface_mac = neighbor_if_mac,
+        .link_metric_info =
+            {
+                .intfType         = ieee1905_1::IEEE_802_11AX,
+                .packet_errors    = 6,
+                .packets_received = 7,
+                .rssi_db          = 8,
+            },
+    };
+
+    ieee1905_1::CmduMessageRx link_metric_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_link_metric_response_cmdu(link_metric_rx, m_local_al_mac, m_local_al_mac,
+                                                {tx_pair}, {rx_pair}));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, link_metric_rx));
+
+    clear_sent_queries();
+
+    advance_time(interval);
+    EXPECT_TRUE(m_query_sender->link_metric_queries.empty());
+
+    advance_time(son::ieee1905_task::link_metric_response_requery_delay_guard);
+    EXPECT_TRUE(link_metric_query_sent_to(m_local_al_mac));
 }
 
 TEST_F(IEEE1905TaskTest, topology_timeout_clears_remote_sidecar_without_removing_db_al)

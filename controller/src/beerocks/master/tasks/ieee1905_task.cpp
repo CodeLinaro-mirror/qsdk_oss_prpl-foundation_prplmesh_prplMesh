@@ -34,6 +34,7 @@ using net_utils = beerocks::net::network_utils;
 constexpr std::chrono::seconds ieee1905_task::topology_response_timeout;
 constexpr std::chrono::seconds ieee1905_task::higher_layer_response_timeout;
 constexpr std::chrono::seconds ieee1905_task::periodic_topology_requery_interval;
+constexpr std::chrono::seconds ieee1905_task::link_metric_response_requery_delay_guard;
 
 template <typename Tuple> static auto unwrap(Tuple &&result)
 {
@@ -196,6 +197,17 @@ void ieee1905_task::work()
             }
             al.next_periodic_topology_query_deadline =
                 current_time + periodic_topology_requery_interval;
+        }
+
+        const auto lmq_interval = database.config.link_metrics_request_interval_seconds;
+        if (lmq_interval == std::chrono::seconds::zero()) {
+            al.next_periodic_link_metric_query_deadline = time_point::min();
+        } else if (current_time >= al.next_periodic_link_metric_query_deadline) {
+            if (!query_sender->send_link_metric_query(al_mac, cmdu_tx)) {
+                LOG(ERROR) << "Failed to send periodic link metric query to " << al_mac;
+            }
+            al.next_periodic_link_metric_query_deadline =
+                current_time + lmq_interval + link_metric_response_requery_delay_guard;
         }
     }
 }
@@ -1091,6 +1103,10 @@ bool ieee1905_task::handle_link_metric_response(const sMacAddr &src_mac,
                      << ", ignoring";
         return false;
     }
+
+    const auto lmq_interval = database.config.link_metrics_request_interval_seconds;
+    al_it->second.next_periodic_link_metric_query_deadline =
+        now() + lmq_interval + link_metric_response_requery_delay_guard;
 
     using sAL      = db::ieee1905_network_db::sAL;
     using sRef     = sAL::sRef;
