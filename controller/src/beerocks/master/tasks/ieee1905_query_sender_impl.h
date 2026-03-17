@@ -20,6 +20,8 @@ public:
     bool send_topology_query(const sMacAddr &dest_mac, ieee1905_1::CmduMessageTx &cmdu_tx) override;
     bool send_higher_layer_query(const sMacAddr &dest_mac,
                                  ieee1905_1::CmduMessageTx &cmdu_tx) override;
+    bool send_link_metric_query(const sMacAddr &dest_mac,
+                                ieee1905_1::CmduMessageTx &cmdu_tx) override;
 
 private:
     db &database;
