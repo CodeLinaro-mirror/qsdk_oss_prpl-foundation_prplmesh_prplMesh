@@ -284,28 +284,29 @@ bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
     mld_info_config.emlsr = true;
     mld_info_config.emlmr = true;
 
-    std::string apmld_path;
-    m_ambiorix_cl.resolve_path(wbapi_utils::search_path_apmld_by_mldid(mld_id), apmld_path);
-    if (apmld_path.empty()) {
-        LOG(ERROR) << "Failed to resolve path of APMLD with MLDID of " << (int)mld_id
+    std::string apmld_config_path =
+        wbapi_utils::search_path_apmld_by_mldid(mld_id) + "APMLDConfig.";
+    AmbiorixVariantSmartPtr apmld_config_obj = m_ambiorix_cl.get_object(apmld_config_path);
+    if (!apmld_config_obj) {
+        LOG(ERROR) << "Failed to get APMLDConfig of APMLD object with MLDID of " << (int)mld_id
                    << ", using default values instead";
         return true;
     }
 
-    if (!m_ambiorix_cl.get_param(mld_info_config.str, apmld_path, "APMLDConfig.STREnabled")) {
-        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.STREnabled";
+    if (!apmld_config_obj->read_child(mld_info_config.str, "STREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_config_path << "STREnabled";
     }
 
-    if (!m_ambiorix_cl.get_param(mld_info_config.nstr, apmld_path, "APMLDConfig.NSTREnabled")) {
-        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.NSTREnabled";
+    if (!apmld_config_obj->read_child(mld_info_config.nstr, "NSTREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_config_path << "NSTREnabled";
     }
 
-    if (!m_ambiorix_cl.get_param(mld_info_config.emlsr, apmld_path, "APMLDConfig.EMLSREnabled")) {
-        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.EMLSREnabled";
+    if (!apmld_config_obj->read_child(mld_info_config.emlsr, "EMLSREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_config_path << "EMLSREnabled";
     }
 
-    if (!m_ambiorix_cl.get_param(mld_info_config.emlmr, apmld_path, "APMLDConfig.EMLMREnabled")) {
-        LOG(ERROR) << "Failed to read " << apmld_path << "APMLDConfig.EMLMREnabled";
+    if (!apmld_config_obj->read_child(mld_info_config.emlmr, "EMLMREnabled")) {
+        LOG(ERROR) << "Failed to read " << apmld_config_path << "EMLMREnabled";
     }
 
     return true;
