@@ -1210,13 +1210,6 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                 }
             }
 
-            auto sta_it = m_stations.find(mac_addr);
-            if (sta_it == m_stations.end()) {
-                m_stations.insert(
-                    std::make_pair(mac_addr, sStationInfo(associated_device_pwhm.first)));
-            } else {
-                sta_it->second.path = associated_device_pwhm.first; //enforce the path
-            }
             LOG(DEBUG) << "Pushing STA_Connected event for MAC: " << msg->params.mac
                        << ", BSSID: " << msg->params.bssid
                        << ", is_mlo: " << int(msg->params.is_mlo)
@@ -1584,6 +1577,28 @@ bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta
     return true;
 }
 
+bool ap_wlan_hal_whm::send_wds_iface_notification(const std::string &sta_mac, const sMacAddr &bssid,
+                                                  int8_t vap_id, const std::string &wds_iface_name)
+{
+    auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_APMANAGER_WDS_IFACE_NOTIFICATION));
+    auto msg      = reinterpret_cast<sACTION_APMANAGER_WDS_IFACE_NOTIFICATION *>(msg_buff.get());
+    LOG_IF(!msg, FATAL) << "Memory allocation failed!";
+
+    memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_WDS_IFACE_NOTIFICATION));
+
+    msg->params.mac    = tlvf::mac_from_string(sta_mac);
+    msg->params.bssid  = bssid;
+    msg->params.vap_id = vap_id;
+    beerocks::string_utils::copy_string(msg->params.wds_iface_name, wds_iface_name.c_str(),
+                                        beerocks::message::IFACE_NAME_LENGTH);
+
+    LOG(DEBUG) << "Pushing WDS iface notification for MAC: " << msg->params.mac
+               << ", BSSID: " << msg->params.bssid << ", iface: " << msg->params.wds_iface_name;
+    event_queue_push(Event::STA_WDS_Iface_Ready, msg_buff);
+
+    return true;
+}
+
 bool ap_wlan_hal_whm::process_sta_connected_event(
     const std::string &interface, const std::string &sta_mac, const std::string &key,
     const AmbiorixVariant *value, const std::string &sta_path, const std::string &vap_path)
@@ -1592,6 +1607,11 @@ bool ap_wlan_hal_whm::process_sta_connected_event(
     LOG(DEBUG) << "Processing STA connected event - interface: " << interface << ", STA MAC: "
                << sta_mac << ", key: " << key << ", vap_path: " << vap_path
                << ", sta_path: " << sta_path;
+
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "Invalid vap_id for interface " << interface;
+        return true;
+    }
 
     if (key == "AuthenticationState") {
         bool connected = value->get<bool>();
@@ -1707,11 +1727,23 @@ bool ap_wlan_hal_whm::process_sta_connected_event(
                     }
                 }
             }
+
             LOG(DEBUG) << "Pushing STA_Connected event for MAC: " << msg->params.mac
                        << ", BSSID: " << msg->params.bssid
                        << ", is_mlo: " << int(msg->params.is_mlo)
                        << ", num_affiliated: " << int(msg->params.num_affiliated_sta);
             event_queue_push(Event::STA_Connected, msg_buff);
+        }
+    } else if (key == "WdsInterfaceName") {
+        const auto bssid          = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
+        const auto wds_iface_name = value->get<std::string>();
+
+        if (wds_iface_name.empty()) {
+            return true;
+        }
+
+        if (!send_wds_iface_notification(sta_mac, bssid, vap_id, wds_iface_name)) {
+            LOG(ERROR) << "Failed sending WDS iface notification for " << sta_mac;
         }
     }
     return true;

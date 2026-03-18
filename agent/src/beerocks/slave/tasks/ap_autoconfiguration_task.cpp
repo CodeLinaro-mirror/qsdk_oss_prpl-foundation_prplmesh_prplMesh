@@ -491,12 +491,6 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         work();
         break;
     }
-    case APPLY_CONFIG_FOR_NEW_IFACE: {
-        LOG(DEBUG) << "Trigger traffic separation on APPLY_CONFIG_FOR_NEW_IFACE";
-        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                           TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
-        break;
-    }
     default: {
         LOG(DEBUG) << "Message handler doesn't exists for event type " << event_enum_value;
         break;

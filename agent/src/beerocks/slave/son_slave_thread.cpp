@@ -2586,6 +2586,72 @@ bool slave_thread::process_client_association(
     }
 }
 
+bool slave_thread::handle_client_wds_iface_notification(
+    const std::shared_ptr<beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>
+        notification_in)
+{
+    if (!notification_in) {
+        LOG(ERROR) << "Invalid notification pointer";
+        return false;
+    }
+
+    auto db = AgentDB::get();
+
+    const auto &client_mac           = notification_in->mac();
+    const auto &bssid                = notification_in->bssid();
+    const std::string wds_iface_name = notification_in->wds_iface_name_str();
+
+    if (wds_iface_name.empty()) {
+        LOG(DEBUG) << "Ignoring empty WDS iface notification for " << client_mac;
+        return true;
+    }
+
+    auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+    if (!radio) {
+        LOG(DEBUG) << "Ignoring stale WDS iface notification, bssid not found: " << bssid;
+        return true;
+    }
+
+    const auto bss_it = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
+                                     [&](const auto &bss) { return bss.mac == bssid; });
+    if (bss_it == radio->front.bssids.end() || !bss_it->backhaul_bss) {
+        LOG(DEBUG) << "Ignoring WDS iface notification for non-backhaul bssid " << bssid;
+        return true;
+    }
+
+    auto client_it = radio->associated_clients.find(client_mac);
+    if (client_it == radio->associated_clients.end()) {
+        LOG(DEBUG) << "Ignoring stale WDS iface notification for " << client_mac
+                   << ", client is not associated anymore";
+        return true;
+    }
+
+    auto &client = client_it->second;
+    if (client.bssid != bssid) {
+        LOG(DEBUG) << "Ignoring stale WDS iface notification for " << client_mac
+                   << ", bssid=" << bssid << ", db_bssid=" << client.bssid;
+        return true;
+    }
+
+    if (client.wds_iface_name == wds_iface_name) {
+        return true;
+    }
+
+    // If we have different WDS iface now (it changed because of reassoc or some driver-specific behavior)
+    if (!client.wds_iface_name.empty()) {
+        task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                 TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                 client.wds_iface_name.c_str());
+    }
+
+    client.wds_iface_name = wds_iface_name;
+    task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                             TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                             client.wds_iface_name.c_str());
+
+    return true;
+}
+
 bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_iface, int fd,
                                                   ieee1905_1::CmduMessageRx &cmdu_rx,
                                                   std::shared_ptr<beerocks_header> beerocks_header)
@@ -3017,27 +3083,20 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         auto &bssid      = notification_in->params().bssid;
         LOG(INFO) << "client disconnected sta_mac=" << client_mac << " from bssid=" << bssid;
 
-        auto db                      = AgentDB::get();
-        auto radio                   = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
-        bool reconcile_ts_sta_ifaces = false;
-
+        // If exists, remove client association information for disconnected client.
+        auto db    = AgentDB::get();
+        auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
         if (radio) {
-            for (const auto &bss : radio->front.bssids) {
-                if (bss.mac == bssid && bss.backhaul_bss) {
-                    reconcile_ts_sta_ifaces = true;
-                    break;
-                }
+            auto client_it = radio->associated_clients.find(client_mac);
+            if (client_it != radio->associated_clients.end() && client_it->second.bssid == bssid &&
+                !client_it->second.wds_iface_name.empty()) {
+                const auto &wds_iface_name = client_it->second.wds_iface_name;
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                         wds_iface_name.c_str());
             }
         }
-
-        // If exists, remove client association information for disconnected client.
         db->erase_client(client_mac, bssid);
-
-        if (reconcile_ts_sta_ifaces) {
-            LOG(DEBUG) << "Trigger traffic separation WDS clear on backhaul-BSS disconnect";
-            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                     TrafficSeparationTask::eEvent::TS_CLEAR_BH_STA_IFACE);
-        }
 
         // notify master
         if (!link_to_controller()) {
@@ -3366,13 +3425,6 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             break;
         }
 
-        for (auto &bss : radio->front.bssids) {
-            if (bss.mac == bssid && bss.backhaul_bss) {
-                m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
-                                       ApAutoConfigurationTask::eEvent::APPLY_CONFIG_FOR_NEW_IFACE);
-            }
-        }
-
         if (!process_client_association(notification_in)) {
             LOG(WARNING) << "Failed to process client association for " << client_mac;
         }
@@ -3426,6 +3478,27 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             vs_tlv->capabilities() = notification_in->capabilities();
         }
         send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
+
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_WDS_IFACE_NOTIFICATION: {
+        auto notification_in =
+            beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>();
+        if (!notification_in) {
+            LOG(ERROR) << "addClass cACTION_APMANAGER_WDS_IFACE_NOTIFICATION "
+                          "failed";
+            return false;
+        }
+
+        LOG(TRACE) << "received ACTION_APMANAGER_WDS_IFACE_NOTIFICATION";
+        LOG(INFO) << "WDS iface ready sta_mac=" << notification_in->mac()
+                  << " bssid=" << notification_in->bssid()
+                  << " iface=" << notification_in->wds_iface_name_str();
+
+        if (!handle_client_wds_iface_notification(notification_in)) {
+            LOG(WARNING) << "Failed to process WDS iface notification for "
+                         << notification_in->mac();
+        }
 
         break;
     }

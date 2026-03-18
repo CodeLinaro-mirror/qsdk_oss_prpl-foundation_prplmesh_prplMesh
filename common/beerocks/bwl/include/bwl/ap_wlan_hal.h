@@ -45,6 +45,7 @@ public:
         ACL_DENY,
 
         STA_Connected,
+        STA_WDS_Iface_Ready,
         STA_Disconnected,
         STA_Unassoc_RSSI,
         STA_Softblock_Drop,
