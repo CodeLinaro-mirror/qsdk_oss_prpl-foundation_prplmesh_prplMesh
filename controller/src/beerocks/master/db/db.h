@@ -212,6 +212,7 @@ public:
         int unfriendly_device_max_timelife_delay_minutes;
         unsigned int persistent_db_commit_changes_interval_seconds;
         std::chrono::seconds link_metrics_request_interval_seconds;
+        std::chrono::seconds higher_layer_request_interval_seconds;
         std::chrono::seconds dhcp_monitor_interval_seconds;
         std::chrono::milliseconds steering_disassoc_timer_msec;
         int management_mode;
@@ -285,6 +286,7 @@ public:
         int roaming_hysteresis_percent_bonus;
         std::chrono::milliseconds steering_disassoc_timer_msec;
         std::chrono::seconds link_metrics_request_interval_seconds;
+        std::chrono::seconds higher_layer_request_interval_seconds;
     } sDbNbapiConfig;
 
     typedef struct {
