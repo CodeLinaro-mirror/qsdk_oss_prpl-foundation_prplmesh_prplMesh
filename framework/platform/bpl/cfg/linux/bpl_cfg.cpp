@@ -653,6 +653,8 @@ bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_re
     return true;
 }
 
+bool cfg_get_higher_layer_request_interval(std::chrono::seconds &) { return false; }
+
 bool cfg_set_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec)
 {
     return true;

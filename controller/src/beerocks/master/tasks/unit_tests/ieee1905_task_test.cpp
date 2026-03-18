@@ -1045,6 +1045,83 @@ TEST_F(IEEE1905TaskTest, periodic_link_metric_query_is_sent_immediately_and_then
     advance_time(std::chrono::seconds(1));
     EXPECT_TRUE(link_metric_query_sent_to(m_local_al_mac));
 }
+
+TEST_F(IEEE1905TaskTest, remote_discovery_initial_higher_layer_query_rearms_periodic_deadline)
+{
+    const auto interval      = std::chrono::seconds(5);
+    const auto remote_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:91");
+
+    m_database->config.higher_layer_request_interval_seconds = interval;
+
+    sTopologyResponsePacket local_packet;
+    local_packet.ieee1905_neighbors[m_local_al_mac] = {remote_al_mac};
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx, local_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+    ASSERT_TRUE(higher_layer_query_sent_to(remote_al_mac));
+
+    ieee1905_1::CmduMessageRx remote_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(remote_al_mac, remote_topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(remote_al_mac, remote_topology_rx));
+
+    clear_sent_queries();
+
+    advance_time(interval - std::chrono::seconds(1));
+    EXPECT_TRUE(m_query_sender->higher_layer_queries.empty());
+
+    advance_time(std::chrono::seconds(1));
+    EXPECT_TRUE(higher_layer_query_sent_to(remote_al_mac));
+}
+
+TEST_F(IEEE1905TaskTest, periodic_higher_layer_query_is_sent_to_local_after_interval)
+{
+    const auto interval = std::chrono::seconds(5);
+
+    m_database->config.higher_layer_request_interval_seconds = interval;
+
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+
+    clear_sent_queries();
+
+    advance_time(interval - std::chrono::seconds(1));
+    EXPECT_TRUE(m_query_sender->higher_layer_queries.empty());
+
+    advance_time(std::chrono::seconds(1));
+    EXPECT_TRUE(higher_layer_query_sent_to(m_local_al_mac));
+}
+
+TEST_F(IEEE1905TaskTest, higher_layer_response_rearms_next_periodic_query)
+{
+    const auto interval      = std::chrono::seconds(5);
+    const auto remote_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:92");
+
+    m_database->config.higher_layer_request_interval_seconds = interval;
+
+    sTopologyResponsePacket local_packet;
+    local_packet.ieee1905_neighbors[m_local_al_mac] = {remote_al_mac};
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx, local_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+
+    ieee1905_1::CmduMessageRx remote_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(remote_al_mac, remote_topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(remote_al_mac, remote_topology_rx));
+
+    ieee1905_1::CmduMessageRx higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_higher_layer_response_cmdu(remote_al_mac, higher_layer_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(remote_al_mac, higher_layer_rx));
+
+    clear_sent_queries();
+
+    advance_time(interval - std::chrono::seconds(1));
+    EXPECT_TRUE(m_query_sender->higher_layer_queries.empty());
+
+    advance_time(std::chrono::seconds(1));
+    EXPECT_TRUE(higher_layer_query_sent_to(remote_al_mac));
+}
+
 TEST_F(IEEE1905TaskTest, link_metric_response_delays_next_periodic_query_with_guard)
 {
     const auto interval        = std::chrono::seconds(5);

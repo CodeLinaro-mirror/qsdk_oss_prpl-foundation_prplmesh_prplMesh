@@ -320,6 +320,14 @@ static void fill_master_config(son::db::sDbMasterConfig &master_conf,
         master_conf.link_metrics_request_interval_seconds =
             beerocks::bpl::DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC;
     }
+    if (!beerocks::bpl::cfg_get_higher_layer_request_interval(
+            master_conf.higher_layer_request_interval_seconds)) {
+        LOG(DEBUG) << "Failed to read higher_layer_request interval, setting to default value: "
+                   << beerocks::bpl::DEFAULT_HIGHER_LAYER_REQUEST_INTERVAL_VALUE_SEC.count();
+
+        master_conf.higher_layer_request_interval_seconds =
+            beerocks::bpl::DEFAULT_HIGHER_LAYER_REQUEST_INTERVAL_VALUE_SEC;
+    }
 
     master_conf.dhcp_monitor_interval_seconds =
         beerocks::bpl::DEFAULT_DHCP_MONITOR_INTERVAL_VALUE_SEC;

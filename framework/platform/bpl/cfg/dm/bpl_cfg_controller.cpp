@@ -241,6 +241,17 @@ bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_re
     return true;
 }
 
+bool cfg_get_higher_layer_request_interval(std::chrono::seconds &higher_layer_request_interval_sec)
+{
+    uint32_t interval_sec = 0;
+    if (!read_controller_config_param("HigherLayerRequestIntervalSec", interval_sec)) {
+        return false;
+    }
+
+    higher_layer_request_interval_sec = std::chrono::seconds(interval_sec);
+    return true;
+}
+
 bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy)
 {
     return read_controller_config_param("UnsuccessfulAssocReportPolicy",

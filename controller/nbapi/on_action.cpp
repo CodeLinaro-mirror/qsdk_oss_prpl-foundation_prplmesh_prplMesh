@@ -1648,6 +1648,8 @@ static void event_configuration_changed(const char *const sig_name, const amxc_v
         amxd_object_get_int32_t(configuration, "SteeringDisassociationTimerMSec", nullptr)};
     nbapi_config.link_metrics_request_interval_seconds = std::chrono::seconds{
         amxd_object_get_int32_t(configuration, "LinkMetricsRequestIntervalSec", nullptr)};
+    nbapi_config.higher_layer_request_interval_seconds = std::chrono::seconds{
+        amxd_object_get_int32_t(configuration, "HigherLayerRequestIntervalSec", nullptr)};
 
     nbapi_config.channel_select_task =
         amxd_object_get_bool(configuration, "ChannelSelectionTaskEnabled", nullptr);
