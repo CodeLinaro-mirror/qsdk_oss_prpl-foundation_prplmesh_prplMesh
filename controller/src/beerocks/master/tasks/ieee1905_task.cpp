@@ -198,6 +198,16 @@ void ieee1905_task::work()
                 current_time + periodic_topology_requery_interval;
         }
 
+        const auto hlq_interval = database.config.higher_layer_request_interval_seconds;
+        if (hlq_interval == std::chrono::seconds::zero()) {
+            al.next_periodic_higher_layer_query_deadline = time_point::min();
+        } else if (current_time >= al.next_periodic_higher_layer_query_deadline) {
+            if (!query_sender->send_higher_layer_query(al_mac, cmdu_tx)) {
+                LOG(ERROR) << "Failed to send periodic higher layer query to " << al_mac;
+            }
+            al.next_periodic_higher_layer_query_deadline = current_time + hlq_interval;
+        }
+
         const auto lmq_interval = database.config.link_metrics_request_interval_seconds;
         if (lmq_interval == std::chrono::seconds::zero()) {
             al.next_periodic_link_metric_query_deadline = time_point::min();
@@ -285,6 +295,9 @@ bool ieee1905_task::start_local_al_discovery()
         return false;
     }
 
+    // will be sent/armed to now() + interval on topology response
+    al.next_periodic_higher_layer_query_deadline = time_point::max();
+
     return true;
 }
 
@@ -324,6 +337,9 @@ bool ieee1905_task::start_remote_al_discovery(const sMacAddr &al_mac)
         LOG(ERROR) << "Failed to send higher layer query to " << al_mac;
         ret = false;
     }
+
+    al.next_periodic_higher_layer_query_deadline =
+        start + database.config.higher_layer_request_interval_seconds;
 
     return ret;
 }
@@ -756,6 +772,9 @@ bool ieee1905_task::handle_topology_response(const sMacAddr &src_mac,
         if (!query_sender->send_higher_layer_query(al_mac, cmdu_tx)) {
             LOG(ERROR) << "Failed to send higher layer query to local " << al_mac;
         }
+
+        al.next_periodic_higher_layer_query_deadline =
+            now() + database.config.higher_layer_request_interval_seconds;
     }
 
     using sInterface = db::ieee1905_network_db::sAL::sInterface;
@@ -1035,6 +1054,9 @@ bool ieee1905_task::handle_higher_layer_response(const sMacAddr &src_mac,
 
     al.first_higher_layer_query_deadline = time_point::max();
     al.higher_layer_response_pending.count_down();
+
+    al.next_periodic_higher_layer_query_deadline =
+        now() + database.config.higher_layer_request_interval_seconds;
 
     return true;
 }

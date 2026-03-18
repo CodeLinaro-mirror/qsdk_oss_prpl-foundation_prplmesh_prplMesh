@@ -169,6 +169,9 @@ constexpr int DEFAULT_MULTI_AP_PROFILE = 2;
 // Link metrics tasks send request with this interval.
 constexpr std::chrono::seconds DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC{60};
 
+/** IEEE1905 task requests with this interval. */
+constexpr std::chrono::seconds DEFAULT_HIGHER_LAYER_REQUEST_INTERVAL_VALUE_SEC{60};
+
 // Default Linux Lan interface names. It needs to be space separated.
 constexpr char DEFAULT_LINUX_LAN_INTERFACE_NAMES[] =
     "eth0_1 eth0_2 eth0_3 eth0_4 lan0 lan1 lan2 lan3";
@@ -937,6 +940,14 @@ bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
  * @return true on success, otherwise false
  */
 bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec);
+
+/**
+ * @brief Reads higher layer request interval configuration for periodic requests from agents.
+ *
+ * @param [out] higher_layer_request_interval_sec Interval for periodic higher layer request.
+ * @return true on success, otherwise false
+ */
+bool cfg_get_higher_layer_request_interval(std::chrono::seconds &higher_layer_request_interval_sec);
 
 /**
  * @brief Sets link metrics request interval configuration for periodic requests from agents.
