@@ -56,12 +56,12 @@ int cfg_is_onboarding() { return 0; }
 
 bool cfg_get_band_steering(bool &band_steering)
 {
-    return read_agent_config_param("BandSteeringEnabled", band_steering);
+    return read_controller_config_param("BandSteeringEnabled", band_steering);
 }
 
 bool cfg_set_band_steering(bool band_steering)
 {
-    return set_agent_config_param("BandSteeringEnabled", band_steering);
+    return set_controller_config_param("BandSteeringEnabled", band_steering);
 }
 
 bool cfg_get_daisy_chaining_disabled(bool &daisy_chaining_disabled)
@@ -76,22 +76,22 @@ bool cfg_set_daisy_chaining_disabled(bool daisy_chaining_disabled)
 
 bool cfg_get_client_11k_roaming(bool &eleven_k_roaming)
 {
-    return read_agent_config_param("Client11kRoamingEnabled", eleven_k_roaming);
+    return read_controller_config_param("Client11kRoamingEnabled", eleven_k_roaming);
 }
 
 bool cfg_set_client_11k_roaming(bool eleven_k_roaming)
 {
-    return set_agent_config_param("Client11kRoamingEnabled", eleven_k_roaming);
+    return set_controller_config_param("Client11kRoamingEnabled", eleven_k_roaming);
 }
 
 bool cfg_get_client_roaming(bool &client_roaming)
 {
-    return read_agent_config_param("ClientRoamingEnabled", client_roaming);
+    return read_controller_config_param("ClientRoamingEnabled", client_roaming);
 }
 
 bool cfg_set_client_roaming(bool client_roaming)
 {
-    return set_agent_config_param("ClientRoamingEnabled", client_roaming);
+    return set_controller_config_param("ClientRoamingEnabled", client_roaming);
 }
 
 bool cfg_get_load_balancing(bool &load_balancing)

@@ -94,18 +94,6 @@
                 default "123456789a";
             }
 
-            /* If enabled, band steering will be used to optimize STA connection */
-            %persistent bool BandSteeringEnabled {
-                userflags %upc;
-                default false;
-            }
-
-            /* If enabled, client roaming is active in the optimal path task */
-            %persistent bool ClientRoamingEnabled {
-                userflags %upc;
-                default false;
-            }
-
             /* Name of the lan bridge iface */
             %persistent string PrivateBridgeIface {
                 default "@AGENT_PRIVATE_BRIDGE_IFACE_DEFAULT@";

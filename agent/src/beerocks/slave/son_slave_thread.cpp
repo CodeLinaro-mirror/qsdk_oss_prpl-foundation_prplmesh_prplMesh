@@ -581,21 +581,6 @@ bool slave_thread::read_platform_configuration()
 
     int temp_int;
 
-    if (!bpl::cfg_get_band_steering(db->device_conf.client_band_steering_enabled)) {
-        LOG(DEBUG) << "Failed to read cfg_get_band_steering, setting to default value: "
-                   << beerocks::bpl::DEFAULT_BAND_STEERING;
-
-        db->device_conf.client_band_steering_enabled = beerocks::bpl::DEFAULT_BAND_STEERING;
-    }
-
-    if (!beerocks::bpl::cfg_get_client_roaming(
-            db->device_conf.client_optimal_path_roaming_enabled)) {
-        LOG(DEBUG) << "Failed to read cfg_get_client_roaming, setting to default value: "
-                   << beerocks::bpl::DEFAULT_CLIENT_ROAMING;
-
-        db->device_conf.client_optimal_path_roaming_enabled = beerocks::bpl::DEFAULT_CLIENT_ROAMING;
-    }
-
     if ((temp_int = bpl::cfg_is_master()) < 0) {
         LOG(ERROR) << "Failed reading 'local_controller'";
         return false;
@@ -705,15 +690,6 @@ bool slave_thread::read_platform_configuration()
          db->device_conf.management_mode == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT ||
          db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER);
 
-    db->device_conf.client_optimal_path_roaming_prefer_signal_strength_enabled =
-        0; // TODO add platform DB flag
-    db->device_conf.client_11k_roaming_enabled =
-        (db->device_conf.client_optimal_path_roaming_enabled ||
-         db->device_conf.client_band_steering_enabled);
-
-    db->device_conf.load_balancing_enabled   = 0; // for v1.3 TODO read from CAL DB
-    db->device_conf.service_fairness_enabled = 0; // for v1.3 TODO read from CAL DB
-
     db->ethernet.lan.clear();
     auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
     for (const auto &lan_iface : lan_ifaces) {
@@ -725,11 +701,6 @@ bool slave_thread::read_platform_configuration()
         }
     }
 
-    LOG(DEBUG) << "client_band_steering_enabled: " << db->device_conf.client_band_steering_enabled;
-    LOG(DEBUG) << "client_optimal_path_roaming_enabled: "
-               << db->device_conf.client_optimal_path_roaming_enabled;
-    LOG(DEBUG) << "client_optimal_path_roaming_prefer_signal_strength_enabled: "
-               << db->device_conf.client_optimal_path_roaming_prefer_signal_strength_enabled;
     LOG(DEBUG) << "local_gw: " << db->device_conf.local_gw;
     LOG(DEBUG) << "local_controller: " << db->device_conf.local_controller;
     LOG(DEBUG) << "backhaul_preferred_radio_band: "

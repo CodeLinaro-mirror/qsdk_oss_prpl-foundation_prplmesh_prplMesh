@@ -152,12 +152,6 @@ public:
         std::chrono::seconds controller_message_timeout_seconds;
         std::chrono::seconds controller_heartbeat_state_timeout_seconds;
 
-        bool client_band_steering_enabled;
-        bool client_optimal_path_roaming_enabled;
-        bool client_optimal_path_roaming_prefer_signal_strength_enabled;
-        bool client_11k_roaming_enabled;
-        bool load_balancing_enabled;
-        bool service_fairness_enabled;
         int zwdfs_flag;
         uint32_t best_channel_rank_threshold;
 
