@@ -201,6 +201,15 @@ cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION:
     _type: uint8_t
     _length: []
 
+cACTION_APMANAGER_WDS_IFACE_NOTIFICATION:
+  _type: class
+  mac: sMacAddr
+  bssid: sMacAddr
+  vap_id: int8_t
+  wds_iface_name:
+    _type: char
+    _length: ["beerocks::message::IFACE_NAME_LENGTH"]
+
 cACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION:
   _type: class
   params: sClientDisconnectionParams

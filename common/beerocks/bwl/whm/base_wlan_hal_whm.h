@@ -19,6 +19,7 @@
 #include "wbapi_utils.h"
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 
 namespace bwl {
@@ -40,8 +41,13 @@ struct VAPExtInfo {
 };
 
 struct sStationInfo {
-    explicit sStationInfo(const std::string &path_in) : path(path_in) {}
+    explicit sStationInfo(const std::string &path_in, const std::string &mac_in = {})
+        : path(path_in), mac(mac_in)
+    {
+    }
+
     std::string path;
+    std::string mac;
 
     bool operator==(const sStationInfo &other) const { return (path == other.path); }
 
@@ -114,7 +120,7 @@ protected:
     std::unique_ptr<nl80211_client> m_iso_nl80211_client; //impl nl80211 client apis with whm dm
     std::string m_radio_path;
     std::unordered_map<std::string, VAPExtInfo> m_vapsExtInfo; // key = vap_ifname
-    std::unordered_map<std::string, sStationInfo> m_stations;  // key = sta_mac
+    std::unordered_map<std::string, sStationInfo> m_stations;  // key = AssociatedDevice path
     void subscribe_to_radio_events();
     virtual bool process_radio_event(const std::string &interface, const std::string &key,
                                      const beerocks::wbapi::AmbiorixVariant *value);

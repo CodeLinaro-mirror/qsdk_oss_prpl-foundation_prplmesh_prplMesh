@@ -2736,6 +2736,137 @@ bool cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION::init()
     return true;
 }
 
+cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::~cACTION_APMANAGER_WDS_IFACE_NOTIFICATION() {
+}
+sMacAddr& cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::mac() {
+    return (sMacAddr&)(*m_mac);
+}
+
+sMacAddr& cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::bssid() {
+    return (sMacAddr&)(*m_bssid);
+}
+
+int8_t& cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::vap_id() {
+    return (int8_t&)(*m_vap_id);
+}
+
+std::string cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::wds_iface_name_str() {
+    char *wds_iface_name_ = wds_iface_name();
+    if (!wds_iface_name_) { return std::string(); }
+    auto str = std::string(wds_iface_name_, m_wds_iface_name_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::wds_iface_name(size_t length) {
+    if( (m_wds_iface_name_idx__ == 0) || (m_wds_iface_name_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "wds_iface_name length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_wds_iface_name);
+}
+
+bool cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::set_wds_iface_name(const std::string& str) { return set_wds_iface_name(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::set_wds_iface_name(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_wds_iface_name received a null pointer.";
+        return false;
+    }
+    if (size > beerocks::message::IFACE_NAME_LENGTH) {
+        TLVF_LOG(ERROR) << "Received buffer size is smaller than string length";
+        return false;
+    }
+    std::copy(str, str + size, m_wds_iface_name);
+    return true;
+}
+void cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    m_mac->struct_swap();
+    m_bssid->struct_swap();
+}
+
+bool cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(sMacAddr); // mac
+    class_size += sizeof(sMacAddr); // bssid
+    class_size += sizeof(int8_t); // vap_id
+    class_size += beerocks::message::IFACE_NAME_LENGTH * sizeof(char); // wds_iface_name
+    return class_size;
+}
+
+bool cACTION_APMANAGER_WDS_IFACE_NOTIFICATION::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_mac = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_mac->struct_init(); }
+    m_bssid = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_bssid->struct_init(); }
+    m_vap_id = reinterpret_cast<int8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(int8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(int8_t) << ") Failed!";
+        return false;
+    }
+    m_wds_iface_name = reinterpret_cast<char*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(char) * (beerocks::message::IFACE_NAME_LENGTH))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (beerocks::message::IFACE_NAME_LENGTH) << ") Failed!";
+        return false;
+    }
+    m_wds_iface_name_idx__  = beerocks::message::IFACE_NAME_LENGTH;
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION::cACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();

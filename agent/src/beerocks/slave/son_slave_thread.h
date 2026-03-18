@@ -31,6 +31,7 @@
 namespace beerocks_message {
 class cChannelList;
 class cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION;
+class cACTION_APMANAGER_WDS_IFACE_NOTIFICATION;
 } // namespace beerocks_message
 
 namespace beerocks {
@@ -281,9 +282,19 @@ public:
         return m_task_pool.try_send_event(task_type, event);
     }
 
+    inline bool task_pool_try_send_event(eTaskType task_type, uint8_t event, const void *event_obj)
+    {
+        return m_task_pool.try_send_event(task_type, event, event_obj);
+    }
+
     inline void task_pool_send_event(eTaskType task_type, uint8_t event)
     {
         m_task_pool.send_event(task_type, event);
+    }
+
+    inline void task_pool_send_event(eTaskType task_type, uint8_t event, const void *event_obj)
+    {
+        m_task_pool.send_event(task_type, event, event_obj);
     }
 
     void fsm_stop();
@@ -543,6 +554,9 @@ private:
      */
     bool process_client_association(
         const std::shared_ptr<beerocks_message::cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION>
+            notification_in);
+    bool handle_client_wds_iface_notification(
+        const std::shared_ptr<beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>
             notification_in);
 
     /**

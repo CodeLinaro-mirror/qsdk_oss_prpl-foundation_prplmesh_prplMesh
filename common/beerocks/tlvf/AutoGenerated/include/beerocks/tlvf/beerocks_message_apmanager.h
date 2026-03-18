@@ -764,6 +764,38 @@ class cACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION : public BaseClass
         size_t m_association_frame_idx__ = 0;
 };
 
+class cACTION_APMANAGER_WDS_IFACE_NOTIFICATION : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_WDS_IFACE_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_WDS_IFACE_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_WDS_IFACE_NOTIFICATION();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_WDS_IFACE_NOTIFICATION);
+        }
+        sMacAddr& mac();
+        sMacAddr& bssid();
+        int8_t& vap_id();
+        std::string wds_iface_name_str();
+        char* wds_iface_name(size_t length = 0);
+        bool set_wds_iface_name(const std::string& str);
+        bool set_wds_iface_name(const char buffer[], size_t size);
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_mac = nullptr;
+        sMacAddr* m_bssid = nullptr;
+        int8_t* m_vap_id = nullptr;
+        char* m_wds_iface_name = nullptr;
+        size_t m_wds_iface_name_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+};
+
 class cACTION_APMANAGER_CLIENT_DISCONNECTED_NOTIFICATION : public BaseClass
 {
     public:
