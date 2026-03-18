@@ -7,15 +7,15 @@ package "beerocks" {
     -m_next_run  : std::chrono::steady_clock::time_point
     -m_mode      : eApplyMode
     -m_last_primary_vid : uint16_t
-    -m_tracked_wds_ifaces : std::unordered_set<std::string>
     +work() : void
     +handle_event(event_enum_value : uint8_t, event_obj : void*) : void
     +clear_configuration() : bool
     -stronger_mode(a : eApplyMode, b : eApplyMode) : eApplyMode
     -reset() : bool
-    -handle_new_sta_iface() : bool
-    -handle_clear_sta_iface() : bool
-    -collect_current_wds_ifaces() : std::unordered_map<std::string, bool>
+    -handle_new_wds_iface(iface_name : std::string) : bool
+    -handle_clear_wds_iface(iface_name : std::string) : bool
+    -add_wds_trunk_port(iface_name : std::string, is_untagged_mode : bool) : bool
+    -remove_wds_trunk_port(iface_name : std::string) : bool
     -cleanup_ts_runtime_state() : bool
     -build_ts_config(cfg : net::sTrafficSeparationConfig&) : bool
     -collect_ports_from_db(trunks, access_ports) : bool
@@ -31,15 +31,13 @@ package "beerocks" {
 
   enum eEvent {
     TS_ENABLE
-    TS_NEW_BH_STA_IFACE
-    TS_CLEAR_BH_STA_IFACE
+    TS_NEW_WDS_IFACE
+    TS_CLEAR_WDS_IFACE
     TS_CLEAR
   }
 
   enum eApplyMode {
     None
-    AddNewSta
-    ClearSta
     Full
   }
 }
@@ -117,15 +115,11 @@ package "beerocks::net" {
     -m_access_port_plumbing_map : std::unordered_map<std::string, std::unique_ptr<PortPlumbing>>
     -m_config : sTrafficSeparationConfig
     -m_state : eTsManagerState
-
     +configure(cfg : sTrafficSeparationConfig) : bool
-
     +add_trunk_port(trunk_port : sTrunkPort) : bool
     +remove_trunk_port(iface_name : std::string) : bool
-
     +add_access_port(access_port : sAccessPort) : bool
     +remove_access_port(iface_name : std::string) : bool
-
     +apply_policies() : bool
     +clear_policies() : bool
     +reset() : bool
@@ -149,7 +143,6 @@ package "beerocks::net" {
   }
 }
 
-' Relationships
 sAccessPort --> eAccessRole
 TrafficSeparationTask --> eEvent
 TrafficSeparationTask --> eApplyMode
@@ -165,5 +158,14 @@ TrafficSeparationManager --> PortPlumbing
 TrafficSeparationManager --> sTrunkPort
 TrafficSeparationManager --> sAccessPort
 TrafficSeparationManager --> sTrafficSeparationConfig
+
+note right of TrafficSeparationTask
+  TS_ENABLE remains the only debounced path.
+  Runtime WDS iface updates are incremental:
+  TS_NEW_WDS_IFACE adds one exact trunk iface,
+  TS_CLEAR_WDS_IFACE removes one exact trunk iface.
+  Full rebuilds still discover current <bss>.staN trunks,
+  but runtime WDS lifecycle no longer uses debounce.
+end note
 
 @enduml
