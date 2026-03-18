@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace beerocks {
@@ -48,8 +49,8 @@ public:
     /**
      * @brief Handle task events (like other prplMesh tasks).
      *
-     * Supported events trigger either a debounced TS policy refresh or an immediate exact WDS
-     * update.
+     * Supported events trigger either a debounced TS policy refresh or
+     * immediate exact FH/WDS updates.
      */
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
 
@@ -57,11 +58,12 @@ public:
      * @brief Event IDs for TrafficSeparationTask.
      */
     enum eEvent : uint8_t {
-        TS_ENABLE        = 0, /**< Refresh config and reapply TS on managed ports. */
-        TS_NEW_WDS_IFACE = 1, /**< Incrementally add one exact WDS iface (e.g. `wlan1.2.sta1`). */
-        TS_CLEAR_WDS_IFACE =
-            2,       /**< Incrementally clear one exact WDS iface. (e.g. `wlan2.1.sta2`)*/
-        TS_CLEAR = 3 /**< Clear config + reset transport primary VLAN. */
+        TS_ENABLE          = 0, /**< Refresh config and reapply TS on managed ports. */
+        TS_NEW_FH_IFACE    = 1, /**< Incrementally add one pure-FH iface. */
+        TS_CLEAR_FH_IFACE  = 2, /**< Incrementally clear one pure-FH iface. */
+        TS_NEW_WDS_IFACE   = 3, /**< Incrementally add one exact WDS iface. */
+        TS_CLEAR_WDS_IFACE = 4, /**< Incrementally clear one exact WDS iface. */
+        TS_CLEAR           = 5  /**< Clear config + reset transport primary VLAN. */
     };
 
 private:
@@ -81,11 +83,22 @@ private:
     bool should_run_now() const;
 
     /**
-     * @brief Refresh TS configuration and reset policies on managed ports.
+     * @brief Refresh TS configuration, reconcile FH access ports, and reset policies.
      *
-     * Keeps event-managed exact WDS ifaces intact and only re-applies policies.
+     * Keeps event-managed exact WDS ifaces intact while reconciling FH access
+     * ports against the current DB view before re-applying policies.
      */
     bool reset();
+
+    /**
+     * @brief Incrementally add a fronthaul access port carried by a task event.
+     */
+    bool handle_new_fh_iface(const std::string &iface_name);
+
+    /**
+     * @brief Incrementally clear a fronthaul access port carried by a task event.
+     */
+    bool handle_clear_fh_iface(const std::string &iface_name);
 
     /**
      * @brief Incremental TS update for a newly created exact WDS interface.
@@ -124,6 +137,11 @@ private:
                            std::vector<net::sAccessPort> &access_ports) const;
 
     /**
+     * @brief Reconcile event-managed FH access ports with the desired DB state.
+     */
+    bool reconcile_fh_access_ports(const std::vector<net::sAccessPort> &access_ports);
+
+    /**
      * @brief Add currently selected backhaul connection interface as a trunk candidate.
      */
     bool add_backhaul_connection_trunk(std::vector<net::sTrunkPort> &trunks) const;
@@ -136,6 +154,7 @@ private:
     std::chrono::steady_clock::time_point m_next_run{std::chrono::steady_clock::time_point::min()};
 
     uint16_t m_last_primary_vid = 0;
+    std::unordered_set<std::string> m_managed_fh_ifaces;
 
 private:
     // Debounce TS apply events to coalesce short bursts into one operation

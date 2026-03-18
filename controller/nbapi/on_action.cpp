@@ -1333,6 +1333,20 @@ static void event_configuration_changed(const char *const sig_name, const amxc_v
 }
 
 /**
+ * @brief Event handler for controller traffic separation configuration changes.
+ *
+ * TS can be enabled after controller startup in controller+agent mode, so renew
+ * autoconfig to push the updated TS TLVs to the local agent as well.
+ */
+static void event_traffic_separation_changed(const char *const sig_name,
+                                             const amxc_var_t *const data, void *const priv)
+{
+    if (!send_ap_config_renew()) {
+        LOG(ERROR) << "Failed to renew AP config after traffic separation change";
+    }
+}
+
+/**
  * @brief Event handler for controller Group change.
  *
  * event_group_enable_changed is invoked when value of parameter Device.WiFi.DataElements.Network.Group.X.Enable is changed
@@ -1388,6 +1402,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
 {
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
+        {"event_traffic_separation_changed", event_traffic_separation_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed}};
     return events_list;

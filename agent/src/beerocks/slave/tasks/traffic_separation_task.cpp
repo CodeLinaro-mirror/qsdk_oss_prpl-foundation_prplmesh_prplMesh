@@ -55,6 +55,30 @@ void TrafficSeparationTask::handle_event(uint8_t event_enum_value, const void *e
         schedule_apply();
         break;
     }
+    case TS_NEW_FH_IFACE: {
+        if (!event_obj) {
+            LOG(ERROR) << "TS_NEW_FH_IFACE requires event payload";
+            break;
+        }
+
+        auto iface_name = static_cast<const char *>(event_obj);
+        if (!handle_new_fh_iface(iface_name)) {
+            LOG(WARNING) << "add fronthaul iface failed";
+        }
+        break;
+    }
+    case TS_CLEAR_FH_IFACE: {
+        if (!event_obj) {
+            LOG(ERROR) << "TS_CLEAR_FH_IFACE requires event payload";
+            break;
+        }
+
+        auto iface_name = static_cast<const char *>(event_obj);
+        if (!handle_clear_fh_iface(iface_name)) {
+            LOG(WARNING) << "clear fronthaul iface failed";
+        }
+        break;
+    }
     case TS_NEW_WDS_IFACE: {
         if (!event_obj) {
             LOG(ERROR) << "TS_NEW_WDS_IFACE requires event payload";
@@ -239,9 +263,9 @@ bool TrafficSeparationTask::reset()
         m_mgr = std::make_unique<net::TrafficSeparationManager>();
     }
 
-    // Exact WDS ifaces are owned by TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE events.
-    // Keep the manager port maps intact here and only refresh the active
-    // policies.
+    // Exact WDS ifaces are owned by TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE
+    // events. Keep those manager entries intact here while reconciling the
+    // DB-managed FH access ports before refreshing the active policies.
     if (!m_mgr->clear_policies()) {
         LOG(ERROR) << "manager clear_policies failed";
         return false;
@@ -272,10 +296,9 @@ bool TrafficSeparationTask::reset()
         }
     }
 
-    for (const auto &access_port : access_ports) {
-        if (!m_mgr->add_access_port(access_port)) {
-            LOG(WARNING) << "add_access_port failed iface=" << access_port.iface_name;
-        }
+    if (!reconcile_fh_access_ports(access_ports)) {
+        LOG(ERROR) << "reconcile_fh_access_ports failed";
+        return false;
     }
 
     if (!m_mgr->apply_policies()) {
@@ -283,6 +306,51 @@ bool TrafficSeparationTask::reset()
         return false;
     }
 
+    return true;
+}
+
+bool TrafficSeparationTask::handle_new_fh_iface(const std::string &iface_name)
+{
+    if (!m_mgr) {
+        LOG(ERROR) << "TS manager is nullptr";
+        return false;
+    }
+
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return false;
+    }
+
+    net::sAccessPort access_port{};
+    access_port.iface_name = iface_name;
+
+    if (!m_mgr->add_access_port(access_port)) {
+        LOG(ERROR) << "add_access_port failed iface=" << iface_name;
+        return false;
+    }
+
+    m_managed_fh_ifaces.insert(iface_name);
+    return true;
+}
+
+bool TrafficSeparationTask::handle_clear_fh_iface(const std::string &iface_name)
+{
+    if (!m_mgr) {
+        LOG(ERROR) << "TS manager is nullptr";
+        return false;
+    }
+
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return false;
+    }
+
+    if (!m_mgr->remove_access_port(iface_name)) {
+        LOG(ERROR) << "remove_access_port failed iface=" << iface_name;
+        return false;
+    }
+
+    m_managed_fh_ifaces.erase(iface_name);
     return true;
 }
 
@@ -459,7 +527,7 @@ bool TrafficSeparationTask::get_ports_from_db(std::vector<net::sTrunkPort> &trun
         }
 
         for (const auto &bss : radio->front.bssids) {
-            if (!bss.active || !bss.fronthaul_bss || bss.backhaul_bss || bss.iface_name.empty()) {
+            if (!bss.enabled || !bss.fronthaul_bss || bss.backhaul_bss || bss.iface_name.empty()) {
                 continue;
             }
 
@@ -467,6 +535,52 @@ bool TrafficSeparationTask::get_ports_from_db(std::vector<net::sTrunkPort> &trun
             access_port.iface_name = bss.iface_name;
             access_ports.push_back(std::move(access_port));
         }
+    }
+
+    return true;
+}
+
+bool TrafficSeparationTask::reconcile_fh_access_ports(
+    const std::vector<net::sAccessPort> &access_ports)
+{
+    if (!m_mgr) {
+        LOG(ERROR) << "TS manager is nullptr";
+        return false;
+    }
+
+    std::unordered_set<std::string> desired_ifaces;
+    for (const auto &access_port : access_ports) {
+        if (access_port.iface_name.empty()) {
+            continue;
+        }
+        desired_ifaces.insert(access_port.iface_name);
+    }
+
+    for (auto it = m_managed_fh_ifaces.begin(); it != m_managed_fh_ifaces.end();) {
+        if (desired_ifaces.find(*it) != desired_ifaces.end()) {
+            ++it;
+            continue;
+        }
+
+        if (!m_mgr->remove_access_port(*it)) {
+            LOG(ERROR) << "remove_access_port failed iface=" << *it;
+            return false;
+        }
+
+        it = m_managed_fh_ifaces.erase(it);
+    }
+
+    for (const auto &access_port : access_ports) {
+        if (access_port.iface_name.empty()) {
+            continue;
+        }
+
+        if (!m_mgr->add_access_port(access_port)) {
+            LOG(WARNING) << "add_access_port failed iface=" << access_port.iface_name;
+            continue;
+        }
+
+        m_managed_fh_ifaces.insert(access_port.iface_name);
     }
 
     return true;

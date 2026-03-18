@@ -278,7 +278,8 @@ public:
                 bool backhaul_bss;
                 bool backhaul_bss_disallow_profile1_agent_association;
                 bool backhaul_bss_disallow_profile2_agent_association;
-                bool active = false;
+                bool active  = false;
+                bool enabled = false;
                 sMacAddr apmld_mac;
                 int8_t mld_id  = -1;
                 int8_t link_id = -1;

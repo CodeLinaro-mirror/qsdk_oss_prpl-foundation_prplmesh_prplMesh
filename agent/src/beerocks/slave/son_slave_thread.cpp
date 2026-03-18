@@ -2902,6 +2902,33 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             }
             fronthaul_reset(radio_manager);
         } else {
+            auto db    = AgentDB::get();
+            auto radio = db->radio(fronthaul_iface);
+            if (!radio) {
+                LOG(ERROR) << "radio not found for iface " << fronthaul_iface;
+                return false;
+            }
+
+            const int vap_id  = int(notification_in->vap_id());
+            const int vap_idx = vap_id - int(beerocks::IFACE_VAP_ID_MIN);
+            if (vap_idx >= 0 && vap_idx < int(beerocks::IFACE_TOTAL_VAPS)) {
+                auto &bss = radio->front.bssids[vap_idx];
+                // Keep the BSS entry for config matching, but drop its
+                // operational bit now. A later TS rebuild must not treat a
+                // just-disabled FH VAP as still present.
+                bss.enabled = false;
+                if (bss.fronthaul_bss && !bss.backhaul_bss && !bss.iface_name.empty()) {
+                    LOG(DEBUG) << "Trigger traffic separation on AP_DISABLED for "
+                                  "pure FH iface="
+                               << bss.iface_name;
+                    task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                             TrafficSeparationTask::eEvent::TS_CLEAR_FH_IFACE,
+                                             bss.iface_name.c_str());
+                }
+            } else {
+                LOG(WARNING) << "invalid vap_id " << vap_id << " for AP disabled notification";
+            }
+
             auto notification_out = message_com::create_vs_message<
                 beerocks_message::cACTION_CONTROL_HOSTAP_AP_DISABLED_NOTIFICATION>(cmdu_tx);
             if (notification_out == nullptr) {
@@ -5903,8 +5930,35 @@ bool slave_thread::update_vaps_info(const std::string &iface,
     for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
         auto &bss = radio->front.bssids[vap_idx];
 
-        bss.active = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
+        const bool has_bssid           = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
+        const auto iface_name          = std::string(vaps[vap_idx].iface_name);
+        const bool was_enabled         = bss.enabled;
+        const bool was_pure_fh_bss     = bss.fronthaul_bss && !bss.backhaul_bss;
+        const auto previous_iface_name = bss.iface_name;
+        const bool is_enabled = has_bssid && !iface_name.empty() &&
+                                network_utils::linux_iface_is_up_and_running(iface_name);
+
+        const auto clear_previous_fh_iface = [&]() {
+            if (!was_enabled || !was_pure_fh_bss || previous_iface_name.empty()) {
+                return;
+            }
+
+            LOG(DEBUG) << "Trigger traffic separation on VAPS_LIST_UPDATE "
+                          "disable for pure FH iface="
+                       << previous_iface_name;
+            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                     TrafficSeparationTask::eEvent::TS_CLEAR_FH_IFACE,
+                                     previous_iface_name.c_str());
+        };
+
+        // Keep BSS identity as soon as a MAC is reported. Some startup VAP
+        // snapshots reach us before SSID is populated, and AP_ENABLED later
+        // matches the BSS by MAC only.
+        bss.active  = has_bssid;
+        bss.enabled = is_enabled;
         if (!bss.active) {
+            clear_previous_fh_iface();
+
             // Set all values to their default state
             bss.iface_name                                       = "";
             bss.mac                                              = network_utils::ZERO_MAC;
@@ -5913,11 +5967,12 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             bss.backhaul_bss                                     = false;
             bss.backhaul_bss_disallow_profile1_agent_association = false;
             bss.backhaul_bss_disallow_profile2_agent_association = false;
+            bss.enabled                                          = false;
             bss.link_id                                          = DISABLED_MLDUNIT;
             bss.apmld_mac                                        = network_utils::ZERO_MAC;
             continue;
         }
-        bss.iface_name    = vaps[vap_idx].iface_name;
+        bss.iface_name    = iface_name;
         bss.mac           = vaps[vap_idx].mac;
         bss.ssid          = vaps[vap_idx].ssid;
         bss.fronthaul_bss = vaps[vap_idx].fronthaul_vap;
@@ -5931,11 +5986,20 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         bss.apmld_mac = vaps[vap_idx].ap_mld_mac;
 
         LOG(DEBUG) << "BSS " << bss.iface_name << ", bssid: " << bss.mac << ", ssid:" << bss.ssid
-                   << ", fBSS: " << bss.fronthaul_bss << ", bBSS: " << bss.backhaul_bss
+                   << ", enabled: " << bss.enabled << ", fBSS: " << bss.fronthaul_bss
+                   << ", bBSS: " << bss.backhaul_bss
                    << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
                    << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association
                    << ", mld_id: " << bss.mld_id << ", link_id: " << bss.link_id
                    << ", apmld_mac: " << bss.apmld_mac;
+
+        if (was_enabled &&
+            (!bss.enabled || !bss.fronthaul_bss || bss.backhaul_bss || bss.iface_name.empty())) {
+            // Some local DM disable/retype flows only surface in the next VAP
+            // snapshot. Clear the previously managed pure-FH iface even when
+            // the new snapshot already removed or changed that BSS entry.
+            clear_previous_fh_iface();
+        }
 
         for (auto &ap_mld_conf : db->ap_mld_configurations) {
             if (ap_mld_conf.mld_config.mld_ssid == bss.ssid) {

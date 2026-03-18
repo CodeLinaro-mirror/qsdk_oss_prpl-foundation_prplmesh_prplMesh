@@ -2811,9 +2811,21 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     notification_out->vap_info() = notification_in->vap_info();
     m_btl_ctx.send_cmdu_to_controller(radio->front.iface_name, m_cmdu_tx);
 
-    // Marked BSSID as "enabled".
+    // Restore the active bit here as well because AP_ENABLED can arrive before
+    // the next VAP list refresh and the TS full rebuild relies on the current
+    // DB view.
     auto &radio_conf_params = m_radios_conf_params[radio_iface];
     radio_conf_params.enabled_bssids.insert(bssid->mac);
+    bssid->active  = true;
+    bssid->enabled = true;
+
+    if (vap_info.fronthaul_vap && !vap_info.backhaul_vap && vap_info.iface_name[0] != '\0') {
+        LOG(DEBUG) << "Trigger traffic separation on AP_ENABLED for pure FH iface="
+                   << vap_info.iface_name;
+        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_NEW_FH_IFACE,
+                                           vap_info.iface_name);
+    }
 }
 
 void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(

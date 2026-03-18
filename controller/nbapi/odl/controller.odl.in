@@ -503,8 +503,8 @@
     on event "dm:object-changed" call event_configuration_changed
         filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Configuration\."';
 
-    on event "dm:object-changed" call event_network_enable_changed
-        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")';
+    on event "dm:object-changed" call event_network_enable_changed                                                                                             
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")'; 
 
     on event "*" call event_network_group_changed
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X-PRPL_ORG_Group\."';

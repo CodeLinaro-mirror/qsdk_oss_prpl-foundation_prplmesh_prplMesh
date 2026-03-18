@@ -2971,19 +2971,23 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             if (!notify_disabled) {
                 break;
             }
-
-            auto response = message_com::create_vs_message<
-                beerocks_message::cACTION_APMANAGER_HOSTAP_AP_DISABLED_NOTIFICATION>(cmdu_tx);
-            if (response == nullptr) {
-                LOG(ERROR)
-                    << "Failed building cACTION_APMANAGER_HOSTAP_AP_DISABLED_NOTIFICATION message!";
-                break;
-            }
-
-            response->vap_id() = msg->vap_id;
-
-            send_cmdu(cmdu_tx);
         }
+
+        // Pure-FH TS updates are per-VAP, so forward single-BSS disables as
+        // well. Waiting for a full radio disable would miss
+        // AccessPoint.Enable=0 on one FH VAP.
+        auto response = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_HOSTAP_AP_DISABLED_NOTIFICATION>(cmdu_tx);
+        if (response == nullptr) {
+            LOG(ERROR) << "Failed building "
+                          "cACTION_APMANAGER_HOSTAP_AP_DISABLED_NOTIFICATION "
+                          "message!";
+            break;
+        }
+
+        response->vap_id() = msg->vap_id;
+
+        send_cmdu(cmdu_tx);
     } break;
     case Event::Interface_Disabled: {
 
