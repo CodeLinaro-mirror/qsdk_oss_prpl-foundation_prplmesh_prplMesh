@@ -182,6 +182,11 @@
                         default 60;
                     }
 
+                    /* Interval for periodic IEEE1905 higher layer requests (set to 0 to disable). */
+                    %persistent uint32 HigherLayerRequestIntervalSec {
+                        default 60;
+                    }
+
                     /* Used by controller to start / stop channel selection task */
                     %persistent bool ChannelSelectionTaskEnabled {
                         userflags %upc;

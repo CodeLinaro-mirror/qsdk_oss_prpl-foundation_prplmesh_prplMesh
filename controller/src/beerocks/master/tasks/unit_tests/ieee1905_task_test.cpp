@@ -1120,6 +1120,7 @@ TEST_F(IEEE1905TaskTest, higher_layer_response_rearms_next_periodic_query)
     advance_time(std::chrono::seconds(1));
     EXPECT_TRUE(higher_layer_query_sent_to(remote_al_mac));
 }
+
 TEST_F(IEEE1905TaskTest, link_metric_response_delays_next_periodic_query_with_guard)
 {
     const auto interval        = std::chrono::seconds(5);

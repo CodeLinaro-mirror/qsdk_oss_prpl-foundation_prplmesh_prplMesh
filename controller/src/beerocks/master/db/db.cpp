@@ -8110,6 +8110,8 @@ bool db::update_master_configuration(const sDbNbapiConfig &nbapi_config)
 
     config.diagnostics_measurements_polling_rate_sec =
         nbapi_config.diagnostics_measurements_polling_rate_sec;
+    config.higher_layer_request_interval_seconds =
+        nbapi_config.higher_layer_request_interval_seconds;
     config.link_metrics_request_interval_seconds =
         nbapi_config.link_metrics_request_interval_seconds;
     config.load_channel_select_task         = nbapi_config.channel_select_task;

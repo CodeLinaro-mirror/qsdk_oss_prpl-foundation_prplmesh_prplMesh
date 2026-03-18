@@ -9,6 +9,7 @@
 			parameter 'StatisticsPollingRateSec' = 10;
 			parameter 'HealthCheckTaskEnabled' = false;
 			parameter 'LinkMetricsRequestIntervalSec' = 60;
+			parameter 'HigherLayerRequestIntervalSec' = 60;
 			parameter 'LoadBalancingTaskEnabled' = false;
 			parameter 'BackhaulOptimizationEnabled' = true;
 			parameter 'OptimalPathPreferSignalStrength' = false;
