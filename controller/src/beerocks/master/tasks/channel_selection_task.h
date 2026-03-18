@@ -63,6 +63,7 @@ public:
 
     typedef struct {
         sMacAddr hostap_mac;
+        uint16_t message_id;
         bool low_pass_filter_on;
         bool backhaul_is_wireless;
         uint8_t backhaul_channel;

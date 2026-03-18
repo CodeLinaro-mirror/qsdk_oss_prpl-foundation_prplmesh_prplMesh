@@ -367,7 +367,7 @@ private:
 
     void handle_cmdu_control_ieee1905_1_message(const std::string &src_mac,
                                                 ieee1905_1::CmduMessageRx &cmdu_rx);
-    bool handle_intel_slave_join(const sMacAddr &src_mac,
+    bool handle_intel_slave_join(const sMacAddr &src_mac, const uint16_t message_id,
                                  std::shared_ptr<wfa_map::tlvApRadioBasicCapabilities> radio_caps,
                                  beerocks::beerocks_header &beerocks_header,
                                  ieee1905_1::CmduMessageTx &cmdu_tx,

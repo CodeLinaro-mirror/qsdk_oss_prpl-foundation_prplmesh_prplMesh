@@ -359,6 +359,10 @@ void channel_selection_task::work()
             tasks.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &new_event);
             TASK_LOG(DEBUG) << "BML, sending CONNECTION_CHANGE for mac " << new_event.mac;
         }
+
+        TASK_LOG(DEBUG) << "CS_task,handle SLAVE_JOINED_EVENT for mac "
+                        << slave_joined_event->hostap_mac << " mid[" << std::hex
+                        << slave_joined_event->message_id << "]";
         TASK_LOG(DEBUG) << "vht_center_frequency = " << uint16_t(vht_center_frequency);
 
         TASK_LOG(DEBUG) << "hostap_mac = " << slave_joined_event->hostap_mac

@@ -1557,7 +1557,10 @@ static void adjust_security_mode_for_agent(std::shared_ptr<Agent> agent,
 bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
                                                         ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE";
+    const auto mid = cmdu_rx.getMessageId();
+
+    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE mid[" << std::hex << mid << "]";
+
     auto tlvWsc = cmdu_rx.getClass<ieee1905_1::tlvWsc>();
     if (!tlvWsc) {
         LOG(ERROR) << "getClass<ieee1905_1::tlvWsc> failed";
@@ -1763,7 +1766,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
     if (beerocks_header) {
         LOG(INFO) << "Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid;
-        if (!handle_intel_slave_join(src_mac, radio_basic_caps, *beerocks_header, cmdu_tx, agent)) {
+        if (!handle_intel_slave_join(src_mac, mid, radio_basic_caps, *beerocks_header, cmdu_tx,
+                                     agent)) {
             database.clear_configured_bss_info(ruid);
             LOG(ERROR) << "Intel radio agent join failed (al_mac=" << al_mac << " ruid=" << ruid
                        << ")";
@@ -2901,7 +2905,8 @@ bool Controller::handle_cmdu_1905_beacon_response(const sMacAddr &src_mac,
 }
 
 bool Controller::handle_intel_slave_join(
-    const sMacAddr &src_mac, std::shared_ptr<wfa_map::tlvApRadioBasicCapabilities> radio_caps,
+    const sMacAddr &src_mac, const uint16_t message_id,
+    std::shared_ptr<wfa_map::tlvApRadioBasicCapabilities> radio_caps,
     beerocks::beerocks_header &beerocks_header, ieee1905_1::CmduMessageTx &cmdu_tx,
     const std::shared_ptr<Agent> &agent)
 {
@@ -3277,8 +3282,10 @@ bool Controller::handle_intel_slave_join(
     LOG(DEBUG) << "BML, sending IRE connect CONNECTION_CHANGE for mac " << bml_new_event.mac;
 
     // sending event to CS task
-    LOG(DEBUG) << "CS_task,sending SLAVE_JOINED_EVENT for mac " << radio_mac;
+    LOG(DEBUG) << "CS_task,sending SLAVE_JOINED_EVENT for mac " << radio_mac << " mid[" << std::hex
+               << message_id << "]";
     auto cs_new_event                  = new channel_selection_task::sSlaveJoined_event;
+    cs_new_event->message_id           = message_id;
     cs_new_event->backhaul_is_wireless = beerocks::utils::is_device_wireless(backhaul_iface_type);
     cs_new_event->backhaul_channel     = backhaul_channel;
     cs_new_event->channel              = notification->cs_params().channel;
