@@ -9,10 +9,6 @@
 SCRIPTDIR="$(dirname "$(readlink -f "${0}")")"
 PRPLMESH_DIR="$(cd "${SCRIPTDIR}/.." && pwd)"
 TARGET_PLATFORM=@TARGET_PLATFORM@
-ODL_FILES="
-${PRPLMESH_DIR}/share/agent/odl/agent.odl
-${PRPLMESH_DIR}/config/agent/odl/defaults.d/00_slave_configuration.odl
-"
 
 # Explicitely ignore SIGPIPE to make sure the processes we start in
 # the background do not stop in case stdout/stderr gets closed early
@@ -89,49 +85,6 @@ usage() {
     echo "usage: $(basename "$0") {start|stop|restart|status|roll_logs} [-h] [-m MODE] [-c CERT_MODE]"
 }
 
-odl_get_str_param() {
-    key=$1
-    default=$2
-    value=""
-
-    for file in $ODL_FILES; do
-        [ -e "${file}" ] || continue
-        value=$(sed -n -E "s/^[[:space:]]*parameter[[:space:]]*['\"]?${key}['\"]?[[:space:]]*=[[:space:]]*\"([^\"]*)\".*/\1/p" "${file}")
-        [ -n "${value}" ] && break
-    done
-
-    [ -z "${value}" ] && value=$default
-
-    echo "${value}"
-}
-
-odl_set_param() {
-    name=$1
-    value=$2
-    type=$3
-
-    for file in $ODL_FILES; do
-        [ -e "${file}" ] || continue
-
-        case "$type" in
-            string)
-                sed -i "s/\(parameter[[:space:]]\+${name}[[:space:]]*=[[:space:]]*\"\)[^\"]*\";/\1${value}\";/" "${file}"
-                sed -i "s/\(parameter[[:space:]]\+'${name}'[[:space:]]*=[[:space:]]*\"\)[^\"]*\";/\1${value}\";/" "${file}"
-                ;;
-            bool)
-                sed -i "s/\(parameter[[:space:]]\+${name}[[:space:]]*=[[:space:]]*\)[^;]*;/\1${value};/" "${file}"
-                sed -i "s/\(parameter[[:space:]]\+'${name}'[[:space:]]*=[[:space:]]*\)[^;]*;/\1${value};/" "${file}"
-                ;;
-            *)
-                echo "Unsupported param_type: ${type}" >&2
-                return 1
-                ;;
-        esac
-    done
-
-    return 0
-}
-
 ensure_platform_db() {
     mkdir -p "@TMP_PATH@"
     if [ ! -e "@TMP_PATH@/prplmesh_platform_db" ]; then
@@ -167,7 +120,6 @@ set_management_and_certification_mode() {
         echo "Set prplMesh management_mode to ${management_mode}"
 
         sed -i "s/management_mode=.*/management_mode=${management_mode}/g" @TMP_PATH@/prplmesh_platform_db
-        odl_set_param "ManagementMode" "${management_mode}" "string" || return 1
     fi
 
     if [ -n "${certification_mode}" ]; then
@@ -175,7 +127,6 @@ set_management_and_certification_mode() {
         echo "Set prplMesh certification_mode to ${certification_mode_num}"
 
         sed -i "s/certification_mode=.*/certification_mode=${certification_mode_num}/g" @TMP_PATH@/prplmesh_platform_db
-        odl_set_param "CertificationMode" "${certification_mode_num}" "bool" || return 1
     fi
 
     return 0
@@ -186,13 +137,9 @@ start_func() {
     # For more information see: https://github.com/prplfoundation/prplMesh/pull/1029#issuecomment-608353274
     ebtables -A FORWARD -d 01:80:c2:00:00:13 -j DROP
 
-    if [ "${TARGET_PLATFORM}" = "linux" ] || [ "${TARGET_PLATFORM}" = "rdkb" ]; then
-        mode=$(sed -n 's/^management_mode=\(.*\)$/\1/p' @TMP_PATH@/prplmesh_platform_db)
-        [ -z "$mode" ] && mode="@BEEROCKS_MANAGEMENT_MODE@"
-    else
-        mode=$(odl_get_str_param "ManagementMode" "@BEEROCKS_MANAGEMENT_MODE@")
-    fi
-    
+    mode=$(sed -n 's/^management_mode=\(.*\)$/\1/p' @TMP_PATH@/prplmesh_platform_db)
+    [ -z "$mode" ] && mode="@BEEROCKS_MANAGEMENT_MODE@"
+
     echo "Starting prplMesh (mode=${mode})"
 
     start_prplmesh_process ieee1905_transport
@@ -217,6 +164,15 @@ stop_func() {
 }
 
 main() {
+    case "${TARGET_PLATFORM}" in
+        linux|rdkb)
+            ;;
+        *)
+            echo "Unsupported platform: ${TARGET_PLATFORM}" >&2
+            exit 1
+            ;;
+    esac
+
     if ! OPTS=$(getopt -o 'hm:c:' -l 'help,mode:,cert:' -n 'parse-options' -- "$@"); then
         echo "Failed parsing options." >&2
         usage
@@ -260,9 +216,7 @@ main() {
 
     # Give write permissions (linux only)
     # shellcheck disable=SC2050
-    if [ "${TARGET_PLATFORM}" = "linux" ]; then
-        chmod -R +o+w "/tmp/beerocks" || true
-    fi
+    chmod -R +o+w "/tmp/beerocks" || true
 
     return 0
 }
