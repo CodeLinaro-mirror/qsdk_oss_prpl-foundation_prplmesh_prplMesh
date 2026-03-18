@@ -13,6 +13,7 @@
 #include <tlvf/ieee_1905_1/tlv1905ProfileVersion.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvControlUrl.h>
+#include <tlvf/ieee_1905_1/tlvDeviceBridgingCapability.h>
 #include <tlvf/ieee_1905_1/tlvDeviceIdentification.h>
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvIpv4.h>
@@ -580,6 +581,38 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
         }
     }
 
+    for (auto &tuple : al.bridging_tuples) {
+        if (!tuple.dm_path) {
+            tuple.dm_path = al.dm_path.add_instance(".BridgingTuple");
+            if (!tuple.dm_path) {
+                ok = false;
+                continue;
+            }
+        }
+
+        std::vector<std::string> interface_refs;
+        for (const auto &if_mac : tuple.interfaces) {
+            auto iface_it = al.interfaces.find(if_mac);
+            if (iface_it == al.interfaces.end() || !iface_it->second.dm_path) {
+                continue;
+            }
+
+            interface_refs.push_back(add_device_prefix(iface_it->second.dm_path.path));
+        }
+
+        std::sort(interface_refs.begin(), interface_refs.end());
+        std::string interface_list;
+        for (const auto &interface_ref : interface_refs) {
+            interface_list += interface_ref;
+            interface_list += ',';
+        }
+        if (!interface_list.empty()) {
+            interface_list.pop_back();
+        }
+
+        ok &= tuple.dm_path.set("InterfaceList", interface_list);
+    }
+
     LOG_IF(!ok, ERROR) << "Failed to update AL " << al_mac << " in DM";
 
     return ok;
@@ -897,6 +930,50 @@ bool ieee1905_task::handle_topology_response(const sMacAddr &src_mac,
             neighbors.emplace(neighbor_al_mac, sNeighbor{{}, ieee802dot1_bridge, std::move(ref)});
         }
     }
+
+    using sBridgingTuple = db::ieee1905_network_db::sAL::sBridgingTuple;
+
+    // snapshot and (re)build bridging tuple
+    decltype(db_al.bridging_tuples) prev_bridging_tuples;
+    prev_bridging_tuples.swap(db_al.bridging_tuples);
+
+    auto tlv_bridging_caps = cmdu_rx.getClassList<ieee1905_1::tlvDeviceBridgingCapability>();
+    for (const auto &tlv_bridging_cap : tlv_bridging_caps) {
+        if (!tlv_bridging_cap) {
+            LOG(ERROR) << "ieee1905_1::tlvDeviceBridgingCapability has invalid pointer";
+            continue;
+        }
+
+        for (int i = 0; i < tlv_bridging_cap->bridging_tuples_list_length(); ++i) {
+            auto mac_list = unwrap(tlv_bridging_cap->bridging_tuples_list(i));
+            if (!mac_list) {
+                LOG(ERROR) << "Failed to read bridging tuple #" << i;
+                continue;
+            }
+
+            sBridgingTuple tuple;
+            for (int j = 0; j < mac_list->mac_list_length(); ++j) {
+                auto mac = unwrap(mac_list->mac_list(j));
+                if (!mac) {
+                    LOG(ERROR) << "Failed to read bridging tuple interface #" << j;
+                    continue;
+                }
+
+                tuple.interfaces.insert(*mac);
+            }
+
+            auto it = std::find_if(prev_bridging_tuples.begin(), prev_bridging_tuples.end(),
+                                   [&tuple](const auto &prev_tuple) {
+                                       return prev_tuple.interfaces == tuple.interfaces;
+                                   });
+            if (it != prev_bridging_tuples.end()) {
+                tuple.dm_path = std::move(it->dm_path);
+            }
+
+            db_al.bridging_tuples.push_back(std::move(tuple));
+        }
+    }
+    prev_bridging_tuples.clear();
 
     prev_ifs.clear(); // dereferences lost/moved ALs
     cleanup_orphan_als();

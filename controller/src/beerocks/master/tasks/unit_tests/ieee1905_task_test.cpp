@@ -16,6 +16,7 @@
 #include <tlvf/ieee_1905_1/tlv1905ProfileVersion.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvControlUrl.h>
+#include <tlvf/ieee_1905_1/tlvDeviceBridgingCapability.h>
 #include <tlvf/ieee_1905_1/tlvDeviceIdentification.h>
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvIpv4.h>
@@ -90,6 +91,7 @@ protected:
         std::vector<sMacAddr> interfaces;
         std::unordered_map<sMacAddr, std::vector<sMacAddr>> ieee1905_neighbors;
         std::unordered_map<sMacAddr, std::vector<sMacAddr>> non_1905_neighbors;
+        std::vector<std::vector<sMacAddr>> bridging_tuples;
     };
 
     struct sHigherLayerResponsePacket {
@@ -265,6 +267,36 @@ protected:
 
                 neighbor->mac           = neighbors[i];
                 neighbor->bridges_exist = ieee1905_1::tlv1905NeighborDevice::NO_BRIDGES_EXIST;
+            }
+        }
+
+        if (!packet.bridging_tuples.empty()) {
+            auto tlv_bridging_cap = m_cmdu_tx->addClass<ieee1905_1::tlvDeviceBridgingCapability>();
+            if (!tlv_bridging_cap) {
+                return false;
+            }
+
+            for (const auto &tuple_interfaces : packet.bridging_tuples) {
+                auto mac_list = tlv_bridging_cap->create_bridging_tuples_list();
+                if (!mac_list) {
+                    return false;
+                }
+                if (!mac_list->alloc_mac_list(tuple_interfaces.size())) {
+                    return false;
+                }
+
+                for (size_t i = 0; i < tuple_interfaces.size(); ++i) {
+                    auto mac = unwrap(mac_list->mac_list(i));
+                    if (!mac) {
+                        return false;
+                    }
+
+                    *mac = tuple_interfaces[i];
+                }
+
+                if (!tlv_bridging_cap->add_bridging_tuples_list(mac_list)) {
+                    return false;
+                }
             }
         }
 
@@ -685,6 +717,158 @@ TEST_F(IEEE1905TaskTest, ensure_al_in_dm_updates_existing_ieee1905_device_refs)
     EXPECT_EQ("Device." + als[target_al_mac].dm_path.path,
               read_ieee1905_neighbor_param(source_al_mac, source_if_mac, target_al_mac,
                                            "IEEE1905DeviceRef"));
+}
+
+TEST_F(IEEE1905TaskTest, bridging_tuple_interface_list_reads_interface_refs)
+{
+    const auto al_mac  = m_local_al_mac;
+    const auto if1_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:11");
+    const auto if2_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:12");
+
+    sTopologyResponsePacket packet;
+    packet.interfaces      = {if1_mac, if2_mac};
+    packet.bridging_tuples = {{if2_mac, if1_mac}};
+
+    ieee1905_1::CmduMessageRx topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(al_mac, topology_rx, packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(al_mac, topology_rx));
+
+    const auto &al = m_database->ieee1905_network->al.at(al_mac);
+    ASSERT_EQ(1, al.bridging_tuples.size());
+
+    std::string interface_list;
+    EXPECT_TRUE(m_ambiorix->read_param(al.bridging_tuples[0].dm_path.path, "InterfaceList",
+                                       &interface_list));
+
+    std::vector<std::string> expected_refs = {
+        "Device." + al.interfaces.at(if1_mac).dm_path.path,
+        "Device." + al.interfaces.at(if2_mac).dm_path.path,
+    };
+    std::sort(expected_refs.begin(), expected_refs.end());
+
+    EXPECT_EQ(expected_refs[0] + "," + expected_refs[1], interface_list);
+}
+
+TEST_F(IEEE1905TaskTest, topology_response_keeps_bridging_tuple_path_for_same_interfaces)
+{
+    const auto al_mac  = m_local_al_mac;
+    const auto if1_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:11");
+    const auto if2_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:12");
+
+    sTopologyResponsePacket first_packet;
+    first_packet.interfaces      = {if1_mac, if2_mac};
+    first_packet.bridging_tuples = {{if1_mac, if2_mac}};
+
+    ieee1905_1::CmduMessageRx first_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(al_mac, first_topology_rx, first_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(al_mac, first_topology_rx));
+
+    const auto first_path =
+        m_database->ieee1905_network->al.at(al_mac).bridging_tuples[0].dm_path.path;
+
+    sTopologyResponsePacket second_packet;
+    second_packet.interfaces      = {if1_mac, if2_mac};
+    second_packet.bridging_tuples = {{if2_mac, if1_mac}};
+
+    ieee1905_1::CmduMessageRx second_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(al_mac, second_topology_rx, second_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(al_mac, second_topology_rx));
+
+    const auto &al = m_database->ieee1905_network->al.at(al_mac);
+    ASSERT_EQ(1, al.bridging_tuples.size());
+    EXPECT_EQ(first_path, al.bridging_tuples[0].dm_path.path);
+
+    std::string interface_list;
+    EXPECT_TRUE(m_ambiorix->read_param(first_path, "InterfaceList", &interface_list));
+}
+
+TEST_F(IEEE1905TaskTest, topology_response_recreates_bridging_tuple_when_interfaces_change)
+{
+    const auto al_mac  = m_local_al_mac;
+    const auto if1_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:11");
+    const auto if2_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:12");
+    const auto if3_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:13");
+
+    sTopologyResponsePacket first_packet;
+    first_packet.interfaces      = {if1_mac, if2_mac, if3_mac};
+    first_packet.bridging_tuples = {{if1_mac, if2_mac}};
+
+    ieee1905_1::CmduMessageRx first_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(al_mac, first_topology_rx, first_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(al_mac, first_topology_rx));
+
+    const auto first_path =
+        m_database->ieee1905_network->al.at(al_mac).bridging_tuples[0].dm_path.path;
+
+    sTopologyResponsePacket second_packet;
+    second_packet.interfaces      = {if1_mac, if2_mac, if3_mac};
+    second_packet.bridging_tuples = {{if1_mac, if3_mac}};
+
+    ieee1905_1::CmduMessageRx second_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(al_mac, second_topology_rx, second_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(al_mac, second_topology_rx));
+
+    const auto &al = m_database->ieee1905_network->al.at(al_mac);
+    ASSERT_EQ(1, al.bridging_tuples.size());
+    const auto &tuple = al.bridging_tuples[0];
+    EXPECT_EQ(std::unordered_set<sMacAddr>({if1_mac, if3_mac}), tuple.interfaces);
+    EXPECT_NE(first_path, tuple.dm_path.path);
+
+    std::string interface_list;
+    EXPECT_FALSE(m_ambiorix->read_param(first_path, "InterfaceList", &interface_list));
+    EXPECT_TRUE(m_ambiorix->read_param(tuple.dm_path.path, "InterfaceList", &interface_list));
+}
+
+TEST_F(IEEE1905TaskTest, topology_response_materializes_added_bridging_tuple_in_new_object)
+{
+    const auto al_mac  = m_local_al_mac;
+    const auto if1_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:11");
+    const auto if2_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:12");
+    const auto if3_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:13");
+
+    sTopologyResponsePacket first_packet;
+    first_packet.interfaces      = {if1_mac, if2_mac, if3_mac};
+    first_packet.bridging_tuples = {{if1_mac, if2_mac}};
+
+    ieee1905_1::CmduMessageRx first_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(al_mac, first_topology_rx, first_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(al_mac, first_topology_rx));
+
+    const auto first_path =
+        m_database->ieee1905_network->al.at(al_mac).bridging_tuples[0].dm_path.path;
+
+    sTopologyResponsePacket second_packet;
+    second_packet.interfaces      = {if1_mac, if2_mac, if3_mac};
+    second_packet.bridging_tuples = {{if1_mac, if2_mac}, {if2_mac, if3_mac}};
+
+    ieee1905_1::CmduMessageRx second_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(al_mac, second_topology_rx, second_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(al_mac, second_topology_rx));
+
+    const auto &al = m_database->ieee1905_network->al.at(al_mac);
+    ASSERT_EQ(2, al.bridging_tuples.size());
+
+    const auto first_tuple_it = std::find_if(
+        al.bridging_tuples.begin(), al.bridging_tuples.end(),
+        [if1_mac, if2_mac](const auto &tuple) {
+            return tuple.interfaces == std::unordered_set<sMacAddr>({if1_mac, if2_mac});
+        });
+    ASSERT_NE(al.bridging_tuples.end(), first_tuple_it);
+    EXPECT_EQ(first_path, first_tuple_it->dm_path.path);
+
+    const auto second_tuple_it = std::find_if(
+        al.bridging_tuples.begin(), al.bridging_tuples.end(),
+        [if2_mac, if3_mac](const auto &tuple) {
+            return tuple.interfaces == std::unordered_set<sMacAddr>({if2_mac, if3_mac});
+        });
+    ASSERT_NE(al.bridging_tuples.end(), second_tuple_it);
+    EXPECT_NE(first_path, second_tuple_it->dm_path.path);
+
+    const auto second_path = second_tuple_it->dm_path.path;
+
+    std::string interface_list;
+    EXPECT_TRUE(m_ambiorix->read_param(first_path, "InterfaceList", &interface_list));
+    EXPECT_TRUE(m_ambiorix->read_param(second_path, "InterfaceList", &interface_list));
 }
 
 TEST_F(IEEE1905TaskTest, higher_layer_response_materializes_identification_and_ip_addresses)
