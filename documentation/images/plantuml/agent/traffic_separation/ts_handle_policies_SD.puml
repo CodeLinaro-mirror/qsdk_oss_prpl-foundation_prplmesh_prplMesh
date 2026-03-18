@@ -12,117 +12,216 @@ participant "BPL cfg" as BPL
 participant "AgentDB" as DB
 
 == Boot-time registration ==
-ST -> DB : read multi_ap_profile\n+ is_multiap_profile_1_as_of_r4
-
-alt profile supports TS or R4-as-R1 compatibility mode
+ST -> DB : read agent profile and TS support
+alt TS supported
   ST -> TP : add_task(TrafficSeparationTask)
-else plain Profile-1 boot
-  ST -> ST : do not add TrafficSeparationTask
+else TS unsupported
+  ST -> ST : task is not registered
 end
 
-== Trigger ==
+== Debounced TS apply ==
 ACT -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
 ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
-
-alt TrafficSeparationTask registered
+alt task exists
   TP -> TST : TS_ENABLE event
-  TST -> TST : schedule_apply(Full)\nwait debounce
-else task absent for Profile-1 boot config
+  TST -> TST : schedule_apply()\nwait debounce
+else task absent
   TP -> TP : return false
 end
 
-== work(): Full apply ==
-opt TrafficSeparationTask registered
-TST -> BC : configure_primary_vlan_id(primary_vid, add=true)
-TST -> TSM : reset()
-TST -> BPL : cfg_get_private_bridge_iface()\ncfg_get_guest_bridge_iface()
-TST -> DB : collect trunks/access ports + VIDs
-TST -> TSM : configure(cfg)
+opt task exists and debounce expires
+  TST -> DB : read primary_vlan_id
+  alt primary_vlan_id == 0 or invalid
+    TST -> TST : cleanup_ts_runtime_state()
+    TST -> TSM : clear_policies()
+    TST -> BC : configure_primary_vlan_id(0, add=false)
+    TST -> BC : configure_interfaces(bridge, {}, true, true)
+  else valid TS policy
+    TST -> BC : configure_primary_vlan_id(primary_vid, add=true)
+    TST -> TSM : clear_policies()
+    TST -> BPL : cfg_get_private_bridge_iface()\ncfg_get_guest_bridge_iface()
+    TST -> DB : collect persistent DB-owned trunks\n(selected backhaul connection + LAN)
+    TST -> TSM : configure(cfg)
+    loop for each persistent trunk
+      TST -> TSM : add_trunk_port(trunk)
+    end
+    TST -> TSM : apply_policies()
 
-loop for each discovered trunk port
-  TST -> TSM : add_trunk_port(trunk_port)
-  ' TS not yet applied, so no plumbing->apply() here
+    loop for each managed trunk
+      TSM -> TPQ : apply(cfg)
+      alt untagged trunk
+        TPQ -> TPQ : keep parent iface native\nno L2 changes
+      else tagged wireless trunk
+        TPQ -> NU : remove parent iface from bridge
+        TPQ -> NU : create private VLAN subiface
+        TPQ -> NU : create guest VLAN subiface
+        TPQ -> NU : add subifaces to private and guest bridges
+      else tagged ethernet trunk
+        TPQ -> NU : create guest VLAN subiface
+        TPQ -> NU : add guest subiface to guest bridge
+      end
+    end
+
+    loop for each managed access port
+      TSM -> APQ : apply(cfg)
+      alt access iface exists
+        APQ -> NU : set_vlan_packet_filter(true, iface_name)
+      else access iface vanished
+        APQ -> NU : linux_iface_exists(iface_name) == false
+        APQ -> APQ : warn and skip
+      end
+    end
+  end
 end
 
-loop for each discovered access port (BSS)
+== Handle pure FH AP enable ==
+ACT -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_NEW_FH_IFACE, iface_name)
+ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_NEW_FH_IFACE, iface_name)
+alt task exists
+  TP -> TST : TS_NEW_FH_IFACE(iface_name) event
   TST -> TSM : add_access_port(access_port)
-  ' TS not yet applied, so no plumbing->apply() here
-end
-
-TST -> TSM : apply_policies()
-
-loop for each [iface, plumbing] in m_trunk_port_plumbing_map
-  TSM -> TPQ : apply(cfg)
-
-  alt trunk is UNTAGGED (trunk.is_untagged_mode == true)
-    TPQ -> TPQ : m_last_cfg = cfg\nm_is_applied = true\n(no L2 changes)
-  else trunk is TAGGED
-    TPQ -> NU : linux_remove_iface_from_bridge(cfg.private_bridge,\n                                           trunk.iface_name)
-    TPQ -> NU : create_vlan_interface(trunk.iface_name, cfg.private_vid)
-    TPQ -> NU : create_vlan_interface(trunk.iface_name, cfg.guest_vid)
-    TPQ -> NU : set_interface_state(m_private_subiface, up)
-    TPQ -> NU : set_interface_state(m_guest_subiface, up)
-    TPQ -> NU : linux_add_iface_to_bridge(cfg.private_bridge,\n                                        m_private_subiface)
-    TPQ -> NU : linux_add_iface_to_bridge(cfg.guest_bridge,\n                                        m_guest_subiface)
-    TPQ -> TPQ : m_last_cfg = cfg\nm_is_applied = true
+  alt manager state is APPLIED
+    TSM -> APQ : apply(cfg)
+    alt iface exists
+      APQ -> NU : linux_iface_exists(iface_name)
+      APQ -> NU : set_vlan_packet_filter(true, iface_name)
+    else iface missing
+      APQ -> NU : linux_iface_exists(iface_name) == false
+      APQ -> APQ : warn and skip
+    end
   end
-end
-
-loop for each [iface, plumbing] in m_access_port_plumbing_map
-  TSM -> APQ : apply(cfg)
-
-  APQ -> APQ : check m_is_applied, iface_name
-  APQ -> NU  : set_vlan_packet_filter(true, access_port.iface_name)
-  APQ -> APQ : m_is_applied = true
-end
-
-TSM -> TSM : m_state = APPLIED
-end
-
-== Add new ports at runtime, TS already applied ==
-
-ACT -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
-ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
-alt TrafficSeparationTask registered
-  TP -> TST : TS_NEW_BH_STA_IFACE event
-  TST -> TST : schedule_apply(AddNewSta)\nwait debounce
-  TST -> DB : scan backhaul BSS iface names
-  TST -> NU : linux_get_iface_list()\nfilter <bss_iface>.staN
-  loop each newly discovered sta iface
-    TST -> TSM : add_trunk_port(new_sta_trunk)
-    TSM -> TPQ : apply(cfg)  ' immediate because manager is APPLIED
-  end
-else task absent for Profile-1 boot config
+else task absent
   TP -> TP : return false
 end
 
-== Clear stale tracked STA ifaces ==
-
-ST -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
-ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
-alt TrafficSeparationTask registered
-  TP -> TST : TS_CLEAR_BH_STA_IFACE event
-  TST -> TST : schedule_apply(ClearSta)\nwait debounce
-  TST -> DB : scan backhaul BSS iface names
-  TST -> NU : linux_get_iface_list()\nfilter <bss_iface>.staN
-  loop each stale tracked sta iface
-    TST -> TSM : remove_trunk_port(stale_sta_trunk)
+== Handle pure FH disable or disappearance ==
+ST -> DB : mark BSS disabled on AP_DISABLED\nor VAPS_LIST_UPDATE transition
+ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_FH_IFACE, iface_name)
+alt task exists
+  TP -> TST : TS_CLEAR_FH_IFACE(iface_name) event
+  TST -> TSM : remove_access_port(iface_name)
+  alt iface was managed and manager state is APPLIED
+    TSM -> APQ : clear()
+    alt iface still exists
+      APQ -> NU : linux_iface_exists(iface_name)
+      APQ -> NU : set_vlan_packet_filter(false, iface_name)
+    else iface vanished before cleanup
+      APQ -> NU : linux_iface_exists(iface_name) == false
+      APQ -> APQ : treat as already cleared
+    end
+  else iface not tracked
+    TST -> TST : return success
   end
-  loop each newly discovered sta iface
-    TST -> TSM : add_trunk_port(new_sta_trunk)
-    TSM -> TPQ : apply(cfg)  ' immediate because manager is APPLIED
-  end
-else task absent for Profile-1 boot config
+else task absent
   TP -> TP : return false
 end
 
-== Clear all TS state ==
-opt TrafficSeparationTask registered and TS_CLEAR is emitted
-  ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_CLEAR)
-  TP -> TST : TS_CLEAR event
-  TST -> TSM : reset()
-  TST -> BC : configure_primary_vlan_id(0, add=false)
-  TST -> BC : configure_interfaces(bridge, {}, true, true)
+== Handle exact WDS iface notification ==
+ST -> ST : process WDS iface notification
+ST -> DB : resolve radio by bssid
+alt client already associated
+  ST -> ST : set_client_wds_iface()\nstore WDS iface
+  opt previous WDS iface differs
+    ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, old_iface_name)
+    alt task exists
+      TP -> TST : TS_CLEAR_WDS_IFACE(old_iface_name) event
+      TST -> TSM : remove_trunk_port(old_iface_name)
+    end
+  end
+  ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_NEW_WDS_IFACE, iface_name)
+  alt task exists
+    TP -> TST : TS_NEW_WDS_IFACE(iface_name) event
+    TST -> DB : match iface to active backhaul BSS
+    alt matching backhaul BSS found
+      TST -> TST : resolve mode from\nbBSS disallow flags + policy
+      TST -> TST : cache {not_before, deadline}\nin m_pending_wds_ifaces if new
+      alt settle delay not elapsed yet
+        TST -> TST : schedule_deferred_work(not_before)\nreturn success
+      else iface missing or tagged iface not ready
+        alt retry deadline not reached
+          TST -> TST : schedule_deferred_work(retry_due)\nreturn success
+        else retry deadline expired
+          TST -> TST : warn and drop pending WDS iface
+        end
+      else iface ready
+        TST -> TSM : remove_trunk_port(iface_name)\nrefresh same-name reconnect
+        TST -> TSM : add_trunk_port(exact WDS iface)
+        TSM -> TPQ : apply(cfg)
+      end
+    else no matching backhaul BSS
+      TST -> TST : ignore event
+    end
+  else task absent
+    TP -> TP : return false
+  end
+else notification races ahead of association
+  ST -> ST : cache {bssid, iface_name}\nin m_pending_wds_iface_notifications
 end
+
+== Association consumes cached WDS iface ==
+opt legacy STA was already associated on another bssid
+  ST -> TP : try_send_event(TS_CLEAR_WDS_IFACE, old_iface_name)
+  note right of ST
+    Old exact WDS trunk is cleared before
+    erase_client(client_mac) removes the previous
+    association state.
+  end note
+end
+ST -> DB : erase_client(client_mac)
+ST -> DB : create associated client entry
+opt cached WDS iface exists for client
+  alt cached bssid matches association bssid
+    ST -> ST : apply cached iface via set_client_wds_iface()
+    ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_NEW_WDS_IFACE, iface_name)
+    alt task exists
+      TP -> TST : TS_NEW_WDS_IFACE(iface_name) event
+      TST -> TST : follow the same deferred settle\nand bounded retry path
+    else task absent
+      TP -> TP : return false
+    end
+  else cached bssid is stale
+    ST -> ST : drop cached WDS iface notification
+  end
+end
+
+== Disallow-triggered exact WDS refresh ==
+alt AP_ENABLED or VAPS_LIST_UPDATE changes backhaul disallow flags
+  ACT -> ST : AP_ENABLED path detects disallow delta
+  ST -> ST : or VAPS_LIST_UPDATE detects disallow delta\nfor the same active backhaul BSS
+  loop for each associated client on that BSS with wds_iface_name
+    ST -> TP : try_send_event(TS_CLEAR_WDS_IFACE, iface_name)
+    ST -> TP : try_send_event(TS_NEW_WDS_IFACE, iface_name)
+    TP -> TST : recompute trunk mode from current\ndisallow flags + policy
+  end
+end
+
+== Stale clear and disconnect cleanup ==
+alt empty WDS notification arrives after client moved
+  ST -> ST : ignore stale cleared WDS iface notification
+else associated client disconnects with active WDS iface
+  ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, iface_name)
+  alt task exists
+    TP -> TST : TS_CLEAR_WDS_IFACE(iface_name) event
+    TST -> TSM : remove_trunk_port(iface_name)
+    opt manager state is APPLIED
+      TSM -> TPQ : clear()
+    end
+  end
+  ST -> ST : erase cached WDS notification for client and bssid
+  ST -> DB : erase_client(client_mac, bssid)
+end
+
+note over ACT,TST
+FH and WDS runtime lifecycles are event-driven.
+No debounce is used for incremental add and remove events.
+
+Debounced work() runs reset() only for TS_ENABLE.
+WDS readiness retry also runs from work() after the
+settle delay, so handle_event() does not sleep.
+
+reset() only refreshes config and persistent
+DB-owned trunks. Event-managed FH and WDS ports stay
+owned by their runtime events.
+end note
 
 @enduml

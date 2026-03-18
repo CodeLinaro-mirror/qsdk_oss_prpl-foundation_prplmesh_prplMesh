@@ -1,54 +1,45 @@
 @startuml
 package "beerocks" {
   class TrafficSeparationTask {
-    -m_btl_ctx   : slave_thread&
-    -m_mgr       : std::unique_ptr<net::TrafficSeparationManager>
-    -m_pending   : bool
-    -m_next_run  : std::chrono::steady_clock::time_point
-    -m_mode      : eApplyMode
+    -m_btl_ctx : slave_thread&
+    -m_mgr : std::unique_ptr<net::TrafficSeparationManager>
+    -m_pending : bool
+    -m_apply_pending : bool
+    -m_next_run : std::chrono::steady_clock::time_point
+    -m_pending_wds_ifaces : std::unordered_map<std::string, sPendingWdsIfaceState>
     -m_last_primary_vid : uint16_t
-    -m_tracked_wds_ifaces : std::unordered_set<std::string>
     +work() : void
     +handle_event(event_enum_value : uint8_t, event_obj : void*) : void
-    +clear_configuration() : bool
-    -stronger_mode(a : eApplyMode, b : eApplyMode) : eApplyMode
+    -schedule_apply() : void
+    -schedule_deferred_work(due) : void
+    -clear_pending_apply() : void
+    -clear_scheduled_work() : void
+    -should_run_now() : bool
     -reset() : bool
-    -handle_new_sta_iface() : bool
-    -handle_clear_sta_iface() : bool
-    -collect_current_wds_ifaces() : std::unordered_map<std::string, bool>
+    -handle_new_fh_iface(iface_name : std::string) : bool
+    -handle_clear_fh_iface(iface_name : std::string) : bool
+    -handle_new_wds_iface(iface_name : std::string) : bool
+    -handle_clear_wds_iface(iface_name : std::string) : bool
+    -retry_pending_wds_ifaces() : bool
     -cleanup_ts_runtime_state() : bool
-    -build_ts_config(cfg : net::sTrafficSeparationConfig&) : bool
-    -collect_ports_from_db(trunks, access_ports) : bool
-    -add_backhaul_connection_trunk(trunks) : bool
     -ensure_transport_primary_vlan(primary_vid : uint16_t) : bool
     -reset_transport_monitoring_on_bridge() : bool
-    -schedule_apply(mode : eApplyMode) : void
-    -clear_pending_apply() : void
-    -should_run_now() : bool
-    -get_all_sta_ifaces_for_bss(bss_iface : std::string) : std::vector<std::string>
-    -sta_index_for_prefix(ifname : std::string, prefix : std::string) : int
+    -build_ts_config(cfg : net::sTrafficSeparationConfig&) : bool
+    -get_ports_from_db(trunks) : bool
+    -add_backhaul_connection_trunk(trunks) : bool
   }
 
   enum eEvent {
     TS_ENABLE
-    TS_NEW_BH_STA_IFACE
-    TS_CLEAR_BH_STA_IFACE
+    TS_NEW_FH_IFACE
+    TS_CLEAR_FH_IFACE
+    TS_NEW_WDS_IFACE
+    TS_CLEAR_WDS_IFACE
     TS_CLEAR
-  }
-
-  enum eApplyMode {
-    None
-    AddNewSta
-    ClearSta
-    Full
   }
 }
 
 package "beerocks::net" {
-
-  '-------------------------------------------------
-  ' Value types / configuration
-  '-------------------------------------------------
   struct sTrafficSeparationConfig {
     +private_bridge : std::string
     +private_vid    : uint32_t
@@ -73,18 +64,12 @@ package "beerocks::net" {
     +role       : eAccessRole
   }
 
-  '-------------------------------------------------
-  ' Manager state
-  '-------------------------------------------------
   enum eTsManagerState {
     NO_CONFIG
     CONFIGURED
     APPLIED
   }
 
-  '-------------------------------------------------
-  ' Plumbing abstraction
-  '-------------------------------------------------
   abstract class PortPlumbing {
     +apply(cfg : sTrafficSeparationConfig) : bool
     +clear() : bool
@@ -109,38 +94,26 @@ package "beerocks::net" {
     +clear() : bool
   }
 
-  '-------------------------------------------------
-  ' Manager
-  '-------------------------------------------------
   class TrafficSeparationManager {
     -m_trunk_port_plumbing_map  : std::unordered_map<std::string, std::unique_ptr<PortPlumbing>>
     -m_access_port_plumbing_map : std::unordered_map<std::string, std::unique_ptr<PortPlumbing>>
     -m_config : sTrafficSeparationConfig
     -m_state : eTsManagerState
-
     +configure(cfg : sTrafficSeparationConfig) : bool
-
     +add_trunk_port(trunk_port : sTrunkPort) : bool
     +remove_trunk_port(iface_name : std::string) : bool
-
     +add_access_port(access_port : sAccessPort) : bool
     +remove_access_port(iface_name : std::string) : bool
-
     +apply_policies() : bool
     +clear_policies() : bool
     +reset() : bool
-
-    -has_config() : bool
-    -is_applied() : bool
+    +has_config() : bool
+    +is_applied() : bool
     -has_any_ports() : bool
-
     -remove_all_trunk_ports() : bool
     -remove_all_access_ports() : bool
   }
 
-  '-------------------------------------------------
-  ' Utility
-  '-------------------------------------------------
   class traffic_separation_utils <<static>> {
     +resolve_profile_disallow_flags(dis_p1 : bool&, dis_p2 : bool&,
                                     policy : eUnsupportedProfileDisallowPolicy) : bool
@@ -149,10 +122,8 @@ package "beerocks::net" {
   }
 }
 
-' Relationships
 sAccessPort --> eAccessRole
 TrafficSeparationTask --> eEvent
-TrafficSeparationTask --> eApplyMode
 TrafficSeparationTask --> TrafficSeparationManager
 TrafficSeparationTask ..> sTrafficSeparationConfig
 TrafficSeparationTask ..> sTrunkPort
@@ -165,5 +136,57 @@ TrafficSeparationManager --> PortPlumbing
 TrafficSeparationManager --> sTrunkPort
 TrafficSeparationManager --> sAccessPort
 TrafficSeparationManager --> sTrafficSeparationConfig
+
+note right of TrafficSeparationTask
+  TS_ENABLE is still the only debounced event.
+  work() runs reset() for pending TS_ENABLE and
+  retry_pending_wds_ifaces() for deferred WDS
+  readiness checks.
+
+  reset() clears active plumbing, refreshes the
+  config, re-adds persistent DB-owned trunks, and
+  reapplies policies on already managed ports.
+
+  Pure-FH and exact-WDS ownership is event-driven:
+  TS_NEW_* adds one iface, TS_CLEAR_* removes one.
+  reset() does not reconcile FH access ports from
+  DB anymore.
+
+  TS_CLEAR clears active policies plus deferred
+  task state. There is no TS_RESET event path in
+  the current branch.
+end note
+
+note right of TrunkPortPlumbing8021q
+  tagged wireless trunk:
+  remove parent iface from its bridge, create
+  private and guest VLAN subifaces, attach them
+  to the TS bridges
+
+  tagged ethernet trunk:
+  keep parent iface native and create guest VLAN
+  subiface only
+
+  untagged trunk:
+  no bridge re-plumbing
+end note
+
+note right of AccessPortPlumbing8021q
+  apply() warns and skips if the pure-FH iface is
+  missing.
+
+  clear() treats a vanished iface as already
+  cleaned so disable races do not fail remove.
+end note
+
+note bottom of TrafficSeparationManager
+  clear_policies() clears plumbing state but keeps
+  trunk and access ownership maps.
+
+  reset() calls clear_policies(), removes all
+  managed ports, clears config, and returns to
+  NO_CONFIG, but TrafficSeparationTask does not
+  emit a TS_RESET event in the current branch.
+end note
 
 @enduml
