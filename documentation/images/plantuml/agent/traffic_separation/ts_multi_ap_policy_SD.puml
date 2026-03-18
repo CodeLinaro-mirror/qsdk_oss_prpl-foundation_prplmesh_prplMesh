@@ -44,7 +44,7 @@ end
 
 == 3. TS task applies config ==
 opt TrafficSeparationTask registered
-    TST -> DB: read TS policy + ports inventory
+    TST -> DB: read TS policy + current port inventory
     alt primary VLAN valid
         TST -> BC: configure_primary_vlan_id(primary_vid, add=true)
         TST -> TSM: reset()
@@ -52,6 +52,11 @@ opt TrafficSeparationTask registered
         loop each trunk/access port found in DB
             TST -> TSM: add_trunk_port()/add_access_port()
         end
+        note right of TST
+        Runtime WDS churn is handled by
+        TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE.
+        Full rebuilds still discover current <bss>.staN trunks.
+        end note
         TST -> TSM: apply_policies()
         TSM -> SYS: create VLAN subifaces + attach bridges (trunks)
         TSM -> SYS: set_vlan_packet_filter(true) on access ports
@@ -60,39 +65,34 @@ opt TrafficSeparationTask registered
     end
 end
 
-== 4. New STA iface incremental path ==
-AC -> ST: task_pool_try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
-ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
+== 4. Runtime WDS iface add ==
+ST -> DB: store WDS iface
+ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_NEW_WDS_IFACE, iface_name)
 alt TrafficSeparationTask registered
-    TP -> TST: TS_NEW_BH_STA_IFACE event
-    TST -> TST: schedule_apply(AddNewSta)\ndebounce
-    TST -> DB: read active backhaul BSS
-    TST -> SYS: linux_get_iface_list() and match <bss_iface>.staN
-    loop each discovered new STA iface
-        TST -> TSM: add_trunk_port(sta trunk)
+    TP -> TST: TS_NEW_WDS_IFACE(iface_name) event
+    TST -> DB: match iface to active backhaul BSS
+    alt matching backhaul BSS found
+        TST -> TST: resolve mode from bBSS disallow flags + policy
+        TST -> TSM: add_trunk_port(exact WDS iface)
         note right: if manager state is APPLIED,\nnew trunk is applied immediately
+    else no matching backhaul BSS
+        TST -> TST: ignore event
     end
 else task absent for plain Profile-1 boot config
     TP -> TP: return false
 end
 
-== 5. Clear stale STA iface path ==
-ST -> ST: task_pool_try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
-ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_BH_STA_IFACE)
+== 5. Runtime WDS iface clear ==
+ST -> ST: resolve current WDS iface\nbefore erase_client()
+ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, iface_name)
 alt TrafficSeparationTask registered
-    TP -> TST: TS_CLEAR_BH_STA_IFACE event
-    TST -> TST: schedule_apply(ClearSta)\ndebounce
-    TST -> DB: read active backhaul BSS
-    TST -> SYS: linux_get_iface_list() and match <bss_iface>.staN
-    loop each stale tracked STA iface
-        TST -> TSM: remove_trunk_port(sta trunk)
-    end
-    loop each newly discovered STA iface
-        TST -> TSM: add_trunk_port(sta trunk)
-    end
+    TP -> TST: TS_CLEAR_WDS_IFACE(iface_name) event
+    TST -> TSM: remove_trunk_port(iface_name)
+    note right: immediate clear when manager state is APPLIED
 else task absent for plain Profile-1 boot config
     TP -> TP: return false
 end
+ST -> DB: erase_client()
 
 == 6. Clear path ==
 opt TrafficSeparationTask registered and TS_CLEAR is emitted
