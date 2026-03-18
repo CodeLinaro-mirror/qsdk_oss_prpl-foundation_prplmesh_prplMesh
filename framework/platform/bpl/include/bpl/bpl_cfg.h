@@ -167,6 +167,9 @@ constexpr int DEFAULT_MULTI_AP_PROFILE = 2;
 // Link metrics tasks send request with this interval.
 constexpr std::chrono::seconds DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC{60};
 
+/** IEEE1905 task requests with this interval. */
+constexpr std::chrono::seconds DEFAULT_HIGHER_LAYER_REQUEST_INTERVAL_VALUE_SEC{60};
+
 // Default Linux Lan interface names. It needs to be space separated.
 constexpr char DEFAULT_LINUX_LAN_INTERFACE_NAMES[] =
     "eth0_1 eth0_2 eth0_3 eth0_4 lan0 lan1 lan2 lan3";

@@ -69,8 +69,9 @@ protected:
         single_shot_counter higher_layer_response_pending;
 
         // in case Topology Notification/Response was lost
-        time_point next_periodic_topology_query_deadline    = time_point::max();
-        time_point next_periodic_link_metric_query_deadline = time_point::min();
+        time_point next_periodic_topology_query_deadline     = time_point::max();
+        time_point next_periodic_higher_layer_query_deadline = time_point::min();
+        time_point next_periodic_link_metric_query_deadline  = time_point::min();
     };
 
     void work() override;
