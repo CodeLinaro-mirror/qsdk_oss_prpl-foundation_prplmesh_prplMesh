@@ -1,6 +1,5 @@
 @startuml
 package "Agent" {
-
   package "AutoConfiguration" {
     class ApAutoConfigurationTask
   }
@@ -27,29 +26,46 @@ package "Agent" {
   class network_utils
 }
 
-' TS triggers are routed through slave_thread
-ApAutoConfigurationTask --> AgentDB : read BH, FH BSS, \nprofiles etc
-ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)\ntask_pool_try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
-slave_thread --> AgentDB : read boot-time multi_ap_profile\n+ is_multiap_profile_1_as_of_r4
-slave_thread --> TaskPool : add_task(TrafficSeparationTask)\nwhen profile supports TS\nor R4-as-R1 compatibility mode
-slave_thread --> TaskPool : try_send_event(TRAFFIC_SEPARATION, TS_*)
+ApAutoConfigurationTask --> AgentDB : read TS policy and BSS role
+ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TS_ENABLE)\nafter radios configured or policy update\ntask_pool_try_send_event(TS_NEW_FH_IFACE)\non AP_ENABLED for pure FH BSS
+ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TS_CLEAR_WDS_IFACE / TS_NEW_WDS_IFACE)\non AP_ENABLED disallow-flag change
+slave_thread --> AgentDB : read boot-time profile\naudit VAP snapshots\ntrack client WDS iface state
+slave_thread --> TaskPool : add_task(TrafficSeparationTask)\nwhen TS is supported
+slave_thread --> TaskPool : try_send_event(TS_ENABLE)\ntry_send_event(TS_NEW_FH_IFACE / TS_CLEAR_FH_IFACE)\nfrom AP disable or VAP snapshot transitions\ntry_send_event(TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE)\nfrom WDS notifications, association replacement,\nand disconnect cleanup
+slave_thread --> TaskPool : try_send_event(TS_CLEAR_WDS_IFACE / TS_NEW_WDS_IFACE)\nfrom VAPS_LIST_UPDATE disallow-flag changes
+slave_thread --> slave_thread : cache WDS notifications until\nprocess_client_association()
 TaskPool --> TrafficSeparationTask : handle_event() only when task exists
 
-' TrafficSeparationTask interactions
-TrafficSeparationTask --> AgentDB : read TS DB state,\nradio/BSS/port inventory
+TrafficSeparationTask --> AgentDB : read TS policy, persistent trunk inventory,\ncurrent runtime BSS and client state\nmatch exact WDS iface to active bBSS
 TrafficSeparationTask --> BPL_CFG : read private/guest bridge names
 TrafficSeparationTask --> broker_client : configure_primary_vlan_id()\nconfigure_interfaces()
-TrafficSeparationTask --> TrafficSeparationManager : reset()\nconfigure(cfg)\nadd_trunk_port(trunk)\nremove_trunk_port(trunk)\nadd_access_port(access)\napply_policies()\nclear_policies()
-TrafficSeparationTask --> network_utils : linux_get_iface_list()\n(scan <bss_iface>.staN)
+TrafficSeparationTask --> TrafficSeparationManager : clear_policies()\nconfigure(cfg)\nadd_trunk_port(trunk)\nremove_trunk_port(iface_name)\nadd_access_port(access)\nremove_access_port(iface_name)\napply_policies()
 TrafficSeparationTask --> slave_thread
 
-' Manager → plumbing
 TrafficSeparationManager --> PortPlumbing : apply(cfg)\nclear()
 PortPlumbing <|-- TrunkPortPlumbing8021q
 PortPlumbing <|-- AccessPortPlumbing8021q
 
-' Plumbing → OS/network helpers
 TrunkPortPlumbing8021q --> network_utils : create_vlan_interface()\nlinux_add_iface_to_bridge()\nset_interface_state()
-AccessPortPlumbing8021q --> network_utils : set_vlan_packet_filter()
+AccessPortPlumbing8021q --> network_utils : linux_iface_exists()\nset_vlan_packet_filter()
+
+note bottom of TrafficSeparationTask
+  TS_ENABLE stays on the debounced apply path.
+  work() runs reset() for policy refresh and
+  bounded WDS retries after the settle delay.
+
+  reset() refreshes config plus persistent DB-owned
+  trunks and preserves event-managed FH and WDS
+  ownership.
+
+  Pure-FH and exact-WDS add/remove are event-driven.
+  WDS add does not sleep inside handle_event();
+  readiness retry stays on the deferred work path.
+
+  Policy disable currently reaches cleanup through
+  TS_ENABLE plus primary_vlan_id=0. TS_CLEAR exists for
+  explicit runtime cleanup but is not the normal policy
+  disable producer in the current tree.
+end note
 
 @enduml
