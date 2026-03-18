@@ -768,42 +768,47 @@ bool base_wlan_hal_whm::refresh_radio_info()
         wifi6_caps_ptr->spatial_reuse = 0;
 
         const std::string spatial_reuse_path = m_radio_path + "IEEE80211ax.";
-        bool spatial_reuse_supported         = false;
-        uint8_t tmp_bss_color                = 0;
-        bool tmp_bool                        = false;
         std::string tmp_bitmap;
 
-        if (m_ambiorix_cl.get_param<>(tmp_bss_color, spatial_reuse_path, "BssColor")) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "BssColorPartial")) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "SRGInformationValid") &&
-            tmp_bool) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "NonSRGOffsetValid") &&
-            tmp_bool) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path, "SRGBSSColorBitmap") &&
-            !tmp_bitmap.empty()) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path, "SRGPartialBSSIDBitmap") &&
-            !tmp_bitmap.empty()) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path,
-                                      "NeighborBSSColorInUseBitmap") &&
-            !tmp_bitmap.empty()) {
-            spatial_reuse_supported = true;
-        }
+        AmbiorixVariantSmartPtr spatial_reuse_path_obj =
+            m_ambiorix_cl.get_object(spatial_reuse_path);
+        if (!spatial_reuse_path_obj) {
+            LOG(ERROR) << "Failed to get object: " << spatial_reuse_path;
+        } else {
+            bool spatial_reuse_supported = false;
 
-        if (spatial_reuse_supported) {
-            LOG(INFO) << "Spatial Reuse support is true";
-            wifi6_caps_ptr->spatial_reuse = 1;
+            uint8_t tmp_bss_color = 0;
+            if (spatial_reuse_path_obj->read_child(tmp_bss_color, "BssColor")) {
+                spatial_reuse_supported = true;
+            }
+
+            bool tmp_bool = false;
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "BssColorPartial")) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "SRGInformationValid") && tmp_bool) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "NonSRGOffsetValid") && tmp_bool) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGBSSColorBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGPartialBSSIDBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "NeighborBSSColorInUseBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+
+            if (spatial_reuse_supported) {
+                LOG(INFO) << "Spatial Reuse support is true";
+                wifi6_caps_ptr->spatial_reuse = 1;
+            }
         }
 
         if (radio->read_child(s_val, "RadCapabilitiesHeMacStr")) {
