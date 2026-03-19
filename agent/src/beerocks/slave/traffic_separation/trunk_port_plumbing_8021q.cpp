@@ -27,6 +27,16 @@ bool TrunkPortPlumbing8021q::apply(const sTrafficSeparationConfig &cfg)
         return false;
     }
 
+    if (m_trunk.iface_name.empty()) {
+        LOG(ERROR) << "empty trunk iface_name";
+        return false;
+    }
+
+    if (!network_utils::linux_iface_exists(m_trunk.iface_name)) {
+        LOG(ERROR) << "missing trunk iface=" << m_trunk.iface_name;
+        return false;
+    }
+
     // If TS is applied and config is unchanged -> do nothing.
     // If config changed -> clear old plumbing first.
     if (m_is_applied) {
