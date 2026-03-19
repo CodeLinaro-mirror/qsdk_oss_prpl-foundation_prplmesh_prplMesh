@@ -73,6 +73,14 @@ ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
+# Needed for bSTA MLO on 5GHz
+ba-cli WiFi.SSID.5.MLDUnit=0
+
+# Only enable 5GHz endpoint to workaround issue when 6GHz endpoint is also enabled
+ba-cli WiFi.EndPoint.1.Enable=0
+ba-cli WiFi.EndPoint.2.Enable=1
+ba-cli WiFi.EndPoint.3.Enable=0
+
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
