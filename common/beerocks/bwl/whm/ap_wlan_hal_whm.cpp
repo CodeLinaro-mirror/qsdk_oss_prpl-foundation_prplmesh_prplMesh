@@ -2062,10 +2062,8 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         }
 
         msg->status = beerocks::string_utils::stoi(status_str);
-        LOG(DEBUG) << "STA connection failure: status: " << msg->status;
-
         msg->reason = beerocks::string_utils::stoi(reason_str);
-        LOG(DEBUG) << "STA connection failure: reason: " << msg->reason;
+        LOG(DEBUG) << "STA connection failure: status=" << msg->status << " reason=" << msg->reason;
 
         // Add the message to the queue
         event_queue_push(event, msg_buff);

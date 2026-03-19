@@ -1596,6 +1596,19 @@ bool ap_wlan_hal_nl80211::process_nl80211_event(parsed_obj_map_t &parsed_obj)
         msg->bssid = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
         LOG(DEBUG) << "STA connection failure: interface BSSID: " << msg->bssid;
 
+        auto status_str = parsed_obj["status"];
+        auto reason_str = parsed_obj["reason"];
+        if (status_str.empty()) {
+            status_str = reason_str.empty() ? "1" : "0";
+        }
+        if (reason_str.empty()) {
+            reason_str = "0";
+        }
+
+        msg->status = beerocks::string_utils::stoi(status_str);
+        msg->reason = beerocks::string_utils::stoi(reason_str);
+        LOG(DEBUG) << "STA connection failure: status=" << msg->status << " reason=" << msg->reason;
+
         event_queue_push(event, msg_buff);
         break;
     }

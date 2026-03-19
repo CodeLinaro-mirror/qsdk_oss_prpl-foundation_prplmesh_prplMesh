@@ -3455,6 +3455,19 @@ bool ap_wlan_hal_dwpal::process_dwpal_event(char *ifname, char *buffer, int bufL
         msg->bssid = tlvf::mac_from_string(bssid);
         LOG(DEBUG) << "sta connection failure: interface bssid: " << msg->bssid;
 
+        auto status_str = parsed_obj["status"];
+        auto reason_str = parsed_obj["reason"];
+        if (status_str.empty()) {
+            status_str = reason_str.empty() ? "1" : "0";
+        }
+        if (reason_str.empty()) {
+            reason_str = "0";
+        }
+
+        msg->status = beerocks::string_utils::stoi(status_str);
+        msg->reason = beerocks::string_utils::stoi(reason_str);
+        LOG(DEBUG) << "sta connection failure: status=" << msg->status << " reason=" << msg->reason;
+
         event_queue_push(event, msg_buff); // send message to the AP manager
         break;
     }
