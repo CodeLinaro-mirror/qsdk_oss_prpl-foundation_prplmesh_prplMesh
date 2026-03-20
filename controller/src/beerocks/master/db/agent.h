@@ -218,6 +218,8 @@ public:
         bool supports_5ghz  = true;
         bool supports_6ghz  = true;
         beerocks::WifiChannel wifi_channel;
+        std::string wifi_channel_source;
+        std::chrono::steady_clock::time_point wifi_channel_timestamp;
         std::chrono::steady_clock::time_point measurement_sent_timestamp;
         int measurement_recv_delta            = 0;
         int measurement_delay                 = 0;

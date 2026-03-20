@@ -35,6 +35,60 @@ const std::string db::IS_UNFRIENDLY_STR        = "is_unfriendly";
 
 constexpr std::chrono::minutes CHANNEL_PREFERENCE_EXPIRATION(5);
 
+constexpr std::chrono::seconds RADIO_CHANNEL_DEFERRED_UPDATE_GUARD(60);
+
+namespace {
+
+bool are_same_wifi_channel(const beerocks::WifiChannel &lhs, const beerocks::WifiChannel &rhs)
+{
+    return lhs.get_channel() == rhs.get_channel() &&
+           lhs.get_center_frequency() == rhs.get_center_frequency() &&
+           lhs.get_center_frequency_2() == rhs.get_center_frequency_2() &&
+           lhs.get_bandwidth() == rhs.get_bandwidth() &&
+           lhs.get_freq_type() == rhs.get_freq_type() &&
+           lhs.get_ext_above_primary() == rhs.get_ext_above_primary() &&
+           lhs.get_ext_above_secondary() == rhs.get_ext_above_secondary();
+}
+
+bool has_radio_channel_source_prefix(const std::string &source, const std::string &prefix)
+{
+    return source.rfind(prefix, 0) == 0;
+}
+
+bool is_deferred_radio_channel_source(const std::string &source)
+{
+    return has_radio_channel_source_prefix(source, "slave_joinded") ||
+           has_radio_channel_source_prefix(source, "csa_unexpected_notif");
+}
+
+bool is_authoritative_radio_channel_source(const std::string &source)
+{
+    // "Authoritative" only defines which recent sources are trusted enough to
+    // stop older deferred updates from rolling the controller DB back.
+    return has_radio_channel_source_prefix(source, "operating_channel_report") ||
+           has_radio_channel_source_prefix(source, "csa_notif") ||
+           has_radio_channel_source_prefix(source, "hostap_dfs_cac");
+}
+
+bool is_regressive_deferred_update(const Agent::sRadio &radio,
+                                   const beerocks::WifiChannel &wifi_channel,
+                                   const std::string &source,
+                                   std::chrono::steady_clock::time_point now)
+{
+    const bool deferred_source     = is_deferred_radio_channel_source(source);
+    const bool has_current_channel = !radio.wifi_channel.is_empty();
+    const bool different_channel   = !are_same_wifi_channel(radio.wifi_channel, wifi_channel);
+    const bool current_source_is_authoritative =
+        is_authoritative_radio_channel_source(radio.wifi_channel_source);
+    const bool current_channel_is_fresh =
+        (now - radio.wifi_channel_timestamp) <= RADIO_CHANNEL_DEFERRED_UPDATE_GUARD;
+
+    return deferred_source && has_current_channel && different_channel &&
+           current_source_is_authoritative && current_channel_is_fresh;
+}
+
+} // namespace
+
 // static
 std::string db::type_to_string(beerocks::eType type)
 {
@@ -5597,9 +5651,21 @@ bool db::set_radio_wifi_channel(const sMacAddr &radio_mac,
         return false;
     }
 
+    const auto now = std::chrono::steady_clock::now();
+
+    if (is_regressive_deferred_update(*radio, wifi_channel, from, now)) {
+        LOG(WARNING) << "Ignore regressive radio channel update for " << radio_mac
+                     << ", current wifiChannel: " << radio->wifi_channel << " from "
+                     << radio->wifi_channel_source << ", deferred wifiChannel: " << wifi_channel
+                     << " from " << from;
+        return true;
+    }
+
     LOG(INFO) << "Set Radio " << radio_mac << ", previous wifiChannel: " << radio->wifi_channel
               << ", current wifiChannel: " << wifi_channel << " from " << from;
-    radio->wifi_channel = wifi_channel;
+    radio->wifi_channel           = wifi_channel;
+    radio->wifi_channel_source    = from;
+    radio->wifi_channel_timestamp = now;
 
     radio->operating_class = son::wireless_utils::get_operating_class_by_channel(wifi_channel);
     if (radio->operating_class == 0) {
