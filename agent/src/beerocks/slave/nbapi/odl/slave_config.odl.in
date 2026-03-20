@@ -23,7 +23,7 @@
         dm-load = true,
         dm-save = true,
         dm-save-on-changed = true,
-        dm-save-init-delay = 2000,
+        dm-save-init-delay = 1000,
         dm-save-delay = 1000,
         dm-defaults = "defaults.d",
         directory = "$@@{storage-path}/odl"
