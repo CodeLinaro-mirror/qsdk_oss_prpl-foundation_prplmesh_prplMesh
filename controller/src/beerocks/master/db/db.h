@@ -603,7 +603,6 @@ public:
             std::string manufacturer_name;
             std::string manufacturer_model;
             std::string control_url;
-            std::string assoc_wifi_network_device_ref;
 
             template <typename IP>
             using IPMap = std::unordered_map<typename IP::sKey, IP, typename IP::sKey::hasher>;

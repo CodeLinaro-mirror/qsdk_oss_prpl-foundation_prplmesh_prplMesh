@@ -145,7 +145,6 @@ protected:
 
         m_event_loop = std::make_shared<beerocks::EventLoopImpl>();
 
-        // Gets rid of "Couldn't remove event handlers ..." noise
         ASSERT_TRUE(m_event_loop->register_handlers(amxp_signal_fd(), {}));
 
         m_ambiorix = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
@@ -154,10 +153,12 @@ protected:
             std::vector<beerocks::nbapi::sFunctions>{});
 
         ASSERT_TRUE(m_ambiorix->load_datamodel(IEEE1905_ODL_PATH));
+        ASSERT_TRUE(m_ambiorix->load_datamodel(DATAELEMENTS_NETWORK_DEVICE_TEST_ODL_PATH));
 
         m_local_al_mac = tlvf::mac_from_string("11:22:33:44:55:66");
         m_database =
             std::make_unique<son::db>(m_master_conf, *m_logger, m_local_al_mac, m_ambiorix);
+        prplmesh::controller::actions::g_database = m_database.get();
 
         m_cmdu_tx = std::make_unique<ieee1905_1::CmduMessageTx>(m_tx_buffer, sizeof(m_tx_buffer));
 
@@ -173,6 +174,7 @@ protected:
 
     void TearDown() override
     {
+        prplmesh::controller::actions::g_database = nullptr;
         m_task.reset();
         m_query_sender = nullptr;
         m_cmdu_tx.reset();
@@ -639,6 +641,12 @@ protected:
         return value;
     }
 
+    void read_all_pending_signals()
+    {
+        while (amxp_signal_read() == 0)
+            ;
+    }
+
     void advance_time(std::chrono::seconds delta)
     {
         m_now += delta;
@@ -774,6 +782,45 @@ TEST_F(IEEE1905TaskTest, ensure_al_in_dm_updates_existing_ieee1905_device_refs)
     EXPECT_EQ("Device." + als[target_al_mac].dm_path.path,
               read_ieee1905_neighbor_param(source_al_mac, source_if_mac, target_al_mac,
                                            "IEEE1905DeviceRef"));
+}
+
+TEST_F(IEEE1905TaskTest, assoc_wifi_network_device_ref_updates_on_dataelements_events)
+{
+    const auto remote_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:31");
+
+    sTopologyResponsePacket local_packet;
+    local_packet.ieee1905_neighbors[m_local_al_mac] = {remote_al_mac};
+    ieee1905_1::CmduMessageRx local_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, local_topology_rx, local_packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, local_topology_rx));
+
+    ieee1905_1::CmduMessageRx remote_topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(remote_al_mac, remote_topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(remote_al_mac, remote_topology_rx));
+    ASSERT_TRUE(m_task->ensure_al_in_dm(remote_al_mac));
+
+    EXPECT_TRUE(read_al_param(remote_al_mac, "AssocWiFiNetworkDeviceRef").empty());
+
+    const auto device_path = m_ambiorix->add_instance(DATAELEMENTS_ROOT_DM ".Network.Device");
+    ASSERT_FALSE(device_path.empty());
+
+    read_all_pending_signals();
+    EXPECT_TRUE(read_al_param(remote_al_mac, "AssocWiFiNetworkDeviceRef").empty());
+
+    ASSERT_TRUE(m_ambiorix->set(device_path, "ID", remote_al_mac));
+    read_all_pending_signals();
+
+    const auto device_index = m_ambiorix->get_instance_index(
+        DATAELEMENTS_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(remote_al_mac));
+    ASSERT_NE(0, device_index);
+
+    EXPECT_EQ("Device.WiFi.DataElements.Network.Device." + std::to_string(device_index),
+              read_al_param(remote_al_mac, "AssocWiFiNetworkDeviceRef"));
+
+    ASSERT_TRUE(m_ambiorix->remove_instance(DATAELEMENTS_ROOT_DM ".Network.Device", device_index));
+    read_all_pending_signals();
+
+    EXPECT_TRUE(read_al_param(remote_al_mac, "AssocWiFiNetworkDeviceRef").empty());
 }
 
 TEST_F(IEEE1905TaskTest, bridging_tuple_interface_list_reads_interface_refs)
