@@ -1763,6 +1763,76 @@ static void event_network_enable_changed(const char *const sig_name, const amxc_
     access_point_commit(network_obj, nullptr, nullptr, nullptr);
 }
 
+static void event_ieee1905_dataelements_network_device_changed(const char *const sig_name,
+                                                               const amxc_var_t *const data,
+                                                               void *const priv)
+{
+    if (!g_database) {
+        LOG(WARNING) << "Database is not initialized yet";
+        return;
+    }
+
+    if (!g_database->ieee1905_network || !data) {
+        return;
+    }
+
+    auto ambiorix = g_database->get_ambiorix_obj();
+    if (!ambiorix) {
+        LOG(ERROR) << "Ambiorix object is not available";
+        return;
+    }
+
+    auto update_assoc_ref_for_al = [&](const char *id) -> bool {
+        if (!id || !*id) {
+            return true;
+        }
+
+        auto id_s   = std::string(id);
+        auto al_mac = tlvf::mac_from_string(id_s);
+        auto al_it  = g_database->ieee1905_network->al.find(al_mac);
+        if (al_it == g_database->ieee1905_network->al.end() || !al_it->second.dm_path) {
+            return true;
+        }
+
+        auto device_index = ambiorix->get_instance_index(
+            DATAELEMENTS_ROOT_DM ".Network.Device.[ID == '%s'].", id_s);
+
+        const auto &assoc_wifi_network_device_ref =
+            device_index ? "Device.WiFi.DataElements.Network.Device." + std::to_string(device_index)
+                         : std::string{};
+
+        return al_it->second.dm_path.set("AssocWiFiNetworkDeviceRef",
+                                         assoc_wifi_network_device_ref);
+    };
+
+    const std::string signal     = sig_name ? sig_name : "";
+    const bool is_object_changed = (signal == "dm:object-changed");
+    const bool is_instance_event =
+        (signal == "dm:instance-added" || signal == "dm:instance-removed");
+
+    bool ok = true;
+
+    if (is_object_changed) {
+        const auto *id_from = GETP_CHAR(data, "parameters.ID.from");
+        const auto *id_to   = GETP_CHAR(data, "parameters.ID.to");
+
+        ok &= update_assoc_ref_for_al(id_from);
+        ok &= update_assoc_ref_for_al(id_to);
+    }
+
+    if (is_instance_event) {
+        const auto *id     = GETP_CHAR(data, "parameters.ID");
+        const auto *key_id = GETP_CHAR(data, "keys.ID");
+
+        ok &= update_assoc_ref_for_al(id);
+        ok &= update_assoc_ref_for_al(key_id);
+    }
+
+    if (!ok) {
+        LOG(ERROR) << "Failed to update AssocWiFiNetworkDeviceRef on DataElements event " << signal;
+    }
+}
+
 /**
  * @brief Event handler for IEEE1905 Network.Enable change.
  */
@@ -1813,6 +1883,8 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
         {"event_traffic_separation_changed", event_traffic_separation_changed},
+        {"event_ieee1905_dataelements_network_device_changed",
+         event_ieee1905_dataelements_network_device_changed},
         {"event_ieee1905_network_enable_changed", event_ieee1905_network_enable_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed}};

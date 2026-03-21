@@ -26,8 +26,17 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
             PROPERTIES LINK_FLAGS "--coverage")
     endif()
 
+    configure_file(
+        ${CMAKE_CURRENT_LIST_DIR}/dataelements_network_device_test.odl.in
+        ${CMAKE_CURRENT_BINARY_DIR}/dataelements_network_device_test.odl
+        @ONLY
+    )
+
     target_compile_definitions(${PROJECT_NAME}
-        PRIVATE IEEE1905_ODL_PATH="${CMAKE_BINARY_DIR}/controller/nbapi/controller/odl/ieee1905.odl")
+        PRIVATE
+            IEEE1905_ODL_PATH="${CMAKE_BINARY_DIR}/controller/nbapi/controller/odl/ieee1905.odl"
+            DATAELEMENTS_NETWORK_DEVICE_TEST_ODL_PATH="${CMAKE_CURRENT_BINARY_DIR}/dataelements_network_device_test.odl"
+    )
 
     target_link_libraries(${PROJECT_NAME}
         mapfcommon bpl bcl btl btlvf nbapi amxc amxd amxp libamxrt gtest_main gmock)
