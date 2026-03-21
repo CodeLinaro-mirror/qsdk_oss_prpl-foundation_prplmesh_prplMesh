@@ -57,6 +57,18 @@ static std::string add_device_prefix(const std::string &path)
     return device_prefix + path;
 }
 
+static std::string assoc_wifi_network_device_ref(beerocks::nbapi::Ambiorix &ambiorix,
+                                                 const sMacAddr &al_mac)
+{
+    auto device_index = ambiorix.get_instance_index(
+        DATAELEMENTS_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(al_mac));
+    if (!device_index) {
+        return {};
+    }
+
+    return "Device.WiFi.DataElements.Network.Device." + std::to_string(device_index);
+}
+
 static std::string fixed_utf8_string(const uint8_t *data, size_t len)
 {
     if (!data) {
@@ -453,6 +465,11 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
     ok &= al.dm_path.set("ManufacturerName", al.manufacturer_name);
     ok &= al.dm_path.set("ManufacturerModel", al.manufacturer_model);
     ok &= al.dm_path.set("ControlURL", al.control_url);
+
+    auto ambiorix = database.get_ambiorix_obj();
+    const auto assoc_wifi_network_device_ref_value =
+        ambiorix ? assoc_wifi_network_device_ref(*ambiorix, al_mac) : std::string{};
+    ok &= al.dm_path.set("AssocWiFiNetworkDeviceRef", assoc_wifi_network_device_ref_value);
 
     for (auto &ipv4_entry : al.ipv4_addresses) {
         const auto &key = ipv4_entry.first;

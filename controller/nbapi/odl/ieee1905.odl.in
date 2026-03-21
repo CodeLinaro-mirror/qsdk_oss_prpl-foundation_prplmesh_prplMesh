@@ -528,4 +528,14 @@
 %populate {
     on event "dm:object-changed" call event_ieee1905_network_enable_changed
         filter 'object matches "@IEEE1905_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")';
+
+    on event "dm:instance-added" call event_ieee1905_dataelements_network_device_changed
+        filter 'path == "@DATAELEMENTS_ROOT_DM@.Network.Device."';
+
+    on event "dm:instance-removed" call event_ieee1905_dataelements_network_device_changed
+        filter 'path == "@DATAELEMENTS_ROOT_DM@.Network.Device."';
+
+    on event "dm:object-changed" call event_ieee1905_dataelements_network_device_changed
+        filter 'path matches "^@DATAELEMENTS_ROOT_DM@\\.Network\\.Device\\.[0-9]+\\.$" &&
+                contains("parameters.ID")';
 }
