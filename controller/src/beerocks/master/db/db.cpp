@@ -57,7 +57,7 @@ bool has_radio_channel_source_prefix(const std::string &source, const std::strin
 
 bool is_deferred_radio_channel_source(const std::string &source)
 {
-    return has_radio_channel_source_prefix(source, "slave_joinded") ||
+    return has_radio_channel_source_prefix(source, "slave_joined") ||
            has_radio_channel_source_prefix(source, "csa_unexpected_notif");
 }
 

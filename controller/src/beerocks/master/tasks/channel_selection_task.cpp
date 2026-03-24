@@ -350,7 +350,7 @@ void channel_selection_task::work()
             static_cast<beerocks::eWiFiBandwidth>(slave_joined_event->cs_params.bandwidth),
             channel_ext_above_secondary);
 
-        if (!database.set_radio_wifi_channel(radio_mac, wifi_channel, "slave_joinded")) {
+        if (!database.set_radio_wifi_channel(radio_mac, wifi_channel, "slave_joined")) {
             TASK_LOG(ERROR) << "set radio wifi channel failed, mac=" << radio_mac;
         } else {
             // update bml listeners

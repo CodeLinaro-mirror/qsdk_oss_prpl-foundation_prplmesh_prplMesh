@@ -640,7 +640,7 @@ TEST_F(DbTestRadio1, test_ignore_regressive_slave_joined_after_operating_channel
 
     EXPECT_TRUE(m_db->set_radio_wifi_channel(radio_mac, operating_channel,
                                              "operating_channel_report mid[743]"));
-    EXPECT_TRUE(m_db->set_radio_wifi_channel(radio_mac, deferred_channel, "slave_joinded"));
+    EXPECT_TRUE(m_db->set_radio_wifi_channel(radio_mac, deferred_channel, "slave_joined"));
 
     auto actual_channel = m_db->get_radio_wifi_channel(radio_mac);
     EXPECT_EQ(operating_channel.get_channel(), actual_channel.get_channel());
@@ -655,7 +655,7 @@ TEST_F(DbTestRadio1, test_operating_channel_report_overrides_deferred_radio_stat
     beerocks::WifiChannel deferred_channel(104, 5520, beerocks::eWiFiBandwidth::BANDWIDTH_20);
     beerocks::WifiChannel operating_channel(36, 5250, beerocks::eWiFiBandwidth::BANDWIDTH_160);
 
-    EXPECT_TRUE(m_db->set_radio_wifi_channel(radio_mac, deferred_channel, "slave_joinded"));
+    EXPECT_TRUE(m_db->set_radio_wifi_channel(radio_mac, deferred_channel, "slave_joined"));
     EXPECT_TRUE(m_db->set_radio_wifi_channel(radio_mac, operating_channel,
                                              "operating_channel_report mid[743]"));
 
