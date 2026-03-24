@@ -1376,6 +1376,19 @@ static void event_network_enable_changed(const char *const sig_name, const amxc_
     access_point_commit(network_obj, nullptr, nullptr, nullptr);
 }
 
+/**
+ * @brief Event handler for DataElements Network.Device instance changes.
+ *
+ * It's invoked when a Device.WiFi.DataElements.Network.Device instance is
+ * added, removed, or has its ID changed. It updates the
+ * AssocWiFiNetworkDeviceRef field of the corresponding IEEE1905.Network.AL.{i}
+ * entry in the data model.
+ *
+ * @param sig_name name of the Ambiorix signal that triggered this callback
+ *                 (e.g. "dm:instance-added", "dm:instance-removed", "dm:object-changed")
+ * @param data signal data carrying the affected object parameters and keys
+ * @param priv private data (unused)
+ */
 static void event_ieee1905_dataelements_network_device_changed(const char *const sig_name,
                                                                const amxc_var_t *const data,
                                                                void *const priv)
@@ -1447,6 +1460,14 @@ static void event_ieee1905_dataelements_network_device_changed(const char *const
 
 /**
  * @brief Event handler for IEEE1905 Network.Enable change.
+ *
+ * Invoked when the value of IEEE1905_ROOT_DM.Network.Enable changes.
+ * It reads the new Enable value and forwards it to the controller via
+ * Controller::handle_ieee1905_network_enable_changed().
+ *
+ * @param sig_name name of the Ambiorix signal that triggered this callback
+ * @param data signal data used to retrieve the affected data model object
+ * @param priv private data (unused)
  */
 static void event_ieee1905_network_enable_changed(const char *const sig_name,
                                                   const amxc_var_t *const data, void *const priv)
