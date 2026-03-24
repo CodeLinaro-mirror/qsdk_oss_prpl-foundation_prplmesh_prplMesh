@@ -148,6 +148,9 @@ TrafficSeparationManager --> sTrafficSeparationConfig
 
 note right of TrafficSeparationTask
   TS_ENABLE remains the only debounced path.
+  slave_thread may defer exact-WDS event emission
+  until process_client_association() creates the
+  associated client entry.
   Runtime WDS iface updates are incremental:
   TS_NEW_WDS_IFACE adds one exact trunk iface,
   TS_CLEAR_WDS_IFACE removes one exact trunk iface.

@@ -319,6 +319,7 @@ public:
             size_t association_frame_length;
             std::array<uint8_t, ASSOCIATION_FRAME_SIZE> association_frame;
             bool supports_11v;
+            std::string wds_iface_name;
         };
 
         struct sCacCapabilities {

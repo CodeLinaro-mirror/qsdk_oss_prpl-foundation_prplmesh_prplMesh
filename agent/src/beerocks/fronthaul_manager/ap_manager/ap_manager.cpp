@@ -2595,6 +2595,33 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         send_cmdu(cmdu_tx);
     } break;
 
+    case Event::STA_WDS_Iface_Ready: {
+
+        if (!data) {
+            LOG(ERROR) << "STA_WDS_Iface_Ready without data!";
+            return false;
+        }
+
+        auto msg = static_cast<bwl::sACTION_APMANAGER_WDS_IFACE_NOTIFICATION *>(data);
+
+        auto notification = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>(cmdu_tx);
+        if (notification == nullptr) {
+            LOG(ERROR) << "Failed building message!";
+            return false;
+        }
+
+        notification->mac()    = msg->params.mac;
+        notification->bssid()  = msg->params.bssid;
+        notification->vap_id() = msg->params.vap_id;
+        notification->set_wds_iface_name(msg->params.wds_iface_name);
+
+        LOG(INFO) << "STA_WDS_Iface_Ready mac = " << msg->params.mac
+                  << " BSSID = " << msg->params.bssid << " iface = " << msg->params.wds_iface_name;
+
+        send_cmdu(cmdu_tx);
+    } break;
+
     // STA Disconnected
     case Event::STA_Disconnected: {
 

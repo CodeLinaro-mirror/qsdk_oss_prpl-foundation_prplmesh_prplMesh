@@ -406,6 +406,17 @@ typedef struct {
 
 typedef struct {
     sMacAddr mac;
+    sMacAddr bssid;
+    int8_t vap_id;
+    char wds_iface_name[beerocks::message::IFACE_NAME_LENGTH];
+} sClientWDSIfaceParams;
+
+typedef struct {
+    sClientWDSIfaceParams params;
+} sACTION_APMANAGER_WDS_IFACE_NOTIFICATION;
+
+typedef struct {
+    sMacAddr mac;
     int8_t vap_id;
 } sACTION_MONITOR_CLIENT_ASSOCIATED_NOTIFICATION;
 

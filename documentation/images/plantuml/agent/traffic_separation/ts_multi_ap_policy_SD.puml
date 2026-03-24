@@ -65,41 +65,69 @@ opt TrafficSeparationTask registered
     end
 end
 
-== 4. Runtime WDS iface add ==
-ST -> DB: store WDS iface
-opt previous WDS iface differs
-    ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, old_iface_name)
-    TP -> TST: TS_CLEAR_WDS_IFACE(old_iface_name) event
-    TST -> TSM: remove_trunk_port(old_iface_name)
-end
-ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_NEW_WDS_IFACE, iface_name)
-alt TrafficSeparationTask registered
-    TP -> TST: TS_NEW_WDS_IFACE(iface_name) event
-    TST -> DB: match iface to active backhaul BSS
-    alt matching backhaul BSS found
-        TST -> TST: resolve mode from bBSS disallow flags + policy
-        TST -> TSM: add_trunk_port(exact WDS iface)
-        note right: if manager state is APPLIED,\nnew trunk is applied immediately
-    else no matching backhaul BSS
-        TST -> TST: ignore event
+== 4. Runtime WDS iface notification ==
+ST -> DB: resolve radio/client state by bssid + client_mac
+alt client already associated
+    ST -> DB: store WDS iface on client entry
+    opt previous WDS iface differs
+        ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, old_iface_name)
+        TP -> TST: TS_CLEAR_WDS_IFACE(old_iface_name) event
+        TST -> TSM: remove_trunk_port(old_iface_name)
     end
-else task absent for plain Profile-1 boot config
-    TP -> TP: return false
+    ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_NEW_WDS_IFACE, iface_name)
+    alt TrafficSeparationTask registered
+        TP -> TST: TS_NEW_WDS_IFACE(iface_name) event
+        TST -> DB: match iface to active backhaul BSS
+        alt matching backhaul BSS found
+            TST -> TST: resolve mode from bBSS disallow flags + policy
+            TST -> TSM: add_trunk_port(exact WDS iface)
+            note right: if manager state is APPLIED,\nnew trunk is applied immediately
+        else no matching backhaul BSS
+            TST -> TST: ignore event
+        end
+    else task absent for plain Profile-1 boot config
+        TP -> TP: return false
+    end
+else notification races ahead of association
+    ST -> ST: cache {bssid, iface_name}\nuntil process_client_association()
 end
 
-== 5. Runtime WDS iface clear ==
-ST -> ST: resolve current WDS iface\nbefore erase_client()
-ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, iface_name)
-alt TrafficSeparationTask registered
-    TP -> TST: TS_CLEAR_WDS_IFACE(iface_name) event
-    TST -> TSM: remove_trunk_port(iface_name)
-    note right: immediate clear when manager state is APPLIED
-else task absent for plain Profile-1 boot config
-    TP -> TP: return false
+== 5. Association consumes cached WDS iface ==
+ST -> DB: create associated client entry
+opt cached WDS iface exists for matching client + bssid
+    ST -> DB: store cached WDS iface on client entry
+    ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_NEW_WDS_IFACE, iface_name)
+    alt TrafficSeparationTask registered
+        TP -> TST: TS_NEW_WDS_IFACE(iface_name) event
+        TST -> DB: match iface to active backhaul BSS
+        TST -> TSM: add_trunk_port(exact WDS iface)
+    else task absent for plain Profile-1 boot config
+        TP -> TP: return false
+    end
+else cached entry is stale
+    ST -> ST: drop cached WDS iface notification
+end
+
+== 6. Runtime WDS iface clear ==
+alt associated client has active WDS iface
+    ST -> ST: resolve current WDS iface\nbefore erase_client()
+    ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, iface_name)
+    alt TrafficSeparationTask registered
+        TP -> TST: TS_CLEAR_WDS_IFACE(iface_name) event
+        TST -> TSM: remove_trunk_port(iface_name)
+        note right: immediate clear when manager state is APPLIED
+    else task absent for plain Profile-1 boot config
+        TP -> TP: return false
+    end
+else no associated WDS iface
+    ST -> ST: no TS clear event is needed
+end
+opt matching cached WDS iface exists
+    ST -> ST: erase cached WDS iface notification
 end
 ST -> DB: erase_client()
 
-== 6. Clear path ==
+== 7. Clear path ==
 opt TrafficSeparationTask registered and TS_CLEAR is emitted
     ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_CLEAR)
     TP -> TST: TS_CLEAR event
@@ -111,5 +139,11 @@ end
 alt no configured radios
     AC -> AC: skip TS trigger until radios become CONFIGURED
     end
+
+note over ST,TST
+Exact-WDS add still bypasses debounce, but slave_thread
+may defer emitting TS_NEW_WDS_IFACE until association
+creates the client entry.
+end note
 
 @enduml

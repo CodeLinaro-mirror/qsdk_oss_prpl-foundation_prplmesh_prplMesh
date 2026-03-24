@@ -16,8 +16,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace beerocks {
@@ -50,9 +48,8 @@ public:
     /**
      * @brief Handle task events (like other prplMesh tasks).
      *
-     * Supported events trigger a debounced TS policy refresh.
-     *
-     * Scan-based WDS notifications only reschedule that same refresh path.
+     * Supported events trigger either a debounced TS policy refresh or an immediate exact WDS
+     * update.
      */
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
 
@@ -60,15 +57,16 @@ public:
      * @brief Event IDs for TrafficSeparationTask.
      */
     enum eEvent : uint8_t {
-        TS_ENABLE             = 0, /**< Debounced reset and apply on all ports. */
-        TS_NEW_BH_STA_IFACE   = 1, /**< Track new wlanX.Y.staN trunk ports. */
-        TS_CLEAR_BH_STA_IFACE = 2, /**< Clear stale tracked wlanX.Y.staN trunk ports. */
-        TS_CLEAR              = 3  /**< Clear config + reset transport primary VLAN. */
+        TS_ENABLE        = 0, /**< Refresh config and reapply TS on managed ports. */
+        TS_NEW_WDS_IFACE = 1, /**< Incrementally add one exact WDS iface (e.g. `wlan1.2.sta1`). */
+        TS_CLEAR_WDS_IFACE =
+            2,       /**< Incrementally clear one exact WDS iface. (e.g. `wlan2.1.sta2`)*/
+        TS_CLEAR = 3 /**< Clear config + reset transport primary VLAN. */
     };
 
 private:
     /**
-     * @brief Queue a debounced TS reset.
+     * @brief Queue a debounced TS apply action.
      */
     void schedule_apply();
 
@@ -83,26 +81,21 @@ private:
     bool should_run_now() const;
 
     /**
-     * @brief Refresh TS configuration and re-apply policies on managed ports.
+     * @brief Refresh TS configuration and reset policies on managed ports.
      *
-     * Scan-based WDS reconciliation still happens here until exact WDS events replace it.
+     * Keeps event-managed exact WDS ifaces intact and only re-applies policies.
      */
     bool reset();
 
     /**
-     * @brief Scan current backhaul STA interfaces and add newly discovered WDS trunks.
+     * @brief Incremental TS update for a newly created exact WDS interface.
      */
-    bool handle_new_sta_iface();
+    bool handle_new_wds_iface(const std::string &iface_name);
 
     /**
-     * @brief Scan current backhaul STA interfaces and clear stale tracked WDS trunks.
+     * @brief Incremental TS update for a removed exact WDS interface.
      */
-    bool handle_clear_sta_iface();
-
-    /**
-     * @brief Discover current backhaul STA interfaces and their TS mode.
-     */
-    std::unordered_map<std::string, bool> collect_current_wds_ifaces() const;
+    bool handle_clear_wds_iface(const std::string &iface_name);
 
     /**
      * @brief Clear TS state and restore transport defaults used outside TS mode.
@@ -125,25 +118,15 @@ private:
     bool build_ts_config(net::sTrafficSeparationConfig &cfg) const;
 
     /**
-     * @brief Collect trunk and access ports from current DB state.
+     * @brief Collect persistent trunk and access ports from current DB state.
      */
-    bool collect_ports_from_db(std::vector<net::sTrunkPort> &trunks,
-                               std::vector<net::sAccessPort> &access_ports) const;
+    bool get_ports_from_db(std::vector<net::sTrunkPort> &trunks,
+                           std::vector<net::sAccessPort> &access_ports) const;
 
     /**
      * @brief Add currently selected backhaul connection interface as a trunk candidate.
      */
     bool add_backhaul_connection_trunk(std::vector<net::sTrunkPort> &trunks) const;
-
-    /**
-     * @brief Return all STA ifaces matching `<bss_iface>.staN`.
-     */
-    static std::vector<std::string> get_all_sta_ifaces_for_bss(const std::string &bss_iface);
-
-    /**
-     * @brief Parse decimal suffix of interfaces with expected prefix, otherwise return -1.
-     */
-    static int sta_index_for_prefix(const std::string &ifname, const std::string &prefix);
 
     slave_thread &m_btl_ctx;
 
@@ -153,8 +136,6 @@ private:
     std::chrono::steady_clock::time_point m_next_run{std::chrono::steady_clock::time_point::min()};
 
     uint16_t m_last_primary_vid = 0;
-    // Temporary scan-based WDS tracking used until explicit iface binding is available.
-    std::unordered_set<std::string> m_tracked_wds_ifaces;
 
 private:
     // Debounce TS apply events to coalesce short bursts into one operation

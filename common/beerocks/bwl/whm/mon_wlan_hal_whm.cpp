@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <iomanip>
+#include <utility>
 using namespace beerocks;
 using namespace wbapi;
 
@@ -691,12 +692,12 @@ bool mon_wlan_hal_whm::generate_connected_clients_events(
             msg->vap_id = vap_id;
             msg->mac    = tlvf::mac_from_string(mac_addr);
 
-            auto sta_it = m_stations.find(mac_addr);
+            auto sta_it = m_stations.find(associated_device_pwhm.first);
             if (sta_it == m_stations.end()) {
-                m_stations.insert(
-                    std::make_pair(mac_addr, sStationInfo(associated_device_pwhm.first)));
+                m_stations.emplace(associated_device_pwhm.first,
+                                   sStationInfo(associated_device_pwhm.first, mac_addr));
             } else {
-                sta_it->second.path = associated_device_pwhm.first; //enforce the path
+                sta_it->second.mac = std::move(mac_addr);
             }
 
             event_queue_push(Event::STA_Connected, msg_buff);

@@ -33,6 +33,7 @@ ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TRAFFIC_SEPA
 slave_thread --> AgentDB : read boot-time multi_ap_profile\n+ is_multiap_profile_1_as_of_r4\nstore WDS iface
 slave_thread --> TaskPool : add_task(TrafficSeparationTask)\nwhen profile supports TS\nor R4-as-R1 compatibility mode
 slave_thread --> TaskPool : try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)\ntry_send_event(TRAFFIC_SEPARATION, TS_NEW_WDS_IFACE, iface_name)\ntry_send_event(TRAFFIC_SEPARATION, TS_CLEAR_WDS_IFACE, iface_name)
+slave_thread --> slave_thread : cache pending WDS iface notification\nuntil process_client_association()
 TaskPool --> TrafficSeparationTask : handle_event() only when task exists
 
 ' TrafficSeparationTask interactions
@@ -54,6 +55,7 @@ AccessPortPlumbing8021q --> network_utils : set_vlan_packet_filter()
 note bottom of TrafficSeparationTask
   - keep TS_ENABLE on the debounced full-rebuild path
   - handle exact WDS ifaces with immediate add/remove events
+  - let slave_thread defer exact-WDS add until association is valid
   - rebuild only persistent DB ports during full reset
 end note
 
