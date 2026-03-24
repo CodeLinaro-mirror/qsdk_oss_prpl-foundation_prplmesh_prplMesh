@@ -50,40 +50,27 @@ public:
     /**
      * @brief Handle task events (like other prplMesh tasks).
      *
-     * Supported events trigger either a full rebuild or an incremental STA scan.
+     * Supported events trigger a debounced TS policy refresh.
+     *
+     * Scan-based WDS notifications only reschedule that same refresh path.
      */
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
-
-    /**
-     * @brief Clear all Traffic Separation rules and reset internal state.
-     *
-     * Intended for onboarding restart or when TS must be removed explicitly.
-     */
-    bool clear_configuration();
 
     /**
      * @brief Event IDs for TrafficSeparationTask.
      */
     enum eEvent : uint8_t {
-        TS_ENABLE             = 0, /**< Rebuild config and apply TS on all ports. */
+        TS_ENABLE             = 0, /**< Debounced reset and apply on all ports. */
         TS_NEW_BH_STA_IFACE   = 1, /**< Track new wlanX.Y.staN trunk ports. */
         TS_CLEAR_BH_STA_IFACE = 2, /**< Clear stale tracked wlanX.Y.staN trunk ports. */
         TS_CLEAR              = 3  /**< Clear config + reset transport primary VLAN. */
     };
 
 private:
-    enum class eApplyMode : uint8_t { None = 0, AddNewSta = 1, ClearSta = 2, Full = 3 };
-
-private:
     /**
-     * @brief Return the stronger apply mode (full apply wins over incremental apply).
+     * @brief Queue a debounced TS reset.
      */
-    static eApplyMode stronger_mode(eApplyMode a, eApplyMode b);
-
-    /**
-     * @brief Queue a TS apply action with debounce.
-     */
-    void schedule_apply(eApplyMode mode);
+    void schedule_apply();
 
     /**
      * @brief Reset pending debounced apply state.
@@ -96,19 +83,19 @@ private:
     bool should_run_now() const;
 
     /**
-     * @brief Full TS recomputation/apply entrypoint.
+     * @brief Refresh TS configuration and re-apply policies on managed ports.
      *
-     * Builds config from DB, (re)configures all trunk/access ports and applies policies.
+     * Scan-based WDS reconciliation still happens here until exact WDS events replace it.
      */
     bool reset();
 
     /**
-     * @brief Incrementally add new tracked backhaul STA interfaces.
+     * @brief Scan current backhaul STA interfaces and add newly discovered WDS trunks.
      */
     bool handle_new_sta_iface();
 
     /**
-     * @brief Incrementally clear stale tracked backhaul STA interfaces.
+     * @brief Scan current backhaul STA interfaces and clear stale tracked WDS trunks.
      */
     bool handle_clear_sta_iface();
 
@@ -164,15 +151,14 @@ private:
 
     bool m_pending = false;
     std::chrono::steady_clock::time_point m_next_run{std::chrono::steady_clock::time_point::min()};
-    eApplyMode m_mode = eApplyMode::None;
 
     uint16_t m_last_primary_vid = 0;
     // Temporary scan-based WDS tracking used until explicit iface binding is available.
     std::unordered_set<std::string> m_tracked_wds_ifaces;
 
 private:
-    // Debounce TS apply events to coalesce short bursts (e.g. multiple iface updates)
-    // into one operation and avoid repetitive bridge/VLAN reconfiguration churn.
+    // Debounce TS apply events to coalesce short bursts into one operation
+    // and avoid repetitive bridge/VLAN reconfiguration churn.
     static constexpr int DEBOUNCE_MS = 200;
 };
 
