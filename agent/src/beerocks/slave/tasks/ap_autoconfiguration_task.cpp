@@ -2789,19 +2789,21 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
     m_btl_ctx.send_cmdu_to_controller(fronthaul_iface, m_cmdu_tx);
 
     // This probably changed the "AP Operational BSS" list in topology, so send a notification
-    if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE)) {
-        LOG(ERROR) << "cmdu creation of type TOPOLOGY_NOTIFICATION_MESSAGE, has failed";
+    auto bh_topo_notif_cmd = message_com::create_vs_message<
+        beerocks_message::cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND>(m_cmdu_tx);
+    if (!bh_topo_notif_cmd) {
+        LOG(ERROR) << "Failed building message cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND";
         return;
     }
 
-    auto tlvAlMacAddress = m_cmdu_tx.addClass<ieee1905_1::tlvAlMacAddress>();
-    if (!tlvAlMacAddress) {
-        LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
+    auto backhaul_manager_cmdu_client = m_btl_ctx.get_backhaul_manager_cmdu_client();
+    if (!backhaul_manager_cmdu_client) {
+        LOG(ERROR) << "Failed to get backhaul manager cmdu client";
         return;
     }
 
-    tlvAlMacAddress->mac() = db->bridge.mac;
-    m_btl_ctx.send_cmdu_to_controller(fronthaul_iface, m_cmdu_tx);
+    LOG(DEBUG) << "Sending ACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND to BH manager";
+    backhaul_manager_cmdu_client->send_cmdu(m_cmdu_tx);
 
     radio_conf_params.received_vaps_list_update = true;
 
