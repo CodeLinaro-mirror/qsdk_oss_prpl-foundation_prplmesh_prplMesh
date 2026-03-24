@@ -2382,8 +2382,72 @@ bool ap_wlan_hal_whm::get_spatial_reuse_config(
 
 bool ap_wlan_hal_whm::update_mld_mode(std::string ssid, uint8_t mld_mode)
 {
-    LOG(DEBUG) << "Not implemented yet";
+    std::string radio_path_no_dot = m_radio_path;
+    if (radio_path_no_dot.back() == '.') {
+        radio_path_no_dot.pop_back();
+    }
 
+    std::string search_path =
+        wbapi_utils::search_path_ssid_by_ssid_and_radio(ssid, radio_path_no_dot);
+
+    LOG(DEBUG) << "update_mld_mode: ssid=\"" << ssid << "\", mld_mode=0x" << std::hex
+               << static_cast<int>(mld_mode) << std::dec << ", search_path=\"" << search_path
+               << "\"";
+
+    auto ssids = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(search_path);
+    if (!ssids || ssids->empty()) {
+        LOG(ERROR) << "update_mld_mode: No SSID instances found with name: \"" << ssid
+                   << "\" for radio: " << m_radio_path;
+        return false;
+    }
+
+    const std::string &ssid_path = ssids->begin()->first;
+    int8_t mld_id                = DISABLED_MLDUNIT;
+
+    if (!m_ambiorix_cl.get_param(mld_id, ssid_path, "MLDUnit")) {
+        LOG(ERROR) << "update_mld_mode: Failed to read MLDUnit for SSID: \"" << ssid
+                   << "\", path: " << ssid_path;
+        return false;
+    }
+
+    if (mld_id <= DISABLED_MLDUNIT) {
+        LOG(DEBUG) << "update_mld_mode: MLDUnit disabled for SSID: \"" << ssid
+                   << "\", skip pushing APMLDConfig";
+        return true;
+    }
+
+    std::string apmld_path;
+    std::string apmld_search = wbapi_utils::search_path_apmld_by_mldid(mld_id);
+
+    if (!m_ambiorix_cl.resolve_path(apmld_search, apmld_path) || apmld_path.empty()) {
+        LOG(ERROR) << "update_mld_mode: Failed to resolve APMLD path for mld_id: "
+                   << static_cast<int>(mld_id);
+        return false;
+    }
+
+    bool str_enabled   = (mld_mode & beerocks::message::MLO_MODE_STR) != 0;
+    bool nstr_enabled  = (mld_mode & beerocks::message::MLO_MODE_NSTR) != 0;
+    bool emlsr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLSR) != 0;
+    bool emlmr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLMR) != 0;
+
+    AmbiorixVariant apmld_config(AMXC_VAR_ID_HTABLE);
+    apmld_config.add_child("STREnabled", str_enabled);
+    apmld_config.add_child("NSTREnabled", nstr_enabled);
+    apmld_config.add_child("EMLSREnabled", emlsr_enabled);
+    apmld_config.add_child("EMLMREnabled", emlmr_enabled);
+
+    std::string apmld_config_path = apmld_path + "APMLDConfig.";
+
+    if (!m_ambiorix_cl.update_object(apmld_config_path, apmld_config)) {
+        LOG(ERROR) << "update_mld_mode: Failed to update APMLDConfig for SSID: \"" << ssid
+                   << "\", mld_id: " << static_cast<int>(mld_id) << ", path: " << apmld_config_path;
+        return false;
+    }
+
+    LOG(INFO) << "update_mld_mode: Successfully updated APMLDConfig for SSID: \"" << ssid
+              << "\", mld_id: " << static_cast<int>(mld_id) << ", STR=" << str_enabled
+              << ", NSTR=" << nstr_enabled << ", EMLSR=" << emlsr_enabled
+              << ", EMLMR=" << emlmr_enabled;
     return true;
 }
 
