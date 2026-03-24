@@ -232,6 +232,7 @@ public:
         int unfriendly_device_max_timelife_delay_minutes;
         unsigned int persistent_db_commit_changes_interval_seconds;
         std::chrono::seconds link_metrics_request_interval_seconds;
+        /** Interval between periodic IEEE1905 Higher Layer Queries; zero disables periodic queries. */
         std::chrono::seconds higher_layer_request_interval_seconds;
         std::chrono::seconds dhcp_monitor_interval_seconds;
         std::chrono::milliseconds steering_disassoc_timer_msec;
@@ -306,6 +307,7 @@ public:
         int roaming_hysteresis_percent_bonus;
         std::chrono::milliseconds steering_disassoc_timer_msec;
         std::chrono::seconds link_metrics_request_interval_seconds;
+        /** Interval between periodic IEEE1905 Higher Layer Queries; zero disables periodic queries. */
         std::chrono::seconds higher_layer_request_interval_seconds;
     } sDbNbapiConfig;
 
@@ -409,11 +411,28 @@ public:
 
         struct sDmPath;
 
+        /**
+         * @brief View of an Ambiorix data model object path.
+         *
+         * Holds a weak reference to the Ambiorix instance and the absolute data model
+         * path string.  Unlike \ref sDmPath, copying is allowed and destruction does
+         * not remove the data model instance.
+         *
+         * Evaluates to false when the path is empty or the Ambiorix instance has been
+         * destroyed.
+         */
         struct sDmPathView {
-            std::weak_ptr<beerocks::nbapi::Ambiorix> dm;
-            std::string path;
+            std::weak_ptr<beerocks::nbapi::Ambiorix> dm; ///< Weak reference to Ambiorix instance.
+            std::string path;                            ///< Absolute data model object path.
 
             sDmPathView() = default;
+
+            /**
+             * @brief Construct a view from an Ambiorix weak pointer and a path string.
+             *
+             * @param dm_   weak reference to the Ambiorix instance
+             * @param path_ absolute data model object path
+             */
             sDmPathView(std::weak_ptr<beerocks::nbapi::Ambiorix> dm_, std::string path_)
                 : dm(std::move(dm_)), path(std::move(path_))
             {
@@ -424,6 +443,17 @@ public:
             sDmPathView &operator=(const sDmPathView &) = default;
             sDmPathView &operator=(sDmPathView &&) = default;
 
+            /**
+             * @brief Set a parameter on this data model object
+             *
+             * No-op if the Ambiorix instance has been destroyed
+             *
+             * @tparam Value type of the value to set
+             * @param parameter parameter name relative to \ref path
+             * @param value new parameter value
+             *
+             * @return result of Ambiorix::set(), or false if Ambiorix is gone
+             */
             template <typename Value>
             auto set(const std::string &parameter, const Value &value)
                 -> decltype(dm.lock()->set(std::string{}, parameter, value))
@@ -432,14 +462,40 @@ public:
                 return ambiorix && ambiorix->set(path, parameter, value);
             }
 
+            /**
+             * @brief Convenience overload that accepts a C-string value.
+             *
+             * @param parameter parameter name relative to \ref path
+             * @param value new parameter value as a C-string
+             *
+             * @return result of Ambiorix::set(), or false if Ambiorix is gone
+             */
             auto set(const std::string &parameter, const char *value)
             {
                 return set(parameter, std::string(value));
             }
 
+            /**
+             * @brief Return a view of a child object by appending \p suffix to this path.
+             *
+             * @param suffix path suffix to append (e.g. "Interface.1.")
+             *
+             * @return view of the child object path.
+             */
             sDmPathView subpath(const std::string &suffix) const;
+
+            /**
+             * @brief Add a new instance under \p subpath and return an owning \ref sDmPath.
+             *
+             * @param subpath relative path of the multi-instance object to add into
+             *
+             * @return path of the newly created instance.
+             */
             sDmPath add_instance(const std::string &subpath);
 
+            /**
+             * @brief Returns true if the path is non-empty and the Ambiorix instance is alive.
+             */
             explicit operator bool() const noexcept { return !path.empty() && dm.use_count(); }
         };
 
@@ -3321,7 +3377,18 @@ public:
     bool assign_bml_task_id(int new_task_id);
     int get_bml_task_id();
 
+    /**
+     * @brief Register the task ID of the running ieee1905_task
+     *
+     * @param new_task_id task ID assigned by the task scheduler
+     */
     void assign_ieee1905_task_id(int new_task_id);
+
+    /**
+     * @brief Return the task ID of the running ieee1905_task, or -1 if not started
+     *
+     * @return registered ieee1905_task ID
+     */
     int get_ieee1905_task_id();
 
     bool assign_pre_association_steering_task_id(int new_task_id);
@@ -3753,6 +3820,12 @@ private:
                                      Agent::sRadio::sBss::sEhtOperations &bss);
     bool set_external_eht_operations(Agent::sRadio::sBss &bss);
 
+    /**
+     * @name Task IDs
+     *
+     * IDs of registered tasks, or -1 if not registered.
+     */
+    /// @{
     int network_optimization_task_id           = -1;
     int channel_selection_task_id              = -1;
     int dynamic_channel_selection_r2_task_id   = -1;
@@ -3767,6 +3840,7 @@ private:
     int statistics_polling_task_id             = -1;
     int vbss_task_id                           = -1;
     int link_metrics_task_id                   = -1;
+    /// @}
 
     std::mutex db_mutex;
 
