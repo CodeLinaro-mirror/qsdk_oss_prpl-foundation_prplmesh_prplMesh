@@ -1992,13 +1992,13 @@ bool db::dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &ap_mld)
     // APMLD Config - str, nstr, emlsr, emlmr
     auto ap_mld_config_dm_path = ap_mld.dm_path + ".APMLDConfig";
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "STREnabled",
-                              ap_mld.mld_info.mld_mode | Agent::sMLDInfo::mode::STR);
+                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::STR);
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "NSTREnabled",
-                              ap_mld.mld_info.mld_mode | Agent::sMLDInfo::mode::NSTR);
+                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::NSTR);
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "EMLSREnabled",
-                              ap_mld.mld_info.mld_mode | Agent::sMLDInfo::mode::EMLSR);
+                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLSR);
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "EMLMREnabled",
-                              ap_mld.mld_info.mld_mode | Agent::sMLDInfo::mode::EMLMR);
+                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLMR);
 
     for (auto &affl_ap_it : ap_mld.affiliated_aps) {
 
