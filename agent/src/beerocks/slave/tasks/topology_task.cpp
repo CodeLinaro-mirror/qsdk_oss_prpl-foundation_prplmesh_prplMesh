@@ -21,6 +21,7 @@
 #include <tlvf/ieee_1905_1/s802_11SpecificInformation.h>
 #include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
+#include <tlvf/ieee_1905_1/tlvDeviceBridgingCapability.h>
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
@@ -34,6 +35,8 @@
 #include <tlvf/wfa_map/tlvBssConfigurationReport.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
+
+#include <algorithm>
 
 #include <easylogging++.h>
 
@@ -264,8 +267,8 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
         return;
     }
 
-    if (!add_device_information_tlv()) {
-        LOG(ERROR) << "Failed to add device information TLV";
+    if (!add_device_information_and_bridging_capability_tlv()) {
+        LOG(ERROR) << "Failed to add device information and bridging capability TLV";
         return;
     }
 
@@ -517,7 +520,7 @@ void TopologyTask::send_topology_notification()
                                   db->bridge.mac);
 }
 
-bool TopologyTask::add_device_information_tlv()
+bool TopologyTask::add_device_information_and_bridging_capability_tlv()
 {
     auto tlvDeviceInformation = m_cmdu_tx.addClass<ieee1905_1::tlvDeviceInformation>();
     if (!tlvDeviceInformation) {
@@ -684,6 +687,93 @@ bool TopologyTask::add_device_information_tlv()
         }
 
         tlvDeviceInformation->add_local_interface_list(localInterfaceInfo);
+    }
+
+    if (bridges.empty()) {
+        return true;
+    }
+
+    LOG(DEBUG) << "Building Device Bridging Capability TLV from " << bridges.size()
+               << " Linux bridge(s)";
+
+    auto tlvBridgingCapability = m_cmdu_tx.addClass<ieee1905_1::tlvDeviceBridgingCapability>();
+    if (!tlvBridgingCapability) {
+        LOG(ERROR) << "addClass ieee1905_1::tlvDeviceBridgingCapability failed";
+        return false;
+    }
+
+    for (const auto &bridge : bridges) {
+        auto iface_names = network_utils::linux_get_iface_list_from_bridge(bridge);
+        LOG(DEBUG) << "Bridge " << bridge << " has " << iface_names.size() << " interface(s)";
+        if (iface_names.empty()) {
+            continue;
+        }
+
+        std::vector<sMacAddr> iface_macs;
+        iface_macs.reserve(iface_names.size());
+
+        for (const auto &iface_name : iface_names) {
+            std::string mac_str;
+            if (!network_utils::linux_iface_get_mac(iface_name, mac_str)) {
+                LOG(WARNING) << "Failed getting MAC address for bridge interface " << iface_name
+                             << " on bridge " << bridge;
+                continue;
+            }
+
+            const auto iface_mac = tlvf::mac_from_string(mac_str);
+            if (iface_mac == network_utils::ZERO_MAC) {
+                LOG(WARNING) << "Skipping zero MAC bridge interface " << iface_name << " on bridge "
+                             << bridge;
+                continue;
+            }
+
+            if (iface_map.find(iface_mac) == iface_map.end()) {
+                LOG(DEBUG) << "Skipping bridge interface " << iface_name << " with MAC "
+                           << iface_mac
+                           << " because it is not advertised in Device Information TLV";
+                continue;
+            }
+
+            if (std::find(iface_macs.begin(), iface_macs.end(), iface_mac) == iface_macs.end()) {
+                iface_macs.push_back(iface_mac);
+                LOG(TRACE) << "Bridge " << bridge << " includes interface " << iface_name
+                           << " with MAC " << iface_mac;
+            }
+        }
+
+        if (iface_macs.empty()) {
+            LOG(INFO) << "Bridge " << bridge << " has no valid interface MACs to report";
+            continue;
+        }
+
+        auto mac_list = tlvBridgingCapability->create_bridging_tuples_list();
+        if (!mac_list) {
+            LOG(ERROR) << "create_bridging_tuples_list() has failed";
+            return false;
+        }
+
+        if (!mac_list->alloc_mac_list(iface_macs.size())) {
+            LOG(ERROR) << "alloc_mac_list() has failed";
+            return false;
+        }
+
+        for (size_t i = 0; i < iface_macs.size(); ++i) {
+            auto mac_tuple = mac_list->mac_list(i);
+            if (!std::get<0>(mac_tuple)) {
+                LOG(ERROR) << "Getting bridge tuple MAC element has failed";
+                return false;
+            }
+
+            std::get<1>(mac_tuple) = iface_macs[i];
+        }
+
+        if (!tlvBridgingCapability->add_bridging_tuples_list(std::move(mac_list))) {
+            LOG(ERROR) << "add_bridging_tuples_list() has failed";
+            return false;
+        }
+
+        LOG(TRACE) << "Added bridging tuple for bridge " << bridge << " with " << iface_macs.size()
+                   << " interface MAC(s)";
     }
 
     return true;
