@@ -104,11 +104,11 @@ private:
     void send_topology_notification();
 
     /**
-     * @brief Add and fill device information tlv.
+     * @brief Add and fill device information and bridging capability tlvs.
      * 
      * @return true on success, otherwise false.
      */
-    bool add_device_information_tlv();
+    bool add_device_information_and_bridging_capability_tlv();
 
     /**
      * @brief Add and fill non-1905 neighbor device TLVs for all known non-1905 neighbors.
