@@ -3985,7 +3985,7 @@ bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_ifac
             one_station_stats.sta_mac = station_in.sta_mac;
             one_station_stats.measurement_to_report_delta_msec =
                 (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch() -
+                    std::chrono::system_clock::now().time_since_epoch() -
                     std::chrono::milliseconds(station_in.time_stamp))
                     .count();
 
