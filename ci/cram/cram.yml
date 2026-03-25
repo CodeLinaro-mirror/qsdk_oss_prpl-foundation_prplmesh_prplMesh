@@ -1,0 +1,29 @@
+.cram:
+  stage: cram
+  rules:
+    - when: manual
+  before_script:
+    - find . -name "$TFTP_IMAGE_FILENAME" -exec cp {} /srv/tftp/ \;
+    - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE_NAME" --image "$OPENWRT_IMAGE" --whm --configuration ci/configuration/testbed/lu/"$TARGET_DEVICE_NAME".sh
+  script:
+    - cram3 ci/cram/mozart/110-prplmesh-dataelements.t
+
+.lu-private-set-up: &lu-private-set-up
+  TARGET_DEVICE: "mozart"
+  TARGET_DEVICE_NAME: "mozart"
+  DUT_IP_ADDR: "192.168.50.2"
+  TFTP_SERVER_IP_ADDR: "192.168.50.1"
+  TFTP_IMAGE_FILENAME: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.itb"
+  OPENWRT_IMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.itb"
+  CRAM_REMOTE_COMMAND: ssh root@$DUT_IP_ADDR
+
+.lu-private-tags: &lu-private-tags
+  - lu-private-set-up
+
+cram-on-lu-private:
+  extends: .cram
+  variables:
+    <<: *lu-private-set-up
+  tags: *lu-private-tags
+  needs:
+    - job: build-for-mozart

@@ -20,6 +20,7 @@ workflow:
 stages:
   - build
   - test
+  - cram
   - R1-cert-freedom
   - R4-cert-freedom
   - R4-cert-OSPv2
@@ -36,6 +37,7 @@ stages:
 include:
   - local: "/ci/templates.yml"
   - local: "/ci/certification/templates.yml"
+  - local: "/ci/cram/cram.yml"
 
 .rules-for-releases: &onrelease
   - if: '$CI_COMMIT_TAG =~ /\A\d+\.\d+\.\d+\z/'
