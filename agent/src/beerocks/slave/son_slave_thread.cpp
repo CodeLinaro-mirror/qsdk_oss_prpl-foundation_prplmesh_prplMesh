@@ -108,6 +108,44 @@ using namespace beerocks;
 using namespace net;
 using namespace son;
 
+namespace {
+
+const std::set<ieee1905_1::eMessageType> generic_ieee1905_message_types = {
+    ieee1905_1::eMessageType::ACK_MESSAGE,
+    ieee1905_1::eMessageType::LINK_METRIC_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::TOPOLOGY_DISCOVERY_MESSAGE,
+    ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE,
+};
+
+const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
+    ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE,
+    ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RENEW_MESSAGE,
+    ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::CLIENT_SECURITY_CONTEXT_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::DPP_CCE_INDICATION_MESSAGE,
+    ieee1905_1::eMessageType::VIRTUAL_BSS_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::VIRTUAL_BSS_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::AP_METRICS_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::BEACON_METRICS_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::COMBINED_INFRASTRUCTURE_METRICS_MESSAGE,
+    ieee1905_1::eMessageType::CLIENT_CAPABILITY_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE,
+};
+
+} // namespace
+
 #define EACH_SLAVESTATE(DO)                                                                        \
     DO(STATE_WAIT_BEFORE_INIT)                                                                     \
     DO(STATE_INIT)                                                                                 \
@@ -268,38 +306,14 @@ bool slave_thread::thread_init()
 
     m_broker_client->set_handlers(broker_client_handlers);
 
+    auto subscribed_message_types = generic_ieee1905_message_types;
+    if (AgentDB::get()->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
+        subscribed_message_types.insert(easymesh_message_types.begin(),
+                                        easymesh_message_types.end());
+    }
+
     // Subscribe for the reception of CMDU messages that this process is interested in
-    if (!m_broker_client->subscribe(std::set<ieee1905_1::eMessageType>{
-            ieee1905_1::eMessageType::TOPOLOGY_DISCOVERY_MESSAGE,
-            ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE,
-            ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RENEW_MESSAGE,
-            ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::CLIENT_SECURITY_CONTEXT_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::DPP_CCE_INDICATION_MESSAGE,
-            ieee1905_1::eMessageType::VIRTUAL_BSS_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::VIRTUAL_BSS_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE,
-            // Controller's messages which are used to update connectivity
-            ieee1905_1::eMessageType::ACK_MESSAGE,
-            ieee1905_1::eMessageType::LINK_METRIC_QUERY_MESSAGE,
-            ieee1905_1::eMessageType::AP_METRICS_QUERY_MESSAGE,
-            ieee1905_1::eMessageType::ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
-            ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
-            ieee1905_1::eMessageType::BEACON_METRICS_QUERY_MESSAGE,
-            ieee1905_1::eMessageType::COMBINED_INFRASTRUCTURE_METRICS_MESSAGE,
-            ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE,
-            ieee1905_1::eMessageType::CLIENT_CAPABILITY_QUERY_MESSAGE,
-            ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE,
-            ieee1905_1::eMessageType::BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE,
-        })) {
+    if (!m_broker_client->subscribe(subscribed_message_types)) {
         LOG(FATAL) << "Failed subscribing to the Bus";
     }
 
@@ -387,24 +401,33 @@ bool slave_thread::thread_init()
         return false;
     }
 
-    m_task_pool.add_task(std::make_shared<ApAutoConfigurationTask>(*this, cmdu_tx));
+    auto db = AgentDB::get();
+    m_task_pool.add_task_check_mode<ApAutoConfigurationTask>(
+        "ApAutoConfigurationTask", db->device_conf.management_mode, *this, cmdu_tx);
 
     // Plain Profile-1 agents skip TS task registration.
     // The R4 compatibility mode is tracked separately and still enables TS handling.
     if (is_traffic_separation_supported()) {
-        m_task_pool.add_task(std::make_shared<TrafficSeparationTask>(*this));
+        m_task_pool.add_task_check_mode<TrafficSeparationTask>(
+            "TrafficSeparationTask", db->device_conf.management_mode, *this);
     } else {
         LOG(DEBUG) << "Skip TrafficSeparationTask for plain Multi-AP profile=1 agent";
     }
 
-    m_task_pool.add_task(m_service_prioritization_task_configurator =
-                             std::make_shared<ServicePrioritizationTask>(*this, cmdu_tx));
-    m_task_pool.add_task(std::make_shared<ProxyAgentDppTask>(*this, cmdu_tx));
-    m_task_pool.add_task(std::make_shared<ControllerConnectivityTask>(*this, cmdu_tx));
-    m_task_pool.add_task(std::make_shared<CapabilityReportingTask>(*this, cmdu_tx));
-    m_task_pool.add_task(
-        std::make_shared<LinkMetricsCollectionTask>(*this, cmdu_tx, m_timer_manager));
-    m_task_pool.add_task(std::make_shared<VbssTask>(*this, cmdu_tx));
+    m_service_prioritization_task_configurator =
+        m_task_pool.add_task_check_mode<ServicePrioritizationTask>(
+            "ServicePrioritizationTask", db->device_conf.management_mode, *this, cmdu_tx);
+    m_task_pool.add_task_check_mode<ProxyAgentDppTask>(
+        "ProxyAgentDppTask", db->device_conf.management_mode, *this, cmdu_tx);
+    m_task_pool.add_task_check_mode<ControllerConnectivityTask>(
+        "ControllerConnectivityTask", db->device_conf.management_mode, *this, cmdu_tx);
+    m_task_pool.add_task_check_mode<CapabilityReportingTask>(
+        "CapabilityReportingTask", db->device_conf.management_mode, *this, cmdu_tx);
+    m_task_pool.add_task_check_mode<LinkMetricsCollectionTask>("LinkMetricsCollectionTask",
+                                                               db->device_conf.management_mode,
+                                                               *this, cmdu_tx, m_timer_manager);
+    m_task_pool.add_task_check_mode<VbssTask>("VbssTask", db->device_conf.management_mode, *this,
+                                              cmdu_tx);
 
     m_agent_state = STATE_INIT;
     LOG(DEBUG) << "Agent Started";
@@ -444,8 +467,10 @@ void slave_thread::agent_reset()
         return true;
     });
 
-    LOG(DEBUG) << "Clearing QOS configurations";
-    m_service_prioritization_task_configurator->clear_configuration();
+    if (m_service_prioritization_task_configurator) {
+        LOG(DEBUG) << "Clearing QOS configurations";
+        m_service_prioritization_task_configurator->clear_configuration();
+    }
 
     // If stopped, move to STATE_STOPPED.
     if (m_stopped) {
@@ -5184,9 +5209,10 @@ bool slave_thread::agent_fsm()
         bool all_radios_disabled = true;
         auto db                  = AgentDB::get();
 
-        // Controller only mode skips fronthaul management
-        if (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
-            LOG(TRACE) << "Controller Only Mode goto STATE_BACKHAUL_ENABLE";
+        // Dummy agent skips fronthaul management
+        if (db->agent_is_dummy()) {
+            LOG(TRACE) << "management_mode=" << db->device_conf.management_mode
+                       << " skips fronthaul management, goto STATE_BACKHAUL_ENABLE";
             m_agent_state = STATE_BACKHAUL_ENABLE;
             break;
         }
@@ -5394,7 +5420,8 @@ bool slave_thread::agent_fsm()
     }
     case STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE: {
         auto db = AgentDB::get();
-        if (db->statuses.ap_autoconfiguration_completed) {
+        if (db->statuses.ap_autoconfiguration_completed ||
+            db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
             LOG(TRACE) << "goto STATE_OPERATIONAL";
             m_agent_state = STATE_OPERATIONAL;
 

@@ -19,9 +19,19 @@
 #include <chrono>
 #include <memory>
 #include <set>
+#include <type_traits>
 #include <utility>
 
 namespace son {
+
+/**
+ * @brief Type trait that indicates whether a task is EasyMesh-related.
+ *
+ * Defaults to `true`. Specialize to `std::false_type` for tasks that must also
+ * run in Not-Multi-AP mode.
+ */
+template <typename T> struct easymesh_task : std::true_type {
+};
 
 class task {
 

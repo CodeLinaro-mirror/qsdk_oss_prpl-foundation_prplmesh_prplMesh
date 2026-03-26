@@ -153,10 +153,11 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
         [] { return AgentDB::get()->bridge.mac; }, std::move(interface_provider), cmdu_tx,
         std::move(get_friendly_name)));
 
-    if (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
+    if (db->agent_is_dummy()) {
 
         // TODO: DHCP management is handled in ApAutoConfigurationTask for MaxLinear platforms (PPM-1777)
-        LOG(INFO) << "Controller only mode is activated and agent is dummy. Do not run any tasks!";
+        LOG(INFO) << "Agent is dummy (management_mode=" << db->device_conf.management_mode
+                  << "). Do not run any tasks!";
         return;
     }
 

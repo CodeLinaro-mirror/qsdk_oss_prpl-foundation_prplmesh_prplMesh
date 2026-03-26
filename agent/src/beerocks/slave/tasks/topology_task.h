@@ -240,6 +240,9 @@ private:
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
 };
 
+template <> struct easymesh_task<TopologyTask> : std::false_type {
+};
+
 } // namespace beerocks
 
 #endif // _TOPOLOGY_TASK_H_

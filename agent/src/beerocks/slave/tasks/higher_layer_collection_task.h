@@ -124,6 +124,9 @@ private:
     std::unique_ptr<InterfaceStatusProvider> m_interface_status_provider; ///< Data source.
 };
 
+template <> struct easymesh_task<HigherLayerCollectionTask> : std::false_type {
+};
+
 } // namespace beerocks
 
 #endif // _HIGHER_LAYER_COLLECTION_TASK_H_

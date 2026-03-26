@@ -8,6 +8,7 @@
 
 #include "agent_db.h"
 
+#include <bpl/bpl_cfg.h>
 #include <easylogging++.h>
 
 namespace beerocks {
@@ -290,6 +291,12 @@ void AgentDB::dm_fronthaul_disconnected(const std::string &path)
 
     auto idx = atoi(path.c_str() + dot_pos + 1);
     m_ambiorix_datamodel->remove_instance(path.substr(0, dot_pos), idx);
+}
+
+bool AgentDB::agent_is_dummy() const
+{
+    return device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
+           device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP;
 }
 
 } // namespace beerocks

@@ -26,6 +26,8 @@
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 
+#include <bpl/bpl_cfg.h>
+
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -618,6 +620,14 @@ public:
     void dm_set_fronthaul_interfaces(const std::string &interfaces);
 
     void dm_set_management_mode(const std::string &mode);
+
+    /**
+     * @brief Returns true if the agent is a dummy (controller-only or non-MultiAP) agent
+     * that should not run regular agent tasks.
+     *
+     * @return whether agent must be dummy in the current management mode
+     */
+    bool agent_is_dummy() const;
 
     void dm_set_agent_state(const std::string &cur, const std::string &max);
 
