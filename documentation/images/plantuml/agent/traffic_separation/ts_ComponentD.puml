@@ -21,21 +21,26 @@ package "Agent" {
 
   class AgentDB
   class slave_thread
+  class TaskPool
   class broker_client
   class BPL_CFG
   class network_utils
 }
 
-' ApAutoConfigurationTask -> TrafficSeparationTask
+' TS triggers are routed through slave_thread
 ApAutoConfigurationTask --> AgentDB : read BH, FH BSS, \nprofiles etc
-ApAutoConfigurationTask --> TrafficSeparationTask : task_pool_send_event(TS_ENABLE)\n task_pool_send_event(TS_NEW_BH_STA_IFACE)
+ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)\ntask_pool_try_send_event(TRAFFIC_SEPARATION, TS_NEW_BH_STA_IFACE)
+slave_thread --> AgentDB : read boot-time multi_ap_profile\n+ is_multiap_profile_1_as_of_r4
+slave_thread --> TaskPool : add_task(TrafficSeparationTask)\nwhen profile supports TS\nor R4-as-R1 compatibility mode
+slave_thread --> TaskPool : try_send_event(TRAFFIC_SEPARATION, TS_*)
+TaskPool --> TrafficSeparationTask : handle_event() only when task exists
 
 ' TrafficSeparationTask interactions
 TrafficSeparationTask --> AgentDB : read TS DB state,\nradio/BSS/port inventory
 TrafficSeparationTask --> BPL_CFG : read private/guest bridge names
 TrafficSeparationTask --> broker_client : configure_primary_vlan_id()\nconfigure_interfaces()
-TrafficSeparationTask --> TrafficSeparationManager : reset()\nconfigure(cfg)\nadd_trunk_port(trunk)\nadd_access_port(access)\napply_policies()\nclear_policies()
-TrafficSeparationTask --> network_utils : linux_get_iface_list()\n(scan wlanX.Y.staN)
+TrafficSeparationTask --> TrafficSeparationManager : reset()\nconfigure(cfg)\nadd_trunk_port(trunk)\nremove_trunk_port(trunk)\nadd_access_port(access)\napply_policies()\nclear_policies()
+TrafficSeparationTask --> network_utils : linux_get_iface_list()\n(scan <bss_iface>.staN)
 TrafficSeparationTask --> slave_thread
 
 ' Manager → plumbing

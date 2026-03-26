@@ -49,6 +49,13 @@ class LinkMetrics(PrplMeshBaseTest):
         self.device_reset_then_set_config()
         self.configure_ssids(['LinkMetrics-1'])
 
+        self.check_log(agent1.radios[0],
+                       r"Autoconfiguration for bssid: .* ssid: LinkMetrics-1",
+                       timeout=20)
+        self.check_log(agent2.radios[1],
+                       r"Autoconfiguration for bssid: .* ssid: LinkMetrics-1",
+                       timeout=20)
+
         sta1.wifi_connect(vap1)
         sta2.wifi_connect(vap2)
 

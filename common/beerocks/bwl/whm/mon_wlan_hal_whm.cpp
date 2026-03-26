@@ -296,7 +296,21 @@ bool mon_wlan_hal_whm::update_radio_stats(SRadioStats &radio_stats)
 bool mon_wlan_hal_whm::update_vap_stats(const std::string &vap_iface_name, SVapStats &vap_stats)
 {
 
-    std::string ssid_path = wbapi_utils::search_path_ssid_by_iface(vap_iface_name);
+    std::string ssid_path            = wbapi_utils::search_path_ssid_by_iface(vap_iface_name);
+    AmbiorixVariantSmartPtr ssid_obj = m_ambiorix_cl.get_object(ssid_path);
+    if (!ssid_obj) {
+        LOG(ERROR) << "Failed to get SSID object path=" << ssid_path;
+        return false;
+    }
+
+    bool ssid_enable;
+    if (!ssid_obj->read_child(ssid_enable, "Enable")) {
+        LOG(ERROR) << "Failed to read Enable from " << ssid_path;
+        return false;
+    }
+    if (!ssid_enable) {
+        return true;
+    }
 
     // Update SSID stats
     AmbiorixVariantSmartPtr ssid_stats_obj = m_ambiorix_cl.get_object(ssid_path + "Stats.");
@@ -313,31 +327,32 @@ bool mon_wlan_hal_whm::update_vap_stats(const std::string &vap_iface_name, SVapS
     }
 
     // Update MLD stats
-    // Missing MLD Stats, MLDUnit, BSSID should not be treated as fatal
-    // to not brake non-MLO/MLD configuration
-    AmbiorixVariantSmartPtr ssid_obj = m_ambiorix_cl.get_object(ssid_path);
-    if (!ssid_obj) {
-        LOG(ERROR) << "Failed to get SSID object path=" << ssid_path;
+    int32_t mldunit;
+    if (!ssid_obj->read_child(mldunit, "MLDUnit")) {
+        LOG(ERROR) << "Failed to get MLDUnit from " << ssid_path;
+        return false;
+    }
+    if (mldunit == DISABLED_MLDUNIT) {
         return true;
     }
 
-    int32_t mldunit;
-    if (!ssid_obj->read_child(mldunit, "MLDUnit") || (mldunit == DISABLED_MLDUNIT)) {
-        LOG(ERROR) << "Failed to get MLDUnit from " << ssid_path;
+    std::string mld_status;
+    if (!ssid_obj->read_child(mld_status, "MLDStatus")) {
+        LOG(ERROR) << "Failed to read MLDStatus from " << ssid_path;
+        return false;
+    }
+    if (mld_status != "Ready") {
         return true;
     }
 
     std::string ssid_bssid;
     if (!ssid_obj->read_child(ssid_bssid, "BSSID")) {
         LOG(ERROR) << "Failed to read BSSID from " << ssid_path;
-        return true;
+        return false;
     }
 
-    // No need to resolve apmld_path here
     std::string apmld_path = wbapi_utils::search_path_apmld_by_mldid(mldunit);
     std::string affiliated_ap_path;
-
-    // Resolve affiliated_ap_path with apmld_path filter included
     m_ambiorix_cl.resolve_path(wbapi_utils::search_path_affiliated_ap(apmld_path, ssid_bssid),
                                affiliated_ap_path);
     if (affiliated_ap_path.empty()) {
@@ -940,7 +955,7 @@ bool mon_wlan_hal_whm::set_estimated_service_parameters(uint8_t *esp_info_field)
 /*  will get the unassociated stations stats from Ambirorix
 */
 bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
-    std::unordered_map<std::string, uint8_t> &new_list)
+    std::unordered_map<std::string, sUnassocStaParams> &new_list)
 {
     /*
         Example of NonAssociatedDevice object:
@@ -959,14 +974,16 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
 
     std::string nasta_monitor_path = m_radio_path + "NaStaMonitor";
     //Now add the new unassociated stations
-    for (auto &new_station : new_list) {
-        std::string mac_address(new_station.first);
-        const uint8_t chan = new_station.second;
+    for (const auto &new_station : new_list) {
+        const std::string mac_address(new_station.first);
+        const uint8_t chan     = new_station.second.channel;
+        const uint8_t op_class = new_station.second.operating_class;
 
         AmbiorixVariant result;
         AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
         args.add_child("macaddress", mac_address);
         args.add_child("channel", chan);
+        args.add_child("operatingClass", op_class);
         if (!m_ambiorix_cl.call(nasta_monitor_path, "createNonAssociatedDevice", args, result)) {
             LOG(ERROR) << " remote function call createNonAssociatedDevice for object "
                        << nasta_monitor_path << " Failed!";
@@ -1030,16 +1047,15 @@ bool mon_wlan_hal_whm::sta_unassoc_rssi_measurement(
                        << " and TimeStamp(seconds): " << time.sec
                        << " and TimeStamp(milliseconds): " << timestamp_ms;
             new_list.erase(mac_address_amx); // consumed!
-        } else { // -->controller is not interested on it any more--> remove it from the dm
-            amx_un_stations_to_be_removed.push_back(mac_address_amx);
         }
+        amx_un_stations_to_be_removed.push_back(mac_address_amx);
     }
 
     // Now lets remove all stations the controller do not want them anymore
     for (auto &station_to_remove : amx_un_stations_to_be_removed) {
         AmbiorixVariant result;
         AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
-        args.add_child("MACAddress", station_to_remove);
+        args.add_child("macaddress", station_to_remove);
         if (!m_ambiorix_cl.call(nasta_monitor_path, "deleteNonAssociatedDevice", args, result)) {
             LOG(ERROR) << " remote function call deleteNonAssociatedDevice"
                        << " for object " << nasta_monitor_path

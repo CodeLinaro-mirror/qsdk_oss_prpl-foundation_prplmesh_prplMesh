@@ -183,6 +183,9 @@ cACTION_BACKHAUL_MLD_UPDATE_REQUEST:
   mld_mode:
     _type: uint8_t
 
+cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND:
+  _type: class
+
 ################################################
 # CHANNEL SCAN REQUESTS/RESPONSES
 ################################################

@@ -1793,7 +1793,7 @@ bool mon_wlan_hal_dwpal::set_estimated_service_parameters(uint8_t *esp_info_fiel
 }
 
 bool mon_wlan_hal_dwpal::sta_unassoc_rssi_measurement(
-    std::unordered_map<std::string, uint8_t> &new_list)
+    std::unordered_map<std::string, sUnassocStaParams> &new_list)
 {
     new_list.clear();
     LOG(DEBUG) << __func__ << " - NOT IMPLEMENTED";

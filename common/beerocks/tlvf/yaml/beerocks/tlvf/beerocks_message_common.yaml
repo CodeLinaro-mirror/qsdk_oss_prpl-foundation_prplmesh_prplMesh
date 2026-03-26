@@ -53,6 +53,9 @@ sVapType:
   _type: struct  
   vap_id: int8_t
   vap_type: eVapType
+  vap_label:
+    _type: char
+    _length: ["beerocks::message::VAP_LABEL_MAX_LENGTH"]
 
 sSonConfig:
   _type: struct
@@ -1139,6 +1142,9 @@ sUnassociatedStationInfo:
   sta_mac: sMacAddr
   channel:
     _comment: The preferable channel to use for the monitoing
+    _type: uint8_t
+  operating_class:
+    _comment: The preferable op_class to use for the monitoing
     _type: uint8_t
 
 sUnassociatedStationStats:

@@ -60,15 +60,16 @@ void TrafficSeparationTask::handle_event(uint8_t event_enum_value, const void * 
         schedule_apply(eApplyMode::AddNewSta);
         break;
     }
+    case TS_CLEAR_BH_STA_IFACE: {
+        schedule_apply(eApplyMode::ClearSta);
+        break;
+    }
     case TS_CLEAR: {
         if (!cleanup_ts_runtime_state()) {
             LOG(ERROR) << "cleanup_ts_runtime_state failed";
         }
 
-        m_pending  = false;
-        m_mode     = eApplyMode::None;
-        m_next_run = m_next_run.min();
-
+        clear_pending_apply();
         break;
     }
     default:
@@ -94,6 +95,13 @@ void TrafficSeparationTask::schedule_apply(eApplyMode mode)
     }
 }
 
+void TrafficSeparationTask::clear_pending_apply()
+{
+    m_pending  = false;
+    m_mode     = eApplyMode::None;
+    m_next_run = m_next_run.min();
+}
+
 bool TrafficSeparationTask::should_run_now() const
 {
     if (!m_pending) {
@@ -108,11 +116,8 @@ void TrafficSeparationTask::work()
         return;
     }
 
-    m_pending  = false;
-    m_next_run = m_next_run.min();
-
     const auto mode = m_mode;
-    m_mode          = eApplyMode::None;
+    clear_pending_apply();
 
     switch (mode) {
     case eApplyMode::Full: {
@@ -127,6 +132,12 @@ void TrafficSeparationTask::work()
         }
         break;
     }
+    case eApplyMode::ClearSta: {
+        if (!handle_clear_sta_iface()) {
+            LOG(WARNING) << "clear stale sta failed";
+        }
+        break;
+    }
     default:
         break;
     }
@@ -134,6 +145,8 @@ void TrafficSeparationTask::work()
 
 bool TrafficSeparationTask::clear_configuration()
 {
+    m_tracked_wds_ifaces.clear();
+
     if (!m_mgr) {
         return true;
     }
@@ -220,19 +233,7 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
 bool TrafficSeparationTask::reset()
 {
     auto db = AgentDB::get();
-
-    // If we are R1 device, we don't do TS
-    if (db->device_conf.multi_ap_profile ==
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-        LOG(DEBUG)
-            << "Multi-AP profile=1, Traffic Separation is disabled -> clearing and returning";
-
-        if (!cleanup_ts_runtime_state()) {
-            LOG(ERROR) << "cleanup_ts_runtime_state failed (Profile-1 mode)";
-            return false;
-        }
-        return true;
-    }
+    m_tracked_wds_ifaces.clear();
 
     const uint16_t primary_vid = db->traffic_separation.primary_vlan_id;
     if (primary_vid == 0 || primary_vid > net::MAX_VLAN_ID) {
@@ -283,9 +284,9 @@ bool TrafficSeparationTask::reset()
         return false;
     }
 
-    for (const auto &t : trunks) {
-        if (!m_mgr->add_trunk_port(t)) {
-            LOG(ERROR) << "add_trunk_port failed iface=" << t.iface_name;
+    for (const auto &trunk : trunks) {
+        if (!m_mgr->add_trunk_port(trunk)) {
+            LOG(ERROR) << "add_trunk_port failed iface=" << trunk.iface_name;
             if (!m_mgr->reset()) {
                 LOG(ERROR) << "manager reset failed after trunk-add failure";
             }
@@ -293,15 +294,21 @@ bool TrafficSeparationTask::reset()
         }
     }
 
-    for (const auto &a : access_ports) {
-        if (!m_mgr->add_access_port(a)) {
-            LOG(WARNING) << "add_access_port failed iface=" << a.iface_name;
+    for (const auto &access_port : access_ports) {
+        if (!m_mgr->add_access_port(access_port)) {
+            LOG(WARNING) << "add_access_port failed iface=" << access_port.iface_name;
         }
     }
 
     if (!m_mgr->apply_policies()) {
         LOG(ERROR) << "apply_policies failed";
         return false;
+    }
+
+    const auto current_wds_ifaces = collect_current_wds_ifaces();
+    m_tracked_wds_ifaces.clear();
+    for (const auto &wds_iface : current_wds_ifaces) {
+        m_tracked_wds_ifaces.insert(wds_iface.first);
     }
 
     return true;
@@ -311,13 +318,6 @@ bool TrafficSeparationTask::handle_new_sta_iface()
 {
     auto db = AgentDB::get();
 
-    // If we are R1 device, we don't apply TS to the newly created iface
-    if (db->device_conf.multi_ap_profile ==
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-        LOG(DEBUG) << "Multi-AP profile=1, skip TS on new STA iface";
-        return true;
-    }
-
     if (db->traffic_separation.primary_vlan_id == 0 ||
         db->traffic_separation.primary_vlan_id > net::MAX_VLAN_ID) {
         LOG(DEBUG) << "primary_vlan_id is out of range [" << net::MIN_VLAN_ID << "-"
@@ -325,9 +325,9 @@ bool TrafficSeparationTask::handle_new_sta_iface()
         return true;
     }
 
-    // If we have no manager, do full reset
-    if (!m_mgr) {
-        LOG(DEBUG) << "No TS manager, doing full reset";
+    // Incremental WDS updates are valid only after a successful full apply.
+    if (!m_mgr || !m_mgr->is_applied()) {
+        LOG(DEBUG) << "TS manager is not in APPLIED state, doing full reset";
         return reset();
     }
 
@@ -337,9 +337,101 @@ bool TrafficSeparationTask::handle_new_sta_iface()
         return false;
     }
 
-    // Scan ALL backhaul BSS and re-add all sta ifaces.
-    // Manager is idempotent => OK to call add_trunk_port() repeatedly.
-    bool success = true;
+    const auto current_wds_ifaces = collect_current_wds_ifaces();
+    bool success                  = true;
+
+    for (const auto &wds_iface : current_wds_ifaces) {
+        if (m_tracked_wds_ifaces.count(wds_iface.first) != 0) {
+            continue;
+        }
+
+        net::sTrunkPort trunk{};
+        trunk.iface_name       = wds_iface.first;
+        trunk.is_ethernet      = false;
+        trunk.is_untagged_mode = wds_iface.second;
+
+        if (!m_mgr->add_trunk_port(trunk)) {
+            LOG(ERROR) << "add_trunk_port failed iface=" << trunk.iface_name;
+            success = false;
+            continue;
+        }
+
+        m_tracked_wds_ifaces.insert(trunk.iface_name);
+    }
+
+    return success;
+}
+
+bool TrafficSeparationTask::handle_clear_sta_iface()
+{
+    auto db = AgentDB::get();
+
+    if (db->traffic_separation.primary_vlan_id == 0 ||
+        db->traffic_separation.primary_vlan_id > net::MAX_VLAN_ID) {
+        LOG(DEBUG) << "primary_vlan_id is out of range [" << net::MIN_VLAN_ID << "-"
+                   << net::MAX_VLAN_ID << "], nothing to do";
+        return true;
+    }
+
+    // Incremental WDS updates are valid only after a successful full apply.
+    if (!m_mgr || !m_mgr->is_applied()) {
+        LOG(DEBUG) << "TS manager is not in APPLIED state, doing full reset";
+        return reset();
+    }
+
+    if (!ensure_transport_primary_vlan(db->traffic_separation.primary_vlan_id)) {
+        LOG(ERROR) << "failed to set transport primary_vlan_id="
+                   << db->traffic_separation.primary_vlan_id;
+        return false;
+    }
+
+    // TODO(PPM-3906): replace scan-based WDS reconciliation with explicit iface notifications.
+    const auto current_wds_ifaces = collect_current_wds_ifaces();
+    auto next_tracked_wds_ifaces  = m_tracked_wds_ifaces;
+    bool success                  = true;
+
+    for (const auto &wds_iface : current_wds_ifaces) {
+        if (m_tracked_wds_ifaces.count(wds_iface.first) != 0) {
+            continue;
+        }
+
+        net::sTrunkPort trunk{};
+        trunk.iface_name       = wds_iface.first;
+        trunk.is_ethernet      = false;
+        trunk.is_untagged_mode = wds_iface.second;
+
+        if (!m_mgr->add_trunk_port(trunk)) {
+            LOG(ERROR) << "add_trunk_port failed iface=" << trunk.iface_name;
+            success = false;
+            continue;
+        }
+
+        next_tracked_wds_ifaces.insert(trunk.iface_name);
+    }
+
+    for (const auto &tracked_wds_iface : m_tracked_wds_ifaces) {
+        if (current_wds_ifaces.count(tracked_wds_iface) != 0) {
+            continue;
+        }
+
+        if (!m_mgr->remove_trunk_port(tracked_wds_iface)) {
+            LOG(ERROR) << "remove_trunk_port failed iface=" << tracked_wds_iface;
+            success = false;
+            continue;
+        }
+
+        next_tracked_wds_ifaces.erase(tracked_wds_iface);
+    }
+
+    m_tracked_wds_ifaces = std::move(next_tracked_wds_ifaces);
+    return success;
+}
+
+std::unordered_map<std::string, bool> TrafficSeparationTask::collect_current_wds_ifaces() const
+{
+    std::unordered_map<std::string, bool> current_wds_ifaces;
+    auto db = AgentDB::get();
+
     for (const auto *radio : db->get_radios_list()) {
         if (!radio) {
             continue;
@@ -362,7 +454,6 @@ bool TrafficSeparationTask::handle_new_sta_iface()
                        << " policy=" << unsupported_profile_disallow_policy_to_string(policy)
                        << " resolved_mode=" << (untagged_mode ? "untagged" : "tagged");
 
-            // Equal bBSS profile-disallow flags are unsupported unless override policy is enabled.
             if (disallow_profile1 == disallow_profile2) {
                 if (policy == eUnsupportedProfileDisallowPolicy::NO_OVERRIDE) {
                     LOG(WARNING) << "Unsupported bBSS profile-disallow configuration for iface="
@@ -382,23 +473,13 @@ bool TrafficSeparationTask::handle_new_sta_iface()
             }
 
             const auto sta_ifaces = get_all_sta_ifaces_for_bss(bss.iface_name);
-
             for (const auto &sta : sta_ifaces) {
-                net::sTrunkPort t{};
-                t.iface_name       = sta;
-                t.is_ethernet      = false;
-                t.is_untagged_mode = untagged_mode;
-
-                if (!m_mgr->add_trunk_port(t)) {
-                    LOG(ERROR) << "add_trunk_port failed iface=" << sta;
-                    success = false;
-                    // Continue to try other ifaces and report aggregate status.
-                }
+                current_wds_ifaces.emplace(sta, untagged_mode);
             }
         }
     }
 
-    return success;
+    return current_wds_ifaces;
 }
 
 bool TrafficSeparationTask::add_backhaul_connection_trunk(
@@ -414,30 +495,30 @@ bool TrafficSeparationTask::add_backhaul_connection_trunk(
         return true;
     }
 
-    net::sTrunkPort t{};
+    net::sTrunkPort trunk{};
 
     switch (con_type) {
     case AgentDB::sBackhaul::eConnectionType::Wireless: {
         if (wifi_iface.empty()) {
             return true;
         }
-        t.iface_name  = wifi_iface;
-        t.is_ethernet = false;
+        trunk.iface_name  = wifi_iface;
+        trunk.is_ethernet = false;
 
         const uint8_t local = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
         const uint8_t peer  = static_cast<uint8_t>(db->backhaul.backhaul_bss_multi_ap_profile);
         const uint8_t eff   = std::min(local, peer);
 
-        t.is_untagged_mode = (eff <= 1);
+        trunk.is_untagged_mode = (eff <= 1);
         break;
     }
     case AgentDB::sBackhaul::eConnectionType::Wired: {
         if (eth_iface.empty()) {
             return true;
         }
-        t.iface_name       = eth_iface;
-        t.is_ethernet      = true;
-        t.is_untagged_mode = false;
+        trunk.iface_name       = eth_iface;
+        trunk.is_ethernet      = true;
+        trunk.is_untagged_mode = false;
         break;
     }
     default:
@@ -445,7 +526,7 @@ bool TrafficSeparationTask::add_backhaul_connection_trunk(
         return false;
     }
 
-    trunks.push_back(t);
+    trunks.push_back(trunk);
     return true;
 }
 
@@ -466,11 +547,11 @@ bool TrafficSeparationTask::collect_ports_from_db(std::vector<net::sTrunkPort> &
         if (lan.iface_name.empty()) {
             continue;
         }
-        net::sTrunkPort t{};
-        t.iface_name       = lan.iface_name;
-        t.is_ethernet      = true;
-        t.is_untagged_mode = false;
-        trunks.push_back(t);
+        net::sTrunkPort trunk{};
+        trunk.iface_name       = lan.iface_name;
+        trunk.is_ethernet      = true;
+        trunk.is_untagged_mode = false;
+        trunks.push_back(trunk);
     }
 
     for (const auto *radio : db->get_radios_list()) {
@@ -485,9 +566,9 @@ bool TrafficSeparationTask::collect_ports_from_db(std::vector<net::sTrunkPort> &
 
             if (bss.fronthaul_bss && !bss.backhaul_bss) {
                 if (!bss.iface_name.empty()) {
-                    net::sAccessPort ap{};
-                    ap.iface_name = bss.iface_name;
-                    access_ports.push_back(ap);
+                    net::sAccessPort access_port{};
+                    access_port.iface_name = bss.iface_name;
+                    access_ports.push_back(access_port);
                 }
             }
 
@@ -526,11 +607,11 @@ bool TrafficSeparationTask::collect_ports_from_db(std::vector<net::sTrunkPort> &
 
                 const auto sta_ifaces = get_all_sta_ifaces_for_bss(bss.iface_name);
                 for (const auto &sta : sta_ifaces) {
-                    net::sTrunkPort t{};
-                    t.iface_name       = sta;
-                    t.is_ethernet      = false;
-                    t.is_untagged_mode = untagged_mode;
-                    trunks.push_back(t);
+                    net::sTrunkPort trunk{};
+                    trunk.iface_name       = sta;
+                    trunk.is_ethernet      = false;
+                    trunk.is_untagged_mode = untagged_mode;
+                    trunks.push_back(trunk);
                 }
             }
         }

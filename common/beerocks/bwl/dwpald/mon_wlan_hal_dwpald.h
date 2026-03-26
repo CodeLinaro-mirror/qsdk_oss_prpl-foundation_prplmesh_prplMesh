@@ -82,7 +82,8 @@ public:
     virtual bool process_dwpal_event(char *ifname, char *buffer, int bufLen,
                                      const std::string &opcode) override;
 
-    bool sta_unassoc_rssi_measurement(std::unordered_map<std::string, uint8_t> &new_list) final;
+    bool sta_unassoc_rssi_measurement(
+        std::unordered_map<std::string, sUnassocStaParams> &new_list) final;
     // Protected methods:
 protected:
     virtual bool dwpald_attach(char *ifname) override;

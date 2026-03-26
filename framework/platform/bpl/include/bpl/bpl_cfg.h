@@ -1079,18 +1079,6 @@ bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
 bool get_serial_number(std::string &serial_number);
 
 /**
- * @brief Get a string identifying the particular device that is unique for the indicated model
- * and manufacturer.
- *
- * @note It is the manufacturer responsibility to override implementation of this function and
- * and return a correct string.
- *
- * @param [out] model_number  Model number of the device.
- * @return true on success, otherwise false.
- */
-bool get_model_number(std::string &model_number);
-
-/**
  * @brief Get a string identifying the software version
  *
  * @param [out] software_version  current running software version on the device.
@@ -1355,8 +1343,7 @@ bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled);
 /**
  * @brief Reads VLAN ID for private/home SSIDs used by Traffic Separation.
  *
- * Reads `TrafficSeparation.PrivateVID` and falls back to legacy
- * `TrafficSeparation.HomeVid` when needed.
+ * Reads `TrafficSeparation.PrivateVID`.
  * 
  * @param[out] private_vid - VLAN ID for private/home SSIDs
  * @return true if success, false otherwise
@@ -1366,8 +1353,7 @@ bool cfg_get_traffic_separation_private_vid(int &private_vid);
 /**
  * @brief Reads VLAN ID for guest SSIDs used by Traffic Separation.
  *
- * Reads `TrafficSeparation.GuestVID` and falls back to legacy
- * `TrafficSeparation.GuestVid` when needed.
+ * Reads `TrafficSeparation.GuestVID`.
  * 
  * @param[out] guest_vid - VLAN ID for guest SSIDs
  * @return true if success, false otherwise

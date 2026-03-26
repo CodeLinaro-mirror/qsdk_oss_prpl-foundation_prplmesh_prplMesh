@@ -69,6 +69,7 @@ struct VAPElement {
     int8_t mld_id                                     = -1;
     std::string ap_mld_mac;
     eVapType vap_type = eVapType::OTHER;
+    std::string vap_label;
 
     bool operator==(const VAPElement &other) const
     {

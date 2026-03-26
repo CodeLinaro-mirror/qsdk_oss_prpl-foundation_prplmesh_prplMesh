@@ -117,6 +117,13 @@ bool is_bss_config_matching(const beerocks::AgentDB::sRadio::sFront::sBssid &loc
                             const BssConfig &requested_bss)
 {
     // TODO: bss_index matching (PPM-3625)
+
+    // If both sides have vap_label, use it for matching.
+    if (!local_bss.vap_label.empty() && !requested_bss.m2_config.vap_label.empty()) {
+        return local_bss.vap_label == requested_bss.m2_config.vap_label;
+    }
+
+    // Fall back to vap_type matching
     const bool is_vap_type_applicable = (local_bss.vap_type != eVapType::OTHER) &&
                                         (requested_bss.m2_config.vap_type != eVapType::OTHER);
 
@@ -221,7 +228,7 @@ static inline std::string dump_bssid_compact(const beerocks::AgentDB::sRadio::sF
     std::ostringstream out;
     out << "bssid{"
         << "mac=" << cfg.mac << " ssid=" << cfg.ssid << " vap=" << cfg.vap_type
-        << " fh=" << cfg.fronthaul_bss << " bh=" << cfg.backhaul_bss
+        << " label=" << cfg.vap_label << " fh=" << cfg.fronthaul_bss << " bh=" << cfg.backhaul_bss
         << " hidden=" << cfg.hidden_ssid << "}";
     return out.str();
 }
@@ -235,8 +242,9 @@ template <typename BssConfig> static inline std::string dump_bssconfig_compact(c
 
     out << "bss{"
         << "bssid=" << p.bssid << " ssid=" << p.ssid << " vap=" << m2.vap_type
-        << " auth=" << eWscAuth_str(p.auth_type) << " encr=" << eWscEncr_str(p.encr_type)
-        << " key=" << p.network_key << " hidden=" << m2.hidden_ssid << " type="
+        << " label=" << m2.vap_label << " auth=" << eWscAuth_str(p.auth_type)
+        << " encr=" << eWscEncr_str(p.encr_type) << " key=" << p.network_key
+        << " hidden=" << m2.hidden_ssid << " type="
         << eWscVendorExtSubelementBssType_str(
                static_cast<WSC::eWscVendorExtSubelementBssType>(p.bss_type))
         << "}";
@@ -396,8 +404,8 @@ void ApAutoConfigurationTask::work()
         // Trigger TS once per completed autoconfiguration cycle.
         // Per-radio triggering causes repeated full TS resets while radios are still settling.
         LOG(DEBUG) << "Trigger traffic separation after all radios are configured";
-        m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                       TrafficSeparationTask::eEvent::TS_ENABLE);
+        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_ENABLE);
 
         // Send pre-associated sta notification request to all radio
         for (const auto &radios_conf_param_kv : m_radios_conf_params) {
@@ -485,8 +493,8 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
     }
     case APPLY_CONFIG_FOR_NEW_IFACE: {
         LOG(DEBUG) << "Trigger traffic separation on APPLY_CONFIG_FOR_NEW_IFACE";
-        m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                       TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
+        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
         break;
     }
     default: {
@@ -1640,7 +1648,25 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_renew(
             return;
         }
 
+        auto &radio_conf_params = m_radios_conf_params[radio->front.iface_name];
+        const bool renew_already_in_progress =
+            (radio_conf_params.state == eState::SEND_AP_AUTOCONFIGURATION_WSC_M1) ||
+            (radio_conf_params.state == eState::WAIT_AP_AUTOCONFIGURATION_WSC_M2) ||
+            (radio_conf_params.state == eState::WAIT_AP_CONFIGURATION_COMPLETE);
+        if (renew_already_in_progress) {
+            LOG(DEBUG) << "Ignore duplicate renew on " << radio->front.iface_name
+                       << " while state is " << fsm_state_to_string(radio_conf_params.state);
+            continue;
+        }
+
         m_task_is_active = true;
+
+        // Refresh VAP info to ensure accurate BSS configuration matching
+        if (!send_ap_bss_info_update_request(radio->front.iface_name)) {
+            LOG(WARNING) << "send_ap_bss_info_update_request has failed for "
+                         << radio->front.iface_name;
+        }
+
         FSM_MOVE_STATE(radio->front.iface_name, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
     }
 }
@@ -1823,8 +1849,8 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
         if (conf_params.state == eState::CONFIGURED) {
             // Trigger TrafficSeparationTask on Multi-AP Policy Request received
             LOG(DEBUG) << "Trigger traffic separation on Multi-AP Policy Request";
-            m_btl_ctx.task_pool_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                           TrafficSeparationTask::eEvent::TS_ENABLE);
+            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                               TrafficSeparationTask::eEvent::TS_ENABLE);
         }
     }
 
@@ -1960,6 +1986,11 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             LOG(INFO) << "VAP type not found or not set in Vendor Extension";
         }
 
+        info.m2_config.vap_label = m2.vap_label();
+        if (info.m2_config.vap_label.empty()) {
+            LOG(INFO) << "VAP label not found or not set in Vendor Extension";
+        }
+
         info.m2_config.hidden_ssid = m2.hidden_ssid();
 
         // EM_AP_CONTROLLER specific Vendor Extension Attributes
@@ -1997,6 +2028,7 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         ss << "teardown: " << teardown << std::endl;
         ss << "hidden_ssid: " << info.m2_config.hidden_ssid << std::endl;
         ss << "vap_type " << info.m2_config.vap_type << std::endl;
+        ss << "vap_label " << info.m2_config.vap_label << std::endl;
         if (bBSS) {
             ss << "profile1_backhaul_sta_association_disallowed: " << bBSS_p1_disallowed;
             ss << "profile2_backhaul_sta_association_disallowed: " << bBSS_p2_disallowed;
@@ -2743,6 +2775,7 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
               << fronthaul_iface << " waiting for it? " << radio_conf_params.sent_vaps_list_update;
 
     m_btl_ctx.update_vaps_info(fronthaul_iface, notification_in->params().vaps);
+    m_btl_ctx.update_vaps_type(fronthaul_iface, notification_in->vap_type_list().vap_types);
 
     auto notification_out = message_com::create_vs_message<
         beerocks_message::cACTION_CONTROL_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION>(m_cmdu_tx);
@@ -2756,19 +2789,21 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
     m_btl_ctx.send_cmdu_to_controller(fronthaul_iface, m_cmdu_tx);
 
     // This probably changed the "AP Operational BSS" list in topology, so send a notification
-    if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE)) {
-        LOG(ERROR) << "cmdu creation of type TOPOLOGY_NOTIFICATION_MESSAGE, has failed";
+    auto bh_topo_notif_cmd = message_com::create_vs_message<
+        beerocks_message::cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND>(m_cmdu_tx);
+    if (!bh_topo_notif_cmd) {
+        LOG(ERROR) << "Failed building message cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND";
         return;
     }
 
-    auto tlvAlMacAddress = m_cmdu_tx.addClass<ieee1905_1::tlvAlMacAddress>();
-    if (!tlvAlMacAddress) {
-        LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
+    auto backhaul_manager_cmdu_client = m_btl_ctx.get_backhaul_manager_cmdu_client();
+    if (!backhaul_manager_cmdu_client) {
+        LOG(ERROR) << "Failed to get backhaul manager cmdu client";
         return;
     }
 
-    tlvAlMacAddress->mac() = db->bridge.mac;
-    m_btl_ctx.send_cmdu_to_controller(fronthaul_iface, m_cmdu_tx);
+    LOG(DEBUG) << "Sending ACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND to BH manager";
+    backhaul_manager_cmdu_client->send_cmdu(m_cmdu_tx);
 
     radio_conf_params.received_vaps_list_update = true;
 
@@ -3037,8 +3072,9 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
             // Controller does not send BSSID -> pin to existing local BSSID.
             it->payload_config.bssid = local_bss.mac;
 
-            // Controller can't reconfigure local VAP type -> keep local.
-            it->m2_config.vap_type = local_bss.vap_type;
+            // Controller can't reconfigure local VAP type/label -> keep local.
+            it->m2_config.vap_type  = local_bss.vap_type;
+            it->m2_config.vap_label = local_bss.vap_label;
 
             if (is_bss_reconfiguration_required(local_bss, *it)) {
                 LOG(DEBUG) << "BSS " << local_bss.mac << " needs reconfiguration.";
@@ -3087,6 +3123,7 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
         sBssConfig teardown_bss;
         teardown_bss.payload_config.bssid    = local_bss.mac;
         teardown_bss.m2_config.vap_type      = local_bss.vap_type;
+        teardown_bss.m2_config.vap_label     = local_bss.vap_label;
         teardown_bss.payload_config.bss_type = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
 
         reconfig_bss_list.emplace_back(std::move(teardown_bss));
@@ -3220,6 +3257,7 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
         c->additional_auth() =
             static_cast<son::wireless_utils::eAdditionalAuth>(info.additional_auth);
         c->vap_type() = info.m2_config.vap_type;
+        c->set_vap_label(info.m2_config.vap_label);
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

@@ -33,6 +33,8 @@ using namespace beerocks;
 using namespace net;
 using namespace son;
 
+constexpr std::chrono::seconds M1_TASK_RESCHEDULE_DELAY{1};
+
 namespace {
 constexpr int MIN_TS_VID = 1;
 constexpr int MAX_TS_VID = 4094;
@@ -110,6 +112,43 @@ void agent_monitoring_task::work()
         son_actions::send_ap_config_renew_msg(cmdu_tx, database);
         m_ap_autoconfig_renew_sent = true;
     }
+
+    /**
+     * M1-triggered task scheduling policy:
+     *
+     * M1 messages may arrive in bursts when many agents respond at nearly the
+     * same time, and an agent may also send one M1 per radio. To avoid
+     * generating and sending the associated device-level requests and queries
+     * immediately for every received M1, their launch is temporarily deferred.
+     *
+     * This helps the controller remain responsive so it can continue handling
+     * incoming M1 messages and replying with the corresponding M2 messages in
+     * a timely manner.
+     *
+     * Once the defer window expires, pending work is drained without
+     * additional delay until a new M1 arrival arms deferral again.
+     **/
+    if (m_m1_task_defer_armed && std::chrono::steady_clock::now() < m_m1_task_not_before) {
+        return;
+    }
+
+    // Defer window has expired (or was not armed). Allow draining.
+    m_m1_task_defer_armed = false;
+
+    /**
+     * Launch at most one pending M1-triggered task per work() invocation.
+     *
+     * This prevents monopolizing the event loop and helps keep the controller
+     * responsive while draining queued agent requests and queries across
+     * successive work() calls.
+     **/
+    for (const auto &agent : database.get_all_connected_agents()) {
+        if (agent->is_m1_task_pending) {
+            execute_deferred_task(*agent);
+            agent->is_m1_task_pending = false;
+            break;
+        }
+    }
 }
 
 bool agent_monitoring_task::handle_ieee1905_1_msg(const sMacAddr &src_mac,
@@ -128,7 +167,27 @@ bool agent_monitoring_task::handle_ieee1905_1_msg(const sMacAddr &src_mac,
             LOG(INFO) << "Not a valid M1 - Ignoring WSC CMDU";
             return false;
         }
-        return start_task(src_mac, m1, cmdu_rx);
+        /**
+         * Handle bursts of M1 messages by deferring M1-triggered device-level
+         * requests and queries and coalescing per-agent work.
+         *
+         * Design overview:
+         *
+         * Each radio of an agent sends its own WSC M1 during autoconfiguration,
+         * and multiple agents may also send M1 messages at nearly the same time
+         * (e.g. after AP Autoconfiguration Renew).
+         *
+         * Without deferral, the controller would immediately generate and send
+         * device-level requests and queries for every received M1. This can cause
+         * spikes in controller work, redundant executions for multi-radio agents,
+         * and delays in sending the corresponding M2 messages.
+         *
+         * To address this, the M1-triggered work is scheduled for deferred
+         * execution. This allows the controller to remain responsive when bursts
+         * of M1 messages occur, while also enabling the requests and queries to
+         * be coalesced so they are sent once per agent instead of once per radio.
+         **/
+        return schedule_task(m1, cmdu_rx);
     }
     case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE: {
         start_agent_monitoring(src_mac, cmdu_rx);
@@ -268,60 +327,10 @@ bool agent_monitoring_task::start_agent_monitoring(const sMacAddr &src_mac,
     return true;
 }
 
-bool agent_monitoring_task::start_task(const sMacAddr &src_mac, std::shared_ptr<WSC::m1> m1,
-                                       ieee1905_1::CmduMessageRx &cmdu_rx)
+bool agent_monitoring_task::schedule_task(std::shared_ptr<WSC::m1> m1,
+                                          ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    if (!send_multi_ap_policy_config_request(src_mac, m1, cmdu_rx, cmdu_tx)) {
-        LOG(ERROR) << "Failed to send Metric Reporting Policy to radio agent=" << src_mac;
-    }
-    if (!send_tlv_empty_channel_selection_request(src_mac, cmdu_tx)) {
-        LOG(ERROR) << "Failed to send Channel Selection Request to radio agent=" << src_mac;
-    }
-    if (!database.setting_certification_mode()) {
-        // trigger Topology query
-        LOG(TRACE) << "Sending Topology Query to " << src_mac;
-        son_actions::send_topology_query_msg(src_mac, cmdu_tx, database);
-
-        // trigger channel selection
-        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_PREFERENCE_QUERY_MESSAGE)) {
-            LOG(ERROR) << "Failed building message CHANNEL_PREFERENCE_QUERY_MESSAGE!";
-            return false;
-        }
-        son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
-    }
-
-    if (!database.setting_certification_mode()) {
-        // trigger AP capability query
-        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE)) {
-            LOG(ERROR) << "Failed building message AP_CAPABILITY_QUERY_MESSAGE!";
-            return false;
-        }
-        son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
-    }
-
-    auto agent = database.m_agents.get(src_mac);
-    if (agent &&
-        agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
-
-        if (!send_backhaul_sta_capability_query(src_mac, cmdu_tx)) {
-            LOG(ERROR) << "Failed to send Backhaul STA Capability Query to agent=" << src_mac;
-        }
-
-        if (agent->prioritization_support) {
-            if (!send_prioritization(*agent)) {
-                LOG(ERROR) << "Failed sending Service Priotitization to agent " << src_mac;
-            }
-        }
-    }
-
-    return true;
-}
-
-bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &dst_mac,
-                                                                std::shared_ptr<WSC::m1> m1,
-                                                                ieee1905_1::CmduMessageRx &cmdu_rx,
-                                                                ieee1905_1::CmduMessageTx &cmdu_tx)
-{
+    // Extract the radio UID from the M1 and cache the BSS configuration for it.
     auto radio_basic_caps = cmdu_rx.getClass<wfa_map::tlvApRadioBasicCapabilities>();
     if (!radio_basic_caps) {
         LOG(ERROR) << "getClass<wfa_map::tlvApRadioBasicCapabilities> failed";
@@ -330,7 +339,95 @@ bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &
 
     auto ruid              = radio_basic_caps->radio_uid();
     m_bss_configured[ruid] = database.get_configured_bss_info(ruid);
-    uint8_t num_bsss       = m_bss_configured[ruid].size();
+
+    /**
+     * Defer the agent requests and queries triggered by the reception of a
+     * WSC M1 message.
+     *
+     * Bursts of M1 messages may occur when many agents respond at nearly the
+     * same time, and an agent also sends one M1 per radio during
+     * autoconfiguration. Since the associated requests and queries are
+     * device-level, generating and sending them immediately for every M1 may
+     * increase controller load, delay the corresponding M2 responses, and
+     * cause redundant executions for multi-radio agents.
+     *
+     * If the controller fails to respond with M2 before
+     * AUTOCONFIG_M2_TIMEOUT_SECONDS expires, the agent may re-send M1,
+     * potentially exacerbating the burst and adding further load.
+     *
+     * A short deferral window is therefore introduced so the controller can
+     * remain responsive during M1 bursts while coalescing per-agent work.
+     **/
+
+    auto agent = database.m_agents.get(m1->mac_addr());
+    if (!agent) {
+        LOG(ERROR) << "Agent with mac is not found in database mac=" << m1->mac_addr();
+        return false;
+    }
+
+    // Mark the agent's M1-triggered requests and queries as pending.
+    agent->is_m1_task_pending = true;
+
+    // M1 messages may arrive in bursts from many agents, and also per radio
+    // from the same agent. Arm deferral so the corresponding requests and
+    // queries can be launched later in a coalesced manner.
+    m_m1_task_defer_armed = true;
+    m_m1_task_not_before  = std::chrono::steady_clock::now() + M1_TASK_RESCHEDULE_DELAY;
+
+    return true;
+}
+
+bool agent_monitoring_task::execute_deferred_task(const Agent &agent)
+{
+    if (!send_multi_ap_policy_config_request(agent.al_mac, cmdu_tx)) {
+        LOG(ERROR) << "Failed to send Metric Reporting Policy to radio agent=" << agent.al_mac;
+    }
+
+    if (!send_tlv_empty_channel_selection_request(agent.al_mac, cmdu_tx)) {
+        LOG(ERROR) << "Failed to send Channel Selection Request to radio agent=" << agent.al_mac;
+    }
+
+    if (!database.setting_certification_mode()) {
+        // trigger Topology query
+        LOG(TRACE) << "Sending Topology Query to " << agent.al_mac;
+        son_actions::send_topology_query_msg(agent.al_mac, cmdu_tx, database);
+
+        // trigger channel selection
+        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_PREFERENCE_QUERY_MESSAGE)) {
+            LOG(ERROR) << "Failed building message CHANNEL_PREFERENCE_QUERY_MESSAGE!";
+            return false;
+        }
+        son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
+    }
+
+    if (!database.setting_certification_mode()) {
+        // trigger AP capability query
+        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE)) {
+            LOG(ERROR) << "Failed building message AP_CAPABILITY_QUERY_MESSAGE!";
+            return false;
+        }
+        son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
+    }
+
+    if (agent.profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
+
+        if (!send_backhaul_sta_capability_query(agent.al_mac, cmdu_tx)) {
+            LOG(ERROR) << "Failed to send Backhaul STA Capability Query to agent=" << agent.al_mac;
+        }
+
+        if (agent.prioritization_support) {
+            if (!send_prioritization(agent)) {
+                LOG(ERROR) << "Failed sending Service Priotitization to agent " << agent.al_mac;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &dst_mac,
+                                                                ieee1905_1::CmduMessageTx &cmdu_tx)
+{
     if (!cmdu_tx.create(0, ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE)) {
         LOG(ERROR) << "Failed building MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE ! ";
         return false;
@@ -342,9 +439,14 @@ bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &
         return false;
     }
 
+    uint8_t num_bsss = 0;
+    for (const auto &radio : agent->radios) {
+        num_bsss += m_bss_configured[radio.second->radio_uid].size();
+    }
+
     if (num_bsss) {
-        add_traffic_separation_policy_tlv(database, cmdu_tx, m1);
-        add_profile_2default_802q_settings_tlv(database, cmdu_tx, m1->mac_addr());
+        add_traffic_separation_policy_tlv(database, cmdu_tx, dst_mac);
+        add_profile_2default_802q_settings_tlv(database, cmdu_tx, dst_mac);
     }
 
     auto metric_reporting_policy_tlv = cmdu_tx.addClass<wfa_map::tlvMetricReportingPolicy>();
@@ -581,8 +683,7 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
     if (tlv_default_8021q_settings->primary_vlan_id() == 0 && m_is_custom_ts_enabled) {
         int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
         if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID (or legacy HomeVid), "
-                          "using default value="
+            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="
                        << bpl::DEFAULT_PRIVATE_VLAN_ID;
         }
         if (!is_valid_ts_vid(private_vid)) {
@@ -604,12 +705,10 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
 
 bool agent_monitoring_task::add_traffic_separation_policy_tlv(db &database,
                                                               ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                              std::shared_ptr<WSC::m1> m1)
+                                                              const sMacAddr &al_mac)
 {
-    auto traffic_separation_configs = database.get_traffic_separation_configuration(m1->mac_addr());
-    auto al_mac                     = m1->mac_addr();
-
-    auto agent = database.m_agents.get(al_mac);
+    auto traffic_separation_configs = database.get_traffic_separation_configuration(al_mac);
+    auto agent                      = database.m_agents.get(al_mac);
     if (!agent) {
         LOG(ERROR) << "Agent with mac is not found in database mac=" << al_mac;
         return false;
@@ -619,15 +718,13 @@ bool agent_monitoring_task::add_traffic_separation_policy_tlv(db &database,
     if (traffic_separation_configs.empty() && m_is_custom_ts_enabled) {
         int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
         if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID (or legacy HomeVid), "
-                          "using default value="
+            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="
                        << bpl::DEFAULT_PRIVATE_VLAN_ID;
         }
 
         int guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
         if (!bpl::cfg_get_traffic_separation_guest_vid(guest_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.GuestVID (or legacy GuestVid), "
-                          "using default value="
+            LOG(ERROR) << "Failed to read TrafficSeparation.GuestVID, using default value="
                        << bpl::DEFAULT_GUEST_VLAN_ID;
         }
 

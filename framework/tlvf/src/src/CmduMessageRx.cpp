@@ -70,6 +70,7 @@
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsQuery.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
+#include <tlvf/wfa_map/tlvBssAdvancedConfiguration.h>
 #include <tlvf/wfa_map/tlvBssConfigurationReport.h>
 #include <tlvf/wfa_map/tlvBssConfigurationRequest.h>
 #include <tlvf/wfa_map/tlvBssConfigurationResponse.h>
@@ -619,6 +620,9 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     }
     case (wfa_map::eTlvTypeMap::TLV_RSN_PARAMETERS_CONFIGURATION): {
         return msg.addClass<wfa_map::tlvRsnParametersConfiguration>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_BSS_ADVANCED_CONFIGURATION): {
+        return msg.addClass<wfa_map::tlvBssAdvancedConfiguration>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
