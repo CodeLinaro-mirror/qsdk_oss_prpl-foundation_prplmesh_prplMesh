@@ -70,6 +70,7 @@
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
+#include <tlvf/wfa_map/tlvBssAdvancedConfiguration.h>
 #include <tlvf/wfa_map/tlvBssid.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 #include <tlvf/wfa_map/tlvChannelScanCapabilities.h>
@@ -1267,6 +1268,59 @@ static bool add_rsn_parameters_configuration_tlv(
 }
 
 /**
+ * @brief add BSS Advanced Configuration TLV to the current CMDU
+ *
+ * Fill a tlvBssAdvancedConfiguration with the infos we stored in the bss confs
+ * SSID advertisement will be set according to the hidden_ssid parameter in the bss confs
+ * 
+ * @param[in] database reference to the database
+ * @param[out] cmdu_tx the message containing the tlv
+ * @param[in] agent_mac mac of the agent that sent the autoconfiguration WSC message
+ * @param[in] ruid radio uid to match the bss confs to the correct radio
+ * @param[in] bss_info_confs list of bss confs to fill
+ * @param[in] band radio band to match the bss confs to the correct radio
+ * 
+ * @return true on success,false on failure
+ * 
+ */
+static bool add_bss_advanced_configuration_tlv(
+    db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agt_mac, const sMacAddr ruid,
+    const std::list<son::wireless_utils::sBssInfoConf> &bss_info_confs, beerocks::eFreqType band)
+{
+    auto bss_advanced_configuration = cmdu_tx.addClass<wfa_map::tlvBssAdvancedConfiguration>();
+    auto bss_advanced_configuration_radio = bss_advanced_configuration->create_radios();
+    if (!bss_advanced_configuration_radio) {
+        LOG(ERROR) << "Failed creating bss_advanced_configuration_radio";
+        return false;
+    }
+    LOG(DEBUG) << "Adding BSS Advanced configuration tlv for radio " << ruid;
+    bss_advanced_configuration_radio->ruid() = ruid;
+    for (auto &bss_info_conf : bss_info_confs) {
+        auto bss_advanced_configuration_bss = bss_advanced_configuration_radio->create_bsss();
+        if (!bss_advanced_configuration_bss) {
+            LOG(ERROR) << "Failed creating bss_advanced_configuration_bss";
+            return false;
+        }
+        bss_advanced_configuration_bss->bssid()     = beerocks::net::network_utils::ZERO_MAC;
+        bss_advanced_configuration_bss->bss_index() = bss_info_conf.bss_index;
+        bss_advanced_configuration_bss->bss_infos().ssid_advertisement =
+            bss_info_conf.hidden_ssid == WSC::eWscVendorExtHiddenSsid::DISABLED ? 1 : 0;
+
+        if (!bss_advanced_configuration_radio->add_bsss(
+                std::move(bss_advanced_configuration_bss))) {
+            LOG(ERROR) << "add_bsss failed for bss index: " << bss_info_conf.bss_index;
+            return false;
+        }
+    }
+    if (!bss_advanced_configuration->add_radios(std::move(bss_advanced_configuration_radio))) {
+        LOG(ERROR) << "add_radios failed for ruid:" << ruid;
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * @brief add Backhaul STA MLD Configuration TLV to the current CMDU
  *
  *        Fill a tlvBackhaulStaMldConfiguration with the infos we stored in the bss and mld confs
@@ -1760,6 +1814,10 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         add_rsn_parameters_configuration_tlv(database, cmdu_tx, m1->mac_addr(), ruid,
                                              bss_info_confs, radio->band);
     }
+
+    add_bss_advanced_configuration_tlv(database, cmdu_tx, m1->mac_addr(), ruid, bss_info_confs,
+                                       radio->band);
+
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
     if (beerocks_header) {
         LOG(INFO) << "Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid;
