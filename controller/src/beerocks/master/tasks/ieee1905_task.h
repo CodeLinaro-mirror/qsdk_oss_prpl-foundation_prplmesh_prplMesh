@@ -97,7 +97,6 @@ public:
     static constexpr std::chrono::seconds periodic_topology_requery_interval{30};
     /** @brief to not to interfere with link metric task: */
     static constexpr std::chrono::seconds link_metric_response_requery_delay_guard{1};
-
     /**
      * @brief Construct and initialize the ieee1905_task.
      *
@@ -317,6 +316,9 @@ protected:
     /** updates Network.Status to Available once initial AL info is gathered */
     SingleShotCounter status_pending;
     std::unordered_map<sMacAddr, AL> m_als; ///< sidecar data to \ref database.ieee1905_network.al
+};
+
+template <> struct easymesh_task<ieee1905_task> : std::false_type {
 };
 
 } // namespace son

@@ -125,6 +125,9 @@ private:
     void update_bml_nw_map(std::string mac, bool force_client_disconnect = false);
 };
 
+template <> struct easymesh_task<bml_task> : std::false_type {
+};
+
 } // namespace son
 
 #endif

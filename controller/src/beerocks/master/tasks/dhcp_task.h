@@ -65,6 +65,9 @@ private:
     void handle_timer_timeout();
 };
 
+template <> struct easymesh_task<DhcpTask> : std::false_type {
+};
+
 } // namespace son
 
 #endif
