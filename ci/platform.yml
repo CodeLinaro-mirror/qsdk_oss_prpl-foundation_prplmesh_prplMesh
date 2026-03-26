@@ -12,6 +12,7 @@ variables:
   MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.itb"
   URX_OSP_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img"
   URX_OSPV2_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_v2-tb341_wav700_fullimage.fit"
+  CRAM_REMOTE_COMMAND_BASE: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@"
 
 workflow:
   rules:
@@ -148,6 +149,40 @@ boardfarm-on-mozart-stability:
   rules:
     - if: '$STABILITY_TESTS == "yes"'
   retry: 0
+
+.cram-on-target:
+  stage: test
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - export PRPLOS_HASH=$(grep "OPENWRT_VERSION='" ./tools/docker/builder/openwrt/build.sh| tail -n 1| sed -n "s/.*'\([^']*\)'.*/\1/p")
+    - export CRAM_REMOTE_COMMAND=${CRAM_REMOTE_COMMAND_BASE}${TARGET_LAN_IP}
+    - docker run -v "$CI_PROJECT_DIR/tests/cram:/home/cram/prplMesh" -e CRAM_REMOTE_COMMAND -e TARGET_LAN_IP -e TARGET_DEVICE=$TARGET_DEVICE $CI_REGISTRY_IMAGE/prplmesh-cram:$PRPLOS_HASH
+  tags:
+    - testing
+  rules:
+    - when: manual
+
+cram-on-freedom:
+  extends: .cram-on-target
+  variables:
+    TARGET_DEVICE: freedom
+    TARGET_LAN_IP: 192.168.1.150
+  before_script:
+    - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/cram/freedom.sh
+    - tools/deploy_ipk.sh $TARGET_DEVICE build/$TARGET_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-freedom
+
+cram-on-ospv2:
+  extends: .cram-on-target
+  variables:
+    TARGET_DEVICE: urx_ospv2
+    TARGET_LAN_IP: 192.168.1.160
+  before_script:
+    - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE" --image "$URX_OSPV2_FULLIMAGE" --whm --configuration ci/configuration/cram/urx_ospv2.sh
+    - tools/deploy_ipk.sh $TARGET_DEVICE build/$TARGET_DEVICE/prplmesh.ipk
+  needs:
+    - job: build-for-ospv2
 
 run-certification-tests-R1-platform-essensium:
   extends: .run-certification-tests-R1

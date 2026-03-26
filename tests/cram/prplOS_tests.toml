@@ -1,0 +1,44 @@
+title = "Tests to copy from prplOS CRAM folder"
+
+[freedom]
+name_in_prplOS = "wnc-freedom"
+tests = [
+    "020-ubus.t",
+    "030-wifi.t",
+    "100-pwhm_step_1.t",
+    "100-pwhm_step_2.t",
+    "101-mlo_step_1.t",
+    "101-mlo_step_2.t",
+    "102-apmld.t",
+    "102-pwhm-static-puncturing.t",
+    "103-pwhm-usp.t",
+    "104-pwhm-custom-arguments.t",
+    "110-prplmesh-dataelements.t",
+    "125-process-manager.t"
+]
+
+[urx_ospv2]
+name_in_prplOS = "mxl25641-hdk-6"
+tests = [
+    "020-ubus.t",
+    "030-wifi.t",
+    "100-pwhm_step_1.t",
+    "100-pwhm_step_2.t",
+    "103-pwhm-usp.t",
+    "110-prplmesh-dataelements.t",
+    "125-process-manager.t",
+]
+
+[mozart]
+name_in_prplOS = "arcadyan-mozart"
+tests = [
+    "020-ubus.t",
+    "100-pwhm.t"
+]
+
+# Is always copied/executed
+[generic]
+name_in_prplOS = "generic"
+tests = [
+    "busybox.t"
+]

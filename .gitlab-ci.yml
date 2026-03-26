@@ -54,11 +54,18 @@ image-build-cppcheck:
 image-build-scripts:
   extends: .image-build
 
+image-build-cram:
+  stage: containers
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - export PRPLOS_HASH=$(grep "OPENWRT_VERSION='" ./tools/docker/builder/openwrt/build.sh| tail -n 1| sed -n "s/.*'\([^']*\)'.*/\1/p")
+    - ./tools/docker/image-build.sh --image "${CI_JOB_NAME#image-build-}" --tag $PRPLOS_HASH --argument PRPLOS_HASH --push
+  tags:
+    - testing
+
 platform:
   stage: platform
-  needs:
-    - build-in-docker
-    - image-build-boardfarm-ci
+  needs: []
   rules:
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
     - !reference [.rules-for-expensive-job, rules]

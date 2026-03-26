@@ -55,11 +55,11 @@ class Freedom(GenericPrplOS):
         shell.expect(self.bootloader_prompt)
 
         shell.sendline("if test -n $untar_addr_kernel; then flash '0:HLOS' 0x$untar_addr_kernel 0x$untar_size_kernel; else echo 'kernel not found'; fi") # noqa E501
-        shell.expect("blocks erased: OK", timeout=10)
-        shell.expect("blocks written: OK", timeout=10)
+        shell.expect("blocks erased: OK", timeout=15)
+        shell.expect("blocks written: OK", timeout=15)
         shell.expect(self.bootloader_prompt)
 
         shell.sendline("if test -n $untar_addr_root; then flash 'rootfs' 0x$untar_addr_root 0x$untar_size_root; else echo 'rootfs not found'; fi") # noqa E501
-        shell.expect("blocks erased: OK", timeout=10)
-        shell.expect("blocks written: OK", timeout=10)
+        shell.expect("blocks erased: OK", timeout=60)
+        shell.expect("blocks written: OK", timeout=60)
         shell.expect(self.bootloader_prompt)
