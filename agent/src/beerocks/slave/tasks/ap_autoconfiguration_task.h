@@ -253,6 +253,23 @@ private:
                                                  beerocks::eFreqType freq_type);
 
     /**
+     * @brief Handle BSS Advanced Configuration TLV from the controller.
+     *
+     * Parses the BSS Advanced Configuration TLV to change the BSS advertisement configuration
+     * structures.
+     *
+     * @param[in] cmdu_rx Received CMDU
+     * @param[in] configs Configuration structures of the BSSs to be updated by the TLV.
+     * @param[in] ruid Radio Unique Identifier of the radio for which the BSS advertisement configuration is targeted. 
+     *
+     * @return true on success, false if TLV parsing fails or configuration is invalid.
+     *
+     */
+    bool handle_bss_advanced_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                               std::vector<sBssConfig> &configs,
+                                               const sMacAddr &ruid);
+
+    /**
      * @brief Populate MLD ID in BSS infos based on SSID match.
      *
      * @param[in] radio_iface Radio interface name

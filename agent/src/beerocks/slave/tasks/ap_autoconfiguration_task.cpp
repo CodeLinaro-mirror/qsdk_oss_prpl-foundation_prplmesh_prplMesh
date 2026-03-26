@@ -40,6 +40,7 @@
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvApRadioIdentifier.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
+#include <tlvf/wfa_map/tlvBssAdvancedConfiguration.h>
 #include <tlvf/wfa_map/tlvChannelScanReportingPolicy.h>
 #include <tlvf/wfa_map/tlvControllerCapability.h>
 #include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
@@ -1516,6 +1517,11 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
 
+    if (!handle_bss_advanced_configuration_tlv(cmdu_rx, bss_infos, ruid->radio_uid())) {
+        LOG(ERROR) << "handle_bss_advanced_configuration_tlv has failed!";
+        return;
+    }
+
     if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
         handle_bss_reconfiguration(radio->front.iface_name, bss_infos);
         if (!bss_infos.empty()) {
@@ -2630,6 +2636,51 @@ bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
                         info.additional_auth =
                             son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
                     }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ApAutoConfigurationTask::handle_bss_advanced_configuration_tlv(
+    ieee1905_1::CmduMessageRx &cmdu_rx, std::vector<sBssConfig> &configs, const sMacAddr &ruid)
+{
+    auto bss_advanced_configuration(cmdu_rx.getClass<wfa_map::tlvBssAdvancedConfiguration>());
+    if (!bss_advanced_configuration) {
+        LOG(DEBUG) << "No tlvBssAdvancedConfiguration TLV received";
+        return true;
+    }
+
+    LOG(DEBUG) << "Handling BSS advanced configuration for ruid: " << ruid;
+
+    for (auto radio_idx = 0; radio_idx < bss_advanced_configuration->num_radio(); ++radio_idx) {
+        auto bss_advanced_radio = std::get<1>(bss_advanced_configuration->radios(radio_idx));
+        if (bss_advanced_radio.ruid() != ruid) {
+            LOG(WARNING) << "Discarding wrong radio ruid: " << ruid;
+            continue;
+        }
+
+        for (auto bss_idx = 0; bss_idx < bss_advanced_radio.num_bss(); ++bss_idx) {
+            auto bss_advanced_bss = std::get<1>(bss_advanced_radio.bsss(bss_idx));
+            for (auto &config : configs) {
+
+                // Try to match BSS by BSSID or by BSS index (if BSSID is not set)
+                if ((bss_advanced_bss.bssid() != beerocks::net::network_utils::ZERO_MAC &&
+                     bss_advanced_bss.bssid() == config.payload_config.bssid) ||
+                    (config.m2_config.bss_index != 0 &&
+                     config.m2_config.bss_index == bss_advanced_bss.bss_index())) {
+                    if (config.m2_config.hidden_ssid != WSC::eWscVendorExtHiddenSsid::UNSET) {
+                        LOG(WARNING) << "BSS " << config.payload_config.bssid << " / "
+                                     << config.m2_config.bss_index << " was already configured";
+                    }
+                    config.m2_config.hidden_ssid = bss_advanced_bss.bss_infos().ssid_advertisement
+                                                       ? WSC::eWscVendorExtHiddenSsid::DISABLED
+                                                       : WSC::eWscVendorExtHiddenSsid::ENABLED;
+                    LOG(DEBUG) << "BSS " << config.payload_config.bssid << " / "
+                               << config.m2_config.bss_index
+                               << " advertisement: " << config.m2_config.hidden_ssid;
                 }
             }
         }
