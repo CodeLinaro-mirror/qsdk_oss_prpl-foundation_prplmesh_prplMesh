@@ -13,6 +13,10 @@
 
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
 #include <tlvf/CmduMessageTx.h>
+#include <tlvf/ieee_1905_1/eMediaType.h>
+
+#include <unordered_map>
+#include <unordered_set>
 
 namespace beerocks {
 
@@ -29,6 +33,7 @@ public:
     enum eEvent : uint8_t {
         AGENT_DEVICE_INITIALIZED,
         BSTA_MLD_AFFILIATED_LINK_CHANGED,
+        FDB_CHANGED,
     };
 
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
@@ -38,6 +43,23 @@ public:
                      std::shared_ptr<beerocks_header> beerocks_header) override;
 
 private:
+    /**
+     * @brief Local interface representation shared by Device Information TLV and
+     * non-1905 neighbors snapshot generation.
+     */
+    struct sAdvertisedLocalInterface {
+        std::string ifname;
+        ieee1905_1::eMediaType media_type = ieee1905_1::eMediaType::UNKNOWN_MEDIA;
+        bool is_wlan                      = false;
+        bool is_backhaul                  = false;
+        uint8_t ap_chan_bw                = 0;
+        uint8_t ap_chan_index1            = 0;
+        uint8_t ap_chan_index2            = 0;
+    };
+
+    using sAdvertisedLocalInterfaces = std::unordered_map<sMacAddr, sAdvertisedLocalInterface>;
+    using sNon1905NeighborsSnapshot  = std::unordered_map<sMacAddr, std::unordered_set<sMacAddr>>;
+
     /* 1905.1 message handlers: */
 
     /**
@@ -104,18 +126,44 @@ private:
     void send_topology_notification();
 
     /**
+     * @brief Recompute the normalized non-1905 neighbors snapshot and update the cached copy.
+     *
+     * @return true if the normalized snapshot has changed, otherwise false.
+     */
+    bool update_non_1905_neighbors_snapshot();
+
+    /**
+     * @brief Collect all local interfaces that are advertised in Device Information TLV.
+     *
+     * @return Map keyed by local interface MAC.
+     */
+    sAdvertisedLocalInterfaces collect_advertised_local_interfaces() const;
+
+    /**
+     * @brief Build a normalized non-1905 neighbors snapshot for advertised interfaces only.
+     *
+     * @param advertised_ifaces Source of truth for locally advertised interfaces.
+     * @return Snapshot keyed by local interface MAC.
+     */
+    sNon1905NeighborsSnapshot
+    collect_non_1905_neighbors_snapshot(const sAdvertisedLocalInterfaces &advertised_ifaces) const;
+
+    /**
      * @brief Add and fill device information and bridging capability tlvs.
-     * 
+     *
+     * @param advertised_ifaces Source of truth for locally advertised interfaces.
      * @return true on success, otherwise false.
      */
-    bool add_device_information_and_bridging_capability_tlv();
+    bool add_device_information_and_bridging_capability_tlv(
+        const sAdvertisedLocalInterfaces &advertised_ifaces);
 
     /**
      * @brief Add and fill non-1905 neighbor device TLVs for all known non-1905 neighbors.
      *
+     * @param snapshot Normalized non-1905 neighbors snapshot keyed by local interface MAC.
      * @return true on success, otherwise false.
      */
-    bool add_non_1905_neighbor_device_tlv();
+    bool add_non_1905_neighbor_device_tlv(const sNon1905NeighborsSnapshot &snapshot);
 
     /**
      * @brief Add and fill 1905 neighbor device TLVs for all known 1905 neighbors.
@@ -178,6 +226,15 @@ private:
     bool m_pending_to_send_topology_notification = false;
     std::chrono::steady_clock::time_point m_topology_notification_timeout =
         std::chrono::steady_clock::now();
+    /**
+     * @brief Debounce deadline for event-driven non-1905 neighbors snapshot recomputation.
+     */
+    std::chrono::steady_clock::time_point m_non_1905_neighbors_update_deadline =
+        m_non_1905_neighbors_update_deadline.max();
+    /**
+     * @brief Last normalized non-1905 neighbors snapshot used for diff-based notifications.
+     */
+    sNon1905NeighborsSnapshot m_last_non_1905_neighbors_snapshot;
 
     BackhaulManager &m_btl_ctx;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
