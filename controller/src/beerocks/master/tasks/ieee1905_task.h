@@ -97,6 +97,8 @@ public:
     static constexpr std::chrono::seconds periodic_topology_requery_interval{30};
     /** @brief to not to interfere with link metric task: */
     static constexpr std::chrono::seconds link_metric_response_requery_delay_guard{1};
+    /** @brief Indicates that this task does not relate to EasyMesh functionality */
+    static constexpr bool easymesh_task{false};
 
     /**
      * @brief Construct and initialize the ieee1905_task.

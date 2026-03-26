@@ -41,6 +41,9 @@ public:
                      const sMacAddr &dst_mac, const sMacAddr &src_mac, int fd,
                      std::shared_ptr<beerocks_header> beerocks_header) override;
 
+    /** @brief Indicates that this task does not relate to EasyMesh functionality */
+    static constexpr bool easymesh_task{false};
+
 private:
     /**
      * @brief Local interface representation shared by Device Information TLV and

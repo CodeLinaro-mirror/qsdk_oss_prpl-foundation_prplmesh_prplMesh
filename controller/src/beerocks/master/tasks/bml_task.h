@@ -102,6 +102,9 @@ public:
         UNREGISTER_TO_TOPOLOGY_UPDATES,
     };
 
+    /** @brief Indicates that this task does not relate to EasyMesh functionality */
+    static constexpr bool easymesh_task{false};
+
 public:
     bml_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_, task_pool &tasks_);
     virtual ~bml_task() {}

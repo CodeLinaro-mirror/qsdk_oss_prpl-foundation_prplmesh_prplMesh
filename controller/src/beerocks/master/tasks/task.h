@@ -56,6 +56,8 @@ public:
     const std::string assigned_node;
     const int id;
     const std::chrono::steady_clock::time_point start_timestamp;
+    /** @brief Indicates that this taks relates to EasyMesh functionality */
+    static constexpr bool easymesh_task{true};
 
 protected:
     void add_pending_macs(std::set<std::string> macs,

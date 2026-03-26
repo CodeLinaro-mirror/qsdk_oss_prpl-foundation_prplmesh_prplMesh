@@ -25,6 +25,9 @@ public:
         STA_CONNECTED,
     };
 
+    /** @brief Indicates that this task does not relate to EasyMesh functionality */
+    static constexpr bool easymesh_task{false};
+
 protected:
     void work() override{};
     void handle_event(int event_type, void *obj) override;

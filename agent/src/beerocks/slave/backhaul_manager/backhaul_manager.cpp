@@ -122,10 +122,11 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     // handling TOPOLOGY_QUERY messages from the easyMesh Agents
     m_task_pool.add_task(std::make_shared<TopologyTask>(*this, cmdu_tx));
 
-    if (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
+    if (db->agent_is_dummy()) {
 
         // TODO: DHCP management is handled in ApAutoConfigurationTask for MaxLinear platforms (PPM-1777)
-        LOG(INFO) << "Controller only mode is activated and agent is dummy. Do not run any tasks!";
+        LOG(INFO) << "Agent is dummy (management_mode=" << db->device_conf.management_mode
+                  << "). Do not run any tasks!";
         return;
     }
 

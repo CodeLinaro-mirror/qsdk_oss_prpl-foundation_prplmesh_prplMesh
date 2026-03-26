@@ -56,6 +56,9 @@ public:
         METRIC_REPORTING_POLICY_UPDATED,
     };
 
+    /** @brief Indicates that this task does not relate to EasyMesh functionality */
+    static constexpr bool easymesh_task{false};
+
 private:
     slave_thread &m_btl_ctx;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;

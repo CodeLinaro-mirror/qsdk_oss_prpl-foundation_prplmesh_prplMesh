@@ -116,6 +116,9 @@ public:
      */
     std::chrono::steady_clock::time_point get_last_exec_time() { return m_last_exec_time; }
 
+    /** @brief Indicates that this taks relates to EasyMesh functionality */
+    static constexpr bool easymesh_task{true};
+
 private:
     eTaskType m_task_type;
     std::chrono::steady_clock::time_point m_last_exec_time;

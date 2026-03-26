@@ -15,6 +15,8 @@
 #include "tasks/btm_request_task.h"
 #include "tasks/client_steering_task.h"
 
+#include <bpl/bpl_cfg.h>
+
 #include <bcl/network/network_utils.h>
 #include <bcl/network/sockets.h>
 #include <bcl/son/son_wireless_utils.h>
@@ -152,6 +154,11 @@ int son_actions::steer_sta(db &database, ieee1905_1::CmduMessageTx &cmdu_tx, tas
                            const std::string &triggered_by, const std::string &steering_type,
                            bool disassoc_imminent, int disassoc_timer_ms, bool steer_restricted)
 {
+    if (database.config.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG(DEBUG) << "client_steering_task not started in non-Multi-AP mode";
+        return -1;
+    }
+
     auto new_task = std::make_shared<client_steering_task>(
         database, cmdu_tx, tasks, sta_mac, chosen_hostap, triggered_by, steering_type,
         disassoc_imminent, disassoc_timer_ms, steer_restricted);
@@ -166,6 +173,10 @@ int son_actions::start_btm_request_task(
     const int &validity_interval_ms, const int &steering_timer_ms, const std::string &sta_mac,
     const std::string &target_bssid, const std::string &event_source)
 {
+    if (database.config.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG(DEBUG) << "btm_request_task not started in non-Multi-AP mode";
+        return -1;
+    }
 
     auto new_task = std::make_shared<btm_request_task>(
         database, cmdu_tx, tasks, sta_mac, target_bssid, event_source, disassoc_imminent,
@@ -498,10 +509,14 @@ bool son_actions::send_topology_query_msg(const sMacAddr &dest_mac,
         LOG(ERROR) << "Failed building TOPOLOGY_QUERY_MESSAGE message!";
         return false;
     }
-    auto tlvProfile2MultiApProfile = cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
-    if (!tlvProfile2MultiApProfile) {
-        LOG(ERROR) << "addClass wfa_map::tlvProfile2MultiApProfile failed";
-        return false;
+
+    // Don't send EasyMesh TLVs in NMAP mode
+    if (database.config.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
+        auto tlvProfile2MultiApProfile = cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
+        if (!tlvProfile2MultiApProfile) {
+            LOG(ERROR) << "addClass wfa_map::tlvProfile2MultiApProfile failed";
+            return false;
+        }
     }
     return send_cmdu_to_agent(dest_mac, cmdu_tx, database);
 }

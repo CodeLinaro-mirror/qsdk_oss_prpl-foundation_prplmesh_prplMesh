@@ -111,6 +111,9 @@ public:
      */
     bool handle_higher_layer_query(const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
 
+    /** @brief Indicates that this task does not relate to EasyMesh functionality */
+    static constexpr bool easymesh_task{false};
+
 private:
     ieee1905_1::CmduMessageTx &m_cmdu_tx;                                 ///< Transmitter buffer.
     send_cmdu_to_mac_f m_send_cmdu_to_mac;                                ///< Send callback.

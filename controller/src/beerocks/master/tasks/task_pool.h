@@ -12,6 +12,9 @@
 #include "task.h"
 
 #include <beerocks/tlvf/beerocks_message_action.h>
+#include <bpl/bpl_cfg.h>
+
+#include <type_traits>
 
 namespace son {
 
@@ -22,6 +25,23 @@ public:
     ~task_pool() {}
 
     bool add_task(std::shared_ptr<task> new_task);
+
+    /**
+     * @brief Add task to pool with checking of current management mode: if
+     * task for EasyMesh functionality, and currently NMAP mode is
+     * configured, task would not be added.
+     *
+     * @tparam T type of taks, must be derived from 'task'
+     * @tparam E variadic template for task constructor arguments
+     * @param task_name name of the task, used for logging
+     * @param management_mode current management mode, used for checking if task should be added
+     * @param args variadic arguments for task constructor
+     *
+     * @return true if task was added successfully, false otherwise
+     */
+    template <typename T, typename... E>
+    void add_task_check_mode(const std::string &task_name, int management_mode, E &&... args);
+
     bool is_task_running(int id);
     void kill_task(int id);
     void push_event(int task_id, int event_type, void *obj = nullptr);
@@ -54,6 +74,21 @@ private:
      */
     int m_exec_iteration_slots = 0;
 };
+
+template <typename T, typename... E>
+void task_pool::add_task_check_mode(const std::string &task_name, int management_mode, E &&... args)
+{
+    static_assert(std::is_base_of<task, T>::value, "T must be a subclass of 'task'");
+
+    if (T::easymesh_task && management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG(DEBUG) << "EasyMesh task '" << task_name
+                   << "' was not added as Non-Multi-AP mode is used";
+        return;
+    }
+
+    LOG_IF(!add_task(std::make_shared<T>(std::forward<E>(args)...)), FATAL)
+        << "Failed adding '" << task_name << "' !";
+}
 
 } // namespace son
 

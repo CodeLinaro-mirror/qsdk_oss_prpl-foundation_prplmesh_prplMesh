@@ -118,7 +118,52 @@
 #include "../../../vbss/vbss_actions.h"
 #include "../../../vbss/vbss_task.h"
 #endif
+
 namespace son {
+
+namespace {
+
+const std::set<ieee1905_1::eMessageType> generic_ieee1905_message_types = {
+    ieee1905_1::eMessageType::ACK_MESSAGE,
+    ieee1905_1::eMessageType::HIGHER_LAYER_DATA_MESSAGE,
+    ieee1905_1::eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::LINK_METRIC_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE,
+    ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE,
+};
+
+const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
+    ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE,
+    ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE,
+    ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::CHANNEL_SCAN_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::CLIENT_STEERING_BTM_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::OPERATING_CHANNEL_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::STEERING_COMPLETED_MESSAGE,
+    ieee1905_1::eMessageType::BACKHAUL_STEERING_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::TUNNELLED_MESSAGE,
+    ieee1905_1::eMessageType::BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::BSS_CONFIGURATION_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::FAILED_CONNECTION_MESSAGE,
+    ieee1905_1::eMessageType::QOS_MANAGEMENT_NOTIFICATION_MESSAGE,
+    ieee1905_1::eMessageType::CLIENT_SECURITY_CONTEXT_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::VIRTUAL_BSS_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
+    ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
+};
+
+} // namespace
 
 /**
  * Time between successive timer executions of the tasks timer
@@ -292,43 +337,14 @@ bool Controller::start()
     m_broker_client->set_handlers(handlers);
     transaction.add_rollback_action([&]() { m_broker_client->clear_handlers(); });
 
+    auto subscribed_message_types = generic_ieee1905_message_types;
+    if (database.config.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
+        subscribed_message_types.insert(easymesh_message_types.begin(),
+                                        easymesh_message_types.end());
+    }
+
     // Subscribe for the reception of CMDU messages that this process is interested in
-    if (!m_broker_client->subscribe(std::set<ieee1905_1::eMessageType>{
-            ieee1905_1::eMessageType::ACK_MESSAGE,
-            ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE,
-            ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE,
-            ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::AP_METRICS_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::BEACON_METRICS_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::CHANNEL_SCAN_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::CLIENT_STEERING_BTM_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::HIGHER_LAYER_DATA_MESSAGE,
-            ieee1905_1::eMessageType::HIGHER_LAYER_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::LINK_METRIC_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::OPERATING_CHANNEL_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::STEERING_COMPLETED_MESSAGE,
-            ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE,
-            ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE,
-            ieee1905_1::eMessageType::BACKHAUL_STEERING_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::TUNNELLED_MESSAGE,
-            ieee1905_1::eMessageType::BACKHAUL_STA_CAPABILITY_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::BSS_CONFIGURATION_REQUEST_MESSAGE,
-            ieee1905_1::eMessageType::FAILED_CONNECTION_MESSAGE,
-            ieee1905_1::eMessageType::QOS_MANAGEMENT_NOTIFICATION_MESSAGE,
-            ieee1905_1::eMessageType::CLIENT_SECURITY_CONTEXT_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::VIRTUAL_BSS_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE,
-            ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
-            ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
-        })) {
+    if (!m_broker_client->subscribe(subscribed_message_types)) {
         LOG(ERROR) << "Failed subscribing to the Bus";
         return false;
     }
@@ -370,67 +386,48 @@ void Controller::start_mandatory_tasks()
 {
     LOG(DEBUG) << "Start mandatory periodic tasks";
 
-    LOG_IF(!m_task_pool.add_task(std::make_shared<bml_task>(database, cmdu_tx, m_task_pool)), FATAL)
-        << "Failed adding BML task!";
-
-    LOG_IF(!m_task_pool.add_task(std::make_shared<ieee1905_task>(
-               database, cmdu_tx, std::make_unique<RealIEEE1905QuerySender>(database))),
-           FATAL)
-        << "Failed adding ieee1905 task!";
-
-    LOG_IF(!m_task_pool.add_task(std::make_shared<topology_task>(database, cmdu_tx, m_task_pool)),
-           FATAL)
-        << "Failed adding topology task!";
-
-    LOG_IF(!m_task_pool.add_task(
-               std::make_shared<client_association_task>(database, cmdu_tx, m_task_pool)),
-           FATAL)
-        << "Failed adding client association task!";
-
-    LOG_IF(!m_task_pool.add_task(
-               std::make_shared<agent_monitoring_task>(database, cmdu_tx, m_task_pool)),
-           FATAL)
-        << "Failed adding agent monitoring task!";
+    m_task_pool.add_task_check_mode<bml_task>("BML task", database.config.management_mode, database,
+                                              cmdu_tx, m_task_pool);
+    m_task_pool.add_task_check_mode<ieee1905_task>(
+        "ieee1905 task", database.config.management_mode, database, cmdu_tx,
+        std::make_unique<RealIEEE1905QuerySender>(database));
+    m_task_pool.add_task_check_mode<topology_task>("topology task", database.config.management_mode,
+                                                   database, cmdu_tx, m_task_pool);
+    m_task_pool.add_task_check_mode<client_association_task>(
+        "client association task", database.config.management_mode, database, cmdu_tx, m_task_pool);
+    m_task_pool.add_task_check_mode<agent_monitoring_task>(
+        "agent monitoring task", database.config.management_mode, database, cmdu_tx, m_task_pool);
 
 #ifdef ENABLE_VBSS
-    LOG_IF(
-        !m_task_pool.add_task(std::make_shared<vbss_task>(database, m_task_pool, m_timer_manager)),
-        FATAL)
-        << "Failed adding vbss task!";
+    m_task_pool.add_task_check_mode<vbss_task>("vbss task", database.config.management_mode,
+                                               database, m_task_pool, m_timer_manager);
 #else
     LOG(INFO) << "VBSS is not enabled";
 #endif
 
-    LOG_IF(!m_task_pool.add_task(std::make_shared<DhcpTask>(database, m_timer_manager)), FATAL)
-        << "Failed adding dhcp task!";
-
-    LOG_IF(!m_task_pool.add_task(std::make_shared<service_prioritization_task>(database, cmdu_tx)),
-           FATAL)
-        << "Failed adding service_prioritization_task!";
+    m_task_pool.add_task_check_mode<DhcpTask>("dhcp task", database.config.management_mode,
+                                              database, m_timer_manager);
+    m_task_pool.add_task_check_mode<service_prioritization_task>(
+        "service_prioritization_task", database.config.management_mode, database, cmdu_tx);
 }
 
 void Controller::start_optional_tasks()
 {
+    if (database.config.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG(DEBUG) << "Starting optional tasks skipped in NMAP mode";
+        return;
+    }
+
     LOG(DEBUG) << "Start/Stop configurable periodic tasks";
 
-    if (database.config.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
-        if (!m_link_metrics_task) {
-            LOG(DEBUG) << "Start Link metrics task";
-            m_link_metrics_task =
-                std::make_shared<LinkMetricsTask>(database, cmdu_tx, cert_cmdu_tx, m_task_pool);
-            LOG_IF(!m_task_pool.add_task(m_link_metrics_task), FATAL)
-                << "Failed adding Link metrics task!";
-        } else {
-            LOG(DEBUG) << "Link metrics task already running";
-        }
+    if (!m_link_metrics_task) {
+        LOG(DEBUG) << "Start Link metrics task";
+        m_link_metrics_task =
+            std::make_shared<LinkMetricsTask>(database, cmdu_tx, cert_cmdu_tx, m_task_pool);
+        LOG_IF(!m_task_pool.add_task(m_link_metrics_task), FATAL)
+            << "Failed adding Link metrics task!";
     } else {
-        if (m_link_metrics_task) {
-            LOG(DEBUG) << "Stop Link metrics task";
-            m_task_pool.kill_task(m_link_metrics_task->id);
-            m_link_metrics_task = {};
-        } else {
-            LOG(DEBUG) << "Link metric task disabled";
-        }
+        LOG(DEBUG) << "Link metrics task already running";
     }
 
 #ifndef BEEROCKS_LINUX
