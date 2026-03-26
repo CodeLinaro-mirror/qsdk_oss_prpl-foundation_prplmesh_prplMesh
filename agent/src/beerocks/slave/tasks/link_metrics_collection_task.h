@@ -331,6 +331,9 @@ private:
                                        uint16_t mid, const std::string &iface_name);
 };
 
+template <> struct easymesh_task<LinkMetricsCollectionTask> : std::false_type {
+};
+
 } // namespace beerocks
 
 #endif // _LINK_METRICS_COLLECTION_TASK_H_

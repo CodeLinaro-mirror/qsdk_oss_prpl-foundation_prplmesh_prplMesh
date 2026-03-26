@@ -9,11 +9,24 @@
 #ifndef _TASK_POOL_INTERFACE_H_
 #define _TASK_POOL_INTERFACE_H_
 
+#include <bpl/bpl_cfg.h>
+
+#include <easylogging++.h>
+
 #include <memory>
+#include <type_traits>
 
 namespace beerocks {
 
 class Task;
+/**
+ * @brief Type trait that indicates whether a task is EasyMesh-related.
+ *
+ * Defaults to `true`. Specialize to `std::false_type` for tasks that must also
+ * run in Not-Multi-AP mode.
+ */
+template <typename T> struct easymesh_task : std::true_type {
+};
 
 /**
  * @brief All possible events in the system are defined here
@@ -49,6 +62,23 @@ public:
     virtual void add_task(const std::shared_ptr<Task> new_task) = 0;
 
     /**
+     * @brief Add task to pool with checking of current management mode: if
+     * task for EasyMesh functionality, and currently NMAP mode is
+     * configured, task would not be added.
+     *
+     * @tparam T type of taks, must be derived from 'task'
+     * @tparam E variadic template for task constructor arguments
+     * @param task_name name of the task, used for logging
+     * @param management_mode current management mode, used for checking if task should be added
+     * @param args variadic arguments for task constructor
+     *
+     * @return true if task was added successfully, false otherwise
+     */
+    template <typename T, typename... E>
+    std::shared_ptr<T> add_task_check_mode(const std::string &task_name, int management_mode,
+                                           E &&... args);
+
+    /**
      * @brief Send an event to all registered tasks
      * 
      * @param event the id of the event - unique system wide
@@ -56,6 +86,24 @@ public:
      */
     virtual void send_event(eTaskEvent event, std::shared_ptr<void> event_obj = nullptr) = 0;
 };
+
+template <typename T, typename... E>
+std::shared_ptr<T> TaskPoolInterface::add_task_check_mode(const std::string &task_name,
+                                                          int management_mode, E &&... args)
+{
+    static_assert(std::is_base_of<Task, T>::value, "T must be a subclass of 'Task'");
+
+    if (easymesh_task<T>::value && management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG(DEBUG) << "EasyMesh task '" << task_name
+                   << "' was not added as Non-Multi-AP mode is used";
+        return nullptr;
+    }
+
+    std::shared_ptr<T> task_ptr = std::make_shared<T>(std::forward<E>(args)...);
+    add_task(task_ptr);
+
+    return task_ptr;
+}
 
 } // namespace beerocks
 

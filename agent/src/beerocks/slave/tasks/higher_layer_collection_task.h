@@ -120,6 +120,9 @@ private:
         m_interfaces_network_status; ///< Internal cache.
 };
 
+template <> struct easymesh_task<HigherLayerCollectionTask> : std::false_type {
+};
+
 } // namespace beerocks
 
 #endif // _HIGHER_LAYER_COLLECTION_TASK_H_
