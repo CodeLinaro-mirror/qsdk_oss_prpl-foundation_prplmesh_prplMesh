@@ -75,6 +75,8 @@ int cfg_is_master()
         return 1;
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER:
         return 1;
+    case BPL_MGMT_MODE_NOT_MULTIAP:
+        return 1;
     case BPL_MGMT_MODE_MULTIAP_AGENT:
         return 0;
     default:
