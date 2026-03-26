@@ -695,7 +695,8 @@ bool slave_thread::read_platform_configuration()
     db->device_conf.local_gw =
         (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT ||
          db->device_conf.management_mode == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT ||
-         db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER);
+         db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
+         db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP);
 
     db->ethernet.lan.clear();
     auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
@@ -5375,11 +5376,9 @@ bool slave_thread::agent_fsm()
         // the agent from connecting to another controller in the testbed, which might still be
         // running from a previous test.
         if (!(db->device_conf.certification_mode && db->device_conf.local_controller)) {
-            if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
-                // Configure the transport process to use the network bridge
-                if (!m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true, true)) {
-                    LOG(FATAL) << "Failed configuring transport process!";
-                }
+            // Configure the transport process to use the network bridge
+            if (!m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true, true)) {
+                LOG(FATAL) << "Failed configuring transport process!";
             }
         }
         LOG(TRACE) << "goto STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE";
@@ -5415,12 +5414,10 @@ bool slave_thread::agent_fsm()
         // previous test.
         auto db = AgentDB::get();
         if (db->device_conf.certification_mode && db->device_conf.local_controller) {
-            if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
-                // Configure the transport process to use the network bridge
-                if (!m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true, true)) {
-                    LOG(FATAL) << "Failed configuring transport process!";
-                    break;
-                }
+            // Configure the transport process to use the network bridge
+            if (!m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true, true)) {
+                LOG(FATAL) << "Failed configuring transport process!";
+                break;
             }
         }
 
