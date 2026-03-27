@@ -224,6 +224,20 @@ private:
                            sBStaConfig &info);
     bool send_ap_mld_configuration(const std::string &radio_iface, std::string ssid,
                                    int8_t mld_unit, uint8_t mld_mode);
+
+    /**
+    * @brief Sends AP-MLD mode-only update for a specific SSID on a radio.
+    *
+    * This API updates only the MLD mode for the SSID on the given radio.
+    * MLDUnit binding is handled by the BSS configuration API.
+    *
+    * @param radio_iface Radio interface name.
+    * @param ssid SSID to update.
+    * @param mld_mode New MLD mode bitmask to apply.
+    * @return true if the request was sent successfully, false otherwise.
+    */
+    bool send_ap_mld_mode(const std::string &radio_iface, std::string ssid, uint8_t mld_mode);
+
     /**
      * @brief Handle Agent AP MLD Configuration TLV from the controller.
      *
