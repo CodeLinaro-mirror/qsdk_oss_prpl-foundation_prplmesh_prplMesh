@@ -10,6 +10,7 @@
 #define _BACKHAUL_MANAGER_H
 
 #include "../tasks/task_pool.h"
+#include "fdb_monitor.h"
 #include "wan_monitor.h"
 
 #include <bcl/beerocks_backport.h>
@@ -290,6 +291,25 @@ private:
     bool send_slaves_enable();
 
     /**
+     * @brief Initializes the bridge FDB monitor and registers it in the event loop.
+     *
+     * @return true on success and false otherwise.
+     */
+    bool init_fdb_monitor();
+
+    /**
+     * @brief Stops the bridge FDB monitor and unregisters its event loop handlers.
+     */
+    void stop_fdb_monitor();
+
+    /**
+     * @brief Handles bridge FDB monitor notifications.
+     *
+     * @return true on success and false otherwise.
+     */
+    bool handle_fdb_monitor();
+
+    /**
      * @brief Tears down all VAPs in all radios.
      * 
      * @return true on success and false otherwise.
@@ -389,6 +409,11 @@ private:
 
     // Future to hold the DHCP client process exit code
     std::future<int> m_ftDHCPRetCode;
+
+    fdb_monitor m_fdb_monitor; ///< Monitors bridge FDB updates through NETLINK_ROUTE.
+    int m_fdb_monitor_fd =
+        beerocks::net::FileDescriptor::invalid_descriptor; ///< Registered FDB monitor fd.
+    bool m_topology_task_initialized = false; ///< Topology task is ready to receive FDB events.
 
     // state switch mechanism
     const int SELECT_TIMEOUT_MSC                      = 500;
