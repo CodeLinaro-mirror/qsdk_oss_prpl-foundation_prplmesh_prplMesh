@@ -36,7 +36,7 @@ class tlvAirtiesMsgType : public BaseClass
 
         enum airtiesVendorOUI: uint32_t {
             OUI_BYTES = 0x3,
-            OUI_AIRTIES = 0xfc4188,
+            OUI_AIRTIES = 0x8841fc,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off

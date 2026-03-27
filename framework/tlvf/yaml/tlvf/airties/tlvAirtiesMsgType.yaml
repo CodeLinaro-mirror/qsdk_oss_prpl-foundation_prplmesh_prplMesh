@@ -23,4 +23,4 @@ airtiesVendorOUI:
   _type: enum
   _enum_storage: uint32_t
   OUI_BYTES: 3
-  OUI_AIRTIES: 0xfc4188
+  OUI_AIRTIES: 0x8841fc
