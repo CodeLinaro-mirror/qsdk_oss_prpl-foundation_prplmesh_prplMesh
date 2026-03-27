@@ -25,7 +25,7 @@ typedef struct sVendorOUI {
 
     operator uint32_t() const { return (upper << 16) + (middle << 8) + lower; }
 
-    void struct_swap() { std::swap(upper, lower); }
+    void struct_swap() {} // OUI is 3 individual bytes, no endianness swap needed
 
     void struct_init() {}
 } __attribute__((packed)) sVendorOUI;

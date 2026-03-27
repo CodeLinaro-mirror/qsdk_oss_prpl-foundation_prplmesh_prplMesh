@@ -23,4 +23,4 @@ vendorExampleOUI:
   _type: enum
   _enum_storage: uint32_t
   OUI_BYTES: 3
-  EXAMPLE_OUI: 0x563412
+  EXAMPLE_OUI: 0x123456
