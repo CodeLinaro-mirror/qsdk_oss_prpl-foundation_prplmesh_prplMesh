@@ -623,7 +623,6 @@ bool ap_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj)
     case Event::WPA_Event_SAE_Unknown_Password_Identifier:
     case Event::WPS_Event_Cancel:
     case Event::AP_Sta_Possible_Psk_Mismatch: {
-        LOG(DEBUG) << "Station connection failure event";
         std::string sta_mac = parsed_obj[DUMMY_EVENT_KEYLESS_PARAM_MAC];
         if (sta_mac.empty()) {
             LOG(ERROR) << "Station mac parameter not found!";
@@ -632,7 +631,6 @@ bool ap_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj)
 
         auto sta_conn_fail   = std::make_shared<sStaConnectionFail>();
         std::string vap_name = parsed_obj[DUMMY_EVENT_KEYLESS_PARAM_IFACE];
-        LOG(ERROR) << "vap_name = " << vap_name;
         std::string bssid;
 
         for (const auto &iter : m_radio_info.available_vaps) {
@@ -641,10 +639,23 @@ bool ap_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj)
                 break;
             }
         }
-        LOG(ERROR) << "bssid = " << bssid;
 
         sta_conn_fail->bssid   = tlvf::mac_from_string(bssid);
         sta_conn_fail->sta_mac = tlvf::mac_from_string(sta_mac);
+
+        auto status_str = parsed_obj["status"];
+        auto reason_str = parsed_obj["reason"];
+        if (status_str.empty()) {
+            status_str = reason_str.empty() ? "1" : "0";
+        }
+        if (reason_str.empty()) {
+            reason_str = "0";
+        }
+
+        sta_conn_fail->status = beerocks::string_utils::stoi(status_str);
+        sta_conn_fail->reason = beerocks::string_utils::stoi(reason_str);
+        LOG(DEBUG) << "STA connection failure: status=" << sta_conn_fail->status
+                   << " reason=" << sta_conn_fail->reason;
 
         event_queue_push(event, sta_conn_fail);
     } break;
