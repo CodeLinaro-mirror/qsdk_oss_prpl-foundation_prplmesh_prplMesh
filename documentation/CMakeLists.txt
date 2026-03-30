@@ -62,11 +62,11 @@ set(DOXYGEN_USE_MDFILE_AS_MAINPAGE "${CMAKE_SOURCE_DIR}/README.md")
 set(DOXYGEN_RECURSIVE   YES)
 set(DOXYGEN_EXTRACT_ALL YES)
 
-# Cleaner output
 set(DOXYGEN_GENERATE_TREEVIEW   YES)
 set(DOXYGEN_JAVADOC_AUTOBRIEF   NO)
 set(DOXYGEN_QT_AUTOBRIEF        NO)
 set(DOXYGEN_MULTILINE_CPP_IS_BRIEF NO)
+set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doxygen")
 
 # Exclude generated / third-party files
 set(DOXYGEN_EXCLUDE_PATTERNS
@@ -85,3 +85,5 @@ doxygen_add_docs(doxygen
     "${CMAKE_SOURCE_DIR}/agent"
     COMMENT "Generating API documentation with Doxygen"
 )
+
+set_target_properties(doxygen PROPERTIES EXCLUDE_FROM_ALL TRUE)
