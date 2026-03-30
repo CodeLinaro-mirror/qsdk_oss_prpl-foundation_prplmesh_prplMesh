@@ -57,6 +57,10 @@ class NbapiStaticPuncturing(PrplMeshBaseTest):
         # set 5GHz radio on 160MHz BW
         ap_channel_switch_args = "{} 36 160 0 5250".format(agent.radios[1].mac)
 
+        # ap_channel_switch immediately triggers the OperatingChannelReport
+        controller.beerocks_cli_command('ap_channel_switch {}'.format(ap_channel_switch_args))
+        sleep(2)
+
         # bwl::dummy has a hardcoded list of possible channels
         # "36,40,44,48,52,56,60,64"
         expected_results = {
@@ -79,10 +83,6 @@ class NbapiStaticPuncturing(PrplMeshBaseTest):
 
         function_name = "SetEHTOperations"
         for input, result in expected_results.items():
-
-            # ap_channel_switch immediately triggers the OperatingChannelReport
-            controller.beerocks_cli_command('ap_channel_switch {}'.format(ap_channel_switch_args))
-            sleep(2)
 
             # SetEHTOPerations Channel Selection Request (without channel switch)
             # will result in agent channel_selection_task timeout and send OperatingChannelReport
