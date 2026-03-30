@@ -158,6 +158,13 @@ public:
                     const sMacAddr &bssid) override;
 
 private:
+    void get_sta_info_from_assoc_device(beerocks::wbapi::AmbiorixVariantSmartPtr &assoc_device,
+                                        sta_info &sta_info);
+
+    void get_sta_info_from_end_point(beerocks::wbapi::AmbiorixVariantSmartPtr &end_point,
+                                     sta_info &sta_info);
+
+private:
     beerocks::wbapi::AmbiorixConnectionSmartPtr m_connection;
 };
 
