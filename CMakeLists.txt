@@ -272,7 +272,7 @@ add_definitions(-DBEEROCKS_REVISION="${PRPLMESH_REVISION}")
 
 ## Documentation
 
-add_subdirectory(docs)
+add_subdirectory(documentation)
 
 ## Components
 
