@@ -104,6 +104,23 @@ bool is_regressive_deferred_update(const Agent::sRadio &radio,
 
 } // namespace
 
+unsigned SingleShotCounter::count_up() { return counter++; }
+
+unsigned SingleShotCounter::count_down()
+{
+    if (counter == 0) {
+        return 0;
+    }
+
+    auto ret = counter;
+
+    if (--counter == 0 && callback) {
+        auto cb = std::move(callback);
+        cb();
+    }
+
+    return ret;
+}
 // static
 std::string db::type_to_string(beerocks::eType type)
 {

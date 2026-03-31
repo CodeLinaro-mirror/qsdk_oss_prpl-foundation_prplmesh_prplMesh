@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  *
- * SPDX-FileCopyrightText: 2016-2022 the prplMesh contributors (see AUTHORS.md)
+ * SPDX-FileCopyrightText: 2016-2026 the prplMesh contributors (see AUTHORS.md)
  *
  * This code is subject to the terms of the BSD+Patent license.
  * See LICENSE file for more details.
@@ -70,6 +70,35 @@ namespace son {
 
 // Forward declaration for Controller context saving
 class Controller;
+
+/**
+ * Invokes the \ref callback (if any) once, once the \ref counter reaches zero
+ */
+class SingleShotCounter {
+    unsigned counter = 0;
+    std::function<void()> callback;
+
+public:
+    SingleShotCounter() = default;
+    SingleShotCounter(unsigned initial, std::function<void()> f)
+        : counter(initial), callback(std::move(f))
+    {
+    }
+
+    ~SingleShotCounter()                             = default;
+    SingleShotCounter(SingleShotCounter &&) noexcept = default;
+    SingleShotCounter &operator=(SingleShotCounter &&) noexcept = default;
+
+    SingleShotCounter(const SingleShotCounter &) = delete;
+    SingleShotCounter &operator=(const SingleShotCounter &) = delete;
+
+    /** Increase counter and return the previous value. */
+    unsigned count_up();
+    /** Decrease counter and return the previous value; trigger callback once on zero. */
+    unsigned count_down();
+    /** True while the callback is still armed and the counter is non-zero. */
+    explicit operator bool() const { return counter && callback; }
+};
 
 class db {
 
