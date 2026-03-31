@@ -1,0 +1,9 @@
+---
+_namespace: ieee1905_1
+
+msgHigherLayerQuery:
+  _type: class
+  header:
+    _type: cmduHeader
+    _setValue: { "messageType" : HIGHER_LAYER_QUERY_MESSAGE }
+  tlv_eof: tlvEndOfMessage
