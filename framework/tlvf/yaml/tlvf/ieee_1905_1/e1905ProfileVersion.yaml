@@ -1,0 +1,9 @@
+---
+_namespace: ieee1905_1
+
+e1905ProfileVersion:
+  _type: enum_class
+  _enum_storage: uint8_t
+  IEEE_1905_1:   0x00
+  IEEE_1905_1_A: 0x01
+  RESERVED:      0x02

@@ -1,0 +1,11 @@
+---
+_namespace: ieee1905_1
+
+tlv1905ProfileVersion:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvType
+    _value_const: TLV_1905_PROFILE_VERSION
+  length: uint16_t
+  version: e1905ProfileVersion
