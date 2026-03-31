@@ -1,0 +1,13 @@
+---
+_namespace: ieee1905_1
+
+tlvControlUrl:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvType
+    _value_const: TLV_CONTROL_URL
+  length: uint16_t
+  control_url:
+    _type: uint8_t
+    _length: []

@@ -40,6 +40,11 @@ enum class eTlvType : uint8_t {
     TLV_WSC = 0x11,
     TLV_PUSH_BUTTON_EVENT_NOTIFICATION = 0x12,
     TLV_PUSH_BUTTON_JOIN_NOTIFICATION = 0x13,
+    TLV_DEVICE_IDENTIFICATION = 0x15,
+    TLV_CONTROL_URL = 0x16,
+    TLV_IPV4 = 0x17,
+    TLV_IPV6 = 0x18,
+    TLV_1905_PROFILE_VERSION = 0x1a,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
@@ -64,6 +69,11 @@ static const char *eTlvType_str(eTlvType enum_value) {
     case eTlvType::TLV_WSC:                            return "eTlvType::TLV_WSC";
     case eTlvType::TLV_PUSH_BUTTON_EVENT_NOTIFICATION: return "eTlvType::TLV_PUSH_BUTTON_EVENT_NOTIFICATION";
     case eTlvType::TLV_PUSH_BUTTON_JOIN_NOTIFICATION:  return "eTlvType::TLV_PUSH_BUTTON_JOIN_NOTIFICATION";
+    case eTlvType::TLV_DEVICE_IDENTIFICATION:          return "eTlvType::TLV_DEVICE_IDENTIFICATION";
+    case eTlvType::TLV_CONTROL_URL:                    return "eTlvType::TLV_CONTROL_URL";
+    case eTlvType::TLV_IPV4:                           return "eTlvType::TLV_IPV4";
+    case eTlvType::TLV_IPV6:                           return "eTlvType::TLV_IPV6";
+    case eTlvType::TLV_1905_PROFILE_VERSION:           return "eTlvType::TLV_1905_PROFILE_VERSION";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
@@ -95,6 +105,11 @@ public:
         case 0x11:
         case 0x12:
         case 0x13:
+        case 0x15:
+        case 0x16:
+        case 0x17:
+        case 0x18:
+        case 0x1a:
                 ret = true;
                 break;
             default:

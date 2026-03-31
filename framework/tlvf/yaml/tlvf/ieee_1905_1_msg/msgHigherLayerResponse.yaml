@@ -1,0 +1,21 @@
+---
+_namespace: ieee1905_1
+
+msgHigherLayerResponse:
+  _type: class
+  header:
+    _type: cmduHeader
+    _setValue: { "messageType" : HIGHER_LAYER_RESPONSE_MESSAGE }
+  tlv_al_mac_tlv: tlvAlMacAddress
+  tlv_profile_version: tlv1905ProfileVersion
+  tlv_device_id: tlvDeviceIdentification
+  tlv_control_url:
+    _type: tlvControlUrl
+    _length: []
+  tlv_ipv4:
+    _type: tlvIpv4
+    _length: []
+  tlv_ipv6:
+    _type: tlvIpv6
+    _length: []
+  tlv_eof: tlvEndOfMessage
