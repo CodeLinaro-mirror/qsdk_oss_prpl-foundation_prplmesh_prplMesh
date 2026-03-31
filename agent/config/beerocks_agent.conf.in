@@ -92,8 +92,9 @@ enable_repeater_mode=0
 em_handle_third_party=0
 
 [log]
+#full ascending list: trace, debug, info, warning, error, fatal
 log_global_levels=error,info,warning,fatal,trace,debug
-log_global_syslog_levels=error,info,warning,fatal,trace,debug
+log_global_syslog_levels=@BEEROCKS_SYSLOG_LEVEL_LIST@
 log_global_size=@BEEROCKS_AGENT_LOG_SIZE@
 log_files_enabled=@BEEROCKS_LOG_FILES_ENABLED@
 log_files_path=@BEEROCKS_LOG_FILES_PATH@

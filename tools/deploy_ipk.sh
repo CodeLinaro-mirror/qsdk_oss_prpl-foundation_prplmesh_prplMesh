@@ -70,6 +70,12 @@ else
 fi
 EOF
 
+    eval ssh "$SSH_OPTIONS" "$TARGET" <<EOF
+sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=all/' /opt/prplmesh/config/beerocks_agent.conf
+sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=all/' /opt/prplmesh/config/beerocks_controller.conf
+sed -i 's/\("level"[[:space:]]*:[[:space:]]*\)"ERROR"/\1"DEBUG"/' /opt/prplmesh/config/framework_logging.conf
+EOF
+
     if [ "$CERTIFICATION_MODE" = true ] && [ "$BOARD_TYPE" != "rdk" ]; then
         echo "Certification mode will be enabled on the target"
         eval ssh "$SSH_OPTIONS" "$TARGET" \""ba-cli X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"\"

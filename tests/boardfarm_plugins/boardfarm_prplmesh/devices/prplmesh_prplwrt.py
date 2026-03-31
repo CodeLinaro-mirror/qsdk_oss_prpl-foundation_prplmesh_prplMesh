@@ -34,7 +34,7 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
     linesep = "\r"
     agent_entity = None
     controller_entity = None
-    beerocks_logs_location = '/tmp/beerocks/logs'
+    beerocks_logs_location = '/var/log/prplmesh'
 
     def __init__(self, *args, **kwargs):
         """Initialize device."""
@@ -287,7 +287,9 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
         os.makedirs(logdir, exist_ok=True)
 
         for src, dst in dirs_to_copy:
-            cmd = ['scp', '-r', f'root@{self.control_ip}:{src}', f'{logdir}/{dst}']
+            local_dst = os.path.join(logdir, dst)
+            os.makedirs(local_dst, exist_ok=True)
+            cmd = ['scp', '-r', f'root@{self.control_ip}:{src}/*', f'{logdir}/{dst}']
             subprocess.run(cmd)
 
         for command, output_filename in commands_to_run:
@@ -341,4 +343,6 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
     def prplmesh_remove_logs(self):
         command = ["rm", "-rf", "{}/*".format(self.beerocks_logs_location)]
         self.sendline(" ".join(command))
+        self.expect(self.prompt, timeout=10)
+        self.sendline("syslog-ng-ctl reload")
         self.expect(self.prompt, timeout=10)

@@ -15,6 +15,12 @@ ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan4\"].Enable=1"
 
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
 sleep 5
+
+# set log level to INFO for testing
+sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=info, warning, error, fatal/' /opt/prplmesh/config/beerocks_agent.conf
+sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=info, warning, error, fatal/' /opt/prplmesh/config/beerocks_controller.conf
+sed -i 's/\("level"[[:space:]]*:[[:space:]]*\)"ERROR"/\1"INFO"/' /opt/prplmesh/config/framework_logging.conf
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
 sleep 5

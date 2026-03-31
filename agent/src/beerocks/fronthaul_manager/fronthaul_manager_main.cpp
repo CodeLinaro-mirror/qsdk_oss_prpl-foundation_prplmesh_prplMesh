@@ -9,6 +9,9 @@
 #include "ap_manager/ap_manager.h"
 #include "monitor/monitor.h"
 
+#include <syslog.h>
+#include <utility>
+
 #include <bcl/beerocks_cmdu_client_factory_factory.h>
 #include <bcl/beerocks_event_loop_impl.h>
 #include <bcl/beerocks_logging.h>
@@ -176,9 +179,34 @@ init_logger(const std::string &file_name, const beerocks::config_file::SConfigLo
     return logger;
 }
 
+static std::string gSubIdentifier = "unknown";
+static void init_syslog_sub_identifier(int argc, char *argv[])
+{
+    // syslog sub identifier override order: "$env"/"$opt"/"unknown"
+    std::string subIdentifier("unknown");
+    const char *envOverwrite = std::getenv("PRPLMESH_FRONTHAUL_SUB_IDENTIFIER");
+    if (envOverwrite) {
+        subIdentifier = envOverwrite;
+    } else {
+        for (int i = 1; i < argc; i++) {
+            std::string opt = argv[i];
+            if (opt == "-i" && i + 1 < argc) {
+                subIdentifier = argv[i + 1];
+                break;
+            }
+        }
+    }
+
+    gSubIdentifier = std::move(subIdentifier);
+    return;
+}
+
 int main(int argc, char *argv[])
 {
     std::cout << "Beerocks Fronthaul Process Start" << std::endl;
+
+    ELPP_INITIALIZE_SYSLOG("prplmesh", 0, LOG_USER);
+    init_syslog_sub_identifier(argc, argv);
 
     init_signals();
 
@@ -223,14 +251,14 @@ int main(int argc, char *argv[])
     }
 
     // Init logger ap_manager
-    std::string base_ap_manager_name = std::string(BEEROCKS_AP_MANAGER) + "_" + fronthaul_iface;
+    std::string base_ap_manager_name = std::string(BEEROCKS_AP_MANAGER) + "_" + gSubIdentifier;
     g_logger_ap_mananger = init_logger(base_ap_manager_name, beerocks_slave_conf.sLog, argc, argv);
     if (!g_logger_ap_mananger) {
         return 1;
     }
 
     // Init logger monitor
-    std::string base_monitor_name = std::string(BEEROCKS_MONITOR) + "_" + fronthaul_iface;
+    std::string base_monitor_name = std::string(BEEROCKS_MONITOR) + "_" + gSubIdentifier;
     g_logger_monitor =
         init_logger(base_monitor_name, beerocks_slave_conf.sLog, argc, argv, BEEROCKS_MONITOR);
     if (!g_logger_monitor) {

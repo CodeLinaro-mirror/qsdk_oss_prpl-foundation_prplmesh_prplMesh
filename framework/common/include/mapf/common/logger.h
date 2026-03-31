@@ -68,6 +68,7 @@ public:
         bool write_to_syslog_ = false, write_to_console_ = true, write_to_file_ = false;
         size_t max_file_size_ = 1024, log_flush_threshold_ = 100;
         const char *kMessageFormat = "%datetime{%H:%m:%s:%g} [%proc] [%level] %fbase[%line]: %msg";
+        const char *kSyslogMessageFormat = "%proc: %datetime{%H:%m:%s:%g} %fbase[%line]: %msg";
         void SetValuesFromJson(struct json_object *jlogger, const std::string &logger_name);
     };
 
@@ -85,8 +86,7 @@ public:
     const char *logger_name() { return logger_name_.c_str(); } //for all API users
 
 private:
-    std::string logger_name_         = "";
-    const char *kSyslogMessageFormat = "[mapf] [%proc] %fbase[%line]: %msg";
+    std::string logger_name_ = "";
     Logger();
     Logger(const Logger &) = delete;
     void operator=(const Logger &) = delete;

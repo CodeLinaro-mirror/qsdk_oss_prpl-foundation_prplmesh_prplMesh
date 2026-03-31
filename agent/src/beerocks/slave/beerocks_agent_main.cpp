@@ -683,6 +683,8 @@ int main(int argc, char *argv[])
 {
     std::cout << "Beerocks Agent Process Start" << std::endl;
 
+    ELPP_INITIALIZE_SYSLOG("prplmesh", 0, LOG_USER);
+
     init_signals();
 
     // Check for version query first, handle and exit if requested.

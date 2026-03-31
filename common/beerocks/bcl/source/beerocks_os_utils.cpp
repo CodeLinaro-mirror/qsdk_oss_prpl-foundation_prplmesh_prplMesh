@@ -13,7 +13,6 @@
 #include <chrono>
 #include <fcntl.h>
 #include <linux/limits.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <unistd.h>
@@ -171,10 +170,38 @@ bool os_utils::read_pid_file(const std::string &path, const std::string &file_na
     return true;
 }
 
+bool os_utils::mkdir_recursive(const std::string &path, mode_t mode)
+{
+    std::string current;
+    size_t pos = 0;
+
+    if (!path.empty() && path[0] == '/') {
+        current = "/";
+        pos     = 1;
+    }
+
+    while (true) {
+        size_t next = path.find('/', pos);
+        current += path.substr(pos, next - pos);
+        if (!current.empty()) {
+            if (mkdir(current.c_str(), mode) != 0 && errno != EEXIST)
+                return false;
+        }
+
+        if (next == std::string::npos)
+            break;
+
+        current += '/';
+        pos = next + 1;
+    }
+
+    return true;
+}
+
 bool os_utils::write_pid_file(const std::string &path, const std::string &file_name)
 {
     std::string pid_file_path = path + "pid";
-    mkdir(pid_file_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    mkdir_recursive(pid_file_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
     std::string pid_file_name = pid_file_path + "/" + file_name;
     int pid                   = getpid();

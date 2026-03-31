@@ -45,6 +45,11 @@ ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan0\"].Enable=1"
 
 sleep 5
 
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
+sleep 5
+
+sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=all/' /opt/prplmesh/config/beerocks_agent.conf
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Controller-and-Agent\""
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
