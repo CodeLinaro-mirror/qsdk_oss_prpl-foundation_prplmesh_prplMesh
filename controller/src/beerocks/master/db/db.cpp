@@ -121,6 +121,112 @@ unsigned SingleShotCounter::count_down()
 
     return ret;
 }
+
+static uint32_t lower_four_octets(const sMacAddr &mac)
+{
+    return (uint32_t(mac.oct[2]) << 24) | (mac.oct[3] << 16) | (mac.oct[4] << 8) | mac.oct[5];
+}
+
+static uint32_t lower_four_octets(const sIpv4Addr &a)
+{
+    return (uint32_t(a.oct[0]) << 24) | (a.oct[1] << 16) | (a.oct[2] << 8) | a.oct[3];
+}
+
+std::size_t db::ieee1905_network_db::sAL::sRef::hasher::operator()(const sRef &ref) const noexcept
+{
+    const auto lower_al     = lower_four_octets(ref.al_mac);
+    const auto lower_if     = lower_four_octets(ref.if_mac);
+    const uint64_t combined = (static_cast<uint64_t>(lower_al) << 32) | lower_if;
+
+    return std::hash<uint64_t>{}(combined);
+}
+
+std::size_t db::ieee1905_network_db::sAL::sIPv4Address::sKey::hasher::
+operator()(const sKey &key) const noexcept
+{
+    const auto lower_mac    = lower_four_octets(key.mac);
+    const auto lower_ipv4   = lower_four_octets(key.address);
+    const uint64_t combined = (static_cast<uint64_t>(lower_mac) << 32) | lower_ipv4;
+
+    return std::hash<uint64_t>{}(combined);
+}
+
+std::size_t db::ieee1905_network_db::sAL::sIPv6Address::sKey::hasher::
+operator()(const sKey &key) const noexcept
+{
+    const auto lower_mac    = lower_four_octets(key.mac);
+    const auto hashed_ipv6  = static_cast<uint32_t>(std::hash<std::string>{}(key.address));
+    const uint64_t combined = (static_cast<uint64_t>(lower_mac) << 32) | hashed_ipv6;
+
+    return std::hash<uint64_t>{}(combined);
+}
+
+db::ieee1905_network_db::sAL::sNeighbor::sRefHandle::~sRefHandle()
+{
+    if (!al) {
+        return;
+    }
+
+    auto it = al->find(al_mac);
+    if (it == al->end()) {
+        return;
+    }
+
+    it->second.references.erase(ref);
+}
+
+db::ieee1905_network_db::sDmPathView
+db::ieee1905_network_db::sDmPathView::subpath(const std::string &suffix) const
+{
+    return {dm, path + suffix};
+}
+
+db::ieee1905_network_db::sDmPath
+db::ieee1905_network_db::sDmPathView::add_instance(const std::string &subpath)
+{
+    auto ambiorix = dm.lock();
+    if (!ambiorix) {
+        return {};
+    }
+
+    auto instance_path = ambiorix->add_instance(path + subpath);
+    if (instance_path.empty()) {
+        return {};
+    }
+
+    return {ambiorix, std::move(instance_path)};
+}
+
+db::ieee1905_network_db::sDmPath::~sDmPath()
+{
+    if (path.empty()) {
+        return;
+    }
+
+    auto dm = this->dm.lock();
+    if (!dm) {
+        return;
+    }
+
+    const auto instance = son::db::get_dm_index_from_path(path);
+    if (instance.first.empty() || instance.second <= 0) {
+        return;
+    }
+
+    LOG_IF(!dm->remove_instance(instance.first, instance.second), ERROR)
+        << "Failed to remove " << path;
+}
+
+db::ieee1905_network_db::~ieee1905_network_db()
+{
+    // Need to do this manually/explicitly,
+    // calling \ref al methods (find()/erase() in ~sRefHandle())
+    // during \ref al destructor invocation is UB
+    while (!al.empty()) {
+        al.erase(al.begin());
+    }
+}
+
 // static
 std::string db::type_to_string(beerocks::eType type)
 {
