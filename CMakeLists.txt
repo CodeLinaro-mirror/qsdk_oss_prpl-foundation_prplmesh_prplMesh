@@ -41,6 +41,11 @@ if (NOT DEFINED CONTROLLER_ROOT_DM)
     set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_Controller")
 endif()
 
+## PrplMesh Controller IEEE1905 root path
+if (NOT DEFINED IEEE1905_ROOT_DM)
+    set(IEEE1905_ROOT_DM "IEEE1905")
+endif()
+
 ## PrplMesh Agent datamodel root path
 if (NOT DEFINED AGENT_ROOT_DM)
     set(AGENT_ROOT_DM "X_PRPLWARE-COM_Agent")
@@ -48,11 +53,13 @@ endif()
 
 add_definitions(-DDATAELEMENTS_ROOT_DM="${DATAELEMENTS_ROOT_DM}")
 add_definitions(-DCONTROLLER_ROOT_DM="${CONTROLLER_ROOT_DM}")
+add_definitions(-DIEEE1905_ROOT_DM="${IEEE1905_ROOT_DM}")
 add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
 
 
 process_root_dm(DATAELEMENTS_ROOT_DM DATAELEMENTS_ROOT_DM_literal DATAELEMENTS_ROOT_DM_Header DATAELEMENTS_ROOT_DM_Footer)
 process_root_dm(CONTROLLER_ROOT_DM CONTROLLER_ROOT_DM_literal CONTROLLER_ROOT_DM_Header CONTROLLER_ROOT_DM_Footer)
+process_root_dm(IEEE1905_ROOT_DM IEEE1905_ROOT_DM_literal IEEE1905_ROOT_DM_Header IEEE1905_ROOT_DM_Footer)
 process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_ROOT_DM_Footer)
 
 
