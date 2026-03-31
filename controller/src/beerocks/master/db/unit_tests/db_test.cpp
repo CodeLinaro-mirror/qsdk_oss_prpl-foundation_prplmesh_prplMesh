@@ -54,6 +54,72 @@ const std::string g_assoc_event_path_1      = std::string(g_assoc_event_path) + 
 const std::string g_interface_path_1        = std::string(g_device_path) + ".1.Interface.1";
 const std::string g_interface_path_2        = std::string(g_device_path) + ".1.Interface.2";
 
+TEST(DbSingleShotCounter, callback_triggered_when_decrement_reaches_zero)
+{
+    unsigned callback_calls = 0;
+
+    son::single_shot_counter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, callback_not_triggered_if_counter_does_not_reach_zero)
+{
+    unsigned callback_calls = 0;
+
+    son::single_shot_counter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_up());
+    EXPECT_EQ(2U, counter.count_down());
+    EXPECT_EQ(0U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, callback_triggered_after_enough_decrements)
+{
+    unsigned callback_calls = 0;
+
+    son::single_shot_counter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_up());
+    EXPECT_EQ(2U, counter.count_down());
+    EXPECT_EQ(0U, callback_calls);
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, callback_is_single_shot)
+{
+    unsigned callback_calls = 0;
+
+    son::single_shot_counter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+    EXPECT_EQ(0U, counter.count_up());
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, bool_operator_is_true_while_callback_is_armed)
+{
+    son::single_shot_counter counter(1, []() {});
+
+    EXPECT_TRUE(counter);
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_FALSE(counter);
+}
+
+TEST(DbSingleShotCounter, bool_operator_stays_false_after_callback_fires)
+{
+    son::single_shot_counter counter(1, []() {});
+
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_FALSE(counter);
+    EXPECT_EQ(0U, counter.count_up());
+    EXPECT_FALSE(counter);
+}
+
 class DbTest : public ::testing::Test {
 
 protected:
