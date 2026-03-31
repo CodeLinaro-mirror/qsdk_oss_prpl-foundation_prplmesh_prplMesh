@@ -10,11 +10,16 @@
 #include <tlvf/CmduMessageRx.h>
 #include <tlvf/ieee_1905_1/eTlvType.h>
 #include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
+#include <tlvf/ieee_1905_1/tlv1905ProfileVersion.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvAutoconfigFreqBand.h>
+#include <tlvf/ieee_1905_1/tlvControlUrl.h>
 #include <tlvf/ieee_1905_1/tlvDeviceBridgingCapability.h>
+#include <tlvf/ieee_1905_1/tlvDeviceIdentification.h>
 #include <tlvf/ieee_1905_1/tlvDeviceInformation.h>
 #include <tlvf/ieee_1905_1/tlvEndOfMessage.h>
+#include <tlvf/ieee_1905_1/tlvIpv4.h>
+#include <tlvf/ieee_1905_1/tlvIpv6.h>
 #include <tlvf/ieee_1905_1/tlvLinkMetricQuery.h>
 #include <tlvf/ieee_1905_1/tlvLinkMetricResultCode.h>
 #include <tlvf/ieee_1905_1/tlvMacAddress.h>
@@ -276,6 +281,21 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(ieee1905_1::eTlvType tlv_
     }
     case (ieee1905_1::eTlvType::TLV_PUSH_BUTTON_JOIN_NOTIFICATION): {
         return msg.addClass<tlvPushButtonJoinNotification>();
+    }
+    case (ieee1905_1::eTlvType::TLV_DEVICE_IDENTIFICATION): {
+        return msg.addClass<tlvDeviceIdentification>();
+    }
+    case (ieee1905_1::eTlvType::TLV_CONTROL_URL): {
+        return msg.addClass<tlvControlUrl>();
+    }
+    case (ieee1905_1::eTlvType::TLV_IPV4): {
+        return msg.addClass<tlvIpv4>();
+    }
+    case (ieee1905_1::eTlvType::TLV_IPV6): {
+        return msg.addClass<tlvIpv6>();
+    }
+    case (ieee1905_1::eTlvType::TLV_1905_PROFILE_VERSION): {
+        return msg.addClass<tlv1905ProfileVersion>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
