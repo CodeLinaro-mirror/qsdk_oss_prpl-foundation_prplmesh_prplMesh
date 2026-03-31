@@ -23,6 +23,9 @@
 
 #include <tlvf/common/eVapType.h>
 #include <tlvf/common/sMacAddr.h>
+#include <tlvf/ieee_1905_1/eIpv4AddressType.h>
+#include <tlvf/ieee_1905_1/eIpv6AddressType.h>
+#include <tlvf/ieee_1905_1/s802_11SpecificInformation.h>
 #include <tlvf/ieee_1905_1/tlvReceiverLinkMetric.h>
 #include <tlvf/ieee_1905_1/tlvTransmitterLinkMetric.h>
 #include <tlvf/wfa_map/tlv1905LayerSecurityCapability.h>
@@ -45,10 +48,14 @@
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 
-#include <algorithm>
-#include <array>
+#include <bitset>
+#include <memory>
 #include <mutex>
 #include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #ifdef ENABLE_NBAPI
@@ -388,6 +395,236 @@ public:
 
         bool add_ap_metric_data(std::shared_ptr<wfa_map::tlvApMetrics> ApMetricData);
     };
+
+    /**
+     * Generic IEEE1905 topology DB used for IEEE1905 root data model.
+     *
+     * This DB is intentionally independent from EasyMesh Agent entities.
+     */
+    struct ieee1905_network_db {
+        struct sAL;
+        using ALMap = std::unordered_map<sMacAddr, sAL>;
+
+        struct sDmPath;
+
+        struct sDmPathView {
+            std::weak_ptr<beerocks::nbapi::Ambiorix> dm;
+            std::string path;
+
+            sDmPathView() = default;
+            sDmPathView(std::weak_ptr<beerocks::nbapi::Ambiorix> dm_, std::string path_)
+                : dm(std::move(dm_)), path(std::move(path_))
+            {
+            }
+            ~sDmPathView()                   = default;
+            sDmPathView(const sDmPathView &) = default;
+            sDmPathView(sDmPathView &&)      = default;
+            sDmPathView &operator=(const sDmPathView &) = default;
+            sDmPathView &operator=(sDmPathView &&) = default;
+
+            template <typename Value>
+            auto set(const std::string &parameter, const Value &value)
+                -> decltype(dm.lock()->set(std::string{}, parameter, value))
+            {
+                auto ambiorix = dm.lock();
+                return ambiorix && ambiorix->set(path, parameter, value);
+            }
+
+            auto set(const std::string &parameter, const char *value)
+            {
+                return set(parameter, std::string(value));
+            }
+
+            sDmPathView subpath(const std::string &suffix) const;
+            sDmPath add_instance(const std::string &subpath);
+
+            explicit operator bool() const noexcept { return !path.empty() && dm.use_count(); }
+        };
+
+        /**
+         * (Not so) RAII class to unregister the \ref path from the \ref dm
+         *
+         * dm is a weak_ptr so that when the whole m_ambiorix_datamodel is freed,
+         * (assuming there are no more references to Ambiorix)
+         * we would not need to remove individual instances
+         */
+        struct sDmPath : public sDmPathView {
+            using sDmPathView::sDmPathView;
+
+            sDmPath() = default;
+            ~sDmPath();
+            sDmPath(const sDmPath &) = delete;
+            sDmPath(sDmPath &&)      = default;
+            sDmPath &operator=(const sDmPath &) = delete;
+            sDmPath &operator=(sDmPath &&) = default;
+        };
+
+        /**
+         * The class is backing IEEE1905.Network.AL.{i}.
+         *
+         * An AL is kept in the DB as long as there are references to it
+         * from sAL::sInterface::ieee1905_neighbors, because need to maintain
+         * Interface.{i}.IEEE1905Neighbor.{i}.IEEE1905DeviceRef.
+         *
+         * References by Interface.{i}.Link.{i}. are ignored.
+         */
+        struct sAL {
+            /** Reference by AL \ref al_mac 's Interface with \ref if_mac. */
+            struct sRef {
+                sMacAddr al_mac; ///< Source AL MAC.
+                sMacAddr if_mac; ///< Source interface MAC.
+
+                bool operator==(const sRef &that) const
+                {
+                    return (al_mac == that.al_mac) && (if_mac == that.if_mac);
+                }
+
+                struct hasher {
+                    std::size_t operator()(const sRef &ref) const noexcept;
+                };
+            };
+
+            /** AL.{i}.Interface.{i}.IEEE1905Neighbor.{i} backing object. */
+            struct sNeighbor {
+                /// @brief Owning data model path for this neighbor instance.
+                sDmPath dm_path;
+                /// @brief True when there is at least one IEEE 802.1D bridge between the AL and this neighbor.
+                bool ieee802dot1_bridge = false;
+
+                /** RAII reference guard for target AL lifetime. */
+                struct sRefHandle {
+                    ALMap *al;       ///< Pointer to AL container.
+                    sMacAddr al_mac; ///< Referenced target AL MAC.
+                    sRef ref;        ///< Source AL/interface reference held in target AL.
+
+                    /**
+                     * Registers source reference in target AL entity.
+                     *
+                     * @param al AL map container.
+                     * @param al_mac Target AL MAC.
+                     * @param ref Source AL/interface reference.
+                     */
+                    sRefHandle(ALMap &al, const sMacAddr &al_mac, sRef ref)
+                        : al(&al), al_mac(al_mac), ref(ref)
+                    {
+                        al[al_mac].references.insert(ref);
+                    }
+
+                    sRefHandle(sRefHandle &&that) noexcept
+                        : al(that.al), al_mac(that.al_mac), ref(that.ref)
+                    {
+                        that.al = nullptr;
+                    }
+
+                    sRefHandle(const sRefHandle &) = delete;
+                    sRefHandle &operator=(const sRefHandle &) = delete;
+                    sRefHandle &operator=(sRefHandle &&) = delete;
+
+                    /** Unregisters source reference from target AL entity. */
+                    ~sRefHandle();
+                } ref;
+            };
+
+            /** AL.{i}.Interface.{i} backing object. */
+            struct sInterface {
+                sDmPath dm_path;
+                ieee1905_1::eMediaType type = ieee1905_1::UNKNOWN_MEDIA;
+                ieee1905_1::s802_11SpecificInformation spec;
+
+                struct sLink {
+                    sDmPath dm_path;
+
+                    ieee1905_1::tlvReceiverLinkMetric::sLinkMetricInfo rx_link_metric;
+                    ieee1905_1::tlvTransmitterLinkMetric::sLinkMetricInfo tx_link_metric;
+                };
+
+                // Reuse sRef, because it has if_mac+al_mac
+                std::unordered_map<sRef, sLink, sRef::hasher> links;
+                /** Non-IEEE1905 neighbors keyed by neighbor MAC. */
+                std::unordered_map<sMacAddr, sDmPath> non_1905_neighbors;
+                /** IEEE1905 neighbors keyed by neighbor AL MAC. */
+                std::unordered_map<sMacAddr, sNeighbor> ieee1905_neighbors;
+            };
+
+            /** AL.{i}.IPv4Address.{i} backing object. */
+            struct sIPv4Address {
+                sDmPath dm_path;
+                ieee1905_1::eIpv4AddressType type;
+                std::string dhcp_server;
+
+                struct sKey {
+                    sMacAddr mac;
+                    beerocks::net::sIpv4Addr address;
+
+                    bool operator==(const sKey &that) const
+                    {
+                        return (mac == that.mac) && (address == that.address);
+                    }
+
+                    struct hasher {
+                        std::size_t operator()(const sKey &key) const noexcept;
+                    };
+                };
+            };
+
+            /** AL.{i}.IPv6Address.{i} backing object. */
+            struct sIPv6Address {
+                sDmPath dm_path;
+                ieee1905_1::eIpv6AddressType type;
+                std::string origin;
+
+                struct sKey {
+                    sMacAddr mac;
+                    std::string address;
+
+                    bool operator==(const sKey &that) const
+                    {
+                        return (mac == that.mac) && (address == that.address);
+                    }
+
+                    struct hasher {
+                        std::size_t operator()(const sKey &key) const noexcept;
+                    };
+                };
+            };
+
+            /** AL.{i}.BridgingTuple.{i} backing object. */
+            struct sBridgingTuple {
+                sDmPath dm_path;
+
+                std::unordered_set<sMacAddr> interfaces;
+            };
+
+            sDmPath dm_path;
+            bool version_is_1905a = false;
+            std::bitset<4> registrar_freq_band;
+            std::string friendly_name;
+            std::string manufacturer_name;
+            std::string manufacturer_model;
+            std::string control_url;
+            std::string assoc_wifi_network_device_ref;
+
+            template <typename IP>
+            using IPMap = std::unordered_map<typename IP::sKey, IP, typename IP::sKey::hasher>;
+            IPMap<sIPv4Address> ipv4_addresses;
+            IPMap<sIPv6Address> ipv6_addresses;
+
+            std::unordered_map<sMacAddr, sInterface> interfaces;
+            std::vector<sBridgingTuple> bridging_tuples;
+
+            /** Incoming references from other AL/interface pairs. */
+            std::unordered_set<sRef, sRef::hasher> references;
+        };
+
+        /** Destroys all AL entities. */
+        ~ieee1905_network_db();
+
+        /** IEEE1905.Network.AL map keyed by AL MAC address. */
+        ALMap al;
+    };
+
+    /** nullptr when Network.Enable is false */
+    std::unique_ptr<ieee1905_network_db> ieee1905_network;
 
     // Unassoc sta link metrics variables
     bool m_measurement_done = false;
