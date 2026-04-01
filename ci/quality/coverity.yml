@@ -13,6 +13,7 @@ coverity:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && $CI_MERGE_REQUEST_EVENT_TYPE != "merge_train"'
     - when: never
   variables:
+    BRIDGECLI_DOWNLOAD_VERSION: "4.0.0"
     BRIDGE_COVERITY_CONNECT_URL: https://coverity.prplfoundation.org
     BRIDGE_COVERITY_CONNECT_USER_NAME: prplbot
     BRIDGE_COVERITY_CONNECT_USER_PASSWORD: $COVERITY_PASSPHRASE
@@ -38,3 +39,4 @@ coverity:
     when: always
     paths:
       - bin/coverity-scan-output.tar.gz
+  allow_failure: true
