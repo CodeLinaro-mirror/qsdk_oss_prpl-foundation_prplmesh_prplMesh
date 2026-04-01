@@ -45,66 +45,21 @@ int cfg_get_management_mode()
     return management_mode;
 }
 
-int cfg_get_management_mode_process_manager(std::string &mode)
-{
-    auto config_obj = m_ambiorix_cl_ubus.get_object(PROCESS_MANAGER_DM_PATH ".");
-    if (!config_obj)
-        return RETURN_ERR;
-    else if (!config_obj->read_child(mode, "ManagementMode"))
-        return RETURN_ERR;
-
-    return RETURN_OK;
-}
-
-int cfg_get_management_mode_agent(std::string &mode)
-{
-    return read_agent_config_param("ManagementMode", mode) ? RETURN_OK : RETURN_ERR;
-}
-
 int cfg_get_management_mode(std::string &mode)
 {
-    int ret = cfg_get_management_mode_process_manager(mode);
-    if (ret == RETURN_ERR) {
-        MAPF_WARN("cfg_get_management_mode(): failed to read management_mode from process manager "
-                  "DM, fallback to agent configuration DM");
-        ret = cfg_get_management_mode_agent(mode);
-    }
-
-    return ret;
-}
-
-int cfg_get_certification_mode_process_manager(int &certification_mode)
-{
     auto pm_obj = m_ambiorix_cl_ubus.get_object(PROCESS_MANAGER_DM_PATH ".");
-    if (!pm_obj)
-        return RETURN_ERR;
-    else if (!pm_obj->read_child(certification_mode, "CertificationMode"))
+    if (!pm_obj || !pm_obj->read_child(mode, "ManagementMode"))
         return RETURN_ERR;
 
     return RETURN_OK;
-}
-
-int cfg_get_certification_mode_agent(int &certification_mode)
-{
-    bool value = false;
-    bool ret   = read_agent_config_param("CertificationMode", value);
-
-    certification_mode = value ? 1 : 0;
-    return ret ? RETURN_OK : RETURN_ERR;
 }
 
 int cfg_get_certification_mode()
 {
     int certification_mode{0}; // off by default
 
-    int ret = cfg_get_certification_mode_process_manager(certification_mode);
-    if (ret == RETURN_ERR) {
-        MAPF_WARN("cfg_get_certification_mode(): failed to read certification_mode from process "
-                  "manager DM, fallback to agent configuration DM");
-        ret = cfg_get_certification_mode_agent(certification_mode);
-    }
-
-    if (ret == RETURN_ERR)
+    auto pm_obj = m_ambiorix_cl_ubus.get_object(PROCESS_MANAGER_DM_PATH ".");
+    if (!pm_obj || !pm_obj->read_child(certification_mode, "CertificationMode"))
         MAPF_ERR(
             "cfg_get_certification_mode(): failed to read certification_mode, using default value");
 

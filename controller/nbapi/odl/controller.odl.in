@@ -164,14 +164,26 @@
                         default true;
                     }
 
-                    /* Used in optimal_path_task; applies bonus to current BSS {phy_rate or rssi}; 
+                    /* If enabled, band steering will be used to optimize STA connection */
+                    %persistent bool BandSteeringEnabled {
+                        userflags %upc;
+                        default false;
+                    }
+
+                    /* If enabled, client roaming is active in the optimal path task */
+                    %persistent bool ClientRoamingEnabled {
+                        userflags %upc;
+                        default false;
+                    }
+
+                    /* Used in optimal_path_task; applies bonus to current BSS {phy_rate or rssi};
                     choice of parameter is based on prefer_signal_strength flag */
                     %persistent uint32 SteeringCurrentBonus {
                         default 10;
                         on action validate call check_range [0, 10000];
                     }
 
-                    /* Used in client_steering_task to format the 1905 Client Steering Request 
+                    /* Used in client_steering_task to format the 1905 Client Steering Request
                     packet sent to the steering source agent */
                     %persistent uint32 SteeringDisassociationTimerMSec {
                         default 200;
@@ -187,7 +199,7 @@
                         userflags %upc;
                         default true;
                     }
-                    
+
                     /* Used by controller to start / stop dynamic channel selection task */
                     %persistent bool DynamicChannelSelectionTaskEnabled {
                         userflags %upc;
@@ -204,7 +216,7 @@
                         default false;
                     }
 
-                    /* Used by optimal_path_task; chooses best BSS based on `rssi` 
+                    /* Used by optimal_path_task; chooses best BSS based on `rssi`
                     if prefer_signal_strength is TRUE, `phy_rate` otherwise */
                     %persistent bool OptimalPathPreferSignalStrength {
                         default false;
@@ -225,14 +237,14 @@
                         default 10;
                         on action validate call check_range [1, 10000];
                     }
-                    
-                    /* Used by channel selection task; currently (03.2024) does nothing 
+
+                    /* Used by channel selection task; currently (03.2024) does nothing
                     as the task never goes to the state where this flag is checked */
                     %persistent bool DFSReentryEnabled {
                         default true;
                     }
 
-                    /* Used by channel selection task; currently (03.2024) does nothing 
+                    /* Used by channel selection task; currently (03.2024) does nothing
                     as the task never goes to the state where this flag is checked */
                     %persistent bool DFSTaskEnabled {
                         default true;
@@ -248,7 +260,7 @@
                         default true;
                     }
 
-                    /* used by statistics_polling_task as interval for sending 
+                    /* used by statistics_polling_task as interval for sending
                     beerocks_message::cACTION_CONTROL_HOSTAP_STATS_MEASUREMENT_REQUEST to known agents */
                     %persistent uint32 DiagnosticsMeasurementsRate {
                         default 10;
@@ -264,7 +276,7 @@
                         default 30;
                     }
 
-                    /* optimal_path_task; applies bonus to current BSS {phy_rate or rssi}; 
+                    /* optimal_path_task; applies bonus to current BSS {phy_rate or rssi};
                     choice of parameter is based on prefer_signal_strength flag */
                     %persistent uint32 RoamingHysteresisPercentBonus {
                         default 10;
@@ -274,7 +286,7 @@
                     %persistent uint32 RSSIMeasurementsTimeout {
                         default 10000;
                     }
-                    
+
                     /* used by controller to start / stop statistics_polling_task */
                     %persistent uint32 BeaconMeasurementsTimeout {
                         default 6000;
@@ -331,12 +343,12 @@
                     %persistent string DCSChannelPool_24GHz {
                         default "1,6,11";
                     }
-                    
+
                     /* DCS channel pool for radio 5 GHz that is used to determine what channels to scan */
                     %persistent string DCSChannelPool_5GHz {
                         default "36-48,149-165";
                     }
-                    
+
                     /* DCS channel pool for radio 6 GHz that is used to determine what channels to scan */
                     %persistent string DCSChannelPool_6GHz {
                         default "0";
@@ -417,7 +429,7 @@
                 %read-only object AgentConnectedEvent[];
                 %read-only object AgentDisconnectedEvent[];
 
-    @CONTROLLER_ROOT_DM_Footer@ 
+    @CONTROLLER_ROOT_DM_Footer@
 
 
     /* --- TR-181 DataElements DM --- */
@@ -447,11 +459,11 @@
                     object AccessPoint[] {
                         counted with AccessPointNumberOfEntries;
                     }
-                    
+
                     void AccessPointCommit();
 
                     // Global network wide enable
-                    bool Enable = true; 
+                    bool Enable = true;
 
                     // Global network wide enable
                     object X-PRPL_ORG_Group[] {
@@ -483,7 +495,7 @@
                     bool UpdateUnassociatedStationsStats();
                 }
 
-    @DATAELEMENTS_ROOT_DM_Footer@ 
+    @DATAELEMENTS_ROOT_DM_Footer@
 
 }
 
@@ -491,11 +503,11 @@
     on event "dm:object-changed" call event_configuration_changed
         filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Configuration\."';
 
-    on event "dm:object-changed" call event_network_enable_changed                                                                                             
-        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")'; 
+    on event "dm:object-changed" call event_network_enable_changed
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")';
 
-    on event "*" call event_network_group_changed                                                                                             
-        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X-PRPL_ORG_Group\."'; 
+    on event "*" call event_network_group_changed
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X-PRPL_ORG_Group\."';
 }
 
 include "device.odl";

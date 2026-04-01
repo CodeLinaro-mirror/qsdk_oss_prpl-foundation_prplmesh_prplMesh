@@ -2,6 +2,8 @@
 	object '@CONTROLLER_ROOT_DM@' {
 		object 'Configuration' {
 			parameter 'Client11kRoamingEnabled' = false;
+			parameter 'BandSteeringEnabled' = false;
+			parameter 'ClientRoamingEnabled' = false;
 			parameter 'DFSReentryEnabled' = false;
 			parameter 'ChannelSelectionTaskEnabled' = true;
 			parameter 'DynamicChannelSelectionTaskEnabled' = true;

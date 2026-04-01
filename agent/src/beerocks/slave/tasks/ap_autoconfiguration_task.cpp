@@ -1083,19 +1083,6 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     notification->backhaul_params().backhaul_ipv4 = notification->backhaul_params().bridge_ipv4;
 
     // Platform Settings
-    notification->platform_settings().client_band_steering_enabled =
-        db->device_conf.client_band_steering_enabled;
-    notification->platform_settings().client_optimal_path_roaming_enabled =
-        db->device_conf.client_optimal_path_roaming_enabled;
-    notification->platform_settings().client_optimal_path_roaming_prefer_signal_strength_enabled =
-        db->device_conf.client_optimal_path_roaming_prefer_signal_strength_enabled;
-    notification->platform_settings().client_11k_roaming_enabled =
-        db->device_conf.client_11k_roaming_enabled;
-    notification->platform_settings().load_balancing_enabled =
-        db->device_conf.load_balancing_enabled;
-    notification->platform_settings().service_fairness_enabled =
-        db->device_conf.service_fairness_enabled;
-
     notification->platform_settings().local_master = db->device_conf.local_controller;
 
     // Wlan Settings
@@ -2089,18 +2076,18 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             /**
              * We currently do not support bBSS with both profile 1/2 disallow flags set to false
              * (Combined Profile bBSS mode).
-             * 
+             *
              * When we are configured in a way we don't support, we should tear down the BSS, and
              * send an error response on that BSS.
-             * 
+             *
              * Currently R2 certified controllers (Mediatek/Marvel) have a bug (PPM-1389) that ends
-             * up sending M2 with both profile 1/2 disallow flags set to false although we report 
+             * up sending M2 with both profile 1/2 disallow flags set to false although we report
              * combined_profile1_and_profile2 = 0 in ap_radio_advanced_capabilities_tlv.
-             * 
+             *
              * To deal with it, we use db->device_conf.unsupported_profile_disallow_policy enum
              * originated in the beerocks_agent.conf to resolve the conflict with predefined
-             * value. 
-             * 
+             * value.
+             *
              * Related PPM-1389 and PPM-3472
              */
             bool resolved_disallow_profile1 = bBSS_p1_disallowed;

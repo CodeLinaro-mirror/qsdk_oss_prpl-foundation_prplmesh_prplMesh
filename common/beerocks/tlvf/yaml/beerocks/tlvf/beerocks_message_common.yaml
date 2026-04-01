@@ -33,13 +33,13 @@ sVapInfo:
   ssid:
     _type: char
     _length: ["beerocks::message::WIFI_SSID_MAX_LENGTH"]
-  fronthaul_vap: 
+  fronthaul_vap:
     _type: uint8_t
     comment: boolean
-  backhaul_vap: 
+  backhaul_vap:
     _type: uint8_t
     _comment: boolean
-  profile1_backhaul_sta_association_disallowed: 
+  profile1_backhaul_sta_association_disallowed:
     _type: uint8_t
     _comment: boolean
   profile2_backhaul_sta_association_disallowed:
@@ -50,7 +50,7 @@ sVapInfo:
   ap_mld_mac: sMacAddr
 
 sVapType:
-  _type: struct  
+  _type: struct
   vap_id: int8_t
   vap_type: eVapType
   vap_label:
@@ -86,13 +86,6 @@ sPlatformSettings:
   _type: struct
   local_master: uint8_t
 
-  client_band_steering_enabled: uint8_t
-  client_optimal_path_roaming_enabled: uint8_t
-  client_optimal_path_roaming_prefer_signal_strength_enabled: uint8_t
-  client_11k_roaming_enabled: uint8_t
-  load_balancing_enabled: uint8_t
-  service_fairness_enabled: uint8_t
-
 sWlanSettings:
   _type: struct
   band_enabled:
@@ -117,7 +110,7 @@ sApChannelSwitch:
   is_dfs_channel: uint8_t
   vht_center_frequency: uint16_t
   tx_power: int8_t
-  csa_count: 
+  csa_count:
     _type: uint8_t
     _value: 5
 
@@ -343,7 +336,7 @@ sNodeHostapVendorSpec:
 sVapsList:
   _type: struct
   vaps:
-    _type: sVapInfo 
+    _type: sVapInfo
     _length: ["beerocks::IFACE_TOTAL_VAPS"]
 
 sVapTypesList:
@@ -1082,9 +1075,9 @@ sClientConfig:
     _type: int8_t
     _value: -1
     _comment: 1 for true, 0 for false, -1 for "not configured".
-  selected_bands: 
+  selected_bands:
     _type: uint8_t
-    _comment: Bitset of selected bands supported by the client according to beerocks::eFreqType 
+    _comment: Bitset of selected bands supported by the client according to beerocks::eFreqType
   time_life_delay_minutes:
     _type: int32_t
     _value: -1
@@ -1150,8 +1143,8 @@ sUnassociatedStationInfo:
 sUnassociatedStationStats:
   _type: struct
   sta_mac: sMacAddr
-  signal_strength: 
-    comment: RSSI 
+  signal_strength:
+    comment: RSSI
     _type: int32_t
   channel: uint8_t
   operating_class: uint8_t
