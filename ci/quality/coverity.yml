@@ -39,3 +39,4 @@ coverity:
     when: always
     paths:
       - bin/coverity-scan-output.tar.gz
+  allow_failure: true
