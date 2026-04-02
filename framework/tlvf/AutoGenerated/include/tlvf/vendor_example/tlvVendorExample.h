@@ -36,7 +36,7 @@ class tlvVendorExample : public BaseClass
 
         enum vendorExampleOUI: uint32_t {
             OUI_BYTES = 0x3,
-            EXAMPLE_OUI = 0x563412,
+            EXAMPLE_OUI = 0x123456,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off
