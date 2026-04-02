@@ -2317,6 +2317,22 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         ap_wlan_hal->update_mld_unit(request->ssid(), request->mld_unit());
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST: {
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
+
+        LOG(DEBUG) << "handle ACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST";
+
+        // Handle MLD mode update for this radio only.
+        // Only SSIDs belonging to the current radio (with matching SSID name) are updated.
+        ap_wlan_hal->update_mld_mode(request->ssid(), request->mld_mode());
+        break;
+    }
     default: {
         LOG(ERROR) << "Unsupported header action_op: " << int(beerocks_header->action_op());
         break;

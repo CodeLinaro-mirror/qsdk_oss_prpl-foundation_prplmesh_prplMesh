@@ -353,3 +353,12 @@ cACTION_APMANAGER_MLD_UPDATE_REQUEST:
     _type: int8_t
   mld_mode:
     _type: uint8_t
+
+cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST:
+  _type: class
+  ssid:
+    _type: char
+    _length: [32]
+  mld_mode:
+    _type: uint8_t
+

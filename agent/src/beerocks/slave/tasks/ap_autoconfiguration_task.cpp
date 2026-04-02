@@ -1571,6 +1571,17 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
     }
     bsta_mld_requests_infos.clear();
 
+    // Apply MLD mode updates for this radio. This operation updates only the
+    // MLD mode associated with the corresponding SSIDs; it does not perform
+    // any MLD unit or link-level configuration changes. MLDUnit is already
+    // handled in send_ap_bss_configuration_message API
+
+    for (const auto &ap_mld_request : m_ap_mld_requests_infos[radio->front.iface_name]) {
+        LOG(DEBUG) << "handle_ap_autoconfiguration_wsc:invoking send_ap_mld_mode";
+        send_ap_mld_mode(radio->front.iface_name, ap_mld_request.first,
+                         std::get<1>(ap_mld_request.second));
+    }
+
     // Initialize for next state
     auto &radio_conf_params = m_radios_conf_params[radio->front.iface_name];
 
@@ -2193,6 +2204,29 @@ bool ApAutoConfigurationTask::send_ap_mld_configuration(const std::string &radio
     auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio_iface);
     if (!m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx)) {
         LOG(ERROR) << "Can't send ACTION_APMANAGER_MLD_UPDATE_REQUEST";
+        return false;
+    }
+    return true;
+}
+
+bool ApAutoConfigurationTask::send_ap_mld_mode(const std::string &radio_iface, std::string ssid,
+                                               uint8_t mld_mode)
+{
+    auto request =
+        message_com::create_vs_message<beerocks_message::cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST>(
+            m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed building message cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST!";
+        return false;
+    }
+
+    request->set_ssid(ssid);
+    request->mld_mode() = mld_mode;
+    LOG(DEBUG) << "Send ACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST (iface: " << radio_iface
+               << ", ssid: " << ssid;
+    auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio_iface);
+    if (!m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx)) {
+        LOG(ERROR) << "Can't send ACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST";
         return false;
     }
     return true;
