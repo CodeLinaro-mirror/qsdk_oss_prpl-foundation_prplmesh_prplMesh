@@ -2349,26 +2349,27 @@ bool ap_wlan_hal_whm::get_spatial_reuse_config(
     std::string string_partial_bssid_bitmap;
 
     LOG(WARNING) << "get_spatial_reuse_config. path_to_80211ax" << path_to_80211ax;
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.bss_color, path_to_80211ax, "BssColor");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.partial_bss_color, path_to_80211ax,
-                              "BssColorPartial");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.hesiga_spatial_reuse_value15_allowed,
-                              path_to_80211ax, "HESIGASpatialReuseValue15Allowed");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.srg_information_valid, path_to_80211ax,
-                              "SRGInformationValid");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.non_srg_offset_valid, path_to_80211ax,
-                              "NonSRGOffsetValid");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.psr_disallowed, path_to_80211ax,
-                              "PSRDisallowed");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.non_srg_obsspd_max_offset, path_to_80211ax,
-                              "NonSRGOBSSPDMaxOffset");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.srg_obsspd_min_offset, path_to_80211ax,
-                              "SRGOBSSPDMinOffset");
-    m_ambiorix_cl.get_param<>(spatial_reuse_params.srg_obsspd_max_offset, path_to_80211ax,
-                              "SRGOBSSPDMaxOffset");
-    m_ambiorix_cl.get_param<>(string_bss_color_bitmap, path_to_80211ax, "SRGBSSColorBitmap");
-    m_ambiorix_cl.get_param<>(string_partial_bssid_bitmap, path_to_80211ax,
-                              "SRGPartialBSSIDBitmap");
+
+    AmbiorixVariantSmartPtr obj_80211ax = m_ambiorix_cl.get_object(path_to_80211ax);
+    if (!obj_80211ax) {
+        LOG(ERROR) << "Failed to get object " << path_to_80211ax;
+        return false;
+    }
+
+    obj_80211ax->read_child(spatial_reuse_params.bss_color, "BssColor");
+    obj_80211ax->read_child(spatial_reuse_params.partial_bss_color, "BssColorPartial");
+    obj_80211ax->read_child(spatial_reuse_params.hesiga_spatial_reuse_value15_allowed,
+                            "HESIGASpatialReuseValue15Allowed");
+    obj_80211ax->read_child(spatial_reuse_params.srg_information_valid, "SRGInformationValid");
+    obj_80211ax->read_child(spatial_reuse_params.non_srg_offset_valid, "NonSRGOffsetValid");
+    obj_80211ax->read_child(spatial_reuse_params.psr_disallowed, "PSRDisallowed");
+    obj_80211ax->read_child(spatial_reuse_params.non_srg_obsspd_max_offset,
+                            "NonSRGOBSSPDMaxOffset");
+    obj_80211ax->read_child(spatial_reuse_params.srg_obsspd_min_offset, "SRGOBSSPDMinOffset");
+    obj_80211ax->read_child(spatial_reuse_params.srg_obsspd_max_offset, "SRGOBSSPDMaxOffset");
+    obj_80211ax->read_child(string_bss_color_bitmap, "SRGBSSColorBitmap");
+    obj_80211ax->read_child(string_partial_bssid_bitmap, "SRGPartialBSSIDBitmap");
+
     spatial_reuse_params.srg_bss_color_bitmap = get_uint64_from_bss_string(string_bss_color_bitmap);
     spatial_reuse_params.srg_partial_bssid_bitmap =
         get_uint64_from_bss_string(string_partial_bssid_bitmap);
@@ -2588,8 +2589,14 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
                                    m_radio_path);
     }
 
+    AmbiorixVariantSmartPtr radio_obj = m_ambiorix_cl.get_object(m_radio_path);
+    if (!radio_obj) {
+        LOG(ERROR) << "Failed to get radio object with path=" << m_radio_path;
+        return false;
+    }
+
     std::string op_std_format;
-    if (!m_ambiorix_cl.get_param(op_std_format, m_radio_path, "OperatingStandardsFormat")) {
+    if (!radio_obj->read_child(op_std_format, "OperatingStandardsFormat")) {
         LOG(ERROR) << "Cannot read OperatingStandardsFormat for " << m_radio_path;
         return false;
     }
@@ -2628,7 +2635,7 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
     }
 
     std::string current_standards;
-    if (!m_ambiorix_cl.get_param(current_standards, m_radio_path, "OperatingStandards")) {
+    if (!radio_obj->read_child(current_standards, "OperatingStandards")) {
         LOG(ERROR) << "Cannot read OperatingStandards for " << m_radio_path;
         return false;
     }

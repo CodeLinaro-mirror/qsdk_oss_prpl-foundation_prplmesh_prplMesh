@@ -409,25 +409,30 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
         wbapi_utils::search_path_assocDev_by_mac(vap_iface_name, sta_mac);
 
     float s_float;
-    if (m_ambiorix_cl.get_param(s_float, assoc_device_path, "SignalNoiseRatio")) {
+    AmbiorixVariantSmartPtr assoc_device_obj = m_ambiorix_cl.get_object(assoc_device_path);
+    if (!assoc_device_obj) {
+        LOG(ERROR) << "Failed to get object: " << assoc_device_path;
+        return false;
+    }
+
+    if (assoc_device_obj->read_child(s_float, "SignalNoiseRatio")) {
         if (s_float >= beerocks::SNR_MIN) {
             sta_stats.rx_snr_watt = std::pow(10, s_float / float(10));
             sta_stats.rx_snr_watt_samples_cnt++;
         }
     }
 
-    m_ambiorix_cl.get_param(sta_stats.tx_bytes_cnt, assoc_device_path, "TxBytes");
-    m_ambiorix_cl.get_param(sta_stats.rx_bytes_cnt, assoc_device_path, "RxBytes");
-    m_ambiorix_cl.get_param(sta_stats.rx_packets_cnt, assoc_device_path, "RxPacketCount");
-    m_ambiorix_cl.get_param(sta_stats.tx_errors_cnt, assoc_device_path, "TxErrors");
-    m_ambiorix_cl.get_param(sta_stats.rx_errors_cnt, assoc_device_path, "RxErrors");
+    assoc_device_obj->read_child(sta_stats.tx_bytes_cnt, "TxBytes");
+    assoc_device_obj->read_child(sta_stats.rx_bytes_cnt, "RxBytes");
+    assoc_device_obj->read_child(sta_stats.rx_packets_cnt, "RxPacketCount");
+    assoc_device_obj->read_child(sta_stats.tx_errors_cnt, "TxErrors");
+    assoc_device_obj->read_child(sta_stats.rx_errors_cnt, "RxErrors");
 
     if (is_read_unicast) {
         // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
-        m_ambiorix_cl.get_param(sta_stats.tx_packets_cnt, assoc_device_path,
-                                "TxUnicastPacketCount");
+        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxUnicastPacketCount");
     } else {
-        m_ambiorix_cl.get_param(sta_stats.tx_packets_cnt, assoc_device_path, "TxPacketCount");
+        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxPacketCount");
     }
 
     return true;

@@ -487,13 +487,19 @@ void base_wlan_hal_whm::update_max_mld_links()
         m_ambiorix_cl.resolve_path(wbapi_utils::search_path_wifi(), wifi_path);
     }
 
-    m_ambiorix_cl.get_param(ap_max_links, wifi_path, "APMLDMaxLinks");
+    AmbiorixVariantSmartPtr wifi_obj = m_ambiorix_cl.get_object(wifi_path);
+    if (!wifi_obj) {
+        LOG(ERROR) << "Failed to get " << wifi_path;
+        return;
+    }
+
+    wifi_obj->read_child(ap_max_links, "APMLDMaxLinks");
     m_radio_info.ap_maximum_links = ap_max_links;
 
-    m_ambiorix_cl.get_param(bsta_max_links, wifi_path, "bSTAMLDMaxLinks");
+    wifi_obj->read_child(bsta_max_links, "bSTAMLDMaxLinks");
     m_radio_info.bsta_maximum_links = bsta_max_links;
 
-    m_ambiorix_cl.get_param(max_num_mld, wifi_path, "MaxNumMLDs");
+    wifi_obj->read_child(max_num_mld, "MaxNumMLDs");
     m_radio_info.max_num_mlds = max_num_mld;
 
     LOG(DEBUG) << "[ Max AP MLD Links " << m_radio_info.ap_maximum_links << "\t"
@@ -504,39 +510,51 @@ void base_wlan_hal_whm::update_max_mld_links()
 void base_wlan_hal_whm::update_eht_capabilities()
 {
 
-    auto *ap_mode_support   = &m_radio_info.ap_modes_support;
-    auto *sta_mode_support  = &m_radio_info.bsta_modes_support;
-    bool ap_role_supported  = false;
-    bool sta_role_supported = false;
+    auto *ap_mode_support  = &m_radio_info.ap_modes_support;
+    auto *sta_mode_support = &m_radio_info.bsta_modes_support;
 
     const std::string ap_role_path  = m_radio_path + "Capabilities.WiFi7APRole.";
     const std::string sta_role_path = m_radio_path + "Capabilities.WiFi7STARole.";
 
     // Wi-Fi 7 AP Role
-    m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "EMLMRSupport");
-    ap_mode_support->emlmr_support = ap_role_supported;
+    AmbiorixVariantSmartPtr ap_role_obj = m_ambiorix_cl.get_object(ap_role_path);
+    if (!ap_role_obj) {
+        LOG(ERROR) << "Failed to read " << ap_role_path << " object";
+    } else {
+        bool ap_role_supported = false;
 
-    m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "EMLSRSupport");
-    ap_mode_support->emlsr_support = ap_role_supported;
+        ap_role_obj->read_child(ap_role_supported, "EMLMRSupport");
+        ap_mode_support->emlmr_support = ap_role_supported;
 
-    m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "NSTRSupport");
-    ap_mode_support->nstr_support = ap_role_supported;
+        ap_role_obj->read_child(ap_role_supported, "EMLSRSupport");
+        ap_mode_support->emlsr_support = ap_role_supported;
 
-    m_ambiorix_cl.get_param(ap_role_supported, ap_role_path, "STRSupport");
-    ap_mode_support->str_support = ap_role_supported;
+        ap_role_obj->read_child(ap_role_supported, "NSTRSupport");
+        ap_mode_support->nstr_support = ap_role_supported;
+
+        ap_role_obj->read_child(ap_role_supported, "STRSupport");
+        ap_mode_support->str_support = ap_role_supported;
+    }
 
     // Wi-Fi 7 STA Role
-    m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "EMLMRSupport");
-    sta_mode_support->emlmr_support = sta_role_supported;
+    AmbiorixVariantSmartPtr sta_role_obj = m_ambiorix_cl.get_object(sta_role_path);
+    if (!sta_role_obj) {
+        LOG(ERROR) << "Failed to read " << sta_role_path << " object";
+    } else {
+        bool sta_role_supported = false;
 
-    m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "EMLSRSupport");
-    sta_mode_support->emlsr_support = sta_role_supported;
+        sta_role_obj->read_child(sta_role_supported, "EMLMRSupport");
+        sta_mode_support->emlmr_support = sta_role_supported;
 
-    m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "NSTRSupport");
-    sta_mode_support->nstr_support = sta_role_supported;
+        sta_role_obj->read_child(sta_role_supported, "EMLSRSupport");
+        sta_mode_support->emlsr_support = sta_role_supported;
 
-    m_ambiorix_cl.get_param(sta_role_supported, sta_role_path, "STRSupport");
-    sta_mode_support->str_support = sta_role_supported;
+        sta_role_obj->read_child(sta_role_supported, "NSTRSupport");
+        sta_mode_support->nstr_support = sta_role_supported;
+
+        sta_role_obj->read_child(sta_role_supported, "STRSupport");
+        sta_mode_support->str_support = sta_role_supported;
+    }
 
     LOG(DEBUG) << "Param method, EHT Supported: " << m_radio_info.eht_supported << "\n"
                << "AP Modes [STR=" << ap_mode_support->str_support
@@ -871,42 +889,47 @@ bool base_wlan_hal_whm::refresh_radio_info()
         wifi6_caps_ptr->spatial_reuse = 0;
 
         const std::string spatial_reuse_path = m_radio_path + "IEEE80211ax.";
-        bool spatial_reuse_supported         = false;
-        uint8_t tmp_bss_color                = 0;
-        bool tmp_bool                        = false;
         std::string tmp_bitmap;
 
-        if (m_ambiorix_cl.get_param<>(tmp_bss_color, spatial_reuse_path, "BssColor")) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "BssColorPartial")) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "SRGInformationValid") &&
-            tmp_bool) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bool, spatial_reuse_path, "NonSRGOffsetValid") &&
-            tmp_bool) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path, "SRGBSSColorBitmap") &&
-            !tmp_bitmap.empty()) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path, "SRGPartialBSSIDBitmap") &&
-            !tmp_bitmap.empty()) {
-            spatial_reuse_supported = true;
-        }
-        if (m_ambiorix_cl.get_param<>(tmp_bitmap, spatial_reuse_path,
-                                      "NeighborBSSColorInUseBitmap") &&
-            !tmp_bitmap.empty()) {
-            spatial_reuse_supported = true;
-        }
+        AmbiorixVariantSmartPtr spatial_reuse_path_obj =
+            m_ambiorix_cl.get_object(spatial_reuse_path);
+        if (!spatial_reuse_path_obj) {
+            LOG(ERROR) << "Failed to get object: " << spatial_reuse_path;
+        } else {
+            bool spatial_reuse_supported = false;
 
-        if (spatial_reuse_supported) {
-            LOG(INFO) << "Spatial Reuse support is true";
-            wifi6_caps_ptr->spatial_reuse = 1;
+            uint8_t tmp_bss_color = 0;
+            if (spatial_reuse_path_obj->read_child(tmp_bss_color, "BssColor")) {
+                spatial_reuse_supported = true;
+            }
+
+            bool tmp_bool = false;
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "BssColorPartial")) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "SRGInformationValid") && tmp_bool) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "NonSRGOffsetValid") && tmp_bool) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGBSSColorBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGPartialBSSIDBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "NeighborBSSColorInUseBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+
+            if (spatial_reuse_supported) {
+                LOG(INFO) << "Spatial Reuse support is true";
+                wifi6_caps_ptr->spatial_reuse = 1;
+            }
         }
 
         if (radio->read_child(s_val, "RadCapabilitiesHeMacStr")) {
