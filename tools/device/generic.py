@@ -45,7 +45,7 @@ class GenericDevice():
     """The time (in seconds) the device needs to initialize when it boots
     for the first time after flashing a new image."""
 
-    configuration_initialization_time = 10
+    configuration_initialization_time = 5
     """The time (in seconds) the device needs to initialize after configuring it"""
 
     bootloader_prompt = "=> "
