@@ -48,7 +48,7 @@ ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPA
 # Workaround for bsta issues
 ba-cli WiFi.SSID.5.MLDUnit=0
 ba-cli WiFi.EndPoint.*.MultiAPProfile=3
-ba-cli WiFi.EndPoint.ep5g0.Enable=1
+ba-cli WiFi.EndPoint.*.Enable=1
 
 # The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
 ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan1\"].Enable=0"

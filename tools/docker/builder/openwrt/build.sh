@@ -163,9 +163,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-03-26"
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-03-26 + qca debug logs"
         OPENWRT_TOOLCHAIN_VERSION='9897c90ad0047e468da974b4971693cfbc386e8a'
-        OPENWRT_VERSION='9897c90ad0047e468da974b4971693cfbc386e8a'
+        OPENWRT_VERSION='2a152bd19a9adad5fc276f30c24d6ff4e0d635b9'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
