@@ -499,8 +499,9 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
     // Send response back to the sender.
     LOG(DEBUG) << "Sending CHANNEL_SELECTION_RESPONSE mid[" << std::hex << m_pending_selection.mid
                << "] to broker ";
-
-    m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+    if (!m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, src_mac, db->bridge.mac)) {
+        LOG(ERROR) << "Failed to send CHANNEL_SELECTION_RESPONSE_MESSAGE back to controller";
+    }
 
     // Handle pending Outgoing requests.
     for (auto &request_iter : m_pending_selection.requests) {
@@ -2744,6 +2745,11 @@ bool ChannelSelectionTask::send_operating_channel_report(const sMacAddr &radio_m
             add_eht_operations_tlv(m_cmdu_tx, radio,
                                    m_pending_selection.requests[radio].eht_operation, true);
         }
+    }
+
+    if (db->controller_info.bridge_mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(ERROR) << "Controller MAC unknown.";
+        return false;
     }
 
     return m_btl_ctx.send_cmdu_to_broker(m_cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
