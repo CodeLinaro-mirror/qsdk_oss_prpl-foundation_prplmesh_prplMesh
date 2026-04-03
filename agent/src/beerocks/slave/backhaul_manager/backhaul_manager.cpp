@@ -376,6 +376,19 @@ bool BackhaulManager::send_cmdu_to_broker(ieee1905_1::CmduMessageTx &cmdu_tx,
         iface_index = if_nametoindex(iface_name.c_str());
     }
 
+    if (dst_mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping CMDU type=0x" << std::hex << int(cmdu_tx.getMessageType())
+                     << std::dec << " on iface=" << iface_name
+                     << ": destination MAC address is empty";
+        return false;
+    }
+
+    if (src_mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping CMDU type=0x" << std::hex << int(cmdu_tx.getMessageType())
+                     << std::dec << " on iface=" << iface_name << ": source MAC address is empty";
+        return false;
+    }
+
     return m_broker_client->send_cmdu(cmdu_tx, dst_mac, src_mac, iface_index);
 }
 
@@ -407,6 +420,20 @@ bool BackhaulManager::forward_cmdu_to_broker(ieee1905_1::CmduMessageRx &cmdu_rx,
     uint32_t iface_index = 0;
     if (!iface_name.empty()) {
         iface_index = if_nametoindex(iface_name.c_str());
+    }
+
+    if (dst_mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping forwarded CMDU type=0x" << std::hex
+                     << int(cmdu_rx.getMessageType()) << std::dec << " on iface=" << iface_name
+                     << ": destination MAC address is empty";
+        return false;
+    }
+
+    if (src_mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping forwarded CMDU type=0x" << std::hex
+                     << int(cmdu_rx.getMessageType()) << std::dec << " on iface=" << iface_name
+                     << ": source MAC address is empty";
+        return false;
     }
 
     return m_broker_client->forward_cmdu(cmdu_rx, dst_mac, src_mac, iface_index);
