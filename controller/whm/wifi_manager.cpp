@@ -176,7 +176,8 @@ void WifiManager::subscribe_to_bss_info_config_change()
              " && (notification == '" +
              AMX_CL_OBJECT_CHANGED_EVT +
              "')"
-             " && (contains('parameters.Enable'))";
+             " && (contains('parameters.Enable')"
+             " || contains('parameters.SSIDAdvertisementEnabled'))";
 
     if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler,
                                                   filter)) {
