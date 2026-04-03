@@ -211,6 +211,12 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
                        << wireless_settings.size() << " path " << it.first;
             configuration.bss_index = bss_index_generator++;
 
+            bool ssid_advertisement_enabled = true;
+            ap.read_child(ssid_advertisement_enabled, "SSIDAdvertisementEnabled");
+            configuration.hidden_ssid = ssid_advertisement_enabled
+                                            ? WSC::eWscVendorExtHiddenSsid::DISABLED
+                                            : WSC::eWscVendorExtHiddenSsid ::ENABLED;
+
             // Add AKM24 in case of MLD for SAE
             if (mld_id != DISABLED_MLDUNIT) {
                 if (configuration.authentication_type & WSC::eWscAuth::WSC_AUTH_SAE) {

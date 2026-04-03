@@ -1301,10 +1301,16 @@ static bool add_bss_advanced_configuration_tlv(
             LOG(ERROR) << "Failed creating bss_advanced_configuration_bss";
             return false;
         }
+        if (bss_info_conf.hidden_ssid == WSC::eWscVendorExtHiddenSsid::UNSET) {
+            LOG(DEBUG) << "hidden_ssid is set to UNSET, skipping BSS, BSSID="
+                       << bss_info_conf.bssid;
+            continue;
+        }
+
         bss_advanced_configuration_bss->bssid()     = beerocks::net::network_utils::ZERO_MAC;
         bss_advanced_configuration_bss->bss_index() = bss_info_conf.bss_index;
         bss_advanced_configuration_bss->bss_infos().ssid_advertisement =
-            bss_info_conf.hidden_ssid == WSC::eWscVendorExtHiddenSsid::DISABLED ? 1 : 0;
+            bss_info_conf.hidden_ssid == WSC::eWscVendorExtHiddenSsid::ENABLED ? 0 : 1;;
 
         if (!bss_advanced_configuration_radio->add_bsss(
                 std::move(bss_advanced_configuration_bss))) {

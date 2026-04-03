@@ -628,8 +628,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                 new_obj.add_child("SSIDAdvertisementEnabled", 1);
             }
 
-            LOG(INFO) << "Hidden SSID-Bss_info: " << bss_info_conf.ssid
-                      << ", SSIDAdvertisementEnabled is " << bss_info_conf.hidden_ssid;
+            LOG(INFO) << "Hidden SSID-Bss_info: " << bss_info_conf.ssid << ", hidden_ssid is "
+                      << bss_info_conf.hidden_ssid;
             ret = m_ambiorix_cl.update_object(wifi_vap_path, new_obj);
             if (!ret) {
                 LOG(ERROR) << "Failed to enable vap " << wifi_vap_path
