@@ -2701,7 +2701,7 @@ bool ApAutoConfigurationTask::handle_bss_advanced_configuration_tlv(
                                                        : WSC::eWscVendorExtHiddenSsid::ENABLED;
                     LOG(DEBUG) << "BSS " << config.payload_config.bssid << " / "
                                << config.m2_config.bss_index
-                               << " advertisement: " << config.m2_config.hidden_ssid;
+                               << " hidden_ssid: " << config.m2_config.hidden_ssid;
                 }
             }
         }
