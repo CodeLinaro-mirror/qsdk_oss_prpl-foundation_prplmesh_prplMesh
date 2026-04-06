@@ -172,9 +172,11 @@ void Ieee1905Transport::handle_vlan_configuration_request_message(
     VlanConfigurationRequestMessage &msg)
 {
     auto primary_vlan_id = msg.metadata()->vlan_id;
-    MAPF_INFO("Using Primary Vlan ID: " << primary_vlan_id << " add =" << msg.metadata()->add);
-
-    set_primary_vlan_id(primary_vlan_id, msg.metadata()->add);
+    MAPF_INFO("Ignoring transport VLAN state update: vlan_id=" << primary_vlan_id
+                                                               << " add=" << msg.metadata()->add
+                                                               << ". traffic separation is "
+                                                                  "enforced by interface "
+                                                                  "selection.");
 }
 
 bool Ieee1905Transport::send_packet_to_broker(Packet &packet)

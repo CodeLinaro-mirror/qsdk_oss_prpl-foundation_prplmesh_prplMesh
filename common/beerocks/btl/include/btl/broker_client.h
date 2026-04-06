@@ -157,9 +157,9 @@ public:
      * @brief Configures the transport process to use primary vlan id.
      *
      * Builds a configuration message with the primary vlan id and sends it to the server.
-     * The transport process will set the primary vlan id in the Multicast packets it generates.
+     * The transport process uses this value for traffic-separation-specific handling.
      *
-     * @param vlan_id Vlan Identifier to be set in packets by the transport process.
+     * @param vlan_id Primary Vlan Identifier configured by traffic separation.
      *
      * @return true on success and false otherwise
      */
