@@ -145,7 +145,7 @@ private:
     uint16_t message_id_           = 0;
     uint8_t al_mac_addr_[ETH_ALEN] = {0};
 
-    // Primary VLAN Identifier to be added for IEEE 1905 Multicast packets
+    // Primary VLAN Identifier configured by Traffic Separation
     uint16_t primary_vlan_id_        = 0;
     bool traffic_separation_enabled_ = false;
 
