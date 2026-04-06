@@ -500,11 +500,6 @@ bool Ieee1905Transport::get_interface_mac_addr(unsigned int if_index, uint8_t *a
     return true;
 }
 
-static inline uint16_t build_tci(uint16_t vid, uint8_t dei, uint8_t pcp)
-{
-    return uint16_t(((pcp & 0x7) << 13) | ((dei & 0x1) << 12) | (vid & 0x0FFF));
-}
-
 bool Ieee1905Transport::send_packet_to_network_interface(unsigned int if_index, Packet &packet)
 {
     std::string ifname = if_index2name(if_index);
@@ -526,26 +521,15 @@ bool Ieee1905Transport::send_packet_to_network_interface(unsigned int if_index, 
 
     counters_[CounterId::OUTGOING_NETWORK_PACKETS]++;
 
-    uint8_t eh_buffer[sizeof(ether_header_vlan)];
-    uint8_t size;
-
-    if (ETHER_IS_MULTICAST(packet.dst.oct) && traffic_separation_enabled_) {
-        auto eh = reinterpret_cast<ether_header_vlan *>(eh_buffer);
-        size    = sizeof(ether_header_vlan);
-        tlvf::mac_to_array(packet.dst, eh->ether_dhost);
-        tlvf::mac_to_array(packet.src, eh->ether_shost);
-        eh->tpid       = htons(ieee_8021q_protocol_id);
-        eh->tci        = htons(build_tci(primary_vlan_id_, 0, 0));
-        eh->ether_type = htons(packet.ether_type);
-        packet.header  = {.iov_base = eh, .iov_len = size};
-    } else {
-        auto eh = reinterpret_cast<struct ether_header *>(eh_buffer);
-        size    = sizeof(struct ether_header);
-        tlvf::mac_to_array(packet.dst, eh->ether_dhost);
-        tlvf::mac_to_array(packet.src, eh->ether_shost);
-        eh->ether_type = htons(packet.ether_type);
-        packet.header  = {.iov_base = eh, .iov_len = size};
-    }
+    // Traffic separation is handled by the selected egress interface, so raw
+    // TX must not add a VLAN tag here.
+    uint8_t eh_buffer[sizeof(struct ether_header)];
+    auto size = sizeof(struct ether_header);
+    auto eh   = reinterpret_cast<struct ether_header *>(eh_buffer);
+    tlvf::mac_to_array(packet.dst, eh->ether_dhost);
+    tlvf::mac_to_array(packet.src, eh->ether_shost);
+    eh->ether_type = htons(packet.ether_type);
+    packet.header  = {.iov_base = eh, .iov_len = size};
 
     int fd             = network_interfaces_[ifname].fd->getSocketFd();
     struct iovec iov[] = {packet.header, packet.payload};
@@ -574,19 +558,6 @@ void Ieee1905Transport::set_al_mac_addr(const uint8_t *addr)
         if (network_interface.fd) {
             attach_interface_socket_filter(network_interface);
         }
-    }
-}
-
-void Ieee1905Transport::set_primary_vlan_id(const uint16_t vlan_id, bool add)
-{
-    if (add) {
-        if (!vlan_id)
-            return;
-        traffic_separation_enabled_ = true;
-        primary_vlan_id_            = vlan_id;
-    } else {
-        traffic_separation_enabled_ = false;
-        primary_vlan_id_            = 0;
     }
 }
 
