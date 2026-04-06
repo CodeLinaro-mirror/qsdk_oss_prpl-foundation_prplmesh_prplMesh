@@ -286,9 +286,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto ap_str_config(radio_ap_capabilities->create_str_config());
 
                     ap_str_config->frequency_separation().freq_separation = 0;
-                    if (ap_str_config->frequency_separation().freq_separation) {
-                        ap_str_config->ruid() = radio2->front.iface_mac;
-                    }
+                    ap_str_config->ruid()                                 = radio2->front.iface_mac;
 
                     if (!radio_ap_capabilities->add_str_config(ap_str_config)) {
                         LOG(ERROR) << "add_str_config() failed in tlvWifi7AgentCapabilities";
@@ -308,9 +306,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto ap_nstr_config(radio_ap_capabilities->create_nstr_config());
 
                     ap_nstr_config->frequency_separation().freq_separation = 0;
-                    if (ap_nstr_config->frequency_separation().freq_separation) {
-                        ap_nstr_config->ruid() = radio2->front.iface_mac;
-                    }
+                    ap_nstr_config->ruid() = radio2->front.iface_mac;
 
                     if (!radio_ap_capabilities->add_nstr_config(ap_nstr_config)) {
                         LOG(ERROR) << "add_nstr_config() failed in tlvWifi7AgentCapabilities";
@@ -330,9 +326,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto ap_emlsr_config(radio_ap_capabilities->create_emlsr_config());
 
                     ap_emlsr_config->frequency_separation().freq_separation = 0;
-                    if (ap_emlsr_config->frequency_separation().freq_separation) {
-                        ap_emlsr_config->ruid() = radio2->front.iface_mac;
-                    }
+                    ap_emlsr_config->ruid() = radio2->front.iface_mac;
 
                     if (!radio_ap_capabilities->add_emlsr_config(ap_emlsr_config)) {
                         LOG(ERROR) << "add_emlsr_config() failed in tlvWifi7AgentCapabilities";
@@ -352,9 +346,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto ap_emlmr_config(radio_ap_capabilities->create_emlmr_config());
 
                     ap_emlmr_config->frequency_separation().freq_separation = 0;
-                    if (ap_emlmr_config->frequency_separation().freq_separation) {
-                        ap_emlmr_config->ruid() = radio2->front.iface_mac;
-                    }
+                    ap_emlmr_config->ruid() = radio2->front.iface_mac;
 
                     if (!radio_ap_capabilities->add_emlmr_config(ap_emlmr_config)) {
                         LOG(ERROR) << "add_emlmr_config() failed in tlvWifi7AgentCapabilities";
@@ -382,9 +374,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto bsta_str_config(radio_bsta_capabilities->create_str_config());
 
                     bsta_str_config->frequency_separation().freq_separation = 0;
-                    if (bsta_str_config->frequency_separation().freq_separation) {
-                        bsta_str_config->ruid() = radio2->front.iface_mac;
-                    }
+                    bsta_str_config->ruid() = radio2->front.iface_mac;
 
                     if (!radio_bsta_capabilities->add_str_config(bsta_str_config)) {
                         LOG(ERROR) << "add_str_config() failed in tlvWifi7AgentCapabilities";
@@ -404,9 +394,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto bsta_nstr_config(radio_bsta_capabilities->create_nstr_config());
 
                     bsta_nstr_config->frequency_separation().freq_separation = 0;
-                    if (bsta_nstr_config->frequency_separation().freq_separation) {
-                        bsta_nstr_config->ruid() = radio2->front.iface_mac;
-                    }
+                    bsta_nstr_config->ruid() = radio2->front.iface_mac;
 
                     if (!radio_bsta_capabilities->add_nstr_config(bsta_nstr_config)) {
                         LOG(ERROR) << "add_nstr_config() failed in tlvWifi7AgentCapabilities";
@@ -426,9 +414,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto bsta_emlsr_config(radio_bsta_capabilities->create_emlsr_config());
 
                     bsta_emlsr_config->frequency_separation().freq_separation = 0;
-                    if (bsta_emlsr_config->frequency_separation().freq_separation) {
-                        bsta_emlsr_config->ruid() = radio2->front.iface_mac;
-                    }
+                    bsta_emlsr_config->ruid() = radio2->front.iface_mac;
 
                     if (!radio_bsta_capabilities->add_emlsr_config(bsta_emlsr_config)) {
                         LOG(ERROR) << "add_emlsr_config() failed in tlvWifi7AgentCapabilities";
@@ -448,9 +434,7 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
                     auto bsta_emlmr_config(radio_bsta_capabilities->create_emlmr_config());
 
                     bsta_emlmr_config->frequency_separation().freq_separation = 0;
-                    if (bsta_emlmr_config->frequency_separation().freq_separation) {
-                        bsta_emlmr_config->ruid() = radio2->front.iface_mac;
-                    }
+                    bsta_emlmr_config->ruid() = radio2->front.iface_mac;
 
                     if (!radio_bsta_capabilities->add_emlmr_config(bsta_emlmr_config)) {
                         LOG(ERROR) << "add_emlmr_config() failed in tlvWifi7AgentCapabilities";
