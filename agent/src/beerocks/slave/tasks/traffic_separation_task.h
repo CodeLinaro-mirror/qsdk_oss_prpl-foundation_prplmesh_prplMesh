@@ -17,7 +17,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace beerocks {
@@ -50,9 +49,8 @@ public:
     /**
      * @brief Handle task events (like other prplMesh tasks).
      *
-     * Supported events trigger a debounced TS policy refresh.
-     *
-     * Scan-based WDS notifications only reschedule that same refresh path.
+     * Supported events trigger either a debounced TS policy refresh or an immediate exact WDS
+     * update.
      */
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
 
@@ -60,17 +58,27 @@ public:
      * @brief Event IDs for TrafficSeparationTask.
      */
     enum eEvent : uint8_t {
-        TS_ENABLE             = 0, /**< Debounced reset and apply on all ports. */
-        TS_NEW_BH_STA_IFACE   = 1, /**< Track new wlanX.Y.staN trunk ports. */
-        TS_CLEAR_BH_STA_IFACE = 2, /**< Clear stale tracked wlanX.Y.staN trunk ports. */
-        TS_CLEAR              = 3  /**< Clear config + reset transport primary VLAN. */
+        TS_ENABLE        = 0, /**< Refresh config and reapply TS on managed ports. */
+        TS_NEW_WDS_IFACE   = 1, /**< Add one WDS iface (e.g. `wlan1.2.sta1`). */
+        TS_CLEAR_WDS_IFACE = 2, /**< Clear one WDS iface (e.g. `wlan1.2.sta1`). */
+        TS_CLEAR = 3 /**< Clear config + reset transport primary VLAN. */
     };
 
 private:
+    struct sPendingWdsIfaceState {
+        std::chrono::steady_clock::time_point not_before;
+        std::chrono::steady_clock::time_point deadline;
+    };
+
     /**
-     * @brief Queue a debounced TS reset.
+     * @brief Queue a debounced TS apply action.
      */
     void schedule_apply();
+
+    /**
+     * @brief Queue deferred task work for the earliest requested due time.
+     */
+    void schedule_deferred_work(std::chrono::steady_clock::time_point due);
 
     /**
      * @brief Reset pending debounced apply state.
@@ -78,31 +86,36 @@ private:
     void clear_pending_apply();
 
     /**
+     * @brief Reset any scheduled task work.
+     */
+    void clear_scheduled_work();
+
+    /**
      * @brief Check whether the debounce timeout expired and apply can run now.
      */
     bool should_run_now() const;
 
     /**
-     * @brief Refresh TS configuration and re-apply policies on managed ports.
+     * @brief Refresh TS configuration and reset policies on managed ports.
      *
-     * Scan-based WDS reconciliation still happens here until exact WDS events replace it.
+     * Keeps event-managed exact WDS ifaces intact and only re-applies policies.
      */
     bool reset();
 
     /**
-     * @brief Scan current backhaul STA interfaces and add newly discovered WDS trunks.
+     * @brief Add one WDS iface (e.g. `wlan1.2.sta1`).
      */
-    bool handle_new_sta_iface();
+    bool handle_new_wds_iface(const std::string &iface_name);
 
     /**
-     * @brief Scan current backhaul STA interfaces and clear stale tracked WDS trunks.
+     * @brief Clear one WDS iface (e.g. `wlan1.2.sta1`).
      */
-    bool handle_clear_sta_iface();
+    bool handle_clear_wds_iface(const std::string &iface_name);
 
     /**
-     * @brief Discover current backhaul STA interfaces and their TS mode.
+     * @brief Retry pending WDS iface additions after transient readiness failures.
      */
-    std::unordered_map<std::string, bool> collect_current_wds_ifaces() const;
+    bool retry_pending_wds_ifaces();
 
     /**
      * @brief Clear TS state and restore transport defaults used outside TS mode.
@@ -125,41 +138,38 @@ private:
     bool build_ts_config(net::sTrafficSeparationConfig &cfg) const;
 
     /**
-     * @brief Collect trunk and access ports from current DB state.
+     * @brief Collect persistent trunk and access ports from current DB state.
      */
-    bool collect_ports_from_db(std::vector<net::sTrunkPort> &trunks,
-                               std::vector<net::sAccessPort> &access_ports) const;
+    bool get_ports_from_db(std::vector<net::sTrunkPort> &trunks,
+                           std::vector<net::sAccessPort> &access_ports) const;
 
     /**
      * @brief Add currently selected backhaul connection interface as a trunk candidate.
      */
     bool add_backhaul_connection_trunk(std::vector<net::sTrunkPort> &trunks) const;
 
-    /**
-     * @brief Return all STA ifaces matching `<bss_iface>.staN`.
-     */
-    static std::vector<std::string> get_all_sta_ifaces_for_bss(const std::string &bss_iface);
-
-    /**
-     * @brief Parse decimal suffix of interfaces with expected prefix, otherwise return -1.
-     */
-    static int sta_index_for_prefix(const std::string &ifname, const std::string &prefix);
-
     slave_thread &m_btl_ctx;
 
     std::unique_ptr<net::TrafficSeparationManager> m_mgr;
 
     bool m_pending = false;
+    bool m_apply_pending = false;
     std::chrono::steady_clock::time_point m_next_run{std::chrono::steady_clock::time_point::min()};
+    std::unordered_map<std::string, sPendingWdsIfaceState> m_pending_wds_ifaces;
 
     uint16_t m_last_primary_vid = 0;
-    // Temporary scan-based WDS tracking used until explicit iface binding is available.
-    std::unordered_set<std::string> m_tracked_wds_ifaces;
 
 private:
     // Debounce TS apply events to coalesce short bursts into one operation
     // and avoid repetitive bridge/VLAN reconfiguration churn.
     static constexpr int DEBOUNCE_MS = 200;
+    // Newly learned WDS netdevs may appear and become runnable shortly after
+    // the property notification is emitted, so keep the first add attempt
+    // out of the synchronous event path.
+    static constexpr int WDS_SETTLE_MS = 500;
+    // Keep retrying for a bounded window so the same WDS iface is not lost if
+    // it becomes ready shortly after the settle delay.
+    static constexpr int WDS_RETRY_TIMEOUT_MS = 2000;
 };
 
 } // namespace beerocks

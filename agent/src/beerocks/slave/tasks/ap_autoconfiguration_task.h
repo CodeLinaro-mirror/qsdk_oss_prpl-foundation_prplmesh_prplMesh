@@ -35,7 +35,6 @@ public:
     enum eEvent : uint8_t {
         INIT_TASK,
         START_AP_AUTOCONFIGURATION,
-        APPLY_CONFIG_FOR_NEW_IFACE,
     };
 
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
