@@ -247,23 +247,21 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
             return;
         }
 
-        auto sta_it = std::find_if(m_stations.begin(), m_stations.end(), [&](const auto &element) {
-            return element.second.path == sta_path;
-        });
+        auto sta_it = m_stations.find(sta_path);
         std::string sta_mac;
         auto sta_mac_obj = event_data.find_child_deep("parameters.MACAddress.to");
         if (sta_mac_obj && !sta_mac_obj->empty()) {
             sta_mac = sta_mac_obj->get<std::string>();
         } else if (sta_it != m_stations.end()) {
-            sta_mac = sta_it->first;
+            sta_mac = sta_it->second.mac;
         } else if (!m_ambiorix_cl.get_param<>(sta_mac, sta_path, "MACAddress")) {
             LOG(WARNING) << "unknown sta path " << sta_path;
             return;
         }
         if (sta_it != m_stations.end()) {
-            sta_it->second.path = sta_path;
+            sta_it->second.mac = sta_mac;
         } else if (!sta_mac.empty()) {
-            m_stations.insert(std::make_pair(sta_mac, sStationInfo(sta_path)));
+            m_stations.emplace(sta_path, sStationInfo(sta_path, sta_mac));
         } else {
             LOG(WARNING) << "missing station mac";
             return;
@@ -293,7 +291,8 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
                          AMX_CL_OBJECT_CHANGED_EVT +
                          "')"
                          " && ((contains('parameters.AuthenticationState'))"
-                         " || (contains('parameters.MACAddress')))";
+                         " || (contains('parameters.MACAddress'))"
+                         " || (contains('parameters.WdsInterfaceName')))";
 
     // TODO : switch the subscription object path back to wifi_ad_path once libamxb client start supporting large path subscriptions
     m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
@@ -312,11 +311,9 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
         std::string sta_path = sta_templ_path + std::to_string(sta_index) + ".";
         LOG(DEBUG) << "Station instance " << sta_path << " deleted";
 
-        auto sta_it = std::find_if(m_stations.begin(), m_stations.end(), [&](const auto &element) {
-            return element.second.path == sta_path;
-        });
+        auto sta_it = m_stations.find(sta_path);
         if (sta_it != m_stations.end()) {
-            LOG(DEBUG) << "Clearing Station " << sta_it->first;
+            LOG(DEBUG) << "Clearing Station " << sta_it->second.mac;
             m_stations.erase(sta_it);
         }
     };

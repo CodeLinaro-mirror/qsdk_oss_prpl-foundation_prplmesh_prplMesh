@@ -250,6 +250,9 @@ private:
                                              const std::string &sta_path,
                                              const sMacAddr &ap_mld_bssid,
                                              sMloClientInfo &mlo_info);
+
+    bool send_wds_iface_notification(const std::string &sta_mac, const sMacAddr &bssid,
+                                     int8_t vap_id, const std::string &wds_iface_name);
 };
 
 } // namespace whm
