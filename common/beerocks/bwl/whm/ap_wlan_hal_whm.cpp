@@ -1338,21 +1338,11 @@ bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
     // ChannelsInUse always contains channels in order
     m_ambiorix_cl.get_param(channels_in_use, m_radio_path, "ChannelsInUse");
 
-    auto channels = beerocks::string_utils::str_split(channels_in_use, ',');
-
     std::string disabled_subchannels;
-
-    for (size_t i = 0; i < channels.size(); ++i) {
-        if ((bitmap >> i) & 1) {
-            if (!disabled_subchannels.empty()) {
-                disabled_subchannels += ",";
-            }
-            disabled_subchannels += channels[i];
-        }
-    }
+    bwl::base_wlan_hal::apply_bitmask_to_csv(channels_in_use, bitmap, disabled_subchannels);
 
     LOG(DEBUG) << "Radio " << m_radio_path << " is using " << channels_in_use
-               << " disabling: " << disabled_subchannels;
+               << " disabling: " << disabled_subchannels << " exactly";
 
     AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
     new_obj.add_child("DisabledSubChannels", disabled_subchannels);

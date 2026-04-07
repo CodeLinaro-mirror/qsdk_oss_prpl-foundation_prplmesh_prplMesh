@@ -324,6 +324,15 @@ public:
         return result;
     }
 
+    /**
+     * @brief Generate a subset of a csv string of values (maximum 64) based on a bitmask
+     * @param[in] in_csv csv string
+     * @param[in] bitmask used on the @param in_csv
+     * @param[out] out_csv a csv string with the elements of @param in_csv as filtered by @param bitmask
+     */
+    static void apply_bitmask_to_csv(const std::string &in_csv, uint64_t bitmask,
+                                     std::string &out_csv);
+
     // Protected methods
 protected:
     /*!
