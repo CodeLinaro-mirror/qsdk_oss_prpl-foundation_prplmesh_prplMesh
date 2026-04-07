@@ -5150,6 +5150,12 @@ bool slave_thread::link_to_controller()
     return db->statuses.ap_autoconfiguration_completed;
 }
 
+bool slave_thread::send_cmdu_to_mac(const sMacAddr &dst_mac, ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto db = AgentDB::get();
+    return m_broker_client->send_cmdu(cmdu_tx, dst_mac, db->bridge.mac);
+}
+
 bool slave_thread::send_cmdu_to_controller(const std::string &fronthaul_iface,
                                            ieee1905_1::CmduMessageTx &cmdu_tx)
 {

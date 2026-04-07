@@ -229,7 +229,7 @@ void LinkMetricsCollectionTask::handle_link_metric_query(ieee1905_1::CmduMessage
 
         LOG(DEBUG) << "Sending LINK_METRIC_RESPONSE_MESSAGE (invalid neighbor), mid: " << std::hex
                    << mid;
-        m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+        m_btl_ctx.send_cmdu_to_mac(src_mac, m_cmdu_tx);
         return;
     }
 
@@ -269,7 +269,7 @@ void LinkMetricsCollectionTask::handle_link_metric_query(ieee1905_1::CmduMessage
     }
 
     LOG(DEBUG) << "Sending LINK_METRIC_RESPONSE_MESSAGE, mid: " << std::hex << mid;
-    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+    m_btl_ctx.send_cmdu_to_mac(src_mac, m_cmdu_tx);
 }
 
 void LinkMetricsCollectionTask::handle_combined_infrastructure_metrics(
