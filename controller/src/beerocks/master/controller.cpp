@@ -3058,7 +3058,10 @@ bool Controller::handle_intel_slave_join(
                            << (int)(database.get_bss(parent_bssid_mac) != nullptr);
 
                 join_response->err_code() = beerocks::JOIN_RESP_REJECT;
-                return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
+                if (!son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database)) {
+                    LOG(ERROR) << "Failed sending join reject response to agent " << src_mac;
+                }
+                return false;
             }
         }
 
