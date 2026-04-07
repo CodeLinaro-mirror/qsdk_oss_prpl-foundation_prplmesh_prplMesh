@@ -189,6 +189,9 @@ private:
      * @brief Process event "wpaCtrlEvents"
      */
     bool process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data) override;
+
+    bool send_wds_iface_notification(const std::string &sta_mac, const sMacAddr &bssid,
+                                     int8_t vap_id, const std::string &wds_iface_name);
 };
 
 } // namespace whm
