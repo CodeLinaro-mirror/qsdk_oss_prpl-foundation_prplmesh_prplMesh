@@ -252,6 +252,18 @@ public:
      * @return true if there is a link to the Controller, otherwise false.
      */
     bool link_to_controller();
+
+    /**
+     * @brief Sends a CMDU directly to the specified destination MAC through the broker.
+     *
+     * The local bridge MAC is used as the source MAC address.
+     *
+     * @param dst_mac Destination MAC address.
+     * @param cmdu_tx CMDU message to send.
+     * @return true on success and false otherwise.
+     */
+    bool send_cmdu_to_mac(const sMacAddr &dst_mac, ieee1905_1::CmduMessageTx &cmdu_tx);
+
     bool send_cmdu_to_controller(const std::string &fronthaul_iface,
                                  ieee1905_1::CmduMessageTx &cmdu_tx);
 
