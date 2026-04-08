@@ -2826,7 +2826,11 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         radio->front.radio_max_bss =
             std::min(notification->radio_max_bss(), uint8_t(radio->front.bssids.size()));
 
-        LOG(DEBUG) << "ZWDFS AP: " << radio->front.zwdfs;
+        radio->mscs_supported = static_cast<bool>(notification->radio_mscs_support());
+        radio->scs_supported  = static_cast<bool>(notification->radio_scs_support());
+
+        LOG(DEBUG) << "ZWDFS AP: " << radio->front.zwdfs << " MSCS support "
+                   << radio->mscs_supported << " SCS support " << radio->scs_supported;
 
         fill_channel_list_to_agent_db(fronthaul_iface, notification->channel_list());
 

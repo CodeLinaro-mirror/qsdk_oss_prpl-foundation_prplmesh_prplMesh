@@ -994,6 +994,8 @@ bool base_wlan_hal_whm::refresh_radio_info()
         }
     }
 
+    read_qos_management_support();
+
     return true;
 }
 
@@ -1098,6 +1100,21 @@ bool base_wlan_hal_whm::check_enabled_vap(const std::string &bss) const
 {
     auto vap_it = m_vapsExtInfo.find(bss);
     return (vap_it != m_vapsExtInfo.end() && vap_it->second.status == "Enabled");
+}
+
+void base_wlan_hal_whm::read_qos_management_support()
+{
+    const auto capabilities_path = m_radio_path + "Capabilities.";
+
+    m_radio_info.mscs_supported = false;
+    if (!m_ambiorix_cl.get_param(m_radio_info.mscs_supported, capabilities_path, "MSCSSupport")) {
+        LOG(DEBUG) << "MSCSSupport is not available at " << capabilities_path;
+    }
+
+    m_radio_info.scs_supported = false;
+    if (!m_ambiorix_cl.get_param(m_radio_info.scs_supported, capabilities_path, "SCSSupport")) {
+        LOG(DEBUG) << "SCSSupport is not available at " << capabilities_path;
+    }
 }
 
 bool base_wlan_hal_whm::get_vap_status(

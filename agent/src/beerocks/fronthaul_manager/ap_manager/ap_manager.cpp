@@ -3524,7 +3524,9 @@ void ApManager::handle_hostapd_attached()
 
     notification->params().hybrid_mode_supported = ap_wlan_hal->hybrid_mode_supported();
 
-    notification->radio_max_bss() = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    notification->radio_max_bss()      = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    notification->radio_mscs_support() = ap_wlan_hal->get_radio_info().mscs_supported;
+    notification->radio_scs_support()  = ap_wlan_hal->get_radio_info().scs_supported;
 
     fill_cs_params(notification->cs_params());
 
@@ -3555,6 +3557,8 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " eht_supported = " << ap_wlan_hal->get_radio_info().eht_supported;
     LOG(INFO) << " zwdfs = " << m_ap_support_zwdfs;
     LOG(INFO) << " radio_max_bss = " << ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    LOG(INFO) << " mscs_supported = " << ap_wlan_hal->get_radio_info().mscs_supported;
+    LOG(INFO) << " scs_supported = " << ap_wlan_hal->get_radio_info().scs_supported;
     LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
 
     copy_vaps_info_and_type(ap_wlan_hal, notification->vap_list().vaps,
