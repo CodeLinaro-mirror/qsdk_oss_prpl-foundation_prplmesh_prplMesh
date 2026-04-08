@@ -3088,7 +3088,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             constexpr size_t minimum_qos_management_descriptor_size = 4;
             // IEEE 802.11-2020 Table 9-92 assigns element ID 185 to the
             // SCS Descriptor element defined in 9.4.2.121.
-            constexpr uint8_t scs_descriptor_element_id             = 185;
+            constexpr uint8_t scs_descriptor_element_id = 185;
 
             LOG(DEBUG) << "Received SCS|MSCS request from " << mgmt_frame->mac;
 
@@ -3606,6 +3606,8 @@ void ApManager::handle_hostapd_attached()
 
     notification->radio_max_bss() = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
     notification->radio_rsn_override_support() = ap_wlan_hal->get_radio_info().rsn_override_support;
+    notification->radio_mscs_support()         = ap_wlan_hal->get_radio_info().mscs_supported;
+    notification->radio_scs_support()          = ap_wlan_hal->get_radio_info().scs_supported;
 
     fill_cs_params(notification->cs_params());
 
@@ -3639,6 +3641,8 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " bsta_maximum_links = " << ap_wlan_hal->get_radio_info().bsta_maximum_links;
     LOG(INFO) << " zwdfs = " << m_ap_support_zwdfs;
     LOG(INFO) << " radio_max_bss = " << ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    LOG(INFO) << " mscs_supported = " << ap_wlan_hal->get_radio_info().mscs_supported;
+    LOG(INFO) << " scs_supported = " << ap_wlan_hal->get_radio_info().scs_supported;
     LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
 
     copy_vaps_info_and_type(ap_wlan_hal, notification->vap_list().vaps,

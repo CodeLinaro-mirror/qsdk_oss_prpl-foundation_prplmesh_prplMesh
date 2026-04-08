@@ -110,6 +110,12 @@ protected:
      */
     void read_rsn_support();
 
+    /**
+     * @brief try to read optional MSCS/SCS radio capabilities and fill
+     * m_radio_info.{mscs_supported,scs_supported}
+     */
+    void read_qos_management_support();
+
     beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
     std::unique_ptr<nl80211_client> m_iso_nl80211_client; //impl nl80211 client apis with whm dm
     std::string m_radio_path;

@@ -405,7 +405,9 @@ public:
         // 12-byte attribute containing the MCS set as defined in 802.11ax
         std::array<uint8_t, beerocks::message::HE_MCS_SET_SIZE> he_mcs_set;
 
-        bool eht_supported = false;
+        bool eht_supported  = false;
+        bool mscs_supported = false;
+        bool scs_supported  = false;
         typedef struct {
             bool str_support   = false;
             bool nstr_support  = false;
