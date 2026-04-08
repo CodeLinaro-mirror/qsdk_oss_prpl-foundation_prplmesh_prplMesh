@@ -88,7 +88,15 @@ public:
 class IEEE1905TaskTest : public ::testing::Test {
 protected:
     struct sTopologyResponsePacket {
+        struct sInterfaceInfo {
+            sMacAddr mac;
+            ieee1905_1::eMediaType media_type                 = ieee1905_1::UNKNOWN_MEDIA;
+            bool has_media_info                               = false;
+            ieee1905_1::s802_11SpecificInformation media_info = {};
+        };
+
         std::vector<sMacAddr> interfaces;
+        std::vector<sInterfaceInfo> interface_infos;
         std::unordered_map<sMacAddr, std::vector<sMacAddr>> ieee1905_neighbors;
         std::unordered_map<sMacAddr, std::vector<sMacAddr>> non_1905_neighbors;
         std::vector<std::vector<sMacAddr>> bridging_tuples;
@@ -196,7 +204,7 @@ protected:
         }
         device_information->mac() = al_mac;
 
-        if (packet.interfaces.empty()) {
+        if (packet.interfaces.empty() && packet.interface_infos.empty()) {
             packet.interfaces.push_back(al_mac);
         }
 
@@ -208,6 +216,26 @@ protected:
 
             iface_info->mac()        = if_mac;
             iface_info->media_type() = ieee1905_1::UNKNOWN_MEDIA;
+
+            if (!device_information->add_local_interface_list(iface_info)) {
+                return false;
+            }
+        }
+
+        for (const auto &interface_info : packet.interface_infos) {
+            auto iface_info = device_information->create_local_interface_list();
+            if (!iface_info) {
+                return false;
+            }
+
+            iface_info->mac()        = interface_info.mac;
+            iface_info->media_type() = interface_info.media_type;
+
+            if (interface_info.has_media_info) {
+                iface_info->alloc_media_info(sizeof(interface_info.media_info));
+                std::copy_n(reinterpret_cast<const uint8_t *>(&interface_info.media_info),
+                            sizeof(interface_info.media_info), iface_info->media_info(0));
+            }
 
             if (!device_information->add_local_interface_list(iface_info)) {
                 return false;
@@ -693,6 +721,34 @@ TEST_F(IEEE1905TaskTest, update_al_in_dm_materializes_interface_and_non_1905_nei
     ASSERT_TRUE(m_task->ensure_al_in_dm(m_local_al_mac));
     EXPECT_EQ(tlvf::mac_to_string(iface_mac),
               read_interface_param(m_local_al_mac, iface_mac, "InterfaceId"));
+}
+
+TEST_F(IEEE1905TaskTest,
+       topology_response_materializes_wireless_interface_network_membership_and_role)
+{
+    const auto iface_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:11");
+    const auto bssid     = tlvf::mac_from_string("aa:bb:cc:dd:ee:12");
+
+    ieee1905_1::CmduMessageRx topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    sTopologyResponsePacket packet;
+    packet.interface_infos.push_back({
+        iface_mac,
+        ieee1905_1::IEEE_802_11AX,
+        true,
+        {
+            .network_membership = bssid,
+            .role               = ieee1905_1::eRole::NON_AP_NON_PCP_STA,
+        },
+    });
+
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, topology_rx, packet));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, topology_rx));
+
+    EXPECT_EQ(tlvf::mac_to_string(iface_mac),
+              read_interface_param(m_local_al_mac, iface_mac, "InterfaceId"));
+    EXPECT_EQ(tlvf::mac_to_string(bssid),
+              read_interface_param(m_local_al_mac, iface_mac, "NetworkMembership"));
+    EXPECT_EQ("non-AP/non-PCP STA", read_interface_param(m_local_al_mac, iface_mac, "Role"));
 }
 
 TEST_F(IEEE1905TaskTest, ensure_al_in_dm_updates_existing_ieee1905_device_refs)
