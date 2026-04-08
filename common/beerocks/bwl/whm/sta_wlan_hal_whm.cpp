@@ -1064,7 +1064,30 @@ bool sta_wlan_hal_whm::update_mld_mode(uint8_t mld_mode)
 
 bool sta_wlan_hal_whm::update_mld_unit(int8_t mld_unit)
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    if (m_ep_path.empty()) {
+        LOG(INFO) << "Empty endpoint path for iface " << get_iface_name();
+        return false;
+    }
+
+    std::string ssid_ref, ssid_path;
+    if (!m_ambiorix_cl.get_param(ssid_ref, m_ep_path, "SSIDReference") ||
+        !m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path) || ssid_path.empty()) {
+        return false;
+    }
+
+    AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
+    if (!params.add_child("MLDUnit", mld_unit)) {
+        LOG(ERROR) << "Failed to build update params for " << ssid_path;
+        return false;
+    }
+
+    if (!m_ambiorix_cl.update_object(ssid_path, params)) {
+        LOG(ERROR) << "Failed to set MLDUnit=" << static_cast<int>(mld_unit) << " on " << ssid_path;
+        return false;
+    }
+
+    LOG(INFO) << " Successfully updated MLDUnit for bSTA, " << static_cast<int>(mld_unit)
+              << " SSID: " << ssid_ref << ", Endpoint DM: " << m_ep_path;
     return true;
 }
 
