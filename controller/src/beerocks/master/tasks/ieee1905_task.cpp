@@ -19,6 +19,7 @@
 #include <tlvf/ieee_1905_1/tlvIpv4.h>
 #include <tlvf/ieee_1905_1/tlvIpv6.h>
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
+#include <tlvf/tlvftypes.h>
 #include <tlvf/wfa_map/tlvClientAssociationEvent.h>
 
 #include <easylogging++.h>
@@ -57,6 +58,29 @@ static std::string add_device_prefix(const std::string &path)
     }
 
     return device_prefix + path;
+}
+
+static std::string interface_role_to_dm_string(const ieee1905_1::eRole role)
+{
+    switch (role) {
+    case ieee1905_1::eRole::AP:
+        return "AP";
+    case ieee1905_1::eRole::NON_AP_NON_PCP_STA:
+        return "non-AP/non-PCP STA";
+    case ieee1905_1::eRole::WI_FI_P2P_CLIENT:
+        return "Wi-Fi P2P Client";
+    case ieee1905_1::eRole::WI_FI_P2P_GROUP_OWNER:
+        return "Wi-Fi P2P Group Owner";
+    case ieee1905_1::eRole::IEEE_802_11AD_PCP:
+        return "802.11adPCP";
+    default:
+        return "NA";
+    }
+}
+
+static std::string byte_to_hex_binary(const uint8_t value)
+{
+    return tlvf::int_to_hex_string(value, 2);
 }
 
 static std::string fixed_utf8_string(const uint8_t *data, size_t len)
@@ -506,6 +530,24 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
 
         ok &= iface.dm_path.set("InterfaceId", if_mac);
         ok &= iface.dm_path.set("MediaType", ieee1905_1::eMediaType_str(iface.type));
+
+        const auto media_type_group = iface.type >> 8;
+        if (media_type_group == ieee1905_1::eMediaTypeGroup::IEEE_802_11) {
+            if (iface.spec.network_membership != beerocks::net::network_utils::ZERO_MAC) {
+                ok &= iface.dm_path.set("NetworkMembership", iface.spec.network_membership);
+            } else {
+                ok &= iface.dm_path.set("NetworkMembership", "");
+            }
+            ok &= iface.dm_path.set("Role", interface_role_to_dm_string(iface.spec.role));
+            ok &= iface.dm_path.set("APChannelBand",
+                                    byte_to_hex_binary(iface.spec.ap_channel_bandwidth));
+            ok &= iface.dm_path.set(
+                "FrequencyIndex1",
+                byte_to_hex_binary(iface.spec.ap_channel_center_frequency_index1));
+            ok &= iface.dm_path.set(
+                "FrequencyIndex2",
+                byte_to_hex_binary(iface.spec.ap_channel_center_frequency_index2));
+        }
 
         for (auto &neighbor_entry : iface.non_1905_neighbors) {
             const auto &neighbor_mac = neighbor_entry.first;
