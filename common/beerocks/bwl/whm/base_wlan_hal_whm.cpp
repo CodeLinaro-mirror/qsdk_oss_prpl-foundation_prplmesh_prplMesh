@@ -1050,6 +1050,7 @@ bool base_wlan_hal_whm::refresh_radio_info()
     }
 
     read_rsn_support();
+    read_qos_management_support();
 
     return true;
 }
@@ -1210,6 +1211,21 @@ void base_wlan_hal_whm::read_rsn_support()
         << "Radio "
         << beerocks::utils::convert_frequency_type_to_string(m_radio_info.frequency_band)
         << " RSN Overriding Supported";
+}
+
+void base_wlan_hal_whm::read_qos_management_support()
+{
+    const auto capabilities_path = m_radio_path + "Capabilities.";
+
+    m_radio_info.mscs_supported = false;
+    if (!m_ambiorix_cl.get_param(m_radio_info.mscs_supported, capabilities_path, "MSCSSupport")) {
+        LOG(DEBUG) << "MSCSSupport is not available at " << capabilities_path;
+    }
+
+    m_radio_info.scs_supported = false;
+    if (!m_ambiorix_cl.get_param(m_radio_info.scs_supported, capabilities_path, "SCSSupport")) {
+        LOG(DEBUG) << "SCSSupport is not available at " << capabilities_path;
+    }
 }
 
 bool base_wlan_hal_whm::get_vap_status(

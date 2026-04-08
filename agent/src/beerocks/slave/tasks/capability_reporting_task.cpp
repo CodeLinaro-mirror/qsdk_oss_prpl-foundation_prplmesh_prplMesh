@@ -999,7 +999,9 @@ bool CapabilityReportingTask::add_ap_radio_advanced_capabilities_tlv(const std::
     ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().combined_front_back =
         radio->front.hybrid_mode_supported;
     ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities()
-        .combined_profile1_and_profile2 = 0;
+        .combined_profile1_and_profile2                                    = 0;
+    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().mscs = radio->mscs_supported;
+    ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().scs  = radio->scs_supported;
 
     return true;
 }

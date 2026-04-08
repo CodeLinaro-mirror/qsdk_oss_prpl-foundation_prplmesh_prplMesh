@@ -107,6 +107,8 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         sVapTypesList& vap_type_list();
         uint8_t& radio_max_bss();
         uint8_t& radio_rsn_override_support();
+        uint8_t& radio_mscs_support();
+        uint8_t& radio_scs_support();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -125,6 +127,8 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         sVapTypesList* m_vap_type_list = nullptr;
         uint8_t* m_radio_max_bss = nullptr;
         uint8_t* m_radio_rsn_override_support = nullptr;
+        uint8_t* m_radio_mscs_support = nullptr;
+        uint8_t* m_radio_scs_support = nullptr;
 };
 
 class cACTION_APMANAGER_ENABLE_APS_REQUEST : public BaseClass

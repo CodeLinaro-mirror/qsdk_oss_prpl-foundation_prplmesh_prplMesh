@@ -2717,12 +2717,15 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         radio->front.rsn_override_support =
             static_cast<bool>(notification->radio_rsn_override_support());
+        radio->mscs_supported = static_cast<bool>(notification->radio_mscs_support());
+        radio->scs_supported  = static_cast<bool>(notification->radio_scs_support());
 
         LOG(DEBUG) << "Radio : "
                    << beerocks::utils::convert_frequency_type_to_string(
                           notification->params().frequency_band)
                    << " : ZWDFS AP: " << radio->front.zwdfs << " MRSNO Support "
-                   << radio->front.rsn_override_support;
+                   << radio->front.rsn_override_support << " MSCS support " << radio->mscs_supported
+                   << " SCS support " << radio->scs_supported;
 
         fill_channel_list_to_agent_db(fronthaul_iface, notification->channel_list());
 

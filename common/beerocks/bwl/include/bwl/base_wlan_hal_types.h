@@ -229,6 +229,8 @@ struct RadioInfo {
 
     uint8_t radio_max_bss_supported = 0;
     bool rsn_override_support       = false;
+    bool mscs_supported             = false;
+    bool scs_supported              = false;
     std::string chipset_vendor;
     typedef struct {
         bool str_support   = false;
