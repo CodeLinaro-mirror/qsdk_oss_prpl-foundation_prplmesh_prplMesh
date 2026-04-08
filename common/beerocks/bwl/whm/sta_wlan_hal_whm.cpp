@@ -1064,7 +1064,37 @@ bool sta_wlan_hal_whm::update_mld_mode(uint8_t mld_mode)
 
 bool sta_wlan_hal_whm::update_mld_unit(int8_t mld_unit)
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    if (m_ep_path.empty()) {
+        LOG(ERROR) << "Empty endpoint path for iface " << get_iface_name();
+        return false;
+    }
+
+    std::string ssid_ref;
+    if (!m_ambiorix_cl.get_param(ssid_ref, m_ep_path, "SSIDReference")) {
+        LOG(ERROR) << "Failed to read SSIDReference from " << m_ep_path;
+        return false;
+    }
+
+    std::string ssid_path;
+    if (!m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path)) {
+        LOG(ERROR) << "Failed to resolve SSID path from SSIDReference " << ssid_ref;
+        return false;
+    }
+
+    AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
+    if (!params.add_child("MLDUnit", mld_unit)) {
+        LOG(ERROR) << "Failed to build update params for " << ssid_path;
+        return false;
+    }
+
+    if (!m_ambiorix_cl.update_object(ssid_path, params)) {
+        LOG(ERROR) << "Failed to set MLDUnit=" << static_cast<int>(mld_unit) << " on "
+                   << ssid_path;
+        return false;
+    }
+
+    LOG(INFO) << " Successfully updated MLDUnit: " << static_cast<int>(mld_unit) << " for SSID: " << ssid_ref
+              << ", Path: " << ssid_path;
     return true;
 }
 
