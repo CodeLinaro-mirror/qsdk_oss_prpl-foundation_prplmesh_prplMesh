@@ -1176,13 +1176,13 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                 msg->params.affiliated_sta[i] = mlo_info.affiliated_links[i];
             }
 
-            auto answer = get_last_assoc_frame(vap.first, mac_addr);
-            if (!answer) {
-                LOG(ERROR) << "fail to get last frame";
-                continue;
-            }
+            auto answer = get_last_assoc_frame(vap.first, mac_addr); 
+            if (!answer) { 
+                LOG(ERROR) << "fail to get last frame"; 
+                continue; 
+            } 
             std::string frame_body_str;
-            if (!answer->read_child(frame_body_str, "frame") || frame_body_str.empty()) {
+            if (!answer->read_child(frame_body_str, "frame") || frame_body_str.empty()) { 
                 LOG(WARNING) << "STA connected without previously receiving a "
                                 "(re-)association frame!";
             } else {
@@ -1376,16 +1376,16 @@ AmbiorixVariantSmartPtr ap_wlan_hal_whm::get_last_assoc_frame(const std::string 
         LOG(DEBUG) << "get assoc frame path " << ap_path << " for " << sta_mac;
     }
 
-    ret = m_ambiorix_cl.call(ap_path, "getLastAssocReq", args, data);
+    ret = m_ambiorix_cl.call(ap_path, "getLastAssocReq", args, data); 
 
-    AmbiorixVariantSmartPtr result = data.find_child(0);
-    if (!ret || !result) {
-        LOG(ERROR) << "getLastAssocReq() failed!";
-    } else {
-        result->detach();
-    }
+    AmbiorixVariantSmartPtr result = data.find_child(0); 
+    if (!ret || !result) { 
+        LOG(ERROR) << "getLastAssocReq() failed!"; 
+    } else { 
+        result->detach(); 
+    } 
 
-    return result;
+    return result; 
 }
 
 bool ap_wlan_hal_whm::process_radio_event(const std::string &interface, const std::string &key,
