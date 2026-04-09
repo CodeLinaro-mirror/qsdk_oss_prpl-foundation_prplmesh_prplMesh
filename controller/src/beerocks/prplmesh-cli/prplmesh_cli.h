@@ -90,21 +90,6 @@ public:
                       const std::string &passphrase);
 
     /**
-    * @brief Recursive function that prints the topology of agents.
-    * 
-    * Each agent has a master agent or controller.
-    * The purpose of the recursion is to check if the current agent is the master of another
-    * (compare mac of the current agent and the BackhaulDeviceID of other agents).
-    * If it is equal, display the dependent agent on the console. Use dependent agent as a master now.
-    * If it isn't equal then switch to another agent.
-    * 
-    * @param[in] agent_mac String containing the mac address of master device
-    * @param[in] skip_mac String containing the mac address of the device that should not be printed
-    * @return True on success, false otherwise.
-    */
-    bool print_device_info(std::string agent_mac, std::string skip_mac);
-
-    /**
     * @brief Print information per one Radio.
     * 
     * @param[in] device_path String containing the path to the Device.
