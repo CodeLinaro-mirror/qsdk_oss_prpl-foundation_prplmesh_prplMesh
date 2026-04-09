@@ -171,6 +171,12 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
         set(INCLUDE_DM_MAPPER_CONFIG "include \"dm_mapper_cfg.odl\";")
     endif()
 
+    option(ENABLE_IEEE1905_USP "Publish IEEE1905 data model on USP" ON)
+    if(ENABLE_IEEE1905_USP)
+        message(STATUS "Enable IEEE1905 USP related configuration")
+        set(INCLUDE_IEEE1905_USP_CONFIG "include \"ieee1905_usp_cfg.odl\";")
+    endif()
+
     if (TARGET_PLATFORM_TYPE STREQUAL "ugw")
         add_definitions(-DBEEROCKS_UGW)
         list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")

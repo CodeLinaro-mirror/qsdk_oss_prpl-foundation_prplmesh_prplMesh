@@ -6,17 +6,6 @@
  * See LICENSE file for more details.
  */
 
-%config {
-    %global backends += ["/usr/bin/mods/usp/mod-amxb-usp.so"];
-    %global uris += ["usp:/var/run/usp/broker_controller_path"];
-    %global usp.connect-retry = true;
-    %global usp.register-retry = true;
-    %global usp.registrations += ["Device.IEEE1905."];
-    %global usp.translate += {
-        "'@IEEE1905_ROOT_DM@.'" = "Device.IEEE1905."
-    };
-}
-
 %define {
     /**
      * This object represents the management functions
