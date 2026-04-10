@@ -15,7 +15,10 @@ find_package(amxc REQUIRED)
 find_package(amxd REQUIRED)
 find_package(amxp REQUIRED)
 find_package(amxo REQUIRED)
-target_link_libraries(${PROJECT_NAME} amxb amxc amxd amxp amxo elpp )
+target_link_libraries(${PROJECT_NAME} PRIVATE bcl amxb amxc amxd amxp amxo elpp)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    $<TARGET_PROPERTY:bcl,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
 # Install
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
