@@ -217,14 +217,28 @@ bool prplmesh_cli::print_radio(std::string device_path)
             conn_map.bss_id        = GET_CHAR(bss_obj, "BSSID");
             conn_map.ssid          = GET_CHAR(bss_obj, "SSID");
             const auto vap_id      = GET_INT32(bss_obj, "X_PRPLWARE-COM_VAPID");
+            const auto fronthaul   = GET_BOOL(bss_obj, "FronthaulUse");
+            const auto backhaul    = GET_BOOL(bss_obj, "BackhaulUse");
 
             std::string vap_label = "VAP[" + std::to_string(vap_index) + "]";
             if (has_radio_name && vap_id >= 0) {
                 vap_label = radio_name + "." + std::to_string(vap_id);
             }
 
-            std::cout << space << "\t\t" << vap_label << ": bssid: " << conn_map.bss_id
-                      << ", ssid: " << conn_map.ssid << std::endl;
+            std::string vap_role;
+            if (fronthaul && backhaul) {
+                vap_role = "fVAP+bVAP";
+            } else if (fronthaul) {
+                vap_role = "fVAP";
+            } else if (backhaul) {
+                vap_role = "bVAP";
+            }
+
+            std::cout << space << "\t\t" << vap_label;
+            if (!vap_role.empty()) {
+                std::cout << " (" << vap_role << ")";
+            }
+            std::cout << ": bssid: " << conn_map.bss_id << ", ssid: " << conn_map.ssid << std::endl;
 
             std::string sta_ht_path     = bss_path_i + "STA.*.";
             const amxc_htable_t *ht_sta = m_amx_client->get_htable_object(sta_ht_path);
