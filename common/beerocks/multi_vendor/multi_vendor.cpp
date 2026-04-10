@@ -9,12 +9,17 @@
 #include "multi_vendor.h"
 #include <algorithm>
 #include <chrono>
+#include <cstring>
+#include <tlvf/ieee_1905_1/sVendorOUI.h>
+#include <tlvf/swap.h>
 
 using multi_vendor::tlvf_handler;
 
 // Static storage for handler vectors and synchronization
 std::array<std::vector<tlvf_handler::tlv_function_t>, tlvf_handler::msgTypeCount>
     tlvf_handler::s_handlers;
+std::array<std::vector<tlvf_handler::tlv_parser_function_t>, tlvf_handler::msgTypeCount>
+    tlvf_handler::s_parsers;
 std::mutex tlvf_handler::s_mu;
 
 namespace {
@@ -165,3 +170,134 @@ bool tlvf_handler::add_vs_tlv(ieee1905_1::CmduMessageTx &cmdu_tx, ieee1905_1::eM
 
     return true;
 }
+
+// Register parser
+void tlvf_handler::register_parser(ieee1905_1::eMessageType msg_type, tlv_parser_function_t fn)
+{
+    const std::size_t idx = to_index(msg_type);
+    if (idx == INVALID_INDEX) {
+        LOG(ERROR) << "register_parser: unknown message type " << msg_type;
+        return;
+    }
+
+    std::lock_guard<std::mutex> lk(s_mu);
+    s_parsers[idx].push_back(fn);
+}
+
+// Execute all registered TLV parsers for the given message type
+std::shared_ptr<BaseClass> tlvf_handler::parse_vs_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                                      ieee1905_1::eMessageType msg_type)
+{
+    const std::size_t idx = to_index(msg_type);
+    if (idx == INVALID_INDEX) {
+        LOG(WARNING) << "parse_vs_tlv: no mapping for message type " << msg_type;
+        return nullptr;
+    }
+
+    const std::vector<tlv_parser_function_t> &v = s_parsers[idx];
+    if (v.empty()) {
+        return nullptr;
+    }
+
+    // Try each registered parser in order until one successfully handles the TLV
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        auto parsed_tlv = v[i](cmdu_rx);
+        if (parsed_tlv) {
+            LOG(DEBUG) << "parse_vs_tlv: parser #" << i
+                       << " successfully parsed TLV for message type " << msg_type;
+            return parsed_tlv;
+        }
+    }
+
+    LOG(DEBUG) << "parse_vs_tlv: no parser handled TLV for message type " << msg_type;
+    return nullptr;
+}
+
+bool tlvf_handler::safe_read_vendor_tlv_data(ieee1905_1::CmduMessageRx &cmdu_rx,
+                                             void *vendor_data_out, size_t vendor_data_size,
+                                             size_t vendor_data_offset, uint32_t *oui_out)
+{
+    // Define constants for sizes
+    constexpr size_t tlv_header_size = sizeof(ieee1905_1::sTlvHeader);
+    constexpr size_t oui_size        = sizeof(sVendorOUI);
+
+    // Get the raw buffer pointer to the current TLV
+    uint8_t *tlv_buff = cmdu_rx.getTlvBuffPtr();
+    if (!tlv_buff) {
+        LOG(ERROR) << "safe_read_vendor_tlv_data: Failed to get TLV buffer pointer";
+        return false;
+    }
+
+    // Get total message buffer length
+    size_t total_buff_len = cmdu_rx.getMessageBuffLength();
+
+    // Calculate current offset in buffer
+    uint8_t *msg_buff = cmdu_rx.getMessageBuff();
+    if (!msg_buff) {
+        LOG(ERROR) << "safe_read_vendor_tlv_data: Failed to get message buffer pointer";
+        return false;
+    }
+
+    size_t current_offset = tlv_buff - msg_buff;
+    if (current_offset >= total_buff_len) {
+        LOG(ERROR) << "safe_read_vendor_tlv_data: TLV buffer pointer beyond message buffer";
+        return false;
+    }
+
+    size_t remaining_bytes = total_buff_len - current_offset;
+
+    // Validate minimum TLV header size
+    if (remaining_bytes < tlv_header_size) {
+        LOG(ERROR) << "safe_read_vendor_tlv_data: Insufficient bytes for TLV header: "
+                   << remaining_bytes << " bytes";
+        return false;
+    }
+
+    // Now safe to read the length field
+    const auto *tlv_hdr = reinterpret_cast<const ieee1905_1::sTlvHeader *>(tlv_buff);
+    uint16_t tlv_length = tlv_hdr->length;
+    swap_16(tlv_length);
+
+    // Calculate minimum required length: OUI + vendor_data_offset + vendor_data_size
+    size_t min_vendor_data_len = oui_size + vendor_data_offset + vendor_data_size;
+
+    // Validate the TLV length field
+    if (tlv_length < min_vendor_data_len) {
+        LOG(ERROR) << "safe_read_vendor_tlv_data: TLV length too short: " << tlv_length
+                   << " bytes (need at least " << min_vendor_data_len << ")";
+        return false;
+    }
+
+    // Check if buffer contains the complete TLV: header + data
+    if (remaining_bytes < (tlv_header_size + tlv_length)) {
+        LOG(ERROR) << "safe_read_vendor_tlv_data: Insufficient bytes for complete TLV: need "
+                   << (tlv_header_size + tlv_length) << ", have " << remaining_bytes;
+        return false;
+    }
+
+    // Extract OUI if requested (after TLV header)
+    if (oui_out) {
+        sVendorOUI vendor_oui = *reinterpret_cast<sVendorOUI *>(tlv_buff + tlv_header_size);
+        vendor_oui.struct_swap();
+        *oui_out = vendor_oui;
+    }
+
+    // Extract vendor-specific data if requested (after TLV header + OUI + vendor_data_offset)
+    if (vendor_data_out && vendor_data_size > 0) {
+        size_t data_offset = tlv_header_size + oui_size + vendor_data_offset;
+        std::memcpy(vendor_data_out, tlv_buff + data_offset, vendor_data_size);
+    }
+
+    return true;
+}
+
+// Static initializer to register the vendor TLV parser callback with CmduMessageRx
+namespace {
+struct VendorTlvParserRegistrar {
+    VendorTlvParserRegistrar()
+    {
+        // Register our parse_vs_tlv function as the callback
+        ieee1905_1::CmduMessageRx::setVendorTlvParser(&multi_vendor::tlvf_handler::parse_vs_tlv);
+    }
+} s_vendor_tlv_parser_registrar;
+} // namespace

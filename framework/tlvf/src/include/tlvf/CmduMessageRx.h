@@ -32,7 +32,30 @@ public:
     bool parse();
     CmduMessageRx &operator=(const CmduMessageRx &) = delete;
 
+    // Helper method to get the buffer pointer for the current TLV
+    uint8_t *getTlvBuffPtr() const
+    {
+        return msg.prevClass() ? msg.prevClass()->getBuffPtr() : nullptr;
+    }
+
+    // Method for vendor parsers to add TLV classes to the message
+    template <class T> std::shared_ptr<T> addVendorClass() { return msg.addClass<T>(); }
+
+    // Vendor-specific TLV parser callback type
+    using VendorTlvParserCallback = std::shared_ptr<BaseClass> (*)(CmduMessageRx &cmdu_rx,
+                                                                   eMessageType msg_type);
+
+    // Set vendor-specific TLV parser callback (called by multi_vendor framework)
+    static void setVendorTlvParser(VendorTlvParserCallback callback)
+    {
+        s_vendor_tlv_parser = callback;
+    }
+
+    // Get vendor-specific TLV parser callback
+    static VendorTlvParserCallback getVendorTlvParser() { return s_vendor_tlv_parser; }
+
 private:
+    static VendorTlvParserCallback s_vendor_tlv_parser;
     int getNextTlvType() const;
     uint16_t getNextTlvLength() const;
     /*
