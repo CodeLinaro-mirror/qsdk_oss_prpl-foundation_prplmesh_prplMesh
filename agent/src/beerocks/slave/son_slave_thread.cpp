@@ -5142,6 +5142,7 @@ bool slave_thread::send_cmdu_to_controller(const std::string &fronthaul_iface,
         beerocks_header->actionhdr()->direction() = beerocks::BEEROCKS_DIRECTION_CONTROLLER;
     }
 
+    const auto src_addr = db->bridge.mac;
     sMacAddr dst_addr;
     switch (cmdu_tx.getMessageType()) {
     case ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE:
@@ -5154,7 +5155,21 @@ bool slave_thread::send_cmdu_to_controller(const std::string &fronthaul_iface,
         break;
     }
 
-    return m_broker_client->send_cmdu(cmdu_tx, dst_addr, db->bridge.mac);
+    if (dst_addr == network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping CMDU type=0x" << std::hex << int(cmdu_tx.getMessageType())
+                     << std::dec << " on iface=" << fronthaul_iface
+                     << ": destination MAC address is empty";
+        return false;
+    }
+
+    if (src_addr == network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping CMDU type=0x" << std::hex << int(cmdu_tx.getMessageType())
+                     << std::dec << " on iface=" << fronthaul_iface
+                     << ": source MAC address is empty";
+        return false;
+    }
+
+    return m_broker_client->send_cmdu(cmdu_tx, dst_addr, src_addr);
 }
 
 void slave_thread::fsm_stop() { m_agent_state = STATE_STOPPED; }
@@ -5171,9 +5186,11 @@ bool slave_thread::forward_cmdu_to_uds(int fd, ieee1905_1::CmduMessageRx &cmdu_r
 
 bool slave_thread::forward_cmdu_to_controller(ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    auto db = AgentDB::get();
+    auto db                 = AgentDB::get();
+    const auto message_type = cmdu_rx.getMessageType();
+    const auto src_addr     = db->bridge.mac;
     sMacAddr dst_addr;
-    switch (cmdu_tx.getMessageType()) {
+    switch (message_type) {
     case ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE:
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE:
     case ieee1905_1::eMessageType::ASSOCIATION_STATUS_NOTIFICATION_MESSAGE:
@@ -5184,7 +5201,19 @@ bool slave_thread::forward_cmdu_to_controller(ieee1905_1::CmduMessageRx &cmdu_rx
         break;
     }
 
-    return m_broker_client->forward_cmdu(cmdu_rx, dst_addr, db->bridge.mac);
+    if (dst_addr == network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping forwarded CMDU type=0x" << std::hex << int(message_type)
+                     << std::dec << " on iface=<unknown>: destination MAC address is empty";
+        return false;
+    }
+
+    if (src_addr == network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Dropping forwarded CMDU type=0x" << std::hex << int(message_type)
+                     << std::dec << " on iface=<unknown>: source MAC address is empty";
+        return false;
+    }
+
+    return m_broker_client->forward_cmdu(cmdu_rx, dst_addr, src_addr);
 }
 
 bool slave_thread::handle_client_association_request(ieee1905_1::CmduMessageRx &cmdu_rx)
