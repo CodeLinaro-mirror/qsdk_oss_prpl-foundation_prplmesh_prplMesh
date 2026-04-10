@@ -479,7 +479,9 @@ bool db::dm_add_radio_element(Agent::sRadio &radio, Agent &agent)
         }
     }
 
-    return m_ambiorix_datamodel->set(radio.dm_path, "ID", radio.radio_uid);
+    bool ret = m_ambiorix_datamodel->set(radio.dm_path, "ID", radio.radio_uid);
+    ret &= m_ambiorix_datamodel->set(radio.dm_path, "X_PRPLWARE-COM_Name", radio.iface_name);
+    return ret;
 }
 
 bool db::dm_set_multi_ap_sta_noise_param(Station &station, const uint8_t rcpi, const uint8_t rsni)
@@ -3135,6 +3137,15 @@ bool db::set_radio_iface_name(const sMacAddr &mac, const std::string &iface_name
     }
 
     radio->iface_name = iface_name;
+
+    if (!radio->dm_path.empty()) {
+        if (!m_ambiorix_datamodel->set(radio->dm_path, "X_PRPLWARE-COM_Name", radio->iface_name)) {
+            LOG(ERROR) << "Failed to set " << radio->dm_path
+                       << ".X_PRPLWARE-COM_Name: " << radio->iface_name;
+            return false;
+        }
+    }
+
     return true;
 }
 

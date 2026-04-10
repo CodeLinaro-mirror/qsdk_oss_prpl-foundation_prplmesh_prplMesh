@@ -34,10 +34,10 @@ struct conn_map_device_t {
     std::string link_type;
 };
 
-void print_conn_map_subtree(
-    prplmesh_cli &cli, const std::map<std::string, conn_map_device_t> &devices_by_id,
-    const std::multimap<std::string, std::string> &children_by_parent, const std::string &parent_id,
-    const std::string &indent)
+void print_conn_map_subtree(prplmesh_cli &cli,
+                            const std::map<std::string, conn_map_device_t> &devices_by_id,
+                            const std::multimap<std::string, std::string> &children_by_parent,
+                            const std::string &parent_id, const std::string &indent)
 {
     auto range = children_by_parent.equal_range(parent_id);
     for (auto child_it = range.first; child_it != range.second; ++child_it) {
@@ -49,8 +49,9 @@ void print_conn_map_subtree(
         const auto &device = device_it->second;
 
         conn_map.device_index++;
-        std::cout << indent << "Device[" << conn_map.device_index << "]: name: Agent, mac: "
-                  << device.id << " LinkType: " << device.link_type << std::endl;
+        std::cout << indent << "Device[" << conn_map.device_index
+                  << "]: name: Agent, mac: " << device.id << " LinkType: " << device.link_type
+                  << std::endl;
 
         space = indent;
         cli.print_radio(device.dm_path);
@@ -156,6 +157,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
         const char *radio_key     = amxc_htable_it_get_key(radio_it);
         std::string radio_path_i  = std::string(radio_key);
         amxc_var_t *radio_obj     = amxc_var_from_htable_it(radio_it);
+        std::string radio_name    = GET_CHAR(radio_obj, "X_PRPLWARE-COM_Name");
         std::string curr_op_class = radio_path_i + "CurrentOperatingClassProfile." + "*.";
         amxc_var_t *op_class_obj  = m_amx_client->get_object(curr_op_class);
         conn_map.radio_id         = GET_CHAR(radio_obj, "ID");
@@ -163,7 +165,11 @@ bool prplmesh_cli::print_radio(std::string device_path)
         conn_map.oper_class       = GET_UINT32(op_class_obj, "Class");
         float freq                = get_freq_from_class(conn_map.oper_class);
 
-        std::cout << space << "\tRADIO[" << radio_index << "]: mac: " << conn_map.radio_id
+        const std::string radio_label = radio_name.empty()
+                                            ? "RADIO[" + std::to_string(radio_index) + "]"
+                                            : "RADIO: " + radio_name;
+
+        std::cout << space << "\t" << radio_label << " mac: " << conn_map.radio_id
                   << ", ch: " << conn_map.channel << ", freq: " << freq << "GHz" << std::endl;
 
         std::string bss_ht_path     = radio_path_i + "BSS.*.";
@@ -235,13 +241,13 @@ bool prplmesh_cli::prpl_conn_map()
         std::string device_id   = GET_CHAR(device_obj, "ID");
 
         conn_map_device_t device;
-        device.dm_path   = device_path;
-        device.id        = device_id;
+        device.dm_path = device_path;
+        device.id      = device_id;
 
-        auto backhaul_path = device_path + "MultiAPDevice.Backhaul.";
-        auto backhaul_obj  = m_amx_client->get_object(backhaul_path);
-        device.parent_id   = GET_CHAR(backhaul_obj, "BackhaulDeviceID");
-        device.link_type   = GET_CHAR(backhaul_obj, "LinkType");
+        auto backhaul_path       = device_path + "MultiAPDevice.Backhaul.";
+        auto backhaul_obj        = m_amx_client->get_object(backhaul_path);
+        device.parent_id         = GET_CHAR(backhaul_obj, "BackhaulDeviceID");
+        device.link_type         = GET_CHAR(backhaul_obj, "LinkType");
         devices_by_id[device.id] = device;
 
         if (!device.parent_id.empty()) {
