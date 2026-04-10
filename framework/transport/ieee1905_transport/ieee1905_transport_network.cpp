@@ -26,6 +26,18 @@ namespace transport {
 // Use transport messaging classes
 using namespace beerocks::transport::messages;
 
+namespace {
+constexpr uint16_t ieee_8021q_protocol_id  = 0x8100;
+constexpr uint16_t ieee_8021ad_protocol_id = 0x88a8;
+constexpr uint16_t ieee_8021ah_protocol_id = 0x9100;
+
+bool is_vlan_protocol(uint16_t ether_type)
+{
+    return ether_type == ieee_8021q_protocol_id || ether_type == ieee_8021ad_protocol_id ||
+           ether_type == ieee_8021ah_protocol_id;
+}
+} // namespace
+
 void Ieee1905Transport::update_network_interfaces(
     const std::map<std::string, NetworkInterface> &added_updated_network_interfaces,
     const std::map<std::string, NetworkInterface> &removed_network_interfaces)
@@ -246,29 +258,42 @@ bool Ieee1905Transport::attach_interface_socket_filter(NetworkInterface &interfa
     // - IEEE1905 unicast packets (with either this devices' AL MAC address or the interface's HW address set as destination address)
     //
     // BPF template is generated using the following command:
-    // tcpdump -dd '(ether proto 0x893a and (ether dst 01:80:c2:00:00:13 or ether dst 11:22:33:44:55:66 or ether dst 77:88:99:aa:bb:cc)) or (ether proto 0x88cc and ether dst 01:80:c2:00:00:0e)'
+    // tcpdump -dd '((ether proto 0x893a and (ether dst 01:80:c2:00:00:13 or ether dst 11:22:33:44:55:66 or ether dst 77:88:99:aa:bb:cc)) or (ether proto 0x88cc and ether dst 01:80:c2:00:00:0e)) or ((vlan and ether proto 0x893a) and (ether dst 01:80:c2:00:00:13 or ether dst 11:22:33:44:55:66 or ether dst 77:88:99:aa:bb:cc)) or ((vlan and ether proto 0x88cc) and ether dst 01:80:c2:00:00:0e)'
     //
-    // The two dummy addresses in this filter 11:22... and 77:88... will be replaced in runtime with the AL MAC address and the interface's HW address
-    struct sock_filter code[17] = {
-        {0x28, 0, 0, 0x0000000c}, {0x15, 0, 8, 0x0000893a}, {0x20, 0, 0, 0x00000002},
-        {0x15, 9, 0, 0xc2000013}, {0x15, 0, 2, 0x33445566}, // 4: replace with AL MAC Addr [2..5]
-        {0x28, 0, 0, 0x00000000}, {0x15, 8, 9, 0x00001122}, // 6: replace with AL MAC Addr [0..1]
-        {0x15, 0, 8, 0x99aabbcc},                           // 7: replace with IF MAC Addr [2..5]
-        {0x28, 0, 0, 0x00000000}, {0x15, 5, 6, 0x00007788}, // 9: replace with IF MAC Addr [0..1]
-        {0x15, 0, 5, 0x000088cc}, {0x20, 0, 0, 0x00000002}, {0x15, 0, 3, 0xc200000e},
-        {0x28, 0, 0, 0x00000000}, {0x15, 0, 1, 0x00000180}, {0x6, 0, 0, 0x0000ffff},
-        {0x6, 0, 0, 0x00000000},
+    // The two dummy addresses in this filter 11:22... and 77:88... will be replaced in runtime
+    // with the AL MAC address and the interface's HW address.
+    // It accepts both plain and single-tag VLAN 1905/LLDP frames.
+    struct sock_filter code[40] = {
+        {0x28, 0, 0, 0x0000000c},  {0x15, 0, 8, 0x0000893a},   {0x20, 0, 0, 0x00000002},
+        {0x15, 9, 0, 0xc2000013},  {0x15, 0, 2, 0x33445566},   // 4: replace with AL MAC [2..5]
+        {0x28, 0, 0, 0x00000000},  {0x15, 31, 21, 0x00001122}, // 6: replace with AL MAC [0..1]
+        {0x15, 0, 20, 0x99aabbcc},                             // 7: replace with IF MAC [2..5]
+        {0x28, 0, 0, 0x00000000},  {0x15, 28, 18, 0x00007788}, // 9: replace with IF MAC [0..1]
+        {0x15, 0, 4, 0x000088cc},  {0x20, 0, 0, 0x00000002},   {0x15, 0, 15, 0xc200000e},
+        {0x28, 0, 0, 0x00000000},  {0x15, 23, 13, 0x00000180}, {0x15, 2, 0, 0x00008100},
+        {0x15, 1, 0, 0x000088a8},  {0x15, 0, 10, 0x00009100},  {0x28, 0, 0, 0x00000010},
+        {0x15, 0, 8, 0x0000893a},  {0x20, 0, 0, 0x00000002},   {0x15, 14, 0, 0xc2000013},
+        {0x15, 0, 2, 0x33445566},                              // 22: replace with AL MAC [2..5]
+        {0x28, 0, 0, 0x00000000},  {0x15, 13, 14, 0x00001122}, // 24: replace with AL MAC [0..1]
+        {0x15, 0, 13, 0x99aabbcc},                             // 25: replace with IF MAC [2..5]
+        {0x28, 0, 0, 0x00000000},  {0x15, 10, 11, 0x00007788}, // 27: replace with IF MAC [0..1]
+        {0x28, 0, 0, 0x00000010},  {0x15, 2, 0, 0x00008100},   {0x15, 1, 0, 0x000088a8},
+        {0x15, 0, 7, 0x00009100},  {0x28, 0, 0, 0x00000014},   {0x15, 0, 5, 0x000088cc},
+        {0x20, 0, 0, 0x00000002},  {0x15, 0, 3, 0xc200000e},   {0x28, 0, 0, 0x00000000},
+        {0x15, 0, 1, 0x00000180},  {0x6, 0, 0, 0x00040000},    {0x6, 0, 0, 0x00000000},
     };
 
-    // Replace dummy values with AL MAC
-    code[4].k = (uint32_t(al_mac_addr_[2]) << 24) | (uint32_t(al_mac_addr_[3]) << 16) |
-                (uint32_t(al_mac_addr_[4]) << 8) | (uint32_t(al_mac_addr_[5]));
-    code[6].k = (uint32_t(al_mac_addr_[0]) << 8) | (uint32_t(al_mac_addr_[1]));
+    auto patch_mac_filter = [&code](size_t lower_4_bytes_index, size_t upper_2_bytes_index,
+                                    const uint8_t *addr) {
+        code[lower_4_bytes_index].k = (uint32_t(addr[2]) << 24) | (uint32_t(addr[3]) << 16) |
+                                      (uint32_t(addr[4]) << 8) | (uint32_t(addr[5]));
+        code[upper_2_bytes_index].k = (uint32_t(addr[0]) << 8) | (uint32_t(addr[1]));
+    };
 
-    // Replace dummy values with the Interface MAC
-    code[7].k = (uint32_t(interface.addr[2]) << 24) | (uint32_t(interface.addr[3]) << 16) |
-                (uint32_t(interface.addr[4]) << 8) | (uint32_t(interface.addr[5]));
-    code[9].k = (uint32_t(interface.addr[0]) << 8) | (uint32_t(interface.addr[1]));
+    patch_mac_filter(4, 6, al_mac_addr_);
+    patch_mac_filter(7, 9, interface.addr);
+    patch_mac_filter(22, 24, al_mac_addr_);
+    patch_mac_filter(25, 27, interface.addr);
 
     // BPF filter structure
     struct sock_fprog bpf = {.len = (sizeof(code) / sizeof((code)[0])), .filter = code};
@@ -421,8 +446,6 @@ void Ieee1905Transport::handle_interface_pollin_event(int fd)
         return;
     }
 
-    // Note to developer: add support for VLAN ethernet header (if required)?
-
     uint8_t buf[ETH_FRAME_LEN];
     struct sockaddr_ll addr;
     socklen_t addr_len = sizeof(addr);
@@ -445,8 +468,22 @@ void Ieee1905Transport::handle_interface_pollin_event(int fd)
         len = sizeof(buf);
     }
 
+    auto eh           = reinterpret_cast<struct ether_header *>(buf);
+    auto ether_type   = ntohs(eh->ether_type);
+    size_t header_len = sizeof(struct ether_header);
+
+    if (is_vlan_protocol(ether_type)) {
+        if (len < (ssize_t)sizeof(struct ether_header_vlan)) {
+            MAPF_WARN("received packet smaller than vlan ethernet header size (dropped).");
+            return;
+        }
+
+        auto eh_vlan = reinterpret_cast<struct ether_header_vlan *>(buf);
+        ether_type   = ntohs(eh_vlan->ether_type);
+        header_len   = sizeof(struct ether_header_vlan);
+    }
+
     // convert packet to internal data structure for further handling
-    struct ether_header *eh = (struct ether_header *)buf;
     struct Packet packet;
     packet.dst_if_type  = CmduRxMessage::IF_TYPE_NONE;
     packet.dst_if_index = 0;
@@ -454,10 +491,9 @@ void Ieee1905Transport::handle_interface_pollin_event(int fd)
     packet.src_if_index = (unsigned int)addr.sll_ifindex;
     packet.dst          = tlvf::mac_from_array(eh->ether_dhost);
     packet.src          = tlvf::mac_from_array(eh->ether_shost);
-    packet.ether_type   = ntohs(eh->ether_type);
-    packet.header       = {.iov_base = buf, .iov_len = sizeof(struct ether_header)};
-    packet.payload      = {.iov_base = buf + sizeof(struct ether_header),
-                      .iov_len  = len - sizeof(struct ether_header)};
+    packet.ether_type   = ether_type;
+    packet.header       = {.iov_base = buf, .iov_len = header_len};
+    packet.payload      = {.iov_base = buf + header_len, .iov_len = len - header_len};
 
     counters_[CounterId::INCOMMING_NETWORK_PACKETS]++;
     handle_packet(packet);
@@ -500,11 +536,6 @@ bool Ieee1905Transport::get_interface_mac_addr(unsigned int if_index, uint8_t *a
     return true;
 }
 
-static inline uint16_t build_tci(uint16_t vid, uint8_t dei, uint8_t pcp)
-{
-    return uint16_t(((pcp & 0x7) << 13) | ((dei & 0x1) << 12) | (vid & 0x0FFF));
-}
-
 bool Ieee1905Transport::send_packet_to_network_interface(unsigned int if_index, Packet &packet)
 {
     std::string ifname = if_index2name(if_index);
@@ -526,26 +557,15 @@ bool Ieee1905Transport::send_packet_to_network_interface(unsigned int if_index, 
 
     counters_[CounterId::OUTGOING_NETWORK_PACKETS]++;
 
-    uint8_t eh_buffer[sizeof(ether_header_vlan)];
-    uint8_t size;
-
-    if (ETHER_IS_MULTICAST(packet.dst.oct) && traffic_separation_enabled_) {
-        auto eh = reinterpret_cast<ether_header_vlan *>(eh_buffer);
-        size    = sizeof(ether_header_vlan);
-        tlvf::mac_to_array(packet.dst, eh->ether_dhost);
-        tlvf::mac_to_array(packet.src, eh->ether_shost);
-        eh->tpid       = htons(ieee_8021q_protocol_id);
-        eh->tci        = htons(build_tci(primary_vlan_id_, 0, 0));
-        eh->ether_type = htons(packet.ether_type);
-        packet.header  = {.iov_base = eh, .iov_len = size};
-    } else {
-        auto eh = reinterpret_cast<struct ether_header *>(eh_buffer);
-        size    = sizeof(struct ether_header);
-        tlvf::mac_to_array(packet.dst, eh->ether_dhost);
-        tlvf::mac_to_array(packet.src, eh->ether_shost);
-        eh->ether_type = htons(packet.ether_type);
-        packet.header  = {.iov_base = eh, .iov_len = size};
-    }
+    // Traffic separation is handled by the selected egress interface, so raw
+    // TX must not add a VLAN tag here.
+    uint8_t eh_buffer[sizeof(struct ether_header)];
+    auto size = sizeof(struct ether_header);
+    auto eh   = reinterpret_cast<struct ether_header *>(eh_buffer);
+    tlvf::mac_to_array(packet.dst, eh->ether_dhost);
+    tlvf::mac_to_array(packet.src, eh->ether_shost);
+    eh->ether_type = htons(packet.ether_type);
+    packet.header  = {.iov_base = eh, .iov_len = size};
 
     int fd             = network_interfaces_[ifname].fd->getSocketFd();
     struct iovec iov[] = {packet.header, packet.payload};
@@ -574,19 +594,6 @@ void Ieee1905Transport::set_al_mac_addr(const uint8_t *addr)
         if (network_interface.fd) {
             attach_interface_socket_filter(network_interface);
         }
-    }
-}
-
-void Ieee1905Transport::set_primary_vlan_id(const uint16_t vlan_id, bool add)
-{
-    if (add) {
-        if (!vlan_id)
-            return;
-        traffic_separation_enabled_ = true;
-        primary_vlan_id_            = vlan_id;
-    } else {
-        traffic_separation_enabled_ = false;
-        primary_vlan_id_            = 0;
     }
 }
 

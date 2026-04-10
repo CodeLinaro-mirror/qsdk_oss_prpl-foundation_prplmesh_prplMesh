@@ -145,10 +145,6 @@ private:
     uint16_t message_id_           = 0;
     uint8_t al_mac_addr_[ETH_ALEN] = {0};
 
-    // Primary VLAN Identifier to be added for IEEE 1905 Multicast packets
-    uint16_t primary_vlan_id_        = 0;
-    bool traffic_separation_enabled_ = false;
-
     // Bridge name that the transport monitors
     std::string bridge_name_;
 
@@ -403,7 +399,6 @@ private:
     bool get_interface_mac_addr(unsigned int if_index, uint8_t *addr);
     bool send_packet_to_network_interface(unsigned int if_index, Packet &packet);
     void set_al_mac_addr(const uint8_t *addr);
-    void set_primary_vlan_id(const uint16_t primary_vlan_id, bool add);
 
     //
     // BROKER STUFF
