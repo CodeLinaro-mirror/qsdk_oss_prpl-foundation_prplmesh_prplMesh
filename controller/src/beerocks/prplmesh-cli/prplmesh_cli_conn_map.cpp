@@ -8,6 +8,9 @@
 
 #include "prplmesh_cli.h"
 
+#include <bcl/beerocks_utils.h>
+#include <bcl/son/son_wireless_utils.h>
+
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <netinet/in.h>
@@ -33,6 +36,79 @@ struct conn_map_device_t {
     std::string parent_id;
     std::string link_type;
 };
+
+struct selected_radio_profile_t {
+    uint32_t primary_channel           = 0;
+    beerocks::eWiFiBandwidth bandwidth = beerocks::BANDWIDTH_UNKNOWN;
+    beerocks::eFreqType freq_type      = beerocks::FREQ_UNKNOWN;
+};
+
+int bandwidth_rank(beerocks::eWiFiBandwidth bandwidth)
+{
+    switch (bandwidth) {
+    case beerocks::BANDWIDTH_20:
+        return 1;
+    case beerocks::BANDWIDTH_40:
+        return 2;
+    case beerocks::BANDWIDTH_80:
+        return 3;
+    case beerocks::BANDWIDTH_160:
+        return 4;
+    case beerocks::BANDWIDTH_320:
+    case beerocks::BANDWIDTH_320_1:
+    case beerocks::BANDWIDTH_320_2:
+        return 5;
+    default:
+        return 0;
+    }
+}
+
+selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient &amx_client,
+                                              const std::string &radio_path)
+{
+    selected_radio_profile_t selected_profile;
+    std::string curr_op_class_path = radio_path + "CurrentOperatingClassProfile.*.";
+    const amxc_htable_t *ht_op     = amx_client.get_htable_object(curr_op_class_path);
+
+    uint32_t primary_op_class                  = 0;
+    beerocks::eWiFiBandwidth highest_bandwidth = beerocks::BANDWIDTH_UNKNOWN;
+    beerocks::eFreqType highest_freq_type      = beerocks::FREQ_UNKNOWN;
+
+    amxc_htable_iterate(op_it, ht_op)
+    {
+        amxc_var_t *op_obj = amxc_var_from_htable_it(op_it);
+        auto channel       = GET_UINT32(op_obj, "Channel");
+        auto op_class      = GET_UINT32(op_obj, "Class");
+
+        if (channel == 0 || op_class == 0) {
+            continue;
+        }
+
+        auto bandwidth =
+            son::wireless_utils::get_bandwidth_from_channel_and_op_class(channel, op_class);
+        auto freq_type = son::wireless_utils::which_freq_op_cls(op_class);
+        if (bandwidth == beerocks::BANDWIDTH_UNKNOWN || freq_type == beerocks::FREQ_UNKNOWN) {
+            continue;
+        }
+
+        if (selected_profile.primary_channel == 0 ||
+            bandwidth_rank(bandwidth) <
+                bandwidth_rank(son::wireless_utils::get_bandwidth_from_channel_and_op_class(
+                    selected_profile.primary_channel, primary_op_class))) {
+            selected_profile.primary_channel = channel;
+            primary_op_class                 = op_class;
+        }
+
+        if (bandwidth_rank(bandwidth) > bandwidth_rank(highest_bandwidth)) {
+            highest_bandwidth = bandwidth;
+            highest_freq_type = freq_type;
+        }
+    }
+
+    selected_profile.bandwidth = highest_bandwidth;
+    selected_profile.freq_type = highest_freq_type;
+    return selected_profile;
+}
 
 void print_conn_map_subtree(prplmesh_cli &cli,
                             const std::map<std::string, conn_map_device_t> &devices_by_id,
@@ -87,65 +163,6 @@ bool prplmesh_cli::get_ip_from_iface(const std::string &iface, std::string &ip)
     return true;
 }
 
-float prplmesh_cli::get_freq_from_class(const uint32_t oper_class)
-{
-    float freq;
-
-    if ((oper_class >= 1 && oper_class <= 5)) {
-        freq = 0.902;
-    } else if (oper_class == 6 || oper_class == 17 || oper_class == 19 ||
-               (oper_class >= 66 && oper_class <= 67)) {
-        freq = 0.863;
-    } else if (oper_class == 8 || oper_class == 73) {
-        freq = 0.9165;
-    } else if ((oper_class >= 14 && oper_class <= 16) || (oper_class >= 73 && oper_class <= 76)) {
-        freq = 0.9175;
-    } else if (oper_class == 18 || (oper_class >= 20 && oper_class <= 29) ||
-               (oper_class >= 68 && oper_class <= 72)) {
-        freq = 0.902;
-    } else if (oper_class == 30 || oper_class == 77) {
-        freq = 0.9014;
-    } else if (oper_class == 81 || oper_class == 83 || oper_class == 84) {
-        freq = 2.407;
-    } else if (oper_class == 82) {
-        freq = 2.414;
-    } else if ((oper_class >= 94 && oper_class <= 95) || (oper_class >= 109 && oper_class <= 110)) {
-        freq = 3.00;
-    } else if (oper_class == 96) {
-        freq = 3.0025;
-    } else if (oper_class == 101) {
-        freq = 4.85;
-    } else if (oper_class == 102) {
-        freq = 4.89;
-    } else if (oper_class == 103) {
-        freq = 4.9375;
-    } else if (oper_class >= 104 && oper_class <= 107) {
-        freq = 4.00;
-    } else if (oper_class == 108 || oper_class == 111) {
-        freq = 4.0025;
-    } else if (oper_class >= 115 && oper_class <= 130) {
-        freq = 5.00;
-    } else if (oper_class >= 131 && oper_class <= 136) {
-        freq = 6.00;
-    } else if (oper_class >= 180 && oper_class <= 181) {
-        freq = 56.16;
-    } else if (oper_class == 182) {
-        freq = 56.70;
-    } else if (oper_class == 183) {
-        freq = 42.66;
-    } else if (oper_class == 184) {
-        freq = 47.52;
-    } else if (oper_class == 185) {
-        freq = 42.93;
-    } else if (oper_class == 186) {
-        freq = 47.79;
-    } else {
-        freq = 0.00;
-    }
-
-    return freq;
-}
-
 bool prplmesh_cli::print_radio(std::string device_path)
 {
     std::string radio_ht_path     = device_path + "Radio.*.";
@@ -154,23 +171,32 @@ bool prplmesh_cli::print_radio(std::string device_path)
 
     amxc_htable_iterate(radio_it, ht_radio)
     {
-        const char *radio_key     = amxc_htable_it_get_key(radio_it);
-        std::string radio_path_i  = std::string(radio_key);
-        amxc_var_t *radio_obj     = amxc_var_from_htable_it(radio_it);
-        std::string radio_name    = GET_CHAR(radio_obj, "X_PRPLWARE-COM_Name");
-        std::string curr_op_class = radio_path_i + "CurrentOperatingClassProfile." + "*.";
-        amxc_var_t *op_class_obj  = m_amx_client->get_object(curr_op_class);
-        conn_map.radio_id         = GET_CHAR(radio_obj, "ID");
-        conn_map.channel          = GET_UINT32(op_class_obj, "Channel");
-        conn_map.oper_class       = GET_UINT32(op_class_obj, "Class");
-        float freq                = get_freq_from_class(conn_map.oper_class);
+        const char *radio_key    = amxc_htable_it_get_key(radio_it);
+        std::string radio_path_i = std::string(radio_key);
+        amxc_var_t *radio_obj    = amxc_var_from_htable_it(radio_it);
+        std::string radio_name   = GET_CHAR(radio_obj, "X_PRPLWARE-COM_Name");
+        conn_map.radio_id        = GET_CHAR(radio_obj, "ID");
 
-        const std::string radio_label = radio_name.empty()
-                                            ? "RADIO[" + std::to_string(radio_index) + "]"
-                                            : "RADIO: " + radio_name;
+        auto selected_profile = select_radio_profile(*m_amx_client, radio_path_i);
+        conn_map.channel      = selected_profile.primary_channel;
+        uint16_t freq         = 0;
+        if (selected_profile.primary_channel != 0 &&
+            selected_profile.freq_type != beerocks::FREQ_UNKNOWN) {
+            freq = son::wireless_utils::channel_to_freq(int(selected_profile.primary_channel),
+                                                        selected_profile.freq_type);
+        }
+
+        const bool has_radio_name = !radio_name.empty() && radio_name != "N/A";
+        const std::string radio_label =
+            !has_radio_name ? "RADIO[" + std::to_string(radio_index) + "]" : "RADIO: " + radio_name;
 
         std::cout << space << "\t" << radio_label << " mac: " << conn_map.radio_id
-                  << ", ch: " << conn_map.channel << ", freq: " << freq << "GHz" << std::endl;
+                  << ", ch: " << conn_map.channel;
+        if (selected_profile.bandwidth != beerocks::BANDWIDTH_UNKNOWN) {
+            std::cout << ", bw: "
+                      << beerocks::utils::convert_bandwidth_to_string(selected_profile.bandwidth);
+        }
+        std::cout << ", freq: " << freq << "MHz" << std::endl;
 
         std::string bss_ht_path     = radio_path_i + "BSS.*.";
         const amxc_htable_t *ht_bss = m_amx_client->get_htable_object(bss_ht_path);

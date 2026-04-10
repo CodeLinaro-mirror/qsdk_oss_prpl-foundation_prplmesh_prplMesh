@@ -114,16 +114,6 @@ public:
     */
     bool print_status(const std::string &format);
 
-    /**
-    * @brief Get frequency using operating classes.
-    * 
-    * IEEE Std 802.11™‐2020 - Global operating classes
-    * 
-    * @param[in] oper_class uint32_t operating class value.
-    * @return freq on success, 0 otherwise.
-    */
-    float get_freq_from_class(const uint32_t oper_class);
-
     std::shared_ptr<beerocks::prplmesh_amx::AmxClient> m_amx_client;
 
     typedef struct conn_map_t {
