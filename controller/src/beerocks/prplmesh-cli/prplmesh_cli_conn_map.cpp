@@ -35,6 +35,7 @@ struct conn_map_device_t {
     std::string id;
     std::string parent_id;
     std::string link_type;
+    std::string backhaul_mac;
 };
 
 struct selected_radio_profile_t {
@@ -123,6 +124,12 @@ void print_conn_map_subtree(prplmesh_cli &cli,
         }
 
         const auto &device = device_it->second;
+
+        if (device.link_type == "Ethernet" && !device.backhaul_mac.empty()) {
+            std::cout << indent << "Eth_BACKHAUL: mac: " << device.backhaul_mac << std::endl;
+        } else if (device.link_type == "Wi-Fi" && !device.backhaul_mac.empty()) {
+            std::cout << indent << "WiFi_BACKHAUL: mac: " << device.backhaul_mac << std::endl;
+        }
 
         conn_map.device_index++;
         std::cout << indent << "Device[" << conn_map.device_index
@@ -274,6 +281,7 @@ bool prplmesh_cli::prpl_conn_map()
         auto backhaul_obj        = m_amx_client->get_object(backhaul_path);
         device.parent_id         = GET_CHAR(backhaul_obj, "BackhaulDeviceID");
         device.link_type         = GET_CHAR(backhaul_obj, "LinkType");
+        device.backhaul_mac      = GET_CHAR(backhaul_obj, "BackhaulMACAddress");
         devices_by_id[device.id] = device;
 
         if (!device.parent_id.empty()) {
