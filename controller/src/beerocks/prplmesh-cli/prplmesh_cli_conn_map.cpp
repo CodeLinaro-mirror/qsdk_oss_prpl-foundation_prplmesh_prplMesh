@@ -69,40 +69,46 @@ selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient 
 {
     selected_radio_profile_t selected_profile;
     std::string curr_op_class_path = radio_path + "CurrentOperatingClassProfile.*.";
-    const amxc_htable_t *ht_op     = amx_client.get_htable_object(curr_op_class_path);
+    const amxc_htable_t *ht_op     = nullptr;
+    beerocks::prplmesh_amx::AmxResult op_result;
+    if (amx_client.get_htable_object(curr_op_class_path, op_result)) {
+        ht_op = op_result.htable();
+    }
 
     uint32_t primary_op_class                  = 0;
     beerocks::eWiFiBandwidth highest_bandwidth = beerocks::BANDWIDTH_UNKNOWN;
     beerocks::eFreqType highest_freq_type      = beerocks::FREQ_UNKNOWN;
 
-    amxc_htable_iterate(op_it, ht_op)
-    {
-        amxc_var_t *op_obj = amxc_var_from_htable_it(op_it);
-        auto channel       = GET_UINT32(op_obj, "Channel");
-        auto op_class      = GET_UINT32(op_obj, "Class");
+    if (ht_op) {
+        amxc_htable_iterate(op_it, ht_op)
+        {
+            amxc_var_t *op_obj = amxc_var_from_htable_it(op_it);
+            auto channel       = GET_UINT32(op_obj, "Channel");
+            auto op_class      = GET_UINT32(op_obj, "Class");
 
-        if (channel == 0 || op_class == 0) {
-            continue;
-        }
+            if (channel == 0 || op_class == 0) {
+                continue;
+            }
 
-        auto bandwidth =
-            son::wireless_utils::get_bandwidth_from_channel_and_op_class(channel, op_class);
-        auto freq_type = son::wireless_utils::which_freq_op_cls(op_class);
-        if (bandwidth == beerocks::BANDWIDTH_UNKNOWN || freq_type == beerocks::FREQ_UNKNOWN) {
-            continue;
-        }
+            auto bandwidth =
+                son::wireless_utils::get_bandwidth_from_channel_and_op_class(channel, op_class);
+            auto freq_type = son::wireless_utils::which_freq_op_cls(op_class);
+            if (bandwidth == beerocks::BANDWIDTH_UNKNOWN || freq_type == beerocks::FREQ_UNKNOWN) {
+                continue;
+            }
 
-        if (selected_profile.primary_channel == 0 ||
-            bandwidth_rank(bandwidth) <
-                bandwidth_rank(son::wireless_utils::get_bandwidth_from_channel_and_op_class(
-                    selected_profile.primary_channel, primary_op_class))) {
-            selected_profile.primary_channel = channel;
-            primary_op_class                 = op_class;
-        }
+            if (selected_profile.primary_channel == 0 ||
+                bandwidth_rank(bandwidth) <
+                    bandwidth_rank(son::wireless_utils::get_bandwidth_from_channel_and_op_class(
+                        selected_profile.primary_channel, primary_op_class))) {
+                selected_profile.primary_channel = channel;
+                primary_op_class                 = op_class;
+            }
 
-        if (bandwidth_rank(bandwidth) > bandwidth_rank(highest_bandwidth)) {
-            highest_bandwidth = bandwidth;
-            highest_freq_type = freq_type;
+            if (bandwidth_rank(bandwidth) > bandwidth_rank(highest_bandwidth)) {
+                highest_bandwidth = bandwidth;
+                highest_freq_type = freq_type;
+            }
         }
     }
 
@@ -173,90 +179,112 @@ bool prplmesh_cli::get_ip_from_iface(const std::string &iface, std::string &ip)
 bool prplmesh_cli::print_radio(std::string device_path)
 {
     std::string radio_ht_path     = device_path + "Radio.*.";
-    const amxc_htable_t *ht_radio = m_amx_client->get_htable_object(radio_ht_path);
-    int radio_index               = 1;
+    const amxc_htable_t *ht_radio = nullptr;
+    beerocks::prplmesh_amx::AmxResult radio_result;
+    if (m_amx_client->get_htable_object(radio_ht_path, radio_result)) {
+        ht_radio = radio_result.htable();
+    }
+    int radio_index = 1;
 
-    amxc_htable_iterate(radio_it, ht_radio)
-    {
-        const char *radio_key    = amxc_htable_it_get_key(radio_it);
-        std::string radio_path_i = std::string(radio_key);
-        amxc_var_t *radio_obj    = amxc_var_from_htable_it(radio_it);
-        std::string radio_name   = GET_CHAR(radio_obj, "X_PRPLWARE-COM_Name");
-        conn_map.radio_id        = GET_CHAR(radio_obj, "ID");
-
-        auto selected_profile = select_radio_profile(*m_amx_client, radio_path_i);
-        conn_map.channel      = selected_profile.primary_channel;
-        uint16_t freq         = 0;
-        if (selected_profile.primary_channel != 0 &&
-            selected_profile.freq_type != beerocks::FREQ_UNKNOWN) {
-            freq = son::wireless_utils::channel_to_freq(int(selected_profile.primary_channel),
-                                                        selected_profile.freq_type);
-        }
-
-        const bool has_radio_name = !radio_name.empty() && radio_name != "N/A";
-        const std::string radio_label =
-            !has_radio_name ? "RADIO[" + std::to_string(radio_index) + "]" : "RADIO: " + radio_name;
-
-        std::cout << space << "\t" << radio_label << " mac: " << conn_map.radio_id
-                  << ", ch: " << conn_map.channel;
-        if (selected_profile.bandwidth != beerocks::BANDWIDTH_UNKNOWN) {
-            std::cout << ", bw: "
-                      << beerocks::utils::convert_bandwidth_to_string(selected_profile.bandwidth);
-        }
-        std::cout << ", freq: " << freq << "MHz" << std::endl;
-
-        std::string bss_ht_path     = radio_path_i + "BSS.*.";
-        const amxc_htable_t *ht_bss = m_amx_client->get_htable_object(bss_ht_path);
-        int vap_index               = 0; // fallback display index for VAP[n]
-
-        amxc_htable_iterate(bss_it, ht_bss)
+    if (ht_radio) {
+        amxc_htable_iterate(radio_it, ht_radio)
         {
-            const char *bss_key    = amxc_htable_it_get_key(bss_it);
-            std::string bss_path_i = std::string(bss_key);
-            amxc_var_t *bss_obj    = amxc_var_from_htable_it(bss_it);
-            conn_map.bss_id        = GET_CHAR(bss_obj, "BSSID");
-            conn_map.ssid          = GET_CHAR(bss_obj, "SSID");
-            const auto vap_id      = GET_INT32(bss_obj, "X_PRPLWARE-COM_VAPID");
-            const auto fronthaul   = GET_BOOL(bss_obj, "FronthaulUse");
-            const auto backhaul    = GET_BOOL(bss_obj, "BackhaulUse");
+            const char *radio_key    = amxc_htable_it_get_key(radio_it);
+            std::string radio_path_i = std::string(radio_key);
+            amxc_var_t *radio_obj    = amxc_var_from_htable_it(radio_it);
+            std::string radio_name   = GET_CHAR(radio_obj, "X_PRPLWARE-COM_Name");
+            conn_map.radio_id        = GET_CHAR(radio_obj, "ID");
 
-            std::string vap_label = "VAP[" + std::to_string(vap_index) + "]";
-            if (has_radio_name && vap_id >= 0) {
-                vap_label = radio_name + "." + std::to_string(vap_id);
+            auto selected_profile = select_radio_profile(*m_amx_client, radio_path_i);
+            conn_map.channel      = selected_profile.primary_channel;
+            uint16_t freq         = 0;
+            if (selected_profile.primary_channel != 0 &&
+                selected_profile.freq_type != beerocks::FREQ_UNKNOWN) {
+                freq = son::wireless_utils::channel_to_freq(int(selected_profile.primary_channel),
+                                                            selected_profile.freq_type);
             }
 
-            std::string vap_role;
-            if (fronthaul && backhaul) {
-                vap_role = "fVAP+bVAP";
-            } else if (fronthaul) {
-                vap_role = "fVAP";
-            } else if (backhaul) {
-                vap_role = "bVAP";
-            }
+            const bool has_radio_name     = !radio_name.empty() && radio_name != "N/A";
+            const std::string radio_label = !has_radio_name
+                                                ? "RADIO[" + std::to_string(radio_index) + "]"
+                                                : "RADIO: " + radio_name;
 
-            std::cout << space << "\t\t" << vap_label;
-            if (!vap_role.empty()) {
-                std::cout << " (" << vap_role << ")";
+            std::cout << space << "\t" << radio_label << " mac: " << conn_map.radio_id
+                      << ", ch: " << conn_map.channel;
+            if (selected_profile.bandwidth != beerocks::BANDWIDTH_UNKNOWN) {
+                std::cout << ", bw: "
+                          << beerocks::utils::convert_bandwidth_to_string(
+                                 selected_profile.bandwidth);
             }
-            std::cout << ": bssid: " << conn_map.bss_id << ", ssid: " << conn_map.ssid << std::endl;
+            std::cout << ", freq: " << freq << "MHz" << std::endl;
 
-            std::string sta_ht_path     = bss_path_i + "STA.*.";
-            const amxc_htable_t *ht_sta = m_amx_client->get_htable_object(sta_ht_path);
-            int sta_index               = 1;
-            amxc_htable_iterate(sta_it, ht_sta)
-            {
-                amxc_var_t *sta_obj      = amxc_var_from_htable_it(sta_it);
-                std::string sta_mac      = GET_CHAR(sta_obj, "MACAddress");
-                std::string sta_hostname = GET_CHAR(sta_obj, "Hostname");
-                std::string sta_ipv4     = GET_CHAR(sta_obj, "IPV4Address");
-
-                std::cout << space << "\t\t\tCLIENT[" << sta_index << "]: name: " << sta_hostname
-                          << " mac: " << sta_mac << " ipv4: " << sta_ipv4 << std::endl;
-                sta_index++;
+            std::string bss_ht_path     = radio_path_i + "BSS.*.";
+            const amxc_htable_t *ht_bss = nullptr;
+            beerocks::prplmesh_amx::AmxResult bss_result;
+            if (m_amx_client->get_htable_object(bss_ht_path, bss_result)) {
+                ht_bss = bss_result.htable();
             }
-            vap_index++;
+            int vap_index = 0; // fallback display index for VAP[n]
+
+            if (ht_bss) {
+                amxc_htable_iterate(bss_it, ht_bss)
+                {
+                    const char *bss_key    = amxc_htable_it_get_key(bss_it);
+                    std::string bss_path_i = std::string(bss_key);
+                    amxc_var_t *bss_obj    = amxc_var_from_htable_it(bss_it);
+                    conn_map.bss_id        = GET_CHAR(bss_obj, "BSSID");
+                    conn_map.ssid          = GET_CHAR(bss_obj, "SSID");
+                    const auto vap_id      = GET_INT32(bss_obj, "X_PRPLWARE-COM_VAPID");
+                    const auto fronthaul   = GET_BOOL(bss_obj, "FronthaulUse");
+                    const auto backhaul    = GET_BOOL(bss_obj, "BackhaulUse");
+
+                    std::string vap_label = "VAP[" + std::to_string(vap_index) + "]";
+                    if (has_radio_name && vap_id >= 0) {
+                        vap_label = radio_name + "." + std::to_string(vap_id);
+                    }
+
+                    std::string vap_role;
+                    if (fronthaul && backhaul) {
+                        vap_role = "fVAP+bVAP";
+                    } else if (fronthaul) {
+                        vap_role = "fVAP";
+                    } else if (backhaul) {
+                        vap_role = "bVAP";
+                    }
+
+                    std::cout << space << "\t\t" << vap_label;
+                    if (!vap_role.empty()) {
+                        std::cout << " (" << vap_role << ")";
+                    }
+                    std::cout << ": bssid: " << conn_map.bss_id << ", ssid: " << conn_map.ssid
+                              << std::endl;
+
+                    std::string sta_ht_path     = bss_path_i + "STA.*.";
+                    const amxc_htable_t *ht_sta = nullptr;
+                    beerocks::prplmesh_amx::AmxResult sta_result;
+                    if (m_amx_client->get_htable_object(sta_ht_path, sta_result)) {
+                        ht_sta = sta_result.htable();
+                    }
+                    int sta_index = 1;
+                    if (ht_sta) {
+                        amxc_htable_iterate(sta_it, ht_sta)
+                        {
+                            amxc_var_t *sta_obj      = amxc_var_from_htable_it(sta_it);
+                            std::string sta_mac      = GET_CHAR(sta_obj, "MACAddress");
+                            std::string sta_hostname = GET_CHAR(sta_obj, "Hostname");
+                            std::string sta_ipv4     = GET_CHAR(sta_obj, "IPV4Address");
+
+                            std::cout << space << "\t\t\tCLIENT[" << sta_index
+                                      << "]: name: " << sta_hostname << " mac: " << sta_mac
+                                      << " ipv4: " << sta_ipv4 << std::endl;
+                            sta_index++;
+                        }
+                    }
+                    vap_index++;
+                }
+            }
+            radio_index++;
         }
-        radio_index++;
     }
     return true;
 }
@@ -269,9 +297,13 @@ bool prplmesh_cli::prpl_conn_map()
     std::cout << "Start conn map" << std::endl;
 
     std::string network_path = DATAELEMENTS_ROOT_DM ".Network.";
-    amxc_var_t *network_obj  = m_amx_client->get_object(network_path);
-    conn_map.controller_id   = GET_CHAR(network_obj, "ControllerID");
-    conn_map.device_number   = GET_UINT32(network_obj, "DeviceNumberOfEntries");
+    amxc_var_t *network_obj  = nullptr;
+    beerocks::prplmesh_amx::AmxResult network_result;
+    if (m_amx_client->get_object(network_path, network_result)) {
+        network_obj = network_result.object();
+    }
+    conn_map.controller_id = GET_CHAR(network_obj, "ControllerID");
+    conn_map.device_number = GET_UINT32(network_obj, "DeviceNumberOfEntries");
 
     std::cout << "Found " << conn_map.device_number << " devices" << std::endl;
 
@@ -282,30 +314,40 @@ bool prplmesh_cli::prpl_conn_map()
     std::cout << "Device[1]: name: GW_MASTER, mac: " << conn_map.controller_id
               << ", ipv4: " << conn_map.bridge_ip_v4 << std::endl;
 
-    const amxc_htable_t *devices = m_amx_client->get_htable_object(conn_map.device_ht_path);
+    const amxc_htable_t *devices = nullptr;
+    beerocks::prplmesh_amx::AmxResult devices_result;
+    if (m_amx_client->get_htable_object(conn_map.device_ht_path, devices_result)) {
+        devices = devices_result.htable();
+    }
     std::map<std::string, conn_map_device_t> devices_by_id;
     std::multimap<std::string, std::string> children_by_parent;
 
-    amxc_htable_iterate(device_it, devices)
-    {
-        const char *key         = amxc_htable_it_get_key(device_it);
-        std::string device_path = std::string(key);
-        amxc_var_t *device_obj  = amxc_var_from_htable_it(device_it);
-        std::string device_id   = GET_CHAR(device_obj, "ID");
+    if (devices) {
+        amxc_htable_iterate(device_it, devices)
+        {
+            const char *key         = amxc_htable_it_get_key(device_it);
+            std::string device_path = std::string(key);
+            amxc_var_t *device_obj  = amxc_var_from_htable_it(device_it);
+            std::string device_id   = GET_CHAR(device_obj, "ID");
 
-        conn_map_device_t device;
-        device.dm_path = device_path;
-        device.id      = device_id;
+            conn_map_device_t device;
+            device.dm_path = device_path;
+            device.id      = device_id;
 
-        auto backhaul_path       = device_path + "MultiAPDevice.Backhaul.";
-        auto backhaul_obj        = m_amx_client->get_object(backhaul_path);
-        device.parent_id         = GET_CHAR(backhaul_obj, "BackhaulDeviceID");
-        device.link_type         = GET_CHAR(backhaul_obj, "LinkType");
-        device.backhaul_mac      = GET_CHAR(backhaul_obj, "BackhaulMACAddress");
-        devices_by_id[device.id] = device;
+            auto backhaul_path       = device_path + "MultiAPDevice.Backhaul.";
+            amxc_var_t *backhaul_obj = nullptr;
+            beerocks::prplmesh_amx::AmxResult backhaul_result;
+            if (m_amx_client->get_object(backhaul_path, backhaul_result)) {
+                backhaul_obj = backhaul_result.object();
+            }
+            device.parent_id         = GET_CHAR(backhaul_obj, "BackhaulDeviceID");
+            device.link_type         = GET_CHAR(backhaul_obj, "LinkType");
+            device.backhaul_mac      = GET_CHAR(backhaul_obj, "BackhaulMACAddress");
+            devices_by_id[device.id] = device;
 
-        if (!device.parent_id.empty()) {
-            children_by_parent.emplace(device.parent_id, device.id);
+            if (!device.parent_id.empty()) {
+                children_by_parent.emplace(device.parent_id, device.id);
+            }
         }
     }
 

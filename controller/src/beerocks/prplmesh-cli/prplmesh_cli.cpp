@@ -31,10 +31,13 @@ prplmesh_cli::prplmesh_cli()
 operating_mode prplmesh_cli::get_operating_mode(bool &agt_timed_out, bool &ctl_timed_out)
 {
     std::string agent_path = AGENT_ROOT_DM ".Info.";
-    bool agent_dm_found    = m_amx_client->get_object(agent_path, agt_timed_out);
+    beerocks::prplmesh_amx::AmxResult agent_result;
+    bool agent_dm_found = m_amx_client->get_object(agent_path, agent_result, agt_timed_out);
 
     std::string network_path = DATAELEMENTS_ROOT_DM ".Network.";
-    bool controller_dm_found = m_amx_client->get_object(network_path, ctl_timed_out);
+    beerocks::prplmesh_amx::AmxResult network_result;
+    bool controller_dm_found =
+        m_amx_client->get_object(network_path, network_result, ctl_timed_out);
 
     return static_cast<operating_mode>(agent_dm_found | (controller_dm_found << 1));
 }
@@ -101,9 +104,13 @@ bool prplmesh_cli::print_status(const std::string &format)
 
     if (state.mode & PPM_OPMODE_CONTROLLER_ONLY) {
         string network_path     = DATAELEMENTS_ROOT_DM ".Network.";
-        amxc_var_t *network_obj = m_amx_client->get_object(network_path);
-        state.bridge_mac        = GET_CHAR(network_obj, "ControllerID");
-        state.num_devices       = GET_UINT32(network_obj, "DeviceNumberOfEntries");
+        amxc_var_t *network_obj = nullptr;
+        beerocks::prplmesh_amx::AmxResult network_result;
+        if (m_amx_client->get_object(network_path, network_result)) {
+            network_obj = network_result.object();
+        }
+        state.bridge_mac  = GET_CHAR(network_obj, "ControllerID");
+        state.num_devices = GET_UINT32(network_obj, "DeviceNumberOfEntries");
 
         // For easier and more uniform usage in scripts and tests
         transform(state.bridge_mac.begin(), state.bridge_mac.end(), state.bridge_mac.begin(),
@@ -111,8 +118,12 @@ bool prplmesh_cli::print_status(const std::string &format)
     }
 
     if (state.mode & PPM_OPMODE_AGENT_ONLY) {
-        string agent_path = AGENT_ROOT_DM ".Info.";
-        auto agent_obj    = m_amx_client->get_object(agent_path);
+        string agent_path     = AGENT_ROOT_DM ".Info.";
+        amxc_var_t *agent_obj = nullptr;
+        beerocks::prplmesh_amx::AmxResult agent_result;
+        if (m_amx_client->get_object(agent_path, agent_result)) {
+            agent_obj = agent_result.object();
+        }
 
         state.agent_mac           = GET_CHAR(agent_obj, "MACAddress");
         state.agent_mmode         = GET_CHAR(agent_obj, "ManagementMode");
@@ -133,21 +144,27 @@ bool prplmesh_cli::print_status(const std::string &format)
             state.agent_ifaces.insert(std::move(s));
         }
 
-        auto fronthaul_iface_root = agent_path + "Fronthaul.*.";
-        auto fronthaul_ifaces     = m_amx_client->get_htable_object(fronthaul_iface_root);
+        auto fronthaul_iface_root             = agent_path + "Fronthaul.*.";
+        const amxc_htable_t *fronthaul_ifaces = nullptr;
+        beerocks::prplmesh_amx::AmxResult fronthaul_result;
+        if (m_amx_client->get_htable_object(fronthaul_iface_root, fronthaul_result)) {
+            fronthaul_ifaces = fronthaul_result.htable();
+        }
 
-        amxc_htable_iterate(iface_it, fronthaul_ifaces)
-        {
-            auto iface_obj         = amxc_var_from_htable_it(iface_it);
-            auto iface_name        = GET_CHAR(iface_obj, "Iface");
-            string fh_currentstate = GET_CHAR(iface_obj, "CurrentState");
-            string fh_beststate    = GET_CHAR(iface_obj, "BestState");
+        if (fronthaul_ifaces) {
+            amxc_htable_iterate(iface_it, fronthaul_ifaces)
+            {
+                auto iface_obj         = amxc_var_from_htable_it(iface_it);
+                auto iface_name        = GET_CHAR(iface_obj, "Iface");
+                string fh_currentstate = GET_CHAR(iface_obj, "CurrentState");
+                string fh_beststate    = GET_CHAR(iface_obj, "BestState");
 
-            auto &fh_state = state.fhs[iface_name];
+                auto &fh_state = state.fhs[iface_name];
 
-            // Trim state number
-            fh_state.currentstate = fh_currentstate.substr(0, fh_currentstate.find(' '));
-            fh_state.beststate    = fh_beststate.substr(0, fh_beststate.find(' '));
+                // Trim state number
+                fh_state.currentstate = fh_currentstate.substr(0, fh_currentstate.find(' '));
+                fh_state.beststate    = fh_beststate.substr(0, fh_beststate.find(' '));
+            }
         }
 
         ret = ret && (state.agent_ifaces.size() == state.fhs.size());
@@ -301,12 +318,23 @@ std::string prplmesh_cli::get_ap_path(std::string ap)
     }
 
     std::string ap_ht_path     = path.str() + "*.";
-    const amxc_htable_t *ht_ap = m_amx_client->get_htable_object(ap_ht_path);
+    const amxc_htable_t *ht_ap = nullptr;
+    beerocks::prplmesh_amx::AmxResult ap_list_result;
+    if (m_amx_client->get_htable_object(ap_ht_path, ap_list_result)) {
+        ht_ap = ap_list_result.htable();
+    }
+    if (!ht_ap) {
+        return "";
+    }
     amxc_htable_iterate(ap_it, ht_ap)
     {
         std::string ap_path_i = amxc_htable_it_get_key(ap_it);
-        amxc_var_t *ap_obj    = m_amx_client->get_object(ap_path_i);
-        std::string ap_ssid   = GET_CHAR(ap_obj, "SSID");
+        amxc_var_t *ap_obj    = nullptr;
+        beerocks::prplmesh_amx::AmxResult ap_result;
+        if (m_amx_client->get_object(ap_path_i, ap_result)) {
+            ap_obj = ap_result.object();
+        }
+        std::string ap_ssid = GET_CHAR(ap_obj, "SSID");
 
         if (strcasecmp(ap.c_str(), ap_ssid.c_str()) == 0) {
             return ap_path_i;
@@ -320,7 +348,11 @@ void prplmesh_cli::show_ap()
 {
     std::cout << "Show AccessPoints:" << std::endl;
     std::string ap_ht_path     = DATAELEMENTS_ROOT_DM ".Network.AccessPoint.*.";
-    const amxc_htable_t *ht_ap = m_amx_client->get_htable_object(ap_ht_path);
+    const amxc_htable_t *ht_ap = nullptr;
+    beerocks::prplmesh_amx::AmxResult ap_list_result;
+    if (m_amx_client->get_htable_object(ap_ht_path, ap_list_result)) {
+        ht_ap = ap_list_result.htable();
+    }
     if (!ht_ap) {
         // No access points defined?
         // Or error retrieving object?
@@ -334,7 +366,11 @@ void prplmesh_cli::show_ap()
     {
         ap_index++;
         std::string ap_path_i = amxc_htable_it_get_key(ap_it);
-        amxc_var_t *ap_obj    = m_amx_client->get_object(ap_path_i);
+        amxc_var_t *ap_obj    = nullptr;
+        beerocks::prplmesh_amx::AmxResult ap_result;
+        if (m_amx_client->get_object(ap_path_i, ap_result)) {
+            ap_obj = ap_result.object();
+        }
         // AP[1]: ssid: PrplCli, MultiApMode: Fronthaul
         //     Band 2.4G: true, Band 5G-L: true, Band 5G-H: true, Band 6G: false
         std::cout << "AP[" << ap_index << "]:";
@@ -361,7 +397,11 @@ bool prplmesh_cli::set_ssid(const std::string &ap, const std::string &ssid)
         return false;
     }
 
-    amxc_var_t *ap_obj = m_amx_client->get_object(ap_path);
+    amxc_var_t *ap_obj = nullptr;
+    beerocks::prplmesh_amx::AmxResult ap_result;
+    if (m_amx_client->get_object(ap_path, ap_result)) {
+        ap_obj = ap_result.object();
+    }
     if (!ap_obj) {
         std::cerr << "Unable to access object at path " << ap_path << std::endl;
         return false;
@@ -388,7 +428,12 @@ bool prplmesh_cli::set_security(const std::string &ap, const std::string &mode,
         return false;
     }
 
-    amxc_var_t *ap_obj = m_amx_client->get_object(ap_path += "Security.");
+    ap_path += "Security.";
+    amxc_var_t *ap_obj = nullptr;
+    beerocks::prplmesh_amx::AmxResult ap_result;
+    if (m_amx_client->get_object(ap_path, ap_result)) {
+        ap_obj = ap_result.object();
+    }
     if (!ap_obj) {
         std::cerr << "Unable to access object at path " << ap_path << std::endl;
         return false;
