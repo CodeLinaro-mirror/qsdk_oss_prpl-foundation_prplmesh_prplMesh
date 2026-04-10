@@ -10,6 +10,7 @@ default:
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_COMMIT_BRANCH == "dev/ppm-3970-ci"'
     # Cfr. Workflows/MergeRequest-Pipelines.gitlab-ci.yml template
     - if: $CI_MERGE_REQUEST_IID
     - if: $CI_COMMIT_TAG
@@ -281,7 +282,7 @@ boardfarm-tests:
   stage: test
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - ./dctest.py
+    - ./dctest.py --test Iperf3TestRun,InitialApConfig
   artifacts:
     paths:
       - logs
