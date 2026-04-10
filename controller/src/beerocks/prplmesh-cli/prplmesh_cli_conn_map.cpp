@@ -207,7 +207,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
 
         std::string bss_ht_path     = radio_path_i + "BSS.*.";
         const amxc_htable_t *ht_bss = m_amx_client->get_htable_object(bss_ht_path);
-        int vap_index               = 0;
+        int vap_index               = 0; // fallback display index for VAP[n]
 
         amxc_htable_iterate(bss_it, ht_bss)
         {
@@ -216,8 +216,14 @@ bool prplmesh_cli::print_radio(std::string device_path)
             amxc_var_t *bss_obj    = amxc_var_from_htable_it(bss_it);
             conn_map.bss_id        = GET_CHAR(bss_obj, "BSSID");
             conn_map.ssid          = GET_CHAR(bss_obj, "SSID");
+            const auto vap_id      = GET_INT32(bss_obj, "X_PRPLWARE-COM_VAPID");
 
-            std::cout << space << "\t\tVAP[" << vap_index << "]: bssid: " << conn_map.bss_id
+            std::string vap_label = "VAP[" + std::to_string(vap_index) + "]";
+            if (has_radio_name && vap_id >= 0) {
+                vap_label = radio_name + "." + std::to_string(vap_id);
+            }
+
+            std::cout << space << "\t\t" << vap_label << ": bssid: " << conn_map.bss_id
                       << ", ssid: " << conn_map.ssid << std::endl;
 
             std::string sta_ht_path     = bss_path_i + "STA.*.";

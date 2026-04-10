@@ -7337,6 +7337,7 @@ bool db::dm_set_radio_bss(const sMacAddr &al_mac, const sMacAddr &radio_mac, con
     ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "Enabled", bss->enabled);
     ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "FronthaulUse", bss->fronthaul);
     ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "BackhaulUse", bss->backhaul);
+    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "X_PRPLWARE-COM_VAPID", bss->get_vap_id());
     ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "IsVBSS", is_vbss);
     LOG(DEBUG) << "Setting byte counter unit to " << agent->byte_counter_units;
     ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "ByteCounterUnits",
