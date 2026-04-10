@@ -114,6 +114,10 @@ protected:
         EXPECT_EQ(std::string(g_device_path) + ".1",
                   m_db->get_agent_data_model_path(tlvf::mac_from_string(g_bridge_mac)));
         EXPECT_CALL(*m_ambiorix, set_current_time(_, _)).WillRepeatedly(Return(true));
+        EXPECT_CALL(*m_ambiorix, set(_, "X_PRPLWARE-COM_Name", Matcher<const std::string &>(_)))
+            .WillRepeatedly(Return(true));
+        EXPECT_CALL(*m_ambiorix, set(_, "X_PRPLWARE-COM_VAPID", Matcher<const int32_t &>(_)))
+            .WillRepeatedly(Return(true));
     }
 };
 

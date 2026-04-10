@@ -75,7 +75,6 @@ selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient 
         ht_op = op_result.htable();
     }
 
-    uint32_t primary_op_class                  = 0;
     beerocks::eWiFiBandwidth highest_bandwidth = beerocks::BANDWIDTH_UNKNOWN;
     beerocks::eFreqType highest_freq_type      = beerocks::FREQ_UNKNOWN;
 
@@ -97,17 +96,14 @@ selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient 
                 continue;
             }
 
-            if (selected_profile.primary_channel == 0 ||
-                bandwidth_rank(bandwidth) <
-                    bandwidth_rank(son::wireless_utils::get_bandwidth_from_channel_and_op_class(
-                        selected_profile.primary_channel, primary_op_class))) {
+            const int current_rank = bandwidth_rank(bandwidth);
+            if (current_rank > bandwidth_rank(highest_bandwidth)) {
+                highest_bandwidth                = bandwidth;
+                highest_freq_type                = freq_type;
                 selected_profile.primary_channel = channel;
-                primary_op_class                 = op_class;
-            }
-
-            if (bandwidth_rank(bandwidth) > bandwidth_rank(highest_bandwidth)) {
-                highest_bandwidth = bandwidth;
-                highest_freq_type = freq_type;
+            } else if (selected_profile.primary_channel == 0 &&
+                       current_rank == bandwidth_rank(highest_bandwidth)) {
+                selected_profile.primary_channel = channel;
             }
         }
     }
@@ -184,9 +180,10 @@ bool prplmesh_cli::print_radio(std::string device_path)
     if (m_amx_client->get_htable_object(radio_ht_path, radio_result)) {
         ht_radio = radio_result.htable();
     }
-    int radio_index = 1;
 
     if (ht_radio) {
+        int radio_index = 1;
+
         amxc_htable_iterate(radio_it, ht_radio)
         {
             const char *radio_key    = amxc_htable_it_get_key(radio_it);
@@ -224,9 +221,10 @@ bool prplmesh_cli::print_radio(std::string device_path)
             if (m_amx_client->get_htable_object(bss_ht_path, bss_result)) {
                 ht_bss = bss_result.htable();
             }
-            int vap_index = 0; // fallback display index for VAP[n]
 
             if (ht_bss) {
+                int vap_index = 0; // fallback display index for VAP[n]
+
                 amxc_htable_iterate(bss_it, ht_bss)
                 {
                     const char *bss_key    = amxc_htable_it_get_key(bss_it);
@@ -240,7 +238,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
 
                     std::string vap_label = "VAP[" + std::to_string(vap_index) + "]";
                     if (has_radio_name && vap_id >= 0) {
-                        vap_label = radio_name + "." + std::to_string(vap_id);
+                        vap_label = radio_name + "." + std::to_string(vap_id + 1);
                     }
 
                     std::string vap_role;
@@ -265,8 +263,10 @@ bool prplmesh_cli::print_radio(std::string device_path)
                     if (m_amx_client->get_htable_object(sta_ht_path, sta_result)) {
                         ht_sta = sta_result.htable();
                     }
-                    int sta_index = 1;
+
                     if (ht_sta) {
+                        int sta_index = 1;
+
                         amxc_htable_iterate(sta_it, ht_sta)
                         {
                             amxc_var_t *sta_obj      = amxc_var_from_htable_it(sta_it);
@@ -332,7 +332,7 @@ bool prplmesh_cli::prpl_conn_map()
 
             conn_map_device_t device;
             device.dm_path = device_path;
-            device.id      = device_id;
+            device.id      = std::move(device_id);
 
             auto backhaul_path       = device_path + "MultiAPDevice.Backhaul.";
             amxc_var_t *backhaul_obj = nullptr;
