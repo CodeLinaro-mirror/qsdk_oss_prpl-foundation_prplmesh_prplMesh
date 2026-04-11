@@ -294,6 +294,15 @@ bool prplmesh_cli::prpl_conn_map()
     conn_map.device_index = 1;
     space.clear();
 
+    bool agt_timed_out = false;
+    bool ctl_timed_out = false;
+    auto mode          = get_operating_mode(agt_timed_out, ctl_timed_out);
+    if (!(mode & PPM_OPMODE_CONTROLLER_ONLY)) {
+        std::cout << "conn_map is available only in Controller mode." << std::endl;
+        std::cout << "Current mode: " << to_string(mode) << std::endl;
+        return false;
+    }
+
     std::cout << "Start conn map" << std::endl;
 
     std::string network_path = DATAELEMENTS_ROOT_DM ".Network.";
