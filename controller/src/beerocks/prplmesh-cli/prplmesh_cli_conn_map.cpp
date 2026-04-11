@@ -21,6 +21,7 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <utility>
 
 namespace beerocks {
 namespace prplmesh_api {
@@ -33,6 +34,7 @@ static std::string space;
 struct conn_map_device_t {
     std::string dm_path;
     std::string id;
+    std::string name;
     std::string parent_id;
     std::string link_type;
     std::string backhaul_mac;
@@ -62,6 +64,22 @@ int bandwidth_rank(beerocks::eWiFiBandwidth bandwidth)
     default:
         return 0;
     }
+}
+
+std::string get_device_display_name(const std::string &manufacturer_model)
+{
+    // Move from ManufacturerModel="prpl Foundation Freedom" to "Freedom"
+    const std::string prpl_prefix = "prpl Foundation ";
+    if (manufacturer_model.compare(0, prpl_prefix.size(), prpl_prefix) == 0) {
+        return manufacturer_model.substr(prpl_prefix.size());
+    }
+
+    const std::string mxl_prefix = "mxl,";
+    if (manufacturer_model.compare(0, mxl_prefix.size(), mxl_prefix) == 0) {
+        return manufacturer_model.substr(mxl_prefix.size());
+    }
+
+    return manufacturer_model;
 }
 
 selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient &amx_client,
@@ -135,9 +153,9 @@ void print_conn_map_subtree(prplmesh_cli &cli,
         }
 
         conn_map.device_index++;
-        std::cout << indent << "Device[" << conn_map.device_index
-                  << "]: name: Agent, mac: " << device.id << " LinkType: " << device.link_type
-                  << std::endl;
+        const std::string device_name = device.name.empty() ? "Agent" : device.name;
+        std::cout << indent << "Device[" << conn_map.device_index << "]: name: " << device_name
+                  << ", mac: " << device.id << " LinkType: " << device.link_type << std::endl;
 
         if (!short_output) {
             space = indent;
@@ -328,12 +346,6 @@ bool prplmesh_cli::prpl_conn_map(bool short_output)
         LOG(ERROR) << "Can't get bridge ip.";
     }
 
-    std::cout << "Device[1]: name: GW_MASTER, mac: " << conn_map.controller_id;
-    if (!short_output) {
-        std::cout << ", ipv4: " << conn_map.bridge_ip_v4;
-    }
-    std::cout << std::endl;
-
     const amxc_htable_t *devices = nullptr;
     beerocks::prplmesh_amx::AmxResult devices_result;
     if (m_amx_client->get_htable_object(conn_map.device_ht_path, devices_result)) {
@@ -349,12 +361,15 @@ bool prplmesh_cli::prpl_conn_map(bool short_output)
             std::string device_path = std::string(key);
             amxc_var_t *device_obj  = amxc_var_from_htable_it(device_it);
             std::string device_id   = GET_CHAR(device_obj, "ID");
+            std::string device_name =
+                get_device_display_name(GET_CHAR(device_obj, "ManufacturerModel"));
 
             conn_map_device_t device;
-            device.dm_path = device_path;
+            device.dm_path = std::move(device_path);
             device.id      = std::move(device_id);
+            device.name    = std::move(device_name);
 
-            auto backhaul_path       = device_path + "MultiAPDevice.Backhaul.";
+            auto backhaul_path       = device.dm_path + "MultiAPDevice.Backhaul.";
             amxc_var_t *backhaul_obj = nullptr;
             beerocks::prplmesh_amx::AmxResult backhaul_result;
             if (m_amx_client->get_object(backhaul_path, backhaul_result)) {
@@ -372,6 +387,16 @@ bool prplmesh_cli::prpl_conn_map(bool short_output)
     }
 
     auto controller_it = devices_by_id.find(conn_map.controller_id);
+    const std::string controller_name =
+        (controller_it == devices_by_id.end() || controller_it->second.name.empty())
+            ? "GW_MASTER"
+            : controller_it->second.name;
+    std::cout << "Device[1]: name: " << controller_name << ", mac: " << conn_map.controller_id;
+    if (!short_output) {
+        std::cout << ", ipv4: " << conn_map.bridge_ip_v4;
+    }
+    std::cout << std::endl;
+
     if (!short_output && controller_it != devices_by_id.end()) {
         print_radio(controller_it->second.dm_path);
     }
