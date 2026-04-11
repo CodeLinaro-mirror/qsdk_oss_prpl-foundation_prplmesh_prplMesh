@@ -116,7 +116,8 @@ selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient 
 void print_conn_map_subtree(prplmesh_cli &cli,
                             const std::map<std::string, conn_map_device_t> &devices_by_id,
                             const std::multimap<std::string, std::string> &children_by_parent,
-                            const std::string &parent_id, const std::string &indent)
+                            const std::string &parent_id, const std::string &indent,
+                            bool short_output)
 {
     auto range = children_by_parent.equal_range(parent_id);
     for (auto child_it = range.first; child_it != range.second; ++child_it) {
@@ -138,10 +139,13 @@ void print_conn_map_subtree(prplmesh_cli &cli,
                   << "]: name: Agent, mac: " << device.id << " LinkType: " << device.link_type
                   << std::endl;
 
-        space = indent;
-        cli.print_radio(device.dm_path);
+        if (!short_output) {
+            space = indent;
+            cli.print_radio(device.dm_path);
+        }
 
-        print_conn_map_subtree(cli, devices_by_id, children_by_parent, device.id, indent + "\t");
+        print_conn_map_subtree(cli, devices_by_id, children_by_parent, device.id, indent + "\t",
+                               short_output);
     }
 }
 
@@ -289,7 +293,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
     return true;
 }
 
-bool prplmesh_cli::prpl_conn_map()
+bool prplmesh_cli::prpl_conn_map(bool short_output)
 {
     conn_map.device_index = 1;
     space.clear();
@@ -303,7 +307,11 @@ bool prplmesh_cli::prpl_conn_map()
         return false;
     }
 
-    std::cout << "Start conn map" << std::endl;
+    std::cout << "Start conn map";
+    if (short_output) {
+        std::cout << " short version";
+    }
+    std::cout << std::endl;
 
     std::string network_path = DATAELEMENTS_ROOT_DM ".Network.";
     amxc_var_t *network_obj  = nullptr;
@@ -320,8 +328,11 @@ bool prplmesh_cli::prpl_conn_map()
         LOG(ERROR) << "Can't get bridge ip.";
     }
 
-    std::cout << "Device[1]: name: GW_MASTER, mac: " << conn_map.controller_id
-              << ", ipv4: " << conn_map.bridge_ip_v4 << std::endl;
+    std::cout << "Device[1]: name: GW_MASTER, mac: " << conn_map.controller_id;
+    if (!short_output) {
+        std::cout << ", ipv4: " << conn_map.bridge_ip_v4;
+    }
+    std::cout << std::endl;
 
     const amxc_htable_t *devices = nullptr;
     beerocks::prplmesh_amx::AmxResult devices_result;
@@ -361,11 +372,12 @@ bool prplmesh_cli::prpl_conn_map()
     }
 
     auto controller_it = devices_by_id.find(conn_map.controller_id);
-    if (controller_it != devices_by_id.end()) {
+    if (!short_output && controller_it != devices_by_id.end()) {
         print_radio(controller_it->second.dm_path);
     }
 
-    print_conn_map_subtree(*this, devices_by_id, children_by_parent, conn_map.controller_id, "\t");
+    print_conn_map_subtree(*this, devices_by_id, children_by_parent, conn_map.controller_id, "\t",
+                           short_output);
 
     return true;
 }

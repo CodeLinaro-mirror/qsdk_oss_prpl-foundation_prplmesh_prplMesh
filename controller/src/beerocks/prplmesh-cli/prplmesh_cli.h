@@ -56,7 +56,7 @@ class prplmesh_cli {
 public:
     prplmesh_cli();
     bool get_ip_from_iface(const std::string &iface, std::string &ip);
-    bool prpl_conn_map();
+    bool prpl_conn_map(bool short_output = false);
     void print_help();
     void print_version();
     operating_mode get_operating_mode(bool &agt_timed_out, bool &ctl_timed_out);

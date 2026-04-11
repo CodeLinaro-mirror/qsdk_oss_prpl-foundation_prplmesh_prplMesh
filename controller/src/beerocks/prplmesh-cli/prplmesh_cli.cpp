@@ -295,6 +295,7 @@ set_security        : set security
   -m None|WPA2-Personal
   -p <passphrase>                   For the WPA2-Personal mode
 conn_map        : dump the latest network map
+  --short                           Print device/backhaul tree only
 )help!";
 }
 
