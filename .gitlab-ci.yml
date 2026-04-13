@@ -272,6 +272,12 @@ nbapi_unit_tests:
 db_unit_tests:
   extends: .run-test-in-docker
 
+higher_layer_collection_task_test:
+  extends: .run-test-in-docker
+
+ieee1905_task_test:
+  extends: .run-test-in-docker
+
 test-gw-repeater:
   stage: test
   script:
