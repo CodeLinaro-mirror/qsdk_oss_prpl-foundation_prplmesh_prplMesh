@@ -1058,7 +1058,63 @@ bool sta_wlan_hal_whm::clear_non_associated_devices()
 
 bool sta_wlan_hal_whm::update_mld_mode(uint8_t mld_mode)
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    if (m_ep_path.empty()) {
+        LOG(INFO) << "Empty endpoint path for iface " << get_iface_name();
+        return false;
+    }
+
+    std::string ssid_ref, ssid_path;
+    if (!m_ambiorix_cl.get_param(ssid_ref, m_ep_path, "SSIDReference") ||
+        !m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path) || ssid_path.empty()) {
+        return false;
+    }
+
+    int8_t mld_id = DISABLED_MLDUNIT;
+    if (!m_ambiorix_cl.get_param(mld_id, ssid_path, "MLDUnit")) {
+        LOG(ERROR) << "update_mld_mode: Failed to read MLDUnit for SSID: \"" << ssid_ref;
+        return false;
+    }
+
+    if (mld_id <= DISABLED_MLDUNIT) {
+        LOG(DEBUG) << "update_mld_mode: MLDUnit disabled for SSID: \"" << ssid_ref
+                   << "\", skip pushing bSTAMLDConfig";
+        return true;
+    }
+
+    std::string stamld_path;
+    std::string stamld_search = wbapi_utils::search_path_stamld_by_mldid(mld_id);
+
+    if (!m_ambiorix_cl.resolve_path(stamld_search, stamld_path) || stamld_path.empty()) {
+        LOG(ERROR) << "update_mld_mode: Failed to resolve bSTAMLD path for mld_id: "
+                   << static_cast<int>(mld_id);
+        return false;
+    }
+
+    bool str_enabled   = (mld_mode & beerocks::message::MLO_MODE_STR) != 0;
+    bool nstr_enabled  = (mld_mode & beerocks::message::MLO_MODE_NSTR) != 0;
+    bool emlsr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLSR) != 0;
+    bool emlmr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLMR) != 0;
+
+    AmbiorixVariant stamld_config(AMXC_VAR_ID_HTABLE);
+    stamld_config.add_child("STREnabled", str_enabled);
+    stamld_config.add_child("NSTREnabled", nstr_enabled);
+    stamld_config.add_child("EMLSREnabled", emlsr_enabled);
+    stamld_config.add_child("EMLMREnabled", emlmr_enabled);
+
+    std::string stamld_config_path = stamld_path + "bSTAMLDConfig.";
+
+    if (!m_ambiorix_cl.update_object(stamld_config_path, stamld_config)) {
+        LOG(ERROR) << "update_mld_mode: Failed to update bSTAMLDConfig for SSID: \"" << ssid_ref
+                   << "\", mld_id: " << static_cast<int>(mld_id)
+                   << ", path: " << stamld_config_path;
+        return false;
+    }
+
+    LOG(INFO) << "update_mld_mode: Successfully updated bSTAMLDConfig for SSID: \"" << ssid_ref
+              << "\", mld_id: " << static_cast<int>(mld_id) << ", STR=" << str_enabled
+              << ", NSTR=" << nstr_enabled << ", EMLSR=" << emlsr_enabled
+              << ", EMLMR=" << emlmr_enabled;
+
     return true;
 }
 
