@@ -253,6 +253,30 @@ public:
     static std::string search_path_apmld_by_mldid(int8_t mld_id);
 
     /**
+     * @brief Return search path of BSTAMLD template object.
+     *
+     * Constructs and returns the base search path for the BSTAMLD
+     * (Backhaul Station Multi-Link Device) template object in the WiFi data model.
+     *
+     * @return Search path string for BSTAMLD template object
+     *         (e.g., "WiFi.bSTAMLD.").
+     */
+    static std::string search_path_stamld();
+
+    /**
+     * @brief Return search path of BSTAMLD object instance filtered by MLDID.
+     *
+     * Constructs and returns the search path for a specific BSTAMLD instance
+     * by filtering on the MLDID (Multi-Link Device Identifier).
+     *
+     * @param[in] mld_id The Multi-Link Device identifier to filter by.
+     *
+     * @return Search path string for the specific BSTAMLD instance
+     *         (e.g., "WiFi.bSTAMLD.[MLDID == 1].").
+     */
+    static std::string search_path_stamld_by_mldid(int8_t mld_id);
+
+    /**
      * @brief Return search path of AffiliatedAP object instance filtered by BSSID.
      *
      * Constructs and returns the search path for an AffiliatedAP instance
