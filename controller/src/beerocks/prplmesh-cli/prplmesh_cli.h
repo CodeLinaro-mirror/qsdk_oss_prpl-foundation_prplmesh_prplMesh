@@ -95,7 +95,7 @@ public:
     * @param[in] device_path String containing the path to the Device.
     * @return True on success, false otherwise.
     */
-    bool print_radio(std::string device_path);
+    bool print_radio(const std::string &device_path);
 
     /**
     * @brief Print current prplMesh mode.

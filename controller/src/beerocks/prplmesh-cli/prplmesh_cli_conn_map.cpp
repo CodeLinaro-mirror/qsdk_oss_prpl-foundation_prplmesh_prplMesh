@@ -93,36 +93,42 @@ selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient 
         ht_op = op_result.htable();
     }
 
+    if (!ht_op) {
+        return selected_profile;
+    }
+
     beerocks::eWiFiBandwidth highest_bandwidth = beerocks::BANDWIDTH_UNKNOWN;
     beerocks::eFreqType highest_freq_type      = beerocks::FREQ_UNKNOWN;
+    beerocks::eWiFiBandwidth lowest_bandwidth  = beerocks::BANDWIDTH_UNKNOWN;
 
-    if (ht_op) {
-        amxc_htable_iterate(op_it, ht_op)
-        {
-            amxc_var_t *op_obj = amxc_var_from_htable_it(op_it);
-            auto channel       = GET_UINT32(op_obj, "Channel");
-            auto op_class      = GET_UINT32(op_obj, "Class");
+    amxc_htable_iterate(op_it, ht_op)
+    {
+        amxc_var_t *op_obj = amxc_var_from_htable_it(op_it);
+        auto channel       = GET_UINT32(op_obj, "Channel");
+        auto op_class      = GET_UINT32(op_obj, "Class");
 
-            if (channel == 0 || op_class == 0) {
-                continue;
-            }
+        if (channel == 0 || op_class == 0) {
+            continue;
+        }
 
-            auto bandwidth =
-                son::wireless_utils::get_bandwidth_from_channel_and_op_class(channel, op_class);
-            auto freq_type = son::wireless_utils::which_freq_op_cls(op_class);
-            if (bandwidth == beerocks::BANDWIDTH_UNKNOWN || freq_type == beerocks::FREQ_UNKNOWN) {
-                continue;
-            }
+        auto bandwidth =
+            son::wireless_utils::get_bandwidth_from_channel_and_op_class(channel, op_class);
+        auto freq_type = son::wireless_utils::which_freq_op_cls(op_class);
+        if (bandwidth == beerocks::BANDWIDTH_UNKNOWN || freq_type == beerocks::FREQ_UNKNOWN) {
+            continue;
+        }
 
-            const int current_rank = bandwidth_rank(bandwidth);
-            if (current_rank > bandwidth_rank(highest_bandwidth)) {
-                highest_bandwidth                = bandwidth;
-                highest_freq_type                = freq_type;
-                selected_profile.primary_channel = channel;
-            } else if (selected_profile.primary_channel == 0 &&
-                       current_rank == bandwidth_rank(highest_bandwidth)) {
-                selected_profile.primary_channel = channel;
-            }
+        const int current_rank = bandwidth_rank(bandwidth);
+        if (current_rank > bandwidth_rank(highest_bandwidth)) {
+            highest_bandwidth = bandwidth;
+            highest_freq_type = freq_type;
+        }
+
+        if (selected_profile.primary_channel == 0 ||
+            (current_rank > 0 && (lowest_bandwidth == beerocks::BANDWIDTH_UNKNOWN ||
+                                  current_rank < bandwidth_rank(lowest_bandwidth)))) {
+            lowest_bandwidth                 = bandwidth;
+            selected_profile.primary_channel = channel;
         }
     }
 
@@ -162,7 +168,7 @@ void print_conn_map_subtree(prplmesh_cli &cli,
             cli.print_radio(device.dm_path);
         }
 
-        print_conn_map_subtree(cli, devices_by_id, children_by_parent, device.id, indent + "\t",
+        print_conn_map_subtree(cli, devices_by_id, children_by_parent, device.id, indent + "  ",
                                short_output);
     }
 }
@@ -194,7 +200,7 @@ bool prplmesh_cli::get_ip_from_iface(const std::string &iface, std::string &ip)
     return true;
 }
 
-bool prplmesh_cli::print_radio(std::string device_path)
+bool prplmesh_cli::print_radio(const std::string &device_path)
 {
     std::string radio_ht_path     = device_path + "Radio.*.";
     const amxc_htable_t *ht_radio = nullptr;
@@ -228,7 +234,11 @@ bool prplmesh_cli::print_radio(std::string device_path)
                                                 ? "RADIO[" + std::to_string(radio_index) + "]"
                                                 : "RADIO: " + radio_name;
 
-            std::cout << space << "\t" << radio_label << " mac: " << conn_map.radio_id
+            const std::string radio_indent  = space + "  ";
+            const std::string vap_indent    = space + "    ";
+            const std::string client_indent = space + "      ";
+
+            std::cout << radio_indent << radio_label << " mac: " << conn_map.radio_id
                       << ", ch: " << conn_map.channel;
             if (selected_profile.bandwidth != beerocks::BANDWIDTH_UNKNOWN) {
                 std::cout << ", bw: "
@@ -272,7 +282,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
                         vap_role = "bVAP";
                     }
 
-                    std::cout << space << "\t\t" << vap_label;
+                    std::cout << vap_indent << vap_label;
                     if (!vap_role.empty()) {
                         std::cout << " (" << vap_role << ")";
                     }
@@ -296,7 +306,7 @@ bool prplmesh_cli::print_radio(std::string device_path)
                             std::string sta_hostname = GET_CHAR(sta_obj, "Hostname");
                             std::string sta_ipv4     = GET_CHAR(sta_obj, "IPV4Address");
 
-                            std::cout << space << "\t\t\tCLIENT[" << sta_index
+                            std::cout << client_indent << "CLIENT[" << sta_index
                                       << "]: name: " << sta_hostname << " mac: " << sta_mac
                                       << " ipv4: " << sta_ipv4 << std::endl;
                             sta_index++;
@@ -401,7 +411,7 @@ bool prplmesh_cli::prpl_conn_map(bool short_output)
         print_radio(controller_it->second.dm_path);
     }
 
-    print_conn_map_subtree(*this, devices_by_id, children_by_parent, conn_map.controller_id, "\t",
+    print_conn_map_subtree(*this, devices_by_id, children_by_parent, conn_map.controller_id, "  ",
                            short_output);
 
     return true;
