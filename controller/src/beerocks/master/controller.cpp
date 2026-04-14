@@ -1757,7 +1757,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         }
 
         auto bss_info_copy = database.add_configured_bss_info(ruid, bss_info_conf);
-        
+
         // if agent does not support RSN Overriding, downgrade security config
         adjust_security_mode_for_agent(agent, radio, &bss_info_copy);
 
