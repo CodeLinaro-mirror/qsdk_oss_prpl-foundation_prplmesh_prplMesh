@@ -1604,8 +1604,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_renew(
     ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     LOG(INFO) << "received autoconfig renew message";
-    LOG(INFO) << "[M1/M2] ========================================";
-    LOG(INFO) << "[M1/M2] Agent: Received AP_AUTOCONFIGURATION_RENEW_MESSAGE";
 
     if (!m_btl_ctx.link_to_controller()) {
         LOG(INFO) << "No link to Multi-AP Controller, ignoring renew.";
@@ -1665,7 +1663,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_renew(
             continue;
         }
 
-        LOG(INFO) << "[M1/M2] Agent: Sending M1 message for radio " << radio->front.iface_name;
         m_task_is_active = true;
 
         // Refresh VAP info to ensure accurate BSS configuration matching
@@ -1676,8 +1673,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_renew(
 
         FSM_MOVE_STATE(radio->front.iface_name, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
     }
-    LOG(INFO) << "[M1/M2] Agent: M1 messages will be sent to controller";
-    LOG(INFO) << "[M1/M2] ========================================";
 }
 
 void ApAutoConfigurationTask::handle_bsta_mld_configuration_request(
@@ -1967,9 +1962,6 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
     std::vector<std::pair<wfa_map::tlvProfile2ErrorCode::eReasonCode, sMacAddr>> bss_errors;
-    LOG(INFO) << "[M1/M2] Agent: ========================================";
-    LOG(INFO) << "[M1/M2] Agent: Received M2 message from controller";
-    LOG(INFO) << "[M1/M2] Agent: Processing " << m2_list.size() << " M2 message(s)";
     
     for (auto m2 : m2_list) {
         LOG(DEBUG) << "M2 Parse " << m2.manufacturer()
@@ -2005,11 +1997,6 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         }
 
         info.m2_config.hidden_ssid = m2.hidden_ssid();
-
-	LOG(INFO) << "[M1/M2] Agent: M2 parsed successfully:";
-        LOG(INFO) << "[M1/M2] Agent:   BSSID: " << info.payload_config.bssid;
-        LOG(INFO) << "[M1/M2] Agent:   SSID: '" << info.payload_config.ssid << "'";
-        LOG(INFO) << "[M1/M2] Agent:   network_key: " << (info.payload_config.network_key.empty() ? "<empty>" : "***");
 
         // EM_AP_CONTROLLER specific Vendor Extension Attributes
         if (db->em_ap_controller_found) {
@@ -2149,19 +2136,10 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
 
     LOG(INFO) << "Finished M2 parsing with " << infos.size() << " vaps and " << bss_errors.size()
               << " errors.";
-    LOG(INFO) << "[M1/M2] Agent: M2 processing completed, " << infos.size() << " BSS config(s) ready for update";
-    LOG(INFO) << "[M1/M2] Agent: ========================================";
 
-    // =========================================================================
-    // [AUTO-STA] Auto-join backhaul STA using backhaul manager 
-    // -------------------------------------------------------------------------
-    // Logic:
-    //  1) If this node is NOT the gateway,
-    //  2) Find the first M2 entry that is a Backhaul BSS (bss_type has BACKHAUL_BSS),
-    //  3) Reuse send_bsta_configuration(...) to pass SSID/key/auth/encr to the backhaul manager,
-    //  4) Enable the endpoint with send_enable_disable_endpoint(..., true).
-    // This mirrors the intent of the former DM writes but uses existing beerocks messages.
-    // =========================================================================
+    // Non-gateway: pick first Backhaul BSS from parsed M2, push credentials to the backhaul
+    // manager via send_bsta_configuration(), then enable the endpoint with
+    // send_enable_disable_endpoint(..., true). Replaces prior DM-based wiring.
     {
         if (!db->device_conf.local_gw) {
             // ---- Select the first Backhaul BSS from parsed M2 payload ----
@@ -2201,7 +2179,6 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             LOG(DEBUG) << "[AUTO-STA] This node is gateway (Root); skipping auto-join";
         }
     }
-    // =========================================================================
 
     // Non-gateway: pick first Backhaul BSS from parsed M2, push credentials to the backhaul
     // manager via send_bsta_configuration(), then enable the endpoint with

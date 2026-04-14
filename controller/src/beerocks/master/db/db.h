@@ -2527,16 +2527,6 @@ public:
                                        const wireless_utils::sTrafficSeparationSsid &config);
 
     /**
-     * @brief Clears all SSIDtoVIDMapping entries for an agent.
-     *
-     * DM path : "Device.WiFi.DataElements.Network.Device.{i}.SSIDtoVIDMapping"
-     *
-     * @param[in] agent agent whose SSIDtoVIDMapping entries should be cleared
-     * @return True on success, false otherwise.
-     */
-    bool dm_clear_device_ssid_to_vid_map(const Agent &agent);
-
-    /**
      * @brief Sets the default 802.1Q settings for EasyMesh service prioritization.
      *
      * DM path : "Device.WiFi.DataElements.Network.Device.{i}.Default8021Q.{i}."
