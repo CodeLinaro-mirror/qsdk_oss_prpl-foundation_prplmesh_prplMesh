@@ -44,6 +44,9 @@ ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"].?" | grep
     ba-cli "IP.Interface.[Alias == \"wan\"].IPv4Address.[Alias == \"wan\"].Enable=1"
 }
 
+# Workaround for an issue with the WAN/SFP port (PPM-3994)
+ip addr add 192.168.250.160/24 dev eth1
+
 sleep 5
 
 # The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
@@ -136,6 +139,7 @@ iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
+ip addr add 192.168.250.160/24 dev eth1
 dropbear -F -T 10 -p192.168.250.160:22 &"
 
 sleep 2
