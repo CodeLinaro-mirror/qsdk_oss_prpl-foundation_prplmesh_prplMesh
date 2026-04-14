@@ -41,6 +41,9 @@ ba-cli 'IP.Interface.wan.IPv4Address.primary.{IPAddress="192.168.250.160", Subne
 # Enable it:
 ba-cli IP.Interface.wan.IPv4Enable=1
 
+# workaround for an issue with the WAN/SFP port (PPM-3994)
+ip addr add 192.168.250.160/24 dev eth1
+
 # Set the LAN bridge IP:
 ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.160"
 
@@ -92,6 +95,7 @@ iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
+ip addr add 192.168.250.160/24 dev eth1
 dropbear -F -T 10 -p192.168.250.160:22 &"
 
 sleep 5
