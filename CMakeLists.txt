@@ -36,6 +36,11 @@ if (NOT DEFINED DATAELEMENTS_ROOT_DM)
     set(DATAELEMENTS_ROOT_DM "Device.WiFi.DataElements")
 endif()
 
+## Device.WiFi.Templates
+if (NOT DEFINED TEMPLATES_ROOT_DM)
+    set(TEMPLATES_ROOT_DM "Device.WiFi.Templates")
+endif()
+
 ## PrplMesh Controller datamodel root path
 if (NOT DEFINED CONTROLLER_ROOT_DM)
     set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_Controller")
@@ -49,12 +54,12 @@ endif()
 add_definitions(-DDATAELEMENTS_ROOT_DM="${DATAELEMENTS_ROOT_DM}")
 add_definitions(-DCONTROLLER_ROOT_DM="${CONTROLLER_ROOT_DM}")
 add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
-
+add_definitions(-DTEMPLATES_ROOT_DM="${TEMPLATES_ROOT_DM}")
 
 process_root_dm(DATAELEMENTS_ROOT_DM DATAELEMENTS_ROOT_DM_literal DATAELEMENTS_ROOT_DM_Header DATAELEMENTS_ROOT_DM_Footer)
 process_root_dm(CONTROLLER_ROOT_DM CONTROLLER_ROOT_DM_literal CONTROLLER_ROOT_DM_Header CONTROLLER_ROOT_DM_Footer)
 process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_ROOT_DM_Footer)
-
+process_root_dm(TEMPLATES_ROOT_DM TEMPLATES_ROOT_DM_literal TEMPLATES_ROOT_DM_Header TEMPLATES_ROOT_DM_Footer)
 
 ## Build options
 

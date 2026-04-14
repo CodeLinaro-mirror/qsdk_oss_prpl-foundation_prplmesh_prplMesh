@@ -1622,6 +1622,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
 {
     const auto mid = cmdu_rx.getMessageId();
 
+    LOG(INFO) << "[M1/M2] ========================================";
+    LOG(INFO) << "[M1/M2] Controller: Received AP_AUTOCONFIGURATION_WSC_MESSAGE (M1)";
     LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE mid[" << std::hex << mid << "]";
     auto tlvWsc = cmdu_rx.getClass<ieee1905_1::tlvWsc>();
     if (!tlvWsc) {
@@ -1710,8 +1712,25 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     } else if (m1->rf_bands() & WSC::WSC_RF_BAND_6GHZ) {
         radio->band = beerocks::FREQ_6G;
     }
+    
+    // CRITICAL: Read BSS configuration from bss_infos
+    LOG(INFO) << "[M1/M2] Controller: Reading BSS configuration from bss_infos[" << al_mac << "]";
+    LOG(INFO) << "[M1/M2] Controller: Found " << bss_info_confs.size() << " BSS configuration(s)";
+
+    // Log each BSS config that will be sent in M2
+    size_t bss_idx = 0;
+    for (const auto &bss_info_conf : bss_info_confs) {
+        LOG(INFO) << "[M1/M2] Controller: BSS[" << bss_idx << "] config:";
+        LOG(INFO) << "[M1/M2] Controller:   BSSID: " << bss_info_conf.bssid;
+        LOG(INFO) << "[M1/M2] Controller:   SSID: '" << bss_info_conf.ssid << "'";
+        LOG(INFO) << "[M1/M2] Controller:   network_key: " << (bss_info_conf.network_key.empty() ? "<empty>" : "***");
+        LOG(INFO) << "[M1/M2] Controller:   auth_type: " << bss_info_conf.authentication_type;
+        LOG(INFO) << "[M1/M2] Controller:   encr_type: " << bss_info_conf.encryption_type;
+        bss_idx++;
+    }
 
     database.clear_configured_bss_info(ruid);
+    LOG(INFO) << "[M1/M2] Controller: Cleared configured_bss_infos[" << ruid << "] (will rebuild from bss_infos)";
 
     for (auto &bss_info_conf : bss_info_confs) {
         // Check if the radio supports it
@@ -1757,7 +1776,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         }
 
         auto bss_info_copy = database.add_configured_bss_info(ruid, bss_info_conf);
-
+        LOG(INFO) << "[M1/M2] Controller: Adding BSS to configured_bss_infos[" << ruid << "]: BSSID=" << bss_info_copy.bssid << " SSID='" << bss_info_copy.ssid << "'";
+        
         // if agent does not support RSN Overriding, downgrade security config
         adjust_security_mode_for_agent(agent, radio, &bss_info_copy);
 
@@ -1774,10 +1794,15 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             return false;
         }
 
+        LOG(INFO) << "[M1/M2] Controller: M2 built successfully for BSSID=" << bss_info_copy.bssid << " SSID='" << bss_info_copy.ssid << "'";
         if (bss_info_copy.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
             rsn_tlv_required = true;
         }
     }
+
+    LOG(INFO) << "[M1/M2] Controller: M2 message built with " << database.get_configured_bss_info(ruid).size() << " BSS entries";
+    LOG(INFO) << "[M1/M2] Controller: Sending M2 response to agent " << al_mac << " radio " << ruid;
+    LOG(INFO) << "[M1/M2] ========================================";
 
     bool is_custom_ts_enabled = beerocks::bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
     if (!beerocks::bpl::cfg_get_is_traffic_separation_enabled(is_custom_ts_enabled)) {

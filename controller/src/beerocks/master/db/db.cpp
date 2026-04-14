@@ -8435,6 +8435,22 @@ bool db::dm_set_device_ssid_to_vid_map(const Agent &agent,
     return ret_val;
 }
 
+bool db::dm_clear_device_ssid_to_vid_map(const Agent &agent)
+{
+    if (agent.dm_path.empty()) {
+        return true;
+    }
+
+    std::string ssidtovidmapping_path = agent.dm_path + ".SSIDtoVIDMapping";
+    if (!m_ambiorix_datamodel->remove_all_instances(ssidtovidmapping_path)) {
+        LOG(WARNING) << "Failed to clear SSIDtoVIDMapping for agent " << agent.al_mac;
+        return false;
+    }
+
+    LOG(DEBUG) << "Cleared SSIDtoVIDMapping for agent " << agent.al_mac;
+    return true;
+}
+
 bool db::dm_set_default_8021q(const Agent &agent, const uint16_t primary_vlan_id,
                               const uint8_t default_pcp)
 {

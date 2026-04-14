@@ -508,6 +508,27 @@
 
     on event "*" call event_network_group_changed
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X-PRPL_ORG_Group\."';
+
+    on event "dm:object-changed" call event_template_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\." && contains("parameters.Enable")';
+
+    on event "dm:object-changed" call event_templates_network_enable_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")';
+
+    on event "dm:object-changed" call event_bss_radio_template_reference_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\." && contains("parameters.RadioTemplateReference")';
+
+    on event "dm:object-changed" call event_bss_ssc_template_reference_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\." && contains("parameters.SSCTemplateReference")';
+
+    on event "dm:object-changed" call event_network_primary_ssc_reference_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\." && contains("parameters.PrimarySSCTemplateReference")';
+
+    on event "dm:object-changed" call event_bss_security_group_reference_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\." && contains("parameters.SecurityGroupReference")';
+
+    on event "dm:object-changed" call event_security_group_template_references_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\." && contains("parameters.SecurityTemplateReferences")';
 }
 
 include "device.odl";
@@ -523,3 +544,4 @@ include "agent_connected_event.odl";
 include "failed_connection_event.odl";
 include "agent_disconnected_event.odl";
 include "unassociated_sta.odl";
+include "templates.odl";

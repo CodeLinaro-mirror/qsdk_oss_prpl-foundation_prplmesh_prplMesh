@@ -17,6 +17,8 @@
 #include <sstream>
 #include <time.h>
 #include <unordered_map>
+#include <algorithm>
+#include <cctype>
 
 using namespace beerocks;
 using namespace net;
@@ -29,6 +31,9 @@ namespace actions {
 
 son::db *g_database = nullptr;
 
+static amxd_status_t template_commit(amxd_object_t *bss_template_obj, uint8_t &bss_index_seq);
+
+static void template_rebuild_staged_configuration(amxd_object_t *templates_root);
 /*
 ** Set the number of seconds since this Associated Device was last attempted to be steered.
 */
@@ -194,16 +199,16 @@ static bool get_param_bool(amxd_object_t *object, const char *param_name)
     return param_val;
 }
 
-static bool get_param_uint32(amxd_object_t *object, const char *param_name)
+static uint32_t get_param_uint32(amxd_object_t *object, const char *param_name)
 {
     amxc_var_t param;
-    uint32_t param_val = false;
+    uint32_t param_val = 0;
 
     amxc_var_init(&param);
     if (amxd_object_get_param(object, param_name, &param) == amxd_status_ok) {
         param_val = amxc_var_dyncast(uint32_t, &param);
     } else {
-        LOG(ERROR) << "Fail to get param: " << param_name;
+        LOG(ERROR) << "Failed to read uint32 parameter \"" << param_name << "\"";
     }
     amxc_var_clean(&param);
     return param_val;
@@ -233,13 +238,1136 @@ static uint64_t get_uint64_from_bss_color_bitmap(const std::string &decimal_str)
 }
 
 /**
+ * @brief Parse comma-separated topology flags string
+ */
+static std::vector<std::string> parse_topology_flags(const std::string &topology_flag_str)
+{
+    std::vector<std::string> flags;
+    if (topology_flag_str.empty()) {
+        return flags;
+    }
+
+    std::istringstream iss(topology_flag_str);
+    std::string flag;
+    while (std::getline(iss, flag, ',')) {
+        // Trim whitespace
+        flag.erase(0, flag.find_first_not_of(" \t"));
+        flag.erase(flag.find_last_not_of(" \t") + 1);
+        if (!flag.empty()) {
+            flags.push_back(flag);
+        }
+    }
+    return flags;
+}
+
+/**
+ * @brief Notify connected agents to refresh autoconfiguration (same path as AccessPointCommit).
+ */
+static void template_send_ap_config_renew_message()
+{
+    if (!g_database) {
+        LOG(ERROR) << "g_database is nullptr";
+        return;
+    }
+
+    uint8_t m_tx_buffer[beerocks::message::MESSAGE_BUFFER_LENGTH];
+    ieee1905_1::CmduMessageTx cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer));
+
+    auto connected_agents = g_database->get_all_connected_agents();
+    if (connected_agents.empty()) {
+        LOG(DEBUG) << "No connected agents, skip AP_CONFIGURATION_RENEW";
+        return;
+    }
+
+    if (!son_actions::send_ap_config_renew_msg(cmdu_tx, *g_database)) {
+        LOG(ERROR) << "Failed to send AP_CONFIGURATION_RENEW_MESSAGE";
+    }
+}
+
+/**
+ * @brief Select enabled SecurityTemplate with highest Priority for a SecurityGroup.
+ *
+ * Uses LinkedSecurityTemplateID (comma-separated SecurityTemplateID values) and/or
+ * SecurityTemplateReferences (comma-separated object paths).
+ */
+static amxd_object_t *template_resolve_security_template(amxd_object_t *templates_root,
+                                                          amxd_object_t *security_group_obj)
+{
+    amxd_object_t *security_template_table = amxd_object_get_child(templates_root, "SecurityTemplate");
+    if (!security_template_table) {
+        LOG(WARNING) << "SecurityTemplate table not found";
+        return nullptr;
+    }
+
+    amxd_object_t *best_inst = nullptr;
+    uint32_t best_priority   = 0;
+
+    auto consider = [&](amxd_object_t *inst) {
+        if (!inst || !get_param_bool(inst, "Enable")) {
+            return;
+        }
+        uint32_t p = get_param_uint32(inst, "Priority");
+        if (!best_inst || p > best_priority) {
+            best_inst     = inst;
+            best_priority = p;
+        }
+    };
+
+    std::string linked = get_param_string(security_group_obj, "LinkedSecurityTemplateID");
+    for (const std::string &tid : parse_topology_flags(linked)) {
+        if (tid.empty()) {
+            continue;
+        }
+        amxd_object_for_each(instance, it, security_template_table)
+        {
+            amxd_object_t *inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+            if (get_param_string(inst, "SecurityTemplateID") == tid) {
+                consider(inst);
+                break;
+            }
+        }
+    }
+
+    std::string refs = get_param_string(security_group_obj, "SecurityTemplateReferences");
+    for (const std::string &path : parse_topology_flags(refs)) {
+        if (path.empty()) {
+            continue;
+        }
+        amxd_object_t *inst =
+            amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", path.c_str());
+        consider(inst);
+    }
+
+    return best_inst;
+}
+
+/**
+ * @brief Fill bss_info.operating_class from RadioTemplate BandFlag / OpClassFlag.
+ *
+ * If both BandFlag and OpClassFlag are set, BandFlag wins (with warning).
+ * BandFlag: tokens "2.4", "5", "6" only; all tokens must describe one band.
+ * OpClassFlag: decimal op classes; all must map to the same 2.4/5/6 GHz band.
+ */
+static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
+                                                  son::wireless_utils::sBssInfoConf &bss_info)
+{
+    bss_info.operating_class.clear();
+
+    auto freq_from_band_token = [](const std::string &band) -> beerocks::eFreqType {
+        if (band == "2.4") {
+            return beerocks::FREQ_24G;
+        }
+        if (band == "5") {
+            return beerocks::FREQ_5G;
+        }
+        if (band == "6") {
+            return beerocks::FREQ_6G;
+        }
+        return beerocks::FREQ_UNKNOWN;
+    };
+
+    auto freq_from_op_class = [](uint8_t oc) -> beerocks::eFreqType {
+        static const beerocks::eFreqType kBands[] = {beerocks::FREQ_24G, beerocks::FREQ_5G,
+                                                     beerocks::FREQ_6G};
+        for (auto ft : kBands) {
+            const auto v = son::wireless_utils::get_operating_classes_of_freq_type(ft);
+            if (std::find(v.begin(), v.end(), oc) != v.end()) {
+                return ft;
+            }
+        }
+        return beerocks::FREQ_UNKNOWN;
+    };
+
+    std::string band_flag     = get_param_string(radio_inst, "BandFlag");
+    std::string op_class_flag = get_param_string(radio_inst, "OpClassFlag");
+
+    if (!band_flag.empty() && !op_class_flag.empty()) {
+        LOG(WARNING) << "RadioTemplate has both BandFlag and OpClassFlag; using BandFlag only";
+    }
+
+    if (!band_flag.empty()) {
+        beerocks::eFreqType band_choice = beerocks::FREQ_UNKNOWN;
+        std::istringstream iss(band_flag);
+        std::string token;
+        while (std::getline(iss, token, ',')) {
+            token.erase(0, token.find_first_not_of(" \t"));
+            token.erase(token.find_last_not_of(" \t") + 1);
+            if (token.empty()) {
+                continue;
+            }
+            beerocks::eFreqType ft = freq_from_band_token(token);
+            if (ft == beerocks::FREQ_UNKNOWN) {
+                LOG(WARNING) << "Unknown BandFlag token \"" << token << "\"";
+                continue;
+            }
+            if (band_choice == beerocks::FREQ_UNKNOWN) {
+                band_choice = ft;
+            } else if (band_choice != ft) {
+                LOG(WARNING) << "BandFlag lists multiple frequency bands; invalid RadioTemplate";
+                bss_info.operating_class.clear();
+                return false;
+            }
+        }
+        if (band_choice == beerocks::FREQ_UNKNOWN) {
+            return false;
+        }
+        if (band_choice == beerocks::FREQ_24G) {
+            bss_info.operating_class.splice(bss_info.operating_class.end(),
+                                            son::wireless_utils::string_to_wsc_oper_class("24g"));
+        } else if (band_choice == beerocks::FREQ_5G) {
+            bss_info.operating_class.splice(bss_info.operating_class.end(),
+                                            son::wireless_utils::string_to_wsc_oper_class("5gh"));
+        } else {
+            bss_info.operating_class.splice(bss_info.operating_class.end(),
+                                            son::wireless_utils::string_to_wsc_oper_class("6g"));
+        }
+        return true;
+    }
+
+    if (op_class_flag.empty()) {
+        return false;
+    }
+
+    beerocks::eFreqType op_band = beerocks::FREQ_UNKNOWN;
+    std::istringstream iss(op_class_flag);
+    std::string op_str;
+    while (std::getline(iss, op_str, ',')) {
+        op_str.erase(0, op_str.find_first_not_of(" \t"));
+        op_str.erase(op_str.find_last_not_of(" \t") + 1);
+        if (op_str.empty()) {
+            continue;
+        }
+        char *endptr = nullptr;
+        long v       = strtol(op_str.c_str(), &endptr, 10);
+        if (endptr == op_str.c_str() || *endptr != '\0' || v < 0 || v > 255) {
+            LOG(WARNING) << "Invalid OpClassFlag token \"" << op_str << "\"";
+            continue;
+        }
+        uint8_t oc             = static_cast<uint8_t>(v);
+        beerocks::eFreqType ft = freq_from_op_class(oc);
+        if (ft == beerocks::FREQ_UNKNOWN) {
+            LOG(WARNING) << "Operating class " << int(oc) << " not mapped to 2.4/5/6 GHz";
+            bss_info.operating_class.clear();
+            return false;
+        }
+        if (op_band == beerocks::FREQ_UNKNOWN) {
+            op_band = ft;
+        } else if (op_band != ft) {
+            LOG(WARNING) << "OpClassFlag mixes operating classes from different bands";
+            bss_info.operating_class.clear();
+            return false;
+        }
+        bss_info.operating_class.push_back(oc);
+    }
+
+    return !bss_info.operating_class.empty();
+}
+
+/**
+ * @brief Radio-first gate: true if this PHY radio’s band supports at least one template op class.
+ */
+static bool template_radio_matches_operating_classes(const Agent::sRadio &radio,
+                                                     const std::list<uint8_t> &tpl_op_classes)
+{
+    if (radio.get_band() == beerocks::FREQ_UNKNOWN || tpl_op_classes.empty()) {
+        return false;
+    }
+    const auto radio_ocs =
+        son::wireless_utils::get_operating_classes_of_freq_type(radio.get_band());
+    for (uint8_t oc : tpl_op_classes) {
+        if (std::find(radio_ocs.begin(), radio_ocs.end(), oc) != radio_ocs.end()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief Resolve a reference path and update the linked ID field
+ *
+ * @param reference_path Full path like "Device.WiFi.Templates.RadioTemplate.1"
+ * @param template_id_param_name Parameter name to read (e.g., "RadioTemplateID", "SSCTemplateID")
+ * @param target_object Object where to set the linked ID
+ * @param target_param_name Parameter name to set (e.g., "LinkedRadioTemplateID", "LinkedSSCTemplateID", "PrimarySSCTemplateID")
+ * @return true on success, false otherwise
+ */
+static bool update_linked_template_id(const std::string &reference_path,
+                                      const std::string &template_id_param_name,
+                                      amxd_object_t *target_object,
+                                      const std::string &target_param_name)
+{
+    if (reference_path.empty()) {
+        // Clear the linked ID if reference is empty
+        amxd_trans_t transaction;
+        amxd_trans_init(&transaction);
+        amxd_trans_set_attr(&transaction, amxd_tattr_change_ro, true);
+        amxd_trans_select_object(&transaction, target_object);
+        amxd_trans_set_value(cstring_t, &transaction, target_param_name.c_str(), "");
+        amxd_status_t status = amxd_trans_apply(&transaction, beerocks::nbapi::Amxrt::getDatamodel());
+        amxd_trans_clean(&transaction);
+        return (status == amxd_status_ok);
+    }
+
+    // Find the referenced object
+    amxd_object_t *referenced_obj = amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(),
+                                                    "%s", reference_path.c_str());
+    if (!referenced_obj) {
+        LOG(WARNING) << "Failed to find referenced object: " << reference_path;
+        return false;
+    }
+
+    // Read the TemplateID from the referenced object
+    std::string template_id = get_param_string(referenced_obj, template_id_param_name.c_str());
+
+    if (template_id.empty()) {
+        LOG(WARNING) << "TemplateID is empty in referenced object: " << reference_path;
+        return false;
+    }
+
+    // Update the linked ID using transaction with read-only attribute
+    amxd_trans_t transaction;
+    amxd_trans_init(&transaction);
+    amxd_trans_set_attr(&transaction, amxd_tattr_change_ro, true);
+    amxd_trans_select_object(&transaction, target_object);
+    amxd_trans_set_value(cstring_t, &transaction, target_param_name.c_str(), template_id.c_str());
+    amxd_status_t status = amxd_trans_apply(&transaction, beerocks::nbapi::Amxrt::getDatamodel());
+    amxd_trans_clean(&transaction);
+
+    if (status == amxd_status_ok) {
+        LOG(DEBUG) << "Updated " << target_param_name << " to \"" << template_id
+                   << "\" from reference " << reference_path;
+        return true;
+    } else {
+        LOG(ERROR) << "Failed to update " << target_param_name << ", status: "
+                   << amxd_status_string(status);
+        return false;
+    }
+}
+
+/**
+ * @brief Event handler for BSSTemplate.RadioTemplateReference change.
+ * Automatically updates LinkedRadioTemplateID when RadioTemplateReference changes.
+ */
+static void event_bss_radio_template_reference_changed(const char *const sig_name,
+                                                        const amxc_var_t *const data,
+                                                        void *const priv)
+{
+    amxd_object_t *bss_template_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!bss_template_obj) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.BSSTemplate";
+        return;
+    }
+
+    std::string radio_template_ref = get_param_string(bss_template_obj, "RadioTemplateReference");
+
+    LOG(DEBUG) << "BSSTemplate RadioTemplateReference changed to: \"" << radio_template_ref << "\"";
+
+    update_linked_template_id(radio_template_ref, "RadioTemplateID", bss_template_obj,
+                             "LinkedRadioTemplateID");
+}
+
+/**
+ * @brief Event handler for BSSTemplate.SSCTemplateReference change.
+ * Automatically updates LinkedSSCTemplateID when SSCTemplateReference changes.
+ */
+static void event_bss_ssc_template_reference_changed(const char *const sig_name,
+                                                     const amxc_var_t *const data,
+                                                     void *const priv)
+{
+    amxd_object_t *bss_template_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!bss_template_obj) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.BSSTemplate";
+        return;
+    }
+
+    std::string ssc_template_ref = get_param_string(bss_template_obj, "SSCTemplateReference");
+
+    LOG(DEBUG) << "BSSTemplate SSCTemplateReference changed to: \"" << ssc_template_ref << "\"";
+
+    update_linked_template_id(ssc_template_ref, "SSCTemplateID", bss_template_obj,
+                             "LinkedSSCTemplateID");
+}
+
+/**
+ * @brief Event handler for Network.PrimarySSCTemplateReference change.
+ * Automatically updates PrimarySSCTemplateID when PrimarySSCTemplateReference changes.
+ */
+static void event_network_primary_ssc_reference_changed(const char *const sig_name,
+                                                        const amxc_var_t *const data,
+                                                        void *const priv)
+{
+    amxd_object_t *network_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!network_obj) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.Network";
+        return;
+    }
+
+    std::string primary_ssc_ref = get_param_string(network_obj, "PrimarySSCTemplateReference");
+
+    LOG(DEBUG) << "Network PrimarySSCTemplateReference changed to: \"" << primary_ssc_ref << "\"";
+
+    update_linked_template_id(primary_ssc_ref, "SSCTemplateID", network_obj,
+                             "PrimarySSCTemplateID");
+}
+
+/**
+ * @brief Event handler for BSSTemplate.SecurityGroupReference change.
+ * Updates LinkedSecurityGroupID when SecurityGroupReference changes.
+ */
+static void event_bss_security_group_reference_changed(const char *const sig_name,
+                                                       const amxc_var_t *const data,
+                                                       void *const priv)
+{
+    amxd_object_t *bss_template_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!bss_template_obj) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.BSSTemplate";
+        return;
+    }
+
+    std::string security_group_ref = get_param_string(bss_template_obj, "SecurityGroupReference");
+
+    LOG(DEBUG) << "BSSTemplate SecurityGroupReference changed to: \"" << security_group_ref << "\"";
+
+    update_linked_template_id(security_group_ref, "SecurityGroupID", bss_template_obj,
+                              "LinkedSecurityGroupID");
+}
+
+/**
+ * @brief Event handler for SecurityGroup.SecurityTemplateReferences change.
+ * Updates LinkedSecurityTemplateID (csv of SecurityTemplateIDs) from reference paths.
+ */
+static void event_security_group_template_references_changed(const char *const sig_name,
+                                                             const amxc_var_t *const data,
+                                                             void *const priv)
+{
+    amxd_object_t *security_group_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!security_group_obj) {
+        LOG(WARNING) << "Failed to get object Device.WiFi.Templates.SecurityGroup";
+        return;
+    }
+
+    std::string refs_str = get_param_string(security_group_obj, "SecurityTemplateReferences");
+    LOG(DEBUG) << "SecurityGroup SecurityTemplateReferences changed to: \"" << refs_str << "\"";
+
+    std::vector<std::string> paths = parse_topology_flags(refs_str);
+    std::string linked_ids;
+    for (size_t i = 0; i < paths.size(); i++) {
+        amxd_object_t *ref_obj = amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(),
+                                               "%s", paths[i].c_str());
+        if (!ref_obj) {
+            LOG(WARNING) << "SecurityTemplate reference not found: " << paths[i];
+            continue;
+        }
+        std::string tid = get_param_string(ref_obj, "SecurityTemplateID");
+        if (tid.empty())
+            continue;
+        if (!linked_ids.empty())
+            linked_ids += ",";
+        linked_ids += tid;
+    }
+
+    amxd_trans_t transaction;
+    amxd_trans_init(&transaction);
+    amxd_trans_set_attr(&transaction, amxd_tattr_change_ro, true);
+    amxd_trans_select_object(&transaction, security_group_obj);
+    amxd_trans_set_value(cstring_t, &transaction, "LinkedSecurityTemplateID", linked_ids.c_str());
+    amxd_status_t status = amxd_trans_apply(&transaction, beerocks::nbapi::Amxrt::getDatamodel());
+    amxd_trans_clean(&transaction);
+
+    if (status == amxd_status_ok) {
+        LOG(DEBUG) << "Updated LinkedSecurityTemplateID to \"" << linked_ids << "\"";
+    } else {
+        LOG(ERROR) << "Failed to update LinkedSecurityTemplateID, status: "
+                   << amxd_status_string(status);
+    }
+}
+
+static std::vector<sMacAddr> filter_target_agents(
+    const std::vector<std::shared_ptr<Agent>> &connected_agents,
+    const std::vector<std::string> &network_topology_flags,
+    const std::vector<sMacAddr> &network_alids,
+    const std::vector<std::string> &bss_topology_flags,
+    const std::vector<sMacAddr> &bss_alids)
+{
+    std::vector<sMacAddr> target_agents;
+
+    for (const auto &agent : connected_agents) {
+        bool should_deploy = false;
+
+        if (!network_alids.empty()) {
+            bool network_match = false;
+            for (const auto &network_alid : network_alids) {
+                if (agent->al_mac == network_alid) {
+                    network_match = true;
+                    break;
+                }
+            }
+            if (!network_match) {
+                continue;
+            }
+        }
+
+        if (!bss_alids.empty()) {
+            bool alid_match = false;
+            for (const auto &bss_alid : bss_alids) {
+                if (agent->al_mac == bss_alid) {
+                    alid_match = true;
+                    break;
+                }
+            }
+            if (!alid_match) {
+                continue;
+            }
+            should_deploy = true;
+        }
+
+        const bool is_root     = agent->is_gateway;
+        const bool is_repeater = !agent->is_gateway;
+        const bool bh_wired =
+            (agent->backhaul.backhaul_iface_type == beerocks::IFACE_TYPE_ETHERNET ||
+             agent->backhaul.backhaul_iface_type == beerocks::IFACE_TYPE_BRIDGE ||
+             agent->backhaul.backhaul_iface_type == beerocks::IFACE_TYPE_GW_BRIDGE);
+        const bool is_wired_repeater    = is_repeater && bh_wired;
+        const bool is_wireless_repeater = is_repeater && !bh_wired;
+
+        if (!should_deploy && !network_topology_flags.empty()) {
+            for (const auto &flag : network_topology_flags) {
+                if (flag == "Root" && is_root) {
+                    should_deploy = true;
+                    break;
+                }
+                if (flag == "Repeater" && is_repeater) {
+                    should_deploy = true;
+                    break;
+                }
+                if (flag == "Wired_Repeater" && is_wired_repeater) {
+                    should_deploy = true;
+                    break;
+                }
+                if (flag == "Wireless_Repeater" && is_wireless_repeater) {
+                    should_deploy = true;
+                    break;
+                }
+            }
+        }
+
+        if (!should_deploy && !bss_topology_flags.empty()) {
+            for (const auto &flag : bss_topology_flags) {
+                if (flag == "Root" && is_root) {
+                    should_deploy = true;
+                    break;
+                }
+                if (flag == "Repeater" && is_repeater) {
+                    should_deploy = true;
+                    break;
+                }
+                if (flag == "Wired_Repeater" && is_wired_repeater) {
+                    should_deploy = true;
+                    break;
+                }
+                if (flag == "Wireless_Repeater" && is_wireless_repeater) {
+                    should_deploy = true;
+                    break;
+                }
+            }
+        }
+
+        if (!should_deploy && network_topology_flags.empty() && bss_topology_flags.empty() &&
+            network_alids.empty() && bss_alids.empty()) {
+            should_deploy = true;
+        }
+
+        if (should_deploy) {
+            target_agents.push_back(agent->al_mac);
+            LOG(DEBUG) << "Template scope includes agent " << agent->al_mac;
+        }
+    }
+
+    return target_agents;
+}
+
+/** BBF: 4-octet hex AKM suite selector without internal delimiters (e.g. 000FAC12). */
+static const std::string OWE_AKM_SELECTOR = "000FAC12";
+
+/**
+ * @brief Normalize 4-octet AKM suite selector (strip non-hex, uppercase).
+ */
+static std::string normalize_akm_selector(const std::string &raw)
+{
+    std::string out;
+    for (char c : raw) {
+        if (std::isxdigit(static_cast<unsigned char>(c))) {
+            out += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        }
+    }
+    return (out.size() == 8u) ? out : "";
+}
+
+/**
+ * @brief Apply SecurityTemplate DM fields to bss_info (WSC auth / encr / additional_auth).
+ *        Non-empty SecurityIEs is not implemented in this path (FEAT-8 / PPM-3450).
+ */
+static void apply_security_template_to_bss_info(amxd_object_t *security_template_obj,
+                                                son::wireless_utils::sBssInfoConf &bss_info)
+{
+    std::string security_ies = get_param_string(security_template_obj, "SecurityIEs");
+    if (!security_ies.empty()) {
+        LOG(DEBUG) << "SecurityTemplate SecurityIEs non-empty; binary IE path not implemented";
+        return;
+    }
+
+    std::string rsno_support_flag       = get_param_string(security_template_obj, "RSNOSupportFlag");
+    std::string supported_akm_flag      = get_param_string(security_template_obj, "SupportedAKMSuiteFlag");
+    std::string supported_selector_flag = get_param_string(security_template_obj, "SupportedAKMSuiteSelectorFlag");
+
+    const bool rsno_support = (rsno_support_flag == "true");
+
+    amxd_object_t *rsne_obj = amxd_object_get_child(security_template_obj, "RSNE");
+    std::string rsne_akm;
+    std::string rsne_akm_selector_str;
+    if (rsne_obj) {
+        rsne_akm               = get_param_string(rsne_obj, "AKMSuite");
+        rsne_akm_selector_str = get_param_string(rsne_obj, "AKMSuiteSelector");
+    }
+
+    std::vector<std::string> akm_flags     = parse_topology_flags(supported_akm_flag);
+    std::vector<std::string> rsne_akm_list = parse_topology_flags(rsne_akm);
+
+    auto contains = [](const std::vector<std::string> &vec, const std::string &s) {
+        return std::find(vec.begin(), vec.end(), s) != vec.end();
+    };
+
+    const bool use_suite_selector =
+        contains(akm_flags, "SuiteSelector") || contains(rsne_akm_list, "SuiteSelector");
+
+    if (use_suite_selector) {
+        std::string selector_str =
+            rsne_akm_selector_str.empty() ? supported_selector_flag : rsne_akm_selector_str;
+        std::vector<std::string> selector_values = parse_topology_flags(selector_str);
+        for (auto &s : selector_values) {
+            s.erase(0, s.find_first_not_of(" \t"));
+            s.erase(s.find_last_not_of(" \t") + 1);
+            s = normalize_akm_selector(s);
+        }
+        selector_values.erase(std::remove_if(selector_values.begin(), selector_values.end(),
+                                             [](const std::string &x) { return x.empty(); }),
+                              selector_values.end());
+
+        for (const auto &sel : selector_values) {
+            if (sel == OWE_AKM_SELECTOR) {
+                bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_OPEN;
+                bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+                bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
+                LOG(DEBUG) << "SecurityTemplate: OWE (AKM suite selector)";
+                return;
+            }
+        }
+        LOG(DEBUG) << "SecurityTemplate: SuiteSelector set but no handled selector";
+    }
+
+    if (contains(akm_flags, "sae") || contains(rsne_akm_list, "sae")) {
+        const bool has_psk = contains(akm_flags, "psk") || contains(rsne_akm_list, "psk");
+        if (has_psk && rsno_support) {
+            bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_RSN;
+            bss_info.encryption_type       = WSC::eWscEncr::WSC_ENCR_AES;
+            bss_info.additional_auth =
+                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+            LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Compatibility (RSNO)";
+        } else if (has_psk) {
+            bss_info.authentication_type = WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK |
+                                                          WSC::eWscAuth::WSC_AUTH_SAE);
+            bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
+            bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
+            LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Transition (PSK+SAE, no RSNO)";
+        } else {
+            bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+            bss_info.encryption_type       = WSC::eWscEncr::WSC_ENCR_AES;
+            bss_info.additional_auth       = son::wireless_utils::eAdditionalAuth::NONE;
+            LOG(DEBUG) << "SecurityTemplate: WPA3-Personal (SAE)";
+        }
+        return;
+    }
+
+    if (contains(akm_flags, "psk") || contains(rsne_akm_list, "psk")) {
+        bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
+        bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+        bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
+        LOG(DEBUG) << "SecurityTemplate: WPA2-Personal";
+        return;
+    }
+
+    LOG(DEBUG) << "SecurityTemplate: no supported AKM combination";
+}
+
+/**
+ * @brief Stage one enabled BSSTemplate into the controller DB for in-scope agents.
+ *
+ * Only active when use_dataelements_vap_configs is true (Data Elements / template VAP path).
+ * @param bss_index_seq In/out: BSS index for this template row; incremented after any agent stages.
+ */
+static amxd_status_t template_commit(amxd_object_t *bss_template_obj, uint8_t &bss_index_seq)
+{
+    if (!g_database) {
+        LOG(ERROR) << "g_database is nullptr";
+        return amxd_status_ok;
+    }
+
+    if (!g_database->config.use_dataelements_vap_configs) {
+        LOG(DEBUG) << "template_commit ignored (use_dataelements_vap_configs is false)";
+        return amxd_status_ok;
+    }
+
+    if (!bss_template_obj) {
+        LOG(ERROR) << "BSSTemplate object is null";
+        return amxd_status_object_not_found;
+    }
+
+    const uint32_t bss_instance_index = amxd_object_get_index(bss_template_obj);
+
+    if (!get_param_bool(bss_template_obj, "Enable")) {
+        LOG(DEBUG) << "BSSTemplate[" << bss_instance_index << "] disabled, skip";
+        return amxd_status_ok;
+    }
+
+    amxd_object_t *bss_template_table = amxd_object_get_parent(bss_template_obj);
+    if (!bss_template_table) {
+        LOG(ERROR) << "Failed to get BSSTemplate table";
+        return amxd_status_object_not_found;
+    }
+
+    amxd_object_t *templates_root = amxd_object_get_parent(bss_template_table);
+    if (!templates_root) {
+        LOG(ERROR) << "Failed to get Templates root";
+        return amxd_status_object_not_found;
+    }
+
+    amxd_object_t *network_obj = amxd_object_get_child(templates_root, "Network");
+    if (!network_obj) {
+        LOG(ERROR) << "Network object not found under Templates root";
+        return amxd_status_object_not_found;
+    }
+
+    if (!get_param_bool(network_obj, "Enable")) {
+        LOG(DEBUG) << "Templates.Network.Enable is false, skip";
+        return amxd_status_ok;
+    }
+
+    std::string network_topology_flag_str = get_param_string(network_obj, "TopologyFlag");
+    std::string network_ieee1905_alid_str  = get_param_string(network_obj, "IEEE1905ALID");
+    std::string network_primary_ssc_ref   = get_param_string(network_obj, "PrimarySSCTemplateReference");
+    std::vector<std::string> network_topology_flags = parse_topology_flags(network_topology_flag_str);
+
+    std::vector<sMacAddr> network_alids;
+    if (!network_ieee1905_alid_str.empty()) {
+        std::istringstream iss(network_ieee1905_alid_str);
+        std::string mac_str;
+        while (std::getline(iss, mac_str, ',')) {
+            mac_str.erase(0, mac_str.find_first_not_of(" \t"));
+            mac_str.erase(mac_str.find_last_not_of(" \t") + 1);
+            if (mac_str.empty()) {
+                continue;
+            }
+            sMacAddr alid = tlvf::mac_from_string(mac_str);
+            if (alid != beerocks::net::network_utils::ZERO_MAC) {
+                network_alids.push_back(alid);
+            } else {
+                LOG(WARNING) << "Invalid MAC in Network IEEE1905ALID: " << mac_str;
+            }
+        }
+    }
+
+    std::string bss_ssid = get_param_string(bss_template_obj, "SSID");
+    if (bss_ssid.empty()) {
+        LOG(WARNING) << "BSSTemplate[" << bss_instance_index << "] SSID empty, skip";
+        return amxd_status_ok;
+    }
+
+    std::string bss_key_passphrase     = get_param_string(bss_template_obj, "KeyPassphrase");
+    bool bss_advertisement_enable      = get_param_bool(bss_template_obj, "AdvertisementEnable");
+    std::string bss_topology_flag_str  = get_param_string(bss_template_obj, "TopologyFlag");
+    std::string bss_ieee1905_alid_str   = get_param_string(bss_template_obj, "IEEE1905ALID");
+    std::string bss_radio_template_ref = get_param_string(bss_template_obj, "RadioTemplateReference");
+    std::string bss_ssc_template_ref   = get_param_string(bss_template_obj, "SSCTemplateReference");
+    std::string bss_linked_ssc_id      = get_param_string(bss_template_obj, "LinkedSSCTemplateID");
+    std::string bss_security_group_ref = get_param_string(bss_template_obj, "SecurityGroupReference");
+    std::string bss_apmld_ref          = get_param_string(bss_template_obj, "APMLDTemplateReference");
+
+    if (bss_radio_template_ref.empty() || bss_ssc_template_ref.empty() ||
+        bss_security_group_ref.empty()) {
+        LOG(WARNING) << "BSSTemplate[" << bss_instance_index
+                     << "] missing Radio/SSC/SecurityGroup reference (non-deployable)";
+        return amxd_status_ok;
+    }
+
+    if (!network_primary_ssc_ref.empty()) {
+        amxd_object_t *pri_ssc =
+            amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s",
+                          network_primary_ssc_ref.c_str());
+        if (pri_ssc) {
+            const std::string primary_id = get_param_string(pri_ssc, "SSCTemplateID");
+            if (!primary_id.empty() && primary_id != bss_linked_ssc_id) {
+                LOG(WARNING) << "BSSTemplate SSC does not match Network.PrimarySSCTemplateReference";
+                return amxd_status_ok;
+            }
+        }
+    }
+
+    std::vector<std::string> bss_topology_flags = parse_topology_flags(bss_topology_flag_str);
+
+    std::vector<sMacAddr> bss_alids;
+    if (!bss_ieee1905_alid_str.empty()) {
+        std::istringstream iss(bss_ieee1905_alid_str);
+        std::string mac_str;
+        while (std::getline(iss, mac_str, ',')) {
+            mac_str.erase(0, mac_str.find_first_not_of(" \t"));
+            mac_str.erase(mac_str.find_last_not_of(" \t") + 1);
+            if (mac_str.empty()) {
+                continue;
+            }
+            sMacAddr alid = tlvf::mac_from_string(mac_str);
+            if (alid != beerocks::net::network_utils::ZERO_MAC) {
+                bss_alids.push_back(alid);
+            } else {
+                LOG(WARNING) << "Invalid MAC in BSSTemplate IEEE1905ALID: " << mac_str;
+            }
+        }
+    }
+
+    son::wireless_utils::sBssInfoConf bss_info;
+    bss_info.ssid        = bss_ssid;
+    bss_info.network_key = bss_key_passphrase;
+    bss_info.hidden_ssid = bss_advertisement_enable ? WSC::eWscVendorExtHiddenSsid::DISABLED
+                                                    : WSC::eWscVendorExtHiddenSsid::ENABLED;
+    bss_info.vap_type =
+        wireless_utils::string_to_vap_type(get_param_string(bss_template_obj, "X_PRPLWARE_VapType"));
+
+    amxd_object_t *security_group_obj =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s",
+                      bss_security_group_ref.c_str());
+    if (!security_group_obj) {
+        LOG(WARNING) << "SecurityGroup not found: " << bss_security_group_ref;
+        return amxd_status_ok;
+    }
+
+    amxd_object_t *security_inst = template_resolve_security_template(templates_root, security_group_obj);
+    if (!security_inst) {
+        LOG(WARNING) << "No enabled SecurityTemplate for BSSTemplate[" << bss_instance_index << "]";
+        return amxd_status_ok;
+    }
+
+    apply_security_template_to_bss_info(security_inst, bss_info);
+
+    amxd_object_t *radio_inst =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s",
+                      bss_radio_template_ref.c_str());
+    if (!radio_inst || !get_param_bool(radio_inst, "Enable")) {
+        LOG(WARNING) << "RadioTemplate missing or disabled: " << bss_radio_template_ref;
+        return amxd_status_ok;
+    }
+
+    if (!template_load_radio_operating_classes(radio_inst, bss_info)) {
+        LOG(WARNING) << "No valid operating classes from RadioTemplate for BSSTemplate["
+                     << bss_instance_index << "]";
+        return amxd_status_ok;
+    }
+
+    amxd_object_t *ssc_inst =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", bss_ssc_template_ref.c_str());
+    if (!ssc_inst || !get_param_bool(ssc_inst, "SSCEnable")) {
+        LOG(WARNING) << "SSCTemplate missing or SSCEnable=false: " << bss_ssc_template_ref;
+        return amxd_status_ok;
+    }
+
+    std::string haul_type = get_param_string(ssc_inst, "HaulType");
+    bss_info.backhaul    = (haul_type.find("Backhaul") != std::string::npos);
+    bss_info.fronthaul   = (haul_type.find("Fronthaul") != std::string::npos);
+    if (!bss_info.backhaul && !bss_info.fronthaul) {
+        LOG(WARNING) << "SSCTemplate HaulType has no Fronthaul/Backhaul for BSSTemplate["
+                     << bss_instance_index << "]";
+        return amxd_status_ok;
+    }
+
+    if (!bss_apmld_ref.empty()) {
+        amxd_object_t *apmld_inst =
+            amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", bss_apmld_ref.c_str());
+        if (apmld_inst && get_param_bool(apmld_inst, "MLOEnable")) {
+            const std::string mld_key = get_param_string(apmld_inst, "APMLDTemplateID");
+            if (!mld_key.empty()) {
+                son::wireless_utils::sMldInfoConf mld_info;
+                mld_info.ssid  = bss_ssid;
+                mld_info.str   = get_param_bool(apmld_inst, "STREnable");
+                mld_info.nstr  = get_param_bool(apmld_inst, "NSTREnable");
+                mld_info.emlsr = get_param_bool(apmld_inst, "EMLSREnable");
+                mld_info.emlmr = get_param_bool(apmld_inst, "EMLMREnable");
+                g_database->add_mld_info_configuration(mld_info, mld_key);
+                bss_info.mld_id = mld_key;
+                LOG(DEBUG) << "BSSTemplate[" << bss_instance_index << "] APMLD " << mld_key;
+            }
+        }
+    }
+
+    if (bss_info.authentication_type != WSC::eWscAuth::WSC_AUTH_OPEN &&
+        bss_info.network_key.empty()) {
+        LOG(WARNING) << "BSSTemplate " << bss_ssid << " missing KeyPassphrase for selected security";
+    }
+
+    auto connected_agents = g_database->get_all_connected_agents();
+    if (connected_agents.empty()) {
+        LOG(DEBUG) << "No connected agents";
+        return amxd_status_ok;
+    }
+
+    std::vector<sMacAddr> target_agents =
+        filter_target_agents(connected_agents, network_topology_flags, network_alids,
+                             bss_topology_flags, bss_alids);
+    if (target_agents.empty()) {
+        LOG(DEBUG) << "No agents in scope for BSSTemplate[" << bss_instance_index << "]";
+        return amxd_status_ok;
+    }
+
+    if (bss_index_seq == 0 || bss_index_seq > 254) {
+        LOG(WARNING) << "bss_index_seq out of range";
+        return amxd_status_unknown_error;
+    }
+
+    const uint8_t row_bss_index = bss_index_seq;
+    bool staged_any              = false;
+
+    for (const auto &target_agent_mac : target_agents) {
+        auto agent = g_database->get_agent(target_agent_mac);
+        if (!agent) {
+            continue;
+        }
+
+        bool any_radio_matches = false;
+        for (const auto &kv : agent->radios) {
+            if (!kv.second) {
+                continue;
+            }
+            if (template_radio_matches_operating_classes(*kv.second, bss_info.operating_class)) {
+                any_radio_matches = true;
+                break;
+            }
+        }
+        if (!any_radio_matches) {
+            LOG(DEBUG) << "Skip agent " << target_agent_mac
+                       << " (no radio matches RadioTemplate operating classes)";
+            continue;
+        }
+
+        son::wireless_utils::sBssInfoConf per_bss = bss_info;
+
+        if (!agent->rsn_overriding_supported &&
+            per_bss.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
+            per_bss.additional_auth ==
+                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+            bool any_6g = false;
+            for (uint8_t oc : per_bss.operating_class) {
+                if (oc >= OPCLASS_6GHZ_USING_CENTER_CHANNEL_FIRST &&
+                    oc <= OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST &&
+                    oc != OPCLASS_6GHZ_EXCEPTION) {
+                    any_6g = true;
+                    break;
+                }
+            }
+            if (any_6g) {
+                per_bss.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+                per_bss.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+            } else {
+                per_bss.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
+                per_bss.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+            }
+            per_bss.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
+            LOG(DEBUG) << "Agent " << target_agent_mac << " lacks RSN override; security downgraded";
+        }
+
+        per_bss.bss_index = row_bss_index;
+        g_database->add_bss_info_configuration(target_agent_mac, per_bss);
+        staged_any = true;
+        LOG(DEBUG) << "Staged BSS for agent " << target_agent_mac << " SSID \"" << bss_ssid << "\"";
+    }
+
+    if (staged_any) {
+        bss_index_seq++;
+    }
+
+    return amxd_status_ok;
+}
+
+/**
+ * @brief Rebuild template-driven staged BSS/MLD from DM.
+ *        If Templates.Network.Enable is false: clear everything and renew (no BSS deployed).
+ *        If true: re-stage all enabled BSSTemplates (by Priority) and renew.
+ */
+static void template_rebuild_staged_configuration(amxd_object_t *templates_root)
+{
+    if (!g_database) {
+        LOG(ERROR) << "g_database is nullptr";
+        return;
+    }
+    if (!g_database->config.use_dataelements_vap_configs) {
+        LOG(DEBUG) << "template_rebuild_staged_configuration ignored (use_dataelements_vap_configs is false)";
+        return;
+    }
+    if (!templates_root) {
+        LOG(ERROR) << "templates_root is null";
+        return;
+    }
+
+    amxd_object_t *network_obj = amxd_object_get_child(templates_root, "Network");
+    if (!network_obj) {
+        LOG(ERROR) << "Network object not found under Templates root";
+        return;
+    }
+
+    if (!get_param_bool(network_obj, "Enable")) {
+        g_database->clear_bss_info_configuration();
+        g_database->clear_mld_info_configuration();
+        template_send_ap_config_renew_message();
+        LOG(DEBUG) << "Templates.Network.Enable=false: cleared staged BSS/MLD and sent AP config renew";
+        return;
+    }
+
+    amxd_object_t *bss_table = amxd_object_get_child(templates_root, "BSSTemplate");
+    if (!bss_table) {
+        LOG(ERROR) << "BSSTemplate table not found";
+        return;
+    }
+
+    std::vector<amxd_object_t *> bss_to_commit;
+    amxd_object_for_each(instance, it, bss_table)
+    {
+        amxd_object_t *inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+        if (!get_param_bool(inst, "Enable")) {
+            continue;
+        }
+        if (get_param_string(inst, "SSID").empty()) {
+            continue;
+        }
+        bss_to_commit.push_back(inst);
+    }
+
+    std::sort(bss_to_commit.begin(), bss_to_commit.end(),
+              [](amxd_object_t *a, amxd_object_t *b) {
+                  return get_param_uint32(a, "Priority") > get_param_uint32(b, "Priority");
+              });
+
+    g_database->clear_bss_info_configuration();
+    g_database->clear_mld_info_configuration();
+
+    uint8_t bss_index_seq = 1;
+    for (amxd_object_t *inst : bss_to_commit) {
+        amxd_status_t st = template_commit(inst, bss_index_seq);
+        if (st != amxd_status_ok) {
+            LOG(DEBUG) << "template_commit returned " << amxd_status_string(st) << " for BSSTemplate."
+                       << amxd_object_get_index(inst);
+        }
+    }
+
+    template_send_ap_config_renew_message();
+}
+
+/**
+ * @brief Handle BSSTemplate.Enable changes under Device.WiFi.Templates.
+ *
+ * When Templates.Network.Enable is false, all staged BSS/MLD configuration is cleared.
+ * When it is true, all enabled BSSTemplates are re-staged (sorted by Priority) because the ODL
+ * filter only tracks Enable changes; both enable and disable reduce to "rebuild enabled set".
+ */
+static void event_template_changed(const char *const sig_name, const amxc_var_t *const data,
+                                   void *const priv)
+{
+    if (!g_database) {
+        LOG(ERROR) << "g_database is nullptr";
+        return;
+    }
+
+    if (!g_database->config.use_dataelements_vap_configs) {
+        LOG(DEBUG) << "Ignoring Templates.BSSTemplate event (use_dataelements_vap_configs is false)";
+        return;
+    }
+
+    amxd_object_t *bss_template_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+    if (!bss_template_obj) {
+        LOG(ERROR) << "Failed to get BSSTemplate object from signal";
+        return;
+    }
+
+    amxd_object_t *bss_template_table = amxd_object_get_parent(bss_template_obj);
+    if (!bss_template_table) {
+        LOG(ERROR) << "Failed to get BSSTemplate table";
+        return;
+    }
+
+    amxd_object_t *templates_root = amxd_object_get_parent(bss_template_table);
+    if (!templates_root) {
+        LOG(ERROR) << "Failed to get Templates root";
+        return;
+    }
+
+    amxd_object_t *network_obj = amxd_object_get_child(templates_root, "Network");
+    if (!network_obj) {
+        LOG(ERROR) << "Network object not found under Templates root";
+        return;
+    }
+
+    LOG(DEBUG) << "event_template_changed: Templates.Network.Enable="
+               << (get_param_bool(network_obj, "Enable") ? "true" : "false") << " instance="
+               << amxd_object_get_index(bss_template_obj);
+    template_rebuild_staged_configuration(templates_root);
+}
+
+static void event_templates_network_enable_changed(const char *const sig_name,
+                                                   const amxc_var_t *const data,
+                                                   void *const priv)
+{
+    if (!g_database) {
+        LOG(ERROR) << "g_database is nullptr";
+        return;
+    }
+    if (!g_database->config.use_dataelements_vap_configs) {
+        LOG(DEBUG) << "Ignoring Templates.Network event (use_dataelements_vap_configs is false)";
+        return;
+    }
+
+    amxd_object_t *network_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+    if (!network_obj) {
+        LOG(ERROR) << "Failed to get Templates.Network from signal";
+        return;
+    }
+
+    amxd_object_t *templates_root = amxd_object_get_parent(network_obj);
+    if (!templates_root) {
+        LOG(ERROR) << "Failed to get Templates root";
+        return;
+    }
+
+    LOG(DEBUG) << "event_templates_network_enable_changed: Templates.Network.Enable="
+               << (get_param_bool(network_obj, "Enable") ? "true" : "false");
+
+    template_rebuild_staged_configuration(templates_root);
+}
+
+/**
 * @brief Overwrite an action 'get' aka 'read' for Device.WiFi.DataElements.Network.AccessPointCommit
 * data element, that when this element is triggered the bss information from
 * Device.WiFi.DataElements.Network.AccessPoint and Device.WiFi.DataElements.Network.AccessPoint.n.Security,
 * where n = element's index, objects will be stored in the sAccessPoint structure.
 */
 amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
-                                  amxc_var_t *ret)
+                                 amxc_var_t *ret)
 {
     if (!g_database) {
         LOG(ERROR) << "Can't read use_dataelements_vap_configs, g_database is nullptr";
@@ -1389,7 +2517,14 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
         {"event_network_group_changed", event_network_group_changed},
-        {"event_network_enable_changed", event_network_enable_changed}};
+        {"event_network_enable_changed", event_network_enable_changed},//};
+        {"event_template_changed", event_template_changed},
+        {"event_templates_network_enable_changed", event_templates_network_enable_changed},
+        {"event_bss_radio_template_reference_changed", event_bss_radio_template_reference_changed},
+        {"event_bss_ssc_template_reference_changed", event_bss_ssc_template_reference_changed},
+        {"event_network_primary_ssc_reference_changed", event_network_primary_ssc_reference_changed},
+        {"event_bss_security_group_reference_changed", event_bss_security_group_reference_changed},
+	{"event_security_group_template_references_changed", event_security_group_template_references_changed}};
     return events_list;
 }
 

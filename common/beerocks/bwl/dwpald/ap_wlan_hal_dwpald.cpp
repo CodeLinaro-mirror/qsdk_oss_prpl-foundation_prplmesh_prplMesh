@@ -1377,15 +1377,41 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
     std::string fname;
     std::vector<std::string> hostapd_config_head;
     std::map<std::string, std::vector<std::string>> hostapd_config_vaps;
+LOG(INFO) << "[HOSTAPD] ========================================";
+LOG(INFO) << "[HOSTAPD] update_vap_credentials() called";
+LOG(INFO) << "[HOSTAPD] Radio: " << m_radio_info.iface_name;
+LOG(INFO) << "[HOSTAPD] Received " << bss_info_conf_list.size() << " BSS configuration(s)";
 
-    // Load hostapd config for the radio
+// Log each BSS config received
+size_t bss_idx = 0;
+for (const auto &bss_info_conf : bss_info_conf_list) {
+    LOG(INFO) << "[HOSTAPD] BSS Config[" << bss_idx << "]:";
+    LOG(INFO) << "[HOSTAPD]   BSSID: " << bss_info_conf.bssid;
+    LOG(INFO) << "[HOSTAPD]   SSID: '" << bss_info_conf.ssid << "'";
+    LOG(INFO) << "[HOSTAPD]   network_key: " << (bss_info_conf.network_key.empty() ? "<empty>" : "***");
+    LOG(INFO) << "[HOSTAPD]   fronthaul: " << bss_info_conf.fronthaul << " backhaul: " << bss_info_conf.backhaul;
+    bss_idx++;
+}
+
+LOG(INFO) << "[HOSTAPD] Loading hostapd config file: " << fname;
+// Load hostapd config for the radio
     if (!load_hostapd_config(m_radio_info.iface_name, fname, hostapd_config_head,
                              hostapd_config_vaps)) {
         LOG(ERROR) << "Autoconfiguration: no hostapd config to apply configuration!";
         return false;
     }
-
-    // Create an copy of the configuration's original state.
+LOG(INFO) << "[HOSTAPD] Loaded hostapd config with " << hostapd_config_vaps.size() << " VAP section(s)";
+// Log all available VAP interfaces
+LOG(INFO) << "[HOSTAPD] Available VAP interfaces in hostapd config:";
+for (const auto &vap_pair : hostapd_config_vaps) {
+    std::string vap_bssid;
+    std::string vap_ssid;
+    hostapd_config_get_value(vap_pair.second, "bssid", vap_bssid);
+    hostapd_config_get_value(vap_pair.second, "ssid", vap_ssid);
+    LOG(INFO) << "[HOSTAPD]   VAP: " << vap_pair.first << " BSSID: " << vap_bssid << " SSID: '" << vap_ssid << "'";
+}
+    
+// Create an copy of the configuration's original state.
     const std::map<std::string, std::vector<std::string>> original_hostapd_config_vaps =
         hostapd_config_vaps;
 
@@ -1433,6 +1459,7 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
     std::set<std::string> ifaces_to_reconfigure;
     // Go through the bss_info_conf_list and change the hostapd config accordingly
     for (const auto &bss_info_conf : bss_info_conf_list) {
+	LOG(INFO) << "[HOSTAPD] Matching BSSID " << bss_info_conf.bssid << " SSID='" << bss_info_conf.ssid << "'";
         auto hostapd_config = std::find_if(
             hostapd_config_vaps.begin(), hostapd_config_vaps.end(),
             // find if BSSID matches given config.
@@ -1445,6 +1472,7 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
             LOG(ERROR) << "Could not find a hostapd BSS with a BSSID of " << bss_info_conf.bssid;
             return false;
         }
+        LOG(INFO) << "[HOSTAPD] Found VAP " << hostapd_config->first << " for BSSID " << bss_info_conf.bssid;
 
         if (!bridge_ifname.empty() &&
             beerocks::net::network_utils::linux_iface_is_up(bridge_ifname)) {
@@ -1604,10 +1632,12 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
     // If we are still here, then autoconfiguration was successful,
     // and there are pending changes. Need to update the hostapd
     // configuration files and send RECONF command.
-    if (!save_hostapd_config_file(fname, hostapd_config_head, hostapd_config_vaps)) {
+   LOG(INFO) << "[HOSTAPD] Saving config file: " << fname; 
+   if (!save_hostapd_config_file(fname, hostapd_config_head, hostapd_config_vaps)) {
         LOG(ERROR) << "Autoconfiguration: cannot save hostapd config!";
         return false;
     }
+    LOG(INFO) << "[HOSTAPD] Config saved, sending RECONF to " << vap_total_count << " VAP(s)";
 
     // hostapd help says:
     // RECONF [BSS name] = reconfigure interface (add/remove BSS's while other BSS are unaffected)

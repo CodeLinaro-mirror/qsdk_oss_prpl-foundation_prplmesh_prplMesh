@@ -1864,7 +1864,10 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         break;
     }
     case beerocks_message::ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST: {
-        auto request =
+        LOG(INFO) << "[AGENT DB] ========================================";
+        LOG(INFO) << "[AGENT DB] Agent: Received ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST";
+	
+	auto request =
             beerocks_header
                 ->addClass<beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>();
         if (!request) {
@@ -1877,6 +1880,8 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         LOG(DEBUG) << "handle ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST";
         std::list<son::wireless_utils::sBssInfoConf> bss_info_conf_list;
         auto wifi_credentials_size = request->wifi_credentials_size();
+        
+	LOG(INFO) << "[AGENT DB] Agent: Processing " << wifi_credentials_size << " BSS configuration(s)";
 
         std::string backhaul_wps_ssid, backhaul_wps_passphrase;
         for (auto i = 0; i < wifi_credentials_size; i++) {
@@ -1930,9 +1935,15 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.vap_type  = config_data.vap_type();
             bss_info_conf.vap_label = config_data.vap_label_str();
 
+            LOG(INFO) << "[AGENT DB] Agent: BSS Config[" << i << "]:";
+            LOG(INFO) << "[AGENT DB] Agent:   BSSID: " << bss_info_conf.bssid;
+            LOG(INFO) << "[AGENT DB] Agent:   SSID: '" << bss_info_conf.ssid << "'";
+            LOG(INFO) << "[AGENT DB] Agent:   network_key: " << (bss_info_conf.network_key.empty() ? "<empty>" : "***");
             bss_info_conf_list.push_back(bss_info_conf);
         }
 
+        LOG(INFO) << "[AGENT DB] Agent: Parsed " << bss_info_conf_list.size() << " BSS configuration(s)";
+        LOG(INFO) << "[AGENT DB] Agent: Checking radio state before updating hostapd";
         // Before updating vap credentials we need to make sure hostapd is enabled.
         // Entering blocking state until radio is enabled again.
         auto timeout = std::chrono::steady_clock::now() +
@@ -1953,8 +1964,25 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         // Enabling VAPs and MLDs takes time to apply to the driver
         if (perform_update && !bss_info_conf_list.empty()) {
-            ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
+            LOG(INFO) << "[HOSTAPD] Agent: ========================================";
+            LOG(INFO) << "[HOSTAPD] Agent: Calling update_vap_credentials() to update hostapd";
+            LOG(INFO) << "[HOSTAPD] Agent: Updating " << bss_info_conf_list.size() << " VAP(s)";
+	    
+	    bool update_result = ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
                                                 backhaul_wps_passphrase, bridge_name);
+            if (update_result) {
+		    LOG(INFO) << "[HOSTAPD] Agent: SUCCESS: update_vap_credentials() completed";
+		    // Verify the update by checking radio info
+                   if (ap_wlan_hal->refresh_radio_info()) {
+			   LOG(INFO) << "[HOSTAPD] Verifying VAP configuration after update:";
+			   const auto &radio_vaps = ap_wlan_hal->get_radio_info().available_vaps;
+			   for (const auto &vap_pair : radio_vaps) {
+				   LOG(INFO) << "[HOSTAPD]   VAP ID " << vap_pair.first << ": SSID='" << vap_pair.second.ssid << "'";
+			   }
+		   }
+	    } else {
+		    LOG(ERROR) << "[HOSTAPD] Agent: FAILED: update_vap_credentials() returned false";
+	    }
 
             auto vap_timeout = std::chrono::steady_clock::now() + wait_for_vaps_enable_timeout_sec;
             bool all_vaps_enabled = false, all_mld_updated = false;
@@ -1979,6 +2007,8 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                 LOG(ERROR) << "All the vaps are not yet enabled or mld updated";
                 return;
             }
+	    LOG(INFO) << "[HOSTAPD] Agent: Hostapd configuration update completed successfully";
+            LOG(INFO) << "[HOSTAPD] Agent: ========================================";
 
 #ifndef USE_PRPLMESH_WHM
             // this artificial CSA is useless when using pwhm
@@ -2007,6 +2037,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(ERROR) << "discard new configuration because "
                        << (perform_update ? "configuration is empty" : "radio not enabled");
         }
+	LOG(INFO) << "[AGENT DB] Agent: ========================================";
         break;
     }
     case beerocks_message::ACTION_APMANAGER_START_WPS_PBC_REQUEST: {

@@ -453,6 +453,8 @@ bool son_actions::send_cmdu_to_agent(const sMacAddr &dest_mac, ieee1905_1::CmduM
 
 bool son_actions::send_ap_config_renew_msg(ieee1905_1::CmduMessageTx &cmdu_tx, db &database)
 {
+    LOG(INFO) << "[AUTOCONFIG] Preparing to send AP_AUTOCONFIGURATION_RENEW_MESSAGE";
+
     // Create AP-Configuration renew message
     auto cmdu_header =
         cmdu_tx.create(0, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RENEW_MESSAGE);
@@ -487,9 +489,17 @@ bool son_actions::send_ap_config_renew_msg(ieee1905_1::CmduMessageTx &cmdu_tx, d
     // Ragardless of what is sent here, the Agent will handle the Renew eitherway
     tlvSupportedFreqBand->value() = ieee1905_1::tlvSupportedFreqBand::eValue(0);
 
-    LOG(INFO) << "Send AP_AUTOCONFIGURATION_RENEW_MESSAGE";
-    return son_actions::send_cmdu_to_agent(network_utils::MULTICAST_1905_MAC_ADDR, cmdu_tx,
+    LOG(INFO) << "[AUTOCONFIG] Send AP_AUTOCONFIGURATION_RENEW_MESSAGE";
+    bool result = son_actions::send_cmdu_to_agent(network_utils::MULTICAST_1905_MAC_ADDR, cmdu_tx,
                                            database);
+    if (result) {
+        LOG(INFO) << "[AUTOCONFIG] SUCCESS: AP_AUTOCONFIGURATION_RENEW_MESSAGE sent to multicast address";
+        LOG(INFO) << "[AUTOCONFIG] Agents should now send M1 messages to request updated configuration";
+    } else {
+        LOG(ERROR) << "[AUTOCONFIG] FAILED: Could not send AP_AUTOCONFIGURATION_RENEW_MESSAGE";
+    }
+
+    return result;
 }
 
 bool son_actions::send_topology_query_msg(const sMacAddr &dest_mac,
