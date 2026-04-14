@@ -1404,15 +1404,15 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
                     });
 
                 // Check if bss conf freq matches radio freq and EHT is supported
-                if (!radio_band_found || !affiliated_radio.second->eht_supported ||
-                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.str_support &&
-                     mld_configuration.at(backhaul_mld_id).str) ||
-                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.nstr_support &&
-                     mld_configuration.at(backhaul_mld_id).nstr) ||
-                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.emlsr_support &&
-                     mld_configuration.at(backhaul_mld_id).emlsr) ||
-                    (!affiliated_radio.second->wifi7_capabilities.bsta_role.emlmr_support &&
-                     mld_configuration.at(backhaul_mld_id).emlmr)) {
+                // add radio if any incoming MLD Mode matches with any radio capability
+                const auto &mld_conf = mld_configuration.at(backhaul_mld_id);
+                const auto &mld_cap  = affiliated_radio.second->wifi7_capabilities.bsta_role;
+                const bool any_match = (mld_conf.str && mld_cap.str_support) ||
+                                       (mld_conf.nstr && mld_cap.nstr_support) ||
+                                       (mld_conf.emlsr && mld_cap.emlsr_support) ||
+                                       (mld_conf.emlmr && mld_cap.emlmr_support);
+
+                if (!radio_band_found || !affiliated_radio.second->eht_supported || !any_match) {
                     continue;
                 }
 
@@ -1540,15 +1540,16 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                                     });
 
                     // Check if bss conf freq matches radio freq and EHT is supported
+                    // add radio if any incoming MLD Mode matches with any radio capability
+                    const auto &mld_conf = mld_configuration.at(bss_conf.mld_id);
+                    const auto &mld_cap  = affiliated_radio.second->wifi7_capabilities.ap_role;
+                    const bool any_match = (mld_conf.str && mld_cap.str_support) ||
+                                           (mld_conf.nstr && mld_cap.nstr_support) ||
+                                           (mld_conf.emlsr && mld_cap.emlsr_support) ||
+                                           (mld_conf.emlmr && mld_cap.emlmr_support);
+
                     if (!radio_band_found || !affiliated_radio.second->eht_supported ||
-                        (!affiliated_radio.second->wifi7_capabilities.ap_role.str_support &&
-                         mld_configuration.at(bss_conf.mld_id).str) ||
-                        (!affiliated_radio.second->wifi7_capabilities.ap_role.nstr_support &&
-                         mld_configuration.at(bss_conf.mld_id).nstr) ||
-                        (!affiliated_radio.second->wifi7_capabilities.ap_role.emlsr_support &&
-                         mld_configuration.at(bss_conf.mld_id).emlsr) ||
-                        (!affiliated_radio.second->wifi7_capabilities.ap_role.emlmr_support &&
-                         mld_configuration.at(bss_conf.mld_id).emlmr)) {
+                        !any_match) {
                         continue;
                     }
 
