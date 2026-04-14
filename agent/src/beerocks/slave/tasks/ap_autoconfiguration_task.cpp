@@ -2203,6 +2203,49 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     }
     // =========================================================================
 
+    // Non-gateway: pick first Backhaul BSS from parsed M2, push credentials to the backhaul
+    // manager via send_bsta_configuration(), then enable the endpoint with
+    // send_enable_disable_endpoint(..., true). Replaces prior DM-based wiring.
+    {
+        if (!db->device_conf.local_gw) {
+            // ---- Select the first Backhaul BSS from parsed M2 payload ----
+            const WSC::EncryptedSettingsPayload::config* backhaul = nullptr;
+            for (const auto &info : infos) {
+                if ((info.payload_config.bss_type &
+                    WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS) != 0) {
+                    backhaul = &info.payload_config;
+                    break;
+                }
+            }
+
+            if (!backhaul) {
+                LOG(DEBUG) << "[AUTO-STA] No Backhaul BSS found in M2 for this radio; skipping";
+            } else {
+                // ---- Send bSTA credentials to backhaul manager (no DM writes) ----
+                sBStaConfig bsta_info;
+                bsta_info.payload_config = *backhaul; // copy SSID/key/auth/encr
+                // Ensure BACKHAUL_STA bit is set for STA join:
+                bsta_info.payload_config.bss_type |=
+                    WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA;
+
+                if (!send_bsta_configuration(radio->front.iface_mac, bsta_info)) {
+                    LOG(ERROR) << "[AUTO-STA] Failed to send bSTA credentials to backhaul manager (SSID='"
+                               << backhaul->ssid << "')";
+                } else {
+                    LOG(INFO)  << "[AUTO-STA] bSTA credentials sent to backhaul manager (SSID='"
+                               << backhaul->ssid << "')";
+                    // Ensure endpoint enabled on this radio
+                    if (!send_enable_disable_endpoint(radio->front.iface_mac, true)) {
+                        LOG(WARNING) << "[AUTO-STA] Endpoint enable request failed (SSID='"
+                                     << backhaul->ssid << "')";
+                    }
+                }
+            }
+        } else {
+            LOG(DEBUG) << "[AUTO-STA] This node is gateway (Root); skipping auto-join";
+        }
+    }
+
     if (bss_errors.size()) {
         if (!send_error_response_message(bss_errors)) {
             LOG(ERROR) << "send_error_response_message has failed";

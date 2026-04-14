@@ -2517,14 +2517,14 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
         {"event_network_group_changed", event_network_group_changed},
-        {"event_network_enable_changed", event_network_enable_changed},//};
+        {"event_network_enable_changed", event_network_enable_changed},
         {"event_template_changed", event_template_changed},
         {"event_templates_network_enable_changed", event_templates_network_enable_changed},
         {"event_bss_radio_template_reference_changed", event_bss_radio_template_reference_changed},
         {"event_bss_ssc_template_reference_changed", event_bss_ssc_template_reference_changed},
         {"event_network_primary_ssc_reference_changed", event_network_primary_ssc_reference_changed},
         {"event_bss_security_group_reference_changed", event_bss_security_group_reference_changed},
-	{"event_security_group_template_references_changed", event_security_group_template_references_changed}};
+        {"event_security_group_template_references_changed", event_security_group_template_references_changed}};
     return events_list;
 }
 
