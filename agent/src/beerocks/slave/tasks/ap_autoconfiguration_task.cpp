@@ -2724,6 +2724,14 @@ void ApAutoConfigurationTask::handle_vs_wifi_credentials_update_response(
     auto radio_iface        = m_btl_ctx.m_radio_managers.get_radio_iface_from_fd(fd);
     auto &radio_conf_params = m_radios_conf_params[radio_iface];
 
+    // This response is only relevant after entering WAIT_AP_CONFIGURATION_COMPLETE.
+    // Ignore it in earlier phases to avoid interfering with the M1 retry flow.
+    if (radio_conf_params.state != eState::WAIT_AP_CONFIGURATION_COMPLETE) {
+        LOG(DEBUG) << "Ignoring WIFI_CREDENTIALS_UPDATE_RESPONSE for " << radio_iface
+                   << " in state " << fsm_state_to_string(radio_conf_params.state);
+        return;
+    }
+
     radio_conf_params.num_of_bss_available = response->number_of_bss_available();
 
     auto db    = AgentDB::get();
@@ -3454,6 +3462,15 @@ bool ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_vs_extension_tlv(
         beerocks_header->addClass<beerocks_message::cACTION_CONTROL_SLAVE_JOINED_RESPONSE>();
     if (joined_response == nullptr) {
         LOG(ERROR) << "addClass cACTION_CONTROL_SLAVE_JOINED_RESPONSE failed";
+        return false;
+    }
+
+    // Check for rejection
+    // The controller may temporarily reject the vendor-specific slave join.
+    // Although the WSC/M2 exchange has completed, this must not be treated
+    // as a successful join. Let the M1 retry mechanism trigger the next M1 attempt.
+    if (joined_response->err_code() == beerocks::JOIN_RESP_REJECT) {
+        LOG(WARNING) << "Slave join rejected by controller for radio " << radio_iface;
         return false;
     }
 
