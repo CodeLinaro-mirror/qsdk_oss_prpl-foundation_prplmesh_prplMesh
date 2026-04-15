@@ -29,6 +29,7 @@ public:
     MOCK_METHOD(int, amxb_get_fd, (const amxb_bus_ctx_t *const ctx), (override));
     MOCK_METHOD(void, amxb_free, (amxb_bus_ctx_t * *ctx), (override));
     MOCK_METHOD(void, amxb_be_remove_all, (), (override));
+    MOCK_METHOD(amxb_bus_ctx_t *, amxb_find_uri, (const char *uri), (override));
 };
 
 #endif //_AMXB_MOCK_H_

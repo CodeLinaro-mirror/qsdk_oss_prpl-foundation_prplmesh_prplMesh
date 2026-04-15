@@ -166,17 +166,17 @@ bool AmbiorixImpl::connect_and_register()
 bool AmbiorixImpl::init_event_loop()
 {
     LOG(DEBUG) << "Register event handlers for the Ambiorix fd in the event loop.";
-    for (size_t i = 0; i < m_bus_ctx_vect.size(); i++) {
-        auto ambiorix_fd = amxb_get_fd(m_bus_ctx_vect.at(i));
+    for (auto *ctx : m_bus_ctx_vect) {
+        auto ambiorix_fd = amxb_get_fd(ctx);
         if (ambiorix_fd < 0) {
             LOG(ERROR) << "Failed to get ambiorix file descriptor.";
             return false;
         }
         EventLoop::EventHandlers handlers = {
-            .name = "ambiorix_events" + std::to_string(i),
+            .name = "ambiorix_events_" + std::to_string(ambiorix_fd),
             .on_read =
-                [&, i](int fd, EventLoop &loop) {
-                    amxb_read(m_bus_ctx_vect.at(i));
+                [ctx](int fd, EventLoop &loop) {
+                    amxb_read(ctx);
                     return true;
                 },
 
@@ -285,6 +285,40 @@ bool AmbiorixImpl::remove_signal_loop()
     LOG(DEBUG) << "The event handlers for the Ambiorix signals fd removed successfully from the "
                   "event loop.";
 
+    return true;
+}
+
+bool AmbiorixImpl::remove_specific_connection(const std::string &uri_to_remove)
+{
+    if (uri_to_remove.empty()) {
+        return false;
+    }
+
+    amxb_bus_ctx_t *ctx = amxb_find_uri(uri_to_remove.c_str());
+    if (!ctx) {
+        LOG(DEBUG) << "Connection not found for URI: " << uri_to_remove;
+        return false;
+    }
+
+    auto it = std::find(m_bus_ctx_vect.begin(), m_bus_ctx_vect.end(), ctx);
+    if (it == m_bus_ctx_vect.end()) {
+        LOG(WARNING) << "Context not found for URI: " << uri_to_remove;
+        return false;
+    }
+
+    int ambiorix_fd = amxb_get_fd(*it);
+
+    if (ambiorix_fd >= 0) {
+        if (!m_event_loop->remove_handlers(ambiorix_fd)) {
+            LOG(ERROR) << "Failed to remove event handlers for FD: " << ambiorix_fd;
+        }
+    } else {
+        LOG(WARNING) << "Invalid FD for connection: " << uri_to_remove;
+    }
+
+    m_bus_ctx_vect.erase(it);
+    amxb_free(&ctx);
+    LOG(INFO) << "Successfully removed connection: " << uri_to_remove;
     return true;
 }
 

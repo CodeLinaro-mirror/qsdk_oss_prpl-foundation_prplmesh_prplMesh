@@ -180,6 +180,14 @@ public:
      */
     bool load_datamodel(const std::string &datamodel_path);
 
+    /**
+     * @brief Closes and removes a specific bus connection by its URI.
+     *
+     * @param[in] uri_to_remove The URI of the connection to close.
+     * @return true if the connection was found and closed, false otherwise.
+     */
+    bool remove_specific_connection(const std::string &uri_to_remove);
+
 private:
     // Methods
 

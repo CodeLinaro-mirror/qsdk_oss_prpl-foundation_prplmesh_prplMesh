@@ -83,4 +83,11 @@ void amxb_be_remove_all(void)
         ADD_FAILURE();
 }
 
+amxb_bus_ctx_t *amxb_find_uri(const char *uri)
+{
+    if (c_wrappers::amxb_wrapper_singleton)
+        return c_wrappers::amxb_wrapper_singleton->amxb_find_uri(uri);
+    return nullptr;
+}
+
 } //extern "C"

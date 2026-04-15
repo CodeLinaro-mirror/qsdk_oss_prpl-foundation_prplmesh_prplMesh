@@ -32,6 +32,7 @@ public:
     virtual int amxb_get_fd(const amxb_bus_ctx_t *const ctx)                  = 0;
     virtual void amxb_free(amxb_bus_ctx_t **ctx)                              = 0;
     virtual void amxb_be_remove_all(void)                                     = 0;
+    virtual amxb_bus_ctx_t *amxb_find_uri(const char *uri)                    = 0;
 };
 
 } //namespace c_wrappers

@@ -50,6 +50,16 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #define CONTROLLER_DATAMODEL_PATH "config/controller/odl/master_config.odl"
 #endif
 
+/**
+ * @brief URI for the USP Data Model Mapper (DMM) controller.
+ *
+ * Provides the connection path to the DMM component responsible for
+ * USP-based data model mapping and translation.
+ */
+#ifndef DMM_URI
+#define DMM_URI "usp:/var/run/dm-mapper-controller.sock"
+#endif
+
 #endif //#else // ENABLE_NBAPI
 
 #include "ambiorix_dummy.h"
@@ -759,6 +769,17 @@ int main(int argc, char *argv[])
     // fill master configuration
     son::db::sDbMasterConfig master_conf;
     fill_master_config(master_conf, beerocks_master_conf);
+
+#ifdef ENABLE_NBAPI
+    if (master_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        if (amb_dm_obj->remove_specific_connection(DMM_URI)) {
+            LOG(INFO) << "Successfully closed DMM connection for Non-Multi-AP mode.";
+        } else {
+            LOG(WARNING) << "Failed to close DMM connection: URI " << DMM_URI
+                         << " not found in active connections.";
+        }
+    }
+#endif
 
     // Set Network.ID to the Data Model
     if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ID", bridge_info.mac)) {
