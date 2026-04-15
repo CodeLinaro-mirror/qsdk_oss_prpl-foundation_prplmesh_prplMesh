@@ -267,7 +267,9 @@ eActionOp_APMANAGER:
 
   ACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST: 76
 
-  ACTION_APMANAGER_ENUM_END: 77
+  ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST: 79
+
+  ACTION_APMANAGER_ENUM_END: 80
 
 ####################################################
 ####################################################

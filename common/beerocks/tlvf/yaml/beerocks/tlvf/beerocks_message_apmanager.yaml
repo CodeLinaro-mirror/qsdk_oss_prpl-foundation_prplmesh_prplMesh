@@ -331,3 +331,6 @@ cACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST:
   _type: class
   sta_mac: sMacAddr
   timeout: uint16_t
+
+cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST:
+  _type: class

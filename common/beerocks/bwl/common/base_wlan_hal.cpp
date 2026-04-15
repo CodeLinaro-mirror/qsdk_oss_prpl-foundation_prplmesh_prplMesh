@@ -140,6 +140,12 @@ base_wlan_hal::create_mgmt_frame_notification(const char *mgmt_frame_hex)
         } else if (action_category == eActionCategory::RADIO_MEASUREMENT &&
                    action_code == eActionCode::RADIO_MEASUREMENT_REPORT) {
             mgmt_frame->type = eManagementFrameType::RADIO_MEASUREMENT_REPORT;
+        } else if (action_category == eActionCategory::ROBUST_AV_STREAMING) {
+            if (action_code == eActionCode::SCS_REQUEST) {
+                mgmt_frame->type = eManagementFrameType::SCS_REQUEST;
+            } else if (action_code == eActionCode::MSCS_REQUEST) {
+                mgmt_frame->type = eManagementFrameType::MSCS_REQUEST;
+            }
         } else {
             LOG(DEBUG) << "Received unhandled management action frame (category: "
                        << int(action_category) << ", code: " << int(action_code) << "). Ignoring.";
