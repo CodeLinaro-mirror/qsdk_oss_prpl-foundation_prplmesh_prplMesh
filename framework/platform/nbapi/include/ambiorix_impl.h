@@ -180,6 +180,13 @@ public:
      */
     bool load_datamodel(const std::string &datamodel_path);
 
+    /**
+     * @brief Remove the EasyMesh data model while preserving controller configuration.
+     *
+     * @return True on success and false otherwise.
+     */
+    bool remove_easymesh_datamodel();
+
 private:
     // Methods
 

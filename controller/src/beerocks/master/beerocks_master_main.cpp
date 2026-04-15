@@ -759,15 +759,24 @@ int main(int argc, char *argv[])
     son::db::sDbMasterConfig master_conf;
     fill_master_config(master_conf, beerocks_master_conf);
 
-    // Set Network.ID to the Data Model
-    if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ID", bridge_info.mac)) {
-        LOG(ERROR) << "Failed to add Network.ID, mac: " << bridge_info.mac;
-        return false;
+#ifdef ENABLE_NBAPI
+    if (master_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG_IF(!amb_dm_obj->remove_easymesh_datamodel(), FATAL)
+            << "Failed to remove EasyMesh data model roots.";
     }
+#endif
 
-    if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ControllerID", bridge_info.mac)) {
-        LOG(ERROR) << "Failed to add Network.ControllerID, mac: " << bridge_info.mac;
-        return false;
+    if (master_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
+        // Set Network.ID to the Data Model
+        if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ID", bridge_info.mac)) {
+            LOG(ERROR) << "Failed to add Network.ID, mac: " << bridge_info.mac;
+            return false;
+        }
+
+        if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ControllerID", bridge_info.mac)) {
+            LOG(ERROR) << "Failed to add Network.ControllerID, mac: " << bridge_info.mac;
+            return false;
+        }
     }
 
     son::db master_db(master_conf, logger, tlvf::mac_from_string(bridge_info.mac), amb_dm_obj);
@@ -830,7 +839,8 @@ int main(int argc, char *argv[])
     son::Controller controller(master_db, std::move(broker_client_factory), std::move(ucc_server),
                                std::move(cmdu_server), timer_manager, event_loop);
 
-    if (!amb_dm_obj->set_current_time(DATAELEMENTS_ROOT_DM ".Network")) {
+    if (master_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP &&
+        !amb_dm_obj->set_current_time(DATAELEMENTS_ROOT_DM ".Network")) {
         return false;
     };
 
