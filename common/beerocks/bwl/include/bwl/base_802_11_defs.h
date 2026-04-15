@@ -125,7 +125,9 @@ struct s80211MgmtFrame {
              * Listing only the codes that are currently used by prplMesh
              */
             enum class eCode {
+                SCS_REQUEST              = 0,  /**< SCS Request (Robust AV streaming [0]) */
                 RADIO_MEASUREMENT_REPORT = 1,  /**< Radio measurement report */
+                MSCS_REQUEST             = 4,  /**< MSCS Request (Robust AV streaming [4]) */
                 WNM_BSS_TRANS_MGMT_QUERY = 6,  /**< WNM BTM Query (WNM Category [10]) */
                 ANQP_REQ                 = 10, /**< ANQP Request (Public Category [4]) */
                 WNM_NOTIFICATION_REQ     = 26  /**< WNM Notification Request (WNM Category [10]) */
