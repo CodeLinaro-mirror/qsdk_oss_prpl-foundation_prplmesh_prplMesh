@@ -319,35 +319,53 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
                                              const std::string &sta_mac, SStaStats &sta_stats,
                                              bool is_read_unicast)
 {
-    auto sta_mac_address = tlvf::mac_from_string(sta_mac);
-    nl80211_client::sta_info sta_info;
-    if (!m_iso_nl80211_client->get_sta_info(vap_iface_name, sta_mac_address, sta_info)) {
-        return true;
-    }
-    sta_stats.tx_bytes          = sta_info.tx_bytes;
-    sta_stats.rx_bytes          = sta_info.rx_bytes;
-    sta_stats.tx_packets        = sta_info.tx_packets;
-    sta_stats.rx_packets        = sta_info.rx_packets;
-    sta_stats.retrans_count     = sta_info.tx_retries;
-    sta_stats.tx_phy_rate_100kb = sta_info.tx_bitrate_100kbps;
-    sta_stats.rx_phy_rate_100kb = sta_info.rx_bitrate_100kbps;
-    sta_stats.dl_bandwidth      = sta_info.dl_bandwidth;
-    if (sta_info.signal_dbm != 0) {
-        sta_stats.rx_rssi_watt += std::pow(10, (int8_t(sta_info.signal_dbm) / 10.0));
-        sta_stats.rx_rssi_watt_samples_cnt++;
-    }
 
-    //complement missing info in sta_info struct
-    std::string assoc_device_path =
-        wbapi_utils::search_path_assocDev_by_mac(vap_iface_name, sta_mac);
+    std::string assoc_device_path = base_wlan_hal_whm::get_station_path(sta_mac);
 
-    float s_float;
     AmbiorixVariantSmartPtr assoc_device_obj = m_ambiorix_cl.get_object(assoc_device_path);
+
     if (!assoc_device_obj) {
         LOG(ERROR) << "Failed to get object: " << assoc_device_path;
         return false;
     }
 
+    // TODO: PPM-4002
+    // sta_stats.tx_bytes was filled with sta_info.tx_bytes that is read from AssociatedDevice.TxBytes;
+    // sta_stats.tx_bytes_cnt reads again from AssociatedDevice.TxBytes; etc
+
+    assoc_device_obj->read_child(sta_stats.tx_bytes, "TxBytes");
+    assoc_device_obj->read_child(sta_stats.rx_bytes, "RxBytes");
+    assoc_device_obj->read_child(sta_stats.tx_bytes_cnt, "TxBytes");
+    assoc_device_obj->read_child(sta_stats.rx_bytes_cnt, "RxBytes");
+
+    assoc_device_obj->read_child(sta_stats.tx_errors_cnt, "TxErrors");
+    assoc_device_obj->read_child(sta_stats.rx_errors_cnt, "RxErrors");
+    assoc_device_obj->read_child(sta_stats.tx_packets, "TxPacketCount");
+    assoc_device_obj->read_child(sta_stats.rx_packets, "RxPacketCount");
+
+    assoc_device_obj->read_child(sta_stats.rx_packets_cnt, "RxPacketCount");
+    if (is_read_unicast) {
+        // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
+        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxUnicastPacketCount");
+    } else {
+        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxPacketCount");
+    }
+
+    assoc_device_obj->read_child(sta_stats.retrans_count, "Tx_Retransmissions");
+
+    uint32_t u32Val;
+    if (assoc_device_obj->read_child(u32Val, "LastDataDownlinkRate")) {
+        sta_stats.tx_phy_rate_100kb = u32Val / 100;
+    }
+    if (assoc_device_obj->read_child(u32Val, "LastDataUplinkRate")) {
+        sta_stats.rx_phy_rate_100kb = u32Val / 100;
+    }
+
+    assoc_device_obj->read_child(u32Val, "DownlinkBandwidth");
+    std::string sVal       = std::to_string(u32Val);
+    sta_stats.dl_bandwidth = wbapi_utils::bandwith_from_string(sVal + "MHz");
+
+    float s_float;
     if (assoc_device_obj->read_child(s_float, "SignalNoiseRatio")) {
         if (s_float >= beerocks::SNR_MIN) {
             sta_stats.rx_snr_watt = std::pow(10, s_float / float(10));
@@ -355,17 +373,11 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
         }
     }
 
-    assoc_device_obj->read_child(sta_stats.tx_bytes_cnt, "TxBytes");
-    assoc_device_obj->read_child(sta_stats.rx_bytes_cnt, "RxBytes");
-    assoc_device_obj->read_child(sta_stats.rx_packets_cnt, "RxPacketCount");
-    assoc_device_obj->read_child(sta_stats.tx_errors_cnt, "TxErrors");
-    assoc_device_obj->read_child(sta_stats.rx_errors_cnt, "RxErrors");
-
-    if (is_read_unicast) {
-        // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
-        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxUnicastPacketCount");
-    } else {
-        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxPacketCount");
+    int32_t signal_dbm = 0;
+    assoc_device_obj->read_child(signal_dbm, "SignalStrength");
+    if (signal_dbm != 0) {
+        sta_stats.rx_rssi_watt += std::pow(10, (int8_t(signal_dbm) / 10.0));
+        sta_stats.rx_rssi_watt_samples_cnt++;
     }
 
     return true;
