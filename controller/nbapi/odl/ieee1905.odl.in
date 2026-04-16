@@ -28,7 +28,9 @@
          *
          * @version 2.21
          */
-        %persistent bool Enable = true;
+        %persistent bool Enable = true {
+            userflags %upc;
+        }
 
         /**
          * Indicates the transient phase of discovery when Enable is true.
