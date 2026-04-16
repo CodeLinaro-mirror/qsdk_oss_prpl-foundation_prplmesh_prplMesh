@@ -1180,7 +1180,8 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
     for (const auto &oper_class : son::wireless_utils::operating_classes_list) {
         const auto oper_class_num       = oper_class.first;
         const auto &oper_class_channels = oper_class.second.channels;
-        const auto oper_class_bw        = oper_class.second.band;
+        const auto oper_class_bw_inter  = oper_class.second.band;
+        auto oper_class_bw              = oper_class_bw_inter;
 
         if (radio->wifi_channel.get_freq_type() !=
             son::wireless_utils::which_freq_op_cls(oper_class_num)) {
@@ -1189,6 +1190,22 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
         }
 
         for (auto channel_of_oper_class : oper_class_channels) {
+            if (oper_class_num == 137) {
+                switch (channel_of_oper_class) {
+                case 31:
+                case 95:
+                case 159:
+                    oper_class_bw = beerocks::eWiFiBandwidth::BANDWIDTH_320_1;
+                    break;
+                case 63:
+                case 127:
+                case 191:
+                    oper_class_bw = beerocks::eWiFiBandwidth::BANDWIDTH_320_2;
+                    break;
+                default:
+                    break;
+                }
+            }
             // Operating classes 128-130,132-135 use center channel **unlike the other classes**,
             // so convert center channel and bandwidth to main channel.
             // For more info, refer to Table E-4 in the 802.11 specification.
