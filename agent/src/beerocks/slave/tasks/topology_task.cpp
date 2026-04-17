@@ -134,9 +134,9 @@ void TopologyTask::work()
         send_topology_notification();
     }
 
-    // Don't send topology discovery if the Controller hasn't been discovered and in Controller Only Mode
+    // Don't send topology discovery if the Controller hasn't been discovered and in Certification Mode
     if ((db->controller_info.bridge_mac == network_utils::ZERO_MAC) &&
-        (db->device_conf.management_mode != BPL_MGMT_MODE_MULTIAP_CONTROLLER)) {
+        db->device_conf.certification_mode) {
         return;
     }
 
