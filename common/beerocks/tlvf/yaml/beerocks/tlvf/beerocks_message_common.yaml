@@ -74,6 +74,7 @@ sSonConfig:
   monitor_disable_initiative_arp: uint8_t
 
   ire_rssi_report_rate_sec: uint8_t
+  use_dataelements: uint8_t
 
 eByteCounterUnits:
   _type: enum

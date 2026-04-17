@@ -1953,8 +1953,14 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         // Enabling VAPs and MLDs takes time to apply to the driver
         if (perform_update && !bss_info_conf_list.empty()) {
-            ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
-                                                backhaul_wps_passphrase, bridge_name);
+            MYLOG("local: " << (int)request->local_controller()
+                            << ", dataelements: " << (int)request->use_dataelements())
+            if (!request->local_controller() || request->use_dataelements()) {
+                ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
+                                                    backhaul_wps_passphrase, bridge_name);
+            } else {
+                MYLOG("SKIP update_vap_credentials")
+            }
 
             auto vap_timeout = std::chrono::steady_clock::now() + wait_for_vaps_enable_timeout_sec;
             bool all_vaps_enabled = false, all_mld_updated = false;

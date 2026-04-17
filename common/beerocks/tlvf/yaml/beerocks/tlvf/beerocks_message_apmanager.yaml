@@ -293,6 +293,10 @@ cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST:
   wifi_credentials:
     _type: WSC::cEncryptedSettingsPayload
     _length: [wifi_credentials_size]
+  local_controller:
+    _type: uint8_t #bool
+  use_dataelements:
+    _type: uint8_t #bool
 
 cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_RESPONSE:
   _type: class

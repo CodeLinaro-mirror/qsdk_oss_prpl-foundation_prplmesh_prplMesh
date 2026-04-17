@@ -2040,6 +2040,7 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
                 return false;
             }
             request_out->set_bridge_ifname(db->bridge.iface_name);
+            request_out->local_controller() = db->device_conf.local_controller;
             for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
                 if (radio->front.bssids[vap_idx].mac == network_utils::ZERO_MAC) {
                     continue;

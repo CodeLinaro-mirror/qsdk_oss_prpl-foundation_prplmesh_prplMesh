@@ -71,6 +71,30 @@ using namespace net;
 using namespace multi_vendor;
 
 namespace {
+
+static bool read_use_dataelements(ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto beerocks_header = message_com::parse_intel_vs_message(cmdu_rx);
+    if (!beerocks_header) {
+        MYLOG("no beerocks header")
+        return true;
+    }
+
+    if (beerocks_header->action_op() != beerocks_message::ACTION_CONTROL_SLAVE_JOINED_RESPONSE) {
+        MYLOG("Unexpected Intel action op " << beerocks_header->action_op());
+        return true;
+    }
+
+    auto joined_response =
+        beerocks_header->addClass<beerocks_message::cACTION_CONTROL_SLAVE_JOINED_RESPONSE>();
+    if (joined_response == nullptr) {
+        MYLOG("addClass cACTION_CONTROL_SLAVE_JOINED_RESPONSE failed");
+        return true;
+    }
+
+    return joined_response->config().use_dataelements;
+}
+
 bool is_valid_op_std(const std::string &radio_iface,
                      const airties::tlvAirtiesRadioCapability::sStandards &op_std)
 {
@@ -1551,7 +1575,8 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
                 return;
             }
 
-            send_ap_bss_configuration_message(radio->front.iface_name, bss_infos);
+            send_ap_bss_configuration_message(radio->front.iface_name, bss_infos,
+                                              read_use_dataelements(cmdu_rx));
         } else {
             LOG(INFO) << "Reconfiguration is not needed";
         }
@@ -3284,7 +3309,7 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
 }
 
 bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
-    const std::string &radio_iface, const std::vector<sBssConfig> &infos)
+    const std::string &radio_iface, const std::vector<sBssConfig> &infos, bool use_dataelement)
 {
     auto request = message_com::create_vs_message<
         beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>(m_cmdu_tx);
@@ -3295,6 +3320,8 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
 
     auto db = AgentDB::get();
     request->set_bridge_ifname(db->bridge.iface_name);
+    request->local_controller() = db->device_conf.local_controller;
+    request->use_dataelements() = use_dataelement;
 
     std::stringstream ss;
     for (const auto &info : infos) {

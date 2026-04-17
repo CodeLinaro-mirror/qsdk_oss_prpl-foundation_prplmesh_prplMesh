@@ -3335,6 +3335,7 @@ bool Controller::handle_intel_slave_join(
         join_response->config().monitor_disable_initiative_arp =
             database.config.monitor_disable_initiative_arp;
         join_response->config().ire_rssi_report_rate_sec = database.config.ire_rssi_report_rate_sec;
+        join_response->config().use_dataelements = database.config.use_dataelements_vap_configs;
 
         LOG(DEBUG) << "send SLAVE_JOINED_RESPONSE";
         son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);

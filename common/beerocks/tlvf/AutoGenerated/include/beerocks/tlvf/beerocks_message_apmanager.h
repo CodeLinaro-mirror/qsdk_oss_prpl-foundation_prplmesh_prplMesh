@@ -1125,6 +1125,8 @@ class cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST : public BaseClass
         std::tuple<bool, WSC::cEncryptedSettingsPayload&> wifi_credentials(size_t idx);
         std::shared_ptr<WSC::cEncryptedSettingsPayload> create_wifi_credentials();
         bool add_wifi_credentials(std::shared_ptr<WSC::cEncryptedSettingsPayload> ptr);
+        uint8_t& local_controller();
+        uint8_t& use_dataelements();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -1141,6 +1143,8 @@ class cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST : public BaseClass
         size_t m_wifi_credentials_idx__ = 0;
         std::vector<std::shared_ptr<WSC::cEncryptedSettingsPayload>> m_wifi_credentials_vector;
         bool m_lock_allocation__ = false;
+        uint8_t* m_local_controller = nullptr;
+        uint8_t* m_use_dataelements = nullptr;
 };
 
 class cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_RESPONSE : public BaseClass

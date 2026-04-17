@@ -4037,6 +4037,8 @@ bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::alloc_bridge_ifname(size
     }
     m_wifi_credentials_size = (uint8_t *)((uint8_t *)(m_wifi_credentials_size) + len);
     m_wifi_credentials = (WSC::cEncryptedSettingsPayload *)((uint8_t *)(m_wifi_credentials) + len);
+    m_local_controller = (uint8_t *)((uint8_t *)(m_local_controller) + len);
+    m_use_dataelements = (uint8_t *)((uint8_t *)(m_use_dataelements) + len);
     m_bridge_ifname_idx__ += count;
     *m_bridge_ifname_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -4084,6 +4086,8 @@ std::shared_ptr<WSC::cEncryptedSettingsPayload> cACTION_APMANAGER_WIFI_CREDENTIA
         size_t move_length = getBuffRemainingBytes(src) - len;
         std::copy_n(src, move_length, dst);
     }
+    m_local_controller = (uint8_t *)((uint8_t *)(m_local_controller) + len);
+    m_use_dataelements = (uint8_t *)((uint8_t *)(m_use_dataelements) + len);
     return std::make_shared<WSC::cEncryptedSettingsPayload>(src, getBuffRemainingBytes(src), m_parse__);
 }
 
@@ -4111,6 +4115,8 @@ bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::add_wifi_credentials(std
     m_wifi_credentials_idx__++;
     if (!m_parse__) { (*m_wifi_credentials_size)++; }
     size_t len = ptr->getLen();
+    m_local_controller = (uint8_t *)((uint8_t *)(m_local_controller) + len - ptr->get_initial_size());
+    m_use_dataelements = (uint8_t *)((uint8_t *)(m_use_dataelements) + len - ptr->get_initial_size());
     m_wifi_credentials_vector.push_back(ptr);
     if (!buffPtrIncrementSafe(len)) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
@@ -4118,6 +4124,14 @@ bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::add_wifi_credentials(std
     }
     m_lock_allocation__ = false;
     return true;
+}
+
+uint8_t& cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::local_controller() {
+    return (uint8_t&)(*m_local_controller);
+}
+
+uint8_t& cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::use_dataelements() {
+    return (uint8_t&)(*m_use_dataelements);
 }
 
 void cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::class_swap()
@@ -4160,6 +4174,8 @@ size_t cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::get_initial_size()
     size_t class_size = 0;
     class_size += sizeof(uint8_t); // bridge_ifname_length
     class_size += sizeof(uint8_t); // wifi_credentials_size
+    class_size += sizeof(uint8_t); // local_controller
+    class_size += sizeof(uint8_t); // use_dataelements
     return class_size;
 }
 
@@ -4203,6 +4219,16 @@ bool cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST::init()
         }
         // swap back since wifi_credentials will be swapped as part of the whole class swap
         wifi_credentials->class_swap();
+    }
+    m_local_controller = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_use_dataelements = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
     }
     if (m_parse__) { class_swap(); }
     return true;

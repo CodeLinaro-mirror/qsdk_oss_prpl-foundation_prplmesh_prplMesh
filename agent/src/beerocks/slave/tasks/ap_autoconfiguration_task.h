@@ -337,7 +337,8 @@ private:
     bool send_ap_autoconfiguration_wsc_m1_message(const std::string &radio_iface);
 
     bool send_ap_bss_configuration_message(const std::string &radio_iface,
-                                           const std::vector<sBssConfig> &infos);
+                                           const std::vector<sBssConfig> &infos,
+                                           bool use_dataelements);
 
     bool send_bsta_mld_configuration_response_message();
 

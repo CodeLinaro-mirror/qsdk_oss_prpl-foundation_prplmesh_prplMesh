@@ -488,6 +488,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
     const std::string &backhaul_wps_ssid, const std::string &backhaul_wps_passphrase,
     const std::string &bridge_ifname)
 {
+    MYLOG("update_vap_credentials")
     LOG(DEBUG) << "updating vap credentials of radio " << get_iface_name()
                << " and bridge=" << bridge_ifname;
     bool ret          = false;
