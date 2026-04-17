@@ -147,6 +147,30 @@ protected:
     virtual void process_rssi_eventing_event(const std::string &interface,
                                              beerocks::wbapi::AmbiorixVariant *value);
 
+    /**
+     * @brief Store datamodel path of a Station; should be called when we expect the path to change :
+     *
+     * @param[in] mac_addr : MACAddress of station;
+     * @param[in] path : datamodel path, including parent AccessPoint etc.
+     */
+    void update_station_path(const std::string &mac_addr, const std::string &path);
+
+    /**
+     * @brief Retrieve stored datamodel path of a Station;
+     *
+     * @param[in] mac_addr : MACAddress of station;
+     *
+     * @return datamodel path if known or empty string otherwise
+     */
+    const std::string get_station_path(const std::string &mac_addr);
+
+    /**
+     * @brief Erase {mac_addr: path} pair from m_stations
+     *
+     * @param[in] mac_addr MACAddress of station
+     */
+    void remove_station_path(const std::string &mac_addr);
+
     // Private data-members:
 private:
     bool fsm_setup();

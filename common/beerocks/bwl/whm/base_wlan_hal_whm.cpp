@@ -1410,5 +1410,43 @@ void base_wlan_hal_whm::populate_channels_max_tx_power()
     }
 }
 
+void base_wlan_hal_whm::update_station_path(const std::string &mac_addr, const std::string &path)
+{
+    std::string lc_mac(mac_addr);
+    std::transform(lc_mac.begin(), lc_mac.end(), lc_mac.begin(), ::tolower);
+
+    auto sta_it = m_stations.find(lc_mac);
+    if (sta_it == m_stations.end()) {
+        m_stations.insert(std::make_pair(lc_mac, sStationInfo(path)));
+    } else {
+        sta_it->second.path = path; //enforce the path
+    }
+}
+
+const std::string base_wlan_hal_whm::get_station_path(const std::string &mac_addr)
+{
+    std::string lc_mac(mac_addr);
+    std::transform(lc_mac.begin(), lc_mac.end(), lc_mac.begin(), ::tolower);
+
+    auto sta_it = m_stations.find(lc_mac);
+    if (sta_it == m_stations.end()) {
+        return {};
+    }
+    return sta_it->second.path;
+}
+
+void base_wlan_hal_whm::remove_station_path(const std::string &mac_addr)
+{
+    std::string lc_mac(mac_addr);
+    std::transform(lc_mac.begin(), lc_mac.end(), lc_mac.begin(), ::tolower);
+
+    LOG(DEBUG) << "cpu remove_station_path " << lc_mac;
+    auto sta_it = m_stations.find(lc_mac);
+    if (sta_it != m_stations.end()) {
+        m_stations.erase(sta_it);
+        // erase(iterator) because erase(key) can throw exceptions
+    }
+}
+
 } // namespace whm
 } // namespace bwl

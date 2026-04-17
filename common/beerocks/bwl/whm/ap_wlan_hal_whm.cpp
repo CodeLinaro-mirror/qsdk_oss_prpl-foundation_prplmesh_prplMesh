@@ -1023,7 +1023,7 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
             continue;
         }
         //Lets iterate through all instances
-        for (auto &associated_device_pwhm : *associated_devices_pwhm) {
+        for (const auto &associated_device_pwhm : *associated_devices_pwhm) {
             bool is_active;
             if (!associated_device_pwhm.second.read_child(is_active, "Active") || !is_active) {
                 // we are only interested in connected stations
@@ -1087,14 +1087,10 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                 }
             }
 
-            auto sta_it = m_stations.find(mac_addr);
-            if (sta_it == m_stations.end()) {
-                m_stations.insert(
-                    std::make_pair(mac_addr, sStationInfo(associated_device_pwhm.first)));
-            } else {
-                sta_it->second.path = associated_device_pwhm.first; //enforce the path
-            }
+            base_wlan_hal_whm::update_station_path(mac_addr, associated_device_pwhm.first);
 
+            LOG(DEBUG) << "Pushing STA_Connected event for MAC: " << msg->params.mac
+                       << ", BSSID: " << msg->params.bssid;
             event_queue_push(Event::STA_Connected, msg_buff);
         }
     }
@@ -1401,8 +1397,14 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                 }
             }
 
-            // Add the message to the queue
+            base_wlan_hal_whm::update_station_path(sta_mac, sta_path);
+
+            LOG(DEBUG) << "Pushing STA_Connected event for MAC: " << msg->params.mac
+                       << ", BSSID: " << msg->params.bssid;
             event_queue_push(Event::STA_Connected, msg_buff);
+        } else {
+            // connected == false
+            base_wlan_hal_whm::remove_station_path(sta_mac);
         }
     }
     return true;
