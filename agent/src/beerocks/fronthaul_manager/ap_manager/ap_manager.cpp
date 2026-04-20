@@ -33,6 +33,7 @@
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
+#include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvStaMacAddressType.h>
 #include <tlvf/wfa_map/tlvTriggerChannelSwitchAnnouncement.h>
 #include <tlvf/wfa_map/tlvTunnelledData.h>
@@ -3080,6 +3081,167 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             }
 
             return true;
+        } else if (mgmt_frame->type == bwl::eManagementFrameType::SCS_REQUEST ||
+                   mgmt_frame->type == bwl::eManagementFrameType::MSCS_REQUEST) {
+            constexpr size_t qos_management_descriptor_offset       = 3;
+            constexpr size_t qos_management_descriptor_header_size  = 2;
+            constexpr size_t minimum_qos_management_descriptor_size = 4;
+            // IEEE 802.11-2020 Table 9-92 assigns element ID 185 to the
+            // SCS Descriptor element defined in 9.4.2.121.
+            constexpr uint8_t scs_descriptor_element_id = 185;
+
+            LOG(DEBUG) << "Received SCS|MSCS request from " << mgmt_frame->mac;
+
+            auto cmdu_tx_header = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST>(cmdu_tx);
+            if (!cmdu_tx_header) {
+                LOG(ERROR) << "cmdu creation of type QOS_MANAGEMENT_NOTIFICATION_MESSAGE failed!";
+                return false;
+            }
+
+            bool has_qos_management_descriptor = false;
+            if (mgmt_frame->type == bwl::eManagementFrameType::SCS_REQUEST) {
+                if (mgmt_frame->data.size() < qos_management_descriptor_offset) {
+                    LOG(ERROR) << "Malformed SCS request: missing fixed fields";
+                    return true;
+                }
+
+                // SCS Descriptor element (as described in 9.4.2.121 of IEEE 802.11-2020)
+                const std::vector<uint8_t> scs_descriptor_element_list(
+                    mgmt_frame->data.begin() + qos_management_descriptor_offset,
+                    mgmt_frame->data.end());
+                size_t offset              = 0;
+                bool malformed_scs_request = false;
+                while (offset + qos_management_descriptor_header_size <=
+                       scs_descriptor_element_list.size()) {
+                    const auto element_id = scs_descriptor_element_list[offset];
+
+                    // The Length field indicates the number of octets in the element
+                    // excluding the Element ID and Length fields (as described in 9.4.2.1 of IEEE 802.11-2020)
+                    const auto length = scs_descriptor_element_list[offset + 1];
+                    const size_t descriptor_len =
+                        static_cast<size_t>(length) + qos_management_descriptor_header_size;
+
+                    if (element_id != scs_descriptor_element_id) {
+                        LOG(ERROR) << "Malformed descriptor: invalid element ID " << element_id;
+                        malformed_scs_request = true;
+                        break;
+                    }
+
+                    if (offset + descriptor_len > scs_descriptor_element_list.size()) {
+                        LOG(ERROR) << "Malformed descriptor: exceeds buffer at offset " << offset;
+                        malformed_scs_request = true;
+                        break;
+                    }
+
+                    if (descriptor_len < minimum_qos_management_descriptor_size) {
+                        LOG(ERROR) << "Malformed descriptor: too short at offset " << offset;
+                        malformed_scs_request = true;
+                        break;
+                    }
+
+                    const auto *descriptor = &scs_descriptor_element_list[offset];
+
+                    LOG(TRACE) << "SCS Descriptor found at offset " << offset
+                               << " | Element ID: " << static_cast<int>(descriptor[0])
+                               << " | Length: " << static_cast<int>(length)
+                               << " | SCSID: " << static_cast<int>(descriptor[2])
+                               << " | RequestType: " << static_cast<int>(descriptor[3]);
+
+                    offset += descriptor_len;
+
+                    // --- Pack SCS Descriptor elements ---
+                    auto qos_mgmt_desc_tlv =
+                        cmdu_tx.addClass<wfa_map::tlvQoSManagementDescriptor>();
+                    if (!qos_mgmt_desc_tlv) {
+                        LOG(ERROR) << "addClass "
+                                      "wfa_map::tlvQoSManagementDescriptor failed!";
+                        return false;
+                    }
+                    qos_mgmt_desc_tlv->bssid()      = mgmt_frame->bssid;
+                    qos_mgmt_desc_tlv->client_mac() = mgmt_frame->mac;
+
+                    // QMID should be set by Controller when QoS rules is approved and is sent on Agent to apply
+                    // at this point it's just reserved value
+                    qos_mgmt_desc_tlv->qmid() = {};
+
+                    // SCS Descriptor element
+                    if (!qos_mgmt_desc_tlv->set_descriptor_element(descriptor, descriptor_len)) {
+                        LOG(ERROR) << "set_descriptor_element failed";
+                        return false;
+                    }
+                    has_qos_management_descriptor = true;
+                }
+
+                if (!malformed_scs_request && offset != scs_descriptor_element_list.size()) {
+                    LOG(ERROR) << "Malformed descriptor: incomplete trailing header at offset "
+                               << offset;
+                    malformed_scs_request = true;
+                }
+
+                if (malformed_scs_request) {
+                    LOG(DEBUG) << "Ignoring malformed SCS request from " << mgmt_frame->mac;
+                    return true;
+                }
+            } else if (mgmt_frame->type == bwl::eManagementFrameType::MSCS_REQUEST) {
+                if (mgmt_frame->data.size() < qos_management_descriptor_offset) {
+                    LOG(ERROR) << "Malformed MSCS request: missing fixed fields";
+                    return true;
+                }
+
+                // MSCS Descriptor element (as described in 9.4.2.243 of IEEE 802.11-2020)
+                const std::vector<uint8_t> mscs_descriptor_element(
+                    mgmt_frame->data.begin() + qos_management_descriptor_offset,
+                    mgmt_frame->data.end());
+                if (mscs_descriptor_element.empty()) {
+                    LOG(DEBUG) << "No QoS management descriptors were extracted from the request";
+                    return true;
+                }
+
+                if (mscs_descriptor_element.size() < qos_management_descriptor_header_size) {
+                    LOG(ERROR) << "Malformed MSCS request: missing descriptor header";
+                    return true;
+                }
+
+                const size_t descriptor_len = static_cast<size_t>(mscs_descriptor_element[1]) +
+                                              qos_management_descriptor_header_size;
+                if (descriptor_len < minimum_qos_management_descriptor_size) {
+                    LOG(ERROR) << "Malformed MSCS request: descriptor too short";
+                    return true;
+                }
+                if (descriptor_len != mscs_descriptor_element.size()) {
+                    LOG(ERROR) << "Malformed MSCS request: descriptor length mismatch";
+                    return true;
+                }
+
+                // Add the tlvQoSManagementDescriptor (could be only one)
+                auto qos_mgmt_desc_tlv = cmdu_tx.addClass<wfa_map::tlvQoSManagementDescriptor>();
+                if (!qos_mgmt_desc_tlv) {
+                    LOG(ERROR) << "addClass wfa_map::tlvQoSManagementDescriptor failed!";
+                    return false;
+                }
+
+                qos_mgmt_desc_tlv->bssid()      = mgmt_frame->bssid;
+                qos_mgmt_desc_tlv->client_mac() = mgmt_frame->mac;
+
+                // QMID should be set by Controller when QoS rules is approved and is sent on Agent to apply
+                // at this point it's just reserved value
+                qos_mgmt_desc_tlv->qmid() = {};
+
+                if (!qos_mgmt_desc_tlv->set_descriptor_element(mscs_descriptor_element.data(),
+                                                               mscs_descriptor_element.size())) {
+                    LOG(ERROR) << "set_descriptor_element failed";
+                    return false;
+                }
+                has_qos_management_descriptor = true;
+            }
+
+            if (!has_qos_management_descriptor) {
+                LOG(DEBUG) << "No QoS management descriptors were extracted from the request";
+                return true;
+            }
+
+            return send_cmdu(cmdu_tx);
         }
 
         // Convert the BWL type to a tunnelled message type
@@ -3444,6 +3606,8 @@ void ApManager::handle_hostapd_attached()
 
     notification->radio_max_bss() = ap_wlan_hal->get_radio_info().radio_max_bss_supported;
     notification->radio_rsn_override_support() = ap_wlan_hal->get_radio_info().rsn_override_support;
+    notification->radio_mscs_support()         = ap_wlan_hal->get_radio_info().mscs_supported;
+    notification->radio_scs_support()          = ap_wlan_hal->get_radio_info().scs_supported;
 
     fill_cs_params(notification->cs_params());
 
@@ -3477,6 +3641,8 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " bsta_maximum_links = " << ap_wlan_hal->get_radio_info().bsta_maximum_links;
     LOG(INFO) << " zwdfs = " << m_ap_support_zwdfs;
     LOG(INFO) << " radio_max_bss = " << ap_wlan_hal->get_radio_info().radio_max_bss_supported;
+    LOG(INFO) << " mscs_supported = " << ap_wlan_hal->get_radio_info().mscs_supported;
+    LOG(INFO) << " scs_supported = " << ap_wlan_hal->get_radio_info().scs_supported;
     LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
 
     copy_vaps_info_and_type(ap_wlan_hal, notification->vap_list().vaps,

@@ -62,6 +62,7 @@
 #include <tlvf/wfa_map/tlvProfile2CacStatusReport.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvProfile2SteeringRequest.h>
+#include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvStaMacAddressType.h>
 #include <tlvf/wfa_map/tlvSteeringBTMReport.h>
 #include <tlvf/wfa_map/tlvSteeringRequest.h>
@@ -2716,12 +2717,15 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         radio->front.rsn_override_support =
             static_cast<bool>(notification->radio_rsn_override_support());
+        radio->mscs_supported = static_cast<bool>(notification->radio_mscs_support());
+        radio->scs_supported  = static_cast<bool>(notification->radio_scs_support());
 
         LOG(DEBUG) << "Radio : "
                    << beerocks::utils::convert_frequency_type_to_string(
                           notification->params().frequency_band)
                    << " : ZWDFS AP: " << radio->front.zwdfs << " MRSNO Support "
-                   << radio->front.rsn_override_support;
+                   << radio->front.rsn_override_support << " MSCS support " << radio->mscs_supported
+                   << " SCS support " << radio->scs_supported;
 
         fill_channel_list_to_agent_db(fronthaul_iface, notification->channel_list());
 
@@ -3623,6 +3627,45 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         LOG(DEBUG) << "Added spatial reuse params to the agent DB for interface : "
                    << sender_iface_name;
 
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST: {
+        LOG(DEBUG) << "Received QoS Management Descriptor Request";
+
+        auto tlv_qos_mgmt_desc_list = cmdu_rx.getClassList<wfa_map::tlvQoSManagementDescriptor>();
+        if (tlv_qos_mgmt_desc_list.empty()) {
+            LOG(ERROR) << "getClassList<wfa_map::tlvQoSManagementDescriptor> failed";
+            return false;
+        }
+
+        // Forwarding QoS Management Descriptor TLV to the controller
+        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::QOS_MANAGEMENT_NOTIFICATION_MESSAGE)) {
+            LOG(ERROR) << "cmdu creation of type QOS_MANAGEMENT_NOTIFICATION_MESSAGE failed!";
+            return false;
+        }
+
+        for (const auto &tlv_qos_mgmt_desc_in : tlv_qos_mgmt_desc_list) {
+            auto tlv_qos_mgmt_desc_out = cmdu_tx.addClass<wfa_map::tlvQoSManagementDescriptor>();
+            if (!tlv_qos_mgmt_desc_out) {
+                LOG(ERROR) << "addClass wfa_map::tlvQoSManagementDescriptor failed!";
+                return false;
+            }
+
+            tlv_qos_mgmt_desc_out->bssid()      = tlv_qos_mgmt_desc_in->bssid();
+            tlv_qos_mgmt_desc_out->client_mac() = tlv_qos_mgmt_desc_in->client_mac();
+            if (!tlv_qos_mgmt_desc_out->set_descriptor_element(
+                    tlv_qos_mgmt_desc_in->descriptor_element(),
+                    tlv_qos_mgmt_desc_in->descriptor_element_length())) {
+                LOG(ERROR) << "set_descriptor_element failed";
+                return false;
+            }
+            tlv_qos_mgmt_desc_out->qmid() = tlv_qos_mgmt_desc_in->qmid();
+        }
+
+        if (!send_cmdu_to_controller(fronthaul_iface, cmdu_tx)) {
+            LOG(ERROR) << "send_cmdu_to_controller failed";
+            return false;
+        }
         break;
     }
     default: {

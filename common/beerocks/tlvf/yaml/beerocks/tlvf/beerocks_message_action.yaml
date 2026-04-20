@@ -269,7 +269,9 @@ eActionOp_APMANAGER:
   ACTION_APMANAGER_MLD_UPDATE_REQUEST: 77
   ACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST: 78
 
-  ACTION_APMANAGER_ENUM_END: 79
+  ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST: 79
+
+  ACTION_APMANAGER_ENUM_END: 80
 
 ####################################################
 ####################################################

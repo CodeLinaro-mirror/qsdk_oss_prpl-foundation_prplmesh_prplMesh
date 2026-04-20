@@ -107,6 +107,8 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         sVapTypesList& vap_type_list();
         uint8_t& radio_max_bss();
         uint8_t& radio_rsn_override_support();
+        uint8_t& radio_mscs_support();
+        uint8_t& radio_scs_support();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -125,6 +127,8 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         sVapTypesList* m_vap_type_list = nullptr;
         uint8_t* m_radio_max_bss = nullptr;
         uint8_t* m_radio_rsn_override_support = nullptr;
+        uint8_t* m_radio_mscs_support = nullptr;
+        uint8_t* m_radio_scs_support = nullptr;
 };
 
 class cACTION_APMANAGER_ENABLE_APS_REQUEST : public BaseClass
@@ -1463,6 +1467,25 @@ class cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST : public BaseClass
         size_t m_ssid_idx__ = 0;
         int m_lock_order_counter__ = 0;
         uint8_t* m_mld_mode = nullptr;
+};
+
+class cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST);
+        }
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
 };
 
 }; // close namespace: beerocks_message

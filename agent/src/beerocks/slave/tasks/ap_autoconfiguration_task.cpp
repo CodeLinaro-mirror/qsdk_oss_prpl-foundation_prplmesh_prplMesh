@@ -993,6 +993,10 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
             radio->front.hybrid_mode_supported;
         ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities()
             .combined_profile1_and_profile2 = 0;
+        ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().mscs =
+            radio->mscs_supported;
+        ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().scs =
+            radio->scs_supported;
 
         // TODO: Fill in the missing fields (related to R4 specification, PPM-2327).
     }
