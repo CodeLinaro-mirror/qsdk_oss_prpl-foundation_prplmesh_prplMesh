@@ -595,18 +595,6 @@ bool BackhaulManager::handle_backhaul_connect()
     // will be overriden in the loop below.
     db->backhaul.backhaul_bssid = {};
 
-    for (auto &radio_info : m_radios_info) { // Detach from unused stations first
-        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
-            radio_info->sta_iface == db->backhaul.selected_iface_name) {
-            continue;
-        } else {
-            clear_radio_handlers(radio_info);
-            if (radio_info->sta_wlan_hal) {
-                radio_info->sta_wlan_hal.reset();
-            }
-        }
-    }
-
     for (auto &radio_info : m_radios_info) {
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
             radio_info->sta_iface == db->backhaul.selected_iface_name) {
