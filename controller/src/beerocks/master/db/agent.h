@@ -101,8 +101,9 @@ public:
      */
     uint8_t max_total_number_of_vids = 0;
 
-    bool is_gateway  = false;
-    bool is_prplmesh = false;
+    bool is_gateway                         = false;
+    bool is_prplmesh                        = false;
+    bool is_prplmesh_compatibility_fallback = false;
 
     bool does_support_vbss    = false;
     int load_balancer_task_id = -1;

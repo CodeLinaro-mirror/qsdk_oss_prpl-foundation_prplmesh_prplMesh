@@ -6227,8 +6227,53 @@ void db::set_prplmesh(const sMacAddr &mac)
     }
 
     if (agent) {
-        agent->is_prplmesh = true;
+        agent->is_prplmesh                        = true;
+        agent->is_prplmesh_compatibility_fallback = false;
     }
+}
+
+bool db::is_prplmesh_compatibility_fallback(const sMacAddr &mac)
+{
+    std::shared_ptr<Agent> agent = get_agent(mac);
+    if (!agent) {
+        LOG(ERROR) << "can't find agent with mac " << mac << ", consider as not fallback";
+        return false;
+    }
+    return agent->is_prplmesh_compatibility_fallback;
+}
+
+// Mark the agent as operating in prplMesh compatibility fallback mode.
+// In this state, the agent is treated operationally as non-prplMesh, so
+// prplMesh-specific functionality must remain disabled.
+void db::set_prplmesh_compatibility_fallback(const sMacAddr &mac)
+{
+    auto local_bridge_mac        = get_local_bridge_mac();
+    std::shared_ptr<Agent> agent = get_agent(mac);
+    if (!agent) {
+        if (local_bridge_mac == mac) {
+            agent = add_gateway(mac);
+        } else {
+            agent = add_agent(mac);
+        }
+    }
+
+    if (agent) {
+        agent->is_prplmesh                        = false;
+        agent->is_prplmesh_compatibility_fallback = true;
+    }
+}
+
+// Clear any previous prplMesh classification before a new onboarding attempt,
+// so stale prplMesh/fallback state does not survive reconnects or retries.
+void db::reset_prplmesh_classification(const sMacAddr &mac)
+{
+    std::shared_ptr<Agent> agent = get_agent(mac);
+    if (!agent) {
+        return;
+    }
+
+    agent->is_prplmesh                        = false;
+    agent->is_prplmesh_compatibility_fallback = false;
 }
 
 bool db::update_client_entry_in_persistent_db(const sMacAddr &mac, const ValuesMap &values_map)

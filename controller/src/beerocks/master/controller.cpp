@@ -1650,6 +1650,9 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     auto agent   = database.m_agents.add(al_mac);
     agent->state = beerocks::STATE_DISCONNECTED;
 
+    // Reset the prplMesh classification for this onboarding attempt.
+    database.reset_prplmesh_classification(al_mac);
+
     database.set_agent_manufacturer(*agent, m1->manufacturer());
 
     // Profile-2 Multi AP profile is added for higher than Profile-1 agents.
@@ -1832,14 +1835,24 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
 
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
     if (beerocks_header) {
-        LOG(INFO) << "Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid;
+        LOG(INFO) << "Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid << ")";
         if (!handle_intel_slave_join(src_mac, radio_basic_caps, *beerocks_header, cmdu_tx, agent)) {
+            // If Intel VS parsing failed due to a format or size mismatch, fall back to
+            // the non-prplMesh onboarding path so the agent can still join the mesh network.
+            if (database.is_prplmesh_compatibility_fallback(src_mac)) {
+                LOG(WARNING) << "VS TLV format mismatch detected for " << src_mac
+                             << "; fallback to non-prplMesh onboarding"
+                             << "; full functionality can be restored by upgrading agent FW "
+                             << "to match the controller";
+                goto non_intel_slave_join;
+            }
             database.clear_configured_bss_info(ruid);
             LOG(ERROR) << "Intel radio agent join failed (al_mac=" << al_mac << " ruid=" << ruid
                        << ")";
             return false;
         }
     } else {
+    non_intel_slave_join:
         LOG(INFO) << "Non-Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid << ")";
         // Multi-AP Agent doesn't say anything about the bridge, so we have to rely on Intel Slave Join for that.
         // We'll use AL-MAC as the bridge
@@ -2977,17 +2990,11 @@ bool Controller::handle_intel_slave_join(
     beerocks::beerocks_header &beerocks_header, ieee1905_1::CmduMessageTx &cmdu_tx,
     const std::shared_ptr<Agent> &agent)
 {
-    // Prepare outcoming response vs tlv
-    auto join_response =
-        beerocks::message_com::add_vs_tlv<beerocks_message::cACTION_CONTROL_SLAVE_JOINED_RESPONSE>(
-            cmdu_tx);
-    if (!join_response) {
-        LOG(ERROR) << "Failed adding intel vendor specific TLV";
-        return false;
-    }
-
     if (beerocks_header.action_op() != beerocks_message::ACTION_CONTROL_SLAVE_JOINED_NOTIFICATION) {
         LOG(ERROR) << "Unexpected Intel action op " << beerocks_header.action_op();
+        // VS TLV present but not parseable/expected; treat as compatibility mismatch.
+        // Mark fallback so the caller can continue with non-prplMesh onboarding.
+        database.set_prplmesh_compatibility_fallback(src_mac);
         return false;
     }
 
@@ -2995,6 +3002,20 @@ bool Controller::handle_intel_slave_join(
         beerocks_header.addClass<beerocks_message::cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION>();
     if (!notification) {
         LOG(ERROR) << "addClass cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION failed";
+        // VS TLV present but not parseable/expected; treat as compatibility mismatch.
+        // Mark fallback so the caller can continue with non-prplMesh onboarding.
+        database.set_prplmesh_compatibility_fallback(src_mac);
+        return false;
+    }
+
+    // Prepare outgoing response vs tlv only after the incoming Intel joined notification has been
+    // successfully validated and parsed. Otherwise, fallback to the non-Intel path would continue
+    // with Intel-specific content already added to cmdu_tx.
+    auto join_response =
+        beerocks::message_com::add_vs_tlv<beerocks_message::cACTION_CONTROL_SLAVE_JOINED_RESPONSE>(
+            cmdu_tx);
+    if (!join_response) {
+        LOG(ERROR) << "Failed adding intel vendor specific TLV";
         return false;
     }
 
