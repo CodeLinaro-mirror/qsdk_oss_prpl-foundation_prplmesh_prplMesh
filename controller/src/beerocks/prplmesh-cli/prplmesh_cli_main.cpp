@@ -86,6 +86,23 @@ bool print_status(int argc, char *argv[])
     return !prpl_cli.print_status(format);
 }
 
+bool conn_map(int argc, char *argv[])
+{
+    bool short_output = false;
+
+    for (int i = optind; i < argc; i++) {
+        std::string arg(argv[i]);
+        if (arg == "--short") {
+            short_output = true;
+        } else {
+            std::cerr << "Unknown conn_map argument: " << arg << std::endl;
+            return false;
+        }
+    }
+
+    return prpl_cli.prpl_conn_map(short_output);
+}
+
 int main(int argc, char *argv[])
 {
     if (argc < 2) {
@@ -100,7 +117,7 @@ int main(int argc, char *argv[])
         case 'c': {
             command_string = std::string(optarg);
             if (command_string == "conn_map") {
-                prpl_cli.prpl_conn_map();
+                return !conn_map(argc, argv);
             } else if (command_string == "show_ap") {
                 prpl_cli.show_ap();
             } else if (command_string == "set_ssid") {

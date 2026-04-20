@@ -81,6 +81,8 @@
         */
         %read-only bool BackhaulUse = false;
 
+        %read-only int8 X_PRPLWARE-COM_VAPID = -1;
+
         %instance bool TriggerVBSSDestruction(
             %in %mandatory string client_mac,
             %in bool should_disassociate = true

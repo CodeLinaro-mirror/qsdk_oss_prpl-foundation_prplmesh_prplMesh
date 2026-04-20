@@ -56,7 +56,7 @@ class prplmesh_cli {
 public:
     prplmesh_cli();
     bool get_ip_from_iface(const std::string &iface, std::string &ip);
-    bool prpl_conn_map();
+    bool prpl_conn_map(bool short_output = false);
     void print_help();
     void print_version();
     operating_mode get_operating_mode(bool &agt_timed_out, bool &ctl_timed_out);
@@ -90,27 +90,12 @@ public:
                       const std::string &passphrase);
 
     /**
-    * @brief Recursive function that prints the topology of agents.
-    * 
-    * Each agent has a master agent or controller.
-    * The purpose of the recursion is to check if the current agent is the master of another
-    * (compare mac of the current agent and the BackhaulDeviceID of other agents).
-    * If it is equal, display the dependent agent on the console. Use dependent agent as a master now.
-    * If it isn't equal then switch to another agent.
-    * 
-    * @param[in] agent_mac String containing the mac address of master device
-    * @param[in] skip_mac String containing the mac address of the device that should not be printed
-    * @return True on success, false otherwise.
-    */
-    bool print_device_info(std::string agent_mac, std::string skip_mac);
-
-    /**
     * @brief Print information per one Radio.
     * 
     * @param[in] device_path String containing the path to the Device.
     * @return True on success, false otherwise.
     */
-    bool print_radio(std::string device_path);
+    bool print_radio(const std::string &device_path);
 
     /**
     * @brief Print current prplMesh mode.
@@ -128,16 +113,6 @@ public:
     * @return True on successful retrieval of status (even if the status is bad), false if unable to get the status.
     */
     bool print_status(const std::string &format);
-
-    /**
-    * @brief Get frequency using operating classes.
-    * 
-    * IEEE Std 802.11™‐2020 - Global operating classes
-    * 
-    * @param[in] oper_class uint32_t operating class value.
-    * @return freq on success, 0 otherwise.
-    */
-    float get_freq_from_class(const uint32_t oper_class);
 
     std::shared_ptr<beerocks::prplmesh_amx::AmxClient> m_amx_client;
 

@@ -28,6 +28,7 @@
         * @version 2.19.1
         */
         %read-only %unique string ID = "00:00:00:00:00:00";
+        %read-only string X_PRPLWARE-COM_Name = "";
 
         %read-only string ChipsetVendor;
 
