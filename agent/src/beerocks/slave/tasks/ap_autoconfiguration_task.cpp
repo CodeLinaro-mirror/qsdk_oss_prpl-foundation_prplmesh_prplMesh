@@ -1489,6 +1489,13 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
 
+    // Send bSTA MLD requests before sending BSS configuration
+    for (auto &bsta_mld_request : bsta_mld_requests_infos) {
+        send_bsta_mld_configuration(bsta_mld_request.first, bsta_mld_request.second.first,
+                                    bsta_mld_request.second.second);
+    }
+    bsta_mld_requests_infos.clear();
+
     // Auto-configuration should start from clean state
     m_ap_mld_requests_infos.clear();
     if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, radio->front.iface_name)) {
@@ -1562,13 +1569,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_ap_autoconfiguration_wsc_vs_extension_tlv has failed";
         return;
     }
-
-    // Send bSTA MLD requests after sending BSS configuration
-    for (auto &bsta_mld_request : bsta_mld_requests_infos) {
-        send_bsta_mld_configuration(bsta_mld_request.first, bsta_mld_request.second.first,
-                                    bsta_mld_request.second.second);
-    }
-    bsta_mld_requests_infos.clear();
 
     // Apply MLD mode updates for this radio. This operation updates only the
     // MLD mode associated with the corresponding SSIDs; it does not perform
@@ -2527,13 +2527,13 @@ int8_t ApAutoConfigurationTask::find_available_bsta_mld_unit()
 bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                                 const sMacAddr &ruid)
 {
+    auto db(AgentDB::get());
     auto bsta_mld_configuration(cmdu_rx.getClass<wfa_map::tlvBackhaulStaMldConfiguration>());
     if (!bsta_mld_configuration) {
+        db->bsta_mld_configuration.reset();
         LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received";
         return true;
     }
-
-    auto db(AgentDB::get());
 
     // Store current bSTA MLD requests info for comparison
     auto curr_bsta_mld_infos = bsta_mld_requests_infos;
