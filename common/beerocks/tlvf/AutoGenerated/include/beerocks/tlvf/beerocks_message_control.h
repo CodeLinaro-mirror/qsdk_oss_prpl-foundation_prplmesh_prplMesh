@@ -588,6 +588,31 @@ class cACTION_CONTROL_HOSTAP_AP_ENABLED_NOTIFICATION : public BaseClass
         sVapInfo* m_vap_info = nullptr;
 };
 
+class cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST : public BaseClass
+{
+    public:
+        cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST();
+
+        static eActionOp_CONTROL get_action_op(){
+            return (eActionOp_CONTROL)(ACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST);
+        }
+        sMacAddr& bssid();
+        uint8_t& mscs_enable();
+        uint8_t& scs_enable();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_CONTROL* m_action_op = nullptr;
+        sMacAddr* m_bssid = nullptr;
+        uint8_t* m_mscs_enable = nullptr;
+        uint8_t* m_scs_enable = nullptr;
+};
+
 class cACTION_CONTROL_CLIENT_START_MONITORING_REQUEST : public BaseClass
 {
     public:
