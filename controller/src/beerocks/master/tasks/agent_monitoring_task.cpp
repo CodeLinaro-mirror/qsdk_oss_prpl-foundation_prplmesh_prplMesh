@@ -10,6 +10,8 @@
 #include "../db/db_algo.h"
 #include "../son_actions.h"
 
+#include <bcl/beerocks_string_utils.h>
+#include <beerocks/tlvf/beerocks_message_control.h>
 #include <bpl/bpl_cfg.h>
 #include <easylogging++.h>
 #include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
@@ -22,9 +24,12 @@
 #include <tlvf/wfa_map/tlvProfile2RadioMetrics.h>
 #include <tlvf/wfa_map/tlvProfile2TrafficSeparationPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
+#include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
+#include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 
 #include <cstdint>
+#include <limits>
 #include <set>
 #include <string>
 #include <vector>
@@ -70,6 +75,59 @@ build_custom_ts_config(const std::list<wireless_utils::sBssInfoConf> &bss_infos,
     }
 
     return configs;
+}
+
+/**
+ * @brief Add a QoS Management Policy TLV from controller DB state.
+ */
+bool add_qos_management_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto qos_management_policy_tlv = cmdu_tx.addClass<wfa_map::tlvQoSManagementPolicy>();
+    if (!qos_management_policy_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvQoSManagementPolicy has failed";
+        return false;
+    }
+
+    const auto &mscs_list = database.get_mscs_disallowed_sta_list();
+    const auto &scs_list  = database.get_scs_disallowed_sta_list();
+
+    if (mscs_list.size() > std::numeric_limits<uint8_t>::max() ||
+        scs_list.size() > std::numeric_limits<uint8_t>::max()) {
+        LOG(ERROR) << "QoS management policy list exceeds TLV capacity";
+        return false;
+    }
+
+    if (!mscs_list.empty() &&
+        !qos_management_policy_tlv->alloc_mscs_disallowed_sta_list(mscs_list.size())) {
+        LOG(ERROR) << "alloc_mscs_disallowed_sta_list() has failed";
+        return false;
+    }
+
+    for (size_t index = 0; index < mscs_list.size(); ++index) {
+        auto entry = qos_management_policy_tlv->mscs_disallowed_sta_list(index);
+        if (!std::get<0>(entry)) {
+            LOG(ERROR) << "Failed to get mscs_disallowed_sta_list entry " << index;
+            return false;
+        }
+        std::get<1>(entry) = mscs_list[index];
+    }
+
+    if (!scs_list.empty() &&
+        !qos_management_policy_tlv->alloc_scs_disallowed_sta_list(scs_list.size())) {
+        LOG(ERROR) << "alloc_scs_disallowed_sta_list() has failed";
+        return false;
+    }
+
+    for (size_t index = 0; index < scs_list.size(); ++index) {
+        auto entry = qos_management_policy_tlv->scs_disallowed_sta_list(index);
+        if (!std::get<0>(entry)) {
+            LOG(ERROR) << "Failed to get scs_disallowed_sta_list entry " << index;
+            return false;
+        }
+        std::get<1>(entry) = scs_list[index];
+    }
+
+    return true;
 }
 } // namespace
 
@@ -226,8 +284,19 @@ void agent_monitoring_task::handle_event(int event_type, void *obj)
     }
     case (CONFIGURE_QOS): {
         for (const auto &agent : database.m_agents) {
-            if (agent.second->prioritization_support) {
-                send_prioritization(*agent.second);
+            if (!send_qos_management_settings(*agent.second)) {
+                LOG(ERROR) << "Failed to send QoS management settings to agent "
+                           << agent.second->al_mac;
+            }
+
+            if (!send_multi_ap_policy_config_request(agent.second->al_mac, cmdu_tx)) {
+                LOG(ERROR) << "Failed to send QoS management policy to agent "
+                           << agent.second->al_mac;
+            }
+
+            if (!send_prioritization(*agent.second)) {
+                LOG(ERROR) << "Failed to send prioritization/QM descriptors to agent "
+                           << agent.second->al_mac;
             }
         }
         break;
@@ -415,10 +484,13 @@ bool agent_monitoring_task::execute_deferred_task(const Agent &agent)
             LOG(ERROR) << "Failed to send Backhaul STA Capability Query to agent=" << agent.al_mac;
         }
 
-        if (agent.prioritization_support) {
-            if (!send_prioritization(agent)) {
-                LOG(ERROR) << "Failed sending Service Priotitization to agent " << agent.al_mac;
-            }
+        if (!send_qos_management_settings(agent)) {
+            LOG(ERROR) << "Failed sending QoS management settings to agent " << agent.al_mac;
+        }
+
+        if (!send_prioritization(agent)) {
+            LOG(ERROR) << "Failed sending Service Prioritization/QM descriptors to agent "
+                       << agent.al_mac;
         }
     }
 
@@ -594,6 +666,11 @@ bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &
         return false;
     }
 
+    if (!add_qos_management_policy_tlv(database, cmdu_tx)) {
+        LOG(ERROR) << "Failed to add QoS Management Policy TLV";
+        return false;
+    }
+
     return son_actions::send_cmdu_to_agent(dst_mac, cmdu_tx, database);
 }
 
@@ -611,9 +688,6 @@ bool agent_monitoring_task::send_backhaul_sta_capability_query(const sMacAddr &d
 
 bool agent_monitoring_task::send_prioritization(const Agent &agent)
 {
-    if (agent.max_prioritization_rules < 1)
-        return true;
-
     int64_t activeRule{-1};
     uint8_t precedence{0};
     for (const auto &rule : agent.service_prioritization.rules) {
@@ -624,7 +698,12 @@ bool agent_monitoring_task::send_prioritization(const Agent &agent)
             }
         }
     }
-    if (activeRule < 0) {
+
+    const auto descriptors = database.get_controller_qm_descriptors(agent.al_mac);
+    const bool should_include_service_prioritization_rule =
+        (activeRule >= 0) && (agent.max_prioritization_rules > 0) && agent.prioritization_support;
+
+    if (!should_include_service_prioritization_rule && descriptors.empty()) {
         return true;
     }
 
@@ -633,8 +712,13 @@ bool agent_monitoring_task::send_prioritization(const Agent &agent)
         return false;
     }
 
-    auto priorityRequest = cmdu_tx.addClass<wfa_map::tlvServicePrioritizationRule>();
-    if (priorityRequest) {
+    if (should_include_service_prioritization_rule) {
+        auto priorityRequest = cmdu_tx.addClass<wfa_map::tlvServicePrioritizationRule>();
+        if (!priorityRequest) {
+            LOG(ERROR) << "Failed adding Service Prioritization Rule TLV";
+            return false;
+        }
+
         priorityRequest->rule_params() = agent.service_prioritization.rules.at(activeRule);
         priorityRequest->rule_params().bits_field1.add_remove = 1;
 
@@ -645,7 +729,79 @@ bool agent_monitoring_task::send_prioritization(const Agent &agent)
         }
     }
 
-    return son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
+    for (const auto &descriptor : descriptors) {
+        auto descriptor_tlv = cmdu_tx.addClass<wfa_map::tlvQoSManagementDescriptor>();
+        if (!descriptor_tlv) {
+            LOG(ERROR) << "Failed adding QoS Management Descriptor TLV";
+            return false;
+        }
+
+        const auto descriptor_bytes = beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(
+            descriptor.descriptor_element);
+        if (descriptor_bytes.empty() && !descriptor.descriptor_element.empty()) {
+            LOG(ERROR) << "Failed converting descriptor hex string for client "
+                       << descriptor.client_mac;
+            return false;
+        }
+
+        descriptor_tlv->qmid()       = descriptor.qmid;
+        descriptor_tlv->bssid()      = descriptor.bssid;
+        descriptor_tlv->client_mac() = descriptor.client_mac;
+        if (!descriptor_tlv->set_descriptor_element(descriptor_bytes.data(),
+                                                    descriptor_bytes.size())) {
+            LOG(ERROR) << "Failed setting descriptor element for client " << descriptor.client_mac;
+            return false;
+        }
+    }
+
+    if (!son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database)) {
+        return false;
+    }
+
+    if (!database.clear_transient_controller_qm_descriptors(agent.al_mac)) {
+        LOG(ERROR) << "Failed clearing transient QoS management descriptors for agent "
+                   << agent.al_mac;
+        return false;
+    }
+
+    return true;
+}
+
+bool agent_monitoring_task::send_qos_management_settings(const Agent &agent)
+{
+    const auto settings_list = database.get_bss_qos_management_settings(agent.al_mac);
+    for (const auto &entry : settings_list) {
+        if (!entry.second.valid) {
+            continue;
+        }
+
+        auto bss = database.get_bss(entry.first, agent.al_mac);
+        if (!bss) {
+            LOG(WARNING) << "Skipping stale QoS management settings for unknown BSS "
+                         << entry.first;
+            continue;
+        }
+
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST>(cmdu_tx);
+        if (!request) {
+            LOG(ERROR) << "Failed building ACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST";
+            return false;
+        }
+
+        request->bssid()       = entry.first;
+        request->mscs_enable() = entry.second.mscs_enable;
+        request->scs_enable()  = entry.second.scs_enable;
+
+        if (!son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database,
+                                             tlvf::mac_to_string(bss->radio.radio_uid))) {
+            LOG(ERROR) << "Failed sending QoS management settings to agent " << agent.al_mac
+                       << " for BSS " << entry.first;
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool agent_monitoring_task::send_tlv_empty_channel_selection_request(

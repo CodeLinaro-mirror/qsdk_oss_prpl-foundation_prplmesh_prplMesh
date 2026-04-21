@@ -49,10 +49,12 @@ const std::string g_radio_1_bss_path_1      = std::string(g_radio_path_1) + ".BS
 const std::string g_radio_1_bss_path_2      = std::string(g_radio_path_1) + ".BSS.2";
 const std::string g_radio_2_bss_path_1      = std::string(g_radio_path_2) + ".BSS.1";
 const std::string g_radio_2_bss_path_2      = std::string(g_radio_path_2) + ".BSS.2";
-const std::string g_sta_path_1              = std::string(g_radio_1_bss_path_1) + ".STA.1";
-const std::string g_assoc_event_path_1      = std::string(g_assoc_event_path) + ".1";
-const std::string g_interface_path_1        = std::string(g_device_path) + ".1.Interface.1";
-const std::string g_interface_path_2        = std::string(g_device_path) + ".1.Interface.2";
+const std::string g_radio_1_qm_descriptor_path =
+    std::string(g_radio_1_bss_path_1) + ".QMDescriptor";
+const std::string g_sta_path_1         = std::string(g_radio_1_bss_path_1) + ".STA.1";
+const std::string g_assoc_event_path_1 = std::string(g_assoc_event_path) + ".1";
+const std::string g_interface_path_1   = std::string(g_device_path) + ".1.Interface.1";
+const std::string g_interface_path_2   = std::string(g_device_path) + ".1.Interface.2";
 
 class DbTest : public ::testing::Test {
 
@@ -420,6 +422,149 @@ TEST_F(DbTest, test_add_vap)
         EXPECT_TRUE(m_db->add_bss(*radio, tlvf::mac_from_string(g_bssid_1), g_ssid_1, g_vap_id_1) !=
                     nullptr);
     }
+}
+
+TEST_F(DbTestRadio1Bss1, set_qm_descriptor_adds_new_instance)
+{
+    static constexpr auto descriptor_element = "b9030102";
+
+    EXPECT_CALL(
+        *m_ambiorix,
+        get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
+        .WillOnce(Return(0));
+    EXPECT_CALL(*m_ambiorix, add_instance(g_radio_1_qm_descriptor_path))
+        .WillOnce(Return(g_radio_1_qm_descriptor_path + ".1"));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "BSSID",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_bssid_1))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "ClientMAC",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_client_mac))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "DescriptorElement",
+                                 Matcher<const std::string &>(descriptor_element)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_qm_descriptor(tlvf::mac_from_string(g_bssid_1),
+                                        tlvf::mac_from_string(g_client_mac), descriptor_element));
+}
+
+TEST_F(DbTestRadio1Bss1, set_qm_descriptor_updates_existing_instance)
+{
+    static constexpr auto descriptor_element = "b904010203";
+
+    EXPECT_CALL(
+        *m_ambiorix,
+        get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
+        .WillOnce(Return(1));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "BSSID",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_bssid_1))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "ClientMAC",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_client_mac))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "DescriptorElement",
+                                 Matcher<const std::string &>(descriptor_element)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_qm_descriptor(tlvf::mac_from_string(g_bssid_1),
+                                        tlvf::mac_from_string(g_client_mac), descriptor_element));
+}
+
+TEST_F(DbTestRadio1Bss1, controller_qm_descriptor_reuses_qmid_and_clears_remove)
+{
+    static constexpr auto add_descriptor    = "b9020100";
+    static constexpr auto change_descriptor = "b9020102";
+    static constexpr auto remove_descriptor = "b9020101";
+    const auto bssid                        = tlvf::mac_from_string(g_bssid_1);
+    const auto client_mac                   = tlvf::mac_from_string(g_client_mac);
+    const auto agent_mac                    = tlvf::mac_from_string(g_bridge_mac);
+
+    InSequence sequence;
+
+    EXPECT_CALL(
+        *m_ambiorix,
+        get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
+        .WillOnce(Return(0));
+    EXPECT_CALL(*m_ambiorix, add_instance(g_radio_1_qm_descriptor_path))
+        .WillOnce(Return(g_radio_1_qm_descriptor_path + ".1"));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_radio_1_qm_descriptor_path + ".1", "BSSID", Matcher<const sMacAddr &>(bssid)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "ClientMAC",
+                                 Matcher<const sMacAddr &>(client_mac)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "DescriptorElement",
+                                 Matcher<const std::string &>(add_descriptor)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_controller_qm_descriptor(bssid, client_mac, add_descriptor));
+
+    auto descriptors = m_db->get_controller_qm_descriptors(agent_mac);
+    ASSERT_EQ(1U, descriptors.size());
+    EXPECT_EQ(1U, descriptors.front().qmid);
+    EXPECT_EQ(add_descriptor, descriptors.front().descriptor_element);
+
+    EXPECT_CALL(
+        *m_ambiorix,
+        get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
+        .WillOnce(Return(1));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_radio_1_qm_descriptor_path + ".1", "BSSID", Matcher<const sMacAddr &>(bssid)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "ClientMAC",
+                                 Matcher<const sMacAddr &>(client_mac)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "DescriptorElement",
+                                 Matcher<const std::string &>(change_descriptor)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_controller_qm_descriptor(bssid, client_mac, change_descriptor));
+
+    descriptors = m_db->get_controller_qm_descriptors(agent_mac);
+    ASSERT_EQ(1U, descriptors.size());
+    EXPECT_EQ(1U, descriptors.front().qmid);
+    EXPECT_EQ(change_descriptor, descriptors.front().descriptor_element);
+
+    EXPECT_CALL(
+        *m_ambiorix,
+        get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
+        .WillOnce(Return(1));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_radio_1_qm_descriptor_path + ".1", "BSSID", Matcher<const sMacAddr &>(bssid)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "ClientMAC",
+                                 Matcher<const sMacAddr &>(client_mac)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_1_qm_descriptor_path + ".1", "DescriptorElement",
+                                 Matcher<const std::string &>(remove_descriptor)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_controller_qm_descriptor(bssid, client_mac, remove_descriptor));
+
+    descriptors = m_db->get_controller_qm_descriptors(agent_mac);
+    ASSERT_EQ(1U, descriptors.size());
+    EXPECT_EQ(1U, descriptors.front().qmid);
+    EXPECT_EQ(remove_descriptor, descriptors.front().descriptor_element);
+
+    EXPECT_CALL(
+        *m_ambiorix,
+        get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
+        .WillOnce(Return(1));
+    EXPECT_CALL(*m_ambiorix, remove_instance(g_radio_1_qm_descriptor_path, 1))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->clear_transient_controller_qm_descriptors(agent_mac));
+    EXPECT_TRUE(m_db->get_controller_qm_descriptors(agent_mac).empty());
+}
+
+TEST_F(DbTestRadio1Bss1, controller_qm_descriptor_rejects_invalid_initial_request)
+{
+    const auto bssid      = tlvf::mac_from_string(g_bssid_1);
+    const auto client_mac = tlvf::mac_from_string(g_client_mac);
+
+    EXPECT_FALSE(m_db->set_controller_qm_descriptor(bssid, client_mac, "b9020101"));
+    EXPECT_FALSE(m_db->set_controller_qm_descriptor(bssid, client_mac, "b9020102"));
+    EXPECT_FALSE(m_db->set_controller_qm_descriptor(bssid, client_mac, "b9020103"));
 }
 
 TEST_F(DbTest, test_set_ap_ht_capabilities)
