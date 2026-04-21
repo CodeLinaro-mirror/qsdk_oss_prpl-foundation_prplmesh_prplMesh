@@ -710,14 +710,10 @@ bool mon_wlan_hal_whm::process_ap_event(const std::string &interface, const std:
     return true;
 }
 
-bool mon_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
-                                                   const std::string &sta_mac,
-                                                   const std::string &key,
-                                                   const AmbiorixVariant *value)
+bool mon_wlan_hal_whm::process_sta_connected_event(
+    const std::string &interface, const std::string &sta_mac, const std::string &key,
+    const AmbiorixVariant *value, const std::string &sta_path, const std::string &vap_path)
 {
-    LOG(DEBUG) << "Processing STA connected event - interface: " << interface << ", STA MAC: "
-               << sta_mac << ", key: " << key << ", vap_path: " << vap_path
-               << ", sta_path: " << sta_path;
     auto vap_id = get_vap_id_with_bss(interface);
     if (vap_id == beerocks::IFACE_ID_INVALID) {
         return true;
@@ -734,13 +730,7 @@ bool mon_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
             memset(msg_buff.get(), 0, sizeof(sACTION_MONITOR_CLIENT_ASSOCIATED_NOTIFICATION));
             msg->vap_id = vap_id;
             msg->mac    = tlvf::mac_from_string(sta_mac);
-
-            base_wlan_hal_whm::update_station_path(sta_mac, sta_path);
-
             event_queue_push(Event::STA_Connected, msg_buff);
-        } else {
-            // connected == false
-            base_wlan_hal_whm::remove_station_path(sta_mac);
         }
     }
     return true;

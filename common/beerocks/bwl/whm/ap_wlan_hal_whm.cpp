@@ -1320,12 +1320,15 @@ bool ap_wlan_hal_whm::process_ap_event(const std::string &interface, const std::
     return true;
 }
 
-bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
-                                                  const std::string &sta_mac,
-                                                  const std::string &key,
-                                                  const AmbiorixVariant *value)
+bool ap_wlan_hal_whm::process_sta_connected_event(
+    const std::string &interface, const std::string &sta_mac, const std::string &key,
+    const AmbiorixVariant *value, const std::string &sta_path, const std::string &vap_path)
 {
     auto vap_id = get_vap_id_with_bss(interface);
+    LOG(DEBUG) << "Processing STA connected event - interface: " << interface << ", STA MAC: "
+               << sta_mac << ", key: " << key << ", vap_path: " << vap_path
+               << ", sta_path: " << sta_path;
+
     if (key == "AuthenticationState") {
         bool connected = value->get<bool>();
         if (connected) {
@@ -1335,7 +1338,6 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                 msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
 
-            // Initialize the message
             memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION));
 
             auto answer = get_last_assoc_frame(interface, sta_mac);
@@ -1345,8 +1347,8 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
             }
 
             msg->params.vap_id = vap_id;
-            msg->params.bssid  = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
-            LOG(WARNING) << "Connected station " << sta_mac << " over vap " << interface;
+            // msg->bssid will reflect AP MLD Mac for MLO, BSSID for legacy stations
+            msg->params.bssid = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
 
             msg->params.mac          = tlvf::mac_from_string(sta_mac);
             msg->params.capabilities = {};
@@ -1358,6 +1360,8 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                  beerocks::eFreqType::FREQ_24G);
             msg->params.association_frame_length = 0;
 
+            LOG(INFO) << "Connected station " << sta_mac << " over vap " << interface;
+
             std::string frame_body_str;
             if (!answer->read_child(frame_body_str, "frame") || frame_body_str.empty()) {
                 LOG(WARNING) << "STA connected without previously receiving a "
@@ -1367,6 +1371,11 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
                 // Tunnel the Management request to the controller
                 auto management_frame = create_mgmt_frame_notification(frame_body_str.c_str());
                 if (management_frame) {
+
+                    // create_mgmt_frame_notification will fill mac with 802.11 source address
+                    // sta_mac may hold MLD Station MAC if present
+                    management_frame->mac = tlvf::mac_from_string(sta_mac);
+
                     event_queue_push(Event::MGMT_Frame, management_frame);
                     msg->params.bssid = management_frame->bssid;
                     auto mac          = tlvf::mac_to_string(management_frame->bssid);
