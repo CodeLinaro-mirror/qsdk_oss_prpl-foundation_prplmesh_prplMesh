@@ -7,6 +7,7 @@
  */
 
 #include "controller.h"
+
 #include "periodic/persistent_data_commit_operation.h"
 #include "periodic/persistent_database_aging.h"
 #include "son_actions.h"
@@ -20,6 +21,7 @@
 #include "tasks/load_balancer_task.h"
 #include "tasks/optimal_path_task.h"
 #include "tasks/topology_task.h"
+#include <bcl/beerocks_string_utils.h>
 #ifdef FEATURE_PRE_ASSOCIATION_STEERING
 #include "tasks/pre_association_steering/pre_association_steering_task.h"
 #endif
@@ -4704,64 +4706,66 @@ bool Controller::handle_cmdu_1905_qos_management_notification_message(
     auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "Received QOS_MANAGEMENT_NOTIFICATION_MESSAGE, mid=" << std::hex << mid;
 
-    for (auto const &qos_management_descriptor_tlv :
+    auto controller = database.get_controller_ctx();
+    if (!controller) {
+        LOG(ERROR) << "Failed to get controller context";
+        return false;
+    }
+
+    bool updated_descriptors = false;
+
+    // --- Handle Zero or more QoS Management Descriptor TLVs ---
+    for (auto const &qos_management_descriptor_tlv_in :
          cmdu_rx.getClassList<wfa_map::tlvQoSManagementDescriptor>()) {
-        if (!qos_management_descriptor_tlv) {
+        if (!qos_management_descriptor_tlv_in) {
             LOG(DEBUG) << "getClass wfa_map::tlvQoSManagementDescriptor has failed";
             return false;
         }
 
         LOG(DEBUG) << "QoS Management Descriptor TLV is received:" << std::endl
-                   << "Rule ID: " << qos_management_descriptor_tlv->qmid() << std::endl
-                   << "BSSID: " << qos_management_descriptor_tlv->bssid() << std::endl
-                   << "Client MAC: " << qos_management_descriptor_tlv->client_mac() << std::endl;
+                   << "Rule ID: " << qos_management_descriptor_tlv_in->qmid() << std::endl
+                   << "BSSID: " << qos_management_descriptor_tlv_in->bssid() << std::endl
+                   << "Client MAC: " << qos_management_descriptor_tlv_in->client_mac() << std::endl;
 
-        // TODO: Implement handling of QoS Management Descriptor TLV (PPM-2364)
-    }
-
-    auto agent = database.m_agents.get(src_mac);
-    if (!agent) {
-        LOG(ERROR) << "Agent with mac is not found in database mac=" << src_mac;
-        return false;
-    }
-
-    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE)) {
-        LOG(ERROR) << "cmdu creation of type SERVICE_PRIORITIZATION_REQUEST_MESSAGE has failed";
-        return false;
-    }
-
-    for (const auto &rule : agent->service_prioritization.rules) {
-
-        auto service_prioritization_rule_tlv =
-            cmdu_tx.addClass<wfa_map::tlvServicePrioritizationRule>();
-        if (!service_prioritization_rule_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvServicePrioritizationRule has failed";
+        const auto bssid_owner =
+            database.get_bss_parent_agent(qos_management_descriptor_tlv_in->bssid());
+        if (bssid_owner != src_mac) {
+            LOG(ERROR) << "Rejecting QoS Management Descriptor TLV for BSSID "
+                       << qos_management_descriptor_tlv_in->bssid() << " from agent " << src_mac
+                       << " because it belongs to agent " << bssid_owner;
             return false;
         }
 
-        service_prioritization_rule_tlv->rule_params() = rule.second;
+        const auto descriptor_element_length =
+            qos_management_descriptor_tlv_in->descriptor_element_length();
+        auto descriptor_element = qos_management_descriptor_tlv_in->descriptor_element();
+        if (!descriptor_element || descriptor_element_length == 0) {
+            LOG(ERROR) << "Descriptor element is empty for BSSID "
+                       << qos_management_descriptor_tlv_in->bssid() << ", client "
+                       << qos_management_descriptor_tlv_in->client_mac();
+            return false;
+        }
+
+        if (!database.set_controller_qm_descriptor(
+                qos_management_descriptor_tlv_in->bssid(),
+                qos_management_descriptor_tlv_in->client_mac(),
+                beerocks::string_utils::bytes_to_hex_string(descriptor_element,
+                                                            descriptor_element_length))) {
+            LOG(ERROR) << "Failed to update controller QoS management descriptor for BSSID "
+                       << qos_management_descriptor_tlv_in->bssid() << ", client "
+                       << qos_management_descriptor_tlv_in->client_mac();
+            return false;
+        }
+
+        updated_descriptors = true;
     }
 
-    auto dscp_mapping_table_tlv = cmdu_tx.addClass<wfa_map::tlvDscpMappingTable>();
-    if (!dscp_mapping_table_tlv) {
-        LOG(ERROR) << "addClass wfa_map::tlvDscpMappingTable has failed";
-        return false;
+    if (updated_descriptors) {
+        controller->trigger_prioritization_config();
     }
 
-    if (!dscp_mapping_table_tlv->set_dscp_pcp_mapping(
-            agent->service_prioritization.dscp_mapping_table.data(),
-            agent->service_prioritization.dscp_mapping_table.size())) {
-        LOG(ERROR) << "Failed to set DSCP mapping list in tlvDscpMappingTable!";
-        return false;
-    }
-
-    if (!database.dm_set_service_prioritization_rules(*agent)) {
-        LOG(ERROR) << "Failed to set service prioritization rules in DM for Agent" << agent->al_mac;
-        return false;
-    }
-
-    // TODO: Implement sending of remaining TLVs of Service Prioritization Request message (PPM-2366)
-    return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
+    // TODO: PPM-3990: optimize QoS Management Descriptor propagation.
+    return true;
 }
 
 bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
