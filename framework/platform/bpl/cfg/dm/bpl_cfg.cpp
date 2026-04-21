@@ -131,6 +131,11 @@ bool cfg_get_best_channel_rank_threshold(uint32_t &threshold)
     return read_agent_config_param("BestChannelRankThreshold", threshold);
 }
 
+bool cfg_get_multi_chan_bcn_req_duration(uint16_t &duration)
+{
+    return read_agent_config_param("MultiChanBcnReqDuration", duration);
+}
+
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
 {
     return read_agent_config_param("BackhaulWireInterface", iface);

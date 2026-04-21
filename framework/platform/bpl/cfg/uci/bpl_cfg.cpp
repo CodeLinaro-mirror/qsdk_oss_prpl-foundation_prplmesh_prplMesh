@@ -544,6 +544,24 @@ bool cfg_get_best_channel_rank_threshold(uint32_t &threshold)
     return true;
 }
 
+bool cfg_get_multi_chan_bcn_req_duration(uint16_t &duration)
+{
+    int retVal = -1;
+    if (cfg_get_prplmesh_param_int_default("multi_chan_bcn_req_duration", &retVal,
+                                           DEFAULT_MULTI_CHAN_BCN_REQ_DURATION) == RETURN_ERR) {
+        MAPF_ERR("Failed to read multi_chan_bcn_req_duration parameter");
+        return false;
+    }
+
+    if (retVal <= 0) {
+        MAPF_ERR("multi_chan_bcn_req_duration is configured to a non-positive value");
+        return false;
+    }
+
+    duration = static_cast<uint16_t>(retVal);
+    return true;
+}
+
 bool cfg_get_persistent_db_enable(bool &enable)
 {
     int retVal = -1;
