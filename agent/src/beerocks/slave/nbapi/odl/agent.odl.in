@@ -56,6 +56,11 @@
                 default 0;
             }
 
+            /* Duration (in TUs) of each per-channel beacon measurement request in a multi-channel 11k query */
+            %persistent uint16 MultiChanBcnReqDuration {
+                default 20;
+            }
+
             /* Defines client measurement mode: 0 - disabled, 1 - enabled for all clients, 2 - enabled for selected clients */
             %persistent uint32 ClientsMeasurementMode {
                 default 1;

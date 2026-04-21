@@ -158,6 +158,8 @@ constexpr int DEFAULT_ZWDFS_DISABLE = 0;
 // Using threshold to avoid high frequency channel switch.
 // By default best channel ranking threshold is 0.
 constexpr int DEFAULT_BEST_CHANNEL_RANKING_TH = 0;
+// Duration (in TUs) of each per-channel beacon measurement request in a multi-channel 11k query.
+constexpr uint16_t DEFAULT_MULTI_CHAN_BCN_REQ_DURATION = 20;
 
 // Default Multi-AP Profile is R2
 constexpr int DEFAULT_MULTI_AP_PROFILE = 2;
@@ -810,6 +812,14 @@ bool cfg_get_zwdfs_flag(int &flag);
  * @return true on success, otherwise false.
  */
 bool cfg_get_best_channel_rank_threshold(uint32_t &threshold);
+
+/**
+ * @brief Returns the per-channel beacon measurement request duration for multi-channel 11k queries.
+ *
+ * @param [out] duration Duration in TUs for each beacon measurement request.
+ * @return true on success, otherwise false.
+ */
+bool cfg_get_multi_chan_bcn_req_duration(uint16_t &duration);
 
 /**
  * @brief Returns whether the persistent DB is enabled.

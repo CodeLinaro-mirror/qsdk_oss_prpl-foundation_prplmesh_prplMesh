@@ -647,6 +647,11 @@ bool slave_thread::read_platform_configuration()
                      << " using default configuration ";
     }
 
+    if (!bpl::cfg_get_multi_chan_bcn_req_duration(db->device_conf.multi_chan_bcn_req_duration)) {
+        LOG(WARNING) << "cfg_get_multi_chan_bcn_req_duration() failed!"
+                     << " using default configuration ";
+    }
+
     if (!bpl::get_max_prioritization_rules(db->device_conf.max_prioritization_rules)) {
         LOG(WARNING) << "get_max_prioritization_rules() failed!"
                      << " using default configuration ";
@@ -716,6 +721,7 @@ bool slave_thread::read_platform_configuration()
                << db->device_conf.back_radio.backhaul_preferred_radio_band;
     LOG(DEBUG) << beerocks::utils::get_zwdfs_string(db->device_conf.zwdfs_flag);
     LOG(DEBUG) << "best_channel_rank_threshold: " << db->device_conf.best_channel_rank_threshold;
+    LOG(DEBUG) << "multi_chan_bcn_req_duration: " << db->device_conf.multi_chan_bcn_req_duration;
     LOG(DEBUG) << "max_prioritization_rules: " << db->device_conf.max_prioritization_rules;
     LOG(DEBUG) << "check_connectivity_to_controller_enable: "
                << db->device_conf.check_connectivity_to_controller_enable;
