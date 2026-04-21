@@ -1,0 +1,55 @@
+@startuml
+title SetMSCSDisallowed() / SetSCSDisallowed() Sequence
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor "NBAPI caller" as Caller
+participant "Network.SetMSCSDisallowed()\nNetwork.SetSCSDisallowed()" as NBAPI
+participant "controller::db" as CDB
+participant "agent_monitoring_task" as AMT
+participant "Controller -> Agent\n1905 transport" as T1905
+participant "ApAutoConfigurationTask" as APC
+participant "AP manager" as APM
+participant "ap_wlan_hal_whm" as WHM
+participant "QoS Management\nmethods" as QOS_MGMT
+
+Caller -> NBAPI : SetMSCSDisallowed(list)\nor SetSCSDisallowed(list)
+NBAPI -> CDB : validate STA MAC list
+NBAPI -> CDB : update canonical merged policy\n(MSCS list + SCS list)
+NBAPI -> CDB : update read-only Network lists
+NBAPI -> AMT : CONFIGURE_QOS
+
+loop for connected agents
+  AMT -> CDB : read merged disallow policy
+  AMT -> T1905 : MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE\n+ tlvQoSManagementPolicy(MSCS,SCS)
+  T1905 -> APC : policy TLV
+  APC -> APC : ACK controller
+  loop for radios on the agent
+    alt AP manager fd is available
+      APC -> APM : ACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST\n+ copied tlvQoSManagementPolicy
+      APM -> APM : expand to available_vaps on this radio
+      loop for BSSID on the radio
+        APM -> WHM : set_mscs_disallowed_sta_list(BSSID, MSCS list)
+        WHM -> QOS_MGMT : SetMscsDisallowStaList()
+        APM -> WHM : set_scs_disallowed_sta_list(BSSID, SCS list)
+        WHM -> QOS_MGMT : SetScsDisallowStaList()
+      end
+    else radio has no AP manager fd
+      APC -> APC : log and continue with other radios
+    end
+  end
+end
+
+note right of CDB
+MSCS and SCS commands update one
+canonical policy TLV source.
+end note
+
+note right of QOS_MGMT
+Apply runs per available BSS.
+Missing AP manager fd is logged and
+other radios continue.
+end note
+
+@enduml

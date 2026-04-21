@@ -1,0 +1,58 @@
+@startuml
+title SetQMDescriptors() Sequence
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor "NBAPI caller" as Caller
+participant "BSS.SetQMDescriptors()" as NBAPI
+participant "controller::db" as CDB
+participant "agent_monitoring_task" as AMT
+participant "Controller -> Agent\n1905 transport" as T1905
+participant "ServicePrioritizationTask" as ASP
+participant "AP manager" as APM
+participant "ap_wlan_hal_whm" as WHM
+participant "QoS Management\nmethods" as QOS_MGMT
+
+Caller -> NBAPI : SetQMDescriptors(QMDescriptor[])
+NBAPI -> NBAPI : validate BSSID/ClientMAC\nstrict hex DescriptorElement\nSCS/MSCS element + Add/Change/Remove
+NBAPI -> CDB : set_controller_qm_descriptor()\nper listed client
+alt Add request and no existing QMID
+  CDB -> CDB : allocate QMID
+else Change or Remove request
+  CDB -> CDB : reuse existing QMID\nreject if no QMID exists
+end
+CDB -> CDB : update BSS.QMDescriptor.{i}\nwith latest DescriptorElement
+NBAPI -> AMT : CONFIGURE_QOS
+
+loop for connected agents
+  AMT -> CDB : get descriptors owned by this agent
+  alt target agent owns descriptor BSS
+    AMT -> T1905 : SERVICE_PRIORITIZATION_REQUEST_MESSAGE\n+ tlvQoSManagementDescriptor(QMID,BSSID,ClientMAC,DescriptorElement)
+    T1905 -> ASP : descriptor TLV
+    ASP -> ASP : ACK controller
+    ASP -> ASP : validate local BSSID ownership
+    ASP -> APM : ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST\n+ copied tlvQoSManagementDescriptor
+    APM -> APM : re-parse descriptor element\nreject invalid element
+    APM -> WHM : handle_qos_management_descriptor(BSSID, QMID,\nClientMAC, DescriptorElement)
+    WHM -> QOS_MGMT : handleQosMgmtDesc(qmid, clientMac, desc)
+    AMT -> CDB : clear transient Remove descriptors\nfrom controller DB/DM after send
+  else unrelated agent
+    AMT -> AMT : skip
+  end
+end
+
+note right of CDB
+Controller owns QMID allocation.
+The batch is validated before mutation.
+Removal is explicit: DescriptorElement
+must carry the Remove request type.
+Empty DescriptorElement is invalid.
+end note
+
+note right of WHM
+Descriptor apply is backend-specific.
+Unsupported backends log and ignore.
+end note
+
+@enduml
