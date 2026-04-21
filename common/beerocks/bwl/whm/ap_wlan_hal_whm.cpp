@@ -89,6 +89,21 @@ static uint8_t wpaCtrl_bw_to_beerocks_bw(const uint8_t width)
     return it->second;
 }
 
+// This function returns a CSV (Comma-Separated Values) string of MAC addresses.
+static std::string mac_list_to_csv(const std::vector<sMacAddr> &sta_list)
+{
+    std::ostringstream stream;
+
+    for (size_t index = 0; index < sta_list.size(); ++index) {
+        if (index > 0) {
+            stream << ",";
+        }
+        stream << tlvf::mac_to_string(sta_list[index]);
+    }
+
+    return stream.str();
+}
+
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// Implementation ///////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -2296,6 +2311,106 @@ bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
             LOG(ERROR) << "Could not set QoSMapSet for " << path;
             return false;
         }
+    }
+
+    return true;
+}
+
+bool ap_wlan_hal_whm::handle_qos_management_descriptor(
+    const sMacAddr &bssid, uint16_t qmid, const sMacAddr &client_mac,
+    const std::vector<uint8_t> &descriptor_element)
+{
+    auto vap_id = get_vap_id_with_mac(tlvf::mac_to_string(bssid));
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "invalid vap_id for bssid " << bssid;
+        return false;
+    }
+
+    std::string ifname  = m_radio_info.available_vaps[vap_id].bss;
+    auto qos_mgmt_path  = wbapi_utils::search_path_ap_by_iface(ifname) + "QoSMgmt.";
+    auto descriptor_hex = beerocks::string_utils::bytes_to_hex_string(descriptor_element.data(),
+                                                                      descriptor_element.size());
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("qmid", qmid);
+    args.add_child("MACAddress", tlvf::mac_to_string(client_mac));
+    args.add_child("Descriptor", descriptor_hex);
+
+    if (!m_ambiorix_cl.call(qos_mgmt_path, "handleQosMgmtDesc", args, result)) {
+        LOG(ERROR) << "handleQosMgmtDesc failed for " << qos_mgmt_path;
+        return false;
+    }
+
+    return true;
+}
+
+bool ap_wlan_hal_whm::set_mscs_disallowed_sta_list(const sMacAddr &bssid,
+                                                   const std::vector<sMacAddr> &sta_list)
+{
+    auto vap_id = get_vap_id_with_mac(tlvf::mac_to_string(bssid));
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "invalid vap_id for bssid " << bssid;
+        return false;
+    }
+
+    std::string ifname = m_radio_info.available_vaps[vap_id].bss;
+    auto qos_mgmt_path = wbapi_utils::search_path_ap_by_iface(ifname) + "QoSMgmt.";
+    auto sta_list_csv  = mac_list_to_csv(sta_list);
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("MACAddresses", sta_list_csv);
+
+    if (!m_ambiorix_cl.call(qos_mgmt_path, "SetMscsDisallowStaList", args, result)) {
+        LOG(ERROR) << "SetMscsDisallowStaList failed for " << qos_mgmt_path;
+        return false;
+    }
+
+    return true;
+}
+
+bool ap_wlan_hal_whm::set_scs_disallowed_sta_list(const sMacAddr &bssid,
+                                                  const std::vector<sMacAddr> &sta_list)
+{
+    auto vap_id = get_vap_id_with_mac(tlvf::mac_to_string(bssid));
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "invalid vap_id for bssid " << bssid;
+        return false;
+    }
+
+    std::string ifname = m_radio_info.available_vaps[vap_id].bss;
+    auto qos_mgmt_path = wbapi_utils::search_path_ap_by_iface(ifname) + "QoSMgmt.";
+    auto sta_list_csv  = mac_list_to_csv(sta_list);
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("MACAddresses", sta_list_csv);
+
+    if (!m_ambiorix_cl.call(qos_mgmt_path, "SetScsDisallowStaList", args, result)) {
+        LOG(ERROR) << "SetScsDisallowStaList failed for " << qos_mgmt_path;
+        return false;
+    }
+
+    return true;
+}
+
+bool ap_wlan_hal_whm::set_qos_management_settings(const sMacAddr &bssid, bool mscs_enable,
+                                                  bool scs_enable)
+{
+    auto vap_id = get_vap_id_with_mac(tlvf::mac_to_string(bssid));
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "invalid vap_id for bssid " << bssid;
+        return false;
+    }
+
+    std::string ifname = m_radio_info.available_vaps[vap_id].bss;
+    auto qos_mgmt_path = wbapi_utils::search_path_ap_by_iface(ifname) + "QoSMgmt.";
+
+    AmbiorixVariant qos_mgmt_obj(AMXC_VAR_ID_HTABLE);
+    qos_mgmt_obj.add_child("MSCSEnable", mscs_enable);
+    qos_mgmt_obj.add_child("SCSEnable", scs_enable);
+
+    if (!m_ambiorix_cl.update_object(qos_mgmt_path, qos_mgmt_obj)) {
+        LOG(ERROR) << "Could not set QoS management settings for " << qos_mgmt_path;
+        return false;
     }
 
     return true;

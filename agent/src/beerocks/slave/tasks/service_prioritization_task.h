@@ -32,6 +32,14 @@ public:
 private:
     void handle_service_prioritization_request(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                const sMacAddr &src_mac);
+
+    /**
+     * @brief Forward QoS management descriptor TLVs to the owning AP manager.
+     *
+     * @param cmdu_rx Service Prioritization Request CMDU.
+     * @return true on success, false otherwise.
+     */
+    bool handle_qos_management_descriptors(ieee1905_1::CmduMessageRx &cmdu_rx);
     void handle_slave_channel_selection_response(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                  const sMacAddr &src_mac);
 

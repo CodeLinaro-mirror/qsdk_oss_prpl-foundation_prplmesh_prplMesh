@@ -1076,6 +1076,31 @@ bool slave_thread::handle_cmdu_control_message(int fd,
         send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
         break;
     }
+    case beerocks_message::ACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST: {
+        LOG(DEBUG) << "received ACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST";
+
+        auto request_in =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST>();
+        if (request_in == nullptr) {
+            LOG(ERROR) << "addClass cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST failed";
+            return false;
+        }
+
+        auto request_out = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST>(cmdu_tx);
+        if (request_out == nullptr) {
+            LOG(ERROR) << "Failed building ACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST";
+            return false;
+        }
+
+        request_out->bssid()       = request_in->bssid();
+        request_out->mscs_enable() = request_in->mscs_enable();
+        request_out->scs_enable()  = request_in->scs_enable();
+
+        send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
+        break;
+    }
     case beerocks_message::ACTION_CONTROL_HOSTAP_CHANNEL_SWITCH_ACS_START: {
         LOG(DEBUG) << "received ACTION_CONTROL_HOSTAP_CHANNEL_SWITCH_ACS_START";
         auto request_in =
