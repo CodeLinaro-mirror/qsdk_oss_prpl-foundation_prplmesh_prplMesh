@@ -5842,10 +5842,18 @@ bool slave_thread::update_vaps_info(const std::string &iface,
     for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
         auto &bss = radio->front.bssids[vap_idx];
 
-        const bool has_bssid                  = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
-        const auto iface_name                 = std::string(vaps[vap_idx].iface_name);
-        const bool was_enabled                = bss.enabled;
-        const bool was_pure_fh_bss            = bss.fronthaul_bss && !bss.backhaul_bss;
+        const bool has_bssid  = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
+        const auto iface_name = std::string(vaps[vap_idx].iface_name);
+        // Save the previous BSS role/operational state before overwriting this
+        // DB entry. After the update we compare old vs new values to detect
+        // real transitions (pure-FH enable/disable or backhaul policy change)
+        // and reconcile exact FH/WDS TS entries only when the effective state changed.
+        const bool was_enabled           = bss.enabled;
+        const bool was_pure_fh_bss       = bss.fronthaul_bss && !bss.backhaul_bss;
+        const bool was_backhaul_bss      = bss.backhaul_bss;
+        const bool disallow_profile1_was = bss.backhaul_bss_disallow_profile1_agent_association;
+        const bool disallow_profile2_was = bss.backhaul_bss_disallow_profile2_agent_association;
+        const auto previous_bssid        = bss.mac;
         const std::string previous_iface_name = bss.iface_name;
         const bool is_enabled                 = has_bssid && !iface_name.empty() &&
                                 network_utils::linux_iface_is_up_and_running(iface_name);
@@ -5861,6 +5869,25 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                      TrafficSeparationTask::eEvent::TS_CLEAR_FH_IFACE,
                                      previous_iface_name.c_str());
+        };
+
+        const auto retrigger_wds_ts = [&](const char *source) {
+            for (const auto &client_kv : radio->associated_clients) {
+                const auto &client = client_kv.second;
+                if (client.bssid != bss.mac || client.wds_iface_name.empty()) {
+                    continue;
+                }
+
+                LOG(DEBUG) << "Trigger traffic separation on " << source
+                           << " disallow change for WDS iface=" << client.wds_iface_name
+                           << ", bss=" << bss.iface_name;
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
+            }
         };
 
         // Keep BSS identity as soon as a MAC is reported. Some startup VAP
@@ -5919,6 +5946,14 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                      TrafficSeparationTask::eEvent::TS_NEW_FH_IFACE,
                                      bss.iface_name.c_str());
+        }
+
+        const bool disallow_changed =
+            was_backhaul_bss && bss.backhaul_bss && previous_bssid == bss.mac &&
+            (disallow_profile1_was != bss.backhaul_bss_disallow_profile1_agent_association ||
+             disallow_profile2_was != bss.backhaul_bss_disallow_profile2_agent_association);
+        if (disallow_changed) {
+            retrigger_wds_ts("VAPS_LIST_UPDATE");
         }
 
         for (auto &mld_conf : db->mld_configurations) {
