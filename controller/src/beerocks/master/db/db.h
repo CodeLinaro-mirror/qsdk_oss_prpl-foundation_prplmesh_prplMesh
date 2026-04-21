@@ -3018,7 +3018,8 @@ public:
 
     void settings_client_optimal_path_roaming_prefer_signal_strength(bool en)
     {
-        settings.client_optimal_path_roaming_prefer_signal_strength = en;
+        settings.client_optimal_path_roaming_prefer_signal_strength =
+            en && config.load_optimal_path_roaming_prefer_signal_strength;
     }
     bool settings_client_optimal_path_roaming_prefer_signal_strength()
     {
