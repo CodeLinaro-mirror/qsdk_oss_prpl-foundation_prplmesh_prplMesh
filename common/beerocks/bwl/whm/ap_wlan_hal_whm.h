@@ -151,6 +151,37 @@ public:
     virtual bool set_beacon_da(const std::string &ifname, const sMacAddr &mac) override;
     virtual bool update_beacon(const std::string &ifname) override;
     virtual bool set_no_deauth_unknown_sta(const std::string &ifname, bool value) override;
+
+    /**
+     * @see ap_wlan_hal::supports_qos_management
+     */
+    virtual bool supports_qos_management() const override { return true; }
+
+    /**
+     * @see ap_wlan_hal::handle_qos_management_descriptor
+     */
+    virtual bool
+    handle_qos_management_descriptor(const sMacAddr &bssid, uint16_t qmid,
+                                     const sMacAddr &client_mac,
+                                     const std::vector<uint8_t> &descriptor_element) override;
+
+    /**
+     * @see ap_wlan_hal::set_mscs_disallowed_sta_list
+     */
+    virtual bool set_mscs_disallowed_sta_list(const sMacAddr &bssid,
+                                              const std::vector<sMacAddr> &sta_list) override;
+
+    /**
+     * @see ap_wlan_hal::set_scs_disallowed_sta_list
+     */
+    virtual bool set_scs_disallowed_sta_list(const sMacAddr &bssid,
+                                             const std::vector<sMacAddr> &sta_list) override;
+
+    /**
+     * @see ap_wlan_hal::set_qos_management_settings
+     */
+    virtual bool set_qos_management_settings(const sMacAddr &bssid, bool mscs_enable,
+                                             bool scs_enable) override;
     virtual bool set_spatial_reuse_config(
         son::wireless_utils::sSpatialReuseParams &spatial_reuse_params) override;
     virtual bool get_spatial_reuse_config(

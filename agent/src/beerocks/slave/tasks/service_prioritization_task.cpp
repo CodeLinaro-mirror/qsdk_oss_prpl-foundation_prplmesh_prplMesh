@@ -16,6 +16,7 @@
 #include <bpl/bpl_service_prio_utils.h>
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
+#include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 
 namespace beerocks {
 using namespace net;
@@ -150,9 +151,71 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
                   db->service_prioritization.dscp_mapping_table.begin());
     }
 
+    if (!handle_qos_management_descriptors(cmdu_rx)) {
+        LOG(ERROR) << "Failed handling QoS management descriptors";
+    }
+
     if (!qos_apply_active_rule()) {
         LOG(ERROR) << "Failed setting up QoS active rule";
     }
+}
+
+bool ServicePrioritizationTask::handle_qos_management_descriptors(
+    ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto qos_mgmt_descriptors = cmdu_rx.getClassList<wfa_map::tlvQoSManagementDescriptor>();
+    if (qos_mgmt_descriptors.empty()) {
+        return true;
+    }
+
+    auto db = AgentDB::get();
+    for (const auto &descriptor_tlv : qos_mgmt_descriptors) {
+        if (!descriptor_tlv) {
+            LOG(ERROR) << "Received null tlvQoSManagementDescriptor";
+            return false;
+        }
+
+        auto radio = db->get_radio_by_mac(descriptor_tlv->bssid(), AgentDB::eMacType::BSSID);
+        if (!radio) {
+            LOG(ERROR) << "Failed to resolve BSSID " << descriptor_tlv->bssid()
+                       << " for QoS management descriptor";
+            return false;
+        }
+
+        auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio->front.iface_name);
+        if (ap_manager_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+            LOG(ERROR) << "Failed to get AP manager fd for radio " << radio->front.iface_name;
+            return false;
+        }
+
+        auto descriptor_request = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST>(m_cmdu_tx);
+        if (!descriptor_request) {
+            LOG(ERROR) << "Failed building QoS management descriptor request";
+            return false;
+        }
+        (void)descriptor_request;
+
+        auto descriptor_out = m_cmdu_tx.addClass<wfa_map::tlvQoSManagementDescriptor>();
+        if (!descriptor_out) {
+            LOG(ERROR) << "Failed adding QoS management descriptor TLV";
+            return false;
+        }
+
+        descriptor_out->qmid()       = descriptor_tlv->qmid();
+        descriptor_out->bssid()      = descriptor_tlv->bssid();
+        descriptor_out->client_mac() = descriptor_tlv->client_mac();
+        if (!descriptor_out->set_descriptor_element(descriptor_tlv->descriptor_element(),
+                                                    descriptor_tlv->descriptor_element_length())) {
+            LOG(ERROR) << "Failed copying descriptor element for BSSID " << descriptor_tlv->bssid()
+                       << ", client " << descriptor_tlv->client_mac();
+            return false;
+        }
+
+        m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx);
+    }
+
+    return true;
 }
 
 void ServicePrioritizationTask::gather_iface_details(
