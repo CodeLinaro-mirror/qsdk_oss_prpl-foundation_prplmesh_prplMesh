@@ -66,6 +66,34 @@
             %in %mandatory string pass
         );
 
+        %instance bool SetQMDescriptors(
+            %in %mandatory list QMDescriptor
+        );
+
+        %instance bool SetQoSManagement(
+            %in bool QosMapEnable,
+            %in bool MSCSEnable,
+            %in bool SCSEnable,
+            %in bool DSCPPolicyEnable,
+            %in bool SCSTrafficDescriptionEnable
+        );
+
+        %read-only object QMDescriptor [] {
+            %read-only %unique string ClientMAC = "0";
+
+            %read-only string BSSID = "0";
+
+            %read-only string DescriptorElement = "";
+        }
+
+        %read-only object SetQoSManagementInput {
+            %read-only bool QosMapEnable = false;
+            %read-only bool MSCSEnable = false;
+            %read-only bool SCSEnable = false;
+            %read-only bool DSCPPolicyEnable = false;
+            %read-only bool SCSTrafficDescriptionEnable = false;
+        }
+
         object STA [] {
             counted with STANumberOfEntries;
         }
