@@ -73,7 +73,6 @@ public:
         std::string channel_selection_long_delay;
         std::string roaming_sticky_client_rssi_threshold;
         std::string credentials_change_timeout_sec;
-        std::string use_dataelements_vap_configs;
 
         //[log]
         SConfigLog sLog;

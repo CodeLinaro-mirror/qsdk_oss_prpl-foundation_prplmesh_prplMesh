@@ -66,5 +66,30 @@ int cfg_get_certification_mode()
     return certification_mode;
 }
 
+std::string cfg_get_controller_config_source()
+{
+    std::string controller_config_source;
+    if (!m_ambiorix_cl_ubus.get_param(controller_config_source, PROCESS_MANAGER_DM_PATH ".",
+                                      "ControllerConfigSource")) {
+        MAPF_ERR(
+            "Failed to read controller config source, using \"Device.WiFi\" as a default value");
+        return "Device.WiFI";
+    }
+
+    return controller_config_source;
+}
+
+std::string cfg_get_colocated_agent_config_level()
+{
+    std::string colocated_agent_config_level;
+    if (!m_ambiorix_cl_ubus.get_param(colocated_agent_config_level, PROCESS_MANAGER_DM_PATH ".",
+                                      "ColocatedAgentConfigLevel")) {
+        MAPF_ERR("Failed to read ColocatedAgentConfigLevel, using \"SkipM2\" as a default value");
+        return "SkipM2";
+    }
+
+    return colocated_agent_config_level;
+}
+
 } // namespace bpl
 } // namespace beerocks

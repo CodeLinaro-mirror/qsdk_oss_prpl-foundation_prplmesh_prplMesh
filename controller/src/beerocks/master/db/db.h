@@ -153,9 +153,9 @@ public:
         bool load_channel_select_task;
         bool load_dynamic_channel_select_task;
         bool daisy_chaining_disabled;
-        bool use_dataelements_vap_configs;
 
         bool certification_mode;
+        std::string controller_config_source;
         bool persistent_db;
         int persistent_db_aging_interval;
         int roaming_6ghz_failed_attemps_threshold;

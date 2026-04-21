@@ -156,8 +156,6 @@ static void fill_master_config(son::db::sDbMasterConfig &master_conf,
     master_conf.load_backhaul_measurements = (main_master_conf.load_backhaul_measurements == "1");
     master_conf.load_front_measurements    = (main_master_conf.load_front_measurements == "1");
     master_conf.load_monitor_on_vaps       = (main_master_conf.load_monitor_on_vaps == "1");
-    master_conf.use_dataelements_vap_configs =
-        (main_master_conf.use_dataelements_vap_configs == "1");
 
     master_conf.ire_rssi_report_rate_sec =
         beerocks::string_utils::stoi(main_master_conf.ire_rssi_report_rate_sec);
@@ -239,6 +237,8 @@ static void fill_master_config(son::db::sDbMasterConfig &master_conf,
     } else {
         master_conf.load_steer_on_vaps = std::string(load_steer_on_vaps);
     }
+
+    master_conf.controller_config_source = beerocks::bpl::cfg_get_controller_config_source();
 
     beerocks::bpl::BPL_WLAN_IFACE interfaces[beerocks::MAX_RADIOS_PER_AGENT] = {0};
     int num_of_interfaces = beerocks::MAX_RADIOS_PER_AGENT;
@@ -773,7 +773,7 @@ int main(int argc, char *argv[])
     // be configured on the agents. Even though NBAPI exists to configure this, there is a lot of
     // existing software out there that doesn't use it. Therefore, prplMesh should also read the
     // configuration out of the legacy wireless settings.
-    if (!master_conf.use_dataelements_vap_configs) {
+    if (master_conf.controller_config_source == "Device.WiFi") {
         std::list<son::wireless_utils::sBssInfoConf> wireless_settings;
         if (beerocks::bpl::bpl_cfg_get_wireless_settings(wireless_settings)) {
             for (const auto &configuration : wireless_settings) {
@@ -786,7 +786,7 @@ int main(int argc, char *argv[])
 
 #ifdef USE_PRPLMESH_WHM
     std::shared_ptr<prplmesh::controller::whm::WifiManager> wifi_manager = nullptr;
-    if (master_conf.use_dataelements_vap_configs) {
+    if (master_conf.controller_config_source == "WiFiTemplates") {
         LOG(INFO) << "use dataelements input as vap config";
     } else {
         LOG(INFO) << "legacy behavior: use Device.Wifi.";

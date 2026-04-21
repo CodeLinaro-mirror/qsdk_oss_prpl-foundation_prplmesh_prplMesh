@@ -249,13 +249,13 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                                   amxc_var_t *ret)
 {
     if (!g_database) {
-        LOG(ERROR) << "Can't read use_dataelements_vap_configs, g_database is nullptr";
+        LOG(ERROR) << "Can't read controller_config_source, g_database is nullptr";
         return amxd_status_ok;
     }
 
-    if (!g_database->config.use_dataelements_vap_configs) {
+    if (g_database->config.controller_config_source != "WiFiTemplates") {
         LOG(WARNING) << "Device.WiFi.DataElements.Network.AccessPointCommit ignored when "
-                        "use_dataelements_vap_configs = false";
+                        "ControllerConfigSource is not equal to \"WiFiTemplates\"";
         return amxd_status_ok;
     }
 

@@ -409,6 +409,20 @@ int cfg_get_management_mode(std::string &mode);
 int cfg_get_certification_mode();
 
 /**
+ * @brief Returns the source of controller configuration
+ *
+ * @return source of controller configuration
+ */
+std::string cfg_get_controller_config_source();
+
+/**
+ * @brief Returns the colocated agent config level
+ *
+ * @return colocated agent config level
+ */
+std::string cfg_get_colocated_agent_config_level();
+
+/**
  * Returns the comma-separated list of VAPs to steer on.
  *
  * @param [int] num_of_interfaces Max num of interfaces.

@@ -217,6 +217,10 @@ int cfg_get_certification_mode()
     return retVal;
 }
 
+std::string cfg_get_controller_config_source() { return "WiFiTemplates"; }
+
+std::string cfg_get_colocated_agent_config_level() { return "SkipM2"; }
+
 int cfg_get_load_steer_on_vaps(int num_of_interfaces,
                                char load_steer_on_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
 {
