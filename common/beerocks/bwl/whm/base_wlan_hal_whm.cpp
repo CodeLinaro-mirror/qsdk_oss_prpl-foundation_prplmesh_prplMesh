@@ -281,7 +281,8 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
             if (key.empty() || key == "MACAddress" || !value || value->empty()) {
                 continue;
             }
-            process_sta_connected_event(vap_it->first, sta_mac, key, value.get());
+            process_sta_connected_event(vap_it->first, sta_mac, key, value.get(), sta_path,
+                                        vap_it->second.path);
         }
     };
 
