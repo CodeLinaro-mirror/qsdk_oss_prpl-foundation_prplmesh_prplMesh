@@ -13,12 +13,6 @@
 
 #include <db/db.h>
 
-#include <memory>
-
-namespace wfa_map {
-class tlvQoSManagementDescriptor;
-};
-
 namespace son {
 
 class service_prioritization_task : public task {
@@ -35,19 +29,19 @@ protected:
     void work() override{};
 
 private:
+    /**
+     * @brief Handle QoS Management Notification messages from an Agent.
+     *
+     * @param src_mac Source Agent AL MAC address.
+     * @param cmdu_rx Received CMDU.
+     * @return true on success, false otherwise.
+     */
     bool handle_cmdu_1905_qos_management_notification_message(const sMacAddr &src_mac,
                                                               ieee1905_1::CmduMessageRx &cmdu_rx);
 
 private:
     db &m_db;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
-    std::unordered_map<uint16_t, std::shared_ptr<wfa_map::tlvQoSManagementDescriptor>>
-        m_descriptors;
-
-    /**
-     * @brief next number of QMID to be used, incrementing after usage is required
-     **/
-    uint64_t m_qmid_next{};
 };
 
 } // namespace son
