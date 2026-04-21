@@ -7462,8 +7462,8 @@ bool db::set_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac,
         return true;
     }
 
-    const auto qm_descriptor_path = bss->dm_path + ".QMDescriptor";
-    auto index                    = m_ambiorix_datamodel->get_instance_index(
+    const auto &qm_descriptor_path = bss->dm_path + ".QMDescriptor";
+    auto index                     = m_ambiorix_datamodel->get_instance_index(
         qm_descriptor_path + ".[ClientMAC == '%s'].", tlvf::mac_to_string(client_mac));
 
     std::string qm_descriptor_instance_path;
@@ -7497,8 +7497,8 @@ bool db::remove_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac)
         return true;
     }
 
-    const auto qm_descriptor_path = bss->dm_path + ".QMDescriptor";
-    auto index                    = m_ambiorix_datamodel->get_instance_index(
+    const auto &qm_descriptor_path = bss->dm_path + ".QMDescriptor";
+    auto index                     = m_ambiorix_datamodel->get_instance_index(
         qm_descriptor_path + ".[ClientMAC == '%s'].", tlvf::mac_to_string(client_mac));
 
     if (!index) {
