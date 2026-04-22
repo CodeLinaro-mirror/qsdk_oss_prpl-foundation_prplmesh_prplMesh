@@ -17,6 +17,7 @@
 #include <bpl/bpl_cfg.h>
 
 #include <algorithm>
+#include <unordered_set>
 #include <utility>
 
 namespace beerocks {
@@ -55,7 +56,31 @@ void TrafficSeparationTask::handle_event(uint8_t event_enum_value, const void *e
 {
     switch (eEvent(event_enum_value)) {
     case TS_ENABLE: {
-        schedule_apply();
+        request_full_apply();
+        break;
+    }
+    case TS_NEW_FH_IFACE: {
+        if (!event_obj) {
+            LOG(ERROR) << "TS_NEW_FH_IFACE requires event payload";
+            break;
+        }
+
+        auto iface_name = static_cast<const char *>(event_obj);
+        if (!handle_new_fh_iface(iface_name)) {
+            LOG(WARNING) << "add fronthaul iface failed";
+        }
+        break;
+    }
+    case TS_CLEAR_FH_IFACE: {
+        if (!event_obj) {
+            LOG(ERROR) << "TS_CLEAR_FH_IFACE requires event payload";
+            break;
+        }
+
+        auto iface_name = static_cast<const char *>(event_obj);
+        if (!handle_clear_fh_iface(iface_name)) {
+            LOG(WARNING) << "clear fronthaul iface failed";
+        }
         break;
     }
     case TS_NEW_WDS_IFACE: {
@@ -96,20 +121,38 @@ void TrafficSeparationTask::handle_event(uint8_t event_enum_value, const void *e
     }
 }
 
-void TrafficSeparationTask::schedule_apply()
-{
-    m_apply_pending = true;
-    schedule_deferred_work(std::chrono::steady_clock::now() +
-                           std::chrono::milliseconds(DEBOUNCE_MS));
-}
-
-void TrafficSeparationTask::schedule_deferred_work(std::chrono::steady_clock::time_point due)
+void TrafficSeparationTask::run_at(std::chrono::steady_clock::time_point due)
 {
     m_pending = true;
 
     if (m_next_run == std::chrono::steady_clock::time_point::min() || due < m_next_run) {
         m_next_run = due;
     }
+}
+
+void TrafficSeparationTask::request_full_apply()
+{
+    m_apply_pending = true;
+    run_at(std::chrono::steady_clock::now() + std::chrono::milliseconds(DEBOUNCE_MS));
+}
+
+void TrafficSeparationTask::request_wds_retry(const std::string &iface_name,
+                                              std::chrono::steady_clock::time_point not_before,
+                                              std::chrono::steady_clock::time_point deadline)
+{
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return;
+    }
+
+    auto pending_it = m_pending_wds_ifaces.find(iface_name);
+    if (pending_it == m_pending_wds_ifaces.end()) {
+        pending_it =
+            m_pending_wds_ifaces.emplace(iface_name, sPendingWdsIfaceState{not_before, deadline})
+                .first;
+    }
+
+    run_at(pending_it->second.not_before);
 }
 
 void TrafficSeparationTask::clear_pending_apply()
@@ -238,8 +281,7 @@ bool TrafficSeparationTask::reset()
     const uint16_t primary_vid = db->traffic_separation.primary_vlan_id;
     if (primary_vid == 0 || primary_vid > net::MAX_VLAN_ID) {
         if (!cleanup_ts_runtime_state()) {
-            LOG(ERROR) << "cleanup_ts_runtime_state failed (invalid/disabled "
-                          "primary_vlan_id)";
+            LOG(ERROR) << "cleanup_ts_runtime_state failed (invalid/disabled primary_vlan_id)";
             return false;
         }
 
@@ -262,9 +304,10 @@ bool TrafficSeparationTask::reset()
         m_mgr = std::make_unique<net::TrafficSeparationManager>();
     }
 
-    // Exact WDS ifaces are owned by TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE events.
-    // Keep the manager port maps intact here and only refresh the active
-    // policies.
+    // Exact FH/WDS ifaces are still primarily managed incrementally by task
+    // events. Keep any existing manager entries intact here, but also rebuild
+    // them from the current DB snapshot so task recreation or crash/restart
+    // can repopulate the manager even if those exact events are not replayed.
     if (!m_mgr->clear_policies()) {
         LOG(ERROR) << "manager clear_policies failed";
         return false;
@@ -282,8 +325,7 @@ bool TrafficSeparationTask::reset()
     }
 
     std::vector<net::sTrunkPort> trunks;
-    std::vector<net::sAccessPort> access_ports;
-    if (!get_ports_from_db(trunks, access_ports)) {
+    if (!get_ports_from_db(trunks)) {
         LOG(ERROR) << "get_ports_from_db failed";
         return false;
     }
@@ -295,10 +337,9 @@ bool TrafficSeparationTask::reset()
         }
     }
 
-    for (const auto &access_port : access_ports) {
-        if (!m_mgr->add_access_port(access_port)) {
-            LOG(WARNING) << "add_access_port failed iface=" << access_port.iface_name;
-        }
+    if (!restore_exact_ports_from_db()) {
+        LOG(ERROR) << "restore_exact_ports_from_db failed";
+        return false;
     }
 
     if (!m_mgr->apply_policies()) {
@@ -307,6 +348,140 @@ bool TrafficSeparationTask::reset()
     }
 
     return true;
+}
+
+bool TrafficSeparationTask::restore_exact_ports_from_db()
+{
+    auto db = AgentDB::get();
+
+    bool success = true;
+    std::unordered_set<std::string> restored_fh_ifaces;
+    std::unordered_set<std::string> restored_wds_ifaces;
+
+    for (const auto *radio : db->get_radios_list()) {
+        if (!radio) {
+            continue;
+        }
+
+        for (const auto &bss : radio->front.bssids) {
+            if (!bss.enabled || !bss.fronthaul_bss || bss.backhaul_bss || bss.iface_name.empty()) {
+                continue;
+            }
+
+            if (!restored_fh_ifaces.emplace(bss.iface_name).second) {
+                continue;
+            }
+
+            if (!handle_new_fh_iface(bss.iface_name)) {
+                success = false;
+            }
+        }
+
+        for (const auto &client_kv : radio->associated_clients) {
+            const auto &client = client_kv.second;
+            if (client.wds_iface_name.empty()) {
+                continue;
+            }
+
+            if (!restored_wds_ifaces.emplace(client.wds_iface_name).second) {
+                continue;
+            }
+
+            if (!handle_new_wds_iface(client.wds_iface_name)) {
+                success = false;
+            }
+        }
+    }
+
+    return success;
+}
+
+bool TrafficSeparationTask::handle_new_fh_iface(const std::string &iface_name)
+{
+    if (!m_mgr) {
+        LOG(ERROR) << "TS manager is nullptr";
+        return false;
+    }
+
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return false;
+    }
+
+    net::sAccessPort access_port{};
+    access_port.iface_name = iface_name;
+
+    if (!m_mgr->add_access_port(access_port)) {
+        LOG(ERROR) << "add_access_port failed iface=" << iface_name;
+        return false;
+    }
+
+    return true;
+}
+
+bool TrafficSeparationTask::handle_clear_fh_iface(const std::string &iface_name)
+{
+    if (!m_mgr) {
+        LOG(ERROR) << "TS manager is nullptr";
+        return false;
+    }
+
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return false;
+    }
+
+    if (!m_mgr->remove_access_port(iface_name)) {
+        LOG(ERROR) << "remove_access_port failed iface=" << iface_name;
+        return false;
+    }
+
+    return true;
+}
+
+bool TrafficSeparationTask::fill_wds_trunk_from_db(const std::string &iface_name,
+                                                   net::sTrunkPort &trunk) const
+{
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return false;
+    }
+
+    auto db           = AgentDB::get();
+    const auto policy = db->device_conf.unsupported_profile_disallow_policy;
+
+    for (const auto *radio : db->get_radios_list()) {
+        if (!radio) {
+            continue;
+        }
+
+        for (const auto &client_kv : radio->associated_clients) {
+            const auto &client = client_kv.second;
+            if (client.wds_iface_name != iface_name) {
+                continue;
+            }
+
+            const auto bss_it = std::find_if(
+                radio->front.bssids.begin(), radio->front.bssids.end(), [&](const auto &bss) {
+                    return bss.active && bss.backhaul_bss && (bss.mac == client.bssid);
+                });
+            if (bss_it == radio->front.bssids.end()) {
+                continue;
+            }
+
+            trunk             = {};
+            trunk.iface_name  = iface_name;
+            trunk.is_ethernet = false;
+            // TODO(PPM-3941): WDS trunk untagged mode should primary consider downstream
+            // agent multi-ap profile that it's reported via Assoc Req
+            trunk.is_untagged_mode = net::is_untagged_mode(
+                bss_it->backhaul_bss_disallow_profile1_agent_association,
+                bss_it->backhaul_bss_disallow_profile2_agent_association, policy);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool TrafficSeparationTask::handle_new_wds_iface(const std::string &iface_name)
@@ -321,50 +496,12 @@ bool TrafficSeparationTask::handle_new_wds_iface(const std::string &iface_name)
         return false;
     }
 
-    auto db = AgentDB::get();
-
-    const auto sta_pos = iface_name.rfind(".sta");
-    if (sta_pos == std::string::npos || (sta_pos + 4) >= iface_name.size()) {
-        LOG(DEBUG) << "Ignoring WDS iface without matching backhaul BSS: " << iface_name;
-        return true;
-    }
-
-    const auto bss_iface_name = iface_name.substr(0, sta_pos);
-    const auto policy         = db->device_conf.unsupported_profile_disallow_policy;
-    bool disallow_profile1    = false;
-    bool disallow_profile2    = false;
-    bool bss_found            = false;
-
-    for (const auto *radio : db->get_radios_list()) {
-        if (!radio) {
-            continue;
-        }
-
-        const auto bss_it = std::find_if(
-            radio->front.bssids.begin(), radio->front.bssids.end(), [&](const auto &bss) {
-                return bss.active && bss.backhaul_bss && (bss.iface_name == bss_iface_name);
-            });
-        if (bss_it == radio->front.bssids.end()) {
-            continue;
-        }
-
-        disallow_profile1 = bss_it->backhaul_bss_disallow_profile1_agent_association;
-        disallow_profile2 = bss_it->backhaul_bss_disallow_profile2_agent_association;
-        bss_found         = true;
-        break;
-    }
-
-    if (!bss_found) {
-        LOG(DEBUG) << "Ignoring WDS iface without matching backhaul BSS: " << iface_name;
-        return true;
-    }
-
     net::sTrunkPort trunk{};
-    trunk.iface_name  = iface_name;
-    trunk.is_ethernet = false;
-    // TODO(PPM-3941): WDS trunk untagged mode should primary consider downstream agent multi-ap
-    // profile that it's reported via Assoc Req
-    trunk.is_untagged_mode = net::is_untagged_mode(disallow_profile1, disallow_profile2, policy);
+    if (!fill_wds_trunk_from_db(iface_name, trunk)) {
+        LOG(DEBUG) << "Ignoring WDS iface without matching associated client/backhaul BSS: "
+                   << iface_name;
+        return true;
+    }
 
     const auto now  = std::chrono::steady_clock::now();
     auto pending_it = m_pending_wds_ifaces.find(iface_name);
@@ -372,15 +509,13 @@ bool TrafficSeparationTask::handle_new_wds_iface(const std::string &iface_name)
         const auto settle_due = now + std::chrono::milliseconds(WDS_SETTLE_MS);
         const auto timeout_at = now + std::chrono::milliseconds(WDS_RETRY_TIMEOUT_MS);
 
-        pending_it =
-            m_pending_wds_ifaces.emplace(iface_name, sPendingWdsIfaceState{settle_due, timeout_at})
-                .first;
-
         LOG(DEBUG) << "Deferring WDS TS apply for settle window: " << iface_name;
+        request_wds_retry(iface_name, settle_due, timeout_at);
+        return true;
     }
 
     if (now < pending_it->second.not_before) {
-        schedule_deferred_work(pending_it->second.not_before);
+        run_at(pending_it->second.not_before);
         return true;
     }
 
@@ -406,7 +541,7 @@ bool TrafficSeparationTask::handle_new_wds_iface(const std::string &iface_name)
         if (retry_due > pending_it->second.deadline) {
             retry_due = pending_it->second.deadline;
         }
-        schedule_deferred_work(retry_due);
+        run_at(retry_due);
         return true;
     }
 
@@ -527,11 +662,9 @@ bool TrafficSeparationTask::add_backhaul_connection_trunk(
     return true;
 }
 
-bool TrafficSeparationTask::get_ports_from_db(std::vector<net::sTrunkPort> &trunks,
-                                              std::vector<net::sAccessPort> &access_ports) const
+bool TrafficSeparationTask::get_ports_from_db(std::vector<net::sTrunkPort> &trunks) const
 {
     trunks.clear();
-    access_ports.clear();
 
     auto db = AgentDB::get();
 
@@ -550,22 +683,6 @@ bool TrafficSeparationTask::get_ports_from_db(std::vector<net::sTrunkPort> &trun
         trunk.is_ethernet      = true;
         trunk.is_untagged_mode = false;
         trunks.push_back(trunk);
-    }
-
-    for (const auto *radio : db->get_radios_list()) {
-        if (!radio) {
-            continue;
-        }
-
-        for (const auto &bss : radio->front.bssids) {
-            if (!bss.active || !bss.fronthaul_bss || bss.backhaul_bss || bss.iface_name.empty()) {
-                continue;
-            }
-
-            net::sAccessPort access_port{};
-            access_port.iface_name = bss.iface_name;
-            access_ports.push_back(std::move(access_port));
-        }
     }
 
     return true;
