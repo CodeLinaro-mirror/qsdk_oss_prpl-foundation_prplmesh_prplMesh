@@ -69,6 +69,8 @@ platform:
     - build-in-docker
     - image-build-boardfarm-ci
   rules:
+    - if: '(($CI_COMMIT_REF_NAME == "feature/PPM-4003-controller-initiaded-scs-mscs") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4003-controller-initiaded-scs-mscs"))'
+      when: on_success
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
     - !reference [.rules-for-expensive-job, rules]
   variables:
