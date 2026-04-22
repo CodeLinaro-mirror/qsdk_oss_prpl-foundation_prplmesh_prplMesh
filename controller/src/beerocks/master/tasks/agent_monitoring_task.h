@@ -245,9 +245,6 @@ private:
      */
     bool dm_set_agent_disconnected_event_params(const std::string &agent_discon_path,
                                                 const sMacAddr &agent_mac);
-
-private:
-    static bool m_is_custom_ts_enabled;
 };
 
 } // namespace son
