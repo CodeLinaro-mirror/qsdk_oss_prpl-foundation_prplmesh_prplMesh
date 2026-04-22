@@ -47,21 +47,23 @@ public:
     void work() override;
 
     /**
-     * @brief Handle task events (like other prplMesh tasks).
-     *
-     * Supported events trigger either a debounced TS policy refresh or an immediate exact WDS
-     * update.
-     */
+   * @brief Handle task events (like other prplMesh tasks).
+   *
+   * Supported events trigger either a debounced TS policy refresh or
+   * immediate exact FH/WDS updates.
+   */
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
 
     /**
-     * @brief Event IDs for TrafficSeparationTask.
-     */
+   * @brief Event IDs for TrafficSeparationTask.
+   */
     enum eEvent : uint8_t {
-        TS_ENABLE        = 0, /**< Refresh config and reapply TS on managed ports. */
-        TS_NEW_WDS_IFACE   = 1, /**< Add one WDS iface (e.g. `wlan1.2.sta1`). */
-        TS_CLEAR_WDS_IFACE = 2, /**< Clear one WDS iface (e.g. `wlan1.2.sta1`). */
-        TS_CLEAR = 3 /**< Clear config + reset transport primary VLAN. */
+        TS_ENABLE          = 0, /**< Refresh config and reapply TS on managed ports. */
+        TS_NEW_FH_IFACE    = 1, /**< Incrementally add one pure-FH iface. */
+        TS_CLEAR_FH_IFACE  = 2, /**< Incrementally clear one pure-FH iface. */
+        TS_NEW_WDS_IFACE   = 3, /**< Add one WDS iface (e.g. `wlan1.2.sta1`). */
+        TS_CLEAR_WDS_IFACE = 4, /**< Clear one WDS iface (e.g. `wlan1.2.sta1`). */
+        TS_CLEAR           = 5  /**< Clear active TS policies and task-side deferred state. */
     };
 
 private:
@@ -71,55 +73,95 @@ private:
     };
 
     /**
-     * @brief Queue a debounced TS apply action.
-     */
-    void schedule_apply();
+   * @brief Schedule the next task wakeup for the earliest requested due time.
+   */
+    void run_at(std::chrono::steady_clock::time_point due);
 
     /**
-     * @brief Queue deferred task work for the earliest requested due time.
-     */
-    void schedule_deferred_work(std::chrono::steady_clock::time_point due);
+   * @brief Request a debounced full TS reapply.
+   */
+    void request_full_apply();
 
     /**
-     * @brief Reset pending debounced apply state.
-     */
+   * @brief Register one WDS iface for deferred retry processing.
+   *
+   * Stores the per-iface retry window and schedules the task wakeup for the
+   * earliest requested retry time.
+   */
+    void request_wds_retry(const std::string &iface_name,
+                           std::chrono::steady_clock::time_point not_before,
+                           std::chrono::steady_clock::time_point deadline);
+
+    /**
+   * @brief Reset pending debounced apply state.
+   */
     void clear_pending_apply();
 
     /**
-     * @brief Reset any scheduled task work.
-     */
+   * @brief Reset any scheduled task work.
+   */
     void clear_scheduled_work();
 
     /**
-     * @brief Check whether the debounce timeout expired and apply can run now.
-     */
+   * @brief Check whether the debounce timeout expired and apply can run now.
+   */
     bool should_run_now() const;
 
     /**
-     * @brief Refresh TS configuration and reset policies on managed ports.
-     *
-     * Keeps event-managed exact WDS ifaces intact and only re-applies policies.
-     */
+   * @brief Clear current TS policies, refresh config, and reapply TS on
+   * currently managed ports.
+   *
+   * Keeps exact FH/WDS iface ownership event-driven while refreshing the
+   * config and persistent DB-owned trunk ports.
+   */
     bool reset();
 
     /**
-     * @brief Add one WDS iface (e.g. `wlan1.2.sta1`).
-     */
+   * @brief Re-add exact FH/WDS ports from the current DB snapshot.
+   *
+   * Exact FH/WDS ports are primarily managed incrementally by task events.
+   * This rebuild path repopulates the manager after task recreation or
+   * crash/restart when those exact events may not be replayed.
+   */
+    bool restore_exact_ports_from_db();
+
+    /**
+   * @brief Resolve one exact WDS trunk from current DB state.
+   *
+   * Uses associated-client and matching backhaul-BSS state to derive trunk
+   * mode for an already known exact WDS netdev.
+   */
+    bool fill_wds_trunk_from_db(const std::string &iface_name, net::sTrunkPort &trunk) const;
+
+    /**
+   * @brief Incrementally add a fronthaul access port carried by a task event.
+   */
+    bool handle_new_fh_iface(const std::string &iface_name);
+
+    /**
+   * @brief Incrementally clear a fronthaul access port carried by a task event.
+   */
+    bool handle_clear_fh_iface(const std::string &iface_name);
+
+    /**
+   * @brief Add one WDS iface (e.g. `wlan1.2.sta1`).
+   */
     bool handle_new_wds_iface(const std::string &iface_name);
 
     /**
-     * @brief Clear one WDS iface (e.g. `wlan1.2.sta1`).
-     */
+   * @brief Clear one WDS iface (e.g. `wlan1.2.sta1`).
+   */
     bool handle_clear_wds_iface(const std::string &iface_name);
 
     /**
-     * @brief Retry pending WDS iface additions after transient readiness failures.
-     */
+   * @brief Retry pending WDS iface additions after transient readiness
+   * failures.
+   */
     bool retry_pending_wds_ifaces();
 
     /**
-     * @brief Clear TS state and restore transport defaults used outside TS mode.
-     */
+   * @brief Clear TS state and restore transport defaults used outside TS mode.
+   */
     bool cleanup_ts_runtime_state();
 
     /**
@@ -138,10 +180,9 @@ private:
     bool build_ts_config(net::sTrafficSeparationConfig &cfg) const;
 
     /**
-     * @brief Collect persistent trunk and access ports from current DB state.
-     */
-    bool get_ports_from_db(std::vector<net::sTrunkPort> &trunks,
-                           std::vector<net::sAccessPort> &access_ports) const;
+   * @brief Collect persistent trunk ports from current DB state.
+   */
+    bool get_ports_from_db(std::vector<net::sTrunkPort> &trunks) const;
 
     /**
      * @brief Add currently selected backhaul connection interface as a trunk candidate.
@@ -152,7 +193,7 @@ private:
 
     std::unique_ptr<net::TrafficSeparationManager> m_mgr;
 
-    bool m_pending = false;
+    bool m_pending       = false;
     bool m_apply_pending = false;
     std::chrono::steady_clock::time_point m_next_run{std::chrono::steady_clock::time_point::min()};
     std::unordered_map<std::string, sPendingWdsIfaceState> m_pending_wds_ifaces;
