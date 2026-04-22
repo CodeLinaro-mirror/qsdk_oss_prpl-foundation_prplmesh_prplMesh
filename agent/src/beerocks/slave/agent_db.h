@@ -282,6 +282,7 @@ public:
                 bool backhaul_bss_disallow_profile1_agent_association;
                 bool backhaul_bss_disallow_profile2_agent_association;
                 bool active    = false;
+                bool enabled   = false;
                 int8_t link_id = -1;
                 uint8_t eht_operations[10];
                 WSC::eWscVendorExtHiddenSsid hidden_ssid = WSC::eWscVendorExtHiddenSsid::UNSET;

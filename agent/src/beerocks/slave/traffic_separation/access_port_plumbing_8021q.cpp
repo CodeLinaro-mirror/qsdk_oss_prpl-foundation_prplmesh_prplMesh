@@ -61,6 +61,13 @@ bool AccessPortPlumbing8021q::clear()
         return true;
     }
 
+    // Disabled VAPs can disappear before TS cleanup runs.
+    // A missing iface means the ingress filter is already effectively gone.
+    if (!network_utils::linux_iface_exists(m_access_port.iface_name)) {
+        m_is_applied = false;
+        return true;
+    }
+
     if (!network_utils::set_vlan_packet_filter(false, m_access_port.iface_name)) {
         LOG(ERROR) << "failed to clear VLAN filter iface=" << m_access_port.iface_name;
         return false;
