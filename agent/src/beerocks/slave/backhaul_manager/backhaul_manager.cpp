@@ -320,6 +320,50 @@ bool BackhaulManager::thread_init()
         return false;
     }
 
+    auto db = AgentDB::get();
+    if (!db->ethernet.wan_candidate_ifaces.empty()) {
+        if (!wan_mon.initialize(db->ethernet.wan_candidate_ifaces)) {
+            LOG(WARNING) << "Failed to initialize WAN monitor for wired candidates";
+        } else {
+            auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(
+                db->bridge.iface_name);
+            for (const auto &candidate_iface : db->ethernet.wan_candidate_ifaces) {
+                auto &candidate_state      = m_wired_candidate_runtime_state[candidate_iface];
+                candidate_state.link_state = wan_mon.get_link_state(candidate_iface);
+                candidate_state.in_bridge  = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                                      candidate_iface) != bridge_ifaces.end();
+
+                LOG(INFO) << "Backhaul wired candidate initial state: iface=" << candidate_iface
+                          << " link_state="
+                          << wan_monitor::link_state_to_string(candidate_state.link_state)
+                          << " in_bridge=" << candidate_state.in_bridge;
+            }
+
+            auto wan_mon_fd = wan_mon.get_netlink_fd();
+            beerocks::EventLoop::EventHandlers wan_events_handlers{
+                .name     = "wan_link_events",
+                .on_read  = [&](int fd, EventLoop &loop) { return handle_wan_link_events(); },
+                .on_write = nullptr,
+                .on_disconnect =
+                    [&](int fd, EventLoop &loop) {
+                        LOG(ERROR) << "WAN monitor disconnected on fd " << fd;
+                        return false;
+                    },
+                .on_error =
+                    [&](int fd, EventLoop &loop) {
+                        LOG(ERROR) << "WAN monitor error on fd " << fd;
+                        return false;
+                    },
+            };
+
+            if (!m_event_loop->register_handlers(wan_mon_fd, wan_events_handlers)) {
+                LOG(ERROR) << "Unable to register handlers for WAN monitor";
+                return false;
+            }
+            transaction.add_rollback_action([&]() { m_event_loop->remove_handlers(wan_mon_fd); });
+        }
+    }
+
     transaction.commit();
 
     LOG(DEBUG) << "started";
@@ -329,6 +373,10 @@ bool BackhaulManager::thread_init()
 
 void BackhaulManager::on_thread_stop()
 {
+    if (wan_mon.get_netlink_fd() != beerocks::net::FileDescriptor::invalid_descriptor) {
+        m_event_loop->remove_handlers(wan_mon.get_netlink_fd());
+    }
+
     if (m_agent_fd != beerocks::net::FileDescriptor::invalid_descriptor) {
         m_cmdu_server->disconnect(m_agent_fd);
     }
@@ -722,6 +770,41 @@ bool BackhaulManager::handle_backhaul_disconnect()
     return true;
 }
 
+bool BackhaulManager::handle_wan_link_events()
+{
+    std::vector<wan_monitor::LinkEvent> events;
+    if (!wan_mon.process(events)) {
+        LOG(ERROR) << "Failed processing WAN link events";
+        return false;
+    }
+
+    if (events.empty()) {
+        return true;
+    }
+
+    auto db = AgentDB::get();
+    auto bridge_ifaces =
+        beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+
+    for (const auto &event : events) {
+        auto &candidate_state           = m_wired_candidate_runtime_state[event.iface_name];
+        candidate_state.link_state      = event.link_state;
+        candidate_state.in_bridge       = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                              event.iface_name) != bridge_ifaces.end();
+        candidate_state.last_nlmsg_type = event.nlmsg_type;
+        candidate_state.last_event_time = std::chrono::steady_clock::now();
+
+        LOG(INFO) << "Backhaul wired candidate runtime update: iface=" << event.iface_name
+                  << " link_state=" << wan_monitor::link_state_to_string(event.link_state)
+                  << " in_bridge=" << candidate_state.in_bridge
+                  << " nlmsg_type=" << event.nlmsg_type
+                  << " active_wired_iface=" << db->ethernet.wan.iface_name
+                  << " active_backhaul_type=" << int(db->backhaul.connection_type);
+    }
+
+    return true;
+}
+
 bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 {
     skip_select = false;
@@ -821,14 +904,15 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         auto ifaces =
             beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
 
-        // If a wired (WAN) interface was provided, try it first, check if the interface is UP
+        // If wired backhaul candidates were provided, try them first and select the first
+        // candidate that is up and already attached to the bridge.
         wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
         bool wired_iface_in_bridge               = false;
         std::string selected_wired_candidate;
         const auto &wired_candidates = db->ethernet.wan_candidate_ifaces;
         if (!db->device_conf.local_gw) {
             for (const auto &candidate_iface : wired_candidates) {
-                auto candidate_link_state = wan_mon.initialize(candidate_iface);
+                auto candidate_link_state = wan_mon.get_link_state(candidate_iface);
                 bool candidate_in_bridge =
                     std::find(ifaces.begin(), ifaces.end(), candidate_iface) != ifaces.end();
 
@@ -838,8 +922,8 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                           << " in_bridge=" << candidate_in_bridge;
 
                 if (candidate_link_state == wan_monitor::ELinkState::eInvalid) {
-                    LOG(WARNING) << "wan_mon.initialize() failed for iface " << candidate_iface
-                                 << ", skip candidate";
+                    LOG(WARNING) << "WAN monitor has no valid runtime state for iface "
+                                 << candidate_iface << ", skip candidate";
                     continue;
                 }
 

@@ -249,6 +249,7 @@ private:
     bool is_front_radio(std::string mac);
     bool handle_backhaul_connect();
     bool handle_backhaul_disconnect();
+    bool handle_wan_link_events();
 
     /**
      * @brief Creates Backhaul STA Steering Response message with 2 tlvs Steering Response
@@ -384,6 +385,15 @@ private:
         int attempts = 0;
     };
     std::unordered_map<std::string, ap_blacklist_entry> ap_blacklist;
+
+    struct sWiredCandidateRuntimeState {
+        wan_monitor::ELinkState link_state = wan_monitor::ELinkState::eInvalid;
+        bool in_bridge                     = false;
+        int last_nlmsg_type                = 0;
+        std::chrono::steady_clock::time_point last_event_time =
+            std::chrono::steady_clock::time_point::min();
+    };
+    std::unordered_map<std::string, sWiredCandidateRuntimeState> m_wired_candidate_runtime_state;
 
     wan_monitor wan_mon;
 

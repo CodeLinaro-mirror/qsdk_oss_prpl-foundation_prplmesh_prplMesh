@@ -80,11 +80,11 @@ const char *wan_monitor::link_state_to_string(ELinkState link_state)
     return "unknown";
 }
 
-wan_monitor::ELinkState wan_monitor::initialize(const std::string &strWanIfaceName)
+bool wan_monitor::initialize(const std::vector<std::string> &wan_iface_names)
 {
-    if (strWanIfaceName.empty()) {
-        LOG(ERROR) << "WAN Monitor intialized on empty interface name!";
-        return ELinkState::eInvalid;
+    if (wan_iface_names.empty()) {
+        LOG(ERROR) << "WAN Monitor initialized with empty interface list!";
+        return false;
     }
 
     // Close the previous FD
@@ -98,21 +98,29 @@ wan_monitor::ELinkState wan_monitor::initialize(const std::string &strWanIfaceNa
 
     // Open a new netlink socket
     if ((m_iNetlinkFD = netlink_open_socket()) == -1)
-        return (ELinkState::eInvalid);
+        return false;
 
-    // Store the interface name
-    m_strWanIfaceName = strWanIfaceName;
+    m_wan_iface_state.clear();
+    for (const auto &iface_name : wan_iface_names) {
+        if (iface_name.empty()) {
+            continue;
+        }
 
-    // Return the interface state
-    return ((network_utils::linux_iface_is_up_and_running(m_strWanIfaceName)) ? ELinkState::eUp
-                                                                              : ELinkState::eDown);
+        m_wan_iface_state[iface_name] = network_utils::linux_iface_is_up_and_running(iface_name)
+                                            ? ELinkState::eUp
+                                            : ELinkState::eDown;
+    }
+
+    return !m_wan_iface_state.empty();
 }
 
-wan_monitor::ELinkState wan_monitor::process()
+bool wan_monitor::process(std::vector<LinkEvent> &events)
 {
+    events.clear();
+
     if (m_iNetlinkFD == -1) {
         LOG(ERROR) << "Invalid netlink socket!";
-        return (ELinkState::eInvalid);
+        return false;
     }
 
     struct sockaddr_nl addr = {0};
@@ -132,10 +140,10 @@ wan_monitor::ELinkState wan_monitor::process()
 
     if (len < 0) {
         LOG(ERROR) << "recvmsg error: " << strerror(errno);
-        return (ELinkState::eInvalid);
+        return false;
     } else if (len == 0) {
         LOG(DEBUG) << "recvmsg EOF";
-        return (ELinkState::eInvalid);
+        return false;
     }
 
     // Process received message(s)
@@ -146,12 +154,12 @@ wan_monitor::ELinkState wan_monitor::process()
         // Completed reading - exit gracefully (as no error occurred,
         // but this is not a valid state)
         if (hnl->nlmsg_type == NLMSG_DONE)
-            return (ELinkState::eInvalid);
+            return true;
 
         // Error in the Message
         if (hnl->nlmsg_type == NLMSG_ERROR) {
             LOG(ERROR) << "NLMSG_ERROR - Invalid netlink message!";
-            return (ELinkState::eInvalid);
+            return false;
         }
 
         // LINK related message
@@ -163,7 +171,8 @@ wan_monitor::ELinkState wan_monitor::process()
             auto iface_name = network_utils::linux_get_iface_name(ifi->ifi_index);
 
             // Skip events for other interfaces
-            if (m_strWanIfaceName != iface_name) {
+            auto iface_it = m_wan_iface_state.find(iface_name);
+            if (iface_it == m_wan_iface_state.end()) {
                 LOG(DEBUG) << "Link detected for non-WAN interface '" << iface_name
                            << "'. Skipping...";
 
@@ -178,17 +187,33 @@ wan_monitor::ELinkState wan_monitor::process()
                                   ? ELinkState::eUp
                                   : ELinkState::eDown;
 
+            iface_it->second = link_state;
+
             LOG(INFO) << "WAN link event: iface=" << iface_name
-                      << " configured_wan_iface=" << m_strWanIfaceName
+                      << " monitored_wan_ifaces=" << m_wan_iface_state.size()
                       << " nlmsg_type=" << int(hnl->nlmsg_type)
                       << " running=" << int(bool(ifi->ifi_flags & IFF_RUNNING))
                       << " interpreted_state=" << wan_monitor::link_state_to_string(link_state);
 
-            return link_state;
+            LinkEvent event;
+            event.iface_name = iface_name;
+            event.link_state = link_state;
+            event.nlmsg_type = int(hnl->nlmsg_type);
+            events.push_back(event);
         }
     }
 
-    return (ELinkState::eInvalid);
+    return true;
+}
+
+wan_monitor::ELinkState wan_monitor::get_link_state(const std::string &iface_name) const
+{
+    auto it = m_wan_iface_state.find(iface_name);
+    if (it == m_wan_iface_state.end()) {
+        return ELinkState::eInvalid;
+    }
+
+    return it->second;
 }
 
 } // namespace beerocks

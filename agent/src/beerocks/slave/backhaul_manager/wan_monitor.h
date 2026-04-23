@@ -9,6 +9,8 @@
 #define __WAN_MONITOR_H__
 
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace beerocks {
 
@@ -27,6 +29,12 @@ public:
         eDown     //!< Link NOT detected on the wired WAN interface
     };
 
+    struct LinkEvent {
+        std::string iface_name;
+        ELinkState link_state = ELinkState::eInvalid;
+        int nlmsg_type        = 0;
+    };
+
 public:
     wan_monitor();
     ~wan_monitor();
@@ -34,16 +42,18 @@ public:
     static const char *link_state_to_string(ELinkState link_state);
 
     // Initialize the WAN monitor
-    ELinkState initialize(const std::string &strWanIfaceName);
+    bool initialize(const std::vector<std::string> &wan_iface_names);
 
     // Process incoming netlink message
-    ELinkState process();
+    bool process(std::vector<LinkEvent> &events);
+
+    ELinkState get_link_state(const std::string &iface_name) const;
 
     int get_netlink_fd() const { return (m_iNetlinkFD); }
 
 private:
-    // WAN interface name
-    std::string m_strWanIfaceName;
+    // WAN interface names and their last observed link state
+    std::unordered_map<std::string, ELinkState> m_wan_iface_state;
 
     // Netlink socket file descriptor
     int m_iNetlinkFD;
