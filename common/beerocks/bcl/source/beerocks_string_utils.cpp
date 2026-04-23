@@ -135,6 +135,22 @@ std::string string_utils::int_to_hex_string(const unsigned int integer,
     return ss_hex_string.str();
 };
 
+std::string string_utils::bytes_to_hex_string(const uint8_t *data, size_t length)
+{
+    if (!data || length == 0) {
+        return {};
+    }
+
+    std::string hex_string;
+    hex_string.reserve(length * 2);
+
+    for (size_t index = 0; index < length; ++index) {
+        hex_string += int_to_hex_string(data[index], 2);
+    }
+
+    return hex_string;
+}
+
 std::string string_utils::bytes_string_to_string(const std::string &bytes_string)
 {
     std::string output;
