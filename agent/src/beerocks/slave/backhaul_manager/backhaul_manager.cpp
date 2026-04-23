@@ -854,7 +854,7 @@ bool BackhaulManager::has_recent_wired_candidate_1905_activity(
            std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS);
 }
 
-bool BackhaulManager::is_runtime_wired_candidate_eligible(
+bool BackhaulManager::is_runtime_wired_candidate_locally_valid(
     const std::string &iface_name, std::chrono::steady_clock::time_point now) const
 {
     auto candidate_it = m_wired_candidate_runtime_state.find(iface_name);
@@ -875,7 +875,14 @@ bool BackhaulManager::is_runtime_wired_candidate_eligible(
         return false;
     }
 
-    return has_recent_wired_candidate_1905_activity(iface_name, now);
+    return true;
+}
+
+bool BackhaulManager::is_runtime_wired_candidate_eligible(
+    const std::string &iface_name, std::chrono::steady_clock::time_point now) const
+{
+    return is_runtime_wired_candidate_locally_valid(iface_name, now) &&
+           has_recent_wired_candidate_1905_activity(iface_name, now);
 }
 
 bool BackhaulManager::get_first_runtime_eligible_wired_candidate(
@@ -1223,9 +1230,9 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             get_first_runtime_eligible_wired_candidate(eligible_wired_candidate, now);
 
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
-            if (!is_runtime_wired_candidate_eligible(db->backhaul.selected_iface_name, now)) {
-                LOG(INFO) << "Runtime backhaul re-evaluation: current wired candidate lost "
-                             "eligibility, restarting"
+            if (!is_runtime_wired_candidate_locally_valid(db->backhaul.selected_iface_name, now)) {
+                LOG(INFO) << "Runtime backhaul re-evaluation: current wired candidate lost local "
+                             "validity, restarting"
                           << " selected_iface=" << db->backhaul.selected_iface_name;
                 FSM_MOVE_STATE(RESTART);
                 skip_select = true;

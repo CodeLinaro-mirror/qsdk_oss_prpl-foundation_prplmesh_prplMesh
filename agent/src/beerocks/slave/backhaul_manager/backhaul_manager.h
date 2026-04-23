@@ -253,6 +253,8 @@ private:
     void update_wired_candidate_1905_activity(uint32_t iface_index, const sMacAddr &src_mac);
     bool has_recent_wired_candidate_1905_activity(const std::string &iface_name,
                                                   std::chrono::steady_clock::time_point now) const;
+    bool is_runtime_wired_candidate_locally_valid(const std::string &iface_name,
+                                                  std::chrono::steady_clock::time_point now) const;
     bool is_runtime_wired_candidate_eligible(const std::string &iface_name,
                                              std::chrono::steady_clock::time_point now) const;
     bool
