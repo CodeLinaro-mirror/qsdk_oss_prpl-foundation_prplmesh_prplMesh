@@ -253,6 +253,11 @@ private:
     void update_wired_candidate_1905_activity(uint32_t iface_index, const sMacAddr &src_mac);
     bool has_recent_wired_candidate_1905_activity(const std::string &iface_name,
                                                   std::chrono::steady_clock::time_point now) const;
+    bool is_runtime_wired_candidate_eligible(const std::string &iface_name,
+                                             std::chrono::steady_clock::time_point now) const;
+    bool
+    get_first_runtime_eligible_wired_candidate(std::string &iface_name,
+                                               std::chrono::steady_clock::time_point now) const;
 
     /**
      * @brief Creates Backhaul STA Steering Response message with 2 tlvs Steering Response

@@ -854,6 +854,45 @@ bool BackhaulManager::has_recent_wired_candidate_1905_activity(
            std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS);
 }
 
+bool BackhaulManager::is_runtime_wired_candidate_eligible(
+    const std::string &iface_name, std::chrono::steady_clock::time_point now) const
+{
+    auto candidate_it = m_wired_candidate_runtime_state.find(iface_name);
+    if (candidate_it == m_wired_candidate_runtime_state.end()) {
+        return false;
+    }
+
+    const auto &candidate_state = candidate_it->second;
+    if (candidate_state.failed_until > now) {
+        return false;
+    }
+
+    if (wan_mon.get_link_state(iface_name) != wan_monitor::ELinkState::eUp) {
+        return false;
+    }
+
+    if (!candidate_state.in_bridge) {
+        return false;
+    }
+
+    return has_recent_wired_candidate_1905_activity(iface_name, now);
+}
+
+bool BackhaulManager::get_first_runtime_eligible_wired_candidate(
+    std::string &iface_name, std::chrono::steady_clock::time_point now) const
+{
+    auto db = AgentDB::get();
+    for (const auto &candidate_iface : db->ethernet.wan_candidate_ifaces) {
+        if (is_runtime_wired_candidate_eligible(candidate_iface, now)) {
+            iface_name = candidate_iface;
+            return true;
+        }
+    }
+
+    iface_name.clear();
+    return false;
+}
+
 bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 {
     skip_select = false;
@@ -958,8 +997,9 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
         bool wired_iface_in_bridge               = false;
         std::string selected_wired_candidate;
-        const auto &wired_candidates = db->ethernet.wan_candidate_ifaces;
-        auto now                     = std::chrono::steady_clock::now();
+        bool wired_candidates_missing_recent_1905_activity = false;
+        const auto &wired_candidates                       = db->ethernet.wan_candidate_ifaces;
+        auto now                                           = std::chrono::steady_clock::now();
         if (!db->device_conf.local_gw) {
             for (const auto &candidate_iface : wired_candidates) {
                 auto candidate_link_state = wan_mon.get_link_state(candidate_iface);
@@ -998,6 +1038,10 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 
                 if (candidate_link_state != wan_monitor::ELinkState::eUp || !candidate_in_bridge ||
                     !recent_1905_activity) {
+                    if (candidate_link_state == wan_monitor::ELinkState::eUp &&
+                        candidate_in_bridge && !recent_1905_activity) {
+                        wired_candidates_missing_recent_1905_activity = true;
+                    }
                     continue;
                 }
 
@@ -1088,7 +1132,9 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             } else if (wired_candidates.empty()) {
                 reason = "wired_iface_empty";
             } else if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
-                reason = "wired_monitor_invalid";
+                reason = wired_candidates_missing_recent_1905_activity
+                             ? "wired_missing_recent_1905_activity"
+                             : "wired_monitor_invalid";
             } else if (wired_link_state == wan_monitor::ELinkState::eDown) {
                 reason = "wired_link_down";
             } else {
@@ -1161,44 +1207,37 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
     }
     // Backhaul manager is OPERATIONAL!
     case EState::OPERATIONAL: {
-        /*
-        * TODO
-        * This code segment is commented out since wireless-backhaul is not yet supported and
-        * the current implementation causes high CPU load on steady-state.
-        * The high CPU load is due to a call to linux_iface_is_up_and_running() performed every
-        * second to check if the wired interface changed its state. The implementation of the above
-        * polls the interface flags using ioctl() which is very costly (~120 milliseconds).
-        *
-        * An event-driven solution will be implemented as part of the task:
-        * [TASK] Dynamic switching between wired and wireless
-        * https://github.com/prplfoundation/prplMesh/issues/866
-        */
-        // /**
-        //  * Get current time. It is later used to compute elapsed time since some start time and
-        //  * check if a timeout has expired to perform periodic actions.
-        //  */
-        // auto db = AgentDB::get();
-        //
-        // auto now = std::chrono::steady_clock::now();
-        //
-        // if (!db->device_conf.local_gw()) {
-        //     if (db->ethernet.wan.iface_name.empty()) {
-        //         LOG(WARNING) << "WAN interface is empty on Repeater platform configuration!";
-        //     }
-        // int time_elapsed_ms =
-        //     std::chrono::duration_cast<std::chrono::milliseconds>(now - eth_link_poll_timer)
-        //         .count();
-        // //pooling eth link status every second to notice if there been a change.
-        // if (time_elapsed_ms > POLL_TIMER_TIMEOUT_MS) {
+        auto db  = AgentDB::get();
+        auto now = std::chrono::steady_clock::now();
 
-        //     eth_link_poll_timer = now;
-        //     bool eth_link_up = beerocks::net::network_utils::linux_iface_is_up_and_running(db->ethernet.wan.iface_name);
-        //     if (eth_link_up != m_eth_link_up) {
-        //         m_eth_link_up = beerocks::net::network_utils::linux_iface_is_up_and_running(db->ethernet.wan.iface_name);
-        //         FSM_MOVE_STATE(RESTART);
-        //     }
-        // }
-        // }
+        if (db->device_conf.local_gw) {
+            break;
+        }
+
+        if (!m_selected_backhaul.empty() && m_selected_backhaul != DEV_SET_ETH) {
+            break;
+        }
+
+        std::string eligible_wired_candidate;
+        bool has_eligible_wired_candidate =
+            get_first_runtime_eligible_wired_candidate(eligible_wired_candidate, now);
+
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+            if (!is_runtime_wired_candidate_eligible(db->backhaul.selected_iface_name, now)) {
+                LOG(INFO) << "Runtime backhaul re-evaluation: current wired candidate lost "
+                             "eligibility, restarting"
+                          << " selected_iface=" << db->backhaul.selected_iface_name;
+                FSM_MOVE_STATE(RESTART);
+                skip_select = true;
+            }
+        } else if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+                   has_eligible_wired_candidate) {
+            LOG(INFO) << "Runtime backhaul re-evaluation: eligible wired candidate available, "
+                         "restarting for wired onboarding"
+                      << " selected_iface=" << eligible_wired_candidate;
+            FSM_MOVE_STATE(RESTART);
+            skip_select = true;
+        }
         break;
     }
     case EState::RESTART: {
