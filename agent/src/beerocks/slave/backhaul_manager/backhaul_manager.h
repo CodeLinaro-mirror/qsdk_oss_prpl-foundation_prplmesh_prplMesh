@@ -250,16 +250,23 @@ private:
     bool handle_backhaul_connect();
     bool handle_backhaul_disconnect();
     bool handle_wan_link_events();
+
+    /**
+     * @brief Record observed 1905 traffic for a wired candidate.
+     *
+     * This is fed by CMDU ingress from transport and updates the event-driven
+     * wired candidate model. It does not perform controller probing.
+     */
     void update_wired_candidate_1905_activity(uint32_t iface_index, const sMacAddr &src_mac);
-    bool has_recent_wired_candidate_1905_activity(const std::string &iface_name,
-                                                  std::chrono::steady_clock::time_point now) const;
-    bool is_runtime_wired_candidate_locally_valid(const std::string &iface_name,
-                                                  std::chrono::steady_clock::time_point now) const;
-    bool is_runtime_wired_candidate_eligible(const std::string &iface_name,
-                                             std::chrono::steady_clock::time_point now) const;
-    bool
-    get_first_runtime_eligible_wired_candidate(std::string &iface_name,
-                                               std::chrono::steady_clock::time_point now) const;
+
+    /**
+     * @brief Select the first runtime-eligible wired candidate in configured order.
+     *
+     * A candidate is eligible when the event-driven wired link model says it is locally
+     * valid and recent 1905 traffic was observed on that interface.
+     */
+    bool find_first_runtime_eligible_wired_link(std::string &iface_name,
+                                                std::chrono::steady_clock::time_point now) const;
 
     /**
      * @brief Creates Backhaul STA Steering Response message with 2 tlvs Steering Response
@@ -396,7 +403,16 @@ private:
     };
     std::unordered_map<std::string, ap_blacklist_entry> ap_blacklist;
 
-    struct sWiredCandidateRuntimeState {
+    /**
+     * @brief Runtime state for one wired backhaul candidate.
+     *
+     * The structure is updated only from events:
+     * - netlink updates link state and last event time
+     * - CMDU ingress updates 1905 activity
+     * - controller connectivity failure starts a retry cooldown
+     */
+    struct sWiredBackhaulLink {
+        std::string iface_name;
         wan_monitor::ELinkState link_state = wan_monitor::ELinkState::eInvalid;
         bool in_bridge                     = false;
         bool direct_controller_seen        = false;
@@ -408,8 +424,27 @@ private:
             std::chrono::steady_clock::time_point::min();
         std::chrono::steady_clock::time_point failed_until =
             std::chrono::steady_clock::time_point::min();
+
+        bool has_recent_1905_activity(std::chrono::steady_clock::time_point now,
+                                      std::chrono::seconds activity_timeout) const;
+        bool is_in_cooldown(std::chrono::steady_clock::time_point now) const;
+        bool is_locally_valid(std::chrono::steady_clock::time_point now) const;
+        bool is_eligible(std::chrono::steady_clock::time_point now,
+                         std::chrono::seconds activity_timeout) const;
+        void clear_expired_cooldown(std::chrono::steady_clock::time_point now);
+        void mark_failed(std::chrono::steady_clock::time_point now, std::chrono::seconds cooldown);
     };
-    std::unordered_map<std::string, sWiredCandidateRuntimeState> m_wired_candidate_runtime_state;
+
+    /**
+     * @brief Accessor helpers for the wired candidate map.
+     *
+     * The non-const accessor creates entries on first use so event handlers can populate the
+     * model without a separate initialization path.
+     */
+    sWiredBackhaulLink &wired_backhaul_link(const std::string &iface_name);
+    const sWiredBackhaulLink *find_wired_backhaul_link(const std::string &iface_name) const;
+
+    std::unordered_map<std::string, sWiredBackhaulLink> m_wired_backhaul_links;
 
     wan_monitor wan_mon;
 

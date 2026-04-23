@@ -63,6 +63,48 @@ std::string format_iface_list(const std::vector<std::string> &ifaces)
 
 } // namespace
 
+bool BackhaulManager::sWiredBackhaulLink::has_recent_1905_activity(
+    std::chrono::steady_clock::time_point now, std::chrono::seconds activity_timeout) const
+{
+    if (last_1905_activity_time == std::chrono::steady_clock::time_point::min()) {
+        return false;
+    }
+
+    return (now - last_1905_activity_time) <= activity_timeout;
+}
+
+bool BackhaulManager::sWiredBackhaulLink::is_in_cooldown(
+    std::chrono::steady_clock::time_point now) const
+{
+    return failed_until > now;
+}
+
+bool BackhaulManager::sWiredBackhaulLink::is_locally_valid(
+    std::chrono::steady_clock::time_point now) const
+{
+    return !is_in_cooldown(now) && (link_state == wan_monitor::ELinkState::eUp) && in_bridge;
+}
+
+bool BackhaulManager::sWiredBackhaulLink::is_eligible(std::chrono::steady_clock::time_point now,
+                                                      std::chrono::seconds activity_timeout) const
+{
+    return is_locally_valid(now) && has_recent_1905_activity(now, activity_timeout);
+}
+
+void BackhaulManager::sWiredBackhaulLink::clear_expired_cooldown(
+    std::chrono::steady_clock::time_point now)
+{
+    if ((failed_until != std::chrono::steady_clock::time_point::min()) && (failed_until <= now)) {
+        failed_until = std::chrono::steady_clock::time_point::min();
+    }
+}
+
+void BackhaulManager::sWiredBackhaulLink::mark_failed(std::chrono::steady_clock::time_point now,
+                                                      std::chrono::seconds cooldown)
+{
+    failed_until = now + cooldown;
+}
+
 /**
  * Time between successive timer executions of the tasks timer
  */
@@ -328,15 +370,15 @@ bool BackhaulManager::thread_init()
             auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(
                 db->bridge.iface_name);
             for (const auto &candidate_iface : db->ethernet.wan_candidate_ifaces) {
-                auto &candidate_state      = m_wired_candidate_runtime_state[candidate_iface];
-                candidate_state.link_state = wan_mon.get_link_state(candidate_iface);
-                candidate_state.in_bridge  = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
-                                                      candidate_iface) != bridge_ifaces.end();
+                auto &wired_link      = wired_backhaul_link(candidate_iface);
+                wired_link.link_state = wan_mon.get_link_state(candidate_iface);
+                wired_link.in_bridge  = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                                 candidate_iface) != bridge_ifaces.end();
 
                 LOG(INFO) << "Backhaul wired candidate initial state: iface=" << candidate_iface
                           << " link_state="
-                          << wan_monitor::link_state_to_string(candidate_state.link_state)
-                          << " in_bridge=" << candidate_state.in_bridge;
+                          << wan_monitor::link_state_to_string(wired_link.link_state)
+                          << " in_bridge=" << wired_link.in_bridge;
             }
 
             auto wan_mon_fd = wan_mon.get_netlink_fd();
@@ -789,22 +831,40 @@ bool BackhaulManager::handle_wan_link_events()
         beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
 
     for (const auto &event : events) {
-        auto &candidate_state           = m_wired_candidate_runtime_state[event.iface_name];
-        candidate_state.link_state      = event.link_state;
-        candidate_state.in_bridge       = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
-                                              event.iface_name) != bridge_ifaces.end();
-        candidate_state.last_nlmsg_type = event.nlmsg_type;
-        candidate_state.last_event_time = std::chrono::steady_clock::now();
+        auto &wired_link           = wired_backhaul_link(event.iface_name);
+        wired_link.link_state      = event.link_state;
+        wired_link.in_bridge       = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                         event.iface_name) != bridge_ifaces.end();
+        wired_link.last_nlmsg_type = event.nlmsg_type;
+        wired_link.last_event_time = std::chrono::steady_clock::now();
 
         LOG(INFO) << "Backhaul wired candidate runtime update: iface=" << event.iface_name
                   << " link_state=" << wan_monitor::link_state_to_string(event.link_state)
-                  << " in_bridge=" << candidate_state.in_bridge
-                  << " nlmsg_type=" << event.nlmsg_type
+                  << " in_bridge=" << wired_link.in_bridge << " nlmsg_type=" << event.nlmsg_type
                   << " active_wired_iface=" << db->ethernet.wan.iface_name
                   << " active_backhaul_type=" << int(db->backhaul.connection_type);
     }
 
     return true;
+}
+
+BackhaulManager::sWiredBackhaulLink &
+BackhaulManager::wired_backhaul_link(const std::string &iface_name)
+{
+    auto &link      = m_wired_backhaul_links[iface_name];
+    link.iface_name = iface_name;
+    return link;
+}
+
+const BackhaulManager::sWiredBackhaulLink *
+BackhaulManager::find_wired_backhaul_link(const std::string &iface_name) const
+{
+    auto it = m_wired_backhaul_links.find(iface_name);
+    if (it == m_wired_backhaul_links.end()) {
+        return nullptr;
+    }
+
+    return &it->second;
 }
 
 void BackhaulManager::update_wired_candidate_1905_activity(uint32_t iface_index,
@@ -819,78 +879,33 @@ void BackhaulManager::update_wired_candidate_1905_activity(uint32_t iface_index,
         return;
     }
 
-    auto candidate_it = m_wired_candidate_runtime_state.find(iface_name);
-    if (candidate_it == m_wired_candidate_runtime_state.end()) {
+    auto candidate = find_wired_backhaul_link(iface_name);
+    if (!candidate) {
         return;
     }
 
-    auto db                                 = AgentDB::get();
-    auto &candidate_state                   = candidate_it->second;
-    candidate_state.last_1905_src_mac       = src_mac;
-    candidate_state.last_1905_activity_time = std::chrono::steady_clock::now();
-    candidate_state.direct_controller_seen =
+    auto db                            = AgentDB::get();
+    auto &wired_link                   = wired_backhaul_link(iface_name);
+    wired_link.last_1905_src_mac       = src_mac;
+    wired_link.last_1905_activity_time = std::chrono::steady_clock::now();
+    wired_link.direct_controller_seen =
         (db->controller_info.bridge_mac != beerocks::net::network_utils::ZERO_MAC) &&
         (src_mac == db->controller_info.bridge_mac);
 
     LOG(INFO) << "Backhaul wired candidate 1905 activity: iface=" << iface_name
               << " src_mac=" << src_mac
-              << " direct_controller_seen=" << candidate_state.direct_controller_seen;
+              << " direct_controller_seen=" << wired_link.direct_controller_seen;
 }
 
-bool BackhaulManager::has_recent_wired_candidate_1905_activity(
-    const std::string &iface_name, std::chrono::steady_clock::time_point now) const
-{
-    auto candidate_it = m_wired_candidate_runtime_state.find(iface_name);
-    if (candidate_it == m_wired_candidate_runtime_state.end()) {
-        return false;
-    }
-
-    const auto &candidate_state = candidate_it->second;
-    if (candidate_state.last_1905_activity_time == std::chrono::steady_clock::time_point::min()) {
-        return false;
-    }
-
-    return (now - candidate_state.last_1905_activity_time) <=
-           std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS);
-}
-
-bool BackhaulManager::is_runtime_wired_candidate_locally_valid(
-    const std::string &iface_name, std::chrono::steady_clock::time_point now) const
-{
-    auto candidate_it = m_wired_candidate_runtime_state.find(iface_name);
-    if (candidate_it == m_wired_candidate_runtime_state.end()) {
-        return false;
-    }
-
-    const auto &candidate_state = candidate_it->second;
-    if (candidate_state.failed_until > now) {
-        return false;
-    }
-
-    if (wan_mon.get_link_state(iface_name) != wan_monitor::ELinkState::eUp) {
-        return false;
-    }
-
-    if (!candidate_state.in_bridge) {
-        return false;
-    }
-
-    return true;
-}
-
-bool BackhaulManager::is_runtime_wired_candidate_eligible(
-    const std::string &iface_name, std::chrono::steady_clock::time_point now) const
-{
-    return is_runtime_wired_candidate_locally_valid(iface_name, now) &&
-           has_recent_wired_candidate_1905_activity(iface_name, now);
-}
-
-bool BackhaulManager::get_first_runtime_eligible_wired_candidate(
+bool BackhaulManager::find_first_runtime_eligible_wired_link(
     std::string &iface_name, std::chrono::steady_clock::time_point now) const
 {
     auto db = AgentDB::get();
     for (const auto &candidate_iface : db->ethernet.wan_candidate_ifaces) {
-        if (is_runtime_wired_candidate_eligible(candidate_iface, now)) {
+        auto candidate = find_wired_backhaul_link(candidate_iface);
+        if (candidate &&
+            candidate->is_eligible(
+                now, std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))) {
             iface_name = candidate_iface;
             return true;
         }
@@ -999,8 +1014,8 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         auto ifaces =
             beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
 
-        // If wired backhaul candidates were provided, try them first and select the first
-        // candidate that is up, attached to the bridge, and has recent 1905 activity.
+        // Evaluate wired candidates from the event-driven runtime model and pick the first
+        // eligible candidate in configured order. The FSM only executes the selected transition.
         wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
         bool wired_iface_in_bridge               = false;
         std::string selected_wired_candidate;
@@ -1009,52 +1024,50 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         auto now                                           = std::chrono::steady_clock::now();
         if (!db->device_conf.local_gw) {
             for (const auto &candidate_iface : wired_candidates) {
-                auto candidate_link_state = wan_mon.get_link_state(candidate_iface);
-                bool candidate_in_bridge =
+                auto &wired_link      = wired_backhaul_link(candidate_iface);
+                wired_link.link_state = wan_mon.get_link_state(candidate_iface);
+                wired_link.in_bridge =
                     std::find(ifaces.begin(), ifaces.end(), candidate_iface) != ifaces.end();
-                auto &candidate_state = m_wired_candidate_runtime_state[candidate_iface];
-                bool recent_1905_activity =
-                    has_recent_wired_candidate_1905_activity(candidate_iface, now);
+                wired_link.clear_expired_cooldown(now);
 
-                if (candidate_state.failed_until > now) {
+                if (wired_link.is_in_cooldown(now)) {
                     LOG(INFO) << "Backhaul wired candidate skipped due to recent failure: iface="
                               << candidate_iface << " retry_in_seconds="
                               << std::chrono::duration_cast<std::chrono::seconds>(
-                                     candidate_state.failed_until - now)
+                                     wired_link.failed_until - now)
                                      .count();
                     continue;
                 }
 
-                if (candidate_state.failed_until != std::chrono::steady_clock::time_point::min() &&
-                    candidate_state.failed_until <= now) {
-                    candidate_state.failed_until = std::chrono::steady_clock::time_point::min();
-                }
-
                 LOG(INFO) << "Backhaul wired candidate evaluation: iface=" << candidate_iface
                           << " link_state="
-                          << wan_monitor::link_state_to_string(candidate_link_state)
-                          << " in_bridge=" << candidate_in_bridge
-                          << " recent_1905_activity=" << recent_1905_activity
-                          << " direct_controller_seen=" << candidate_state.direct_controller_seen;
+                          << wan_monitor::link_state_to_string(wired_link.link_state)
+                          << " in_bridge=" << wired_link.in_bridge << " recent_1905_activity="
+                          << wired_link.has_recent_1905_activity(
+                                 now, std::chrono::seconds(
+                                          WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))
+                          << " direct_controller_seen=" << wired_link.direct_controller_seen;
 
-                if (candidate_link_state == wan_monitor::ELinkState::eInvalid) {
+                if (wired_link.link_state == wan_monitor::ELinkState::eInvalid) {
                     LOG(WARNING) << "WAN monitor has no valid runtime state for iface "
                                  << candidate_iface << ", skip candidate";
                     continue;
                 }
 
-                if (candidate_link_state != wan_monitor::ELinkState::eUp || !candidate_in_bridge ||
-                    !recent_1905_activity) {
-                    if (candidate_link_state == wan_monitor::ELinkState::eUp &&
-                        candidate_in_bridge && !recent_1905_activity) {
+                if (!wired_link.is_eligible(
+                        now, std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))) {
+                    if (wired_link.is_locally_valid(now) &&
+                        !wired_link.has_recent_1905_activity(
+                            now,
+                            std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))) {
                         wired_candidates_missing_recent_1905_activity = true;
                     }
                     continue;
                 }
 
                 selected_wired_candidate = candidate_iface;
-                wired_link_state         = candidate_link_state;
-                wired_iface_in_bridge    = candidate_in_bridge;
+                wired_link_state         = wired_link.link_state;
+                wired_iface_in_bridge    = wired_link.in_bridge;
                 break;
             }
         }
@@ -1093,8 +1106,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             std::string reason;
             if (m_selected_backhaul == DEV_SET_ETH) {
                 reason = "ucc_selected_eth";
-            } else if (has_recent_wired_candidate_1905_activity(db->backhaul.selected_iface_name,
-                                                                now)) {
+            } else if (const auto *wired_link =
+                           find_wired_backhaul_link(db->backhaul.selected_iface_name);
+                       wired_link && wired_link->has_recent_1905_activity(
+                                         now, std::chrono::seconds(
+                                                  WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))) {
                 reason = "wired_1905_activity";
             } else {
                 reason = "wired_link_up";
@@ -1227,10 +1243,13 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 
         std::string eligible_wired_candidate;
         bool has_eligible_wired_candidate =
-            get_first_runtime_eligible_wired_candidate(eligible_wired_candidate, now);
+            find_first_runtime_eligible_wired_link(eligible_wired_candidate, now);
 
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
-            if (!is_runtime_wired_candidate_locally_valid(db->backhaul.selected_iface_name, now)) {
+            // Local validity is BackhaulManager-owned state. End-to-end controller reachability
+            // remains the responsibility of controller_connectivity_task.
+            auto wired_link = find_wired_backhaul_link(db->backhaul.selected_iface_name);
+            if (!wired_link || !wired_link->is_locally_valid(now)) {
                 LOG(INFO) << "Runtime backhaul re-evaluation: current wired candidate lost local "
                              "validity, restarting"
                           << " selected_iface=" << db->backhaul.selected_iface_name;
@@ -2153,11 +2172,15 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         auto now = std::chrono::steady_clock::now();
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired &&
             !db->backhaul.selected_iface_name.empty()) {
-            auto candidate_it =
-                m_wired_candidate_runtime_state.find(db->backhaul.selected_iface_name);
-            if (candidate_it != m_wired_candidate_runtime_state.end()) {
-                candidate_it->second.failed_until =
-                    now + std::chrono::seconds(WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS);
+            // A controller-path failure does not permanently ban the port. Put the current
+            // candidate on cooldown so recovery can prefer another wired option first.
+            auto *wired_link = nullptr;
+            if (find_wired_backhaul_link(db->backhaul.selected_iface_name)) {
+                wired_link = &wired_backhaul_link(db->backhaul.selected_iface_name);
+            }
+            if (wired_link) {
+                wired_link->mark_failed(
+                    now, std::chrono::seconds(WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS));
                 LOG(INFO) << "Marked wired candidate as failed: iface="
                           << db->backhaul.selected_iface_name
                           << " retry_timeout_seconds=" << WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS;
@@ -2166,7 +2189,7 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
 
         std::string eligible_wired_candidate;
         bool has_eligible_wired_candidate =
-            get_first_runtime_eligible_wired_candidate(eligible_wired_candidate, now);
+            find_first_runtime_eligible_wired_link(eligible_wired_candidate, now);
 
         if (has_eligible_wired_candidate) {
             LOG(INFO) << "Backhaul disconnect recovery: will retry using another wired candidate"
