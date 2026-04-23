@@ -250,6 +250,9 @@ private:
     bool handle_backhaul_connect();
     bool handle_backhaul_disconnect();
     bool handle_wan_link_events();
+    void update_wired_candidate_1905_activity(uint32_t iface_index, const sMacAddr &src_mac);
+    bool has_recent_wired_candidate_1905_activity(const std::string &iface_name,
+                                                  std::chrono::steady_clock::time_point now) const;
 
     /**
      * @brief Creates Backhaul STA Steering Response message with 2 tlvs Steering Response
@@ -389,8 +392,14 @@ private:
     struct sWiredCandidateRuntimeState {
         wan_monitor::ELinkState link_state = wan_monitor::ELinkState::eInvalid;
         bool in_bridge                     = false;
+        bool direct_controller_seen        = false;
         int last_nlmsg_type                = 0;
+        sMacAddr last_1905_src_mac         = net::network_utils::ZERO_MAC;
         std::chrono::steady_clock::time_point last_event_time =
+            std::chrono::steady_clock::time_point::min();
+        std::chrono::steady_clock::time_point last_1905_activity_time =
+            std::chrono::steady_clock::time_point::min();
+        std::chrono::steady_clock::time_point failed_until =
             std::chrono::steady_clock::time_point::min();
     };
     std::unordered_map<std::string, sWiredCandidateRuntimeState> m_wired_candidate_runtime_state;
@@ -401,26 +410,28 @@ private:
     std::future<int> m_ftDHCPRetCode;
 
     // state switch mechanism
-    const int SELECT_TIMEOUT_MSC                      = 500;
-    const int DEVICE_QUERY_RESPONSE_TIMEOUT_SECONDS   = 3;
-    const int WAIT_FOR_SCAN_RESULTS_TIMEOUT_SECONDS   = 20;
-    const int WPA_ATTACH_TIMEOUT_SECONDS              = 5;
-    const int CONNECTING_TO_MASTER_TIMEOUT_SECONDS    = 30;
-    const int MAX_FAILED_SCAN_ATTEMPTS                = 3;
-    const int MAX_FAILED_ROAM_SCAN_ATTEMPTS           = 4;
-    const int MAX_FAILED_DHCP_ATTEMPTS                = 2;
-    const int MAX_WIRELESS_ASSOCIATE_TIMEOUT_SECONDS  = 10;
-    const int MAX_WIRELESS_ASSOCIATE_3ADDR_ATTEMPTS   = 2;
-    const int MAX_ETH_FAILED_ATTEMPTS                 = 14;
-    const int POLL_TIMER_TIMEOUT_MS                   = 1000;
-    const int WIRELESS_WAIT_FOR_RECONNECT_TIMEOUT     = 30;
-    const int RSSI_POLL_INTERVAL_MS                   = 1000;
-    const int STATE_WAIT_ENABLE_TIMEOUT_SECONDS       = 600;
-    const int STATE_WAIT_WPS_TIMEOUT_SECONDS          = 120;
-    const int AP_BLACK_LIST_TIMEOUT_SECONDS           = 120;
-    const int AP_BLACK_LIST_FAILED_ATTEMPTS_THRESHOLD = 2;
-    const int INTERFACE_BRING_UP_TIMEOUT_SECONDS      = 600;
-    const int DEAUTH_REASON_PASSPHRASE_MISMACH        = 2;
+    const int SELECT_TIMEOUT_MSC                            = 500;
+    const int DEVICE_QUERY_RESPONSE_TIMEOUT_SECONDS         = 3;
+    const int WAIT_FOR_SCAN_RESULTS_TIMEOUT_SECONDS         = 20;
+    const int WPA_ATTACH_TIMEOUT_SECONDS                    = 5;
+    const int CONNECTING_TO_MASTER_TIMEOUT_SECONDS          = 30;
+    const int MAX_FAILED_SCAN_ATTEMPTS                      = 3;
+    const int MAX_FAILED_ROAM_SCAN_ATTEMPTS                 = 4;
+    const int MAX_FAILED_DHCP_ATTEMPTS                      = 2;
+    const int MAX_WIRELESS_ASSOCIATE_TIMEOUT_SECONDS        = 10;
+    const int MAX_WIRELESS_ASSOCIATE_3ADDR_ATTEMPTS         = 2;
+    const int MAX_ETH_FAILED_ATTEMPTS                       = 14;
+    const int POLL_TIMER_TIMEOUT_MS                         = 1000;
+    const int WIRELESS_WAIT_FOR_RECONNECT_TIMEOUT           = 30;
+    const int RSSI_POLL_INTERVAL_MS                         = 1000;
+    const int STATE_WAIT_ENABLE_TIMEOUT_SECONDS             = 600;
+    const int STATE_WAIT_WPS_TIMEOUT_SECONDS                = 120;
+    const int AP_BLACK_LIST_TIMEOUT_SECONDS                 = 120;
+    const int AP_BLACK_LIST_FAILED_ATTEMPTS_THRESHOLD       = 2;
+    const int INTERFACE_BRING_UP_TIMEOUT_SECONDS            = 600;
+    const int DEAUTH_REASON_PASSPHRASE_MISMACH              = 2;
+    const int WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS = 60;
+    const int WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS         = 30;
 
     std::chrono::steady_clock::time_point state_time_stamp_timeout;
     int state_attempts;
