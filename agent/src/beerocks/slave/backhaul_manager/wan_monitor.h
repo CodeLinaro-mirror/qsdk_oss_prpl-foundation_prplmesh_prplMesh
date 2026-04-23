@@ -32,6 +32,7 @@ public:
     struct LinkEvent {
         std::string iface_name;
         ELinkState link_state = ELinkState::eInvalid;
+        bool in_bridge        = false;
         int nlmsg_type        = 0;
     };
 
@@ -42,18 +43,24 @@ public:
     static const char *link_state_to_string(ELinkState link_state);
 
     // Initialize the WAN monitor
-    bool initialize(const std::vector<std::string> &wan_iface_names);
+    bool initialize(const std::vector<std::string> &wan_iface_names,
+                    const std::string &bridge_iface_name);
 
     // Process incoming netlink message
     bool process(std::vector<LinkEvent> &events);
 
     ELinkState get_link_state(const std::string &iface_name) const;
+    bool is_in_bridge(const std::string &iface_name) const;
 
     int get_netlink_fd() const { return (m_iNetlinkFD); }
 
 private:
     // WAN interface names and their last observed link state
     std::unordered_map<std::string, ELinkState> m_wan_iface_state;
+    std::unordered_map<std::string, bool> m_wan_iface_bridge_membership;
+
+    // Bridge interface index used to interpret IFLA_MASTER updates
+    int m_bridge_ifindex = -1;
 
     // Netlink socket file descriptor
     int m_iNetlinkFD;

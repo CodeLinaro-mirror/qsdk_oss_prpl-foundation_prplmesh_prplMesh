@@ -364,16 +364,13 @@ bool BackhaulManager::thread_init()
 
     auto db = AgentDB::get();
     if (!db->ethernet.wan_candidate_ifaces.empty()) {
-        if (!wan_mon.initialize(db->ethernet.wan_candidate_ifaces)) {
+        if (!wan_mon.initialize(db->ethernet.wan_candidate_ifaces, db->bridge.iface_name)) {
             LOG(WARNING) << "Failed to initialize WAN monitor for wired candidates";
         } else {
-            auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(
-                db->bridge.iface_name);
             for (const auto &candidate_iface : db->ethernet.wan_candidate_ifaces) {
                 auto &wired_link      = wired_backhaul_link(candidate_iface);
                 wired_link.link_state = wan_mon.get_link_state(candidate_iface);
-                wired_link.in_bridge  = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
-                                                 candidate_iface) != bridge_ifaces.end();
+                wired_link.in_bridge  = wan_mon.is_in_bridge(candidate_iface);
 
                 LOG(INFO) << "Backhaul wired candidate initial state: iface=" << candidate_iface
                           << " link_state="
@@ -827,14 +824,11 @@ bool BackhaulManager::handle_wan_link_events()
     }
 
     auto db = AgentDB::get();
-    auto bridge_ifaces =
-        beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
 
     for (const auto &event : events) {
         auto &wired_link           = wired_backhaul_link(event.iface_name);
         wired_link.link_state      = event.link_state;
-        wired_link.in_bridge       = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
-                                         event.iface_name) != bridge_ifaces.end();
+        wired_link.in_bridge       = event.in_bridge;
         wired_link.last_nlmsg_type = event.nlmsg_type;
         wired_link.last_event_time = std::chrono::steady_clock::now();
 
@@ -1010,10 +1004,6 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             break;
         }
 
-        // link establish
-        auto ifaces =
-            beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
-
         // Evaluate wired candidates from the event-driven runtime model and pick the first
         // eligible candidate in configured order. The FSM only executes the selected transition.
         wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
@@ -1026,8 +1016,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             for (const auto &candidate_iface : wired_candidates) {
                 auto &wired_link      = wired_backhaul_link(candidate_iface);
                 wired_link.link_state = wan_mon.get_link_state(candidate_iface);
-                wired_link.in_bridge =
-                    std::find(ifaces.begin(), ifaces.end(), candidate_iface) != ifaces.end();
+                wired_link.in_bridge  = wan_mon.is_in_bridge(candidate_iface);
                 wired_link.clear_expired_cooldown(now);
 
                 if (wired_link.is_in_cooldown(now)) {
