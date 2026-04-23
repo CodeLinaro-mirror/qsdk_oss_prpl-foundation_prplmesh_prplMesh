@@ -2149,19 +2149,31 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         LOG(DEBUG) << "ACTION_BACKHAUL_DISCONNECT_COMMAND is received, when active state is "
                    << FSM_CURR_STATE_STR;
 
-        auto db = AgentDB::get();
+        auto db  = AgentDB::get();
+        auto now = std::chrono::steady_clock::now();
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired &&
             !db->backhaul.selected_iface_name.empty()) {
             auto candidate_it =
                 m_wired_candidate_runtime_state.find(db->backhaul.selected_iface_name);
             if (candidate_it != m_wired_candidate_runtime_state.end()) {
                 candidate_it->second.failed_until =
-                    std::chrono::steady_clock::now() +
-                    std::chrono::seconds(WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS);
+                    now + std::chrono::seconds(WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS);
                 LOG(INFO) << "Marked wired candidate as failed: iface="
                           << db->backhaul.selected_iface_name
                           << " retry_timeout_seconds=" << WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS;
             }
+        }
+
+        std::string eligible_wired_candidate;
+        bool has_eligible_wired_candidate =
+            get_first_runtime_eligible_wired_candidate(eligible_wired_candidate, now);
+
+        if (has_eligible_wired_candidate) {
+            LOG(INFO) << "Backhaul disconnect recovery: will retry using another wired candidate"
+                      << " selected_iface=" << eligible_wired_candidate;
+        } else {
+            LOG(INFO) << "Backhaul disconnect recovery: no eligible wired candidate available, "
+                         "restart will fall back to wireless onboarding";
         }
 
         if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {

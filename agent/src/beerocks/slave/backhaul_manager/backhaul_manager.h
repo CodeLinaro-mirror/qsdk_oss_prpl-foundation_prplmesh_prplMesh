@@ -438,7 +438,7 @@ private:
     const int INTERFACE_BRING_UP_TIMEOUT_SECONDS            = 600;
     const int DEAUTH_REASON_PASSPHRASE_MISMACH              = 2;
     const int WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS = 60;
-    const int WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS         = 30;
+    const int WIRED_CANDIDATE_RETRY_TIMEOUT_SECONDS         = 60;
 
     std::chrono::steady_clock::time_point state_time_stamp_timeout;
     int state_attempts;
