@@ -66,6 +66,20 @@ wan_monitor::~wan_monitor()
         close(m_iNetlinkFD);
 }
 
+const char *wan_monitor::link_state_to_string(ELinkState link_state)
+{
+    switch (link_state) {
+    case ELinkState::eInvalid:
+        return "invalid";
+    case ELinkState::eUp:
+        return "up";
+    case ELinkState::eDown:
+        return "down";
+    }
+
+    return "unknown";
+}
+
 wan_monitor::ELinkState wan_monitor::initialize(const std::string &strWanIfaceName)
 {
     if (strWanIfaceName.empty()) {
@@ -160,10 +174,17 @@ wan_monitor::ELinkState wan_monitor::process()
                        << ", running: " << int(ifi->ifi_flags & IFF_RUNNING);
 
             // Return WAN interface link state
-            if ((hnl->nlmsg_type == RTM_NEWLINK && ifi->ifi_flags & IFF_RUNNING))
-                return (ELinkState::eUp);
-            else
-                return (ELinkState::eDown);
+            auto link_state = ((hnl->nlmsg_type == RTM_NEWLINK && ifi->ifi_flags & IFF_RUNNING))
+                                  ? ELinkState::eUp
+                                  : ELinkState::eDown;
+
+            LOG(INFO) << "WAN link event: iface=" << iface_name
+                      << " configured_wan_iface=" << m_strWanIfaceName
+                      << " nlmsg_type=" << int(hnl->nlmsg_type)
+                      << " running=" << int(bool(ifi->ifi_flags & IFF_RUNNING))
+                      << " interpreted_state=" << wan_monitor::link_state_to_string(link_state);
+
+            return link_state;
         }
     }
 

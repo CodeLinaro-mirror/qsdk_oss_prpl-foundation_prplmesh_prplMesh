@@ -805,6 +805,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 
         // If a wired (WAN) interface was provided, try it first, check if the interface is UP
         wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
+        bool wired_iface_in_bridge               = false;
         if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
             wired_link_state = wan_mon.initialize(db->ethernet.wan.iface_name);
             // Failure might be due to insufficient permissions, detailed error message is being
@@ -813,13 +814,32 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                 LOG(WARNING) << "wan_mon.initialize() failed, skip wired link establishment";
             }
         }
+
+        if (!db->ethernet.wan.iface_name.empty()) {
+            wired_iface_in_bridge = std::find(ifaces.begin(), ifaces.end(),
+                                              db->ethernet.wan.iface_name) != ifaces.end();
+        }
+
+        LOG(INFO) << "Backhaul selection context: fsm_state=" << FSM_CURR_STATE_STR
+                  << " local_gw=" << db->device_conf.local_gw
+                  << " local_controller=" << db->device_conf.local_controller
+                  << " bridge=" << db->bridge.iface_name
+                  << " wired_iface=" << db->ethernet.wan.iface_name
+                  << " wired_link_state=" << wan_monitor::link_state_to_string(wired_link_state)
+                  << " wired_iface_in_bridge=" << wired_iface_in_bridge
+                  << " selected_backhaul_override="
+                  << (m_selected_backhaul.empty() ? "none" : m_selected_backhaul);
+
         if ((wired_link_state == wan_monitor::ELinkState::eUp) &&
             (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
 
-            auto it = std::find(ifaces.begin(), ifaces.end(), db->ethernet.wan.iface_name);
-            if (it == ifaces.end()) {
+            if (!wired_iface_in_bridge) {
                 LOG(ERROR) << "wire iface " << db->ethernet.wan.iface_name
                            << " is not on the bridge";
+                LOG(INFO) << "Backhaul selection decision: decision=restart"
+                          << " reason=wired_iface_not_in_bridge"
+                          << " wired_iface=" << db->ethernet.wan.iface_name << " wired_link_state="
+                          << wan_monitor::link_state_to_string(wired_link_state);
                 FSM_MOVE_STATE(RESTART);
                 break;
             }
@@ -827,6 +847,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             // Mark the connection as WIRED
             db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
             db->backhaul.selected_iface_name = db->ethernet.wan.iface_name;
+
+            LOG(INFO) << "Backhaul selection decision: decision=wired"
+                      << " reason="
+                      << (m_selected_backhaul == DEV_SET_ETH ? "ucc_selected_eth" : "wired_link_up")
+                      << " selected_iface=" << db->backhaul.selected_iface_name;
 
         } else {
             // If no wired backhaul is configured, or it is down, we get into this else branch.
@@ -841,6 +866,9 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 
                 if (!selected_ruid) {
                     LOG(ERROR) << "UCC configured backhaul RUID which is not enabled";
+                    LOG(INFO) << "Backhaul selection decision: decision=restart"
+                              << " reason=ucc_selected_wireless_invalid_ruid"
+                              << " selected_backhaul_override=" << m_selected_backhaul;
                     // Restart state will update the onboarding status to failure.
                     FSM_MOVE_STATE(RESTART);
                     break;
@@ -853,6 +881,24 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 
             // Mark the connection as WIRELESS
             db->backhaul.connection_type = AgentDB::sBackhaul::eConnectionType::Wireless;
+
+            std::string reason;
+            if (!m_selected_backhaul.empty()) {
+                reason = "ucc_selected_wireless";
+            } else if (db->ethernet.wan.iface_name.empty()) {
+                reason = "wired_iface_empty";
+            } else if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
+                reason = "wired_monitor_invalid";
+            } else if (wired_link_state == wan_monitor::ELinkState::eDown) {
+                reason = "wired_link_down";
+            } else {
+                reason = "fallback_to_wireless";
+            }
+
+            LOG(INFO) << "Backhaul selection decision: decision=wireless"
+                      << " reason=" << reason << " wired_iface=" << db->ethernet.wan.iface_name
+                      << " wired_link_state="
+                      << wan_monitor::link_state_to_string(wired_link_state);
         }
 
         // Move to the next state immediately

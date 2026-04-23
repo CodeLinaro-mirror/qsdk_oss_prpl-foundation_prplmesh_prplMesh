@@ -31,6 +31,8 @@ public:
     wan_monitor();
     ~wan_monitor();
 
+    static const char *link_state_to_string(ELinkState link_state);
+
     // Initialize the WAN monitor
     ELinkState initialize(const std::string &strWanIfaceName);
 

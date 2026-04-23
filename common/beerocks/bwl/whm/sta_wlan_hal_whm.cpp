@@ -941,8 +941,10 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
     if (key == "ConnectionStatus") {
         std::string new_status = new_value->get<std::string>();
 
-        LOG(DEBUG) << "process_ep_event: current status: " << connection_status_to_string()
-                   << "-> new status: " << new_status;
+        LOG(INFO) << "Backhaul Endpoint state transition:"
+                  << " iface=" << interface << " ep_path=" << m_ep_path << " key=" << key
+                  << " old_status=" << connection_status_to_string()
+                  << " new_status=" << new_status;
 
         if (new_status.empty()) {
             LOG(ERROR) << "Empty new_status !";
@@ -961,8 +963,6 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             }
             update_status(endpoint);
 
-            LOG(DEBUG) << get_iface_name() << " - Connected: bssid = " << m_active_bssid
-                       << ", channel = " << m_active_channel;
             auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_BACKHAUL_CONNECTED_NOTIFICATION));
             auto msg = reinterpret_cast<sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
@@ -985,6 +985,12 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
             }
+
+            LOG(INFO) << "Backhaul Endpoint connected:"
+                      << " iface=" << interface << " ep_path=" << m_ep_path
+                      << " bssid=" << m_active_bssid << " channel=" << int(m_active_channel)
+                      << " multi_ap_profile=" << int(msg->multi_ap_profile)
+                      << " primary_vlan_id=" << msg->multi_ap_primary_vlan_id;
             event_queue_push(Event::Connected, msg_buff);
         } else if (m_current_connection_status == eWpsConnectionStatus::eConnected) {
             auto msg_buff =
@@ -993,11 +999,14 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
                 reinterpret_cast<sACTION_BACKHAUL_DISCONNECT_REASON_NOTIFICATION *>(msg_buff.get());
             LOG_IF(!msg, FATAL) << "Memory allocation failed!";
             memset(msg_buff.get(), 0, sizeof(sACTION_BACKHAUL_DISCONNECT_REASON_NOTIFICATION));
-            LOG(DEBUG) << get_iface_name() << " - Disconnected: bssid = " << m_active_bssid
-                       << ", channel = " << m_active_channel;
             // TODO: Disconnect reason is not supported by whm, set to UNSPECIFIED_REASON 1: PPM-2416
             msg->disconnect_reason = 1;
             msg->bssid             = tlvf::mac_from_string(m_active_bssid);
+
+            LOG(INFO) << "Backhaul Endpoint disconnected:"
+                      << " iface=" << interface << " ep_path=" << m_ep_path
+                      << " bssid=" << m_active_bssid << " channel=" << int(m_active_channel)
+                      << " disconnect_reason=" << msg->disconnect_reason;
             clear_conn_state();
             event_queue_push(Event::Disconnected, msg_buff);
         }
