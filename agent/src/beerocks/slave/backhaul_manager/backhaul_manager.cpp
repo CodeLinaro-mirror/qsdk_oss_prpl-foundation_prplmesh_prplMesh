@@ -45,6 +45,24 @@
 
 namespace beerocks {
 
+namespace {
+
+std::string format_iface_list(const std::vector<std::string> &ifaces)
+{
+    std::string result;
+
+    for (size_t i = 0; i < ifaces.size(); ++i) {
+        if (i > 0) {
+            result += ",";
+        }
+        result += ifaces[i];
+    }
+
+    return result;
+}
+
+} // namespace
+
 /**
  * Time between successive timer executions of the tasks timer
  */
@@ -806,25 +824,43 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         // If a wired (WAN) interface was provided, try it first, check if the interface is UP
         wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
         bool wired_iface_in_bridge               = false;
-        if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
-            wired_link_state = wan_mon.initialize(db->ethernet.wan.iface_name);
-            // Failure might be due to insufficient permissions, detailed error message is being
-            // printed inside.
-            if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
-                LOG(WARNING) << "wan_mon.initialize() failed, skip wired link establishment";
-            }
-        }
+        std::string selected_wired_candidate;
+        const auto &wired_candidates = db->ethernet.wan_candidate_ifaces;
+        if (!db->device_conf.local_gw) {
+            for (const auto &candidate_iface : wired_candidates) {
+                auto candidate_link_state = wan_mon.initialize(candidate_iface);
+                bool candidate_in_bridge =
+                    std::find(ifaces.begin(), ifaces.end(), candidate_iface) != ifaces.end();
 
-        if (!db->ethernet.wan.iface_name.empty()) {
-            wired_iface_in_bridge = std::find(ifaces.begin(), ifaces.end(),
-                                              db->ethernet.wan.iface_name) != ifaces.end();
+                LOG(INFO) << "Backhaul wired candidate evaluation: iface=" << candidate_iface
+                          << " link_state="
+                          << wan_monitor::link_state_to_string(candidate_link_state)
+                          << " in_bridge=" << candidate_in_bridge;
+
+                if (candidate_link_state == wan_monitor::ELinkState::eInvalid) {
+                    LOG(WARNING) << "wan_mon.initialize() failed for iface " << candidate_iface
+                                 << ", skip candidate";
+                    continue;
+                }
+
+                if (candidate_link_state != wan_monitor::ELinkState::eUp || !candidate_in_bridge) {
+                    continue;
+                }
+
+                selected_wired_candidate = candidate_iface;
+                wired_link_state         = candidate_link_state;
+                wired_iface_in_bridge    = candidate_in_bridge;
+                break;
+            }
         }
 
         LOG(INFO) << "Backhaul selection context: fsm_state=" << FSM_CURR_STATE_STR
                   << " local_gw=" << db->device_conf.local_gw
                   << " local_controller=" << db->device_conf.local_controller
                   << " bridge=" << db->bridge.iface_name
+                  << " wired_candidates=" << format_iface_list(wired_candidates)
                   << " wired_iface=" << db->ethernet.wan.iface_name
+                  << " selected_wired_candidate=" << selected_wired_candidate
                   << " wired_link_state=" << wan_monitor::link_state_to_string(wired_link_state)
                   << " wired_iface_in_bridge=" << wired_iface_in_bridge
                   << " selected_backhaul_override="
@@ -845,6 +881,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             }
 
             // Mark the connection as WIRED
+            db->ethernet.wan.iface_name      = selected_wired_candidate;
             db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
             db->backhaul.selected_iface_name = db->ethernet.wan.iface_name;
 
@@ -885,7 +922,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             std::string reason;
             if (!m_selected_backhaul.empty()) {
                 reason = "ucc_selected_wireless";
-            } else if (db->ethernet.wan.iface_name.empty()) {
+            } else if (wired_candidates.empty()) {
                 reason = "wired_iface_empty";
             } else if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
                 reason = "wired_monitor_invalid";

@@ -246,6 +246,7 @@ public:
             std::string iface_name;
             sMacAddr mac;
         } wan;
+        std::vector<std::string> wan_candidate_ifaces;
         std::vector<sEthernetPort> lan;
     } ethernet;
 

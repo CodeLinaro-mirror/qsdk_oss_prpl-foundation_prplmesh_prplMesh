@@ -60,6 +60,24 @@ static int s_signal   = 0;
 // Pointer to logger instance
 static std::vector<std::shared_ptr<beerocks::logging>> g_loggers;
 
+namespace {
+
+std::vector<std::string> parse_backhaul_wire_ifaces(const std::string &config_value)
+{
+    std::vector<std::string> candidate_ifaces;
+
+    for (auto &iface : beerocks::string_utils::str_split(config_value, ',')) {
+        beerocks::string_utils::trim(iface);
+        if (!iface.empty()) {
+            candidate_ifaces.push_back(iface);
+        }
+    }
+
+    return candidate_ifaces;
+}
+
+} // namespace
+
 static void handle_signal()
 {
     if (!s_signal)
@@ -479,10 +497,20 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
                 static_cast<wfa_map::tlvProfile2MultiApProfile::eMultiApProfile>(m_ap_profile);
         }
 
-        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(db->ethernet.wan.iface_name)) {
+        std::string backhaul_wire_ifaces;
+        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(backhaul_wire_ifaces)) {
             LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
             return false;
         }
+
+        db->ethernet.wan_candidate_ifaces = parse_backhaul_wire_ifaces(backhaul_wire_ifaces);
+        if (!db->ethernet.wan_candidate_ifaces.empty()) {
+            db->ethernet.wan.iface_name = db->ethernet.wan_candidate_ifaces.front();
+        } else {
+            db->ethernet.wan.iface_name.clear();
+        }
+
+        LOG(INFO) << "Configured wired backhaul candidates: " << backhaul_wire_ifaces;
         // Destroy `db` to unlock it.
     }
 
