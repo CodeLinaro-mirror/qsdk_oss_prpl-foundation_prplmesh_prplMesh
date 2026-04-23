@@ -113,4 +113,16 @@ TEST(BeerocksUtilsTest, format_iface_name_from_ids)
     }
 }
 
+TEST(BeerocksUtilsTest, bytes_to_hex_string_should_convert_bytes)
+{
+    const uint8_t bytes[] = {0x12, 0xab, 0x00, 0xff};
+
+    EXPECT_EQ("12ab00ff", beerocks::string_utils::bytes_to_hex_string(bytes, sizeof(bytes)));
+}
+
+TEST(BeerocksUtilsTest, bytes_to_hex_string_should_return_empty_for_empty_input)
+{
+    EXPECT_TRUE(beerocks::string_utils::bytes_to_hex_string(nullptr, 0).empty());
+}
+
 } // namespace
