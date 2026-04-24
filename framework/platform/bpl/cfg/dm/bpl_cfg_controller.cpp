@@ -232,7 +232,7 @@ bool cfg_set_link_metrics_request_interval(std::chrono::seconds &link_metrics_re
 
 bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec)
 {
-    int64_t interval_sec = 0;
+    uint32_t interval_sec = 0;
     if (!read_controller_config_param("LinkMetricsRequestIntervalSec", interval_sec)) {
         return false;
     }
