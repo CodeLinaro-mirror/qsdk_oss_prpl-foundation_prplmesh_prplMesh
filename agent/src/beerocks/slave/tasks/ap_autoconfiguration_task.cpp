@@ -2155,6 +2155,11 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
+    if (!radio) {
+        LOG(ERROR) << "Radio of iface " << radio_iface << " does not exist on the db";
+        return false;
+    }
+
     uint8_t authkey[32];
     uint8_t keywrapkey[16];
     LOG(DEBUG) << "M8 Parse: calculate keys";
@@ -2426,7 +2431,7 @@ bool ApAutoConfigurationTask::send_bsta_configuration(const sMacAddr &radio_mac,
     bSta_credentials->set_network_key(info.payload_config.network_key);
     bSta_credentials->authentication_type_attr().data = info.payload_config.auth_type;
     bSta_credentials->encryption_type_attr().data     = info.payload_config.encr_type;
-    request->add_wifi_credentials(bSta_credentials);
+    request->add_wifi_credentials(std::move(bSta_credentials));
 
     LOG(INFO) << "Sending bSTA configuration: " << std::endl << ss.str();
 
