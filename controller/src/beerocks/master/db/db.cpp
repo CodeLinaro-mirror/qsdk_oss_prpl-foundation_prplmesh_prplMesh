@@ -9077,25 +9077,25 @@ bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
     }
     std::string bsta_mld_config = bsta_mld_path + ".bSTAMLDConfig";
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "STREnabled",
-                                   mld_mode | Agent::sMLDInfo::mode::STR)) {
+                                   (mld_mode & Agent::sMLDInfo::mode::STR) != 0)) {
         LOG(ERROR) << "Failed to set STR " << Agent::sMLDInfo::mode::STR;
         ret_val &= false;
     }
 
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "NSTREnabled",
-                                   mld_mode | Agent::sMLDInfo::mode::NSTR)) {
+                                   (mld_mode & Agent::sMLDInfo::mode::NSTR) != 0)) {
         LOG(ERROR) << "Failed to set NSTR " << Agent::sMLDInfo::mode::NSTR;
         ret_val &= false;
     }
 
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "EMLSREnabled",
-                                   mld_mode | Agent::sMLDInfo::mode::EMLSR)) {
+                                   (mld_mode & Agent::sMLDInfo::mode::EMLSR) != 0)) {
         LOG(ERROR) << "Failed to set EMLSR " << Agent::sMLDInfo::mode::EMLSR;
         ret_val &= false;
     }
 
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "EMLMREnabled",
-                                   mld_mode | Agent::sMLDInfo::mode::EMLMR)) {
+                                   (mld_mode & Agent::sMLDInfo::mode::EMLMR) != 0)) {
         LOG(ERROR) << "Failed to set EMLMR " << Agent::sMLDInfo::mode::EMLMR;
         ret_val &= false;
     }
