@@ -607,6 +607,11 @@ bool sta_wlan_hal_whm::reassociate()
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
             }
+
+            msg->ap_mld_mac_addr   = get_ap_mld_mac();
+            msg->bsta_mld_mac_addr = get_bsta_mld_mac();
+            LOG(DEBUG) << "Filled msg buffer with ap_mld_mac =" << msg->ap_mld_mac_addr
+                       << " bsta_mld_mac =" << msg->bsta_mld_mac_addr;
             event_queue_push(Event::Connected, msg_buff);
             return true;
         } else {
@@ -658,16 +663,58 @@ bool sta_wlan_hal_whm::enable_disable_ep(bool enable)
     return true;
 }
 
+std::string sta_wlan_hal_whm::resolve_bstamld_path(int8_t mld_unit)
+{
+    if (mld_unit <= beerocks::DISABLED_MLDUNIT) {
+        LOG(ERROR) << "MLDUnit is less than the DISABLED_MLDUNIT" << mld_unit;
+        return {};
+    }
+    std::string stamld_path;
+    const std::string search = wbapi_utils::search_path_stamld_by_mldid(mld_unit);
+
+    if (!m_ambiorix_cl.resolve_path(search, stamld_path) || stamld_path.empty()) {
+        LOG(DEBUG) << "resolve_bstamld_path: no object for MLDID " << static_cast<int>(mld_unit);
+        return {};
+    }
+    return stamld_path;
+}
+
 sMacAddr sta_wlan_hal_whm::get_bsta_mld_mac()
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
-    return beerocks::net::network_utils::ZERO_MAC;
+    const std::string bstamld_path = resolve_bstamld_path(m_mld_unit);
+    if (bstamld_path.empty()) {
+        LOG(ERROR) << " Empty bstamld_path, returning ZERO_MAC";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    std::string mac_str;
+    if (!m_ambiorix_cl.get_param(mac_str, bstamld_path, "MLDMACAddress") || mac_str.empty() ||
+        mac_str == beerocks::net::network_utils::ZERO_MAC_STRING ||
+        !beerocks::net::network_utils::is_valid_mac(mac_str)) {
+        LOG(ERROR) << " Failed to get bstamld mac";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    return tlvf::mac_from_string(mac_str);
 }
 
 sMacAddr sta_wlan_hal_whm::get_ap_mld_mac()
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
-    return beerocks::net::network_utils::ZERO_MAC;
+    const std::string bstamld_path = resolve_bstamld_path(m_mld_unit);
+    if (bstamld_path.empty()) {
+        LOG(ERROR) << " Empty bstamld_path, returning ZERO_MAC";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    std::string mac_str;
+    if (!m_ambiorix_cl.get_param(mac_str, bstamld_path, "BSSID") || mac_str.empty() ||
+        mac_str == beerocks::net::network_utils::ZERO_MAC_STRING ||
+        !beerocks::net::network_utils::is_valid_mac(mac_str)) {
+        LOG(ERROR) << " Failed to get apmld mac";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    return tlvf::mac_from_string(mac_str);
 }
 
 bool sta_wlan_hal_whm::update_status()
@@ -941,8 +988,8 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
     if (key == "ConnectionStatus") {
         std::string new_status = new_value->get<std::string>();
 
-        LOG(DEBUG) << "process_ep_event: current status: " << connection_status_to_string()
-                   << "-> new status: " << new_status;
+        LOG(DEBUG) << "process_ep_event: iface: " << interface << " current status: "
+                   << connection_status_to_string() << "-> new status: " << new_status;
 
         if (new_status.empty()) {
             LOG(ERROR) << "Empty new_status !";
@@ -985,6 +1032,11 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
             }
+
+            msg->ap_mld_mac_addr   = get_ap_mld_mac();
+            msg->bsta_mld_mac_addr = get_bsta_mld_mac();
+            LOG(DEBUG) << "Filled msg buffer with ap_mld_mac =" << msg->ap_mld_mac_addr
+                       << " bsta_mld_mac =" << msg->bsta_mld_mac_addr;
             event_queue_push(Event::Connected, msg_buff);
         } else if (m_current_connection_status == eWpsConnectionStatus::eConnected) {
             auto msg_buff =
@@ -1141,6 +1193,7 @@ bool sta_wlan_hal_whm::update_mld_unit(int8_t mld_unit)
         LOG(ERROR) << "Failed to set MLDUnit=" << static_cast<int>(mld_unit) << " on " << ssid_path;
         return false;
     }
+    m_mld_unit = mld_unit;
 
     LOG(INFO) << " Successfully updated MLDUnit for bSTA, " << static_cast<int>(mld_unit)
               << " SSID: " << ssid_ref << ", Endpoint DM: " << m_ep_path;

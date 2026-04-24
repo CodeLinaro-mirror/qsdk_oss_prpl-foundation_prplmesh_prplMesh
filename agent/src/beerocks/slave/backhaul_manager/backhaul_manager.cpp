@@ -1925,8 +1925,18 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
             LOG(ERROR) << "Failed to get wireless hal for radio " << radio_mac;
             return false;
         }
-        sta_wlan_hal->update_mld_mode(request->mld_mode());
-        sta_wlan_hal->update_mld_unit(request->mld_unit());
+
+        if (!sta_wlan_hal->update_mld_unit(request->mld_unit())) {
+            LOG(ERROR) << "Failed to update MLD Unit";
+            return false;
+        }
+
+        // Only update mode if unit update succeeded
+        if (!sta_wlan_hal->update_mld_mode(request->mld_mode())) {
+            LOG(ERROR) << "Failed to update MLD Mode";
+            return false;
+        }
+
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT: {
@@ -2166,7 +2176,8 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         }
 
         // TODO: Need to unite WAIT_WPS and WIRELESS_ASSOCIATE_4ADDR_WAIT handling
-        if (FSM_IS_IN_STATE(WAIT_WPS) || FSM_IS_IN_STATE(WIRELESS_ASSOCIATE_4ADDR_WAIT)) {
+        if (FSM_IS_IN_STATE(WAIT_WPS) || FSM_IS_IN_STATE(WIRELESS_ASSOCIATE_4ADDR_WAIT) ||
+            FSM_IS_IN_STATE(WIRELESS_WAIT_FOR_RECONNECT)) {
             auto msg = static_cast<bwl::sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(data);
             if (!msg) {
                 LOG(ERROR) << "ACTION_BACKHAUL_CONNECTED_NOTIFICATION not found on Connected event";
@@ -2176,8 +2187,14 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                       << ", Multi-AP Primary VLAN ID: " << msg->multi_ap_primary_vlan_id;
 
             if (db->bsta_mld_configuration) {
-                LOG(INFO) << "Fill AP MLD MAC Address with " << msg->mac_address;
-                db->bsta_mld_configuration->ap_mld_mac = msg->mac_address;
+                db->bsta_mld_configuration->ap_mld_mac          = msg->ap_mld_mac_addr;
+                db->bsta_mld_configuration->mld_config.mld_mac  = msg->bsta_mld_mac_addr;
+                db->bsta_mld_configuration->mld_config.mld_ssid = iface_hal->get_ssid();
+
+                LOG(DEBUG) << "bsta info values added to the DB: "
+                           << " mld ssid: " << db->bsta_mld_configuration->mld_config.mld_ssid
+                           << " bsta_mld_mac: " << db->bsta_mld_configuration->mld_config.mld_mac
+                           << " ap_mld_mac: " << db->bsta_mld_configuration->ap_mld_mac;
             }
 
             db->traffic_separation.primary_vlan_id     = msg->multi_ap_primary_vlan_id;

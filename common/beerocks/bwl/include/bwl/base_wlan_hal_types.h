@@ -279,7 +279,8 @@ typedef struct {
 } sUnassociatedStationsStats;
 
 typedef struct {
-    sMacAddr mac_address;
+    sMacAddr ap_mld_mac_addr;
+    sMacAddr bsta_mld_mac_addr;
     uint8_t multi_ap_profile;
     uint16_t multi_ap_primary_vlan_id;
 } sACTION_BACKHAUL_CONNECTED_NOTIFICATION;
