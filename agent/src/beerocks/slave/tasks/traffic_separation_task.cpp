@@ -305,11 +305,17 @@ bool TrafficSeparationTask::reset()
     }
 
     // Exact FH/WDS ifaces are still primarily managed incrementally by task
-    // events. Keep any existing manager entries intact here, but also rebuild
-    // them from the current DB snapshot so task recreation or crash/restart
-    // can repopulate the manager even if those exact events are not replayed.
+    // events. Keep existing live manager entries intact here, but prune any
+    // stale missing ports and rebuild exact ports from the current DB snapshot
+    // so task recreation or crash/restart can repopulate the manager even if
+    // those exact events are not replayed.
     if (!m_mgr->clear_policies()) {
         LOG(ERROR) << "manager clear_policies failed";
+        return false;
+    }
+
+    if (!m_mgr->refresh_ports()) {
+        LOG(ERROR) << "refresh_ports failed";
         return false;
     }
 
