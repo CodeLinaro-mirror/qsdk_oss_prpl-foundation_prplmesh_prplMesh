@@ -282,6 +282,35 @@ bool TrafficSeparationManager::reset()
     return success;
 }
 
+bool TrafficSeparationManager::refresh_ports()
+{
+    bool success               = true;
+    const auto refresh_missing = [&](const auto &managed_ports, auto remover, const char *kind) {
+        std::vector<std::string> missing_ifaces;
+        missing_ifaces.reserve(managed_ports.size());
+
+        for (const auto &entry : managed_ports) {
+            if (!network_utils::linux_iface_exists(entry.first)) {
+                missing_ifaces.push_back(entry.first);
+            }
+        }
+
+        for (const auto &iface_name : missing_ifaces) {
+            LOG(DEBUG) << "Removing stale missing " << kind << " iface=" << iface_name;
+            if (!(this->*remover)(iface_name)) {
+                success = false;
+            }
+        }
+    };
+
+    refresh_missing(m_trunk_port_plumbing_map, &TrafficSeparationManager::remove_trunk_port,
+                    "trunk");
+    refresh_missing(m_access_port_plumbing_map, &TrafficSeparationManager::remove_access_port,
+                    "access");
+
+    return success;
+}
+
 bool TrafficSeparationManager::remove_all_trunk_ports()
 {
     if (m_trunk_port_plumbing_map.empty()) {

@@ -2974,12 +2974,32 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             const int vap_idx = vap_id - int(beerocks::IFACE_VAP_ID_MIN);
 
             if (vap_idx >= 0 && vap_idx < int(beerocks::IFACE_TOTAL_VAPS)) {
-                auto &bss = radio->front.bssids[vap_idx];
+                auto &bss          = radio->front.bssids[vap_idx];
+                const auto bss_mac = bss.mac;
 
                 // Keep the BSS entry for config matching, but drop its
                 // operational bit now. A later TS rebuild must not treat a
                 // just-disabled FH VAP as still present.
                 bss.enabled = false;
+                if (bss.backhaul_bss) {
+                    // Disabled backhaul BSSes must not rebuild exact WDS
+                    // state from stale DB entries until they are refreshed.
+                    bss.active = false;
+
+                    for (const auto &client_kv : radio->associated_clients) {
+                        const auto &client = client_kv.second;
+                        if (client.bssid != bss_mac || client.wds_iface_name.empty()) {
+                            continue;
+                        }
+
+                        LOG(DEBUG) << "Trigger traffic separation on AP_DISABLED for "
+                                      "WDS iface="
+                                   << client.wds_iface_name << ", bss=" << bss.iface_name;
+                        task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                                 TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                                 client.wds_iface_name.c_str());
+                    }
+                }
                 if (bss.fronthaul_bss && !bss.backhaul_bss && !bss.iface_name.empty()) {
                     LOG(DEBUG) << "Trigger traffic separation on AP_DISABLED for "
                                   "pure FH iface="
@@ -6089,6 +6109,25 @@ bool slave_thread::update_vaps_info(const std::string &iface,
                                      previous_iface_name.c_str());
         };
 
+        const auto clear_previous_wds_ts = [&]() {
+            if (!was_backhaul_bss || previous_bssid == network_utils::ZERO_MAC) {
+                return;
+            }
+
+            for (const auto &client_kv : radio->associated_clients) {
+                const auto &client = client_kv.second;
+                if (client.bssid != previous_bssid || client.wds_iface_name.empty()) {
+                    continue;
+                }
+
+                LOG(DEBUG) << "Trigger traffic separation on VAPS_LIST_UPDATE for WDS iface="
+                           << client.wds_iface_name << ", bssid=" << previous_bssid;
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
+            }
+        };
+
         const auto retrigger_wds_ts = [&](const char *source) {
             for (const auto &client_kv : radio->associated_clients) {
                 const auto &client = client_kv.second;
@@ -6115,6 +6154,7 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         bss.enabled = is_enabled;
         if (!bss.active) {
             clear_previous_fh_iface();
+            clear_previous_wds_ts();
 
             // Set all values to their default state
             bss.iface_name                                       = "";
@@ -6159,6 +6199,10 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             // snapshot. Clear the previously managed pure-FH iface even when
             // the new snapshot already removed or changed that BSS entry.
             clear_previous_fh_iface();
+        }
+
+        if (was_backhaul_bss && (!bss.backhaul_bss || previous_bssid != bss.mac)) {
+            clear_previous_wds_ts();
         }
 
         if (is_pure_fh_bss &&
