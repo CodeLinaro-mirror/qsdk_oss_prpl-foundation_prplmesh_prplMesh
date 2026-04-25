@@ -2838,6 +2838,21 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     bssid->active  = true;
     bssid->enabled = true;
 
+    if (was_backhaul_bss && !vap_info.backhaul_vap) {
+        for (const auto &client_kv : radio->associated_clients) {
+            const auto &client = client_kv.second;
+            if (client.bssid != bssid->mac || client.wds_iface_name.empty()) {
+                continue;
+            }
+
+            LOG(DEBUG) << "Trigger traffic separation on AP_ENABLED role change for WDS iface="
+                       << client.wds_iface_name << ", bss=" << vap_info.iface_name;
+            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                               TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                               client.wds_iface_name.c_str());
+        }
+    }
+
     const bool disallow_changed =
         was_backhaul_bss && vap_info.backhaul_vap &&
         (disallow_profile1_was != bssid->backhaul_bss_disallow_profile1_agent_association ||

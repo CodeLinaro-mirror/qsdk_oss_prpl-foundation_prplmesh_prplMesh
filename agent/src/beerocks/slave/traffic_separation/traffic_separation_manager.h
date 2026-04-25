@@ -101,6 +101,16 @@ public:
     bool reset();
 
     /**
+     * @brief Drop managed ports whose backing netdev no longer exists.
+     *
+     * Used before full TS rebuilds so stale exact FH/WDS entries do not survive
+     * into the next apply cycle after their netdev already disappeared.
+     *
+     * @return true on success, false if any stale port could not be removed.
+     */
+    bool refresh_ports();
+
+    /**
      * @brief Return true when a TS configuration is loaded into the manager.
      */
     bool has_config() const { return m_state != eTsManagerState::NO_CONFIG; }
