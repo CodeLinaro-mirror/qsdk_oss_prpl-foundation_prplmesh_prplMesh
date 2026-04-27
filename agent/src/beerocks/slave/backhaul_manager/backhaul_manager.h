@@ -446,6 +446,10 @@ private:
 
     std::unordered_map<std::string, sWiredBackhaulLink> m_wired_backhaul_links;
 
+    // Cold onboarding can use local wired validity. Runtime-triggered wired retries and switches
+    // require recent 1905 activity observed through transport.
+    bool m_require_recent_1905_for_wired_selection = false;
+
     wan_monitor wan_mon;
 
     // Future to hold the DHCP client process exit code

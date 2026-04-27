@@ -1001,11 +1001,15 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             FSM_MOVE_STATE(CONNECTED);
             db->backhaul.connection_type = AgentDB::sBackhaul::eConnectionType::Invalid;
             db->backhaul.selected_iface_name.clear();
+            m_require_recent_1905_for_wired_selection = false;
             break;
         }
 
-        // Evaluate wired candidates from the event-driven runtime model and pick the first
-        // eligible candidate in configured order. The FSM only executes the selected transition.
+        // Cold wired onboarding must not depend on transport-observed 1905 activity. Transport is
+        // configured only after Backhaul Manager reports connected. Runtime-triggered retries and
+        // switches use stricter runtime eligibility, which includes recent transport 1905 activity.
+        const bool require_recent_1905_for_wired_selection =
+            m_require_recent_1905_for_wired_selection && (m_selected_backhaul != DEV_SET_ETH);
         wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
         bool wired_iface_in_bridge               = false;
         std::string selected_wired_candidate;
@@ -1043,14 +1047,14 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                     continue;
                 }
 
-                if (!wired_link.is_eligible(
+                if (!wired_link.is_locally_valid(now)) {
+                    continue;
+                }
+
+                if (require_recent_1905_for_wired_selection &&
+                    !wired_link.is_eligible(
                         now, std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))) {
-                    if (wired_link.is_locally_valid(now) &&
-                        !wired_link.has_recent_1905_activity(
-                            now,
-                            std::chrono::seconds(WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))) {
-                        wired_candidates_missing_recent_1905_activity = true;
-                    }
+                    wired_candidates_missing_recent_1905_activity = true;
                     continue;
                 }
 
@@ -1070,8 +1074,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                   << " selected_wired_candidate=" << selected_wired_candidate
                   << " wired_link_state=" << wan_monitor::link_state_to_string(wired_link_state)
                   << " wired_iface_in_bridge=" << wired_iface_in_bridge
-                  << " selected_backhaul_override="
+                  << " require_recent_1905_for_wired_selection="
+                  << require_recent_1905_for_wired_selection << " selected_backhaul_override="
                   << (m_selected_backhaul.empty() ? "none" : m_selected_backhaul);
+
+        m_require_recent_1905_for_wired_selection = false;
 
         if ((wired_link_state == wan_monitor::ELinkState::eUp) &&
             (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
@@ -1095,6 +1102,8 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             std::string reason;
             if (m_selected_backhaul == DEV_SET_ETH) {
                 reason = "ucc_selected_eth";
+            } else if (require_recent_1905_for_wired_selection) {
+                reason = "wired_runtime_1905_activity";
             } else if (const auto *wired_link =
                            find_wired_backhaul_link(db->backhaul.selected_iface_name);
                        wired_link && wired_link->has_recent_1905_activity(
@@ -1102,7 +1111,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                                                   WIRED_CANDIDATE_1905_ACTIVITY_TIMEOUT_SECONDS))) {
                 reason = "wired_1905_activity";
             } else {
-                reason = "wired_link_up";
+                reason = "wired_local_valid_onboarding";
             }
 
             LOG(INFO) << "Backhaul selection decision: decision=wired"
@@ -1143,10 +1152,10 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                 reason = "ucc_selected_wireless";
             } else if (wired_candidates.empty()) {
                 reason = "wired_iface_empty";
+            } else if (wired_candidates_missing_recent_1905_activity) {
+                reason = "wired_missing_recent_1905_activity";
             } else if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
-                reason = wired_candidates_missing_recent_1905_activity
-                             ? "wired_missing_recent_1905_activity"
-                             : "wired_monitor_invalid";
+                reason = "wired_monitor_invalid";
             } else if (wired_link_state == wan_monitor::ELinkState::eDown) {
                 reason = "wired_link_down";
             } else {
@@ -1242,6 +1251,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                 LOG(INFO) << "Runtime backhaul re-evaluation: current wired candidate lost local "
                              "validity, restarting"
                           << " selected_iface=" << db->backhaul.selected_iface_name;
+                m_require_recent_1905_for_wired_selection = true;
                 FSM_MOVE_STATE(RESTART);
                 skip_select = true;
             }
@@ -1250,6 +1260,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             LOG(INFO) << "Runtime backhaul re-evaluation: eligible wired candidate available, "
                          "restarting for wired onboarding"
                       << " selected_iface=" << eligible_wired_candidate;
+            m_require_recent_1905_for_wired_selection = true;
             FSM_MOVE_STATE(RESTART);
             skip_select = true;
         }
@@ -2189,6 +2200,7 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         }
 
         if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {
+            m_require_recent_1905_for_wired_selection = true;
             FSM_MOVE_STATE(RESTART);
         }
         break;
