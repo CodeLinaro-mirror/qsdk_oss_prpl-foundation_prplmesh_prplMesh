@@ -74,19 +74,13 @@ bool AmbiorixConnection::init()
 AmbiorixVariantSmartPtr AmbiorixConnection::get_object(const std::string &object_path,
                                                        const int32_t depth, bool only_first)
 {
-    std::string path(object_path);
-    // if direct usp socket is used add "Device." prefix if not present before getting object
-    std::string prefix("Device.");
-    if ((m_bus_uri.rfind("usp:", 0) == 0) && (path.rfind(prefix, 0) != 0)) {
-        path.insert(0, prefix);
-    }
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     AmbiorixVariant result;
-    int ret =
-        amxb_get(m_bus_ctx, path.c_str(), depth, get_amxc_var_ptr(result), AMX_CL_DEF_TIMEOUT);
+    int ret      = amxb_get(m_bus_ctx, object_path.c_str(), depth, get_amxc_var_ptr(result),
+                       AMX_CL_DEF_TIMEOUT);
     auto entries = result.find_child(0);
     if (ret != AMXB_STATUS_OK || !entries) {
-        LOG(ERROR) << "Request path [" << path << "] failed";
+        LOG(ERROR) << "Request path [" << object_path << "] failed";
         return AmbiorixVariantSmartPtr{};
     } else if ((depth == 0) && only_first) {
         auto first_entry = entries->first_child();

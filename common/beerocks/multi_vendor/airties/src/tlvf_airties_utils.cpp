@@ -714,7 +714,7 @@ bool devicemetrics_get_uptime(struct timespec &ts)
 
 bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetrics> &tlvDevMetrics)
 {
-    std::string dm_path      = "Device.WiFi.Radio.";
+    std::string dm_path      = "WiFi.Radio.";
     std::string stats_string = "Stats.";
     std::string rad_details_path;
 

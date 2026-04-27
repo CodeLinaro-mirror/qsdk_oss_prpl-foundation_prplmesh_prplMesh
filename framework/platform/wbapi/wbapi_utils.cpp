@@ -242,7 +242,7 @@ int wbapi_utils::get_object_id(const std::string &object_path)
     return stoi(token);
 }
 
-std::string wbapi_utils::search_path_wifi() { return std::string("Device.WiFi."); }
+std::string wbapi_utils::search_path_wifi() { return std::string("WiFi."); }
 
 std::string wbapi_utils::search_path_radio() { return search_path_wifi() + "Radio."; }
 
@@ -438,11 +438,10 @@ std::string wbapi_utils::get_path_radio_reference(const AmbiorixVariant &obj)
 {
     std::string value;
     if (obj.read_child(value, "RadioReference")) {
-
-        // add "Device." prefix if not present before getting object.
+        // remove "Device." prefix if present before getting object.
         std::string prefix("Device.");
-        if (value.rfind(prefix, 0) != 0) {
-            value.insert(0, prefix);
+        if (value.rfind(prefix, 0) == 0) {
+            value.erase(0, prefix.size());
         }
         value += ".";
     }
@@ -453,11 +452,10 @@ std::string wbapi_utils::get_path_ssid_reference(const AmbiorixVariant &obj)
 {
     std::string value;
     if (obj.read_child(value, "SSIDReference")) {
-
-        // add "Device." prefix if not present before getting object.
+        // remove "Device." prefix if present before getting object.
         std::string prefix("Device.");
-        if (value.rfind(prefix, 0) != 0) {
-            value.insert(0, prefix);
+        if (value.rfind(prefix, 0) == 0) {
+            value.erase(0, prefix.size());
         }
         value += ".";
     }

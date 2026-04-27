@@ -862,13 +862,6 @@ bool sta_wlan_hal_whm::enable_profile(int profile_id)
                    << " -> profile_ref: " << profile_ref;
     }
 
-    // TODO: Handle pWHM DM Radio/SSID/ProfileReferences (PPM-3533)
-    constexpr const char *device_prefix = "Device.";
-    if (profile_ref.rfind(device_prefix, 0) == 0) {
-        profile_ref.erase(0, strlen(device_prefix));
-        LOG(DEBUG) << "Stripped Device prefix, new profile_ref: " << profile_ref;
-    }
-
     params.set_type(AMXC_VAR_ID_HTABLE);
     ret = params.add_child("ProfileReference", profile_ref);
     if (!ret) {
