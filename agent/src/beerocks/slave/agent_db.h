@@ -138,6 +138,14 @@ public:
             beerocks::eFreqType backhaul_preferred_radio_band;
         } back_radio;
 
+        enum class eBackhaulWireDiscoveryMode {
+            StaticList = 0,
+            Auto,
+        };
+
+        // Put in DeviceConf since it is configuration policy, not current backhaul runtime state.
+        eBackhaulWireDiscoveryMode backhaul_wire_discovery_mode =
+            eBackhaulWireDiscoveryMode::StaticList;
         bool local_gw;
         bool local_controller;
         bool local_non_prplmesh_controller;

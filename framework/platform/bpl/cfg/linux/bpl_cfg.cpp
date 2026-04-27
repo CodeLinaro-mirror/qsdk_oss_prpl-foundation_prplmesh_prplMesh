@@ -705,6 +705,17 @@ bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_re
     return true;
 }
 
+bool bpl_cfg_get_backhaul_wire_discovery_mode(std::string &mode)
+{
+    std::string param = "backhaul_wire_discovery_mode";
+
+    if (!cfg_get_param(param, mode)) {
+        mode = "StaticList";
+    }
+
+    return true;
+}
+
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
 {
     std::string param = "backhaul_wire_iface";
