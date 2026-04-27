@@ -242,18 +242,22 @@ public:
         std::list<sBackhaulLink> backhaul_links;
     } backhaul;
 
-    struct {
-        struct sEthernetPort {
-            explicit sEthernetPort(const std::string &iface_name_,
-                                   const sMacAddr &mac_ = net::network_utils::ZERO_MAC)
-                : iface_name(iface_name_), mac(mac_)
-            {
-            }
-            sEthernetPort() : mac(net::network_utils::ZERO_MAC){};
-            std::string iface_name;
-            sMacAddr mac;
-        } wan;
+    struct sEthernetPort {
+        std::string iface_name;
+        sMacAddr mac = net::network_utils::ZERO_MAC;
+
+        sEthernetPort() = default;
+        explicit sEthernetPort(const std::string &iface_name_,
+                               const sMacAddr &mac_ = net::network_utils::ZERO_MAC)
+            : iface_name(iface_name_), mac(mac_)
+        {
+        }
+    };
+
+    struct sEthernet {
+        sEthernetPort wan;
         std::vector<sEthernetPort> lan;
+        std::vector<sEthernetPort> wan_candidates;
     } ethernet;
 
     struct sChannelPreference;

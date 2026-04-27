@@ -518,21 +518,48 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
         if (backhaul_wire_discovery_mode == "StaticList") {
             db->device_conf.backhaul_wire_discovery_mode =
                 beerocks::AgentDB::sDeviceConf::eBackhaulWireDiscoveryMode::StaticList;
-            // Still the legacy implementation which returns one wired interface.
-            // A later refactor will parse it into wired candidate interfaces.
-            if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(db->ethernet.wan.iface_name)) {
+            std::string backhaul_wire_iface_list;
+            if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(backhaul_wire_iface_list)) {
                 LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
                 return false;
+            }
+
+            auto wan_iface_names = beerocks::string_utils::str_split(backhaul_wire_iface_list, ',');
+
+            db->ethernet.wan_candidates.clear();
+            for (auto &iface_name : wan_iface_names) {
+                beerocks::string_utils::trim(iface_name);
+
+                if (iface_name.empty()) {
+                    continue;
+                }
+
+                db->ethernet.wan_candidates.emplace_back(iface_name);
+            }
+
+            // Temporary compatibility selection
+            if (!db->ethernet.wan_candidates.empty()) {
+                db->ethernet.wan = db->ethernet.wan_candidates.front();
+            } else {
+                db->ethernet.wan = {};
             }
         } else if (backhaul_wire_discovery_mode == "Auto") {
             db->device_conf.backhaul_wire_discovery_mode =
                 beerocks::AgentDB::sDeviceConf::eBackhaulWireDiscoveryMode::Auto;
             auto candidates = get_auto_wired_backhaul_candidates(beerocks_slave_conf.bridge_iface);
-            if (candidates.empty()) {
+            db->ethernet.wan_candidates.clear();
+
+            for (const auto &candidate : candidates) {
+                LOG(INFO) << "Wired backhaul iface candidate=" << candidate;
+                db->ethernet.wan_candidates.emplace_back(candidate);
+            }
+
+            if (db->ethernet.wan_candidates.empty()) {
                 LOG(WARNING) << "No auto wired backhaul candidates found";
-                db->ethernet.wan.iface_name.clear();
+                db->ethernet.wan = {};
             } else {
-                db->ethernet.wan.iface_name = candidates.front();
+                // Temporary compatibility selection
+                db->ethernet.wan = db->ethernet.wan_candidates.front();
                 LOG(INFO) << "Selected auto wired backhaul iface=" << db->ethernet.wan.iface_name;
             }
         } else {
