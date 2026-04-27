@@ -95,6 +95,14 @@ bool cfg_get_multi_chan_bcn_req_duration(uint16_t &duration)
     return read_agent_config_param("MultiChanBcnReqDuration", duration);
 }
 
+bool bpl_cfg_get_backhaul_wire_discovery_mode(std::string &mode)
+{
+    if (!read_agent_config_param("BackhaulWireDiscoveryMode", mode)) {
+        mode = "StaticList";
+    }
+    return true;
+}
+
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
 {
     return read_agent_config_param("BackhaulWireInterface", iface);

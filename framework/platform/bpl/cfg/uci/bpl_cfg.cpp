@@ -745,6 +745,22 @@ bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     return true;
 }
 
+bool bpl_cfg_get_backhaul_wire_discovery_mode(std::string &mode)
+{
+    const int mode_size        = 20; // this should be enough to describe 'StaticList' or 'Auto'.
+    char mode_local[mode_size] = {0};
+
+    int retVal = cfg_get_prplmesh_param("backhaul_wire_discovery_mode", mode_local, mode_size);
+    if (retVal == RETURN_ERR) {
+        mode = "StaticList";
+        return true;
+    }
+
+    mode = mode_local;
+
+    return true;
+}
+
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
 {
     char ifname[IFNAMSIZ + 1] = {0};

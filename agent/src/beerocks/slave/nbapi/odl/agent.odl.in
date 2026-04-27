@@ -28,7 +28,21 @@
                         ];
             }
 
-            /* Specifies the network interface to use for wired backhaul */
+            /* Defines how wired backhaul candidate interfaces are discovered.
+             * Values:
+             *   StaticList - use only interfaces listed in BackhaulWireInterface.
+             *   Auto - automatically discover physical wired candidates that are members
+             *          of the configured prplMesh bridge. BackhaulWireInterface is ignored.
+             */
+            %persistent string BackhaulWireDiscoveryMode {
+                default "StaticList";
+                on action validate call check_enum [
+                            "StaticList",
+                            "Auto"
+                        ];
+            }
+
+            /* Specifies the list of network interfaces to use for wired backhaul */
             %persistent string BackhaulWireInterface {
                 default "wan";
                 on action validate call check_minimum_length 1;

@@ -22,6 +22,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include "platform_manager/platform_manager.h"
 #include "son_slave_thread.h"
 
+#include <algorithm>
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_event_loop_impl.h>
@@ -31,6 +32,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <bcl/beerocks_utils.h>
 #include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
+#include <iterator>
 #include <mapf/common/utils.h>
 
 #include <bpl/bpl_cfg.h>
@@ -151,6 +153,25 @@ static bool parse_arguments(int argc, char *argv[])
         }
     }
     return true;
+}
+
+/*
+ * Return physical non-WLAN interfaces that are members of the prplMesh bridge.
+ */
+static std::vector<std::string> get_auto_wired_backhaul_candidates(const std::string &bridge_iface)
+{
+    auto bridge_ifaces =
+        beerocks::net::network_utils::linux_get_iface_list_from_bridge(bridge_iface);
+    auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
+
+    std::sort(bridge_ifaces.begin(), bridge_ifaces.end());
+    std::sort(lan_ifaces.begin(), lan_ifaces.end());
+
+    std::vector<std::string> candidates;
+    std::set_intersection(bridge_ifaces.begin(), bridge_ifaces.end(), lan_ifaces.begin(),
+                          lan_ifaces.end(), std::back_inserter(candidates));
+
+    return candidates;
 }
 
 static std::string get_sta_iface_from_hostap_iface(const std::string &hostap_iface)
@@ -479,8 +500,43 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
                 static_cast<wfa_map::tlvProfile2MultiApProfile::eMultiApProfile>(m_ap_profile);
         }
 
-        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(db->ethernet.wan.iface_name)) {
-            LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
+        /*
+         * Wired backhaul discovery mode controls how wired backhaul candidates should be discovered.
+         *
+         * StaticList: use ifaces from BackhaulWireInterface parameter.
+         * Auto: automatic wired candidate discovery. BackhaulWireInterface will be ignored
+         */
+        std::string backhaul_wire_discovery_mode;
+        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_discovery_mode(
+                backhaul_wire_discovery_mode)) {
+            // Probably we don't need it with current getter implementation.
+            // This is mostly a defensive check.
+            LOG(WARNING) << "Failed reading 'backhaul_wire_discovery_mode'";
+            backhaul_wire_discovery_mode = "StaticList";
+        }
+
+        if (backhaul_wire_discovery_mode == "StaticList") {
+            db->device_conf.backhaul_wire_discovery_mode =
+                beerocks::AgentDB::sDeviceConf::eBackhaulWireDiscoveryMode::StaticList;
+            // Still the legacy implementation which returns one wired interface.
+            // A later refactor will parse it into wired candidate interfaces.
+            if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(db->ethernet.wan.iface_name)) {
+                LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
+                return false;
+            }
+        } else if (backhaul_wire_discovery_mode == "Auto") {
+            db->device_conf.backhaul_wire_discovery_mode =
+                beerocks::AgentDB::sDeviceConf::eBackhaulWireDiscoveryMode::Auto;
+            auto candidates = get_auto_wired_backhaul_candidates(beerocks_slave_conf.bridge_iface);
+            if (candidates.empty()) {
+                LOG(WARNING) << "No auto wired backhaul candidates found";
+                db->ethernet.wan.iface_name.clear();
+            } else {
+                db->ethernet.wan.iface_name = candidates.front();
+                LOG(INFO) << "Selected auto wired backhaul iface=" << db->ethernet.wan.iface_name;
+            }
+        } else {
+            LOG(ERROR) << "Invalid backhaul wire discovery mode: " << backhaul_wire_discovery_mode;
             return false;
         }
         // Destroy `db` to unlock it.
