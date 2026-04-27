@@ -44,9 +44,6 @@
 
 using namespace multi_vendor;
 
-/* Multi chan beacon request duration (in ms) */
-#define MULTI_CHAN_BCN_REQ_DURATION 10
-
 /* Minimum delay between consecutive Beacon Metrics Queries (in ms) */
 #define MULTI_CHAN_MIN_BCN_REQ_DELAY 400
 
@@ -380,12 +377,13 @@ bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
     beacon_params.curr_chan_idx = 0;
     beacon_params.iface_name    = iface_name;
 
+    auto db      = AgentDB::get();
     auto &params = beacon_params.params;
 
     params.bssid                  = beacon_metrics_query.bssid();
     params.channel                = beacon_metrics_query.channel_number();
     params.measurement_mode       = beerocks::MEASURE_MODE_ACTIVE;
-    params.duration               = MULTI_CHAN_BCN_REQ_DURATION;
+    params.duration               = db->device_conf.multi_chan_bcn_req_duration;
     params.expected_reports_count = 1;
     params.rand_ival              = beerocks::BEACON_MEASURE_DEFAULT_RANDOMIZATION_INTERVAL;
     params.sta_mac                = beacon_metrics_query.associated_sta_mac();
@@ -433,7 +431,6 @@ bool LinkMetricsCollectionTask::schedule_beacon_metrics_query(
     }
 
     // USED IN TESTS: Explicitly send the query with the values from dev_send_1905
-    auto db = AgentDB::get();
     if (db->device_conf.certification_mode) {
         sBeaconMetricsQuery::sChanReport new_report = {};
         new_report.op_class                         = params.op_class;

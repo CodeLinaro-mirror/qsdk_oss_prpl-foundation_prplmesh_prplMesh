@@ -154,6 +154,7 @@ public:
 
         int zwdfs_flag;
         uint32_t best_channel_rank_threshold;
+        uint16_t multi_chan_bcn_req_duration;
 
         std::string vendor;
         std::string model;
