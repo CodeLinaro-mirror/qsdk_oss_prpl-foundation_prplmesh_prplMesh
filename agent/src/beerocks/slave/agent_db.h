@@ -580,6 +580,19 @@ public:
     bool get_ap_mld_mac_by_ssid(const std::string &ssid, sMacAddr &value);
 
     /**
+     * @brief Get the MLD MAC of a MLO bSTA based on the SSID
+     * in case of RUID argument has not been provided.
+     * 
+     * Otherwise return the Affiliated MAC Addr based on RUID and SSID
+     *
+     * @param[in] ssid The ssid of the bSTA MLO.
+     * @param[in] ruid RUID of Affiliated bSTA exist
+     * @param[out] value The MLD mac if found, else an invalid MAC (zero).
+     * @return true if the MLD mac was found, false otherwise.
+     */
+    bool get_bsta_mld_mac_by_ssid(const std::string &ssid, sMacAddr &ruid, sMacAddr &value);
+
+    /**
      * @brief Initialize Agent Data model.
      *
      * This method should be called in initialization state, otherwise data-model methods fail.
