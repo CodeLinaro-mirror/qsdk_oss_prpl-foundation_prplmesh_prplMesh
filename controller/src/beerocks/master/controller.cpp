@@ -28,6 +28,7 @@
 #include "db/network_map.h"
 #include "tasks/client_locating_task.h"
 #include "tasks/dynamic_channel_selection_task.h"
+#include "tid_to_link_utils.h"
 
 #include <bcl/beerocks_backport.h>
 #include <bcl/beerocks_utils.h>
@@ -103,6 +104,7 @@
 #include <tlvf/wfa_map/tlvStaMacAddressType.h>
 #include <tlvf/wfa_map/tlvSteeringBTMReport.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 #include <tlvf/wfa_map/tlvTimestamp.h>
 #include <tlvf/wfa_map/tlvTunnelledData.h>
 #include <tlvf/wfa_map/tlvTunnelledProtocolType.h>
@@ -5215,6 +5217,161 @@ void Controller::trigger_prioritization_config()
 {
     auto ev = agent_monitoring_task::CONFIGURE_QOS;
     m_task_pool.push_event(database.get_agent_monitoring_task_id(), ev);
+}
+
+void Controller::set_tid_to_link_mapping_config()
+{
+    for (auto it = database.m_agents.begin(); it != database.m_agents.end(); ++it) {
+
+        auto &agent = it->second;
+        if (!agent) {
+            continue;
+        }
+
+        auto &mld_config = agent->mld_config;
+        if (mld_config.empty()) {
+            continue;
+        }
+
+        for (const auto &mld_pair : mld_config) {
+
+            const auto &mld_mac = mld_pair.first;
+            const auto &sta_map = mld_pair.second;
+
+            for (const auto &sta_pair : sta_map) {
+
+                const auto &sta_mac = sta_pair.first;
+                const auto &cfg     = sta_pair.second;
+
+                if (!cmdu_tx.create(
+                        0, ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE)) {
+                    LOG(ERROR) << "CMDU creation failed for SERVICE_PRIORITIZATION_REQUEST_MESSAGE";
+                    continue;
+                }
+
+                auto tid_tlv = cmdu_tx.addClass<wfa_map::tlvTidToLinkMappingPolicy>();
+                if (!tid_tlv) {
+                    LOG(ERROR) << "addClass tlvTidToLinkMappingPolicy failed";
+                    continue;
+                }
+
+                /* ===== TLV Header ===== */
+
+                tid_tlv->is_bsta_config().is_bsta_mld = cfg.is_bSTA_Config;
+                tid_tlv->mld_mac_addr()               = cfg.MLD_MAC_Addr;
+                tid_tlv->tid_to_link_mapping_negotiation().is_enabled =
+                    cfg.TID_To_Link_Mapping_Negotiation;
+
+                // Spec rule: if bSTA → Num_Mapping = 0
+                if (cfg.is_bSTA_Config) {
+                    tid_tlv->num_mapping() = 0;
+                } else {
+                    tid_tlv->num_mapping() = cfg.mappings.size();
+                }
+
+                /* ===== Mapping entries ===== */
+
+                for (const auto &entry : cfg.mappings) {
+
+                    auto mapping = tid_tlv->create_mapping();
+                    if (!mapping) {
+                        LOG(ERROR) << "create_mapping() failed";
+                        continue;
+                    }
+
+                    // Consistent ADD/REMOVE handling
+                    mapping->add_remove().should_be_removed = entry.addRemove ? 0 : 1;
+
+                    mapping->sta_mld_mac_addr() = entry.STA_MLD_MAC_Addr;
+
+                    auto ctrl = mapping->create_tid_to_link_control_field();
+                    if (!ctrl) {
+                        LOG(ERROR) << "create_tid_to_link_control_field() failed";
+                        continue;
+                    }
+
+                    uint8_t control = entry.tid_to_link_control_field;
+
+                    /* ===== Control field bits ===== */
+
+                    ctrl->tid_to_link_control().direction =
+                        tid_to_link_utils::get_direction(control);
+
+                    bool default_mapping = tid_to_link_utils::get_default_link_mapping(control);
+
+                    ctrl->tid_to_link_control().default_link_mapping = default_mapping;
+
+                    // Spec: MUST always be 0
+                    ctrl->tid_to_link_control().mapping_switch_time_present = 0;
+
+                    ctrl->tid_to_link_control().expected_duration_present =
+                        tid_to_link_utils::get_expected_duration_present(control);
+
+                    ctrl->tid_to_link_control().link_mapping_size =
+                        tid_to_link_utils::get_link_mapping_size(control);
+
+                    // Spec: ignore presence indicator if default mapping = 1
+                    if (!default_mapping) {
+                        ctrl->link_mapping_presence_indicator() =
+                            entry.Link_Mapping_Presence_Indicator;
+                    }
+
+                    // Expected Duration (if present)
+                    if (ctrl->tid_to_link_control().expected_duration_present) {
+
+                        uint8_t duration[3];
+                        duration[0] = (entry.Expected_Duration >> 16) & 0xFF;
+                        duration[1] = (entry.Expected_Duration >> 8) & 0xFF;
+                        duration[2] = entry.Expected_Duration & 0xFF;
+
+                        ctrl->set_expected_duration(duration, 3);
+                    }
+
+                    mapping->add_tid_to_link_control_field(std::move(ctrl));
+
+                    /* ===== Per-TID Mapping ===== */
+
+                    for (uint8_t tid = 0; tid < 8; ++tid) {
+
+                        if (!(entry.Link_Mapping_Presence_Indicator & (1u << tid))) {
+                            continue;
+                        }
+
+                        auto tid_map = mapping->create_tid_to_link_mapping();
+                        if (!tid_map) {
+                            LOG(ERROR) << "create_tid_to_link_mapping() failed";
+                            continue;
+                        }
+
+                        uint16_t bitmap = entry.TID_to_Link_Mapping[tid];
+
+                        uint8_t lo = bitmap & 0xFF;
+                        uint8_t hi = (bitmap >> 8) & 0xFF;
+
+                        // Always set lower byte
+                        set_tid_byte(tid_map->loByte(), lo);
+
+                        // link_mapping_size (1 or 2 bytes)
+                        if (ctrl->tid_to_link_control().link_mapping_size == 2) {
+                            set_tid_byte(tid_map->hiByte(), hi);
+                        }
+
+                        mapping->add_tid_to_link_mapping(std::move(tid_map));
+                    }
+
+                    tid_tlv->add_mapping(std::move(mapping));
+                }
+
+                /* ===== Send CMDU ===== */
+                son_actions::send_cmdu_to_agent(agent->al_mac, cmdu_tx, database);
+
+                LOG(INFO) << "Sent TID-to-Link Mapping Policy TLV to agent "
+                          << tlvf::mac_to_string(agent->al_mac) << " MLD "
+                          << tlvf::mac_to_string(mld_mac) << " STA "
+                          << tlvf::mac_to_string(sta_mac);
+            }
+        }
+    }
 }
 
 bool Controller::handle_tlv_profile2_ap_capability(std::shared_ptr<Agent> agent,

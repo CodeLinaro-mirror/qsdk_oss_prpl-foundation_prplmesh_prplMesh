@@ -37,6 +37,8 @@ constexpr std::chrono::minutes CHANNEL_PREFERENCE_EXPIRATION(5);
 
 constexpr std::chrono::seconds RADIO_CHANNEL_DEFERRED_UPDATE_GUARD(60);
 
+constexpr uint8_t NUM_TIDS = 8;
+
 namespace {
 
 bool are_same_wifi_channel(const beerocks::WifiChannel &lhs, const beerocks::WifiChannel &rhs)
@@ -9019,6 +9021,113 @@ bool db::dm_configure_service_prioritization()
         }
     }
 
+    return true;
+}
+
+bool db::dm_configure_tid_to_link_mapping(const sMacAddr &agent_mac)
+{
+    auto agent = get_agent(agent_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent not found for MAC " << tlvf::mac_to_string(agent_mac);
+        return false;
+    }
+
+    agent->mld_config.clear();
+
+    if (agent->dm_path.empty()) {
+        LOG(WARNING) << "Agent " << tlvf::mac_to_string(agent_mac)
+                     << " has no dm_path, skipping TID-to-Link mapping";
+        return true;
+    }
+
+    /* ===== Iterate AP MLDs ===== */
+    for (auto &apmld_pair : agent->ap_mlds) {
+
+        auto &apmld = apmld_pair.second;
+
+        if (apmld.dm_path.empty()) {
+            continue;
+        }
+
+        const sMacAddr &ap_mld_mac = apmld.mld_info.mld_mac;
+
+        /* ===== Get reference to config (IMPORTANT) ===== */
+        auto &cfg = agent->mld_config[ap_mld_mac][ap_mld_mac];
+
+        // Initialize
+        cfg.is_bSTA_Config = false;
+        cfg.MLD_MAC_Addr   = ap_mld_mac;
+        cfg.mappings.clear();
+
+        /* ===== Negotiation ===== */
+        bool negotiation = false;
+        m_ambiorix_datamodel->read_param(apmld.dm_path + ".APMLDConfig", "TIDLinkMapNegotiation",
+                                         &negotiation);
+
+        cfg.TID_To_Link_Mapping_Negotiation = negotiation;
+
+        /* ===== Number of entries ===== */
+        uint32_t tid_map_count = 0;
+
+        if (!m_ambiorix_datamodel->read_param(apmld.dm_path, "TIDLinkMapNumberOfEntries",
+                                              &tid_map_count)) {
+
+            LOG(DEBUG) << "No TIDLinkMap entries for APMLD " << tlvf::mac_to_string(ap_mld_mac);
+
+            cfg.Num_Mapping = 0;
+            continue;
+        }
+
+        /* ===== Aggregate all TIDs into ONE entry (CRITICAL) ===== */
+        Agent::sTidToLinkMappingEntry entry{};
+        entry.STA_MLD_MAC_Addr                = ap_mld_mac; // placeholder
+        entry.addRemove                       = true;
+        entry.Link_Mapping_Presence_Indicator = 0;
+
+        /* ===== Iterate each TID entry ===== */
+        for (uint32_t j = 1; j <= tid_map_count; j++) {
+
+            std::string path = apmld.dm_path + ".TIDLinkMap." + std::to_string(j);
+
+            uint8_t tid = 0;
+            if (!m_ambiorix_datamodel->read_param(path, "TID", &tid)) {
+                continue;
+            }
+
+            if (tid >= NUM_TIDS) {
+                LOG(WARNING) << "TID value " << int(tid) << " out of range at " << path;
+                continue;
+            }
+
+            /* ===== Direction ===== */
+            std::string direction_str;
+            m_ambiorix_datamodel->read_param(path, "Direction", &direction_str);
+
+            uint8_t direction = (direction_str == "Up") ? 1 : (direction_str == "Down") ? 0 : 2;
+
+            entry.tid_to_link_control_field = (direction & 0x03) << 6;
+
+            /* ===== Link mapping ===== */
+            uint16_t link_id = 0;
+            m_ambiorix_datamodel->read_param(path, "LinkID", &link_id);
+
+            entry.TID_to_Link_Mapping[tid] = link_id;
+
+            /* ===== Aggregate presence bitmap ===== */
+            entry.Link_Mapping_Presence_Indicator |= (1u << tid);
+        }
+
+        /* ===== Store only if valid ===== */
+        if (entry.Link_Mapping_Presence_Indicator != 0) {
+            cfg.mappings.push_back(entry);
+        }
+
+        cfg.Num_Mapping = static_cast<uint16_t>(cfg.mappings.size());
+
+        LOG(DEBUG) << "TID-to-Link Mapping config added for AP MLD "
+                   << tlvf::mac_to_string(ap_mld_mac) << " with " << cfg.Num_Mapping
+                   << " mapping entries";
+    }
     return true;
 }
 

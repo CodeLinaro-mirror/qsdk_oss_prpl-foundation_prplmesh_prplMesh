@@ -29,6 +29,7 @@
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 // Forward declaration of son::node
 namespace son {
@@ -637,6 +638,9 @@ public:
         // Key: RUID
         std::unordered_map<sMacAddr, sAffiliatedBSTA> affiliated_bstas;
     } sBSTAMLD;
+
+    std::map<sMacAddr, std::map<sMacAddr, TID_to_Link_Mapping_Config, sMacAddrLess>, sMacAddrLess>
+        mld_config;
 
     // Key: MLD MAC
     std::unordered_map<sMacAddr, sAPMLD> ap_mlds;
