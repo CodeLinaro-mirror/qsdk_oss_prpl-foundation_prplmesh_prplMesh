@@ -54,6 +54,19 @@ static int netlink_open_socket()
     return (fd);
 }
 
+static const char *link_state_to_string(beerocks::wan_monitor::ELinkState state)
+{
+    switch (state) {
+    case beerocks::wan_monitor::ELinkState::eUp:
+        return "up";
+    case beerocks::wan_monitor::ELinkState::eDown:
+        return "down";
+    case beerocks::wan_monitor::ELinkState::eInvalid:
+    default:
+        return "invalid";
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// Implementation ///////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -66,11 +79,25 @@ wan_monitor::~wan_monitor()
         close(m_iNetlinkFD);
 }
 
-wan_monitor::ELinkState wan_monitor::initialize(const std::string &strWanIfaceName)
+bool wan_monitor::initialize(const std::vector<std::string> &iface_names)
 {
-    if (strWanIfaceName.empty()) {
-        LOG(ERROR) << "WAN Monitor intialized on empty interface name!";
-        return ELinkState::eInvalid;
+    if (iface_names.empty()) {
+        LOG(ERROR) << "WAN Monitor initialized on empty interface name!";
+        return false;
+    }
+
+    // Validate first.
+    // This avoids destroying previous state if list is empty or invalid
+    std::unordered_set<std::string> monitored_ifaces;
+    for (const auto &iface_name : iface_names) {
+        if (!iface_name.empty()) {
+            monitored_ifaces.insert(iface_name);
+        }
+    }
+
+    if (monitored_ifaces.empty()) {
+        LOG(ERROR) << "WAN Monitor initialized on invalid interface names!";
+        return false;
     }
 
     // Close the previous FD
@@ -83,45 +110,58 @@ wan_monitor::ELinkState wan_monitor::initialize(const std::string &strWanIfaceNa
     }
 
     // Open a new netlink socket
-    if ((m_iNetlinkFD = netlink_open_socket()) == -1)
-        return (ELinkState::eInvalid);
+    if ((m_iNetlinkFD = netlink_open_socket()) == -1) {
+        return false;
+    }
 
-    // Store the interface name
-    m_strWanIfaceName = strWanIfaceName;
+    m_monitored_ifaces.clear();
+    m_monitored_ifaces = std::move(monitored_ifaces);
 
-    // Return the interface state
-    return ((network_utils::linux_iface_is_up_and_running(m_strWanIfaceName)) ? ELinkState::eUp
-                                                                              : ELinkState::eDown);
+    return true;
 }
 
-wan_monitor::ELinkState wan_monitor::process()
+// For compatibility
+wan_monitor::ELinkState wan_monitor::initialize(const std::string &strWanIfaceName)
 {
+    if (!initialize(std::vector<std::string>{strWanIfaceName})) {
+        return ELinkState::eInvalid;
+    }
+
+    return network_utils::linux_iface_is_up_and_running(strWanIfaceName) ? ELinkState::eUp
+                                                                         : ELinkState::eDown;
+}
+
+bool wan_monitor::process(std::vector<LinkEvent> &events)
+{
+    // Return only events from this recvmsg() call
+    events.clear();
+
     if (m_iNetlinkFD == -1) {
         LOG(ERROR) << "Invalid netlink socket!";
-        return (ELinkState::eInvalid);
+        return false;
     }
 
     struct sockaddr_nl addr = {0};
     struct iovec iov        = {m_arrNLBuff, sizeof m_arrNLBuff};
-
-    struct msghdr msg  = {0};
-    msg.msg_name       = (void *)&addr;
-    msg.msg_namelen    = sizeof(addr);
-    msg.msg_iov        = &iov;
-    msg.msg_iovlen     = 1;
-    msg.msg_control    = nullptr;
-    msg.msg_controllen = 0;
-    msg.msg_flags      = 0;
+    struct msghdr msg       = {0};
+    msg.msg_name            = (void *)&addr;
+    msg.msg_namelen         = sizeof(addr);
+    msg.msg_iov             = &iov;
+    msg.msg_iovlen          = 1;
+    msg.msg_control         = nullptr;
+    msg.msg_controllen      = 0;
+    msg.msg_flags           = 0;
 
     // Read a message from the netlink socket
+    // The buffer can contain more than one nlmsg, so keep iterating below.
     ssize_t len = recvmsg(m_iNetlinkFD, &msg, 0);
 
     if (len < 0) {
         LOG(ERROR) << "recvmsg error: " << strerror(errno);
-        return (ELinkState::eInvalid);
+        return false;
     } else if (len == 0) {
         LOG(DEBUG) << "recvmsg EOF";
-        return (ELinkState::eInvalid);
+        return false;
     }
 
     // Process received message(s)
@@ -129,45 +169,67 @@ wan_monitor::ELinkState wan_monitor::process()
     for (hnl = (struct nlmsghdr *)m_arrNLBuff; NLMSG_OK(hnl, uint32_t(len));
          hnl = NLMSG_NEXT(hnl, len)) {
 
-        // Completed reading - exit gracefully (as no error occurred,
-        // but this is not a valid state)
-        if (hnl->nlmsg_type == NLMSG_DONE)
-            return (ELinkState::eInvalid);
+        // Completed reading multipart netlink response.
+        if (hnl->nlmsg_type == NLMSG_DONE) {
+            return true;
+        }
 
         // Error in the Message
         if (hnl->nlmsg_type == NLMSG_ERROR) {
             LOG(ERROR) << "NLMSG_ERROR - Invalid netlink message!";
-            return (ELinkState::eInvalid);
+            return false;
         }
 
-        // LINK related message
-        if (hnl->nlmsg_type == RTM_NEWLINK || hnl->nlmsg_type == RTM_DELLINK) {
-
-            struct ifinfomsg *ifi = (struct ifinfomsg *)NLMSG_DATA(hnl);
-
-            // Convert the interface index to name
-            auto iface_name = network_utils::linux_get_iface_name(ifi->ifi_index);
-
-            // Skip events for other interfaces
-            if (m_strWanIfaceName != iface_name) {
-                LOG(DEBUG) << "Link detected for non-WAN interface '" << iface_name
-                           << "'. Skipping...";
-
-                continue;
-            }
-
-            LOG(DEBUG) << "Interface '" << iface_name << "', msg_type: " << int(hnl->nlmsg_type)
-                       << ", running: " << int(ifi->ifi_flags & IFF_RUNNING);
-
-            // Return WAN interface link state
-            if ((hnl->nlmsg_type == RTM_NEWLINK && ifi->ifi_flags & IFF_RUNNING))
-                return (ELinkState::eUp);
-            else
-                return (ELinkState::eDown);
+        // WAN monitor currently cares only about link state notification.
+        if (hnl->nlmsg_type != RTM_NEWLINK && hnl->nlmsg_type != RTM_DELLINK) {
+            continue;
         }
+
+        struct ifinfomsg *ifi = (struct ifinfomsg *)NLMSG_DATA(hnl);
+
+        // Convert the interface index to name so
+        // BackhaulManager can update its per candidate state by iface name.
+        auto iface_name = network_utils::linux_get_iface_name(ifi->ifi_index);
+
+        // Skip events for other interfaces.
+        // Keep only the configured or discovered wired backhaul candidates.
+        if (m_monitored_ifaces.find(iface_name) == m_monitored_ifaces.end()) {
+            LOG(DEBUG) << "Link detected for non-monitored interface '" << iface_name
+                       << "'. Skipping...";
+            continue;
+        }
+
+        LinkEvent event;
+        event.iface_name = iface_name;
+        event.nlmsg_type = int(hnl->nlmsg_type);
+
+        // RTM_NEWLINK with IFF_RUNNING means link is detected.
+        // RTM_DELLINK or RTM_NEWLINK without IFF_RUNNING is treated as down.
+        event.link_state = (hnl->nlmsg_type == RTM_NEWLINK && (ifi->ifi_flags & IFF_RUNNING))
+                               ? ELinkState::eUp
+                               : ELinkState::eDown;
+
+        LOG(DEBUG) << "Interface '" << event.iface_name << "', msg_type: " << event.nlmsg_type
+                   << ", link_state: " << link_state_to_string(event.link_state);
+
+        events.push_back(event);
     }
 
-    return (ELinkState::eInvalid);
+    return true;
+}
+
+// For compatibility
+// BTW it seems that noone calls process() at all...
+wan_monitor::ELinkState wan_monitor::process()
+{
+    std::vector<LinkEvent> events;
+
+    // Old API behavior: return one link state.
+    if (!process(events) || events.empty()) {
+        return ELinkState::eInvalid;
+    }
+
+    return events.front().link_state;
 }
 
 } // namespace beerocks
