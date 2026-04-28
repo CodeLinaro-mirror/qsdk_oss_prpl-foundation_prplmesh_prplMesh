@@ -20,6 +20,7 @@
 #include <math.h>
 #include <numeric>
 #include <sstream>
+#include <tlvf/tlvftypes.h>
 #include <vector>
 using namespace beerocks;
 using namespace wbapi;
@@ -87,21 +88,6 @@ static uint8_t wpaCtrl_bw_to_beerocks_bw(const uint8_t width)
     }
 
     return it->second;
-}
-
-// This function returns a CSV (Comma-Separated Values) string of MAC addresses.
-static std::string mac_list_to_csv(const std::vector<sMacAddr> &sta_list)
-{
-    std::ostringstream stream;
-
-    for (size_t index = 0; index < sta_list.size(); ++index) {
-        if (index > 0) {
-            stream << ",";
-        }
-        stream << tlvf::mac_to_string(sta_list[index]);
-    }
-
-    return stream.str();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2355,7 +2341,7 @@ bool ap_wlan_hal_whm::set_mscs_disallowed_sta_list(const sMacAddr &bssid,
 
     std::string ifname = m_radio_info.available_vaps[vap_id].bss;
     auto qos_mgmt_path = wbapi_utils::search_path_ap_by_iface(ifname) + "QoSMgmt.";
-    auto sta_list_csv  = mac_list_to_csv(sta_list);
+    auto sta_list_csv  = tlvf::mac_list_to_csv_string(sta_list);
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("MACAddresses", sta_list_csv);
@@ -2379,7 +2365,7 @@ bool ap_wlan_hal_whm::set_scs_disallowed_sta_list(const sMacAddr &bssid,
 
     std::string ifname = m_radio_info.available_vaps[vap_id].bss;
     auto qos_mgmt_path = wbapi_utils::search_path_ap_by_iface(ifname) + "QoSMgmt.";
-    auto sta_list_csv  = mac_list_to_csv(sta_list);
+    auto sta_list_csv  = tlvf::mac_list_to_csv_string(sta_list);
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("MACAddresses", sta_list_csv);
