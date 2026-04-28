@@ -20,6 +20,7 @@
 #include <bpl/bpl_db.h>
 #include <cmath>
 #include <easylogging++.h>
+#include <tlvf/tlvftypes.h>
 
 #include <algorithm>
 #include <utility>
@@ -49,20 +50,6 @@ parse_qos_management_descriptor_element(const std::string &descriptor_element)
     const auto descriptor_bytes =
         beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(descriptor_element);
     return qos_management::parse_qos_management_descriptor_element(descriptor_bytes);
-}
-
-std::string serialize_mac_list(const std::vector<sMacAddr> &sta_list)
-{
-    std::string serialized;
-
-    for (size_t index = 0; index < sta_list.size(); ++index) {
-        if (index != 0) {
-            serialized += ",";
-        }
-        serialized += tlvf::mac_to_string(sta_list[index]);
-    }
-
-    return serialized;
 }
 
 } // namespace
@@ -8797,9 +8784,9 @@ bool db::dm_set_qos_management_disallowed_sta_lists()
 
     bool ret_val = true;
     ret_val &= m_ambiorix_datamodel->set(network_path, "MSCSDisallowedStaList",
-                                         serialize_mac_list(m_mscs_disallowed_sta_list));
+                                         tlvf::mac_list_to_csv_string(m_mscs_disallowed_sta_list));
     ret_val &= m_ambiorix_datamodel->set(network_path, "SCSDisallowedStaList",
-                                         serialize_mac_list(m_scs_disallowed_sta_list));
+                                         tlvf::mac_list_to_csv_string(m_scs_disallowed_sta_list));
 
     return ret_val;
 }

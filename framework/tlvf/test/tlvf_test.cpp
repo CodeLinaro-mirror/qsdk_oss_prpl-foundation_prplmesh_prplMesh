@@ -42,6 +42,7 @@
 #include <iostream>
 #include <iterator>
 #include <sstream>
+#include <vector>
 
 using namespace ieee1905_1;
 using namespace wfa_map;
@@ -835,6 +836,33 @@ int test_mac_from_string()
     check_fail("363738393d3g");  // Non-hex digit
     check_fail("363738393d3");   // Too few
     check_fail("363738393d3f3"); // Too many
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
+int test_mac_list_to_csv_string()
+{
+    MAPF_INFO(__FUNCTION__ << " Starting");
+    int errors = 0;
+
+    auto check_success = [&errors](const std::vector<sMacAddr> &mac_list,
+                                   const std::string &expected) {
+        const auto result = tlvf::mac_list_to_csv_string(mac_list);
+        if (result != expected) {
+            MAPF_ERR("mac_list_to_csv_string expected \"" << expected << "\", got \"" << result
+                                                          << "\"");
+            errors++;
+        }
+    };
+
+    const sMacAddr mac1 = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05};
+    const sMacAddr mac2 = {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5};
+    const sMacAddr mac3 = {0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+
+    check_success({mac1, mac2}, "00:01:02:03:04:05,a0:a1:a2:a3:a4:a5");
+    check_success({mac3}, "0a:0b:0c:0d:0e:0f");
+    check_success({}, "");
 
     MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
     return errors;
@@ -2226,6 +2254,7 @@ int main(int argc, char *argv[])
     errors += test_all();
     errors += test_parser();
     errors += test_mac_from_string();
+    errors += test_mac_list_to_csv_string();
     errors += test_conditional_parameters_rx_tx();
     errors += test_channel_scan_results();
     errors += test_parse_assoc_frame();
