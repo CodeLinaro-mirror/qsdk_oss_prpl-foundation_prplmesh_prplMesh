@@ -12,6 +12,7 @@
 #include <sstream>
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/common/sMacAddr.h>
+#include <vector>
 
 namespace tlvf {
 
@@ -48,6 +49,16 @@ std::string mac_to_string(const uint8_t *mac_address);
  */
 
 std::string mac_to_string(const sMacAddr &mac);
+
+/**
+ * @brief Converts a list of MAC addresses to a comma-separated string.
+ *
+ * MAC addresses are emitted in input order using the xx:xx:xx:xx:xx:xx format.
+ *
+ * @param mac_list MAC addresses to convert
+ * @return std::string CSV string of MAC addresses
+ */
+std::string mac_list_to_csv_string(const std::vector<sMacAddr> &mac_list);
 
 /**
  * @brief Converts a string to a binary MAC address (6 bytes buffer)

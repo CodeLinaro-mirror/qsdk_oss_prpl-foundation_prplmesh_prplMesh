@@ -48,6 +48,21 @@ std::string mac_to_string(const uint8_t *mac_address)
 
 std::string mac_to_string(const sMacAddr &mac) { return mac_to_string((const uint8_t *)mac.oct); }
 
+std::string mac_list_to_csv_string(const std::vector<sMacAddr> &mac_list)
+{
+    std::ostringstream stream;
+
+    for (size_t index = 0; index < mac_list.size(); ++index) {
+        if (index > 0) {
+            stream << ",";
+        }
+
+        stream << mac_to_string(mac_list[index]);
+    }
+
+    return stream.str();
+}
+
 // Converts uint64_t mac address to string format
 std::string mac_to_string(const uint64_t mac)
 {
