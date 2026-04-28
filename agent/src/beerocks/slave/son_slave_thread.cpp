@@ -2542,6 +2542,29 @@ bool slave_thread::process_client_association(
     } else {
         // Handle legacy (non-MLO) client
 
+        // Clear any exact WDS trunk from a previous legacy association before
+        // erasing it. Otherwise a roam/steer that associates on a new bssid
+        // before the old disconnect arrives can leave the old WDS iface managed.
+        for (const auto *existing_radio : db->get_radios_list()) {
+            if (!existing_radio) {
+                continue;
+            }
+
+            const auto client_it = existing_radio->associated_clients.find(client_mac);
+            if (client_it == existing_radio->associated_clients.end()) {
+                continue;
+            }
+
+            const auto &existing_client = client_it->second;
+            if (existing_client.bssid == bssid || existing_client.wds_iface_name.empty()) {
+                continue;
+            }
+
+            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                     TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                     existing_client.wds_iface_name.c_str());
+        }
+
         // Erase client details to clear any previous association information.
         // This is needed during steering and roaming operations to ensure clean state.
         // Note: This erase operation is NOT applicable for MLO clients - we do not delete
@@ -2560,8 +2583,128 @@ bool slave_thread::process_client_association(
             client_mac, AgentDB::sRadio::sClient{bssid, notification_in->association_frame_length(),
                                                  notification_in->association_frame(),
                                                  notification_in->capabilities().btm_supported});
+
+        auto pending_wds_it = m_pending_wds_iface_notifications.find(client_mac);
+        if (pending_wds_it != m_pending_wds_iface_notifications.end()) {
+            if (pending_wds_it->second.bssid == bssid) {
+                set_client_wds_iface(*radio, client_mac, bssid, pending_wds_it->second.iface_name);
+            } else {
+                LOG(DEBUG) << "Dropping cached WDS iface notification for " << client_mac
+                           << ", bssid=" << pending_wds_it->second.bssid
+                           << ", association_bssid=" << bssid;
+            }
+            m_pending_wds_iface_notifications.erase(pending_wds_it);
+        }
         return true;
     }
+}
+
+bool slave_thread::set_client_wds_iface(AgentDB::sRadio &radio, const sMacAddr &client_mac,
+                                        const sMacAddr &bssid, const std::string &wds_iface_name)
+{
+    auto client_it = radio.associated_clients.find(client_mac);
+    if (client_it == radio.associated_clients.end()) {
+        LOG(DEBUG) << "Ignoring stale WDS iface notification for " << client_mac
+                   << ", client is not associated anymore";
+        return true;
+    }
+
+    auto &client = client_it->second;
+    if (client.bssid != bssid) {
+        LOG(DEBUG) << "Ignoring stale WDS iface notification for " << client_mac
+                   << ", bssid=" << bssid << ", db_bssid=" << client.bssid;
+        return true;
+    }
+
+    if (client.wds_iface_name == wds_iface_name) {
+        return true;
+    }
+
+    if (!client.wds_iface_name.empty()) {
+        task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                 TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                 client.wds_iface_name.c_str());
+    }
+
+    client.wds_iface_name = wds_iface_name;
+    task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                             TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                             client.wds_iface_name.c_str());
+
+    return true;
+}
+
+bool slave_thread::handle_client_wds_iface_notification(
+    const std::shared_ptr<beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>
+        notification_in)
+{
+    if (!notification_in) {
+        LOG(ERROR) << "Invalid notification pointer";
+        return false;
+    }
+
+    auto db = AgentDB::get();
+
+    const auto &client_mac           = notification_in->mac();
+    const auto &bssid                = notification_in->bssid();
+    const std::string wds_iface_name = notification_in->wds_iface_name_str();
+
+    if (wds_iface_name.empty()) {
+        auto pending_wds_it = m_pending_wds_iface_notifications.find(client_mac);
+        if (pending_wds_it != m_pending_wds_iface_notifications.end() &&
+            pending_wds_it->second.bssid == bssid) {
+            m_pending_wds_iface_notifications.erase(pending_wds_it);
+        }
+
+        auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+        if (!radio) {
+            LOG(DEBUG) << "Ignoring stale cleared WDS iface notification, bssid not found: "
+                       << bssid;
+            return true;
+        }
+
+        auto client_it = radio->associated_clients.find(client_mac);
+        if (client_it == radio->associated_clients.end() || client_it->second.bssid != bssid) {
+            LOG(DEBUG) << "Ignoring stale cleared WDS iface notification for " << client_mac
+                       << ", bssid=" << bssid;
+            return true;
+        }
+
+        auto &client = client_it->second;
+        if (client.wds_iface_name.empty()) {
+            return true;
+        }
+
+        task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                 TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                 client.wds_iface_name.c_str());
+        client.wds_iface_name.clear();
+        return true;
+    }
+
+    auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+    if (!radio) {
+        LOG(DEBUG) << "Ignoring stale WDS iface notification, bssid not found: " << bssid;
+        return true;
+    }
+
+    const auto bss_it = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
+                                     [&](const auto &bss) { return bss.mac == bssid; });
+    if (bss_it == radio->front.bssids.end() || !bss_it->backhaul_bss) {
+        LOG(DEBUG) << "Ignoring WDS iface notification for non-backhaul bssid " << bssid;
+        return true;
+    }
+
+    auto client_it = radio->associated_clients.find(client_mac);
+    if (client_it == radio->associated_clients.end()) {
+        LOG(DEBUG) << "Caching WDS iface notification for " << client_mac
+                   << " until client association is processed";
+        m_pending_wds_iface_notifications[client_mac] = {.bssid      = bssid,
+                                                         .iface_name = wds_iface_name};
+        return true;
+    }
+
+    return set_client_wds_iface(*radio, client_mac, bssid, wds_iface_name);
 }
 
 bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_iface, int fd,
@@ -2820,6 +2963,55 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             }
             fronthaul_reset(radio_manager);
         } else {
+            auto db    = AgentDB::get();
+            auto radio = db->radio(fronthaul_iface);
+            if (!radio) {
+                LOG(ERROR) << "radio not found for iface " << fronthaul_iface;
+                return false;
+            }
+
+            const int vap_id  = int(notification_in->vap_id());
+            const int vap_idx = vap_id - int(beerocks::IFACE_VAP_ID_MIN);
+
+            if (vap_idx >= 0 && vap_idx < int(beerocks::IFACE_TOTAL_VAPS)) {
+                auto &bss          = radio->front.bssids[vap_idx];
+                const auto bss_mac = bss.mac;
+
+                // Keep the BSS entry for config matching, but drop its
+                // operational bit now. A later TS rebuild must not treat a
+                // just-disabled FH VAP as still present.
+                bss.enabled = false;
+                if (bss.backhaul_bss) {
+                    // Disabled backhaul BSSes must not rebuild exact WDS
+                    // state from stale DB entries until they are refreshed.
+                    bss.active = false;
+
+                    for (const auto &client_kv : radio->associated_clients) {
+                        const auto &client = client_kv.second;
+                        if (client.bssid != bss_mac || client.wds_iface_name.empty()) {
+                            continue;
+                        }
+
+                        LOG(DEBUG) << "Trigger traffic separation on AP_DISABLED for "
+                                      "WDS iface="
+                                   << client.wds_iface_name << ", bss=" << bss.iface_name;
+                        task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                                 TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                                 client.wds_iface_name.c_str());
+                    }
+                }
+                if (bss.fronthaul_bss && !bss.backhaul_bss && !bss.iface_name.empty()) {
+                    LOG(DEBUG) << "Trigger traffic separation on AP_DISABLED for "
+                                  "pure FH iface="
+                               << bss.iface_name;
+                    task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                             TrafficSeparationTask::eEvent::TS_CLEAR_FH_IFACE,
+                                             bss.iface_name.c_str());
+                }
+            } else {
+                LOG(WARNING) << "invalid vap_id " << vap_id << " for AP disabled notification";
+            }
+
             auto notification_out = message_com::create_vs_message<
                 beerocks_message::cACTION_CONTROL_HOSTAP_AP_DISABLED_NOTIFICATION>(cmdu_tx);
             if (notification_out == nullptr) {
@@ -2998,27 +3190,25 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         auto &bssid      = notification_in->params().bssid;
         LOG(INFO) << "client disconnected sta_mac=" << client_mac << " from bssid=" << bssid;
 
-        auto db                      = AgentDB::get();
-        auto radio                   = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
-        bool reconcile_ts_sta_ifaces = false;
-
+        // If exists, remove client association information for disconnected client.
+        auto db    = AgentDB::get();
+        auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
         if (radio) {
-            for (const auto &bss : radio->front.bssids) {
-                if (bss.mac == bssid && bss.backhaul_bss) {
-                    reconcile_ts_sta_ifaces = true;
-                    break;
-                }
+            auto client_it = radio->associated_clients.find(client_mac);
+            if (client_it != radio->associated_clients.end() && client_it->second.bssid == bssid &&
+                !client_it->second.wds_iface_name.empty()) {
+                const auto &wds_iface_name = client_it->second.wds_iface_name;
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                         wds_iface_name.c_str());
             }
         }
-
-        // If exists, remove client association information for disconnected client.
-        db->erase_client(client_mac, bssid);
-
-        if (reconcile_ts_sta_ifaces) {
-            LOG(DEBUG) << "Trigger traffic separation WDS clear on backhaul-BSS disconnect";
-            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                     TrafficSeparationTask::eEvent::TS_CLEAR_BH_STA_IFACE);
+        auto pending_wds_it = m_pending_wds_iface_notifications.find(client_mac);
+        if (pending_wds_it != m_pending_wds_iface_notifications.end() &&
+            pending_wds_it->second.bssid == bssid) {
+            m_pending_wds_iface_notifications.erase(pending_wds_it);
         }
+        db->erase_client(client_mac, bssid);
 
         // notify master
         if (!link_to_controller()) {
@@ -3347,13 +3537,6 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             break;
         }
 
-        for (auto &bss : radio->front.bssids) {
-            if (bss.mac == bssid && bss.backhaul_bss) {
-                m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
-                                       ApAutoConfigurationTask::eEvent::APPLY_CONFIG_FOR_NEW_IFACE);
-            }
-        }
-
         if (!process_client_association(notification_in)) {
             LOG(WARNING) << "Failed to process client association for " << client_mac;
         }
@@ -3407,6 +3590,26 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             vs_tlv->capabilities() = notification_in->capabilities();
         }
         send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
+
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_WDS_IFACE_NOTIFICATION: {
+        auto notification_in =
+            beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>();
+        if (!notification_in) {
+            LOG(ERROR) << "addClass cACTION_APMANAGER_WDS_IFACE_NOTIFICATION "
+                          "failed";
+            return false;
+        }
+
+        LOG(INFO) << "WDS iface ready sta_mac=" << notification_in->mac()
+                  << " bssid=" << notification_in->bssid()
+                  << " iface=" << notification_in->wds_iface_name_str();
+
+        if (!handle_client_wds_iface_notification(notification_in)) {
+            LOG(WARNING) << "Failed to process WDS iface notification for "
+                         << notification_in->mac();
+        }
 
         break;
     }
@@ -5877,8 +6080,82 @@ bool slave_thread::update_vaps_info(const std::string &iface,
     for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
         auto &bss = radio->front.bssids[vap_idx];
 
-        bss.active = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
+        const bool has_bssid  = (vaps[vap_idx].mac != network_utils::ZERO_MAC);
+        const auto iface_name = std::string(vaps[vap_idx].iface_name);
+        // Save the previous BSS role/operational state before overwriting this
+        // DB entry. After the update we compare old vs new values to detect
+        // real transitions (pure-FH enable/disable or backhaul policy change)
+        // and reconcile exact FH/WDS TS entries only when the effective state changed.
+        const bool was_enabled           = bss.enabled;
+        const bool was_pure_fh_bss       = bss.fronthaul_bss && !bss.backhaul_bss;
+        const bool was_backhaul_bss      = bss.backhaul_bss;
+        const bool disallow_profile1_was = bss.backhaul_bss_disallow_profile1_agent_association;
+        const bool disallow_profile2_was = bss.backhaul_bss_disallow_profile2_agent_association;
+        const auto previous_bssid        = bss.mac;
+        const std::string previous_iface_name = bss.iface_name;
+        const bool is_enabled                 = has_bssid && !iface_name.empty() &&
+                                network_utils::linux_iface_is_up_and_running(iface_name);
+
+        const auto clear_previous_fh_iface = [&]() {
+            if (!was_enabled || !was_pure_fh_bss || previous_iface_name.empty()) {
+                return;
+            }
+
+            LOG(DEBUG) << "Trigger traffic separation on VAPS_LIST_UPDATE "
+                          "disable for pure FH iface="
+                       << previous_iface_name;
+            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                     TrafficSeparationTask::eEvent::TS_CLEAR_FH_IFACE,
+                                     previous_iface_name.c_str());
+        };
+
+        const auto clear_previous_wds_ts = [&]() {
+            if (!was_backhaul_bss || previous_bssid == network_utils::ZERO_MAC) {
+                return;
+            }
+
+            for (const auto &client_kv : radio->associated_clients) {
+                const auto &client = client_kv.second;
+                if (client.bssid != previous_bssid || client.wds_iface_name.empty()) {
+                    continue;
+                }
+
+                LOG(DEBUG) << "Trigger traffic separation on VAPS_LIST_UPDATE for WDS iface="
+                           << client.wds_iface_name << ", bssid=" << previous_bssid;
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
+            }
+        };
+
+        const auto retrigger_wds_ts = [&](const char *source) {
+            for (const auto &client_kv : radio->associated_clients) {
+                const auto &client = client_kv.second;
+                if (client.bssid != bss.mac || client.wds_iface_name.empty()) {
+                    continue;
+                }
+
+                LOG(DEBUG) << "Trigger traffic separation on " << source
+                           << " disallow change for WDS iface=" << client.wds_iface_name
+                           << ", bss=" << bss.iface_name;
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
+            }
+        };
+
+        // Keep BSS identity as soon as a MAC is reported. Some startup VAP
+        // snapshots reach us before SSID is populated, and AP_ENABLED later
+        // matches the BSS by MAC only.
+        bss.active  = has_bssid;
+        bss.enabled = is_enabled;
         if (!bss.active) {
+            clear_previous_fh_iface();
+            clear_previous_wds_ts();
+
             // Set all values to their default state
             bss.iface_name                                       = "";
             bss.mac                                              = network_utils::ZERO_MAC;
@@ -5887,11 +6164,12 @@ bool slave_thread::update_vaps_info(const std::string &iface,
             bss.backhaul_bss                                     = false;
             bss.backhaul_bss_disallow_profile1_agent_association = false;
             bss.backhaul_bss_disallow_profile2_agent_association = false;
+            bss.enabled                                          = false;
             bss.link_id                                          = DISABLED_MLDUNIT;
             bss.apmld_mac                                        = network_utils::ZERO_MAC;
             continue;
         }
-        bss.iface_name    = vaps[vap_idx].iface_name;
+        bss.iface_name    = iface_name;
         bss.mac           = vaps[vap_idx].mac;
         bss.ssid          = vaps[vap_idx].ssid;
         bss.fronthaul_bss = vaps[vap_idx].fronthaul_vap;
@@ -5905,11 +6183,45 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         bss.apmld_mac = vaps[vap_idx].ap_mld_mac;
 
         LOG(DEBUG) << "BSS " << bss.iface_name << ", bssid: " << bss.mac << ", ssid:" << bss.ssid
-                   << ", fBSS: " << bss.fronthaul_bss << ", bBSS: " << bss.backhaul_bss
+                   << ", enabled: " << bss.enabled << ", fBSS: " << bss.fronthaul_bss
+                   << ", bBSS: " << bss.backhaul_bss
                    << ", p1_dis: " << bss.backhaul_bss_disallow_profile1_agent_association
                    << ", p2_dis: " << bss.backhaul_bss_disallow_profile2_agent_association
                    << ", mld_id: " << bss.mld_id << ", link_id: " << bss.link_id
                    << ", apmld_mac: " << bss.apmld_mac;
+
+        const bool is_pure_fh_bss =
+            bss.enabled && bss.fronthaul_bss && !bss.backhaul_bss && !bss.iface_name.empty();
+
+        if (was_enabled && was_pure_fh_bss &&
+            (!is_pure_fh_bss || previous_iface_name != bss.iface_name)) {
+            // Some local DM disable/retype flows only surface in the next VAP
+            // snapshot. Clear the previously managed pure-FH iface even when
+            // the new snapshot already removed or changed that BSS entry.
+            clear_previous_fh_iface();
+        }
+
+        if (was_backhaul_bss && (!bss.backhaul_bss || previous_bssid != bss.mac)) {
+            clear_previous_wds_ts();
+        }
+
+        if (is_pure_fh_bss &&
+            (!was_enabled || !was_pure_fh_bss || previous_iface_name != bss.iface_name)) {
+            LOG(DEBUG) << "Trigger traffic separation on VAPS_LIST_UPDATE "
+                          "enable for pure FH iface="
+                       << bss.iface_name;
+            task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                     TrafficSeparationTask::eEvent::TS_NEW_FH_IFACE,
+                                     bss.iface_name.c_str());
+        }
+
+        const bool disallow_changed =
+            was_backhaul_bss && bss.backhaul_bss && previous_bssid == bss.mac &&
+            (disallow_profile1_was != bss.backhaul_bss_disallow_profile1_agent_association ||
+             disallow_profile2_was != bss.backhaul_bss_disallow_profile2_agent_association);
+        if (disallow_changed) {
+            retrigger_wds_ts("VAPS_LIST_UPDATE");
+        }
 
         for (auto &ap_mld_conf : db->ap_mld_configurations) {
             if (ap_mld_conf.mld_config.mld_ssid == bss.ssid) {

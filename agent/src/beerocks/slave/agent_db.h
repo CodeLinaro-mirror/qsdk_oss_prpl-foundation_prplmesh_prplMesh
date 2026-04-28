@@ -279,7 +279,8 @@ public:
                 bool backhaul_bss;
                 bool backhaul_bss_disallow_profile1_agent_association;
                 bool backhaul_bss_disallow_profile2_agent_association;
-                bool active = false;
+                bool active  = false;
+                bool enabled = false;
                 sMacAddr apmld_mac;
                 int8_t mld_id  = -1;
                 int8_t link_id = -1;
@@ -320,6 +321,7 @@ public:
             size_t association_frame_length;
             std::array<uint8_t, ASSOCIATION_FRAME_SIZE> association_frame;
             bool supports_11v;
+            std::string wds_iface_name;
         };
 
         struct sCacCapabilities {

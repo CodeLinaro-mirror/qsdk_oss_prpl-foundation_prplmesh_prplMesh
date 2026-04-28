@@ -492,12 +492,6 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         work();
         break;
     }
-    case APPLY_CONFIG_FOR_NEW_IFACE: {
-        LOG(DEBUG) << "Trigger traffic separation on APPLY_CONFIG_FOR_NEW_IFACE";
-        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                           TrafficSeparationTask::eEvent::TS_NEW_BH_STA_IFACE);
-        break;
-    }
     default: {
         LOG(DEBUG) << "Message handler doesn't exists for event type " << event_enum_value;
         break;
@@ -2785,6 +2779,13 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
         return;
     }
 
+    // Save the previous bBSS/disallow state before overwriting this DB entry.
+    // After the update we compare old vs new values to detect a real backhaul
+    // policy transition and retrigger exact-WDS TS only when it actually changed.
+    const bool was_backhaul_bss      = bssid->backhaul_bss;
+    const bool disallow_profile1_was = bssid->backhaul_bss_disallow_profile1_agent_association;
+    const bool disallow_profile2_was = bssid->backhaul_bss_disallow_profile2_agent_association;
+
     // Update VAP info (BSSID) in the AgentDB
     bssid->ssid          = vap_info.ssid;
     bssid->fronthaul_bss = vap_info.fronthaul_vap;
@@ -2829,9 +2830,59 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     notification_out->vap_info() = notification_in->vap_info();
     m_btl_ctx.send_cmdu_to_controller(radio->front.iface_name, m_cmdu_tx);
 
-    // Marked BSSID as "enabled".
+    // Restore the active bit here as well because AP_ENABLED can arrive before
+    // the next VAP list refresh and the TS full rebuild relies on the current
+    // DB view.
     auto &radio_conf_params = m_radios_conf_params[radio_iface];
     radio_conf_params.enabled_bssids.insert(bssid->mac);
+    bssid->active  = true;
+    bssid->enabled = true;
+
+    if (was_backhaul_bss && !vap_info.backhaul_vap) {
+        for (const auto &client_kv : radio->associated_clients) {
+            const auto &client = client_kv.second;
+            if (client.bssid != bssid->mac || client.wds_iface_name.empty()) {
+                continue;
+            }
+
+            LOG(DEBUG) << "Trigger traffic separation on AP_ENABLED role change for WDS iface="
+                       << client.wds_iface_name << ", bss=" << vap_info.iface_name;
+            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                               TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                               client.wds_iface_name.c_str());
+        }
+    }
+
+    const bool disallow_changed =
+        was_backhaul_bss && vap_info.backhaul_vap &&
+        (disallow_profile1_was != bssid->backhaul_bss_disallow_profile1_agent_association ||
+         disallow_profile2_was != bssid->backhaul_bss_disallow_profile2_agent_association);
+    if (disallow_changed) {
+        for (const auto &client_kv : radio->associated_clients) {
+            const auto &client = client_kv.second;
+            if (client.bssid != bssid->mac || client.wds_iface_name.empty()) {
+                continue;
+            }
+
+            LOG(DEBUG) << "Trigger traffic separation on AP_ENABLED disallow change "
+                          "for WDS iface="
+                       << client.wds_iface_name << ", bss=" << vap_info.iface_name;
+            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                               TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                               client.wds_iface_name.c_str());
+            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                               TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                                               client.wds_iface_name.c_str());
+        }
+    }
+
+    if (vap_info.fronthaul_vap && !vap_info.backhaul_vap && vap_info.iface_name[0] != '\0') {
+        LOG(DEBUG) << "Trigger traffic separation on AP_ENABLED for pure FH iface="
+                   << vap_info.iface_name;
+        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_NEW_FH_IFACE,
+                                           vap_info.iface_name);
+    }
 }
 
 void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
