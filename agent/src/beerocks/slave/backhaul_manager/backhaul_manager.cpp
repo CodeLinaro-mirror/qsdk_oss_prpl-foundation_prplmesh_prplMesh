@@ -792,36 +792,93 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             break;
         }
 
-        // link establish
-        auto ifaces =
-            beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+        // Backhaul interface logic
 
-        // If a wired (WAN) interface was provided, try it first, check if the interface is UP
-        wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
-        if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
-            wired_link_state = wan_mon.initialize(db->ethernet.wan.iface_name);
-            // Failure might be due to insufficient permissions, detailed error message is being
-            // printed inside.
-            if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
-                LOG(WARNING) << "wan_mon.initialize() failed, skip wired link establishment";
+        // Build runtime state for all configured or discovered wired backhaul candidates.
+        // AgentDB keeps the static candidate list. Backhaul manager owns runtime state.
+        m_backhaul_wire_interfaces.clear();
+
+        auto bridge_ifaces =
+            beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+        std::vector<std::string> monitored_ifaces;
+
+        if (!db->device_conf.local_gw) {
+            for (const auto &candidate : db->ethernet.wan_candidates) {
+                if (candidate.iface_name.empty()) {
+                    continue;
+                }
+
+                sBackhaulWireInterface wire_iface;
+                wire_iface.ethernet_port = candidate;
+
+                // Initial state is required because netlink reports only changes.
+                // The link may be already up before wan_monitor starts.
+                wire_iface.up_and_running =
+                    beerocks::net::network_utils::linux_iface_is_up_and_running(
+                        candidate.iface_name);
+
+                // Initial bridge membership. Later this can be updated from netlink events.
+                wire_iface.bridge_member = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                                     candidate.iface_name) != bridge_ifaces.end();
+
+                m_backhaul_wire_interfaces.emplace(candidate.iface_name, wire_iface);
+                monitored_ifaces.push_back(candidate.iface_name);
+
+                LOG(DEBUG) << "Wired backhaul candidate iface=" << candidate.iface_name
+                           << ", up_and_running=" << int(wire_iface.up_and_running)
+                           << ", bridge_member=" << int(wire_iface.bridge_member);
+            }
+
+            if (!monitored_ifaces.empty() && !wan_mon.initialize(monitored_ifaces)) {
+                // This does not not immediatly fail onboarding. It only disable live netlink monitoring.
+                // Initial selection can still use state collected above.
+                // This requires further thought.
+                LOG(WARNING) << "wan_mon.initialize() failed, wired candidate monitoring disabled";
             }
         }
-        if ((wired_link_state == wan_monitor::ELinkState::eUp) &&
-            (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
 
-            auto it = std::find(ifaces.begin(), ifaces.end(), db->ethernet.wan.iface_name);
-            if (it == ifaces.end()) {
-                LOG(ERROR) << "wire iface " << db->ethernet.wan.iface_name
-                           << " is not on the bridge";
-                FSM_MOVE_STATE(RESTART);
+        bool wired_backhaul_selected = false;
+
+        // Keep selected_backhaul behavior
+        if (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH) {
+            // Do not iterate m_backhaul_wire_interfaces because unordered_map has no stable order.
+            for (const auto &candidate : db->ethernet.wan_candidates) {
+                auto it = m_backhaul_wire_interfaces.find(candidate.iface_name);
+                if (it == m_backhaul_wire_interfaces.end()) {
+                    continue;
+                }
+
+                const auto &wire_iface = it->second;
+
+                if (!wire_iface.bridge_member) {
+                    LOG(DEBUG) << "Wired backhaul candidate " << candidate.iface_name
+                               << " is not on bridge " << db->bridge.iface_name;
+                    continue;
+                }
+
+                if (!wire_iface.up_and_running) {
+                    LOG(DEBUG) << "Wired backhaul candidate " << candidate.iface_name
+                               << " is not up and running";
+                    continue;
+                }
+
+                // Temporary compatibility selection. Existing code still consumes
+                // db->ethernet.wan as the selected active wired backhaul.
+                db->ethernet.wan = wire_iface.ethernet_port;
+
+                // Initial wired selection cannot require 1905 traffic because transport depends on
+                // BackhaulManager reaching wired onboarding first. Runtime reselection will use
+                // has_1905_traffic once traffic monitoring is available.
+                db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
+                db->backhaul.selected_iface_name = wire_iface.ethernet_port.iface_name;
+
+                LOG(INFO) << "Selected wired backhaul iface=" << db->backhaul.selected_iface_name;
+
+                wired_backhaul_selected = true;
                 break;
             }
-
-            // Mark the connection as WIRED
-            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
-            db->backhaul.selected_iface_name = db->ethernet.wan.iface_name;
-
-        } else {
+        }
+        if (!wired_backhaul_selected) {
             // If no wired backhaul is configured, or it is down, we get into this else branch.
 
             // If selected backhaul is not empty, it's because we are in certification mode and

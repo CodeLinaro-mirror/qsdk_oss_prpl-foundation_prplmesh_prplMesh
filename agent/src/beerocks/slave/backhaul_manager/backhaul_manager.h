@@ -385,6 +385,14 @@ private:
     };
     std::unordered_map<std::string, ap_blacklist_entry> ap_blacklist;
 
+    struct sBackhaulWireInterface {
+        AgentDB::sEthernetPort ethernet_port;
+        bool bridge_member    = false;
+        bool up_and_running   = false;
+        bool has_1905_traffic = false; // later
+    };
+    std::unordered_map<std::string, sBackhaulWireInterface> m_backhaul_wire_interfaces;
+
     wan_monitor wan_mon;
 
     // Future to hold the DHCP client process exit code
