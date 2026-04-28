@@ -162,6 +162,25 @@ private:
     void fill_cs_params(beerocks_message::sApChannelSwitch &params);
     void fill_sr_params(beerocks_message::sSpatialReuseParams &params);
     bool create_ap_wlan_hal();
+
+    /**
+     * @brief Apply QoS management settings to one BSS.
+     *
+     * @param bssid BSSID to configure.
+     * @param mscs_enable Whether MSCS is enabled.
+     * @param scs_enable Whether SCS is enabled.
+     * @return true on success, false otherwise.
+     */
+    bool apply_qos_management_settings(const sMacAddr &bssid, bool mscs_enable, bool scs_enable);
+
+    /**
+     * @brief Apply QoS management settings to all fronthaul VAPs.
+     *
+     * @param mscs_enable Whether MSCS is enabled.
+     * @param scs_enable Whether SCS is enabled.
+     * @return true on success, false otherwise.
+     */
+    bool apply_qos_management_settings_to_fronthaul_vaps(bool mscs_enable, bool scs_enable);
     void send_heartbeat();
     void send_steering_return_status(beerocks_message::eActionOp_APMANAGER ActionOp,
                                      int32_t status);
@@ -240,6 +259,15 @@ private:
     };
 
     std::list<pending_disable_vap_t> pending_disable_vaps;
+
+    /**
+     * @brief QoS management settings deferred until the AP HAL is ready.
+     */
+    struct sPendingQosManagementSettings {
+        bool valid       = false;
+        bool mscs_enable = false;
+        bool scs_enable  = false;
+    } m_pending_qos_management_settings;
 
     /**
      * File descriptor to the external events queue.
