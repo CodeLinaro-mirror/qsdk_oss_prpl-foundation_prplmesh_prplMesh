@@ -516,6 +516,53 @@ bool ApManager::send_cmdu(ieee1905_1::CmduMessageTx &cmdu_tx)
     return m_slave_client->send_cmdu(cmdu_tx);
 }
 
+bool ApManager::apply_qos_management_settings(const sMacAddr &bssid, bool mscs_enable,
+                                              bool scs_enable)
+{
+    if (!ap_wlan_hal->supports_qos_management()) {
+        LOG(WARNING) << "Ignoring QoS management settings request on unsupported backend";
+        return true;
+    }
+
+    if (!ap_wlan_hal->set_qos_management_settings(bssid, mscs_enable, scs_enable)) {
+        LOG(ERROR) << "set_qos_management_settings failed for BSSID " << bssid;
+        return false;
+    }
+
+    return true;
+}
+
+bool ApManager::apply_qos_management_settings_to_fronthaul_vaps(bool mscs_enable, bool scs_enable)
+{
+    if (!ap_wlan_hal->supports_qos_management()) {
+        LOG(WARNING) << "Ignoring QoS management settings request on unsupported backend";
+        return true;
+    }
+
+    if (!ap_wlan_hal->refresh_vaps_info()) {
+        LOG(ERROR) << "Failed to refresh VAPs before applying QoS management settings";
+        return false;
+    }
+
+    for (const auto &vap_entry : ap_wlan_hal->get_radio_info().available_vaps) {
+        const auto &vap_info = vap_entry.second;
+        if (!vap_info.fronthaul || !net::network_utils::is_valid_mac(vap_info.mac)) {
+            continue;
+        }
+
+        const auto bssid = tlvf::mac_from_string(vap_info.mac);
+        if (bssid == beerocks::net::network_utils::ZERO_MAC) {
+            continue;
+        }
+
+        if (!apply_qos_management_settings(bssid, mscs_enable, scs_enable)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool ApManager::ap_manager_fsm(bool &continue_processing)
 {
     // Continue processing events if the state machine is in a transient state.
@@ -2377,14 +2424,21 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(ERROR) << "addClass has failed";
             return;
         }
-        if (!ap_wlan_hal->supports_qos_management()) {
-            LOG(WARNING) << "Ignoring QoS management settings request on unsupported backend";
+
+        if (msg->bssid() == beerocks::net::network_utils::ZERO_MAC) {
+            m_pending_qos_management_settings.valid       = true;
+            m_pending_qos_management_settings.mscs_enable = msg->mscs_enable();
+            m_pending_qos_management_settings.scs_enable  = msg->scs_enable();
+
+            if (!apply_qos_management_settings_to_fronthaul_vaps(msg->mscs_enable(),
+                                                                 msg->scs_enable())) {
+                LOG(ERROR) << "Failed applying QoS management settings to fronthaul VAPs";
+                return;
+            }
             break;
         }
 
-        if (!ap_wlan_hal->set_qos_management_settings(msg->bssid(), msg->mscs_enable(),
-                                                      msg->scs_enable())) {
-            LOG(ERROR) << "set_qos_management_settings failed for BSSID " << msg->bssid();
+        if (!apply_qos_management_settings(msg->bssid(), msg->mscs_enable(), msg->scs_enable())) {
             return;
         }
 
@@ -3883,6 +3937,16 @@ bool ApManager::handle_ap_enabled(int vap_id)
               << ", ssid = " << vap_info.ssid << ", fronthaul = " << vap_info.fronthaul
               << ", backhaul = " << vap_info.backhaul << ", apmld mac = " << vap_info.ap_mld_mac
               << ", link_id = " << vap_info.link_id;
+
+    if (m_pending_qos_management_settings.valid && vap_info.fronthaul &&
+        net::network_utils::is_valid_mac(vap_info.mac)) {
+        const auto bssid = tlvf::mac_from_string(vap_info.mac);
+        if (bssid != beerocks::net::network_utils::ZERO_MAC &&
+            !apply_qos_management_settings(bssid, m_pending_qos_management_settings.mscs_enable,
+                                           m_pending_qos_management_settings.scs_enable)) {
+            return false;
+        }
+    }
 
     if (vap_info.backhaul) {
         LOG(DEBUG) << "disallow_profile1=" << vap_info.profile1_backhaul_sta_association_disallowed

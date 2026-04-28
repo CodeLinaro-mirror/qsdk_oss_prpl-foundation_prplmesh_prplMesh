@@ -610,6 +610,13 @@ private:
     bool handle_dev_set_config(const std::unordered_map<std::string, std::string> &params,
                                std::string &err_string);
 
+    /**
+     * @brief Apply pending certification QoS management settings to fronthaul VAPs.
+     *
+     * @return true on success, false otherwise.
+     */
+    bool apply_qos_management_settings();
+
     /** 
      * Flag meaning that agent is in the reset state. 
      * 
@@ -648,6 +655,15 @@ private:
      * "dev_set_config" command has not been received yet.
      */
     std::string m_selected_backhaul;
+
+    /**
+     * @brief QoS management settings received from WFA-CA dev_set_config.
+     */
+    struct sQosManagementSettings {
+        bool valid       = false;
+        bool mscs_enable = false;
+        bool scs_enable  = false;
+    } m_qos_management_settings;
 
     bool m_remove_platform_manager_client = false;
 };
