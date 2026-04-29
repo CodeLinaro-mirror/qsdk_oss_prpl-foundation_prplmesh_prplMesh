@@ -804,7 +804,9 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
         std::vector<std::string> monitored_ifaces;
 
-        if (!db->device_conf.local_gw) {
+        // If wired controller discovery failed in this onboarding cycle, do not select wired
+        // again after the restart. Otherwise the agent would loop on the same invalid wired path.
+        if (!m_skip_wired_backhaul && !db->device_conf.local_gw) {
             for (const auto &candidate : db->ethernet.wan_candidates) {
                 if (candidate.iface_name.empty()) {
                     continue;
@@ -2019,6 +2021,19 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         }
 
         sta_wlan_hal->enable_disable_ep(static_cast<bool>(request->enable()));
+
+        break;
+    }
+    case beerocks_message::ACTION_BACKHAUL_WIRED_ONBOARDING_FAILED: {
+        LOG(WARNING) << "Wired onboarding failed, falling back to wireless backhaul";
+
+        // Keep this flag set across the BackhaulManager restart so ENABLED falls through to the
+        // wireless path instead of selecting the same wired candidate again.
+        m_skip_wired_backhaul = true;
+
+        if (FSM_IS_IN_STATE(CONNECTED) || FSM_IS_IN_STATE(OPERATIONAL)) {
+            FSM_MOVE_STATE(RESTART);
+        }
 
         break;
     }

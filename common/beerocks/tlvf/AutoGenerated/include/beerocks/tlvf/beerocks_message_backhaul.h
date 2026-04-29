@@ -720,6 +720,25 @@ class cACTION_BACKHAUL_RECONNECT_COMMAND : public BaseClass
         eActionOp_BACKHAUL* m_action_op = nullptr;
 };
 
+class cACTION_BACKHAUL_WIRED_ONBOARDING_FAILED : public BaseClass
+{
+    public:
+        cACTION_BACKHAUL_WIRED_ONBOARDING_FAILED(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_BACKHAUL_WIRED_ONBOARDING_FAILED(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_BACKHAUL_WIRED_ONBOARDING_FAILED();
+
+        static eActionOp_BACKHAUL get_action_op(){
+            return (eActionOp_BACKHAUL)(ACTION_BACKHAUL_WIRED_ONBOARDING_FAILED);
+        }
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_BACKHAUL* m_action_op = nullptr;
+};
+
 class cACTION_BACKHAUL_HOSTAP_SPATIAL_REUSE_REPORT_NOTIFICATION : public BaseClass
 {
     public:
