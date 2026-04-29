@@ -310,6 +310,7 @@ private:
     };
     struct DeDuplicationValue {
         std::chrono::steady_clock::time_point time;
+        unsigned int src_if_index = 0;
     };
     std::map<DeDuplicationKey, DeDuplicationValue, DeDuplicationKeyCompare> de_duplication_map_;
 
