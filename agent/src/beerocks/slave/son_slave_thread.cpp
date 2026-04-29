@@ -6806,6 +6806,18 @@ bool slave_thread::send_event(eEvent event)
         m_task_pool.send_event(eTaskType::CAPABILITY_REPORTING,
                                CapabilityReportingTask::eEvent::EARLY_AP_CAPABILITY);
         return true;
+    case WIRED_ONBOARDING_FAILED: {
+        // Wired controller discovery timed out (30 seconds).
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_WIRED_ONBOARDING_FAILED>(cmdu_tx);
+
+        if (!request) {
+            LOG(ERROR) << "Failed building ACTION_BACKHAUL_WIRED_ONBOARDING_FAILED";
+            return false;
+        }
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
+        return true;
+    }
     default:
         LOG(DEBUG) << "No known target for event " << event;
         return false;

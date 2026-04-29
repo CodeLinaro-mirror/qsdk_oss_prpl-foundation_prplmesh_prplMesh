@@ -256,7 +256,8 @@ template <typename BssConfig> static inline std::string dump_bssconfig_compact(c
 
 } // namespace
 
-static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS = 3;
+static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS    = 3;
+static constexpr uint8_t MAX_WIRED_CONTROLLER_DISCOVERY_ATTEMPTS = 10;
 #define HANDLE_THIRD_PARTY_ENABLE "1"
 #define VENDOR_RADIO_CFG 0x05
 
@@ -355,14 +356,31 @@ void ApAutoConfigurationTask::work()
             if (!radio) {
                 continue;
             }
-            if (m_discovery_status[radio->wifi_channel.get_freq_type()].completed) {
+
+            auto &discovery_status = m_discovery_status[radio->wifi_channel.get_freq_type()];
+
+            if (discovery_status.completed) {
                 FSM_MOVE_STATE(radio_iface, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
                 break;
             }
 
             if (std::chrono::steady_clock::now() > conf_params.timeout) {
+                // Wired backhaul selection only proves that a usable bridge port exists.
+                // If controller discovery keeps timing out, the wired path is not valid and
+                // BackhaulManager should restart without selecting wired again.
+                if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+                    discovery_status.failed_attempts++;
+
+                    if (discovery_status.failed_attempts >=
+                            MAX_WIRED_CONTROLLER_DISCOVERY_ATTEMPTS &&
+                        !discovery_status.wired_onboarding_failed_notified) {
+                        discovery_status.wired_onboarding_failed_notified = true;
+                        m_btl_ctx.send_event(slave_thread::eEvent::WIRED_ONBOARDING_FAILED);
+                    }
+                }
+
                 FSM_MOVE_STATE(radio_iface, eState::CONTROLLER_DISCOVERY);
-                m_discovery_status[radio->wifi_channel.get_freq_type()].msg_sent = false;
+                discovery_status.msg_sent = false;
             }
             break;
         }
@@ -1371,9 +1389,12 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
     }
 
     // Mark discovery status completed on band mentioned on the response and fill AgentDB fields.
-    db->controller_info.prplmesh_controller = prplmesh_controller;
-    db->controller_info.bridge_mac          = src_mac;
-    m_discovery_status[freq_type].completed = true;
+    db->controller_info.prplmesh_controller           = prplmesh_controller;
+    db->controller_info.bridge_mac                    = src_mac;
+    auto &discovery_status                            = m_discovery_status[freq_type];
+    discovery_status.completed                        = true;
+    discovery_status.failed_attempts                  = 0;
+    discovery_status.wired_onboarding_failed_notified = false;
     LOG(DEBUG) << "controller_discovered on " << band_name
                << " band, controller bridge_mac=" << src_mac
                << ", prplmesh_controller=" << prplmesh_controller;

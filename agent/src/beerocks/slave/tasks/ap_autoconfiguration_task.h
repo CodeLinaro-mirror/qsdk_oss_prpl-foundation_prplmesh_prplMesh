@@ -134,9 +134,11 @@ private:
      * Value: Struct that contain flags on the discovery phase of mapped band.
      */
     struct sDiscoveryStatus {
-        bool completed = false;
-        bool msg_sent  = false;
-        bool skipped   = false;
+        bool completed                        = false;
+        bool msg_sent                         = false;
+        bool skipped                          = false;
+        uint8_t failed_attempts               = 0;
+        bool wired_onboarding_failed_notified = false;
     };
     // Decalaring unordered_map with key which is an enum, does not compiles on older gcc version.
     // It was considered a defect in the standard, and was fixed in C++14, and also fixed in the

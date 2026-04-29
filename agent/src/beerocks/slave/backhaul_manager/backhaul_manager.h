@@ -394,6 +394,9 @@ private:
     std::unordered_map<std::string, sBackhaulWireInterface> m_backhaul_wire_interfaces;
 
     wan_monitor wan_mon;
+    // Runtime fallback guard. Set after wired controller discovery timeout and kept across the
+    // BackhaulManager restart so the next ENABLED pass can try wireless onboarding.
+    bool m_skip_wired_backhaul = false;
 
     // Future to hold the DHCP client process exit code
     std::future<int> m_ftDHCPRetCode;
