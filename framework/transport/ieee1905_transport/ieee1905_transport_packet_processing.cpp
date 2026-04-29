@@ -240,7 +240,22 @@ bool Ieee1905Transport::de_duplicate_packet(Packet &packet)
         // this is a duplicate packet - update timestamp
         counters_[CounterId::DUPLICATE_PACKETS]++;
         auto &val = it->second;
-        val.time  = now;
+
+        // A duplicate 1905 CMDU seen on a different ingress interface is a strong indication
+        // that the same L2 traffic is reaching us through multiple paths. The transport can only
+        // detect and drop the duplicate CMDU locally; loop mitigation must be handled by the
+        // owner of the backhaul policy.
+        if (packet.src_if_type == CmduRxMessage::IF_TYPE_NET && val.src_if_index != 0 &&
+            val.src_if_index != packet.src_if_index) {
+            MAPF_WARN("Duplicate 1905 CMDU received on different interfaces, possible L2 loop: "
+                      << "first_if_index=" << val.src_if_index
+                      << ", duplicate_if_index=" << packet.src_if_index << ", src=" << packet.src
+                      << ", dst=" << packet.dst << ", message_type=" << ntohs(key.messageType)
+                      << ", message_id=" << ntohs(key.messageId)
+                      << ", fragment_id=" << int(key.fragmentId));
+        }
+
+        val.time = now;
     } else if (int(de_duplication_map_.size()) >= kMaximumDeDuplicationThreads) {
         // this is not really a duplicate but we cannot track it so it will be dropped now
         MAPF_WARN("too many de-duplication threads - dropping packet as duplicate");
@@ -250,6 +265,7 @@ bool Ieee1905Transport::de_duplicate_packet(Packet &packet)
         DeDuplicationValue val;
 
         val.time                 = now;
+        val.src_if_index         = packet.src_if_index;
         de_duplication_map_[key] = val;
     }
 
