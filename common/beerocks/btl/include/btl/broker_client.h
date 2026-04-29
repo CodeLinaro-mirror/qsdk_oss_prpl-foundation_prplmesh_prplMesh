@@ -13,6 +13,11 @@
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/common/sMacAddr.h>
 
+#include <mapf/transport/ieee1905_transport_messages.h>
+
+#include <functional>
+#include <set>
+
 namespace beerocks {
 namespace btl {
 
@@ -53,6 +58,25 @@ public:
         std::function<void(uint32_t iface_index, const sMacAddr &dst_mac, const sMacAddr &src_mac,
                            ieee1905_1::CmduMessageRx &cmdu_rx)>;
 
+    struct DuplicateCmduNotification {
+        uint32_t first_iface_index;
+        uint32_t duplicate_iface_index;
+        sMacAddr src_mac;
+        sMacAddr dst_mac;
+        uint16_t message_type;
+        uint16_t message_id;
+        uint8_t fragment_id;
+    };
+
+    /**
+     * @brief Duplicate-CMDU notification handler function.
+     *
+     * Called when the transport process detects that the same 1905 CMDU arrived on two different
+     * network interfaces. This is a loop-risk signal only; the broker client does not apply policy.
+     */
+    using DuplicateCmduNotificationHandler =
+        std::function<void(const DuplicateCmduNotification &notification)>;
+
     /**
      * @brief Connection-closed event handler function.
      */
@@ -73,6 +97,12 @@ public:
          * server and forwarded to the client.
          */
         CmduReceivedHandler on_cmdu_received;
+
+        /**
+         * Handler function called back by the broker client when the transport process reports a
+         * duplicate 1905 CMDU on different ingress interfaces.
+         */
+        DuplicateCmduNotificationHandler on_duplicate_cmdu_received;
 
         /**
          * Handler function called back by the broker client to deal with connection-closed event.
@@ -119,6 +149,17 @@ public:
      * @return true on success and false otherwise
      */
     virtual bool subscribe(const std::set<ieee1905_1::eMessageType> &msg_types) = 0;
+
+    /**
+     * @brief Subscribes for internal transport notifications.
+     *
+     * This is used for transport-originated messages which are not IEEE1905 CMDUs, for example
+     * loop-risk notifications.
+     *
+     * @param msg_types List of internal transport message types the caller is interested in.
+     * @return true on success and false otherwise.
+     */
+    virtual bool subscribe(const std::set<beerocks::transport::messages::Type> &msg_types) = 0;
 
     /**
      * @brief Configures the transport process to use given network bridge.
@@ -211,6 +252,16 @@ protected:
     {
         if (m_handlers.on_cmdu_received) {
             m_handlers.on_cmdu_received(iface_index, dst_mac, src_mac, cmdu_rx);
+        }
+    }
+
+    /**
+     * @brief Notifies a duplicate-CMDU event.
+     */
+    void notify_duplicate_cmdu_received(const DuplicateCmduNotification &notification) const
+    {
+        if (m_handlers.on_duplicate_cmdu_received) {
+            m_handlers.on_duplicate_cmdu_received(notification);
         }
     }
 
