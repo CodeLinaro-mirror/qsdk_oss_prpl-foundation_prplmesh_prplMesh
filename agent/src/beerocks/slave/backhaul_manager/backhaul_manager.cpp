@@ -274,6 +274,8 @@ bool BackhaulManager::thread_init()
     broker_client_handlers.on_cmdu_received = [&](uint32_t iface_index, const sMacAddr &dst_mac,
                                                   const sMacAddr &src_mac,
                                                   ieee1905_1::CmduMessageRx &cmdu_rx) {
+        LOG(ERROR) << "DIMA iface_index: " << iface_index << " iface_name: "
+                   << beerocks::net::network_utils::linux_get_iface_name(iface_index);
         handle_cmdu_from_broker(iface_index, dst_mac, src_mac, cmdu_rx);
     };
 
