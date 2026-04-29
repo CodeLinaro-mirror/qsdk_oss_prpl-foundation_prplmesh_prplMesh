@@ -277,6 +277,24 @@ bool BackhaulManager::thread_init()
         handle_cmdu_from_broker(iface_index, dst_mac, src_mac, cmdu_rx);
     };
 
+    broker_client_handlers.on_duplicate_cmdu_received =
+        [&](const beerocks::btl::BrokerClient::DuplicateCmduNotification &notification) {
+            // Transport detected the same 1905 CMDU on two ingress interfaces. BackhaulManager is
+            // the policy owner and will decide which path should eventually be blocked.
+            LOG(WARNING) << "Duplicate 1905 CMDU notification: first_iface_index="
+                         << notification.first_iface_index << ", first_iface_name="
+                         << beerocks::net::network_utils::linux_get_iface_name(
+                                notification.first_iface_index)
+                         << ", duplicate_iface_index=" << notification.duplicate_iface_index
+                         << ", duplicate_iface_name="
+                         << beerocks::net::network_utils::linux_get_iface_name(
+                                notification.duplicate_iface_index)
+                         << ", src=" << notification.src_mac << ", dst=" << notification.dst_mac
+                         << ", message_type=" << notification.message_type
+                         << ", message_id=" << notification.message_id
+                         << ", fragment_id=" << int(notification.fragment_id);
+        };
+
     // Install a connection-closed event handler.
     // Currently there is no recovery mechanism if connection with broker server gets interrupted
     // (something that happens if the transport process dies). Just log a message and exit
@@ -304,6 +322,13 @@ bool BackhaulManager::thread_init()
             ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
         })) {
         LOG(ERROR) << "Failed subscribing to the Bus";
+        return false;
+    }
+
+    if (!m_broker_client->subscribe(std::set<beerocks::transport::messages::Type>{
+            beerocks::transport::messages::Type::DuplicateCmduNotificationMessage,
+        })) {
+        LOG(ERROR) << "Failed subscribing to transport duplicate CMDU notifications";
         return false;
     }
 

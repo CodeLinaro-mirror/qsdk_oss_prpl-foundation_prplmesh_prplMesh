@@ -253,6 +253,21 @@ bool Ieee1905Transport::de_duplicate_packet(Packet &packet)
                       << ", dst=" << packet.dst << ", message_type=" << ntohs(key.messageType)
                       << ", message_id=" << ntohs(key.messageId)
                       << ", fragment_id=" << int(key.fragmentId));
+
+            // Publish an internal notification so policy owners can decide which forwarding path
+            // should be disabled. Transport intentionally does not change interface state here.
+            DuplicateCmduNotificationMessage notification;
+            notification.metadata()->first_if_index     = val.src_if_index;
+            notification.metadata()->duplicate_if_index = packet.src_if_index;
+            notification.metadata()->src                = key.src;
+            notification.metadata()->dst                = key.dst;
+            notification.metadata()->message_type       = ntohs(key.messageType);
+            notification.metadata()->message_id         = ntohs(key.messageId);
+            notification.metadata()->fragment_id        = key.fragmentId;
+
+            if (!m_broker->publish(notification)) {
+                MAPF_ERR("failed to publish DuplicateCmduNotificationMessage to broker.");
+            }
         }
 
         val.time = now;
