@@ -165,6 +165,13 @@ private:
      */
     bool add_bss_configuration_report_tlv();
 
+    /**
+     * @brief Add and fill bSTA Radio Capabilities
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_backhaul_sta_radio_capabilities();
+
     std::chrono::steady_clock::time_point m_periodic_discovery_timestamp;
 
     bool m_pending_to_send_topology_notification = false;

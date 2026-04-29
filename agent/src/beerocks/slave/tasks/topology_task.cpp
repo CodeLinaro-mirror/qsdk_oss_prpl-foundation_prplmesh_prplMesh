@@ -30,6 +30,7 @@
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
 #include <tlvf/wfa_map/tlvAssociatedStaMldConfigurationReport.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
+#include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
 #include <tlvf/wfa_map/tlvBssConfigurationReport.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
@@ -305,6 +306,11 @@ void TopologyTask::handle_topology_query(ieee1905_1::CmduMessageRx &cmdu_rx,
 
     if (!add_assoc_sta_mld_config_reports()) {
         LOG(ERROR) << "Failed to add Associated STA MLD Configuration reports";
+        return;
+    }
+
+    if (!add_backhaul_sta_radio_capabilities()) {
+        LOG(ERROR) << "Failed to add Backhaul STA Capabilities TLV";
         return;
     }
 
@@ -1249,6 +1255,55 @@ bool TopologyTask::add_bss_configuration_report_tlv()
         }
 
         tlvBssConfigurationReport->add_radios(radio_entry);
+    }
+
+    return true;
+}
+
+bool TopologyTask::add_backhaul_sta_radio_capabilities()
+{
+    auto db     = AgentDB::get();
+    auto radios = db->get_radios_list();
+
+    if (radios.size() == 0) {
+        LOG(ERROR) << "add_backhaul_sta_radio_capabilities(): no radios found in db";
+        return true;
+    }
+
+    for (const auto radio : radios) {
+        if (!radio || radio->front.iface_mac == network_utils::ZERO_MAC) {
+            continue;
+        }
+
+        auto backhaul_sta_radio_cap_tlv =
+            m_cmdu_tx.addClass<wfa_map::tlvBackhaulStaRadioCapabilities>();
+        if (!backhaul_sta_radio_cap_tlv) {
+            LOG(ERROR) << "addClass wfa_map::tlvBackhaulStaRadioCapabilities has failed";
+            return false;
+        }
+
+        backhaul_sta_radio_cap_tlv->ruid() = radio->front.iface_mac;
+
+        sMacAddr backhaul_mac;
+        if (radio->back.iface_mac == net::network_utils::ZERO_MAC) {
+            LOG(INFO) << "Radio STA Interface HAL is not initialized, iface="
+                      << radio->back.iface_name;
+            backhaul_sta_radio_cap_tlv->sta_mac_included() =
+                wfa_map::tlvBackhaulStaRadioCapabilities::eStaMacIncluded::FIELD_NOT_PRESENT;
+            backhaul_mac = net::network_utils::ZERO_MAC;
+        } else {
+            backhaul_sta_radio_cap_tlv->sta_mac_included() =
+                wfa_map::tlvBackhaulStaRadioCapabilities::eStaMacIncluded::FIELD_PRESENT;
+            backhaul_mac = radio->back.iface_mac;
+
+            if (!backhaul_sta_radio_cap_tlv->set_sta_mac(backhaul_mac)) {
+                LOG(ERROR) << "Setting sta_mac for tlvBackhaulStaRadioCapabilities has failed";
+                return false;
+            }
+        }
+
+        LOG(DEBUG) << "Backhaul STA Radio Capabilities, ruid=" << radio->front.iface_mac
+                   << " sta mac=" << backhaul_mac;
     }
 
     return true;
