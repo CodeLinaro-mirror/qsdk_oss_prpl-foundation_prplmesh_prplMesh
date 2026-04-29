@@ -2500,8 +2500,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         }
     }
 
-    db->bsta_mld_configuration->mld_config.mld_mac = bsta_mld_configuration->bsta_mld_mac_addr();
-
+    db->bsta_mld_configuration->mld_config.mld_mode = AgentDB::sMLDConfiguration::mode::NONE;
     if (bsta_mld_configuration->modes().str) {
         db->bsta_mld_configuration->mld_config.mld_mode =
             AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
