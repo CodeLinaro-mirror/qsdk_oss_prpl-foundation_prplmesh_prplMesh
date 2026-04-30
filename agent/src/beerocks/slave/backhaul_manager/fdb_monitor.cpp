@@ -82,6 +82,7 @@ fdb_monitor::EEvent fdb_monitor::process()
     msg.msg_controllen = 0;
     msg.msg_flags      = 0;
 
+    // coverity[var_deref_model]
     auto msglen = recvmsg(m_iNetlinkFD, &msg, 0);
     if (msglen < 0) {
         LOG(ERROR) << "Failed reading FDB netlink message: " << strerror(errno);
