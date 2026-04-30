@@ -279,20 +279,7 @@ bool BackhaulManager::thread_init()
 
     broker_client_handlers.on_duplicate_cmdu_received =
         [&](const beerocks::btl::BrokerClient::DuplicateCmduNotification &notification) {
-            // Transport detected the same 1905 CMDU on two ingress interfaces. BackhaulManager is
-            // the policy owner and will decide which path should eventually be blocked.
-            LOG(WARNING) << "Duplicate 1905 CMDU notification: first_iface_index="
-                         << notification.first_iface_index << ", first_iface_name="
-                         << beerocks::net::network_utils::linux_get_iface_name(
-                                notification.first_iface_index)
-                         << ", duplicate_iface_index=" << notification.duplicate_iface_index
-                         << ", duplicate_iface_name="
-                         << beerocks::net::network_utils::linux_get_iface_name(
-                                notification.duplicate_iface_index)
-                         << ", src=" << notification.src_mac << ", dst=" << notification.dst_mac
-                         << ", message_type=" << notification.message_type
-                         << ", message_id=" << notification.message_id
-                         << ", fragment_id=" << int(notification.fragment_id);
+            handle_duplicate_cmdu_notification(notification);
         };
 
     // Install a connection-closed event handler.
@@ -378,6 +365,173 @@ void BackhaulManager::on_thread_stop()
     LOG(DEBUG) << "stopped";
 
     return;
+}
+
+const char *BackhaulManager::loop_iface_type_to_string(eLoopIfaceType iface_type) const
+{
+    switch (iface_type) {
+    case eLoopIfaceType::WiredCandidate:
+        return "wired_candidate";
+    case eLoopIfaceType::WirelessEndpoint:
+        return "wireless_endpoint";
+    case eLoopIfaceType::Unknown:
+        return "unknown";
+    }
+
+    return "unknown";
+}
+
+int BackhaulManager::wireless_loop_preference(beerocks::eFreqType freq_type) const
+{
+    // Product policy for choosing between multiple wireless backhaul endpoints involved in a
+    // duplicate-path condition. Higher value wins.
+    switch (freq_type) {
+    case beerocks::FREQ_5G:
+        return 3;
+    case beerocks::FREQ_24G:
+        return 2;
+    case beerocks::FREQ_6G:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+BackhaulManager::sLoopIfaceInfo BackhaulManager::classify_loop_iface(uint32_t iface_index) const
+{
+    sLoopIfaceInfo iface_info;
+    iface_info.iface_index = iface_index;
+
+    // Index 0 is used by transport for local-bus-originated CMDUs and is not a physical ingress
+    // interface. Duplicate-loop notifications should normally be network-originated, but keep this
+    // guard to avoid misleading iface-name lookups.
+    if (iface_index == 0) {
+        return iface_info;
+    }
+
+    iface_info.iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+    if (iface_info.iface_name.empty()) {
+        return iface_info;
+    }
+
+    auto db = AgentDB::get();
+
+    for (size_t i = 0; i < db->ethernet.wan_candidates.size(); i++) {
+        const auto &candidate = db->ethernet.wan_candidates[i];
+        if (candidate.iface_name != iface_info.iface_name) {
+            continue;
+        }
+
+        iface_info.iface_type            = eLoopIfaceType::WiredCandidate;
+        iface_info.wired_candidate_order = i;
+        iface_info.selected_backhaul =
+            db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired &&
+            db->backhaul.selected_iface_name == iface_info.iface_name;
+        return iface_info;
+    }
+
+    for (const auto &radio_info : m_radios_info) {
+        if (!radio_info || radio_info->sta_iface != iface_info.iface_name) {
+            continue;
+        }
+
+        iface_info.iface_type = eLoopIfaceType::WirelessEndpoint;
+        auto radio            = db->radio(radio_info->sta_iface);
+        if (!radio) {
+            radio = db->radio(radio_info->hostap_iface);
+        }
+        if (radio) {
+            iface_info.wireless_freq_type = radio->wifi_channel.get_freq_type();
+        }
+        iface_info.selected_backhaul =
+            db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+            db->backhaul.selected_iface_name == iface_info.iface_name;
+        return iface_info;
+    }
+
+    return iface_info;
+}
+
+void BackhaulManager::handle_duplicate_cmdu_notification(
+    const beerocks::btl::BrokerClient::DuplicateCmduNotification &notification)
+{
+    const auto first_iface     = classify_loop_iface(notification.first_iface_index);
+    const auto duplicate_iface = classify_loop_iface(notification.duplicate_iface_index);
+
+    LOG(WARNING) << "Duplicate 1905 CMDU notification: first_iface_index="
+                 << notification.first_iface_index
+                 << ", first_iface_name=" << first_iface.iface_name
+                 << ", first_iface_type=" << loop_iface_type_to_string(first_iface.iface_type)
+                 << ", duplicate_iface_index=" << notification.duplicate_iface_index
+                 << ", duplicate_iface_name=" << duplicate_iface.iface_name
+                 << ", duplicate_iface_type="
+                 << loop_iface_type_to_string(duplicate_iface.iface_type)
+                 << ", src=" << notification.src_mac << ", dst=" << notification.dst_mac
+                 << ", message_type=" << notification.message_type
+                 << ", message_id=" << notification.message_id
+                 << ", fragment_id=" << int(notification.fragment_id);
+
+    if (first_iface.iface_type == eLoopIfaceType::Unknown ||
+        duplicate_iface.iface_type == eLoopIfaceType::Unknown) {
+        LOG(DEBUG) << "Duplicate 1905 CMDU involves an unknown interface. No loop mitigation "
+                      "proposal can be made yet.";
+        return;
+    }
+
+    const sLoopIfaceInfo *keep_iface  = nullptr;
+    const sLoopIfaceInfo *block_iface = nullptr;
+
+    // The selected backhaul path is the safest path to keep. If a duplicate path appears, the
+    // non-selected path is the first candidate for future blocking.
+    if (first_iface.selected_backhaul != duplicate_iface.selected_backhaul) {
+        keep_iface  = first_iface.selected_backhaul ? &first_iface : &duplicate_iface;
+        block_iface = first_iface.selected_backhaul ? &duplicate_iface : &first_iface;
+    } else if (first_iface.iface_type == eLoopIfaceType::WiredCandidate &&
+               duplicate_iface.iface_type == eLoopIfaceType::WiredCandidate) {
+        // For two wired candidates, preserve configuration/discovery order.
+        keep_iface = first_iface.wired_candidate_order <= duplicate_iface.wired_candidate_order
+                         ? &first_iface
+                         : &duplicate_iface;
+        block_iface = keep_iface == &first_iface ? &duplicate_iface : &first_iface;
+    } else if (first_iface.iface_type != duplicate_iface.iface_type) {
+        auto db = AgentDB::get();
+
+        // If wireless is already the selected backhaul, do not propose breaking it just because an
+        // unproven wired path appeared. Otherwise, prefer wired according to backhaul preference.
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
+            keep_iface = first_iface.iface_type == eLoopIfaceType::WirelessEndpoint
+                             ? &first_iface
+                             : &duplicate_iface;
+        } else {
+            keep_iface = first_iface.iface_type == eLoopIfaceType::WiredCandidate
+                             ? &first_iface
+                             : &duplicate_iface;
+        }
+        block_iface = keep_iface == &first_iface ? &duplicate_iface : &first_iface;
+    } else if (first_iface.iface_type == eLoopIfaceType::WirelessEndpoint &&
+               duplicate_iface.iface_type == eLoopIfaceType::WirelessEndpoint) {
+        // For two wireless endpoints without a selected winner, use product band preference:
+        // 5GHz > 2.4GHz > 6GHz. If both rank the same, keep the first ingress path for stability.
+        const auto first_preference = wireless_loop_preference(first_iface.wireless_freq_type);
+        const auto duplicate_preference =
+            wireless_loop_preference(duplicate_iface.wireless_freq_type);
+
+        keep_iface  = first_preference >= duplicate_preference ? &first_iface : &duplicate_iface;
+        block_iface = keep_iface == &first_iface ? &duplicate_iface : &first_iface;
+    }
+
+    if (!keep_iface || !block_iface) {
+        LOG(DEBUG) << "Duplicate 1905 CMDU classification did not produce a loop mitigation "
+                      "proposal.";
+        return;
+    }
+
+    // This is intentionally a proposal only. The next step is to add the actual blocking operation
+    // behind a separate policy switch after field logs confirm the classification is correct.
+    LOG(WARNING) << "Loop mitigation proposal (not applied): keep iface=" << keep_iface->iface_name
+                 << " type=" << loop_iface_type_to_string(keep_iface->iface_type)
+                 << ", block iface=" << block_iface->iface_name
+                 << " type=" << loop_iface_type_to_string(block_iface->iface_type);
 }
 
 bool BackhaulManager::send_cmdu(int fd, ieee1905_1::CmduMessageTx &cmdu_tx)

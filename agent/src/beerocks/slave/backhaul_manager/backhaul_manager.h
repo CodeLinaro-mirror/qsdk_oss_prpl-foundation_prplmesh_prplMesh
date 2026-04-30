@@ -393,6 +393,23 @@ private:
     };
     std::unordered_map<std::string, sBackhaulWireInterface> m_backhaul_wire_interfaces;
 
+    enum class eLoopIfaceType { Unknown, WiredCandidate, WirelessEndpoint };
+
+    struct sLoopIfaceInfo {
+        uint32_t iface_index = 0;
+        std::string iface_name;
+        eLoopIfaceType iface_type              = eLoopIfaceType::Unknown;
+        size_t wired_candidate_order           = 0;
+        beerocks::eFreqType wireless_freq_type = beerocks::FREQ_UNKNOWN;
+        bool selected_backhaul                 = false;
+    };
+
+    void handle_duplicate_cmdu_notification(
+        const beerocks::btl::BrokerClient::DuplicateCmduNotification &notification);
+    sLoopIfaceInfo classify_loop_iface(uint32_t iface_index) const;
+    const char *loop_iface_type_to_string(eLoopIfaceType iface_type) const;
+    int wireless_loop_preference(beerocks::eFreqType freq_type) const;
+
     wan_monitor wan_mon;
     // Runtime fallback guard. Set after wired controller discovery timeout and kept across the
     // BackhaulManager restart so the next ENABLED pass can try wireless onboarding.
