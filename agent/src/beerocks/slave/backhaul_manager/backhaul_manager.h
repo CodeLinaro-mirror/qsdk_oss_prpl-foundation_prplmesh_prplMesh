@@ -409,11 +409,22 @@ private:
     sLoopIfaceInfo classify_loop_iface(uint32_t iface_index) const;
     const char *loop_iface_type_to_string(eLoopIfaceType iface_type) const;
     int wireless_loop_preference(beerocks::eFreqType freq_type) const;
+    bool find_wired_candidate(const std::string &iface_name,
+                              AgentDB::sEthernetPort &candidate) const;
+    bool wired_candidate_is_available(const std::string &iface_name) const;
+    bool has_available_wired_candidate() const;
+    void maybe_send_wired_controller_probe();
+    bool send_wired_controller_probe_search(const std::string &radio_iface);
+    bool handle_wired_autoconfiguration_response(uint32_t iface_index,
+                                                 ieee1905_1::CmduMessageRx &cmdu_rx);
 
     wan_monitor wan_mon;
     // Runtime fallback guard. Set after wired controller discovery timeout and kept across the
     // BackhaulManager restart so the next ENABLED pass can try wireless onboarding.
     bool m_skip_wired_backhaul = false;
+    std::string m_preferred_wired_candidate_iface;
+    std::chrono::steady_clock::time_point m_next_wired_controller_probe_time =
+        std::chrono::steady_clock::time_point::min();
 
     // Future to hold the DHCP client process exit code
     std::future<int> m_ftDHCPRetCode;
