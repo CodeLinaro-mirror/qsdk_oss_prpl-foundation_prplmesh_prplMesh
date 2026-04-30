@@ -163,9 +163,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-04-27"
-        OPENWRT_TOOLCHAIN_VERSION='5e7283d5ae5f4fd10e6206326c62d919de9b8eea'
-        OPENWRT_VERSION='5e7283d5ae5f4fd10e6206326c62d919de9b8eea'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS MR2335 - hostapd/mt76 bump"
+        OPENWRT_TOOLCHAIN_VERSION='36b7349a4b32ffc54176ef865a927cdae5f5aa25'
+        OPENWRT_VERSION='36b7349a4b32ffc54176ef865a927cdae5f5aa25'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -204,9 +204,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos latest-24.10_2026-04-27
-OPENWRT_TOOLCHAIN_VERSION='5e7283d5ae5f4fd10e6206326c62d919de9b8eea'
-OPENWRT_VERSION='5e7283d5ae5f4fd10e6206326c62d919de9b8eea'
+# prplos MR2335 - hostapd/mt76 bump
+OPENWRT_TOOLCHAIN_VERSION='36b7349a4b32ffc54176ef865a927cdae5f5aa25'
+OPENWRT_VERSION='36b7349a4b32ffc54176ef865a927cdae5f5aa25'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false

@@ -126,6 +126,9 @@ sleep 5
 # Copy generated SSH host keys
 cp /etc/config/ssh_server/*_key /etc/dropbear/
 
+# increase debug level of MTK firmware
+echo 2 > /sys/kernel/debug/ieee80211/phy0/mt76/fw_debug_wm
+
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 bootscript="/etc/rc.local"
 boot_cmd="sleep 60 && $start_ssh_commands"
