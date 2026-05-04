@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <bpl/bpl_service_prio_utils.h>
 #include <iterator>
+#include <map>
 #include <set>
 #include <string>
 
@@ -26,11 +27,11 @@ public:
     bool apply_up_map(std::list<sInterfaceTagInfo> *iface_list, uint8_t default_pcp = 0) override;
 
 private:
-    bool add_qdisc(const std::string &iface_name);
-    bool remove_qdisc(const std::string &iface_name);
+    bool ensure_qdisc(const std::string &iface_name);
+    bool remove_filters(const std::string &iface_name);
 
 private:
-    std::set<std::string> applied_interfaces;
+    std::map<std::string, std::set<uint32_t>> applied_filter_prefs;
 };
 
 } // namespace bpl
