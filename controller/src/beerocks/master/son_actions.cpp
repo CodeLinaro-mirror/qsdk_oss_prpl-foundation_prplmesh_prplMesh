@@ -20,6 +20,7 @@
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
 
+#include "tid_to_link_utils.h"
 #include <beerocks/tlvf/beerocks_message_cli.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvSupportedFreqBand.h>
@@ -837,6 +838,122 @@ bool son_actions::handle_backhaul_sta_mld_configuration_tlv(db &database, const 
     agent->bsta_mld.mld_info.mld_mode = mld_mode;
     agent->bsta_mld.mld_info.mld_mac  = backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr();
     agent->bsta_mld.ap_mld_mac        = backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr();
+
+    return true;
+}
+
+static inline uint8_t get_tid_byte(const wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map)
+{
+    return (map.bit0 << 0) | (map.bit1 << 1) | (map.bit2 << 2) | (map.bit3 << 3) | (map.bit4 << 4) |
+           (map.bit5 << 5) | (map.bit6 << 6) | (map.bit7 << 7);
+}
+
+bool son_actions::handle_tid_to_link_mapping_policy_tlv(db &database, const sMacAddr &al_mac,
+                                                        ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto agent = database.m_agents.get(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent not found: " << al_mac;
+        return false;
+    }
+
+    auto tlv = cmdu_rx.getClass<wfa_map::tlvTidToLinkMappingPolicy>();
+
+    /* No TLV → keep existing state */
+    if (!tlv) {
+        return true;
+    }
+
+    /* true = bSTA MLD, false = AP MLD */
+    bool is_bsta = tlv->is_bsta_config().is_bsta_mld;
+
+    auto &mld_map = agent->mld_map;
+
+    // Clear only entries belonging to this role
+
+    for (auto &mld_it : mld_map) {
+        auto &sta_map = mld_it.second;
+
+        for (auto it = sta_map.begin(); it != sta_map.end();) {
+            if (it->second.is_bSTA_Config == is_bsta) {
+                it = sta_map.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    /* Ambiorix is write-only → clear DM and rebuild */
+    if (!database.dm_clear_tid_to_link_mapping(al_mac)) {
+        LOG(ERROR) << "Failed to clear TidToLinkMapping DM for Agent " << al_mac;
+        return false;
+    }
+
+    const sMacAddr mld_mac = tlv->mld_mac_addr();
+
+    for (uint16_t i = 0; i < tlv->num_mapping(); ++i) {
+
+        auto tuple = tlv->mapping(i);
+        if (!std::get<0>(tuple)) {
+            LOG(ERROR) << "Invalid Tid-to-Link mapping entry";
+            return false;
+        }
+
+        auto &mapping = std::get<1>(tuple);
+        Agent::sTidToLinkMappingEntry entry{};
+
+        entry.addRemove        = mapping.add_remove().should_be_removed;
+        entry.STA_MLD_MAC_Addr = mapping.sta_mld_mac_addr();
+
+        /* Build control byte */
+        uint8_t ctrl_byte = 0;
+        auto ctrl         = mapping.tid_to_link_control_field();
+
+        tid_to_link_utils::set_direction(ctrl_byte, ctrl->tid_to_link_control().direction);
+        tid_to_link_utils::set_default_link_mapping(
+            ctrl_byte, ctrl->tid_to_link_control().default_link_mapping);
+        tid_to_link_utils::set_mapping_switch_time(
+            ctrl_byte, ctrl->tid_to_link_control().mapping_switch_time_present);
+        tid_to_link_utils::set_expected_duration_present(
+            ctrl_byte, ctrl->tid_to_link_control().expected_duration_present);
+        tid_to_link_utils::set_link_mapping_size(ctrl_byte,
+                                                 ctrl->tid_to_link_control().link_mapping_size);
+
+        entry.tid_to_link_control_field       = ctrl_byte;
+        entry.Link_Mapping_Presence_Indicator = ctrl->link_mapping_presence_indicator();
+
+        if (ctrl->tid_to_link_control().expected_duration_present) {
+            auto d = ctrl->expected_duration();
+            entry.Expected_Duration =
+                (uint32_t(d[0]) << 16) | (uint32_t(d[1]) << 8) | uint32_t(d[2]);
+        }
+
+        /* Per‑TID mapping */
+        size_t tid_idx = 0;
+        for (uint8_t tid = 0; tid < 8; ++tid) {
+
+            if (!(entry.Link_Mapping_Presence_Indicator & (1 << tid)))
+                continue;
+
+            auto t = mapping.tid_to_link_mapping(tid_idx++);
+            if (!std::get<0>(t))
+                continue;
+
+            auto &tm = std::get<1>(t);
+            entry.TID_to_Link_Mapping[tid] =
+                get_tid_byte(tm.loByte()) | (get_tid_byte(tm.hiByte()) << 8);
+        }
+
+        /* Store in single map */
+        auto &config = mld_map[mld_mac][entry.STA_MLD_MAC_Addr];
+
+        config.is_bSTA_Config = is_bsta;
+        config.MLD_MAC_Addr   = mld_mac;
+        config.mappings.push_back(entry);
+
+        /* Push to DM */
+        database.dm_add_tid_to_link_mapping(al_mac, mld_mac, entry);
+    }
 
     return true;
 }

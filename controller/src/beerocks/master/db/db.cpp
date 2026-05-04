@@ -2027,6 +2027,83 @@ bool db::dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &ap_mld)
     return true;
 }
 
+bool db::dm_clear_tid_to_link_mapping(const sMacAddr &al_mac)
+{
+    auto agent = m_agents.get(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Failed to get agent with AL MAC: " << al_mac;
+        return false;
+    }
+
+    if (!m_ambiorix_datamodel->remove_all_instances(agent->dm_path + ".TidToLinkMapping")) {
+        LOG(ERROR) << "Failed to clear TidToLinkMapping for Agent " << al_mac;
+        return false;
+    }
+
+    return true;
+}
+
+bool db::dm_add_tid_to_link_mapping(const sMacAddr &al_mac, const sMacAddr &mld_mac,
+                                    const Agent::sTidToLinkMappingEntry &entry)
+{
+    auto agent = m_agents.get(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Failed to get agent with AL MAC: " << al_mac;
+        return false;
+    }
+
+    /* Root: Agent.TidToLinkMapping */
+    std::string base_path = agent->dm_path + ".TidToLinkMapping";
+
+    /* Add / get MLD instance */
+    std::string mld_dm_path = m_ambiorix_datamodel->add_instance(base_path);
+    if (mld_dm_path.empty()) {
+        LOG(ERROR) << "Failed to add TidToLinkMapping instance";
+        return false;
+    }
+
+    /* Set MLD MAC */
+    m_ambiorix_datamodel->set(mld_dm_path, "MLDMAC", mld_mac);
+
+    /* Add STA instance */
+    std::string sta_dm_path = m_ambiorix_datamodel->add_instance(mld_dm_path + ".STA");
+    if (sta_dm_path.empty()) {
+        LOG(ERROR) << "Failed to add STA instance";
+        return false;
+    }
+
+    m_ambiorix_datamodel->set(sta_dm_path, "STAMLD", entry.STA_MLD_MAC_Addr);
+
+    /* Add Mapping instance */
+    std::string map_dm_path = m_ambiorix_datamodel->add_instance(sta_dm_path + ".Mapping");
+    if (map_dm_path.empty()) {
+        LOG(ERROR) << "Failed to add Mapping instance";
+        return false;
+    }
+
+    /* Basic fields */
+    m_ambiorix_datamodel->set(map_dm_path, "AddRemove", entry.addRemove);
+    m_ambiorix_datamodel->set(map_dm_path, "Control", entry.tid_to_link_control_field);
+    m_ambiorix_datamodel->set(map_dm_path, "PresenceBitmap", entry.Link_Mapping_Presence_Indicator);
+
+    if (entry.tid_to_link_control_field & 0x08 /* expected duration present */) {
+        m_ambiorix_datamodel->set(map_dm_path, "ExpectedDuration", entry.Expected_Duration);
+    }
+
+    /* Per‑TID link bitmap */
+    for (uint8_t tid = 0; tid < 8; tid++) {
+        if (!(entry.Link_Mapping_Presence_Indicator & (1 << tid)))
+            continue;
+
+        std::string tid_path = m_ambiorix_datamodel->add_instance(map_dm_path + ".TIDMap");
+
+        m_ambiorix_datamodel->set(tid_path, "TID", tid);
+        m_ambiorix_datamodel->set(tid_path, "LinkBitmap", entry.TID_to_Link_Mapping[tid]);
+    }
+
+    return true;
+}
+
 bool db::dm_remove_ap_mld(const sMacAddr &al_mac, const sMacAddr &mld_mac)
 {
     auto agent = m_agents.get(al_mac);

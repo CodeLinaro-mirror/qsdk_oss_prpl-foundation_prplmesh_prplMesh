@@ -29,6 +29,7 @@
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 // Forward declaration of son::node
 namespace son {
@@ -585,6 +586,40 @@ public:
         beerocks::eNodeState state = beerocks::STATE_DISCONNECTED;
     };
     beerocks::mac_map<sEthSwitch> eth_switches;
+
+    /* MAC address comparator */
+    struct sMacAddrLess {
+        bool operator()(const sMacAddr &lhs, const sMacAddr &rhs) const
+        {
+            return std::memcmp(lhs.oct, rhs.oct, sizeof(lhs.oct)) < 0;
+        }
+    };
+
+    /* Single TID-to-Link mapping entry (per STA) */
+    struct sTidToLinkMappingEntry {
+        bool addRemove;
+        sMacAddr STA_MLD_MAC_Addr;
+
+        uint8_t tid_to_link_control_field;
+        uint8_t Link_Mapping_Presence_Indicator;
+
+        uint32_t Expected_Duration = 0;
+        std::array<uint16_t, 8> TID_to_Link_Mapping{};
+    };
+
+    /* Per STA TID-to-Link mapping configuration */
+    struct TID_to_Link_Mapping_Config {
+        bool is_bSTA_Config; // true = bSTA MLD, false = AP MLD
+        sMacAddr MLD_MAC_Addr;
+
+        bool TID_To_Link_Mapping_Negotiation = false;
+        uint16_t Num_Mapping                 = 0;
+
+        std::vector<sTidToLinkMappingEntry> mappings;
+    };
+
+    std::map<sMacAddr, std::map<sMacAddr, TID_to_Link_Mapping_Config, sMacAddrLess>, sMacAddrLess>
+        mld_map;
 
     /**
      * Structures to store MLD Information

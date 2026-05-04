@@ -2805,6 +2805,12 @@ public:
      * @return true on success, false otherwise.
      */
     bool dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &apmld);
+    /* Tid‑to‑Link Mapping Policy – dummy DM hooks */
+
+    bool dm_clear_tid_to_link_mapping(const sMacAddr &al_mac);
+
+    bool dm_add_tid_to_link_mapping(const sMacAddr &al_mac, const sMacAddr &mld_mac,
+                                    const Agent::sTidToLinkMappingEntry &entry);
 
     /**
      * @brief Remove instance of "APMLD" data element.
