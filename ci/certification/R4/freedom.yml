@@ -887,6 +887,8 @@ R4:freedom:MAP-4.18.1_ETH_FH24G:
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
     # Otherwise, make it a manual job
+    - if: '(($CI_COMMIT_REF_NAME == "dev/tc-qos-enhancement") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/tc-qos-enhancement"))'
+      when: on_success
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.1_ETH_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
     - when: manual
@@ -917,6 +919,8 @@ R4:freedom:MAP-4.18.1_BHWIFI_FH24G:
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
     # Otherwise, make it a manual job
+    - if: '(($CI_COMMIT_REF_NAME == "dev/tc-qos-enhancement") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/tc-qos-enhancement"))'
+      when: on_success
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.1_BHWIFI_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
     - when: manual
@@ -1091,4 +1095,3 @@ R4:freedom:MAP-5.16.1_ETH_FH5GL:
       when: on_success
     - when: manual
       allow_failure: true
-

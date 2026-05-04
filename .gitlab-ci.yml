@@ -69,6 +69,8 @@ platform:
     - build-in-docker
     - image-build-boardfarm-ci
   rules:
+    - if: '(($CI_COMMIT_REF_NAME == "dev/tc-qos-enhancement") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/tc-qos-enhancement"))'
+      when: on_success
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
     - !reference [.rules-for-expensive-job, rules]
   variables:
