@@ -167,8 +167,17 @@ void ChannelScanTask::work()
             auto current_scan_request = m_current_scan_info[radio->front.iface_name].scan_request;
             auto current_radio_scan   = m_current_scan_info[radio->front.iface_name].radio_scan;
 
+            auto finalize_scan = [this, &radio, &current_scan_request]() {
+                if (m_on_boot_scan_enabled) {
+                    m_current_scan_info[radio->front.iface_name].is_scan_currently_running = false;
+                } else {
+                    current_scan_request->ready_to_send_report = true;
+                }
+            };
+
             if ((current_scan_request->scan_start_timestamp + SCAN_REQUEST_TIMEOUT_SEC) <
-                std::chrono::system_clock::now()) {
+                    std::chrono::system_clock::now() &&
+                !is_terminal_state(current_radio_scan->current_state)) {
                 LOG(INFO) << "Aborted scan as scan request exceeds the SCAN_REQUEST_TIMEOUT_SEC";
                 abort_scan_request(current_scan_request);
             }
@@ -230,34 +239,26 @@ void ChannelScanTask::work()
                 }
                 if (m_on_boot_scan_enabled) {
                     LOG(DEBUG) << "AgentDB is updated with the OnBootScan Results";
-                    m_current_scan_info[radio->front.iface_name].is_scan_currently_running = false;
-                } else {
-                    current_scan_request->ready_to_send_report = true;
                 }
                 break;
             }
             case eState::SCAN_FAILED: {
-                if (!m_on_boot_scan_enabled) {
-                    current_scan_request->ready_to_send_report = true;
-                }
                 break;
             }
             case eState::SCAN_ABORTED: {
-                if (!m_on_boot_scan_enabled) {
-                    current_scan_request->ready_to_send_report = true;
-                }
                 break;
             }
             case eState::SCAN_IGNORED: {
                 set_radio_scan_status(current_radio_scan,
                                       eScanStatus::REQUEST_TOO_SOON_AFTER_LAST_SCAN);
-                if (!m_on_boot_scan_enabled) {
-                    current_scan_request->ready_to_send_report = true;
-                }
                 break;
             }
             default:
                 break;
+            }
+
+            if (is_terminal_state(current_radio_scan->current_state)) {
+                finalize_scan();
             }
 
             // Handle finished requests.
@@ -450,7 +451,6 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         if (!response->success()) {
             LOG(ERROR) << "Failed to trigger scan on radio (" << src_mac << ")";
             // Expand the response reason to give a better scan status in the report as part of PPM-1324.
-            m_current_scan_info[ifname].is_scan_currently_running = response->success();
             set_radio_scan_status(m_current_scan_info[ifname].radio_scan,
                                   eScanStatus::SCAN_NOT_COMPLETED);
             FSM_MOVE_STATE(m_current_scan_info[ifname].radio_scan, eState::SCAN_FAILED);
@@ -579,7 +579,6 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
             return false;
         }
 
-        m_current_scan_info[ifname].is_scan_currently_running = false;
         set_radio_scan_status(m_current_scan_info[ifname].radio_scan, eScanStatus::SCAN_ABORTED);
         FSM_MOVE_STATE(m_current_scan_info[ifname].radio_scan, eState::SCAN_ABORTED);
         break;
@@ -627,7 +626,6 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         }
         LOG(TRACE) << "ACTION_BACKHAUL_CHANNEL_SCAN_ABORT_RESPONSE: " << response->success()
                    << " from mac " << src_mac;
-        m_current_scan_info[ifname].is_scan_currently_running = response->success();
         break;
     }
     default: {
@@ -639,6 +637,19 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
 }
 
 /* Helper functions */
+
+bool ChannelScanTask::is_terminal_state(eState state) const
+{
+    switch (state) {
+    case eState::SCAN_DONE:
+    case eState::SCAN_ABORTED:
+    case eState::SCAN_FAILED:
+    case eState::SCAN_IGNORED:
+        return true;
+    default:
+        return false;
+    }
+}
 
 bool ChannelScanTask::abort_scan_request(const std::shared_ptr<sScanRequest> request)
 {
@@ -1148,9 +1159,13 @@ bool ChannelScanTask::handle_channel_scan_request(ieee1905_1::CmduMessageRx &cmd
          * exceeds the minimum scan interval in execution and in the mean time
          * a new scan request has arrived, abort the previous scan and proceed.
          */
+        auto current_radio_scan = m_current_scan_info[radio_iface].radio_scan;
+        bool scan_is_active     = m_current_scan_info[radio_iface].is_scan_currently_running &&
+                              current_radio_scan &&
+                              !is_terminal_state(current_radio_scan->current_state);
         if (perform_fresh_scan && prev_timestamp_entry_found &&
             (last_scan + MINIMUM_SCAN_INTERVAL_SEC) < std::chrono::system_clock::now() &&
-            m_current_scan_info[radio_iface].is_scan_currently_running) {
+            scan_is_active) {
             auto current_request_info = m_current_scan_info[radio_iface].scan_request;
             LOG(INFO) << "Current scan is running beyond the minimum scan interval time."
                          " Hence beginning to abort the current running scan request.";
