@@ -172,6 +172,10 @@ uint8_t& cACTION_APMANAGER_CONFIGURE::multi_ap_profile() {
     return (uint8_t&)(*m_multi_ap_profile);
 }
 
+uint8_t& cACTION_APMANAGER_CONFIGURE::is_local_agent() {
+    return (uint8_t&)(*m_is_local_agent);
+}
+
 void cACTION_APMANAGER_CONFIGURE::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
@@ -210,6 +214,7 @@ size_t cACTION_APMANAGER_CONFIGURE::get_initial_size()
     class_size += sizeof(uint8_t); // channel
     class_size += sizeof(uint8_t); // certification_mode
     class_size += sizeof(uint8_t); // multi_ap_profile
+    class_size += sizeof(uint8_t); // is_local_agent
     return class_size;
 }
 
@@ -230,6 +235,11 @@ bool cACTION_APMANAGER_CONFIGURE::init()
         return false;
     }
     m_multi_ap_profile = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_is_local_agent = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;

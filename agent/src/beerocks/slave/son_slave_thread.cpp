@@ -2495,6 +2495,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         config_msg->channel() = db->device_conf.front_radio.config.at(iface).configured_channel;
         config_msg->certification_mode() = db->device_conf.certification_mode;
         config_msg->multi_ap_profile()   = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
+        config_msg->is_local_agent()     = db->device_conf.local_controller;
         radio_manager.dm_instance        = db->dm_create_fronthaul_object(iface);
 
         return send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);

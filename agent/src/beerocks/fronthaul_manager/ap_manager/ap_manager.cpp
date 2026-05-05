@@ -17,6 +17,7 @@
 #include <bcl/transaction.h>
 #include <bpl/bpl_cfg.h>
 #include <easylogging++.h>
+#include <mapf/common/utils.h>
 
 #include <beerocks/tlvf/beerocks_message.h>
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
@@ -413,6 +414,32 @@ bool ApManager::start()
     if (m_slave_client) {
         LOG(ERROR) << "AP manager is already started";
         return false;
+    }
+
+    bool master_config_read = false;
+    std::string master_config_file_path =
+        CONF_FILES_WRITABLE_PATH + std::string(BEEROCKS_CONTROLLER) +
+        ".conf"; //search first in platform-specific default directory
+    beerocks::config_file::sConfigMaster beerocks_master_conf;
+    if (!beerocks::config_file::read_master_config_file(master_config_file_path,
+                                                        beerocks_master_conf)) {
+        master_config_file_path = mapf::utils::get_install_path() + "config/" +
+                                  std::string(BEEROCKS_CONTROLLER) +
+                                  ".conf"; // if not found, search in beerocks path
+        if (!beerocks::config_file::read_master_config_file(master_config_file_path,
+                                                            beerocks_master_conf)) {
+            LOG(ERROR) << "Failed to read master_config_file";
+        } else {
+            master_config_read = true;
+        }
+    } else {
+        master_config_read = true;
+    }
+
+    if (master_config_read) {
+        use_dataelements_vap_configs = beerocks_master_conf.use_dataelements_vap_configs == "1";
+    } else {
+        use_dataelements_vap_configs = false;
     }
 
     // In case of error in one of the steps of this method, we have to undo all the previous steps
@@ -1187,8 +1214,9 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         acs_enabled = config->channel() == 0;
 
-        certification_mode = config->certification_mode();
-        multi_ap_profile   = config->multi_ap_profile();
+        certification_mode  = config->certification_mode();
+        multi_ap_profile    = config->multi_ap_profile();
+        is_local_controller = config->is_local_agent();
 
         if (create_ap_wlan_hal()) {
             LOG(DEBUG) << "Move to ATTACHING state";
@@ -1933,8 +1961,10 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
 
         if (perform_update && !bss_info_conf_list.empty()) {
-            ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
-                                                backhaul_wps_passphrase, bridge_name);
+            if (!is_local_controller || use_dataelements_vap_configs) {
+                ap_wlan_hal->update_vap_credentials(bss_info_conf_list, backhaul_wps_ssid,
+                                                    backhaul_wps_passphrase, bridge_name);
+            }
 
             auto vap_timeout = std::chrono::steady_clock::now() + wait_for_vaps_enable_timeout_sec;
             bool all_vaps_enabled = false;

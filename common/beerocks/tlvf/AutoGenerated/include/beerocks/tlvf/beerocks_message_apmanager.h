@@ -75,6 +75,7 @@ class cACTION_APMANAGER_CONFIGURE : public BaseClass
         uint8_t& channel();
         uint8_t& certification_mode();
         uint8_t& multi_ap_profile();
+        uint8_t& is_local_agent();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -85,6 +86,7 @@ class cACTION_APMANAGER_CONFIGURE : public BaseClass
         uint8_t* m_channel = nullptr;
         uint8_t* m_certification_mode = nullptr;
         uint8_t* m_multi_ap_profile = nullptr;
+        uint8_t* m_is_local_agent = nullptr;
 };
 
 class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass

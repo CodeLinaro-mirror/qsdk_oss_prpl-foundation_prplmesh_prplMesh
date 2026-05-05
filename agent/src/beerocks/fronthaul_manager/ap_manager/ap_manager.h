@@ -338,6 +338,9 @@ private:
 
     /* Timer callback for scheduled Beacon Metrics Responses */
     void beacon_metrics_response_cb(int fd);
+
+    bool is_local_controller          = false;
+    bool use_dataelements_vap_configs = false;
 };
 
 } // namespace son
