@@ -198,6 +198,16 @@ private:
     /* Request handling helper functions */
 
     /**
+     * @brief Returns true if the given state is a terminal scan state
+     *        (done, aborted, failed or ignored).
+     *
+     * @param state The state to check.
+     *
+     * @return True if the state is terminal, false if the scan is still in progress.
+     */
+    bool is_terminal_state(eState state) const;
+
+    /**
      * @brief Abort the unfinished Radio Scans for the given request.
      * 
      * @param request A shared pointer to the request info.
