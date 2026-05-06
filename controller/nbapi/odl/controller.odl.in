@@ -466,7 +466,7 @@
                     bool Enable = true;
 
                     // Global network wide enable
-                    object X-PRPL_ORG_Group[] {
+                    object X_PRPLWARE-COM_Group[] {
                         //name of the group (private / guest, etc...)
                         %read-only string Name = "";
 
@@ -510,7 +510,7 @@
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")';
 
     on event "*" call event_network_group_changed
-        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X-PRPL_ORG_Group\."';
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X_PRPLWARE-COM_Group\."';
 }
 
 include "device.odl";
