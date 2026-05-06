@@ -2864,10 +2864,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                 // just-disabled FH VAP as still present.
                 bss.enabled = false;
                 if (bss.backhaul_bss) {
-                    // Disabled backhaul BSSes must not rebuild exact WDS
-                    // state from stale DB entries until they are refreshed.
-                    bss.active = false;
-
+                    // Clear exact WDS state while keeping the BSS entry
+                    // available for later autoconfiguration matching.
                     for (const auto &client_kv : radio->associated_clients) {
                         const auto &client = client_kv.second;
                         if (client.bssid != bss_mac || client.wds_iface_name.empty()) {
