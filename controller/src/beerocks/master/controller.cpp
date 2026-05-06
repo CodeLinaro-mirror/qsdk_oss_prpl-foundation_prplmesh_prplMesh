@@ -837,8 +837,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
         }
         // mark slave as prplMesh
         LOG(DEBUG) << "prplMesh agent: received ACTION_CONTROL_SLAVE_HANDSHAKE_REQUEST from "
-                   << src_mac;
-        database.set_prplmesh(src_mac);
+                   << al_mac;
+        database.set_prplmesh(al_mac);
         // response with handshake response to mark the controller as prplmesh
         auto response = beerocks::message_com::add_vs_tlv<
             beerocks_message::cACTION_CONTROL_SLAVE_HANDSHAKE_RESPONSE>(cmdu_tx);
@@ -850,7 +850,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
             beerocks::BEEROCKS_DIRECTION_AGENT;
 
     } else {
-        LOG(DEBUG) << "Not prplMesh agent " << src_mac;
+        LOG(DEBUG) << "Not prplMesh agent " << al_mac;
     }
     LOG(DEBUG) << "sending autoconfig response message";
 
@@ -3019,11 +3019,11 @@ bool Controller::handle_intel_slave_join(
         return false;
     }
 
-    // mark slave as prplMesh
-    // This is redundent for the normal initilization flow, but is needed for the renew flow
+    // Mark the agent as prplMesh.
+    // This is redundant for the normal initialization flow, but is needed for the renew flow.
     LOG(DEBUG) << "prplMesh agent: received cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION from "
-               << src_mac;
-    database.set_prplmesh(src_mac);
+               << agent->al_mac;
+    database.set_prplmesh(agent->al_mac);
 
     std::string slave_version =
         std::string(notification->slave_version(beerocks::message::VERSION_LENGTH));
