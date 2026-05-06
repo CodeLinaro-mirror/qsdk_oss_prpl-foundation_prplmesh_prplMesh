@@ -558,9 +558,13 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
      * specification as "One" (multi-ap specification v2, 17.1.7).
      * the one tlv may contain information about few radios
      */
-    if (!add_akm_suites_capabilities_tlv(m_cmdu_tx)) {
-        LOG(ERROR) << "Error filling tlvAkmSuiteCapabilities";
-        return false;
+    // Skip AKM suites capabilities, because it causes parsing errors outside R6 certification
+    if (!db->device_conf.certification_mode ||
+        db->device_conf.certification_program == std::string("mapr6")) {
+            if (!add_akm_suites_capabilities_tlv(m_cmdu_tx)) {
+                LOG(ERROR) << "Error filling tlvAkmSuiteCapabilities";
+                return false;
+            }
     }
     if (!add_wifi7_agent_capabilities_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling TLV_WIFI7_AGENT_CAPABILITIES";

@@ -65,9 +65,7 @@ image-build-cram:
 
 platform:
   stage: platform
-  needs:
-    - build-in-docker
-    - image-build-boardfarm-ci
+  needs: []
   rules:
     - if: '(($CI_COMMIT_REF_NAME == "feature/PPM-4003-controller-initiaded-scs-mscs") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4003-controller-initiaded-scs-mscs"))'
       when: on_success
