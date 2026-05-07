@@ -3298,6 +3298,25 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             tunnelled_proto_type =
                 wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType::ANQP_REQUEST;
         } break;
+        case bwl::eManagementFrameType::PROBE_REQUEST: {
+            // Forward the raw frame to the slave thread, which aggregates probe
+            // requests across all radios into a single coalesced TUNNELLED_MESSAGE.
+            auto notification = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION>(cmdu_tx);
+            if (!notification) {
+                LOG(ERROR) << "Probe req: failed building VS notification";
+                return true;
+            }
+            notification->sta_mac() = mgmt_frame->mac;
+            notification->bssid()   = mgmt_frame->bssid;
+            if (!notification->set_frame(mgmt_frame->data.data(), mgmt_frame->data.size())) {
+                LOG(ERROR) << "Probe req: failed copying " << mgmt_frame->data.size()
+                           << " bytes into VS notification";
+                return true;
+            }
+            send_cmdu(cmdu_tx);
+            return true;
+        }
         default: {
             LOG(DEBUG) << "Unsupported 802.11 management frame: " << std::hex
                        << int(mgmt_frame->type);

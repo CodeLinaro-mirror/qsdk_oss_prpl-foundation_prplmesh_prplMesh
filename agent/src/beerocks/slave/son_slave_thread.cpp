@@ -50,6 +50,7 @@
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
+#include <tlvf/wfa_map/tlvBssid.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 #include <tlvf/wfa_map/tlvChannelSelectionResponse.h>
 #include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
@@ -67,6 +68,9 @@
 #include <tlvf/wfa_map/tlvSteeringBTMReport.h>
 #include <tlvf/wfa_map/tlvSteeringRequest.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
+#include <tlvf/wfa_map/tlvTunnelledData.h>
+#include <tlvf/wfa_map/tlvTunnelledProtocolType.h>
+#include <tlvf/wfa_map/tlvTunnelledSourceInfo.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
 
 #include "gate/1905_beacon_query_to_vs.h"
@@ -78,6 +82,7 @@
 
 #include <easylogging++.h>
 
+#include <algorithm>
 #include <cstring>
 #include <sstream>
 
@@ -94,6 +99,8 @@ constexpr int MONITOR_HEARTBEAT_RETRIES                               = 10;
 constexpr int AP_MANAGER_HEARTBEAT_TIMEOUT_SEC                        = 10;
 constexpr int AP_MANAGER_HEARTBEAT_RETRIES                            = 10;
 constexpr std::chrono::seconds WAIT_FOR_FRONTHAUL_JOINED_TIMEOUT_SEC  = std::chrono::seconds(60);
+constexpr size_t PROBE_REQ_WINDOW_CAP                                 = 40;
+constexpr auto PROBE_REQ_WINDOW_TIME                                  = std::chrono::seconds(2);
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Functions ///////////////////////////
@@ -414,6 +421,10 @@ bool slave_thread::thread_init()
 void slave_thread::stop_slave_thread()
 {
     agent_reset();
+    if (m_probe_req_filter.window_timer != net::FileDescriptor::invalid_descriptor) {
+        m_timer_manager->remove_timer(m_probe_req_filter.window_timer);
+    }
+    m_probe_req_filter.pending.clear();
     should_stop = true;
 }
 
@@ -3877,6 +3888,12 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         }
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION: {
+        if (!handle_probe_req_frame_notification(fronthaul_iface, beerocks_header)) {
+            return false;
+        }
+        break;
+    }
     default: {
         if (!m_task_pool.handle_cmdu(cmdu_rx, 0, {}, {}, fd, beerocks_header)) {
             LOG(ERROR) << "Unknown AP_MANAGER message, action_op: "
@@ -3887,6 +3904,114 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
     }
 
     return true;
+}
+
+bool slave_thread::handle_probe_req_frame_notification(
+    const std::string &fronthaul_iface, std::shared_ptr<beerocks_header> beerocks_header_rx)
+{
+    // Frames from all radios on this agent are aggregated in a single
+    // PROBE_REQ_WINDOW_TIME window (max PROBE_REQ_WINDOW_CAP unique frames),
+    // then flushed coalesced as one TUNNELLED_MESSAGE CMDU.
+    auto notification =
+        beerocks_header_rx
+            ->addClass<beerocks_message::cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION>();
+    if (!notification) {
+        LOG(ERROR) << "addClass cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION failed";
+        return false;
+    }
+
+    if (m_probe_req_filter.pending.size() >= PROBE_REQ_WINDOW_CAP) {
+        LOG(DEBUG) << "Probe req: window cap reached, dropping frame from "
+                   << notification->sta_mac() << " (radio " << fronthaul_iface << ")";
+        return true;
+    }
+
+    std::vector<uint8_t> frame_data(notification->frame(),
+                                    notification->frame() + notification->frame_length());
+
+    auto dup = std::find_if(m_probe_req_filter.pending.begin(), m_probe_req_filter.pending.end(),
+                            [&](const sPendingProbeReq &p) { return p.data == frame_data; });
+    if (dup != m_probe_req_filter.pending.end()) {
+        LOG(DEBUG) << "Probe req: duplicate frame, dropping (radio " << fronthaul_iface << ")";
+        return true;
+    }
+
+    m_probe_req_filter.pending.push_back(
+        {notification->sta_mac(), notification->bssid(), std::move(frame_data)});
+
+    if (m_probe_req_filter.window_timer == net::FileDescriptor::invalid_descriptor) {
+        m_probe_req_filter.window_timer = m_timer_manager->add_timer(
+            "probe_req_window", PROBE_REQ_WINDOW_TIME, std::chrono::milliseconds::zero(),
+            [this](int, beerocks::EventLoop &) {
+                flush_probe_req_window();
+                return true;
+            });
+        if (m_probe_req_filter.window_timer == net::FileDescriptor::invalid_descriptor) {
+            LOG(WARNING) << "Probe req: failed to create window timer, flushing immediately";
+            flush_probe_req_window();
+        }
+    }
+
+    return true;
+}
+
+void slave_thread::flush_probe_req_window()
+{
+    if (m_probe_req_filter.window_timer != net::FileDescriptor::invalid_descriptor) {
+        m_timer_manager->remove_timer(m_probe_req_filter.window_timer);
+    }
+
+    auto pending = std::move(m_probe_req_filter.pending);
+    m_probe_req_filter.pending.clear();
+
+    if (pending.empty()) {
+        return;
+    }
+
+    auto cmdu_tx_header = cmdu_tx.create(0, ieee1905_1::eMessageType::TUNNELLED_MESSAGE);
+    if (!cmdu_tx_header) {
+        LOG(ERROR) << "Probe req flush: cmdu creation of type TUNNELLED_MESSAGE failed!";
+        return;
+    }
+
+    auto type_tlv = cmdu_tx.addClass<wfa_map::tlvTunnelledProtocolType>();
+    if (!type_tlv) {
+        LOG(ERROR) << "Probe req flush: addClass tlvTunnelledProtocolType failed!";
+        return;
+    }
+    type_tlv->protocol_type() =
+        wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType::PROBE_REQUEST;
+
+    for (const auto &p : pending) {
+        auto source_info_tlv = cmdu_tx.addClass<wfa_map::tlvTunnelledSourceInfo>();
+        if (!source_info_tlv) {
+            LOG(ERROR) << "Probe req flush: addClass tlvTunnelledSourceInfo failed!";
+            return;
+        }
+        source_info_tlv->mac() = p.sta_mac;
+
+        auto bssid_tlv = cmdu_tx.addClass<wfa_map::tlvBssid>();
+        if (!bssid_tlv) {
+            LOG(ERROR) << "Probe req flush: addClass tlvBssid failed!";
+            return;
+        }
+        bssid_tlv->bssid() = p.bssid;
+
+        auto data_tlv = cmdu_tx.addClass<wfa_map::tlvTunnelledData>();
+        if (!data_tlv) {
+            LOG(ERROR) << "Probe req flush: addClass tlvTunnelledData failed!";
+            return;
+        }
+        if (!data_tlv->set_data(p.data.data(), p.data.size())) {
+            LOG(ERROR) << "Probe req flush: failed copying " << p.data.size()
+                       << " bytes into the tunnelled message data tlv!";
+            return;
+        }
+    }
+
+    LOG(DEBUG) << "Probe req flush: sending TUNNELLED_MESSAGE with " << pending.size()
+               << " probe request tuples.";
+    send_cmdu_to_controller({}, cmdu_tx);
 }
 
 bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_iface, int fd,

@@ -33,7 +33,8 @@ enum class eAirtiesFeatureIDs : uint16_t {
     AIRTIES_FEATURE_SERVICE_STATUS_WIFI_ON_OFF = 0xc,
     AIRTIES_FEATURE_HIDDEN_SSID = 0xe,
     AIRTIES_FEATURE_RADIO_CAPABILITY = 0x10,
-    AIRTIES_FEATURE_END = 0x11,
+    AIRTIES_FEATURE_PROBE_REQUEST_TUNNELING = 0x12,
+    AIRTIES_FEATURE_END = 0x13,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
@@ -51,6 +52,7 @@ static const char *eAirtiesFeatureIDs_str(eAirtiesFeatureIDs enum_value) {
     case eAirtiesFeatureIDs::AIRTIES_FEATURE_SERVICE_STATUS_WIFI_ON_OFF: return "eAirtiesFeatureIDs::AIRTIES_FEATURE_SERVICE_STATUS_WIFI_ON_OFF";
     case eAirtiesFeatureIDs::AIRTIES_FEATURE_HIDDEN_SSID:                return "eAirtiesFeatureIDs::AIRTIES_FEATURE_HIDDEN_SSID";
     case eAirtiesFeatureIDs::AIRTIES_FEATURE_RADIO_CAPABILITY:           return "eAirtiesFeatureIDs::AIRTIES_FEATURE_RADIO_CAPABILITY";
+    case eAirtiesFeatureIDs::AIRTIES_FEATURE_PROBE_REQUEST_TUNNELING:    return "eAirtiesFeatureIDs::AIRTIES_FEATURE_PROBE_REQUEST_TUNNELING";
     case eAirtiesFeatureIDs::AIRTIES_FEATURE_END:                        return "eAirtiesFeatureIDs::AIRTIES_FEATURE_END";
     }
     static std::string out_str = std::to_string(int(enum_value));
@@ -76,7 +78,8 @@ public:
         case 0xc:
         case 0xe:
         case 0x10:
-        case 0x11:
+        case 0x12:
+        case 0x13:
                 ret = true;
                 break;
             default:

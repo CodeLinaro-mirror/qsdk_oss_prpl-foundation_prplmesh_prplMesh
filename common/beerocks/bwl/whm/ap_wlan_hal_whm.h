@@ -212,6 +212,11 @@ private:
     void subscribe_to_ap_mgmt_frame_events();
 
     /**
+     * @brief Subscribe to Ap event "MgmtProbeReqFrameReceived" from pwhm
+     */
+    void subscribe_to_probe_req_frame_events();
+
+    /**
      * @brief Process event "BSS-TM-RESP"
      */
     bool process_ap_bss_event(const std::string &interface,

@@ -1520,6 +1520,36 @@ class cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST : public BaseClass
         eActionOp_APMANAGER* m_action_op = nullptr;
 };
 
+class cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION);
+        }
+        sMacAddr& sta_mac();
+        sMacAddr& bssid();
+        size_t frame_length() { return m_frame_idx__ * sizeof(uint8_t); }
+        uint8_t* frame(size_t idx = 0);
+        bool set_frame(const void* buffer, size_t size);
+        bool alloc_frame(size_t count = 1);
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_sta_mac = nullptr;
+        sMacAddr* m_bssid = nullptr;
+        uint8_t* m_frame = nullptr;
+        size_t m_frame_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+};
+
 }; // close namespace: beerocks_message
 
 #endif //_BEEROCKS/TLVF_BEEROCKS_MESSAGE_APMANAGER_H_

@@ -111,6 +111,9 @@ base_wlan_hal::create_mgmt_frame_notification(const char *mgmt_frame_hex)
     case s80211MgmtFrame::eType::REASSOC_REQ: {
         mgmt_frame->type = eManagementFrameType::REASSOCIATION_REQUEST;
     } break;
+    case s80211MgmtFrame::eType::PROBE_REQ: {
+        mgmt_frame->type = eManagementFrameType::PROBE_REQUEST;
+    } break;
     case s80211MgmtFrame::eType::ACTION: {
         // Re-validate the size of the data to make sure it also contains the
         // action frame header

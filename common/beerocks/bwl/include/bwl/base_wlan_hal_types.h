@@ -502,6 +502,7 @@ enum class eManagementFrameType {
     RADIO_MEASUREMENT_REPORT = 0x05, /**< Radio measurement report */
     SCS_REQUEST              = 0x06, /**< SCS request */
     MSCS_REQUEST             = 0x07, /**< MSCS request */
+    PROBE_REQUEST            = 0x08  /**< Probe Request */
 };
 
 /**

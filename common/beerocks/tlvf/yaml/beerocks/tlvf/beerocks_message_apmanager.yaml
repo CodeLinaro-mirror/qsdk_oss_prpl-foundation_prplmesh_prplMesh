@@ -375,3 +375,11 @@ cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST:
 
 cACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST:
   _type: class
+
+cACTION_APMANAGER_PROBE_REQ_FRAME_NOTIFICATION:
+  _type: class
+  sta_mac: sMacAddr
+  bssid: sMacAddr
+  frame:
+    _type: uint8_t
+    _length: []

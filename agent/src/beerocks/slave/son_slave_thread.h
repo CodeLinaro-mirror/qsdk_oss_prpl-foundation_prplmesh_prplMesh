@@ -539,6 +539,31 @@ private:
         m_cmdu_server->disconnect(radio_manager.ap_manager_fd);
     }
 
+    /**
+     * @brief Per pending frame data kept while a PROBE_REQ_WINDOW_TIME probe request
+     * capture window is open. Aggregates across all radios on this agent.
+     */
+    struct sPendingProbeReq {
+        sMacAddr sta_mac;
+        sMacAddr bssid;
+        std::vector<uint8_t> data;
+    };
+
+    /**
+     * @brief Filtering state for probe request frame tunneling,
+     * shared across radios. Enforces a PROBE_REQ_WINDOW_TIME capture window with at most
+     * PROBE_REQ_WINDOW_CAP unique frames, then flushed in a single TUNNELLED_MESSAGE CMDU.
+     */
+    struct sProbeReqFilter {
+        std::vector<sPendingProbeReq> pending;
+        int window_timer = net::FileDescriptor::invalid_descriptor;
+    };
+    sProbeReqFilter m_probe_req_filter;
+
+    bool handle_probe_req_frame_notification(const std::string &fronthaul_iface,
+                                             std::shared_ptr<beerocks_header> beerocks_header_rx);
+    void flush_probe_req_window();
+
     bool send_operating_channel_report(const std::string &fronthaul_iface);
     bool handle_ap_metrics_query(int fd, ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_monitor_ap_metrics_response(const std::string &fronthaul_iface, int fd,

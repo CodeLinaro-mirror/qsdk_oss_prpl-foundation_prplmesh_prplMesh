@@ -113,6 +113,7 @@ ap_wlan_hal_whm::ap_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t c
     subscribe_to_ap_bss_tm_events();
     subscribe_to_ap_mgmt_frame_events();
     subscribe_to_afc_update_events();
+    subscribe_to_probe_req_frame_events();
 }
 
 ap_wlan_hal_whm::~ap_wlan_hal_whm() {}
@@ -185,6 +186,35 @@ void ap_wlan_hal_whm::subscribe_to_ap_mgmt_frame_events()
                          "[0-9]+.$')"
                          " && (notification == '" +
                          AMX_CL_MGMT_ACT_FRAME_EVT + "')";
+
+    m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
+}
+
+void ap_wlan_hal_whm::subscribe_to_probe_req_frame_events()
+{
+    auto event_handler         = std::make_shared<sAmbiorixEventHandler>();
+    event_handler->event_type  = AMX_CL_PROBE_REQ_FRAME_EVT;
+    event_handler->callback_fn = [this](AmbiorixVariant &event_data) -> void {
+        std::string ap_path;
+        if (!event_data.read_child(ap_path, "path") || ap_path.empty()) {
+            return;
+        }
+
+        auto vap_it =
+            std::find_if(m_vapsExtInfo.begin(), m_vapsExtInfo.end(),
+                         [&](const auto &element) { return element.second.path == ap_path; });
+        if (vap_it == m_vapsExtInfo.end()) {
+            LOG(DEBUG) << "probe req: vap_it not found for path " << ap_path;
+            return;
+        }
+
+        process_ap_bss_event(vap_it->first, &event_data);
+    };
+
+    std::string filter = "(path matches '" + wbapi_utils::search_path_ap() +
+                         "[0-9]+.$')"
+                         " && (notification == '" +
+                         AMX_CL_PROBE_REQ_FRAME_EVT + "')";
 
     m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
 }
@@ -1856,6 +1886,30 @@ bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
             event_queue_push(Event::MGMT_Frame, management_frame);
         } else {
             LOG(ERROR) << "creage_mgmt_frame_notification failed";
+        }
+    } else if (name_notification == AMX_CL_PROBE_REQ_FRAME_EVT) {
+
+        std::string frame_body_str;
+        if (!event_data->read_child<>(frame_body_str, "frame") || frame_body_str.empty()) {
+            LOG(WARNING) << "Unable to retrieve Probe Req Frame from pwhm notification";
+            return false;
+        }
+
+        auto management_frame = create_mgmt_frame_notification(frame_body_str.c_str());
+        if (management_frame) {
+            // For probe requests the 802.11 BSSID field is broadcast (FF:FF:FF:FF:FF:FF).
+            // Override it with the receiving AP's BSSID so the controller can look up radio
+            // properties via the BSSID TLV.
+            auto vap_id = get_vap_id_with_bss(interface);
+            if (check_vap_id(vap_id)) {
+                management_frame->bssid =
+                    tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
+            } else {
+                LOG(WARNING) << "Probe req: could not resolve BSSID for iface " << interface;
+            }
+            event_queue_push(Event::MGMT_Frame, management_frame);
+        } else {
+            LOG(DEBUG) << "Probe req frame ignored by create_mgmt_frame_notification";
         }
     }
     return true;

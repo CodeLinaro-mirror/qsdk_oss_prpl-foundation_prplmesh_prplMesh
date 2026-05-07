@@ -487,6 +487,7 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_SERVICE_STATUS_WIFI_ON_OFF:
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_HIDDEN_SSID:
         case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_RADIO_CAPABILITY:
+        case airties::eAirtiesFeatureIDs::AIRTIES_FEATURE_PROBE_REQUEST_TUNNELING:
             // Create and add the feature to the TLV
             create_and_add_feature_to_list(tlv_version_reporting, feature_id_enum);
             break;
