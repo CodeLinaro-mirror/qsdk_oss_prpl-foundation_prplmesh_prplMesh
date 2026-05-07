@@ -75,7 +75,9 @@ void ProxyAgentDppTask::handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac
     auto db = AgentDB::get();
     if (src_mac == db->controller_info.bridge_mac) {
         if (encap_1905_dpp_tlv->frame_type() ==
-            wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_REQUEST) {
+                wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_REQUEST ||
+            encap_1905_dpp_tlv->frame_type() ==
+                wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_CONFIRM) {
             // forward proxy_encap_dpp messages originating from controller to ap_manager.
             for (auto radio : db->get_radios_list()) {
                 auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio->front.iface_name);
