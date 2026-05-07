@@ -78,6 +78,7 @@ public:
         DPP_PRESENCE_ANNOUNCEMENT,
         DPP_AUTHENTICATION_RESPONSE,
         DPP_CONFIGURATION_REQUEST,
+        DPP_CONFIGURATION_RESULT,
 
         Interface_Connected_OK,
         Interface_Reconnected_OK,

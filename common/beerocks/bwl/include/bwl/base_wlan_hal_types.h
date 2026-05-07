@@ -420,6 +420,11 @@ typedef struct {
 } sACTION_APMANAGER_DPP_CONFIGURATION_REQUEST;
 
 typedef struct {
+    sMacAddr enrollee_mac;
+    char buf[beerocks::message::DPP_FRAME_MAX_LEN];
+} sACTION_APMANAGER_DPP_CONFIGURATION_RESULT;
+
+typedef struct {
     sClientAssociationParams params;
 } sACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION;
 

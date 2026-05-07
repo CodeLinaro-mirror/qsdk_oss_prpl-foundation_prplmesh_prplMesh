@@ -16,6 +16,9 @@
 #include <bcl/network/network_utils.h>
 #include <bcl/son/son_assoc_frame_utils.h>
 #include <bcl/son/son_wireless_utils.h>
+
+#include <tlvf/wfa_map/tlv1905EncapDpp.h>
+
 #include <easylogging++.h>
 #include <math.h>
 #include <numeric>
@@ -40,7 +43,7 @@ constexpr char CODE_INSUFFICIENT_BANDWIDTH[] = "33";
 /////////////////////////// Local Module Functions ///////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
-static ap_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode)
+static ap_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode, parsed_line_t &obj)
 {
     if (opcode == "DFS-CAC-START") {
         return ap_wlan_hal::Event::DFS_CAC_Started;
@@ -67,7 +70,13 @@ static ap_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode)
     } else if (opcode == "DPP-CHIRP-RX") {
         return ap_wlan_hal::Event::DPP_PRESENCE_ANNOUNCEMENT;
     } else if (opcode == "DPP-RX") {
-        return ap_wlan_hal::Event::DPP_AUTHENTICATION_RESPONSE;
+        auto type =
+            static_cast<wfa_map::tlv1905EncapDpp::eFrameType>(std::stoi(std::string{obj["type"]}));
+        if (type == wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_RESPONSE) {
+            return ap_wlan_hal::Event::DPP_AUTHENTICATION_RESPONSE;
+        } else if (type == wfa_map::tlv1905EncapDpp::eFrameType::DPP_CONFIGURATION_RESULT) {
+            return ap_wlan_hal::Event::DPP_CONFIGURATION_RESULT;
+        }
     } else if (opcode == "DPP-CONF-REQ-RX") {
         return ap_wlan_hal::Event::DPP_CONFIGURATION_REQUEST;
     }
@@ -1957,7 +1966,7 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         return false;
     }
 
-    auto event = wpaCtrl_to_bwl_event(opcode);
+    auto event = wpaCtrl_to_bwl_event(opcode, parsed_obj);
 
     switch (event) {
 
@@ -2204,6 +2213,21 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
         LOG_IF(!msg, FATAL) << "Memory allocation failed!";
 
         memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_DPP_CONFIGURATION_REQUEST));
+        msg->enrollee_mac = tlvf::mac_from_string(parsed_obj["src"]);
+        strncpy(msg->buf, parsed_obj["buf"].c_str(), sizeof(msg->buf) - 1);
+        msg->buf[sizeof(msg->buf) - 1] = '\0';
+
+        // Add the message to the queue
+        event_queue_push(event, msg_buff);
+        break;
+    }
+    case Event::DPP_CONFIGURATION_RESULT: {
+        LOG(DEBUG) << "DPP CONFIGURATION RESULT";
+        auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_APMANAGER_DPP_CONFIGURATION_RESULT));
+        auto msg = reinterpret_cast<sACTION_APMANAGER_DPP_CONFIGURATION_RESULT *>(msg_buff.get());
+        LOG_IF(!msg, FATAL) << "Memory allocation failed!";
+
+        memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_DPP_CONFIGURATION_RESULT));
         msg->enrollee_mac = tlvf::mac_from_string(parsed_obj["src"]);
         strncpy(msg->buf, parsed_obj["buf"].c_str(), sizeof(msg->buf) - 1);
         msg->buf[sizeof(msg->buf) - 1] = '\0';

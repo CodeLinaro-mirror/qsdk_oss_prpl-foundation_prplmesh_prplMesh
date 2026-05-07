@@ -3970,6 +3970,38 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         encap_1905_dpp_tlv->set_encapsulated_frame(encap_frame.data(), encap_frame.size());
         send_cmdu(cmdu_tx);
     } break;
+    case Event::DPP_CONFIGURATION_RESULT: {
+        LOG(DEBUG) << "DPP Configuration Result";
+        auto dpp_configuration_result =
+            static_cast<bwl::sACTION_APMANAGER_DPP_CONFIGURATION_RESULT *>(data);
+
+        auto cmdu_tx_header =
+            cmdu_tx.create(0, ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE);
+        if (!cmdu_tx_header) {
+            LOG(ERROR) << "cmdu creation of type PROXIED_ENCAP_DPP_MESSAGE failed!";
+            return false;
+        }
+
+        auto encap_1905_dpp_tlv = cmdu_tx.addClass<wfa_map::tlv1905EncapDpp>();
+        if (!encap_1905_dpp_tlv) {
+            LOG(ERROR) << "addClass wfa_map::tlv1905EncapDpp!";
+            return false;
+        }
+
+        auto dpp_attributes = beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(
+            dpp_configuration_result->buf);
+
+        auto full_frame = build_dpp_full_frame(
+            dpp_attributes, wfa_map::tlv1905EncapDpp::eFrameType::DPP_CONFIGURATION_RESULT);
+
+        encap_1905_dpp_tlv->frame_type() =
+            wfa_map::tlv1905EncapDpp::eFrameType::DPP_CONFIGURATION_RESULT;
+        encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = false;
+        encap_1905_dpp_tlv->frame_flags().enrollee_mac_address_present = true;
+        encap_1905_dpp_tlv->set_dest_sta_mac(dpp_configuration_result->enrollee_mac);
+        encap_1905_dpp_tlv->set_encapsulated_frame(full_frame.data(), full_frame.size());
+        send_cmdu(cmdu_tx);
+    } break;
     // Unhandled events
     default:
         LOG(ERROR) << "Unhandled event: " << int(event);
