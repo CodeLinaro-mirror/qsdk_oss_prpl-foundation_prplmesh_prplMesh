@@ -226,6 +226,25 @@ public:
     void trigger_prioritization_config();
 
     /**
+     * @brief Triggers the sending of TID-to-Link Mapping configuration to agents
+     *
+     */
+    void set_tid_to_link_mapping_config();
+
+    /* Helper function to Set TID Bytes */
+    inline void set_tid_byte(wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map, uint8_t value)
+    {
+        map.bit0 = (value >> 0) & 1;
+        map.bit1 = (value >> 1) & 1;
+        map.bit2 = (value >> 2) & 1;
+        map.bit3 = (value >> 3) & 1;
+        map.bit4 = (value >> 4) & 1;
+        map.bit5 = (value >> 5) & 1;
+        map.bit6 = (value >> 6) & 1;
+        map.bit7 = (value >> 7) & 1;
+    }
+
+    /**
      * @brief Function that starts all mandatory periodic tasks on controller start-up
      * Mandatory task list is
      * bml_task

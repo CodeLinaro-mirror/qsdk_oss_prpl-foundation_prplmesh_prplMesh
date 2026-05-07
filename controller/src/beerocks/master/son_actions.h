@@ -13,6 +13,7 @@
 
 #include <bcl/beerocks_message_structs.h>
 #include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
+//#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 #define CLI_LOG(a) LOG(a)
 
@@ -80,6 +81,9 @@ public:
 
     static bool handle_backhaul_sta_mld_configuration_tlv(db &database, const sMacAddr &al_mac,
                                                           ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    static bool handle_tid_to_link_mapping_policy_tlv(db &database, const sMacAddr &al_mac,
+                                                      ieee1905_1::CmduMessageRx &cmdu_rx);
 
 private:
     static bool

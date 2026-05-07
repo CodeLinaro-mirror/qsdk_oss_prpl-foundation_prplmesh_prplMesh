@@ -10,6 +10,7 @@
 
 #include "cac_capabilities.h"
 #include "tasks/task_messages.h"
+#include "tid_to_link_utils.h"
 #include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_mac_map.h>
 #include <bcl/beerocks_wifi_channel.h>
@@ -25,6 +26,7 @@
 #include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 #include <cstdint>
 #include <memory>
@@ -436,13 +438,37 @@ public:
         std::unordered_set<uint16_t> secondary_vlans_ids;
     } traffic_separation;
 
+    typedef struct {
+        uint8_t addRemove;
+        sMacAddr STA_MLD_MAC_Addr;
+        uint8_t tid_to_link_control_field;
+        uint8_t Link_Mapping_Presence_Indicator;
+        uint32_t Expected_Duration;
+        std::unordered_map<uint8_t, uint16_t> TID_to_Link_Mapping;
+    } sTidToLinkMappingEntry;
+
+    typedef struct {
+        uint8_t is_bSTA_Config;                  // 0 for AP MLD, 1 for bSTA MLD
+        sMacAddr MLD_MAC_Addr;                   // MAC Address of AP MLD or bSTA MLD
+        uint8_t TID_To_Link_Mapping_Negotiation; // 0 for Disabled, 1 for Enabled
+        uint16_t Num_Mapping;
+        std::vector<sTidToLinkMappingEntry> mappings;
+    } TID_to_Link_Mapping_Config;
+
     struct {
         // Key: rule ID
         std::unordered_map<uint32_t,
                            wfa_map::tlvServicePrioritizationRule::sServicePrioritizationRule>
             rules;
         std::array<uint8_t, beerocks::message::DSCP_MAPPING_LIST_LENGTH> dscp_mapping_table;
+        // Key: AP MLD client
+        std::unordered_map<sMacAddr, std::unordered_map<sMacAddr, TID_to_Link_Mapping_Config>>
+            ap_mld_client;
+        // Key: bSTA MLD client
+        std::unordered_map<sMacAddr, std::unordered_map<sMacAddr, TID_to_Link_Mapping_Config>>
+            bsta_mld_client;
     } service_prioritization;
+
     struct {
         uint32_t reporting_interval_sec;
         bool report_independent_channel_scans               = false;

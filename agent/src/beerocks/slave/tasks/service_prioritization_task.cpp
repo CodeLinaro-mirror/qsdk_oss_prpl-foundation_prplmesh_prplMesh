@@ -9,6 +9,7 @@
 #include "service_prioritization_task.h"
 #include "../agent_db.h"
 #include "../son_slave_thread.h"
+#include "../tid_to_link_utils.h"
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
 
 #include <bcl/beerocks_utils.h>
@@ -16,6 +17,7 @@
 #include <bpl/bpl_service_prio_utils.h>
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 namespace beerocks {
 using namespace net;
@@ -138,6 +140,13 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
             rule_to_add->rule_params();
     }
 
+    // Tid-To-Link Mapping policy TLV Handler
+    LOG(DEBUG) << "Parsing TID-To-Link-Mapping Policy TLV";
+    auto tlvTidToLinkMapping = cmdu_rx.getClass<wfa_map::tlvTidToLinkMappingPolicy>();
+    if (tlvTidToLinkMapping) {
+        handle_tid_to_link_mapping_policy_tlv(tlvTidToLinkMapping);
+    }
+
     // If added Profile2ErrorCode TLVs, send the ERROR_RESPONSE_MESSAGE.
     if (m_cmdu_tx.getClass<wfa_map::tlvProfile2ErrorCode>()) {
         m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
@@ -155,6 +164,103 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
     }
 }
 
+bool ServicePrioritizationTask::handle_tid_to_link_mapping_policy_tlv(
+    std::shared_ptr<wfa_map::tlvTidToLinkMappingPolicy> tlvTidToLinkMapping)
+{
+    if (!tlvTidToLinkMapping) {
+        LOG(ERROR) << "Invalid Tid-To-Link-Mapping TLV";
+        return false;
+    }
+    auto db = AgentDB::get();
+    // get AP MLD MAC
+    sMacAddr mld_mac = tlvTidToLinkMapping->mld_mac_addr(); //sMacAddr& mld_mac_addr();
+
+    //Select correct DB map
+    bool is_bsta     = tlvTidToLinkMapping->is_bsta_config().is_bsta_mld;
+    auto &target_map = is_bsta ? db->service_prioritization.bsta_mld_client
+                               : db->service_prioritization.ap_mld_client;
+
+    //Clear old data for this MLD
+    target_map[mld_mac].clear();
+    // Config object
+    beerocks::AgentDB::TID_to_Link_Mapping_Config config = {};
+
+    config.is_bSTA_Config = is_bsta;
+    config.MLD_MAC_Addr   = mld_mac;
+    config.TID_To_Link_Mapping_Negotiation =
+        tlvTidToLinkMapping->tid_to_link_mapping_negotiation().is_enabled;
+    config.Num_Mapping = tlvTidToLinkMapping->num_mapping();
+
+    // ===== LOOP: mappings =====
+
+    for (size_t i = 0;; i++) {
+        auto mapping_tuple = tlvTidToLinkMapping->mapping(i);
+        if (!std::get<0>(mapping_tuple))
+            break;
+        auto &mapping                                   = std::get<1>(mapping_tuple);
+        beerocks::AgentDB::sTidToLinkMappingEntry entry = {};
+        // Basic fields
+        entry.addRemove        = mapping.add_remove().should_be_removed;
+        entry.STA_MLD_MAC_Addr = mapping.sta_mld_mac_addr();
+        // Control field
+        auto controlField = mapping.tid_to_link_control_field();
+        uint8_t control   = 0;
+        tid_to_link_utils::set_direction(control, controlField->tid_to_link_control().direction);
+        tid_to_link_utils::set_default_link_mapping(
+            control, controlField->tid_to_link_control().default_link_mapping);
+        tid_to_link_utils::set_mapping_switch_time(
+            control, controlField->tid_to_link_control().mapping_switch_time_present);
+        tid_to_link_utils::set_expected_duration_present(
+            control, controlField->tid_to_link_control().expected_duration_present);
+        tid_to_link_utils::set_link_mapping_size(
+            control, controlField->tid_to_link_control().link_mapping_size);
+        entry.tid_to_link_control_field = control;
+
+        // Presence bitmap
+        uint8_t presence                      = controlField->link_mapping_presence_indicator();
+        entry.Link_Mapping_Presence_Indicator = presence;
+        // Expected duration
+        if (controlField->tid_to_link_control().expected_duration_present) {
+            auto duration           = controlField->expected_duration();
+            entry.Expected_Duration = (duration[0] << 16) | (duration[1] << 8) | duration[2];
+        }
+        // TID → Link Mapping Parsing
+        size_t tid_mapping_count = mapping.tid_to_link_mapping_length();
+        size_t tid_index         = 0;
+        for (uint8_t tid = 0; tid < 8; tid++) {
+            // Check presence bitmap
+            if (!(presence & (1 << tid)))
+                continue;
+
+            if (tid_index >= tid_mapping_count)
+                break;
+            auto result   = mapping.tid_to_link_mapping(tid_index);
+            bool ok       = std::get<0>(result);
+            auto &tid_map = std::get<1>(result);
+            if (!ok) {
+                LOG(ERROR) << "Invalid TID mapping index";
+                continue;
+            }
+            //  Extract bytes
+            uint8_t lower                  = get_tid_byte(tid_map.loByte());
+            uint8_t upper                  = get_tid_byte(tid_map.hiByte());
+            uint16_t value                 = lower | (upper << 8);
+            entry.TID_to_Link_Mapping[tid] = value;
+            LOG(DEBUG) << "Parsed TID " << int(tid) << " mapping: " << std::bitset<16>(value);
+            tid_index++;
+        }
+        // Add entry
+        config.mappings.push_back(entry);
+        i++;
+    }
+    // Store in DB (key = STA MLD MAC)
+    for (auto &entry : config.mappings) {
+        target_map[mld_mac][entry.STA_MLD_MAC_Addr] = config;
+        LOG(DEBUG) << "Stored TID-to-Link Mapping Policy in DB";
+    }
+
+    return true;
+}
 void ServicePrioritizationTask::gather_iface_details(
     std::list<bpl::ServicePrioritizationUtils::sInterfaceTagInfo> *iface_tag_info_list)
 {

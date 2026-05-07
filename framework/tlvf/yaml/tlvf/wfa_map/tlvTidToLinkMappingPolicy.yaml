@@ -45,29 +45,16 @@ sTidToLinkMappingNegotiation:
   reserved:
     _bit_range: [6,0]
 
-cMapping:
+cTidToLinkMapping:
   _type: class
-  add_remove: sAddRemove
-  sta_mld_mac_addr:
-    _type: sMacAddr  
-  tid_to_link_control_field: cTidToLinkControlField
-  tid_to_link_mapping: sTidToLinkMapping
-  reserved:
-    _type: uint8_t
-    _length: [7]
+  _comment: |
+    2 octects for every TID identified
+  loByte:
+    _type: sTidToLinkMapping_byte
+  hiByte:
+    _type: sTidToLinkMapping_byte
 
-sAddRemove:
-  _type: struct
-  _bit_field: uint8_t
-  should_be_removed:
-    _bit_range: [7,7]
-    _comment: |
-      0: remove mapping
-      1: add mapping
-  reserved:
-    _bit_range: [6,0]
-
-sTidToLinkMapping:
+sTidToLinkMapping_byte:
   _type: struct
   _bit_field: uint8_t
   bit7:
@@ -86,12 +73,35 @@ sTidToLinkMapping:
     _bit_range: [1,1]
   bit0:
     _bit_range: [0,0]
-  _length: [ 2*(tid_to_link_control_field.link_mapping_presence_indicator.bit7 + tid_to_link_control_field.link_mapping_presence_indicator.bit6 + tid_to_link_control_field.link_mapping_presence_indicator.bit5 + tid_to_link_control_field.link_mapping_presence_indicator.bit4 + tid_to_link_control_field.link_mapping_presence_indicator.bit3 + tid_to_link_control_field.link_mapping_presence_indicator.bit2 + tid_to_link_control_field.link_mapping_presence_indicator.bit1 + tid_to_link_control_field.link_mapping_presence_indicator.bit0) ]
-  _condition:
-    _using_members: tid_to_link_control_field
-    _phrase: ! tid_to_link_control_field.tid_to_link_control.bit6
   _comment: |
-      2 bytes by TID indentified by link_mapping_presence_indicator
+      Bitfield for each byte of TID-to-Link_Mapping
+
+cMapping:
+  _type: class
+  add_remove: sAddRemove
+  sta_mld_mac_addr:
+    _type: sMacAddr
+  tid_to_link_control_field:
+    _type: cTidToLinkControlField
+  tid_to_link_mapping:
+    _type: cTidToLinkMapping
+    _length: []
+    _comment: |
+      For every TID identified by a set bit in the Link_Mapping_Presence_Indicator field
+  reserved:
+    _type: uint8_t
+    _length: [7]
+
+sAddRemove:
+  _type: struct
+  _bit_field: uint8_t
+  should_be_removed:
+    _bit_range: [7,7]
+    _comment: |
+      0: remove mapping
+      1: add mapping
+  reserved:
+    _bit_range: [6,0]
 
 cTidToLinkControlField:
   _type: class

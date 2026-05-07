@@ -2786,6 +2786,14 @@ public:
      */
     bool dm_configure_service_prioritization();
 
+    /** @brief Retrieve TID-to-Link Mapping configuration for AP MLDs.
+     *
+     * DM path: "Device.WiFi.DataElements.Network.Device.{i}.APMLD.{i}."
+     *
+     * @return true on success, otherwise false.
+     */
+    bool dm_configure_tid_to_link_mapping(const sMacAddr &agent_mac);
+
     /** @brief Sets AP capability parameters for corresponding device.
      *
      * DM path: "Device.WiFi.DataElements.Network.Device.{i}."
@@ -2805,6 +2813,12 @@ public:
      * @return true on success, false otherwise.
      */
     bool dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &apmld);
+    /* Tid‑to‑Link Mapping Policy – dummy DM hooks */
+
+    bool dm_clear_tid_to_link_mapping(const sMacAddr &al_mac);
+
+    bool dm_add_tid_to_link_mapping(const sMacAddr &al_mac, const sMacAddr &mld_mac,
+                                    const Agent::sTidToLinkMappingEntry &entry);
 
     /**
      * @brief Remove instance of "APMLD" data element.

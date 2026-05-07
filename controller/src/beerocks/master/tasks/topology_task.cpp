@@ -706,6 +706,11 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         return false;
     }
 
+    if (!son_actions::handle_tid_to_link_mapping_policy_tlv(database, al_mac, cmdu_rx)) {
+        LOG(ERROR) << "handle_tid_to_link_mapping_policy_tlv has failed!";
+        return false;
+    }
+
     if (cmdu_rx.getClass<wfa_map::tlvAssociatedStaMldConfigurationReport>()) {
         handle_assoc_sta_mld_configuration_tlv(cmdu_rx, *agent);
     }

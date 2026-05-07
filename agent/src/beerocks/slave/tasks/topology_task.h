@@ -13,6 +13,7 @@
 
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
 #include <tlvf/CmduMessageTx.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 namespace beerocks {
 
@@ -157,6 +158,26 @@ private:
      * @return true on success, otherwise false.
      */
     bool add_assoc_sta_mld_config_reports();
+
+    /* Helper function to Set TID Bytes */
+    inline void set_tid_byte(wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map, uint8_t value)
+    {
+        map.bit0 = (value >> 0) & 1;
+        map.bit1 = (value >> 1) & 1;
+        map.bit2 = (value >> 2) & 1;
+        map.bit3 = (value >> 3) & 1;
+        map.bit4 = (value >> 4) & 1;
+        map.bit5 = (value >> 5) & 1;
+        map.bit6 = (value >> 6) & 1;
+        map.bit7 = (value >> 7) & 1;
+    }
+
+    /**
+     * @brief Add and fill TID To Link Mapping tlv.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_tid_to_link_mapping_policy_tlv();
 
     /**
      * @brief Add and fill BSS configuration report tlv.
