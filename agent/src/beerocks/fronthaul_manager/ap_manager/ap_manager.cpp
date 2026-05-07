@@ -917,6 +917,15 @@ void ApManager::handle_proxied_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu
             return;
         }
     } break;
+    case wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME: {
+        LOG(DEBUG) << "DPP Configuration Response";
+
+        if (!send_dpp_frame(encap_1905_dpp_tlv)) {
+            LOG(ERROR) << "Failed to send DPP GAS frame to enrollee "
+                       << *encap_1905_dpp_tlv->dest_sta_mac();
+            return;
+        }
+    } break;
     default:
         LOG(ERROR) << "Unhandled frame type: " << int(encap_1905_dpp_tlv->frame_type());
         break;
