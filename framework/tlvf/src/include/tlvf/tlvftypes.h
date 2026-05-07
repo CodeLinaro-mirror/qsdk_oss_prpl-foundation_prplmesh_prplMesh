@@ -135,6 +135,11 @@ inline bool operator==(sMacAddr const &lhs, sMacAddr const &rhs)
 
 inline bool operator!=(sMacAddr const &lhs, sMacAddr const &rhs) { return !(rhs == lhs); }
 
+inline bool operator<(sMacAddr const &lhs, sMacAddr const &rhs)
+{
+    return std::memcmp(lhs.oct, rhs.oct, sizeof(sMacAddr)) < 0;
+}
+
 namespace std {
 template <> struct hash<sMacAddr> {
     size_t operator()(const sMacAddr &m) const

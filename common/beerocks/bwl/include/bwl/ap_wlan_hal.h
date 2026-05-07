@@ -262,6 +262,19 @@ public:
                                               int delay, int window_size) = 0;
 
     /**
+     * @brief Send a management frame to the given destination MAC address.
+     * @param [in] dst_mac The destination MAC address.
+     * @param [in] fc The frame control field as a hex string.
+     * @param [in] channel The channel on which to send the frame.
+     * @param [in] frame_hex The management frame payload as a hex string.
+     * @param [in] vap_iface_name VAP interface to transmit on.
+     * @return true on success or false on error.
+     */
+    virtual bool send_management_frame(const std::string &dst_mac, const std::string &fc,
+                                       uint8_t channel, const std::string &frame_hex,
+                                       const std::string &vap_iface_name) = 0;
+
+    /**
      * @brief Add a station to softblock list
      * 
      * @param [in] vap_name The of the vap

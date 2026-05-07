@@ -32,12 +32,21 @@ sFlags:
     _bit_range: [6, 6]
   dpp_frame_indicator:
     _bit_range: [5, 5]
-    _type: eFrameType
+    _type: eDppFrameIndicatorType
   reserved2:
     _bit_range: [4, 0]
 
-eFrameType:
+eDppFrameIndicatorType:
   _type: enum
   _enum_storage: uint8_t
   DPP_PUBLIC_ACTION_FRAME: 0
   GAS_FRAME: 1
+
+eFrameType:
+  _type: enum
+  _enum_storage: uint8_t
+  DPP_AUTHENTICATION_REQUEST: 0
+  DPP_AUTHENTICATION_RESPONSE: 1
+  DPP_AUTHENTICATION_CONFIRM: 2
+  DPP_CONFIGURATION_RESULT: 11
+  DPP_GAS_FRAME: 255

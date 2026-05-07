@@ -134,6 +134,10 @@ public:
     virtual bool
     start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) override;
 
+    virtual bool send_management_frame(const std::string &dst_mac, const std::string &fc,
+                                       uint8_t channel, const std::string &frame_hex,
+                                       const std::string &vap_iface_name) override;
+
     // Protected methods:
 protected:
     virtual bool process_dummy_event(parsed_obj_map_t &parsed_obj) override;

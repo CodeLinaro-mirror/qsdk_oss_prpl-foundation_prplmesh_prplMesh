@@ -133,6 +133,16 @@ public:
      */
     static std::string bytes_string_to_string(const std::string &bytes_string);
 
+    /**
+     * @brief Convert bytes to a hex string,
+     * e.g. {0x70, 0x72, 0x70, 0x6c, 0x4d, 0x65, 0x73, 0x68} -> "7072706c4d657368".
+     *
+     * @param data Pointer to the byte array.
+     * @param len Length of the byte array.
+     * @return std::string Hex representation of the byte array.
+     */
+    static std::string bytes_to_hex(const uint8_t *data, size_t len);
+
     static void copy_string(char *dst, const char *src, size_t dst_len);
 };
 } // namespace beerocks

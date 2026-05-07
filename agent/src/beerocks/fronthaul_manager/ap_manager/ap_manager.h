@@ -19,6 +19,9 @@
 #include <bcl/network/file_descriptor.h>
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
 
+#include <tlvf/wfa_map/tlv1905EncapDpp.h>
+#include <tlvf/wfa_map/tlvDppChirpValue.h>
+
 #include <atomic>
 #include <list>
 
@@ -90,6 +93,49 @@ private:
      * @param cmdu_rx Received CMDU to be handled.
      */
     void handle_cmdu_ieee1905_1_message(ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    struct sEnrolleeInfo {
+        std::vector<uint8_t> auth_frame;
+        std::vector<uint8_t> hash;
+        wfa_map::tlv1905EncapDpp::sFlags flags;
+    };
+    std::map<sMacAddr, sEnrolleeInfo> m_enrollee_auth_map;
+
+    /**
+     * @brief   Saves the DPP auth request from the em+ controller.
+     *
+     * @param   encap_1905_dpp_tlv 1905 Encap DPP TLV
+     * @param   chirp_tlv DPP chirp value TLV
+     *
+     * This function is used to store the DPP auth request
+     * from the em+ controller so that it can be used later to send the DPP auth request.
+     * The function checks if the enrollee is already in the map, if not it adds it.
+     * If the enrollee is already in the map, it updates the auth_frame and hash.
+     */
+    void
+    store_enrollee_auth_request(const std::shared_ptr<wfa_map::tlv1905EncapDpp> &encap_1905_dpp_tlv,
+                                const std::shared_ptr<wfa_map::tlvDppChirpValue> &chirp_tlv);
+
+    /**
+     * @brief Sends DPP authentication request to the enrollee.
+     *
+     * @param vap_iface_name The interface name to send the DPP authentication request.
+     * @param dst The destination MAC address of the enrollee.
+     * @param encap_body The DPP authentication request frame.
+     * @param encap_body_len The length of the DPP authentication request frame.
+     * @return true on success and false otherwise.
+     *
+     * This function is used to send the DPP authentication request to the enrollee.
+     */
+    bool send_dpp_frame_to_enrollee(const std::string &vap_iface_name, const sMacAddr &dst,
+                                    const uint8_t *encap_body, size_t encap_body_len);
+
+    /**
+     * @brief Handles Proxied Encap message received from controller.
+     *
+     * @param cmdu_rx Received CMDU to be handled.
+     */
+    void handle_proxied_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
      * @brief Handles DPP CCE Indication message.

@@ -406,6 +406,7 @@ typedef struct {
 typedef struct {
     char hash[65];
     sMacAddr enrollee_mac;
+    char vap_iface[beerocks::message::IFACE_NAME_LENGTH];
 } sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT;
 
 typedef struct {

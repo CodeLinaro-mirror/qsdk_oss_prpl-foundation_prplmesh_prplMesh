@@ -163,6 +163,18 @@ std::string string_utils::bytes_string_to_string(const std::string &bytes_string
     return output;
 }
 
+std::string string_utils::bytes_to_hex(const uint8_t *data, size_t len)
+{
+    static constexpr char lut[] = "0123456789abcdef";
+    std::string out;
+    out.reserve(len * 2);
+    for (size_t i = 0; i < len; ++i) {
+        out.push_back(lut[data[i] >> 4]);
+        out.push_back(lut[data[i] & 0x0f]);
+    }
+    return out;
+}
+
 void string_utils::copy_string(char *dst, const char *src, size_t dst_len)
 {
     const char *src_end = std::find(src, src + dst_len, '\0');
