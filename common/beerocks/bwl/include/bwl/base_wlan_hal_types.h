@@ -411,6 +411,7 @@ typedef struct {
 
 typedef struct {
     sMacAddr enrollee_mac;
+    char buf[beerocks::message::DPP_FRAME_MAX_LEN];
 } sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE;
 
 typedef struct {

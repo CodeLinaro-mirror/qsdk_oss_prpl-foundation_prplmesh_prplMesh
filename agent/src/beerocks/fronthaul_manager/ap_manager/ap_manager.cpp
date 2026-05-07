@@ -2754,6 +2754,28 @@ void ApManager::fill_sr_params(beerocks_message::sSpatialReuseParams &params)
     params.srg_partial_bssid_bitmap  = spatial_reuse_params.srg_partial_bssid_bitmap;
 }
 
+std::vector<uint8_t>
+ApManager::build_dpp_full_frame(const std::vector<uint8_t> &input,
+                                wfa_map::tlv1905EncapDpp::eFrameType frame_type)
+{
+    constexpr uint8_t ACTION_VENDOR_SPECIFIC = 0x09;
+    constexpr std::array<uint8_t, 3> OUI_WFA = {0x50, 0x6F, 0x9A};
+    constexpr uint8_t OUI_TYPE_DPP           = 0x1A;
+    constexpr uint8_t CRYPTO_SUITE           = 0x01;
+
+    std::vector<uint8_t> frame;
+    frame.reserve(7 + input.size()); // Header + attributes
+
+    frame.push_back(ACTION_VENDOR_SPECIFIC);
+    frame.insert(frame.end(), std::begin(OUI_WFA), std::end(OUI_WFA));
+    frame.push_back(OUI_TYPE_DPP);
+    frame.push_back(CRYPTO_SUITE);
+    frame.push_back(static_cast<uint8_t>(frame_type));
+
+    frame.insert(frame.end(), input.begin(), input.end());
+    return frame;
+}
+
 bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 {
     if (!event_ptr) {
@@ -3866,7 +3888,14 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         LOG(DEBUG) << "DPP Authentication Response";
         auto dpp_authentication_response =
             static_cast<bwl::sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE *>(data);
+        // Convert hex string to binary
+        auto dpp_attributes = beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(
+            dpp_authentication_response->buf);
 
+        auto full_frame = build_dpp_full_frame(
+            dpp_attributes, wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_RESPONSE);
+
+        // Create CMDU
         auto cmdu_tx_header =
             cmdu_tx.create(0, ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE);
         if (!cmdu_tx_header) {
@@ -3885,6 +3914,8 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = false;
         encap_1905_dpp_tlv->frame_flags().enrollee_mac_address_present = true;
         encap_1905_dpp_tlv->set_dest_sta_mac(dpp_authentication_response->enrollee_mac);
+        encap_1905_dpp_tlv->set_encapsulated_frame(full_frame.data(), full_frame.size());
+
         send_cmdu(cmdu_tx);
     } break;
     case Event::DPP_CONFIGURATION_REQUEST: {

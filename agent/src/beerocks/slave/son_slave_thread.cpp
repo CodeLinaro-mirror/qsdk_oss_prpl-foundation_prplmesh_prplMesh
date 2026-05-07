@@ -975,6 +975,12 @@ bool slave_thread::handle_cmdu_ap_manager_ieee1905_1_message(const std::string &
     auto cmdu_message_type = cmdu_rx.getMessageType();
     switch (cmdu_message_type) {
     // Forward unhandled messages to the backhaul manager (probably headed to the controller)
+    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
+        if (!m_task_pool.handle_cmdu(cmdu_rx, 0, {}, {}, fd)) {
+            LOG(ERROR) << "Failed to handle PROXIED_ENCAP_DPP_MESSAGE in ProxyAgentDppTask";
+            return false;
+        }
+        return true;
     default:
         const auto mid = cmdu_rx.getMessageId();
         LOG(DEBUG) << "Forwarding ieee1905 message " << int(cmdu_message_type)

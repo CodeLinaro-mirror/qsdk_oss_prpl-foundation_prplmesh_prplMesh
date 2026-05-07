@@ -201,6 +201,19 @@ private:
      */
     bool ap_manager_fsm(bool &continue_processing);
 
+    /**
+     * @brief Constructs a complete DPP Public Action frame from the given attributes.
+     *
+     * This function takes a vector of DPP attributes in binary format and builds a complete
+     * DPP Public Action frame suitable for transmission over the air.
+     *
+     * @param input A vector containing the binary-encoded DPP attributes.
+     * @param frame_type DPP frame type to encode in the header
+     * @return A vector of bytes representing the full DPP Public Action frame.
+     */
+    std::vector<uint8_t> build_dpp_full_frame(const std::vector<uint8_t> &input,
+                                              wfa_map::tlv1905EncapDpp::eFrameType frame_type);
+
     bool hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr);
     void handle_hostapd_attached();
     bool handle_ap_enabled(int vap_id);

@@ -66,6 +66,8 @@ static ap_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode)
         return ap_wlan_hal::Event::ACL_DENY;
     } else if (opcode == "DPP-CHIRP-RX") {
         return ap_wlan_hal::Event::DPP_PRESENCE_ANNOUNCEMENT;
+    } else if (opcode == "DPP-RX") {
+        return ap_wlan_hal::Event::DPP_AUTHENTICATION_RESPONSE;
     }
 
     return ap_wlan_hal::Event::Invalid;
@@ -2172,6 +2174,22 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
 
         strncpy(msg->vap_iface, interface.c_str(), sizeof(msg->vap_iface) - 1);
         msg->vap_iface[sizeof(msg->vap_iface) - 1] = '\0';
+
+        // Add the message to the queue
+        event_queue_push(event, msg_buff);
+        break;
+    }
+    case Event::DPP_AUTHENTICATION_RESPONSE: {
+        LOG(DEBUG) << "DPP AUTHENTICATION RESPONSE";
+        auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE));
+        auto msg =
+            reinterpret_cast<sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE *>(msg_buff.get());
+        LOG_IF(!msg, FATAL) << "Memory allocation failed!";
+
+        memset(msg_buff.get(), 0, sizeof(sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE));
+        msg->enrollee_mac = tlvf::mac_from_string(parsed_obj["src"]);
+        strncpy(msg->buf, parsed_obj["buf"].c_str(), sizeof(msg->buf) - 1);
+        msg->buf[sizeof(msg->buf) - 1] = '\0';
 
         // Add the message to the queue
         event_queue_push(event, msg_buff);
