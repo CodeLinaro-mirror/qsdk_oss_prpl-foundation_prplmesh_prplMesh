@@ -3945,10 +3945,20 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             return false;
         }
 
+        auto gas_body = beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(
+            dpp_configuration_request->buf);
+
+        constexpr uint8_t ACTION_GAS_INITIAL_REQUEST = 0x0A;
+        std::vector<uint8_t> encap_frame;
+        encap_frame.reserve(2 + gas_body.size());
+        encap_frame.push_back(ACTION_GAS_INITIAL_REQUEST);
+        encap_frame.insert(encap_frame.end(), gas_body.begin(), gas_body.end());
+
         encap_1905_dpp_tlv->frame_type() = wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME;
         encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = true;
         encap_1905_dpp_tlv->frame_flags().enrollee_mac_address_present = true;
         encap_1905_dpp_tlv->set_dest_sta_mac(dpp_configuration_request->enrollee_mac);
+        encap_1905_dpp_tlv->set_encapsulated_frame(encap_frame.data(), encap_frame.size());
         send_cmdu(cmdu_tx);
     } break;
     // Unhandled events
