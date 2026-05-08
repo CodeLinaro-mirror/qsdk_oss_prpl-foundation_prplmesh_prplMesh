@@ -469,7 +469,7 @@ bool TrafficSeparationTask::fill_wds_trunk_from_db(const std::string &iface_name
 
             const auto bss_it = std::find_if(
                 radio->front.bssids.begin(), radio->front.bssids.end(), [&](const auto &bss) {
-                    return bss.active && bss.backhaul_bss && (bss.mac == client.bssid);
+                    return bss.enabled && bss.backhaul_bss && (bss.mac == client.bssid);
                 });
             if (bss_it == radio->front.bssids.end()) {
                 continue;
