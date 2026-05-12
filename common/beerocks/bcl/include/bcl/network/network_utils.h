@@ -320,10 +320,35 @@ public:
                                      bool is_bridge, bool pvid = false, bool untagged = false);
 
     /**
+     * @brief Run a TC command and log unexpected failures.
+     *
+     * @param cmd Full TC command line to run.
+     * @param ignore_missing_filter If true, ignore errors caused by deleting missing filters.
+     * @return true on success, false otherwise.
+     */
+    static bool tc_run_command(const std::string &cmd, bool ignore_missing_filter = false);
+
+    /**
+     * @brief Return true when an interface has a clsact qdisc.
+     *
+     * @param iface Interface name to check.
+     * @return true if clsact exists, false otherwise.
+     */
+    static bool tc_has_clsact_qdisc(const std::string &iface);
+
+    /**
+     * @brief Add a clsact qdisc unless one already exists.
+     *
+     * @param iface Interface name to configure.
+     * @return true if clsact exists or was added, false otherwise.
+     */
+    static bool tc_ensure_clsact_qdisc(const std::string &iface);
+
+    /**
      * @brief Set or clear a simple VLAN packet filter rule per BSS interface.
      *
      * Adds ingress drop filters using tc for VLAN-tagged packets:
-     *   tc qdisc replace dev <bss_iface> clsact
+     *   tc qdisc add dev <bss_iface> clsact
      *   tc filter add dev <bss_iface> ingress ... protocol 802.1Q flower action drop
      *   tc filter add dev <bss_iface> ingress ... protocol 802.1ad flower action drop
      *

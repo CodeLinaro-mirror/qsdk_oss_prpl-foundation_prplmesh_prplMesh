@@ -53,6 +53,14 @@ struct route_info {
     char ifName[IF_NAMESIZE];
 };
 
+bool is_missing_tc_filter_output(const std::string &output)
+{
+    return output.find("Cannot find specified filter") != std::string::npos ||
+           output.find("No such file or directory") != std::string::npos ||
+           output.find("RTNETLINK answers: Invalid argument") != std::string::npos ||
+           output.find("We have an error talking to the kernel") != std::string::npos;
+}
+
 } // namespace
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Fucntions ///////////////////////////
@@ -1629,6 +1637,66 @@ bool network_utils::set_iface_vid_policy(const std::string &iface, bool del, uin
     os_utils::system_call(cmd);
     return true;
 }
+
+bool network_utils::tc_run_command(const std::string &cmd, bool ignore_missing_filter)
+{
+    if (cmd.empty()) {
+        LOG(ERROR) << "Empty tc command";
+        return false;
+    }
+
+    if (!ignore_missing_filter) {
+        return os_utils::system_call(cmd) == 0;
+    }
+
+    const auto output = os_utils::system_call_with_output(cmd, true);
+    if (output.empty()) {
+        return true;
+    }
+
+    // Removing a missing tc filter is expected during idempotent cleanup.
+    if (is_missing_tc_filter_output(output)) {
+        return true;
+    }
+
+    LOG(ERROR) << "failed command='" << cmd << "', output='" << output << "'";
+    return false;
+}
+
+bool network_utils::tc_has_clsact_qdisc(const std::string &iface)
+{
+    if (iface.empty()) {
+        LOG(ERROR) << "Given interface name is empty!";
+        return false;
+    }
+
+    std::string show_cmd;
+    show_cmd.reserve(96);
+    show_cmd.append("tc qdisc show dev ").append(iface);
+
+    const auto output = os_utils::system_call_with_output(show_cmd, true);
+    return output.find("qdisc clsact") != std::string::npos;
+}
+
+bool network_utils::tc_ensure_clsact_qdisc(const std::string &iface)
+{
+    if (tc_has_clsact_qdisc(iface)) {
+        return true;
+    }
+
+    std::string qdisc_cmd;
+    qdisc_cmd.reserve(96);
+    qdisc_cmd.append("tc qdisc add dev ").append(iface).append(" clsact");
+
+    const auto output = os_utils::system_call_with_output(qdisc_cmd, true);
+    if (output.empty() || tc_has_clsact_qdisc(iface)) {
+        return true;
+    }
+
+    LOG(ERROR) << "failed command='" << qdisc_cmd << "', output='" << output << "'";
+    return false;
+}
+
 bool network_utils::set_vlan_packet_filter(bool set, const std::string &bss_iface)
 {
     static constexpr char TC_PROTO_8021Q[]    = "802.1Q";
@@ -1643,32 +1711,10 @@ bool network_utils::set_vlan_packet_filter(bool set, const std::string &bss_ifac
         return false;
     }
 
-    auto run_tc_cmd = [&](const std::string &cmd, bool ignore_missing_filter) -> bool {
-        const auto output = os_utils::system_call_with_output(cmd, true);
-        if (output.empty()) {
-            return true;
-        }
-
-        // Removing a missing tc filter is expected during idempotent cleanup.
-        if (ignore_missing_filter &&
-            (output.find("Cannot find specified filter") != std::string::npos ||
-             output.find("No such file or directory") != std::string::npos ||
-             output.find("RTNETLINK answers: Invalid argument") != std::string::npos ||
-             output.find("We have an error talking to the kernel") != std::string::npos)) {
-            return true;
-        }
-
-        LOG(ERROR) << "failed command='" << cmd << "', output='" << output << "'";
-        return false;
-    };
-
     bool success = true;
 
     if (set) {
-        std::string qdisc_cmd;
-        qdisc_cmd.reserve(96);
-        qdisc_cmd.append("tc qdisc replace dev ").append(bss_iface).append(" clsact");
-        if (!run_tc_cmd(qdisc_cmd, false)) {
+        if (!tc_ensure_clsact_qdisc(bss_iface)) {
             success = false;
         }
     }
@@ -1683,7 +1729,7 @@ bool network_utils::set_vlan_packet_filter(bool set, const std::string &bss_ifac
             .append(" handle ")
             .append(std::to_string(handle))
             .append(" flower");
-        return run_tc_cmd(del_cmd, true);
+        return tc_run_command(del_cmd, true);
     };
 
     if (!remove_drop_filter(FILTER_PREF_8021Q, FILTER_HANDLE_8021Q)) {
@@ -1709,7 +1755,7 @@ bool network_utils::set_vlan_packet_filter(bool set, const std::string &bss_ifac
             .append(" protocol ")
             .append(proto)
             .append(" flower action drop");
-        return run_tc_cmd(add_cmd, false);
+        return tc_run_command(add_cmd);
     };
 
     if (!add_drop_filter(TC_PROTO_8021Q, FILTER_PREF_8021Q, FILTER_HANDLE_8021Q)) {
