@@ -2287,50 +2287,61 @@ bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
 
     LOG(DEBUG) << "Setting QOS_MAP_SET " << qos_map;
 
-    // Getting APs paths by radRef (getting all APs for specific radio)
-    // pWHM: Radio obj -> Alias -> "WiFi.Radio." + Alias == RadioReference (e.g. "WiFi.Radio.radio0")
-    LOG(INFO) << "Getting APs paths by RadioReference for radio=" << get_iface_name();
-    const auto radio_obj =
-        m_ambiorix_cl.get_object(wbapi_utils::search_path_radio_by_iface(get_iface_name()));
-    if (!radio_obj) {
-        LOG(ERROR) << "Could not resolve get radio object for iface=" << get_iface_name();
+    LOG(INFO) << "Getting AP paths for radio=" << get_iface_name();
+
+    std::string radio_path = m_radio_path;
+    if (radio_path.empty() &&
+        !m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(get_iface_name()),
+                                    radio_path)) {
+        LOG(ERROR) << "Could not resolve radio path for iface=" << get_iface_name();
         return false;
     }
 
-    std::string alias;
-    if (!radio_obj->read_child(alias, "Alias")) {
-        LOG(ERROR) << "Alias was not found for iface=" << get_iface_name();
-        return false;
-    }
-    auto radRef = wbapi_utils::search_path_radRef_by_alias(alias);
-
-    // TODO: Handle pWHM DM Radio/SSID/ProfileReferences (PPM-3533)
-    constexpr const char *device_prefix = "Device.";
-    if (radRef.rfind(device_prefix, 0) == 0) {
-        radRef.erase(0, strlen(device_prefix));
-        LOG(DEBUG) << "Stripped Device prefix, new radRef: " << radRef;
-    }
-
-    const auto search_path_ap_by_radRef = wbapi_utils::search_path_ap_by_radRef(radRef);
-    LOG(TRACE) << "search_path=" << search_path_ap_by_radRef;
-
-    std::vector<std::string> paths;
-    if (!m_ambiorix_cl.resolve_path_multi(search_path_ap_by_radRef, paths)) {
-        LOG(ERROR) << "Could not resolve " << search_path_ap_by_radRef;
+    const auto aps = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+        wbapi_utils::search_path_ap_inst());
+    if (!aps) {
+        LOG(ERROR) << "Could not get AP objects for radio=" << get_iface_name();
         return false;
     }
 
-    for (const auto &path : paths) {
+    const auto radio_index = wbapi_utils::get_object_id(radio_path);
+    bool ap_found          = false;
+    bool retVal            = true;
+    for (const auto &ap : *aps) {
+        const auto &ap_path = ap.first;
+        const auto &ap_obj  = ap.second;
+        if (ap_obj.empty()) {
+            LOG(DEBUG) << "Empty AP object for " << ap_path;
+            continue;
+        }
+
+        std::string ap_radio_path;
+        const auto radio_ref = wbapi_utils::get_path_radio_reference(ap_obj);
+        if (!m_ambiorix_cl.resolve_path(radio_ref, ap_radio_path)) {
+            LOG(DEBUG) << "Could not resolve " << radio_ref << " for AP " << ap_path;
+            continue;
+        }
+
+        if (wbapi_utils::get_object_id(ap_radio_path) != radio_index) {
+            continue;
+        }
+
+        ap_found = true;
         AmbiorixVariant new_map(AMXC_VAR_ID_HTABLE);
         new_map.add_child("QoSMapSet", qos_map);
 
-        if (!m_ambiorix_cl.update_object(path + "IEEE80211u.", new_map)) {
-            LOG(ERROR) << "Could not set QoSMapSet for " << path;
-            return false;
+        if (!m_ambiorix_cl.update_object(ap_path + "IEEE80211u.", new_map)) {
+            LOG(ERROR) << "Could not set QoSMapSet for " << ap_path;
+            retVal = false;
         }
     }
 
-    return true;
+    if (!ap_found) {
+        LOG(ERROR) << "Could not resolve APs for radio=" << get_iface_name();
+        return false;
+    }
+
+    return retVal;
 }
 
 bool ap_wlan_hal_whm::handle_qos_management_descriptor(
