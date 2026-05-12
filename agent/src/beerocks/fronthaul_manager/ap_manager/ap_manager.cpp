@@ -2218,7 +2218,10 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(ERROR) << "addClass has failed";
             return;
         }
-        ap_wlan_hal->configure_service_priority(msg->cs_params().data);
+        if (!ap_wlan_hal->configure_service_priority(msg->cs_params().data)) {
+            LOG(ERROR) << "Failed to configure service priority on "
+                       << ap_wlan_hal->get_iface_name();
+        }
         break;
     }
     case beerocks_message::ACTION_APMANAGER_MULTI_CHAN_BEACON_11K_REQUEST: {
