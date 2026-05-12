@@ -2621,7 +2621,7 @@ public:
 
     /** @brief Retrieve Service Prioritization configuration for agents.
      *
-     * DM path: "Device.WiFi.DataElements.Configuration."
+     * DM path: "X_PRPLWARE-COM_Controller.Configuration.QoS."
      *
      * @return true on success, otherwise false.
      */
