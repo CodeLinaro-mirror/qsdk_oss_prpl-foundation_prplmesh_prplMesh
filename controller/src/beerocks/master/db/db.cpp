@@ -9276,14 +9276,14 @@ bool db::dm_set_service_prioritization_rules(const Agent &agent)
 
 bool db::dm_configure_service_prioritization()
 {
-    const std::string cfgPath = "Device.WiFi.DataElements.Configuration.QoS";
-    uint64_t ruleOutput{0};
-    if (!m_ambiorix_datamodel->read_param(cfgPath, "SPRuleOutput", &ruleOutput)) {
+    const std::string cfgPath = CONTROLLER_ROOT_DM ".Configuration.QoS";
+    uint32_t ruleOutput{0};
+    if (!m_ambiorix_datamodel->read_param(cfgPath, "QoSRuleOutput", &ruleOutput)) {
         LOG(ERROR) << "no valid priority rule found at " << cfgPath;
         return false;
     }
     std::string dscpHex;
-    m_ambiorix_datamodel->read_param(cfgPath, "DSCPMap", &dscpHex);
+    m_ambiorix_datamodel->read_param(cfgPath, "DSCPMapping", &dscpHex);
 
     for (auto it = m_agents.begin(); it != m_agents.end(); ++it) {
         auto &agent = it->second;
