@@ -69,8 +69,9 @@ public:
      *
      * @param [in] cmd command string.
      * @param [in] detached flag to request to run command in detached mode.
+     * @return command return code.
      */
-    static void system_call(const std::string &cmd, bool detached = false);
+    static int system_call(const std::string &cmd, bool detached = false);
 
     /**
      * @brief Operates system call and return its output.
