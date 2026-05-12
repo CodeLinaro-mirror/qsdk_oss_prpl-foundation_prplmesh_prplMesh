@@ -44,11 +44,11 @@ bool os_utils::file_exists(const std::string &fname)
     return (stat(fname.c_str(), &st) == 0);
 }
 
-void os_utils::system_call(const std::string &cmd, bool detached)
+int os_utils::system_call(const std::string &cmd, bool detached)
 {
     if (cmd.empty()) {
         LOG(ERROR) << "Empty call.";
-        return;
+        return -1;
     }
 
     auto command{cmd};
@@ -60,6 +60,8 @@ void os_utils::system_call(const std::string &cmd, bool detached)
     if (ret != 0) {
         LOG(ERROR) << command << " failed with return code " << ret;
     }
+
+    return ret;
 }
 
 std::string os_utils::system_call_with_output(const std::string &cmd, bool enable_stderr)
