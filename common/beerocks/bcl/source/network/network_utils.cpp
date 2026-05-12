@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cctype>
 
 #include <easylogging++.h>
@@ -59,6 +60,18 @@ bool is_missing_tc_filter_output(const std::string &output)
            output.find("No such file or directory") != std::string::npos ||
            output.find("RTNETLINK answers: Invalid argument") != std::string::npos ||
            output.find("We have an error talking to the kernel") != std::string::npos;
+}
+
+bool is_digits(const std::string &value, size_t pos)
+{
+    return pos < value.size() && std::all_of(value.begin() + pos, value.end(),
+                                             [](unsigned char c) { return std::isdigit(c); });
+}
+
+bool is_suffixed_wds_iface(const std::string &iface, const std::string &bss_iface)
+{
+    const std::string prefix = bss_iface + ".sta";
+    return iface.compare(0, prefix.size(), prefix) == 0 && is_digits(iface, prefix.size());
 }
 
 } // namespace
@@ -1398,6 +1411,8 @@ std::vector<std::string> network_utils::get_bss_ifaces(const std::string &bss_if
      * (e.g wlan0.0.sta1, wlan0.0.sta2 etc)
      * On MaxLinear platforms the pattern is: "bN_<bss_iface_name>"
      * (e.g b0_wlan0.0, b1_wlan0.0 etc).
+     * Include matching WDS lower interfaces so TC rules target the stable
+     * egress path, not shortened VLAN upper interfaces.
      *
      * NOTE: If the VAP interface is wlan-long0.0, then the STA interface name will use an
      * abbreviated version b0_wlan-long0 instead of b0_wlan-long0.0.
@@ -1406,9 +1421,25 @@ std::vector<std::string> network_utils::get_bss_ifaces(const std::string &bss_if
      */
 
     std::vector<std::string> bss_ifaces;
-    for (const auto &iface : ifaces_on_bridge) {
-        if (iface.find(bss_iface) != std::string::npos) {
+    auto add_bss_iface = [&](const std::string &iface) {
+        if (std::find(bss_ifaces.begin(), bss_ifaces.end(), iface) == bss_ifaces.end()) {
             bss_ifaces.push_back(iface);
+        }
+    };
+
+    auto is_bss_iface = [&](const std::string &iface) {
+        return iface == bss_iface || is_suffixed_wds_iface(iface, bss_iface);
+    };
+
+    for (const auto &iface : ifaces_on_bridge) {
+        if (is_bss_iface(iface)) {
+            add_bss_iface(iface);
+        }
+    }
+
+    for (const auto &iface : linux_get_iface_list()) {
+        if (is_bss_iface(iface)) {
+            add_bss_iface(iface);
         }
     }
     return bss_ifaces;
