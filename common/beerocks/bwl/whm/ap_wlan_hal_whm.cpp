@@ -1953,27 +1953,61 @@ bool ap_wlan_hal_whm::configure_service_priority(const uint8_t *dscp)
 
     LOG(DEBUG) << "Setting QOS_MAP_SET " << qos_map;
 
-    // It seems that for now Aliases for VAPs can't be resolved
-    // auto search_path = wbapi_utils::search_path_ap_by_iface(get_iface_name());
-    const auto search_path = "WiFi.AccessPoint.*.";
+    LOG(INFO) << "Getting AP paths for radio=" << get_iface_name();
 
-    std::vector<std::string> paths;
-    if (!m_ambiorix_cl.resolve_path_multi(search_path, paths)) {
-        LOG(ERROR) << "Could not resolve " << search_path;
+    std::string radio_path = m_radio_path;
+    if (radio_path.empty() &&
+        !m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(get_iface_name()),
+                                    radio_path)) {
+        LOG(ERROR) << "Could not resolve radio path for iface=" << get_iface_name();
         return false;
     }
 
-    for (const auto &path : paths) {
+    const auto aps = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+        wbapi_utils::search_path_ap_inst());
+    if (!aps) {
+        LOG(ERROR) << "Could not get AP objects for radio=" << get_iface_name();
+        return false;
+    }
+
+    const auto radio_index = wbapi_utils::get_object_id(radio_path);
+    bool ap_found          = false;
+    bool retVal            = true;
+    for (const auto &ap : *aps) {
+        const auto &ap_path = ap.first;
+        const auto &ap_obj  = ap.second;
+        if (ap_obj.empty()) {
+            LOG(DEBUG) << "Empty AP object for " << ap_path;
+            continue;
+        }
+
+        std::string ap_radio_path;
+        const auto radio_ref = wbapi_utils::get_path_radio_reference(ap_obj);
+        if (!m_ambiorix_cl.resolve_path(radio_ref, ap_radio_path)) {
+            LOG(DEBUG) << "Could not resolve " << radio_ref << " for AP " << ap_path;
+            continue;
+        }
+
+        if (wbapi_utils::get_object_id(ap_radio_path) != radio_index) {
+            continue;
+        }
+
+        ap_found = true;
         AmbiorixVariant new_map(AMXC_VAR_ID_HTABLE);
         new_map.add_child("QoSMapSet", qos_map);
 
-        if (!m_ambiorix_cl.update_object(path + "IEEE80211u.", new_map)) {
-            LOG(ERROR) << "Could not set QoSMapSet for " << path;
-            return false;
+        if (!m_ambiorix_cl.update_object(ap_path + "IEEE80211u.", new_map)) {
+            LOG(ERROR) << "Could not set QoSMapSet for " << ap_path;
+            retVal = false;
         }
     }
 
-    return true;
+    if (!ap_found) {
+        LOG(ERROR) << "Could not resolve APs for radio=" << get_iface_name();
+        return false;
+    }
+
+    return retVal;
 }
 
 bool ap_wlan_hal_whm::set_spatial_reuse_config(
