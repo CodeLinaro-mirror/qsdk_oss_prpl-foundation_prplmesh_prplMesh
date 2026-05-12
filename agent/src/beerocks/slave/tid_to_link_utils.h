@@ -3,7 +3,7 @@
 
 namespace tid_to_link_utils {
 
-// ================= GET FUNCTIONS =================
+// get functions
 
 inline uint8_t get_direction(uint8_t control) { return (control >> 6) & 0x03; }
 
@@ -15,7 +15,7 @@ inline uint8_t get_expected_duration_present(uint8_t control) { return (control 
 
 inline uint8_t get_link_mapping_size(uint8_t control) { return (control >> 2) & 0x01; }
 
-// ================= SET FUNCTIONS =================
+// set functions
 
 inline void set_direction(uint8_t &control, uint8_t val)
 {
@@ -43,4 +43,3 @@ inline void set_link_mapping_size(uint8_t &control, uint8_t val)
 }
 
 } // namespace tid_to_link_utils
-

@@ -374,10 +374,10 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
         LOG(ERROR) << "Failed setting up QoS active rule";
     }
 
-    // Tid-To-Link Mapping policy TLV Handler
+    // Tid-To-Link Mapping policy TLV handler
     auto tlvTidToLinkMapping = cmdu_rx.getClass<wfa_map::tlvTidToLinkMappingPolicy>();
     if (tlvTidToLinkMapping) {
-        handle_tid_to_link_mapping_policy_tlv(tlvTidToLinkMapping);
+        handle_tid_to_link_mapping_policy_tlv(std::move(tlvTidToLinkMapping));
     }
 }
 
@@ -714,6 +714,8 @@ bool ServicePrioritizationTask::send_service_prio_config(
 bool ServicePrioritizationTask::handle_tid_to_link_mapping_policy_tlv(
     std::shared_ptr<wfa_map::tlvTidToLinkMappingPolicy> tlvTidToLinkMapping)
 {
+    LOG(INFO) << "Received TID-to-Link Mapping Policy TLV";
+
     if (!tlvTidToLinkMapping) {
         LOG(ERROR) << "Invalid Tid-To-Link-Mapping TLV";
         return false;
@@ -722,14 +724,14 @@ bool ServicePrioritizationTask::handle_tid_to_link_mapping_policy_tlv(
     // get AP MLD MAC
     sMacAddr mld_mac = tlvTidToLinkMapping->mld_mac_addr();
 
-    //Select correct DB map
-    bool is_bsta = tlvTidToLinkMapping->is_bsta_config().is_bsta_mld;
+    // select correct DB map
+    bool is_bsta     = tlvTidToLinkMapping->is_bsta_config().is_bsta_mld;
     auto &target_map = is_bsta ? db->service_prioritization.bsta_mld_client
                                : db->service_prioritization.ap_mld_client;
 
-    //Clear old data for this MLD
+    // clear old data for this MLD
     target_map[mld_mac].clear();
-    // Config object
+    // config object
     beerocks::AgentDB::TID_to_Link_Mapping_Config config = {};
 
     config.is_bSTA_Config = is_bsta;
@@ -738,64 +740,67 @@ bool ServicePrioritizationTask::handle_tid_to_link_mapping_policy_tlv(
         tlvTidToLinkMapping->tid_to_link_mapping_negotiation().is_enabled;
     config.Num_Mapping = tlvTidToLinkMapping->num_mapping();
 
-    // ===== LOOP: mappings =====
+    // LOOP: mappings
 
     for (size_t i = 0; i < tlvTidToLinkMapping->num_mapping(); i++) {
         auto mapping_tuple = tlvTidToLinkMapping->mapping(i);
-        if (!std::get<0>(mapping_tuple)){
+        if (!std::get<0>(mapping_tuple)) {
             LOG(ERROR) << "Invalid Mapping Index" << i;
-	    continue;
-	}
+            continue;
+        }
 
         auto &mapping                                   = std::get<1>(mapping_tuple);
         beerocks::AgentDB::sTidToLinkMappingEntry entry = {};
-        // Basic fields
+        // basic fields
         entry.addRemove        = mapping.add_remove().should_be_removed;
         entry.STA_MLD_MAC_Addr = mapping.sta_mld_mac_addr();
-        // Control field
+        // control field
         auto controlField = mapping.tid_to_link_control_field();
         uint8_t control   = 0;
         tid_to_link_utils::set_direction(control, controlField->tid_to_link_control().direction);
         tid_to_link_utils::set_default_link_mapping(
-	    control, controlField->tid_to_link_control().default_link_mapping);
+            control, controlField->tid_to_link_control().default_link_mapping);
         tid_to_link_utils::set_mapping_switch_time(
-	    control, controlField->tid_to_link_control().mapping_switch_time_present);
+            control, controlField->tid_to_link_control().mapping_switch_time_present);
         tid_to_link_utils::set_expected_duration_present(
-	    control, controlField->tid_to_link_control().expected_duration_present);
+            control, controlField->tid_to_link_control().expected_duration_present);
         tid_to_link_utils::set_link_mapping_size(
-	    control, controlField->tid_to_link_control().link_mapping_size);
+            control, controlField->tid_to_link_control().link_mapping_size);
         entry.tid_to_link_control_field = control;
 
-        // Presence bitmap
+        // presence bitmap
         uint8_t presence                      = controlField->link_mapping_presence_indicator();
         entry.Link_Mapping_Presence_Indicator = presence;
-        // Expected duration
+        // expected duration
         if (controlField->tid_to_link_control().expected_duration_present) {
             auto duration           = controlField->expected_duration();
             entry.Expected_Duration = (duration[0] << 16) | (duration[1] << 8) | duration[2];
         }
         // TID → Link Mapping Parsing
         uint8_t tid_mapping_count = mapping.tid_to_link_mapping_length();
-	if (tid_mapping_count == 0) {
+        if (tid_mapping_count == 0) {
             LOG(WARNING) << "No TID Mappings Present";
-	    continue;
-	}
-        uint8_t tid_index         = 0;
+            continue;
+        }
+        uint8_t tid_index = 0;
         for (uint8_t tid = 0; tid < 8; tid++) {
-            // Check presence bitmap
+            // check presence bitmap
             if (!(presence & (1 << tid)))
                 continue;
-
-            if (tid_index >= tid_mapping_count)
+            // prevent access beyond available mappings
+            if (tid_index >= tid_mapping_count) {
+                LOG(WARNING) << "TID mapping count exhausted";
                 break;
+            }
+
             auto result   = mapping.tid_to_link_mapping(tid_index);
             bool ok       = std::get<0>(result);
             auto &tid_map = std::get<1>(result);
             if (!ok) {
                 LOG(ERROR) << "Invalid TID mapping index";
-                continue;
+                break;
             }
-            //  Extract bytes
+            // extract bytes
             uint8_t lower                  = get_tid_byte(tid_map.loByte());
             uint8_t upper                  = get_tid_byte(tid_map.hiByte());
             uint16_t value                 = lower | (upper << 8);
@@ -803,10 +808,10 @@ bool ServicePrioritizationTask::handle_tid_to_link_mapping_policy_tlv(
             LOG(DEBUG) << "Parsed TID " << int(tid) << " mapping: " << std::bitset<16>(value);
             tid_index++;
         }
-        // Add entry
-        config.mappings.push_back(entry);
+        // add entry
+        config.mappings.push_back(std::move(entry));
     }
-    // Store in DB (key = STA MLD MAC)
+    // store in DB (key = STA MLD MAC)
     for (auto &entry : config.mappings) {
         target_map[mld_mac][entry.STA_MLD_MAC_Addr] = config;
         LOG(DEBUG) << "Stored TID-to-Link Mapping Policy in DB";

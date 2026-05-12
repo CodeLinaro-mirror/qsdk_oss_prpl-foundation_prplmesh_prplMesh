@@ -160,21 +160,14 @@ private:
      */
     bool add_assoc_sta_mld_config_reports();
 
-    /* Helper function to Set TID Bytes */
-    inline void set_tid_byte(wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map, uint8_t value)
+    /* helper function to set TID bytes */
+    static void set_tid_byte(wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map, uint8_t value)
     {
-        map.bit0 = (value >> 0) & 1;
-        map.bit1 = (value >> 1) & 1;
-        map.bit2 = (value >> 2) & 1;
-        map.bit3 = (value >> 3) & 1;
-        map.bit4 = (value >> 4) & 1;
-        map.bit5 = (value >> 5) & 1;
-        map.bit6 = (value >> 6) & 1;
-        map.bit7 = (value >> 7) & 1;
+        *reinterpret_cast<uint8_t *>(&map) = value;
     }
 
     /**
-     * @brief Add and fill TID To Link Mapping tlv.
+     * @brief add and fill tid to link mapping tlv.
      *
      * @return true on success, otherwise false.
      */

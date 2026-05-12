@@ -60,16 +60,16 @@ private:
     void handle_slave_channel_selection_response(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                  const sMacAddr &src_mac);
 
-    //helper Funtion
+    // helper funtion
     inline uint8_t get_tid_byte(const wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map)
     {
-        return (map.bit0 << 0) | (map.bit1 << 1) | (map.bit2 << 2) | (map.bit3 << 3) |
-               (map.bit4 << 4) | (map.bit5 << 5) | (map.bit6 << 6) | (map.bit7 << 7);
+        return *reinterpret_cast<const uint8_t *>(&map);
     }
+
     /**
-    * @brief Parse TidToLinkMappingPolicy TLV and add into DB
+    * @brief parse tidtolinkmappingpolicy tlv and add into db
     *
-    * @Return true if parsed TLV and added data in DB, otherwise false
+    * @return true if parsed tlv and added data in db, otherwise false
     * */
     bool handle_tid_to_link_mapping_policy_tlv(
         std::shared_ptr<wfa_map::tlvTidToLinkMappingPolicy> tlvTidToLinkMapping);
