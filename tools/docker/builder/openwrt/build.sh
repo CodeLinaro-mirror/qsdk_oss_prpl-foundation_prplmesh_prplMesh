@@ -165,7 +165,7 @@ main() {
     else
         dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-05-12 - QCA duplicate fix"
         OPENWRT_TOOLCHAIN_VERSION='0cff936cea4498048bb41871c19187ac1fda8314'
-        OPENWRT_VERSION='0cff936cea4498048bb41871c19187ac1fda8314'
+        OPENWRT_VERSION='506253f50eaf640dff45e246a194c4a96e3ebb02'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -206,7 +206,7 @@ IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos latest-24.10_2026-05-12
 OPENWRT_TOOLCHAIN_VERSION='0cff936cea4498048bb41871c19187ac1fda8314'
-OPENWRT_VERSION='0cff936cea4498048bb41871c19187ac1fda8314'
+OPENWRT_VERSION='506253f50eaf640dff45e246a194c4a96e3ebb02'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
