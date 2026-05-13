@@ -2531,7 +2531,9 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
     auto bsta_mld_configuration(cmdu_rx.getClass<wfa_map::tlvBackhaulStaMldConfiguration>());
     if (!bsta_mld_configuration) {
         db->bsta_mld_configuration.reset();
-        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received";
+        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, Setting MLDUNit to -1";
+        send_bsta_mld_configuration(
+               ruid, DISABLED_MLDUNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
         return true;
     }
 
