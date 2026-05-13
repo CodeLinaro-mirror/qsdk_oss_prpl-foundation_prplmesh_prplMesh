@@ -50,6 +50,14 @@ sta_wlan_hal_whm::sta_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t
         if (!m_ambiorix_cl.get_param(m_radio_info.iface_name, m_radio_path, "Name")) {
             LOG(ERROR) << "Failed to update m_radio_info interface name";
         }
+
+        // Get ruid and fill to m_radio_ruid
+        std::string mac_str;
+        if (m_ambiorix_cl.get_param(mac_str, m_radio_path, "BaseMACAddress") &&
+            !mac_str.empty() && beerocks::net::network_utils::is_valid_mac(mac_str)) {
+
+            m_radio_ruid = tlvf::mac_from_string(mac_str);
+        }
     } else {
         LOG(ERROR) << "Failed to get object from " << m_ep_path;
     }
@@ -657,6 +665,28 @@ std::string sta_wlan_hal_whm::get_wireless_backhaul_mac()
     return mac;
 }
 
+sMacAddr sta_wlan_hal_whm::get_ruid() { return m_radio_ruid; }
+
+bool sta_wlan_hal_whm::get_mld_link_local_mac(std::string &out_mac_str)
+{
+    out_mac_str.clear();
+    if (m_ep_path.empty()) {
+        return false;
+    }
+
+    std::string ssid_ref, ssid_path;
+    if (!m_ambiorix_cl.get_param(ssid_ref, m_ep_path, "SSIDReference") ||
+        !m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path) || ssid_path.empty()) {
+        return false;
+    }
+
+    if (m_ambiorix_cl.get_param(out_mac_str, ssid_path, "MLDLinkLocalMACAddress") &&
+        !out_mac_str.empty() && beerocks::net::network_utils::is_valid_mac(out_mac_str)) {
+        return true;
+    }
+    return false;
+}
+
 bool sta_wlan_hal_whm::enable_disable_ep(bool enable)
 {
     LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
@@ -977,6 +1007,36 @@ std::string sta_wlan_hal_whm::connection_status_to_string() const
     return "Unknown";
 }
 
+void sta_wlan_hal_whm::emit_affiliated_link_status(bool connected)
+{
+    auto buff = ALLOC_SMART_BUFFER(sizeof(bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION));
+    auto *msg = reinterpret_cast<bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION *>(buff.get());
+    LOG_IF(!msg, FATAL) << "alloc failed";
+    std::memset(buff.get(), 0, sizeof(*msg));
+
+    msg->ruid = get_ruid();
+
+    if (connected) {
+        std::string local_mac;
+        if (!get_mld_link_local_mac(local_mac)) {
+            LOG(DEBUG) << "no local link MAC yet";
+            event_queue_push(bwl::sta_wlan_hal::Event::Affiliated_Link_Connected, buff);
+            return;
+        }
+        msg->affiliated_mac_address = tlvf::mac_from_string(local_mac);
+        LOG(DEBUG) << " Affiliated_Link_Connected: ruid=" << msg->ruid
+                   << " local_link_mac=" << msg->affiliated_mac_address
+                   << " mld_mac=" << msg->mld_mac_address;
+    } else {
+        msg->affiliated_mac_address = beerocks::net::network_utils::ZERO_MAC;
+        msg->mld_mac_address        = beerocks::net::network_utils::ZERO_MAC;
+    }
+    LOG(DEBUG) << "Filled msg buffer with ruid=" << msg->ruid
+               << " local_link_mac=" << msg->affiliated_mac_address
+               << " mld_mac=" << msg->mld_mac_address;
+    event_queue_push(bwl::sta_wlan_hal::Event::Affiliated_Link_Connected, buff);
+}
+
 bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std::string &key,
                                         const AmbiorixVariant *new_value)
 {
@@ -1033,6 +1093,11 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             LOG(DEBUG) << "Filled msg buffer with ap_mld_mac =" << msg->ap_mld_mac_addr
                        << " bsta_mld_mac =" << msg->bsta_mld_mac_addr;
             event_queue_push(Event::Connected, msg_buff);
+
+            // Push affiliated link change
+            if (m_mld_unit > beerocks::DISABLED_MLDUNIT) {
+                emit_affiliated_link_status(true);
+            }
         } else if (m_current_connection_status == eWpsConnectionStatus::eConnected) {
             auto msg_buff =
                 ALLOC_SMART_BUFFER(sizeof(sACTION_BACKHAUL_DISCONNECT_REASON_NOTIFICATION));
@@ -1047,6 +1112,10 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             msg->bssid             = tlvf::mac_from_string(m_active_bssid);
             clear_conn_state();
             event_queue_push(Event::Disconnected, msg_buff);
+
+	    if (m_mld_unit > beerocks::DISABLED_MLDUNIT) {
+                emit_affiliated_link_status(false);
+            }
         }
         update_wps_connection_status(new_status);
     }
