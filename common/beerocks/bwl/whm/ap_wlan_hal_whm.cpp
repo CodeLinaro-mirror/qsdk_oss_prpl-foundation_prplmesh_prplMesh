@@ -1023,7 +1023,7 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
             continue;
         }
         //Lets iterate through all instances
-        for (auto &associated_device_pwhm : *associated_devices_pwhm) {
+        for (const auto &associated_device_pwhm : *associated_devices_pwhm) {
             bool is_active;
             if (!associated_device_pwhm.second.read_child(is_active, "Active") || !is_active) {
                 // we are only interested in connected stations
@@ -1086,6 +1086,9 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
                     };
                 }
             }
+
+            base_wlan_hal_whm::update_station_path(mac_addr, associated_device_pwhm.first,
+                                                   GENERATE_CONNECTED_EVENTS);
 
             event_queue_push(Event::STA_Connected, msg_buff);
         }
@@ -1338,10 +1341,9 @@ bool ap_wlan_hal_whm::send_wds_iface_notification(const std::string &sta_mac, co
     return true;
 }
 
-bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
-                                                  const std::string &sta_mac,
-                                                  const std::string &key,
-                                                  const AmbiorixVariant *value)
+bool ap_wlan_hal_whm::process_sta_connected_event(
+    const std::string &interface, const std::string &sta_mac, const std::string &key,
+    const AmbiorixVariant *value, const std::string &sta_path, const std::string &vap_path)
 {
     auto vap_id = get_vap_id_with_bss(interface);
     if (!check_vap_id(vap_id)) {
@@ -1421,7 +1423,12 @@ bool ap_wlan_hal_whm::process_sta_connected_event(const std::string &interface,
             }
 
             // Add the message to the queue
+            base_wlan_hal_whm::update_station_path(sta_mac, sta_path, AUTHENTICATION_STATE_UP);
+
             event_queue_push(Event::STA_Connected, msg_buff);
+        } else {
+            // connected == false
+            base_wlan_hal_whm::remove_station_path(sta_mac, AUTHENTICATION_STATE_DOWN);
         }
     } else if (key == "WdsInterfaceName") {
         const auto bssid          = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
@@ -1481,7 +1488,7 @@ bool ap_wlan_hal_whm::process_sta_disassoc_event(const std::string &interface,
         (*data_map)["DeauthReason"].get(msg->params.reason);
     }
 
-    LOG(INFO) << "disconnected station " << sta_mac << " from vap "
+    LOG(INFO) << AMX_CL_DISASSOC_EVT << " disconnected station " << sta_mac << " from vap "
               << interface << " reason: " << msg->params.reason;
 
     event_queue_push(Event::STA_Disconnected, msg_buff);

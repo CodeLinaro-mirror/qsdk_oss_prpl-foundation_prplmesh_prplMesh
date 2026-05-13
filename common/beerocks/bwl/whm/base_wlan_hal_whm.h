@@ -25,6 +25,10 @@
 namespace bwl {
 namespace whm {
 
+constexpr char GENERATE_CONNECTED_EVENTS[] = "GenerateConnectedEvents";
+constexpr char AUTHENTICATION_STATE_UP[]   = "AuthenticationStateUp";
+constexpr char AUTHENTICATION_STATE_DOWN[] = "AuthenticationStateDown";
+
 enum class whm_fsm_state { Delay, Init, GetRadioInfo, Attach, Operational, Detach };
 
 enum class whm_fsm_event { Attach, Detach };
@@ -109,8 +113,9 @@ protected:
     beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
     std::unique_ptr<nl80211_client> m_iso_nl80211_client; //impl nl80211 client apis with whm dm
     std::string m_radio_path;
-    std::unordered_map<std::string, VAPExtInfo> m_vapsExtInfo; // key = vap_ifname
-    std::unordered_map<std::string, sStationInfo> m_stations;  // key = AssociatedDevice path
+    std::unordered_map<std::string, VAPExtInfo> m_vapsExtInfo;    // key = vap_ifname
+    std::unordered_map<std::string, sStationInfo> m_stations;     // key = AssociatedDevice path
+    std::unordered_map<std::string, std::string> m_station_paths; // key = mac, value = path
     void subscribe_to_radio_events();
     virtual bool process_radio_event(const std::string &interface, const std::string &key,
                                      const beerocks::wbapi::AmbiorixVariant *value);
@@ -124,7 +129,9 @@ protected:
     void subscribe_to_sta_events();
     virtual bool process_sta_connected_event(const std::string &interface,
                                              const std::string &sta_mac, const std::string &key,
-                                             const beerocks::wbapi::AmbiorixVariant *value);
+                                             const beerocks::wbapi::AmbiorixVariant *value,
+                                             const std::string &sta_path,
+                                             const std::string &vap_path);
     virtual bool process_sta_disassoc_event(const std::string &interface,
                                             const beerocks::wbapi::AmbiorixVariant *event_data);
 
@@ -152,6 +159,33 @@ protected:
      */
     virtual void process_rssi_eventing_event(const std::string &interface,
                                              beerocks::wbapi::AmbiorixVariant *value);
+
+    /**
+     * @brief Store datamodel path of a Station in m_station_paths
+     *
+     * @param[in] mac_addr MACAddress of station;
+     * @param[in] path datamodel path, including parent AccessPoint etc.
+     * @param[in] event information about the context where the function is called
+     */
+    void update_station_path(const std::string &mac_addr, const std::string &path,
+                             const char *event);
+
+    /**
+     * @brief Retrieve datamodel path of a Station as stored in m_station_paths
+     *
+     * @param[in] mac_addr MACAddress of station;
+     *
+     * @return datamodel path if known, empty string otherwise
+     */
+    const std::string get_station_path(const std::string &mac_addr);
+
+    /**
+     * @brief Erase {mac_addr: path} pair from m_station_paths
+     *
+     * @param[in] mac_addr MACAddress of station
+     * @param[in] event information about the context where the function is called
+     */
+    void remove_station_path(const std::string &mac_addr, const char *event);
 
     // Private data-members:
 private:
