@@ -54,6 +54,7 @@ public:
         STA_Steering_Auth_Fail,
         STA_Unassoc_Link_Metrics,
 
+        STA_Affiliated_Link_Changed,
         Interface_Enabled,
         Interface_Disabled,
 

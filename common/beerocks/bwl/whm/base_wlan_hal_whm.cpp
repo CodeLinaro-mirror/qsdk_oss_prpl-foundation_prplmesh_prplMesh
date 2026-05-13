@@ -227,6 +227,191 @@ void base_wlan_hal_whm::subscribe_to_ap_events()
     m_ambiorix_cl.subscribe_to_object_event(wifi_ap_path, event_handler, filter);
 }
 
+void base_wlan_hal_whm::subscribe_to_affiliated_sta_events()
+{
+    std::string wifi_ad_path        = wbapi_utils::search_path_ap() + "[0-9]+.AssociatedDevice.";
+    std::string affiliated_sta_path = wifi_ad_path + "[0-9]+.AffiliatedSta.";
+    LOG(DEBUG) << "Subscribe to Affiliated_sta_path pattern: " << affiliated_sta_path;
+
+    auto affiliated_link_handler        = std::make_shared<sAmbiorixEventHandler>();
+    affiliated_link_handler->event_type = AMX_CL_OBJECT_CHANGED_EVT;
+
+    affiliated_link_handler->callback_fn = [this](AmbiorixVariant &event_data) -> void {
+        // Step 1: Extract AffiliatedSta path from event
+        std::string affiliated_sta_path;
+        if (!event_data.read_child(affiliated_sta_path, "path") || affiliated_sta_path.empty()) {
+            LOG(WARNING) << "Failed to read path from event_data or path is empty";
+            return;
+        }
+
+        // Step 2: Extract parent AssociatedDevice path
+        // Example: Device.WiFi.AccessPoint.5.AssociatedDevice.1.AffiliatedSta.1.
+        //          → Device.WiFi.AccessPoint.5.AssociatedDevice.1.
+        size_t aff_sta_pos = affiliated_sta_path.find(".AffiliatedSta.");
+        if (aff_sta_pos == std::string::npos) {
+            LOG(WARNING) << " Failed to find '.AffiliatedSta.' in path: " << affiliated_sta_path;
+            return;
+        }
+
+        std::string sta_path = affiliated_sta_path.substr(0, aff_sta_pos) + ".";
+        LOG(DEBUG) << " Extracted AssociatedDevice path: " << sta_path;
+
+        // Step 3: Get STA MLD MAC from parent AssociatedDevice
+        // This is the MLD MAC address that identifies the MLO client
+        std::string sta_mld_mac;
+        if (!m_ambiorix_cl.get_param<>(sta_mld_mac, sta_path, "MACAddress")) {
+            LOG(WARNING) << " Failed to get STA MLD MAC from path: " << sta_path;
+            return;
+        }
+        LOG(DEBUG) << " STA MLD MAC: " << sta_mld_mac;
+
+        std::string vap_ifname;
+        std::string ap_path = wbapi_utils::get_path_ap_of_assocDev(sta_path);
+
+        auto vap_it =
+            std::find_if(m_vapsExtInfo.begin(), m_vapsExtInfo.end(),
+                         [&](const auto &element) { return element.second.path == ap_path; });
+        if (vap_it == m_vapsExtInfo.end()) {
+            LOG(DEBUG) << " Ignoring foreign AffiliatedSta event, ap_path=" << ap_path;
+            return;
+        }
+        vap_ifname = vap_it->first;
+        LOG(DEBUG) << " Found VAP:  with path: " << vap_ifname;
+
+        // Read Active parameter change
+        // Step 4: Read Active parameter change from event_data
+        // Logic: We use state-based approach - check current Active value (0 or 1)
+        //        No need to check transition (old vs new) because:
+        //        1. "from" value may not be available if subscription was set up after change
+        //        2. Client may move between AccessPoints (old AP has Active=0, new AP has Active=1)
+        //        3. We need to process REMOVE even when ActiveNumberOfAffiliatedSta=0
+
+        LOG(DEBUG) << " Reading Active parameter from event_data";
+        auto parameters = event_data.find_child("parameters");
+        if (!parameters || parameters->empty()) {
+            LOG(WARNING) << " Parameters not found or empty in event_data";
+            return;
+        }
+
+        auto params_map = parameters->read_children<AmbiorixVariantMapSmartPtr>();
+        if (!params_map) {
+            LOG(WARNING) << " Failed to read parameters map";
+            return;
+        }
+
+        // Step 5: Find Active parameter in the map
+        bool new_active   = false;
+        bool found_active = false;
+
+        static const std::string kTo("to");
+        for (const auto &param_it : *params_map) {
+            const auto &key = param_it.first;
+            if (key != "Active") {
+                continue; // Skip other parameters, only process "Active"
+            }
+
+            found_active = true;
+            LOG(DEBUG) << " Found Active parameter in parameters map";
+
+            // Get "to" value (new value)
+            auto new_value = param_it.second.find_child(kTo);
+            if (new_value && !new_value->empty()) {
+                new_active = new_value->get<bool>();
+                LOG(DEBUG) << " New Active value (to): " << (new_active ? "true" : "false");
+            } else {
+                LOG(WARNING) << " New Active value (to) not available or empty";
+                return;
+            }
+
+            break; // Found Active parameter, no need to continue iterating
+        }
+
+        if (!found_active) {
+            LOG(WARNING) << " Active parameter not found in parameters map";
+            return;
+        }
+
+        // Step 6: Read AffiliatedSta MAC and BSSID
+        // These are needed to identify which specific link changed
+        std::string affiliated_sta_mac;
+        std::string bssid_str;
+        eAffiliatedLinkAction action;
+
+        if (!m_ambiorix_cl.get_param<>(affiliated_sta_mac, affiliated_sta_path, "MACAddress")) {
+            LOG(WARNING) << " Failed to get AffiliatedSta MACAddress from path: "
+                         << affiliated_sta_path;
+            return;
+        }
+
+        if (!m_ambiorix_cl.get_param<>(bssid_str, affiliated_sta_path, "BSSID")) {
+            LOG(WARNING) << " Failed to get AffiliatedSta BSSID from path: " << affiliated_sta_path;
+            return;
+        }
+        LOG(DEBUG) << " AffiliatedSta MACAddress: " << affiliated_sta_mac
+                   << " AffiliatedSta BSSID: " << bssid_str;
+
+        if (new_active) {
+            action = AFFILIATED_LINK_ACTION_ADD;
+            LOG(DEBUG) << " Action determined: ADD (Active: 0 → 1)";
+        } else {
+            action = AFFILIATED_LINK_ACTION_REMOVE;
+            LOG(DEBUG) << " Action determined: REMOVE (Active: 1 → 0)";
+        }
+
+        // Step 7: Create notification message based on current state
+        // STATE-BASED LOGIC:
+        // - If Active = 0 → REMOVE (link is inactive, remove from Agent DB)
+        // - If Active = 1 → ADD (link is active, add to Agent DB)
+        // This handles:
+        // 1. Normal transitions (1→0 or 0→1)
+        // 2. Client moving between AccessPoints (old AP: Active=0, new AP: Active=1)
+        // 3. Initial state when subscription is set up
+
+        auto msg_buff =
+            ALLOC_SMART_BUFFER(sizeof(bwl::sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION));
+        LOG_IF(msg_buff == nullptr, FATAL) << " Memory allocation failed!";
+        LOG(DEBUG) << " Memory allocated successfully, size: "
+                   << sizeof(bwl::sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION)
+                   << " bytes";
+
+        memset(msg_buff.get(), 0,
+               sizeof(bwl::sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION));
+        auto msg = reinterpret_cast<bwl::sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION *>(
+            msg_buff.get());
+
+        msg->sta_mld_mac        = tlvf::mac_from_string(sta_mld_mac);
+        msg->affiliated_sta_mac = affiliated_sta_mac.empty()
+                                      ? net::network_utils::ZERO_MAC
+                                      : tlvf::mac_from_string(affiliated_sta_mac);
+        msg->bssid =
+            bssid_str.empty() ? net::network_utils::ZERO_MAC : tlvf::mac_from_string(bssid_str);
+        msg->action = action;
+
+        LOG(INFO) << " Affiliated link Active change event - STA MLD: " << msg->sta_mld_mac
+                  << ", Affiliated MAC: " << msg->affiliated_sta_mac << ", BSSID: " << msg->bssid
+                  << ", Action: " << (action == bwl::AFFILIATED_LINK_ACTION_ADD ? "ADD" : "REMOVE")
+                  << ", Active: " << (new_active ? "1" : "0");
+
+        if (!process_affiliated_link_changed_event(vap_ifname, msg_buff)) {
+            LOG(ERROR) << " process_affiliated_link_changed_event() returned false";
+        } else {
+            LOG(DEBUG) << " process_affiliated_link_changed_event() returned true";
+        }
+    };
+
+    // Filter: Subscribe to AffiliatedSTA Active changes only
+    std::string affiliated_filter = "(path matches '" + affiliated_sta_path +
+                                    "[0-9]+.$')"
+                                    " && (notification == '" +
+                                    AMX_CL_OBJECT_CHANGED_EVT +
+                                    "')"
+                                    " && (contains('parameters.Active'))";
+    LOG(DEBUG) << " Filter for Active changes: " << affiliated_filter;
+
+    m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), affiliated_link_handler,
+                                            affiliated_filter);
+}
+
 void base_wlan_hal_whm::subscribe_to_sta_events()
 {
     std::string wifi_ad_path  = wbapi_utils::search_path_ap() + "[0-9]+.AssociatedDevice.";
@@ -355,6 +540,7 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
 
     m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), disasoc_event_handler,
                                             filter);
+    subscribe_to_affiliated_sta_events();
 }
 
 void base_wlan_hal_whm::subscribe_to_rssi_eventing_events()
@@ -448,6 +634,11 @@ bool base_wlan_hal_whm::process_sta_disassoc_event(
     return true;
 }
 
+bool base_wlan_hal_whm::process_affiliated_link_changed_event(const std::string &interface,
+                                                              std::shared_ptr<void> event_data)
+{
+    return true;
+}
 bool base_wlan_hal_whm::process_afc_update_event(const AmbiorixVariant *value) { return true; }
 
 void base_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
