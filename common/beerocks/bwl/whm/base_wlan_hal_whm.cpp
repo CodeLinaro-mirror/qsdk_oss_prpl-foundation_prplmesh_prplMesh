@@ -526,7 +526,7 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
             LOG(DEBUG) << "vap_it not found";
             return;
         }
-        LOG(DEBUG) << "event from iface " << vap_it->first;
+        LOG(DEBUG) << AMX_CL_DISASSOC_EVT << " event from iface " << vap_it->first;
 
         if (!process_sta_disassoc_event(vap_it->first, &event_data)) {
             LOG(ERROR) << "Failed to process sta disassoc event from iface " << vap_it->first;
@@ -1920,6 +1920,52 @@ void base_wlan_hal_whm::populate_channels_max_tx_power()
             }
         }
     }
+}
+
+void base_wlan_hal_whm::update_station_path(const std::string &mac_addr, const std::string &path,
+                                            const char *event)
+{
+    std::string lower_case_mac(mac_addr);
+    std::transform(lower_case_mac.begin(), lower_case_mac.end(), lower_case_mac.begin(), ::tolower);
+
+    LOG(DEBUG) << "update_station_path station: " << lower_case_mac << " event: " << event;
+
+    auto sta_it = m_station_paths.find(lower_case_mac);
+    if (sta_it == m_station_paths.end()) {
+        m_station_paths.emplace(lower_case_mac, path);
+    } else {
+        //enforce the path
+        sta_it->second = path;
+    }
+}
+
+const std::string base_wlan_hal_whm::get_station_path(const std::string &mac_addr)
+{
+    std::string lower_case_mac(mac_addr);
+    std::transform(lower_case_mac.begin(), lower_case_mac.end(), lower_case_mac.begin(), ::tolower);
+
+    auto sta_it = m_station_paths.find(lower_case_mac);
+    if (sta_it == m_station_paths.end()) {
+        LOG(DEBUG) << "get_station_path unknown station: " << lower_case_mac;
+        return {};
+    }
+    return sta_it->second;
+}
+
+void base_wlan_hal_whm::remove_station_path(const std::string &mac_addr, const char *event)
+{
+    std::string lower_case_mac(mac_addr);
+    std::transform(lower_case_mac.begin(), lower_case_mac.end(), lower_case_mac.begin(), ::tolower);
+
+    auto sta_it = m_station_paths.find(lower_case_mac);
+    if (sta_it != m_station_paths.end()) {
+        // erase(iterator) because erase(key) can throw exceptions
+        m_station_paths.erase(sta_it);
+
+        LOG(DEBUG) << "remove_station_path station: " << lower_case_mac << " event: " << event;
+        return;
+    }
+    LOG(DEBUG) << "remove_station_path unknown station: " << lower_case_mac << " event: " << event;
 }
 
 } // namespace whm
