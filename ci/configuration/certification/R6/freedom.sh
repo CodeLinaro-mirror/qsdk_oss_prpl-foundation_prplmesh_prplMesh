@@ -88,6 +88,11 @@ dropbear -F -T 10 -p192.168.250.150:22 &"
 
 sleep 5
 
+# Increase debug level of ATH driver
+echo 0x20012 >/sys/module/ath12k/parameters/debug_mask
+cat /sys/module/ath12k/parameters/debug_mask
+dmesg -n8
+
 # Copy generated SSH host keys
 cp /etc/config/ssh_server/*_key /etc/dropbear/
 
