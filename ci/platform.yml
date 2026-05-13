@@ -48,31 +48,29 @@ build-for-rdkb-turris-omnia:
   retry: 2
 
 build-for-freedom:
-  extends: .build-for-openwrt
+  extends: .prplos-cross-build
   variables:
-    TARGET_DEVICE: "freedom"
-  tags:
-    - shell
-    - docker-build
-    - freedom-build
+    CI_TARGET_BOARD: "freedom"
+    CI_PRPLOS_COMMIT_OVERWRITE: ""
+    CI_RUNNER_SLOT_CLEAN: ""
+    CI_CONSERVATIVE_BUILD: "yes"
 
 build-for-mozart:
-  extends: .build-for-openwrt
+  extends: .prplos-cross-build
   variables:
-    TARGET_DEVICE: "mozart"
-  tags:
-    - shell
-    - docker-build
-    - mozart-build
+    CI_TARGET_BOARD: "mozart"
+    CI_PRPLOS_COMMIT_OVERWRITE: ""
+    CI_RUNNER_VOLUME_CLEAN_: ""
+    CI_RUNNER_SLOT_CLEAN: ""
+    CI_CONSERVATIVE_BUILD: "yes"
 
 build-for-ospv2:
-  extends: .build-for-openwrt
+  extends: .prplos-cross-build
   variables:
-    TARGET_DEVICE: "urx_ospv2"
-  tags:
-    - shell
-    - docker-build
-    - ospv2-build
+    CI_TARGET_BOARD: "ospv2"
+    CI_PRPLOS_COMMIT_OVERWRITE: ""
+    CI_RUNNER_SLOT_CLEAN: ""
+    CI_CONSERVATIVE_BUILD: "yes"
 
 test-upgrade-image-on-turris-rdkb:
   extends: .test-upgrade-image

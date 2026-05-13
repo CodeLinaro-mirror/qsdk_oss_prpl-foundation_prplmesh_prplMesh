@@ -49,6 +49,29 @@
     - docker-build
   needs: []
 
+.prplos-cross-build:
+  stage: build
+  timeout: 2h
+  image: registry.gitlab.com/prpl-foundation/prplos/prplos/prpl-nightly/builder:latest
+  before_script:
+    - sudo apt update
+    - sudo apt install zstd coccinelle -y
+  script:
+    - source ./ci/common/ci-log-section.sh
+    - ./ci/crossbuild/ci-prplos-cross-build.sh
+  after_script:
+    - ./ci/crossbuild/ci-prplos-cross-build-post.sh
+  tags:
+    - cross-build
+  artifacts:
+    paths:
+      - build
+    when: always
+  needs: []
+  rules:
+    - when: manual
+
+
 .build-for-rdkb:
   stage: build
   script:
