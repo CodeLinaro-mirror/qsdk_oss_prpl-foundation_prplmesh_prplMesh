@@ -179,6 +179,8 @@ private:
     void clear_conn_state();
     bool is_connected(const std::string &status);
     std::string resolve_bstamld_path(int8_t mld_unit);
+    void emit_affiliated_link_status(bool connected);
+    bool get_mld_link_local_mac(std::string &out_mac_str);
 
     std::string m_ep_path;
     int8_t m_mld_unit{beerocks::DISABLED_MLDUNIT};

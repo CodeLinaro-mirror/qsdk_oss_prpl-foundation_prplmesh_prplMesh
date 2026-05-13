@@ -2470,11 +2470,22 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         auto msg = static_cast<bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION *>(data);
         auto db  = AgentDB::get();
         if (msg && db->bsta_mld_configuration) {
-            db->bsta_mld_configuration->mld_config.mld_mac = msg->mld_mac_address;
+            if (msg->mld_mac_address != beerocks::net::network_utils::ZERO_MAC) {
+                db->bsta_mld_configuration->mld_config.mld_mac = msg->mld_mac_address;
+            }
+
+            const bool disconnect = (msg->affiliated_mac_address == beerocks::net::network_utils::ZERO_MAC);
+
             for (auto &affiliated_bsta : db->bsta_mld_configuration->affiliated_bstas) {
-                if (affiliated_bsta.ruid == msg->ruid) {
+                if (affiliated_bsta.ruid != msg->ruid) {
+                    continue;
+                }
+                if (disconnect) {
+                    affiliated_bsta.bssid = beerocks::net::network_utils::ZERO_MAC;
+                } else {
                     affiliated_bsta.bssid = msg->affiliated_mac_address;
                 }
+                break;
             }
         } else {
             LOG(ERROR) << "Affiliated_Link_Connected empty message or bSTA configuration";
