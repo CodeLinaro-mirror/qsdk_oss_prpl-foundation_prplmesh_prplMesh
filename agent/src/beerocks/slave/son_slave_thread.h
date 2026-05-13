@@ -553,6 +553,40 @@ private:
     bool read_platform_configuration();
 
     /**
+    * @brief Remove one affiliated STA link from an associated MLO client entry.
+    *
+    * @param[in,out] mld_info Associated STA MLD state in AgentDB::associated_sta_mlds.
+    * @param[in] sta_mld_mac STA MLD MAC (used for logging; key of the parent map entry).
+    * @param[in] affiliated_sta_mac MAC of the affiliated STA link to remove.
+    * @param[in] bssid BSSID of the affiliated link to remove.
+    * @return true always. If no matching link exists, logs a warning and returns true
+    *         (idempotent REMOVE).
+    */
+    bool affiliated_link_remove(AgentDB::sAssociatedStaMld &mld_info, const sMacAddr &sta_mld_mac,
+                                const sMacAddr &affiliated_sta_mac, const sMacAddr &bssid);
+
+    /**
+    * @brief Add an affiliated STA link to an associated MLO client entry.
+    *
+    * @param mld_info Associated STA MLD state to update.
+    * @param sta_mld_mac STA MLD MAC (for logging).
+    * @param affiliated_sta_mac Affiliated STA MAC of the link to add.
+    * @param bssid BSSID of the link to add.
+    * @return true (no-op if the link already exists).
+    */
+    bool affiliated_link_add(AgentDB::sAssociatedStaMld &mld_info, const sMacAddr &sta_mld_mac,
+                             const sMacAddr &affiliated_sta_mac, const sMacAddr &bssid);
+
+    /**
+    * @brief Handle affiliated link ADD/REMOVE when the STA MLD is not in AgentDB.
+    *
+    * @param sta_mld_mac STA MLD MAC from the notification.
+    * @param action ADD or REMOVE (@ref bwl::AFFILIATED_LINK_ACTION_ADD / REMOVE).
+    * @return true (idempotent for missing client).
+    */
+    bool affiliated_link_change_missing_client(const sMacAddr &sta_mld_mac, uint8_t action);
+
+    /**
      * @brief Process client association information from notification and store in database.
      * Handles both MLO and legacy (non-MLO) clients internally.
      *
