@@ -117,7 +117,7 @@ static const char* kConfigurationLoggerId                  =      "--";
 namespace utils {
 
 /// @brief Aborts application due with user-defined status
-static void abort(int status, const std::string& reason) {
+__attribute__((unused)) static void abort(int status, const std::string& reason) {
   // Both status and reason params are there for debugging with tools like gdb etc
   ELPP_UNUSED(status);
   ELPP_UNUSED(reason);
@@ -2608,7 +2608,7 @@ void Writer::initializeLogger(const std::string& loggerId, bool lookup, bool nee
   if (lookup) {
     auto thread_logger_id = ELPP->getCurrentThreadLoggerId();
     m_logger = ELPP->registeredLoggers()->get(
-      thread_logger_id.empty() ? loggerId : thread_logger_id, 
+      thread_logger_id.empty() ? loggerId : thread_logger_id,
       ELPP->hasFlag(LoggingFlag::CreateLoggerAutomatically));
   }
   if (m_logger == nullptr) {
@@ -2691,14 +2691,14 @@ void Writer::triggerDispatch(void) {
     m_logger->releaseLock();
   }
   if (m_proceed && m_level == Level::Fatal
-      && !ELPP->hasFlag(LoggingFlag::DisableApplicationAbortOnFatalLog)) {
+      && !ELPP->hasFlag(LoggingFlag::DisableApplicationExitOnFatalLog)) {
     base::Writer(Level::Warning, m_file, m_line, m_func).construct(1, base::consts::kDefaultLoggerId)
-        << "Aborting application. Reason: Fatal log at [" << m_file << ":" << m_line << "]";
+        << "Exit application. Reason: Fatal log at [" << m_file << ":" << m_line << "]";
     std::stringstream reasonStream;
     reasonStream << "Fatal log at [" << m_file << ":" << m_line << "]"
-                 << " If you wish to disable 'abort on fatal log' please use "
-                 << "el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog)";
-    base::utils::abort(1, reasonStream.str());
+                 << " If you wish to disable 'exit on fatal log' please use "
+                 << "el::Loggers::addFlag(el::LoggingFlag::DisableApplicationExitOnFatalLog)";
+    ::exit(EXIT_FAILURE);
   }
   m_proceed = false;
 }
