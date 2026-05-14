@@ -255,11 +255,14 @@ void LinkMetricsCollectionTask::handle_link_metric_query(ieee1905_1::CmduMessage
                                              link_metrics)) {
                 LOG(ERROR) << "Unable to get link metrics for interface " << interface.iface_name
                            << " and neighbor " << neighbor.iface_mac;
-                return;
+                continue;
             }
 
             if (!add_link_metrics_tlv(reporter_al_mac, interface, neighbor, link_metrics,
                                       link_metrics_type)) {
+                LOG(ERROR) << "add_link_metrics_tlv failed for interface " << interface.iface_name
+                           << " and neighbor " << neighbor.iface_mac
+                           << ", aborting response to avoid sending partial TLV";
                 return;
             }
         }
