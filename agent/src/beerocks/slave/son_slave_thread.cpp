@@ -6329,14 +6329,14 @@ bool slave_thread::add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx 
                 affiliated_ap->affiliated_ap_mac_addr() = affiliated_ap_conf.bssid;
                 affiliated_ap->linkid()                 = affiliated_ap_conf.link_id;
 
-                if (!ap_mld->add_affiliated_ap(affiliated_ap)) {
+                if (!ap_mld->add_affiliated_ap(std::move(affiliated_ap))) {
                     LOG(ERROR)
                         << "add_affiliated_ap() failed in tlvAgentApMldConfiguration.affiliated_ap";
                     return false;
                 }
             }
 
-            if (!tlvAgentApMldConfiguration->add_ap_mld(ap_mld)) {
+            if (!tlvAgentApMldConfiguration->add_ap_mld(std::move(ap_mld))) {
                 LOG(ERROR) << "add_ap_mld() failed in tlvAgentApMldConfiguration";
                 return false;
             }

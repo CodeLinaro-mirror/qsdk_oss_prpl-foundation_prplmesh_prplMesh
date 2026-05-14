@@ -1415,7 +1415,7 @@ bool base_wlan_hal_whm::update_vap_mlo_fields(VAPElement &vap_element)
         LOG(ERROR) << "Invalid MLDMACAddress: " << mld_mac_address;
         return false;
     }
-    vap_element.ap_mld_mac = mld_mac_address;
+    vap_element.ap_mld_mac = std::move(mld_mac_address);
 
     std::string affiliated_ap_path;
     m_ambiorix_cl.resolve_path(wbapi_utils::search_path_affiliated_ap(apmld_path, vap_element.mac),

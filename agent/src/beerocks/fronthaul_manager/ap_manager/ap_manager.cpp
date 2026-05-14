@@ -2580,7 +2580,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
                 affiliated_sta_ptr->bssid() = msg->params.affiliated_sta[idx].bssid;
                 affiliated_sta_ptr->mac()   = msg->params.affiliated_sta[idx].affiliated_sta_mac;
 
-                if (!notification->add_affiliated_sta(affiliated_sta_ptr)) {
+                if (!notification->add_affiliated_sta(std::move(affiliated_sta_ptr))) {
                     LOG(ERROR) << "Failed to add affiliated_sta[" << idx << "] to notification";
                 }
             }

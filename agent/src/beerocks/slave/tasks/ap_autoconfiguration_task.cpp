@@ -2321,7 +2321,7 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
                 LOG(ERROR) << "RUID not found: " << affiliated_conf.ruid;
                 continue;
             }
-            auto rad_iface = radio->front.iface_name;
+            const std::string rad_iface = radio->front.iface_name;
             m_ap_mld_requests_infos[rad_iface][current_ap_mld_conf.mld_config.mld_ssid] = {
                 current_ap_mld_conf.mld_config.mld_unit, current_ap_mld_conf.mld_config.mld_mode};
         }
@@ -3649,7 +3649,7 @@ int8_t ApAutoConfigurationTask::find_available_ap_mld_unit()
     auto db = AgentDB::get();
 
     std::unordered_set<int8_t> used_mld_units;
-    for (auto ap_mld_conf : db->ap_mld_configurations) {
+    for (const auto &ap_mld_conf : db->ap_mld_configurations) {
         used_mld_units.insert(ap_mld_conf.mld_config.mld_unit);
     }
 
