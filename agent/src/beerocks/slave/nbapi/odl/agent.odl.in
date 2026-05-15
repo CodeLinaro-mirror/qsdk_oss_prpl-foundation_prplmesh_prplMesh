@@ -130,6 +130,10 @@
             %read-only string CurrentState = "";
             %read-only string BestState = "";
             %read-only string ManagementMode = "";
+            /* Live controller connectivity. Unlike CurrentState, this can become false after the
+             * agent has reached OPERATIONAL if the active backhaul path loses the controller.
+             */
+            %read-only bool ControllerConnected = false;
             %read-only object Fronthaul [] {
                 counted with FronthaulNumberOfEntries;
                 %read-only string Iface = "";

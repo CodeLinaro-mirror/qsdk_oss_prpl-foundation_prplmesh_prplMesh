@@ -5591,7 +5591,16 @@ bool slave_thread::ap_manager_heartbeat_check(const std::string &fronthaul_iface
 bool slave_thread::link_to_controller()
 {
     auto db = AgentDB::get();
-    return db->statuses.ap_autoconfiguration_completed;
+
+    // ap_autoconfiguration_completed means the agent was configured at least once. When controller
+    // connectivity monitoring is active, use the live status so tasks stop sending controller-bound
+    // messages after the backhaul path is lost.
+    if (db->device_conf.certification_mode || db->device_conf.local_controller ||
+        !db->device_conf.check_connectivity_to_controller_enable) {
+        return db->statuses.ap_autoconfiguration_completed;
+    }
+
+    return db->statuses.controller_connected;
 }
 
 bool slave_thread::send_cmdu_to_controller(const std::string &fronthaul_iface,

@@ -120,7 +120,9 @@ void ControllerConnectivityTask::work()
         break;
     }
     case eState::CONNECTION_TIMEOUT: {
-        auto db = AgentDB::get();
+        auto db                           = AgentDB::get();
+        db->statuses.controller_connected = false;
+        db->dm_set_controller_connected(false);
 
         auto it =
             find_if(db->backhaul.backhaul_links.begin(), db->backhaul.backhaul_links.end(),
@@ -191,6 +193,9 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
     switch (eEvent(event_enum_value)) {
     case INIT_TASK: {
         init_task_configuration();
+        auto db                           = AgentDB::get();
+        db->statuses.controller_connected = false;
+        db->dm_set_controller_connected(false);
         LOG(DEBUG) << "INIT_TASK is received and task activity: " << m_task_is_active;
         break;
     }
@@ -199,7 +204,9 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
 
         // Each time backhaul manager makes a new connection, assume that we do not have direct link to Controller.
         // It will be updated after, we start listening to Discovery messages.
-        auto db                                       = AgentDB::get();
+        auto db                           = AgentDB::get();
+        db->statuses.controller_connected = false;
+        db->dm_set_controller_connected(false);
         m_direct_link_to_controller                   = false;
         db->controller_info.direct_link_to_controller = false;
         m_backhaul_connected_time                     = std::chrono::steady_clock::now();
@@ -208,11 +215,17 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
     }
     case BACKHAUL_DISCONNECTED_NOTIFICATION: {
         LOG(DEBUG) << "BACKHAUL_DISCONNECTED_NOTIFICATION is received";
+        auto db                           = AgentDB::get();
+        db->statuses.controller_connected = false;
+        db->dm_set_controller_connected(false);
         FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
         break;
     }
     case CONTROLLER_DISCOVERED: {
         LOG(DEBUG) << "CONTROLLER_DISCOVERED is received";
+        auto db                           = AgentDB::get();
+        db->statuses.controller_connected = true;
+        db->dm_set_controller_connected(true);
         FSM_MOVE_STATE(CONTROLLER_MONITORING);
         break;
     }

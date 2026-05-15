@@ -419,7 +419,9 @@ void ApAutoConfigurationTask::work()
     auto db = AgentDB::get();
     if (configured_aps_count > 0 && configured_aps_count == m_radios_conf_params.size()) {
         db->statuses.ap_autoconfiguration_completed = true;
-        m_task_is_active                            = false;
+        db->statuses.controller_connected           = true;
+        db->dm_set_controller_connected(true);
+        m_task_is_active = false;
         LOG(DEBUG) << "Link to the controller is established";
 
         // Trigger TS once per completed autoconfiguration cycle.
@@ -454,6 +456,8 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         auto db = AgentDB::get();
 
         db->statuses.ap_autoconfiguration_completed = false;
+        db->statuses.controller_connected           = false;
+        db->dm_set_controller_connected(false);
 
         // Reset the discovery statuses.
         for (auto &discovery_status : m_discovery_status) {

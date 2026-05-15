@@ -86,6 +86,7 @@ bool prplmesh_cli::print_status(const std::string &format)
         string agent_mmode;
         string agent_currentstate;
         string agent_beststate;
+        bool agent_controller_connected = false;
 
         // ordered set so that ifaces are in lexicographic order
         std::set<string> agent_ifaces;
@@ -125,11 +126,12 @@ bool prplmesh_cli::print_status(const std::string &format)
             agent_obj = agent_result.object();
         }
 
-        state.agent_mac           = GET_CHAR(agent_obj, "MACAddress");
-        state.agent_mmode         = GET_CHAR(agent_obj, "ManagementMode");
-        string agent_fh_ifaces    = GET_CHAR(agent_obj, "FronthaulIfaces");
-        string agent_currentstate = GET_CHAR(agent_obj, "CurrentState");
-        string agent_beststate    = GET_CHAR(agent_obj, "BestState");
+        state.agent_mac                  = GET_CHAR(agent_obj, "MACAddress");
+        state.agent_mmode                = GET_CHAR(agent_obj, "ManagementMode");
+        string agent_fh_ifaces           = GET_CHAR(agent_obj, "FronthaulIfaces");
+        string agent_currentstate        = GET_CHAR(agent_obj, "CurrentState");
+        string agent_beststate           = GET_CHAR(agent_obj, "BestState");
+        state.agent_controller_connected = GET_BOOL(agent_obj, "ControllerConnected");
 
         // For easier and more uniform usage in scripts and tests
         transform(state.agent_mac.begin(), state.agent_mac.end(), state.agent_mac.begin(),
@@ -193,7 +195,9 @@ bool prplmesh_cli::print_status(const std::string &format)
                  << "\tmanagement mode: " << state.agent_mmode << endl
                  << "\tfronthaul ifaces: " << agent_fh_ifaces << endl
                  << "\tcurrent state: " << state.agent_currentstate << endl
-                 << "\tbest state: " << state.agent_beststate << endl;
+                 << "\tbest state: " << state.agent_beststate << endl
+                 << "\tcontroller connected: "
+                 << (state.agent_controller_connected ? "true" : "false") << endl;
 
             for (const auto &fh : state.fhs) {
                 cout << "\tFronthaul:" << endl
@@ -245,7 +249,9 @@ bool prplmesh_cli::print_status(const std::string &format)
                    << "\"ManagementMode\": " << quoted(state.agent_mmode) << ','
                    << "\"FronthaulIfaces\": " << quoted(agent_fh_ifaces) << ','
                    << "\"CurrentState\": " << quoted(state.agent_currentstate) << ','
-                   << "\"BestState\": " << quoted(state.agent_beststate) << ',';
+                   << "\"BestState\": " << quoted(state.agent_beststate) << ','
+                   << "\"ControllerConnected\": "
+                   << (state.agent_controller_connected ? "true" : "false") << ',';
 
             output << "\"Fronthauls\": {";
             for (const auto &fh : state.fhs) {
