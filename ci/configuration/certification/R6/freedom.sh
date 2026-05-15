@@ -71,6 +71,11 @@ fi
 # Don't hide the BH AP SSID (PPW-1399)
 ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
 
+# Reset bSTA MLDUnits to prevent WPS from failing if bsta MLO was configured previously (PCF-2560)
+ba-cli WiFi.EndPoint.1.SSIDReference+.MLDUnit=-1
+ba-cli WiFi.EndPoint.2.SSIDReference+.MLDUnit=-1
+ba-cli WiFi.EndPoint.3.SSIDReference+.MLDUnit=-1
+
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
 # Sets the DTIMPeriod for R6 - 4.4.4 Test
