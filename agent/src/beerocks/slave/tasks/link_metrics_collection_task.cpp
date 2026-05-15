@@ -199,7 +199,7 @@ void LinkMetricsCollectionTask::handle_link_metric_query(ieee1905_1::CmduMessage
      * Get the list of neighbor links from the topology database.
      * Neighbors are grouped by the interface that connects to them.
      */
-    std::map<sLinkInterface, std::vector<sLinkNeighbor>> neighbor_links_map;
+    std::map<sLinkInterface, std::set<sLinkNeighbor>> neighbor_links_map;
     if (!get_neighbor_links(neighbor_al_mac, neighbor_links_map)) {
         LOG(ERROR) << "Failed to get the list of neighbor links";
         return;
@@ -1622,7 +1622,7 @@ LinkMetricsCollectionTask::create_link_metrics_collector(const sLinkInterface &l
 
 bool LinkMetricsCollectionTask::get_neighbor_links(
     const sMacAddr &neighbor_mac_filter,
-    std::map<sLinkInterface, std::vector<sLinkNeighbor>> &neighbor_links_map)
+    std::map<sLinkInterface, std::set<sLinkNeighbor>> &neighbor_links_map)
 {
     // TODO: Topology Database is required to implement this method.
 
@@ -1654,7 +1654,7 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
                     neighbor.iface_mac = neighbor_entry.second.transmitting_iface_mac;
                     if ((neighbor_mac_filter == net::network_utils::ZERO_MAC) ||
                         (neighbor_mac_filter == neighbor.al_mac)) {
-                        neighbor_links_map[wired_interface].push_back(neighbor);
+                        neighbor_links_map[wired_interface].insert(neighbor);
                     }
                 }
             }
@@ -1684,7 +1684,7 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
                     neighbor.iface_mac = neighbor_entry.second.transmitting_iface_mac;
                     if ((neighbor_mac_filter == net::network_utils::ZERO_MAC) ||
                         (neighbor_mac_filter == neighbor.al_mac)) {
-                        neighbor_links_map[wireless_interface].push_back(neighbor);
+                        neighbor_links_map[wireless_interface].insert(neighbor);
                     }
                 }
             }
@@ -1783,7 +1783,7 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
 
             if ((neighbor_mac_filter == net::network_utils::ZERO_MAC) ||
                 (neighbor_mac_filter == neighbor.al_mac)) {
-                neighbor_links_map[interface].push_back(neighbor);
+                neighbor_links_map[interface].insert(neighbor);
             }
         }
     }

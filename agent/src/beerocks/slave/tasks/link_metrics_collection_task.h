@@ -24,6 +24,8 @@
 #include <bcl/beerocks_timer_manager.h>
 #include <bcl/network/file_descriptor.h>
 #include <cstddef>
+#include <cstring>
+#include <set>
 
 #include "../helpers/link_metrics/link_metrics.h"
 
@@ -110,6 +112,18 @@ private:
             beerocks::net::network_utils::ZERO_MAC; /**< The MAC address of the 1905.1 AL. */
         sMacAddr iface_mac =
             beerocks::net::network_utils::ZERO_MAC; /**< The MAC address of the interface. */
+
+        bool operator<(const sLinkNeighbor &other) const
+        {
+            int cmp = std::memcmp(al_mac.oct, other.al_mac.oct, sizeof(al_mac.oct));
+            if (cmp < 0) {
+                return true;
+            } else if (cmp > 0) {
+                return false;
+            }
+
+            return std::memcmp(iface_mac.oct, other.iface_mac.oct, sizeof(iface_mac.oct)) < 0;
+        }
     };
 
     /**
@@ -175,9 +189,8 @@ private:
      *
      * @return True on success and false otherwise.
      */
-    bool
-    get_neighbor_links(const sMacAddr &neighbor_mac_filter,
-                       std::map<sLinkInterface, std::vector<sLinkNeighbor>> &neighbor_links_map);
+    bool get_neighbor_links(const sMacAddr &neighbor_mac_filter,
+                            std::map<sLinkInterface, std::set<sLinkNeighbor>> &neighbor_links_map);
 
     /**
      * @brief Callback of the timer that sends periodic AP Metrics Report
