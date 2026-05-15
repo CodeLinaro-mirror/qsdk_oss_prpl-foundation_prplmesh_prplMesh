@@ -28,6 +28,7 @@ public:
 
     enum eEvent : uint8_t {
         AGENT_DEVICE_INITIALIZED,
+        BSTA_MLD_AFFILIATED_LINK_CHANGED,
     };
 
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
