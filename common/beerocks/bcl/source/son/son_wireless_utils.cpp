@@ -1411,16 +1411,16 @@ uint8_t wireless_utils::get_center_channel(uint8_t channel, beerocks::eFreqType 
         return 0;
     }
 
-    std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, son::wireless_utils::sChannel>>
-        channels_table;
+    const std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, son::wireless_utils::sChannel>>
+        *channels_table = nullptr;
     if (freq_type == beerocks::eFreqType::FREQ_5G) {
-        channels_table = channels_table_5g;
+        channels_table = &channels_table_5g;
         if (channel >= 132 && channel <= 144 &&
             bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_160) {
             return 0;
         }
     } else if (freq_type == beerocks::eFreqType::FREQ_6G) {
-        channels_table = channels_table_6g;
+        channels_table = &channels_table_6g;
         if ((channel <= BANDWIDTH_320_2_LOWER_CHANNEL_LIMIT &&
              bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_320_2) ||
             (channel >= BANDWIDTH_320_1_UPPER_CHANNEL_LIMIT &&
@@ -1429,8 +1429,12 @@ uint8_t wireless_utils::get_center_channel(uint8_t channel, beerocks::eFreqType 
         }
     }
 
-    auto channel_it = channels_table.find(channel);
-    if (channel_it == channels_table.end()) {
+    if (!channels_table) {
+        return 0;
+    }
+
+    auto channel_it = channels_table->find(channel);
+    if (channel_it == channels_table->end()) {
         LOG(ERROR) << "Failed find channel " << channel << " (freq type: "
                    << beerocks::utils::convert_frequency_type_to_string(freq_type)
                    << ") on channels table";
@@ -1865,16 +1869,20 @@ wireless_utils::get_overlapping_channels(uint8_t source_channel, beerocks::eFreq
         return ret;
     }
 
-    std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, son::wireless_utils::sChannel>>
-        channels_table;
+    const std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, son::wireless_utils::sChannel>>
+        *channels_table = nullptr;
     if (freq_type == beerocks::eFreqType::FREQ_5G) {
-        channels_table = channels_table_5g;
+        channels_table = &channels_table_5g;
     } else if (freq_type == beerocks::eFreqType::FREQ_6G) {
-        channels_table = channels_table_6g;
+        channels_table = &channels_table_6g;
     }
 
-    auto source_channel_it = channels_table.find(source_channel);
-    if (source_channel_it == channels_table.end()) {
+    if (!channels_table) {
+        return ret;
+    }
+
+    auto source_channel_it = channels_table->find(source_channel);
+    if (source_channel_it == channels_table->end()) {
         LOG(ERROR) << "Failed find source channel " << source_channel << " (freq type: "
                    << beerocks::utils::convert_frequency_type_to_string(freq_type)
                    << ") for overlapping channles";
@@ -1885,7 +1893,7 @@ wireless_utils::get_overlapping_channels(uint8_t source_channel, beerocks::eFreq
     // is within the range of the current-channel, current-bandwidth
     // add current-channel, current-bandwidth to the output
 
-    for (const auto &current_channel_it : channels_table) {
+    for (const auto &current_channel_it : *channels_table) {
         auto &bandwidth_map  = current_channel_it.second;
         auto current_channel = current_channel_it.first;
         for (const auto &current_bandwidth_it : bandwidth_map) {
@@ -1946,16 +1954,20 @@ std::vector<uint8_t> wireless_utils::get_overlapping_beacon_channels(uint8_t bea
         return {};
     }
 
-    std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, son::wireless_utils::sChannel>>
-        channels_table;
+    const std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, son::wireless_utils::sChannel>>
+        *channels_table = nullptr;
     if (freq_type == beerocks::eFreqType::FREQ_5G) {
-        channels_table = channels_table_5g;
+        channels_table = &channels_table_5g;
     } else if (freq_type == beerocks::eFreqType::FREQ_6G) {
-        channels_table = channels_table_6g;
+        channels_table = &channels_table_6g;
     }
 
-    auto ch_it = channels_table.find(beacon_channel);
-    if (ch_it == channels_table.end()) {
+    if (!channels_table) {
+        return {};
+    }
+
+    auto ch_it = channels_table->find(beacon_channel);
+    if (ch_it == channels_table->end()) {
         LOG(ERROR) << "Failed find channel " << beacon_channel << " (freq type: "
                    << beerocks::utils::convert_frequency_type_to_string(freq_type)
                    << ") on channels table";
