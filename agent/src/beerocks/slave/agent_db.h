@@ -199,7 +199,8 @@ public:
     } controller_info;
 
     struct sStatus {
-        bool ap_autoconfiguration_completed;
+        bool ap_autoconfiguration_completed = false;
+        bool controller_connected           = false;
         uint32_t zwdfs_cac_remaining_time_sec;
     } statuses;
 
@@ -628,6 +629,8 @@ public:
     void dm_set_management_mode(const std::string &mode);
 
     void dm_set_agent_state(const std::string &cur, const std::string &max);
+
+    void dm_set_controller_connected(bool connected);
 
     std::string dm_create_fronthaul_object(const std::string &iface);
 
