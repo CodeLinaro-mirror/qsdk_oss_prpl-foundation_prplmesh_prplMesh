@@ -3782,7 +3782,13 @@ bool BackhaulManager::initiate_wps_pbc_auto()
 {
     auto db = AgentDB::get();
 
-    if (db->statuses.ap_autoconfiguration_completed) {
+    const bool backhaul_operational = (m_eFSMState == EState::OPERATIONAL);
+    const bool ap_configured        = db->statuses.ap_autoconfiguration_completed;
+
+    // ap_autoconfiguration_completed is a configuration status and can stay true after the
+    // backhaul link is lost. Use the live BackhaulManager FSM as the connectivity gate so WPS
+    // auto falls back to bSTA onboarding while the backhaul is reconnecting.
+    if (backhaul_operational && ap_configured) {
         bool result = false;
         for (const auto radio : db->get_radios_list()) {
             //Skip 6GHz since WPS is not allowed on 6GHz per Wi-Fi 6E standard
@@ -3796,11 +3802,17 @@ bool BackhaulManager::initiate_wps_pbc_auto()
             }
         }
         return result;
-    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_5G)) { //Default frequency for WPS PBC is 5G
+    }
+
+    LOG(INFO) << "WPS PBC auto: using bSTA path, backhaul_operational=" << backhaul_operational
+              << ", ap_configured=" << ap_configured;
+
+    if (start_wps_pbc_ep_freq(eFreqType::FREQ_5G)) { //Default frequency for WPS PBC is 5G
         LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_5G";
         return true;
+    }
 
-    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_24G)) {
+    if (start_wps_pbc_ep_freq(eFreqType::FREQ_24G)) {
         LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_24G";
         return true;
     }
