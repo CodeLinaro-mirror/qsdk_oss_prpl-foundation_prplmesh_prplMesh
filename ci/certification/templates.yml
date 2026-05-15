@@ -78,7 +78,7 @@
   variables:
     RUN_ON_DEVICE: "freedom"
   before_script:
-    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/freedom.sh
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --full --whm --configuration ci/configuration/certification/R6/freedom.sh
     - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
   after_script:
     - ssh "$RUN_ON_DEVICE" "getDebugInformation -a -o -" > logs/getDebugInformation.txt
