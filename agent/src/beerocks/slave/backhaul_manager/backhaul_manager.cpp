@@ -2487,6 +2487,14 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                 }
                 break;
             }
+            for (const auto &b : db->bsta_mld_configuration->affiliated_bstas) {
+            LOG(DEBUG) << " Updated DB with Affiliated_bsta:"
+                      << " ruid=" << tlvf::mac_to_string(b.ruid)
+                      << " bssid=" << tlvf::mac_to_string(b.bssid);
+            }
+            m_task_pool.send_event(
+                eTaskType::TOPOLOGY,
+                static_cast<uint8_t>(TopologyTask::eEvent::BSTA_MLD_AFFILIATED_LINK_CHANGED));
         } else {
             LOG(ERROR) << "Affiliated_Link_Connected empty message or bSTA configuration";
         }
