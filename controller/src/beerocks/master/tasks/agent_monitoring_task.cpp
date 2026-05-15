@@ -392,27 +392,23 @@ bool agent_monitoring_task::execute_deferred_task(const Agent &agent)
         LOG(ERROR) << "Failed to send Channel Selection Request to radio agent=" << agent.al_mac;
     }
 
-    if (!database.setting_certification_mode()) {
-        // trigger Topology query
-        LOG(TRACE) << "Sending Topology Query to " << agent.al_mac;
-        son_actions::send_topology_query_msg(agent.al_mac, cmdu_tx, database);
+    // trigger Topology query
+    LOG(TRACE) << "Sending Topology Query to " << agent.al_mac;
+    son_actions::send_topology_query_msg(agent.al_mac, cmdu_tx, database);
 
-        // trigger channel selection
-        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_PREFERENCE_QUERY_MESSAGE)) {
-            LOG(ERROR) << "Failed building message CHANNEL_PREFERENCE_QUERY_MESSAGE!";
-            return false;
-        }
-        son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
+    // trigger channel selection
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CHANNEL_PREFERENCE_QUERY_MESSAGE)) {
+        LOG(ERROR) << "Failed building message CHANNEL_PREFERENCE_QUERY_MESSAGE!";
+        return false;
     }
+    son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
 
-    if (!database.setting_certification_mode()) {
-        // trigger AP capability query
-        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE)) {
-            LOG(ERROR) << "Failed building message AP_CAPABILITY_QUERY_MESSAGE!";
-            return false;
-        }
-        son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
+    // trigger AP capability query
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE)) {
+        LOG(ERROR) << "Failed building message AP_CAPABILITY_QUERY_MESSAGE!";
+        return false;
     }
+    son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
 
     if (agent.profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) {
 
