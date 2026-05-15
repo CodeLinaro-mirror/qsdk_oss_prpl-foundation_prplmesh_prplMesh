@@ -415,6 +415,7 @@ private:
     bool has_available_wired_candidate() const;
     void maybe_send_wired_controller_probe();
     bool send_wired_controller_probe_search(const std::string &radio_iface);
+    bool handle_wired_controller_detected(uint32_t iface_index);
     bool handle_wired_autoconfiguration_response(uint32_t iface_index,
                                                  ieee1905_1::CmduMessageRx &cmdu_rx);
 

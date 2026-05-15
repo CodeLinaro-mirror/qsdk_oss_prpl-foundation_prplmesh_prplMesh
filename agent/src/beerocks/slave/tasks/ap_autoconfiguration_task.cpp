@@ -525,7 +525,7 @@ bool ApAutoConfigurationTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, ui
 {
     switch (cmdu_rx.getMessageType()) {
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE: {
-        handle_ap_autoconfiguration_response(cmdu_rx, src_mac);
+        handle_ap_autoconfiguration_response(cmdu_rx, iface_index, src_mac);
         return true;
     }
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE: {
@@ -1240,7 +1240,7 @@ bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
 }
 
 void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
-    ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac)
+    ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index, const sMacAddr &src_mac)
 {
     auto db = AgentDB::get();
     /*
@@ -1386,6 +1386,16 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
         return;
     } else {
         m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_DISCOVERED);
+    }
+
+    if (iface_index != 0 &&
+        db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
+        // BackhaulManager sends a low-rate AP-Autoconfiguration Search while the agent is in the
+        // wireless path. The response is handled here, so forward the ingress interface index to
+        // BackhaulManager; it will verify that the interface is a wired candidate before switching.
+        LOG(DEBUG) << "Controller discovery response received on iface_index=" << iface_index
+                   << ". Notifying BackhaulManager.";
+        m_btl_ctx.send_event(slave_thread::eEvent::WIRED_CONTROLLER_DETECTED, iface_index);
     }
 
     // Mark discovery status completed on band mentioned on the response and fill AgentDB fields.

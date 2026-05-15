@@ -762,14 +762,8 @@ void BackhaulManager::maybe_send_wired_controller_probe()
     }
 }
 
-bool BackhaulManager::handle_wired_autoconfiguration_response(uint32_t iface_index,
-                                                              ieee1905_1::CmduMessageRx &cmdu_rx)
+bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
 {
-    if (cmdu_rx.getMessageType() !=
-        ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE) {
-        return false;
-    }
-
     // Transport uses index 0 for local-bus-originated messages. A real wired controller response
     // must have a network ingress interface.
     if (iface_index == 0) {
@@ -784,6 +778,9 @@ bool BackhaulManager::handle_wired_autoconfiguration_response(uint32_t iface_ind
     auto iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
     AgentDB::sEthernetPort candidate;
     if (!find_wired_candidate(iface_name, candidate)) {
+        LOG(WARNING) << "Controller detected on non-candidate wired interface " << iface_name
+                     << " (iface_index=" << iface_index
+                     << "). Ignoring because it is not in the wired backhaul candidate list.";
         return false;
     }
 
@@ -791,6 +788,11 @@ bool BackhaulManager::handle_wired_autoconfiguration_response(uint32_t iface_ind
         LOG(DEBUG) << "Ignoring AP-Autoconfiguration Response on wired candidate " << iface_name
                    << ": candidate is no longer up and bridged";
         return false;
+    }
+
+    if (FSM_IS_IN_STATE(RESTART) && m_preferred_wired_candidate_iface == iface_name) {
+        LOG(DEBUG) << "Ignoring duplicate wired controller detection on candidate " << iface_name;
+        return true;
     }
 
     LOG(INFO) << "Controller AP-Autoconfiguration Response received on wired candidate "
@@ -808,6 +810,17 @@ bool BackhaulManager::handle_wired_autoconfiguration_response(uint32_t iface_ind
     }
 
     return true;
+}
+
+bool BackhaulManager::handle_wired_autoconfiguration_response(uint32_t iface_index,
+                                                              ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    if (cmdu_rx.getMessageType() !=
+        ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE) {
+        return false;
+    }
+
+    return handle_wired_controller_detected(iface_index);
 }
 
 bool BackhaulManager::send_cmdu(int fd, ieee1905_1::CmduMessageTx &cmdu_tx)
@@ -2516,6 +2529,22 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         if (FSM_IS_IN_STATE(CONNECTED) || FSM_IS_IN_STATE(OPERATIONAL)) {
             FSM_MOVE_STATE(RESTART);
         }
+
+        break;
+    }
+    case beerocks_message::ACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED: {
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED>();
+        if (!request) {
+            LOG(ERROR) << "addClass cACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED failed";
+            return false;
+        }
+
+        // AP-Autoconfiguration responses are consumed by the agent task. This action forwards the
+        // response ingress interface so BackhaulManager can switch back to wired only when the
+        // controller was actually reached through a configured wired candidate.
+        handle_wired_controller_detected(request->iface_index());
 
         break;
     }

@@ -6795,7 +6795,7 @@ bool slave_thread::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
     return true;
 }
 
-bool slave_thread::send_event(eEvent event)
+bool slave_thread::send_event(eEvent event, uint32_t iface_index)
 {
     switch (event) {
     case CONTROLLER_DISCOVERED:
@@ -6815,6 +6815,22 @@ bool slave_thread::send_event(eEvent event)
             LOG(ERROR) << "Failed building ACTION_BACKHAUL_WIRED_ONBOARDING_FAILED";
             return false;
         }
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
+        return true;
+    }
+    case WIRED_CONTROLLER_DETECTED: {
+        // AP-Autoconfiguration response arrived on a network interface while the
+        // BackhaulManager is in wireless fallback. Forward the ingress interface so
+        // BackhaulManager can decide whether it is one of the wired candidates.
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED>(cmdu_tx);
+
+        if (!request) {
+            LOG(ERROR) << "Failed building ACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED";
+            return false;
+        }
+
+        request->iface_index() = iface_index;
         m_backhaul_manager_client->send_cmdu(cmdu_tx);
         return true;
     }
