@@ -3324,6 +3324,16 @@ void BackhaulManager::handle_dev_reset_default(
         active_hal->set_3addr_mcast(false);
         active_hal->disconnect();
     }
+
+    // Claer remaining MLD Settings
+    for (auto &radio_info : m_radios_info) {
+        if (radio_info->sta_wlan_hal) {
+            LOG(INFO) << "Setting Invalid MLDUnit for EndPoint on Radio "
+                      << radio_info->hostap_iface;
+            radio_info->sta_wlan_hal->update_mld_unit(DISABLED_MLDUNIT);
+        }
+    }
+
     // clear all known WPS credentials from persistent memory
     bpl::cfg_wifi_reset_wps_credentials();
 
