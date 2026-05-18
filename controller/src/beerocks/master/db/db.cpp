@@ -4254,7 +4254,7 @@ bool db::dm_add_scan_result(const sMacAddr &ruid, const uint8_t &operating_class
         return false;
     }
 
-    std::string radio_path = get_radio_data_model_path(ruid);
+    const std::string &radio_path = get_radio_data_model_path(ruid);
 
     if (radio_path.empty()) {
         LOG(DEBUG) << "Missing path to NBAPI radio: " << ruid;
@@ -6966,7 +6966,7 @@ bool db::handle_current_op_class(const sMacAddr &radio_mac, uint8_t op_class, ui
         return false;
     }
 
-    auto radio_path = radio->dm_path;
+    const auto &radio_path = radio->dm_path;
     if (radio_path.empty()) {
         return true;
     }
@@ -7166,7 +7166,7 @@ bool db::add_spatial_reuse_parameters(wfa_map::tlvSpatialReuseReport &spatial_re
         return false;
     }
 
-    auto radio_path = radio->dm_path;
+    const auto &radio_path = radio->dm_path;
     if (radio_path.empty()) {
         LOG(INFO) << "radio_path is empty";
         return true;
@@ -7295,7 +7295,7 @@ bool db::remove_hostap_supported_operating_classes(const sMacAddr &radio_mac)
         return false;
     }
 
-    auto radio_path = radio->dm_path;
+    const auto &radio_path = radio->dm_path;
     if (radio_path.empty()) {
         return true;
     }
@@ -7435,7 +7435,7 @@ bool db::set_radio_metrics(const sMacAddr &radio_mac, uint8_t noise, uint8_t tra
         return false;
     }
 
-    auto radio_path = radio->dm_path;
+    const auto &radio_path = radio->dm_path;
     if (radio_path.empty()) {
         return true;
     }

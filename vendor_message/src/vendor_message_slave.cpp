@@ -17,7 +17,7 @@ using namespace net;
 
 VendorMessageSlave::VendorMessageSlave(std::string broker_uds_path,
                                        std::shared_ptr<beerocks::EventLoop> event_loop)
-    : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), m_broker_uds_path(broker_uds_path),
+    : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), m_broker_uds_path(std::move(broker_uds_path)),
       m_event_loop(event_loop)
 {
 }
