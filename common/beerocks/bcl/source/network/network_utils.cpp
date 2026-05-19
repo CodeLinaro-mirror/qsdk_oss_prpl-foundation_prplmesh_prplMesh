@@ -57,6 +57,7 @@ struct route_info {
 bool is_missing_tc_filter_output(const std::string &output)
 {
     return output.find("Cannot find specified filter") != std::string::npos ||
+           output.find("Cannot find device") != std::string::npos ||
            output.find("No such file or directory") != std::string::npos ||
            output.find("RTNETLINK answers: Invalid argument") != std::string::npos ||
            output.find("We have an error talking to the kernel") != std::string::npos;

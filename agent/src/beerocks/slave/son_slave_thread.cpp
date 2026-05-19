@@ -2499,6 +2499,9 @@ bool slave_thread::process_client_association(
         task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                  TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
                                  existing_client.wds_iface_name.c_str());
+        task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                 ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                                 existing_client.wds_iface_name.c_str());
     }
 
     db->erase_client(client_mac);
@@ -2554,11 +2557,17 @@ bool slave_thread::set_client_wds_iface(AgentDB::sRadio &radio, const sMacAddr &
         task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                  TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
                                  client.wds_iface_name.c_str());
+        task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                 ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                                 client.wds_iface_name.c_str());
     }
 
     client.wds_iface_name = wds_iface_name;
     task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                              TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                             client.wds_iface_name.c_str());
+    task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                             ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
                              client.wds_iface_name.c_str());
 
     return true;
@@ -2607,6 +2616,9 @@ bool slave_thread::handle_client_wds_iface_notification(
 
         task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                  TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                 client.wds_iface_name.c_str());
+        task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                 ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
                                  client.wds_iface_name.c_str());
         client.wds_iface_name.clear();
         return true;
@@ -2878,6 +2890,10 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                         task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                                  TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
                                                  client.wds_iface_name.c_str());
+                        task_pool_try_send_event(
+                            eTaskType::SERVICE_PRIORITIZATION,
+                            ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                            client.wds_iface_name.c_str());
                     }
                 }
                 if (bss.fronthaul_bss && !bss.backhaul_bss && !bss.iface_name.empty()) {
@@ -3079,6 +3095,9 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                 const auto &wds_iface_name = client_it->second.wds_iface_name;
                 task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                          TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                         wds_iface_name.c_str());
+                task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                         ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
                                          wds_iface_name.c_str());
             }
         }
@@ -5905,6 +5924,9 @@ bool slave_thread::update_vaps_info(const std::string &iface,
                 task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                          TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
                                          client.wds_iface_name.c_str());
+                task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                         ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
             }
         };
 
@@ -5921,8 +5943,14 @@ bool slave_thread::update_vaps_info(const std::string &iface,
                 task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                          TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
                                          client.wds_iface_name.c_str());
+                task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                         ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
                 task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                          TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                                         client.wds_iface_name.c_str());
+                task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                         ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
                                          client.wds_iface_name.c_str());
             }
         };
