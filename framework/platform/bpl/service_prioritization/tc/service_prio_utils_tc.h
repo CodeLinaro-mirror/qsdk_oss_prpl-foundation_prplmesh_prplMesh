@@ -37,6 +37,14 @@ public:
     bool flush_rules() override;
 
     /**
+     * @brief Remove service-prioritization TC filters from one interface.
+     *
+     * @param iface_name Interface name to clean.
+     * @return true if filters were removed successfully.
+     */
+    bool flush_iface_rules(const std::string &iface_name) override;
+
+    /**
      * @brief Apply the same PCP value on all listed interfaces.
      *
      * @param iface_list Interfaces and VLAN IDs to configure.

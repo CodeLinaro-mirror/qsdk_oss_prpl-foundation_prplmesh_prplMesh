@@ -47,6 +47,7 @@ public:
     };
 
     virtual bool flush_rules() { return false; }
+    virtual bool flush_iface_rules(const std::string &iface_name) { return false; }
     virtual bool apply_single_value_map(std::list<struct sInterfaceTagInfo> *iface_list,
                                         uint8_t pcp)
     {

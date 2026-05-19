@@ -102,6 +102,11 @@ bool ServicePrioritizationUtils_tc::flush_rules()
     return retVal;
 }
 
+bool ServicePrioritizationUtils_tc::flush_iface_rules(const std::string &iface_name)
+{
+    return remove_filters(iface_name);
+}
+
 bool ServicePrioritizationUtils_tc::apply_single_value_map(std::list<sInterfaceTagInfo> *iface_list,
                                                            uint8_t pcp)
 {
@@ -239,8 +244,8 @@ bool ServicePrioritizationUtils_tc::remove_filters(const std::string &iface_name
 {
     auto iface_it = applied_filter_prefs.find(iface_name);
     if (iface_it == applied_filter_prefs.end()) {
-        LOG(WARNING) << "QoS filters not initialized for iface=" << iface_name;
-        return false;
+        LOG(DEBUG) << "QoS filters not initialized for iface=" << iface_name;
+        return true;
     }
 
     // clsact is shared with traffic separation ingress filters; remove only our egress prefs.
@@ -249,7 +254,7 @@ bool ServicePrioritizationUtils_tc::remove_filters(const std::string &iface_name
         std::ostringstream cmd;
         cmd << kTcBinary << " filter del dev " << iface_name << " " << kEgressSelector << " pref "
             << pref;
-        retVal = net::network_utils::tc_run_command(cmd.str()) && retVal;
+        retVal = net::network_utils::tc_run_command(cmd.str(), true) && retVal;
     }
 
     applied_filter_prefs.erase(iface_it);
