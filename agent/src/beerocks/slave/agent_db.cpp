@@ -170,20 +170,18 @@ bool AgentDB::get_bsta_mld_mac_by_ssid(const std::string &ssid, sMacAddr &ruid, 
                 return true;
             }
 
-            // Search Affiliated MAC
-            for (const auto &aff_bsta : bsta_mld_configuration->affiliated_bstas) {
-                if (aff_bsta.ruid == ruid) {
-                    value = aff_bsta.bssid;
-
-                    // fallback to bSTA MLD MAC
-                    if (value == net::network_utils::ZERO_MAC) {
-                        value = bsta_mld_configuration->mld_config.mld_mac;
-                        LOG(INFO) << "Affiliated MAC is zero, fallback to bSTA MLD MAC ruid: "
-                                  << ruid;
-                    }
-                    return true;
-                }
+            // Search Affiliated MAC by RUID (map key)
+            auto it = bsta_mld_configuration->affiliated_bstas.find(ruid);
+            if (it == bsta_mld_configuration->affiliated_bstas.end()) {
+                LOG(ERROR) << "RUID: " << ruid << "not found in configuration";
+                return false;
             }
+            value = it->second.mac_addr;
+            if (value == net::network_utils::ZERO_MAC) {
+                value = bsta_mld_configuration->mld_config.mld_mac;
+                LOG(INFO) << "Affiliated MAC is zero, fallback to bSTA MLD MAC ruid: " << ruid;
+            }
+            return true;
         }
     }
     return false;
