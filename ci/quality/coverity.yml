@@ -30,7 +30,8 @@ coverity:
     - apt update && apt install unzip -y
     - cmake -S . -B build -G Ninja
   extends: .run-black-duck-tools
-  needs: []
+  needs:
+    - build-in-docker
   after_script:
     - mkdir -p bin
     - tar -czf bin/coverity-scan-output.tar.gz .bridge/coverity_connect_scan/comparison-report 2>/dev/null || true
