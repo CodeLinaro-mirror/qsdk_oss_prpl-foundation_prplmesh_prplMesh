@@ -476,6 +476,18 @@
 
                     void SetServicePrioritization();
 
+                    %read-only string MSCSDisallowedStaList = "";
+
+                    %read-only string SCSDisallowedStaList = "";
+
+                    bool SetMSCSDisallowed(
+                        %in %mandatory list MSCSDisallowedStaList
+                    );
+
+                    bool SetSCSDisallowed(
+                        %in %mandatory list SCSDisallowedStaList
+                    );
+
                     void ClientSteering(
                         %in %mandatory string station_mac,
                         %in %mandatory string target_bssid

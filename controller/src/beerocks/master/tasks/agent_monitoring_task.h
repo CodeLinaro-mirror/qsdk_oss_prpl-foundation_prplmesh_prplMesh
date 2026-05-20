@@ -171,14 +171,22 @@ private:
                                             ieee1905_1::CmduMessageTx &cmdu_tx);
 
     /**
-     * @brief Send Service Prioritization Request Message to an Agent
+     * @brief Send Service Prioritization Request message to an Agent.
      *
-     * Initiate an Agent configuration for Service Prioritization
+     * Initiates Agent configuration for service prioritization and QoS management descriptors.
      *
      * @param agent Target Agent where configuration must be sent
      * @return True on success, false otherwise.
     */
     bool send_prioritization(const Agent &agent);
+
+    /**
+     * @brief Send QoS management enablement settings to an Agent.
+     *
+     * @param agent Target Agent where configuration must be sent.
+     * @return True on success, false otherwise.
+     */
+    bool send_qos_management_settings(const Agent &agent);
 
     /**
      * @brief Add NBAPI AgentConnected event and its sub-objects: Radios, BSSes, STAs to data model.

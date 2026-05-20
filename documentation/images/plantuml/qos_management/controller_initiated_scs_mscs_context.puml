@@ -1,0 +1,91 @@
+@startuml
+title Controller-Initiated SCS/MSCS Context
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+actor "Northbound caller\n(USP / NBAPI user)" as Caller
+actor "WFA-CA UCC" as UCC
+
+rectangle "Controller" {
+  component "ODL / on_action" as NBAPI
+  component "ServicePrioritizationTask\n- learn notification descriptors\n- validate BSS ownership" as CSP
+  component "Controller DB\n- QM descriptors\n- disallow policy\n- QoS settings\n- QMID ownership" as CDB
+  component "agent_monitoring_task\n- standard TLV send\n- BSS settings VS send" as AMT
+}
+
+rectangle "Standard southbound" {
+  component "SERVICE_PRIORITIZATION_REQUEST_MESSAGE\n+ tlvQoSManagementDescriptor" as SPR
+  component "MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE\n+ tlvQoSManagementPolicy" as MAP
+  component "QOS_MANAGEMENT_NOTIFICATION_MESSAGE\n+ tlvQoSManagementDescriptor" as QMN
+}
+
+rectangle "Vendor-specific settings path" {
+  component "cACTION_CONTROL_BSS_SET_\nQOS_MANAGEMENT_REQUEST" as VSCTRL
+  component "cACTION_APMANAGER_BSS_SET_\nQOS_MANAGEMENT_REQUEST" as VSAPM
+}
+
+rectangle "Agent" {
+  component "BackhaulManager\n- WFA-CA dev_set_config\n- per-radio QoS settings send" as BHM
+  component "ServicePrioritizationTask\n- parse descriptor TLVs" as ASP
+  component "ApAutoConfigurationTask\n- parse policy TLV" as APC
+  component "son_slave_thread\n- settings request forward" as SST
+  component "AP manager\n- descriptor/policy/settings apply\n- pending fronthaul settings" as APM
+  component "ap_wlan_hal_whm" as WHM
+}
+
+rectangle "Platform boundary" {
+  component "QoS Management\nobject / runtime support" as QOS_MGMT
+}
+
+Caller --> NBAPI : SetQMDescriptors()\nSetMSCSDisallowed()\nSetSCSDisallowed()\nSetQoSManagement()
+NBAPI --> CDB : validate + persist state
+NBAPI --> AMT : trigger CONFIGURE_QOS
+UCC --> BHM : dev_set_config(mscs/scs)
+
+AMT --> SPR : targeted per owning agent/BSS
+AMT --> MAP : network-wide merged policy
+AMT --> VSCTRL : SetQoSManagement BSS settings
+
+SPR --> ASP
+MAP --> APC
+VSCTRL --> SST
+ASP --> QMN : forward learned descriptor
+QMN --> CSP
+CSP --> CDB : update learned descriptor state
+CSP --> AMT : trigger CONFIGURE_QOS
+
+ASP --> APM : ACTION_APMANAGER_QOS_MANAGEMENT_DESCRIPTOR_REQUEST
+APC --> APM : ACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST
+BHM --> SST : ACTION_CONTROL_BSS_SET_\nQOS_MANAGEMENT_REQUEST\n(radio scope, zero BSSID)
+SST --> VSAPM
+VSAPM --> APM
+APM --> WHM : backend-specific HAL calls
+WHM --> QOS_MGMT : handleQosMgmtDesc()\nSetMscsDisallowStaList()\nSetScsDisallowStaList()\nupdate_object()
+
+note right of AMT
+Descriptors and policy use EasyMesh TLVs.
+BSS enable settings use the VS path.
+end note
+
+note right of CSP
+Notification descriptors are learned
+with the same Add/Change/Remove parser.
+end note
+
+note right of CDB
+Controller allocates QMID on Add,
+reuses it on Change/Remove, and clears
+Remove entries after they are sent.
+end note
+
+note right of QOS_MGMT
+Current support:
+- apply MSCSEnable / SCSEnable
+- reject QosMap / DSCP / SCS traffic desc
+- test-only disallow-list emulation
+- dev_set_config applies per radio
+end note
+
+@enduml

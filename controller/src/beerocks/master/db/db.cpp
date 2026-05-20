@@ -9,6 +9,8 @@
 #include "db.h"
 
 #include "../tasks/agent_monitoring_task.h"
+#include <bcl/beerocks_qos_utils.h>
+#include <bcl/beerocks_string_utils.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/beerocks_wifi_channel.h>
 #include <bcl/network/sockets.h>
@@ -18,8 +20,10 @@
 #include <bpl/bpl_db.h>
 #include <cmath>
 #include <easylogging++.h>
+#include <tlvf/tlvftypes.h>
 
 #include <algorithm>
+#include <utility>
 
 using namespace beerocks;
 using namespace beerocks_message;
@@ -38,6 +42,17 @@ constexpr std::chrono::minutes CHANNEL_PREFERENCE_EXPIRATION(5);
 constexpr std::chrono::seconds RADIO_CHANNEL_DEFERRED_UPDATE_GUARD(60);
 
 namespace {
+
+/**
+ * @brief Parse a hex-encoded QoS management descriptor element.
+ */
+qos_management::sDescriptorElementInfo
+parse_qos_management_descriptor_element(const std::string &descriptor_element)
+{
+    const auto descriptor_bytes =
+        beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(descriptor_element);
+    return qos_management::parse_qos_management_descriptor_element(descriptor_bytes);
+}
 
 bool are_same_wifi_channel(const beerocks::WifiChannel &lhs, const beerocks::WifiChannel &rhs)
 {
@@ -7479,6 +7494,239 @@ bool db::set_estimated_service_param(const sMacAddr &bssid, const std::string &p
     return m_ambiorix_datamodel->set(bss->dm_path, param_name, esp_value);
 }
 
+bool db::set_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac,
+                           const std::string &descriptor_element)
+{
+    auto bss = get_bss(bssid);
+    if (!bss) {
+        LOG(ERROR) << "Failed to get BSS with BSSID: " << bssid;
+        return false;
+    }
+
+    if (bss->dm_path.empty()) {
+        return true;
+    }
+
+    const auto &qm_descriptor_path = bss->dm_path + ".QMDescriptor";
+    auto index                     = m_ambiorix_datamodel->get_instance_index(
+        qm_descriptor_path + ".[ClientMAC == '%s'].", tlvf::mac_to_string(client_mac));
+
+    std::string qm_descriptor_instance_path;
+    if (index) {
+        qm_descriptor_instance_path = qm_descriptor_path + "." + std::to_string(index);
+    } else {
+        qm_descriptor_instance_path = m_ambiorix_datamodel->add_instance(qm_descriptor_path);
+        if (qm_descriptor_instance_path.empty()) {
+            LOG(ERROR) << "Failed to add QMDescriptor instance under " << qm_descriptor_path;
+            return false;
+        }
+    }
+
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(qm_descriptor_instance_path, "BSSID", bssid);
+    ret_val &= m_ambiorix_datamodel->set(qm_descriptor_instance_path, "ClientMAC", client_mac);
+    ret_val &= m_ambiorix_datamodel->set(qm_descriptor_instance_path, "DescriptorElement",
+                                         descriptor_element);
+    return ret_val;
+}
+
+bool db::remove_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac)
+{
+    auto bss = get_bss(bssid);
+    if (!bss) {
+        LOG(ERROR) << "Failed to get BSS with BSSID: " << bssid;
+        return false;
+    }
+
+    if (bss->dm_path.empty()) {
+        return true;
+    }
+
+    const auto &qm_descriptor_path = bss->dm_path + ".QMDescriptor";
+    auto index                     = m_ambiorix_datamodel->get_instance_index(
+        qm_descriptor_path + ".[ClientMAC == '%s'].", tlvf::mac_to_string(client_mac));
+
+    if (!index) {
+        return true;
+    }
+
+    return m_ambiorix_datamodel->remove_instance(qm_descriptor_path, index);
+}
+
+bool db::set_controller_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac,
+                                      const std::string &descriptor_element)
+{
+    sStoredQmDescriptor descriptor;
+    bool allocated_new_qmid    = false;
+    const auto descriptor_info = parse_qos_management_descriptor_element(descriptor_element);
+    if (!descriptor_info.is_valid()) {
+        LOG(ERROR) << "Invalid QoS management descriptor element for BSSID " << bssid << ", client "
+                   << client_mac;
+        return false;
+    }
+
+    auto bss_entry = m_controller_qm_descriptors.find(bssid);
+    if (bss_entry != m_controller_qm_descriptors.end()) {
+        auto client_entry = bss_entry->second.find(client_mac);
+        if (client_entry != bss_entry->second.end()) {
+            descriptor = client_entry->second;
+        }
+    }
+
+    if (descriptor.qmid == 0 &&
+        descriptor_info.request_type != qos_management::eDescriptorRequestType::Add) {
+        LOG(ERROR) << "No existing QMID for QoS management descriptor request on BSSID " << bssid
+                   << ", client " << client_mac;
+        return false;
+    }
+
+    if (descriptor.qmid == 0) {
+        descriptor.qmid    = m_next_qmid;
+        allocated_new_qmid = true;
+    }
+
+    descriptor.descriptor_element = descriptor_element;
+    descriptor.request_type       = descriptor_info.request_type;
+
+    if (!set_qm_descriptor(bssid, client_mac, descriptor_element)) {
+        return false;
+    }
+
+    m_controller_qm_descriptors[bssid][client_mac] = std::move(descriptor);
+
+    if (allocated_new_qmid) {
+        ++m_next_qmid;
+        if (m_next_qmid == 0) {
+            m_next_qmid = 1;
+        }
+    }
+
+    return true;
+}
+
+std::vector<db::sControllerQmDescriptor> db::get_controller_qm_descriptors(const sMacAddr &al_mac)
+{
+    std::vector<sControllerQmDescriptor> descriptors;
+
+    for (const auto &bss_entry : m_controller_qm_descriptors) {
+        if (get_bss_parent_agent(bss_entry.first) != al_mac) {
+            continue;
+        }
+
+        for (const auto &client_entry : bss_entry.second) {
+            descriptors.push_back({bss_entry.first, client_entry.first, client_entry.second.qmid,
+                                   client_entry.second.descriptor_element});
+        }
+    }
+
+    return descriptors;
+}
+
+bool db::clear_transient_controller_qm_descriptors(const sMacAddr &al_mac)
+{
+    bool ret_val = true;
+
+    for (auto bss_entry = m_controller_qm_descriptors.begin();
+         bss_entry != m_controller_qm_descriptors.end();) {
+        if (get_bss_parent_agent(bss_entry->first) != al_mac) {
+            ++bss_entry;
+            continue;
+        }
+
+        for (auto client_entry = bss_entry->second.begin();
+             client_entry != bss_entry->second.end();) {
+            if (client_entry->second.request_type !=
+                qos_management::eDescriptorRequestType::Remove) {
+                ++client_entry;
+                continue;
+            }
+
+            if (!remove_qm_descriptor(bss_entry->first, client_entry->first)) {
+                LOG(ERROR) << "Failed removing transient QMDescriptor for BSSID "
+                           << bss_entry->first << ", client " << client_entry->first;
+                ret_val = false;
+                ++client_entry;
+                continue;
+            }
+
+            client_entry = bss_entry->second.erase(client_entry);
+        }
+
+        if (bss_entry->second.empty()) {
+            bss_entry = m_controller_qm_descriptors.erase(bss_entry);
+            continue;
+        }
+
+        ++bss_entry;
+    }
+
+    return ret_val;
+}
+
+bool db::set_mscs_disallowed_sta_list(const std::vector<sMacAddr> &sta_list)
+{
+    std::vector<sMacAddr> previous_mscs_list = std::move(m_mscs_disallowed_sta_list);
+
+    m_mscs_disallowed_sta_list = sta_list;
+    if (dm_set_qos_management_disallowed_sta_lists()) {
+        return true;
+    }
+
+    m_mscs_disallowed_sta_list = std::move(previous_mscs_list);
+    return false;
+}
+
+bool db::set_scs_disallowed_sta_list(const std::vector<sMacAddr> &sta_list)
+{
+    std::vector<sMacAddr> previous_scs_list = std::move(m_scs_disallowed_sta_list);
+
+    m_scs_disallowed_sta_list = sta_list;
+    if (dm_set_qos_management_disallowed_sta_lists()) {
+        return true;
+    }
+
+    m_scs_disallowed_sta_list = std::move(previous_scs_list);
+    return false;
+}
+
+bool db::set_bss_qos_management_settings(const sMacAddr &bssid,
+                                         const sQosManagementSettings &settings)
+{
+    if (!dm_set_bss_qos_management_settings(bssid, settings)) {
+        return false;
+    }
+
+    m_bss_qos_management_settings[bssid] = settings;
+    return true;
+}
+
+bool db::get_bss_qos_management_settings(const sMacAddr &bssid, sQosManagementSettings &settings)
+{
+    auto entry = m_bss_qos_management_settings.find(bssid);
+    if (entry == m_bss_qos_management_settings.end()) {
+        settings = {};
+        return false;
+    }
+
+    settings = entry->second;
+    return true;
+}
+
+std::vector<std::pair<sMacAddr, db::sQosManagementSettings>>
+db::get_bss_qos_management_settings(const sMacAddr &al_mac)
+{
+    std::vector<std::pair<sMacAddr, sQosManagementSettings>> settings_list;
+
+    for (const auto &entry : m_bss_qos_management_settings) {
+        if (get_bss_parent_agent(entry.first) != al_mac) {
+            continue;
+        }
+        settings_list.push_back(entry);
+    }
+
+    return settings_list;
+}
+
 bool db::add_interface(const sMacAddr &device_mac, const sMacAddr &interface_mac,
                        uint16_t media_type, const std::string &status, const std::string &name)
 {
@@ -8309,7 +8557,6 @@ std::chrono::system_clock::time_point db::get_agent_last_contact_time(const sMac
 
 bool db::dm_set_agent_oui(std::shared_ptr<Agent> agent)
 {
-
     std::string oui_string = tlvf::int_to_hex_string(agent->al_mac.oct[0], 2) +
                              tlvf::int_to_hex_string(agent->al_mac.oct[1], 2) +
                              tlvf::int_to_hex_string(agent->al_mac.oct[2], 2);
@@ -9065,6 +9312,41 @@ bool db::dm_configure_service_prioritization()
     }
 
     return true;
+}
+
+bool db::dm_set_qos_management_disallowed_sta_lists()
+{
+    const std::string network_path = DATAELEMENTS_ROOT_DM ".Network";
+
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(network_path, "MSCSDisallowedStaList",
+                                         tlvf::mac_list_to_csv_string(m_mscs_disallowed_sta_list));
+    ret_val &= m_ambiorix_datamodel->set(network_path, "SCSDisallowedStaList",
+                                         tlvf::mac_list_to_csv_string(m_scs_disallowed_sta_list));
+
+    return ret_val;
+}
+
+bool db::dm_set_bss_qos_management_settings(const sMacAddr &bssid,
+                                            const sQosManagementSettings &settings)
+{
+    auto bss = get_bss(bssid);
+    if (!bss) {
+        LOG(ERROR) << "Failed to get BSS with BSSID: " << bssid;
+        return false;
+    }
+
+    if (bss->dm_path.empty()) {
+        return true;
+    }
+
+    const auto settings_path = bss->dm_path + ".SetQoSManagementInput";
+
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(settings_path, "MSCSEnable", settings.mscs_enable);
+    ret_val &= m_ambiorix_datamodel->set(settings_path, "SCSEnable", settings.scs_enable);
+
+    return ret_val;
 }
 
 bool db::dm_set_device_ap_capabilities(const Agent &agent)

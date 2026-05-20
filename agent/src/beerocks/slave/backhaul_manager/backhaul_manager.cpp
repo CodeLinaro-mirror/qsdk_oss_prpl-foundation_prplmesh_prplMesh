@@ -68,6 +68,11 @@ constexpr auto backhaul_steering_timeout = std::chrono::milliseconds(10000);
  */
 constexpr auto dev_reset_default_timeout = std::chrono::seconds(UCC_REPLY_COMPLETE_TIMEOUT_SEC);
 
+const std::string dev_set_config_backhaul_param = "backhaul";
+const std::string dev_set_config_bss_info_param = "bss_info";
+const std::string dev_set_config_mscs_param     = "mscs";
+const std::string dev_set_config_scs_param      = "scs";
+
 //////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Local Module Definitions //////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -2082,6 +2087,11 @@ bool BackhaulManager::send_slaves_enable()
         send_cmdu(m_agent_fd, cmdu_tx);
     }
 
+    if (!apply_qos_management_settings()) {
+        LOG(ERROR) << "Failed applying QoS management settings";
+        return false;
+    }
+
     return true;
 }
 
@@ -3395,23 +3405,78 @@ void BackhaulManager::handle_dev_reset_default(
 bool BackhaulManager::handle_dev_set_config(
     const std::unordered_map<std::string, std::string> &params, std::string &err_string)
 {
+    if (params.find(dev_set_config_bss_info_param) != params.end()) {
+        err_string = "parameter 'bss_info' is not relevant to the agent";
+        return false;
+    }
+
+    auto parse_enable_value = [&](const std::string &param_name, const std::string &param_value,
+                                  bool &enabled) {
+        auto value = param_value;
+        std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+
+        if (value == "enable") {
+            enabled = true;
+            return true;
+        }
+
+        if (value == "disable") {
+            enabled = false;
+            return true;
+        }
+
+        err_string = "parameter '" + param_name + "' has invalid value '" + param_value + "'";
+        return false;
+    };
+
+    auto mscs_enable_it = params.find(dev_set_config_mscs_param);
+    auto scs_enable_it  = params.find(dev_set_config_scs_param);
+    auto backhaul_it    = params.find(dev_set_config_backhaul_param);
+    const bool has_qos_management_config =
+        mscs_enable_it != params.end() || scs_enable_it != params.end();
+
+    if (mscs_enable_it != params.end()) {
+        if (!parse_enable_value(mscs_enable_it->first, mscs_enable_it->second,
+                                m_qos_management_settings.mscs_enable)) {
+            return false;
+        }
+        LOG(DEBUG) << "Received MSCS Enable configuration: "
+                   << (m_qos_management_settings.mscs_enable ? "enabled" : "disabled");
+    }
+
+    if (scs_enable_it != params.end()) {
+        if (!parse_enable_value(scs_enable_it->first, scs_enable_it->second,
+                                m_qos_management_settings.scs_enable)) {
+            return false;
+        }
+        LOG(DEBUG) << "Received SCS Enable configuration: "
+                   << (m_qos_management_settings.scs_enable ? "enabled" : "disabled");
+    }
+
+    if (has_qos_management_config) {
+        m_qos_management_settings.valid = true;
+        if (!m_is_in_reset_state && !apply_qos_management_settings()) {
+            err_string = "failed applying QoS management settings";
+            return false;
+        }
+    }
+
+    if (backhaul_it == params.end() && has_qos_management_config) {
+        return true;
+    }
+
     if (!m_is_in_reset_state) {
         err_string = "Command not expected at this moment";
         return false;
     }
 
-    if (params.find("bss_info") != params.end()) {
-        err_string = "parameter 'bss_info' is not relevant to the agent";
-        return false;
-    }
-
-    if (params.find("backhaul") == params.end()) {
+    if (backhaul_it == params.end()) {
         err_string = "parameter 'backhaul' is missing";
         return false;
     }
 
     // Get the selected backhaul specified in received command.
-    auto backhaul = params.at("backhaul");
+    auto backhaul = backhaul_it->second;
     std::transform(backhaul.begin(), backhaul.end(), backhaul.begin(), ::tolower);
     if (backhaul == DEV_SET_ETH) {
         // wired backhaul connection.
@@ -3461,6 +3526,52 @@ bool BackhaulManager::handle_dev_set_config(
 
     // Signal to backhaul manager that it can continue onboarding.
     m_is_in_reset_state = false;
+
+    if (!apply_qos_management_settings()) {
+        err_string = "failed applying QoS management settings";
+        return false;
+    }
+
+    return true;
+}
+
+bool BackhaulManager::apply_qos_management_settings()
+{
+    if (!m_qos_management_settings.valid) {
+        return true;
+    }
+
+    if (m_agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(DEBUG) << "Agent is not connected, deferring QoS management settings";
+        return true;
+    }
+
+    auto db = AgentDB::get();
+    for (const auto radio : db->get_radios_list()) {
+        if (!radio || radio->front.iface_mac == beerocks::net::network_utils::ZERO_MAC) {
+            continue;
+        }
+
+        auto msg = message_com::create_vs_message<
+            beerocks_message::cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST>(cmdu_tx);
+        if (!msg) {
+            LOG(ERROR) << "Failed building ACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST";
+            return false;
+        }
+
+        msg->bssid()       = beerocks::net::network_utils::ZERO_MAC;
+        msg->mscs_enable() = m_qos_management_settings.mscs_enable;
+        msg->scs_enable()  = m_qos_management_settings.scs_enable;
+
+        auto action_header         = message_com::get_beerocks_header(cmdu_tx)->actionhdr();
+        action_header->radio_mac() = radio->front.iface_mac;
+
+        if (!send_cmdu(m_agent_fd, cmdu_tx)) {
+            LOG(ERROR) << "Failed sending QoS management settings for radio "
+                       << radio->front.iface_mac;
+            return false;
+        }
+    }
 
     return true;
 }

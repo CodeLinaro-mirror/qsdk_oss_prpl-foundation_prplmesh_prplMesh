@@ -8,8 +8,12 @@
 
 #include "on_action.h"
 
+#include <algorithm>
 #include <bcl/beerocks_defines.h>
+#include <bcl/beerocks_qos_utils.h>
+#include <bcl/beerocks_string_utils.h>
 #include <beerocks/tlvf/beerocks_message_bml.h>
+#include <cctype>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -17,6 +21,9 @@
 #include <sstream>
 #include <time.h>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 using namespace beerocks;
 using namespace net;
@@ -1039,6 +1046,295 @@ amxd_status_t set_eht_operations(amxd_object_t *bss_instance, amxd_function_t *f
     return amxd_status_ok;
 }
 
+namespace {
+
+/**
+ * @brief Get a named list argument, or the argument itself if it is already a list.
+ */
+const amxc_var_t *get_list_argument(const amxc_var_t *args, const char *name)
+{
+    if (!args) {
+        return nullptr;
+    }
+
+    auto list = GET_ARG(args, name);
+    if (list && amxc_var_type_of(list) == AMXC_VAR_ID_LIST) {
+        return list;
+    }
+
+    if (amxc_var_type_of(args) == AMXC_VAR_ID_LIST) {
+        return args;
+    }
+
+    return nullptr;
+}
+
+/**
+ * @brief Read a string field from an Ambiorix variant entry.
+ */
+bool read_string_value(const amxc_var_t *entry, const char *name, std::string &value)
+{
+    auto arg = GET_ARG(entry, name);
+    if (!arg) {
+        return false;
+    }
+
+    auto cstr = amxc_var_constcast(cstring_t, arg);
+    if (!cstr) {
+        return false;
+    }
+
+    value = cstr;
+    return true;
+}
+
+/**
+ * @brief Parse a list argument into STA MAC addresses.
+ */
+bool parse_mac_list_argument(const amxc_var_t *args, const char *name, std::vector<sMacAddr> &list)
+{
+    auto list_arg = get_list_argument(args, name);
+    if (!list_arg) {
+        return false;
+    }
+
+    list.clear();
+    amxc_var_for_each(entry, list_arg)
+    {
+        auto sta_mac_cstr = amxc_var_constcast(cstring_t, entry);
+        if (!sta_mac_cstr) {
+            return false;
+        }
+
+        if (!network_utils::is_valid_mac(sta_mac_cstr)) {
+            return false;
+        }
+
+        list.push_back(tlvf::mac_from_string(sta_mac_cstr));
+    }
+
+    return true;
+}
+
+/**
+ * @brief Check whether a string is non-empty even-length hexadecimal.
+ */
+bool is_strict_hex_string(const std::string &value)
+{
+    if (value.empty() || (value.size() % 2) != 0) {
+        return false;
+    }
+
+    return std::all_of(value.begin(), value.end(),
+                       [](unsigned char character) { return std::isxdigit(character) != 0; });
+}
+
+/**
+ * @brief Descriptor entry validated before committing it to the controller DB.
+ */
+struct sPendingQmDescriptor {
+    sMacAddr client_mac = beerocks::net::network_utils::ZERO_MAC;
+    std::string descriptor_element;
+};
+
+} // namespace
+
+/**
+ * @brief Configure TR-181 SetQMDescriptors inputs for the current BSS.
+ */
+amxd_status_t set_qm_descriptors(amxd_object_t *bss_instance, amxd_function_t *func,
+                                 amxc_var_t *args, amxc_var_t *ret)
+{
+    if (!g_database) {
+        LOG(ERROR) << "Invalid database access";
+        return amxd_status_unknown_error;
+    }
+
+    auto controller = g_database->get_controller_ctx();
+    if (!controller) {
+        LOG(ERROR) << "Failed to get controller context";
+        return amxd_status_unknown_error;
+    }
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+
+    amxd_object_get_param(bss_instance, "BSSID", &value);
+    const std::string bssid_str = amxc_var_constcast(cstring_t, &value);
+    amxc_var_clean(&value);
+
+    if (bssid_str.empty() || !network_utils::is_valid_mac(bssid_str)) {
+        LOG(ERROR) << "Invalid BSSID on BSS object";
+        return amxd_status_parameter_not_found;
+    }
+
+    const auto bssid = tlvf::mac_from_string(bssid_str);
+    auto radio       = g_database->get_radio_by_bssid(bssid);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio for BSSID " << bssid_str;
+        return amxd_status_parameter_not_found;
+    }
+
+    auto descriptors = get_list_argument(args, "QMDescriptor");
+    if (!descriptors) {
+        LOG(ERROR) << "QMDescriptor list is missing";
+        return amxd_status_invalid_value;
+    }
+
+    std::vector<sPendingQmDescriptor> pending_descriptors;
+    std::unordered_set<std::string> client_macs;
+
+    amxc_var_for_each(entry, descriptors)
+    {
+        std::string entry_bssid_str;
+        std::string client_mac_str;
+        std::string descriptor_element;
+
+        if (!read_string_value(entry, "ClientMAC", client_mac_str) ||
+            !read_string_value(entry, "DescriptorElement", descriptor_element)) {
+            LOG(ERROR) << "QMDescriptor entry is missing required fields";
+            return amxd_status_invalid_value;
+        }
+
+        if (!network_utils::is_valid_mac(client_mac_str)) {
+            LOG(ERROR) << "Invalid ClientMAC " << client_mac_str;
+            return amxd_status_invalid_value;
+        }
+
+        const auto client_mac            = tlvf::mac_from_string(client_mac_str);
+        const auto normalized_client_mac = tlvf::mac_to_string(client_mac);
+        if (!client_macs.insert(normalized_client_mac).second) {
+            LOG(ERROR) << "Duplicate QMDescriptor entry for client " << normalized_client_mac;
+            return amxd_status_invalid_value;
+        }
+
+        if (read_string_value(entry, "BSSID", entry_bssid_str) && !entry_bssid_str.empty()) {
+            if (!network_utils::is_valid_mac(entry_bssid_str) ||
+                tlvf::mac_from_string(entry_bssid_str) != bssid) {
+                LOG(ERROR) << "QMDescriptor entry BSSID does not match target BSS";
+                return amxd_status_invalid_value;
+            }
+        }
+
+        if (!is_strict_hex_string(descriptor_element)) {
+            LOG(ERROR) << "Invalid DescriptorElement for client " << normalized_client_mac;
+            return amxd_status_invalid_value;
+        }
+
+        const auto descriptor_bytes =
+            beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(descriptor_element);
+        if (!qos_management::is_valid_qos_management_descriptor_element(descriptor_bytes)) {
+            LOG(ERROR) << "Invalid DescriptorElement for client " << normalized_client_mac;
+            return amxd_status_invalid_value;
+        }
+
+        pending_descriptors.push_back({client_mac, std::move(descriptor_element)});
+    }
+
+    if (pending_descriptors.empty()) {
+        LOG(ERROR) << "QMDescriptor list is empty";
+        return amxd_status_invalid_value;
+    }
+
+    for (const auto &descriptor : pending_descriptors) {
+        if (!g_database->set_controller_qm_descriptor(bssid, descriptor.client_mac,
+                                                      descriptor.descriptor_element)) {
+            LOG(ERROR) << "Failed to configure controller QMDescriptor for client "
+                       << descriptor.client_mac;
+            return amxd_status_unknown_error;
+        }
+    }
+
+    controller->trigger_prioritization_config();
+    return amxd_status_ok;
+}
+
+/**
+ * @brief Configure the TR-181 SetQoSManagement inputs for the current BSS.
+ *
+ * Optional parameters defined by TR-181 for
+ * Device.WiFi.DataElements.Network.Device.Radio.BSS.SetQoSManagement,
+ * QosMapEnable, DSCPPolicyEnable and SCSTrafficDescriptionEnable, are
+ * currently rejected. The northbound surface keeps the full TR-181 shape,
+ * while QoS management currently exposes only MSCSEnable and SCSEnable.
+ */
+amxd_status_t set_qos_management(amxd_object_t *bss_instance, amxd_function_t *func,
+                                 amxc_var_t *args, amxc_var_t *ret)
+{
+    if (!g_database) {
+        LOG(ERROR) << "Invalid database access";
+        return amxd_status_unknown_error;
+    }
+
+    auto controller = g_database->get_controller_ctx();
+    if (!controller) {
+        LOG(ERROR) << "Failed to get controller context";
+        return amxd_status_unknown_error;
+    }
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+
+    amxd_object_get_param(bss_instance, "BSSID", &value);
+    const std::string bssid_str = amxc_var_constcast(cstring_t, &value);
+    amxc_var_clean(&value);
+
+    if (bssid_str.empty() || !network_utils::is_valid_mac(bssid_str)) {
+        LOG(ERROR) << "Invalid BSSID on BSS object";
+        return amxd_status_parameter_not_found;
+    }
+
+    auto radio = g_database->get_radio_by_bssid(tlvf::mac_from_string(bssid_str));
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio for BSSID " << bssid_str;
+        return amxd_status_parameter_not_found;
+    }
+
+    son::db::sQosManagementSettings settings = {};
+    g_database->get_bss_qos_management_settings(tlvf::mac_from_string(bssid_str), settings);
+
+    auto settings_object = amxd_object_get_child(bss_instance, "SetQoSManagementInput");
+    const auto qos_map_enable =
+        GET_ARG(args, "QosMapEnable")
+            ? GET_BOOL(args, "QosMapEnable")
+            : (settings_object ? get_param_bool(settings_object, "QosMapEnable") : false);
+    settings.mscs_enable = GET_ARG(args, "MSCSEnable")
+                               ? GET_BOOL(args, "MSCSEnable")
+                               : (settings_object ? get_param_bool(settings_object, "MSCSEnable")
+                                                  : settings.mscs_enable);
+    settings.scs_enable = GET_ARG(args, "SCSEnable")
+                              ? GET_BOOL(args, "SCSEnable")
+                              : (settings_object ? get_param_bool(settings_object, "SCSEnable")
+                                                 : settings.scs_enable);
+    const auto dscp_policy_enable =
+        GET_ARG(args, "DSCPPolicyEnable")
+            ? GET_BOOL(args, "DSCPPolicyEnable")
+            : (settings_object ? get_param_bool(settings_object, "DSCPPolicyEnable") : false);
+    const auto scs_traffic_description_enable =
+        GET_ARG(args, "SCSTrafficDescriptionEnable")
+            ? GET_BOOL(args, "SCSTrafficDescriptionEnable")
+            : (settings_object ? get_param_bool(settings_object, "SCSTrafficDescriptionEnable")
+                               : false);
+    settings.valid = true;
+
+    if (qos_map_enable || dscp_policy_enable || scs_traffic_description_enable) {
+        LOG(ERROR) << "QoS management does not expose QosMapEnable, "
+                   << "DSCPPolicyEnable and SCSTrafficDescriptionEnable";
+        return amxd_status_invalid_value;
+    }
+
+    if (!g_database->set_bss_qos_management_settings(tlvf::mac_from_string(bssid_str), settings)) {
+        LOG(ERROR) << "Failed to configure BSS QoS management settings for " << bssid_str;
+        return amxd_status_unknown_error;
+    }
+
+    controller->trigger_prioritization_config();
+    return amxd_status_ok;
+}
+
+/**
+ * @brief Trigger service prioritization and QoS management descriptor propagation.
+ */
 amxd_status_t trigger_prioritization(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
                                      amxc_var_t *ret)
 {
@@ -1054,6 +1350,70 @@ amxd_status_t trigger_prioritization(amxd_object_t *object, amxd_function_t *fun
     }
 
     g_database->dm_configure_service_prioritization();
+    controller->trigger_prioritization_config();
+    return amxd_status_ok;
+}
+
+/**
+ * @brief Configure the controller MSCS disallowed STA list.
+ */
+amxd_status_t set_mscs_disallowed(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
+                                  amxc_var_t *ret)
+{
+    if (!g_database) {
+        LOG(ERROR) << "Invalid database access";
+        return amxd_status_unknown_error;
+    }
+
+    auto controller = g_database->get_controller_ctx();
+    if (!controller) {
+        LOG(ERROR) << "Failed to get controller context";
+        return amxd_status_unknown_error;
+    }
+
+    std::vector<sMacAddr> sta_list;
+    if (!parse_mac_list_argument(args, "MSCSDisallowedStaList", sta_list)) {
+        LOG(ERROR) << "Failed to parse MSCSDisallowedStaList";
+        return amxd_status_invalid_value;
+    }
+
+    if (!g_database->set_mscs_disallowed_sta_list(sta_list)) {
+        LOG(ERROR) << "Failed to set MSCS disallowed STA list";
+        return amxd_status_unknown_error;
+    }
+
+    controller->trigger_prioritization_config();
+    return amxd_status_ok;
+}
+
+/**
+ * @brief Configure the controller SCS disallowed STA list.
+ */
+amxd_status_t set_scs_disallowed(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
+                                 amxc_var_t *ret)
+{
+    if (!g_database) {
+        LOG(ERROR) << "Invalid database access";
+        return amxd_status_unknown_error;
+    }
+
+    auto controller = g_database->get_controller_ctx();
+    if (!controller) {
+        LOG(ERROR) << "Failed to get controller context";
+        return amxd_status_unknown_error;
+    }
+
+    std::vector<sMacAddr> sta_list;
+    if (!parse_mac_list_argument(args, "SCSDisallowedStaList", sta_list)) {
+        LOG(ERROR) << "Failed to parse SCSDisallowedStaList";
+        return amxd_status_invalid_value;
+    }
+
+    if (!g_database->set_scs_disallowed_sta_list(sta_list)) {
+        LOG(ERROR) << "Failed to set SCS disallowed STA list";
+        return amxd_status_unknown_error;
+    }
+
     controller->trigger_prioritization_config();
     return amxd_status_ok;
 }
@@ -1431,8 +1791,16 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
          trigger_vbss_move},
         {"set_eht_operations", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.SetEHTOperations",
          set_eht_operations},
+        {"set_qm_descriptors", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.SetQMDescriptors",
+         set_qm_descriptors},
+        {"set_qos_management", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.SetQoSManagement",
+         set_qos_management},
         {"trigger_prioritization", DATAELEMENTS_ROOT_DM ".Network.SetServicePrioritization",
          trigger_prioritization},
+        {"set_mscs_disallowed", DATAELEMENTS_ROOT_DM ".Network.SetMSCSDisallowed",
+         set_mscs_disallowed},
+        {"set_scs_disallowed", DATAELEMENTS_ROOT_DM ".Network.SetSCSDisallowed",
+         set_scs_disallowed},
         {"add_unassociated_station",
          DATAELEMENTS_ROOT_DM ".Network.Device.Radio.AddUnassociatedStation",
          add_unassociated_station},

@@ -143,6 +143,12 @@ cACTION_CONTROL_HOSTAP_AP_ENABLED_NOTIFICATION:
   vap_id: int8_t
   vap_info: sVapInfo
 
+cACTION_CONTROL_BSS_SET_QOS_MANAGEMENT_REQUEST:
+  _type: class
+  bssid: sMacAddr
+  mscs_enable: uint8_t
+  scs_enable: uint8_t
+
 #################################################
 # CLIENT
 #################################################

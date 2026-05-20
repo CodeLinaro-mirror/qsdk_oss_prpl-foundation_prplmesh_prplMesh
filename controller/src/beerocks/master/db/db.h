@@ -15,6 +15,7 @@
 
 #include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_logging.h>
+#include <bcl/beerocks_qos_utils.h>
 #include <bcl/beerocks_wifi_channel.h>
 #include <bcl/network/network_utils.h>
 #include <bcl/son/son_wireless_utils.h>
@@ -91,6 +92,25 @@ public:
      * @brief An unordered map of parameters and their values.
      */
     using ValuesMap = std::unordered_map<std::string, std::string>;
+
+    /**
+     * @brief Controller-managed QoS management descriptor pending for an Agent.
+     */
+    struct sControllerQmDescriptor {
+        sMacAddr bssid      = beerocks::net::network_utils::ZERO_MAC;
+        sMacAddr client_mac = beerocks::net::network_utils::ZERO_MAC;
+        uint16_t qmid       = 0;
+        std::string descriptor_element;
+    };
+
+    /**
+     * @brief BSS QoS management enablement state.
+     */
+    struct sQosManagementSettings {
+        bool mscs_enable = false;
+        bool scs_enable  = false;
+        bool valid       = false;
+    };
 
     /**
      * @brief Client parameter names.
@@ -2337,6 +2357,125 @@ public:
                                      uint32_t esp_value);
 
     /**
+     * @brief Set a QoS management descriptor in Device.WiFi.DataElements Data Model.
+     *
+     * Data model path example:
+     * "Device.WiFi.DataElements.Network.Device.1.Radio.1.BSS.1.QMDescriptor.1.DescriptorElement"
+     *
+     * @param[in] bssid BSSID of the BSS.
+     * @param[in] client_mac MAC address of the STA for which the descriptor applies.
+     * @param[in] descriptor_element Hex-encoded descriptor element payload.
+     * @return True on success, otherwise false.
+     */
+    bool set_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac,
+                           const std::string &descriptor_element);
+
+    /**
+     * @brief Remove a QoS management descriptor from the Data Model.
+     *
+     * @param[in] bssid BSSID of the BSS.
+     * @param[in] client_mac MAC address of the STA for which the descriptor applies.
+     * @return True on success, otherwise false.
+     */
+    bool remove_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac);
+
+    /**
+     * @brief Store a controller-managed QoS management descriptor.
+     *
+     * Add requests allocate a controller QMID. Change and Remove requests reuse an existing QMID
+     * and fail if the controller has no descriptor state for the BSS/client pair. Remove requests
+     * are stored temporarily so they can be sent to the Agent with the reused QMID.
+     *
+     * @param[in] bssid BSSID of the BSS.
+     * @param[in] client_mac MAC address of the STA for which the descriptor applies.
+     * @param[in] descriptor_element Hex-encoded descriptor element payload.
+     * @return True on success, otherwise false.
+     */
+    bool set_controller_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac,
+                                      const std::string &descriptor_element);
+
+    /**
+     * @brief Get controller QoS management descriptors for an Agent.
+     *
+     * @param[in] al_mac Agent AL MAC address.
+     * @return QoS management descriptors owned by the Agent.
+     */
+    std::vector<sControllerQmDescriptor> get_controller_qm_descriptors(const sMacAddr &al_mac);
+
+    /**
+     * @brief Clear transient controller QoS management descriptors for an Agent.
+     *
+     * A transient descriptor is a Remove request that must be kept in DB/DM until
+     * send_prioritization() sends it to the Agent. After that send, the descriptor no longer
+     * represents desired controller state, so this function removes it from DB/DM and memory.
+     * Add and Change descriptors are left intact.
+     *
+     * @param[in] al_mac Agent AL MAC address.
+     * @return True on success, otherwise false.
+     */
+    bool clear_transient_controller_qm_descriptors(const sMacAddr &al_mac);
+
+    /**
+     * @brief Set the controller MSCS disallowed STA list.
+     *
+     * @param[in] sta_list STA MAC addresses disallowed for MSCS.
+     * @return True on success, otherwise false.
+     */
+    bool set_mscs_disallowed_sta_list(const std::vector<sMacAddr> &sta_list);
+
+    /**
+     * @brief Set the controller SCS disallowed STA list.
+     *
+     * @param[in] sta_list STA MAC addresses disallowed for SCS.
+     * @return True on success, otherwise false.
+     */
+    bool set_scs_disallowed_sta_list(const std::vector<sMacAddr> &sta_list);
+
+    /**
+     * @brief Get the controller MSCS disallowed STA list.
+     */
+    const std::vector<sMacAddr> &get_mscs_disallowed_sta_list() const
+    {
+        return m_mscs_disallowed_sta_list;
+    }
+
+    /**
+     * @brief Get the controller SCS disallowed STA list.
+     */
+    const std::vector<sMacAddr> &get_scs_disallowed_sta_list() const
+    {
+        return m_scs_disallowed_sta_list;
+    }
+
+    /**
+     * @brief Store QoS management settings for a BSS.
+     *
+     * @param[in] bssid BSSID to configure.
+     * @param[in] settings QoS management settings to store.
+     * @return True on success, otherwise false.
+     */
+    bool set_bss_qos_management_settings(const sMacAddr &bssid,
+                                         const sQosManagementSettings &settings);
+
+    /**
+     * @brief Get QoS management settings for a BSS.
+     *
+     * @param[in] bssid BSSID to query.
+     * @param[out] settings Stored settings when present.
+     * @return True if settings were found, otherwise false.
+     */
+    bool get_bss_qos_management_settings(const sMacAddr &bssid, sQosManagementSettings &settings);
+
+    /**
+     * @brief Get QoS management settings for all BSSes on an Agent.
+     *
+     * @param[in] al_mac Agent AL MAC address.
+     * @return BSS/settings pairs owned by the Agent.
+     */
+    std::vector<std::pair<sMacAddr, sQosManagementSettings>>
+    get_bss_qos_management_settings(const sMacAddr &al_mac);
+
+    /**
      * @brief Updates master configuration if a setting is changed through NBAPI.
      *
      * Data model path : "Device.WiFi.DataElements.Configuration" defined in controller.odl
@@ -2785,6 +2924,23 @@ public:
      * @return true on success, otherwise false.
      */
     bool dm_configure_service_prioritization();
+
+    /**
+     * @brief Update QoS management disallowed STA lists in the Data Model.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool dm_set_qos_management_disallowed_sta_lists();
+
+    /**
+     * @brief Update BSS QoS management settings in the Data Model.
+     *
+     * @param[in] bssid BSSID to configure.
+     * @param[in] settings QoS management settings to write.
+     * @return true on success, otherwise false.
+     */
+    bool dm_set_bss_qos_management_settings(const sMacAddr &bssid,
+                                            const sQosManagementSettings &settings);
 
     /** @brief Sets AP capability parameters for corresponding device.
      *
@@ -3405,6 +3561,28 @@ private:
      */
     std::unordered_map<sMacAddr, wireless_utils::s8021QSettings>
         default_8021q_settings; // key=al_mac
+
+    /**
+     * @brief Internal descriptor state with the controller-assigned QMID.
+     *
+     * Remove descriptors are transient: they are retained only until the remove request is sent to
+     * the owning Agent, then cleared from DB/DM and memory.
+     */
+    struct sStoredQmDescriptor {
+        uint16_t qmid = 0;
+        std::string descriptor_element;
+        beerocks::qos_management::eDescriptorRequestType request_type =
+            beerocks::qos_management::eDescriptorRequestType::Invalid;
+    };
+
+    std::unordered_map<sMacAddr, std::unordered_map<sMacAddr, sStoredQmDescriptor>>
+        m_controller_qm_descriptors;
+
+    std::vector<sMacAddr> m_mscs_disallowed_sta_list;
+    std::vector<sMacAddr> m_scs_disallowed_sta_list;
+
+    std::unordered_map<sMacAddr, sQosManagementSettings> m_bss_qos_management_settings;
+    uint16_t m_next_qmid = 1;
 
     Controller *m_controller_ctx = nullptr;
     const sMacAddr m_local_bridge_mac;

@@ -49,6 +49,7 @@
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvProfile2TrafficSeparationPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
+#include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
@@ -1759,6 +1760,63 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
             new_disallowed_stas.insert(std::get<1>(tuple));
         }
         db->steering_policy.btm_steering_disallowed = std::move(new_disallowed_stas);
+    }
+
+    auto qos_management_policy_tlv = cmdu_rx.getClass<wfa_map::tlvQoSManagementPolicy>();
+    if (qos_management_policy_tlv) {
+        for (auto radio : db->get_radios_list()) {
+            auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio->front.iface_name);
+            if (ap_manager_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+                LOG(ERROR) << "Invalid AP manager fd for radio " << radio->front.iface_name;
+                continue;
+            }
+
+            auto request = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_QOS_MANAGEMENT_POLICY_REQUEST>(m_cmdu_tx);
+            if (!request) {
+                LOG(ERROR) << "Failed building QoS management policy request";
+                return;
+            }
+            (void)request;
+
+            auto qos_policy_out = m_cmdu_tx.addClass<wfa_map::tlvQoSManagementPolicy>();
+            if (!qos_policy_out) {
+                LOG(ERROR) << "Failed adding QoS management policy TLV";
+                return;
+            }
+
+            if (!qos_policy_out->alloc_mscs_disallowed_sta_list(
+                    qos_management_policy_tlv->mscs_disallowed_sta_length())) {
+                LOG(ERROR) << "Failed allocating MSCS disallowed STA list";
+                return;
+            }
+            for (size_t i = 0; i < qos_management_policy_tlv->mscs_disallowed_sta_length(); ++i) {
+                auto in_tuple  = qos_management_policy_tlv->mscs_disallowed_sta_list(i);
+                auto out_tuple = qos_policy_out->mscs_disallowed_sta_list(i);
+                if (!std::get<0>(in_tuple) || !std::get<0>(out_tuple)) {
+                    LOG(ERROR) << "Failed copying MSCS disallowed STA at index " << i;
+                    return;
+                }
+                std::get<1>(out_tuple) = std::get<1>(in_tuple);
+            }
+
+            if (!qos_policy_out->alloc_scs_disallowed_sta_list(
+                    qos_management_policy_tlv->scs_disallowed_sta_length())) {
+                LOG(ERROR) << "Failed allocating SCS disallowed STA list";
+                return;
+            }
+            for (size_t i = 0; i < qos_management_policy_tlv->scs_disallowed_sta_length(); ++i) {
+                auto in_tuple  = qos_management_policy_tlv->scs_disallowed_sta_list(i);
+                auto out_tuple = qos_policy_out->scs_disallowed_sta_list(i);
+                if (!std::get<0>(in_tuple) || !std::get<0>(out_tuple)) {
+                    LOG(ERROR) << "Failed copying SCS disallowed STA at index " << i;
+                    return;
+                }
+                std::get<1>(out_tuple) = std::get<1>(in_tuple);
+            }
+
+            m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx);
+        }
     }
 
     /** Link Metrics Policy **/

@@ -16,6 +16,7 @@
 #include <tlvf/airties/tlvAirtiesRadioCapability.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsQuery.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
+#include <vector>
 
 namespace bwl {
 
@@ -592,6 +593,69 @@ public:
      * @return true if success else false.
      */
     virtual bool configure_service_priority(const uint8_t *data) = 0;
+
+    /**
+     * @brief Check whether the backend supports QoS management configuration.
+     *
+     * @return true if QoS management is supported, false otherwise.
+     */
+    virtual bool supports_qos_management() const { return false; }
+
+    /**
+     * @brief Apply one QoS management descriptor to a BSS client.
+     *
+     * @param [in] bssid BSSID for which the descriptor applies.
+     * @param [in] qmid QoS Management ID assigned by the controller.
+     * @param [in] client_mac Client MAC address.
+     * @param [in] descriptor_element SCS/MSCS descriptor element bytes.
+     * @return true on success or false on error.
+     */
+    virtual bool handle_qos_management_descriptor(const sMacAddr &bssid, uint16_t qmid,
+                                                  const sMacAddr &client_mac,
+                                                  const std::vector<uint8_t> &descriptor_element)
+    {
+        return false;
+    }
+
+    /**
+     * @brief Set the MSCS disallowed STA list for a BSS.
+     *
+     * @param [in] bssid BSSID to configure.
+     * @param [in] sta_list STA MAC addresses disallowed for MSCS.
+     * @return true on success or false on error.
+     */
+    virtual bool set_mscs_disallowed_sta_list(const sMacAddr &bssid,
+                                              const std::vector<sMacAddr> &sta_list)
+    {
+        return false;
+    }
+
+    /**
+     * @brief Set the SCS disallowed STA list for a BSS.
+     *
+     * @param [in] bssid BSSID to configure.
+     * @param [in] sta_list STA MAC addresses disallowed for SCS.
+     * @return true on success or false on error.
+     */
+    virtual bool set_scs_disallowed_sta_list(const sMacAddr &bssid,
+                                             const std::vector<sMacAddr> &sta_list)
+    {
+        return false;
+    }
+
+    /**
+     * @brief Enable or disable MSCS/SCS support for a BSS.
+     *
+     * @param [in] bssid BSSID to configure.
+     * @param [in] mscs_enable Whether MSCS is enabled.
+     * @param [in] scs_enable Whether SCS is enabled.
+     * @return true on success or false on error.
+     */
+    virtual bool set_qos_management_settings(const sMacAddr &bssid, bool mscs_enable,
+                                             bool scs_enable)
+    {
+        return false;
+    }
 
     /**
      * @brief Set Spatial reuse parameters
