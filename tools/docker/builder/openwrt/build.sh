@@ -163,9 +163,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-05-22"
-        OPENWRT_TOOLCHAIN_VERSION='436db5fd76ab58644597fa7978784b39874f3a21'
-        OPENWRT_VERSION='436db5fd76ab58644597fa7978784b39874f3a21'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-05-12 - QCA r6 fix dyndbg - QCA default reconfig patch"
+        OPENWRT_TOOLCHAIN_VERSION='101bc4c6db088b5946432e965fc9bbd3cc29df5a'
+        OPENWRT_VERSION='ead32cecec8539d97f367e6492cef481a5a0aafe'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -204,9 +204,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos latest-24.10_2026-05-22
-OPENWRT_TOOLCHAIN_VERSION='436db5fd76ab58644597fa7978784b39874f3a21'
-OPENWRT_VERSION='436db5fd76ab58644597fa7978784b39874f3a21'
+# prplos latest-24.10_2026-05-12
+OPENWRT_TOOLCHAIN_VERSION='101bc4c6db088b5946432e965fc9bbd3cc29df5a'
+OPENWRT_VERSION='101bc4c6db088b5946432e965fc9bbd3cc29df5a'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
