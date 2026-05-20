@@ -2473,28 +2473,39 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             if (msg->mld_mac_address != beerocks::net::network_utils::ZERO_MAC) {
                 db->bsta_mld_configuration->mld_config.mld_mac = msg->mld_mac_address;
             }
+            const bool disconnect =
+                (msg->affiliated_mac_address == beerocks::net::network_utils::ZERO_MAC);
 
-            const bool disconnect = (msg->affiliated_mac_address == beerocks::net::network_utils::ZERO_MAC);
-
-            for (auto &affiliated_bsta : db->bsta_mld_configuration->affiliated_bstas) {
-                if (affiliated_bsta.ruid != msg->ruid) {
-                    continue;
-                }
+            auto it = db->bsta_mld_configuration->affiliated_bstas.find(msg->ruid);
+            if (it != db->bsta_mld_configuration->affiliated_bstas.end()) {
                 if (disconnect) {
-                    affiliated_bsta.bssid = beerocks::net::network_utils::ZERO_MAC;
+                    it->second.mac_addr = beerocks::net::network_utils::ZERO_MAC;
                 } else {
-                    affiliated_bsta.bssid = msg->affiliated_mac_address;
+                    it->second.mac_addr = msg->affiliated_mac_address;
                 }
-                break;
+            } else if (!disconnect) {
+                AgentDB::sBStaMLDConfiguration::sAffiliatedBSta entry;
+                entry.mac_addr = msg->affiliated_mac_address;
+                entry.bssid    = beerocks::net::network_utils::ZERO_MAC;
+                db->bsta_mld_configuration->affiliated_bstas.emplace(msg->ruid, entry);
             }
-            for (const auto &b : db->bsta_mld_configuration->affiliated_bstas) {
-            LOG(DEBUG) << " Updated DB with Affiliated_bsta:"
-                      << " ruid=" << tlvf::mac_to_string(b.ruid)
-                      << " bssid=" << tlvf::mac_to_string(b.bssid);
+            if (!disconnect) {
+                for (const auto &kv : db->bsta_mld_configuration->affiliated_bstas) {
+                    if (kv.second.mac_addr != net::network_utils::ZERO_MAC) {
+                        m_task_pool.send_event(
+                            eTaskType::TOPOLOGY,
+                            static_cast<uint8_t>(
+                                TopologyTask::eEvent::BSTA_MLD_AFFILIATED_LINK_CHANGED));
+                        break;
+                    }
+                }
             }
-            m_task_pool.send_event(
-                eTaskType::TOPOLOGY,
-                static_cast<uint8_t>(TopologyTask::eEvent::BSTA_MLD_AFFILIATED_LINK_CHANGED));
+            for (const auto &kv : db->bsta_mld_configuration->affiliated_bstas) {
+                LOG(DEBUG) << " affiliated_bsta:"
+                           << " ruid=" << tlvf::mac_to_string(kv.first)
+                           << " mac_addr=" << tlvf::mac_to_string(kv.second.mac_addr)
+                           << " bssid=" << tlvf::mac_to_string(kv.second.bssid);
+            }
         } else {
             LOG(ERROR) << "Affiliated_Link_Connected empty message or bSTA configuration";
         }

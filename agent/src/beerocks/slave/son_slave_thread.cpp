@@ -6424,16 +6424,24 @@ bool slave_thread::add_backhaul_sta_mld_configuration_tlv(ieee1905_1::CmduMessag
 
     LOG(DEBUG) << "Sending BH Sta MLD configuration for "
                << db->bsta_mld_configuration->mld_config.mld_ssid
-               << " [mac=" << db->bsta_mld_configuration->mld_config.mld_mac
-               << ", mode=" << std::hex << db->bsta_mld_configuration->mld_config.mld_mode << "]";
+               << " [bsta_mld_mac=" << db->bsta_mld_configuration->mld_config.mld_mac
+               << " ap_mld_mac=" << db->bsta_mld_configuration->ap_mld_mac << ", mode=" << std::hex
+               << db->bsta_mld_configuration->mld_config.mld_mode << "]";
 
-    for (const auto &affiliated_bsta_conf : db->bsta_mld_configuration->affiliated_bstas) {
+    for (const auto &affiliated_bsta_kv : db->bsta_mld_configuration->affiliated_bstas) {
 
+        const sMacAddr &affiliated_ruid = affiliated_bsta_kv.first;
+        const AgentDB::sBStaMLDConfiguration::sAffiliatedBSta &affiliated_bsta_conf =
+            affiliated_bsta_kv.second;
         auto affiliated_bsta(tlvBackhaulStaMldConfiguration->create_affiliated_bsta());
         affiliated_bsta->affiliated_bsta_mac_addr_valid().is_valid =
-            (affiliated_bsta_conf.bssid != net::network_utils::ZERO_MAC);
-        affiliated_bsta->ruid()                     = affiliated_bsta_conf.ruid;
-        affiliated_bsta->affiliated_bsta_mac_addr() = affiliated_bsta_conf.bssid;
+            (affiliated_bsta_conf.mac_addr != net::network_utils::ZERO_MAC);
+        affiliated_bsta->ruid()                     = affiliated_ruid;
+        affiliated_bsta->affiliated_bsta_mac_addr() = affiliated_bsta_conf.mac_addr;
+
+        LOG(INFO) << "Added affiliated_bsta:"
+                  << " RUID = " << affiliated_bsta->ruid()
+                  << ", Affiliated MAC = " << affiliated_bsta->affiliated_bsta_mac_addr();
 
         if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(affiliated_bsta)) {
             LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";

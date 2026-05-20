@@ -683,11 +683,11 @@ public:
 
     typedef struct {
         typedef struct {
-            sMacAddr ruid;
+            sMacAddr mac_addr;
             sMacAddr bssid;
         } sAffiliatedBSta;
         sMLDConfiguration mld_config;
-        std::vector<sAffiliatedBSta> affiliated_bstas;
+        std::unordered_map<sMacAddr, sAffiliatedBSta> affiliated_bstas;
         sMacAddr ap_mld_mac;
     } sBStaMLDConfiguration;
 
