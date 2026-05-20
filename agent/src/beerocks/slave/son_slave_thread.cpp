@@ -3231,7 +3231,20 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             pending_wds_it->second.bssid == bssid) {
             m_pending_wds_iface_notifications.erase(pending_wds_it);
         }
-        db->erase_client(client_mac, bssid);
+
+        // Find if STA is MLD, if so update BSSID as AP MLD MAC
+        auto mld_it = db->associated_sta_mlds.find(client_mac);
+        if (mld_it != db->associated_sta_mlds.end()) {
+            LOG(DEBUG) << "Removing MLO client from associated_sta_mlds: STA MLD=" << client_mac
+                       << ", AP MLD=" << mld_it->second.mld_config.ap_mld_mac;
+
+            bssid = mld_it->second.mld_config.ap_mld_mac;
+
+            db->erase_client(client_mac);
+            mld_it = db->associated_sta_mlds.end();
+        } else {
+            db->erase_client(client_mac, bssid);
+        }
 
         // notify master
         if (!link_to_controller()) {
@@ -3257,8 +3270,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             LOG(ERROR) << "addClass tlvClientAssociationEvent failed";
             return false;
         }
-        client_association_event_tlv->client_mac() = notification_in->params().mac;
-        client_association_event_tlv->bssid()      = notification_in->params().bssid;
+        client_association_event_tlv->client_mac() = client_mac;
+        client_association_event_tlv->bssid()      = bssid;
         client_association_event_tlv->association_event() =
             wfa_map::tlvClientAssociationEvent::CLIENT_HAS_LEFT_THE_BSS;
 
