@@ -2540,8 +2540,8 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
     if (!bsta_mld_configuration) {
         db->bsta_mld_configuration.reset();
         LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, Setting MLDUNit to -1";
-        send_bsta_mld_configuration(
-               ruid, DISABLED_MLDUNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
+        send_bsta_mld_configuration(ruid, DISABLED_MLDUNIT,
+                                    static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
         return true;
     }
 
@@ -2598,7 +2598,6 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
             ruid, DISABLED_MLDUNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
     }
 
-    db->bsta_mld_configuration->affiliated_bstas.clear();
     std::ostringstream radio_list_ss;
     for (uint8_t affiliated_bsta_it = 0;
          affiliated_bsta_it < bsta_mld_configuration->num_affiliated_bsta(); ++affiliated_bsta_it) {
@@ -2609,17 +2608,27 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
             return false;
         }
 
-        AgentDB::sBStaMLDConfiguration::sAffiliatedBSta affiliated_conf;
         wfa_map::cAffiliatedBhSta &affiliated_bsta = std::get<1>(affiliated_bsta_tuple);
-        affiliated_conf.ruid                       = affiliated_bsta.ruid();
-        affiliated_conf.bssid = affiliated_bsta.affiliated_bsta_mac_addr_valid().is_valid
-                                    ? affiliated_bsta.affiliated_bsta_mac_addr()
-                                    : net::network_utils::ZERO_MAC;
-        db->bsta_mld_configuration->affiliated_bstas.push_back(affiliated_conf);
-        radio_list_ss << " " << tlvf::mac_to_string(affiliated_conf.ruid);
+        const sMacAddr in_ruid                     = affiliated_bsta.ruid();
+
+        // operator[] will insert a default entry if in_ruid is not present
+        AgentDB::sBStaMLDConfiguration::sAffiliatedBSta &entry =
+            db->bsta_mld_configuration->affiliated_bstas[in_ruid];
+        const bool valid = affiliated_bsta.affiliated_bsta_mac_addr_valid().is_valid;
+        const sMacAddr in_bsta_mld_mac =
+            valid ? affiliated_bsta.affiliated_bsta_mac_addr() : net::network_utils::ZERO_MAC;
+
+        if (valid) {
+            entry.mac_addr = in_bsta_mld_mac;
+        } else if (entry.mac_addr == net::network_utils::ZERO_MAC) {
+            entry.mac_addr = in_bsta_mld_mac;
+        }
+
+        entry.bssid = net::network_utils::ZERO_MAC;
+        radio_list_ss << " " << tlvf::mac_to_string(in_ruid);
 
         // Push bSTA MLD Configuration per ruid
-        bsta_mld_requests_infos[affiliated_conf.ruid] = {
+        bsta_mld_requests_infos[in_ruid] = {
             db->bsta_mld_configuration->mld_config.mld_unit,
             static_cast<uint8_t>(db->bsta_mld_configuration->mld_config.mld_mode)};
     }
@@ -2638,6 +2647,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         // If found in old config but not in new config, disable it
         if (it != curr_bsta_mld_infos.end() &&
             bsta_mld_requests_infos.find(bsta_ruid) == bsta_mld_requests_infos.end()) {
+            db->bsta_mld_configuration->affiliated_bstas.erase(bsta_ruid);
             send_bsta_mld_configuration(
                 bsta_ruid, DISABLED_MLDUNIT,
                 static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
