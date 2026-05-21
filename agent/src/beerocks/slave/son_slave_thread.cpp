@@ -41,6 +41,7 @@
 #include <beerocks/tlvf/beerocks_message_monitor.h>
 #include <beerocks/tlvf/beerocks_message_platform.h>
 #include <mapf/common/utils.h>
+
 #include <tlvf/AttrList.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
@@ -68,6 +69,7 @@
 #include <tlvf/wfa_map/tlvSteeringRequest.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
+#include <utility>
 
 #include "gate/1905_beacon_query_to_vs.h"
 #include "gate/vs_beacon_response_to_1905.h"
@@ -6734,13 +6736,13 @@ bool slave_thread::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
             eht_operations_bss->disabled_subchannel_bitmap() =
                 eht_ops->operation_informations.disabled_subchannel_bitmap;
 
-            if (!eht_operations_radio->add_bss_entries(eht_operations_bss)) {
+            if (!eht_operations_radio->add_bss_entries(std::move(eht_operations_bss))) {
                 LOG(ERROR) << "Failed adding BSS entry in eht operation TLV for ssid " << bss.ssid;
                 return false;
             }
         }
 
-        if (!tlv->add_radio_entries(eht_operations_radio)) {
+        if (!tlv->add_radio_entries(std::move(eht_operations_radio))) {
             LOG(ERROR) << "Failed adding Radio entry in eht operation TLV for mac "
                        << radio->front.iface_mac;
             return false;

@@ -409,6 +409,7 @@ private:
     sLoopIfaceInfo classify_loop_iface(uint32_t iface_index) const;
     const char *loop_iface_type_to_string(eLoopIfaceType iface_type) const;
     int wireless_loop_preference(beerocks::eFreqType freq_type) const;
+    AgentDB::sEthernetPort wired_candidate_with_mac(const AgentDB::sEthernetPort &candidate) const;
     bool find_wired_candidate(const std::string &iface_name,
                               AgentDB::sEthernetPort &candidate) const;
     bool wired_candidate_is_available(const std::string &iface_name) const;
