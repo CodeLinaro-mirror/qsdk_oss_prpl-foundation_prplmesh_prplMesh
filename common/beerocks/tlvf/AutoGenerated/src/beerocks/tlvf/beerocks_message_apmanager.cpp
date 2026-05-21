@@ -5342,6 +5342,10 @@ uint8_t& cACTION_APMANAGER_MLD_UPDATE_REQUEST::mld_mode() {
     return (uint8_t&)(*m_mld_mode);
 }
 
+uint8_t& cACTION_APMANAGER_MLD_UPDATE_REQUEST::reconfigure() {
+    return (uint8_t&)(*m_reconfigure);
+}
+
 void cACTION_APMANAGER_MLD_UPDATE_REQUEST::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
@@ -5380,6 +5384,7 @@ size_t cACTION_APMANAGER_MLD_UPDATE_REQUEST::get_initial_size()
     class_size += 32 * sizeof(char); // ssid
     class_size += sizeof(int8_t); // mld_unit
     class_size += sizeof(uint8_t); // mld_mode
+    class_size += sizeof(uint8_t); // reconfigure
     return class_size;
 }
 
@@ -5401,6 +5406,11 @@ bool cACTION_APMANAGER_MLD_UPDATE_REQUEST::init()
         return false;
     }
     m_mld_mode = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_reconfigure = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;

@@ -221,8 +221,22 @@ private:
                            std::unordered_set<std::string> &misconfigured_ssids);
     bool handle_wsc_m8_tlv(const std::string &radio_iface, std::shared_ptr<WSC::m8> m8,
                            sBStaConfig &info);
+
+    /**
+     * @brief Send AP MLD Configuration to FHs
+     * 
+     * This API is triggered based on AP MLD Configuration TLV.
+     * TLV is called in M2 Message Flow (Onboarding) and also
+     * direct AP MLD Config Request Message (Reconfigure).
+     * 
+     * @param radio_iface Radio interface name.
+     * @param ssid SSID with that APMLD
+     * @param mld_mode New MLD mode bitmask to apply.
+     * @param reconfigure Reconfiguration Flag based on source of trigger.
+     * @return true if the request was sent successfully, false otherwise.
+     */
     bool send_ap_mld_configuration(const std::string &radio_iface, std::string ssid,
-                                   int8_t mld_unit, uint8_t mld_mode);
+                                   int8_t mld_unit, uint8_t mld_mode, bool reconfigure);
 
     /**
     * @brief Sends AP-MLD mode-only update for a specific SSID on a radio.

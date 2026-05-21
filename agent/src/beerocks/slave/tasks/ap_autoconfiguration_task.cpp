@@ -567,12 +567,12 @@ bool ApAutoConfigurationTask::handle_ap_mld_configuration_request(
         return false;
     }
 
-    // Send AP MLD Configuration
+    // Send AP MLD Configuration as Reconfig Flow True
     for (auto radio : db->get_radios_list()) {
         for (auto &ap_mld_request : m_ap_mld_requests_infos[radio->front.iface_name]) {
             send_ap_mld_configuration(radio->front.iface_name, ap_mld_request.first,
                                       std::get<0>(ap_mld_request.second),
-                                      std::get<1>(ap_mld_request.second));
+                                      std::get<1>(ap_mld_request.second), true);
         }
     }
 
@@ -2247,7 +2247,7 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
 
 bool ApAutoConfigurationTask::send_ap_mld_configuration(const std::string &radio_iface,
                                                         std::string ssid, int8_t mld_unit,
-                                                        uint8_t mld_mode)
+                                                        uint8_t mld_mode, bool reconfigure)
 {
     auto request =
         message_com::create_vs_message<beerocks_message::cACTION_APMANAGER_MLD_UPDATE_REQUEST>(
@@ -2258,8 +2258,9 @@ bool ApAutoConfigurationTask::send_ap_mld_configuration(const std::string &radio
     }
 
     request->set_ssid(ssid);
-    request->mld_unit() = mld_unit;
-    request->mld_mode() = mld_mode;
+    request->mld_unit()    = mld_unit;
+    request->mld_mode()    = mld_mode;
+    request->reconfigure() = reconfigure;
     LOG(DEBUG) << "Send ACTION_APMANAGER_MLD_UPDATE_REQUEST (iface: " << radio_iface
                << ", ssid: " << ssid << ", mld_unit: " << mld_unit;
     auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio_iface);
@@ -2409,9 +2410,10 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
             auto new_iface_it = m_ap_mld_requests_infos.find(iface_name);
             if (new_iface_it == m_ap_mld_requests_infos.end() ||
                 new_iface_it->second.find(ssid) == new_iface_it->second.end()) {
-                // SSID not found in new configuration, disable it
+                // SSID not found in new configuration, disable it, radio_iface.empty refers to Reconfig flow
                 send_ap_mld_configuration(iface_name, ssid, DISABLED_MLDUNIT,
-                                          AgentDB::sMLDConfiguration::mode::NONE);
+                                          AgentDB::sMLDConfiguration::mode::NONE,
+                                          radio_iface.empty());
             }
         }
     };

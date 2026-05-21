@@ -696,7 +696,7 @@ public:
     /**
      * @brief Set MLDMode in DM
      * 
-     * @param iface_name interface name to get the SSID assocaited to mld_unit
+     * @param ssid the SSID associated to mld group
      * @param mld_mode mld mode to be set
      * @return true if MLDMode is set correctly, false otherwise.
      */
@@ -707,9 +707,10 @@ public:
      * 
      * @param iface_name interface name to get the SSID assocaited to mld_unit
      * @param mld_unit mld unit to be set
+     * @param reconfigure flag to indicate reconfiguration flow
      * @return true if MLDUnit is set correctly, false otherwise.
      */
-    virtual bool update_mld_unit(std::string ssid, int8_t mld_unit) = 0;
+    virtual bool update_mld_unit(std::string ssid, int8_t mld_unit, bool reconfigure) = 0;
 
 private:
     static const int frame_body_idx = (sizeof(s80211MgmtFrame::sHeader) * 2);
