@@ -73,6 +73,9 @@ ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
+# Sets the DTIMPeriod for R6 - 4.4.4 Test
+ba-cli WiFi.Radio.*.DTIMPeriod=2
+
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
