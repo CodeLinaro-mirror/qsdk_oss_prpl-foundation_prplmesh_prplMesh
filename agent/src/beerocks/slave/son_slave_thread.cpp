@@ -6435,7 +6435,7 @@ bool slave_thread::add_backhaul_sta_mld_configuration_tlv(ieee1905_1::CmduMessag
         affiliated_bsta->ruid()                     = affiliated_bsta_conf.ruid;
         affiliated_bsta->affiliated_bsta_mac_addr() = affiliated_bsta_conf.bssid;
 
-        if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(affiliated_bsta)) {
+        if (!tlvBackhaulStaMldConfiguration->add_affiliated_bsta(std::move(affiliated_bsta))) {
             LOG(ERROR) << "add_affiliated_bsta() failed in tlvBackhaulStaMldConfiguration";
             return false;
         }

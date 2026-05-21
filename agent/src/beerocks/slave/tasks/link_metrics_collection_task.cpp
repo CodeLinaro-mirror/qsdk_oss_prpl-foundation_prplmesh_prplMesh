@@ -716,7 +716,8 @@ bool LinkMetricsCollectionTask::add_assoc_sta_mld_config_report(
         affiliated_sta->bssid() = affiliated_sta_conf.bssid;
         affiliated_sta->mac()   = affiliated_sta_conf.affiliated_sta_mac;
 
-        if (!tlvAssociatedStaMldConfigurationReport->add_affiliated_sta(affiliated_sta)) {
+        if (!tlvAssociatedStaMldConfigurationReport->add_affiliated_sta(
+                std::move(affiliated_sta))) {
             LOG(ERROR) << "add_affiliated_sta() in tlvAssociatedStaMldConfigurationReport failed";
             return false;
         }

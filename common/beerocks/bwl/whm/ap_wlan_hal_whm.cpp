@@ -1831,8 +1831,11 @@ bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
 
         msg->params.status_code = status_code;
         if (msg->params.status_code == 0) {
-            event_data->read_child(data, "TargetBssid");
-            msg->params.target_bssid = tlvf::mac_from_string(data);
+            if (event_data->read_child(data, "TargetBssid")) {
+                msg->params.target_bssid = tlvf::mac_from_string(data);
+            } else {
+                msg->params.target_bssid = net::network_utils::ZERO_MAC;
+            }
         } else {
             LOG(ERROR) << "BSS Transition Management Query for station " << msg->params.mac
                        << " has been rejected with Status code = " << msg->params.status_code;
