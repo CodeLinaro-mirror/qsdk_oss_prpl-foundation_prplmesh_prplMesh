@@ -19,6 +19,8 @@
 #include <netinet/in.h>      // IPPROTO_IP
 #include <unistd.h>          // close
 
+#include <utility>
+
 using namespace beerocks::net;
 
 namespace beerocks {
@@ -200,7 +202,7 @@ bool wan_monitor::process(std::vector<LinkEvent> &events)
         }
 
         LinkEvent event;
-        event.iface_name = iface_name;
+        event.iface_name = std::move(iface_name);
         event.nlmsg_type = int(hnl->nlmsg_type);
 
         // RTM_NEWLINK with IFF_RUNNING means link is detected.
@@ -212,7 +214,7 @@ bool wan_monitor::process(std::vector<LinkEvent> &events)
         LOG(DEBUG) << "Interface '" << event.iface_name << "', msg_type: " << event.nlmsg_type
                    << ", link_state: " << link_state_to_string(event.link_state);
 
-        events.push_back(event);
+        events.push_back(std::move(event));
     }
 
     return true;

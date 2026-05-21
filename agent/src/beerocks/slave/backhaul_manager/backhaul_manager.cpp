@@ -556,6 +556,36 @@ void BackhaulManager::handle_duplicate_cmdu_notification(
                  << " type=" << loop_iface_type_to_string(block_iface->iface_type);
 }
 
+AgentDB::sEthernetPort
+BackhaulManager::wired_candidate_with_mac(const AgentDB::sEthernetPort &candidate) const
+{
+    auto resolved_candidate = candidate;
+    if (resolved_candidate.iface_name.empty() ||
+        resolved_candidate.mac != beerocks::net::network_utils::ZERO_MAC) {
+        return resolved_candidate;
+    }
+
+    auto db = AgentDB::get();
+    for (const auto &lan_iface : db->ethernet.lan) {
+        if (lan_iface.iface_name == resolved_candidate.iface_name &&
+            lan_iface.mac != beerocks::net::network_utils::ZERO_MAC) {
+            resolved_candidate.mac = lan_iface.mac;
+            return resolved_candidate;
+        }
+    }
+
+    std::string iface_mac;
+    if (beerocks::net::network_utils::linux_iface_get_mac(resolved_candidate.iface_name,
+                                                          iface_mac)) {
+        resolved_candidate.mac = tlvf::mac_from_string(iface_mac);
+    } else {
+        LOG(WARNING) << "Failed getting MAC address for wired backhaul candidate "
+                     << resolved_candidate.iface_name;
+    }
+
+    return resolved_candidate;
+}
+
 bool BackhaulManager::find_wired_candidate(const std::string &iface_name,
                                            AgentDB::sEthernetPort &candidate) const
 {
@@ -572,7 +602,7 @@ bool BackhaulManager::find_wired_candidate(const std::string &iface_name,
         return false;
     }
 
-    candidate = *it;
+    candidate = wired_candidate_with_mac(*it);
     return true;
 }
 
@@ -1300,7 +1330,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                 }
 
                 sBackhaulWireInterface wire_iface;
-                wire_iface.ethernet_port = candidate;
+                wire_iface.ethernet_port = wired_candidate_with_mac(candidate);
 
                 // Initial state is required because netlink reports only changes.
                 // The link may be already up before wan_monitor starts.
