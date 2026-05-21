@@ -61,6 +61,7 @@
 #include <bpl/bpl_board.h>
 #include <bpl/bpl_cfg.h>
 
+#include <algorithm>
 #include <functional>
 #include <sstream>
 
@@ -73,6 +74,24 @@ using namespace net;
 using namespace multi_vendor;
 
 namespace {
+bool is_wired_backhaul_candidate(const std::string &iface_name)
+{
+    auto db = AgentDB::get();
+    return std::any_of(db->ethernet.wan_candidates.begin(), db->ethernet.wan_candidates.end(),
+                       [&](const AgentDB::sEthernetPort &candidate) {
+                           return candidate.iface_name == iface_name;
+                       });
+}
+
+bool is_lan_ethernet_iface(const std::string &iface_name)
+{
+    auto db = AgentDB::get();
+    return std::any_of(db->ethernet.lan.begin(), db->ethernet.lan.end(),
+                       [&](const AgentDB::sEthernetPort &lan_iface) {
+                           return lan_iface.iface_name == iface_name;
+                       });
+}
+
 bool is_valid_op_std(const std::string &radio_iface,
                      const airties::tlvAirtiesRadioCapability::sStandards &op_std)
 {
@@ -1315,7 +1334,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
     if (discovery_status_it != m_discovery_status.end() && discovery_status_it->second.completed) {
         return;
     }
-    m_discovery_status[freq_type].completed = true;
 
     LOG(DEBUG) << "received ap_autoconfiguration response for " << band_name << " band";
 
@@ -1388,19 +1406,31 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
         LOG(WARNING)
             << "Invalid tlvSupportedService - supported service is not MULTI_AP_CONTROLLER";
         return;
-    } else {
-        m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_DISCOVERED);
     }
 
-    if (iface_index != 0 &&
-        db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
-        // BackhaulManager sends a low-rate AP-Autoconfiguration Search while the agent is in the
-        // wireless path. The response is handled here, so forward the ingress interface index to
-        // BackhaulManager; it will verify that the interface is a wired candidate before switching.
-        LOG(DEBUG) << "Controller discovery response received on iface_index=" << iface_index
-                   << ". Notifying BackhaulManager.";
-        m_btl_ctx.send_event(slave_thread::eEvent::WIRED_CONTROLLER_DETECTED, iface_index);
+    if (iface_index != 0) {
+        const auto iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+        const bool wired_backhaul_candidate = is_wired_backhaul_candidate(iface_name);
+
+        // A wired AP-Autoconfiguration Response is enough to prove controller reachability on
+        // that port. Enforce the configured candidate policy here before the generic
+        // CONTROLLER_DISCOVERED event can make the agent appear connected through a non-candidate
+        // Ethernet path. Wireless/local-bus responses are intentionally left to the normal flow.
+        if (!wired_backhaul_candidate && is_lan_ethernet_iface(iface_name)) {
+            LOG(WARNING) << "Ignoring AP-Autoconfiguration Response from controller on "
+                            "non-candidate wired interface "
+                         << iface_name << " (iface_index=" << iface_index << ")";
+            return;
+        }
+
+        if (wired_backhaul_candidate) {
+            LOG(DEBUG) << "Controller discovery response received on wired candidate " << iface_name
+                       << " (iface_index=" << iface_index << "). Notifying BackhaulManager.";
+            m_btl_ctx.send_event(slave_thread::eEvent::WIRED_CONTROLLER_DETECTED, iface_index);
+        }
     }
+
+    m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_DISCOVERED);
 
     // Mark discovery status completed on band mentioned on the response and fill AgentDB fields.
     db->controller_info.prplmesh_controller           = prplmesh_controller;

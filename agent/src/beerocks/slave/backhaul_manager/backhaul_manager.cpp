@@ -770,12 +770,13 @@ bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
         return false;
     }
 
-    auto db = AgentDB::get();
-    if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+    auto db         = AgentDB::get();
+    auto iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+    if (iface_name.empty()) {
+        LOG(WARNING) << "Controller detected on unknown interface index " << iface_index;
         return false;
     }
 
-    auto iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
     AgentDB::sEthernetPort candidate;
     if (!find_wired_candidate(iface_name, candidate)) {
         LOG(WARNING) << "Controller detected on non-candidate wired interface " << iface_name
@@ -788,6 +789,26 @@ bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
         LOG(DEBUG) << "Ignoring AP-Autoconfiguration Response on wired candidate " << iface_name
                    << ": candidate is no longer up and bridged";
         return false;
+    }
+
+    if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+        if (db->backhaul.selected_iface_name == iface_name) {
+            LOG(DEBUG) << "Controller AP-Autoconfiguration Response received on selected wired "
+                          "backhaul iface "
+                       << iface_name;
+            return true;
+        }
+
+        LOG(INFO) << "Updating selected wired backhaul iface from "
+                  << db->backhaul.selected_iface_name << " to " << iface_name
+                  << " based on AP-Autoconfiguration Response";
+
+        // The response tells us which candidate actually carries controller traffic. Keep the
+        // current wired session, but correct the DB metadata so status/logs reflect the real port.
+        db->ethernet.wan                  = candidate;
+        db->backhaul.selected_iface_name  = iface_name;
+        m_preferred_wired_candidate_iface = iface_name;
+        return true;
     }
 
     if (FSM_IS_IN_STATE(RESTART) && m_preferred_wired_candidate_iface == iface_name) {
