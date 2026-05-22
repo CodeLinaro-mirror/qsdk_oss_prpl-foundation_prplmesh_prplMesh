@@ -579,7 +579,7 @@ enum class Level : base::type::EnumType {
   Trace = 2,
   /// @brief Informational events most useful for developers to debug application
   Debug = 4,
-  /// @brief Severe error information that will presumably abort application
+  /// @brief Severe error information that will presumably exit application
   Fatal = 8,
   /// @brief Information representing errors in application but application will keep running
   Error = 16,
@@ -704,8 +704,8 @@ enum class LoggingFlag : base::type::EnumType {
   AllowVerboseIfModuleNotSpecified = 2,
   /// @brief When handling crashes by default, detailed crash reason will be logged as well
   LogDetailedCrashReason = 4,
-  /// @brief Allows to disable application abortion when logged using FATAL level
-  DisableApplicationAbortOnFatalLog = 8,
+  /// @brief Allows to disable application exit when logged using FATAL level
+  DisableApplicationExitOnFatalLog = 8,
   /// @brief Flushes log with every log-entry (performance sensative) - Disabled by default
   ImmediateFlush = 16,
   /// @brief Enables strict file rolling
