@@ -1459,6 +1459,7 @@ class cACTION_APMANAGER_MLD_UPDATE_REQUEST : public BaseClass
         bool set_ssid(const char buffer[], size_t size);
         int8_t& mld_unit();
         uint8_t& mld_mode();
+        uint8_t& reconfigure();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -1471,6 +1472,7 @@ class cACTION_APMANAGER_MLD_UPDATE_REQUEST : public BaseClass
         int m_lock_order_counter__ = 0;
         int8_t* m_mld_unit = nullptr;
         uint8_t* m_mld_mode = nullptr;
+        uint8_t* m_reconfigure = nullptr;
 };
 
 class cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST : public BaseClass

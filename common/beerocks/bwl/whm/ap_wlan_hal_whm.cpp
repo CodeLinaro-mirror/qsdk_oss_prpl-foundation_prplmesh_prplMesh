@@ -2578,7 +2578,7 @@ bool ap_wlan_hal_whm::update_mld_mode(std::string ssid, uint8_t mld_mode)
     return true;
 }
 
-bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit)
+bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit, bool reconfigure)
 {
     std::string radio_path_no_dot = m_radio_path;
     if (radio_path_no_dot.back() == '.') {
@@ -2602,6 +2602,17 @@ bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit)
 
     AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
     new_obj.add_child("MLDUnit", mld_unit);
+
+    // Reconfiguration mandates the change of SSID state
+    if (reconfigure) {
+        LOG(INFO) << " Reconfiguration is TRUE, SSID Enable: " << (mld_unit != DISABLED_MLDUNIT);
+
+        if (mld_unit == DISABLED_MLDUNIT) {
+            new_obj.add_child("Enable", false);
+        } else {
+            new_obj.add_child("Enable", true);
+        }
+    }
 
     auto it                      = ssids->begin();
     const std::string &ssid_path = it->first;
