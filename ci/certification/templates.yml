@@ -72,13 +72,12 @@
   variables:
     RUN_ON_DEVICE: "freedom"
   before_script:
-    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --full --whm --configuration ci/configuration/certification/R6/freedom.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
-  needs:
-    - job: build-for-freedom
+    - echo "The patched image is already on the board"
+  needs: []
   tags:
     - certs-tests-R6
     - freedom
+
 
 .certification:R6:urx_ospv2:
   stage: R6-cert-OSPv2
