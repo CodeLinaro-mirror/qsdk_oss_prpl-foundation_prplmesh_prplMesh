@@ -8,6 +8,7 @@
 
 #include "ap_autoconfiguration_task.h"
 #include "link_metrics_collection_task.h"
+#include "service_prioritization_task.h"
 #include "traffic_separation_task.h"
 
 #include "../agent_db.h"
@@ -2915,6 +2916,10 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
             m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                                TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
                                                client.wds_iface_name.c_str());
+            m_btl_ctx.task_pool_try_send_event(
+                eTaskType::SERVICE_PRIORITIZATION,
+                ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                client.wds_iface_name.c_str());
         }
     }
 
@@ -2935,8 +2940,15 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
             m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                                TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
                                                client.wds_iface_name.c_str());
+            m_btl_ctx.task_pool_try_send_event(
+                eTaskType::SERVICE_PRIORITIZATION,
+                ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                client.wds_iface_name.c_str());
             m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
                                                TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                                               client.wds_iface_name.c_str());
+            m_btl_ctx.task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                               ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
                                                client.wds_iface_name.c_str());
         }
     }

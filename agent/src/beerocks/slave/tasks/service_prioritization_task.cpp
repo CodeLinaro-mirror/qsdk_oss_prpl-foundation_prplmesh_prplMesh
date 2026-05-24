@@ -18,8 +18,12 @@
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 
+#include <vector>
+
 namespace beerocks {
 using namespace net;
+
+constexpr int ServicePrioritizationTask::WDS_RETRY_TIMEOUT_MS;
 
 ServicePrioritizationTask::ServicePrioritizationTask(slave_thread &btl_ctx,
                                                      ieee1905_1::CmduMessageTx &cmdu_tx)
@@ -29,6 +33,13 @@ ServicePrioritizationTask::ServicePrioritizationTask(slave_thread &btl_ctx,
     if (!service_prio_utils) {
         LOG(ERROR) << "failed to register service prio utils";
     }
+}
+
+bool ServicePrioritizationTask::clear_configuration()
+{
+    m_pending_wds_ifaces.clear();
+    clear_scheduled_work();
+    return qos_flush_setup();
 }
 
 bool ServicePrioritizationTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx,
@@ -47,6 +58,208 @@ bool ServicePrioritizationTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx,
     }
     }
     return true;
+}
+
+void ServicePrioritizationTask::work()
+{
+    if (!should_run_now()) {
+        return;
+    }
+
+    clear_scheduled_work();
+
+    if (!retry_pending_wds_ifaces()) {
+        LOG(WARNING) << "pending WDS QoS retry failed";
+    }
+}
+
+void ServicePrioritizationTask::handle_event(uint8_t event_enum_value, const void *event_obj)
+{
+    switch (eEvent(event_enum_value)) {
+    case QOS_NEW_WDS_IFACE: {
+        if (!event_obj) {
+            LOG(ERROR) << "QOS_NEW_WDS_IFACE requires event payload";
+            break;
+        }
+
+        auto iface_name = static_cast<const char *>(event_obj);
+        if (!handle_new_wds_iface(iface_name)) {
+            LOG(WARNING) << "add WDS QoS iface failed";
+        }
+        break;
+    }
+    case QOS_CLEAR_WDS_IFACE: {
+        if (!event_obj) {
+            LOG(ERROR) << "QOS_CLEAR_WDS_IFACE requires event payload";
+            break;
+        }
+
+        if (!service_prio_utils) {
+            LOG(ERROR) << "Service Priority Utilities are not found";
+            break;
+        }
+
+        auto iface_name = static_cast<const char *>(event_obj);
+        if (!handle_clear_wds_iface(iface_name)) {
+            LOG(WARNING) << "clear WDS QoS iface failed";
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void ServicePrioritizationTask::run_at(std::chrono::steady_clock::time_point due)
+{
+    m_pending = true;
+
+    if (m_next_run == std::chrono::steady_clock::time_point::min() || due < m_next_run) {
+        m_next_run = due;
+    }
+}
+
+void ServicePrioritizationTask::request_wds_retry(const std::string &iface_name,
+                                                  std::chrono::steady_clock::time_point not_before,
+                                                  std::chrono::steady_clock::time_point deadline)
+{
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return;
+    }
+
+    auto pending_it = m_pending_wds_ifaces.find(iface_name);
+    if (pending_it == m_pending_wds_ifaces.end()) {
+        pending_it =
+            m_pending_wds_ifaces.emplace(iface_name, sPendingWdsIfaceState{not_before, deadline})
+                .first;
+    }
+
+    run_at(pending_it->second.not_before);
+}
+
+void ServicePrioritizationTask::clear_scheduled_work()
+{
+    m_pending  = false;
+    m_next_run = std::chrono::steady_clock::time_point::min();
+}
+
+bool ServicePrioritizationTask::should_run_now() const
+{
+    if (!m_pending) {
+        return false;
+    }
+    return std::chrono::steady_clock::now() >= m_next_run;
+}
+
+bool ServicePrioritizationTask::handle_new_wds_iface(const std::string &iface_name)
+{
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return false;
+    }
+
+    const auto now  = std::chrono::steady_clock::now();
+    auto pending_it = m_pending_wds_ifaces.find(iface_name);
+    if (pending_it == m_pending_wds_ifaces.end()) {
+        const auto settle_due = now + std::chrono::milliseconds(WDS_SETTLE_MS);
+        const auto timeout_at = now + std::chrono::milliseconds(WDS_RETRY_TIMEOUT_MS);
+
+        LOG(DEBUG) << "Deferring WDS QoS apply for settle window: " << iface_name;
+        request_wds_retry(iface_name, settle_due, timeout_at);
+        return true;
+    }
+
+    if (now < pending_it->second.not_before) {
+        run_at(pending_it->second.not_before);
+        return true;
+    }
+
+    const bool iface_exists = network_utils::linux_iface_exists(iface_name);
+    const bool iface_ready =
+        iface_exists && network_utils::linux_iface_is_up_and_running(iface_name);
+
+    if (!iface_ready) {
+        if (now >= pending_it->second.deadline) {
+            if (!iface_exists) {
+                LOG(WARNING) << "WDS iface is still missing after " << WDS_RETRY_TIMEOUT_MS
+                             << "ms, skip QoS apply iface=" << iface_name;
+            } else {
+                LOG(WARNING) << "WDS iface is still not up and running after "
+                             << WDS_RETRY_TIMEOUT_MS << "ms, skip QoS apply iface=" << iface_name;
+            }
+            m_pending_wds_ifaces.erase(pending_it);
+            return true;
+        }
+
+        auto retry_due = now + std::chrono::milliseconds(DEBOUNCE_MS);
+        if (retry_due > pending_it->second.deadline) {
+            retry_due = pending_it->second.deadline;
+        }
+        run_at(retry_due);
+        return true;
+    }
+
+    if (!qos_apply_active_rule()) {
+        if (now < pending_it->second.deadline) {
+            auto retry_due = now + std::chrono::milliseconds(DEBOUNCE_MS);
+            if (retry_due > pending_it->second.deadline) {
+                retry_due = pending_it->second.deadline;
+            }
+            run_at(retry_due);
+            return true;
+        }
+
+        m_pending_wds_ifaces.erase(pending_it);
+        LOG(WARNING) << "Failed setting up QoS active rule on WDS iface=" << iface_name;
+        return false;
+    }
+
+    m_pending_wds_ifaces.erase(pending_it);
+    return true;
+}
+
+bool ServicePrioritizationTask::handle_clear_wds_iface(const std::string &iface_name)
+{
+    if (iface_name.empty()) {
+        LOG(ERROR) << "empty iface_name";
+        return false;
+    }
+
+    m_pending_wds_ifaces.erase(iface_name);
+    if (m_pending_wds_ifaces.empty()) {
+        clear_scheduled_work();
+    }
+
+    if (!service_prio_utils) {
+        LOG(ERROR) << "Service Priority Utilities are not found";
+        return false;
+    }
+
+    return service_prio_utils->flush_iface_rules(iface_name);
+}
+
+bool ServicePrioritizationTask::retry_pending_wds_ifaces()
+{
+    if (m_pending_wds_ifaces.empty()) {
+        return true;
+    }
+
+    bool success = true;
+    std::vector<std::string> ifaces;
+    ifaces.reserve(m_pending_wds_ifaces.size());
+
+    for (const auto &pending_iface : m_pending_wds_ifaces) {
+        ifaces.push_back(pending_iface.first);
+    }
+
+    for (const auto &iface_name : ifaces) {
+        if (!handle_new_wds_iface(iface_name)) {
+            success = false;
+        }
+    }
+
+    return success;
 }
 
 void ServicePrioritizationTask::handle_service_prioritization_request(
