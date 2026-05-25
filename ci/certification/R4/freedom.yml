@@ -576,6 +576,8 @@ R4:freedom:MAP-4.13.1_ETH:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.1_ETH:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -586,6 +588,8 @@ R4:freedom:MAP-4.13.1_BH24G:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.1_BH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -596,6 +600,8 @@ R4:freedom:MAP-4.13.1_BH5GL:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.1_BH5GL:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -606,6 +612,8 @@ R4:freedom:MAP-4.13.2_ETH_FH5GL:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.2_ETH_FH5GL:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -616,6 +624,8 @@ R4:freedom:MAP-4.13.2_BH24G_FH24G:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.2_BH24G_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -626,6 +636,8 @@ R4:freedom:MAP-4.13.2_BH5GL_FH24G:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.2_BH5GL_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -636,6 +648,8 @@ R4:freedom:MAP-4.13.3_ETH:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.3_ETH:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -646,6 +660,8 @@ R4:freedom:MAP-4.13.3_BHWIFI:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.3_BHWIFI:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -656,6 +672,8 @@ R4:freedom:MAP-4.13.4_BH24G_FH24G:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.4_BH24G_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -666,6 +684,8 @@ R4:freedom:MAP-4.13.4_BH5GL_FH24G:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.4_BH5GL_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -676,6 +696,8 @@ R4:freedom:MAP-4.13.6:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.6:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -686,6 +708,8 @@ R4:freedom:MAP-4.13.11_ETH_FH24G:
   extends: .certification:R4:freedom_downstream_R1_agent
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.11_ETH_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -696,6 +720,8 @@ R4:freedom:MAP-4.13.11_ETH_FH5GL:
   extends: .certification:R4:freedom_downstream_R1_agent
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.11_ETH_FH5GL:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -706,6 +732,8 @@ R4:freedom:MAP-4.13.11_ETH_FH5GH:
   extends: .certification:R4:freedom_downstream_R1_agent
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.11_ETH_FH5GH:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -716,6 +744,8 @@ R4:freedom:MAP-4.13.11_BH24G_FH24G:
   extends: .certification:R4:freedom_downstream_R1_agent
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.11_BH24G_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -726,6 +756,8 @@ R4:freedom:MAP-4.13.11_BH5GL_FH24G:
   extends: .certification:R4:freedom_downstream_R1_agent
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.11_BH5GL_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -736,6 +768,8 @@ R4:freedom:MAP-4.13.11_BH5GL_FH5GL:
   extends: .certification:R4:freedom_downstream_R1_agent
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.11_BH5GL_FH5GL:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success

@@ -70,6 +70,8 @@ platform:
     - build-in-docker
     - image-build-boardfarm-ci
   rules:
+    - if: '(($CI_COMMIT_REF_NAME == "dev/master-ts-testing") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/master-ts-testing"))'
+      when: always
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
     - !reference [.rules-for-expensive-job, rules]
   variables:
