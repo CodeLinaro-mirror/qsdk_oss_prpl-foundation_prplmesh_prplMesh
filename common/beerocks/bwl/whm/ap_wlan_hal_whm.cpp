@@ -2824,6 +2824,7 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
             return false;
         }
         refresh_radio_info();
+        refresh_radio_capabilities();
         event_queue_push(Event::AP_Attached);
     }
 

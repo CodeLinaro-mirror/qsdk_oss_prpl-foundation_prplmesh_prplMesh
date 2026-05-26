@@ -98,6 +98,8 @@ public:
      */
     bool get_channel_utilization(uint8_t &channel_utilization) override;
 
+    bool refresh_radio_capabilities();
+
     // Protected methods
 protected:
     base_wlan_hal_whm(HALType type, const std::string &iface_name, hal_event_cb_t callback,
