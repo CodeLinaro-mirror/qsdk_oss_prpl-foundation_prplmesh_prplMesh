@@ -1490,6 +1490,13 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
 
+    // Send bSTA MLD requests before sending BSS configuration
+    for (auto &bsta_mld_request : bsta_mld_requests_infos) {
+        send_bsta_mld_configuration(bsta_mld_request.first, bsta_mld_request.second.first,
+                                    bsta_mld_request.second.second);
+    }
+    bsta_mld_requests_infos.clear();
+
     // Auto-configuration should start from clean state
     m_ap_mld_requests_infos.clear();
     if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, radio->front.iface_name)) {
@@ -1563,13 +1570,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_ap_autoconfiguration_wsc_vs_extension_tlv has failed";
         return;
     }
-
-    // Send bSTA MLD requests after sending BSS configuration
-    for (auto &bsta_mld_request : bsta_mld_requests_infos) {
-        send_bsta_mld_configuration(bsta_mld_request.first, bsta_mld_request.second.first,
-                                    bsta_mld_request.second.second);
-    }
-    bsta_mld_requests_infos.clear();
 
     // Apply MLD mode updates for this radio. This operation updates only the
     // MLD mode associated with the corresponding SSIDs; it does not perform
@@ -2535,13 +2535,15 @@ int8_t ApAutoConfigurationTask::find_available_bsta_mld_unit()
 bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                                 const sMacAddr &ruid)
 {
+    auto db(AgentDB::get());
     auto bsta_mld_configuration(cmdu_rx.getClass<wfa_map::tlvBackhaulStaMldConfiguration>());
     if (!bsta_mld_configuration) {
-        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received";
+        db->bsta_mld_configuration.reset();
+        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, Setting MLDUNit to -1";
+        send_bsta_mld_configuration(ruid, DISABLED_MLDUNIT,
+                                    static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
         return true;
     }
-
-    auto db(AgentDB::get());
 
     // Store current bSTA MLD requests info for comparison
     auto curr_bsta_mld_infos = bsta_mld_requests_infos;
@@ -2566,8 +2568,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         }
     }
 
-    db->bsta_mld_configuration->mld_config.mld_mac = bsta_mld_configuration->bsta_mld_mac_addr();
-
+    db->bsta_mld_configuration->mld_config.mld_mode = AgentDB::sMLDConfiguration::mode::NONE;
     if (bsta_mld_configuration->modes().str) {
         db->bsta_mld_configuration->mld_config.mld_mode =
             AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
@@ -2597,7 +2598,6 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
             ruid, DISABLED_MLDUNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
     }
 
-    db->bsta_mld_configuration->affiliated_bstas.clear();
     std::ostringstream radio_list_ss;
     for (uint8_t affiliated_bsta_it = 0;
          affiliated_bsta_it < bsta_mld_configuration->num_affiliated_bsta(); ++affiliated_bsta_it) {
@@ -2608,17 +2608,27 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
             return false;
         }
 
-        AgentDB::sBStaMLDConfiguration::sAffiliatedBSta affiliated_conf;
         wfa_map::cAffiliatedBhSta &affiliated_bsta = std::get<1>(affiliated_bsta_tuple);
-        affiliated_conf.ruid                       = affiliated_bsta.ruid();
-        affiliated_conf.bssid = affiliated_bsta.affiliated_bsta_mac_addr_valid().is_valid
-                                    ? affiliated_bsta.affiliated_bsta_mac_addr()
-                                    : net::network_utils::ZERO_MAC;
-        db->bsta_mld_configuration->affiliated_bstas.push_back(affiliated_conf);
-        radio_list_ss << " " << tlvf::mac_to_string(affiliated_conf.ruid);
+        const sMacAddr in_ruid                     = affiliated_bsta.ruid();
+
+        // operator[] will insert a default entry if in_ruid is not present
+        AgentDB::sBStaMLDConfiguration::sAffiliatedBSta &affiliated_entry =
+            db->bsta_mld_configuration->affiliated_bstas[in_ruid];
+        const bool valid = affiliated_bsta.affiliated_bsta_mac_addr_valid().is_valid;
+        const sMacAddr in_affiliated_bsta_mac =
+            valid ? affiliated_bsta.affiliated_bsta_mac_addr() : net::network_utils::ZERO_MAC;
+
+        if (valid) {
+            affiliated_entry.mac_addr = in_affiliated_bsta_mac;
+        } else if (affiliated_entry.mac_addr == net::network_utils::ZERO_MAC) {
+            affiliated_entry.mac_addr = in_affiliated_bsta_mac;
+        }
+
+        affiliated_entry.bssid = net::network_utils::ZERO_MAC;
+        radio_list_ss << " " << tlvf::mac_to_string(in_ruid);
 
         // Push bSTA MLD Configuration per ruid
-        bsta_mld_requests_infos[affiliated_conf.ruid] = {
+        bsta_mld_requests_infos[in_ruid] = {
             db->bsta_mld_configuration->mld_config.mld_unit,
             static_cast<uint8_t>(db->bsta_mld_configuration->mld_config.mld_mode)};
     }
@@ -2637,6 +2647,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         // If found in old config but not in new config, disable it
         if (it != curr_bsta_mld_infos.end() &&
             bsta_mld_requests_infos.find(bsta_ruid) == bsta_mld_requests_infos.end()) {
+            db->bsta_mld_configuration->affiliated_bstas.erase(bsta_ruid);
             send_bsta_mld_configuration(
                 bsta_ruid, DISABLED_MLDUNIT,
                 static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));

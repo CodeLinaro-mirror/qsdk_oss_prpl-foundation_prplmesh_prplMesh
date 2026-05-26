@@ -334,6 +334,13 @@ std::string wbapi_utils::search_path_apmld_by_mldid(int8_t mld_id)
     return search_path_apmld() + "[MLDID == " + std::to_string(mld_id) + "].";
 }
 
+std::string wbapi_utils::search_path_stamld() { return search_path_wifi() + "bSTAMLD."; }
+
+std::string wbapi_utils::search_path_stamld_by_mldid(int8_t mld_id)
+{
+    return search_path_stamld() + "[MLDID == " + std::to_string(mld_id) + "].";
+}
+
 std::string wbapi_utils::search_path_affiliated_ap(const std::string &apmld, const std::string &mac)
 {
     std::string macLc(mac);

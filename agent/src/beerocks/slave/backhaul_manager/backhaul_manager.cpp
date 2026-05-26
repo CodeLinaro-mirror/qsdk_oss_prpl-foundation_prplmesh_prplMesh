@@ -595,18 +595,6 @@ bool BackhaulManager::handle_backhaul_connect()
     // will be overriden in the loop below.
     db->backhaul.backhaul_bssid = {};
 
-    for (auto &radio_info : m_radios_info) { // Detach from unused stations first
-        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
-            radio_info->sta_iface == db->backhaul.selected_iface_name) {
-            continue;
-        } else {
-            clear_radio_handlers(radio_info);
-            if (radio_info->sta_wlan_hal) {
-                radio_info->sta_wlan_hal.reset();
-            }
-        }
-    }
-
     for (auto &radio_info : m_radios_info) {
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
             radio_info->sta_iface == db->backhaul.selected_iface_name) {
@@ -1937,8 +1925,18 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
             LOG(ERROR) << "Failed to get wireless hal for radio " << radio_mac;
             return false;
         }
-        sta_wlan_hal->update_mld_mode(request->mld_mode());
-        sta_wlan_hal->update_mld_unit(request->mld_unit());
+
+        if (!sta_wlan_hal->update_mld_unit(request->mld_unit())) {
+            LOG(ERROR) << "Failed to update MLD Unit";
+            return false;
+        }
+
+        // Only update mode if unit update succeeded
+        if (!sta_wlan_hal->update_mld_mode(request->mld_mode())) {
+            LOG(ERROR) << "Failed to update MLD Mode";
+            return false;
+        }
+
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_WIFI_ENABLE_DISABLE_ENDPOINT: {
@@ -2178,7 +2176,8 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         }
 
         // TODO: Need to unite WAIT_WPS and WIRELESS_ASSOCIATE_4ADDR_WAIT handling
-        if (FSM_IS_IN_STATE(WAIT_WPS) || FSM_IS_IN_STATE(WIRELESS_ASSOCIATE_4ADDR_WAIT)) {
+        if (FSM_IS_IN_STATE(WAIT_WPS) || FSM_IS_IN_STATE(WIRELESS_ASSOCIATE_4ADDR_WAIT) ||
+            FSM_IS_IN_STATE(WIRELESS_WAIT_FOR_RECONNECT)) {
             auto msg = static_cast<bwl::sACTION_BACKHAUL_CONNECTED_NOTIFICATION *>(data);
             if (!msg) {
                 LOG(ERROR) << "ACTION_BACKHAUL_CONNECTED_NOTIFICATION not found on Connected event";
@@ -2188,8 +2187,14 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                       << ", Multi-AP Primary VLAN ID: " << msg->multi_ap_primary_vlan_id;
 
             if (db->bsta_mld_configuration) {
-                LOG(INFO) << "Fill AP MLD MAC Address with " << msg->mac_address;
-                db->bsta_mld_configuration->ap_mld_mac = msg->mac_address;
+                db->bsta_mld_configuration->ap_mld_mac          = msg->ap_mld_mac_addr;
+                db->bsta_mld_configuration->mld_config.mld_mac  = msg->bsta_mld_mac_addr;
+                db->bsta_mld_configuration->mld_config.mld_ssid = iface_hal->get_ssid();
+
+                LOG(DEBUG) << "bsta info values added to the DB: "
+                           << " mld ssid: " << db->bsta_mld_configuration->mld_config.mld_ssid
+                           << " bsta_mld_mac: " << db->bsta_mld_configuration->mld_config.mld_mac
+                           << " ap_mld_mac: " << db->bsta_mld_configuration->ap_mld_mac;
             }
 
             db->traffic_separation.primary_vlan_id     = msg->multi_ap_primary_vlan_id;
@@ -2465,12 +2470,20 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         auto msg = static_cast<bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION *>(data);
         auto db  = AgentDB::get();
         if (msg && db->bsta_mld_configuration) {
-            db->bsta_mld_configuration->mld_config.mld_mac = msg->mld_mac_address;
-            for (auto &affiliated_bsta : db->bsta_mld_configuration->affiliated_bstas) {
-                if (affiliated_bsta.ruid == msg->ruid) {
-                    affiliated_bsta.bssid = msg->affiliated_mac_address;
-                }
+            if (msg->mld_mac_address != beerocks::net::network_utils::ZERO_MAC) {
+                db->bsta_mld_configuration->mld_config.mld_mac = msg->mld_mac_address;
             }
+
+            auto it = db->bsta_mld_configuration->affiliated_bstas.find(msg->ruid);
+            if (it == db->bsta_mld_configuration->affiliated_bstas.end()) {
+                LOG(ERROR) << "RUID: " << msg->ruid << "not found in bSTA MLD Config";
+                return false;
+            }
+            it->second.mac_addr = msg->affiliated_mac_address;
+            LOG(DEBUG) << "updated affilited mac to the DB: " << it->second.mac_addr;
+
+            m_task_pool.send_event(eTaskType::TOPOLOGY,
+                                   TopologyTask::eEvent::BSTA_MLD_AFFILIATED_LINK_CHANGED);
         } else {
             LOG(ERROR) << "Affiliated_Link_Connected empty message or bSTA configuration";
         }
@@ -3300,6 +3313,16 @@ void BackhaulManager::handle_dev_reset_default(
         active_hal->set_3addr_mcast(false);
         active_hal->disconnect();
     }
+
+    // Claer remaining MLD Settings
+    for (auto &radio_info : m_radios_info) {
+        if (radio_info->sta_wlan_hal) {
+            LOG(INFO) << "Setting Invalid MLDUnit for EndPoint on Radio "
+                      << radio_info->hostap_iface;
+            radio_info->sta_wlan_hal->update_mld_unit(DISABLED_MLDUNIT);
+        }
+    }
+
     // clear all known WPS credentials from persistent memory
     bpl::cfg_wifi_reset_wps_credentials();
 

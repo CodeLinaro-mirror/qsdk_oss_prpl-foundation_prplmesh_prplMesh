@@ -607,6 +607,11 @@ bool sta_wlan_hal_whm::reassociate()
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
             }
+
+            msg->ap_mld_mac_addr   = get_ap_mld_mac();
+            msg->bsta_mld_mac_addr = get_bsta_mld_mac();
+            LOG(DEBUG) << "Filled msg buffer with ap_mld_mac =" << msg->ap_mld_mac_addr
+                       << " bsta_mld_mac =" << msg->bsta_mld_mac_addr;
             event_queue_push(Event::Connected, msg_buff);
             return true;
         } else {
@@ -652,22 +657,87 @@ std::string sta_wlan_hal_whm::get_wireless_backhaul_mac()
     return mac;
 }
 
+bool sta_wlan_hal_whm::get_mld_link_local_mac(std::string &out_mac_str)
+{
+    out_mac_str.clear();
+    if (m_ep_path.empty()) {
+        LOG(ERROR) << "Empty m_ep_path";
+        return false;
+    }
+
+    std::string ssid_ref, ssid_path;
+    if (!m_ambiorix_cl.get_param(ssid_ref, m_ep_path, "SSIDReference") ||
+        !m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path) || ssid_path.empty()) {
+        LOG(ERROR) << "SSIDReference get_param failed, m_ep_path=" << m_ep_path;
+        return false;
+    }
+
+    if (m_ambiorix_cl.get_param(out_mac_str, ssid_path, "MLDLinkLocalMACAddress") &&
+        !out_mac_str.empty() && beerocks::net::network_utils::is_valid_mac(out_mac_str)) {
+        LOG(DEBUG) << "Link local MAC address retrieved successfully: " << out_mac_str;
+        return true;
+    }
+    return false;
+}
+
 bool sta_wlan_hal_whm::enable_disable_ep(bool enable)
 {
     LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
     return true;
 }
 
+std::string sta_wlan_hal_whm::resolve_bstamld_path(int8_t mld_unit)
+{
+    if (mld_unit <= beerocks::DISABLED_MLDUNIT) {
+        LOG(ERROR) << "MLDUnit is less than the DISABLED_MLDUNIT" << mld_unit;
+        return {};
+    }
+    std::string stamld_path;
+    const std::string search = wbapi_utils::search_path_stamld_by_mldid(mld_unit);
+
+    if (!m_ambiorix_cl.resolve_path(search, stamld_path) || stamld_path.empty()) {
+        LOG(DEBUG) << "resolve_bstamld_path: no object for MLDID " << static_cast<int>(mld_unit);
+        return {};
+    }
+    return stamld_path;
+}
+
 sMacAddr sta_wlan_hal_whm::get_bsta_mld_mac()
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
-    return beerocks::net::network_utils::ZERO_MAC;
+    const std::string bstamld_path = resolve_bstamld_path(m_mld_unit);
+    if (bstamld_path.empty()) {
+        LOG(ERROR) << " Empty bstamld_path, returning ZERO_MAC";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    std::string mac_str;
+    if (!m_ambiorix_cl.get_param(mac_str, bstamld_path, "MLDMACAddress") || mac_str.empty() ||
+        mac_str == beerocks::net::network_utils::ZERO_MAC_STRING ||
+        !beerocks::net::network_utils::is_valid_mac(mac_str)) {
+        LOG(ERROR) << " Failed to get bstamld mac";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    return tlvf::mac_from_string(mac_str);
 }
 
 sMacAddr sta_wlan_hal_whm::get_ap_mld_mac()
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
-    return beerocks::net::network_utils::ZERO_MAC;
+    const std::string bstamld_path = resolve_bstamld_path(m_mld_unit);
+    if (bstamld_path.empty()) {
+        LOG(ERROR) << " Empty bstamld_path, returning ZERO_MAC";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    std::string mac_str;
+    if (!m_ambiorix_cl.get_param(mac_str, bstamld_path, "BSSID") || mac_str.empty() ||
+        mac_str == beerocks::net::network_utils::ZERO_MAC_STRING ||
+        !beerocks::net::network_utils::is_valid_mac(mac_str)) {
+        LOG(ERROR) << " Failed to get apmld mac";
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    return tlvf::mac_from_string(mac_str);
 }
 
 bool sta_wlan_hal_whm::update_status()
@@ -935,14 +1005,44 @@ std::string sta_wlan_hal_whm::connection_status_to_string() const
     return "Unknown";
 }
 
+void sta_wlan_hal_whm::emit_affiliated_link_status(bool connected)
+{
+    auto buff = ALLOC_SMART_BUFFER(sizeof(bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION));
+    auto *msg = reinterpret_cast<bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION *>(buff.get());
+    LOG_IF(!msg, FATAL) << "alloc failed";
+    std::memset(buff.get(), 0, sizeof(*msg));
+
+    msg->ruid = tlvf::mac_from_string(get_radio_mac());
+
+    if (connected) {
+        std::string local_mac;
+        if (!get_mld_link_local_mac(local_mac)) {
+            LOG(DEBUG) << "no local link MAC yet";
+            event_queue_push(bwl::sta_wlan_hal::Event::Affiliated_Link_Connected, buff);
+            return;
+        }
+        msg->affiliated_mac_address = tlvf::mac_from_string(local_mac);
+        LOG(DEBUG) << " Affiliated_Link_Connected: ruid=" << msg->ruid
+                   << " local_link_mac=" << msg->affiliated_mac_address
+                   << " mld_mac=" << msg->mld_mac_address;
+    } else {
+        msg->affiliated_mac_address = beerocks::net::network_utils::ZERO_MAC;
+        msg->mld_mac_address        = beerocks::net::network_utils::ZERO_MAC;
+    }
+    LOG(DEBUG) << "Filled msg buffer with ruid=" << msg->ruid
+               << " local_link_mac=" << msg->affiliated_mac_address
+               << " mld_mac=" << msg->mld_mac_address;
+    event_queue_push(bwl::sta_wlan_hal::Event::Affiliated_Link_Connected, buff);
+}
+
 bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std::string &key,
                                         const AmbiorixVariant *new_value)
 {
     if (key == "ConnectionStatus") {
         std::string new_status = new_value->get<std::string>();
 
-        LOG(DEBUG) << "process_ep_event: current status: " << connection_status_to_string()
-                   << "-> new status: " << new_status;
+        LOG(DEBUG) << "process_ep_event: iface: " << interface << " current status: "
+                   << connection_status_to_string() << "-> new status: " << new_status;
 
         if (new_status.empty()) {
             LOG(ERROR) << "Empty new_status !";
@@ -985,7 +1085,17 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             } else {
                 msg->multi_ap_primary_vlan_id = 0;
             }
+
+            msg->ap_mld_mac_addr   = get_ap_mld_mac();
+            msg->bsta_mld_mac_addr = get_bsta_mld_mac();
+            LOG(DEBUG) << "Filled msg buffer with ap_mld_mac =" << msg->ap_mld_mac_addr
+                       << " bsta_mld_mac =" << msg->bsta_mld_mac_addr;
             event_queue_push(Event::Connected, msg_buff);
+
+            // Push affiliated link change
+            if (m_mld_unit > beerocks::DISABLED_MLDUNIT) {
+                emit_affiliated_link_status(true);
+            }
         } else if (m_current_connection_status == eWpsConnectionStatus::eConnected) {
             auto msg_buff =
                 ALLOC_SMART_BUFFER(sizeof(sACTION_BACKHAUL_DISCONNECT_REASON_NOTIFICATION));
@@ -1000,6 +1110,10 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             msg->bssid             = tlvf::mac_from_string(m_active_bssid);
             clear_conn_state();
             event_queue_push(Event::Disconnected, msg_buff);
+
+            if (m_mld_unit > beerocks::DISABLED_MLDUNIT) {
+                emit_affiliated_link_status(false);
+            }
         }
         update_wps_connection_status(new_status);
     }
@@ -1058,13 +1172,93 @@ bool sta_wlan_hal_whm::clear_non_associated_devices()
 
 bool sta_wlan_hal_whm::update_mld_mode(uint8_t mld_mode)
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    if (m_ep_path.empty()) {
+        LOG(INFO) << "Empty endpoint path for iface " << get_iface_name();
+        return false;
+    }
+
+    std::string ssid_ref, ssid_path;
+    if (!m_ambiorix_cl.get_param(ssid_ref, m_ep_path, "SSIDReference") ||
+        !m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path) || ssid_path.empty()) {
+        return false;
+    }
+
+    int8_t mld_id = DISABLED_MLDUNIT;
+    if (!m_ambiorix_cl.get_param(mld_id, ssid_path, "MLDUnit")) {
+        LOG(ERROR) << "update_mld_mode: Failed to read MLDUnit for SSID: \"" << ssid_ref;
+        return false;
+    }
+
+    if (mld_id <= DISABLED_MLDUNIT) {
+        LOG(DEBUG) << "update_mld_mode: MLDUnit disabled for SSID: \"" << ssid_ref
+                   << "\", skip pushing bSTAMLDConfig";
+        return true;
+    }
+
+    std::string stamld_path;
+    std::string stamld_search = wbapi_utils::search_path_stamld_by_mldid(mld_id);
+
+    if (!m_ambiorix_cl.resolve_path(stamld_search, stamld_path) || stamld_path.empty()) {
+        LOG(ERROR) << "update_mld_mode: Failed to resolve bSTAMLD path for mld_id: "
+                   << static_cast<int>(mld_id);
+        return false;
+    }
+
+    bool str_enabled   = (mld_mode & beerocks::message::MLO_MODE_STR);
+    bool nstr_enabled  = (mld_mode & beerocks::message::MLO_MODE_NSTR);
+    bool emlsr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLSR);
+    bool emlmr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLMR);
+
+    AmbiorixVariant stamld_config(AMXC_VAR_ID_HTABLE);
+    stamld_config.add_child("STREnabled", str_enabled);
+    stamld_config.add_child("NSTREnabled", nstr_enabled);
+    stamld_config.add_child("EMLSREnabled", emlsr_enabled);
+    stamld_config.add_child("EMLMREnabled", emlmr_enabled);
+
+    std::string stamld_config_path = stamld_path + "bSTAMLDConfig.";
+
+    if (!m_ambiorix_cl.update_object(stamld_config_path, stamld_config)) {
+        LOG(ERROR) << "update_mld_mode: Failed to update bSTAMLDConfig for SSID: \"" << ssid_ref
+                   << "\", mld_id: " << static_cast<int>(mld_id)
+                   << ", path: " << stamld_config_path;
+        return false;
+    }
+
+    LOG(INFO) << "update_mld_mode: Successfully updated bSTAMLDConfig for SSID: \"" << ssid_ref
+              << "\", mld_id: " << static_cast<int>(mld_id) << ", STR=" << str_enabled
+              << ", NSTR=" << nstr_enabled << ", EMLSR=" << emlsr_enabled
+              << ", EMLMR=" << emlmr_enabled;
+
     return true;
 }
 
 bool sta_wlan_hal_whm::update_mld_unit(int8_t mld_unit)
 {
-    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
+    if (m_ep_path.empty()) {
+        LOG(INFO) << "Empty endpoint path for iface " << get_iface_name();
+        return false;
+    }
+
+    std::string ssid_ref, ssid_path;
+    if (!m_ambiorix_cl.get_param(ssid_ref, m_ep_path, "SSIDReference") ||
+        !m_ambiorix_cl.resolve_path(ssid_ref + ".", ssid_path) || ssid_path.empty()) {
+        return false;
+    }
+
+    AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
+    if (!params.add_child("MLDUnit", mld_unit)) {
+        LOG(ERROR) << "Failed to build update params for " << ssid_path;
+        return false;
+    }
+
+    if (!m_ambiorix_cl.update_object(ssid_path, params)) {
+        LOG(ERROR) << "Failed to set MLDUnit=" << static_cast<int>(mld_unit) << " on " << ssid_path;
+        return false;
+    }
+    m_mld_unit = mld_unit;
+
+    LOG(INFO) << " Successfully updated MLDUnit for bSTA, " << static_cast<int>(mld_unit)
+              << " SSID: " << ssid_ref << ", Endpoint DM: " << m_ep_path;
     return true;
 }
 

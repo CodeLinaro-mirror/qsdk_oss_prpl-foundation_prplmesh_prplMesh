@@ -116,11 +116,25 @@ bool agent_ucc_listener::handle_dev_get_param(std::unordered_map<std::string, st
         }
         auto ssid = params["ssid"];
 
-        if (!db->get_ap_mld_mac_by_ssid(ssid, mac_value)) {
-            LOG(ERROR) << " failed to find the MLD MAC for SSID " << ssid;
-            value = "MLD MAC not found for SSID " + ssid;
-            return false;
+        // optional argument to find Affiliated MACAddr
+        auto ruid = net::network_utils::ZERO_MAC;
+        static const std::string ruid_key{"ruid"};
+
+        auto it = params.find(ruid_key);
+        if (it != params.end()) {
+            ruid = tlvf::mac_from_string(it->second);
         }
+
+        if (!db->get_ap_mld_mac_by_ssid(ssid, mac_value)) {
+            LOG(INFO) << " failed to find the AP MLD MAC for SSID " << ssid;
+
+            if (!db->get_bsta_mld_mac_by_ssid(ssid, ruid, mac_value)) {
+                LOG(ERROR) << " also failed to find the AP & bSTA MLD MAC for SSID " << ssid;
+                value = "MLD MAC not found for SSID " + ssid;
+                return false;
+            }
+        }
+
         value = tlvf::mac_to_string(mac_value);
         return true;
     }

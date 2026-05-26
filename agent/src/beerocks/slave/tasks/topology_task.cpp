@@ -136,6 +136,11 @@ void TopologyTask::handle_event(uint8_t event_enum_value, const void *event_obj)
                                          std::chrono::seconds(TOPOLOGY_DISCOVERY_TX_CYCLE_SEC);
         break;
     }
+    case BSTA_MLD_AFFILIATED_LINK_CHANGED: {
+        LOG(DEBUG) << "Message handler for BSTA_MLD_AFFILIATED_LINK_CHANGED ";
+        send_topology_notification();
+        break;
+    }
     default: {
         LOG(DEBUG) << "Message handler doesn't exists for event type " << event_enum_value;
         break;

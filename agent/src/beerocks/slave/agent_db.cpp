@@ -158,6 +158,35 @@ bool AgentDB::get_ap_mld_mac_by_ssid(const std::string &ssid, sMacAddr &value)
     return false;
 }
 
+bool AgentDB::get_bsta_mld_mac_by_ssid(const std::string &ssid, sMacAddr &ruid, sMacAddr &value)
+{
+    value = net::network_utils::ZERO_MAC;
+    if (bsta_mld_configuration) {
+        if (bsta_mld_configuration->mld_config.mld_ssid == ssid) {
+
+            // Return bSTA MLD MAC
+            if (ruid == net::network_utils::ZERO_MAC) {
+                value = bsta_mld_configuration->mld_config.mld_mac;
+                return true;
+            }
+
+            // Search Affiliated MAC by RUID (map key)
+            auto it = bsta_mld_configuration->affiliated_bstas.find(ruid);
+            if (it == bsta_mld_configuration->affiliated_bstas.end()) {
+                LOG(ERROR) << "RUID: " << ruid << "not found in configuration";
+                return false;
+            }
+            value = it->second.mac_addr;
+            if (value == net::network_utils::ZERO_MAC) {
+                value = bsta_mld_configuration->mld_config.mld_mac;
+                LOG(INFO) << "Affiliated MAC is zero, fallback to bSTA MLD MAC ruid: " << ruid;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 bool AgentDB::init_data_model(std::shared_ptr<beerocks::nbapi::Ambiorix> dm)
 {
     LOG_IF(!dm, FATAL) << "Ambiorix datamodel not specified";
