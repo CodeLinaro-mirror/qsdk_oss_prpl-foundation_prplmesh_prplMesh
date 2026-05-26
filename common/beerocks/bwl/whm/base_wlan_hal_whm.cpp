@@ -48,6 +48,7 @@ base_wlan_hal_whm::base_wlan_hal_whm(HALType type, const std::string &iface_name
     LOG(DEBUG) << "init base_wlan_hal_whm for " << m_radio_path;
     get_radio_mac();
     refresh_radio_info();
+    refresh_radio_capabilities();
 
     // Initialize the FSM
     fsm_setup();
@@ -602,10 +603,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
         return false;
     }
 
-    std::string s_chipset_vendor;
-    radio->read_child(s_chipset_vendor, "ChipsetVendor");
-    m_radio_info.chipset_vendor = s_chipset_vendor;
-
     std::string s_val;
     if (radio->read_child(s_val, "OperatingFrequencyBand")) {
         m_radio_info.frequency_band = wbapi_utils::band_to_freq(s_val);
@@ -681,310 +678,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
         }
     }
 
-    // Capabilities
-    std::string op_std_format;
-    std::string operating_standards;
-    radio->read_child(op_std_format, "OperatingStandardsFormat");
-    radio->read_child(operating_standards, "OperatingStandards");
-    if (op_std_format == "Legacy") {
-        // Legacy - maximum supported operating standard
-        uint8_t rank = 0;
-        if (operating_standards == "n")
-            rank = 1;
-        if (operating_standards == "ac")
-            rank = 2;
-        if (operating_standards == "ax")
-            rank = 3;
-        if (operating_standards == "be")
-            rank = 4;
-
-        m_radio_info.ht_supported  = (rank >= 1);
-        m_radio_info.vht_supported = (rank >= 2);
-        m_radio_info.he_supported  = (rank >= 3);
-        m_radio_info.eht_supported = (rank >= 4);
-    } else {
-        // Standard - comma separated list
-        m_radio_info.ht_supported  = operating_standards.find("n") != std::string::npos ? 1 : 0;
-        m_radio_info.vht_supported = operating_standards.find("ac") != std::string::npos ? 1 : 0;
-        m_radio_info.he_supported  = operating_standards.find("ax") != std::string::npos ? 1 : 0;
-        m_radio_info.eht_supported = operating_standards.find("be") != std::string::npos ? 1 : 0;
-    }
-
-    //HT capabilities
-    if (m_radio_info.ht_supported) {
-        struct beerocks::net::sHTCapabilities *ht_caps_ptr =
-            (struct beerocks::net::sHTCapabilities *)(&m_radio_info.ht_capability);
-
-        if (radio->read_child(s_val, "RadCapabilitiesHTStr")) {
-            m_radio_info.ht_capability = 0;
-            auto ht_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
-            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "SHORT_GI_20") !=
-                ht_pwhm_vec.end()) {
-                ht_caps_ptr->short_gi_support_20mhz = 1;
-            }
-            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "SHORT_GI_40") !=
-                ht_pwhm_vec.end()) {
-                ht_caps_ptr->short_gi_support_40mhz = 1;
-            }
-            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "CAP_40") != ht_pwhm_vec.end()) {
-                ht_caps_ptr->ht_support_40mhz = 1;
-            }
-        }
-
-        if (radio->read_child(s_val, "SupportedHtMcsSet")) {
-            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.ht_mcs_set.data(),
-                                     m_radio_info.ht_mcs_set.size());
-            if (nBytes != beerocks::message::HT_MCS_SET_SIZE) {
-                LOG(ERROR) << "Failed to decode SupportedHtMcsSet str";
-            }
-        }
-
-        /*
-         * 9.4.2.55.4 Supported HT-MCS Set field
-         * First 10 bytes represent supported spatial streams indexed from 0.
-         * The variable `ss` holds the highest supported stream index (0-based),
-         * so total spatial streams = ss + 1.
-         */
-        uint8_t ss = 0;
-        for (uint8_t i = 0; i < RX_HT_MCS_BITMASK_LEN; i++) {
-            if (m_radio_info.ht_mcs_set[i]) {
-                ss = i;
-            }
-        }
-        ht_caps_ptr->max_num_of_supported_rx_spatial_streams = ss;
-        ht_caps_ptr->max_num_of_supported_tx_spatial_streams = ss;
-    }
-
-    /*
-     * Lambda to calculate spatial streams count for VHT and HE MCS sets.
-     * According to IEEE 802.11-2020 (VHT) and 802.11ax-2021 (HE),
-     * each spatial stream is encoded as 2 bits in a 16-bit MCS map.
-     * Supported streams have 2-bit value < 3.
-     * Returns highest supported stream index (0-based), so total streams = ss + 1.
-     */
-    auto calc_ss = [](const uint8_t *mcsSet, uint8_t offset) {
-        uint8_t ss   = 0;
-        uint16_t mcs = 0xffff;
-        memcpy(&mcs, &mcsSet[offset], sizeof(mcs));
-        /* up to 8 ss */
-        for (int i = 0; i < 8; i++) {
-            if (((mcs >> (2 * i)) & 0x3) < 3) {
-                ss = i;
-            }
-        }
-        return ss;
-    };
-
-    //VHT capabilities
-    if (m_radio_info.vht_supported) {
-        struct beerocks::net::sVHTCapabilities *vht_caps_ptr =
-            (struct beerocks::net::sVHTCapabilities *)(&m_radio_info.vht_capability);
-
-        if (radio->read_child(s_val, "RadCapabilitiesVHTStr")) {
-            m_radio_info.vht_capability = 0;
-            auto vht_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
-            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SGI_80") !=
-                vht_pwhm_vec.end()) {
-                vht_caps_ptr->short_gi_support_80mhz = 1;
-            }
-            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SGI_160") !=
-                vht_pwhm_vec.end()) {
-                vht_caps_ptr->short_gi_support_160mhz_and_80_80mhz = 1;
-                vht_caps_ptr->vht_support_160mhz                   = 1;
-            }
-            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SU_BFR") !=
-                vht_pwhm_vec.end()) {
-                vht_caps_ptr->su_beamformer_capable = 1;
-            }
-            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "MU_BFR") !=
-                vht_pwhm_vec.end()) {
-                vht_caps_ptr->mu_beamformer_capable = 1;
-            }
-        }
-
-        if (radio->read_child(s_val, "SupportedVhtMcsNssSet")) {
-            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.vht_mcs_set.data(),
-                                     m_radio_info.vht_mcs_set.size());
-            if (nBytes != beerocks::message::VHT_MCS_SET_SIZE) {
-                LOG(ERROR) << "Failed to decode SupportedVhtMcsNssSet str";
-            }
-        }
-
-        vht_caps_ptr->max_num_of_supported_rx_spatial_streams =
-            calc_ss(m_radio_info.vht_mcs_set.data(), RX_VHT_MCS_MAP_OFFSET);
-        vht_caps_ptr->max_num_of_supported_tx_spatial_streams =
-            calc_ss(m_radio_info.vht_mcs_set.data(), TX_VHT_MCS_MAP_OFFSET);
-    }
-
-    //HE capabilities
-    if (m_radio_info.he_supported) {
-        struct beerocks::net::sHECapabilities *he_caps_ptr =
-            (struct beerocks::net::sHECapabilities *)(&m_radio_info.he_capability);
-
-        if (radio->read_child(s_val, "RadCapabilitiesHePhysStr")) {
-            m_radio_info.he_capability = 0;
-            auto he_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "SU_BEAMFORMER") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->su_beamformer_capable = 1;
-            }
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "MU_BEAMFORMER") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->mu_beamformer_capable = 1;
-            }
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "160MHZ_5GHZ") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->he_support_160mhz = 1;
-            }
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "160_80_80_MHZ_5GHZ") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->he_support_80_80mhz = 1;
-            }
-        }
-        if (radio->read_child(s_val, "HeCapsSupported")) {
-            auto he_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "DL_OFDMA") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->dl_ofdm_capable = 1;
-            }
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "UL_OFDMA") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->ul_ofdm_capable = 1;
-            }
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "DL_MUMIMO") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->dl_mu_mimo_and_ofdm_capable = 1;
-            }
-            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "UL_MUMIMO") !=
-                he_pwhm_vec.end()) {
-                he_caps_ptr->ul_mu_mimo_and_ofdm_capable = 1;
-                he_caps_ptr->ul_mu_mimo_capable          = 1;
-            }
-        }
-
-        if (radio->read_child(s_val, "SupportedHeMcsNssSet")) {
-            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.he_mcs_set.data(),
-                                     m_radio_info.he_mcs_set.size());
-            if (nBytes != beerocks::message::HE_MCS_SET_SIZE) {
-                LOG(ERROR) << "Failed to decode SupportedHeMcsNssSet str";
-            }
-        }
-
-        he_caps_ptr->max_num_of_supported_rx_spatial_streams =
-            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_80_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_160_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_8080_OFFSET)});
-
-        he_caps_ptr->max_num_of_supported_tx_spatial_streams =
-            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_80_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_160_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_8080_OFFSET)});
-
-        //Wi-Fi 6 capabilities
-        struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
-            (struct beerocks::net::sWIFI6Capabilities *)(&m_radio_info.wifi6_capability);
-        wifi6_caps_ptr->spatial_reuse = 0;
-
-        const std::string spatial_reuse_path = m_radio_path + "IEEE80211ax.";
-        std::string tmp_bitmap;
-
-        AmbiorixVariantSmartPtr spatial_reuse_path_obj =
-            m_ambiorix_cl.get_object(spatial_reuse_path);
-        if (!spatial_reuse_path_obj) {
-            LOG(ERROR) << "Failed to get object: " << spatial_reuse_path;
-        } else {
-            bool spatial_reuse_supported = false;
-
-            uint8_t tmp_bss_color = 0;
-            if (spatial_reuse_path_obj->read_child(tmp_bss_color, "BssColor")) {
-                spatial_reuse_supported = true;
-            }
-
-            bool tmp_bool = false;
-            if (spatial_reuse_path_obj->read_child(tmp_bool, "BssColorPartial")) {
-                spatial_reuse_supported = true;
-            }
-            if (spatial_reuse_path_obj->read_child(tmp_bool, "SRGInformationValid") && tmp_bool) {
-                spatial_reuse_supported = true;
-            }
-            if (spatial_reuse_path_obj->read_child(tmp_bool, "NonSRGOffsetValid") && tmp_bool) {
-                spatial_reuse_supported = true;
-            }
-            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGBSSColorBitmap") &&
-                !tmp_bitmap.empty()) {
-                spatial_reuse_supported = true;
-            }
-            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGPartialBSSIDBitmap") &&
-                !tmp_bitmap.empty()) {
-                spatial_reuse_supported = true;
-            }
-            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "NeighborBSSColorInUseBitmap") &&
-                !tmp_bitmap.empty()) {
-                spatial_reuse_supported = true;
-            }
-
-            if (spatial_reuse_supported) {
-                LOG(INFO) << "Spatial Reuse support is true";
-                wifi6_caps_ptr->spatial_reuse = 1;
-            }
-        }
-
-        if (radio->read_child(s_val, "RadCapabilitiesHeMacStr")) {
-            auto wifi6_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "TWT_REQ") !=
-                wifi6_pwhm_vec.end()) {
-                wifi6_caps_ptr->twt_requester = 1;
-            }
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "TWT_RESP") !=
-                wifi6_pwhm_vec.end()) {
-                wifi6_caps_ptr->twt_responder = 1;
-            }
-        }
-
-        wifi6_caps_ptr->dl_ofdma            = he_caps_ptr->dl_ofdm_capable;
-        wifi6_caps_ptr->ul_ofdma            = he_caps_ptr->ul_ofdm_capable;
-        wifi6_caps_ptr->ul_mu_mimo          = he_caps_ptr->ul_mu_mimo_and_ofdm_capable;
-        wifi6_caps_ptr->he_support_160mhz   = he_caps_ptr->he_support_160mhz;
-        wifi6_caps_ptr->he_support_80_80mhz = he_caps_ptr->he_support_80_80mhz;
-
-        /*
-         * 17.2.72 AP Wi-Fi 6 Capabilities TLV (EMR6)
-         * The MCS NSS length shall be one of these values: 4, 8, or 12.
-         * length = 4 (base) +4 if 160MHz, +4 if 80+80MHz supported.
-         */
-        wifi6_caps_ptr->mcs_nss_length =
-            4 + (4 * !!he_caps_ptr->he_support_160mhz) + (4 * !!he_caps_ptr->he_support_80_80mhz);
-
-        if (radio->read_child(s_val, "RadCapabilitiesHePhysStr")) {
-            auto wifi6_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(),
-                          "BEAMFORMEE_STS_LE_80MHZ") != wifi6_pwhm_vec.end()) {
-                wifi6_caps_ptr->beamformee_sts_less_80mhz = 1;
-            }
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(),
-                          "BEAMFORMEE_STD_GT_80MHZ") != wifi6_pwhm_vec.end()) {
-                wifi6_caps_ptr->beamformee_sts_greater_80mhz = 1;
-            }
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "SU_BEAMFORMER") !=
-                wifi6_pwhm_vec.end()) {
-                wifi6_caps_ptr->su_beamformer = 1;
-            }
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "SU_BEAMFORMEE") !=
-                wifi6_pwhm_vec.end()) {
-                wifi6_caps_ptr->su_beamformee = 1;
-            }
-            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "MU_BEAMFORMER") !=
-                wifi6_pwhm_vec.end()) {
-                wifi6_caps_ptr->mu_Beamformer_status = 1;
-            }
-        }
-    }
-
-    if (m_radio_info.eht_supported) {
-        update_eht_capabilities();
-        update_max_mld_links();
-    }
-
     if (radio->read_child(s_val, "ExtensionChannel")) {
         bool channel_ext_above = (s_val == "AboveControlChannel");
         if (!channel_ext_above && (s_val == "Auto") &&
@@ -1001,17 +694,6 @@ bool base_wlan_hal_whm::refresh_radio_info()
         m_radio_info.channel, m_radio_info.frequency_band, m_radio_info.bandwidth,
         m_radio_info.channel_ext_above);
 
-    AmbiorixVariant result;
-    AmbiorixVariant args;
-    if (m_ambiorix_cl.call(m_radio_path, "getCurrentTransmitPowerdBm", args, result)) {
-        auto results_as_list = result.read_children<AmbiorixVariantListSmartPtr>();
-        if (!results_as_list) {
-            LOG(ERROR) << "failed reading results!";
-        }
-        if (!(*results_as_list)[0].get(m_radio_info.tx_power)) {
-            LOG(ERROR) << "failed getting results!";
-        }
-    }
     bool enable_flag = false;
     // because of the async nature of pwhm calls, and because of the strict Radio.Status
     // implementation, Radio.Status follows a path that goes through the Status=Down / Disabled
@@ -1047,7 +729,18 @@ bool base_wlan_hal_whm::refresh_radio_info()
     }
 
     read_rsn_support();
-    read_qos_management_support();
+
+    AmbiorixVariant result;
+    AmbiorixVariant args;
+    if (m_ambiorix_cl.call(m_radio_path, "getCurrentTransmitPowerdBm", args, result)) {
+        auto results_as_list = result.read_children<AmbiorixVariantListSmartPtr>();
+        if (!results_as_list) {
+            LOG(ERROR) << "failed reading results!";
+        }
+        if (!(*results_as_list)[0].get(m_radio_info.tx_power)) {
+            LOG(ERROR) << "failed getting results!";
+        }
+    }
 
     return true;
 }
@@ -1658,6 +1351,331 @@ bool base_wlan_hal_whm::get_channel_utilization(uint8_t &channel_utilization)
 
     //convert channel load from ratio 100 to ratio 255
     channel_utilization = (chLoad * UINT8_MAX) / 100;
+    return true;
+}
+
+bool base_wlan_hal_whm::refresh_radio_capabilities()
+{
+    if (m_radio_path.empty()) {
+        m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name),
+                                   m_radio_path);
+    }
+    auto radio = m_ambiorix_cl.get_object(m_radio_path);
+    if (!radio) {
+        LOG(ERROR) << " cannot fill channels max tx power, radio object missing ";
+        return false;
+    }
+
+    std::string s_chipset_vendor;
+    radio->read_child(s_chipset_vendor, "ChipsetVendor");
+    m_radio_info.chipset_vendor = s_chipset_vendor;
+
+    std::string s_val;
+    std::string op_std_format;
+    std::string operating_standards;
+    radio->read_child(op_std_format, "OperatingStandardsFormat");
+    radio->read_child(operating_standards, "OperatingStandards");
+    if (op_std_format == "Legacy") {
+        // Legacy - maximum supported operating standard
+        uint8_t rank = 0;
+        if (operating_standards == "n")
+            rank = 1;
+        if (operating_standards == "ac")
+            rank = 2;
+        if (operating_standards == "ax")
+            rank = 3;
+        if (operating_standards == "be")
+            rank = 4;
+
+        m_radio_info.ht_supported  = (rank >= 1);
+        m_radio_info.vht_supported = (rank >= 2);
+        m_radio_info.he_supported  = (rank >= 3);
+        m_radio_info.eht_supported = (rank >= 4);
+    } else {
+        // Standard - comma separated list
+        m_radio_info.ht_supported  = operating_standards.find("n") != std::string::npos ? 1 : 0;
+        m_radio_info.vht_supported = operating_standards.find("ac") != std::string::npos ? 1 : 0;
+        m_radio_info.he_supported  = operating_standards.find("ax") != std::string::npos ? 1 : 0;
+        m_radio_info.eht_supported = operating_standards.find("be") != std::string::npos ? 1 : 0;
+    }
+
+    //HT capabilities
+    if (m_radio_info.ht_supported) {
+        struct beerocks::net::sHTCapabilities *ht_caps_ptr =
+            (struct beerocks::net::sHTCapabilities *)(&m_radio_info.ht_capability);
+
+        if (radio->read_child(s_val, "RadCapabilitiesHTStr")) {
+            m_radio_info.ht_capability = 0;
+            auto ht_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "SHORT_GI_20") !=
+                ht_pwhm_vec.end()) {
+                ht_caps_ptr->short_gi_support_20mhz = 1;
+            }
+            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "SHORT_GI_40") !=
+                ht_pwhm_vec.end()) {
+                ht_caps_ptr->short_gi_support_40mhz = 1;
+            }
+            if (std::find(ht_pwhm_vec.begin(), ht_pwhm_vec.end(), "CAP_40") != ht_pwhm_vec.end()) {
+                ht_caps_ptr->ht_support_40mhz = 1;
+            }
+        }
+
+        if (radio->read_child(s_val, "SupportedHtMcsSet")) {
+            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.ht_mcs_set.data(),
+                                     m_radio_info.ht_mcs_set.size());
+            if (nBytes != beerocks::message::HT_MCS_SET_SIZE) {
+                LOG(ERROR) << "Failed to decode SupportedHtMcsSet str";
+            }
+        }
+
+        /*
+         * 9.4.2.55.4 Supported HT-MCS Set field
+         * First 10 bytes represent supported spatial streams indexed from 0.
+         * The variable `ss` holds the highest supported stream index (0-based),
+         * so total spatial streams = ss + 1.
+         */
+        uint8_t ss = 0;
+        for (uint8_t i = 0; i < RX_HT_MCS_BITMASK_LEN; i++) {
+            if (m_radio_info.ht_mcs_set[i]) {
+                ss = i;
+            }
+        }
+        ht_caps_ptr->max_num_of_supported_rx_spatial_streams = ss;
+        ht_caps_ptr->max_num_of_supported_tx_spatial_streams = ss;
+    }
+
+    /*
+     * Lambda to calculate spatial streams count for VHT and HE MCS sets.
+     * According to IEEE 802.11-2020 (VHT) and 802.11ax-2021 (HE),
+     * each spatial stream is encoded as 2 bits in a 16-bit MCS map.
+     * Supported streams have 2-bit value < 3.
+     * Returns highest supported stream index (0-based), so total streams = ss + 1.
+     */
+    auto calc_ss = [](const uint8_t *mcsSet, uint8_t offset) {
+        uint8_t ss   = 0;
+        uint16_t mcs = 0xffff;
+        memcpy(&mcs, &mcsSet[offset], sizeof(mcs));
+        /* up to 8 ss */
+        for (int i = 0; i < 8; i++) {
+            if (((mcs >> (2 * i)) & 0x3) < 3) {
+                ss = i;
+            }
+        }
+        return ss;
+    };
+
+    //VHT capabilities
+    if (m_radio_info.vht_supported) {
+        struct beerocks::net::sVHTCapabilities *vht_caps_ptr =
+            (struct beerocks::net::sVHTCapabilities *)(&m_radio_info.vht_capability);
+
+        if (radio->read_child(s_val, "RadCapabilitiesVHTStr")) {
+            m_radio_info.vht_capability = 0;
+            auto vht_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SGI_80") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->short_gi_support_80mhz = 1;
+            }
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SGI_160") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->short_gi_support_160mhz_and_80_80mhz = 1;
+                vht_caps_ptr->vht_support_160mhz                   = 1;
+            }
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "SU_BFR") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->su_beamformer_capable = 1;
+            }
+            if (std::find(vht_pwhm_vec.begin(), vht_pwhm_vec.end(), "MU_BFR") !=
+                vht_pwhm_vec.end()) {
+                vht_caps_ptr->mu_beamformer_capable = 1;
+            }
+        }
+
+        if (radio->read_child(s_val, "SupportedVhtMcsNssSet")) {
+            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.vht_mcs_set.data(),
+                                     m_radio_info.vht_mcs_set.size());
+            if (nBytes != beerocks::message::VHT_MCS_SET_SIZE) {
+                LOG(ERROR) << "Failed to decode SupportedVhtMcsNssSet str";
+            }
+        }
+
+        vht_caps_ptr->max_num_of_supported_rx_spatial_streams =
+            calc_ss(m_radio_info.vht_mcs_set.data(), RX_VHT_MCS_MAP_OFFSET);
+        vht_caps_ptr->max_num_of_supported_tx_spatial_streams =
+            calc_ss(m_radio_info.vht_mcs_set.data(), TX_VHT_MCS_MAP_OFFSET);
+    }
+
+    //HE capabilities
+    if (m_radio_info.he_supported) {
+        struct beerocks::net::sHECapabilities *he_caps_ptr =
+            (struct beerocks::net::sHECapabilities *)(&m_radio_info.he_capability);
+
+        if (radio->read_child(s_val, "RadCapabilitiesHePhysStr")) {
+            m_radio_info.he_capability = 0;
+            auto he_pwhm_vec           = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "SU_BEAMFORMER") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->su_beamformer_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "MU_BEAMFORMER") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->mu_beamformer_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "160MHZ_5GHZ") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->he_support_160mhz = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "160_80_80_MHZ_5GHZ") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->he_support_80_80mhz = 1;
+            }
+        }
+        if (radio->read_child(s_val, "HeCapsSupported")) {
+            auto he_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "DL_OFDMA") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->dl_ofdm_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "UL_OFDMA") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->ul_ofdm_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "DL_MUMIMO") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->dl_mu_mimo_and_ofdm_capable = 1;
+            }
+            if (std::find(he_pwhm_vec.begin(), he_pwhm_vec.end(), "UL_MUMIMO") !=
+                he_pwhm_vec.end()) {
+                he_caps_ptr->ul_mu_mimo_and_ofdm_capable = 1;
+                he_caps_ptr->ul_mu_mimo_capable          = 1;
+            }
+        }
+
+        if (radio->read_child(s_val, "SupportedHeMcsNssSet")) {
+            auto nBytes = b64_decode(s_val.c_str(), m_radio_info.he_mcs_set.data(),
+                                     m_radio_info.he_mcs_set.size());
+            if (nBytes != beerocks::message::HE_MCS_SET_SIZE) {
+                LOG(ERROR) << "Failed to decode SupportedHeMcsNssSet str";
+            }
+        }
+
+        he_caps_ptr->max_num_of_supported_rx_spatial_streams =
+            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_80_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_160_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_8080_OFFSET)});
+
+        he_caps_ptr->max_num_of_supported_tx_spatial_streams =
+            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_80_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_160_OFFSET),
+                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_8080_OFFSET)});
+
+        //Wi-Fi 6 capabilities
+        struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
+            (struct beerocks::net::sWIFI6Capabilities *)(&m_radio_info.wifi6_capability);
+        wifi6_caps_ptr->spatial_reuse = 0;
+
+        const std::string spatial_reuse_path = m_radio_path + "IEEE80211ax.";
+        std::string tmp_bitmap;
+
+        AmbiorixVariantSmartPtr spatial_reuse_path_obj =
+            m_ambiorix_cl.get_object(spatial_reuse_path);
+        if (!spatial_reuse_path_obj) {
+            LOG(ERROR) << "Failed to get object: " << spatial_reuse_path;
+        } else {
+            bool spatial_reuse_supported = false;
+
+            uint8_t tmp_bss_color = 0;
+            if (spatial_reuse_path_obj->read_child(tmp_bss_color, "BssColor")) {
+                spatial_reuse_supported = true;
+            }
+
+            bool tmp_bool = false;
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "BssColorPartial")) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "SRGInformationValid") && tmp_bool) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bool, "NonSRGOffsetValid") && tmp_bool) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGBSSColorBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "SRGPartialBSSIDBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+            if (spatial_reuse_path_obj->read_child(tmp_bitmap, "NeighborBSSColorInUseBitmap") &&
+                !tmp_bitmap.empty()) {
+                spatial_reuse_supported = true;
+            }
+
+            if (spatial_reuse_supported) {
+                LOG(INFO) << "Spatial Reuse support is true";
+                wifi6_caps_ptr->spatial_reuse = 1;
+            }
+        }
+
+        if (radio->read_child(s_val, "RadCapabilitiesHeMacStr")) {
+            auto wifi6_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "TWT_REQ") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->twt_requester = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "TWT_RESP") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->twt_responder = 1;
+            }
+        }
+
+        wifi6_caps_ptr->dl_ofdma            = he_caps_ptr->dl_ofdm_capable;
+        wifi6_caps_ptr->ul_ofdma            = he_caps_ptr->ul_ofdm_capable;
+        wifi6_caps_ptr->ul_mu_mimo          = he_caps_ptr->ul_mu_mimo_and_ofdm_capable;
+        wifi6_caps_ptr->he_support_160mhz   = he_caps_ptr->he_support_160mhz;
+        wifi6_caps_ptr->he_support_80_80mhz = he_caps_ptr->he_support_80_80mhz;
+
+        /*
+         * 17.2.72 AP Wi-Fi 6 Capabilities TLV (EMR6)
+         * The MCS NSS length shall be one of these values: 4, 8, or 12.
+         * length = 4 (base) +4 if 160MHz, +4 if 80+80MHz supported.
+         */
+        wifi6_caps_ptr->mcs_nss_length =
+            4 + (4 * !!he_caps_ptr->he_support_160mhz) + (4 * !!he_caps_ptr->he_support_80_80mhz);
+
+        if (radio->read_child(s_val, "RadCapabilitiesHePhysStr")) {
+            auto wifi6_pwhm_vec = beerocks::string_utils::str_split(s_val, ',');
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(),
+                          "BEAMFORMEE_STS_LE_80MHZ") != wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->beamformee_sts_less_80mhz = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(),
+                          "BEAMFORMEE_STD_GT_80MHZ") != wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->beamformee_sts_greater_80mhz = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "SU_BEAMFORMER") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->su_beamformer = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "SU_BEAMFORMEE") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->su_beamformee = 1;
+            }
+            if (std::find(wifi6_pwhm_vec.begin(), wifi6_pwhm_vec.end(), "MU_BEAMFORMER") !=
+                wifi6_pwhm_vec.end()) {
+                wifi6_caps_ptr->mu_Beamformer_status = 1;
+            }
+        }
+    }
+
+    if (m_radio_info.eht_supported) {
+        update_eht_capabilities();
+        update_max_mld_links();
+    }
+
+    read_qos_management_support();
+
     return true;
 }
 
