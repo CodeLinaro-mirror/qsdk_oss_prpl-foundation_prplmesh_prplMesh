@@ -118,6 +118,13 @@ public:
                           const std::string &sta_mac, const std::string &target_bssid);
 
     /**
+     * @brief Send DPP CCE Indication to agents that support DPP onboarding (Profile-2 AP Capability).
+     *
+     * @param advertise_cce true to enable CCE advertisement in beacons and probe responses, false to disable.
+     */
+    void send_dpp_cce_indication(bool advertise_cce);
+
+    /**
      * @brief Trigger channel scan initiated by NBAPI.
      *
      * @param ruid ruid of radio for wich scan requested.

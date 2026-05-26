@@ -14,6 +14,7 @@
 #include "tasks/bml_task.h"
 #include "tasks/btm_request_task.h"
 #include "tasks/client_steering_task.h"
+#include "tasks/dpp_cce_indication_task.h"
 
 #include <bcl/network/network_utils.h>
 #include <bcl/network/sockets.h>
@@ -27,6 +28,7 @@
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
+#include <tlvf/wfa_map/tlvDppCceIndication.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 
 #include "controller.h"
@@ -175,6 +177,17 @@ int son_actions::start_btm_request_task(
     tasks.add_task(new_task);
     return new_task->id;
 }
+
+void son_actions::start_dpp_cce_indication_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                task_pool &tasks, bool advertise_cce_enable)
+{
+    const auto advertise_cee = advertise_cce_enable
+                                   ? wfa_map::tlvDppCceIndication::eAdvertiseCee::ENABLE
+                                   : wfa_map::tlvDppCceIndication::eAdvertiseCee::DISABLE;
+    auto new_task = std::make_shared<dpp_cce_indication_task>(database, cmdu_tx, advertise_cee);
+    tasks.add_task(new_task);
+}
+
 bool son_actions::set_radio_active(db &database, task_pool &tasks, std::string hostap_mac,
                                    const bool active)
 {

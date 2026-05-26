@@ -4985,6 +4985,12 @@ bool Controller::send_btm_request(const bool &disassoc_imminent,
     return true;
 }
 
+void Controller::send_dpp_cce_indication(bool advertise_cce)
+{
+    LOG(DEBUG) << "Queue DPP CCE Indication task, advertise_cce=" << advertise_cce;
+    son_actions::start_dpp_cce_indication_task(database, cmdu_tx, m_task_pool, advertise_cce);
+}
+
 bool Controller::trigger_scan(
     const sMacAddr &radio_mac,
     std::array<uint8_t, beerocks::message::SUPPORTED_CHANNELS_LENGTH> channel_pool,

@@ -69,6 +69,14 @@ public:
                                       const std::string &sta_mac, const std::string &target_bssid,
                                       const std::string &event_source);
 
+    /**
+    * @brief Enqueue a task that sends DPP CCE Indication to agents with DPP onboarding support.
+    *
+    * @param advertise_cce_enable true to enable CCE in beacons/probe responses, false to disable.
+    */
+    static void start_dpp_cce_indication_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                              task_pool &tasks, bool advertise_cce_enable);
+
     static bool send_client_association_control(
         db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agent_mac,
         const sMacAddr &agent_bssid, const std::unordered_set<sMacAddr> &station_list,
