@@ -216,6 +216,8 @@ R4:urx_ospv2:MAP-4.6.1_ETH:
   extends: .certification:R4:urx_ospv2
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/ppm-3879-master-test") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/ppm-3879-master-test"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.6.1_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -226,6 +228,8 @@ R4:urx_ospv2:MAP-4.6.1_BHWIFI:
   extends: .certification:R4:urx_ospv2
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/ppm-3879-master-test") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/ppm-3879-master-test"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.6.1_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -376,6 +380,8 @@ R4:urx_ospv2:MAP-4.7.10_ETH:
   extends: .certification:R4:urx_ospv2
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/ppm-3879-master-test") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/ppm-3879-master-test"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.7.10_ETH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -386,6 +392,8 @@ R4:urx_ospv2:MAP-4.7.10_BHWIFI:
   extends: .certification:R4:urx_ospv2
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/ppm-3879-master-test") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/ppm-3879-master-test"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.7.10_BHWIFI:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
