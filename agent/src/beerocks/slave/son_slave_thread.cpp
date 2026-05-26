@@ -2744,6 +2744,64 @@ bool slave_thread::handle_client_wds_iface_notification(
     return set_client_wds_iface(*radio, client_mac, bssid, wds_iface_name);
 }
 
+bool slave_thread::affiliated_link_change_missing_client(const sMacAddr &sta_mld_mac,
+                                                         uint8_t action)
+{
+    if (action == bwl::AFFILIATED_LINK_ACTION_REMOVE) {
+        LOG(DEBUG) << "MLO client not found for REMOVE (idempotent): " << sta_mld_mac;
+        return true;
+    }
+    if (action == bwl::AFFILIATED_LINK_ACTION_ADD) {
+        LOG(DEBUG) << "MLO client not found for ADD; client must associate first: " << sta_mld_mac;
+        return true;
+    }
+    LOG(WARNING) << "Unknown affiliated link action " << int(action) << " with no MLO client";
+    return true;
+}
+
+bool slave_thread::affiliated_link_add(AgentDB::sAssociatedStaMld &mld_info,
+                                       const sMacAddr &sta_mld_mac,
+                                       const sMacAddr &affiliated_sta_mac, const sMacAddr &bssid)
+{
+    for (const auto &link : mld_info.affiliated_stas) {
+        if (link.affiliated_sta_mac == affiliated_sta_mac && link.bssid == bssid) {
+            LOG(DEBUG) << "Affiliated link already exists, skipping ADD";
+            return true;
+        }
+    }
+    AgentDB::sAssociatedStaMld::sAffiliatedSta new_link{};
+    new_link.affiliated_sta_mac = affiliated_sta_mac;
+    new_link.bssid              = bssid;
+    mld_info.affiliated_stas.push_back(new_link);
+    LOG(INFO) << "Affiliated link added - STA MLD: " << sta_mld_mac
+              << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid
+              << ", Total links: " << mld_info.affiliated_stas.size();
+    return true;
+}
+
+bool slave_thread::affiliated_link_remove(AgentDB::sAssociatedStaMld &mld_info,
+                                          const sMacAddr &sta_mld_mac,
+                                          const sMacAddr &affiliated_sta_mac, const sMacAddr &bssid)
+{
+    const auto before = mld_info.affiliated_stas.size();
+    auto it = std::remove_if(mld_info.affiliated_stas.begin(), mld_info.affiliated_stas.end(),
+                             [&](const AgentDB::sAssociatedStaMld::sAffiliatedSta &link) {
+                                 return link.affiliated_sta_mac == affiliated_sta_mac &&
+                                        link.bssid == bssid;
+                             });
+    if (it == mld_info.affiliated_stas.end()) {
+        LOG(WARNING) << "Affiliated link not found for removal - STA MLD: " << sta_mld_mac
+                     << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid;
+        return true;
+    }
+    mld_info.affiliated_stas.erase(it, mld_info.affiliated_stas.end());
+    LOG(INFO) << "Affiliated link removed - STA MLD: " << sta_mld_mac
+              << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid
+              << ", Remaining links: " << mld_info.affiliated_stas.size();
+    LOG(DEBUG) << "Removed " << (before - mld_info.affiliated_stas.size()) << " link(s)";
+    return true;
+}
+
 bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_iface, int fd,
                                                   ieee1905_1::CmduMessageRx &cmdu_rx,
                                                   std::shared_ptr<beerocks_header> beerocks_header)
@@ -3668,6 +3726,43 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         break;
     }
+
+    case beerocks_message::ACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION: {
+        auto notification_in = beerocks_header->addClass<
+            beerocks_message::cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION>();
+        if (!notification_in) {
+            LOG(ERROR) << " addClass cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION failed";
+            return false;
+        }
+
+        auto &sta_mld_mac        = notification_in->sta_mld_mac();
+        auto &affiliated_sta_mac = notification_in->affiliated_sta_mac();
+        auto &bssid              = notification_in->bssid();
+        uint8_t action           = notification_in->action();
+
+        LOG(INFO) << " Processing affiliated link change - STA MLD: " << sta_mld_mac
+                  << ", Affiliated MAC: " << affiliated_sta_mac << ", BSSID: " << bssid
+                  << ", Action: " << (action == bwl::AFFILIATED_LINK_ACTION_ADD ? "ADD" : "REMOVE");
+
+        auto db     = AgentDB::get();
+        auto mld_it = db->associated_sta_mlds.find(sta_mld_mac);
+
+        if (mld_it == db->associated_sta_mlds.end()) {
+            return affiliated_link_change_missing_client(sta_mld_mac, action);
+        }
+        auto &mld_info = mld_it->second;
+
+        switch (action) {
+        case bwl::AFFILIATED_LINK_ACTION_ADD:
+            return affiliated_link_add(mld_info, sta_mld_mac, affiliated_sta_mac, bssid);
+        case bwl::AFFILIATED_LINK_ACTION_REMOVE:
+            return affiliated_link_remove(mld_info, sta_mld_mac, affiliated_sta_mac, bssid);
+        default:
+            LOG(WARNING) << "Unknown affiliated link action: " << int(action);
+            return true;
+        }
+    }
+
     case beerocks_message::ACTION_APMANAGER_STEERING_EVENT_PROBE_REQ_NOTIFICATION: {
         auto notification_in = beerocks_header->addClass<
             beerocks_message::cACTION_APMANAGER_STEERING_EVENT_PROBE_REQ_NOTIFICATION>();

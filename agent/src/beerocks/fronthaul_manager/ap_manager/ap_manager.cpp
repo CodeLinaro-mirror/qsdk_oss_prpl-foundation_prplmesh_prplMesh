@@ -2867,6 +2867,34 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         send_cmdu(cmdu_tx);
     } break;
 
+    case Event::STA_Affiliated_Link_Changed: {
+
+        if (!data) {
+            LOG(ERROR) << " STA_Affiliated_Link_Changed without data!";
+            return false;
+        }
+
+        auto msg = static_cast<bwl::sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION *>(data);
+        auto notification = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION>(cmdu_tx);
+        if (notification == nullptr) {
+            LOG(ERROR) << "Failed building STA_Affiliated_Link_Changed message!";
+            return false;
+        }
+
+        notification->sta_mld_mac()        = msg->sta_mld_mac;
+        notification->affiliated_sta_mac() = msg->affiliated_sta_mac;
+        notification->bssid()              = msg->bssid;
+        notification->action()             = static_cast<uint8_t>(msg->action);
+
+        LOG(DEBUG) << " Sending CMDU to son_slave_thread"
+                   << " | sta_mld_mac = " << notification->sta_mld_mac()
+                   << " | affiliated_sta_mac = " << notification->affiliated_sta_mac()
+                   << " | bssid = " << notification->bssid()
+                   << " | action = " << int(notification->action());
+        send_cmdu(cmdu_tx);
+    } break;
+
     // BSS Transition (802.11v)
     case Event::BSS_TM_Response: {
 
