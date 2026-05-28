@@ -42,6 +42,8 @@
     - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
     - echo "Setting no profile disallow for prplMesh"
     - ssh urx_ospv2 'sed -ri "s/profile_x_disallow_override_unsupported_configuration=.*/profile_x_disallow_override_unsupported_configuration=1/g" /opt/prplmesh/config/beerocks_agent.conf'
+  after_script:
+    - ssh "$RUN_ON_DEVICE" "getDebugInformation -a -o -" > logs/getDebugInformation.txt
   needs:
     - job: build-for-ospv2
   tags:
