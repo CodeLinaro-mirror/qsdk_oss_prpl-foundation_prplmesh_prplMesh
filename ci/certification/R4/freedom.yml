@@ -656,6 +656,8 @@ R4:freedom:MAP-4.13.4_BH24G_FH24G:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4089-tagged-eapol-ci") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4089-tagged-eapol-ci"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.4_BH24G_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -666,6 +668,8 @@ R4:freedom:MAP-4.13.4_BH5GL_FH24G:
   extends: .certification:R4:freedom
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4089-tagged-eapol-ci") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4089-tagged-eapol-ci"))'
+      when: always
     # Otherwise, make it a manual job
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.13.4_BH5GL_FH24G:freedom.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
@@ -1091,4 +1095,3 @@ R4:freedom:MAP-5.16.1_ETH_FH5GL:
       when: on_success
     - when: manual
       allow_failure: true
-
