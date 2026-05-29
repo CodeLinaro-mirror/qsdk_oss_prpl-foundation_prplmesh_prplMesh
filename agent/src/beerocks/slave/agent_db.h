@@ -665,8 +665,7 @@ public:
         std::string mld_ssid = "";
         sMacAddr mld_mac     = net::network_utils::ZERO_MAC;
         int8_t mld_unit      = DISABLED_MLDUNIT;
-        enum mode { NONE = 0, STR = 0x80, NSTR = 0x40, EMLSR = 0x20, EMLMR = 0x10 };
-        mode mld_mode;
+        beerocks::message::eMLOModes mld_mode;
     } sMLDConfiguration;
 
     typedef struct {
