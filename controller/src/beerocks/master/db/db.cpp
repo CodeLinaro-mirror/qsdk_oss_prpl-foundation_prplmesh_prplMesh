@@ -9567,8 +9567,7 @@ bool db::update_assoc_sta_mld(
         station->sta_mld_configuration.dm_path                = sta_mld->dm_path;
         station->sta_mld_configuration.mld_config.sta_mld_mac = sta_mld_mac;
         station->sta_mld_configuration.mld_config.ap_mld_mac  = ap_mld_mac;
-        station->sta_mld_configuration.mld_config.mld_mode =
-            Station::sMLDConfiguration::mode(mld_mode);
+        station->sta_mld_configuration.mld_config.mld_mode = beerocks::message::eMLOModes(mld_mode);
 
         station->sta_mld_configuration.affiliated_stas.clear();
         for (const auto &affiliated_sta_db : sta_mld->affiliated_stas) {
