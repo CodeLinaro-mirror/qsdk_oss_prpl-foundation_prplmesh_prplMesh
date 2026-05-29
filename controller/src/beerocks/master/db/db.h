@@ -3013,7 +3013,7 @@ public:
      */
     bool dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
                             const sMacAddr &ap_mld_mac, const std::string &affiliated_bsta_list,
-                            const Agent::sMLDInfo::mode &mld_mode);
+                            const beerocks::message::eMLOModes &mld_mode);
 
     /**
      * @brief Fill associated STAMLD node
@@ -3030,7 +3030,7 @@ public:
     update_assoc_sta_mld(Agent &agent, const sMacAddr &sta_mld_mac, const sMacAddr &ap_mld_mac,
                          const std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta>
                              &affiliated_sta_vector,
-                         const Agent::sMLDInfo::mode &mld_mode);
+                         const beerocks::message::eMLOModes &mld_mode);
 
     /**
      * @brief Remove a STAMLD instance by its dm_path.

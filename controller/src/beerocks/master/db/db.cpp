@@ -2009,13 +2009,13 @@ bool db::dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &ap_mld)
     // APMLD Config - str, nstr, emlsr, emlmr
     auto ap_mld_config_dm_path = ap_mld.dm_path + ".APMLDConfig";
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "STREnabled",
-                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::STR);
+                              (ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_STR) != 0);
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "NSTREnabled",
-                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::NSTR);
+                              (ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_NSTR) != 0);
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "EMLSREnabled",
-                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLSR);
+                              (ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_EMLSR) != 0);
     m_ambiorix_datamodel->set(ap_mld_config_dm_path, "EMLMREnabled",
-                              ap_mld.mld_info.mld_mode & Agent::sMLDInfo::mode::EMLMR);
+                              (ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_EMLMR) != 0);
 
     for (auto &affl_ap_it : ap_mld.affiliated_aps) {
 
@@ -9382,7 +9382,7 @@ bool db::dm_set_isbsta(const sMacAddr &sta_mld_mac)
 
 bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
                             const sMacAddr &ap_mld_mac, const std::string &affiliated_bsta_list,
-                            const Agent::sMLDInfo::mode &mld_mode)
+                            const beerocks::message::eMLOModes &mld_mode)
 {
     if (agent.dm_path.empty()) {
         return true;
@@ -9404,26 +9404,26 @@ bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
     }
     std::string bsta_mld_config = bsta_mld_path + ".bSTAMLDConfig";
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "STREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::STR) != 0)) {
-        LOG(ERROR) << "Failed to set STR " << Agent::sMLDInfo::mode::STR;
+                                   (mld_mode & beerocks::message::MLO_MODE_STR) != 0)) {
+        LOG(ERROR) << "Failed to set STR " << beerocks::message::MLO_MODE_STR;
         ret_val &= false;
     }
 
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "NSTREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::NSTR) != 0)) {
-        LOG(ERROR) << "Failed to set NSTR " << Agent::sMLDInfo::mode::NSTR;
+                                   (mld_mode & beerocks::message::MLO_MODE_NSTR) != 0)) {
+        LOG(ERROR) << "Failed to set NSTR " << beerocks::message::MLO_MODE_NSTR;
         ret_val &= false;
     }
 
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "EMLSREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::EMLSR) != 0)) {
-        LOG(ERROR) << "Failed to set EMLSR " << Agent::sMLDInfo::mode::EMLSR;
+                                   (mld_mode & beerocks::message::MLO_MODE_EMLSR) != 0)) {
+        LOG(ERROR) << "Failed to set EMLSR " << beerocks::message::MLO_MODE_EMLSR;
         ret_val &= false;
     }
 
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "EMLMREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::EMLMR) != 0)) {
-        LOG(ERROR) << "Failed to set EMLMR " << Agent::sMLDInfo::mode::EMLMR;
+                                   (mld_mode & beerocks::message::MLO_MODE_EMLMR) != 0)) {
+        LOG(ERROR) << "Failed to set EMLMR " << beerocks::message::MLO_MODE_EMLMR;
         ret_val &= false;
     }
 
@@ -9434,7 +9434,7 @@ bool db::update_assoc_sta_mld(
     Agent &agent, const sMacAddr &sta_mld_mac, const sMacAddr &ap_mld_mac,
     const std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta>
         &affiliated_sta_vector,
-    const Agent::sMLDInfo::mode &mld_mode)
+    const beerocks::message::eMLOModes &mld_mode)
 {
     if (agent.dm_path.empty()) {
         LOG(DEBUG) << "agent.dm_path is empty";
@@ -9481,25 +9481,25 @@ bool db::update_assoc_sta_mld(
 
     // Properly set all MLD modes using bitwise checks
     if (!m_ambiorix_datamodel->set(sta_mld_config, "STREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::STR) != 0)) {
+                                   (mld_mode & beerocks::message::MLO_MODE_STR) != 0)) {
         LOG(ERROR) << "Failed to set STR mode";
         ret_val = false;
     }
 
     if (!m_ambiorix_datamodel->set(sta_mld_config, "NSTREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::NSTR) != 0)) {
+                                   (mld_mode & beerocks::message::MLO_MODE_NSTR) != 0)) {
         LOG(ERROR) << "Failed to set NSTR mode";
         ret_val = false;
     }
 
     if (!m_ambiorix_datamodel->set(sta_mld_config, "EMLSREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::EMLSR) != 0)) {
+                                   (mld_mode & beerocks::message::MLO_MODE_EMLSR) != 0)) {
         LOG(ERROR) << "Failed to set EMLSR mode";
         ret_val = false;
     }
 
     if (!m_ambiorix_datamodel->set(sta_mld_config, "EMLMREnabled",
-                                   (mld_mode & Agent::sMLDInfo::mode::EMLMR) != 0)) {
+                                   (mld_mode & beerocks::message::MLO_MODE_EMLMR) != 0)) {
         LOG(ERROR) << "Failed to set EMLMR mode";
         ret_val = false;
     }
