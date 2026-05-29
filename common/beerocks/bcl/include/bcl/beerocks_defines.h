@@ -146,6 +146,7 @@ enum eMLOModes : uint8_t {
     MLO_MODE_NSTR  = 0x40,
     MLO_MODE_EMLSR = 0x20,
     MLO_MODE_EMLMR = 0x10,
+    MLO_MODE_NONE  = 0x00,
 };
 
 enum eMessageConsts {
