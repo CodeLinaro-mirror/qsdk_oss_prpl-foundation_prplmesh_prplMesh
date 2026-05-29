@@ -2512,8 +2512,7 @@ bool slave_thread::process_client_association(
         mld_info.mld_config.sta_mld_mac = client_mac;
         mld_info.mld_config.ap_mld_mac  = bssid;
         mld_info.mld_config.mld_mode =
-            static_cast<AgentDB::sAssociatedStaMld::sMLDConfiguration::mode>(
-                notification_in->mlo_modes());
+            static_cast<beerocks::message::eMLOModes>(notification_in->mlo_modes());
         LOG(DEBUG) << "Mld_mode: " << std::hex << static_cast<int>(mld_info.mld_config.mld_mode)
                    << std::dec << ", Number of affiliated STAs=" << int(num_affiliated);
 
