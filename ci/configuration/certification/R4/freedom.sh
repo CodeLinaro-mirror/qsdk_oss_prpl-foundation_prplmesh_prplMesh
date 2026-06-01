@@ -93,6 +93,11 @@ ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].PacketAggregationEnabl
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
+# Increase trace zones to debug PPW-2025 (backhaul reconnection)
+ba-cli "WiFi.set_log_zone(zone=swlDmEv,level=400)"
+ba-cli "WiFi.set_log_zone(zone=wpaCtrl,level=400)"
+ba-cli "WiFi.set_log_zone(zone=wldFsm,level=400)"
+
 # Drop all iptables rules (Guest TS)
 iptables -F && iptables -X && iptables -P INPUT ACCEPT && iptables -P OUTPUT ACCEPT && iptables -P FORWARD ACCEPT
 
