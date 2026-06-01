@@ -1918,7 +1918,9 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
         {"event_ieee1905_network_enable_changed", event_ieee1905_network_enable_changed},
         {"event_traffic_separation_override_changed", event_traffic_separation_override_changed},
         {"event_network_group_changed", event_network_group_changed},
-        {"event_network_enable_changed", event_network_enable_changed}};
+        {"event_network_enable_changed", event_network_enable_changed}},
+	{"event_provisioned_dpp_changed", event_provisioned_dpp_changed},
+        {"event_provisioned_dpp_removed", event_provisioned_dpp_removed}};
     return events_list;
 }
 
