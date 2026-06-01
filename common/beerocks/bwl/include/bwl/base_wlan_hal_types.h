@@ -295,7 +295,8 @@ typedef struct {
 } sACTION_BACKHAUL_CLIENT_RX_RSSI_MEASUREMENT_RESPONSE;
 
 typedef struct {
-    sMacAddr mld_mac_address;
+    sMacAddr ap_mld_mac_address;
+    sMacAddr bsta_mld_mac_address;
     sMacAddr affiliated_mac_address;
     sMacAddr ruid;
 } sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION;

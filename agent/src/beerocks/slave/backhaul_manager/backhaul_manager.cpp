@@ -2131,7 +2131,11 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
     case Event::Connected: {
 
         auto iface_hal = get_wireless_hal(iface);
-        auto bssid     = tlvf::mac_from_string(iface_hal->get_bssid());
+        if (!iface_hal) {
+            LOG(ERROR) << "Slave for iface " << iface << " not found!";
+            break;
+        }
+        auto bssid = tlvf::mac_from_string(iface_hal->get_bssid());
 
         LOG(DEBUG) << "WPA EVENT_CONNECTED on iface=" << iface;
         LOG(DEBUG) << "successfully connected to bssid=" << bssid
@@ -2290,11 +2294,13 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         }
         auto db = AgentDB::get();
         if (db->device_conf.certification_mode) {
-            auto iface_hal = get_wireless_hal(iface);
             /* When the station is disconnected we wanted to disable
                3addr multicast packets entering the system.
             */
-            iface_hal->set_3addr_mcast(false);
+            auto iface_hal = get_wireless_hal(iface);
+            if (iface_hal) {
+                iface_hal->set_3addr_mcast(false);
+            }
         }
         if (iface == db->backhaul.selected_iface_name) {
             if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {
@@ -2470,8 +2476,19 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         auto msg = static_cast<bwl::sACTION_BACKHAUL_UPDATE_MLD_MAC_NOTIFICATION *>(data);
         auto db  = AgentDB::get();
         if (msg && db->bsta_mld_configuration) {
-            if (msg->mld_mac_address != beerocks::net::network_utils::ZERO_MAC) {
-                db->bsta_mld_configuration->mld_config.mld_mac = msg->mld_mac_address;
+
+            // SSID, AP and bSTA MLD MAC are updated in case of Connected Event Comes before MLD Config
+            if (db->bsta_mld_configuration->mld_config.mld_ssid.empty()) {
+                auto iface_hal = get_wireless_hal(iface);
+                if (iface_hal) {
+                    db->bsta_mld_configuration->mld_config.mld_ssid = iface_hal->get_ssid();
+                }
+            }
+            if (msg->ap_mld_mac_address != beerocks::net::network_utils::ZERO_MAC) {
+                db->bsta_mld_configuration->ap_mld_mac = msg->ap_mld_mac_address;
+            }
+            if (msg->bsta_mld_mac_address != beerocks::net::network_utils::ZERO_MAC) {
+                db->bsta_mld_configuration->mld_config.mld_mac = msg->bsta_mld_mac_address;
             }
 
             auto it = db->bsta_mld_configuration->affiliated_bstas.find(msg->ruid);
@@ -2480,7 +2497,10 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                 return false;
             }
             it->second.mac_addr = msg->affiliated_mac_address;
-            LOG(DEBUG) << "updated affilited mac to the DB: " << it->second.mac_addr;
+            LOG(DEBUG) << "Updated DB with affilited mac: " << it->second.mac_addr
+                       << "SSID: " << db->bsta_mld_configuration->mld_config.mld_ssid
+                       << "ap_mld_mac: " << db->bsta_mld_configuration->ap_mld_mac
+                       << "bsta_mld_mac: " << db->bsta_mld_configuration->mld_config.mld_mac;
 
             m_task_pool.send_event(eTaskType::TOPOLOGY,
                                    TopologyTask::eEvent::BSTA_MLD_AFFILIATED_LINK_CHANGED);
