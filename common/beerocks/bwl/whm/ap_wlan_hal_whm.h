@@ -289,6 +289,8 @@ private:
                                      int8_t vap_id, const std::string &wds_iface_name);
 
     void handle_operating_standards_changed();
+    bool dpp_bootstrap_gen(const std::string &bootstrap_params, uint32_t &bootstrap_id);
+    bool dpp_bootstrap_get_uri(uint32_t bootstrap_id, std::string &dpp_uri);
 };
 
 } // namespace whm
