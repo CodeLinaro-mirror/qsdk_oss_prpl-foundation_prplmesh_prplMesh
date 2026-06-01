@@ -1262,6 +1262,78 @@ bool sta_wlan_hal_whm::update_mld_unit(int8_t mld_unit)
     return true;
 }
 
+bool sta_wlan_hal_whm::dpp_bootstrap_gen(const std::string &bootstrap_params, uint32_t &bootstrap_id)
+{
+    bootstrap_id = 0;
+
+    if (bootstrap_params.empty()) {
+        LOG(ERROR) << "Empty DPP bootstrap parameters";
+        return false;
+    }
+
+    if (m_ep_path.empty()) {
+        LOG(ERROR) << "EndPoint path is empty";
+        return false;
+    }
+
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    AmbiorixVariant result;
+    args.add_child("params", bootstrap_params);
+    const std::string dpp_path = m_ep_path + "DPP.";
+
+    if (!m_ambiorix_cl.call(dpp_path, "dppBootstrapGen", args, result)) {
+        LOG(ERROR) << "dppBootstrapGen RPC failed for " << m_ep_path;
+        return false;
+    }
+
+    if (!result.read_child(bootstrap_id, "BootstrapId")) {
+        LOG(ERROR) << "Failed reading BootstrapId from PWHM response";
+        return false;
+    }
+
+    LOG(DEBUG) << "Generated DPP bootstrap id=" << bootstrap_id;
+    return true;
+}
+
+bool sta_wlan_hal_whm::dpp_bootstrap_get_uri(uint32_t bootstrap_id,
+                                             std::string &dpp_uri)
+{
+    dpp_uri.clear();
+
+    if (bootstrap_id == 0) {
+        LOG(ERROR) << "Invalid bootstrap id";
+        return false;
+    }
+
+    if (m_ep_path.empty()) {
+        LOG(ERROR) << "EndPoint path is empty";
+        return false;
+    }
+
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    AmbiorixVariant result;
+    args.add_child("bootstrapId", bootstrap_id);
+    const std::string dpp_path = m_ep_path + "DPP.";
+
+    if (!m_ambiorix_cl.call(dpp_path, "dppBootstrapGetUri", args, result)) {
+        LOG(ERROR) << "dppBootstrapGetUri RPC failed for " << m_ep_path;
+        return false;
+    }
+
+    if (!result.read_child(dpp_uri, "URI")) {
+        LOG(ERROR) << "Failed reading URI from PWHM response";
+        return false;
+    }
+
+    if (dpp_uri.size() < 4 || dpp_uri.compare(0, 4, "DPP:") != 0) {
+        LOG(ERROR) << "Received invalid DPP URI from PWHM";
+        return false;
+    }
+
+    LOG(DEBUG) << "Retrieved DPP URI length=" << dpp_uri.length();
+    return true;
+}
+
 } // namespace whm
 
 std::shared_ptr<sta_wlan_hal> sta_wlan_hal_create(const std::string &iface_name,

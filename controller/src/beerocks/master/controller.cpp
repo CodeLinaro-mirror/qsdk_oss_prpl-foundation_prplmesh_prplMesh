@@ -116,6 +116,9 @@
 #include "../../../vbss/vbss_actions.h"
 #include "../../../vbss/vbss_task.h"
 #endif
+#include <tlvf/wfa_map/tlvDppBootstrappingUriNotification.h>
+// #include <bcl/beerocks_string_utils.h>
+#include "beerocks_string_utils.h"
 namespace son {
 
 /**
@@ -629,6 +632,8 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
         return handle_cmdu_1905_early_ap_capability_report_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE:
         return handle_cmdu_1905_available_spectrum_inquiry_message(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::DPP_BOOTSTRAPPING_URI_NOTIFICATION_MESSAGE:
+        return handle_cmdu_1905_dpp_bootstrapping_uri_notification(src_mac, cmdu_rx);
 
     // Empty cases are used to prevent error logs. Below message types are processed within tasks.
     case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE:
@@ -2407,6 +2412,56 @@ bool Controller::handle_cmdu_1905_available_spectrum_inquiry_message(
     }
     LOG(DEBUG) << "sending ACK message back to agent, mid=" << std::hex << int(mid);
     return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
+}
+
+bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(const sMacAddr& src_mac, ieee1905_1::CmduMessageRx& cmdu_rx)
+{
+    auto uri_tlv = cmdu_rx.getClass<wfa_map::tlvDppBootstrappingUriNotification>();
+
+    if(!uri_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvDppBootstrappingUriNotification failed";
+        return false;
+    }
+
+    auto dpp_uri = uri_tlv->dpp_uri_str();
+    if(dpp_uri.empty()) {
+        return false;
+    }
+
+    son::db::sDppBootstrappingInfo info;
+    std::string error;
+
+    if(!database.parse_dpp_bootstrap_info(dpp_uri, info, error)) {
+        LOG(ERROR) << "Failed parsing DPP URI : " << error;
+        return false;
+    }
+
+    sMacAddr enrollee_mac = uri_tlv->backhaul_sta_address();
+
+    if(enrollee_mac == beerocks::net::network_utils::ZERO_MAC) {
+        enrollee_mac = uri_tlv->bssid();
+    }
+
+    if(enrollee_mac != beerocks::net::network_utils::ZERO_MAC) {
+        info.mac = enrollee_mac;
+    }
+
+    if(info.mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Unable to determine enrollee MAC";
+        return false;
+    }
+    info.ruid = uri_tlv->ruid();
+    info.bssid = uri_tlv->bssid();
+    std::string mac_str = tlvf::mac_to_string(info.mac);
+    mac_str.erase(std::remove(mac_str.begin(), mac_str.end(), ':'), mac_str.end());
+    std::string hash_hex = beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
+    info.alias = "auto-" + mac_str + "-" + hash_hex.substr(0, 12);
+
+    if(!database.add_dpp_bootstrap_info(std::move(info), error)) {
+        LOG(ERROR) << "Failed to add DPP Bootstrap info: " << error;
+        return false;
+    }
+    return true;
 }
 
 bool Controller::handle_tlv_associated_sta_extended_link_metrics(const sMacAddr &src_mac,

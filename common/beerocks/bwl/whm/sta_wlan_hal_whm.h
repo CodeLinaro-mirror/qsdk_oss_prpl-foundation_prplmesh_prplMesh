@@ -195,6 +195,9 @@ private:
     bool m_scan_active        = false;
     // Internal EndPoint WPS connection status
     eWpsConnectionStatus m_current_connection_status;
+
+    bool dpp_bootstrap_gen(const std::string &bootstrap_params, uint32_t &bootstrap_id);
+    bool dpp_bootstrap_get_uri(uint32_t bootstrap_id, std::string &dpp_uri);
 };
 
 } // namespace whm

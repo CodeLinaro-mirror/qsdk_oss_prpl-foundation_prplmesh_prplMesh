@@ -505,6 +505,40 @@
                     }
                     /* Update all unassociated stations stats, from all agents and all radios */
                     bool UpdateUnassociatedStationsStats();
+
+                    /**
+                    * This table contains provisioned Device Provisioning Protocol (DPP) Boostrap URIs which contain bootstrapping keys available to the Multi-AP controller for trusted third party onboarding of new Multi-AP agents.
+                    * At most one entry in this table can exist with a given value for Alias. On creation of a new table entry, the Agent MUST choose an initial value for Alias such that the new entry does not conflict with any existing entries.
+                    * @version 2.19
+                    */
+                    %persistent object ProvisionedDPP[] {
+                        counted with ProvisionedDPPNumberOfEntries;
+
+                        /**
+                        * [Alias] A non-volatile handle used to reference this instance. Alias provides a mechanism for an ACS to label this instance for future reference.
+                        *
+                        * The following mandatory constraints MUST be enforced:
+                        *   - The value MUST NOT be empty.
+                        *   - The value MUST start with a letter.
+                        *   - If its value is not assigned by the ACS, it MUST start with a "cpe-" prefix.
+                        *   - The CPE MUST NOT change the parameter value.
+                        *
+                        * The Agent MUST choose an initial value that doesn't conflict with any existing entries.
+                        * @version 2.19
+                        */
+                        %persistent %unique %key string Alias {
+                            on action validate call matches_regexp "[a-zA-Z].*";
+                            on action validate call check_maximum_length 64;
+                        }
+
+                        /**
+                        * [URI] The boostrapping DPP URI information which contains the enrollee public key to use for DPP onboarding a Multi-AP agent
+                        * @version 2.19
+                        */
+                        %persistent string DPPURI {
+                            on action validate call check_maximum_length 2048;
+                        }
+                    }
                 }
 
     @DATAELEMENTS_ROOT_DM_Footer@
@@ -523,6 +557,12 @@
 
     on event "*" call event_network_group_changed
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X_PRPLWARE-COM_Group\."';
+
+    on event "dm:object-changed" call event_provisioned_dpp_changed
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.ProvisionedDPP\." && contains("parameters.DPPURI")';
+
+    on event "dm:instance-removed" call event_provisioned_dpp_removed
+        filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.ProvisionedDPP\."';
 }
 
 include "device.odl";

@@ -2822,6 +2822,92 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
     return true;
 }
 
+bool ap_wlan_hal_whm::dpp_bootstrap_gen(const std::string &bootstrap_params, uint32_t &bootstrap_id)
+{
+    bootstrap_id = 0;
+    if (bootstrap_params.empty()) {
+        LOG(ERROR) << "Empty DPP bootstrap parameters";
+        return false;
+    }
+
+    if (m_radio_info.available_vaps.empty()) {
+        LOG(ERROR) << "No VAP available";
+        return false;
+    }
+
+    AmbiorixVariant args, result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("params", bootstrap_params);
+
+    std::string main_vap_ifname = m_radio_info.available_vaps[0].bss;
+    std::string dpp_path = wbapi_utils::search_path_ap_by_iface(main_vap_ifname) + "DPP.";
+    bool ret = m_ambiorix_cl.call(dpp_path, "dppBootstrapGen", args, result);
+
+    if (!ret) {
+        LOG(ERROR) << "dpp_bootstrap_gen() failed!";
+        return false;
+    }
+
+    if (!result.read_child(bootstrap_id, "BootstrapId")) {
+        LOG(ERROR) << "Failed reading BootstrapId from PWHM response";
+        return false;
+    }
+
+    if (bootstrap_id == 0) {
+        LOG(ERROR) << "Received invalid BootstrapId from PWHM";
+        return false;
+    }
+
+    LOG(DEBUG) << "Generated DPP bootstrap id=" << bootstrap_id;
+
+    return true;
+}
+
+bool ap_wlan_hal_whm::dpp_bootstrap_get_uri(uint32_t bootstrap_id, std::string &dpp_uri)
+{
+    dpp_uri.clear();
+
+    if (bootstrap_id == 0) {
+        LOG(ERROR) << "Invalid bootstrap id";
+        return false;
+    }
+
+    if (m_radio_info.available_vaps.empty()) {
+        LOG(ERROR) << "No VAP available";
+        return false;
+    }
+
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    AmbiorixVariant result;
+    args.add_child("bootstrapId", bootstrap_id);
+    const std::string main_vap_ifname = m_radio_info.available_vaps[0].bss;
+    const std::string dpp_path = wbapi_utils::search_path_ap_by_iface(main_vap_ifname) + "DPP.";
+
+    if (!m_ambiorix_cl.call(dpp_path, "dppBootstrapGetUri", args, result)) {
+        LOG(ERROR) << "dppBootstrapGetUri RPC failed for " << main_vap_ifname;
+        return false;
+    }
+
+    if (!result.read_child(dpp_uri, "URI")) {
+        LOG(ERROR) << "Failed reading URI from PWHM response";
+        return false;
+    }
+
+    if (dpp_uri.empty()) {
+        LOG(ERROR) << "Received empty URI from PWHM";
+        return false;
+    }
+
+    if (dpp_uri.compare(0, 4, "DPP:") != 0) {
+        LOG(ERROR) << "Received invalid DPP URI from PWHM";
+        return false;
+    }
+
+    LOG(DEBUG) << "Retrieved DPP URI length=" << dpp_uri.length();
+
+    return true;
+}
+
 } // namespace whm
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,

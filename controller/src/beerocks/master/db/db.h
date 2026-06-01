@@ -313,13 +313,26 @@ public:
     } sStaSteeringEvent;
 
     struct sDppBootstrappingInfo {
+        std::string alias;
         std::multimap<uint8_t, uint8_t> operating_class_channel;
-        sMacAddr mac;
+        sMacAddr mac{};
         std::string info;
         uint8_t version = 0;
         std::string host;
         std::string public_key;
-    } dpp_bootstrapping_info;
+        std::array<uint8_t, 32> pkhash = {};
+        sMacAddr ruid{};
+        sMacAddr bssid{};
+    };
+
+    bool parse_dpp_bootstrap_info(const std::string& dpp_uri, sDppBootstrappingInfo& info, std::string& error);
+    bool add_dpp_bootstrap_info(sDppBootstrappingInfo&& info,std::string& error);
+    bool remove_dpp_bootstrap_info(const std::string& alias);
+    void clear_dpp_bootstrap_info_db();
+    sDppBootstrappingInfo* get_dpp_bootstrap_info(const std::string& alias);
+    const sDppBootstrappingInfo* get_dpp_bootstrap_info_by_pkhash(const std::array<uint8_t, 32>& pkhash) const;
+    const sDppBootstrappingInfo *get_dpp_bootstrap_info_by_mac(const sMacAddr &mac) const;
+    void print_dpp_bootstrap_info() const;
 
     typedef struct {
         int channel;
@@ -2510,7 +2523,7 @@ public:
      * 
      * @return Calculated string if dpp_bootstrapping_info is filled, empty string otherwise
      */
-    std::string calculate_dpp_bootstrapping_str();
+    std::string calculate_dpp_bootstrapping_str(const sDppBootstrappingInfo &info);
 
     /**
      * @brief Gets or Allocates ApMld from Agent Database.
@@ -3632,6 +3645,13 @@ private:
     * value = Latest dialog token from sta beacon measurement.
     */
     std::unordered_map<sMacAddr, uint8_t> m_dialog_tokens;
+
+    /**
+     * @brief This map holds DPP URI for each DPP Enrollees keyed by Alias.
+     * Key: Enrollee alias.
+     * Value: DPP bootstrapping information.
+     */
+    std::unordered_map<std::string, sDppBootstrappingInfo> dpp_bootstrap_info_map;
 };
 
 } // namespace son

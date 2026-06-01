@@ -137,7 +137,13 @@ bool vbss_actions::create_vbss(const sClientVBSS &client_vbss, const sMacAddr &d
     vbss_creation_req->set_ssid(ssid);
     vbss_creation_req->set_pass(password);
 
-    vbss_creation_req->set_dpp_connector(database.calculate_dpp_bootstrapping_str());
+    const auto *dpp_info = database.get_dpp_bootstrap_info_by_mac(client_vbss.client_mac);
+    if (dpp_info) {
+        vbss_creation_req->set_dpp_connector(database.calculate_dpp_bootstrapping_str(*dpp_info));
+    } else {
+        LOG(DEBUG) << "No DPP bootstrapping info found for client MAC: " << client_vbss.client_mac
+                   << ", skipping DPP connector";
+    }
 
     if (client_vbss.client_is_associated) {
         if (!client_sec_ctx) {

@@ -21,9 +21,14 @@
 #include <cmath>
 #include <easylogging++.h>
 #include <tlvf/tlvftypes.h>
+#include <mapf/common/encryption.h>
 
 #include <algorithm>
 #include <utility>
+#include <openssl/evp.h>
+#include <cerrno>
+#include <cstdlib>
+#include <cctype>
 
 using namespace beerocks;
 using namespace beerocks_message;
@@ -8368,7 +8373,7 @@ uint64_t db::recalculate_attr_to_byte_units(
     return bytes;
 }
 
-std::string db::calculate_dpp_bootstrapping_str()
+std::string db::calculate_dpp_bootstrapping_str(const sDppBootstrappingInfo &dpp_bootstrapping_info)
 {
     // e.g. DPP:V:2;K:MDkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDIgADezecPyVDIgJVgdGBHGBdxRxGpNU7x9cHFBE=;;
     //  DPP:
@@ -8382,7 +8387,12 @@ std::string db::calculate_dpp_bootstrapping_str()
     //    <any sequence of printable character except ';', no length limit>;]     # Reserve
     //  K:<any sequence of (ALPHA / DIGIT / '+' / '/' / '=') , no length limit>;; # Public key
 
-    std::string dpp_conn_string = "";
+    if (dpp_bootstrapping_info.public_key.empty()) {
+        LOG(ERROR) << "Cannot generate DPP URI: Missing mandatory Public Key";
+        return "";
+    }
+
+    std::string dpp_conn_string = "DPP:";
     std::string opclass_channel_str;
     for (const auto &ch : dpp_bootstrapping_info.operating_class_channel) {
         opclass_channel_str += std::to_string(ch.first) + "/" + std::to_string(ch.second) + ",";
@@ -8396,31 +8406,23 @@ std::string db::calculate_dpp_bootstrapping_str()
     if (dpp_bootstrapping_info.mac != net::network_utils::ZERO_MAC) {
         // Since semicolons are not in DPP str, remove them
         std::string mac_string = tlvf::mac_to_string(dpp_bootstrapping_info.mac);
-        mac_string.erase(std::remove_if(mac_string.begin(), mac_string.end(),
-                                        [&mac_string](const char &c) {
-                                            return mac_string.find(c) != std::string::npos;
-                                        }),
-                         mac_string.end());
+        mac_string.erase(std::remove(mac_string.begin(), mac_string.end(), ':'), mac_string.end());
         dpp_conn_string += "M:" + mac_string + ";";
     }
-    if (!dpp_bootstrapping_info.info.empty())
+    if (!dpp_bootstrapping_info.info.empty()) {
         dpp_conn_string += "I:" + dpp_bootstrapping_info.info + ";";
-
-    if (dpp_bootstrapping_info.version != 0)
-        dpp_conn_string += "V:" + std::to_string(dpp_bootstrapping_info.version) + ";";
-
-    if (!dpp_bootstrapping_info.host.empty())
-        dpp_conn_string += "H:" + dpp_bootstrapping_info.host + ";";
-
-    if (!dpp_bootstrapping_info.public_key.empty())
-        dpp_conn_string += "K:" + dpp_bootstrapping_info.public_key + ";";
-
-    if (dpp_conn_string.empty()) {
-        // No data elements were added, bootstrapping data is not initialized, return ""
-        return "";
     }
 
-    return "DPP:" + dpp_conn_string + ";";
+    if (dpp_bootstrapping_info.version != 0) {
+        dpp_conn_string += "V:" + std::to_string(dpp_bootstrapping_info.version) + ";";
+    }
+
+    if (!dpp_bootstrapping_info.host.empty()) {
+        dpp_conn_string += "H:" + dpp_bootstrapping_info.host + ";";
+    }
+
+    dpp_conn_string += "K:" + dpp_bootstrapping_info.public_key + ";;";
+    return dpp_conn_string;
 }
 
 bool db::dm_clear_cac_status_reports(std::shared_ptr<Agent> agent)
@@ -10053,4 +10055,320 @@ std::shared_ptr<Agent::sEthSwitch> db::get_eth_switch(const sMacAddr &mac)
     }
 
     return eth_switch;
+}
+
+bool db::parse_dpp_bootstrap_info(const std::string& dpp_uri,
+                                  sDppBootstrappingInfo& info,
+                                  std::string& error) {
+    error.clear();
+    info = sDppBootstrappingInfo{};
+
+    std::string uri_normalized = dpp_uri;
+    beerocks::string_utils::trim(uri_normalized);
+
+    static const std::string prefix = "DPP:";
+    static const std::string suffix = ";;";
+
+    if (uri_normalized.compare(0, prefix.size(), prefix) != 0) {
+        error = "missing DPP prefix";
+        return false;
+    }
+
+    if ((uri_normalized.size() < suffix.size()) ||
+        (uri_normalized.compare(uri_normalized.size() - suffix.size(), suffix.size(), suffix) != 0)) {
+        error = "missing DPP suffix";
+        return false;
+    }
+
+    std::string body = uri_normalized.substr(prefix.size(), uri_normalized.size() - prefix.size() - suffix.size());
+
+    if (body.empty()) {
+        error = "empty DPP payload";
+        return false;
+    }
+
+    bool seen_c = false, seen_m = false, seen_i = false, seen_v = false, seen_h = false, seen_k = false;
+    std::vector<std::string> fields = beerocks::string_utils::str_split(body, ';');
+
+    for (const auto& field : fields) {
+        if (field.empty()) continue;
+
+        size_t sep = field.find(':');
+        if ((sep == std::string::npos) || (sep == 0) || (sep != 1)) {
+            error = "invalid DPP field format";
+            return false;
+        }
+
+        char key = field[0];
+        std::string value = field.substr(sep + 1);
+
+        if (value.empty()) {
+            error = std::string("empty value for DPP field '") + key + "'";
+            return false;
+        }
+
+        switch (key) {
+        case 'C': {
+            if (seen_c) { error = "duplicate C field"; return false; }
+            seen_c = true;
+
+            auto pairs = beerocks::string_utils::str_split(value, ',');
+            for (const auto& pair : pairs) {
+                auto parts = beerocks::string_utils::str_split(pair, '/');
+                if (parts.size() != 2) { error = "invalid channel list"; return false; }
+
+                char* end = nullptr;
+                errno = 0;
+                long op_class = strtol(parts[0].c_str(), &end, 10);
+                if ((errno != 0) || (end == parts[0].c_str()) || (*end != '\0') || (op_class < 0) || (op_class > 255)) {
+                    error = "invalid operating class";
+                    return false;
+                }
+
+                errno = 0;
+                long channel = strtol(parts[1].c_str(), &end, 10);
+                if ((errno != 0) || (end == parts[1].c_str()) || (*end != '\0') || (channel < 0) || (channel > 255)) {
+                    error = "invalid channel";
+                    return false;
+                }
+
+                for (const auto& existing : info.operating_class_channel) {
+                    if (existing.first == op_class && existing.second == channel) {
+                        error = "duplicate operating class/channel pair";
+                        return false;
+                    }
+                }
+                info.operating_class_channel.emplace(static_cast<uint8_t>(op_class), static_cast<uint8_t>(channel));
+            }
+            
+            if (info.operating_class_channel.empty()) {
+                error = "empty channel list";
+                return false;
+            }
+            break;
+        }
+        case 'M': {
+            if (seen_m) { error = "duplicate M field"; return false; }
+            seen_m = true;
+
+            if (value.length() != 12) { error = "invalid DPP MAC length"; return false; }
+
+            if (!std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isxdigit(c); })) {
+                error = "invalid DPP MAC";
+                return false;
+            }
+
+            std::string mac_colon;
+            mac_colon.reserve(17);
+            for (size_t i = 0; i < value.size(); i += 2) {
+                if (i) mac_colon += ":";
+                mac_colon += value.substr(i, 2);
+            }
+
+            uint8_t mac_bin[ETH_ALEN];
+            if (!tlvf::mac_from_string(mac_bin, mac_colon)) { 
+                error = "failed to parse MAC"; 
+                return false; 
+            }
+            info.mac = tlvf::mac_from_array(mac_bin);
+            break;
+        }
+        case 'I': {
+            if (seen_i) { error = "duplicate I field"; return false; }
+            seen_i = true;
+            info.info = value;
+            break;
+        }
+        case 'V': {
+            if (seen_v) { error = "duplicate V field"; return false; }
+            seen_v = true;
+
+            char* end = nullptr;
+            errno = 0;
+            long version = strtol(value.c_str(), &end, 10);
+            
+            if ((errno != 0) || (end == value.c_str()) || (*end != '\0') || (version < 0) || (version > 255)) {
+                error = "invalid version";
+                return false;
+            }
+            info.version = static_cast<uint8_t>(version);
+            break;
+        }
+        case 'H': {
+            if (seen_h) { error = "duplicate H field"; return false; }
+            seen_h = true;
+            
+            if (value.size() > 255) {
+                error = "Host field too long";
+                return false;
+            }
+            info.host = value;
+            break;
+        }
+        case 'K': {
+            if (seen_k) { error = "duplicate K field"; return false; }
+            seen_k = true;
+
+            info.public_key = value;
+
+            if (!std::all_of(value.begin(), value.end(), [](unsigned char c) {
+                    return std::isalnum(c) || c == '-' || c == '_'; })) {
+                error = "invalid character in public key base64url";
+                return false;
+            }
+
+            std::string b64_std = value;
+            std::replace(b64_std.begin(), b64_std.end(), '-', '+');
+            std::replace(b64_std.begin(), b64_std.end(), '_', '/');
+
+            int padding_added = 0;
+            switch (b64_std.length() % 4) {
+            case 2: b64_std += "=="; padding_added = 2; break;
+            case 3: b64_std += "=";  padding_added = 1; break;
+            case 1: error = "invalid base64url length in public key"; return false;
+            case 0: break;
+            }
+
+            std::vector<uint8_t> decoded(b64_std.length());
+            int out_len = EVP_DecodeBlock(decoded.data(),
+                                          reinterpret_cast<const unsigned char*>(b64_std.data()),
+                                          b64_std.length());
+
+            if (out_len < 0) { error = "OpenSSL base64 decode failed"; return false; }
+
+            out_len -= padding_added;
+
+            if (out_len < 32) { 
+                error = "decoded public key too short"; 
+                return false; 
+            }
+
+            size_t decoded_len = static_cast<size_t>(out_len);
+            mapf::encryption::sha256 sha;
+
+            if (!sha.update(decoded.data(), decoded_len) || !sha.digest(info.pkhash.data())) {
+                error = "failed to hash public key";
+                return false;
+            }
+            break;
+        }
+        default:
+            LOG(DEBUG) << "Ignoring unknown DPP key: " << key;
+            break;
+        }
+    }
+
+    if (!seen_k) {
+        error = "missing mandatory K field";
+        return false;
+    }
+
+    return true;
+}
+
+bool db::add_dpp_bootstrap_info(sDppBootstrappingInfo&& info,std::string& error)
+{
+    if(info.alias.empty()) {
+        error = "Empty alias";
+        return false;
+    }
+
+    auto it = dpp_bootstrap_info_map.find(info.alias);
+
+    if(it != dpp_bootstrap_info_map.end()) {
+        LOG(DEBUG)
+            << "Updating DPP bootstrap info alias="
+            << info.alias;
+    }
+
+    const std::string alias = info.alias;
+
+    dpp_bootstrap_info_map.insert_or_assign(
+        alias,
+        std::move(info));
+
+    return true;
+}
+
+bool db::remove_dpp_bootstrap_info(const std::string& alias)
+{
+    auto it = dpp_bootstrap_info_map.find(alias);
+
+    if(it == dpp_bootstrap_info_map.end()) {
+        return false;
+    }
+
+    dpp_bootstrap_info_map.erase(it);
+    return true;
+}
+
+db::sDppBootstrappingInfo* db::get_dpp_bootstrap_info(const std::string& alias)
+{
+    auto it = dpp_bootstrap_info_map.find(alias);
+
+    if(it == dpp_bootstrap_info_map.end()) {
+        return nullptr;
+    }
+    return &it->second;
+}
+const db::sDppBootstrappingInfo* db::get_dpp_bootstrap_info_by_pkhash(const std::array<uint8_t, 32>& pkhash) const
+{
+    for(const auto& entry : dpp_bootstrap_info_map) {
+        if(entry.second.pkhash == pkhash) {
+            return &entry.second;
+        }
+    }
+    return nullptr;
+}
+
+const db::sDppBootstrappingInfo *db::get_dpp_bootstrap_info_by_mac(const sMacAddr &mac) const
+{
+    for (const auto &entry : dpp_bootstrap_info_map) {
+        if (entry.second.mac == mac) {
+            return &entry.second;
+        }
+    }
+    LOG(DEBUG) << "No DPP bootstrapping info found for MAC: " << mac;
+    return nullptr;
+}
+
+void db::clear_dpp_bootstrap_info_db()
+{
+    dpp_bootstrap_info_map.clear();
+    LOG(DEBUG) << "Cleared all DPP bootstrapping entries";
+}
+
+void db::print_dpp_bootstrap_info() const
+{
+    LOG(INFO) << "JUST FOR DEBUGGING";
+    if (dpp_bootstrap_info_map.empty()) {
+        LOG(INFO) << "DPP Bootstrap Info: [empty]";
+        return;
+    }
+
+    LOG(INFO) << "=== DPP Bootstrap Info [" << dpp_bootstrap_info_map.size() << " entries] ===";
+
+    uint32_t idx = dpp_bootstrap_info_map.size();
+    for (const auto &entry : dpp_bootstrap_info_map) {
+        const sDppBootstrappingInfo &info = entry.second;
+
+        std::string channels_str;
+        for (const auto &ch : info.operating_class_channel) {
+            if (!channels_str.empty()) {
+                channels_str += ", ";
+            }
+            channels_str += std::to_string(ch.first) + "/" + std::to_string(ch.second);
+        }
+
+        LOG(INFO) << "  [" << idx << "] Alias    : " << entry.first;
+        LOG(INFO) << "      MAC      : " << info.mac;
+        LOG(INFO) << "      Version  : " << static_cast<int>(info.version);
+        LOG(INFO) << "      Channels : " << (channels_str.empty() ? "<not set>" : channels_str);
+        LOG(INFO) << "      Info     : " << (info.info.empty() ? "<not set>" : info.info);
+        LOG(INFO) << "      Host     : " << (info.host.empty() ? "<not set>" : info.host);
+        LOG(INFO) << "      PubKey   : " << info.public_key;
+        --idx;
+    }
+
+    LOG(INFO) << "=== End DPP Bootstrap Info ===";
 }
