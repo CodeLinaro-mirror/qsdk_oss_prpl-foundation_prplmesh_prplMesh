@@ -1705,6 +1705,9 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 
     /** Traffic Separation Policy **/
+    const bool default_8021q_tlv_present =
+        static_cast<bool>(cmdu_rx.getClass<wfa_map::tlvProfile2Default802dotQSettings>());
+
     if (!handle_profile2_default_802dotq_settings_tlv(cmdu_rx)) {
         LOG(ERROR) << "handle_profile2_default_802dotq_settings_tlv has failed!";
         return;
@@ -1743,6 +1746,12 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
             return;
         }
         return;
+    }
+
+    if (default_8021q_tlv_present || ts_policy_tlv_present) {
+        LOG(DEBUG) << "Trigger traffic separation on Multi-AP TS policy update";
+        m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                           TrafficSeparationTask::eEvent::TS_ENABLE);
     }
 
     /** Steering Policy **/
@@ -1902,17 +1911,6 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
                    << "\n Report: " << db->link_metrics_policy.report_unsuccessful_associations
                    << "; maximum reporting rate: "
                    << db->link_metrics_policy.failed_associations_maximum_reporting_rate;
-    }
-
-    for (const auto &radios_conf_param_kv : m_radios_conf_params) {
-        const auto &conf_params = radios_conf_param_kv.second;
-
-        if (conf_params.state == eState::CONFIGURED) {
-            // Trigger TrafficSeparationTask on Multi-AP Policy Request received
-            LOG(DEBUG) << "Trigger traffic separation on Multi-AP Policy Request";
-            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                               TrafficSeparationTask::eEvent::TS_ENABLE);
-        }
     }
 
     return;
