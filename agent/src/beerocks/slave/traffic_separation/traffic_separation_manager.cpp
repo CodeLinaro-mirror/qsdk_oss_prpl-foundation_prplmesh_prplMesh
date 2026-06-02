@@ -28,8 +28,29 @@ bool TrafficSeparationManager::configure(const sTrafficSeparationConfig &cfg)
         return false;
     }
 
+    const bool was_applied = is_applied();
+    const bool vid_changed = was_applied && (m_config.private_vid != cfg.private_vid ||
+                                             m_config.guest_vid != cfg.guest_vid);
+
+    if (vid_changed) {
+        LOG(DEBUG) << "runtime TS VLAN config changed, private_vid " << m_config.private_vid << "->"
+                   << cfg.private_vid << ", guest_vid " << m_config.guest_vid << "->"
+                   << cfg.guest_vid << ", reapplying policies";
+        if (!clear_policies()) {
+            LOG(ERROR) << "failed to clear policies before runtime config update";
+            return false;
+        }
+    }
+
     m_config = cfg;
-    m_state  = eTsManagerState::CONFIGURED;
+
+    if (vid_changed) {
+        return apply_policies();
+    }
+
+    if (!was_applied) {
+        m_state = eTsManagerState::CONFIGURED;
+    }
 
     return true;
 }

@@ -108,8 +108,7 @@ private:
     bool should_run_now() const;
 
     /**
-   * @brief Clear current TS policies, refresh config, and reapply TS on
-   * currently managed ports.
+   * @brief Refresh config and reapply TS on currently managed ports.
    *
    * Keeps exact FH/WDS iface ownership event-driven while refreshing the
    * config and persistent DB-owned trunk ports.
