@@ -96,7 +96,7 @@ private:
     bool should_run_now() const;
 
     /**
-     * @brief Full TS recomputation/apply entrypoint.
+     * @brief Refresh TS config and apply on managed ports.
      *
      * Builds config from DB, (re)configures all trunk/access ports and applies policies.
      */

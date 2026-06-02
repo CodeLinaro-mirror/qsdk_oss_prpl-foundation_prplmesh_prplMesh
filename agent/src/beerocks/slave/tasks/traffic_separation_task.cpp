@@ -261,14 +261,21 @@ bool TrafficSeparationTask::reset()
         m_mgr = std::make_unique<net::TrafficSeparationManager>();
     }
 
-    if (!m_mgr->reset()) {
-        LOG(ERROR) << "manager reset failed";
+    if (!m_mgr->refresh_ports()) {
+        LOG(ERROR) << "refresh_ports failed";
         return false;
     }
 
     net::sTrafficSeparationConfig cfg{};
     if (!build_ts_config(cfg)) {
         LOG(ERROR) << "failed to build config";
+        return false;
+    }
+
+    // Full TS_ENABLE reconciliation must not trust cached APPLIED state:
+    // WDS reconnect can recreate the parent iface without its VLAN subifaces.
+    if (!m_mgr->clear_policies()) {
+        LOG(ERROR) << "manager clear_policies failed";
         return false;
     }
 

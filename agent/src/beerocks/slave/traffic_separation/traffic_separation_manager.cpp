@@ -28,8 +28,29 @@ bool TrafficSeparationManager::configure(const sTrafficSeparationConfig &cfg)
         return false;
     }
 
+    const bool was_applied = is_applied();
+    const bool vid_changed = was_applied && (m_config.private_vid != cfg.private_vid ||
+                                             m_config.guest_vid != cfg.guest_vid);
+
+    if (vid_changed) {
+        LOG(DEBUG) << "runtime TS VLAN config changed, private_vid " << m_config.private_vid << "->"
+                   << cfg.private_vid << ", guest_vid " << m_config.guest_vid << "->"
+                   << cfg.guest_vid << ", reapplying policies";
+        if (!clear_policies()) {
+            LOG(ERROR) << "failed to clear policies before runtime config update";
+            return false;
+        }
+    }
+
     m_config = cfg;
-    m_state  = eTsManagerState::CONFIGURED;
+
+    if (vid_changed) {
+        return apply_policies();
+    }
+
+    if (!was_applied) {
+        m_state = eTsManagerState::CONFIGURED;
+    }
 
     return true;
 }
@@ -278,6 +299,35 @@ bool TrafficSeparationManager::reset()
 
     m_config = sTrafficSeparationConfig{};
     m_state  = eTsManagerState::NO_CONFIG;
+
+    return success;
+}
+
+bool TrafficSeparationManager::refresh_ports()
+{
+    bool success               = true;
+    const auto refresh_missing = [&](const auto &managed_ports, auto remover, const char *kind) {
+        std::vector<std::string> missing_ifaces;
+        missing_ifaces.reserve(managed_ports.size());
+
+        for (const auto &entry : managed_ports) {
+            if (!network_utils::linux_iface_exists(entry.first)) {
+                missing_ifaces.push_back(entry.first);
+            }
+        }
+
+        for (const auto &iface_name : missing_ifaces) {
+            LOG(DEBUG) << "Removing stale missing " << kind << " iface=" << iface_name;
+            if (!(this->*remover)(iface_name)) {
+                success = false;
+            }
+        }
+    };
+
+    refresh_missing(m_trunk_port_plumbing_map, &TrafficSeparationManager::remove_trunk_port,
+                    "trunk");
+    refresh_missing(m_access_port_plumbing_map, &TrafficSeparationManager::remove_access_port,
+                    "access");
 
     return success;
 }
