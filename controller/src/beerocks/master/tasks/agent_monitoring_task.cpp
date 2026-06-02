@@ -32,6 +32,7 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace beerocks;
@@ -41,8 +42,9 @@ using namespace son;
 constexpr std::chrono::seconds M1_TASK_RESCHEDULE_DELAY{1};
 
 namespace {
-constexpr int MIN_TS_VID = 1;
-constexpr int MAX_TS_VID = 4094;
+constexpr int MIN_TS_VID                = 1;
+constexpr int MAX_TS_VID                = 4094;
+constexpr char FALLBACK_GUEST_TS_SSID[] = "prplmesh-guest-vlan";
 
 bool is_valid_ts_vid(const int vid) { return (vid >= MIN_TS_VID) && (vid <= MAX_TS_VID); }
 
@@ -67,6 +69,7 @@ build_custom_ts_config(const std::list<wireless_utils::sBssInfoConf> &bss_infos,
 {
     std::list<wireless_utils::sTrafficSeparationSsid> configs;
     std::set<std::string> unique_ssids;
+    bool has_guest_vid = false;
 
     for (const auto &bss_info : bss_infos) {
         if (bss_info.ssid.empty()) {
@@ -86,7 +89,18 @@ build_custom_ts_config(const std::list<wireless_utils::sBssInfoConf> &bss_infos,
         config.ssid = bss_info.ssid;
         config.vlan_id =
             static_cast<uint16_t>(bss_info.vap_type == eVapType::GUEST ? guest_vid : private_vid);
-        configs.push_back(config);
+        has_guest_vid |= (config.vlan_id == guest_vid);
+        configs.push_back(std::move(config));
+    }
+
+    // Keep GuestVID visible to the agent when the guest VAP is currently disabled,
+    // so enabling it later during prplMesh runtime uses the updated TS policy.
+    if (private_vid != guest_vid && !has_guest_vid &&
+        unique_ssids.insert(FALLBACK_GUEST_TS_SSID).second) {
+        wireless_utils::sTrafficSeparationSsid config;
+        config.ssid    = FALLBACK_GUEST_TS_SSID;
+        config.vlan_id = static_cast<uint16_t>(guest_vid);
+        configs.push_back(std::move(config));
     }
 
     return configs;
