@@ -1022,16 +1022,17 @@ void sta_wlan_hal_whm::emit_affiliated_link_status(bool connected)
             return;
         }
         msg->affiliated_mac_address = tlvf::mac_from_string(local_mac);
-        LOG(DEBUG) << " Affiliated_Link_Connected: ruid=" << msg->ruid
-                   << " local_link_mac=" << msg->affiliated_mac_address
-                   << " mld_mac=" << msg->mld_mac_address;
+        msg->ap_mld_mac_address     = get_ap_mld_mac();
+        msg->bsta_mld_mac_address   = get_bsta_mld_mac();
     } else {
         msg->affiliated_mac_address = beerocks::net::network_utils::ZERO_MAC;
-        msg->mld_mac_address        = beerocks::net::network_utils::ZERO_MAC;
+        msg->ap_mld_mac_address     = beerocks::net::network_utils::ZERO_MAC;
+        msg->bsta_mld_mac_address   = beerocks::net::network_utils::ZERO_MAC;
     }
     LOG(DEBUG) << "Filled msg buffer with ruid=" << msg->ruid
                << " local_link_mac=" << msg->affiliated_mac_address
-               << " mld_mac=" << msg->mld_mac_address;
+               << " ap_mld_mac=" << msg->ap_mld_mac_address
+               << " bsta_mld_mac=" << msg->bsta_mld_mac_address;
     event_queue_push(bwl::sta_wlan_hal::Event::Affiliated_Link_Connected, buff);
 }
 
@@ -1256,6 +1257,10 @@ bool sta_wlan_hal_whm::update_mld_unit(int8_t mld_unit)
         return false;
     }
     m_mld_unit = mld_unit;
+
+    if (is_connected() && m_mld_unit > beerocks::DISABLED_MLDUNIT) {
+        emit_affiliated_link_status(true);
+    }
 
     LOG(INFO) << " Successfully updated MLDUnit for bSTA, " << static_cast<int>(mld_unit)
               << " SSID: " << ssid_ref << ", Endpoint DM: " << m_ep_path;
