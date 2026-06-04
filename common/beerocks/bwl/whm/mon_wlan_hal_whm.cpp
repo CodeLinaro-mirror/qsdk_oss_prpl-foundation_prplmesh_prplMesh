@@ -387,35 +387,53 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
                                              const std::string &sta_mac, SStaStats &sta_stats,
                                              bool is_read_unicast)
 {
-    auto sta_mac_address = tlvf::mac_from_string(sta_mac);
-    nl80211_client::sta_info sta_info;
-    if (!m_iso_nl80211_client->get_sta_info(vap_iface_name, sta_mac_address, sta_info)) {
-        return true;
-    }
-    sta_stats.tx_bytes          = sta_info.tx_bytes;
-    sta_stats.rx_bytes          = sta_info.rx_bytes;
-    sta_stats.tx_packets        = sta_info.tx_packets;
-    sta_stats.rx_packets        = sta_info.rx_packets;
-    sta_stats.retrans_count     = sta_info.tx_retries;
-    sta_stats.tx_phy_rate_100kb = sta_info.tx_bitrate_100kbps;
-    sta_stats.rx_phy_rate_100kb = sta_info.rx_bitrate_100kbps;
-    sta_stats.dl_bandwidth      = sta_info.dl_bandwidth;
-    if (sta_info.signal_dbm != 0) {
-        sta_stats.rx_rssi_watt += std::pow(10, (int8_t(sta_info.signal_dbm) / 10.0));
-        sta_stats.rx_rssi_watt_samples_cnt++;
-    }
 
-    //complement missing info in sta_info struct
-    std::string assoc_device_path =
-        wbapi_utils::search_path_assocDev_by_mac(vap_iface_name, sta_mac);
+    std::string assoc_device_path = base_wlan_hal_whm::get_station_path(sta_mac);
 
-    float s_float;
     AmbiorixVariantSmartPtr assoc_device_obj = m_ambiorix_cl.get_object(assoc_device_path);
+
     if (!assoc_device_obj) {
         LOG(ERROR) << "Failed to get object: " << assoc_device_path;
         return false;
     }
 
+    // TODO: PPM-4002
+    // sta_stats.tx_bytes was filled with sta_info.tx_bytes that is read from AssociatedDevice.TxBytes;
+    // sta_stats.tx_bytes_cnt reads again from AssociatedDevice.TxBytes; etc
+
+    assoc_device_obj->read_child(sta_stats.tx_bytes, "TxBytes");
+    assoc_device_obj->read_child(sta_stats.rx_bytes, "RxBytes");
+    assoc_device_obj->read_child(sta_stats.tx_bytes_cnt, "TxBytes");
+    assoc_device_obj->read_child(sta_stats.rx_bytes_cnt, "RxBytes");
+
+    assoc_device_obj->read_child(sta_stats.tx_errors_cnt, "TxErrors");
+    assoc_device_obj->read_child(sta_stats.rx_errors_cnt, "RxErrors");
+    assoc_device_obj->read_child(sta_stats.tx_packets, "TxPacketCount");
+    assoc_device_obj->read_child(sta_stats.rx_packets, "RxPacketCount");
+
+    assoc_device_obj->read_child(sta_stats.rx_packets_cnt, "RxPacketCount");
+    if (is_read_unicast) {
+        // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
+        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxUnicastPacketCount");
+    } else {
+        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxPacketCount");
+    }
+
+    assoc_device_obj->read_child(sta_stats.retrans_count, "Tx_Retransmissions");
+
+    uint32_t u32Val;
+    if (assoc_device_obj->read_child(u32Val, "LastDataDownlinkRate")) {
+        sta_stats.tx_phy_rate_100kb = u32Val / 100;
+    }
+    if (assoc_device_obj->read_child(u32Val, "LastDataUplinkRate")) {
+        sta_stats.rx_phy_rate_100kb = u32Val / 100;
+    }
+
+    assoc_device_obj->read_child(u32Val, "DownlinkBandwidth");
+    std::string sVal       = std::to_string(u32Val);
+    sta_stats.dl_bandwidth = wbapi_utils::bandwith_from_string(sVal + "MHz");
+
+    float s_float;
     if (assoc_device_obj->read_child(s_float, "SignalNoiseRatio")) {
         if (s_float >= beerocks::SNR_MIN) {
             sta_stats.rx_snr_watt = std::pow(10, s_float / float(10));
@@ -423,17 +441,11 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
         }
     }
 
-    assoc_device_obj->read_child(sta_stats.tx_bytes_cnt, "TxBytes");
-    assoc_device_obj->read_child(sta_stats.rx_bytes_cnt, "RxBytes");
-    assoc_device_obj->read_child(sta_stats.rx_packets_cnt, "RxPacketCount");
-    assoc_device_obj->read_child(sta_stats.tx_errors_cnt, "TxErrors");
-    assoc_device_obj->read_child(sta_stats.rx_errors_cnt, "RxErrors");
-
-    if (is_read_unicast) {
-        // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
-        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxUnicastPacketCount");
-    } else {
-        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxPacketCount");
+    int32_t signal_dbm = 0;
+    assoc_device_obj->read_child(signal_dbm, "SignalStrength");
+    if (signal_dbm != 0) {
+        sta_stats.rx_rssi_watt += std::pow(10, (int8_t(signal_dbm) / 10.0));
+        sta_stats.rx_rssi_watt_samples_cnt++;
     }
 
     return true;
@@ -669,7 +681,7 @@ bool mon_wlan_hal_whm::generate_connected_clients_events(
         }
 
         //Lets iterate through all instances
-        for (auto &associated_device_pwhm : *associated_devices_pwhm) {
+        for (const auto &associated_device_pwhm : *associated_devices_pwhm) {
             bool is_active;
             if (!associated_device_pwhm.second.read_child(is_active, "Active") || !is_active) {
                 // we are only interested in connected stations
@@ -697,8 +709,11 @@ bool mon_wlan_hal_whm::generate_connected_clients_events(
                 m_stations.emplace(associated_device_pwhm.first,
                                    sStationInfo(associated_device_pwhm.first, mac_addr));
             } else {
-                sta_it->second.mac = std::move(mac_addr);
+                sta_it->second.mac = mac_addr;
             }
+
+            base_wlan_hal_whm::update_station_path(mac_addr, associated_device_pwhm.first,
+                                                   GENERATE_CONNECTED_EVENTS);
 
             event_queue_push(Event::STA_Connected, msg_buff);
         }
@@ -771,6 +786,9 @@ bool mon_wlan_hal_whm::process_sta_connected_event(
     const std::string &interface, const std::string &sta_mac, const std::string &key,
     const AmbiorixVariant *value, const std::string &sta_path, const std::string &vap_path)
 {
+    LOG(DEBUG) << "Processing STA connected event - interface: " << interface << ", STA MAC: "
+               << sta_mac << ", key: " << key << ", vap_path: " << vap_path
+               << ", sta_path: " << sta_path;
     auto vap_id = get_vap_id_with_bss(interface);
     if (vap_id == beerocks::IFACE_ID_INVALID) {
         return true;
@@ -787,7 +805,13 @@ bool mon_wlan_hal_whm::process_sta_connected_event(
             memset(msg_buff.get(), 0, sizeof(sACTION_MONITOR_CLIENT_ASSOCIATED_NOTIFICATION));
             msg->vap_id = vap_id;
             msg->mac    = tlvf::mac_from_string(sta_mac);
+
+            base_wlan_hal_whm::update_station_path(sta_mac, sta_path, AUTHENTICATION_STATE_UP);
+
             event_queue_push(Event::STA_Connected, msg_buff);
+        } else {
+            // connected == false
+            base_wlan_hal_whm::remove_station_path(sta_mac, AUTHENTICATION_STATE_DOWN);
         }
     }
     return true;
@@ -840,7 +864,7 @@ bool mon_wlan_hal_whm::process_sta_disassoc_event(
         (*data_map)["DeauthReason"].get(msg->params.reason);
     }
 
-    LOG(INFO) << "disconnected station " << sta_mac << " from vap "
+    LOG(INFO) << AMX_CL_DISASSOC_EVT << " disconnected station " << sta_mac << " from vap "
               << interface << " reason: " << msg->params.reason;
 
     event_queue_push(Event::STA_Disconnected, msg_buff);
