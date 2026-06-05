@@ -42,6 +42,19 @@
             on action validate call check_range [0, 5];
         }
 
+        /**
+        * prplMesh-specific agent classification used by controller-side
+        * diagnostics and connection-map visibility.
+        */
+        %read-only string X_PRPLWARE-COM_AgentType {
+            default "non-prplMesh";
+            on action validate call check_enum [
+                "non-prplMesh",
+                "prplMesh",
+                "prplMesh-fallback"
+            ];
+        }
+
         uint32 APMetricsReportingInterval {
             on action validate call check_range [0, 255];
         }

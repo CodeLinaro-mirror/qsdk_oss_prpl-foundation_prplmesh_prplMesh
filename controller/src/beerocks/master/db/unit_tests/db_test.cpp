@@ -112,6 +112,10 @@ protected:
                         "EasyMeshAgentOperationMode", Matcher<const std::string &>("Running")))
             .WillOnce(Return(true));
 
+        EXPECT_CALL(*m_ambiorix, set(std::string(g_device_path) + ".1", "X_PRPLWARE-COM_AgentType",
+                                     Matcher<const std::string &>("prplMesh")))
+            .WillOnce(Return(true));
+
         m_db->set_prplmesh(tlvf::mac_from_string(g_bridge_mac));
         EXPECT_EQ(std::string(g_device_path) + ".1",
                   m_db->get_agent_data_model_path(tlvf::mac_from_string(g_bridge_mac)));

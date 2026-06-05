@@ -321,6 +321,59 @@ bool prplmesh_cli::print_radio(const std::string &device_path)
     return true;
 }
 
+void prplmesh_cli::print_agent_type_summary()
+{
+    std::vector<std::string> non_prplmesh_agents;
+    std::vector<std::string> fallback_agents;
+
+    const amxc_htable_t *devices = nullptr;
+    beerocks::prplmesh_amx::AmxResult devices_result;
+    if (m_amx_client->get_htable_object(conn_map.device_ht_path, devices_result)) {
+        devices = devices_result.htable();
+    }
+
+    if (!devices) {
+        return;
+    }
+
+    amxc_htable_iterate(device_it, devices)
+    {
+        amxc_var_t *device_obj = amxc_var_from_htable_it(device_it);
+        std::string mac        = GET_CHAR(device_obj, "ID");
+        std::string agent_type = GET_CHAR(device_obj, "X_PRPLWARE-COM_AgentType");
+
+        if (agent_type == "non-prplMesh") {
+            non_prplmesh_agents.push_back(mac);
+        } else if (agent_type == "prplMesh-fallback") {
+            fallback_agents.push_back(mac);
+        }
+    }
+
+    if (!non_prplmesh_agents.empty()) {
+        std::cout << std::endl << "INFO: non-prplMesh agent(s):" << std::endl;
+
+        for (const auto &mac : non_prplmesh_agents) {
+            std::cout << "      - mac: " << mac << std::endl;
+        }
+    }
+
+    if (!fallback_agents.empty()) {
+        std::cout << std::endl << "WARN: prplMesh-fallback agent(s):" << std::endl;
+
+        for (const auto &mac : fallback_agents) {
+            std::cout << "      - mac: " << mac << std::endl;
+        }
+
+        std::cout << "      Fallback triggered by VS TLV format mismatch; full functionality can"
+                  << std::endl
+                  << "      be restored by upgrading agent FW to match the controller" << std::endl;
+    }
+
+    if (!non_prplmesh_agents.empty() || !fallback_agents.empty()) {
+        std::cout << std::endl;
+    }
+}
+
 bool prplmesh_cli::prpl_conn_map(bool short_output)
 {
     conn_map.device_index = 1;
@@ -351,6 +404,9 @@ bool prplmesh_cli::prpl_conn_map(bool short_output)
     conn_map.device_number = GET_UINT32(network_obj, "DeviceNumberOfEntries");
 
     std::cout << "Found " << conn_map.device_number << " devices" << std::endl;
+
+    // Print non-prplMesh and fallback agent summary
+    print_agent_type_summary();
 
     if (!prplmesh_cli::get_ip_from_iface(BRIDGE_IFACE, conn_map.bridge_ip_v4)) {
         LOG(ERROR) << "Can't get bridge ip.";
