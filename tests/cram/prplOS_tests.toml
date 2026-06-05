@@ -9,11 +9,21 @@ tests = [
     "100-pwhm_step_2.t",
     "101-mlo_step_1.t",
     "101-mlo_step_2.t",
-    "102-apmld.t",
+    "102-apmld_step_1.t",
+    "102-apmld_step_2.t",
     "102-pwhm-static-puncturing.t",
+    "102-pwhm-usp.t",
     "103-pwhm-usp.t",
     "104-pwhm-custom-arguments.t",
+    "106-pwhm-get-eht-caps_step_1.t",
+    "106-pwhm-get-eht-caps_step_2.t",
+    "107-wifi-bstamld_step_1.t",
+    "107-wifi-bstamld_step_2.t",
+    "108-pwhm-afc.t",
     "110-prplmesh-dataelements.t",
+    "113-prplmesh-wpa3-cm.t",
+    "120-prplmesh-static-puncturing_step_1.t",
+    "120-prplmesh-static-puncturing_step_2.t",
     "125-process-manager.t"
 ]
 
@@ -24,9 +34,12 @@ tests = [
     "030-wifi.t",
     "100-pwhm_step_1.t",
     "100-pwhm_step_2.t",
+    "102-pwhm-usp.t",
     "103-pwhm-usp.t",
     "110-prplmesh-dataelements.t",
-    "125-process-manager.t",
+    "111-wifi-sensing.t",
+    "113-prplmesh-wpa3-cm.t",
+    "125-process-manager.t"
 ]
 
 [mozart]
