@@ -130,6 +130,14 @@ public:
     } conn_map_t;
 
 private:
+    /**
+    * @brief Print a summary of non-prplMesh and fallback agents.
+    *
+    * Displays detected non-prplMesh agents and agents operating
+    * in prplMesh compatibility fallback mode, including their
+    * MAC addresses and any relevant warning messages.
+    */
+    void print_agent_type_summary();
 };
 
 } // namespace prplmesh_api
