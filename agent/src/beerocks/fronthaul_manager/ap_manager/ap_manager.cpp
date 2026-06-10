@@ -33,6 +33,7 @@
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
+#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
@@ -2664,6 +2665,14 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
     typedef bwl::ap_wlan_hal::Event Event;
     auto event = (Event)(event_ptr->first);
     auto data  = event_ptr->second.get();
+    // RSN error types per EasyMesh R6.1 RSN Diagnostic Report TLV (0xEA).
+    enum eRsnDiagnosticErrorType : uint16_t {
+        RSN_DIAG_UNSPECIFIED            = 0,
+        RSN_DIAG_AUTHENTICATION_FAILURE = 1,
+        RSN_DIAG_EAPOL_FAILURE          = 2,
+        RSN_DIAG_PSK_MISMATCH           = 3,
+        RSN_DIAG_ACL_DENIED             = 4,
+    };
 
     switch (event) {
 
@@ -3706,7 +3715,35 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         }
         profile2_reason_code_tlv->reason_code() =
             static_cast<wfa_map::tlvProfile2ReasonCode::eReasonCode>(sta_conn_fail->reason);
-        // Send the mismatched message
+
+        auto rsn_diagnostic_tlv = cmdu_tx.addClass<wfa_map::tlvRsnDiagnosticReport>();
+        if (!rsn_diagnostic_tlv) {
+            LOG(ERROR) << "addClass wfa_map::tlvRsnDiagnosticReport!";
+            return false;
+        }
+        uint16_t rsn_error_type_val = RSN_DIAG_UNSPECIFIED;
+        switch (event) {
+        case Event::WPA_Event_EAP_Failure:
+        case Event::WPA_Event_EAP_Failure2:
+        case Event::WPA_Event_EAP_Timeout_Failure:
+        case Event::WPA_Event_EAP_Timeout_Failure2:
+            rsn_error_type_val = RSN_DIAG_EAPOL_FAILURE;
+            break;
+        case Event::AP_Sta_Possible_Psk_Mismatch:
+            rsn_error_type_val = RSN_DIAG_PSK_MISMATCH;
+            break;
+        case Event::ACL_DENY:
+            rsn_error_type_val = RSN_DIAG_ACL_DENIED;
+            break;
+        default:
+            rsn_error_type_val = RSN_DIAG_AUTHENTICATION_FAILURE;
+            break;
+        }
+
+        rsn_diagnostic_tlv->bssid()   = sta_conn_fail->bssid;
+        rsn_diagnostic_tlv->sta_mac() = sta_conn_fail->sta_mac;
+        rsn_diagnostic_tlv->rsn_error_type() = rsn_error_type_val;
+
         send_cmdu(cmdu_tx);
     } break;
     case Event::DPP_PRESENCE_ANNOUNCEMENT: {

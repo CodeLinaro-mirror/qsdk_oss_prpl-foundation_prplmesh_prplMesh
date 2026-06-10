@@ -32,7 +32,7 @@ public:
     static bool add_traffic_separation_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                                   const sMacAddr &al_mac);
 
-    enum Event : uint8_t { DISCONNECTED, CONFIGURE_QOS };
+    enum Event : uint8_t { DISCONNECTED, CONFIGURE_QOS, TEMPLATES_COMMIT_APPLY };
 
 protected:
     void work() override;

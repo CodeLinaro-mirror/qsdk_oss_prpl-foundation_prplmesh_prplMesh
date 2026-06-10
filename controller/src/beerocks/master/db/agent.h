@@ -12,6 +12,7 @@
 #include <array>
 #include <memory>
 #include <string>
+#include <bitset>
 
 #include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_mac_map.h>
@@ -93,6 +94,17 @@ public:
 
     // RSN Overriding support
     bool rsn_overriding_supported = false;
+
+    struct sSecurityCapabilities {
+        bool valid_akm_suites    = false;
+        bool valid_cipher_suites = false;
+
+        // Indexed by suite type byte (0..255).
+        std::bitset<256> fronthaul_akm_suite_types;
+        std::bitset<256> backhaul_akm_suite_types;
+        std::bitset<256> cipher_suite_types;
+    } security_capabilities;
+
     /**
      * @brief Max Total Number of unique VLAN identifiers the Multi-AP Agent supports.
      *
@@ -180,6 +192,7 @@ public:
         bool is_acs_enabled = false;
 
         bool eht_supported = false;
+        bool wifi6_phy_reported = false;
         struct sWiFi7Capabilities {
             typedef struct {
                 typedef struct {
@@ -206,6 +219,8 @@ public:
         std::string chipset_vendor;
         /* Frequency type of the radio is obtained from WSC M1*/
         beerocks::eFreqType band = beerocks::FREQ_UNKNOWN;
+        /** From tlvApRadioBasicCapabilities.maximum_number_of_bsss_supported (M1). 0 = unknown. */
+        uint8_t maximum_number_of_bsss_supported = 0;
 
         int ant_gain = 0;
         int tx_power = 0;

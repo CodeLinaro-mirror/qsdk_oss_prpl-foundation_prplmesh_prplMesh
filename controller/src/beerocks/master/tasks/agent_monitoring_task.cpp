@@ -33,6 +33,9 @@
 #include <set>
 #include <string>
 #include <vector>
+#ifdef ENABLE_NBAPI
+#include "on_action.h"
+#endif
 
 using namespace beerocks;
 using namespace net;
@@ -154,6 +157,9 @@ agent_monitoring_task::agent_monitoring_task(db &database_, ieee1905_1::CmduMess
 
 void agent_monitoring_task::work()
 {
+#ifdef ENABLE_NBAPI
+    prplmesh::controller::actions::templates_commit_apply_pending();
+#endif
     if (!m_ap_autoconfig_renew_sent) {
         /**
          * Usually, the ap-configuration sequence is started when the agent sends the ap-config
@@ -306,6 +312,12 @@ void agent_monitoring_task::handle_event(int event_type, void *obj)
         }
         break;
     }
+#ifdef ENABLE_NBAPI
+    case (TEMPLATES_COMMIT_APPLY): {
+        prplmesh::controller::actions::templates_commit_apply_pending();
+        break;
+    }
+#endif
     default:
         break;
     }
@@ -395,6 +407,11 @@ bool agent_monitoring_task::start_agent_monitoring(const sMacAddr &src_mac,
         LOG(ERROR) << "Failed to add " << agent_connected_event_path << ".Neighbor";
         return false;
     }
+#ifdef ENABLE_NBAPI
+    if (database.config.use_dataelements_vap_configs) {
+        prplmesh::controller::actions::templates_restage_only();
+    }
+#endif
     if (database.get_agent_monitoring_task_id() == db::TASK_ID_NOT_FOUND) {
         database.assign_agent_monitoring_task_id(id);
     }

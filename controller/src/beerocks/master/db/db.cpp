@@ -1530,6 +1530,7 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
         return true;
     }
 
+    radio->wifi6_phy_reported = true;
     bool ret_val = true;
     for (uint8_t i = 0; i < wifi6_caps_tlv.number_of_roles(); i++) {
         std::tuple<bool, wfa_map::cRole> role_tuple = wifi6_caps_tlv.role(i);

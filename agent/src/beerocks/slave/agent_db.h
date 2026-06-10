@@ -287,6 +287,7 @@ public:
                 uint8_t eht_operations[10];
                 WSC::eWscVendorExtHiddenSsid hidden_ssid = WSC::eWscVendorExtHiddenSsid::UNSET;
                 eVapType vap_type                        = eVapType::OTHER;
+                uint8_t bss_index                        = 0;
                 std::string vap_label;
             };
             uint8_t radio_max_bss     = 0;
