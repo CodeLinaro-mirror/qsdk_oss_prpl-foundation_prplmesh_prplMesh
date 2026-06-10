@@ -228,6 +228,11 @@ static bool assign_auth_encr_parameters(prplmesh::hostapd::Configuration &conf,
     // are used to install keys (EAPOL-Key message 3/4 and group message 1/2). This
     // is similar to setting wpa_group_update_count=1 and
     std::string wpa_disable_eapol_key_retries;
+    std::string rsn_override_key_mgmt("");
+    std::string rsn_override_key_mgmt_2("");
+    std::string rsn_override_pairwise("");
+    std::string rsn_override_pairwise_2("");
+    std::string rsn_override_mfp("");
 
     // EasyMesh R1 only allows Open and WPA2 PSK auth&encryption methods.
     // Quote: A Multi-AP Controller shall set the Authentication Type attribute
@@ -315,6 +320,37 @@ static bool assign_auth_encr_parameters(prplmesh::hostapd::Configuration &conf,
         disable_pmksa_caching.assign("1");
         okc.assign("1");
         wpa_disable_eapol_key_retries.assign("0");
+    } else if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
+           bss_info_conf.additional_auth ==
+               son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+
+        wpa = 0x2;
+        wpa_key_mgmt.assign("WPA-PSK SAE");
+
+        if (bss_info_conf.encryption_type != WSC::eWscEncr::WSC_ENCR_AES) {
+            LOG(ERROR) << "Autoconfiguration: " << vap_if << " CCMP(AES) is required for WPA3-PCM";
+            return false;
+        }
+        wpa_pairwise.assign("CCMP");
+
+        if (bss_info_conf.network_key.length() < 8 || bss_info_conf.network_key.length() > 64) {
+            LOG(ERROR) << "Autoconfiguration: " << vap_if << " invalid network key length "
+                       << bss_info_conf.network_key.length();
+            return false;
+        }
+        wpa_passphrase.assign(bss_info_conf.network_key);
+
+        ieee80211w.assign("2");
+        disable_pmksa_caching.assign("1");
+        okc.assign("1");
+        wpa_disable_eapol_key_retries.assign("0");
+
+        // Enable hostap RSN override path for WPA3-PCM.
+        rsn_override_key_mgmt.assign("SAE");
+        rsn_override_key_mgmt_2.assign("SAE-EXT-KEY");
+        rsn_override_pairwise.assign("CCMP");
+        rsn_override_pairwise_2.assign("GCMP-256");
+        rsn_override_mfp.assign("2");
     } else {
         LOG(ERROR) << "Autoconfiguration: " << vap_id << " invalid authentication type: "
                    << son::wireless_utils::wsc_to_bwl_authentication(bss.authentication_type,
@@ -331,6 +367,11 @@ static bool assign_auth_encr_parameters(prplmesh::hostapd::Configuration &conf,
     conf.set_create_value(vap_id, "wpa_passphrase", wpa_passphrase);
     conf.set_create_value(vap_id, "disable_pmksa_caching", disable_pmksa_caching);
     conf.set_create_value(vap_id, "wpa_disable_eapol_key_retries", wpa_disable_eapol_key_retries);
+    conf.set_create_value(vap_id, "rsn_override_key_mgmt", rsn_override_key_mgmt);
+    conf.set_create_value(vap_id, "rsn_override_key_mgmt_2", rsn_override_key_mgmt_2);
+    conf.set_create_value(vap_id, "rsn_override_pairwise", rsn_override_pairwise);
+    conf.set_create_value(vap_id, "rsn_override_pairwise_2", rsn_override_pairwise_2);
+    conf.set_create_value(vap_id, "rsn_override_mfp", rsn_override_mfp);
     return true;
 }
 

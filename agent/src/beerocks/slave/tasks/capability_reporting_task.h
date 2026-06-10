@@ -134,6 +134,7 @@ private:
      */
     bool add_akm_suites_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 
+    bool add_supported_cipher_suites_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
     /**
      * @brief Adds a new WiFi 7 Agent Capabilities TLV to given message.
      *

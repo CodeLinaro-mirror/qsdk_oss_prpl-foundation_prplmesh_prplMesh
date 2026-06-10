@@ -59,6 +59,7 @@
 #include <tlvf/wfa_map/tlvAffiliatedStaMetrics.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvAkmSuiteCapabilities.h>
+#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 #include <tlvf/wfa_map/tlvApCapability.h>
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
@@ -98,6 +99,7 @@
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
 #include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
+#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
@@ -119,6 +121,9 @@
 #include "../../../vbss/vbss_task.h"
 #endif
 
+#ifdef ENABLE_NBAPI
+#include "on_action.h"
+#endif
 namespace son {
 
 namespace {
@@ -1119,13 +1124,29 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     m2_cfg.encr_type_flags     = uint16_t(WSC::eWscEncr::WSC_ENCR_NONE) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
                              uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP);
+    WSC::eWscAuth m2_auth_type_flags =
+        WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
+                      WSC::eWscAuth::WSC_AUTH_SAE);
     if (bss_info_conf != nullptr) {
         m2_cfg.bss_index = bss_info_conf->bss_index;
         m2_cfg.vap_type  = bss_info_conf->vap_type;
+
+        if (bss_info_conf->authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
+            bss_info_conf->additional_auth ==
+                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+            if (m1.rf_bands() & WSC::WSC_RF_BAND_6GHZ) {
+                m2_auth_type_flags =
+                    WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_SAE | WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+            } else {
+                m2_auth_type_flags =
+                    WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_SAE |
+                                    WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+            }
+        } else if (bss_info_conf->authentication_type != WSC::eWscAuth::WSC_AUTH_INVALID) {
+            m2_auth_type_flags = bss_info_conf->authentication_type;
+        }
     }
-    m2_cfg.auth_type_flags =
-        WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
-                      WSC::eWscAuth::WSC_AUTH_SAE);
+    m2_cfg.auth_type_flags = m2_auth_type_flags;
 
     // TODO Maybe the band should be taken from bss_info_conf.operating_class instead?
 
@@ -1246,6 +1267,55 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
     return true;
 }
 
+static sMacAddr resolve_radio_bssid_for_bss(db &database, const sMacAddr &agt_mac, const sMacAddr &ruid,
+                                            const son::wireless_utils::sBssInfoConf &bss_info_conf)
+{
+    if (bss_info_conf.bssid != beerocks::net::network_utils::ZERO_MAC) {
+        return bss_info_conf.bssid;
+    }
+
+    auto agent = database.m_agents.get(agt_mac);
+    if (!agent) {
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    auto radio = agent->radios.get(ruid);
+    if (!radio) {
+        return beerocks::net::network_utils::ZERO_MAC;
+    }
+
+    if (bss_info_conf.bss_index != 0) {
+        for (const auto &bss_entry : radio->bsses) {
+            if (bss_entry.second->get_vap_id() == static_cast<int>(bss_info_conf.bss_index)) {
+                return bss_entry.second->bssid;
+            }
+        }
+    }
+
+    if (!bss_info_conf.ssid.empty()) {
+        sMacAddr resolved_bssid        = beerocks::net::network_utils::ZERO_MAC;
+        bool single_ssid_match         = false;
+        bool multiple_ssid_match       = false;
+        for (const auto &bss_entry : radio->bsses) {
+            if (bss_entry.second->ssid != bss_info_conf.ssid) {
+                continue;
+            }
+            if (!single_ssid_match) {
+                resolved_bssid    = bss_entry.second->bssid;
+                single_ssid_match = true;
+            } else {
+                multiple_ssid_match = true;
+                break;
+            }
+        }
+        if (single_ssid_match && !multiple_ssid_match) {
+            return resolved_bssid;
+        }
+    }
+
+    return beerocks::net::network_utils::ZERO_MAC;
+}
+
 static bool add_rsn_parameters_configuration_tlv(
     db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agt_mac, const sMacAddr ruid,
     const std::list<son::wireless_utils::sBssInfoConf> &bss_info_confs, beerocks::eFreqType band)
@@ -1259,35 +1329,54 @@ static bool add_rsn_parameters_configuration_tlv(
         LOG(ERROR) << "Failed creating rsn_parameters_radio";
         return false;
     }
-    LOG(DEBUG) << "Addind RSN parameters configuration tlv for radio " << ruid;
+    LOG(DEBUG) << "Adding RSN parameters configuration tlv for radio " << ruid;
     rsn_parameters_radio->ruid() = ruid;
     for (auto &bss_info_conf : bss_info_confs) {
+        if ((bss_info_conf.target_radio_uid != beerocks::net::network_utils::ZERO_MAC) &&
+            (bss_info_conf.target_radio_uid != ruid)) {
+            continue;
+        }
         if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+            const uint8_t *sec_ies = nullptr;
+            size_t sec_len         = 0;
+
+            if (!bss_info_conf.rsn_security_ies.empty()) {
+                sec_ies = bss_info_conf.rsn_security_ies.data();
+                sec_len = bss_info_conf.rsn_security_ies.size();
+                LOG(DEBUG) << "RSN Parameters TLV payload for BSS " << bss_info_conf.bss_index
+                           << " (" << sec_len << " octets)";
+            } else if (bss_info_conf.additional_auth ==
+                       son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+                LOG(DEBUG) << "Setting WPA3 compatibility for BSS " << bss_info_conf.bss_index;
+                if (band == beerocks::eFreqType::FREQ_6G) {
+                    sec_ies = wpa3_pcm_6g_eht.data();
+                    sec_len = wpa3_pcm_6g_eht.size();
+                } else if (band == beerocks::eFreqType::FREQ_5G ||
+                           band == beerocks::eFreqType::FREQ_24G) {
+                    sec_ies = wpa3_pcm_2g_5g_eht.data();
+                    sec_len = wpa3_pcm_2g_5g_eht.size();
+                } else {
+                    LOG(ERROR) << "Unhandled Radio band " << band;
+                    continue;
+                }
+            } else {
+                LOG(ERROR) << "Unhandled RSN type (no security IEs)";
+                continue;
+            }
+
+            if (sec_ies == nullptr || sec_len == 0) {
+                continue;
+            }
+
             auto rsn_parameters_bss = rsn_parameters_radio->create_bsss();
             if (!rsn_parameters_bss) {
                 LOG(ERROR) << "Failed creating rsn_parameters_bss";
                 return false;
             }
-            rsn_parameters_bss->bssid()     = beerocks::net::network_utils::ZERO_MAC;
+            rsn_parameters_bss->bssid() =
+                resolve_radio_bssid_for_bss(database, agt_mac, ruid, bss_info_conf);
             rsn_parameters_bss->bss_index() = bss_info_conf.bss_index;
-
-            // TODO: Add future modes (PPM-3450)
-            if (bss_info_conf.additional_auth ==
-                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
-                LOG(DEBUG) << "Setting WPA3 compatibility for BSS " << bss_info_conf.bss_index;
-                if (band == beerocks::eFreqType::FREQ_6G) {
-                    rsn_parameters_bss->set_security_ies(wpa3_pcm_6g_eht.data(),
-                                                         wpa3_pcm_6g_eht.size());
-                } else if (band == beerocks::eFreqType::FREQ_5G ||
-                           band == beerocks::eFreqType::FREQ_24G) {
-                    rsn_parameters_bss->set_security_ies(wpa3_pcm_2g_5g_eht.data(),
-                                                         wpa3_pcm_2g_5g_eht.size());
-                } else {
-                    LOG(ERROR) << "Unhandled Radio band " << band;
-                }
-            } else {
-                LOG(ERROR) << "Unhandled RSN type";
-            }
+            rsn_parameters_bss->set_security_ies(sec_ies, sec_len);
 
             if (!rsn_parameters_radio->add_bsss(rsn_parameters_bss)) {
                 LOG(ERROR) << "add_bsss failed";
@@ -1520,7 +1609,8 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
             continue;
         }
 
-        if (agent_ap_mld_configuration->num_ap_mld() >= (agent.max_num_mlds)) {
+        const uint8_t ap_mld_limit = std::max<uint8_t>(agent.max_num_mlds, 1);
+        if (agent_ap_mld_configuration->num_ap_mld() >= ap_mld_limit) {
             LOG(INFO) << "More AP MLDs than maximum MLD (" << (agent.max_num_mlds) << ")";
             break;
         }
@@ -1581,8 +1671,14 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                                            (mld_conf.emlsr && mld_cap.emlsr_support) ||
                                            (mld_conf.emlmr && mld_cap.emlmr_support);
 
-                    if (!radio_band_found || !affiliated_radio.second->eht_supported ||
-                        !any_match) {
+                    const bool non_mlo_mld_profile = !mld_conf.str && !mld_conf.nstr &&
+                                                       !mld_conf.emlsr && !mld_conf.emlmr;
+
+                    if (!radio_band_found) {
+                        continue;
+                    }
+                    if (!non_mlo_mld_profile &&
+                        (!affiliated_radio.second->eht_supported || !any_match)) {
                         continue;
                     }
 
@@ -1733,6 +1829,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         LOG(ERROR) << "No radio found for ruid=" << ruid << " on " << al_mac;
         return false;
     }
+    radio->maximum_number_of_bsss_supported =
+        radio_basic_caps->maximum_number_of_bsss_supported();
     /*  Obtain the freq_type from the M1 message itself.
         This will help us to know the radio's frequency
         type before we run channel selection task.
@@ -1751,6 +1849,10 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     database.clear_configured_bss_info(ruid);
 
     for (auto &bss_info_conf : bss_info_confs) {
+        if ((bss_info_conf.target_radio_uid != beerocks::net::network_utils::ZERO_MAC) &&
+            (bss_info_conf.target_radio_uid != ruid)) {
+            continue;
+        }
         // Check if the radio supports it
         if (!son_actions::has_matching_operating_class(*radio_basic_caps, bss_info_conf)) {
             LOG(INFO) << "Skipping " << bss_info_conf.ssid << " due to operclass mismatch";
@@ -1855,6 +1957,16 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         }
         if (!add_agent_ap_mld_configuration_tlv(database, cmdu_tx, *agent)) {
             LOG(ERROR) << "Couldn't add Agent AP MLD Configuration TLV";
+        }
+    }
+
+    const bool any_bss_has_mld_id =
+        std::any_of(bss_info_confs.begin(), bss_info_confs.end(),
+                    [](const son::wireless_utils::sBssInfoConf &c) { return !c.mld_id.empty(); });
+
+    if (!(agent->max_num_mlds != 0 && radio->eht_supported) && any_bss_has_mld_id) {
+        if (!add_agent_ap_mld_configuration_tlv(database, cmdu_tx, *agent)) {
+            LOG(ERROR) << "Couldn't add Agent AP MLD Configuration TLV (non-EHT / template MLD path)";
         }
     }
 
@@ -2998,6 +3110,20 @@ bool Controller::handle_cmdu_1905_failed_connection_message(const sMacAddr &src_
     if (profile2_reason_code_tlv) {
         reason_code = profile2_reason_code_tlv->reason_code();
     }
+
+    auto rsn_diagnostic_tlv = cmdu_rx.getClass<wfa_map::tlvRsnDiagnosticReport>();
+    if (rsn_diagnostic_tlv) {
+        LOG(INFO) << "RSN diagnostic: bssid=" << rsn_diagnostic_tlv->bssid()
+                  << " sta=" << rsn_diagnostic_tlv->sta_mac()
+                  << " rsn_error_type=" << rsn_diagnostic_tlv->rsn_error_type();
+        if (status_code == 0) {
+            status_code = 0x0001; /* Unspecified — keep event visible */
+        }
+#ifdef ENABLE_NBAPI
+        prplmesh::controller::actions::templates_restage_only();
+#endif
+    }
+
     if (status_code != 0) {
         if (!database.dm_add_failed_connection_event(bssid_tlv->bssid(), sta_mac_tlv->sta_mac(),
                                                      reason_code, status_code)) {
@@ -5282,6 +5408,15 @@ void Controller::trigger_prioritization_config()
     m_task_pool.push_event(database.get_agent_monitoring_task_id(), ev);
 }
 
+void Controller::schedule_templates_commit_apply()
+{
+    const int task_id = database.get_agent_monitoring_task_id();
+    if (task_id == db::TASK_ID_NOT_FOUND) {
+        return;
+    }
+    m_task_pool.push_event(task_id, agent_monitoring_task::TEMPLATES_COMMIT_APPLY);
+}
+
 bool Controller::handle_tlv_profile2_ap_capability(std::shared_ptr<Agent> agent,
                                                    ieee1905_1::CmduMessageRx &cmdu_rx)
 {
@@ -5486,6 +5621,24 @@ bool Controller::handle_tlv_profile3_1905_layer_security_capabilities(
     return true;
 }
 
+#ifdef ENABLE_NBAPI
+static void restage_wifi_templates_on_new_security_caps(Agent &agent, bool had_cipher_before,
+                                                        bool had_akm_before)
+{
+    const bool cipher_learned =
+        !had_cipher_before && agent.security_capabilities.valid_cipher_suites;
+    const bool akm_learned =
+        !had_akm_before && agent.security_capabilities.valid_akm_suites;
+
+    if (cipher_learned || akm_learned) {
+        LOG(INFO) << "Security capabilities learned for agent " << agent.al_mac
+                  << " (cipher=" << cipher_learned << ", akm=" << akm_learned
+                  << "), re-staging Wi-Fi templates";
+        prplmesh::controller::actions::templates_restage_only();
+    }
+}
+#endif
+
 bool Controller::handle_cmdu_1905_bss_configuration_request_message(
     const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
@@ -5513,11 +5666,20 @@ bool Controller::handle_cmdu_1905_bss_configuration_request_message(
         LOG(ERROR) << "Couldn't handle Profile-2 AP Capability TLV from Agent " << src_mac;
     }
 
-    if (agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2 &&
+    const bool had_cipher_before = agent->security_capabilities.valid_cipher_suites;
+    const bool had_akm_before    = agent->security_capabilities.valid_akm_suites;
+    if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
-        LOG(ERROR) << "Profile-3 AKM Suite Capabilities is not supplied for Agent " << agent->al_mac
-                   << " with profile enum " << agent->profile;
+        LOG(DEBUG) << "tlvAkmSuiteCapabilities not present or empty in BSS_CONFIGURATION_REQUEST from "
+                   << agent->al_mac << " profile=" << int(agent->profile);
     }
+
+    if (!handle_tlv_supported_cipher_suites(*agent, cmdu_rx)) {
+        LOG(ERROR) << "Couldn't handle Supported Cipher Suites TLV from Agent " << src_mac;
+    }
+#ifdef ENABLE_NBAPI
+    restage_wifi_templates_on_new_security_caps(*agent, had_cipher_before, had_akm_before);
+#endif
 
     if (!handle_tlv_profile2_ap_radio_advanced_capabilities(*agent, cmdu_rx)) {
         LOG(ERROR) << "Couldn't handle AP Radio Advanced Capabilities TLV from Agent "
@@ -5549,6 +5711,9 @@ bool Controller::handle_tlv_profile3_akm_suite_capabilities(Agent &agent,
 
     LOG(DEBUG) << "Profile-3 AKM Suite Capabilities TLV is received";
 
+    agent.security_capabilities.backhaul_akm_suite_types.reset();
+    agent.security_capabilities.fronthaul_akm_suite_types.reset();
+
     std::vector<wfa_map::tlvAkmSuiteCapabilities::sBssAkmSuiteSelector> backhaul_bss_selectors;
     std::vector<wfa_map::tlvAkmSuiteCapabilities::sBssAkmSuiteSelector> fronthaul_bss_selectors;
 
@@ -5568,6 +5733,12 @@ bool Controller::handle_tlv_profile3_akm_suite_capabilities(Agent &agent,
                   wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI(uint32_t(selector.oui)))
            << ", suite type: " << (int)selector.akm_suite_type << std::endl;
 
+        // Only accept IEEE 802.11 OUI selectors into the capability cache.
+        if (wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI(uint32_t(selector.oui)) ==
+            wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI::IEEE80211) {
+            agent.security_capabilities.backhaul_akm_suite_types.set(selector.akm_suite_type);
+        }
+
         backhaul_bss_selectors.push_back(selector);
     }
 
@@ -5586,16 +5757,109 @@ bool Controller::handle_tlv_profile3_akm_suite_capabilities(Agent &agent,
                   wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI(uint32_t(selector.oui)))
            << ", suite type: " << (int)selector.akm_suite_type << std::endl;
 
+        if (wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI(uint32_t(selector.oui)) ==
+            wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI::IEEE80211) {
+            agent.security_capabilities.fronthaul_akm_suite_types.set(selector.akm_suite_type);
+        }
+
         fronthaul_bss_selectors.push_back(selector);
     }
 
-    /* TODO: Establish a accordance between radio and given AKM Suite сapabilities (PPM-2332).
-    if (!database.dm_add_radio_akm_suite_capabilities(radio, fronthaul_bss_selectors, backhaul_bss_selectors) {
-        LOG(ERROR) << "Failed to add AKM Suite Capabilities for radio=" << radio->radio_uid;
+    auto radio_supports_role = [](const Agent::sRadio &radio, bool fronthaul_role) {
+        for (const auto &bss : radio.bsses) {
+            if (!bss.second) {
+                continue;
+            }
+            if (fronthaul_role ? bss.second->fronthaul : bss.second->backhaul) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    bool have_bss_role_information = false;
+    for (const auto &radio_kv : agent.radios) {
+        if (!radio_kv.second) {
+            continue;
+        }
+        for (const auto &bss : radio_kv.second->bsses) {
+            if (bss.second && (bss.second->fronthaul || bss.second->backhaul)) {
+                have_bss_role_information = true;
+                break;
+            }
+        }
+        if (have_bss_role_information) {
+            break;
+        }
+    }
+
+    const std::vector<wfa_map::tlvAkmSuiteCapabilities::sBssAkmSuiteSelector> empty_selectors;
+    for (const auto &radio_kv : agent.radios) {
+        if (!radio_kv.second) {
+            continue;
+        }
+
+        const bool radio_supports_fronthaul = radio_supports_role(*radio_kv.second, true);
+        const bool radio_supports_backhaul  = radio_supports_role(*radio_kv.second, false);
+
+        const auto &radio_fronthaul_selectors =
+            (!have_bss_role_information || radio_supports_fronthaul) ? fronthaul_bss_selectors
+                                                                      : empty_selectors;
+        const auto &radio_backhaul_selectors =
+            (!have_bss_role_information || radio_supports_backhaul) ? backhaul_bss_selectors
+                                                                    : empty_selectors;
+
+        if (!database.dm_add_radio_akm_suite_capabilities(*radio_kv.second,
+                                                          radio_fronthaul_selectors,
+                                                          radio_backhaul_selectors)) {
+            LOG(ERROR) << "Failed to add AKM Suite Capabilities for radio="
+                       << radio_kv.second->radio_uid;
+            return false;
+        }
+    }
+
+    agent.security_capabilities.valid_akm_suites =
+        agent.security_capabilities.backhaul_akm_suite_types.any() ||
+        agent.security_capabilities.fronthaul_akm_suite_types.any();
+    if (!agent.security_capabilities.valid_akm_suites) {
+        LOG(DEBUG) << "tlvAkmSuiteCapabilities had no IEEE80211 AKM suite selectors for agent "
+                   << agent.al_mac;
+    }
+
+    return true;
+}
+
+bool Controller::handle_tlv_supported_cipher_suites(Agent &agent, ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto supported_cipher_suites_tlv = cmdu_rx.getClass<wfa_map::tlvSupportedCipherSuites>();
+    if (!supported_cipher_suites_tlv) {
+        LOG(DEBUG) << "getClass wfa_map::tlvSupportedCipherSuites has failed";
         return false;
     }
-    */
 
+    LOG(DEBUG) << "Supported Cipher Suites TLV is received";
+
+    // Clear and rebuild cache
+    agent.security_capabilities.cipher_suite_types.reset();
+
+    for (size_t i = 0; i < supported_cipher_suites_tlv->number_of_cipher_suite_selectors(); i++) {
+        auto t = supported_cipher_suites_tlv->cipher_suite_selectors(i);
+        if (!std::get<0>(t)) {
+            LOG(ERROR) << "Invalid Cipher Suite Selector in tlvSupportedCipherSuites";
+            continue;
+        }
+        const auto &selector = std::get<1>(t);
+
+        if (wfa_map::tlvSupportedCipherSuites::eCipherSuiteOUI(uint32_t(selector.oui)) !=
+            wfa_map::tlvSupportedCipherSuites::eCipherSuiteOUI::IEEE80211) {
+            continue;
+        }
+
+        agent.security_capabilities.cipher_suite_types.set(selector.cipher_suite_type);
+    }
+
+    agent.security_capabilities.valid_cipher_suites =
+        agent.security_capabilities.cipher_suite_types.any();
     return true;
 }
 
@@ -5809,6 +6073,25 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         LOG(ERROR) << "Profile3 1905 Layer Security Capability is not supplied for Agent "
                    << src_mac << " with profile enum " << agent->profile;
     }
+
+    /* Wi-Fi Templates match SecurityTemplate AKM/cipher against agent.security_capabilities.
+     * Parse AKM from AP/EARLY capability report for Profile-1+ so Early AP Capability
+     * (sent before profile may be upgraded) still populates valid_akm_suites. */
+    const bool had_cipher_before = agent->security_capabilities.valid_cipher_suites;
+    const bool had_akm_before    = agent->security_capabilities.valid_akm_suites;
+    if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
+        !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
+        LOG(DEBUG) << "tlvAkmSuiteCapabilities not present or empty in AP capability report from Agent "
+                   << agent->al_mac << " profile=" << int(agent->profile);
+    }
+
+    if (!handle_tlv_supported_cipher_suites(*agent, cmdu_rx)) {
+        LOG(DEBUG) << "tlvSupportedCipherSuites not present in AP capability report from Agent "
+                   << agent->al_mac;
+    }
+#ifdef ENABLE_NBAPI
+    restage_wifi_templates_on_new_security_caps(*agent, had_cipher_before, had_akm_before);
+#endif
 
     return all_radio_capabilities_saved_successfully;
 }

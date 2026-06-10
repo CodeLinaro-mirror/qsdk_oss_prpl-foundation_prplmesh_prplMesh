@@ -152,6 +152,8 @@
 #include <tlvf/wfa_map/tlvVirtualBssDestruction.h>
 #include <tlvf/wfa_map/tlvVirtualBssEvent.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
+#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
+#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 
 using namespace ieee1905_1;
 
@@ -526,6 +528,12 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     }
     case (wfa_map::eTlvTypeMap::TLV_AKM_SUITE_CAPABILITIES): {
         return msg.addClass<wfa_map::tlvAkmSuiteCapabilities>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_SUPPORTED_CIPHER_SUITES): {
+        return msg.addClass<wfa_map::tlvSupportedCipherSuites>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_RSN_DIAGNOSTIC_REPORT): {
+        return msg.addClass<wfa_map::tlvRsnDiagnosticReport>();
     }
     case (wfa_map::eTlvTypeMap::TLV_ENCRYPTED_PAYLOAD): {
         return msg.addClass<wfa_map::tlvEncryptedPayload>();

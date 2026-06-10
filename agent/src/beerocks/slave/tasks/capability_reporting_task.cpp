@@ -51,10 +51,23 @@
 #include <tlvf/wfa_map/tlvProfile2CacCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2MetricCollectionInterval.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
+#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 
 using namespace multi_vendor;
 
 namespace beerocks {
+
+static std::vector<uint8_t> build_ieee80211_akm_suite_types_for_capability_tlv()
+{
+    // TODO: fill from platform / HAL / AgentDB merged radios; keep IEEE 802.11 OUI in TLV only.
+    return {0x02, 0x08, 0x18};
+}
+
+static std::vector<uint8_t> build_ieee80211_cipher_suite_types_for_capability_tlv()
+{
+    // TODO: fill from platform / HAL; include 0xED (AKM suite type space is separate — ciphers here).
+    return {0x04, 0x06, 0x09};
+}
 
 CapabilityReportingTask::CapabilityReportingTask(slave_thread &btl_ctx,
                                                  ieee1905_1::CmduMessageTx &cmdu_tx)
@@ -227,15 +240,78 @@ void CapabilityReportingTask::create_ap_capability_report_message()
 
 bool CapabilityReportingTask::add_akm_suites_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
 {
-    auto akm_suites_capabilities_tlv = cmdu_tx.addClass<wfa_map::tlvAkmSuiteCapabilities>();
-    if (!akm_suites_capabilities_tlv) {
+    auto tlv = cmdu_tx.addClass<wfa_map::tlvAkmSuiteCapabilities>();
+    if (!tlv) {
         LOG(ERROR) << "Error creating tlvAkmSuiteCapabilities";
         return false;
     }
 
-    // TODO: Fill correct values for TLV (PPM-3618)
+    const std::vector<uint8_t> akm_types = build_ieee80211_akm_suite_types_for_capability_tlv();
+
+    if (!tlv->alloc_backhaul_bss_akm_suite_selectors(akm_types.size())) {
+        LOG(ERROR) << "Error allocating backhaul AKM suite selectors";
+        return false;
+    }
+    if (!tlv->alloc_fronthaul_bss_akm_suite_selectors(akm_types.size())) {
+        LOG(ERROR) << "Error allocating fronthaul AKM suite selectors";
+        return false;
+    }
+
+    for (size_t i = 0; i < akm_types.size(); i++) {
+        {
+            auto t = tlv->backhaul_bss_akm_suite_selectors(i);
+            if (!std::get<0>(t)) {
+                LOG(ERROR) << "Error getting backhaul AKM suite selector";
+                return false;
+            }
+            auto &sel = std::get<1>(t);
+            sel.oui   = sVendorOUI(wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI::IEEE80211);
+            sel.akm_suite_type = akm_types[i];
+        }
+        {
+            auto t = tlv->fronthaul_bss_akm_suite_selectors(i);
+            if (!std::get<0>(t)) {
+                LOG(ERROR) << "Error getting fronthaul AKM suite selector";
+                return false;
+            }
+            auto &sel = std::get<1>(t);
+            sel.oui   = sVendorOUI(wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI::IEEE80211);
+            sel.akm_suite_type = akm_types[i];
+        }
+    }
 
     LOG(INFO) << "Add AKM Suites capabilities TLV";
+    return true;
+}
+
+bool CapabilityReportingTask::add_supported_cipher_suites_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto tlv = cmdu_tx.addClass<wfa_map::tlvSupportedCipherSuites>();
+    if (!tlv) {
+        LOG(ERROR) << "Error creating tlvSupportedCipherSuites";
+        return false;
+    }
+
+    const std::vector<uint8_t> cipher_types =
+        build_ieee80211_cipher_suite_types_for_capability_tlv();
+
+    if (!tlv->alloc_cipher_suite_selectors(cipher_types.size())) {
+        LOG(ERROR) << "Error allocating cipher suite selectors";
+        return false;
+    }
+
+    for (size_t i = 0; i < cipher_types.size(); i++) {
+        auto t = tlv->cipher_suite_selectors(i);
+        if (!std::get<0>(t)) {
+            LOG(ERROR) << "Error getting cipher suite selector";
+            return false;
+        }
+        auto &sel = std::get<1>(t);
+        sel.oui   = sVendorOUI(wfa_map::tlvSupportedCipherSuites::eCipherSuiteOUI::IEEE80211);
+        sel.cipher_suite_type = cipher_types[i];
+    }
+
+    LOG(INFO) << "Add Supported Cipher Suites TLV";
     return true;
 }
 
@@ -587,6 +663,10 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
      */
     if (!add_akm_suites_capabilities_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling tlvAkmSuiteCapabilities";
+        return false;
+    }
+    if (!add_supported_cipher_suites_tlv(m_cmdu_tx)) {
+        LOG(ERROR) << "Error filling tlvSupportedCipherSuites";
         return false;
     }
     if (!add_wifi7_agent_capabilities_tlv(m_cmdu_tx)) {

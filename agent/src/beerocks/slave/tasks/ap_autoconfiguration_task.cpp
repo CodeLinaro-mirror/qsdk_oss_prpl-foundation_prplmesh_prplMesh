@@ -63,6 +63,8 @@
 #include <bpl/bpl_cfg.h>
 
 #include <algorithm>
+#include <cstring>
+#include <bitset>
 #include <functional>
 #include <sstream>
 
@@ -139,23 +141,26 @@ template <typename BssConfig>
 bool is_bss_config_matching(const beerocks::AgentDB::sRadio::sFront::sBssid &local_bss,
                             const BssConfig &requested_bss)
 {
-    // TODO: bss_index matching (PPM-3625)
-
-    // If both sides have vap_label, use it for matching.
-    if (!local_bss.vap_label.empty() && !requested_bss.m2_config.vap_label.empty()) {
-        return local_bss.vap_label == requested_bss.m2_config.vap_label;
-    }
-
-    // Fall back to vap_type matching
     const bool is_vap_type_applicable = (local_bss.vap_type != eVapType::OTHER) &&
                                         (requested_bss.m2_config.vap_type != eVapType::OTHER);
 
-    // Match condition:
-    // - vap_types are the same, except for both being OTHER
     const bool vap_type_matches =
         is_vap_type_applicable && (local_bss.vap_type == requested_bss.m2_config.vap_type);
 
-    return vap_type_matches;
+    const bool bss_index_matches = (requested_bss.m2_config.bss_index == 0) ||
+                                   (local_bss.bss_index == 0) ||
+                                   (local_bss.bss_index == requested_bss.m2_config.bss_index);
+
+    // Controller templates use non-zero bss_index; require index alignment in that case.
+    if (requested_bss.m2_config.bss_index != 0) {
+        return vap_type_matches && bss_index_matches;
+    }
+
+    if (!local_bss.vap_label.empty() && !requested_bss.m2_config.vap_label.empty()) {
+        return vap_type_matches && (local_bss.vap_label == requested_bss.m2_config.vap_label);
+    }
+
+    return vap_type_matches && bss_index_matches;
 }
 
 template <typename BssConfig>
@@ -272,6 +277,212 @@ template <typename BssConfig> static inline std::string dump_bssconfig_compact(c
                static_cast<WSC::eWscVendorExtSubelementBssType>(p.bss_type))
         << "}";
     return out.str();
+}
+
+struct sParsedRsnIes {
+    bool has_rsn_ie       = false;
+    bool has_rsnoe_ie     = false;
+    bool has_rsno2e_ie    = false;
+    std::bitset<256> akms    = {};
+    std::bitset<256> ciphers = {};
+};
+
+constexpr uint8_t IEEE_RSN_IE             = 0x30;
+constexpr uint8_t IEEE_RSNXE_IE           = 0xF4;
+constexpr uint8_t VENDOR_SPECIFIC_IE      = 0xDD;
+constexpr uint8_t IEEE_80211_OUI_0        = 0x00;
+constexpr uint8_t IEEE_80211_OUI_1        = 0x0F;
+constexpr uint8_t IEEE_80211_OUI_2        = 0xAC;
+constexpr uint8_t WFA_OUI_0               = 0x50;
+constexpr uint8_t WFA_OUI_1               = 0x6F;
+constexpr uint8_t WFA_OUI_2               = 0x9A;
+constexpr uint8_t RSNOE_WFA_VENDOR_TYPE   = 0x29;
+constexpr uint8_t RSNO2E_WFA_VENDOR_TYPE  = 0x2A;
+constexpr uint8_t RSNXOE_WFA_VENDOR_TYPE  = 0x2B;
+constexpr uint8_t RSN_AKM_PSK             = 0x02;
+constexpr uint8_t RSN_AKM_SAE             = 0x08;
+constexpr uint8_t RSN_AKM_SAE_EXT_KEY     = 0x18;
+constexpr uint8_t RSN_CIPHER_CCMP_128     = 0x04;
+constexpr uint8_t RSN_CIPHER_BIP_CMAC_128 = 0x06;
+constexpr uint8_t RSN_CIPHER_GCMP_256     = 0x09;
+constexpr size_t RSN_PMKID_SIZE_BYTES     = 16;
+
+static bool is_ieee_80211_selector(const uint8_t *selector)
+{
+    return selector[0] == IEEE_80211_OUI_0 && selector[1] == IEEE_80211_OUI_1 &&
+           selector[2] == IEEE_80211_OUI_2;
+}
+
+static void parse_cipher_selector(const uint8_t *selector, sParsedRsnIes &parsed)
+{
+    if (!is_ieee_80211_selector(selector)) {
+        return;
+    }
+    parsed.ciphers.set(selector[3]);
+}
+
+static void parse_akm_selector(const uint8_t *selector, sParsedRsnIes &parsed)
+{
+    if (!is_ieee_80211_selector(selector)) {
+        return;
+    }
+    parsed.akms.set(selector[3]);
+}
+
+static bool parse_rsn_ie_body(const uint8_t *body, size_t body_len, sParsedRsnIes &parsed)
+{
+    if (body_len < 8) {
+        return false;
+    }
+
+    size_t offset = 0;
+    offset += 2;
+
+    parse_cipher_selector(body + offset, parsed);
+    offset += 4;
+
+    const uint16_t pairwise_count =
+        static_cast<uint16_t>(body[offset]) | (static_cast<uint16_t>(body[offset + 1]) << 8);
+    offset += 2;
+    const size_t pairwise_total_len = size_t(pairwise_count) * 4;
+    if (offset + pairwise_total_len > body_len) {
+        return false;
+    }
+    for (size_t i = 0; i < pairwise_count; i++) {
+        parse_cipher_selector(body + offset + i * 4, parsed);
+    }
+    offset += pairwise_total_len;
+
+    if (offset + 2 > body_len) {
+        return false;
+    }
+    const uint16_t akm_count =
+        static_cast<uint16_t>(body[offset]) | (static_cast<uint16_t>(body[offset + 1]) << 8);
+    offset += 2;
+    const size_t akm_total_len = size_t(akm_count) * 4;
+    if (offset + akm_total_len > body_len) {
+        return false;
+    }
+    for (size_t i = 0; i < akm_count; i++) {
+        parse_akm_selector(body + offset + i * 4, parsed);
+    }
+    offset += akm_total_len;
+
+    if (offset + 2 > body_len) {
+        return true;
+    }
+    offset += 2;
+
+    if (offset + 2 > body_len) {
+        return true;
+    }
+    const uint16_t pmkid_count =
+        static_cast<uint16_t>(body[offset]) | (static_cast<uint16_t>(body[offset + 1]) << 8);
+    offset += 2;
+    const size_t pmkid_total_len = size_t(pmkid_count) * RSN_PMKID_SIZE_BYTES;
+    if (offset + pmkid_total_len > body_len) {
+        return false;
+    }
+    offset += pmkid_total_len;
+
+    if (offset + 4 <= body_len) {
+        parse_cipher_selector(body + offset, parsed);
+    }
+
+    return true;
+}
+
+static bool parse_rsn_security_ies(const uint8_t *security_ies, size_t security_ies_len,
+                                   sParsedRsnIes &parsed)
+{
+    if (!security_ies || security_ies_len == 0) {
+        return false;
+    }
+
+    size_t offset = 0;
+    while (offset + 2 <= security_ies_len) {
+        const uint8_t ie_id  = security_ies[offset];
+        const uint8_t ie_len = security_ies[offset + 1];
+        offset += 2;
+
+        if (offset + ie_len > security_ies_len) {
+            return false;
+        }
+
+        const auto *ie_body = security_ies + offset;
+        if (ie_id == IEEE_RSN_IE) {
+            parsed.has_rsn_ie = true;
+            if (!parse_rsn_ie_body(ie_body, ie_len, parsed)) {
+                return false;
+            }
+        } else if (ie_id == VENDOR_SPECIFIC_IE && ie_len >= 4 && ie_body[0] == WFA_OUI_0 &&
+                   ie_body[1] == WFA_OUI_1 && ie_body[2] == WFA_OUI_2) {
+            const uint8_t vendor_type = ie_body[3];
+            if (vendor_type == RSNOE_WFA_VENDOR_TYPE) {
+                parsed.has_rsnoe_ie = true;
+                if (!parse_rsn_ie_body(ie_body + 4, ie_len - 4, parsed)) {
+                    return false;
+                }
+            } else if (vendor_type == RSNO2E_WFA_VENDOR_TYPE) {
+                parsed.has_rsno2e_ie = true;
+                if (!parse_rsn_ie_body(ie_body + 4, ie_len - 4, parsed)) {
+                    return false;
+                }
+            }
+        }
+
+        offset += ie_len;
+    }
+
+    return offset == security_ies_len && parsed.has_rsn_ie;
+}
+
+static bool resolve_auth_from_rsn_security_ies(
+    const uint8_t *security_ies, size_t security_ies_len, beerocks::eFreqType freq_type,
+    WSC::eWscAuth &authentication_type,
+    son::wireless_utils::eAdditionalAuth &additional_authentication_type)
+{
+    sParsedRsnIes parsed;
+    if (!parse_rsn_security_ies(security_ies, security_ies_len, parsed)) {
+        return false;
+    }
+
+    const bool has_psk     = parsed.akms.test(RSN_AKM_PSK);
+    const bool has_sae     = parsed.akms.test(RSN_AKM_SAE);
+    const bool has_sae_h2e = parsed.akms.test(RSN_AKM_SAE_EXT_KEY);
+    const bool has_ccmp    = parsed.ciphers.test(RSN_CIPHER_CCMP_128);
+    const bool has_bip     = parsed.ciphers.test(RSN_CIPHER_BIP_CMAC_128);
+    const bool has_gcmp256 = parsed.ciphers.test(RSN_CIPHER_GCMP_256);
+
+    const bool has_sae_any      = has_sae || has_sae_h2e;
+    const bool has_any_rsno_ie  = parsed.has_rsnoe_ie || parsed.has_rsno2e_ie;
+    bool is_wpa3_pcm_compatible = has_any_rsno_ie && has_sae_any && has_ccmp && has_bip;
+    is_wpa3_pcm_compatible &= (freq_type == beerocks::eFreqType::FREQ_6G) ? true : has_psk;
+    is_wpa3_pcm_compatible &= parsed.has_rsno2e_ie ? has_gcmp256 : true;
+
+    if (is_wpa3_pcm_compatible) {
+        authentication_type            = WSC::eWscAuth::WSC_AUTH_RSN;
+        additional_authentication_type =
+            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+        return true;
+    }
+
+    additional_authentication_type = son::wireless_utils::eAdditionalAuth::NONE;
+    if (has_psk && has_sae_any) {
+        authentication_type =
+            WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_SAE);
+        return true;
+    }
+    if (has_sae_any) {
+        authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+        return true;
+    }
+    if (has_psk) {
+        authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace
@@ -2258,6 +2469,49 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     LOG(INFO) << "Finished M2 parsing with " << infos.size() << " vaps and " << bss_errors.size()
               << " errors.";
 
+    // Non-gateway: pick first Backhaul BSS from parsed M2, push credentials to the backhaul
+    // manager via send_bsta_configuration(), then enable the endpoint with
+    // send_enable_disable_endpoint(..., true). Replaces prior DM-based wiring.
+    {
+        if (!db->device_conf.local_gw) {
+            // ---- Select the first Backhaul BSS from parsed M2 payload ----
+            const WSC::EncryptedSettingsPayload::config* backhaul = nullptr;
+            for (const auto &info : infos) {
+                if ((info.payload_config.bss_type &
+                    WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS) != 0) {
+                    backhaul = &info.payload_config;
+                    break;
+                }
+            }
+
+            if (!backhaul) {
+                LOG(DEBUG) << "[AUTO-STA] No Backhaul BSS found in M2 for this radio; skipping";
+            } else {
+                // ---- Send bSTA credentials to backhaul manager (no DM writes) ----
+                sBStaConfig bsta_info;
+                bsta_info.payload_config = *backhaul; // copy SSID/key/auth/encr
+                // Ensure BACKHAUL_STA bit is set for STA join:
+                bsta_info.payload_config.bss_type |=
+                    WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA;
+
+                if (!send_bsta_configuration(radio->front.iface_mac, bsta_info)) {
+                    LOG(ERROR) << "[AUTO-STA] Failed to send bSTA credentials to backhaul manager (SSID='"
+                               << backhaul->ssid << "')";
+                } else {
+                    LOG(INFO)  << "[AUTO-STA] bSTA credentials sent to backhaul manager (SSID='"
+                               << backhaul->ssid << "')";
+                    // Ensure endpoint enabled on this radio
+                    if (!send_enable_disable_endpoint(radio->front.iface_mac, true)) {
+                        LOG(WARNING) << "[AUTO-STA] Endpoint enable request failed (SSID='"
+                                     << backhaul->ssid << "')";
+                    }
+                }
+            }
+        } else {
+            LOG(DEBUG) << "[AUTO-STA] This node is gateway (Root); skipping auto-join";
+        }
+    }
+
     if (bss_errors.size()) {
         if (!send_error_response_message(bss_errors)) {
             LOG(ERROR) << "send_error_response_message has failed";
@@ -2766,29 +3020,43 @@ bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
         for (auto bss_idx = 0; bss_idx < rsn_parameters_radio.num_bss(); ++bss_idx) {
             auto rsn_parameters_bss = std::get<1>(rsn_parameters_radio.bsss(bss_idx));
             for (auto &info : infos) {
-                if (info.m2_config.bss_index == rsn_parameters_bss.bss_index() &&
-                    info.m2_config.bss_index != 0) {
-                    LOG(DEBUG) << "Handling RSN for BSS with index " << info.m2_config.bss_index;
+                const bool bssid_present =
+                    (rsn_parameters_bss.bssid() != net::network_utils::ZERO_MAC);
 
-                    // Only handle WPA3-PCM as EHT enabled for now
-                    if ((freq_type == beerocks::eFreqType::FREQ_24G ||
-                         freq_type == beerocks::eFreqType::FREQ_5G) &&
-                        rsn_parameters_bss.security_ies_length() == wpa3_pcm_2g_5g_eht.size() &&
-                        std::memcmp(rsn_parameters_bss.security_ies(), wpa3_pcm_2g_5g_eht.data(),
-                                    wpa3_pcm_2g_5g_eht.size()) == 0) {
-                        LOG(DEBUG) << "2G_5G WPA3_PERSONAL_COMPATIBILITY detected";
-                        info.payload_config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
-                        info.additional_auth =
-                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
-                    } else if (freq_type == beerocks::eFreqType::FREQ_6G &&
-                               rsn_parameters_bss.security_ies_length() == wpa3_pcm_6g_eht.size() &&
-                               std::memcmp(rsn_parameters_bss.security_ies(),
-                                           wpa3_pcm_6g_eht.data(), wpa3_pcm_6g_eht.size()) == 0) {
-                        LOG(DEBUG) << "6G WPA3_PERSONAL_COMPATIBILITY detected";
-                        info.payload_config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
-                        info.additional_auth =
-                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                // M2 EncryptedSettings uses cfg.bssid = ruid (see controller prepare_encrypted_settings_config).
+                // RSN TLV may carry the real VAP BSSID from resolve_radio_bssid_for_bss().
+                // Prefer bss_index matching; only use BSSID when both sides agree.
+                const bool matched_by_bss_index =
+                    (info.m2_config.bss_index != 0 &&
+                     info.m2_config.bss_index == rsn_parameters_bss.bss_index());
+                const bool matched_by_bssid =
+                    bssid_present &&
+                    (info.payload_config.bssid == rsn_parameters_bss.bssid());
+                const bool matched_bss = matched_by_bss_index || matched_by_bssid;
+
+                if (matched_bss) {
+                    LOG(DEBUG) << "Handling RSN for BSS index " << info.m2_config.bss_index
+                               << " (by_index=" << matched_by_bss_index
+                               << " by_bssid=" << matched_by_bssid << ")";
+
+                    const uint8_t *rsn_ies =
+                        reinterpret_cast<const uint8_t *>(rsn_parameters_bss.security_ies());
+                    const size_t rsn_len = rsn_parameters_bss.security_ies_length();
+
+                    WSC::eWscAuth resolved_auth_type;
+                    son::wireless_utils::eAdditionalAuth resolved_additional_auth_type;
+                    if (!resolve_auth_from_rsn_security_ies(
+                            rsn_ies, rsn_len, freq_type, resolved_auth_type,
+                            resolved_additional_auth_type)) {
+                        LOG(WARNING) << "Unsupported RSN Security IEs for BSS index "
+                                     << info.m2_config.bss_index << " (len=" << rsn_len << ")";
+                        continue;
                     }
+                    info.payload_config.auth_type = resolved_auth_type;
+                    info.additional_auth          = resolved_additional_auth_type;
+                    LOG(DEBUG) << "Resolved auth from RSN Security IEs: auth="
+                               << int(info.payload_config.auth_type)
+                               << " additional_auth=" << int(info.additional_auth);
                 }
             }
         }
@@ -3368,6 +3636,13 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
             // Controller can't reconfigure local VAP type/label -> keep local.
             it->m2_config.vap_type  = local_bss.vap_type;
             it->m2_config.vap_label = local_bss.vap_label;
+
+            for (auto &slot : radio->front.bssids) {
+                if (slot.mac == local_bss.mac && slot.active) {
+                    slot.bss_index = it->m2_config.bss_index;
+                    break;
+                }
+            }
 
             if (is_bss_reconfiguration_required(local_bss, *it)) {
                 LOG(DEBUG) << "BSS " << local_bss.mac << " needs reconfiguration.";
