@@ -1,0 +1,21 @@
+#
+---
+_namespace: wfa_map
+_include:
+  {
+    tlvf/wfa_map/eTlvTypeMap.h,
+    tlvf/common/sMacAddr.h
+  }
+
+tlvRsnDiagnosticReport:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_RSN_DIAGNOSTIC_REPORT
+  length: uint16_t
+  bssid:
+    _type: sMacAddr
+  sta_mac:
+    _type: sMacAddr
+  rsn_error_type: uint16_t
