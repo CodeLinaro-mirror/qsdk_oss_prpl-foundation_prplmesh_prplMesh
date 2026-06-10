@@ -35,6 +35,10 @@
 #include "pre_association_steering/pre_association_steering_task.h"
 #endif
 
+#ifdef ENABLE_NBAPI
+#include "on_action.h"
+#endif
+
 using namespace beerocks;
 using namespace net;
 using namespace son;
@@ -660,7 +664,18 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
             const bool has_wireless_backhaul_parent =
                 (child_agent->backhaul.backhaul_iface_type != beerocks::IFACE_TYPE_ETHERNET) &&
                 !child_agent->backhaul.parent_agent.expired();
-            if (has_wireless_backhaul_parent) {
+
+            bool has_wireless_backhaul_sta = false;
+            for (const auto &radio_kv : child_agent->radios) {
+                const auto &radio = radio_kv.second;
+                if (radio &&
+                    radio->backhaul_station_mac != beerocks::net::network_utils::ZERO_MAC) {
+                    has_wireless_backhaul_sta = true;
+                    break;
+                }
+            }
+
+            if (has_wireless_backhaul_parent || has_wireless_backhaul_sta) {
                 continue;
             }
 
@@ -714,6 +729,9 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         LOG(ERROR) << "handle_associated_clients_tlv failed";
     }
 
+#ifdef ENABLE_NBAPI
+    prplmesh::controller::actions::templates_restage_only();
+#endif
     return true;
 }
 

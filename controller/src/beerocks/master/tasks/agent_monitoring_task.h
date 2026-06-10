@@ -61,6 +61,7 @@ public:
         CONFIGURE_QOS,
         /** Apply a changed controller Traffic Separation override to Agents. */
         CONFIGURE_TRAFFIC_SEPARATION_OVERRIDE,
+	TEMPLATES_COMMIT_APPLY
     };
 
 protected:
