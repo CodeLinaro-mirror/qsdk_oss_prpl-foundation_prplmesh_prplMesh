@@ -128,10 +128,10 @@ printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | 
 ba-cli WiFi.Radio.*.Enable=1
 ba-cli "WiFi.SSID.[Alias == \"VAP2G0PRIV\"].Enable=1"
 ba-cli "WiFi.SSID.[Alias == \"VAP5G0PRIV\"].Enable=1"
-sleep 10
-iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
+#sleep 10
+#iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
 sleep 1
-iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
+#iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
