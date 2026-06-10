@@ -225,6 +225,8 @@ public:
      */
     void trigger_prioritization_config();
 
+    void schedule_templates_commit_apply();
+
     /**
      * @brief Queue application of the controller-specific Traffic Separation override.
      *
@@ -686,6 +688,8 @@ private:
     */
     bool handle_tlv_profile3_akm_suite_capabilities(Agent &agent,
                                                     ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    bool handle_tlv_supported_cipher_suites(Agent &agent, ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
      * @brief Extracts ESP value from est_service_info_field and set it to specified
