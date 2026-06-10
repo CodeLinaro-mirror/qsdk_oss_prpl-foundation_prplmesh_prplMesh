@@ -306,7 +306,11 @@ public:
         std::string mld_id              = "";
         bool bSTA                       = false;
         uint8_t bss_index               = 0;
+        sMacAddr target_radio_uid{};
+        std::string radio_template_ref;
+        std::string bss_template_ref;
         eAdditionalAuth additional_auth = eAdditionalAuth::NONE;
+        std::vector<uint8_t> rsn_security_ies;
     } sBssInfoConf;
 
     typedef struct sMldInfoConf {

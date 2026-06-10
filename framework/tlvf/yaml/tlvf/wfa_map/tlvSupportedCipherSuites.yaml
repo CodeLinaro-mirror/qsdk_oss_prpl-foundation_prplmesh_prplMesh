@@ -1,0 +1,38 @@
+#
+---
+_namespace: wfa_map
+_include:
+  {
+    tlvf/ieee_1905_1/sVendorOUI.h,
+    tlvf/wfa_map/eTlvTypeMap.h
+  }
+
+tlvSupportedCipherSuites:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_SUPPORTED_CIPHER_SUITES
+  length: uint16_t
+  number_of_cipher_suite_selectors:
+    _type: uint8_t
+    _length_var: True
+  cipher_suite_selectors:
+    _type: sCipherSuiteSelector
+    _length: [ number_of_cipher_suite_selectors ]
+
+sCipherSuiteSelector:
+  _type: struct
+  oui:
+    _type: sVendorOUI
+    _comment: |
+      Cipher suite selector OUI (typically IEEE 802.11 OUI 00:0F:AC).
+  cipher_suite_type:
+    _type: uint8_t
+    _comment: |
+      Cipher suite type (e.g. CCMP=4, GCMP-128=8, BIP-CMAC-128=6, etc.).
+
+eCipherSuiteOUI:
+  _type: enum
+  _enum_storage: uint32_t
+  IEEE80211: 0x000FAC
