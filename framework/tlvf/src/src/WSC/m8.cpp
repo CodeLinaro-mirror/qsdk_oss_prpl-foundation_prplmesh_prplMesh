@@ -91,7 +91,10 @@ bool m8::init(const config &cfg)
         TLVF_LOG(ERROR) << "addAttr<cWscAttrPublicKey> failed";
         return false;
     }
-    std::copy(cfg.pub_key, cfg.pub_key + WSC_PUBLIC_KEY_LENGTH, public_key_attr->public_key());
+    if (!public_key_attr->set_public_key(cfg.pub_key, WSC_PUBLIC_KEY_LENGTH)) {
+        TLVF_LOG(ERROR) << "set_public_key failed";
+        return false;
+    }
 
     auto vendor_ext_attr = addAttr<cWscAttrVendorExtension>();
     if (!vendor_ext_attr) {

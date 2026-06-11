@@ -58,6 +58,7 @@ public:
     eWscMessageType msg_type() const { return getAttr<cWscAttrMessageType>()->msg_type(); };
     uint8_t *enrollee_nonce() { return getAttr<cWscAttrEnrolleeNonce>()->nonce(); };
     uint8_t *public_key() { return getAttr<cWscAttrPublicKey>()->public_key(); };
+    size_t public_key_length() { return getAttr<cWscAttrPublicKey>()->public_key_length(); };
 
     uint8_t *authenticator() { return getAttr<cWscAttrAuthenticator>()->data(); };
     uint8_t *registrar_nonce() { return getAttr<cWscAttrRegistrarNonce>()->nonce(); };

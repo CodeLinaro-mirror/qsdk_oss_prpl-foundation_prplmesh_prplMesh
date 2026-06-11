@@ -379,8 +379,10 @@ class cWscAttrPublicKey : public BaseClass
 
         eWscAttributes& type();
         const uint16_t& length();
+        size_t public_key_length() { return m_public_key_idx__ * sizeof(uint8_t); }
         uint8_t* public_key(size_t idx = 0);
         bool set_public_key(const void* buffer, size_t size);
+        bool alloc_public_key(size_t count = 1);
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
