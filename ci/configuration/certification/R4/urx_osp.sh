@@ -121,9 +121,9 @@ ba-cli "WiFi.set_trace_zone(zone=mxlRad, level=500)"
 # Reduce DWELL time of channel scans to 20ms
 printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
 
-iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
-sleep 1
-iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
+#iw-mxl dev wlan0 iwlwav sCoCPower 0 1 1
+#sleep 1
+#iw-mxl dev wlan2 iwlwav sCoCPower 0 1 1
 
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
