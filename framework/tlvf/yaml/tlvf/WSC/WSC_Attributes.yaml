@@ -226,10 +226,11 @@ cWscAttrPublicKey:
     _value: ATTR_PUBLIC_KEY
   length:
     _type: uint16_t
-    _value_const: WSC_PUBLIC_KEY_LENGTH
+    _length_var: True
   public_key:
     _type: uint8_t
-    _length: [ WSC_PUBLIC_KEY_LENGTH ]
+    _length: []
+    _length_max: WSC_PUBLIC_KEY_LENGTH
 
 cWscAttrAuthenticationTypeFlags:
   _type: class

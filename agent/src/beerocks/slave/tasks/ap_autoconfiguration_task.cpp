@@ -1828,7 +1828,8 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
         uint8_t keywrapkey[16];
         LOG(DEBUG) << "M2 Parse: calculate keys";
         if (!ap_autoconfiguration_wsc_calculate_keys(radio->front.iface_name, m2.public_key(),
-                                                     m2.registrar_nonce(), authkey, keywrapkey))
+                                                     m2.public_key_length(), m2.registrar_nonce(),
+                                                     authkey, keywrapkey))
             return false;
 
         if (!ap_autoconfiguration_wsc_authenticate(radio->front.iface_name, m2, authkey,
@@ -2013,7 +2014,8 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
     uint8_t keywrapkey[16];
     LOG(DEBUG) << "M8 Parse: calculate keys";
     if (!ap_autoconfiguration_wsc_calculate_keys(radio->front.iface_name, m8->public_key(),
-                                                 m8->registrar_nonce(), authkey, keywrapkey))
+                                                 m8->public_key_length(), m8->registrar_nonce(),
+                                                 authkey, keywrapkey))
         return false;
 
     if (!ap_autoconfiguration_wsc_authenticate(radio->front.iface_name, *m8, authkey,
@@ -2391,8 +2393,8 @@ bool ApAutoConfigurationTask::
 }
 
 bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_calculate_keys(
-    const std::string &fronthaul_iface, const uint8_t *remote_pubkey, const uint8_t *nonce,
-    uint8_t authkey[32], uint8_t keywrapkey[16])
+    const std::string &fronthaul_iface, const uint8_t *remote_pubkey, size_t remote_pubkey_length,
+    const uint8_t *nonce, uint8_t authkey[32], uint8_t keywrapkey[16])
 {
     const auto &radio_conf_params = m_radios_conf_params[fronthaul_iface];
     if (!radio_conf_params.dh) {
@@ -2400,10 +2402,23 @@ bool ApAutoConfigurationTask::ap_autoconfiguration_wsc_calculate_keys(
         return false;
     }
 
+    if (!remote_pubkey || remote_pubkey_length == 0 ||
+        remote_pubkey_length > WSC::eWscLengths::WSC_PUBLIC_KEY_LENGTH) {
+        LOG(ERROR) << "Invalid WSC public key length " << remote_pubkey_length;
+        return false;
+    }
+
     auto db = AgentDB::get();
-    mapf::encryption::wps_calculate_keys(
-        *radio_conf_params.dh, remote_pubkey, WSC::eWscLengths::WSC_PUBLIC_KEY_LENGTH,
-        radio_conf_params.dh->nonce(), db->bridge.mac.oct, nonce, authkey, keywrapkey);
+    // WSC DH public keys are 1536-bit integers, so prplMesh emits them as a 192-byte,
+    // left-padded value. Some controllers encode the same integer with leading zeroes
+    // trimmed and set the Public Key attribute length accordingly (for example 191).
+    // Use the exact encoded key length for DH conversion, but leave the parsed WSC
+    // message unchanged: the global Authenticator is calculated over the original
+    // wire-format M2/M8, where changing the attribute length or padding would break
+    // authentication.
+    mapf::encryption::wps_calculate_keys(*radio_conf_params.dh, remote_pubkey, remote_pubkey_length,
+                                         radio_conf_params.dh->nonce(), db->bridge.mac.oct, nonce,
+                                         authkey, keywrapkey);
 
     return true;
 }

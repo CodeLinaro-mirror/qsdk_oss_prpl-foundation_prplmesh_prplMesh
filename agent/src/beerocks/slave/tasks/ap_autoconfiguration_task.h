@@ -287,13 +287,15 @@ private:
      * keywrapauth are computed on success.
      *
      * @param[in] remote_pubkey Public key received from the controller in WSC tlv.
+     * @param[in] remote_pubkey_length Public key length as encoded in the WSC tlv.
      * @param[in] nonce Nonce received from the controller in WSC tlv.
      * @param[out] authkey 32 bytes calculated authentication key.
      * @param[out] keywrapkey 16 bytes calculated key wrap key.
      * @return true on success, otherwise false.
      */
     bool ap_autoconfiguration_wsc_calculate_keys(const std::string &fronthaul_iface,
-                                                 const uint8_t *remote_pubkey, const uint8_t *nonce,
+                                                 const uint8_t *remote_pubkey,
+                                                 size_t remote_pubkey_length, const uint8_t *nonce,
                                                  uint8_t authkey[32], uint8_t keywrapkey[16]);
 
     /**

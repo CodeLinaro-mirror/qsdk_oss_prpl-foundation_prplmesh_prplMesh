@@ -111,6 +111,7 @@ public:
     };
     uint8_t *enrollee_nonce() { return getAttr<cWscAttrEnrolleeNonce>()->nonce(); };
     uint8_t *public_key() { return getAttr<cWscAttrPublicKey>()->public_key(); };
+    size_t public_key_length() { return getAttr<cWscAttrPublicKey>()->public_key_length(); };
     uint16_t rf_bands() const { return getAttr<cWscAttrRfBands>()->bands(); };
 
     uint8_t *authenticator() { return getAttr<cWscAttrAuthenticator>()->data(); };

@@ -928,9 +928,9 @@ void Controller::autoconfig_wsc_calculate_keys(WSC::m1 &m1, uint8_t &enrollee_no
 {
     std::copy_n(m1.enrollee_nonce(), WSC::eWscLengths::WSC_NONCE_LENGTH, &enrollee_nonce);
     std::copy_n(dh.nonce(), dh.nonce_length(), &registrar_nonce);
-    mapf::encryption::wps_calculate_keys(
-        dh, m1.public_key(), WSC::eWscLengths::WSC_PUBLIC_KEY_LENGTH, m1.enrollee_nonce(),
-        m1.mac_addr().oct, &registrar_nonce, authkey, keywrapkey);
+    mapf::encryption::wps_calculate_keys(dh, m1.public_key(), m1.public_key_length(),
+                                         m1.enrollee_nonce(), m1.mac_addr().oct, &registrar_nonce,
+                                         authkey, keywrapkey);
     copy_pubkey(dh, &pub_key);
 }
 

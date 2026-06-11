@@ -1277,13 +1277,44 @@ bool cWscAttrPublicKey::set_public_key(const void* buffer, size_t size) {
         TLVF_LOG(WARNING) << "set_public_key received a null pointer.";
         return false;
     }
-    if (size > WSC_PUBLIC_KEY_LENGTH) {
-        TLVF_LOG(ERROR) << "Received buffer size is smaller than buffer length";
+    if (m_public_key_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_public_key was already allocated!";
         return false;
     }
+    if (!alloc_public_key(size)) { return false; }
     std::copy_n(reinterpret_cast<const uint8_t *>(buffer), size, m_public_key);
     return true;
 }
+bool cWscAttrPublicKey::alloc_public_key(size_t count) {
+    if (m_lock_order_counter__ > 0) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list public_key, abort!";
+        return false;
+    }
+    size_t len = sizeof(uint8_t) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    if (m_public_key_idx__ + count > WSC_PUBLIC_KEY_LENGTH )  {
+        TLVF_LOG(ERROR) << "Can't allocate " << count << " elements (max length is " << WSC_PUBLIC_KEY_LENGTH << " current length is " << m_public_key_idx__ << ")";
+        return false;
+    }
+    m_lock_order_counter__ = 0;
+    uint8_t *src = (uint8_t *)&m_public_key[m_public_key_idx__];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_public_key_idx__ += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    if(m_length){ (*m_length) += len; }
+    return true;
+}
+
 void cWscAttrPublicKey::class_swap()
 {
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_type));
@@ -1323,7 +1354,6 @@ size_t cWscAttrPublicKey::get_initial_size()
     size_t class_size = 0;
     class_size += sizeof(eWscAttributes); // type
     class_size += sizeof(uint16_t); // length
-    class_size += WSC_PUBLIC_KEY_LENGTH * sizeof(uint8_t); // public_key
     return class_size;
 }
 
@@ -1346,13 +1376,16 @@ bool cWscAttrPublicKey::init()
         return false;
     }
     m_public_key = reinterpret_cast<uint8_t*>(m_buff_ptr__);
-    if (!buffPtrIncrementSafe(sizeof(uint8_t) * (WSC_PUBLIC_KEY_LENGTH))) {
-        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) * (WSC_PUBLIC_KEY_LENGTH) << ") Failed!";
-        return false;
-    }
-    m_public_key_idx__  = WSC_PUBLIC_KEY_LENGTH;
-    if (!m_parse__) {
-        if (m_length) { (*m_length) += (sizeof(uint8_t) * WSC_PUBLIC_KEY_LENGTH); }
+    if (m_length && m_parse__) {
+        auto swap_len = *m_length;
+        tlvf_swap((sizeof(swap_len) * 8), reinterpret_cast<uint8_t*>(&swap_len));
+        size_t len = swap_len;
+        len -= (m_buff_ptr__ - sizeof(*m_type) - sizeof(*m_length) - m_buff__);
+        m_public_key_idx__ = len/sizeof(uint8_t);
+        if (!buffPtrIncrementSafe(len)) {
+            LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+            return false;
+        }
     }
     if (m_parse__) { class_swap(); }
     return true;
