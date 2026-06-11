@@ -78,7 +78,7 @@ ba-cli "WiFi.set_trace_zone(zone=mxlRad, level=500)"
 
 
 # Reduce DWELL time of channel scans to 20ms
-printf "protected\nDevice.WiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
+printf "protected\nWiFi.Vendor.ModuleMode.CertificationMode=1\nexit\n" | ba-cli
 
 # Radio's need to be up to set the antenna configuration (workaroud for missing sniffer captures in default 4x4 configuration)
 ba-cli WiFi.Radio.*.Enable=1
