@@ -33,6 +33,12 @@ public:
      */
     TimerImpl() : m_descriptor(timerfd_create(CLOCK_MONOTONIC, 0)) {}
 
+    ~TimerImpl()
+    {
+        if (m_descriptor.fd() >= 0)
+            ::close(m_descriptor.fd());
+    }
+
     /**
      * @brief Gets file descriptor.
      *
