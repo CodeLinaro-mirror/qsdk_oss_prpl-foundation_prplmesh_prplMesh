@@ -6255,6 +6255,7 @@ void db::set_prplmesh(const sMacAddr &mac)
     if (agent) {
         agent->is_prplmesh                        = true;
         agent->is_prplmesh_compatibility_fallback = false;
+        dm_set_device_agent_type(*agent);
     }
 }
 
@@ -6286,6 +6287,7 @@ void db::set_prplmesh_compatibility_fallback(const sMacAddr &mac)
     if (agent) {
         agent->is_prplmesh                        = false;
         agent->is_prplmesh_compatibility_fallback = true;
+        dm_set_device_agent_type(*agent);
     }
 }
 
@@ -6300,6 +6302,27 @@ void db::reset_prplmesh_classification(const sMacAddr &mac)
 
     agent->is_prplmesh                        = false;
     agent->is_prplmesh_compatibility_fallback = false;
+    dm_set_device_agent_type(*agent);
+}
+
+bool db::dm_set_device_agent_type(const Agent &agent)
+{
+    if (agent.dm_path.empty()) {
+        return true;
+    }
+
+    std::string agent_type;
+    if (agent.is_prplmesh_compatibility_fallback) {
+        agent_type = "prplMesh-fallback";
+    } else if (agent.is_prplmesh) {
+        agent_type = "prplMesh";
+    } else {
+        agent_type = "non-prplMesh";
+    }
+
+    LOG(DEBUG) << "Agent al_mac: " << agent.al_mac << " classified as type: " << agent_type;
+
+    return m_ambiorix_datamodel->set(agent.dm_path, "X_PRPLWARE-COM_AgentType", agent_type);
 }
 
 bool db::update_client_entry_in_persistent_db(const sMacAddr &mac, const ValuesMap &values_map)
