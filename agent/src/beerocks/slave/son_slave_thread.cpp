@@ -4053,10 +4053,15 @@ bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_ifac
         for (size_t count = 0; count < response_in->stations_list_length(); count++) {
             beerocks_message::sUnassociatedStationStats &station_in =
                 std::get<1>(response_in->stations_list(count));
-            if (map_stations_per_operating_class.find(station_in.operating_class) ==
-                map_stations_per_operating_class.end()) {
-                map_stations_per_operating_class.insert(
-                    std::make_pair(station_in.operating_class, std::list<stations_stats>()));
+
+            auto &stations_of_operating_class =
+                map_stations_per_operating_class[station_in.operating_class];
+
+            if (station_in.time_stamp == 0 || station_in.signal_strength == 0) {
+                LOG(ERROR) << "Invalid measurement for station " << station_in.sta_mac
+                           << " (signal_strength=" << station_in.signal_strength
+                           << ", time_stamp=" << station_in.time_stamp << ")";
+                continue;
             }
 
             stations_stats one_station_stats;
@@ -4070,8 +4075,7 @@ bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_ifac
                     std::chrono::milliseconds(station_in.time_stamp))
                     .count();
 
-            map_stations_per_operating_class[station_in.operating_class].push_back(
-                one_station_stats);
+            stations_of_operating_class.push_back(one_station_stats);
         }
 
         //Now send a telemetries to the controller, each telemetry with only 1 operating_class
@@ -4082,7 +4086,10 @@ bool slave_thread::handle_cmdu_monitor_message(const std::string &fronthaul_ifac
                 return false;
             }
             response_out->operating_class_of_channel_list() = operating_class.first;
-            response_out->alloc_sta_list(operating_class.second.size());
+            if (!response_out->alloc_sta_list(operating_class.second.size())) {
+                LOG(ERROR) << "alloc_sta_list for unassociated STA metrics failed";
+                return false;
+            }
             size_t count(0);
             for (auto &station : operating_class.second) {
                 auto &stats_out          = std::get<1>(response_out->sta_list(count++));
