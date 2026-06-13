@@ -363,13 +363,13 @@
 
                         /* VLAN ID to use for private/home SSIDs */
                         %persistent int32 PrivateVID {
-                            default 10;
+                            default 100;
                             on action validate call check_range [1, 4094];
                         }
 
                         /* VLAN ID to use for guest SSIDs */
                         %persistent int32 GuestVID {
-                            default 20;
+                            default 102;
                             on action validate call check_range [1, 4094];
                         }
                     }

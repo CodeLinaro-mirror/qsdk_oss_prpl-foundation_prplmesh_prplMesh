@@ -234,9 +234,9 @@ constexpr char DEFAULT_GUEST_BRIDGE_IFACE[]   = "br-guest";
 // Default enable flag for traffic separation
 constexpr bool DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED = false;
 // Default private network VLAN id
-constexpr int DEFAULT_PRIVATE_VLAN_ID = 10;
+constexpr int DEFAULT_PRIVATE_VLAN_ID = 100;
 // Default guest network VLAN id
-constexpr int DEFAULT_GUEST_VLAN_ID = 20;
+constexpr int DEFAULT_GUEST_VLAN_ID = 102;
 
 /****************************************************************************/
 /******************************* Structures *********************************/
