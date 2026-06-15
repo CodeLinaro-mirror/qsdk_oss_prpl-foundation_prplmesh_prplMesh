@@ -25,7 +25,9 @@
 #include <tlvf/wfa_map/tlvApMetricQuery.h>
 #include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
 
+#include <array>
 #include <cmath>
+#include <unordered_map>
 #include <vector>
 
 using namespace beerocks;
@@ -870,6 +872,11 @@ bool Monitor::update_sta_stats(const std::chrono::steady_clock::time_point &time
 {
     auto poll_cnt  = mon_db.get_poll_cnt();
     auto poll_last = mon_db.is_last_poll();
+    struct StaStatsUpdate {
+        sMacAddr mac;
+        monitor_sta_node *node;
+    };
+    std::array<std::vector<StaStatsUpdate>, beerocks::IFACE_TOTAL_VAPS> stations_by_vap;
 
     if (m_sta_stats_polling_completed) {
         m_sta_stats_polling_start_timestamp = std::chrono::steady_clock::now();
@@ -893,12 +900,38 @@ bool Monitor::update_sta_stats(const std::chrono::steady_clock::time_point &time
             continue;
         }
 
-        auto vap_node        = mon_db.vap_get_by_id(sta_node->get_vap_id());
-        auto &sta_stats      = sta_node->get_stats();
-        bool is_read_unicast = false;
+        const auto vap_id = sta_node->get_vap_id();
+        if (vap_id < beerocks::IFACE_VAP_ID_MIN || vap_id > beerocks::IFACE_VAP_ID_MAX) {
+            LOG(WARNING) << "Station " << sta_mac << " has invalid VAP id " << int(vap_id);
+            continue;
+        }
+
+        auto vap_node = mon_db.vap_get_by_id(vap_id);
+        if (!vap_node) {
+            LOG(WARNING) << "Station " << sta_mac << " has no VAP node for id " << int(vap_id);
+            continue;
+        }
+        auto &sta_stats = sta_node->get_stats();
 
         // Skip stations that were already updated in the current cycle
         if (sta_stats.last_update_time > m_sta_stats_polling_start_timestamp) {
+            continue;
+        }
+
+        stations_by_vap[vap_id - beerocks::IFACE_VAP_ID_MIN].push_back(
+            {tlvf::mac_from_string(sta_mac), sta_node});
+    }
+
+    const auto is_read_unicast = mon_db.get_clients_unicast_measurements();
+    for (int vap_id = beerocks::IFACE_VAP_ID_MIN; vap_id <= beerocks::IFACE_VAP_ID_MAX; vap_id++) {
+        auto &vap_stations = stations_by_vap[vap_id - beerocks::IFACE_VAP_ID_MIN];
+        if (vap_stations.empty()) {
+            continue;
+        }
+
+        auto vap_node = mon_db.vap_get_by_id(vap_id);
+        if (!vap_node) {
+            LOG(ERROR) << "VAP node disappeared for id " << int(vap_id);
             continue;
         }
 
@@ -911,78 +944,101 @@ bool Monitor::update_sta_stats(const std::chrono::steady_clock::time_point &time
             return true;
         }
 
-        // Reset STA poll data
-        if (poll_cnt == 0) {
-            sta_node->reset_poll_data();
+        std::vector<sMacAddr> sta_macs;
+        // Keyed by sMacAddr, matching the bulk HAL API and sta_macs entries.
+        std::unordered_map<sMacAddr, bwl::SStaStats> vap_sta_stats;
+        sta_macs.reserve(vap_stations.size());
+        for (auto &station : vap_stations) {
+            auto &sta_stats = station.node->get_stats();
+            // Reset STA poll data
+            if (poll_cnt == 0) {
+                station.node->reset_poll_data();
+            }
+            sta_stats.poll_cnt++;
+            sta_macs.push_back(station.mac);
+            vap_sta_stats.emplace(station.mac, sta_stats.hal_stats);
         }
-        sta_stats.poll_cnt++;
 
         // Update unicast/gobal stats as per the config.
-        is_read_unicast = mon_db.get_clients_unicast_measurements();
-        if (!mon_wlan_hal->update_stations_stats(vap_node->get_iface(), sta_mac,
-                                                 sta_stats.hal_stats, is_read_unicast)) {
-            LOG(ERROR) << "Failed updating STA (" << sta_mac << ") statistics!";
-            continue;
+        auto vap_stats_updated = mon_wlan_hal->update_vap_stations_stats(
+            vap_node->get_iface(), sta_macs, vap_sta_stats, is_read_unicast);
+        if (!vap_stats_updated) {
+            LOG(ERROR) << "Failed updating station statistics for VAP " << vap_node->get_iface();
+            if (vap_sta_stats.empty()) {
+                continue;
+            }
         }
 
-        // Update TX Phy Rate min
-        auto val = sta_stats.hal_stats.tx_phy_rate_100kb;
-        if (poll_cnt == 0 || val < sta_stats.tx_phy_rate_100kb_min) {
-            sta_stats.tx_phy_rate_100kb_min = val;
-        }
-        sta_stats.tx_phy_rate_100kb_acc += val;
-
-        // Update RX Phy Rate min
-        val = sta_stats.hal_stats.rx_phy_rate_100kb;
-        if (poll_cnt == 0 || val < sta_stats.rx_phy_rate_100kb_min) {
-            sta_stats.rx_phy_rate_100kb_min = val;
-        }
-        sta_stats.rx_phy_rate_100kb_acc += val;
-
-        if (poll_last) {
-            // Update TX Phy Rate avg
-            sta_stats.tx_phy_rate_100kb_avg =
-                float(sta_stats.tx_phy_rate_100kb_acc) / float(sta_stats.poll_cnt);
-
-            // Update RX Phy Rate avg
-            sta_stats.rx_phy_rate_100kb_avg =
-                float(sta_stats.rx_phy_rate_100kb_acc) / float(sta_stats.poll_cnt);
-
-            // Update RSSI
-            if (sta_stats.hal_stats.rx_rssi_watt_samples_cnt > 0) {
-                float rssi_watt = sta_stats.hal_stats.rx_rssi_watt /
-                                  float(sta_stats.hal_stats.rx_rssi_watt_samples_cnt);
-                float rssi_db = 10 * log10(rssi_watt);
-                if (sta_stats.rx_rssi_curr != int8_t(rssi_db)) {
-                    sta_node->set_last_change_time();
-                }
-                sta_stats.rx_rssi_curr = int8_t(rssi_db);
-                //LOG(INFO)  << sta_mac << ", rx_rssi=" << int(rssi_db);
+        for (auto &station : vap_stations) {
+            auto stats_it = vap_sta_stats.find(station.mac);
+            if (stats_it == vap_sta_stats.end()) {
+                LOG(ERROR) << "Failed updating STA (" << tlvf::mac_to_string(station.mac)
+                           << ") statistics!";
+                continue;
             }
 
-            sta_node->set_rx_rssi_ready(true);
+            auto &sta_stats     = station.node->get_stats();
+            sta_stats.hal_stats = stats_it->second;
 
-            // Update SNR
-            if (sta_stats.hal_stats.rx_snr_watt_samples_cnt > 0) {
-                float snr_watt = sta_stats.hal_stats.rx_snr_watt /
-                                 float(sta_stats.hal_stats.rx_snr_watt_samples_cnt);
-                float snr_db = 10 * log10(snr_watt);
-                if (sta_stats.rx_snr_curr != int8_t(snr_db)) {
-                    sta_node->set_last_change_time();
+            // Update TX Phy Rate min
+            auto val = sta_stats.hal_stats.tx_phy_rate_100kb;
+            if (poll_cnt == 0 || val < sta_stats.tx_phy_rate_100kb_min) {
+                sta_stats.tx_phy_rate_100kb_min = val;
+            }
+            sta_stats.tx_phy_rate_100kb_acc += val;
+
+            // Update RX Phy Rate min
+            val = sta_stats.hal_stats.rx_phy_rate_100kb;
+            if (poll_cnt == 0 || val < sta_stats.rx_phy_rate_100kb_min) {
+                sta_stats.rx_phy_rate_100kb_min = val;
+            }
+            sta_stats.rx_phy_rate_100kb_acc += val;
+
+            if (poll_last) {
+                // Update TX Phy Rate avg
+                sta_stats.tx_phy_rate_100kb_avg =
+                    float(sta_stats.tx_phy_rate_100kb_acc) / float(sta_stats.poll_cnt);
+
+                // Update RX Phy Rate avg
+                sta_stats.rx_phy_rate_100kb_avg =
+                    float(sta_stats.rx_phy_rate_100kb_acc) / float(sta_stats.poll_cnt);
+
+                // Update RSSI
+                if (sta_stats.hal_stats.rx_rssi_watt_samples_cnt > 0) {
+                    float rssi_watt = sta_stats.hal_stats.rx_rssi_watt /
+                                      float(sta_stats.hal_stats.rx_rssi_watt_samples_cnt);
+                    float rssi_db = 10 * log10(rssi_watt);
+                    if (sta_stats.rx_rssi_curr != int8_t(rssi_db)) {
+                        station.node->set_last_change_time();
+                    }
+                    sta_stats.rx_rssi_curr = int8_t(rssi_db);
+                    //LOG(INFO)  << sta_mac << ", rx_rssi=" << int(rssi_db);
                 }
-                sta_stats.rx_snr_curr = int8_t(snr_db);
-                //LOG(INFO)  << sta_mac << ", rx_snr=" << int(snr_db);
+
+                station.node->set_rx_rssi_ready(true);
+
+                // Update SNR
+                if (sta_stats.hal_stats.rx_snr_watt_samples_cnt > 0) {
+                    float snr_watt = sta_stats.hal_stats.rx_snr_watt /
+                                     float(sta_stats.hal_stats.rx_snr_watt_samples_cnt);
+                    float snr_db = 10 * log10(snr_watt);
+                    if (sta_stats.rx_snr_curr != int8_t(snr_db)) {
+                        station.node->set_last_change_time();
+                    }
+                    sta_stats.rx_snr_curr = int8_t(snr_db);
+                    //LOG(INFO)  << sta_mac << ", rx_snr=" << int(snr_db);
+                }
+
+                station.node->set_rx_snr_ready(true);
             }
 
-            sta_node->set_rx_snr_ready(true);
+            // Update the measurement timestamp
+            auto now       = std::chrono::steady_clock::now();
+            auto time_span = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - sta_stats.last_update_time);
+            sta_stats.delta_ms         = float(time_span.count());
+            sta_stats.last_update_time = now;
         }
-
-        // Update the measurement timestamp
-        auto now = std::chrono::steady_clock::now();
-        auto time_span =
-            std::chrono::duration_cast<std::chrono::milliseconds>(now - sta_stats.last_update_time);
-        sta_stats.delta_ms         = float(time_span.count());
-        sta_stats.last_update_time = now;
     }
 
     m_sta_stats_polling_completed = true;

@@ -12,6 +12,10 @@
 #include "base_wlan_hal.h"
 #include "mon_wlan_hal_types.h"
 #include "tlvf/wfa_map/tlvApMetrics.h"
+
+#include <tlvf/tlvftypes.h>
+
+#include <unordered_map>
 #include <vector>
 
 namespace bwl {
@@ -61,6 +65,36 @@ public:
     virtual bool update_stations_stats(const std::string &vap_iface_name,
                                        const std::string &sta_mac, SStaStats &sta_stats,
                                        bool is_read_unicast)                               = 0;
+    /**
+     * @brief Update station statistics for multiple stations on one VAP.
+     *
+     * The default implementation preserves the existing per-STA polling path.
+     * HALs may override it to update the requested VAP stations in bulk.
+     *
+     * @param [in] vap_iface_name VAP interface name.
+     * @param [in] sta_macs Station MAC addresses to update.
+     * @param [in,out] sta_stats Station statistics keyed by sta_macs entries.
+     * @param [in] is_read_unicast Use unicast TX packet counter when true.
+     *
+     * @return true if no stations were requested or at least one station was updated.
+     */
+    virtual bool update_vap_stations_stats(const std::string &vap_iface_name,
+                                           const std::vector<sMacAddr> &sta_macs,
+                                           std::unordered_map<sMacAddr, SStaStats> &sta_stats,
+                                           bool is_read_unicast)
+    {
+        bool updated = false;
+        for (const auto &sta_mac : sta_macs) {
+            if (!update_stations_stats(vap_iface_name, tlvf::mac_to_string(sta_mac),
+                                       sta_stats[sta_mac], is_read_unicast)) {
+                sta_stats.erase(sta_mac);
+                continue;
+            }
+            updated = true;
+        }
+
+        return sta_macs.empty() || updated;
+    }
 
     /**
      * @brief Update station qos control params for already associated wifi6 clients.
