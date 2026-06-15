@@ -41,6 +41,10 @@ public:
     virtual bool update_stations_stats(const std::string &vap_iface_name,
                                        const std::string &sta_mac, SStaStats &sta_stats,
                                        bool is_read_unicast) override;
+    virtual bool update_vap_stations_stats(const std::string &vap_iface_name,
+                                           const std::vector<sMacAddr> &sta_macs,
+                                           std::unordered_map<sMacAddr, SStaStats> &sta_stats,
+                                           bool is_read_unicast) override;
     virtual bool update_station_qos_control_params(const std::string &vap_iface_name,
                                                    const std::string &sta_mac,
                                                    SStaQosCtrlParams &sta_qos_ctrl_params) override;
@@ -110,6 +114,7 @@ private:
 
     bool get_scan_results_from_pwhm();
 
+    std::unordered_map<std::string, size_t> m_vap_station_count_by_path;
     bool m_scan_active = false;
 };
 
