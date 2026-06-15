@@ -12,6 +12,7 @@
 #include "base_wlan_hal.h"
 #include "mon_wlan_hal_types.h"
 #include "tlvf/wfa_map/tlvApMetrics.h"
+#include <unordered_map>
 #include <vector>
 
 namespace bwl {
@@ -61,6 +62,28 @@ public:
     virtual bool update_stations_stats(const std::string &vap_iface_name,
                                        const std::string &sta_mac, SStaStats &sta_stats,
                                        bool is_read_unicast)                               = 0;
+    virtual bool update_vap_stations_stats(const std::string &vap_iface_name,
+                                           const std::vector<std::string> &sta_macs,
+                                           std::unordered_map<std::string, SStaStats> &sta_stats,
+                                           bool is_read_unicast)
+    {
+        bool updated = false;
+        for (const auto &sta_mac : sta_macs) {
+            auto stats_it = sta_stats.find(sta_mac);
+            if (stats_it == sta_stats.end()) {
+                stats_it = sta_stats.emplace(sta_mac, SStaStats()).first;
+            }
+
+            if (!update_stations_stats(vap_iface_name, sta_mac, stats_it->second,
+                                       is_read_unicast)) {
+                sta_stats.erase(sta_mac);
+                continue;
+            }
+            updated = true;
+        }
+
+        return sta_macs.empty() || updated;
+    }
 
     /**
      * @brief Update station qos control params for already associated wifi6 clients.

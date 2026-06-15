@@ -48,6 +48,62 @@ static mon_wlan_hal::Event wpaCtrl_to_bwl_event(const std::string &opcode)
     return mon_wlan_hal::Event::Invalid;
 }
 
+static void read_station_stats(const AmbiorixVariant &station_obj, SStaStats &sta_stats,
+                               bool is_read_unicast)
+{
+    // TODO: PPM-4002
+    // sta_stats.tx_bytes was filled with sta_info.tx_bytes that is read from AssociatedDevice.TxBytes;
+    // sta_stats.tx_bytes_cnt reads again from AssociatedDevice.TxBytes; etc
+
+    station_obj.read_child(sta_stats.tx_bytes, "TxBytes");
+    station_obj.read_child(sta_stats.rx_bytes, "RxBytes");
+    station_obj.read_child(sta_stats.tx_bytes_cnt, "TxBytes");
+    station_obj.read_child(sta_stats.rx_bytes_cnt, "RxBytes");
+
+    station_obj.read_child(sta_stats.tx_errors_cnt, "TxErrors");
+    station_obj.read_child(sta_stats.rx_errors_cnt, "RxErrors");
+    station_obj.read_child(sta_stats.tx_packets, "TxPacketCount");
+    station_obj.read_child(sta_stats.rx_packets, "RxPacketCount");
+
+    station_obj.read_child(sta_stats.rx_packets_cnt, "RxPacketCount");
+    if (is_read_unicast) {
+        // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
+        station_obj.read_child(sta_stats.tx_packets_cnt, "TxUnicastPacketCount");
+    } else {
+        station_obj.read_child(sta_stats.tx_packets_cnt, "TxPacketCount");
+    }
+
+    station_obj.read_child(sta_stats.retrans_count, "Tx_Retransmissions");
+
+    uint32_t u32Val = 0;
+    if (station_obj.read_child(u32Val, "LastDataDownlinkRate")) {
+        sta_stats.tx_phy_rate_100kb = u32Val / 100;
+    }
+    if (station_obj.read_child(u32Val, "LastDataUplinkRate")) {
+        sta_stats.rx_phy_rate_100kb = u32Val / 100;
+    }
+
+    if (station_obj.read_child(u32Val, "DownlinkBandwidth")) {
+        std::string sVal       = std::to_string(u32Val);
+        sta_stats.dl_bandwidth = wbapi_utils::bandwith_from_string(sVal + "MHz");
+    }
+
+    float s_float;
+    if (station_obj.read_child(s_float, "SignalNoiseRatio")) {
+        if (s_float >= beerocks::SNR_MIN) {
+            sta_stats.rx_snr_watt = std::pow(10, s_float / float(10));
+            sta_stats.rx_snr_watt_samples_cnt++;
+        }
+    }
+
+    int32_t signal_dbm = 0;
+    station_obj.read_child(signal_dbm, "SignalStrength");
+    if (signal_dbm != 0) {
+        sta_stats.rx_rssi_watt += std::pow(10, (int8_t(signal_dbm) / 10.0));
+        sta_stats.rx_rssi_watt_samples_cnt++;
+    }
+}
+
 static bool parse_beacon_request_status(bwl::parsed_line_t &parsed_obj,
                                         bwl::SBeaconRequestStatus11k *msg)
 {
@@ -319,7 +375,6 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
                                              const std::string &sta_mac, SStaStats &sta_stats,
                                              bool is_read_unicast)
 {
-
     std::string assoc_device_path = base_wlan_hal_whm::get_station_path(sta_mac);
 
     AmbiorixVariantSmartPtr assoc_device_obj = m_ambiorix_cl.get_object(assoc_device_path);
@@ -329,56 +384,98 @@ bool mon_wlan_hal_whm::update_stations_stats(const std::string &vap_iface_name,
         return false;
     }
 
-    // TODO: PPM-4002
-    // sta_stats.tx_bytes was filled with sta_info.tx_bytes that is read from AssociatedDevice.TxBytes;
-    // sta_stats.tx_bytes_cnt reads again from AssociatedDevice.TxBytes; etc
+    read_station_stats(*assoc_device_obj, sta_stats, is_read_unicast);
+    return true;
+}
 
-    assoc_device_obj->read_child(sta_stats.tx_bytes, "TxBytes");
-    assoc_device_obj->read_child(sta_stats.rx_bytes, "RxBytes");
-    assoc_device_obj->read_child(sta_stats.tx_bytes_cnt, "TxBytes");
-    assoc_device_obj->read_child(sta_stats.rx_bytes_cnt, "RxBytes");
-
-    assoc_device_obj->read_child(sta_stats.tx_errors_cnt, "TxErrors");
-    assoc_device_obj->read_child(sta_stats.rx_errors_cnt, "RxErrors");
-    assoc_device_obj->read_child(sta_stats.tx_packets, "TxPacketCount");
-    assoc_device_obj->read_child(sta_stats.rx_packets, "RxPacketCount");
-
-    assoc_device_obj->read_child(sta_stats.rx_packets_cnt, "RxPacketCount");
-    if (is_read_unicast) {
-        // RX traffic is always transmitted at high PHY rates, so using a unicast-specific counter is not necessary
-        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxUnicastPacketCount");
-    } else {
-        assoc_device_obj->read_child(sta_stats.tx_packets_cnt, "TxPacketCount");
+bool mon_wlan_hal_whm::update_vap_stations_stats(
+    const std::string &vap_iface_name, const std::vector<std::string> &sta_macs,
+    std::unordered_map<std::string, SStaStats> &sta_stats, bool is_read_unicast)
+{
+    auto previous_sta_stats = std::move(sta_stats);
+    sta_stats.clear();
+    if (sta_macs.empty()) {
+        return true;
     }
 
-    assoc_device_obj->read_child(sta_stats.retrans_count, "Tx_Retransmissions");
-
-    uint32_t u32Val;
-    if (assoc_device_obj->read_child(u32Val, "LastDataDownlinkRate")) {
-        sta_stats.tx_phy_rate_100kb = u32Val / 100;
-    }
-    if (assoc_device_obj->read_child(u32Val, "LastDataUplinkRate")) {
-        sta_stats.rx_phy_rate_100kb = u32Val / 100;
+    std::string vap_path;
+    auto vap_it = m_vapsExtInfo.find(vap_iface_name);
+    if (vap_it != m_vapsExtInfo.end()) {
+        vap_path = vap_it->second.path;
     }
 
-    assoc_device_obj->read_child(u32Val, "DownlinkBandwidth");
-    std::string sVal       = std::to_string(u32Val);
-    sta_stats.dl_bandwidth = wbapi_utils::bandwith_from_string(sVal + "MHz");
+    if (vap_path.empty() && !m_ambiorix_cl.resolve_path(
+                                wbapi_utils::search_path_ap_by_iface(vap_iface_name), vap_path)) {
+        return false;
+    }
 
-    float s_float;
-    if (assoc_device_obj->read_child(s_float, "SignalNoiseRatio")) {
-        if (s_float >= beerocks::SNR_MIN) {
-            sta_stats.rx_snr_watt = std::pow(10, s_float / float(10));
-            sta_stats.rx_snr_watt_samples_cnt++;
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    if (!m_ambiorix_cl.call(vap_path, "getStationStatsBrief", args, result)) {
+        return false;
+    }
+
+    auto results_list = result.read_children<AmbiorixVariantListSmartPtr>();
+    if (!results_list || results_list->empty()) {
+        return false;
+    }
+
+    auto stations_list = results_list->front().read_children<AmbiorixVariantListSmartPtr>();
+    if (!stations_list) {
+        return false;
+    }
+
+    std::unordered_map<std::string, SStaStats> vap_sta_stats;
+
+    for (auto &station_obj : *stations_list) {
+        std::string mac_addr;
+        if (!station_obj.read_child(mac_addr, "MACAddress")) {
+            continue;
         }
+
+        SStaStats sta_stats;
+        read_station_stats(station_obj, sta_stats, is_read_unicast);
+        auto sta_mac           = tlvf::mac_to_string(tlvf::mac_from_string(mac_addr));
+        vap_sta_stats[sta_mac] = sta_stats;
     }
 
-    int32_t signal_dbm = 0;
-    assoc_device_obj->read_child(signal_dbm, "SignalStrength");
-    if (signal_dbm != 0) {
-        sta_stats.rx_rssi_watt += std::pow(10, (int8_t(signal_dbm) / 10.0));
-        sta_stats.rx_rssi_watt_samples_cnt++;
+    auto previous_count_it = m_vap_station_count_by_path.find(vap_path);
+    size_t previous_count  = 0;
+    if (previous_count_it != m_vap_station_count_by_path.end()) {
+        previous_count = previous_count_it->second;
     }
+    m_vap_station_count_by_path[vap_path] = vap_sta_stats.size();
+
+    if (previous_count != vap_sta_stats.size()) {
+        auto delta     = int(vap_sta_stats.size()) - int(previous_count);
+        auto delta_str = (delta >= 0 ? "+" : "") + std::to_string(delta);
+        LOG(INFO) << "getStationStatsBrief station count changed"
+                  << " vap_iface=" << vap_iface_name << " path=" << vap_path
+                  << " delta=" << delta_str << " previous_count=" << previous_count
+                  << " current_count=" << vap_sta_stats.size();
+    }
+
+    std::unordered_map<std::string, SStaStats> updated_sta_stats;
+    for (const auto &sta_mac : sta_macs) {
+        auto normalized_sta_mac = tlvf::mac_to_string(tlvf::mac_from_string(sta_mac));
+        auto stats_it           = vap_sta_stats.find(normalized_sta_mac);
+        if (stats_it == vap_sta_stats.end()) {
+            continue;
+        }
+
+        auto updated_stats     = stats_it->second;
+        auto previous_stats_it = previous_sta_stats.find(sta_mac);
+        if (previous_stats_it != previous_sta_stats.end()) {
+            updated_stats.rx_rssi_watt += previous_stats_it->second.rx_rssi_watt;
+            updated_stats.rx_rssi_watt_samples_cnt +=
+                previous_stats_it->second.rx_rssi_watt_samples_cnt;
+            updated_stats.rx_snr_watt += previous_stats_it->second.rx_snr_watt;
+            updated_stats.rx_snr_watt_samples_cnt +=
+                previous_stats_it->second.rx_snr_watt_samples_cnt;
+        }
+        updated_sta_stats.emplace(sta_mac, updated_stats);
+    }
+    sta_stats.swap(updated_sta_stats);
 
     return true;
 }
