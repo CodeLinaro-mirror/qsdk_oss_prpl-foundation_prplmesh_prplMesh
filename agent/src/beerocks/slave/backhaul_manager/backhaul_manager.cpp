@@ -2796,16 +2796,17 @@ void BackhaulManager::get_scan_measurement()
     }
 }
 
-std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_wireless_hal(std::string iface)
+std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_wireless_hal(const std::string &iface)
 {
     // If the iface argument is empty, use the selected wireless interface
-    auto db = AgentDB::get();
+    const std::string *iface_ptr = &iface;
+    auto db                      = AgentDB::get();
     if (iface.empty()) {
-        iface = db->backhaul.selected_iface_name;
+        iface_ptr = &db->backhaul.selected_iface_name;
     }
 
     for (auto &radio_info : m_radios_info) {
-        if (radio_info->sta_iface == iface) {
+        if (radio_info->sta_iface == *iface_ptr) {
             return radio_info->sta_wlan_hal;
         }
     }

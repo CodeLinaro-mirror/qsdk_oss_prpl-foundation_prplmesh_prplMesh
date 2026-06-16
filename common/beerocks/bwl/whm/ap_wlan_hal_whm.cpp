@@ -1052,7 +1052,11 @@ bool ap_wlan_hal_whm::set_tx_power_limit(int tx_pow_limit)
      * identify pwhm power level that is closest
      */
     std::string power_list_str;
-    m_ambiorix_cl.get_param(power_list_str, m_radio_path, "TransmitPowerSupported");
+    if (!m_ambiorix_cl.get_param(power_list_str, m_radio_path, "TransmitPowerSupported")) {
+        LOG(ERROR) << "Failed to read TransmitPowerSupported";
+        return false;
+    }
+
     std::stringstream ss(power_list_str);
     std::vector<int> power_levels_pwhm;
 
@@ -1066,12 +1070,14 @@ bool ap_wlan_hal_whm::set_tx_power_limit(int tx_pow_limit)
     std::sort(power_levels_pwhm.begin(), power_levels_pwhm.end(), std::greater<int>());
     // sort in decreasing order
 
+    int8_t closest_power_level = -1;
     for (const auto pwr : power_levels_pwhm) {
         if (pwr <= selected_tx_power) {
-            selected_tx_power = pwr;
+            closest_power_level = pwr;
             break;
         }
     }
+    selected_tx_power = closest_power_level;
     LOG(DEBUG) << "Final power lvl " << selected_tx_power << "%";
 
     /**
@@ -1333,7 +1339,10 @@ bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
     std::string channels_in_use;
 
     // ChannelsInUse always contains channels in order
-    m_ambiorix_cl.get_param(channels_in_use, m_radio_path, "ChannelsInUse");
+    if (!m_ambiorix_cl.get_param(channels_in_use, m_radio_path, "ChannelsInUse")) {
+        LOG(ERROR) << "Failed to read ChannelsInUse";
+        return false;
+    }
 
     std::string disabled_subchannels;
     bwl::base_wlan_hal::apply_bitmask_to_csv(channels_in_use, bitmap, disabled_subchannels);

@@ -2247,7 +2247,7 @@ bool ApAutoConfigurationTask::handle_wsc_m8_tlv(const std::string &radio_iface,
 }
 
 bool ApAutoConfigurationTask::send_ap_mld_configuration(const std::string &radio_iface,
-                                                        std::string ssid, int8_t mld_unit,
+                                                        const std::string &ssid, int8_t mld_unit,
                                                         uint8_t mld_mode, bool reconfigure)
 {
     auto request =
