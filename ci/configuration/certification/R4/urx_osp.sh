@@ -47,6 +47,8 @@ ubus call "IP.Interface" _set '{ "rel_path": ".[Alias == \"wan\"].", "parameters
 sleep 5
 
 # The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+# Remove wireless backhual credentials before enable wired backhual, if previous test used wifi backhaul (PPM-4118)
+ba-cli "WiFi.EndPoint.*.Profile.*.-"
 ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_5\"].Enable=0"
 ba-cli "Device.Ethernet.Interface.[Name == \"eth0_5\"].Enable=0"
 ba-cli "Device.Ethernet.Interface.[Name == \"eth0_5\"].Enable=1"

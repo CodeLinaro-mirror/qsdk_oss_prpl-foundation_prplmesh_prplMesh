@@ -46,6 +46,8 @@ ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.165.100.
 ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.[Alias == \"guest\"].IPAddress=192.165.200.150"
 
 # The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
+# Remove wireless backhual credentials before enable wired backhual, if previous test used wifi backhaul (PPM-4118)
+ba-cli "WiFi.EndPoint.*.Profile.*.-"
 ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan4\"].Enable=0"
 ba-cli "Device.Ethernet.Interface.[Name == \"lan4\"].Enable=0"
 ba-cli "Device.Ethernet.Interface.[Name == \"lan4\"].Enable=1"
