@@ -807,9 +807,33 @@ bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
         return false;
     }
 
+    auto iface_info = classify_loop_iface(iface_index);
+    if (iface_info.iface_type == eLoopIfaceType::WirelessEndpoint) {
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+            LOG(INFO) << "Controller AP-Autoconfiguration Response received on wireless "
+                         "backhaul iface "
+                      << iface_name
+                      << " while selected wired backhaul iface=" << db->backhaul.selected_iface_name
+                      << ". Correcting active backhaul type to wireless.";
+
+            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wireless;
+            db->backhaul.selected_iface_name = iface_name;
+
+            if (auto iface_hal = get_wireless_hal(iface_name)) {
+                db->backhaul.backhaul_bssid = tlvf::mac_from_string(iface_hal->get_bssid());
+            }
+        } else {
+            LOG(DEBUG) << "Controller AP-Autoconfiguration Response received on wireless "
+                          "backhaul iface "
+                       << iface_name;
+        }
+
+        return false;
+    }
+
     AgentDB::sEthernetPort candidate;
     if (!find_wired_candidate(iface_name, candidate)) {
-        LOG(WARNING) << "Controller detected on non-candidate wired interface " << iface_name
+        LOG(WARNING) << "Controller detected on non-candidate interface " << iface_name
                      << " (iface_index=" << iface_index
                      << "). Ignoring because it is not in the wired backhaul candidate list.";
         return false;
