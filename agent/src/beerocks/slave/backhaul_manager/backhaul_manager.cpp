@@ -792,6 +792,35 @@ void BackhaulManager::maybe_send_wired_controller_probe()
     }
 }
 
+bool BackhaulManager::remove_wireless_backhaul_ifaces_from_bridge()
+{
+    auto db      = AgentDB::get();
+    bool success = true;
+
+    for (const auto &radio_info : m_radios_info) {
+        if (!radio_info || radio_info->sta_iface.empty()) {
+            continue;
+        }
+
+        const auto &iface_name = radio_info->sta_iface;
+        const auto &bridge     = db->bridge.iface_name;
+        if (beerocks::net::network_utils::linux_iface_get_host_bridge(iface_name) != bridge) {
+            continue;
+        }
+
+        LOG(INFO) << "Removing wireless backhaul iface " << iface_name << " from bridge " << bridge
+                  << " before switching to wired backhaul";
+
+        if (!beerocks::net::network_utils::linux_remove_iface_from_bridge(bridge, iface_name)) {
+            LOG(ERROR) << "Failed to remove wireless backhaul iface " << iface_name
+                       << " from bridge " << bridge;
+            success = false;
+        }
+    }
+
+    return success;
+}
+
 bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
 {
     // Transport uses index 0 for local-bus-originated messages. A real wired controller response
@@ -842,6 +871,12 @@ bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
     if (!wired_candidate_is_available(iface_name)) {
         LOG(DEBUG) << "Ignoring AP-Autoconfiguration Response on wired candidate " << iface_name
                    << ": candidate is no longer up and bridged";
+        return false;
+    }
+
+    if (!remove_wireless_backhaul_ifaces_from_bridge()) {
+        LOG(ERROR) << "Refusing wired backhaul switch on iface " << iface_name
+                   << " because a wireless backhaul iface could not be removed from bridge";
         return false;
     }
 
