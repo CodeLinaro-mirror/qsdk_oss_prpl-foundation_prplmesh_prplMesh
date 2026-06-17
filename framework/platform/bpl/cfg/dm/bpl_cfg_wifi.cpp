@@ -204,9 +204,15 @@ bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> 
         LOG(DEBUG) << "bpl_cfg_get_wireless_settings: vap_type is "
                    << eVapType_str(configuration.vap_type) << " for SSID=" << configuration.ssid;
 
+        // Reading Enable of the Radio associated with AP
+        bool radio_enable;
+        if (!radio_obj || !radio_obj->read_child(radio_enable, "Enable")) {
+            radio_enable = true;
+        }
+
         bool ap_enable = false;
         ap.read_child(ap_enable, "Enable");
-        if (ap_enable && bpl_cfg_get_wifi_credentials(iface, configuration)) {
+        if (ap_enable && radio_enable && bpl_cfg_get_wifi_credentials(iface, configuration)) {
             LOG(DEBUG) << "add " << configuration.ssid << " to wireless settings size "
                        << wireless_settings.size() << " path " << it.first;
             configuration.bss_index = bss_index_generator++;

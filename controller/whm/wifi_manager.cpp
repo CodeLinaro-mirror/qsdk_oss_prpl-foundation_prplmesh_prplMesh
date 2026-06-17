@@ -137,7 +137,8 @@ void WifiManager::subscribe_to_bss_info_config_change()
              AMX_CL_OBJECT_CHANGED_EVT +
              "')"
              " && (contains('parameters.OperatingClass') || contains('parameters.Channel')"
-             " || contains('parameters.AP_Mode') || contains('parameters.MultiAPType'))";
+             " || contains('parameters.AP_Mode') || contains('parameters.MultiAPType')"
+             " || contains('parameters.Enable'))";
 
     if (!m_ambiorix_cl->subscribe_to_object_event(wbapi_utils::search_path_radio(), event_handler,
                                                   filter)) {
