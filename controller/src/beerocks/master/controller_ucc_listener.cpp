@@ -192,24 +192,25 @@ bool controller_ucc_listener::handle_dev_exec_action(
 
         son::db::sDppBootstrappingInfo enrollee_bootstrapping_info;
 
-        if (!m_database.parse_dpp_bootstrap_info(dpp_bootstrapping_data_str, enrollee_bootstrapping_info, err_string)) {
+        if (!m_database.parse_dpp_bootstrap_info(dpp_bootstrapping_data_str,
+                                                 enrollee_bootstrapping_info, err_string)) {
             err_string = "Failed to parse DPP bootstrapping data: " + err_string;
             return false;
         }
 
         std::string alias;
         auto alias_it = params.find("alias");
-        if ((alias_it != params.end()) &&
-            !alias_it->second.empty()) {
+        if ((alias_it != params.end()) && !alias_it->second.empty()) {
             alias = alias_it->second;
         } else {
-            if (enrollee_bootstrapping_info.mac !=
-                beerocks::net::network_utils::ZERO_MAC) {
+            if (enrollee_bootstrapping_info.mac != beerocks::net::network_utils::ZERO_MAC) {
                 std::string mac_str = tlvf::mac_to_string(enrollee_bootstrapping_info.mac);
                 mac_str.erase(std::remove(mac_str.begin(), mac_str.end(), ':'), mac_str.end());
                 alias = "cpe-" + mac_str;
             } else {
-                std::string hash_hex = beerocks::string_utils::bytes_to_hex_string(enrollee_bootstrapping_info.pkhash.data(), enrollee_bootstrapping_info.pkhash.size());
+                std::string hash_hex = beerocks::string_utils::bytes_to_hex_string(
+                    enrollee_bootstrapping_info.pkhash.data(),
+                    enrollee_bootstrapping_info.pkhash.size());
                 alias = "cpe-" + hash_hex.substr(0, std::min<size_t>(12, hash_hex.size()));
             }
         }
@@ -223,7 +224,8 @@ bool controller_ucc_listener::handle_dev_exec_action(
         LOG(DEBUG) << "host=" << enrollee_bootstrapping_info.host;
         LOG(DEBUG) << "public_key=" << enrollee_bootstrapping_info.public_key;
 
-        if (!m_database.add_dpp_bootstrap_info(std::move(enrollee_bootstrapping_info), err_string)) {
+        if (!m_database.add_dpp_bootstrap_info(std::move(enrollee_bootstrapping_info),
+                                               err_string)) {
             return false;
         }
         return true;

@@ -1899,6 +1899,57 @@ static void event_ieee1905_network_enable_changed(const char *const sig_name,
     }
 }
 
+static void event_provisioned_dpp_changed(const char *const sig_name, const amxc_var_t *const data,
+                                          void *const priv)
+{
+    amxd_object_t *dpp_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!dpp_obj) {
+        LOG(WARNING) << "Failed to get ProvisionedDPP object";
+        return;
+    }
+
+    const char *alias = amxd_object_get_cstring_t(dpp_obj, "Alias", nullptr);
+    if (!alias || alias[0] == '\0') {
+        LOG(ERROR) << "ProvisionedDPP Alias is empty. Need to set DPP Alias first.";
+        return;
+    }
+
+    const char *dpp_uri = amxd_object_get_cstring_t(dpp_obj, "DPPURI", nullptr);
+    if (!dpp_uri || dpp_uri[0] == '\0') {
+        LOG(ERROR) << "DPPURI is empty for alias: " << alias;
+        return;
+    }
+
+    son::db::sDppBootstrappingInfo info;
+    std::string error;
+
+    if(!g_database->parse_dpp_bootstrap_info(dpp_uri, info, error)) {
+        LOG(ERROR) << "Failed parsing DPPURI alias=" << alias << " error=" << error;
+        return;
+    }
+
+    info.alias = alias;
+
+    if(!g_database->add_dpp_bootstrap_info(std::move(info), error)) {
+        LOG(ERROR) << "Failed storing DPPURI alias=" << alias << " error=" << error;
+    }
+}
+
+static void event_provisioned_dpp_removed(const char *const sig_name, const amxc_var_t *const data,
+                                          void *const priv)
+{
+    const char *alias = GETP_CHAR(data, "parameters.Alias");
+
+    if (!alias || alias[0] == '\0') {
+        LOG(WARNING) << "ProvisionedDPP Alias not found in removal event data, skipping";
+        return;
+    }
+
+    g_database->remove_dpp_bootstrap_info(std::string(alias));
+}
+
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
 {
     const std::vector<beerocks::nbapi::sActionsCallback> actions_list = {
