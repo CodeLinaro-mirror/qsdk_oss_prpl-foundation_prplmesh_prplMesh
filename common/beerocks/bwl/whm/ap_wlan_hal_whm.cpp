@@ -2840,8 +2840,8 @@ bool ap_wlan_hal_whm::dpp_bootstrap_gen(const std::string &bootstrap_params, uin
     args.add_child("params", bootstrap_params);
 
     std::string main_vap_ifname = m_radio_info.available_vaps[0].bss;
-    std::string dpp_path = wbapi_utils::search_path_ap_by_iface(main_vap_ifname) + "DPP.";
-    bool ret = m_ambiorix_cl.call(dpp_path, "dppBootstrapGen", args, result);
+    std::string dpp_path        = wbapi_utils::search_path_ap_by_iface(main_vap_ifname) + "DPP.";
+    bool ret                    = m_ambiorix_cl.call(dpp_path, "dppBootstrapGen", args, result);
 
     if (!ret) {
         LOG(ERROR) << "dpp_bootstrap_gen() failed!";

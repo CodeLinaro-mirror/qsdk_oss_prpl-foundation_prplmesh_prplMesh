@@ -325,12 +325,14 @@ public:
         sMacAddr bssid{};
     };
 
-    bool parse_dpp_bootstrap_info(const std::string& dpp_uri, sDppBootstrappingInfo& info, std::string& error);
-    bool add_dpp_bootstrap_info(sDppBootstrappingInfo&& info,std::string& error);
-    bool remove_dpp_bootstrap_info(const std::string& alias);
+    bool parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingInfo &info,
+                                  std::string &error);
+    bool add_dpp_bootstrap_info(sDppBootstrappingInfo &&info, std::string &error);
+    bool remove_dpp_bootstrap_info(const std::string &alias);
     void clear_dpp_bootstrap_info_db();
-    sDppBootstrappingInfo* get_dpp_bootstrap_info(const std::string& alias);
-    const sDppBootstrappingInfo* get_dpp_bootstrap_info_by_pkhash(const std::array<uint8_t, 32>& pkhash) const;
+    sDppBootstrappingInfo *get_dpp_bootstrap_info(const std::string &alias);
+    const sDppBootstrappingInfo *
+    get_dpp_bootstrap_info_by_pkhash(const std::array<uint8_t, 32> &pkhash) const;
     const sDppBootstrappingInfo *get_dpp_bootstrap_info_by_mac(const sMacAddr &mac) const;
     void print_dpp_bootstrap_info() const;
 

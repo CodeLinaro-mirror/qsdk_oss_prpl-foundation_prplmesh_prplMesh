@@ -17,6 +17,7 @@
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
+#include "tasks/dpp_chirp_notification_task.h"
 #include "tasks/load_balancer_task.h"
 #include "tasks/optimal_path_task.h"
 #include "tasks/service_prioritization_task.h"
@@ -399,6 +400,9 @@ void Controller::start_mandatory_tasks()
 
     LOG_IF(!m_task_pool.add_task(std::make_shared<DhcpTask>(database, m_timer_manager)), FATAL)
         << "Failed adding dhcp task!";
+
+    LOG_IF(!m_task_pool.add_task(std::make_shared<dpp_chirp_notification_task>(database)), FATAL)
+        << "Failed adding dpp_chirp_notification_task!";
 
     LOG_IF(!m_task_pool.add_task(std::make_shared<service_prioritization_task>(database, cmdu_tx)),
            FATAL)
@@ -2414,50 +2418,52 @@ bool Controller::handle_cmdu_1905_available_spectrum_inquiry_message(
     return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
 }
 
-bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(const sMacAddr& src_mac, ieee1905_1::CmduMessageRx& cmdu_rx)
+bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(
+    const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto uri_tlv = cmdu_rx.getClass<wfa_map::tlvDppBootstrappingUriNotification>();
 
-    if(!uri_tlv) {
+    if (!uri_tlv) {
         LOG(ERROR) << "addClass wfa_map::tlvDppBootstrappingUriNotification failed";
         return false;
     }
 
     auto dpp_uri = uri_tlv->dpp_uri_str();
-    if(dpp_uri.empty()) {
+    if (dpp_uri.empty()) {
         return false;
     }
 
     son::db::sDppBootstrappingInfo info;
     std::string error;
 
-    if(!database.parse_dpp_bootstrap_info(dpp_uri, info, error)) {
+    if (!database.parse_dpp_bootstrap_info(dpp_uri, info, error)) {
         LOG(ERROR) << "Failed parsing DPP URI : " << error;
         return false;
     }
 
     sMacAddr enrollee_mac = uri_tlv->backhaul_sta_address();
 
-    if(enrollee_mac == beerocks::net::network_utils::ZERO_MAC) {
+    if (enrollee_mac == beerocks::net::network_utils::ZERO_MAC) {
         enrollee_mac = uri_tlv->bssid();
     }
 
-    if(enrollee_mac != beerocks::net::network_utils::ZERO_MAC) {
+    if (enrollee_mac != beerocks::net::network_utils::ZERO_MAC) {
         info.mac = enrollee_mac;
     }
 
-    if(info.mac == beerocks::net::network_utils::ZERO_MAC) {
+    if (info.mac == beerocks::net::network_utils::ZERO_MAC) {
         LOG(WARNING) << "Unable to determine enrollee MAC";
         return false;
     }
-    info.ruid = uri_tlv->ruid();
-    info.bssid = uri_tlv->bssid();
+    info.ruid           = uri_tlv->ruid();
+    info.bssid          = uri_tlv->bssid();
     std::string mac_str = tlvf::mac_to_string(info.mac);
     mac_str.erase(std::remove(mac_str.begin(), mac_str.end(), ':'), mac_str.end());
-    std::string hash_hex = beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
+    std::string hash_hex =
+        beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
     info.alias = "auto-" + mac_str + "-" + hash_hex.substr(0, 12);
 
-    if(!database.add_dpp_bootstrap_info(std::move(info), error)) {
+    if (!database.add_dpp_bootstrap_info(std::move(info), error)) {
         LOG(ERROR) << "Failed to add DPP Bootstrap info: " << error;
         return false;
     }
