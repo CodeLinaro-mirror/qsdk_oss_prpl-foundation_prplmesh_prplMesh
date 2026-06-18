@@ -2340,22 +2340,21 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
             }
         }
 
+        beerocks::message::eMLOModes mld_mode = beerocks::message::MLO_MODE_NONE;
         if (ap_mld.modes().str) {
-            current_ap_mld_conf.mld_config.mld_mode = beerocks::message::eMLOModes(
-                current_ap_mld_conf.mld_config.mld_mode | beerocks::message::MLO_MODE_STR);
+            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_STR);
         }
         if (ap_mld.modes().nstr) {
-            current_ap_mld_conf.mld_config.mld_mode = beerocks::message::eMLOModes(
-                current_ap_mld_conf.mld_config.mld_mode | beerocks::message::MLO_MODE_NSTR);
+            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_NSTR);
         }
         if (ap_mld.modes().emlsr) {
-            current_ap_mld_conf.mld_config.mld_mode = beerocks::message::eMLOModes(
-                current_ap_mld_conf.mld_config.mld_mode | beerocks::message::MLO_MODE_EMLSR);
+            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLSR);
         }
         if (ap_mld.modes().emlmr) {
-            current_ap_mld_conf.mld_config.mld_mode = beerocks::message::eMLOModes(
-                current_ap_mld_conf.mld_config.mld_mode | beerocks::message::MLO_MODE_EMLMR);
+            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLMR);
         }
+
+        current_ap_mld_conf.mld_config.mld_mode = mld_mode;
 
         current_ap_mld_conf.affiliated_aps.clear();
         std::ostringstream radio_list_ss;
@@ -2567,23 +2566,21 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         }
     }
 
-    db->bsta_mld_configuration->mld_config.mld_mode = beerocks::message::MLO_MODE_NONE;
+    beerocks::message::eMLOModes mld_mode = beerocks::message::MLO_MODE_NONE;
     if (bsta_mld_configuration->modes().str) {
-        db->bsta_mld_configuration->mld_config.mld_mode = beerocks::message::eMLOModes(
-            db->bsta_mld_configuration->mld_config.mld_mode | beerocks::message::MLO_MODE_STR);
+        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_STR);
     }
     if (bsta_mld_configuration->modes().nstr) {
-        db->bsta_mld_configuration->mld_config.mld_mode = beerocks::message::eMLOModes(
-            db->bsta_mld_configuration->mld_config.mld_mode | beerocks::message::MLO_MODE_NSTR);
+        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_NSTR);
     }
     if (bsta_mld_configuration->modes().emlsr) {
-        db->bsta_mld_configuration->mld_config.mld_mode = beerocks::message::eMLOModes(
-            db->bsta_mld_configuration->mld_config.mld_mode | beerocks::message::MLO_MODE_EMLSR);
+        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLSR);
     }
     if (bsta_mld_configuration->modes().emlmr) {
-        db->bsta_mld_configuration->mld_config.mld_mode = beerocks::message::eMLOModes(
-            db->bsta_mld_configuration->mld_config.mld_mode | beerocks::message::MLO_MODE_EMLMR);
+        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLMR);
     }
+
+    db->bsta_mld_configuration->mld_config.mld_mode = mld_mode;
 
     // If no MLO configuration, set -1 for MLDUnit
     if (db->bsta_mld_configuration->mld_config.mld_mode == beerocks::message::MLO_MODE_NONE) {
