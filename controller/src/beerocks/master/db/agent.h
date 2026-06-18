@@ -108,6 +108,17 @@ public:
     bool does_support_vbss    = false;
     int load_balancer_task_id = -1;
 
+    /**
+    * @brief DPP authentication state indexed by chirp hash (Multi-AP 17.2.83).
+    *
+    * Updated on CHIRP_NOTIFICATION_MESSAGE with tlvDppChirpValue from this agent.
+    */
+    struct sDppChirpAuthenticationEntry {
+        sMacAddr enrollee_mac             = beerocks::net::network_utils::ZERO_MAC;
+        bool enrollee_mac_address_present = false;
+    };
+    std::unordered_map<std::string, sDppChirpAuthenticationEntry> dpp_chirp_authentication_state;
+
     struct sDeviceInfo {
         std::string manufacturer;
         std::string manufacturer_model;
