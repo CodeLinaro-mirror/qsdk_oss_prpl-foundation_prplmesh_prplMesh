@@ -1305,7 +1305,8 @@ bool sta_wlan_hal_whm::update_mld_unit(int8_t mld_unit)
     return true;
 }
 
-bool sta_wlan_hal_whm::dpp_bootstrap_gen(const std::string &bootstrap_params, uint32_t &bootstrap_id)
+bool sta_wlan_hal_whm::dpp_bootstrap_gen(const std::string &bootstrap_params,
+                                         uint32_t &bootstrap_id)
 {
     bootstrap_id = 0;
 
@@ -1338,8 +1339,7 @@ bool sta_wlan_hal_whm::dpp_bootstrap_gen(const std::string &bootstrap_params, ui
     return true;
 }
 
-bool sta_wlan_hal_whm::dpp_bootstrap_get_uri(uint32_t bootstrap_id,
-                                             std::string &dpp_uri)
+bool sta_wlan_hal_whm::dpp_bootstrap_get_uri(uint32_t bootstrap_id, std::string &dpp_uri)
 {
     dpp_uri.clear();
 
