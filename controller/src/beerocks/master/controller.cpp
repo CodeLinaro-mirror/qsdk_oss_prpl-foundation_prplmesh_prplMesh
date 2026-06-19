@@ -82,6 +82,7 @@
 #include <tlvf/wfa_map/tlvClientInfo.h>
 #include <tlvf/wfa_map/tlvControllerCapability.h>
 #include <tlvf/wfa_map/tlvDeviceInventory.h>
+#include <tlvf/wfa_map/tlvDppBootstrappingUriNotification.h>
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvErrorCode.h>
@@ -119,9 +120,6 @@
 #include "../../../vbss/vbss_actions.h"
 #include "../../../vbss/vbss_task.h"
 #endif
-#include <tlvf/wfa_map/tlvDppBootstrappingUriNotification.h>
-// #include <bcl/beerocks_string_utils.h>
-#include "beerocks_string_utils.h"
 namespace son {
 
 namespace {
