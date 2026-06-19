@@ -10098,7 +10098,7 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
             continue;
 
         size_t sep = field.find(':');
-        if ((sep == std::string::npos) || (sep == 0) || (sep != 1)) {
+        if (sep != 1) {
             error = "invalid DPP field format";
             return false;
         }
@@ -10243,19 +10243,33 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
             }
             seen_k = true;
 
-            info.public_key = value;
-
+            info.public_key      = value;
+            size_t first_padding = value.find('=');
+            if (first_padding != std::string::npos) {
+                for (size_t i = first_padding; i < value.size(); i++) {
+                    if (value[i] != '=') {
+                        error = "invalid base64 padding position";
+                        return false;
+                    }
+                }
+                if (value.size() - first_padding > 2) {
+                    error = "too much base64 padding";
+                    return false;
+                }
+            }
             if (!std::all_of(value.begin(), value.end(), [](unsigned char c) {
-                    return std::isalnum(c) || c == '-' || c == '_';
+                    return std::isalnum(c) || c == '+' || c == '/' || c == '=' || c == '-' ||
+                           c == '_';
                 })) {
-                error = "invalid character in public key base64url";
+                error = "invalid character in public key";
                 return false;
             }
-
             std::string b64_std = value;
             std::replace(b64_std.begin(), b64_std.end(), '-', '+');
             std::replace(b64_std.begin(), b64_std.end(), '_', '/');
-
+            while (!b64_std.empty() && b64_std.back() == '=') {
+                b64_std.pop_back();
+            }
             int padding_added = 0;
             switch (b64_std.length() % 4) {
             case 2:
@@ -10267,13 +10281,14 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 padding_added = 1;
                 break;
             case 1:
-                error = "invalid base64url length in public key";
+                error = "invalid base64 length in public key";
                 return false;
             case 0:
                 break;
             }
 
             std::vector<uint8_t> decoded(b64_std.length());
+
             int out_len = EVP_DecodeBlock(decoded.data(),
                                           reinterpret_cast<const unsigned char *>(b64_std.data()),
                                           b64_std.length());
@@ -10315,21 +10330,32 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
 
 bool db::add_dpp_bootstrap_info(sDppBootstrappingInfo &&info, std::string &error)
 {
+    error.clear();
     if (info.alias.empty()) {
-        error = "Empty alias";
+        error = "empty alias";
         return false;
     }
 
-    auto it = dpp_bootstrap_info_map.find(info.alias);
-
-    if (it != dpp_bootstrap_info_map.end()) {
-        LOG(DEBUG) << "Updating DPP bootstrap info alias=" << info.alias;
+    if (!std::all_of(info.alias.begin(), info.alias.end(), [](unsigned char c) {
+            return std::isalnum(c) || c == '-' || c == '_' || c == '.';
+        })) {
+        error = "invalid alias format";
+        return false;
     }
 
-    const std::string alias = info.alias;
+    std::string safe_alias = info.alias;
 
-    dpp_bootstrap_info_map.insert_or_assign(alias, std::move(info));
+    auto it = dpp_bootstrap_info_map.find(safe_alias);
+    if (it != dpp_bootstrap_info_map.end()) {
+        LOG(WARNING) << "Replacing existing DPP bootstrap info alias=" << safe_alias;
+        it->second = std::move(info);
+    } else {
+        dpp_bootstrap_info_map.emplace(safe_alias, std::move(info));
+    }
 
+    LOG(INFO) << "Stored DPP bootstrap info alias=" << safe_alias
+              << " entries=" << dpp_bootstrap_info_map.size();
+    print_dpp_bootstrap_info();
     return true;
 }
 
@@ -10385,6 +10411,7 @@ void db::clear_dpp_bootstrap_info_db()
 void db::print_dpp_bootstrap_info() const
 {
     LOG(INFO) << "JUST FOR DEBUGGING";
+
     if (dpp_bootstrap_info_map.empty()) {
         LOG(INFO) << "DPP Bootstrap Info: [empty]";
         return;
@@ -10392,7 +10419,7 @@ void db::print_dpp_bootstrap_info() const
 
     LOG(INFO) << "=== DPP Bootstrap Info [" << dpp_bootstrap_info_map.size() << " entries] ===";
 
-    uint32_t idx = dpp_bootstrap_info_map.size();
+    uint32_t idx = 1;
     for (const auto &entry : dpp_bootstrap_info_map) {
         const sDppBootstrappingInfo &info = entry.second;
 
@@ -10406,12 +10433,20 @@ void db::print_dpp_bootstrap_info() const
 
         LOG(INFO) << "  [" << idx << "] Alias    : " << entry.first;
         LOG(INFO) << "      MAC      : " << info.mac;
+        LOG(INFO) << "      RUID     : " << info.ruid;
+        LOG(INFO) << "      BSSID    : " << info.bssid;
         LOG(INFO) << "      Version  : " << static_cast<int>(info.version);
         LOG(INFO) << "      Channels : " << (channels_str.empty() ? "<not set>" : channels_str);
         LOG(INFO) << "      Info     : " << (info.info.empty() ? "<not set>" : info.info);
         LOG(INFO) << "      Host     : " << (info.host.empty() ? "<not set>" : info.host);
         LOG(INFO) << "      PubKey   : " << info.public_key;
-        --idx;
+
+        // Convert pkhash vector to hex string for easy visual debugging against Chirp CMDUs
+        std::string pkhash_hex =
+            beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
+        LOG(INFO) << "      PKHash   : " << pkhash_hex;
+
+        idx++;
     }
 
     LOG(INFO) << "=== End DPP Bootstrap Info ===";
