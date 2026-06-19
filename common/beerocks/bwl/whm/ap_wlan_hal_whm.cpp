@@ -2871,7 +2871,7 @@ bool ap_wlan_hal_whm::dpp_bootstrap_gen(const std::string &bootstrap_params, uin
         return false;
     }
 
-    AmbiorixVariant args, result;
+    AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("params", bootstrap_params);
 
