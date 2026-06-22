@@ -22,7 +22,7 @@ namespace son {
  */
 class dpp_chirp_notification_task : public task {
 public:
-    dpp_chirp_notification_task(
+    explicit dpp_chirp_notification_task(
         db &database_, const std::string &task_name = std::string("dpp_chirp_notification_task"));
     ~dpp_chirp_notification_task() override = default;
 
