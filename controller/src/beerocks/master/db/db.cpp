@@ -7798,8 +7798,8 @@ bool db::dm_add_interface_element(const sMacAddr &device_mac, const sMacAddr &in
             return true;
         }
 
-        // Prepare path to the Interface object, like Device.WiFi.DataElements.Network.Device.{i}.Interface
-        auto interface_path = agent->dm_path + ".Interface";
+        // Prepare path to the Interface object, like Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_Interface
+        auto interface_path = agent->dm_path + ".X_PRPLWARE-COM_Interface";
 
         iface->m_dm_path = m_ambiorix_datamodel->add_instance(interface_path);
         if (iface->m_dm_path.empty()) {

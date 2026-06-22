@@ -445,8 +445,8 @@ public:
      * @brief Get index and instance path from full data model path. Simplifies ambiorix/nbapi calls.
      *
      * Data model levels are noted with '.', so method splits according to last dot.
-     * Example: DM Path: Device.WiFi.DataElements.Network.Device.2.Interface.3
-     * Returns: <instance, index> <Device.WiFi.DataElements.Network.Device.2.Interface, 3>
+     * Example: DM Path: Device.WiFi.DataElements.Network.Device.2.X_PRPLWARE-COM_Interface.3
+     * Returns: <instance, index> <Device.WiFi.DataElements.Network.Device.2.X_PRPLWARE-COM_Interface, 3>
      *
      * @param dm_path Full data model path.
      * @return std::pair <std::string instance path, int index>
@@ -879,7 +879,7 @@ public:
      * @brief Adds Interface Object and updates Interface Data Model Object.
      *
      * If instance with @a interface_mac exists, updates it, otherwise add it.
-     * Path example: Device.WiFi.DataElements.Network.Device.1.Interface.1
+     * Path example: Device.WiFi.DataElements.Network.Device.1.X_PRPLWARE-COM_Interface.1
      *
      * @param device_mac device MAC address for node matching
      * @param interface_mac interface mac address
@@ -907,7 +907,7 @@ public:
      * @brief Adds interface instances to Device's Data Model.
      *
      * If instance with @a interface_mac exists, updates it, otherwise add it.
-     * Path example: Device.WiFi.DataElements.Network.Device.1.Interface.1
+     * Path example: Device.WiFi.DataElements.Network.Device.1.X_PRPLWARE-COM_Interface.1
      *
      * @param device_mac device MAC address for node matching
      * @param interface_mac interface mac address
@@ -943,9 +943,9 @@ public:
     /**
      * @brief Removes the interface of given MAC from Device's Data Model.
      *
-     * Searches index of Device.WiFi.DataElements.Network.Device.{i}.Interface.{i} according
+     * Searches index of Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_Interface.{i} according
      * to MACAddress attribute and removes it.
-     * Path example: Device.WiFi.DataElements.Network.Device.1.Interface.1.MACAddress
+     * Path example: Device.WiFi.DataElements.Network.Device.1.X_PRPLWARE-COM_Interface.1.MACAddress
      *
      * @param device_mac device MAC address for node matching
      * @param interface_mac interface mac to be deleted
@@ -967,7 +967,7 @@ public:
     /**
      * @brief Updates Tx Parameters of the Interface Stats.
      *
-     * Path: Device.WiFi.DataElements.Network.Device.{i}.Interface.{i}.Stats
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_Interface.{i}.Stats
      *
      * @param device_mac device MAC address for node matching
      * @param interface_mac Interface MAC address of the device
@@ -981,7 +981,7 @@ public:
     /**
      * @brief Updates Rx Parameters of the Interface Stats.
      *
-     * Path: Device.WiFi.DataElements.Network.Device.{i}.Interface.{i}.Stats
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_Interface.{i}.Stats
      *
      * @param device_mac device MAC address for node matching
      * @param interface_mac Interface MAC address of the device
@@ -1042,7 +1042,7 @@ public:
     /**
      * @brief Adds or updates instance of Neighbor inside Interface object.
      *
-     * Path: Device.WiFi.DataElements.Network.Device.{i}.Interface.{i}.Neighbor.{i}
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_Interface.{i}.Neighbor.{i}
      *
      * @param device_mac device MAC address for node matching
      * @param interface_mac Interface MAC address of the device
@@ -1056,7 +1056,7 @@ public:
     /**
      * @brief Adds or updates instance of Neighbor inside Interface Data Model.
      *
-     * Path: Device.WiFi.DataElements.Network.Device.{i}.Interface.{i}.Neighbor.{i}
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_Interface.{i}.Neighbor.{i}
      *
      * @param interface Interface object that Neighbor relates to
      * @param neighbor Neighbor object is used to create/update data model of neighbor
@@ -1068,7 +1068,7 @@ public:
     /**
      * @brief Remove instance of Neighbors inside Interface Data Model.
      *
-     * Path: Device.WiFi.DataElements.Network.Device.{i}.Interface.{i}.Neighbor.{i}
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_Interface.{i}.Neighbor.{i}
      *
      * @param dm_path datamodel path of neighbor
      * @return true on success, false otherwise.
