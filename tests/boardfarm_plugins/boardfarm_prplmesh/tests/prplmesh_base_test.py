@@ -457,7 +457,7 @@ class PrplMeshBaseTest(bft_base_test.BftBaseTest):
                         map_client.path = client[:-1]
 
                 interface_regex = r'^Device\.WiFi\.DataElements\.Network' + \
-                    rf'\.Device\.{device_indx}\.Interface\.\d+\.$'
+                    rf'\.Device\.{device_indx}\.X_PRPLWARE-COM_Interface\.\d+\.$'
 
                 interfaces = [obj_path for obj_path in data_model if re.search(
                     interface_regex, obj_path)]

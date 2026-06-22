@@ -240,8 +240,8 @@
         /*
         ** The list of Interface objects.
         */
-        object Interface [] {
-            counted with InterfaceNumberOfEntries;
+        object X_PRPLWARE-COM_Interface [] {
+            counted with X_PRPLWARE-COM_InterfaceNumberOfEntries;
             %read-only string Status {
                 default "Down";
                 on action validate call check_enum [

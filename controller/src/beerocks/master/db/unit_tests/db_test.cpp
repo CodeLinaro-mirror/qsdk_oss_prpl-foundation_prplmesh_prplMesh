@@ -56,8 +56,8 @@ const std::string g_radio_1_qm_descriptor_path =
     std::string(g_radio_1_bss_path_1) + ".QMDescriptor";
 const std::string g_sta_path_1         = std::string(g_radio_1_bss_path_1) + ".STA.1";
 const std::string g_assoc_event_path_1 = std::string(g_assoc_event_path) + ".1";
-const std::string g_interface_path_1   = std::string(g_device_path) + ".1.Interface.1";
-const std::string g_interface_path_2   = std::string(g_device_path) + ".1.Interface.2";
+const std::string g_interface_path_1 = std::string(g_device_path) + ".1.X_PRPLWARE-COM_Interface.1";
+const std::string g_interface_path_2 = std::string(g_device_path) + ".1.X_PRPLWARE-COM_Interface.2";
 
 TEST(DbSingleShotCounter, callback_triggered_when_decrement_reaches_zero)
 {
@@ -438,7 +438,8 @@ protected:
         DbTest::SetUp();
 
         // expectations for interface creation
-        EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Interface"))
+        EXPECT_CALL(*m_ambiorix,
+                    add_instance(std::string(g_device_path) + ".1.X_PRPLWARE-COM_Interface"))
             .WillOnce(Return(std::string(g_interface_path_1)))
             .WillOnce(Return(std::string(g_interface_path_2)));
 
@@ -1474,7 +1475,8 @@ TEST_F(DbTestInterface1, test_interface_1_creation)
 
     // Remove Interface.1
     std::vector<sMacAddr> remaining_interfaces = {tlvf::mac_from_string(g_interface_mac_2)};
-    EXPECT_CALL(*m_ambiorix, remove_instance(std::string(g_device_path) + ".1.Interface", 1))
+    EXPECT_CALL(*m_ambiorix,
+                remove_instance(std::string(g_device_path) + ".1.X_PRPLWARE-COM_Interface", 1))
         .WillOnce(Return(true));
     EXPECT_TRUE(m_db->dm_update_interface_elements(tlvf::mac_from_string(g_bridge_mac),
                                                    remaining_interfaces));
