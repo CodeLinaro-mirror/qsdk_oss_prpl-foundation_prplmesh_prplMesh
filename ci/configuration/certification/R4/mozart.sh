@@ -69,32 +69,10 @@ else
   ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan0"
 fi
 
-ba-cli WiFi.Radio.*.RegulatoryDomain="US"
-
-# Configure Operating Standards
-ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
 
 # Don't hide the BH AP SSID (PPW-1399)
 ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
 
-# Make sure specific channels are configured. If channel is set to 0,
-# ACS will be configured. If ACS is configured hostapd will refuse to
-# switch channels when we ask it to. Channels 1 and 48 were chosen
-# because they are NOT used in the WFA certification tests (this
-# allows to verify that the device actually switches channel as part
-# of the test).
-# See also PPM-1928.
-ba-cli WiFi.Radio.*.AutoChannelEnable=0
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].Channel=1"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Channel=48"
-
-# Restrict channel bandwidth or the certification test could miss beacons
-# (see PPM-258)
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingChannelBandwidth=20MHz"
 
 # Drop all iptables rules (Guest TS)
 iptables -F && iptables -X && iptables -P INPUT ACCEPT && iptables -P OUTPUT ACCEPT && iptables -P FORWARD ACCEPT
@@ -105,6 +83,11 @@ sysctl -w net.ipv4.conf.all.rp_filter=0
 
 # Increase inactivity timeout
 printf 'protected\nWiFi.AccessPoint.*.StaInactivityTimeout=1500\nexit\n' | ba-cli
+
+# MTK firmware debug
+echo 2 > /sys/kernel/debug/ieee80211/phy0/mt76/fw_debug_wm
+
+dmesg -n8
 
 # Traffic Separation Configuration
 ba-cli WiFi.AccessPoint.*.MultiAPProfile=3
