@@ -25,10 +25,12 @@ RUN \
     gosu \
     iproute2 \
     iputils-ping \
+    libbsd-dev \
     libdw-dev \
     libelf-dev \
     libncurses5-dev \
     locales \
+    lzop \
     nmap \
     openssh-client \
     pwgen \
