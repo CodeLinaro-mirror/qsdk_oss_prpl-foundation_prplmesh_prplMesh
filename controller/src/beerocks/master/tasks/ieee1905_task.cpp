@@ -869,6 +869,18 @@ bool ieee1905_task::handle_topology_response(const sMacAddr &src_mac,
             now() + database.config.higher_layer_request_interval_seconds;
     }
 
+    // this is a non-standard extension, DeviceIdentification TLV is normally not part of Topology Response
+    if (auto tlv_device_identification = cmdu_rx.getClass<ieee1905_1::tlvDeviceIdentification>()) {
+        constexpr size_t kDeviceIdStringSize = 64;
+
+        db_al.friendly_name =
+            fixed_utf8_string(tlv_device_identification->friendly_name(), kDeviceIdStringSize);
+        db_al.manufacturer_name =
+            fixed_utf8_string(tlv_device_identification->manufacturer_name(), kDeviceIdStringSize);
+        db_al.manufacturer_model =
+            fixed_utf8_string(tlv_device_identification->manufacturer_model(), kDeviceIdStringSize);
+    }
+
     using sInterface = db::ieee1905_network_db::sAL::sInterface;
 
     // snapshot and (re)build interfaces

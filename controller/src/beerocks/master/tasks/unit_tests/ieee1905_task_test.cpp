@@ -1828,4 +1828,42 @@ TEST_F(IEEE1905TaskTest, network_status_becomes_available_only_after_all_discove
     EXPECT_EQ("Available", read_network_status());
 }
 
+TEST_F(IEEE1905TaskTest, nonstandard_topology_response_with_device_identification_tlv)
+{
+    const std::string friendly_name      = "Topology Controller";
+    const std::string manufacturer_name  = "Inango";
+    const std::string manufacturer_model = "Test Model 1905";
+
+    ieee1905_1::CmduMessageRx topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+
+    ASSERT_TRUE(m_cmdu_tx->create(0, ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE));
+
+    auto device_information = m_cmdu_tx->addClass<ieee1905_1::tlvDeviceInformation>();
+    ASSERT_NE(device_information, nullptr);
+    device_information->mac() = m_local_al_mac;
+
+    auto device_id_tlv = m_cmdu_tx->addClass<ieee1905_1::tlvDeviceIdentification>();
+    ASSERT_NE(device_id_tlv, nullptr);
+
+    ASSERT_TRUE(device_id_tlv->set_friendly_name(friendly_name.data(), friendly_name.size()));
+    ASSERT_TRUE(
+        device_id_tlv->set_manufacturer_name(manufacturer_name.data(), manufacturer_name.size()));
+    ASSERT_TRUE(device_id_tlv->set_manufacturer_model(manufacturer_model.data(),
+                                                      manufacturer_model.size()));
+
+    ASSERT_TRUE(m_cmdu_tx->finalize());
+    std::copy_n(m_tx_buffer, m_cmdu_tx->getMessageLength(), m_rx_buffer);
+    ASSERT_TRUE(topology_rx.parse());
+
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, topology_rx));
+
+    const auto &db_al = m_database->ieee1905_network->al.at(m_local_al_mac);
+    EXPECT_EQ(friendly_name, db_al.friendly_name);
+    EXPECT_EQ(manufacturer_name, db_al.manufacturer_name);
+    EXPECT_EQ(manufacturer_model, db_al.manufacturer_model);
+    EXPECT_EQ(friendly_name, read_al_param(m_local_al_mac, "FriendlyName"));
+    EXPECT_EQ(manufacturer_name, read_al_param(m_local_al_mac, "ManufacturerName"));
+    EXPECT_EQ(manufacturer_model, read_al_param(m_local_al_mac, "ManufacturerModel"));
+}
+
 } // namespace
