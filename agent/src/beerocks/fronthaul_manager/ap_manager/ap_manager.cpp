@@ -4395,8 +4395,10 @@ void ApManager::start_csa_notification_timer(
     // Start a timer for approximately 5 seconds (timer should be configurable based on the CSA count).
     // When the timer elapses, the "csa_notification_timer_elapsed" function will be called
     csa_notification_timer = m_timer_manager->add_timer(
-        "csa_notification", 5s, 0s, [this, request = std::move(request)](int, auto &) mutable {
+        "csa_notification", 5s, 0s,
+        [this, request = std::move(request)](int timerId, auto &) mutable {
             csa_notification_timer_elapsed(std::move(request));
+            m_timer_manager->remove_timer(timerId);
             return true;
         });
 }
