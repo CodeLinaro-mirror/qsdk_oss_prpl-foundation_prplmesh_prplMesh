@@ -5,14 +5,14 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.1.1"
-ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.guest.IPAddress=192.168.2.1"
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.1.170"
+ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.guest.IPAddress=192.168.2.170"
 
 # The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
-ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan4\"].Enable=0"
-ba-cli "Device.Ethernet.Interface.[Name == \"lan4\"].Enable=0"
-ba-cli "Device.Ethernet.Interface.[Name == \"lan4\"].Enable=1"
-ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan4\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=0"
+ba-cli "Device.Ethernet.Interface.[Name == \"eth0_2\"].Enable=1"
+ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=1"
 
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
 sleep 5
@@ -33,5 +33,5 @@ if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR
 else
   # Prplmesh agent is running, configure it over the bus
   echo "Setting prplMesh BackhaulWireInterface over DM"
-  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="lan4"
+  ba-cli X_PRPLWARE-COM_Agent.Configuration.BackhaulWireInterface="eth0_2"
 fi
