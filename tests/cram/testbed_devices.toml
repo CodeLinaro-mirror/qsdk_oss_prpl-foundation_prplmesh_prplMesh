@@ -1,0 +1,25 @@
+title = "List of the devices in the CRAM testbed"
+
+[freedom]
+DEVICE = "freedom"
+IP = "192.168.1.10"
+IP_GUEST = "192.168.2.10"
+BH_IFACE = "lan4"
+
+[freedom2]
+DEVICE = "freedom"
+IP = "192.168.1.20"
+IP_GUEST = "192.168.2.20"
+BH_IFACE = "lan4"
+
+[ospv2]
+DEVICE = "urx_ospv2"
+IP = "192.168.1.160"
+IP_GUEST = "192.168.2.160"
+BH_IFACE = "eth0_2"
+
+[ospv22]
+DEVICE = "urx_ospv2"
+IP = "192.168.1.170"
+IP_GUEST = "192.168.2.170"
+BH_IFACE = "eth0_2"

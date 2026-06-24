@@ -5,8 +5,8 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.1.10"
-ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.guest.IPAddress=192.168.2.10"
+ba-cli "IP.Interface.[Name == \"br-lan\"].IPv4Address.lan.IPAddress=192.168.1.20"
+ba-cli "IP.Interface.[Name == \"br-guest\"].IPv4Address.guest.IPAddress=192.168.2.20"
 
 # The backhaulWireInterface might not be UP and in br-lan, if previous test was using wifi backhaul (PPM-3361)
 ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"lan4\"].Enable=0"
