@@ -160,12 +160,12 @@ main() {
     legacy_platforms=("glinet-b1300" "axepoint" "intel_mips" "nec-wx3000hp")
     if [[ " ${legacy_platforms[*]} " =~ " $TARGET_DEVICE " ]] ; then
         dbg "Legacy platform, building on prplOS(-old)"
-        OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
-        OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
+        OPENWRT_TOOLCHAIN_VERSION='c7d31ad1e2d8af585700cd1036a1b888c3e1a4c3'
+        OPENWRT_VERSION='c7d31ad1e2d8af585700cd1036a1b888c3e1a4c3'
     else
         dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-09-25"
-        OPENWRT_TOOLCHAIN_VERSION='de2bf81d9b6eab09ca37fd55e785a0e8af524620'
-        OPENWRT_VERSION='de2bf81d9b6eab09ca37fd55e785a0e8af524620'
+        OPENWRT_TOOLCHAIN_VERSION='c5816d1ceb75f1c2563c161e3a3053556cc864df'
+        OPENWRT_VERSION='c5816d1ceb75f1c2563c161e3a3053556cc864df'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -205,8 +205,8 @@ VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos latest-24.10_2026-09-25
-OPENWRT_TOOLCHAIN_VERSION='de2bf81d9b6eab09ca37fd55e785a0e8af524620'
-OPENWRT_VERSION='de2bf81d9b6eab09ca37fd55e785a0e8af524620'
+OPENWRT_TOOLCHAIN_VERSION='c5816d1ceb75f1c2563c161e3a3053556cc864df'
+OPENWRT_VERSION='c5816d1ceb75f1c2563c161e3a3053556cc864df'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
