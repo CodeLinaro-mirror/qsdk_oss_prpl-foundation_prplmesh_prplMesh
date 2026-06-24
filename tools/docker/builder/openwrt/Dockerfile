@@ -28,6 +28,8 @@ RUN \
     libdw-dev \
     libelf-dev \
     libncurses5-dev \
+    libpython3-dev \
+    libssl-dev \
     locales \
     nmap \
     openssh-client \
