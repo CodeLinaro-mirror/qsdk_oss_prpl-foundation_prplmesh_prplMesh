@@ -70,7 +70,7 @@
     - job: build-for-mozart
   tags:
     - certs-tests-R4
-    - mozart
+    - mozart-MTK
 
 .certification:R6:freedom:
   stage: R6-cert-freedom
