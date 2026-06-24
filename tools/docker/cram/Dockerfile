@@ -24,14 +24,14 @@ RUN git clone -n --depth=1 --filter=blob:none --sparse https://gitlab.com/prpl-f
     && git fetch --depth=1 origin $PRPLOS_HASH \
     && git checkout $PRPLOS_HASH
 
-ARG TARGET_DEVICE="generic"
-ENV TARGET_DEVICE=$TARGET_DEVICE
+ARG CRAM_REMOTE_COMMAND_BASE="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@"
+ENV CRAM_REMOTE_COMMAND_BASE=$CRAM_REMOTE_COMMAND_BASE
 
 ARG CRAM_REMOTE_COPY="scp -O -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 ENV CRAM_REMOTE_COPY=$CRAM_REMOTE_COPY
 
-ARG TARGET_LAN_IP="192.168.1.1"
-ENV TARGET_LAN_IP=$TARGET_LAN_IP
+ARG TARGET_DEVICE_1="generic"
+ENV TARGET_DEVICE_1=$TARGET_DEVICE_1
 
 COPY entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

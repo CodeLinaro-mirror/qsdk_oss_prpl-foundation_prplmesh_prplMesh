@@ -1,0 +1,14 @@
+title = "List of the devices in the CRAM testbed"
+
+[freedom]
+device = "freedom"
+IP = "192.168.1.1"
+
+[freedom2]
+device = "freedom"
+IP = "192.168.1.2"
+
+[ospv2]
+device = "urx_ospv2"
+IP = "192.168.1.160"
+

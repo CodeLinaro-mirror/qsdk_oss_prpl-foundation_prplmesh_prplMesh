@@ -13,7 +13,6 @@ variables:
   MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.itb"
   URX_OSP_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img"
   URX_OSPV2_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_v2-tb341_wav700-ext4.img"
-  CRAM_REMOTE_COMMAND_BASE: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@"
 
 workflow:
   rules:
@@ -156,9 +155,13 @@ boardfarm-on-mozart-stability:
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - export PRPLOS_HASH=$(grep "OPENWRT_VERSION='" ./tools/docker/builder/openwrt/build.sh| sed -n 2p| sed -n "s/.*'\([^']*\)'.*/\1/p")
-    - export CRAM_REMOTE_COMMAND=${CRAM_REMOTE_COMMAND_BASE}${TARGET_LAN_IP}
-    - export TARGET_DEVICE=$TARGET_DEVICE
-    - docker run -v "$CI_PROJECT_DIR/tests/cram:/home/cram/prplMesh" -e CRAM_REMOTE_COMMAND -e TARGET_LAN_IP -e TARGET_DEVICE $CI_REGISTRY_IMAGE/prplmesh-cram:$PRPLOS_HASH
+    - >
+      docker run
+      -v "$CI_PROJECT_DIR/tests/cram:/home/cram/prplMesh"
+      -e TARGET_DEVICE_1
+      -e TARGET_DEVICE_2
+      -e TARGET_DEVICE_3
+      $CI_REGISTRY_IMAGE/prplmesh-cram:$PRPLOS_HASH
   rules:
     - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'
       when: always
@@ -169,11 +172,10 @@ boardfarm-on-mozart-stability:
 cram-on-freedom:
   extends: .cram-on-target
   variables:
-    TARGET_DEVICE: freedom
-    TARGET_LAN_IP: 192.168.1.1
+    TARGET_DEVICE_1: freedom1
   before_script:
-    - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE" --image "$FREEDOM_FULLIMAGE" --rootfs "$FREEDOM_ROOTFS" --ipaddr "192.168.1.150" --serverip "192.168.1.199" --whm --full --configuration ci/configuration/cram/freedom.sh
-    - tools/deploy_ipk.sh $TARGET_DEVICE build/$TARGET_DEVICE/prplmesh.ipk
+    - tools/deploy_firmware.py --device "$TARGET_DEVICE_1" --target-name "$TARGET_DEVICE_1" --image "$FREEDOM_FULLIMAGE" --whm --full --configuration ci/configuration/cram/freedom.sh
+    - tools/deploy_ipk.sh $TARGET_DEVICE_1 build/$TARGET_DEVICE_1/prplmesh.ipk
   needs:
     - job: build-for-freedom
   tags:
@@ -183,16 +185,36 @@ cram-on-freedom:
 cram-on-ospv2:
   extends: .cram-on-target
   variables:
-    TARGET_DEVICE: urx_ospv2
-    TARGET_LAN_IP: 192.168.1.160
+    TARGET_DEVICE_1: urx_ospv2
   before_script:
-    - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE" --image "$URX_OSPV2_FULLIMAGE" --ipaddr "192.168.1.160" --serverip "192.168.1.199" --whm --full --configuration ci/configuration/cram/urx_ospv2.sh
-    - tools/deploy_ipk.sh $TARGET_DEVICE build/$TARGET_DEVICE/prplmesh.ipk
+    - tools/deploy_firmware.py --device "$TARGET_DEVICE_1" --target-name "$TARGET_DEVICE_1" --image "$URX_OSPV2_FULLIMAGE" --whm --full --configuration ci/configuration/cram/urx_ospv2.sh
+    - tools/deploy_ipk.sh $TARGET_DEVICE_1 build/$TARGET_DEVICE_1/prplmesh.ipk
   needs:
     - job: build-for-ospv2
   tags:
     - cram
     - ospv2-SMD
+
+cram-on-multiple:
+  extends: .cram-on-target
+  variables:
+    TARGET_DEVICE_1: freedom1
+    TARGET_DEVICE_2: freedom2
+    TARGET_DEVICE_3: ospv2
+  before_script:
+    - tools/deploy_firmware.py --device "freedom" --target-name "freedom" --image "$FREEDOM_FULLIMAGE" --whm --full --configuration ci/configuration/cram/freedom.sh
+    - tools/deploy_ipk.sh freedom build/freedom/prplmesh.ipk
+    - tools/deploy_firmware.py --device "freedom" --target-name "freedom2" --image "$FREEDOM_FULLIMAGE" --whm --full --configuration ci/configuration/cram/freedom2.sh
+    - tools/deploy_ipk.sh freedom2 build/freedom/prplmesh.ipk
+    - tools/deploy_firmware.py --device "urx_ospv2" --target-name "urx_ospv2" --image "$URX_OSPV2_FULLIMAGE" --whm --full --configuration ci/configuration/cram/urx_ospv2.sh
+    - tools/deploy_ipk.sh urx_ospv2 build/urx_ospv2/prplmesh.ipk
+  needs:
+    - job: build-for-freedom
+    - job: build-for-ospv2
+  tags:
+    - cram
+    - freedom
+    - ospv2_new_layout
 
 run-certification-tests-R1-platform-essensium:
   extends: .run-certification-tests-R1
