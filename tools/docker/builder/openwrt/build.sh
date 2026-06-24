@@ -160,8 +160,8 @@ main() {
     legacy_platforms=("glinet-b1300" "axepoint" "intel_mips" "nec-wx3000hp")
     if [[ " ${legacy_platforms[*]} " =~ " $TARGET_DEVICE " ]] ; then
         dbg "Legacy platform, building on prplOS(-old)"
-        OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
-        OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
+        OPENWRT_TOOLCHAIN_VERSION='a1d761229dab0a9259128ee105130629197dd065'
+        OPENWRT_VERSION='a1d761229dab0a9259128ee105130629197dd065'
     else
         dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-06-08"
         OPENWRT_TOOLCHAIN_VERSION='737a779b93be4cf3aab6512d36e2695fa0314702'
