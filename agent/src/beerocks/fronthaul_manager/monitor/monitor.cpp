@@ -858,6 +858,11 @@ bool Monitor::update_sta_qos_ctrl_params()
         auto vap_node             = mon_db.vap_get_by_id(sta_node->get_vap_id());
         auto &sta_qos_ctrl_params = sta_node->get_qos_ctrl_params();
 
+        if (vap_node == nullptr) {
+            LOG(ERROR) << "Invalid VAP node for STA = " << sta_mac;
+            continue;
+        }
+
         // Update the stats
         if (!mon_wlan_hal->update_station_qos_control_params(vap_node->get_iface(), sta_mac,
                                                              sta_qos_ctrl_params)) {
