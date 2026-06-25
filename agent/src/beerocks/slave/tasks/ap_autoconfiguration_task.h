@@ -235,7 +235,7 @@ private:
      * @param reconfigure Reconfiguration Flag based on source of trigger.
      * @return true if the request was sent successfully, false otherwise.
      */
-    bool send_ap_mld_configuration(const std::string &radio_iface, std::string ssid,
+    bool send_ap_mld_configuration(const std::string &radio_iface, const std::string &ssid,
                                    int8_t mld_unit, uint8_t mld_mode, bool reconfigure);
 
     /**

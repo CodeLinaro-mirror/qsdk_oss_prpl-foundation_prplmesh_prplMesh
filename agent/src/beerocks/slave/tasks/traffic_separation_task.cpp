@@ -687,7 +687,7 @@ bool TrafficSeparationTask::get_ports_from_db(std::vector<net::sTrunkPort> &trun
         trunk.iface_name       = lan.iface_name;
         trunk.is_ethernet      = true;
         trunk.is_untagged_mode = false;
-        trunks.push_back(trunk);
+        trunks.push_back(std::move(trunk));
     }
 
     return true;
