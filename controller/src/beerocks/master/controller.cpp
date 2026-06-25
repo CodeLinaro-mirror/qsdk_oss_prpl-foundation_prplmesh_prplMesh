@@ -2992,8 +2992,8 @@ bool Controller::handle_intel_slave_join(
 {
     if (beerocks_header.action_op() != beerocks_message::ACTION_CONTROL_SLAVE_JOINED_NOTIFICATION) {
         LOG(ERROR) << "Unexpected Intel action op " << beerocks_header.action_op();
-        // VS TLV present but not parseable/expected; treat as compatibility mismatch.
-        // Mark fallback so the caller can continue with non-prplMesh onboarding.
+        // VS TLV is present but does not contain the expected joined-notification action.
+        // Treat it as a compatibility mismatch so the caller can continue with non-prplMesh onboarding.
         database.set_prplmesh_compatibility_fallback(src_mac);
         return false;
     }
@@ -3002,8 +3002,19 @@ bool Controller::handle_intel_slave_join(
         beerocks_header.addClass<beerocks_message::cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION>();
     if (!notification) {
         LOG(ERROR) << "addClass cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION failed";
-        // VS TLV present but not parseable/expected; treat as compatibility mismatch.
-        // Mark fallback so the caller can continue with non-prplMesh onboarding.
+        // VS TLV is present but the joined-notification body cannot be parsed, for example
+        // because the received body is shorter than this controller expects.
+        // Treat it as a compatibility mismatch so the caller can continue with non-prplMesh onboarding.
+        database.set_prplmesh_compatibility_fallback(src_mac);
+        return false;
+    }
+
+    if (notification->getBuffRemainingBytes() != 0) {
+        LOG(ERROR) << "Unexpected trailing bytes in Intel joined notification: "
+                   << notification->getBuffRemainingBytes();
+        // VS TLV parsed, but extra bytes remain after the expected joined-notification body.
+        // This likely means the sender used a longer/different format. Treat it as a
+        // compatibility mismatch so the caller can continue with non-prplMesh onboarding.
         database.set_prplmesh_compatibility_fallback(src_mac);
         return false;
     }
