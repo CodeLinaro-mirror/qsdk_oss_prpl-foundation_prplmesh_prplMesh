@@ -102,7 +102,11 @@ static amxd_status_t action_read_assoc_time(amxd_object_t *object, amxd_param_t 
         LOG(ERROR) << "MACAddress can not be read in STA datamodel";
         return amxd_status_parameter_not_found;
     }
+#if !defined(AMXD_API_MAJOR_VERSION) || AMXD_API_MAJOR_VERSION <= 6
     auto sta_mac = tlvf::mac_from_string(amxc_var_constcast(cstring_t, &mac_param->value));
+#else
+    auto sta_mac = tlvf::mac_from_string(amxd_param_constcast(cstring_t, mac_param));
+#endif
 
     // Initialization of ambiorix objects triggers read action and it leads un-initalized values
     if (sta_mac == beerocks::net::network_utils::ZERO_MAC) {
