@@ -172,6 +172,11 @@ void CapabilityReportingTask::handle_event(uint8_t event_enum_value, const void 
         create_early_ap_capability_report_message();
         break;
     }
+    case AP_CAPABILITY: {
+        LOG(DEBUG) << "AP_CAPABILITY event is received";
+        create_ap_capability_report_message();
+        break;
+    }
     default: {
         LOG(DEBUG) << "Message handler doesn't exists for event type " << event_enum_value;
         break;
@@ -193,6 +198,28 @@ void CapabilityReportingTask::create_early_ap_capability_report_message()
 
     // send the constructed report
     LOG(DEBUG) << "Sending EARLY_AP_CAPABILITY_REPORT_MESSAGE";
+    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+}
+
+void CapabilityReportingTask::create_ap_capability_report_message()
+{
+    auto db = AgentDB::get();
+    if (db->controller_info.bridge_mac == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(DEBUG) << "Controller is not connected, skip AP_CAPABILITY_REPORT_MESSAGE";
+        return;
+    }
+
+    if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type AP_CAPABILITY_REPORT_MESSAGE, has failed";
+        return;
+    }
+
+    if (!prepare_ap_capability_message(false)) {
+        LOG(ERROR) << "AP_CAPABILITY_REPORT_MESSAGE filling has failed";
+        return;
+    }
+
+    LOG(INFO) << "Sending unsolicited AP_CAPABILITY_REPORT_MESSAGE";
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 

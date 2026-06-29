@@ -99,7 +99,9 @@ void base_wlan_hal_whm::subscribe_to_radio_events()
                          " && (notification == '" +
                          AMX_CL_OBJECT_CHANGED_EVT +
                          "')"
-                         " && (contains('parameters.Status'))";
+                         " && (contains('parameters.Status')"
+                         " || contains('parameters.OperatingStandards')"
+                         " || contains('parameters.OperatingStandardsFormat'))";
 
     m_ambiorix_cl.subscribe_to_object_event(m_radio_path, event_handler, filter);
 
