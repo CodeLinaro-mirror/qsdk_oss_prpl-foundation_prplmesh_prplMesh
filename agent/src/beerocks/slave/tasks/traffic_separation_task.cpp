@@ -396,6 +396,40 @@ bool TrafficSeparationTask::restore_exact_ports_from_db()
                 success = false;
             }
         }
+
+        for (const auto &bss : radio->front.bssids) {
+            if (!bss.enabled || !bss.backhaul_bss) {
+                continue;
+            }
+
+            const bool has_associated_client = std::any_of(
+                radio->associated_clients.begin(), radio->associated_clients.end(),
+                [&](const auto &client_kv) { return client_kv.second.bssid == bss.mac; });
+            if (!has_associated_client) {
+                continue;
+            }
+
+            std::string bss_iface = bss.iface_name;
+            if (bss_iface.empty() &&
+                !net::network_utils::linux_iface_get_name(bss.mac, bss_iface)) {
+                continue;
+            }
+
+            for (const auto &wds_iface :
+                 net::network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name)) {
+                if (wds_iface == bss_iface) {
+                    continue;
+                }
+
+                if (!restored_wds_ifaces.emplace(wds_iface).second) {
+                    continue;
+                }
+
+                if (!handle_new_wds_iface(wds_iface)) {
+                    success = false;
+                }
+            }
+        }
     }
 
     return success;
@@ -455,6 +489,18 @@ bool TrafficSeparationTask::fill_wds_trunk_from_db(const std::string &iface_name
     auto db           = AgentDB::get();
     const auto policy = db->device_conf.unsupported_profile_disallow_policy;
 
+    const auto fill_trunk = [&](const auto &bss) {
+        trunk             = {};
+        trunk.iface_name  = iface_name;
+        trunk.is_ethernet = false;
+        // TODO(PPM-3941): WDS trunk untagged mode should primary consider downstream
+        // agent multi-ap profile that it's reported via Assoc Req
+        trunk.is_untagged_mode =
+            net::is_untagged_mode(bss.backhaul_bss_disallow_profile1_agent_association,
+                                  bss.backhaul_bss_disallow_profile2_agent_association, policy);
+        return true;
+    };
+
     for (const auto *radio : db->get_radios_list()) {
         if (!radio) {
             continue;
@@ -474,15 +520,47 @@ bool TrafficSeparationTask::fill_wds_trunk_from_db(const std::string &iface_name
                 continue;
             }
 
-            trunk             = {};
-            trunk.iface_name  = iface_name;
-            trunk.is_ethernet = false;
-            // TODO(PPM-3941): WDS trunk untagged mode should primary consider downstream
-            // agent multi-ap profile that it's reported via Assoc Req
-            trunk.is_untagged_mode = net::is_untagged_mode(
-                bss_it->backhaul_bss_disallow_profile1_agent_association,
-                bss_it->backhaul_bss_disallow_profile2_agent_association, policy);
-            return true;
+            return fill_trunk(*bss_it);
+        }
+    }
+
+    for (const auto *radio : db->get_radios_list()) {
+        if (!radio) {
+            continue;
+        }
+
+        for (const auto &bss : radio->front.bssids) {
+            if (!bss.enabled || !bss.backhaul_bss) {
+                continue;
+            }
+
+            const bool has_associated_client = std::any_of(
+                radio->associated_clients.begin(), radio->associated_clients.end(),
+                [&](const auto &client_kv) { return client_kv.second.bssid == bss.mac; });
+            if (!has_associated_client) {
+                continue;
+            }
+
+            std::string bss_iface = bss.iface_name;
+            if (bss_iface.empty() &&
+                !net::network_utils::linux_iface_get_name(bss.mac, bss_iface)) {
+                continue;
+            }
+
+            for (const auto &bss_iface_netdev :
+                 net::network_utils::get_bss_ifaces(bss_iface, db->bridge.iface_name)) {
+                if (bss_iface_netdev == bss_iface) {
+                    continue;
+                }
+
+                if (bss_iface_netdev != iface_name) {
+                    continue;
+                }
+
+                LOG(DEBUG) << "Recovered WDS trunk from BH BSS iface scan iface=" << iface_name
+                           << ", bssid=" << bss.mac;
+                return fill_trunk(bss);
+            }
         }
     }
 

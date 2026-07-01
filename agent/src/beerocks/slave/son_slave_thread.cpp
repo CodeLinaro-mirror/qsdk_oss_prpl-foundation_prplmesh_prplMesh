@@ -73,6 +73,7 @@
 
 #include <easylogging++.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include <sys/socket.h>
@@ -2527,6 +2528,52 @@ bool slave_thread::process_client_association(
                        << ", association_bssid=" << bssid;
         }
         m_pending_wds_iface_notifications.erase(pending_wds_it);
+    }
+
+    auto client_it = radio->associated_clients.find(client_mac);
+    if (client_it != radio->associated_clients.end() && client_it->second.wds_iface_name.empty() &&
+        notification_in->multi_ap_profile() != 0) {
+        const auto bss_it = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),
+                                         [&](const auto &bss) { return bss.mac == bssid; });
+        std::string bss_iface_name;
+        std::vector<std::string> wds_ifaces;
+
+        if (bss_it != radio->front.bssids.end() && bss_it->backhaul_bss) {
+            if (!network_utils::linux_iface_get_name(bssid, bss_iface_name)) {
+                bss_iface_name = bss_it->iface_name;
+            }
+
+            if (!bss_iface_name.empty()) {
+                for (const auto &wds_iface :
+                     network_utils::get_bss_ifaces(bss_iface_name, db->bridge.iface_name)) {
+                    if (wds_iface == bss_iface_name) {
+                        continue;
+                    }
+
+                    wds_ifaces.push_back(wds_iface);
+                }
+            }
+        }
+
+        if (wds_ifaces.empty()) {
+            LOG(DEBUG) << "No WDS iface recovered from BH STA association sta_mac=" << client_mac
+                       << " bssid=" << bssid << " bss_iface=" << bss_iface_name;
+        } else if (wds_ifaces.size() == 1) {
+            LOG(INFO) << "Recovered WDS iface from BH STA association sta_mac=" << client_mac
+                      << " bssid=" << bssid << " wds_iface=" << wds_ifaces.front();
+            set_client_wds_iface(*radio, client_mac, bssid, wds_ifaces.front());
+        } else {
+            for (const auto &wds_iface : wds_ifaces) {
+                LOG(INFO) << "Recovered WDS iface from BH STA association sta_mac=" << client_mac
+                          << " bssid=" << bssid << " wds_iface=" << wds_iface;
+                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                         TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                                         wds_iface.c_str());
+                task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                                         ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
+                                         wds_iface.c_str());
+            }
+        }
     }
 
     return true;
