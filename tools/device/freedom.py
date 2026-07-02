@@ -25,6 +25,15 @@ class Freedom(GenericPrplOS):
     bootloader_prompt = r"IPQ9574# "
     """The u-boot prompt on the target."""
 
+    update_script = "openwrt-ipq95xx-generic-prpl_freedom-update_script.itb"
+    """The name of the u-boot update script file"""
+
+    default_ipaddr = "192.168.250.150"
+    """The bootloader IP address of the DUT, used when none is given."""
+
+    default_serverip = "192.168.250.199"
+    """The bootloader IP address of the TFTP server, used when none is given."""
+
     def upgrade_from_u_boot(self, shell: pexpect.fdpexpect.fdspawn):
         """Upgrade from u-boot and remove the overlay.
 
@@ -37,29 +46,55 @@ class Freedom(GenericPrplOS):
         shell.sendline("")
         shell.expect(self.bootloader_prompt)
         # Give the ethernet interfaces some time to initialize:
-        time.sleep(10)
+        time.sleep(5)
 
-        shell.sendline(f"tftpboot 0x44000000 {self.image}")
-        shell.sendline("")
-        shell.expect("Loading: ")
-        shell.expect("done", timeout=80)
+        shell.sendline(f"setenv serverip {self.serverip}")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline(f"setenv ipaddr {self.ipaddr}")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline("setenv loadaddr 0x50000000")
+        shell.expect(self.bootloader_prompt)
+        time.sleep(5)
+
+        shell.sendline(f"tftpboot ${{loadaddr}} {self.update_script}")
+        shell.expect("done")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline("source ${loadaddr}:update-script")
+        shell.expect("run update_prpl")
+        shell.expect("========================================================")
         shell.expect(self.bootloader_prompt)
 
-        shell.sendline("setenv untar_addr_kernel; setenv untar_addr_root")
+        shell.sendline(f"setenv img_kernel {self.image}")
+        shell.expect(self.bootloader_prompt)
+        if self.rootfs is not None:
+            shell.sendline(f"setenv img_rootfs {self.rootfs}")
+        else:
+            shell.sendline(f"setenv img_rootfs")
         shell.expect(self.bootloader_prompt)
 
-        shell.sendline("untar 0x$fileaddr 0x$filesize kernel root")
-        shell.expect("filename: sysupgrade-prpl_freedom/CONTROL")
-        shell.expect("filename: sysupgrade-prpl_freedom/kernel")
-        shell.expect("filename: sysupgrade-prpl_freedom/root")
+        shell.sendline("setenv img_uboot")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline("setenv img_xbl")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline("setenv img_smd")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline("setenv update_rescue_bank yes")
         shell.expect(self.bootloader_prompt)
 
-        shell.sendline("if test -n $untar_addr_kernel; then flash '0:HLOS' 0x$untar_addr_kernel 0x$untar_size_kernel; else echo 'kernel not found'; fi") # noqa E501
-        shell.expect("blocks erased: OK", timeout=15)
-        shell.expect("blocks written: OK", timeout=15)
+        shell.sendline("mmc dev 0")
+        shell.expect(self.bootloader_prompt)
+        shell.sendline("mmc erase 0x534022 0x40000")
+        shell.expect("blocks erased: OK")
         shell.expect(self.bootloader_prompt)
 
-        shell.sendline("if test -n $untar_addr_root; then flash 'rootfs' 0x$untar_addr_root 0x$untar_size_root; else echo 'rootfs not found'; fi") # noqa E501
-        shell.expect("blocks erased: OK", timeout=60)
-        shell.expect("blocks written: OK", timeout=60)
+        shell.sendline("run update_prpl")
+        shell.expect("kernel.itb written successfully to kernel-active", timeout=45)
+        shell.expect("kernel.itb written successfully to kernel-inactive", timeout=45)
+        shell.expect("rootfs.itb written successfully to rootfs-active", timeout=45)
+        shell.expect("rootfs.itb written successfully to rootfs-inactive", timeout=45)
+        shell.expect("img_uboot not set")
+        shell.expect("img_xbl not set")
+        shell.expect("img_smd not set")
+        shell.expect("Done.")
         shell.expect(self.bootloader_prompt)
+        print("Flashing completed successfully")

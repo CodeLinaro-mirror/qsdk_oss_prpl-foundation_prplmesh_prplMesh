@@ -4,13 +4,13 @@
   variables:
     RUN_ON_DEVICE: "freedom"
   before_script:
-    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R1/freedom.sh
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --rootfs "$FREEDOM_ROOTFS" --whm --configuration ci/configuration/certification/R1/freedom.sh
     - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
   needs:
     - job: build-for-freedom
   tags:
     - certs-tests
-    - freedom
+    - freedom-SMD
 
 .certification:R4:freedom:
   stage: R4-cert-freedom
@@ -18,7 +18,7 @@
   variables:
     RUN_ON_DEVICE: "freedom"
   before_script:
-    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/freedom.sh
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --rootfs "$FREEDOM_ROOTFS" --whm --configuration ci/configuration/certification/R4/freedom.sh
     - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
     - echo "Setting no on-boot scan for prplMesh"
     - ssh freedom 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
@@ -30,7 +30,7 @@
     - job: build-for-freedom
   tags:
     - certs-tests-R4
-    - freedom
+    - freedom-SMD
 
 .certification:R4:urx_ospv2:
   stage: R4-cert-OSPv2
@@ -50,7 +50,7 @@
     - job: build-for-ospv2
   tags:
     - certs-tests-R4
-    - ospv2_new_layout
+    - ospv2-SMD
 
 .certification:R4:mozart:
   stage: R4-cert-mozart
@@ -78,7 +78,7 @@
   variables:
     RUN_ON_DEVICE: "freedom"
   before_script:
-    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --whm --configuration ci/configuration/certification/R6/freedom.sh
+    - tools/deploy_firmware.py --device freedom --target-name "$RUN_ON_DEVICE" --image "$FREEDOM_FULLIMAGE" --rootfs "$FREEDOM_ROOTFS" --whm --configuration ci/configuration/certification/R6/freedom.sh
     - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
   after_script:
     - ssh "$RUN_ON_DEVICE" "getDebugInformation -a -o -" > logs/getDebugInformation.txt
@@ -86,7 +86,7 @@
     - job: build-for-freedom
   tags:
     - certs-tests-R6
-    - freedom
+    - freedom-SMD
 
 .certification:R6:urx_ospv2:
   stage: R6-cert-OSPv2
@@ -102,7 +102,7 @@
     - job: build-for-ospv2
   tags:
     - certs-tests-R6
-    - ospv2
+    - ospv2-SMD
 
 .certification:R6:mozart:
   stage: R6-cert-mozart
