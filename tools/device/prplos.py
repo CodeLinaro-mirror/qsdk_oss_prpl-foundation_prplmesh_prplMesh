@@ -71,7 +71,14 @@ class GenericPrplOS(GenericDevice):
                              + "Please make sure you have an appropriate udev rule for it.")
         print("Copying image '{}' to '{}'".format(self.image, self.tftp_dir))
         shutil.copy(os.path.join(self.artifacts_dir, self.image), self.tftp_dir)
-        print("Image copied to {}.".format(self.tftp_dir))
+        if self.update_script is not None:
+            print("Copying U-Boot update script '{}' to '{}'".format(
+                self.update_script, self.tftp_dir))
+            shutil.copy(os.path.join(self.artifacts_dir, self.update_script), self.tftp_dir)
+        if self.rootfs is not None:
+            print("Copying rootfs '{}' to '{}'".format(self.rootfs, self.tftp_dir))
+            shutil.copy(os.path.join(self.artifacts_dir, self.rootfs), self.tftp_dir)
+        print("Image(s) copied to {}.".format(self.tftp_dir))
         with SerialDevice(self.baudrate, self.name, self.serial_prompt,
                           expect_prompt_on_connect=False) as shell:
             self.reboot(self.check_serial_type(),
