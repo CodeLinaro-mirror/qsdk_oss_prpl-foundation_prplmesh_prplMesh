@@ -36,6 +36,12 @@ def main():
         required=True)
 
     parser.add_argument(
+        '-s',
+        '--rootfs',
+        help="Name of the rootfs FIT image to use for the upgrade "
+             "(should exist in the artifacts folder).", required=False)
+
+    parser.add_argument(
         '-f',
         '--full',
         action='store_true',
@@ -54,7 +60,10 @@ def main():
 
     args = parser.parse_args()
 
-    dev = device_from_name(args.device, args.target_name, args.image)
+    if args.device == "freedom" and args.rootfs is None:
+        raise ValueError("--rootfs is required when upgrading Freedom")
+
+    dev = device_from_name(args.device, args.target_name, args.image, args.rootfs)
 
     def do_upgrade(dev):
         try:

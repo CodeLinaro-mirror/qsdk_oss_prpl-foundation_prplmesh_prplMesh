@@ -18,7 +18,8 @@ import device.freedom
 import device.mozart
 
 
-def device_from_name(name: str, target_name: str, image: Union[str, None] = None
+def device_from_name(name: str, target_name: str, image: Union[str, None] = None,
+                     rootfs: Union[str, None] = None
                      ) -> device.generic.GenericDevice:
     """Construct a device based on its name and type.
 
@@ -30,6 +31,8 @@ def device_from_name(name: str, target_name: str, image: Union[str, None] = None
         The name of the target.
     image: image: Union[str, None]
         The name of the image (optional, defaults to None).
+    rootfs: rootfs: Union[str, None]
+        The name of the rootfs FIT image (optional, defaults to None).
     """
     if name == "turris-omnia-rdk":
         dev = device.turris_rdk_b.TurrisRdkb(name, target_name, image)

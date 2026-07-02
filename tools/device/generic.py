@@ -41,7 +41,7 @@ class GenericDevice():
     baudrate = 115200
     """The baudrate of the serial connection to the device."""
 
-    initialization_time = 200
+    initialization_time = 180
     """The time (in seconds) the device needs to initialize when it boots
     for the first time after flashing a new image."""
 
@@ -63,8 +63,14 @@ class GenericDevice():
     tftp_dir = "/srv/tftp"
     """The root directory of the tftp server. OS images will be copied there."""
 
+    update_script = None
+    """The name of the u-boot update script file"""
+
+    rootfs = None
+    """The name of the rootfs image to use"""
+
     def __init__(self, device: str, name: str, image: Union[str, None] = None,
-                 username: str = "root"):
+                 rootfs: Union[str, None] = None, username: str = "root"):
         """
 
         Parameters
@@ -75,12 +81,15 @@ class GenericDevice():
             The name of the device (it should ne reachable through ssh without a password).
         image: Union[str, None]
             The name of the image that can be used to upgrade the device.
+        rootfs: Union[str, None], optional
+            The name of the rootfs FIT image that can be used to upgrade the device.
         username: str, optional
             The username to use when connecting to the device over SSH.
         """
         self.device = device
         self.name = name
         self.image = image
+        self.rootfs = rootfs
         self.username = username
 
         self.rootdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
