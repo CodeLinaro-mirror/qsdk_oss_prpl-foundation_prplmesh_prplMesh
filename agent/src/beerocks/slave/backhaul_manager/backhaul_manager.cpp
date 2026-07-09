@@ -371,6 +371,8 @@ void BackhaulManager::on_thread_stop()
         m_platform_manager_client.reset();
     }
 
+    unregister_wan_monitor_handlers();
+
     if (m_broker_client) {
         m_broker_client->clear_handlers();
         m_broker_client.reset();
@@ -638,6 +640,41 @@ bool BackhaulManager::has_available_wired_candidate() const
     return false;
 }
 
+std::string BackhaulManager::select_wired_controller_probe_radio_iface() const
+{
+    auto db = AgentDB::get();
+
+    for (auto preferred_freq : {beerocks::FREQ_24G, beerocks::FREQ_5G, beerocks::FREQ_6G}) {
+        for (const auto &radio : db->get_radios_list()) {
+            if (!radio || radio->front.iface_name.empty() ||
+                radio->wifi_channel.get_freq_type() != preferred_freq) {
+                continue;
+            }
+
+            return radio->front.iface_name;
+        }
+    }
+
+    return {};
+}
+
+bool BackhaulManager::send_wired_controller_probe_on_candidate(const std::string &wired_iface)
+{
+    if (!wired_candidate_is_available(wired_iface)) {
+        LOG(DEBUG) << "Skipping wired controller probe on " << wired_iface
+                   << ": candidate is not currently up and bridged";
+        return false;
+    }
+
+    auto probe_radio_iface = select_wired_controller_probe_radio_iface();
+    if (probe_radio_iface.empty()) {
+        LOG(DEBUG) << "Skipping wired controller probe: no supported radio is available";
+        return false;
+    }
+
+    return send_wired_controller_probe_search(probe_radio_iface, wired_iface);
+}
+
 bool BackhaulManager::send_wired_controller_probe_search(const std::string &radio_iface,
                                                          const std::string &wired_iface)
 {
@@ -785,28 +822,6 @@ void BackhaulManager::maybe_send_wired_controller_probe()
         return;
     }
 
-    std::string probe_radio_iface;
-    for (auto preferred_freq : {beerocks::FREQ_24G, beerocks::FREQ_5G, beerocks::FREQ_6G}) {
-        for (const auto &radio : db->get_radios_list()) {
-            if (!radio || radio->front.iface_name.empty() ||
-                radio->wifi_channel.get_freq_type() != preferred_freq) {
-                continue;
-            }
-
-            probe_radio_iface = radio->front.iface_name;
-            break;
-        }
-
-        if (!probe_radio_iface.empty()) {
-            break;
-        }
-    }
-
-    if (probe_radio_iface.empty()) {
-        LOG(DEBUG) << "Skipping wired controller probe: no supported radio is available";
-        return;
-    }
-
     if (m_next_wired_controller_probe_candidate_index >= available_wired_candidates.size()) {
         m_next_wired_controller_probe_candidate_index = 0;
     }
@@ -816,7 +831,113 @@ void BackhaulManager::maybe_send_wired_controller_probe()
     m_next_wired_controller_probe_candidate_index =
         (m_next_wired_controller_probe_candidate_index + 1) % available_wired_candidates.size();
 
-    send_wired_controller_probe_search(probe_radio_iface, wired_iface);
+    send_wired_controller_probe_on_candidate(wired_iface);
+}
+
+bool BackhaulManager::register_wan_monitor_handlers()
+{
+    const auto wan_monitor_fd = wan_mon.get_netlink_fd();
+    if (wan_monitor_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "Cannot register wan_monitor handlers: invalid netlink fd";
+        return false;
+    }
+
+    if (m_wan_monitor_fd == wan_monitor_fd) {
+        return true;
+    }
+
+    unregister_wan_monitor_handlers();
+
+    beerocks::EventLoop::EventHandlers wan_monitor_handlers{
+        .name     = "wan_monitor",
+        .on_read  = [this](int fd,
+                          beerocks::EventLoop &loop) { return handle_wan_monitor_events(); },
+        .on_write = nullptr,
+        .on_disconnect =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "wan_monitor disconnected on fd " << fd;
+                m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+                return false;
+            },
+        .on_error =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "wan_monitor error on fd " << fd;
+                m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+                return false;
+            },
+    };
+
+    if (!m_event_loop->register_handlers(wan_monitor_fd, wan_monitor_handlers)) {
+        LOG(ERROR) << "Unable to register wan_monitor handlers for fd " << wan_monitor_fd;
+        return false;
+    }
+
+    m_wan_monitor_fd = wan_monitor_fd;
+    LOG(DEBUG) << "wan_monitor handlers registered on fd " << m_wan_monitor_fd;
+
+    return true;
+}
+
+void BackhaulManager::unregister_wan_monitor_handlers()
+{
+    if (m_wan_monitor_fd == beerocks::net::FileDescriptor::invalid_descriptor || !m_event_loop) {
+        return;
+    }
+
+    if (!m_event_loop->remove_handlers(m_wan_monitor_fd)) {
+        LOG(ERROR) << "Failed to remove wan_monitor handlers for fd " << m_wan_monitor_fd;
+    }
+    m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+}
+
+bool BackhaulManager::handle_wan_monitor_events()
+{
+    std::vector<wan_monitor::LinkEvent> events;
+    if (!wan_mon.process(events)) {
+        LOG(ERROR) << "wan_monitor.process() failed";
+        return true;
+    }
+
+    for (const auto &event : events) {
+        handle_wan_monitor_event(event);
+    }
+
+    return true;
+}
+
+void BackhaulManager::handle_wan_monitor_event(const wan_monitor::LinkEvent &event)
+{
+    auto it = m_backhaul_wire_interfaces.find(event.iface_name);
+    if (it == m_backhaul_wire_interfaces.end()) {
+        LOG(DEBUG) << "Ignoring wan_monitor event for unknown wired candidate " << event.iface_name;
+        return;
+    }
+
+    auto db                   = AgentDB::get();
+    it->second.up_and_running = event.link_state == wan_monitor::ELinkState::eUp;
+
+    auto bridge_ifaces =
+        beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+    it->second.bridge_member = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                         event.iface_name) != bridge_ifaces.end();
+
+    LOG(DEBUG) << "Wired backhaul candidate iface=" << event.iface_name
+               << " link_state=" << int(event.link_state)
+               << ", bridge_member=" << int(it->second.bridge_member);
+
+    if (event.link_state != wan_monitor::ELinkState::eUp ||
+        db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
+        db->backhaul.connection_type != AgentDB::sBackhaul::eConnectionType::Wireless) {
+        return;
+    }
+
+    LOG(INFO) << "Wired backhaul candidate iface=" << event.iface_name
+              << " is up, sending immediate wired controller probe";
+
+    if (send_wired_controller_probe_on_candidate(event.iface_name)) {
+        m_next_wired_controller_probe_time =
+            std::chrono::steady_clock::now() + wired_controller_probe_interval;
+    }
 }
 
 bool BackhaulManager::remove_wireless_backhaul_ifaces_from_bridge()
@@ -1401,6 +1522,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 
         // Build runtime state for all configured or discovered wired backhaul candidates.
         // AgentDB keeps the static candidate list. Backhaul manager owns runtime state.
+        unregister_wan_monitor_handlers();
         m_backhaul_wire_interfaces.clear();
 
         auto bridge_ifaces =
@@ -1436,11 +1558,17 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                            << ", bridge_member=" << int(wire_iface.bridge_member);
             }
 
-            if (!monitored_ifaces.empty() && !wan_mon.initialize(monitored_ifaces)) {
-                // This does not not immediatly fail onboarding. It only disable live netlink monitoring.
-                // Initial selection can still use state collected above.
-                // This requires further thought.
-                LOG(WARNING) << "wan_mon.initialize() failed, wired candidate monitoring disabled";
+            if (!monitored_ifaces.empty()) {
+                if (!wan_mon.initialize(monitored_ifaces)) {
+                    // This does not not immediatly fail onboarding. It only disable live netlink monitoring.
+                    // Initial selection can still use state collected above.
+                    // This requires further thought.
+                    LOG(WARNING)
+                        << "wan_mon.initialize() failed, wired candidate monitoring disabled";
+                } else if (!register_wan_monitor_handlers()) {
+                    LOG(WARNING) << "register_wan_monitor_handlers() failed, wired candidate "
+                                    "monitoring disabled";
+                }
             }
         }
 
