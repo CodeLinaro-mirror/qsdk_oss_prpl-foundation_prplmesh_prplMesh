@@ -1529,9 +1529,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
         std::vector<std::string> monitored_ifaces;
 
-        // If wired controller discovery failed in this onboarding cycle, do not select wired
-        // again after the restart. Otherwise the agent would loop on the same invalid wired path.
-        if (!m_skip_wired_backhaul && !db->device_conf.local_gw) {
+        if (!db->device_conf.local_gw) {
             for (const auto &candidate : db->ethernet.wan_candidates) {
                 if (candidate.iface_name.empty()) {
                     continue;
@@ -1573,9 +1571,12 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         }
 
         bool wired_backhaul_selected = false;
+        const bool allow_wired_backhaul_selection =
+            !m_skip_wired_backhaul || !m_preferred_wired_candidate_iface.empty();
 
         // Keep selected_backhaul behavior
-        if (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH) {
+        if ((m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH) &&
+            allow_wired_backhaul_selection) {
             if (!m_preferred_wired_candidate_iface.empty()) {
                 LOG(DEBUG) << "Trying preferred wired backhaul candidate "
                            << m_preferred_wired_candidate_iface
@@ -1631,6 +1632,9 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                              << " is no longer usable. Continuing with wireless fallback.";
                 m_preferred_wired_candidate_iface.clear();
             }
+        } else if (!allow_wired_backhaul_selection) {
+            LOG(DEBUG) << "Skipping wired backhaul selection after previous wired onboarding "
+                          "failure. Wired candidate monitoring remains active.";
         }
         if (!wired_backhaul_selected) {
             // If no wired backhaul is configured, or it is down, we get into this else branch.
