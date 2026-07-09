@@ -181,6 +181,9 @@ TEST_F(DbTest, AddAgentReusesExistingDataModelDevice)
     EXPECT_CALL(*m_ambiorix, set(g_agent_path + ".MultiAPDevice", "ManufacturerOUI",
                                  Matcher<const std::string &>(g_bridge_oui)))
         .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_agent_path + ".MultiAPDevice", "EasyMeshAgentOperationMode",
+                                 Matcher<const std::string &>("Running")))
+        .WillOnce(Return(true));
 
     auto agent = m_db->add_agent(tlvf::mac_from_string(g_agent_mac));
     ASSERT_TRUE(agent);
