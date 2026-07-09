@@ -415,14 +415,21 @@ private:
     bool wired_candidate_is_available(const std::string &iface_name) const;
     bool has_available_wired_candidate() const;
     void maybe_send_wired_controller_probe();
+    std::string select_wired_controller_probe_radio_iface() const;
+    bool send_wired_controller_probe_on_candidate(const std::string &wired_iface);
     bool send_wired_controller_probe_search(const std::string &radio_iface,
                                             const std::string &wired_iface);
     bool remove_wireless_backhaul_ifaces_from_bridge();
+    bool register_wan_monitor_handlers();
+    void unregister_wan_monitor_handlers();
+    bool handle_wan_monitor_events();
+    void handle_wan_monitor_event(const wan_monitor::LinkEvent &event);
     bool handle_wired_controller_detected(uint32_t iface_index);
     bool handle_wired_autoconfiguration_response(uint32_t iface_index,
                                                  ieee1905_1::CmduMessageRx &cmdu_rx);
 
     wan_monitor wan_mon;
+    int m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
     // Runtime fallback guard. Set after wired controller discovery timeout and kept across the
     // BackhaulManager restart so the next ENABLED pass can try wireless onboarding.
     bool m_skip_wired_backhaul = false;
