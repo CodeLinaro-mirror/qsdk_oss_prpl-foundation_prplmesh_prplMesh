@@ -18,7 +18,9 @@ import device.freedom
 import device.mozart
 
 
-def device_from_name(name: str, target_name: str, image: Union[str, None] = None
+def device_from_name(name: str, target_name: str, image: Union[str, None] = None,
+                     rootfs: Union[str, None] = None, ipaddr: Union[str, None] = None,
+                     serverip: Union[str, None] = None
                      ) -> device.generic.GenericDevice:
     """Construct a device based on its name and type.
 
@@ -30,13 +32,20 @@ def device_from_name(name: str, target_name: str, image: Union[str, None] = None
         The name of the target.
     image: image: Union[str, None]
         The name of the image (optional, defaults to None).
+    rootfs: rootfs: Union[str, None]
+        The name of the rootfs FIT image (optional, defaults to None).
+    ipaddr: Union[str, None]
+        The bootloader IP address of the DUT (optional, defaults to None).
+    serverip: Union[str, None]
+        The bootloader IP address of the TFTP server (optional, defaults to None).
     """
     if name == "turris-omnia-rdk":
         dev = device.turris_rdk_b.TurrisRdkb(name, target_name, image)
     elif name == "urx_osp" or name == "urx_ospv2":
-        dev = device.urx_osp.URXOSP(name, target_name, image)
+        dev = device.urx_osp.URXOSP(name, target_name, image, ipaddr=ipaddr, serverip=serverip)
     elif name == "freedom":
-        dev = device.freedom.Freedom(name, target_name, image)
+        dev = device.freedom.Freedom(name, target_name, image, rootfs, ipaddr=ipaddr,
+                                     serverip=serverip)
     elif name == "mozart":
         dev = device.mozart.Mozart(name, target_name, image)
     else:

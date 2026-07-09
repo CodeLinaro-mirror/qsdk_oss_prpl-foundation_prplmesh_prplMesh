@@ -41,6 +41,8 @@ RUN \
     python3-pip \
     python3-setuptools \
     python3-yaml \
+    libpython3-dev \
+    libssl-dev \
     rsync \
     signify-openbsd \
     subversion \
