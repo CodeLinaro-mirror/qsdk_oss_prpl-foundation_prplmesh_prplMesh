@@ -3415,6 +3415,9 @@ public:
     bool assign_link_metrics_task_id(int new_task_id);
     int get_link_metrics_task_id();
 
+    bool assign_unassociated_sta_link_metrics_task_id(int new_task_id);
+    int get_unassociated_sta_link_metrics_task_id();
+
     bool assign_agent_monitoring_task_id(int new_task_id);
     int get_agent_monitoring_task_id();
 
@@ -3840,6 +3843,7 @@ private:
     int statistics_polling_task_id             = -1;
     int vbss_task_id                           = -1;
     int link_metrics_task_id                   = -1;
+    int unassociated_sta_link_metrics_task_id  = -1;
     /// @}
 
     std::mutex db_mutex;

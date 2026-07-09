@@ -18,6 +18,7 @@
 #include "tasks/network_health_check_task.h"
 #include "tasks/statistics_polling_task.h"
 #include "tasks/task_pool.h"
+#include "tasks/unassociated_sta_link_metrics_task.h"
 
 #include "../../../common/beerocks/bwl/include/bwl/base_wlan_hal.h"
 #include <bcl/beerocks_cmdu_server.h>
@@ -738,6 +739,8 @@ private:
     // It is used only in handle_cmdu_1905_ap_metric_response() to call construct_combined_infra_metric().
     // TODO It can be removed after cert_cmdu_tx usage is removed (PPM-1130).
     std::shared_ptr<LinkMetricsTask> m_link_metrics_task;
+
+    std::shared_ptr<UnassociatedStaLinkMetricsTask> m_unassociated_sta_link_metrics_task;
 
     /**
      * Task_id used to stop/start the channel_selection_task without restarting the controller
