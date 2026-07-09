@@ -20,6 +20,7 @@
 #include "tasks/load_balancer_task.h"
 #include "tasks/optimal_path_task.h"
 #include "tasks/statistics_polling_task.h"
+#include "tasks/unassociated_sta_link_metrics_task.h"
 
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
 #include <beerocks/tlvf/beerocks_message_bml.h>
@@ -2580,14 +2581,15 @@ void son_management::handle_bml_message(int sd, std::shared_ptr<beerocks_header>
         auto opclass = request->opclass();
         auto channel = request->channel();
         LOG(DEBUG) << "request for unassociated sta_mac: " << sta_mac;
-        LinkMetricsTask::sUnAssociatedLinkMetricsQueryEvent new_event;
+        UnassociatedStaLinkMetricsTask::sUnAssociatedLinkMetricsQueryEvent new_event;
         new_event.channel         = channel;
         new_event.opClass         = opclass;
         new_event.unassoc_sta_mac = sta_mac;
 
-        tasks.push_event(database.get_link_metrics_task_id(),
-                         (int)LinkMetricsTask::eEvent::UNASSOC_STA_LINK_METRICS_QUERY,
-                         (void *)&new_event);
+        tasks.push_event(
+            database.get_unassociated_sta_link_metrics_task_id(),
+            (int)UnassociatedStaLinkMetricsTask::eEvent::UNASSOC_STA_LINK_METRICS_QUERY,
+            (void *)&new_event);
         break;
     }
     case beerocks_message::ACTION_BML_GET_UNASSOC_STA_QUERY_RESULT_REQUEST: {

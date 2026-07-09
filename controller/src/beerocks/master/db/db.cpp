@@ -6116,6 +6116,18 @@ bool db::assign_link_metrics_task_id(int new_task_id)
 }
 
 int db::get_link_metrics_task_id() { return link_metrics_task_id; }
+
+bool db::assign_unassociated_sta_link_metrics_task_id(int new_task_id)
+{
+    unassociated_sta_link_metrics_task_id = new_task_id;
+    return true;
+}
+
+int db::get_unassociated_sta_link_metrics_task_id()
+{
+    return unassociated_sta_link_metrics_task_id;
+}
+
 void db::lock() { db_mutex.lock(); }
 
 void db::unlock() { db_mutex.unlock(); }
