@@ -430,6 +430,14 @@ void Controller::start_optional_tasks()
     } else {
         LOG(DEBUG) << "Link metrics task already running";
     }
+    if (!m_unassociated_sta_link_metrics_task) {
+        m_unassociated_sta_link_metrics_task =
+            std::make_shared<UnassociatedStaLinkMetricsTask>(database, cmdu_tx);
+        LOG_IF(!m_task_pool.add_task(m_unassociated_sta_link_metrics_task), FATAL)
+            << "Failed adding Unassociated Sta Link Metrics task";
+    } else {
+        LOG(DEBUG) << "Unassociated Sta Link Metrics task already running";
+    }
 
 #ifndef BEEROCKS_LINUX
     // update running status for statistics_polling_task
