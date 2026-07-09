@@ -638,7 +638,8 @@ bool BackhaulManager::has_available_wired_candidate() const
     return false;
 }
 
-bool BackhaulManager::send_wired_controller_probe_search(const std::string &radio_iface)
+bool BackhaulManager::send_wired_controller_probe_search(const std::string &radio_iface,
+                                                         const std::string &wired_iface)
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
@@ -744,7 +745,8 @@ bool BackhaulManager::send_wired_controller_probe_search(const std::string &radi
     }
 
     LOG(DEBUG) << "Sending wired controller probe AP-Autoconfiguration Search, radio_iface="
-               << radio_iface << ", bridge_mac=" << db->bridge.mac
+               << radio_iface << ", wired_iface=" << wired_iface
+               << ", bridge_mac=" << db->bridge.mac
                << ", multi_ap_profile=" << db->device_conf.multi_ap_profile
                << (include_profile_tlv ? " with Profile TLV" : " without Profile TLV");
 
@@ -752,7 +754,7 @@ bool BackhaulManager::send_wired_controller_probe_search(const std::string &radi
     // controller is reachable on one of the wired candidates. A response restarts BackhaulManager
     // into the regular wired onboarding flow; this probe does not complete onboarding by itself.
     return send_cmdu_to_broker(cmdu_tx, beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR,
-                               db->bridge.mac);
+                               db->bridge.mac, wired_iface);
 }
 
 void BackhaulManager::maybe_send_wired_controller_probe()
@@ -770,26 +772,51 @@ void BackhaulManager::maybe_send_wired_controller_probe()
     }
     m_next_wired_controller_probe_time = now + wired_controller_probe_interval;
 
-    if (!has_available_wired_candidate()) {
+    std::vector<std::string> available_wired_candidates;
+    for (const auto &candidate : db->ethernet.wan_candidates) {
+        if (wired_candidate_is_available(candidate.iface_name)) {
+            available_wired_candidates.push_back(candidate.iface_name);
+        }
+    }
+
+    if (available_wired_candidates.empty()) {
         LOG(DEBUG) << "Skipping wired controller probe: no wired candidate is currently up and "
                       "bridged";
         return;
     }
 
-    std::set<beerocks::eFreqType> probed_bands;
-    for (const auto &radio : db->get_radios_list()) {
-        if (!radio || radio->front.iface_name.empty()) {
-            continue;
+    std::string probe_radio_iface;
+    for (auto preferred_freq : {beerocks::FREQ_24G, beerocks::FREQ_5G, beerocks::FREQ_6G}) {
+        for (const auto &radio : db->get_radios_list()) {
+            if (!radio || radio->front.iface_name.empty() ||
+                radio->wifi_channel.get_freq_type() != preferred_freq) {
+                continue;
+            }
+
+            probe_radio_iface = radio->front.iface_name;
+            break;
         }
 
-        // One search per band is enough for controller discovery and avoids sending a burst for
-        // devices that expose several radios on the same band.
-        if (!probed_bands.insert(radio->wifi_channel.get_freq_type()).second) {
-            continue;
+        if (!probe_radio_iface.empty()) {
+            break;
         }
-
-        send_wired_controller_probe_search(radio->front.iface_name);
     }
+
+    if (probe_radio_iface.empty()) {
+        LOG(DEBUG) << "Skipping wired controller probe: no supported radio is available";
+        return;
+    }
+
+    if (m_next_wired_controller_probe_candidate_index >= available_wired_candidates.size()) {
+        m_next_wired_controller_probe_candidate_index = 0;
+    }
+
+    const auto wired_iface =
+        available_wired_candidates[m_next_wired_controller_probe_candidate_index];
+    m_next_wired_controller_probe_candidate_index =
+        (m_next_wired_controller_probe_candidate_index + 1) % available_wired_candidates.size();
+
+    send_wired_controller_probe_search(probe_radio_iface, wired_iface);
 }
 
 bool BackhaulManager::remove_wireless_backhaul_ifaces_from_bridge()

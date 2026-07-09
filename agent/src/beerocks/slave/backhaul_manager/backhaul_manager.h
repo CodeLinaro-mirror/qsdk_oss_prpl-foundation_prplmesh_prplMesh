@@ -415,7 +415,8 @@ private:
     bool wired_candidate_is_available(const std::string &iface_name) const;
     bool has_available_wired_candidate() const;
     void maybe_send_wired_controller_probe();
-    bool send_wired_controller_probe_search(const std::string &radio_iface);
+    bool send_wired_controller_probe_search(const std::string &radio_iface,
+                                            const std::string &wired_iface);
     bool remove_wireless_backhaul_ifaces_from_bridge();
     bool handle_wired_controller_detected(uint32_t iface_index);
     bool handle_wired_autoconfiguration_response(uint32_t iface_index,
@@ -428,6 +429,7 @@ private:
     std::string m_preferred_wired_candidate_iface;
     std::chrono::steady_clock::time_point m_next_wired_controller_probe_time =
         std::chrono::steady_clock::time_point::min();
+    size_t m_next_wired_controller_probe_candidate_index = 0;
 
     // Future to hold the DHCP client process exit code
     std::future<int> m_ftDHCPRetCode;
