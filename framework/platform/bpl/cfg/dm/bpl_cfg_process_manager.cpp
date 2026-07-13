@@ -6,17 +6,42 @@
  * See LICENSE file for more details.
  */
 
-#include "bpl_cfg_amx_helper.h"
+#include "bpl_cfg_service_helper.h"
+#include "bpl_cfg_status.h"
 
 #include <bpl/bpl_cfg.h>
 #include <mapf/common/logger.h>
 
-#include "bpl_cfg_pwhm.h"
-
-#define PROCESS_MANAGER_DM_PATH "X_PRPLWARE-COM_ProcessManager.PrplMesh"
-
 namespace beerocks {
 namespace bpl {
+
+namespace {
+
+constexpr const char *PROCESS_MANAGER_PATH = "X_PRPLWARE-COM_ProcessManager.PrplMesh.";
+
+template <typename T> bool read_process_manager_param(const std::string &name, T &value)
+{
+    return read_param_via_common_socket(PROCESS_MANAGER_PATH, name, value);
+}
+
+} // namespace
+
+int cfg_get_management_mode_process_manager(std::string &mode)
+{
+    return read_process_manager_param("ManagementMode", mode) ? RETURN_OK : RETURN_ERR;
+}
+
+int cfg_get_management_mode(std::string &mode)
+{
+    int ret = cfg_get_management_mode_process_manager(mode);
+    if (ret == RETURN_ERR) {
+        MAPF_WARN("cfg_get_management_mode(): failed to read management_mode from process manager "
+                  "DM, fallback to agent info DM");
+        ret = cfg_get_management_mode_agent_info(mode);
+    }
+
+    return ret;
+}
 
 int cfg_get_management_mode()
 {
@@ -24,7 +49,8 @@ int cfg_get_management_mode()
 
     std::string management_mode_str{};
     if (cfg_get_management_mode(management_mode_str)) {
-        MAPF_ERR("cfg_get_management_mode(): failed to read management_mode, using default");
+        MAPF_WARN("cfg_get_management_mode(): management_mode unavailable, using default "
+                  "BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT");
         return management_mode;
     }
 
@@ -45,23 +71,20 @@ int cfg_get_management_mode()
     return management_mode;
 }
 
-int cfg_get_management_mode(std::string &mode)
+int cfg_get_certification_mode_process_manager(int &certification_mode)
 {
-    auto pm_obj = m_ambiorix_cl_ubus.get_object(PROCESS_MANAGER_DM_PATH ".");
-    if (!pm_obj || !pm_obj->read_child(mode, "ManagementMode"))
-        return RETURN_ERR;
-
-    return RETURN_OK;
+    return read_process_manager_param("CertificationMode", certification_mode) ? RETURN_OK
+                                                                               : RETURN_ERR;
 }
 
 int cfg_get_certification_mode()
 {
-    int certification_mode{0}; // off by default
+    int certification_mode{BPL_CERTIFICATION_MODE_OFF};
 
-    auto pm_obj = m_ambiorix_cl_ubus.get_object(PROCESS_MANAGER_DM_PATH ".");
-    if (!pm_obj || !pm_obj->read_child(certification_mode, "CertificationMode"))
+    if (cfg_get_certification_mode_process_manager(certification_mode) == RETURN_ERR) {
         MAPF_ERR(
             "cfg_get_certification_mode(): failed to read certification_mode, using default value");
+    }
 
     return certification_mode;
 }

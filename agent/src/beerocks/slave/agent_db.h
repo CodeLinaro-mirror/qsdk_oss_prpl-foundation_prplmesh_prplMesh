@@ -133,8 +133,6 @@ public:
             bwl::WiFiSec security_type;
 
             bool mem_only_psk;
-            uint8_t backhaul_max_vaps;
-            bool backhaul_network_enabled;
             beerocks::eFreqType backhaul_preferred_radio_band;
         } back_radio;
 

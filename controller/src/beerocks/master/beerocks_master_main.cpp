@@ -30,7 +30,6 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <btl/broker_client_factory_factory.h>
 #include <mapf/common/utils.h>
 
-#include <bpl/bpl_amx.h>
 #include <bpl/bpl_cfg.h>
 
 #include <easylogging++.h>
@@ -635,7 +634,7 @@ int main(int argc, char *argv[])
     // Initialize the BPL (Beerocks Platform Library)
     if (beerocks::bpl::bpl_init() < 0) {
         LOG(ERROR) << "Failed to initialize BPL!";
-        return false;
+        return 1;
     }
 
     // read master config file
@@ -746,7 +745,7 @@ int main(int argc, char *argv[])
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI
 
-    beerocks::bpl::set_ambiorix_impl_ptr(amb_dm_obj);
+    beerocks::bpl::set_nbapi_dm(amb_dm_obj);
 
     // fill master configuration
     son::db::sDbMasterConfig master_conf;

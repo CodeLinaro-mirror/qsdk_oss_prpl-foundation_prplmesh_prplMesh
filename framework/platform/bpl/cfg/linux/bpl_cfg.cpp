@@ -465,11 +465,11 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
     return true;
 }
 
-int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band)
+int cfg_get_preferred_radio_band(int *preferred_radio_band)
 {
-    *max_vaps             = 0;
-    *network_enabled      = 0;
-    *preferred_radio_band = 0;
+    if (preferred_radio_band) {
+        *preferred_radio_band = BPL_RADIO_BAND_AUTO;
+    }
     return RETURN_OK;
 }
 
@@ -675,7 +675,7 @@ bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_po
     return true;
 }
 
-bool cfg_set_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy)
+bool cfg_set_unsuccessful_assoc_report_policy(const bool &unsuccessful_assoc_report_policy)
 {
     return true;
 }

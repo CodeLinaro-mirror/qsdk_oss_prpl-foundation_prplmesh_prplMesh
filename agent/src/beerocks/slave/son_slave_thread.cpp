@@ -611,17 +611,10 @@ bool slave_thread::read_platform_configuration()
     }
     db->device_conf.stop_on_failure_attempts = temp_int;
 
-    int backhaul_max_vaps;
-    int backhaul_network_enabled;
-    int backhaul_preferred_radio_band;
-    if (bpl::cfg_get_backhaul_params(&backhaul_max_vaps, &backhaul_network_enabled,
-                                     &backhaul_preferred_radio_band) < 0) {
-        LOG(ERROR) << "Failed reading 'backhaul_max_vaps, backhaul_network_enabled, "
-                      "backhaul_preferred_radio_band'!";
+    int backhaul_preferred_radio_band = BPL_RADIO_BAND_AUTO;
+    if (bpl::cfg_get_preferred_radio_band(&backhaul_preferred_radio_band) < 0) {
+        LOG(ERROR) << "Failed reading 'backhaul_preferred_radio_band'!";
     }
-    db->device_conf.back_radio.backhaul_max_vaps = static_cast<uint8_t>(backhaul_max_vaps);
-    db->device_conf.back_radio.backhaul_network_enabled =
-        static_cast<bool>(backhaul_network_enabled);
 
     const auto bpl_band_to_freq_type = [](int bpl_band) -> beerocks::eFreqType {
         if (bpl_band == BPL_RADIO_BAND_2G) {

@@ -60,7 +60,7 @@ AmbiorixConnectionManager::get_connection(const std::string &amxb_backend, const
         LOG(DEBUG) << "Shared connection to " << new_uri << " via" << amxb_backend;
         return *it;
     } else {
-        LOG(ERROR) << "no connection found";
+        LOG(DEBUG) << "No shared connection to " << new_uri << "; creating one";
     }
     return create(new_backend, new_uri);
 }
@@ -73,7 +73,7 @@ AmbiorixConnectionSmartPtr AmbiorixConnectionManager::create(const std::string &
         LOG(FATAL) << "Failed to create new connection to " << bus_uri << " via" << amxb_backend;
         return AmbiorixConnectionSmartPtr{};
     } else {
-        LOG(ERROR) << "created new connection to " << bus_uri;
+        LOG(DEBUG) << "Created new connection to " << bus_uri << " via " << amxb_backend;
     }
     auto it = m_connections.insert(m_connections.end(), std::move(cnx));
     return *it;

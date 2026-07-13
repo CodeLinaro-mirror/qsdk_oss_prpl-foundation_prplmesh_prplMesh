@@ -438,37 +438,31 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
     return cfg_set_prplmesh_config_no_commit(option, value);
 }
 
-int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band)
+int cfg_get_preferred_radio_band(int *preferred_radio_band)
 {
-    if (max_vaps) {
-        //get max_vaps
+    if (!preferred_radio_band) {
+        return RETURN_OK;
     }
 
-    if (network_enabled) {
-        //get network_enabled
+    *preferred_radio_band = BPL_RADIO_BAND_AUTO;
+
+    char backhaul_band[BPL_BACKHAUL_BAND_LEN] = {0};
+    if (cfg_get_prplmesh_param("backhaul_band", backhaul_band, BPL_BACKHAUL_BAND_LEN) ==
+        RETURN_ERR) {
+        MAPF_ERR("cfg_get_preferred_radio_band: Failed to read backhaul_band\n");
+        return RETURN_ERR;
     }
 
-    if (preferred_radio_band) {
-        char backhaul_band[BPL_BACKHAUL_BAND_LEN] = {0};
-        //get preferred_radio_band
-        int retVal = cfg_get_prplmesh_param("backhaul_band", backhaul_band, BPL_BACKHAUL_BAND_LEN);
-        if (retVal == RETURN_ERR) {
-            MAPF_ERR("cfg_get_backhaul_params: Failed to read backhaul_band parameter\n");
-            return RETURN_ERR;
-        }
-        std::string preferred_bh_band(backhaul_band);
-        if (preferred_bh_band.compare("2.4GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_2G;
-        } else if (preferred_bh_band.compare("5GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_5G;
-        } else if (preferred_bh_band.compare("6GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_6G;
-        } else if (preferred_bh_band.compare("auto") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_AUTO;
-        } else {
-            MAPF_ERR("cfg_get_backhaul_params: unknown backhaul_band parameter value\n");
-            return RETURN_ERR;
-        }
+    std::string preferred_bh_band(backhaul_band);
+    if (preferred_bh_band == "2.4GHz") {
+        *preferred_radio_band = BPL_RADIO_BAND_2G;
+    } else if (preferred_bh_band == "5GHz") {
+        *preferred_radio_band = BPL_RADIO_BAND_5G;
+    } else if (preferred_bh_band == "6GHz") {
+        *preferred_radio_band = BPL_RADIO_BAND_6G;
+    } else if (preferred_bh_band != "auto") {
+        MAPF_ERR("cfg_get_preferred_radio_band: unknown backhaul_band value\n");
+        return RETURN_ERR;
     }
 
     return RETURN_OK;
@@ -709,7 +703,7 @@ bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_po
     return true;
 }
 
-bool cfg_set_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy)
+bool cfg_set_unsuccessful_assoc_report_policy(const bool &unsuccessful_assoc_report_policy)
 {
     std::string option = "unsuccessful_assoc_report_policy";
     std::string value  = std::to_string((int)unsuccessful_assoc_report_policy);

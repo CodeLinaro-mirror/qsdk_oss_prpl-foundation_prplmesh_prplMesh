@@ -9,13 +9,12 @@
 #ifndef _BPL_CFG_PRIVATE_H_
 #define _BPL_CFG_PRIVATE_H_
 
+#include "bpl_cfg_status.h"
+
 #include <bcl/son/son_wireless_utils.h>
 
 #include <stdint.h>
 #include <string>
-
-#define RETURN_OK 0
-#define RETURN_ERR -1
 
 namespace beerocks {
 namespace bpl {
