@@ -1552,6 +1552,7 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
     std::string s_chipset_vendor;
     radio->read_child(s_chipset_vendor, "ChipsetVendor");
     m_radio_info.chipset_vendor = s_chipset_vendor;
+    radio->read_child(m_radio_info.supported_standards, "SupportedStandards");
 
     std::string s_val;
     std::string op_std_format;

@@ -8,19 +8,11 @@
 #ifndef VENDOR_MESSAGE_SLAVE_H
 #define VENDOR_MESSAGE_SLAVE_H
 
-#include "ambiorix_client.h"
-#include "wbapi_utils.h"
 #include <bcl/beerocks_event_loop.h>
 #include <bcl/beerocks_logging.h>
 #include <btl/broker_client_factory.h>
 
 using namespace beerocks;
-
-namespace beerocks {
-namespace bpl {
-extern beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
-} // namespace bpl
-} // namespace beerocks
 
 namespace vendor_message {
 class VendorMessageSlave {

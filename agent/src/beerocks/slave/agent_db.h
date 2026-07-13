@@ -379,6 +379,7 @@ public:
         beerocks::WifiChannel wifi_channel;
 
         eWiFiBandwidth max_supported_bw = eWiFiBandwidth::BANDWIDTH_UNKNOWN;
+        std::string supported_standards; ///< Hardware-supported IEEE 802.11 standards
         uint8_t number_of_antennas;
         uint8_t antenna_gain_dB;
         uint8_t tx_power_dB;

@@ -14,14 +14,6 @@
 #include <beerocks/tlvf/beerocks_message.h>
 #include <tlvf/airties/tlvAirtiesEthernetStats.h>
 
-#include "ambiorix_client.h"
-#include "wbapi_utils.h"
-
-namespace beerocks {
-namespace bpl {
-extern beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
-} // namespace bpl
-} // namespace beerocks
 namespace airties {
 
 class tlvf_airties_utils {

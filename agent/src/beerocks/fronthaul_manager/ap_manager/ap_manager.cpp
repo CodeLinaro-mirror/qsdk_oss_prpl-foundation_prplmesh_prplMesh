@@ -3831,8 +3831,12 @@ void ApManager::handle_hostapd_attached()
 
     notification->params().frequency_band = ap_wlan_hal->get_radio_info().frequency_band;
     notification->params().max_bandwidth  = ap_wlan_hal->get_radio_info().max_bandwidth;
-    notification->params().ht_supported   = ap_wlan_hal->get_radio_info().ht_supported;
-    notification->params().ht_capability  = ap_wlan_hal->get_radio_info().ht_capability;
+    string_utils::copy_string(notification->params().supported_standards,
+                              ap_wlan_hal->get_radio_info().supported_standards.c_str(),
+                              message::WIFI_GENERIC_STRING_LENGTH);
+
+    notification->params().ht_supported  = ap_wlan_hal->get_radio_info().ht_supported;
+    notification->params().ht_capability = ap_wlan_hal->get_radio_info().ht_capability;
     std::copy_n(ap_wlan_hal->get_radio_info().ht_mcs_set.data(), beerocks::message::HT_MCS_SET_SIZE,
                 notification->params().ht_mcs_set);
     notification->params().vht_supported  = ap_wlan_hal->get_radio_info().vht_supported;

@@ -68,6 +68,16 @@ int cfg_get_management_mode_agent_info(std::string &mode)
     return read_agent_info_param("ManagementMode", mode) ? RETURN_OK : RETURN_ERR;
 }
 
+bool bpl_cfg_get_agent_mac(std::string &agent_mac)
+{
+    if (!read_agent_info_param("MACAddress", agent_mac)) {
+        LOG(ERROR) << "Failed to read agent MAC address from Agent Info DM";
+        return false;
+    }
+
+    return true;
+}
+
 int cfg_get_stop_on_failure_attempts()
 {
     int stop_on_failure_attempts{0};

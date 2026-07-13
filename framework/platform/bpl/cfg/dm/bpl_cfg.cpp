@@ -6,6 +6,7 @@
  * See LICENSE file for more details.
  */
 
+#include "bpl_cfg_service_helper.h"
 #include "bpl_cfg_status.h"
 #include <bcl/beerocks_string_utils.h>
 #include <bpl/bpl_cfg.h>
@@ -19,6 +20,22 @@
 
 namespace beerocks {
 namespace bpl {
+
+bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &client_secret)
+{
+    constexpr const char *cloud_comm_path = "X_AIRTIES_Obj.CloudComm.";
+
+    auto cloud_comm_obj = get_object_via_common_socket(cloud_comm_path);
+    if (!cloud_comm_obj || !cloud_comm_obj->read_child(client_id, "ClientID") ||
+        !cloud_comm_obj->read_child(client_secret, "ClientPassword")) {
+        client_id.clear();
+        client_secret.clear();
+        LOG(ERROR) << "Failed to read AirTies cloud credentials from " << cloud_comm_path;
+        return false;
+    }
+
+    return true;
+}
 
 int cfg_is_master()
 {

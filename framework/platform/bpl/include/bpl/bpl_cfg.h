@@ -118,6 +118,11 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 #define BPL_GW_DB_MANAGE_MODE_LEN (127 + 1) /* Maximal length of MANAGEMENT MODE string */
 
 /* Default values */
+constexpr char DEFAULT_AGENT_MAC[]                   = "00:00:00:00:00:00";
+constexpr char DEFAULT_AIRTIES_CLOUD_CLIENT_ID[]     = "";
+constexpr char DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET[] = "";
+constexpr uint8_t DEFAULT_WIFI_RADIO_TEMPERATURE     = 0;
+
 constexpr int DEFAULT_STOP_ON_FAILURE_ATTEMPTS            = 1;
 constexpr int DEFAULT_DFS_REENTRY                         = 1;
 constexpr int DEFAULT_BAND_STEERING                       = 0;
@@ -1058,6 +1063,40 @@ bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measureme
  */
 bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
                                                std::set<std::string> &monitored_BSSs);
+
+/**
+ * @brief Get Agent AL-MAC address.
+ *
+ * The DM backend reads Agent Info. Linux/UCI backends return DEFAULT_AGENT_MAC.
+ *
+ * @param[out] agent_mac Agent MAC address string.
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_agent_mac(std::string &agent_mac);
+
+/**
+ * @brief Get AirTies cloud credentials.
+ *
+ * The DM backend reads CloudComm through the common WBAPI client. Linux/UCI backends return
+ * DEFAULT_AIRTIES_CLOUD_CLIENT_ID and DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET.
+ *
+ * @param[out] client_id AirTies cloud client ID.
+ * @param[out] client_secret AirTies cloud client secret.
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &client_secret);
+
+/**
+ * @brief Get Wi-Fi radio temperature by interface name.
+ *
+ * The DM backend reads the radio DM. Linux/UCI backends return
+ * DEFAULT_WIFI_RADIO_TEMPERATURE.
+ *
+ * @param[in] iface_name Radio interface name.
+ * @param[out] radio_temperature Radio temperature in Celsius.
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature);
 
 /**
  * @brief Get a string identifying the particular device that is unique for the indicated model
