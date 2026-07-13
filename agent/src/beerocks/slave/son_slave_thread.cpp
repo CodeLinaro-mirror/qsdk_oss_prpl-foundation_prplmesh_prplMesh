@@ -2934,6 +2934,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         radio->tx_power_dB        = notification->params().tx_power;
         radio->max_supported_bw   = notification->params().max_bandwidth;
 
+        radio->supported_standards = notification->params().supported_standards;
+
         radio->ht_supported  = notification->params().ht_supported;
         radio->ht_capability = notification->params().ht_capability;
         std::copy_n(notification->params().ht_mcs_set, beerocks::message::HT_MCS_SET_SIZE,

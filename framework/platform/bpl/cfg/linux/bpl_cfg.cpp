@@ -28,6 +28,26 @@ using namespace mapf;
 namespace beerocks {
 namespace bpl {
 
+bool bpl_cfg_get_agent_mac(std::string &agent_mac)
+{
+    agent_mac = DEFAULT_AGENT_MAC;
+    return true;
+}
+
+bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &client_secret)
+{
+    client_id     = DEFAULT_AIRTIES_CLOUD_CLIENT_ID;
+    client_secret = DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET;
+    return true;
+}
+
+bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature)
+{
+    (void)iface_name;
+    radio_temperature = DEFAULT_WIFI_RADIO_TEMPERATURE;
+    return true;
+}
+
 /**
  * @brief Returns the name of the configuration file to use.
  *

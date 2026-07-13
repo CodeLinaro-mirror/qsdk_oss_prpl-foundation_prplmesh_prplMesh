@@ -74,6 +74,13 @@ static bool bpl_cfg_get_radio_reference_path(const AmbiorixVariant &object,
     return true;
 }
 
+bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature)
+{
+    return read_param_via_common_socket(wbapi_utils::search_path_radio_by_iface(iface_name) +
+                                            "Stats.",
+                                        "Temperature", radio_temperature);
+}
+
 static bool bpl_cfg_read_wifi_credentials(const AmbiorixVariant &ssid_obj,
                                           const AmbiorixVariant &ap_sec_obj,
                                           son::wireless_utils::sBssInfoConf &configuration)

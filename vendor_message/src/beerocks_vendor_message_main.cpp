@@ -216,12 +216,14 @@ int main(int argc, char *argv[])
     // Initialize the BPL (Beerocks Platform Library)
     if (beerocks::bpl::bpl_init() < 0) {
         LOG(ERROR) << "Failed to initialize BPL!";
-        return false;
+        return 1;
     }
 
     // killall running slave
     beerocks::os_utils::kill_pid(beerocks_vendor_message_slave_conf.temp_path + "pid/",
                                  std::string(BEEROCKS_V_MESSAGE));
     //Vendor Message Slave
-    return createDaemon(beerocks_vendor_message_slave_conf, argc, argv);
+    auto ret = createDaemon(beerocks_vendor_message_slave_conf, argc, argv);
+    beerocks::bpl::bpl_close();
+    return ret;
 }

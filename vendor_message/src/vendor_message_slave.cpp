@@ -10,6 +10,7 @@
 #include "agent_db.h"
 #include "common_utility.h"
 
+#include <bpl/bpl_cfg.h>
 #include <btl/broker_client_factory_factory.h>
 
 using namespace vendor_message;
@@ -30,14 +31,10 @@ bool VendorMessageSlave::handle_cmdu_from_broker(uint32_t iface_index, const sMa
 {
     if (agent_almac == beerocks::net::network_utils::ZERO_MAC) {
         std::string agent_mac_addr;
-        std::string agent_dm_path = std::string(AGENT_ROOT_DM) + ".Info.";
-        auto agent_dm_obj         = beerocks::bpl::m_ambiorix_cl.get_object(agent_dm_path);
-        if (!agent_dm_obj) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path AGENT_ROOT_DM";
+        if (!beerocks::bpl::bpl_cfg_get_agent_mac(agent_mac_addr)) {
+            LOG(ERROR) << "Failed to get agent MAC address from BPL";
             return false;
         }
-
-        agent_dm_obj->read_child<>(agent_mac_addr, "MACAddress");
         if (agent_mac_addr.empty()) {
             LOG(ERROR) << "Agent's MAC address is empty";
             return false;
