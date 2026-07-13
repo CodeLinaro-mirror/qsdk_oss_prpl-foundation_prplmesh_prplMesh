@@ -33,7 +33,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <bcl/network/network_utils.h>
 #include <mapf/common/utils.h>
 
-#include <bpl/bpl_amx.h>
+#include <bpl/bpl_cfg.h>
 
 #include <easylogging++.h>
 
@@ -412,7 +412,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI
 
-    beerocks::bpl::set_ambiorix_impl_ptr(amb_dm_obj);
+    beerocks::bpl::set_nbapi_dm(amb_dm_obj);
 
     {
         auto db = beerocks::AgentDB::get();
@@ -614,7 +614,7 @@ int main(int argc, char *argv[])
     // Initialize the BPL (Beerocks Platform Library)
     if (beerocks::bpl::bpl_init() < 0) {
         LOG(ERROR) << "Failed to initialize BPL!";
-        return false;
+        return 1;
     }
     // read slave config file
     std::string slave_config_file_path =

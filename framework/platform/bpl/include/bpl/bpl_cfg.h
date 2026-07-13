@@ -14,11 +14,15 @@
 
 #include <bcl/son/son_wireless_utils.h>
 
+#include <memory>
 #include <net/if.h>
 #include <stdint.h>
 #include <string>
 
 namespace beerocks {
+namespace nbapi {
+class Ambiorix;
+}
 namespace bpl {
 
 /****************************************************************************/
@@ -364,6 +368,15 @@ struct BPL_WLAN_IFACE {
 /****************************************************************************/
 
 /**
+ * @brief Register the process-local NBAPI data model used by BPL cfg.
+ *
+ * Supported on DM backend. Linux/UCI backends ignore the pointer.
+ *
+ * @param[in] dm NBAPI data model object.
+ */
+void set_nbapi_dm(const std::shared_ptr<nbapi::Ambiorix> &dm);
+
+/**
  * Returns whether the current platform is configured as Master.
  *
  * @return 1 Master.
@@ -398,6 +411,13 @@ int cfg_get_management_mode();
  * @returns <0 on error
  */
 int cfg_get_management_mode(std::string &mode);
+
+/**
+ * @param reference to set the current management mode str from Agent Info
+ *
+ * @returns RETURN_OK on success, RETURN_ERR on error
+ */
+int cfg_get_management_mode_agent_info(std::string &mode);
 
 /**
  * Returns certification mode value.
@@ -668,16 +688,14 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
 int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_params);
 
 /**
- * Returns backhaul vaps configuration.
+ * Returns the preferred radio band for wireless backhaul.
  *
- * @param [out] max_vaps an int.
- * @param [out] network_enabled 1 if network is enabled or 0 otherwise.
- * @param [out] preferred_radio_band BPL_RADIO_BAND_5G or BPL_RADIO_BAND_2G or BPL_RADIO_BAND_AUTO
+ * @param[out] preferred_radio_band One of the BPL_RADIO_BAND_* values when non-null.
  *
  * @return 0 Success.
  * @return -1 Error.
  */
-int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band);
+int cfg_get_preferred_radio_band(int *preferred_radio_band);
 
 /**
  * Returns backhaul vaps list.
@@ -955,7 +973,7 @@ bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_po
  * @param [in] unsuccessful_assoc_report_policy Policy setting for report unsuccessful associations to set.
  * @return true on success, otherwise false
  */
-bool cfg_set_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy);
+bool cfg_set_unsuccessful_assoc_report_policy(const bool &unsuccessful_assoc_report_policy);
 
 /**
  * @brief Reads maximum rate for reporting unsuccessful association attempts.

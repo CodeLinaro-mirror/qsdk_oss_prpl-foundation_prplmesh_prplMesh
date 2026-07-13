@@ -32,7 +32,7 @@ namespace bpl {
  * This function is to fetch data from DeviceInfo. 
  * data model. This file is used for legacy platforms.
  */
-bool get_string_value_dm(std::string &attr, std::string &value)
+bool get_string_value_dm(const std::string &attr, std::string &value)
 {
     std::string dm                 = "DeviceInfo";
     std::string dev_string         = "0.DeviceInfo";

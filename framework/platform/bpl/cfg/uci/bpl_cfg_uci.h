@@ -70,13 +70,10 @@ extern "C" {
 
 #endif
 
+#include "bpl_cfg_status.h"
+
 #include <string>
 #include <unordered_map>
-
-#define RETURN_ERR_PARSE -3
-#define RETURN_ERR_NOT_FOUND -2
-#define RETURN_ERR -1
-#define RETURN_OK 0
 
 // Default UCI Lan interface names. It needs to be space separeted.
 constexpr char DEFAULT_UCI_LAN_INTERFACE_NAMES[] =

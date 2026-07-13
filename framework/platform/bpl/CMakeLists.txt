@@ -9,6 +9,7 @@ set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 set(bpl_common_sources
     ${MODULE_PATH}/common/utils/utils_net.cpp
     ${MODULE_PATH}/common/utils/utils.cpp
+    ${MODULE_PATH}/cfg/bpl_cfg_service.cpp
 )
 
 # Common prplmesh_db values
@@ -173,12 +174,35 @@ if (USE_PRPLMESH_WHM)
         if (item MATCHES "bpl.cpp$")
             list(REMOVE_ITEM bpl_platform_sources ${item})
         endif()
+        if (item MATCHES "bpl_cfg.cpp$")
+            list(REMOVE_ITEM bpl_platform_sources ${item})
+        endif()
+        if (item MATCHES "bpl_cfg_agent.cpp$")
+            list(REMOVE_ITEM bpl_platform_sources ${item})
+        endif()
+        if (item MATCHES "bpl_cfg_controller.cpp$")
+            list(REMOVE_ITEM bpl_platform_sources ${item})
+        endif()
+        if (item MATCHES "bpl_cfg_process_manager.cpp$")
+            list(REMOVE_ITEM bpl_platform_sources ${item})
+        endif()
         if (item MATCHES "bpl_cfg_wifi.cpp$")
+            list(REMOVE_ITEM bpl_platform_sources ${item})
+        endif()
+        if (item MATCHES "bpl_cfg_device_info.cpp$")
+            list(REMOVE_ITEM bpl_platform_sources ${item})
+        endif()
+        if (item MATCHES "bpl_cfg_backend_.*\\.cpp$")
             list(REMOVE_ITEM bpl_platform_sources ${item})
         endif()
     endforeach()
 
     list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_backend_dm.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_agent.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_controller.cpp)
+    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_process_manager.cpp)
     list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_wifi.cpp)
     list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_cfg_device_info.cpp)
 
@@ -193,13 +217,6 @@ else ()
     )
 endif()
 
-# BPL configuration via nbapi
-list(FIND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_amx.cpp _index)
-message("bpl_platform_sources: ${bpl_platform_sources}")
-if (_index EQUAL -1)
-    message("APPEND bpl_platform_sources with ${MODULE_PATH}/cfg/dm/bpl_amx.cpp")
-    list(APPEND bpl_platform_sources ${MODULE_PATH}/cfg/dm/bpl_amx.cpp)
-endif()
 list(APPEND BPL_LIBS nbapi)
 
 # BPL bcl
@@ -220,6 +237,12 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    PRIVATE
+        ${MODULE_PATH}/cfg
+        ${AMXB_INCLUDE_DIRS}
+        ${AMXC_INCLUDE_DIRS}
+        ${AMXD_INCLUDE_DIRS}
+        ${AMXP_INCLUDE_DIRS}
     )
 
 install(TARGETS ${PROJECT_NAME}

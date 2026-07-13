@@ -7,12 +7,10 @@
  */
 
 #include <bpl/bpl.h>
-#include <cstdlib>
+#include <bpl/bpl_cfg.h>
 
-#include <mapf/common/logger.h>
-
-#include "bpl_amb_ptr.h"
-#include "bpl_cfg_pwhm.h"
+#include "bpl_cfg_backend_dm.h"
+#include "bpl_cfg_service.h"
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// Implementation ///////////////////////////////
@@ -21,33 +19,25 @@
 namespace beerocks {
 namespace bpl {
 
-beerocks::wbapi::AmbiorixClient m_ambiorix_cl;
-beerocks::wbapi::AmbiorixClient m_ambiorix_cl_ubus;
-
-void m_ambiorix_cl_destructor() { m_ambiorix_cl.~AmbiorixClient(); }
-void m_ambiorix_cl_ubus_destructor() { m_ambiorix_cl_ubus.~AmbiorixClient(); }
+void set_nbapi_dm(const std::shared_ptr<beerocks::nbapi::Ambiorix> &dm)
+{
+    auto &cfg_service = BplConfigService::instance();
+    if (!cfg_service.backend_configured()) {
+        cfg_service.set_backend(create_backend_dm());
+    }
+    cfg_service.set_nbapi_dm(dm);
+}
 
 int bpl_init()
 {
-    LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_USP_BACKEND_PATH, AMBIORIX_PWHM_USP_BACKEND_URI), FATAL)
-        << "Unable to connect to the ambiorix backend!";
-
-    // Keep a separate ubus connection for non-pwhm external DMs (for example DeviceInfo/PM).
-    LOG_IF(!m_ambiorix_cl_ubus.connect(AMBIORIX_WBAPI_BACKEND_PATH, AMBIORIX_WBAPI_BUS_URI),
-           WARNING)
-        << "Unable to connect to WBAPI ubus backend, external non-pwhm DM reads may fail";
-
-    std::atexit(m_ambiorix_cl_destructor);
-    std::atexit(m_ambiorix_cl_ubus_destructor);
-    return RETURN_OK;
-}
-
-void bpl_close()
-{
-    if (amb_ptr) {
-        amb_ptr.reset();
+    auto &cfg_service = BplConfigService::instance();
+    if (!cfg_service.backend_configured()) {
+        cfg_service.set_backend(create_backend_dm());
     }
+    return cfg_service.init();
 }
+
+void bpl_close() { BplConfigService::instance().shutdown(); }
 
 } // namespace bpl
 } // namespace beerocks
