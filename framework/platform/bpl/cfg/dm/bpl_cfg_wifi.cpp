@@ -399,19 +399,6 @@ int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
     return RETURN_ERR;
 }
 
-void cfg_wifi_reset_wps_credentials()
-{
-    std::vector<std::string> ambiorix_paths;
-    m_ambiorix_cl.resolve_path_multi(wbapi_utils::search_path_ep_all() + "Profile.*",
-                                     ambiorix_paths);
-    // remove all profiles
-    for (const auto &path : ambiorix_paths) {
-        LOG(DEBUG) << "remove " << path;
-        m_ambiorix_cl.remove_instance(path, 0); // second argument is ignored
-    }
-    LOG(INFO) << "reset wps credentials";
-}
-
 int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface)
 {
     if (radio_num < 0) {
