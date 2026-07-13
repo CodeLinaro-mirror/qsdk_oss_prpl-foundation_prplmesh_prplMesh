@@ -73,6 +73,15 @@ public:
 
     virtual bool disconnect() = 0;
 
+    /**
+     * @brief Clear station profiles stored persistently by the platform.
+     *
+     * Backends without persistent platform profiles have nothing to clear.
+     *
+     * @return true when all profiles were cleared, otherwise false.
+     */
+    virtual bool clear_persistent_profiles() { return true; }
+
     virtual bool roam(const sMacAddr &bssid, ChannelFreqPair channel) = 0;
 
     virtual bool get_4addr_mode()             = 0;

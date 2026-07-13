@@ -219,8 +219,6 @@ int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
     return RETURN_OK;
 }
 
-void cfg_wifi_reset_wps_credentials() { LOG(INFO) << __func__ << " NOT IMPLEMENTED"; }
-
 int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface)
 {
     if (radio_num < 0) {

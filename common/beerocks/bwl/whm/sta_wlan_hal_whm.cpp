@@ -790,6 +790,32 @@ bool sta_wlan_hal_whm::remove_profile(int profile_id)
     return ret;
 }
 
+bool sta_wlan_hal_whm::clear_persistent_profiles()
+{
+    if (m_ep_path.empty()) {
+        LOG(ERROR) << "Cannot clear profiles: endpoint path is empty for " << get_iface_name();
+        return false;
+    }
+
+    std::vector<std::string> profile_paths;
+    m_ambiorix_cl.resolve_path_multi(m_ep_path + "Profile.*", profile_paths);
+
+    bool success = true;
+    for (const auto &profile_path : profile_paths) {
+        const auto profile_id = wbapi_utils::get_object_id(profile_path);
+        if (profile_id <= 0) {
+            LOG(ERROR) << "Failed to get profile id from " << profile_path;
+            success = false;
+            continue;
+        }
+
+        LOG(DEBUG) << "Removing persistent profile " << profile_path;
+        success = remove_profile(profile_id) && success;
+    }
+
+    return success;
+}
+
 bool sta_wlan_hal_whm::set_profile_params(const Profile &profile)
 {
     // Path example: WiFi.EndPoint.[IntfName == 'wlan0'].Profile.1.
