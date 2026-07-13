@@ -5,6 +5,7 @@ title Happy path initialization of prplMesh Agent
 participant backhaul_manager
 participant platform_manager
 participant son_slave
+participant fronthaul_main
 participant ap_manager
 participant ap_wlan_hal
 participant monitor
@@ -21,21 +22,21 @@ backhaul_manager -> backhaul_manager: goto WAIT_ENABLE
 ...
 
 son_slave -> son_slave: goto STATE_INIT
+son_slave -> son_slave: goto STATE_LOAD_PLATFORM_CONFIGURATION
+son_slave -> son_slave: read_platform_configuration()
 son_slave -> son_slave: goto STATE_CONNECT_TO_PLATFORM_MANAGER
 son_slave -> platform_manager: send ACTION_PLATFORM_SON_SLAVE_REGISTER_REQUEST
 son_slave -> son_slave: goto STATE_WAIT_FOR_PLATFORM_MANAGER_REGISTER_RESPONSE
-platform_manager -> platform_manager: fill_platform_settings()
 platform_manager -> son_slave: send ACTION_PLATFORM_SON_SLAVE_REGISTER_RESPONSE
 son_slave -> son_slave: goto STATE_CONNECT_TO_BACKHAUL_MANAGER
 son_slave -> backhaul_manager: send ACTION_BACKHAUL_REGISTER_REQUEST
 son_slave -> son_slave: goto STATE_WAIT_FOR_BACKHAUL_MANAGER_REGISTER_RESPONSE
 backhaul_manager -> son_slave: send ACTION_BACKHAUL_REGISTER_RESPONSE
 son_slave -> son_slave: goto STATE_JOIN_INIT
-son_slave -> son_slave: fronthaul_start()
-note right of son_slave: runs beerocks_fronthaul
-son_slave --> ap_manager
+son_slave -> fronthaul_main: start beerocks_fronthaul
+fronthaul_main -> ap_manager: construct and start
+fronthaul_main -> monitor: construct
 activate ap_manager
-son_slave --> monitor
 son_slave -> son_slave: goto STATE_WAIT_FOR_FRONTHAUL_THREADS_JOINED
 
 ...
@@ -43,15 +44,22 @@ son_slave -> son_slave: goto STATE_WAIT_FOR_FRONTHAUL_THREADS_JOINED
 ap_manager -> ap_manager: goto INIT
 ap_manager -> son_slave: send ACTION_APMANAGER_UP_NOTIFICATION
 ap_manager -> ap_manager: goto WAIT_FOR_CONFIGURATION
-son_slave -> ap_manager: send ACTION_APMANAGER_CONFIGURE
+son_slave -> son_slave: collect AgentDB and BPL fronthaul configuration\n(default measurement mode; BPL read unless\nFEATURE_PRE_ASSOCIATION_STEERING)
+son_slave -> ap_manager: send ACTION_APMANAGER_CONFIGURE\n(channel, HAL config, bridge, measurement mode)
 ap_manager -> ap_manager: goto ATTACHING
 ap_manager -> ap_wlan_hal: attach()
-ap_wlan_hal -> ap_wlan_hal: refresh_radio_info()
+ap_wlan_hal -> ap_wlan_hal: refresh_radio_info()\nread OperatingStandards
 ap_manager -> ap_manager: goto ATTACHED
-ap_manager -> ap_wlan_hal: read_acs_report()
 ap_manager -> ap_manager: goto OPERATIONAL
+ap_manager --> fronthaul_main: operational HAL configuration available
+fronthaul_main -> monitor: start with HAL configuration
 activate monitor
-ap_manager -> son_slave: send ACTION_APMANAGER_JOINED_NOTIFICATION
+ap_wlan_hal --> ap_manager: AP_Attached
+opt ACS enabled
+    ap_manager -> ap_wlan_hal: read_acs_report()
+end
+ap_manager -> son_slave: send ACTION_APMANAGER_JOINED_NOTIFICATION\n(radio info including operating-standard flags)
+son_slave -> son_slave: cache radio info in AgentDB
 
 ...
 
@@ -64,20 +72,18 @@ son_slave -> son_slave: goto STATE_BACKHAUL_ENABLE
 son_slave -> son_slave: goto STATE_SEND_BACKHAUL_MANAGER_ENABLE
 son_slave -> backhaul_manager: send ACTION_BACKHAUL_ENABLE
 son_slave -> son_slave: goto STATE_WAIT_FOR_BACKHAUL_MANAGER_CONNECTED_NOTIFICATION
-backhaul_manager -> backhaul_manager: if (pending_slave_ifaces.empty()) { pending_enable = true; }
 backhaul_manager -> backhaul_manager: goto ENABLED
-backhaul_manager -> backhaul_manager: goto MASTER_DISCOVERY
-backhaul_manager -> transport: configure_al_mac()
-backhaul_manager -> transport: configure_interfaces()
-backhaul_manager -> backhaul_manager: goto WAIT_FOR_AUTOCONFIG_COMPLETE
-note right of backhaul_manager: AP Autoconfiguration Task
-backhaul_manager -> son_slave: ACTION_BACKHAUL_CONNECTED_NOTIFICATION
-son_slave -> son_slave: goto STATE_BACKHAUL_MANAGER_CONNECTED
-...
-backhaul_manager -> backhaul_manager: goto CONNECT_TO_MASTER
+backhaul_manager -> backhaul_manager: establish wired or wireless backhaul
 backhaul_manager -> backhaul_manager: goto CONNECTED
-backhaul_manager -> backhaul_manager: goto PRE_OPERATIONAL
+backhaul_manager -> son_slave: send ACTION_BACKHAUL_CONNECTED_NOTIFICATION
 backhaul_manager -> backhaul_manager: goto OPERATIONAL
+son_slave -> son_slave: goto STATE_BACKHAUL_MANAGER_CONNECTED
+son_slave -> transport: configure_al_mac()
+son_slave -> transport: configure_interfaces()
+son_slave -> son_slave: goto STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE
+son_slave -> son_slave: initialize or start AP Autoconfiguration Task
+...
+son_slave -> son_slave: goto STATE_OPERATIONAL
 ...
 
 
