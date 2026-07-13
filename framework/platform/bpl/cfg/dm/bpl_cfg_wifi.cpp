@@ -381,40 +381,6 @@ bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
     return true;
 }
 
-bool bpl_cfg_set_wifi_credentials(const std::string &iface,
-                                  const son::wireless_utils::sBssInfoConf &configuration)
-{
-    std::string wifi_ssid_path = wbapi_utils::search_path_ssid_by_iface(iface);
-    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
-    new_obj.add_child("SSID", configuration.ssid);
-
-    bool ret = update_object_via_common_socket(wifi_ssid_path, new_obj);
-
-    // update WiFi.SSID.iface. object
-    if (!ret) {
-        MAPF_ERR("Failed to update WiFi.SSID.iface. object " << wifi_ssid_path);
-        return false;
-    }
-
-    auto security_mode   = wbapi_utils::security_mode_to_string(configuration.authentication_type);
-    auto encryption_type = wbapi_utils::encryption_type_to_string(configuration.encryption_type);
-
-    std::string wifi_ap_sec_path = wbapi_utils::search_path_ap_by_iface(iface) + "Security.";
-    new_obj.set_type(AMXC_VAR_ID_HTABLE);
-    new_obj.add_child("ModeEnabled", security_mode);
-    new_obj.add_child("EncryptionMode", encryption_type);
-    new_obj.add_child("KeyPassPhrase", configuration.network_key);
-    ret = update_object_via_common_socket(wifi_ap_sec_path, new_obj);
-
-    // update WiFi.AccessPoint.iface.Security. object
-    if (!ret) {
-        MAPF_ERR("Failed to update WiFi.AccessPoint.iface.Security. object" << wifi_ap_sec_path);
-        return false;
-    }
-
-    return true;
-}
-
 int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
 {
     // Get the current radio reference for the given iface

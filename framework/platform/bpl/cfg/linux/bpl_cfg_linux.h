@@ -39,14 +39,6 @@ bool cfg_get_param(const std::string &name, std::string &value);
 bool cfg_get_params(std::unordered_map<std::string, std::string> &parameters,
                     std::function<bool(const std::string &name)> filter = nullptr);
 
-/**
- * @brief Saves given parameters into configuration file.
- *
- * @param[in] parameters Parameters to write to configuration file.
- * @return true on success and false otherwise.
- */
-bool cfg_set_params(const std::unordered_map<std::string, std::string> &parameters);
-
 } // namespace bpl
 } // namespace beerocks
 

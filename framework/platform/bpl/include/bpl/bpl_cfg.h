@@ -173,10 +173,6 @@ constexpr int DEFAULT_MULTI_AP_PROFILE = 2;
 // Link metrics tasks send request with this interval.
 constexpr std::chrono::seconds DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC{60};
 
-// Default Linux Lan interface names. It needs to be space separated.
-constexpr char DEFAULT_LINUX_LAN_INTERFACE_NAMES[] =
-    "eth0_1 eth0_2 eth0_3 eth0_4 lan0 lan1 lan2 lan3";
-
 // Default DHCP tasks process lease information with this interval.
 constexpr std::chrono::seconds DEFAULT_DHCP_MONITOR_INTERVAL_VALUE_SEC{300};
 
@@ -968,38 +964,12 @@ bool cfg_set_link_metrics_request_interval(std::chrono::seconds &link_metrics_re
 bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy);
 
 /**
- * @brief Sets policy setting for report unsuccessful associations.
- *
- * @param [in] unsuccessful_assoc_report_policy Policy setting for report unsuccessful associations to set.
- * @return true on success, otherwise false
- */
-bool cfg_set_unsuccessful_assoc_report_policy(const bool &unsuccessful_assoc_report_policy);
-
-/**
  * @brief Reads maximum rate for reporting unsuccessful association attempts.
  *
  * @param [out] max_reporting_rate Maximum reporting rate.value in attempts per minute.
  * @return true on success, otherwise false
  */
 bool cfg_get_unsuccessful_assoc_max_reporting_rate(unsigned int &max_reporting_rate);
-
-/**
- * @brief Sets maximum rate for reporting unsuccessful association attempts.
- *
- * @param [in] max_reporting_rate Maximum reporting rate.value in attempts per minute.
- * @return true on success, otherwise false
- */
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int &max_reporting_rate);
-
-/**
- * @brief Writes wireless network configuration for the given interface.
- *
- * @param [in] iface Interface name.
- * @param [in] configuration Wireless network configuration.
- * @return true on success and false otherwise.
- */
-bool bpl_cfg_set_wifi_credentials(const std::string &iface,
-                                  const son::wireless_utils::sBssInfoConf &configuration);
 
 /**
  * @brief Reads mandatory interfaces configuration.
@@ -1336,8 +1306,6 @@ bool get_controller_message_timeout_seconds(std::chrono::seconds &timeout_second
  * @return true on success, otherwise false
  */
 bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeout_seconds);
-
-bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements);
 
 /**
  * @brief Reads private bridge iface name
