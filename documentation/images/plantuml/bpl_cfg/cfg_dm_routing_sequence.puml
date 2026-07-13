@@ -1,0 +1,78 @@
+@startuml
+title BPL cfg DM access routing
+
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+participant "cfg caller" as Caller
+participant "public cfg API" as Api
+participant "cfg implementation" as Impl
+participant "bpl_cfg_service_helper.h" as Helpers
+participant "BplConfigService" as Service
+participant "BplConfigBackendDm" as Backend
+participant "common ubus client" as Common
+participant "local NBAPI DM" as Nbapi
+participant "Agent" as Agent
+participant "fronthaul AP manager" as Fronthaul
+participant "WHM STA HAL" as StaHal
+participant "direct pWHM USP client" as Direct
+
+group Per-process BPL initialization
+  Caller -> Api : bpl_init()
+  Api -> Service : create/select backend and init
+  Service -> Backend : init()
+  Backend -> Common : connect common ubus client
+  opt Agent or controller owner
+    Caller -> Api : set_nbapi_dm(local DM)
+    Api -> Service : set_nbapi_dm(local DM)
+    Service -> Backend : store local NBAPI DM
+  end
+end
+
+Caller -> Api : cfg_* / bpl_cfg_* call
+
+alt Common WBAPI read
+  Api -> Impl : cfg implementation
+  Impl -> Helpers : read_param / get_object(_multi) / resolve_path
+  Helpers -> Service : common_client()
+  Service -> Backend : common_client()
+  Backend --> Service : common client
+  Service --> Helpers : selected client
+  Helpers -> Common : matching AmbiorixClient operation
+  Common --> Helpers : operation result
+  Helpers --> Impl : cfg result
+  Impl --> Api : cfg result
+else Agent/Controller owner-local configuration
+  Api -> Impl : cfg implementation
+  Impl -> Service : nbapi_dm()
+  Service -> Backend : nbapi_dm()
+  Backend --> Service : local NBAPI DM
+  Service --> Impl : local NBAPI DM
+  Impl -> Nbapi : read_param() / set()
+  Nbapi --> Impl : cfg result
+  Impl --> Api : cfg result
+else Backend-independent/default cfg
+  Api -> Impl : no-DM or derived cfg implementation
+  Impl --> Api : default/result
+else Legacy Linux or UCI backend
+  Api -> Api : use backend value or named default
+end
+
+Api --> Caller : cfg return value
+
+group Agent-owned fronthaul bootstrap
+  Fronthaul -> Agent : ACTION_APMANAGER_UP_NOTIFICATION
+  Agent -> Agent : read channel, certification,\nprofile and bridge from AgentDB
+  Agent -> Api : read hostapd path and monitored VAPs;\nread measurement mode unless\nFEATURE_PRE_ASSOCIATION_STEERING
+  Api --> Agent : BPL configuration values
+  Agent -> Fronthaul : ACTION_APMANAGER_CONFIGURE\ncomplete startup configuration
+end
+
+group Direct pWHM access outside BPL
+  Caller -> StaHal : clear persistent profiles
+  StaHal -> Direct : resolve/remove EndPoint profiles
+  Direct --> StaHal : mutation result
+  StaHal --> Caller : clear result
+end
+
+@enduml
