@@ -61,17 +61,6 @@ template <typename T> bool read_agent_config_param(const std::string &name, T &v
     return read_param_via_common_socket(std::string(AGENT_CONFIG_PATH) + ".", name, value);
 }
 
-template <typename T> bool set_agent_config_param(const std::string &name, const T &value)
-{
-    auto dm = BplConfigService::instance().nbapi_dm();
-    if (dm && dm->set(AGENT_CONFIG_PATH, name, value)) {
-        return true;
-    }
-
-    MAPF_ERR("set_agent_config_param: " + name + " | local NBAPI DM write failed");
-    return false;
-}
-
 } // namespace
 
 int cfg_get_management_mode_agent_info(std::string &mode)

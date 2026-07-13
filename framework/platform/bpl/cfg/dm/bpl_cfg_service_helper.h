@@ -56,14 +56,6 @@ get_object_multi_via_common_socket(const std::string &object_path)
                   : wbapi::AmbiorixVariantMapSmartPtr{};
 }
 
-inline bool update_object_via_common_socket(const std::string &object_path,
-                                            wbapi::AmbiorixVariant &object_data)
-{
-    auto *client = BplConfigService::instance().common_client();
-    LOG_IF(!client, ERROR) << "BPL common Ambiorix client is not initialized";
-    return client && client->update_object(normalize_path(object_path), object_data);
-}
-
 inline bool resolve_path_via_common_socket(const std::string &search_path,
                                            std::string &absolute_path,
                                            const char *caller = __builtin_FUNCTION())

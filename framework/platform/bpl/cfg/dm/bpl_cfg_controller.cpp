@@ -247,23 +247,11 @@ bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_po
                                         unsuccessful_assoc_report_policy);
 }
 
-bool cfg_set_unsuccessful_assoc_report_policy(const bool &unsuccessful_assoc_report_policy)
-{
-    return set_controller_config_param("UnsuccessfulAssocReportPolicy",
-                                       unsuccessful_assoc_report_policy);
-}
-
 bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     unsigned int &unsuccessful_assoc_max_reporting_rate)
 {
     return read_controller_config_param("UnsuccessfulAssocMaxReportingRate",
                                         unsuccessful_assoc_max_reporting_rate);
-}
-
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_reporting_rate)
-{
-    return set_controller_config_param("UnsuccessfulAssocMaxReportingRate",
-                                       unsuccessful_assoc_max_reporting_rate);
 }
 
 bool cfg_get_roaming_hysteresis_percent_bonus(int &roaming_hysteresis_percent_bonus)

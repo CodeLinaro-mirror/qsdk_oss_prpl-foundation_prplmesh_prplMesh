@@ -703,14 +703,6 @@ bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_po
     return true;
 }
 
-bool cfg_set_unsuccessful_assoc_report_policy(const bool &unsuccessful_assoc_report_policy)
-{
-    std::string option = "unsuccessful_assoc_report_policy";
-    std::string value  = std::to_string((int)unsuccessful_assoc_report_policy);
-
-    return cfg_set_prplmesh_config(option, value);
-}
-
 bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     unsigned int &unsuccessful_assoc_max_reporting_rate)
 {
@@ -731,14 +723,6 @@ bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     unsuccessful_assoc_max_reporting_rate = retVal;
 
     return true;
-}
-
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_reporting_rate)
-{
-    std::string option = "unsuccessful_assoc_max_reporting_rate";
-    std::string value  = std::to_string(unsuccessful_assoc_max_reporting_rate);
-
-    return cfg_set_prplmesh_config(option, value);
 }
 
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
@@ -1079,18 +1063,6 @@ bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeou
     }
 
     timeout_seconds = std::chrono::seconds{retVal};
-    return true;
-}
-
-bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
-{
-    int val = -1;
-    if (cfg_get_prplmesh_param_int_default("clients_unicast_measurements", &val, int(false)) ==
-        RETURN_ERR) {
-        return false;
-    }
-
-    client_unicast_measurements = bool(val == 1);
     return true;
 }
 

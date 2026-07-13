@@ -132,12 +132,6 @@ bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeou
     return true;
 }
 
-bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
-{
-    client_unicast_measurements = false;
-    return true;
-}
-
 bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces)
 {
     // For pHWM implementation this feature is not used.
