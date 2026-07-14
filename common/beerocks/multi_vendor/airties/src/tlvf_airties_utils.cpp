@@ -223,6 +223,10 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
         }
 
         auto interface_list = tlvAirtiesEthIntf->create_interface_list();
+        if (!interface_list) {
+            LOG(ERROR) << "Failed to create interface list entry for " << lan_iface;
+            continue;
+        }
 
         interface_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(lan_iface);
         interface_list->eth_mac() = tlvf::mac_from_string(iface_mac);
@@ -310,15 +314,19 @@ bool tlvf_airties_utils::add_airties_ethernet_stats_tlv(ieee1905_1::CmduMessageT
 
     auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
     for (auto &lan_iface : lan_ifaces) {
-        auto port_list = tlvAirtiesEthStats->create_port_list();
-
-        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(lan_iface);
-
         beerocks::net::network_utils::sNetDevStats netDevStats = {0};
         if (!beerocks::net::network_utils::linux_get_net_dev_stats(lan_iface, netDevStats)) {
             LOG(WARNING) << "Failed to get net dev stats for " << lan_iface;
             continue;
         }
+
+        auto port_list = tlvAirtiesEthStats->create_port_list();
+        if (!port_list) {
+            LOG(ERROR) << "Failed to create port list entry for " << lan_iface;
+            continue;
+        }
+
+        port_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(lan_iface);
 
         /*
          * As per the requirement, only byte counters need
@@ -408,6 +416,10 @@ create_and_add_feature_to_list(std::shared_ptr<airties::tlvVersionReporting> tlv
 
     // Create a new feature list entry
     auto version_members = tlv_version_reporting->create_em_agent_feature_list();
+    if (!version_members) {
+        LOG(ERROR) << "Failed to create feature list entry for feature id " << feature_id;
+        return;
+    }
 
     uint16_t version = get_feature_version(feature_id);
 
@@ -727,6 +739,10 @@ bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetri
 
     for (int radio_index = 1; radio_index <= num_of_radios; radio_index++) {
         auto rad_list = tlvDevMetrics->create_radio_list();
+        if (!rad_list) {
+            LOG(ERROR) << "Failed to create radio list entry for radio index " << radio_index;
+            return false;
+        }
 
         //Radio ID
         rad_details_path = dm_path + std::to_string(radio_index) + ".";
