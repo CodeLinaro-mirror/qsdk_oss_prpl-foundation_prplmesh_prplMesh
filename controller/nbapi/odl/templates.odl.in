@@ -13,209 +13,219 @@
 }
 
 %define {
-    object Device {
-        object WiFi {
-            object Templates {
+    @TEMPLATES_ROOT_DM_Header@
 
-                object Network {
-                    %persistent bool Enable = false;
-                    %persistent csv_string TopologyFlag = "";
-                    %persistent csv_string IEEE1905ALID = "";
-                    %persistent string PrimarySSCTemplateReference = "";
-                    %read-only string PrimarySSCTemplateID = "";
-                }
+        %persistent object Network {
+            %persistent bool Enable = false;
+            %persistent csv_string TopologyFlag = "";
+            %persistent csv_string IEEE1905ALID = "";
+            %persistent string PrimarySSCTemplateReference = "";
+            %read-only string PrimarySSCTemplateID = "";
+        }
 
-                object BSSTemplate[] {
-                    counted with BSSTemplateNumberOfEntries;
+        %persistent object BSSTemplate[] {
+            counted with BSSTemplateNumberOfEntries;
 
-                    %key %persistent string Alias = "";
-                    %key %persistent string BSSTemplateID = "";
-                    %persistent uint32 Priority = 0 {
-                        on action validate call check_range [0, 255];
-                    }
-                    %persistent string RadioTemplateReference = "";
-                    %persistent string SSCTemplateReference = "";
-                    %persistent string APMLDTemplateReference = "";
-                    %persistent string SecurityGroupReference = "";
-                    %read-only string LinkedRadioTemplateID = "";
-                    %read-only string LinkedSSCTemplateID = "";
-                    %read-only string LinkedAPMLDTemplateID = "";
-                    %read-only string LinkedSecurityGroupID = "";
-                    %persistent csv_string TopologyFlag = "";
-                    %persistent csv_string IEEE1905ALID = "";
-                    %persistent uint32 MaxWLANHopLimitFlag = 0 {
-                        on action validate call check_range [0, 255];
-                    }
-                    %persistent string SecureEquipmentFlag = "null" {
-                        default "null";
-                        on action validate call check_enum [
-                            "true",
-                            "false",
-                            "null"
-                        ];
-                    }
-                    %persistent bool Enable = true;
-                    %persistent string SSID = "";
-                    %persistent string KeyPassphrase = "";
-                    %persistent bool AdvertisementEnable = true;
-                    %persistent string X_PRPLWARE-COM_VapType {
-                        default "other";
-                        on action validate call check_enum [
-                            "home",
-                            "guest",
-                            "video",
-                            "backhaul",
-                            "hotspot",
-                            "staff",
-                            "isolated",
-                            "other"
-                        ];
-                    }
-                }
-
-                object RadioTemplate[] {
-                    counted with RadioTemplateNumberOfEntries;
-
-                    %key %persistent string Alias = "";
-                    %key %persistent string RadioTemplateID = "";
-                    %persistent bool Enable = true;
-                    %persistent string OperatingGeneration = "";
-                    %persistent int32 TransmitPowerLimit = 0 {
-                        on action validate call check_range [-128, 127];
-                    }
-                    %persistent uint32 Priority = 0 {
-                        on action validate call check_range [0, 255];
-                    }
-                    %persistent csv_string OpClassFlag = "";
-                    %persistent csv_string BandFlag = "";
-                    %persistent csv_string SupportedGenerationFlag = "";
-                    %persistent string DFSSupportFlag = "null" {
-                        default "null";
-                        on action validate call check_enum [
-                            "true",
-                            "false",
-                            "null"
-                        ];
-                    }
-                    %persistent string AFCSupportFlag = "null" {
-                        default "null";
-                        on action validate call check_enum [
-                            "true",
-                            "false",
-                            "null"
-                        ];
-                    }
-                }
-
-                object APMLDTemplate[] {
-                    counted with APMLDTemplateNumberOfEntries;
-
-                    %key %persistent string Alias = "";
-                    %key %persistent string APMLDTemplateID = "";
-                    %persistent bool MLOEnable = false;
-                    %persistent bool STREnable = false;
-                    %persistent bool NSTREnable = false;
-                    %persistent bool EMLSREnable = false;
-                    %persistent bool EMLMREnable = false;
-                    %persistent bool TIDToLinkMapNegotiation = false;
-                }
-
-                object SSCTemplate[] {
-                    counted with SSCTemplateNumberOfEntries;
-
-                    %key %persistent string Alias = "";
-                    %key %persistent string SSCTemplateID = "";
-                    %persistent bool SSCEnable = true;
-                    %persistent uint32 VID = 0 {
-                        on action validate call check_range [0, 4095];
-                    }
-                    %persistent csv_string HaulType = "";
-                }
-
-                object SecurityGroup[] {
-                    counted with SecurityGroupNumberOfEntries;
-
-                    %key %persistent string SecurityGroupID = "";
-                    %persistent csv_string SecurityTemplateReferences = "";
-                    %read-only csv_string LinkedSecurityTemplateID = "";
-                }
-
-                object SecurityTemplate[] {
-                    counted with SecurityTemplateNumberOfEntries;
-
-                    %key %persistent string Alias = "";
-                    %key %persistent string SecurityTemplateID = "";
-                    %persistent bool Enable = true;
-                    %persistent string SecurityIEs = "";
-                    %persistent uint32 Priority = 0 {
-                        on action validate call check_range [0, 255];
-                    }
-                    %persistent string RSNOSupportFlag = "null" {
-                        default "null";
-                        on action validate call check_enum [
-                            "true",
-                            "false",
-                            "null"
-                        ];
-                    }
-                    %persistent csv_string SupportedAKMSuiteFlag = "";
-                    %persistent csv_string SupportedAKMSuiteSelectorFlag = "";
-                    %persistent csv_string OperatingGenerationFlag = "";
-
-                    %persistent object RSNE {
-                        %persistent string GroupDataCipherSuite = "";
-                        %persistent csv_string PairwiseCipherSuite = "";
-                        %persistent csv_string AKMSuite = "";
-                        %persistent csv_string AKMSuiteSelector = "";
-                        %persistent string MFP {
-                            default "Capable";
-                            on action validate call check_enum [
-                                "Disabled",
-                                "Capable",
-                                "Required"
-                            ];
-                        }
-                        %persistent string GroupManagementCipherSuite = "";
-                    }
-                    %persistent object RSNOE {
-                        %persistent string GroupDataCipherSuite = "";
-                        %persistent csv_string PairwiseCipherSuite = "";
-                        %persistent csv_string AKMSuite = "";
-                        %persistent csv_string AKMSuiteSelector = "";
-                        %persistent string MFP {
-                            default "Capable";
-                            on action validate call check_enum [
-                                "Disabled",
-                                "Capable",
-                                "Required"
-                            ];
-                        }
-                        %persistent string GroupManagementCipherSuite = "";
-                    }
-                    %persistent object RSNO2E {
-                        %persistent string GroupDataCipherSuite = "";
-                        %persistent csv_string PairwiseCipherSuite = "";
-                        %persistent csv_string AKMSuite = "";
-                        %persistent csv_string AKMSuiteSelector = "";
-                        %persistent string MFP {
-                            default "Capable";
-                            on action validate call check_enum [
-                                "Disabled",
-                                "Capable",
-                                "Required"
-                            ];
-                        }
-                        %persistent string GroupManagementCipherSuite = "";
-                    }
-                    %persistent object RSNXE {
-                        %persistent bool SAEH2E = false;
-                    }
-                    %persistent object RSNXOE {
-                        %persistent bool SAEH2E = false;
-                    }
-                }
-
+            %persistent %unique %key string Alias {
+                    on action validate call matches_regexp "[a-zA-Z].*";
+                    on action validate call check_maximum_length 64;
+            }
+            %key %persistent string BSSTemplateID = "";
+            %persistent uint32 Priority = 0 {
+                on action validate call check_range [0, 255];
+            }
+            %persistent string RadioTemplateReference = "";
+            %persistent string SSCTemplateReference = "";
+            %persistent string APMLDTemplateReference = "";
+            %persistent string SecurityGroupReference = "";
+            %read-only string LinkedRadioTemplateID = "";
+            %read-only string LinkedSSCTemplateID = "";
+            %read-only string LinkedAPMLDTemplateID = "";
+            %read-only string LinkedSecurityGroupID = "";
+            %persistent csv_string TopologyFlag = "";
+            %persistent csv_string IEEE1905ALID = "";
+            %persistent uint32 MaxWLANHopLimitFlag = 0 {
+                on action validate call check_range [0, 255];
+            }
+            %persistent string SecureEquipmentFlag = "null" {
+                default "null";
+                on action validate call check_enum [
+                    "true",
+                    "false",
+                    "null"
+                ];
+            }
+            %persistent bool Enable = true;
+            %persistent string SSID = "";
+            %persistent string KeyPassphrase = "";
+            %persistent bool AdvertisementEnable = true;
+            %persistent string X_PRPLWARE-COM_VapType {
+                default "other";
+                on action validate call check_enum [
+                    "home",
+                    "guest",
+                    "video",
+                    "backhaul",
+                    "hotspot",
+                    "staff",
+                    "isolated",
+                    "other"
+                ];
             }
         }
-    }
+
+        %persistent object RadioTemplate[] {
+            counted with RadioTemplateNumberOfEntries;
+
+            %persistent %unique %key string Alias {
+                    on action validate call matches_regexp "[a-zA-Z].*";
+                    on action validate call check_maximum_length 64;
+            }
+            %key %persistent string RadioTemplateID = "";
+            %persistent bool Enable = true;
+            %persistent string OperatingGeneration = "";
+            %persistent int32 TransmitPowerLimit = 0 {
+                on action validate call check_range [-128, 127];
+            }
+            %persistent uint32 Priority = 0 {
+                on action validate call check_range [0, 255];
+            }
+            %persistent csv_string OpClassFlag = "";
+            %persistent csv_string BandFlag = "";
+            %persistent csv_string SupportedGenerationFlag = "";
+            %persistent string DFSSupportFlag = "null" {
+                default "null";
+                on action validate call check_enum [
+                    "true",
+                    "false",
+                    "null"
+                ];
+            }
+            %persistent string AFCSupportFlag = "null" {
+                default "null";
+                on action validate call check_enum [
+                    "true",
+                    "false",
+                    "null"
+                ];
+            }
+        }
+
+        %persistent object APMLDTemplate[] {
+            counted with APMLDTemplateNumberOfEntries;
+
+            %persistent %unique %key string Alias {
+                    on action validate call matches_regexp "[a-zA-Z].*";
+                    on action validate call check_maximum_length 64;
+            }
+            %key %persistent string APMLDTemplateID = "";
+            %persistent bool MLOEnable = false;
+            %persistent bool STREnable = false;
+            %persistent bool NSTREnable = false;
+            %persistent bool EMLSREnable = false;
+            %persistent bool EMLMREnable = false;
+            %persistent bool TIDToLinkMapNegotiation = false;
+        }
+
+        %persistent object SSCTemplate[] {
+            counted with SSCTemplateNumberOfEntries;
+
+            %persistent %unique %key string Alias {
+                    on action validate call matches_regexp "[a-zA-Z].*";
+                    on action validate call check_maximum_length 64;
+            }
+            %key %persistent string SSCTemplateID = "";
+            %persistent bool SSCEnable = true;
+            %persistent uint32 VID = 0 {
+                on action validate call check_range [0, 4095];
+            }
+            %persistent csv_string HaulType = "";
+        }
+
+        %persistent object SecurityGroup[] {
+            counted with SecurityGroupNumberOfEntries;
+
+            %key %persistent string SecurityGroupID = "";
+            %persistent csv_string SecurityTemplateReferences = "";
+            %read-only csv_string LinkedSecurityTemplateID = "";
+        }
+
+        %persistent object SecurityTemplate[] {
+            counted with SecurityTemplateNumberOfEntries;
+
+            %persistent %unique %key string Alias {
+                    on action validate call matches_regexp "[a-zA-Z].*";
+                    on action validate call check_maximum_length 64;
+            }
+            %key %persistent string SecurityTemplateID = "";
+            %persistent bool Enable = true;
+            %persistent string SecurityIEs = "";
+            %persistent uint32 Priority = 0 {
+                on action validate call check_range [0, 255];
+            }
+            %persistent string RSNOSupportFlag = "null" {
+                default "null";
+                on action validate call check_enum [
+                    "true",
+                    "false",
+                    "null"
+                ];
+            }
+            %persistent csv_string SupportedAKMSuiteFlag = "";
+            %persistent csv_string SupportedAKMSuiteSelectorFlag = "";
+            %persistent csv_string OperatingGenerationFlag = "";
+
+            %persistent object RSNE {
+                %persistent string GroupDataCipherSuite = "";
+                %persistent csv_string PairwiseCipherSuite = "";
+                %persistent csv_string AKMSuite = "";
+                %persistent csv_string AKMSuiteSelector = "";
+                %persistent string MFP {
+                    default "Capable";
+                    on action validate call check_enum [
+                        "Disabled",
+                        "Capable",
+                        "Required"
+                    ];
+                }
+                %persistent string GroupManagementCipherSuite = "";
+            }
+            %persistent object RSNOE {
+                %persistent string GroupDataCipherSuite = "";
+                %persistent csv_string PairwiseCipherSuite = "";
+                %persistent csv_string AKMSuite = "";
+                %persistent csv_string AKMSuiteSelector = "";
+                %persistent string MFP {
+                    default "Capable";
+                    on action validate call check_enum [
+                        "Disabled",
+                        "Capable",
+                        "Required"
+                    ];
+                }
+                %persistent string GroupManagementCipherSuite = "";
+            }
+            %persistent object RSNO2E {
+                %persistent string GroupDataCipherSuite = "";
+                %persistent csv_string PairwiseCipherSuite = "";
+                %persistent csv_string AKMSuite = "";
+                %persistent csv_string AKMSuiteSelector = "";
+                %persistent string MFP {
+                    default "Capable";
+                    on action validate call check_enum [
+                        "Disabled",
+                        "Capable",
+                        "Required"
+                    ];
+                }
+                %persistent string GroupManagementCipherSuite = "";
+            }
+            %persistent object RSNXE {
+                %persistent bool SAEH2E = false;
+            }
+            %persistent object RSNXOE {
+                %persistent bool SAEH2E = false;
+            }
+        }
+    @TEMPLATES_ROOT_DM_Footer@
 }

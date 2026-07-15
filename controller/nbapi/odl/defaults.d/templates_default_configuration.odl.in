@@ -1,0 +1,162 @@
+%populate {
+	object '@TEMPLATES_ROOT_DM@' {
+		object 'Network' {
+			parameter 'Enable' = false;
+			parameter 'TopologyFlag' = "Root,Repeater";
+			parameter 'IEEE1905ALID' = "";
+			parameter 'PrimarySSCTemplateReference' = "";
+		}
+
+		/* ---------------------- */
+		/* Radios (2.4 / 5 / 6 GHz) */
+		/* ---------------------- */
+		object RadioTemplate {
+			instance add ("cpe-RadioTemplate-1") {
+				parameter 'RadioTemplateID' = "radio-template-1";
+				parameter 'Enable' = true;
+				parameter 'Priority' = 200;
+				parameter 'BandFlag' = "2.4";
+				parameter 'TransmitPowerLimit' = 20;
+			}
+			instance add ("cpe-RadioTemplate-2") {
+				parameter 'RadioTemplateID' = "radio-template-2";
+				parameter 'Enable' = true;
+				parameter 'Priority' = 200;
+				parameter 'BandFlag' = "5";
+				parameter 'TransmitPowerLimit' = 20;
+			}
+			instance add ("cpe-RadioTemplate-3") {
+				parameter 'RadioTemplateID' = "radio-template-3";
+				parameter 'Enable' = true;
+				parameter 'Priority' = 200;
+				parameter 'BandFlag' = "6";
+				parameter 'TransmitPowerLimit' = 23;
+			}
+		}
+
+		/* ---------------------- */
+		/* SSC                    */
+		/* ---------------------- */
+		object SSCTemplate {
+			instance add ("cpe-SSCTemplate-1") {
+				parameter 'SSCTemplateID' = "ssc-template-bh";
+				parameter 'SSCEnable' = true;
+				parameter 'VID' = 0;
+				parameter 'HaulType' = "Backhaul";
+			}
+			instance add ("cpe-SSCTemplate-2") {
+				parameter 'SSCTemplateID' = "ssc-template-fh";
+				parameter 'SSCEnable' = true;
+				parameter 'VID' = 0;
+				parameter 'HaulType' = "Fronthaul";
+			}
+		}
+
+		/* ---------------------- */
+		/* Security Templates     */
+		/* ---------------------- */
+		object SecurityTemplate {
+			instance add ("cpe-SecurityTemplate-1") {
+				parameter 'SecurityTemplateID' = "security-template-sae";
+				parameter 'Enable' = true;
+				parameter 'Priority' = 220;
+				object RSNE {
+					parameter 'GroupDataCipherSuite' = "ccmp";
+					parameter 'PairwiseCipherSuite' = "ccmp";
+					parameter 'AKMSuite' = "sae";
+					parameter 'MFP' = "Required";
+				}
+			}
+			instance add ("cpe-SecurityTemplate-2") {
+				parameter 'SecurityTemplateID' = "security-template-transition";
+				parameter 'Enable' = true;
+				parameter 'Priority' = 210;
+				object RSNE {
+					parameter 'GroupDataCipherSuite' = "ccmp";
+					parameter 'PairwiseCipherSuite' = "ccmp";
+					parameter 'AKMSuite' = "psk,sae";
+					parameter 'MFP' = "Required";
+				}
+			}
+		}
+
+		/* ---------------------- */
+		/* Security Groups        */
+		/* ---------------------- */
+		object SecurityGroup {
+			instance add ("cpe-SecurityGroup-1") {
+				parameter 'SecurityGroupID' = "sec-group-sae";
+				parameter 'SecurityTemplateReferences' = "Device.WiFi.Templates.SecurityTemplate.1";
+			}
+			instance add ("cpe-SecurityGroup-2") {
+				parameter 'SecurityGroupID' = "sec-group-transition";
+				parameter 'SecurityTemplateReferences' = "Device.WiFi.Templates.SecurityTemplate.2";
+			}
+		}
+
+		/* ---------------------- */
+		/* APMLD (MLO disabled)   */
+		/* ---------------------- */
+		object APMLDTemplate {
+			instance add ("cpe-APMLDTemplate-1") {
+				parameter 'Alias' = "apmld-default-mlo";
+				parameter 'APMLDTemplateID' = "apmld-template-001";
+				parameter 'MLOEnable' = false;
+				parameter 'STREnable' = true;
+				parameter 'NSTREnable' = false;
+				parameter 'EMLSREnable' = false;
+				parameter 'EMLMREnable' = false;
+				parameter 'TIDToLinkMapNegotiation' = false;
+			}
+		}
+
+		/* ---------------------- */
+		/* BSS Templates (3)      */
+		/* 1 Backhaul, 1 FH Private (home), 1 FH Guest */
+		/* ---------------------- */
+		object BSSTemplate {
+			/* Backhaul */
+			instance add ("cpe-BSSTemplate-bh") {
+				parameter 'BSSTemplateID' = "bss-template-bh";
+				parameter 'Enable' = false;
+				parameter 'Priority' = 240;
+				parameter 'SSID' = "prplmesh-bh";
+				parameter 'KeyPassphrase' = "password";
+				parameter 'AdvertisementEnable' = true;
+				parameter 'TopologyFlag' = "Root,Repeater";
+				parameter 'X_PRPLWARE-COM_VapType' = "backhaul";
+				parameter 'RadioTemplateReference' = "Device.WiFi.Templates.RadioTemplate.2";
+				parameter 'SSCTemplateReference' = "Device.WiFi.Templates.SSCTemplate.1";
+				parameter 'SecurityGroupReference' = "Device.WiFi.Templates.SecurityGroup.1";
+			}
+
+			instance add ("cpe-BSSTemplate-home") {
+				parameter 'BSSTemplateID' = "bss-template-home";
+				parameter 'Enable' = false;
+				parameter 'Priority' = 230;
+				parameter 'SSID' = "prplmesh";
+				parameter 'KeyPassphrase' = "password";
+				parameter 'AdvertisementEnable' = true;
+				parameter 'TopologyFlag' = "Root,Repeater";
+				parameter 'X_PRPLWARE-COM_VapType' = "home";
+				parameter 'RadioTemplateReference' = "Device.WiFi.Templates.RadioTemplate.1";
+				parameter 'SSCTemplateReference' = "Device.WiFi.Templates.SSCTemplate.2";
+				parameter 'SecurityGroupReference' = "Device.WiFi.Templates.SecurityGroup.2";
+			}
+
+			instance add ("cpe-BSSTemplate-guest") {
+				parameter 'BSSTemplateID' = "bss-template-guest";
+				parameter 'Enable' = false;
+				parameter 'Priority' = 220;
+				parameter 'SSID' = "prplmesh-guest";
+				parameter 'KeyPassphrase' = "password";
+				parameter 'AdvertisementEnable' = true;
+				parameter 'TopologyFlag' = "Root,Repeater";
+				parameter 'X_PRPLWARE-COM_VapType' = "guest";
+				parameter 'RadioTemplateReference' = "Device.WiFi.Templates.RadioTemplate.2";
+				parameter 'SSCTemplateReference' = "Device.WiFi.Templates.SSCTemplate.2";
+				parameter 'SecurityGroupReference' = "Device.WiFi.Templates.SecurityGroup.2";
+			}
+		}
+	}
+}

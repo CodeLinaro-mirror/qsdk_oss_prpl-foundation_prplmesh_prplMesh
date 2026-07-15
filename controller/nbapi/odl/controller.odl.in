@@ -530,43 +530,43 @@
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X_PRPLWARE-COM_Group\."';
 
     on event "dm:object-changed" call event_templates_network_configuration_changed
-        filter 'object matches "Device\.WiFi\.Templates\.Network\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\."';
 
     on event "dm:object-changed" call event_apmld_template_configuration_changed
-        filter 'object matches "Device\.WiFi\.Templates\.APMLDTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.APMLDTemplate\."';
 
     on event regexp("^dm:instance-(added|removed)$") call event_apmld_template_instance_changed
-        filter 'object matches "Device\.WiFi\.Templates\.APMLDTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.APMLDTemplate\."';
 
     on event "dm:object-changed" call event_bss_template_configuration_changed
-        filter 'object matches "Device\.WiFi\.Templates\.BSSTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\."';
 
     on event regexp("^dm:instance-(added|removed)$") call event_bss_template_instance_changed
-        filter 'object matches "Device\.WiFi\.Templates\.BSSTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\."';
 
     on event "dm:object-changed" call event_radio_template_configuration_changed
-        filter 'object matches "Device\.WiFi\.Templates\.RadioTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.RadioTemplate\."';
 
     on event regexp("^dm:instance-(added|removed)$") call event_radio_template_instance_changed
-        filter 'object matches "Device\.WiFi\.Templates\.RadioTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.RadioTemplate\."';
 
     on event "dm:object-changed" call event_ssc_template_configuration_changed
-        filter 'object matches "Device\.WiFi\.Templates\.SSCTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SSCTemplate\."';
 
     on event regexp("^dm:instance-(added|removed)$") call event_ssc_template_instance_changed
-        filter 'object matches "Device\.WiFi\.Templates\.SSCTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SSCTemplate\."';
 
     on event "dm:object-changed" call event_security_template_configuration_changed
-        filter 'object matches "Device\.WiFi\.Templates\.SecurityTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityTemplate\."';
 
     on event regexp("^dm:instance-(added|removed)$") call event_security_template_instance_changed
-        filter 'object matches "Device\.WiFi\.Templates\.SecurityTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityTemplate\."';
 
     on event "dm:object-changed" call event_templates_security_group_configuration_changed
-        filter 'object matches "Device\.WiFi\.Templates\.SecurityGroup\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
 
     on event regexp("^dm:instance-(added|removed)$") call event_templates_security_group_instance_changed
-        filter 'object matches "Device\.WiFi\.Templates\.SecurityGroup\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
 }
 
 include "device.odl";
