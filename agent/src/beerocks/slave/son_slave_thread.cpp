@@ -5031,7 +5031,8 @@ bool slave_thread::agent_fsm()
     case STATE_LOAD_PLATFORM_CONFIGURATION: {
         LOG(DEBUG) << "STATE_LOAD_CONFIGURATION";
         if (!read_platform_configuration()) {
-            LOG(DEBUG) << "Read platform configuration failed";
+            LOG(ERROR) << "Read platform configuration failed";
+            break;
         }
 
         m_task_pool.send_event(eTaskType::CONTROLLER_CONNECTIVITY,
