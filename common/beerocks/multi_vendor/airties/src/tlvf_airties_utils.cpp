@@ -230,7 +230,10 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
 
         interface_list->port_id() = airties::tlvf_airties_utils::assign_unique_port_id(lan_iface);
         interface_list->eth_mac() = tlvf::mac_from_string(iface_mac);
-        interface_list->set_eth_intf_name(lan_iface);
+        if (!interface_list->set_eth_intf_name(lan_iface)) {
+            LOG(ERROR) << "Failed to set eth interface name for " << lan_iface;
+            return false;
+        }
 
         interface_list->flags1().eth_port_admin_state =
             beerocks::net::network_utils::linux_iface_is_up(lan_iface);
@@ -240,7 +243,10 @@ bool tlvf_airties_utils::add_airties_ethernet_interface_tlv(ieee1905_1::CmduMess
         interface_list->flags2().supported_link_type  = bitrate_to_link_type(max_speed);
         interface_list->flags2().current_link_type    = bitrate_to_link_type(link_speed);
 
-        tlvAirtiesEthIntf->add_interface_list(interface_list);
+        if (!tlvAirtiesEthIntf->add_interface_list(std::move(interface_list))) {
+            LOG(ERROR) << "Failed to add interface list entry for " << lan_iface;
+            return false;
+        }
     }
 
     return true;
@@ -279,20 +285,28 @@ uint64_t swap_and_convert_counter(uint64_t val)
  */
 uint64_t convertBytes_to_Kb(uint64_t bytes_val) { return (bytes_val / BYTES_IN_KB); }
 
-inline void insert_ethernet_stats_item(std::shared_ptr<airties::cPortList> &port_list,
+inline bool insert_ethernet_stats_item(std::shared_ptr<airties::cPortList> &port_list,
                                        uint64_t counter)
 {
     auto statsItem = port_list->create_statsItem();
     if (!statsItem) {
         LOG(ERROR) << "Failed to create stats item!";
-        return;
+        return false;
     }
 
     uint64_t swapped = swap_and_convert_counter(counter);
 
-    statsItem->set_item(&swapped, COUNTERS_SIZE);
+    if (!statsItem->set_item(&swapped, COUNTERS_SIZE)) {
+        LOG(ERROR) << "Failed to set stats item!";
+        return false;
+    }
 
-    port_list->add_statsItem(statsItem);
+    if (!port_list->add_statsItem(std::move(statsItem))) {
+        LOG(ERROR) << "Failed to add stats item!";
+        return false;
+    }
+
+    return true;
 }
 
 /*
@@ -339,22 +353,46 @@ bool tlvf_airties_utils::add_airties_ethernet_stats_tlv(ieee1905_1::CmduMessageT
          * elsewhere, they can simply be enabled. The insertion order must remain
          * unchanged.
          */
-        insert_ethernet_stats_item(port_list, convertBytes_to_Kb(netDevStats.tx_bytes));
-        insert_ethernet_stats_item(port_list, convertBytes_to_Kb(netDevStats.rx_bytes));
-        insert_ethernet_stats_item(port_list, netDevStats.tx_packets);
-        insert_ethernet_stats_item(port_list, netDevStats.rx_packets);
-        insert_ethernet_stats_item(port_list, netDevStats.tx_errs);
-        insert_ethernet_stats_item(port_list, netDevStats.rx_errs);
+        if (!insert_ethernet_stats_item(port_list, convertBytes_to_Kb(netDevStats.tx_bytes))) {
+            LOG(ERROR) << "Failed to insert ethernet stats item 'tx_bytes' for " << lan_iface;
+            return false;
+        }
+        if (!insert_ethernet_stats_item(port_list, convertBytes_to_Kb(netDevStats.rx_bytes))) {
+            LOG(ERROR) << "Failed to insert ethernet stats item 'rx_bytes' for " << lan_iface;
+            return false;
+        }
+        if (!insert_ethernet_stats_item(port_list, netDevStats.tx_packets)) {
+            LOG(ERROR) << "Failed to insert ethernet stats item 'tx_packets' for " << lan_iface;
+            return false;
+        }
+        if (!insert_ethernet_stats_item(port_list, netDevStats.rx_packets)) {
+            LOG(ERROR) << "Failed to insert ethernet stats item 'rx_packets' for " << lan_iface;
+            return false;
+        }
+        if (!insert_ethernet_stats_item(port_list, netDevStats.tx_errs)) {
+            LOG(ERROR) << "Failed to insert ethernet stats item 'tx_errs' for " << lan_iface;
+            return false;
+        }
+        if (!insert_ethernet_stats_item(port_list, netDevStats.rx_errs)) {
+            LOG(ERROR) << "Failed to insert ethernet stats item 'rx_errs' for " << lan_iface;
+            return false;
+        }
         //insert_ethernet_stats_item(port_list, multicast_bytes_sent);
         //insert_ethernet_stats_item(port_list, multicast_bytes_received);
         //insert_ethernet_stats_item(port_list, multicast_packets_sent);
-        insert_ethernet_stats_item(port_list, netDevStats.rx_multicast);
+        if (!insert_ethernet_stats_item(port_list, netDevStats.rx_multicast)) {
+            LOG(ERROR) << "Failed to insert ethernet stats item 'rx_multicast' for " << lan_iface;
+            return false;
+        }
         //insert_ethernet_stats_item(port_list, broadcast_bytes_sent);
         //insert_ethernet_stats_item(port_list, broadcast_bytes_received);
         //insert_ethernet_stats_item(port_list, broadcast_packets_sent);
         //insert_ethernet_stats_item(port_list, broadcast_packets_received);
 
-        tlvAirtiesEthStats->add_port_list(port_list);
+        if (!tlvAirtiesEthStats->add_port_list(std::move(port_list))) {
+            LOG(ERROR) << "Failed to add port list entry for " << lan_iface;
+            return false;
+        }
     }
 
     return true;
@@ -432,7 +470,10 @@ create_and_add_feature_to_list(std::shared_ptr<airties::tlvVersionReporting> tlv
     version_members->feature_info() = (static_cast<uint32_t>(feature_id) << 16) | version;
 
     // Add the created feature list entry to the TLV
-    tlv_version_reporting->add_em_agent_feature_list(version_members);
+    if (!tlv_version_reporting->add_em_agent_feature_list(std::move(version_members))) {
+        LOG(ERROR) << "Failed to add feature list entry for feature id " << feature_id;
+        return;
+    }
 }
 
 /**
@@ -531,7 +572,7 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
  * If the client details are not present, 
  * then the hard coded values will be saved in TLV.
  */
-void update_client_details(std::shared_ptr<airties::tlvAirtiesDeviceInfo> &tlvDevinfo)
+bool update_client_details(std::shared_ptr<airties::tlvAirtiesDeviceInfo> &tlvDevinfo)
 {
     std::string client_id     = "";
     std::string client_secret = "";
@@ -549,8 +590,16 @@ void update_client_details(std::shared_ptr<airties::tlvAirtiesDeviceInfo> &tlvDe
         cli_det->read_child<>(client_secret, "ClientPassword");
     }
 
-    tlvDevinfo->set_client_id(client_id);
-    tlvDevinfo->set_client_secret(client_secret);
+    if (!tlvDevinfo->set_client_id(client_id)) {
+        LOG(ERROR) << "Failed to set client id";
+        return false;
+    }
+    if (!tlvDevinfo->set_client_secret(client_secret)) {
+        LOG(ERROR) << "Failed to set client secret";
+        return false;
+    }
+
+    return true;
 }
 
 bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
@@ -570,7 +619,10 @@ bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m
     tlvAirtiesDeviceInfo->tlv_id()  = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_INFO);
     tlvAirtiesDeviceInfo->boot_id() = randomBootid;
 
-    update_client_details(tlvAirtiesDeviceInfo);
+    if (!update_client_details(tlvAirtiesDeviceInfo)) {
+        LOG(ERROR) << "Failed to update client details in Device Info TLV";
+        return false;
+    }
 
     bool local_gw = false;
     {
@@ -781,7 +833,10 @@ bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetri
         temp_obj->read_child<>(radio_temp, "Temperature");
         rad_list->radio_temperature() = radio_temp;
 
-        tlvDevMetrics->add_radio_list(rad_list);
+        if (!tlvDevMetrics->add_radio_list(std::move(rad_list))) {
+            LOG(ERROR) << "Failed to add radio list entry for radio index " << radio_index;
+            return false;
+        }
     }
     return true;
 }
