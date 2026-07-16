@@ -16,7 +16,6 @@
 #include <bcl/beerocks_timer_factory_impl.h>
 #include <bcl/beerocks_timer_manager_impl.h>
 #include <bcl/beerocks_version.h>
-#include <bpl/bpl.h>
 #include <mapf/common/utils.h>
 
 #include <easylogging++.h>
@@ -238,12 +237,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Initialize the BPL (Beerocks Platform Library)
-    if (beerocks::bpl::bpl_init() < 0) {
-        LOG(ERROR) << "Failed to initialize BPL!";
-        return 1;
-    }
-
     // Kill running fronthaul and write pid file
     std::string base_fronthaul_name = std::string(BEEROCKS_FRONTHAUL) + "_" + fronthaul_iface;
     beerocks::os_utils::kill_pid(beerocks_slave_conf.temp_path + "pid/", base_fronthaul_name);
@@ -281,8 +274,6 @@ int main(int argc, char *argv[])
                               timer_manager, event_loop);
 
     if (!ap_manager.start()) {
-        beerocks::bpl::bpl_close();
-
         // it is not an error when the user explicitly terminate the process
         if (s_signal == SIGTERM)
             return 0;
@@ -328,7 +319,8 @@ int main(int argc, char *argv[])
                     monitor_is_running = false;
                 }
                 continue;
-            } else if (monitor.start()) {
+            } else if (monitor.start(ap_manager.get_hal_conf(),
+                                     ap_manager.get_clients_measurement_mode())) {
                 monitor_is_running = true;
             } else {
                 CLOG(ERROR, g_logger_monitor->get_logger_id()) << "Unable to start monitor!";
@@ -342,7 +334,6 @@ int main(int argc, char *argv[])
     }
 
     ap_manager.stop();
-    beerocks::bpl::bpl_close();
 
     return 0;
 }

@@ -17,7 +17,6 @@
 
 #define BEEROCKS_CUSTOM_LOGGER_ID BEEROCKS_MONITOR
 #include <bcl/beerocks_logging_custom.h>
-#include <bpl/bpl_cfg.h>
 
 #include <beerocks/tlvf/beerocks_message.h>
 
@@ -101,6 +100,15 @@ Monitor::Monitor(const std::string &monitor_iface_,
     }
 }
 
+bool Monitor::start(const bwl::hal_conf_t &hal_conf, uint8_t clients_measurement_mode)
+{
+    m_hal_conf = hal_conf;
+    LOG(DEBUG) << "Starting monitor with client measurement mode " << int(clients_measurement_mode);
+    mon_db.set_clients_measuremet_mode(
+        static_cast<monitor_db::eClientsMeasurementMode>(clients_measurement_mode));
+    return EventLoopThread::start();
+}
+
 bool Monitor::send_cmdu(ieee1905_1::CmduMessageTx &cmdu_tx)
 {
     return m_slave_client->send_cmdu(cmdu_tx);
@@ -173,21 +181,9 @@ bool Monitor::thread_init()
     m_slave_client->set_handlers(handlers);
     transaction.add_rollback_action([&]() { m_slave_client->clear_handlers(); });
 
-    // Create new Monitor HAL instance
-    bwl::hal_conf_t hal_conf;
-    if (!beerocks::bpl::bpl_cfg_get_hostapd_ctrl_path(monitor_iface, hal_conf.wpa_ctrl_path)) {
-        LOG(ERROR) << "Couldn't get hostapd control path for interface " << monitor_iface;
-        return false;
-    }
-
-    if (!beerocks::bpl::bpl_cfg_get_monitored_BSSs_by_radio_iface(monitor_iface,
-                                                                  hal_conf.monitored_BSSs)) {
-        LOG(DEBUG) << "Failed to get radio-monitored-BSSs for interface " << monitor_iface;
-    }
-
     using namespace std::placeholders; // for `_1`
     mon_wlan_hal = bwl::mon_wlan_hal_create(
-        monitor_iface, std::bind(&Monitor::hal_event_handler, this, _1), hal_conf);
+        monitor_iface, std::bind(&Monitor::hal_event_handler, this, _1), m_hal_conf);
     if (!mon_wlan_hal) {
         LOG(ERROR) << "Failed to create HAL instance!";
         return false;
@@ -196,20 +192,6 @@ bool Monitor::thread_init()
     mon_hal_attached = false;
 
     transaction.commit();
-
-#ifdef FEATURE_PRE_ASSOCIATION_STEERING
-    mon_db.set_clients_measuremet_mode(
-        (monitor_db::eClientsMeasurementMode)bpl::eClientsMeasurementMode::ENABLE_ALL);
-#else
-    bpl::eClientsMeasurementMode clients_measuremet_mode;
-    if (!beerocks::bpl::cfg_get_clients_measurement_mode(clients_measuremet_mode)) {
-        LOG(WARNING) << "Failed to read clients measurement mode - using defaule value: enable "
-                        "measurements for all clients";
-        clients_measuremet_mode = bpl::eClientsMeasurementMode::ENABLE_ALL;
-    }
-    mon_db.set_clients_measuremet_mode(
-        static_cast<monitor_db::eClientsMeasurementMode>(clients_measuremet_mode));
-#endif /* FEATURE_PRE_ASSOCIATION_STEERING */
 
     mon_db.set_radio_stats_enable(true);
 

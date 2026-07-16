@@ -2875,7 +2875,66 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         config_msg->channel() = db->device_conf.front_radio.config.at(iface).configured_channel;
         config_msg->certification_mode() = db->device_conf.certification_mode;
         config_msg->multi_ap_profile()   = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
-        radio_manager.dm_instance        = db->dm_create_fronthaul_object(iface);
+
+        std::string hostapd_ctrl_path;
+        if (!bpl::bpl_cfg_get_hostapd_ctrl_path(iface, hostapd_ctrl_path)) {
+            LOG(ERROR) << "Couldn't get hostapd control path for interface " << iface;
+            return true;
+        }
+
+        std::set<std::string> monitored_vap_ifaces;
+        if (!bpl::bpl_cfg_get_monitored_BSSs_by_radio_iface(iface, monitored_vap_ifaces)) {
+            LOG(DEBUG) << "Failed to get monitored VAPs for interface " << iface;
+            monitored_vap_ifaces.clear();
+        }
+
+        auto clients_measurement_mode = bpl::eClientsMeasurementMode::ENABLE_ALL;
+#ifndef FEATURE_PRE_ASSOCIATION_STEERING
+        if (!bpl::cfg_get_clients_measurement_mode(clients_measurement_mode)) {
+            LOG(WARNING) << "Failed to read clients measurement mode, using ENABLE_ALL";
+            clients_measurement_mode = bpl::eClientsMeasurementMode::ENABLE_ALL;
+        }
+#endif
+
+        LOG(DEBUG) << "Client measurement mode for " << iface << ": " << clients_measurement_mode;
+        config_msg->clients_measurement_mode() = static_cast<uint8_t>(clients_measurement_mode);
+
+        string_utils::copy_string(config_msg->bridge_iface().iface_name,
+                                  db->bridge.iface_name.c_str(),
+                                  beerocks::message::IFACE_NAME_LENGTH);
+
+        if (!config_msg->set_hostapd_ctrl_path(hostapd_ctrl_path)) {
+            LOG(ERROR) << "Failed to serialize hostapd control path for interface " << iface;
+            return true;
+        }
+
+        if (monitored_vap_ifaces.size() > beerocks::IFACE_TOTAL_VAPS ||
+            !config_msg->alloc_monitored_vap_ifaces(monitored_vap_ifaces.size())) {
+            LOG(ERROR) << "Failed to serialize monitored VAPs for interface " << iface;
+            return true;
+        }
+
+        size_t monitored_vap_index = 0;
+        for (const auto &monitored_vap_iface : monitored_vap_ifaces) {
+            if (monitored_vap_iface.empty() ||
+                monitored_vap_iface.length() >= beerocks::message::IFACE_NAME_LENGTH) {
+                LOG(ERROR) << "Invalid monitored VAP interface name '" << monitored_vap_iface
+                           << "' for radio " << iface;
+                return true;
+            }
+
+            auto monitored_vap = config_msg->monitored_vap_ifaces(monitored_vap_index++);
+            if (!std::get<0>(monitored_vap)) {
+                LOG(ERROR) << "Failed to access serialized monitored VAP for interface " << iface;
+                return true;
+            }
+            auto &monitored_vap_entry = std::get<1>(monitored_vap);
+            monitored_vap_entry       = {};
+            string_utils::copy_string(monitored_vap_entry.iface_name, monitored_vap_iface.c_str(),
+                                      beerocks::message::IFACE_NAME_LENGTH);
+        }
+
+        radio_manager.dm_instance = db->dm_create_fronthaul_object(iface);
 
         return send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
     }

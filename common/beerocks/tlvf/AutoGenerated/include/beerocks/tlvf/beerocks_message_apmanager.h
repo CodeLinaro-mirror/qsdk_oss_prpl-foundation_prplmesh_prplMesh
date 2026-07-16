@@ -32,6 +32,14 @@
 
 namespace beerocks_message {
 
+typedef struct sFronthaulIface {
+    char iface_name[beerocks::message::IFACE_NAME_LENGTH];
+    void struct_swap(){
+    }
+    void struct_init(){
+    }
+} __attribute__((packed)) sFronthaulIface;
+
 
 class cACTION_APMANAGER_UP_NOTIFICATION : public BaseClass
 {
@@ -75,6 +83,17 @@ class cACTION_APMANAGER_CONFIGURE : public BaseClass
         uint8_t& channel();
         uint8_t& certification_mode();
         uint8_t& multi_ap_profile();
+        uint8_t& clients_measurement_mode();
+        sFronthaulIface& bridge_iface();
+        uint16_t& hostapd_ctrl_path_length();
+        std::string hostapd_ctrl_path_str();
+        char* hostapd_ctrl_path(size_t length = 0);
+        bool set_hostapd_ctrl_path(const std::string& str);
+        bool set_hostapd_ctrl_path(const char buffer[], size_t size);
+        bool alloc_hostapd_ctrl_path(size_t count = 1);
+        uint8_t& monitored_vap_ifaces_size();
+        std::tuple<bool, sFronthaulIface&> monitored_vap_ifaces(size_t idx);
+        bool alloc_monitored_vap_ifaces(size_t count = 1);
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -85,6 +104,15 @@ class cACTION_APMANAGER_CONFIGURE : public BaseClass
         uint8_t* m_channel = nullptr;
         uint8_t* m_certification_mode = nullptr;
         uint8_t* m_multi_ap_profile = nullptr;
+        uint8_t* m_clients_measurement_mode = nullptr;
+        sFronthaulIface* m_bridge_iface = nullptr;
+        uint16_t* m_hostapd_ctrl_path_length = nullptr;
+        char* m_hostapd_ctrl_path = nullptr;
+        size_t m_hostapd_ctrl_path_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+        uint8_t* m_monitored_vap_ifaces_size = nullptr;
+        sFronthaulIface* m_monitored_vap_ifaces = nullptr;
+        size_t m_monitored_vap_ifaces_idx__ = 0;
 };
 
 class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
