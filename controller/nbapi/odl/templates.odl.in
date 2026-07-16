@@ -72,6 +72,7 @@
                     "other"
                 ];
             }
+            %persistent string X_PRPLWARE-COM_VapLabel = "";
         }
 
         %persistent object RadioTemplate[] {
