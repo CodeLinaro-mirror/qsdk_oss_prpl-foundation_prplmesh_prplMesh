@@ -19,6 +19,12 @@ _multi_class_auto_insert:
     _value_const: [_auto_value_by_name, 1]
     _class_const: True
 
+sFronthaulIface:
+  _type: struct
+  iface_name:
+    _type: char
+    _length: ["beerocks::message::IFACE_NAME_LENGTH"]
+
 #################################################
 #################################################
 
@@ -36,6 +42,20 @@ cACTION_APMANAGER_CONFIGURE:
   channel: uint8_t
   certification_mode: uint8_t #bool
   multi_ap_profile: uint8_t
+  clients_measurement_mode: uint8_t # 0: disabled, 1: all, 2: steering-selected
+  bridge_iface: sFronthaulIface
+  hostapd_ctrl_path_length:
+    _type: uint16_t
+    _length_var: True
+  hostapd_ctrl_path:
+    _type: char
+    _length: [hostapd_ctrl_path_length]
+  monitored_vap_ifaces_size:
+    _type: uint8_t
+    _length_var: True
+  monitored_vap_ifaces:
+    _type: sFronthaulIface
+    _length: [monitored_vap_ifaces_size]
 
 cACTION_APMANAGER_JOINED_NOTIFICATION:
   _type: class

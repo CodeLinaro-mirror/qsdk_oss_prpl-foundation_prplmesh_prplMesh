@@ -38,11 +38,9 @@ template <typename T> bool read_agent_info_param(const std::string &name, T &val
 }
 
 /*
- * Keep configuration access local when the process owns the Agent NBAPI root. Do not replace it
- * with a synchronous common WBAPI request: owner reads may run before the event loop starts. A
- * ubus round-trip back into the owner therefore risks timeout or deadlock. Common WBAPI is only
- * for non-owning processes, such as fronthaul. This risk follows from process startup ordering;
- * it is not a tested failure mode.
+ * Keep Agent configuration access local to its NBAPI owner. A synchronous common WBAPI
+ * self-request before or on the owner event loop can time out or deadlock. Other processes use
+ * the exported common WBAPI root.
  */
 template <typename T> bool read_agent_config_param(const std::string &name, T &value)
 {
@@ -136,7 +134,7 @@ int cfg_get_preferred_radio_band(int *preferred_radio_band)
 
 bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measurement_mode)
 {
-    int mode_value = static_cast<int>(eClientsMeasurementMode::ENABLE_ALL);
+    uint32_t mode_value = static_cast<uint32_t>(eClientsMeasurementMode::ENABLE_ALL);
     if (!read_agent_config_param("ClientsMeasurementMode", mode_value)) {
         MAPF_WARN("cfg_get_clients_measurement_mode: ClientsMeasurementMode unavailable, "
                   "using default\n");
@@ -144,9 +142,8 @@ bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measureme
         return true;
     }
 
-    if (mode_value < static_cast<int>(eClientsMeasurementMode::DISABLE_ALL) ||
-        mode_value >
-            static_cast<int>(eClientsMeasurementMode::ONLY_CLIENTS_SELECTED_FOR_STEERING)) {
+    if (mode_value >
+        static_cast<uint32_t>(eClientsMeasurementMode::ONLY_CLIENTS_SELECTED_FOR_STEERING)) {
         MAPF_ERR("cfg_get_clients_measurement_mode: unknown ClientsMeasurementMode value\n");
         return false;
     }

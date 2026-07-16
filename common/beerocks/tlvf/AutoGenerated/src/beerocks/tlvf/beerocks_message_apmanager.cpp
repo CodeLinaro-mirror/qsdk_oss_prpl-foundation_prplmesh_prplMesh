@@ -172,9 +172,129 @@ uint8_t& cACTION_APMANAGER_CONFIGURE::multi_ap_profile() {
     return (uint8_t&)(*m_multi_ap_profile);
 }
 
+uint8_t& cACTION_APMANAGER_CONFIGURE::clients_measurement_mode() {
+    return (uint8_t&)(*m_clients_measurement_mode);
+}
+
+sFronthaulIface& cACTION_APMANAGER_CONFIGURE::bridge_iface() {
+    return (sFronthaulIface&)(*m_bridge_iface);
+}
+
+uint16_t& cACTION_APMANAGER_CONFIGURE::hostapd_ctrl_path_length() {
+    return (uint16_t&)(*m_hostapd_ctrl_path_length);
+}
+
+std::string cACTION_APMANAGER_CONFIGURE::hostapd_ctrl_path_str() {
+    char *hostapd_ctrl_path_ = hostapd_ctrl_path();
+    if (!hostapd_ctrl_path_) { return std::string(); }
+    auto str = std::string(hostapd_ctrl_path_, m_hostapd_ctrl_path_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_CONFIGURE::hostapd_ctrl_path(size_t length) {
+    if( (m_hostapd_ctrl_path_idx__ == 0) || (m_hostapd_ctrl_path_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "hostapd_ctrl_path length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_hostapd_ctrl_path);
+}
+
+bool cACTION_APMANAGER_CONFIGURE::set_hostapd_ctrl_path(const std::string& str) { return set_hostapd_ctrl_path(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_CONFIGURE::set_hostapd_ctrl_path(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_hostapd_ctrl_path received a null pointer.";
+        return false;
+    }
+    if (m_hostapd_ctrl_path_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_hostapd_ctrl_path was already allocated!";
+        return false;
+    }
+    if (!alloc_hostapd_ctrl_path(size)) { return false; }
+    std::copy(str, str + size, m_hostapd_ctrl_path);
+    return true;
+}
+bool cACTION_APMANAGER_CONFIGURE::alloc_hostapd_ctrl_path(size_t count) {
+    if (m_lock_order_counter__ > 0) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list hostapd_ctrl_path, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    m_lock_order_counter__ = 0;
+    uint8_t *src = (uint8_t *)&m_hostapd_ctrl_path[*m_hostapd_ctrl_path_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_monitored_vap_ifaces_size = (uint8_t *)((uint8_t *)(m_monitored_vap_ifaces_size) + len);
+    m_monitored_vap_ifaces = (sFronthaulIface *)((uint8_t *)(m_monitored_vap_ifaces) + len);
+    m_hostapd_ctrl_path_idx__ += count;
+    *m_hostapd_ctrl_path_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
+uint8_t& cACTION_APMANAGER_CONFIGURE::monitored_vap_ifaces_size() {
+    return (uint8_t&)(*m_monitored_vap_ifaces_size);
+}
+
+std::tuple<bool, sFronthaulIface&> cACTION_APMANAGER_CONFIGURE::monitored_vap_ifaces(size_t idx) {
+    bool ret_success = ( (m_monitored_vap_ifaces_idx__ > 0) && (m_monitored_vap_ifaces_idx__ > idx) );
+    size_t ret_idx = ret_success ? idx : 0;
+    if (!ret_success) {
+        TLVF_LOG(ERROR) << "Requested index is greater than the number of available entries";
+    }
+    return std::forward_as_tuple(ret_success, m_monitored_vap_ifaces[ret_idx]);
+}
+
+bool cACTION_APMANAGER_CONFIGURE::alloc_monitored_vap_ifaces(size_t count) {
+    if (m_lock_order_counter__ > 1) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list monitored_vap_ifaces, abort!";
+        return false;
+    }
+    size_t len = sizeof(sFronthaulIface) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    m_lock_order_counter__ = 1;
+    uint8_t *src = (uint8_t *)&m_monitored_vap_ifaces[*m_monitored_vap_ifaces_size];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_monitored_vap_ifaces_idx__ += count;
+    *m_monitored_vap_ifaces_size += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { 
+        for (size_t i = m_monitored_vap_ifaces_idx__ - count; i < m_monitored_vap_ifaces_idx__; i++) { m_monitored_vap_ifaces[i].struct_init(); }
+    }
+    return true;
+}
+
 void cACTION_APMANAGER_CONFIGURE::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    m_bridge_iface->struct_swap();
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_hostapd_ctrl_path_length));
+    for (size_t i = 0; i < m_monitored_vap_ifaces_idx__; i++){
+        m_monitored_vap_ifaces[i].struct_swap();
+    }
 }
 
 bool cACTION_APMANAGER_CONFIGURE::finalize()
@@ -210,6 +330,10 @@ size_t cACTION_APMANAGER_CONFIGURE::get_initial_size()
     class_size += sizeof(uint8_t); // channel
     class_size += sizeof(uint8_t); // certification_mode
     class_size += sizeof(uint8_t); // multi_ap_profile
+    class_size += sizeof(uint8_t); // clients_measurement_mode
+    class_size += sizeof(sFronthaulIface); // bridge_iface
+    class_size += sizeof(uint16_t); // hostapd_ctrl_path_length
+    class_size += sizeof(uint8_t); // monitored_vap_ifaces_size
     return class_size;
 }
 
@@ -232,6 +356,44 @@ bool cACTION_APMANAGER_CONFIGURE::init()
     m_multi_ap_profile = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_clients_measurement_mode = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_bridge_iface = reinterpret_cast<sFronthaulIface*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sFronthaulIface))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sFronthaulIface) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_bridge_iface->struct_init(); }
+    m_hostapd_ctrl_path_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_hostapd_ctrl_path_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_hostapd_ctrl_path = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t hostapd_ctrl_path_length = *m_hostapd_ctrl_path_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&hostapd_ctrl_path_length)); }
+    m_hostapd_ctrl_path_idx__ = hostapd_ctrl_path_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (hostapd_ctrl_path_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (hostapd_ctrl_path_length) << ") Failed!";
+        return false;
+    }
+    m_monitored_vap_ifaces_size = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_monitored_vap_ifaces_size = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_monitored_vap_ifaces = reinterpret_cast<sFronthaulIface*>(m_buff_ptr__);
+    uint8_t monitored_vap_ifaces_size = *m_monitored_vap_ifaces_size;
+    m_monitored_vap_ifaces_idx__ = monitored_vap_ifaces_size;
+    if (!buffPtrIncrementSafe(sizeof(sFronthaulIface) * (monitored_vap_ifaces_size))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sFronthaulIface) * (monitored_vap_ifaces_size) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

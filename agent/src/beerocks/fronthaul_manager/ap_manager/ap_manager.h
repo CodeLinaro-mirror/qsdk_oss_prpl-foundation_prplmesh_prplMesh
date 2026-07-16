@@ -62,6 +62,20 @@ public:
     bool is_operational() const;
 
     /**
+     * @brief Return the accepted AP HAL configuration.
+     *
+     * @return Accepted AP HAL configuration.
+     */
+    const bwl::hal_conf_t &get_hal_conf() const { return ap_wlan_hal->get_hal_conf(); }
+
+    /**
+     * @brief Return the client measurement mode supplied by the Agent.
+     *
+     * @return Client measurement mode supplied by the Agent.
+     */
+    uint8_t get_clients_measurement_mode() const { return m_clients_measurement_mode; }
+
+    /**
      * @brief Returns 'true' if the AP support ZWDFS.
      * 
      * @return true if the radio is ZWDFS radio, otherwise false. 
@@ -161,7 +175,14 @@ private:
     bool handle_aps_update_list();
     void fill_cs_params(beerocks_message::sApChannelSwitch &params);
     void fill_sr_params(beerocks_message::sSpatialReuseParams &params);
-    bool create_ap_wlan_hal();
+
+    /**
+     * @brief Create the AP WLAN HAL with the supplied configuration.
+     *
+     * @param hal_conf AP HAL configuration.
+     * @return true on success, otherwise false.
+     */
+    bool create_ap_wlan_hal(const bwl::hal_conf_t &hal_conf);
 
     /**
      * @brief Apply QoS management settings to one BSS.
@@ -235,7 +256,6 @@ private:
 
     std::string m_iface;
     beerocks::logging &m_logger;
-    bool acs_enabled;
     bool m_ap_support_zwdfs;
     wfa_map::tlvProfile2MultiApProfile::eMultiApProfile m_multiap_controller_profile =
         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::PRPLMESH_PROFILE_UNKNOWN;
@@ -288,6 +308,8 @@ private:
     int sta_unassociated_rssi_measurement_header_id = -1;
 
     std::shared_ptr<bwl::ap_wlan_hal> ap_wlan_hal;
+    uint8_t m_clients_measurement_mode = 1;
+    std::string m_bridge_iface;
 
     std::chrono::steady_clock::time_point next_heartbeat_notification_timestamp;
 
@@ -346,10 +368,7 @@ private:
      */
     std::unique_ptr<beerocks::CmduClient> m_slave_client;
 
-    bool certification_mode = false;
-    bool radio_state_lock   = false;
-    uint8_t multi_ap_profile =
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
+    bool radio_state_lock = false;
 
     struct sBeaconMetricsResponse {
         sMacAddr sta_mac;

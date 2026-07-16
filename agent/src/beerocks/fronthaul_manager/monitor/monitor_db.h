@@ -443,7 +443,6 @@ private:
 class monitor_db {
 public:
     enum class eClientsMeasurementMode : uint8_t {
-        // equivalent to bpl::eClientsMeasurementMode
         DISABLE_ALL = 0,
         ENABLE_ALL,
         ONLY_CLIENTS_SELECTED_FOR_STEERING
@@ -565,10 +564,10 @@ private:
     int arp_burst_delay   = 0;
 
     /**
-     * The mode is read once from BPL as part of the monitor start and used to determine if
-     * measurements for clients are: disable, enabled or enabled-only-for-selected-clients.
-     * The default value is set to ENABLE_ALL.
-    */
+     * The mode is supplied by the Agent as part of fronthaul startup and determines whether client
+     * measurements are disabled, enabled, or enabled only for selected clients. The default value
+     * is ENABLE_ALL.
+     */
     eClientsMeasurementMode m_clients_measurement_mode = eClientsMeasurementMode::ENABLE_ALL;
 
     bool m_radio_stats_enable           = true;

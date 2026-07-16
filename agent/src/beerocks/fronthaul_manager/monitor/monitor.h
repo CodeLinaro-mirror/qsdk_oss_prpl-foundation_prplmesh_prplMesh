@@ -33,6 +33,15 @@ public:
             beerocks::config_file::sConfigSlave &beerocks_slave_conf_, beerocks::logging &logger_);
 
     /**
+     * @brief Start the monitor with Agent-provided configuration.
+     *
+     * @param hal_conf Accepted radio HAL configuration.
+     * @param clients_measurement_mode Client measurement mode supplied by the Agent.
+     * @return true on success, otherwise false.
+     */
+    bool start(const bwl::hal_conf_t &hal_conf, uint8_t clients_measurement_mode);
+
+    /**
      * @brief Initialize monitor.
      *
      * @return true on success and false otherwise.
@@ -114,6 +123,7 @@ private:
      */
     sMacAddr m_radio_mac;
 
+    bwl::hal_conf_t m_hal_conf;
     std::string monitor_iface;
     beerocks::config_file::sConfigSlave &beerocks_slave_conf;
     std::string bridge_iface;
