@@ -163,9 +163,19 @@ void ChannelScanTask::work()
             LOG(ERROR) << "radio does not exist in the db";
             continue;
         }
-        if (m_current_scan_info[radio->front.iface_name].is_scan_currently_running) {
-            auto current_scan_request = m_current_scan_info[radio->front.iface_name].scan_request;
-            auto current_radio_scan   = m_current_scan_info[radio->front.iface_name].radio_scan;
+        auto &current_scan_info = m_current_scan_info[radio->front.iface_name];
+        if (current_scan_info.is_scan_currently_running) {
+            auto current_scan_request = current_scan_info.scan_request;
+            auto current_radio_scan   = current_scan_info.radio_scan;
+
+            if (!current_scan_request || !current_radio_scan) {
+                LOG(ERROR) << "Invalid active channel scan context for interface "
+                           << radio->front.iface_name
+                           << ": scan_request=" << bool(current_scan_request)
+                           << ", radio_scan=" << bool(current_radio_scan);
+                current_scan_info = {};
+                continue;
+            }
 
             auto finalize_scan = [this, &radio, &current_scan_request]() {
                 if (m_on_boot_scan_enabled) {
@@ -376,27 +386,52 @@ bool ChannelScanTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmdu_rx,
         return false;
     }
 
-    auto is_current_scan_running = [this](std::string ifname) -> bool {
-        if (!m_current_scan_info[ifname].is_scan_currently_running) {
+    auto is_current_scan_running = [this](const std::string &ifname) -> bool {
+        auto scan_it = m_current_scan_info.find(ifname);
+        if (scan_it == m_current_scan_info.end() || !scan_it->second.is_scan_currently_running) {
             return false;
         }
+
+        if (!scan_it->second.radio_scan || !scan_it->second.scan_request) {
+            LOG(ERROR) << "Invalid active channel scan context for interface " << ifname
+                       << ": scan_request=" << bool(scan_it->second.scan_request)
+                       << ", radio_scan=" << bool(scan_it->second.radio_scan);
+            scan_it->second = {};
+            return false;
+        }
+
         return true;
     };
-    auto does_current_scan_match_incoming_src = [this](std::string ifname,
+    auto does_current_scan_match_incoming_src = [this](const std::string &ifname,
                                                        const sMacAddr &src_mac) -> bool {
-        if (m_current_scan_info[ifname].radio_scan->radio_mac != src_mac) {
+        auto scan_it = m_current_scan_info.find(ifname);
+        if (scan_it == m_current_scan_info.end() || !scan_it->second.radio_scan) {
+            LOG(ERROR) << "No radio scan context for interface " << ifname;
+            return false;
+        }
+
+        const auto &radio_scan = scan_it->second.radio_scan;
+        if (radio_scan->radio_mac != src_mac) {
             LOG(ERROR) << "Currently running scan radio MAC does not match incoming response's. "
-                       << m_current_scan_info[ifname].radio_scan->radio_mac << " != " << src_mac;
+                       << radio_scan->radio_mac << " != " << src_mac;
             return false;
         }
         return true;
     };
-    auto is_current_scan_in_state = [this](std::string ifname, eState scan_expected_state) -> bool {
-        if (m_current_scan_info[ifname].radio_scan->current_state != scan_expected_state) {
+    auto is_current_scan_in_state = [this](const std::string &ifname,
+                                           eState scan_expected_state) -> bool {
+        auto scan_it = m_current_scan_info.find(ifname);
+        if (scan_it == m_current_scan_info.end() || !scan_it->second.radio_scan) {
+            LOG(ERROR) << "No radio scan context for interface " << ifname;
+            return false;
+        }
+
+        const auto &radio_scan = scan_it->second.radio_scan;
+        if (radio_scan->current_state != scan_expected_state) {
             LOG(ERROR) << "Currently running scan is not in "
                        << m_states_string.at(scan_expected_state)
                        << " state, current scan is in state: "
-                       << m_states_string.at(m_current_scan_info[ifname].radio_scan->current_state);
+                       << m_states_string.at(radio_scan->current_state);
             return false;
         }
         return true;
@@ -1493,8 +1528,6 @@ bool ChannelScanTask::handle_on_boot_scan_request(ieee1905_1::CmduMessageRx &cmd
     new_request->radio_scans = new_radio_scan;
     if (send_results) {
         LOG(DEBUG) << "Sending On Boot Scan results to the controller";
-        m_current_scan_info[radio_iface].radio_scan   = nullptr;
-        m_current_scan_info[radio_iface].scan_request = nullptr;
         return send_channel_scan_report_to_controller(new_request);
     }
     m_pending_requests[radio_iface] = new_request;
