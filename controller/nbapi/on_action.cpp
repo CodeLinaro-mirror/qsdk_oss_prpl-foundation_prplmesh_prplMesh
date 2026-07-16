@@ -9,6 +9,8 @@
 #include "on_action.h"
 
 #include <algorithm>
+#include <array>
+#include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_defines.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <bcl/beerocks_qos_utils.h>
@@ -16,6 +18,7 @@
 #include <beerocks/tlvf/beerocks_message_bml.h>
 #include <cctype>
 #include <chrono>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <locale.h>
@@ -31,6 +34,7 @@
 #include <tuple>
 #include <tlvf/ieee_1905_1/eMessageType.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
+#include <mapf/common/utils.h>
 
 using namespace beerocks;
 using namespace net;
@@ -44,6 +48,7 @@ namespace actions {
 son::db *g_database = nullptr;
 
 namespace {
+bool g_templates_dm_initialized         = false;
 bool g_templates_commit_pending         = false;
 bool g_templates_topology_restage_armed = false;
 bool g_templates_apply_in_progress      = false;
@@ -773,7 +778,7 @@ static bool templates_events_enabled(void)
         return false;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "Ignoring Templates event (use_dataelements_vap_configs is false)";
+        LOG(ERROR) << "Ignoring Templates event: UseDataElementsVapConfigs is false";
         return false;
     }
     return true;
@@ -2801,7 +2806,7 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         return false;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "template_rebuild_staged_configuration ignored (use_dataelements_vap_configs is false)";
+        LOG(DEBUG) << "template_rebuild_staged_configuration failed: UseDataElementsVapConfigs is false";
         return false;
     }
     if (!templates_root) {
@@ -4718,6 +4723,59 @@ static void event_ieee1905_network_enable_changed(const char *const sig_name,
     if (!controller_ctx->handle_ieee1905_network_enable_changed(enabled)) {
         LOG(WARNING) << "Failed to handle " << IEEE1905_ROOT_DM << ".Network.Enable change.";
     }
+/** First existing master conf: /tmp override, then writable, then install (matches read_config_file). */
+static std::string resolve_master_config_file_path()
+{
+    const std::string name = std::string(BEEROCKS_CONTROLLER) + ".conf";
+    const std::array<std::string, 3> candidates = {{
+        std::string("/tmp/") + name,
+        std::string(CONF_FILES_WRITABLE_PATH) + name,
+        mapf::utils::get_install_path() + "config/" + name,
+    }};
+
+    for (const auto &path : candidates) {
+        if (std::ifstream(path).good()) {
+            return path;
+        }
+    }
+    return candidates[1];
+}
+
+static void event_use_dataelements_vap_config_changed(const char *const sig_name, const amxc_var_t *const data, void *const priv)
+{
+    if (!is_templates_dm_initialized()) {
+        LOG(DEBUG) << "Ignoring startup event";
+        return;
+    }
+
+    auto *network = amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+    if (!network) {
+        LOG(ERROR) << "Failed obtaining object for UseDataElementsVapConfigs";
+        return;
+    }
+
+    const bool enabled = amxd_object_get_bool(network, "UseDataElementsVapConfigs", nullptr);
+    const char *value  = enabled ? "1" : "0";
+    LOG(INFO) << "use_dataelements_vap_configs=" << enabled;
+
+    const auto active_path = resolve_master_config_file_path();
+    if (!beerocks::config_file::update_section_key(active_path, "controller",
+                                                   "use_dataelements_vap_configs", value)) {
+        LOG(ERROR) << "Failed persisting UseDataElementsVapConfigs into " << active_path;
+        return;
+    }
+
+    // Keep durable writable copy in sync when the active file is the /tmp override.
+    const auto writable_path =
+        std::string(CONF_FILES_WRITABLE_PATH) + BEEROCKS_CONTROLLER + ".conf";
+    if (active_path.rfind("/tmp/", 0) == 0 && active_path != writable_path &&
+        std::ifstream(writable_path).good()) {
+        if (!beerocks::config_file::update_section_key(writable_path, "controller",
+                                                       "use_dataelements_vap_configs", value)) {
+            LOG(WARNING) << "Updated /tmp conf but failed updating writable " << writable_path;
+        }
+    }
+
 }
 
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
@@ -4740,6 +4798,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
         {"event_ieee1905_network_enable_changed", event_ieee1905_network_enable_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed},
+        {"event_use_dataelements_vap_config_changed", event_use_dataelements_vap_config_changed},
         {"event_templates_network_configuration_changed",
          event_templates_network_configuration_changed},
         {"event_bss_template_configuration_changed", event_bss_template_configuration_changed},
@@ -4748,13 +4807,10 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
         {"event_radio_template_instance_changed", event_radio_template_instance_changed},
         {"event_ssc_template_configuration_changed", event_ssc_template_configuration_changed},
         {"event_ssc_template_instance_changed", event_ssc_template_instance_changed},
-        {"event_security_template_configuration_changed",
-         event_security_template_configuration_changed},
+        {"event_security_template_configuration_changed", event_security_template_configuration_changed},
         {"event_security_template_instance_changed", event_security_template_instance_changed},
-        {"event_templates_security_group_configuration_changed",
-         event_templates_security_group_configuration_changed},
-        {"event_templates_security_group_instance_changed",
-         event_templates_security_group_instance_changed},
+        {"event_templates_security_group_configuration_changed", event_templates_security_group_configuration_changed},
+        {"event_templates_security_group_instance_changed", event_templates_security_group_instance_changed},
         {"event_apmld_template_configuration_changed", event_apmld_template_configuration_changed},
         {"event_apmld_template_instance_changed", event_apmld_template_instance_changed}};
     return events_list;
@@ -4813,7 +4869,7 @@ static void templates_commit(void)
         return;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "wifi templates: rebuild skipped (use_dataelements_vap_configs is false)";
+        LOG(ERROR) << "wifi templates: Rebuild Skipped";
         return;
     }
     amxd_object_t *templates_root =
@@ -4861,7 +4917,7 @@ void templates_schedule_commit_apply(void)
     }
     auto controller = g_database->get_controller_ctx();
     if (!controller) {
-        LOG(DEBUG) << "wifi templates: no controller ctx, apply deferred in monitoring work()";
+        LOG(ERROR) << "wifi templates: no controller ctx, apply deferred";
         return;
     }
     controller->schedule_templates_commit_apply();
@@ -4874,16 +4930,26 @@ void templates_restage_only(void)
         return;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "wifi templates: restage skipped (use_dataelements_vap_configs is false)";
+        LOG(ERROR) << "wifi templates: restage skipped (use_dataelements_vap_configs is false)";
         return;
     }
 
     if (g_templates_topology_restage_armed) {
-        LOG(DEBUG) << "wifi templates: topology restage already armed, coalescing";
+        LOG(ERROR) << "wifi templates: topology restage armed already, coalescing";
         return;
     }
     g_templates_topology_restage_armed = true;
     templates_commit_request();
+}
+
+bool is_templates_dm_initialized()
+{
+    return g_templates_dm_initialized;
+}
+
+void set_templates_dm_initialized(bool initialized)
+{
+    g_templates_dm_initialized = initialized;
 }
 
 } // namespace actions

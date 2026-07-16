@@ -434,6 +434,8 @@
                 %read-only object AgentConnectedEvent[];
                 %read-only object AgentDisconnectedEvent[];
 
+                /* Use DataElement Vap Config */
+                bool UseDataElementsVapConfigs = false;
     @CONTROLLER_ROOT_DM_Footer@
 
 
@@ -522,6 +524,9 @@
 
     on event "dm:object-changed" call event_traffic_separation_changed
         filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Configuration\.TrafficSeparation\."';
+
+    on event "dm:object-changed" call event_use_dataelements_vap_config_changed
+        filter 'object matches "@CONTROLLER_ROOT_DM_literal@\." && contains("parameters.UseDataElementsVapConfigs")';
 
     on event "dm:object-changed" call event_network_enable_changed
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")';

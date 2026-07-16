@@ -9,9 +9,11 @@
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_string_utils.h>
 
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <tuple>
+#include <vector>
 
 using namespace beerocks;
 
@@ -283,6 +285,83 @@ bool config_file::read_config_file(std::string config_file_path, tConfig &conf_a
                       << " ,type:" << std::get<2>(conf) << std::endl;
             return false;
         }
+    }
+    return true;
+}
+
+bool config_file::update_section_key(const std::string &config_file_path,
+                                     const std::string &section, const std::string &key,
+                                     const std::string &value)
+{
+    std::ifstream input(config_file_path);
+    if (!input.is_open()) {
+        return false;
+    }
+
+    const std::string section_header = "[" + section + "]";
+    const std::string key_prefix     = key + "=";
+    const std::string expected       = key_prefix + value;
+
+    std::vector<std::string> lines;
+    bool in_section   = false;
+    bool found        = false;
+    size_t insert_pos = std::string::npos;
+    std::string line;
+
+    while (std::getline(input, line)) {
+        std::string trimmed = line;
+        string_utils::ltrim(trimmed);
+        string_utils::rtrim(trimmed);
+
+        if (trimmed == section_header) {
+            in_section = true;
+        } else if (!trimmed.empty() && trimmed[0] == '[') {
+            if (in_section) {
+                insert_pos = lines.size();
+                in_section = false;
+            }
+        }
+
+        if (in_section && trimmed.compare(0, key_prefix.size(), key_prefix) == 0) {
+            found = true;
+            if (trimmed == expected) {
+                return true;
+            }
+            line = expected;
+        }
+
+        lines.push_back(line);
+    }
+    input.close();
+
+    if (in_section && insert_pos == std::string::npos) {
+        insert_pos = lines.size();
+    }
+
+    if (!found) {
+        if (insert_pos != std::string::npos) {
+            lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insert_pos), expected);
+        } else {
+            lines.push_back(section_header);
+            lines.push_back(expected);
+        }
+    }
+
+    const auto tmp_path = config_file_path + ".tmp";
+    std::ofstream output(tmp_path, std::ios::trunc);
+    if (!output.is_open()) {
+        return false;
+    }
+
+    for (const auto &l : lines) {
+        output << l << '\n';
+    }
+    output.flush();
+    output.close();
+
+    if (std::rename(tmp_path.c_str(), config_file_path.c_str()) != 0) {
+        std::remove(tmp_path.c_str());
+        return false;
     }
     return true;
 }
