@@ -113,6 +113,8 @@ public:
                                  const std::string &config_type);
     static bool read_master_config_file(const std::string &config_file_path, sConfigMaster &conf);
     static bool read_slave_config_file(const std::string &config_file_path, sConfigSlave &conf);
+    static bool update_section_key(const std::string &config_file_path, const std::string &section,
+                                 const std::string &key, const std::string &value);
 };
 
 } //  namespace beerocks
