@@ -31,6 +31,10 @@ void templates_schedule_commit_apply(void);
 
 void templates_restage_only(void);
 
+bool is_templates_dm_initialized();
+
+void set_templates_dm_initialized(bool val);
+
 extern son::db *g_database;
 
 /**
