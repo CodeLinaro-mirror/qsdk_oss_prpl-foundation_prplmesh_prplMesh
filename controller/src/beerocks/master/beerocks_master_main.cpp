@@ -769,6 +769,18 @@ int main(int argc, char *argv[])
     prplmesh::controller::actions::g_database = &master_db;
 #endif
 
+    // Set UseDataElementsVapConfigs to the Data Model
+    bool use_templates = master_db.config.use_dataelements_vap_configs;
+    LOG(INFO) << "Initializing UseDataElementsVapConfigs=" << use_templates;
+
+    if (!amb_dm_obj->set(CONTROLLER_ROOT_DM, "UseDataElementsVapConfigs", use_templates)) {
+        LOG(ERROR) << "Failed syncing " << "UseDataElementsVapConfigs";
+    }
+#ifdef ENABLE_NBAPI
+    prplmesh::controller::actions::set_templates_dm_initialized(true);
+    LOG(INFO) << "Templates DM initialization completed";
+#endif
+
     // The prplMesh controller needs to be configured with the SSIDs and credentials that have to
     // be configured on the agents. Even though NBAPI exists to configure this, there is a lot of
     // existing software out there that doesn't use it. Therefore, prplMesh should also read the

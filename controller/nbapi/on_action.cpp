@@ -31,6 +31,7 @@
 #include <tuple>
 #include <tlvf/ieee_1905_1/eMessageType.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
+#include <mapf/common/utils.h>
 
 using namespace beerocks;
 using namespace net;
@@ -44,6 +45,7 @@ namespace actions {
 son::db *g_database = nullptr;
 
 namespace {
+bool g_templates_dm_initialized         = false;
 bool g_templates_commit_pending         = false;
 bool g_templates_topology_restage_armed = false;
 bool g_templates_apply_in_progress      = false;
@@ -773,7 +775,7 @@ static bool templates_events_enabled(void)
         return false;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "Ignoring Templates event (use_dataelements_vap_configs is false)";
+        LOG(ERROR) << "Ignoring Templates event: UseDataElementsVapConfigs is false";
         return false;
     }
     return true;
@@ -2801,7 +2803,7 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         return false;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "template_rebuild_staged_configuration ignored (use_dataelements_vap_configs is false)";
+        LOG(DEBUG) << "template_rebuild_staged_configuration failed: UseDataElementsVapConfigs is false";
         return false;
     }
     if (!templates_root) {
@@ -4580,6 +4582,173 @@ static void event_network_enable_changed(const char *const sig_name, const amxc_
     access_point_commit(network_obj, nullptr, nullptr, nullptr);
 }
 
+static inline void trim_whitespace(std::string &str)
+{
+    auto first = str.find_first_not_of(" \t\r\n");
+
+    if (first == std::string::npos) {
+        str.clear();
+        return;
+    }
+
+    auto last = str.find_last_not_of(" \t\r\n");
+
+    str = str.substr(first, last - first + 1);
+}
+
+static std::string get_effective_controller_config()
+{
+#ifdef BEEROCKS_RDKB
+    constexpr char PRIMARY[] = "/nvram/beerocks_controller.conf";
+#else
+    constexpr char PRIMARY[] = "./beerocks_controller.conf";
+#endif
+
+    constexpr char TMP[] = "/tmp/beerocks_controller.conf";
+    std::string fallback = mapf::utils::get_install_path() + "config/beerocks_controller.conf";
+
+    const std::array<std::string, 3> candidates = {
+        TMP,
+        PRIMARY,
+        fallback
+    };
+
+    for (const auto& p : candidates) {
+        std::ifstream f(p);
+        if (f.good()) {
+            return p;
+        }
+    }
+
+    return fallback;
+}
+
+enum class ConfigUpdateResult { CONFIG_UPDATE_ERROR, CONFIG_ALREADY_SET, CONFIG_UPDATED };
+
+static ConfigUpdateResult update_master_config_file(bool enable_templates)
+{
+    auto target_file = get_effective_controller_config();
+    std::ifstream input(target_file);
+    if (!input.is_open()) {
+        LOG(ERROR) << "Failed opening " << target_file;
+        return ConfigUpdateResult::CONFIG_UPDATE_ERROR;
+    }
+    constexpr char KEY[] = "use_dataelements_vap_configs=";
+    std::string expected = std::string(KEY) + (enable_templates ? "1" : "0");
+    std::vector<std::string> lines;
+
+    bool in_controller_section = false;
+    bool found = false;
+    size_t insert_pos = std::string::npos;
+    std::string line;
+
+    while (std::getline(input, line)) {
+        std::string trimmed = line;
+        trim_whitespace(trimmed);
+        if (trimmed == "[controller]") {
+            in_controller_section = true;
+        }
+        else if (!trimmed.empty() &&
+                 trimmed[0] == '[') {
+            if (in_controller_section) {
+                insert_pos = lines.size();
+                in_controller_section = false;
+            }
+        }
+
+        if (in_controller_section && trimmed.compare(0, strlen(KEY), KEY) == 0) {
+            found = true;
+            if (trimmed == expected) {
+                LOG(DEBUG) << "Controller config already contains " << expected;
+                input.close();
+                return ConfigUpdateResult::CONFIG_ALREADY_SET;
+            }
+            LOG(INFO) << "Replacing controller config entry: " << trimmed << " -> " << expected;
+            line = expected;
+        }
+
+        lines.push_back(line);
+    }
+
+    input.close();
+
+    if (in_controller_section &&
+        insert_pos == std::string::npos) {
+
+        insert_pos = lines.size();
+    }
+
+    if (!found) {
+        LOG(INFO) << "Appending " << expected;
+
+        if (insert_pos != std::string::npos) {
+            lines.insert(lines.begin() + insert_pos, expected);
+        }
+        else {
+            lines.push_back("[controller]");
+            lines.push_back(expected);
+        }
+    }
+
+    auto tmp = target_file + ".tmp";
+
+    std::ofstream output(tmp, std::ios::trunc);
+
+    if (!output.is_open()) {
+        LOG(ERROR) << "Failed opening temporary file " << tmp;
+        return ConfigUpdateResult::CONFIG_UPDATE_ERROR;
+    }
+
+    for (auto &l : lines) {
+        output << l << "\n";
+    }
+
+    output.flush();
+    output.close();
+
+    if (std::rename(tmp.c_str(), target_file.c_str()) != 0) {
+        LOG(ERROR) << "Atomic rename failed";
+        std::remove(tmp.c_str());
+        return ConfigUpdateResult::CONFIG_UPDATE_ERROR;
+    }
+
+    LOG(INFO) << "Persisted " << expected << " into " << target_file;
+    return ConfigUpdateResult::CONFIG_UPDATED;
+}
+
+static void event_use_dataelements_vap_config_changed(const char *const sig_name, const amxc_var_t *const data, void *const priv)
+{
+    if (!is_templates_dm_initialized()) {
+        LOG(DEBUG) << "Ignoring startup event";
+        return;
+    }
+
+    auto *network = amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!network) {
+        LOG(ERROR) << "Failed obtaining DataElements.Network";
+        return;
+    }
+
+    bool enabled = amxd_object_get_bool(network, "UseDataElementsVapConfigs", nullptr);
+    LOG(INFO) << "UseDataElementsVapConfigs changed -> " << enabled;
+    auto result = update_master_config_file(enabled);
+    switch (result) {
+        case ConfigUpdateResult::CONFIG_UPDATED:
+            LOG(INFO) << "Configuration persisted successfully";
+            LOG(INFO) << "Restart controller to apply changes";
+            break;
+
+        case ConfigUpdateResult::CONFIG_ALREADY_SET:
+            LOG(DEBUG) << "Configuration already matches";
+            break;
+
+        default:
+            LOG(ERROR) << "Configuration persistence failed";
+            break;
+    }
+}
+
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
 {
     const std::vector<beerocks::nbapi::sActionsCallback> actions_list = {
@@ -4597,6 +4766,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
         {"event_traffic_separation_changed", event_traffic_separation_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed},
+        {"event_use_dataelements_vap_config_changed", event_use_dataelements_vap_config_changed},
         {"event_templates_network_configuration_changed",
          event_templates_network_configuration_changed},
         {"event_bss_template_configuration_changed", event_bss_template_configuration_changed},
@@ -4605,13 +4775,10 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
         {"event_radio_template_instance_changed", event_radio_template_instance_changed},
         {"event_ssc_template_configuration_changed", event_ssc_template_configuration_changed},
         {"event_ssc_template_instance_changed", event_ssc_template_instance_changed},
-        {"event_security_template_configuration_changed",
-         event_security_template_configuration_changed},
+        {"event_security_template_configuration_changed", event_security_template_configuration_changed},
         {"event_security_template_instance_changed", event_security_template_instance_changed},
-        {"event_templates_security_group_configuration_changed",
-         event_templates_security_group_configuration_changed},
-        {"event_templates_security_group_instance_changed",
-         event_templates_security_group_instance_changed},
+        {"event_templates_security_group_configuration_changed", event_templates_security_group_configuration_changed},
+        {"event_templates_security_group_instance_changed", event_templates_security_group_instance_changed},
         {"event_apmld_template_configuration_changed", event_apmld_template_configuration_changed},
         {"event_apmld_template_instance_changed", event_apmld_template_instance_changed}};
     return events_list;
@@ -4670,7 +4837,7 @@ static void templates_commit(void)
         return;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "wifi templates: rebuild skipped (use_dataelements_vap_configs is false)";
+        LOG(ERROR) << "wifi templates: Rebuild Skipped";
         return;
     }
     amxd_object_t *templates_root =
@@ -4718,7 +4885,7 @@ void templates_schedule_commit_apply(void)
     }
     auto controller = g_database->get_controller_ctx();
     if (!controller) {
-        LOG(DEBUG) << "wifi templates: no controller ctx, apply deferred in monitoring work()";
+        LOG(ERROR) << "wifi templates: no controller ctx, apply deferred";
         return;
     }
     controller->schedule_templates_commit_apply();
@@ -4731,16 +4898,26 @@ void templates_restage_only(void)
         return;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "wifi templates: restage skipped (use_dataelements_vap_configs is false)";
+        LOG(ERROR) << "wifi templates: restage skipped (use_dataelements_vap_configs is false)";
         return;
     }
 
     if (g_templates_topology_restage_armed) {
-        LOG(DEBUG) << "wifi templates: topology restage already armed, coalescing";
+        LOG(ERROR) << "wifi templates: topology restage armed already, coalescing";
         return;
     }
     g_templates_topology_restage_armed = true;
     templates_commit_request();
+}
+
+bool is_templates_dm_initialized()
+{
+    return g_templates_dm_initialized;
+}
+
+void set_templates_dm_initialized(bool initialized)
+{
+    g_templates_dm_initialized = initialized;
 }
 
 } // namespace actions
