@@ -263,9 +263,9 @@ static std::vector<std::string> parse_topology_flags(const std::string &topology
 }
 
 /**
- * @brief Notify connected agents to refresh autoconfiguration (same path as AccessPointCommit).
+ * @brief Notify target agents to refresh autoconfiguration with unicast renew messages.
  */
-static void template_send_ap_config_renew_message()
+static void template_send_ap_config_renew_message(const std::vector<sMacAddr> &target_macs)
 {
     if (!g_database) {
         LOG(ERROR) << "g_database is nullptr";
@@ -281,10 +281,17 @@ static void template_send_ap_config_renew_message()
         return;
     }
 
-    if (!son_actions::send_ap_config_renew_msg(cmdu_tx, *g_database)) {
-        LOG(ERROR) << "Failed to send AP_CONFIGURATION_RENEW_MESSAGE";
-    } else {
-        LOG(INFO) << "wifi templates: Send AP_AUTOCONFIGURATION_RENEW_MESSAGE";
+    if (target_macs.empty()) {
+        LOG(DEBUG) << "wifi templates: skip AP_CONFIGURATION_RENEW (no target agents)";
+        return;
+    }
+
+    for (const auto &mac : target_macs) {
+        if (!son_actions::send_ap_config_renew_msg(cmdu_tx, *g_database, mac)) {
+            LOG(ERROR) << "Failed to send AP_CONFIGURATION_RENEW_MESSAGE to " << mac;
+        } else {
+            LOG(INFO) << "wifi templates: sent AP_AUTOCONFIGURATION_RENEW_MESSAGE to " << mac;
+        }
     }
 }
 
@@ -382,6 +389,10 @@ static void template_apply_pending_radio_transmit_power_limits(
     }
 
     for (const auto &kv : desired_by_key) {
+        const auto applied_it = g_template_applied_tx_power_limit_dbm.find(kv.first);
+        if (applied_it != g_template_applied_tx_power_limit_dbm.end() && applied_it->second == kv.second) {
+            continue;
+        }
         const auto separator = kv.first.find('|');
         if (separator == std::string::npos) {
             continue;
@@ -1327,10 +1338,20 @@ static bool template_agent_matches_topology_flags(const Agent &agent, const std:
         if (flag == "Wireless_Repeater" && is_wireless_repeater) {
             return true;
         }
-        if (flag == "ALID" &&
-            std::find(alids_for_alid_token.begin(), alids_for_alid_token.end(), agent.al_mac) !=
+        if (flag == "ALID") {
+            std::string alid_list_str;
+            for (const auto &mac : alids_for_alid_token) {
+                if (!alid_list_str.empty()) {
+                    alid_list_str += ", ";
+                }
+                alid_list_str += tlvf::mac_to_string(mac);
+            }
+            LOG(INFO) << "Evaluating ALID override. Target Agent: " << agent.al_mac << " | Whitelisted ALIDs: [" << alid_list_str << "]";
+
+            if (std::find(alids_for_alid_token.begin(), alids_for_alid_token.end(), agent.al_mac) !=
                 alids_for_alid_token.end()) {
-            return true;
+                    return true;
+            }
         }
     }
     return false;
@@ -2283,13 +2304,11 @@ static bool template_parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
 /** TMN / BBF: per-radio PHY support for Wi-Fi generation integer N (1..255). */
 static bool template_radio_phy_supports_generation_number(const Agent::sRadio &radio, uint32_t gen)
 {
-    if (gen >= 7U) {
-        return radio.eht_supported;
+    if (radio.supported_channels.empty()) {
+        return true;
     }
-    if (gen == 6U) {
-        return radio.wifi6_phy_reported || radio.eht_supported;
-    }
-    return true; /* 5 and below: no reliable per-gen beacon cache on Agent::sRadio yet */
+
+    return radio.max_wifi_generation_supported >= gen;
 }
 
 /** TMN MLO rule: selected RadioTemplate OperatingGeneration includes Wi-Fi 7 (or 6+ spanning 7). */
@@ -2641,6 +2660,7 @@ static bool template_stage_bss_on_radio(
 
     bss_info.vap_type = wireless_utils::string_to_vap_type(
         get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapType"));
+    bss_info.vap_label = get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapLabel");
 
     if (bss_info.vap_type == eVapType::OTHER &&
         bss_info.backhaul && !bss_info.fronthaul) {
@@ -2822,18 +2842,19 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
 
     std::unordered_map<std::string, std::string> apmld_ssid_by_id;
     if (!get_param_bool(network_obj, "Enable")) {
-        bool had_staging = false;
+        std::vector<sMacAddr> changed_agents;
         for (const auto &agent : g_database->get_all_connected_agents()) {
             if (agent && !g_database->get_bss_info_configuration(agent->al_mac).empty()) {
-                had_staging = true;
-                break;
+                changed_agents.push_back(agent->al_mac);
             }
         }
         g_database->clear_bss_info_configuration();
         g_database->clear_traffic_separation_configurations();
         g_database->clear_mld_info_configuration();
-        if (had_staging) {
-            template_send_ap_config_renew_message();
+        if (!changed_agents.empty()) {
+            LOG(INFO) << "wifi templates: Network.Enable=false, unicast renew to "
+                      << changed_agents.size() << " agent(s) with cleared staging";
+            template_send_ap_config_renew_message(changed_agents);
         } else {
             LOG(DEBUG) << "Templates.Network.Enable=false: cleared staged BSS/MLD (no AP config renew)";
         }
@@ -3029,7 +3050,7 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
 
     template_apply_pending_radio_transmit_power_limits(template_radio_tx_power_applies);
 
-    bool staging_changed = false;
+    std::vector<sMacAddr> changed_agents;
     for (const auto &agent : connected_agents) {
         if (!agent) {
             continue;
@@ -3038,14 +3059,14 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         const auto &before   = staging_before_by_agent[agent_key];
         const auto after     = g_database->get_bss_info_configuration(agent->al_mac);
         if (!template_bss_staging_lists_equal(before, after)) {
-            staging_changed = true;
-            break;
+            changed_agents.push_back(agent->al_mac);
         }
     }
 
-    if (staging_changed) {
-        LOG(INFO) << "wifi templates: staging changed, sending AP_AUTOCONFIGURATION_RENEW";
-        template_send_ap_config_renew_message();
+    if (!changed_agents.empty()) {
+        LOG(INFO) << "wifi templates: staging changed, unicast renew to " << changed_agents.size()
+                  << " agent(s)";
+        template_send_ap_config_renew_message(changed_agents);
     } else {
         LOG(INFO) << "wifi templates: staging unchanged, skip AP renew";
     }
@@ -3140,6 +3161,7 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
 
             bss_info.vap_type = wireless_utils::string_to_vap_type(
                 get_param_string(access_point_inst, "X_PRPLWARE-COM_VapType"));
+            bss_info.vap_label = get_param_string(access_point_inst, "X_PRPLWARE-COM_VapLabel");
 
             bool access_point_enable = amxd_object_get_bool(access_point_inst, "Enable", NULL);
             std::string group_name =

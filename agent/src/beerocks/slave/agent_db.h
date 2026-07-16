@@ -309,6 +309,8 @@ public:
             uint8_t radio_max_bss     = 0;
             bool rsn_override_support = false;
             std::array<sBssid, eBeeRocksIfaceIds::IFACE_TOTAL_VAPS> bssids{};
+            std::vector<WSC::eWscAuth> supported_akms;
+            std::vector<WSC::eWscEncr> supported_ciphers;
         } front;
 
         struct sBack {
