@@ -14,6 +14,7 @@
 #include <bcl/network/net_struct.h>
 
 #include <tlvf/common/eVapType.h>
+#include <tlvf/WSC/EncryptedSettingsPayload.h>
 
 #include <stdint.h>
 
@@ -246,6 +247,8 @@ struct RadioInfo {
     uint8_t max_num_mlds       = 0;
     uint8_t ap_maximum_links   = 0;
     uint8_t bsta_maximum_links = 0;
+    std::vector<WSC::eWscAuth> supported_akms;
+    std::vector<WSC::eWscEncr> supported_ciphers;
 };
 
 struct hal_conf_t {
