@@ -1336,6 +1336,8 @@ bool db::set_ap_vht_capabilities(wfa_map::tlvApVhtCapabilities &vht_caps_tlv)
         return false;
     }
 
+    radio->max_wifi_generation_supported = std::max(radio->max_wifi_generation_supported, 5U);
+
     auto path_to_obj = radio->dm_path;
     if (path_to_obj.empty()) {
         return true;
@@ -1526,6 +1528,8 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
         return false;
     }
 
+    radio->max_wifi_generation_supported = std::max(radio->max_wifi_generation_supported, 6U);
+
     if (radio->dm_path.empty()) {
         return true;
     }
@@ -1615,8 +1619,10 @@ bool db::set_internal_wifi7_radio_capabilities(
     wifi7_role.emlmr_support = static_cast<bool>(wifi7_support.emlmr_support);
 
     if (wifi7_role.str_support || wifi7_role.nstr_support || wifi7_role.emlsr_support ||
-        wifi7_role.emlmr_support)
+        wifi7_role.emlmr_support) {
         radio.eht_supported = true;
+        radio.max_wifi_generation_supported = std::max(radio.max_wifi_generation_supported, 7U);
+    }
 
     wifi7_role.str_freq_separations.clear();
     for (auto str_record_idx = 0; str_record_idx < wifi7_capabilities->num_str_records();
@@ -6648,6 +6654,8 @@ bool db::set_ap_ht_capabilities(const sMacAddr &radio_mac,
         LOG(ERROR) << "Failed to get radio with mac: " << radio_mac;
         return false;
     }
+
+    radio->max_wifi_generation_supported = std::max(radio->max_wifi_generation_supported, 4U);
 
     std::string path_to_obj = radio->dm_path;
     if (path_to_obj.empty()) {

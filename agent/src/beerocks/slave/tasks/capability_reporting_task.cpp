@@ -53,20 +53,58 @@
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 #include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 
+#include <set>
+
 using namespace multi_vendor;
 
 namespace beerocks {
 
 static std::vector<uint8_t> build_ieee80211_akm_suite_types_for_capability_tlv()
 {
-    // TODO: fill from platform / HAL / AgentDB merged radios; keep IEEE 802.11 OUI in TLV only.
-    return {0x02, 0x08, 0x18};
+    std::set<uint8_t> akm_set;
+    auto db = AgentDB::get();
+    for (const auto* radio : db->get_radios_list()) {
+        if (!radio) {
+            continue;
+        }
+        for (auto akm : radio->front.supported_akms) {
+            if (akm == WSC::eWscAuth::WSC_AUTH_WPA2PSK) {
+                akm_set.insert(0x02); // IEEE 802.11: PSK (AKM suite type 2)
+            } else if (akm == WSC::eWscAuth::WSC_AUTH_SAE) {
+                akm_set.insert(0x08); // IEEE 802.11: SAE (AKM suite type 8)
+            } else if (akm == WSC::eWscAuth::WSC_AUTH_SAE_AKM24) {
+                akm_set.insert(0x18); // IEEE 802.11: SAE-EXT-KEY (AKM suite type 24)
+            }
+        }
+    }
+
+    if (akm_set.empty()) {
+        LOG(DEBUG) << "AKM capabilities not populated by HAL";
+        return {0x02, 0x08, 0x18};
+    }
+    return std::vector<uint8_t>(akm_set.begin(), akm_set.end());
 }
 
 static std::vector<uint8_t> build_ieee80211_cipher_suite_types_for_capability_tlv()
 {
-    // TODO: fill from platform / HAL; include 0xED (AKM suite type space is separate — ciphers here).
-    return {0x04, 0x06, 0x09};
+    std::set<uint8_t> cipher_set;
+    auto db = AgentDB::get();
+    for (const auto* radio : db->get_radios_list()) {
+        if (!radio) {
+            continue;
+        }
+        for (auto cipher : radio->front.supported_ciphers) {
+            if (cipher == WSC::eWscEncr::WSC_ENCR_AES) {
+                cipher_set.insert(0x04); // IEEE 802.11: CCMP-128 (Cipher suite type 4)
+            }
+        }
+    }
+
+    if (cipher_set.empty()) {
+        LOG(DEBUG) << "Cipher capabilities not populated by HAL";
+        return {0x04, 0x06, 0x09};
+    }
+    return std::vector<uint8_t>(cipher_set.begin(), cipher_set.end());
 }
 
 CapabilityReportingTask::CapabilityReportingTask(slave_thread &btl_ctx,

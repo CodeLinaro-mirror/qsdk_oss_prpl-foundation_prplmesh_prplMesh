@@ -1916,6 +1916,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
 
         // TODO: MLD Modes are not filled by Agent/bwl (PPM-3595)
         radio->eht_supported = true;
+        radio->max_wifi_generation_supported = std::max(radio->max_wifi_generation_supported, 7U);
     }
 
     if (agent->max_num_mlds != 0 && radio->eht_supported) {
@@ -5982,6 +5983,7 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
 
         // Reset EHT Capabilities
         radio.second->eht_supported = false;
+        radio.second->max_wifi_generation_supported = 0;
 
         // Update Radio Band
         if (radio.second->supported_channels.size() > 0) {

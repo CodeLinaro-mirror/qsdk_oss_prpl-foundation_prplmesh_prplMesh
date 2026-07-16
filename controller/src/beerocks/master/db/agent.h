@@ -193,6 +193,7 @@ public:
 
         bool eht_supported = false;
         bool wifi6_phy_reported = false;
+        uint32_t max_wifi_generation_supported = 0;
         struct sWiFi7Capabilities {
             typedef struct {
                 typedef struct {
