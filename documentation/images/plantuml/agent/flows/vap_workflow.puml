@@ -16,7 +16,7 @@ note right: ap_wlan_hal_whm::update_vap_credentials()
 
 alt Create new vap for wildcard bssid
     FH -> pwhm: addVAPIntf
-    FH -> pwhm: update_object (bridge, IEEE80211k, WDSEnable)   
+    FH -> pwhm: update_object (bridge, IEEE80211k, WDSEnable)
 else VAP exist or not wildcard
     FH -> FH: update VAP and SSID paths
 end
@@ -26,7 +26,7 @@ alt Existing VAP
 end
 
 alt Configuration changed (for ex. new SSID)
-    FH -> pwhm: update_object (SSID, ModeEnabled, EncryptionMode, KeyPassPhrase, SAEPassphrase) (if needed)
+    FH -> pwhm: update_object (SSID, ModeEnabled, EncryptionMode, KeyPassphraseVisible, SAEPassphraseVisible) (if needed)
 end
 
 alt VAP previously torn down
