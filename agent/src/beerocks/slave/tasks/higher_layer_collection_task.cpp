@@ -10,6 +10,7 @@
 
 #include "../agent_db.h"
 
+#include <bcl/network/network_utils.h>
 #include <tlvf/ieee_1905_1/e1905ProfileVersion.h>
 #include <tlvf/ieee_1905_1/tlv1905ProfileVersion.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
@@ -19,10 +20,88 @@
 #include <tlvf/wfa_map/tlvHigherLayerData.h>
 
 #include <algorithm>
+#include <unordered_set>
 
 #include <easylogging++.h>
 
 using namespace beerocks;
+
+namespace {
+
+bool is_zero_ipv6(const uint8_t *address)
+{
+    return std::all_of(address, address + 16, [](uint8_t octet) { return octet == 0; });
+}
+
+bool has_ipv6_address(const HigherLayerCollectionTask::sInterfaceNetworkStatus &status)
+{
+    return !is_zero_ipv6(status.ipv6_link_local) || !status.ipv6_list.empty();
+}
+
+std::unordered_set<std::string> collect_reportable_interface_names()
+{
+    std::unordered_set<std::string> names;
+    std::string bridge_iface;
+    std::string selected_backhaul_iface;
+    bool local_gw = false;
+
+    {
+        auto db                 = AgentDB::get();
+        bridge_iface            = db->bridge.iface_name;
+        selected_backhaul_iface = db->backhaul.selected_iface_name;
+        local_gw                = db->device_conf.local_gw;
+
+        for (const auto &lan_iface : db->ethernet.lan) {
+            if (!lan_iface.iface_name.empty()) {
+                names.insert(lan_iface.iface_name);
+            }
+        }
+    }
+
+    auto add_bridge = [&](const std::string &bridge) {
+        if (bridge.empty()) {
+            return;
+        }
+
+        names.insert(bridge);
+
+        const auto bridge_ports =
+            beerocks::net::network_utils::linux_get_iface_list_from_bridge(bridge);
+        names.insert(bridge_ports.begin(), bridge_ports.end());
+    };
+
+    add_bridge(bridge_iface);
+    for (const auto &bridge : beerocks::net::network_utils::linux_get_bridges()) {
+        add_bridge(bridge);
+    }
+
+    if (!local_gw && !selected_backhaul_iface.empty()) {
+        names.insert(std::move(selected_backhaul_iface));
+    }
+
+    return names;
+}
+
+void filter_non_reportable_interfaces(
+    std::unordered_map<std::string, HigherLayerCollectionTask::sInterfaceNetworkStatus>
+        &interfaces_network_status)
+{
+    const auto reportable_interfaces = collect_reportable_interface_names();
+    if (reportable_interfaces.empty()) {
+        return;
+    }
+
+    for (auto it = interfaces_network_status.begin(); it != interfaces_network_status.end();) {
+        if (reportable_interfaces.count(it->first) == 0) {
+            LOG(DEBUG) << "Skipping IP address report for non-1905 interface " << it->first;
+            it = interfaces_network_status.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+} // namespace
 
 /**
  * @brief Constructor for HigherLayerCollectionTask.
@@ -106,6 +185,7 @@ bool HigherLayerCollectionTask::handle_higher_layer_query(const sMacAddr &src_ma
             ++it;
         }
     }
+    filter_non_reportable_interfaces(interfaces_network_status);
 
     // --- AL MAC Address TLV ---
     auto tlv_al_mac = m_cmdu_tx.addClass<ieee1905_1::tlvAlMacAddress>();
@@ -206,7 +286,7 @@ bool HigherLayerCollectionTask::handle_higher_layer_query(const sMacAddr &src_ma
 
     // --- IPv6 Interfaces and Addresses ---
     bool has_ipv6 = std::any_of(interfaces_network_status.begin(), interfaces_network_status.end(),
-                                [](const auto &p) { return !p.second.ipv6_list.empty(); });
+                                [](const auto &p) { return has_ipv6_address(p.second); });
 
     if (has_ipv6) {
         auto tlv_ipv6 = m_cmdu_tx.addClass<ieee1905_1::tlvIpv6>();
@@ -217,7 +297,7 @@ bool HigherLayerCollectionTask::handle_higher_layer_query(const sMacAddr &src_ma
 
         for (const auto &it : interfaces_network_status) {
             const auto &status = it.second;
-            if (status.ipv6_list.empty()) {
+            if (!has_ipv6_address(status)) {
                 continue;
             }
 
