@@ -115,6 +115,7 @@ protected:
             std::string address;
             ieee1905_1::eIpv6AddressType type = ieee1905_1::eIpv6AddressType::UNKNOWN;
             std::string origin;
+            std::string link_local = "::";
         };
 
         std::string friendly_name;
@@ -444,11 +445,15 @@ protected:
 
             ipv6_iface->mac_address() = ipv6_address.mac;
 
-            constexpr uint8_t kEmptyIpv6LinkLocal[16] = {};
-            if (!ipv6_iface->set_ipv6_link_local_address(kEmptyIpv6LinkLocal,
-                                                         sizeof(kEmptyIpv6LinkLocal))) {
+            uint8_t ipv6_link_local[16] = {};
+            if (inet_pton(AF_INET6, ipv6_address.link_local.c_str(), ipv6_link_local) != 1) {
                 return false;
             }
+            if (!ipv6_iface->set_ipv6_link_local_address(ipv6_link_local,
+                                                         sizeof(ipv6_link_local))) {
+                return false;
+            }
+
             if (!ipv6_iface->alloc_ipv6_address_entries(1)) {
                 return false;
             }
@@ -999,8 +1004,9 @@ TEST_F(IEEE1905TaskTest, higher_layer_response_materializes_identification_and_i
     higher_layer_packet.ipv4_addresses.push_back(
         {remote_al_mac, net_utils::ipv4_from_string("192.168.10.2"),
          ieee1905_1::eIpv4AddressType::DHCP, net_utils::ipv4_from_string("192.168.10.1")});
-    higher_layer_packet.ipv6_addresses.push_back(
-        {remote_al_mac, "2001:db8::2", ieee1905_1::eIpv6AddressType::SLAAC, "2001:db8::1"});
+    higher_layer_packet.ipv6_addresses.push_back({remote_al_mac, "2001:db8::2",
+                                                  ieee1905_1::eIpv6AddressType::SLAAC,
+                                                  "2001:db8::1", "fe80::1234"});
 
     ieee1905_1::CmduMessageRx higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
     ASSERT_TRUE(
@@ -1034,6 +1040,14 @@ TEST_F(IEEE1905TaskTest, higher_layer_response_materializes_identification_and_i
     std::string ipv6_value;
     EXPECT_TRUE(m_ambiorix->read_param(ipv6_it->second.dm_path.path, "IPv6Address", &ipv6_value));
     EXPECT_EQ("2001:db8::2", ipv6_value);
+
+    auto link_local_it = db_al.ipv6_addresses.find({remote_al_mac, "fe80::1234"});
+    ASSERT_NE(link_local_it, db_al.ipv6_addresses.end());
+    EXPECT_EQ("::", link_local_it->second.origin);
+    std::string link_local_type;
+    EXPECT_TRUE(m_ambiorix->read_param(link_local_it->second.dm_path.path, "IPv6AddressType",
+                                       &link_local_type));
+    EXPECT_EQ("LinkLocal", link_local_type);
 }
 
 TEST_F(IEEE1905TaskTest, higher_layer_response_serializes_ipv4_in_network_byte_order)

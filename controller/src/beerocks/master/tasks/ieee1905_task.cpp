@@ -25,6 +25,7 @@
 #include <easylogging++.h>
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <algorithm>
 #include <cctype>
@@ -122,6 +123,17 @@ static std::string ipv6_to_string(const uint8_t *ipv6)
     std::for_each(std::begin(out), std::end(out), [](auto &c) { c = std::tolower(c); });
 
     return out;
+}
+
+static bool is_zero_ipv6(const uint8_t *ipv6)
+{
+    return std::all_of(ipv6, ipv6 + 16, [](uint8_t octet) { return octet == 0; });
+}
+
+static bool is_link_local_ipv6(const std::string &ipv6)
+{
+    struct in6_addr addr = {};
+    return inet_pton(AF_INET6, ipv6.c_str(), &addr) == 1 && IN6_IS_ADDR_LINKLOCAL(&addr);
 }
 
 static auto ipv4_from_u32(uint32_t ipv4)
@@ -526,7 +538,7 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
 
         ok &= ipv6.dm_path.set("MACAddress", key.mac);
         ok &= ipv6.dm_path.set("IPv6Address", key.address);
-        const auto *ipv6_address_type = key.address.compare(0, 4, "fe80") == 0
+        const auto *ipv6_address_type = is_link_local_ipv6(key.address)
                                             ? "LinkLocal"
                                             : ipv6_address_type_to_dm_string(ipv6.type);
         ok &= ipv6.dm_path.set("IPv6AddressType", ipv6_address_type);
@@ -1175,6 +1187,22 @@ bool ieee1905_task::handle_higher_layer_response(const sMacAddr &src_mac,
             }
 
             const auto &mac = iface_block->mac_address();
+
+            auto *link_local_address = iface_block->ipv6_link_local_address();
+            if (!is_zero_ipv6(link_local_address)) {
+                const auto link_local_address_string = ipv6_to_string(link_local_address);
+                if (!link_local_address_string.empty()) {
+                    sIPv6Key key{mac, link_local_address_string};
+                    auto prev_ipv6_it = prev_ipv6_addresses.find(key);
+                    auto &db_ipv6     = db_al.ipv6_addresses[key];
+                    if (prev_ipv6_it != prev_ipv6_addresses.end()) {
+                        db_ipv6.dm_path = std::move(prev_ipv6_it->second.dm_path);
+                    }
+                    db_ipv6.type   = ieee1905_1::eIpv6AddressType::UNKNOWN;
+                    db_ipv6.origin = "::";
+                }
+            }
+
             for (int j = 0; j < iface_block->number_of_ipv6_addresses(); ++j) {
                 auto ipv6_entry = unwrap(iface_block->ipv6_address_entries(j));
                 if (!ipv6_entry) {

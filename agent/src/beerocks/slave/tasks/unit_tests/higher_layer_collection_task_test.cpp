@@ -127,6 +127,9 @@ protected:
         db->device_conf.device_friendly_name.clear();
         db->device_conf.device_manufacturer.clear();
         db->device_conf.device_model_name.clear();
+        db->bridge.iface_name = "br-lan";
+        db->backhaul.selected_iface_name.clear();
+        db->ethernet.lan.clear();
 
         sStatus status{};
         status.mac_address = tlvf::mac_from_string("00:11:22:33:44:55");
@@ -144,7 +147,13 @@ protected:
         ASSERT_EQ(inet_pton(AF_INET6, "2001:db8::1", ipv6.ipv6_origin), 1);
         status.ipv6_list.push_back(ipv6);
 
+        db->ethernet.lan.emplace_back("lo", status.mac_address);
         m_provider->interfaces["lo"] = status;
+
+        sStatus link_local_only{};
+        link_local_only.mac_address = tlvf::mac_from_string("00:11:22:33:44:56");
+        ASSERT_EQ(inet_pton(AF_INET6, "fe80::1234", link_local_only.ipv6_link_local), 1);
+        m_provider->interfaces["br-lan"] = link_local_only;
     }
 };
 
@@ -191,14 +200,27 @@ TEST_F(HigherLayerCollectionTaskTest, handle_higher_layer_query_generates_respon
     // Verify IPv6 TLV and Link-Local address
     auto tlv_ipv6 = response_rx.getClass<ieee1905_1::tlvIpv6>();
     ASSERT_NE(tlv_ipv6, nullptr);
-    ASSERT_GT(tlv_ipv6->number_of_entries(), 0);
+    ASSERT_EQ(tlv_ipv6->number_of_entries(), 2);
 
-    auto ipv6_block = tlv_ipv6->ipv6_interfaces_list(0);
-    ASSERT_TRUE(std::get<0>(ipv6_block));
+    const auto link_local_only_mac = tlvf::mac_from_string("00:11:22:33:44:56");
+    uint8_t expected_ll[16]        = {};
+    ASSERT_EQ(inet_pton(AF_INET6, "fe80::1234", expected_ll), 1);
 
-    uint8_t expected_ll[16] = {};
-    ASSERT_EQ(inet_pton(AF_INET6, "fe80::1", expected_ll), 1);
-    EXPECT_EQ(std::memcmp(std::get<1>(ipv6_block).ipv6_link_local_address(), expected_ll, 16), 0);
+    bool found_link_local_only = false;
+    for (uint8_t i = 0; i < tlv_ipv6->number_of_entries(); ++i) {
+        auto ipv6_block = tlv_ipv6->ipv6_interfaces_list(i);
+        ASSERT_TRUE(std::get<0>(ipv6_block));
+
+        if (std::get<1>(ipv6_block).mac_address() != link_local_only_mac) {
+            continue;
+        }
+
+        found_link_local_only = true;
+        EXPECT_EQ(std::get<1>(ipv6_block).number_of_ipv6_addresses(), 0);
+        EXPECT_EQ(std::memcmp(std::get<1>(ipv6_block).ipv6_link_local_address(), expected_ll, 16),
+                  0);
+    }
+    EXPECT_TRUE(found_link_local_only);
 }
 
 } // namespace beerocks
