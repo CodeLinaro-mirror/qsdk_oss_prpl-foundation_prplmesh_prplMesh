@@ -220,6 +220,7 @@ bool Ieee1905Transport::attach_interface_socket_filter(NetworkInterface &interfa
 
     // For non-EasyMesh mode the promiscuous should not be set since it may propogate control messages
     // to outside of the device and may affect some applications behavior (e.g. DNAT).
+    /*
     if (management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
 
         // 1st step is to put the interface in promiscuous mode.
@@ -234,6 +235,7 @@ bool Ieee1905Transport::attach_interface_socket_filter(NetworkInterface &interfa
             return false;
         }
     }
+    */
 
     // BPF does not apply to buffered frames, there is a chance that "after create the socket and before applying the BPF",
     // frames already buffered in kernel but not handled by user application
