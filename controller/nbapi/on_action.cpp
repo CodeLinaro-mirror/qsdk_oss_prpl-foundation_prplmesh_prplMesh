@@ -1437,7 +1437,7 @@ amxd_status_t add_unassociated_station(amxd_object_t *object, amxd_function_t *f
         LOG(ERROR) << "Failed fetching ID";
         amxc_var_clean(&value);
         return amxd_status_object_not_found;
-    };
+    }
     std::string radio_mac(str);
     if (radio_mac.empty()) {
         LOG(ERROR) << "radio_mac is empty";
@@ -1445,20 +1445,32 @@ amxd_status_t add_unassociated_station(amxd_object_t *object, amxd_function_t *f
         return amxd_status_parameter_not_found;
     }
 
-    //get agent mac
-    amxd_object_t *parent = amxd_object_get_parent(object);
-    amxd_object_get_param(parent, "ID", &value);
-    str = amxc_var_constcast(cstring_t, &value);
-    if (str == nullptr) {
-        LOG(ERROR) << "Failed fetching ID";
-        amxc_var_clean(&value);
-        return amxd_status_object_not_found;
-    };
-    std::string agent_mac(str);
-    if (agent_mac.empty()) {
-        LOG(ERROR) << "agent_mac is empty";
-        amxc_var_clean(&value);
-        return amxd_status_parameter_not_found;
+    // Prefer optional agent_mac argument when provided; otherwise derive from Device parent.
+    // Hierarchy: Radio instance -> Radio template -> Device instance.
+    std::string agent_mac;
+    const char *agent_mac_arg = GET_CHAR(args, "agent_mac");
+    if (agent_mac_arg && *agent_mac_arg) {
+        if (!network_utils::is_valid_mac(agent_mac_arg)) {
+            LOG(ERROR) << "Invalid value for agent_mac provided";
+            amxc_var_clean(&value);
+            return amxd_status_invalid_arg;
+        }
+        agent_mac = agent_mac_arg;
+    } else {
+        amxd_object_t *device = amxd_object_get_parent(amxd_object_get_parent(object));
+        amxd_object_get_param(device, "ID", &value);
+        str = amxc_var_constcast(cstring_t, &value);
+        if (str == nullptr) {
+            LOG(ERROR) << "Failed fetching ID";
+            amxc_var_clean(&value);
+            return amxd_status_object_not_found;
+        }
+        agent_mac = str;
+        if (agent_mac.empty()) {
+            LOG(ERROR) << "agent_mac is empty";
+            amxc_var_clean(&value);
+            return amxd_status_parameter_not_found;
+        }
     }
     amxc_var_clean(&value);
 
@@ -1516,7 +1528,7 @@ amxd_status_t remove_unassociated_station(amxd_object_t *object, amxd_function_t
         LOG(ERROR) << "Failed fetching ID";
         amxc_var_clean(&value);
         return amxd_status_object_not_found;
-    };
+    }
     std::string radio_mac(str);
     if (radio_mac.empty()) {
         LOG(ERROR) << "radio_mac is empty";
@@ -1524,17 +1536,17 @@ amxd_status_t remove_unassociated_station(amxd_object_t *object, amxd_function_t
         return amxd_status_parameter_not_found;
     }
 
-    //get agent mac
-    amxd_object_t *parent = amxd_object_get_parent(object);
-    amxd_object_get_param(parent, "ID", &value);
+    amxd_object_t *device = amxd_object_get_parent(amxd_object_get_parent(object));
+    amxd_object_get_param(device, "ID", &value);
     str = amxc_var_constcast(cstring_t, &value);
-    amxc_var_clean(&value);
-
     if (str == nullptr) {
         LOG(ERROR) << "Failed fetching ID";
+        amxc_var_clean(&value);
         return amxd_status_object_not_found;
-    };
+    }
+
     std::string agent_mac(str);
+    amxc_var_clean(&value);
     if (agent_mac.empty()) {
         LOG(ERROR) << "agent_mac is empty";
         return amxd_status_parameter_not_found;

@@ -87,6 +87,14 @@ public:
     }
 
     /**
+     * @brief remove agent from monitoring the station
+     *
+     * @param agent_mac_addr agent mac_addr
+     * @return true if the agent was removed, false if it was not monitoring the station.
+     */
+    bool remove_agent(const sMacAddr &agent_mac_addr) { return m_agents.erase(agent_mac_addr) > 0; }
+
+    /**
      * @brief set agent radio
      *
      * @param agent_mac_addr agent mac_addr

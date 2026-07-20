@@ -9641,9 +9641,9 @@ bool db::add_unassociated_station(sMacAddr const &new_station_mac_add, uint8_t c
     //Lambda function responsbible of updating the datamodel
     //return false for any problem, otherwise true
     auto add_un_station_dm = [&](const std::string &agent_mac, const std::string &radio_mac,
-                                 const std::string &station_mac) {
+                                 const std::string &station_mac) -> bool {
         //example Device.WiFi.DataElements.Network.Device.1.Radio.2.UnassociatedSTA.
-        std::string device_path = "Device.WiFi.DataElements.Network.Device";
+        std::string device_path = DATAELEMENTS_ROOT_DM ".Network.Device";
 
         //Device.WiFi.DataElements.Network.Device.1.Radio.2.UnassociatedSTA.1.MACAddress
         auto agent_path_index =
@@ -9729,11 +9729,13 @@ bool db::add_unassociated_station(sMacAddr const &new_station_mac_add, uint8_t c
         return agent_radio;
     };
 
+    using UnassociatedStationPtr = std::shared_ptr<UnassociatedStation>;
+
     //lambda function to add/update an unassociated station related to a specific agent
     //return a shared pointer to the new  added/updated station, nullptr otherwise
     auto add_update_unassociated_station_within_agent =
-        [&](const std::shared_ptr<Agent> &agent) -> std::shared_ptr<UnassociatedStation> {
-        std::shared_ptr<UnassociatedStation> new_updated_station(nullptr);
+        [&](const std::shared_ptr<Agent> &agent) -> UnassociatedStationPtr {
+        UnassociatedStationPtr new_updated_station(nullptr);
         std::shared_ptr<Agent::sRadio> agent_radio(nullptr);
         if (radio_mac_addr == network_utils::ZERO_MAC) {
             agent_radio = get_agent_radio(agent->radios);
@@ -9746,6 +9748,12 @@ bool db::add_unassociated_station(sMacAddr const &new_station_mac_add, uint8_t c
             //The channel is not accepted/available for any radios! --> lets revert to the active channel in one radio
             // and warn the user!
             // NOTE: We do this "overwride" because the Specs allow the agent to use its active channel instead of the preferrred one received by the command!
+            if (agent->radios.empty()) {
+                LOG(ERROR) << "agent with mac_addr " << agent_mac_addr_str
+                           << " has no radios, un_station with mac_addr " << new_station_mac_add_str
+                           << " will NOT be added.";
+                return nullptr;
+            }
             agent_radio               = agent->radios.begin()->second;
             uint8_t channel_overwrite = agent_radio->wifi_channel.get_channel();
             beerocks::message::sWifiChannel local(channel_overwrite,
@@ -9773,6 +9781,12 @@ bool db::add_unassociated_station(sMacAddr const &new_station_mac_add, uint8_t c
             return nullptr;
         }
 
+        if (!add_un_station_dm(agent_mac_addr_str, tlvf::mac_to_string(agent_radio->radio_uid),
+                               new_station_mac_add_str)) {
+            LOG(ERROR) << "Failed to add unassoc sta to dm";
+            return nullptr;
+        }
+
         new_updated_station = m_unassociated_stations.get(new_station_mac_add);
         if (new_updated_station) {
             update_existing_un_station(new_updated_station, agent_mac_addr_str, channel,
@@ -9782,16 +9796,13 @@ bool db::add_unassociated_station(sMacAddr const &new_station_mac_add, uint8_t c
             new_updated_station->set_channel(channel);
             new_updated_station->set_operating_class(operating_class);
         }
-        new_updated_station->add_agent(agent_mac_addr, agent_radio->radio_uid);
+        // Always store the agent's AL-MAC, never ZERO_MAC (used as "all agents" sentinel).
+        new_updated_station->add_agent(agent->al_mac, agent_radio->radio_uid);
 
         LOG(DEBUG) << "added un_station with mac_address " + new_station_mac_add_str + ",channel " +
                           std::to_string(channel) + ",operating_class " +
                           std::to_string(operating_class) + " to monitoring agent " +
                           agent_mac_addr_str;
-
-        //lets update the data model
-        add_un_station_dm(agent_mac_addr_str, tlvf::mac_to_string(agent_radio->radio_uid),
-                          new_station_mac_add_str);
 
         return new_updated_station;
     };
@@ -9823,12 +9834,12 @@ bool db::remove_unassociated_station(sMacAddr const &mac_address, sMacAddr const
                                      sMacAddr const &radio_mac_addr)
 {
 
-    auto remove_un_staton_from_dm = [&](std::string agent_mac, std::string station_mac) {
+    auto remove_un_station_from_dm = [&](std::string agent_mac, std::string station_mac) {
         LOG(DEBUG) << "removing un_station with mac_addr " << mac_address
                    << " connected to agent with mac_addr " << agent_mac
                    << " on radio: " << tlvf::mac_to_string(radio_mac_addr);
         //example Device.WiFi.DataElements.Network.Device.1.Radio.2.UnassociatedSTA.
-        std::string device_path = "Device.WiFi.DataElements.Network.Device";
+        std::string device_path = DATAELEMENTS_ROOT_DM ".Network.Device";
         sMacAddr radio_mac(radio_mac_addr);
         if (radio_mac == network_utils::ZERO_MAC) {
             // if not given as an argument, for example, from a bml command--> deduc it from the db
@@ -9892,15 +9903,23 @@ bool db::remove_unassociated_station(sMacAddr const &mac_address, sMacAddr const
     if (!all_connected_agents) {
         if (un_station->get_agents().find(agent_mac_addr) != un_station->get_agents().end()) {
 
-            auto result = remove_un_staton_from_dm(tlvf::mac_to_string(agent_mac_addr),
-                                                   tlvf::mac_to_string(mac_address));
-
-            m_unassociated_stations.erase(mac_address);
-            LOG(DEBUG) << "successfully removed un_station with mac_address:"
-                       << tlvf::mac_to_string(mac_address) << " from the database";
-            if (result == false) {
-                LOG(ERROR) << tlvf::mac_to_string(mac_address)
+            auto result = remove_un_station_from_dm(tlvf::mac_to_string(agent_mac_addr),
+                                                    tlvf::mac_to_string(mac_address));
+            if (!result) {
+                LOG(ERROR) << "Unassoc sta " << tlvf::mac_to_string(mac_address)
                            << " was not removed from the datamodel!!";
+                return false;
+            }
+
+            un_station->remove_agent(agent_mac_addr);
+            LOG(DEBUG) << "removed monitoring agent " << tlvf::mac_to_string(agent_mac_addr)
+                       << " from un_station " << tlvf::mac_to_string(mac_address);
+
+            // Only erase the station entirely when no agents are left monitoring it.
+            if (un_station->get_agents().empty()) {
+                m_unassociated_stations.erase(mac_address);
+                LOG(DEBUG) << "successfully removed un_station with mac_address:"
+                           << tlvf::mac_to_string(mac_address) << " from the database";
             }
         } else {
             LOG(ERROR) << "un_station with mac:" << tlvf::mac_to_string(mac_address)
@@ -9909,19 +9928,30 @@ bool db::remove_unassociated_station(sMacAddr const &mac_address, sMacAddr const
         }
     } else { // remove it for all connected agents
              // first remove all instance in the datamodel
+        bool dm_op_failed = false;
         for (auto &agent : un_station->get_agents()) {
-            auto result = remove_un_staton_from_dm(tlvf::mac_to_string(agent.first),
-                                                   tlvf::mac_to_string(mac_address));
+            auto result = remove_un_station_from_dm(tlvf::mac_to_string(agent.first),
+                                                    tlvf::mac_to_string(mac_address));
             if (result == false) {
                 LOG(ERROR) << tlvf::mac_to_string(mac_address)
                            << " not found OR not removed from the datamodel!!";
+                dm_op_failed = true;
+                break;
             }
-        }
-        if (m_unassociated_stations.erase(mac_address) == 1) {
-            LOG(DEBUG) << "db: removed station with mac_address:" << mac_address;
 
-        } else {
-            LOG(DEBUG) << "db: failed to remove un_station with mac_address:" << mac_address;
+            un_station->remove_agent(agent.first);
+            LOG(DEBUG) << "removed monitoring agent " << tlvf::mac_to_string(agent.first)
+                       << " from un_station " << tlvf::mac_to_string(mac_address);
+        }
+
+        // Only erase the station entirely when no agents are left monitoring it.
+        if (un_station->get_agents().empty()) {
+            m_unassociated_stations.erase(mac_address);
+            LOG(DEBUG) << "successfully removed un_station with mac_address:"
+                       << tlvf::mac_to_string(mac_address) << " from the database";
+        }
+
+        if (dm_op_failed) {
             return false;
         }
     }
@@ -9962,7 +9992,7 @@ void db::update_unassociated_station_stats(const sMacAddr &mac_address,
                     LOG(DEBUG) << "Successfully added object with path : " << new_station_path;
                 }
                 m_ambiorix_datamodel->set(new_station_path, "MACAddress", mac_address);
-                m_ambiorix_datamodel->set(new_station_path, " SignalStrength",
+                m_ambiorix_datamodel->set(new_station_path, "SignalStrength",
                                           new_stats.uplink_rcpi_dbm_enc);
                 m_ambiorix_datamodel->set(new_station_path, "X_PRPLWARE-COM_TimeStamp",
                                           new_stats.time_stamp);
