@@ -342,6 +342,7 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
     // Clear previous request, if any.
     m_pending_selection.mid = mid;
     m_pending_selection.requests.clear();
+    m_acs_list.clear();
 
     // Handle TX Power Limit TLV
     for (const auto &tx_power_limit_tlv : cmdu_rx.getClassList<wfa_map::tlvTransmitPowerLimit>()) {
@@ -515,10 +516,9 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
         }
 
         if (db->device_conf.enable_auto_chansel_handling) {
-            if (radio_mac == m_acs_list.first) {
+            if (m_acs_list.find(radio_mac) != m_acs_list.end()) {
                 if (!send_acs_list_to_platform(radio_mac)) {
                     LOG(ERROR) << "Failed to send ACS list";
-                    return;
                 }
             }
             continue;
@@ -2784,8 +2784,7 @@ bool ChannelSelectionTask::build_acs_list(const sMacAddr &radio_mac,
         return false;
     }
 
-    m_acs_list.first = radio_mac;
-    m_acs_list.second.clear();
+    auto &acs_list = m_acs_list[radio_mac];
 
     for (const auto &preference : radio_request.controller_preferences) {
         const auto &operating_class_info          = preference.first;
@@ -2799,11 +2798,11 @@ bool ChannelSelectionTask::build_acs_list(const sMacAddr &radio_mac,
                     return false;
                 }
                 std::copy(opclass_it->second.channels.begin(), opclass_it->second.channels.end(),
-                          std::back_inserter(m_acs_list.second[opclass]));
+                          std::back_inserter(acs_list[opclass]));
             } else {
                 std::copy(operating_class_channels_list.begin(),
                           operating_class_channels_list.end(),
-                          std::back_inserter(m_acs_list.second[opclass]));
+                          std::back_inserter(acs_list[opclass]));
             }
         }
     }
@@ -2813,7 +2812,13 @@ bool ChannelSelectionTask::build_acs_list(const sMacAddr &radio_mac,
 
 bool ChannelSelectionTask::send_acs_list_to_platform(const sMacAddr &radio_mac)
 {
-    if (m_acs_list.second.empty()) {
+    auto acs_list_it = m_acs_list.find(radio_mac);
+    if (acs_list_it == m_acs_list.end()) {
+        LOG(ERROR) << "No ACS list for radio " << radio_mac;
+        return false;
+    }
+    const auto &acs_list = acs_list_it->second;
+    if (acs_list.empty()) {
         LOG(INFO) << "Empty ACS list";
     }
 
@@ -2830,7 +2835,7 @@ bool ChannelSelectionTask::send_acs_list_to_platform(const sMacAddr &radio_mac)
         return false;
     }
 
-    for (auto p = std::make_pair(m_acs_list.second.begin(), 0); p.first != m_acs_list.second.end();
+    for (auto p = std::make_pair(acs_list.begin(), 0); p.first != acs_list.end();
          ++p.first, ++p.second) {
         auto exclude_list = acs_params->create_acs_list();
         if (!exclude_list) {
