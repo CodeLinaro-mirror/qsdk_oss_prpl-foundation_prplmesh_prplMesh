@@ -23,11 +23,14 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void);
 std::vector<beerocks::nbapi::sFunctions> get_func_list(void);
 beerocks::nbapi::ambiorix_func_ptr get_access_point_commit(void);
 
-void templates_commit_request(void);
+/**
+ * Request a templates restage and schedule at most one TEMPLATES_COMMIT_APPLY
+ * (coalesces while pending / in progress). No-op while an apply is running so
+ * DM writes from that apply cannot immediately re-arm another apply.
+ */
+void templates_request_apply(void);
 
 void templates_commit_apply_pending(void);
-
-void templates_schedule_commit_apply(void);
 
 void templates_restage_only(void);
 
