@@ -918,8 +918,7 @@ static void event_templates_network_configuration_changed(const char *const sig_
                << (get_param_bool(network_obj, "Enable") ? "true" : "false")
                << " TopologyFlag=\"" << get_param_string(network_obj, "TopologyFlag") << "\"";
 
-    templates_commit_request();
-    templates_schedule_commit_apply();
+    templates_request_apply();
 }
 
 static void event_bss_template_configuration_changed(const char *const sig_name,
@@ -940,7 +939,7 @@ static void event_bss_template_configuration_changed(const char *const sig_name,
     LOG(DEBUG) << "event_bss_template_configuration_changed: instance="
                << amxd_object_get_index(bss_template_obj)
                << " Enable=" << (get_param_bool(bss_template_obj, "Enable") ? "true" : "false");
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_bss_template_instance_changed(const char *const sig_name,
@@ -957,7 +956,7 @@ static void event_bss_template_instance_changed(const char *const sig_name,
     }
 
     LOG(DEBUG) << "event_bss_template_instance_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_radio_template_configuration_changed(const char *const sig_name,
@@ -972,7 +971,7 @@ static void event_radio_template_configuration_changed(const char *const sig_nam
         return;
     }
     LOG(DEBUG) << "event_radio_template_configuration_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_radio_template_instance_changed(const char *const sig_name,
@@ -987,7 +986,7 @@ static void event_radio_template_instance_changed(const char *const sig_name,
         return;
     }
     LOG(DEBUG) << "event_radio_template_instance_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_ssc_template_configuration_changed(const char *const sig_name,
@@ -1002,7 +1001,7 @@ static void event_ssc_template_configuration_changed(const char *const sig_name,
         return;
     }
     LOG(DEBUG) << "event_ssc_template_configuration_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_ssc_template_instance_changed(const char *const sig_name,
@@ -1017,7 +1016,7 @@ static void event_ssc_template_instance_changed(const char *const sig_name,
         return;
     }
     LOG(DEBUG) << "event_ssc_template_instance_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_security_template_configuration_changed(const char *const sig_name,
@@ -1032,8 +1031,7 @@ static void event_security_template_configuration_changed(const char *const sig_
         return;
     }
     LOG(DEBUG) << "event_security_template_configuration_changed";
-    templates_commit_request();
-    templates_schedule_commit_apply();
+    templates_request_apply();
 }
 
 static void event_security_template_instance_changed(const char *const sig_name,
@@ -1048,8 +1046,7 @@ static void event_security_template_instance_changed(const char *const sig_name,
         return;
     }
     LOG(DEBUG) << "event_security_template_instance_changed";
-    templates_commit_request();
-    templates_schedule_commit_apply();
+    templates_request_apply();
 }
 
 static void event_templates_security_group_configuration_changed(const char *const sig_name,
@@ -1068,8 +1065,7 @@ static void event_templates_security_group_configuration_changed(const char *con
     }
 
     LOG(DEBUG) << "event_templates_security_group_configuration_changed";
-    templates_commit_request();
-    templates_schedule_commit_apply();
+    templates_request_apply();
 }
 
 static void event_templates_security_group_instance_changed(const char *const sig_name,
@@ -1084,7 +1080,7 @@ static void event_templates_security_group_instance_changed(const char *const si
         return;
     }
     LOG(DEBUG) << "event_templates_security_group_instance_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_apmld_template_configuration_changed(const char *const sig_name,
@@ -1099,7 +1095,7 @@ static void event_apmld_template_configuration_changed(const char *const sig_nam
         return;
     }
     LOG(DEBUG) << "event_apmld_template_configuration_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static void event_apmld_template_instance_changed(const char *const sig_name,
@@ -1114,7 +1110,7 @@ static void event_apmld_template_instance_changed(const char *const sig_name,
         return;
     }
     LOG(DEBUG) << "event_apmld_template_instance_changed";
-    templates_commit_request();
+    templates_request_apply();
 }
 
 static bool template_agent_has_backhaul_sta(const Agent &agent)
@@ -4872,9 +4868,28 @@ static void templates_commit(void)
     template_rebuild_staged_configuration(templates_root);
 }
 
-void templates_commit_request(void)
+void templates_request_apply(void)
 {
+    if (!g_database) {
+        LOG(ERROR) << "g_database is nullptr";
+        return;
+    }
+
+    // Ignore DM callbacks while commit runs (avoids sync-write feedback).
+    // If already pending, an apply event is already queued — coalesce.
+    if (g_templates_apply_in_progress || g_templates_commit_pending) {
+        return;
+    }
+
     g_templates_commit_pending = true;
+
+    auto controller = g_database->get_controller_ctx();
+    if (!controller) {
+        LOG(DEBUG) << "wifi templates: no controller ctx, apply deferred in monitoring work()";
+        return;
+    }
+    LOG(DEBUG) << "wifi templates: pushing TEMPLATES_COMMIT_APPLY";
+    controller->schedule_templates_commit_apply();
 }
 
 void templates_commit_apply_pending(void)
@@ -4882,35 +4897,23 @@ void templates_commit_apply_pending(void)
     if (g_templates_apply_in_progress) {
         return;
     }
-    if (!g_templates_commit_pending && !g_templates_topology_restage_armed) {
+    if (!(g_templates_commit_pending || g_templates_topology_restage_armed)) {
         return;
     }
 
     g_templates_commit_pending         = false;
     g_templates_topology_restage_armed = false;
 
-    LOG(INFO) << "wifi templates: apply_pending";
+    LOG(DEBUG) << "wifi templates: applying";
     g_templates_apply_in_progress = true;
     templates_commit();
     g_templates_apply_in_progress = false;
 
+    // Topology armed during this apply still needs one follow-up schedule.
     if (g_templates_commit_pending || g_templates_topology_restage_armed) {
-        templates_schedule_commit_apply();
+        g_templates_commit_pending = false;
+        templates_request_apply();
     }
-}
-
-void templates_schedule_commit_apply(void)
-{
-    if (!g_database) {
-        LOG(ERROR) << "g_database is nullptr";
-        return;
-    }
-    auto controller = g_database->get_controller_ctx();
-    if (!controller) {
-        LOG(ERROR) << "wifi templates: no controller ctx, apply deferred";
-        return;
-    }
-    controller->schedule_templates_commit_apply();
 }
 
 void templates_restage_only(void)
@@ -4929,7 +4932,7 @@ void templates_restage_only(void)
         return;
     }
     g_templates_topology_restage_armed = true;
-    templates_commit_request();
+    templates_request_apply();
 }
 
 bool is_templates_dm_initialized()

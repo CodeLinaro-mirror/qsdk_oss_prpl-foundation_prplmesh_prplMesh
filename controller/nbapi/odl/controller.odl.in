@@ -530,7 +530,7 @@
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X_PRPLWARE-COM_Group\."';
 
     on event "dm:object-changed" call event_templates_network_configuration_changed
-        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\." && (contains("parameters.Enable") || contains("parameters.TopologyFlag") || contains("parameters.IEEE1905ALID") || contains("parameters.PrimarySSCTemplateReference"))';
 
     on event "dm:object-changed" call event_apmld_template_configuration_changed
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.APMLDTemplate\."';
@@ -539,7 +539,7 @@
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.APMLDTemplate\."';
 
     on event "dm:object-changed" call event_bss_template_configuration_changed
-        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\." && !contains("parameters.LinkedRadioTemplateID") && !contains("parameters.LinkedSSCTemplateID") && !contains("parameters.LinkedAPMLDTemplateID") && !contains("parameters.LinkedSecurityGroupID")';
 
     on event regexp("^dm:instance-(added|removed)$") call event_bss_template_instance_changed
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\."';
@@ -563,7 +563,7 @@
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityTemplate\."';
 
     on event "dm:object-changed" call event_templates_security_group_configuration_changed
-        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\." && contains("parameters.SecurityTemplateReferences")';
 
     on event regexp("^dm:instance-(added|removed)$") call event_templates_security_group_instance_changed
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
