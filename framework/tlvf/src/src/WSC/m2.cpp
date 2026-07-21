@@ -251,6 +251,27 @@ bool m2::init(const config &cfg, bool bss_index_support)
         }
     }
 
+    if (!cfg.operating_generation.empty()) {
+        auto vendor_ext_attr = addAttr<cWscAttrVendorExtension>();
+        if (!vendor_ext_attr) {
+            TLVF_LOG(ERROR) << "addAttr<cWscAttrVendorExtension> (Airties operating_generation) failed";
+            return false;
+        }
+        vendor_ext_attr->vendor_id_0() = WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1;
+        vendor_ext_attr->vendor_id_1() = WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_2;
+        vendor_ext_attr->vendor_id_2() = WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_3;
+
+        std::vector<uint8_t> payload(1 + cfg.operating_generation.size());
+        payload[0] = WSC::vendor_extension::airties::VENDOR_OPERATING_GENERATION;
+        std::copy_n(cfg.operating_generation.begin(), cfg.operating_generation.size(),
+                    payload.begin() + 1);
+
+        if (!vendor_ext_attr->set_vendor_data(payload.data(), payload.size())) {
+            TLVF_LOG(ERROR) << "set_vendor_data (Airties operating_generation) failed";
+            return false;
+        }
+    }
+
     // For retro compatibility, don't send bss_index for agent not supporting RSN overriding
     if (bss_index_support) {
         auto bss_index = addAttr<cWscAttrBssIndex>();

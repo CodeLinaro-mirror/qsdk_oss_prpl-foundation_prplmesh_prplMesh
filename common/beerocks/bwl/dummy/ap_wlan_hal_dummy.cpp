@@ -240,6 +240,12 @@ bool ap_wlan_hal_dummy::update_vap_credentials(
     const std::string &backhaul_wps_ssid, const std::string &backhaul_wps_passphrase,
     const std::string &bridge_ifname)
 {
+    std::set<uint8_t> allowed_gens;
+    if (son::wireless_utils::try_get_allowed_wifi_generations(bss_info_conf_list, allowed_gens)) {
+        LOG(DEBUG) << "Dummy HAL applying operating_generation with " << allowed_gens.size()
+                   << " allowed generation(s)";
+    }
+
     std::vector<int> configured_vaps;
     for (auto &bss_info_conf : bss_info_conf_list) {
         auto vap_iter =
