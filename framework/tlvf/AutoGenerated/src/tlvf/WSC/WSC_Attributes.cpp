@@ -394,6 +394,8 @@ bool cEncryptedSettingsPayload::alloc_ssid(size_t count) {
     m_vap_type = (eVapType *)((uint8_t *)(m_vap_type) + len);
     m_vap_label_length = (uint16_t *)((uint8_t *)(m_vap_label_length) + len);
     m_vap_label = (char *)((uint8_t *)(m_vap_label) + len);
+    m_operating_generation_length = (uint16_t *)((uint8_t *)(m_operating_generation_length) + len);
+    m_operating_generation = (char *)((uint8_t *)(m_operating_generation) + len);
     m_ssid_idx__ += count;
     *m_ssid_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -486,6 +488,8 @@ bool cEncryptedSettingsPayload::alloc_network_key(size_t count) {
     m_vap_type = (eVapType *)((uint8_t *)(m_vap_type) + len);
     m_vap_label_length = (uint16_t *)((uint8_t *)(m_vap_label_length) + len);
     m_vap_label = (char *)((uint8_t *)(m_vap_label) + len);
+    m_operating_generation_length = (uint16_t *)((uint8_t *)(m_operating_generation_length) + len);
+    m_operating_generation = (char *)((uint8_t *)(m_operating_generation) + len);
     m_network_key_idx__ += count;
     *m_network_key_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -585,8 +589,81 @@ bool cEncryptedSettingsPayload::alloc_vap_label(size_t count) {
         size_t move_length = getBuffRemainingBytes(src) - len;
         std::copy_n(src, move_length, dst);
     }
+    m_operating_generation_length = (uint16_t *)((uint8_t *)(m_operating_generation_length) + len);
+    m_operating_generation = (char *)((uint8_t *)(m_operating_generation) + len);
     m_vap_label_idx__ += count;
     *m_vap_label_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
+uint16_t& cEncryptedSettingsPayload::operating_generation_length() {
+    return (uint16_t&)(*m_operating_generation_length);
+}
+
+std::string cEncryptedSettingsPayload::operating_generation_str() {
+    char *operating_generation_ = operating_generation();
+    if (!operating_generation_) { return std::string(); }
+    auto str = std::string(operating_generation_, m_operating_generation_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cEncryptedSettingsPayload::operating_generation(size_t length) {
+    if( (m_operating_generation_idx__ == 0) || (m_operating_generation_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "operating_generation length is smaller than requested length";
+        return nullptr;
+    }
+    if (m_operating_generation_idx__ > WSC_MAX_OPERATING_GENERATION_LENGTH )  {
+        TLVF_LOG(ERROR) << "Invalid length -  " << m_operating_generation_idx__ << " elements (max length is " << WSC_MAX_OPERATING_GENERATION_LENGTH << ")";
+        return nullptr;
+    }
+    return ((char*)m_operating_generation);
+}
+
+bool cEncryptedSettingsPayload::set_operating_generation(const std::string& str) { return set_operating_generation(str.c_str(), str.size()); }
+bool cEncryptedSettingsPayload::set_operating_generation(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_operating_generation received a null pointer.";
+        return false;
+    }
+    if (m_operating_generation_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_operating_generation was already allocated!";
+        return false;
+    }
+    if (!alloc_operating_generation(size)) { return false; }
+    std::copy(str, str + size, m_operating_generation);
+    return true;
+}
+bool cEncryptedSettingsPayload::alloc_operating_generation(size_t count) {
+    if (m_lock_order_counter__ > 3) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list operating_generation, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    if (m_operating_generation_idx__ + count > WSC_MAX_OPERATING_GENERATION_LENGTH )  {
+        TLVF_LOG(ERROR) << "Can't allocate " << count << " elements (max length is " << WSC_MAX_OPERATING_GENERATION_LENGTH << " current length is " << m_operating_generation_idx__ << ")";
+        return false;
+    }
+    m_lock_order_counter__ = 3;
+    uint8_t *src = (uint8_t *)&m_operating_generation[*m_operating_generation_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_operating_generation_idx__ += count;
+    *m_operating_generation_length += count;
     if (!buffPtrIncrementSafe(len)) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
         return false;
@@ -604,6 +681,7 @@ void cEncryptedSettingsPayload::class_swap()
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_network_key_length));
     m_bssid_attr->struct_swap();
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_vap_label_length));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_operating_generation_length));
 }
 
 bool cEncryptedSettingsPayload::finalize()
@@ -650,6 +728,7 @@ size_t cEncryptedSettingsPayload::get_initial_size()
     class_size += sizeof(uint8_t); // additional_auth
     class_size += sizeof(eVapType); // vap_type
     class_size += sizeof(uint16_t); // vap_label_length
+    class_size += sizeof(uint16_t); // operating_generation_length
     return class_size;
 }
 
@@ -765,6 +844,20 @@ bool cEncryptedSettingsPayload::init()
     m_vap_label_idx__ = vap_label_length;
     if (!buffPtrIncrementSafe(sizeof(char) * (vap_label_length))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (vap_label_length) << ") Failed!";
+        return false;
+    }
+    m_operating_generation_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_operating_generation_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_operating_generation = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t operating_generation_length = *m_operating_generation_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&operating_generation_length)); }
+    m_operating_generation_idx__ = operating_generation_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (operating_generation_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (operating_generation_length) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }
