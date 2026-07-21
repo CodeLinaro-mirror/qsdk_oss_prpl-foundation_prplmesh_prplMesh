@@ -495,6 +495,11 @@ public:
                                                  std::set<uint8_t> &allowed_gens_out);
     static std::map<std::string, std::string>
     hostapd_wifi_generation_flags(const std::set<uint8_t> &allowed_gens);
+    /**
+     * Build WHM OperatingStandards from allowed Wi-Fi gens (4..7 → n/ac/ax/be).
+     * Non-generation tokens from current (e.g. a/b/g) are preserved; gen tokens
+     * are taken from allowed_gens and need not already appear in current.
+     */
     static std::string filter_whm_operating_standards(const std::string &current_standards,
                                                       const std::set<uint8_t> &allowed_gens);
 

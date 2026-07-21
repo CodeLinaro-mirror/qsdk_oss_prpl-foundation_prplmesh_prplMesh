@@ -444,10 +444,19 @@ TEST(operating_generation, expand_allowed_wifi_generations)
 
 TEST(operating_generation, filter_whm_operating_standards)
 {
-    const auto allowed = std::set<uint8_t>{6};
-    const std::string filtered =
-        son::wireless_utils::filter_whm_operating_standards("be,ax,ac,n,a", allowed);
-    EXPECT_EQ(filtered, "ax,a");
+    const auto allowed_6 = std::set<uint8_t>{6};
+    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be,ax,ac,n,a", allowed_6),
+              "ax,a");
+
+    /* be-only current (Legacy-style): still emit ax from allowed {6}. */
+    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be", allowed_6), "ax");
+
+    const auto allowed_6_7 = std::set<uint8_t>{6, 7};
+    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be", allowed_6_7), "be,ax");
+
+    const auto allowed_5_6 = std::set<uint8_t>{5, 6};
+    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be,ax,ac,n,a", allowed_5_6),
+              "ax,ac,a");
 }
 
 TEST(operating_generation, hostapd_wifi_generation_flags)

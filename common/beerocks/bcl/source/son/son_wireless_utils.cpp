@@ -2612,10 +2612,11 @@ wireless_utils::hostapd_wifi_generation_flags(const std::set<uint8_t> &allowed_g
 std::string wireless_utils::filter_whm_operating_standards(const std::string &current_standards,
                                                            const std::set<uint8_t> &allowed_gens)
 {
+    /* Highest-first order matches common pWHM / Legacy-adjacent lists (be,ax,ac,n,...). */
     static const std::pair<const char *, uint8_t> k_whm_gen_tokens[] = {
         {"be", 7}, {"ax", 6}, {"ac", 5}, {"n", 4}};
 
-    std::vector<std::string> kept;
+    std::vector<std::string> non_gen_tokens;
     std::istringstream iss(current_standards);
     std::string token;
     while (std::getline(iss, token, ',')) {
@@ -2628,16 +2629,22 @@ std::string wireless_utils::filter_whm_operating_standards(const std::string &cu
         for (const auto &entry : k_whm_gen_tokens) {
             if (token == entry.first) {
                 generation_token = true;
-                if (allowed_gens.count(entry.second)) {
-                    kept.push_back(token);
-                }
                 break;
             }
         }
         if (!generation_token) {
-            kept.push_back(token);
+            non_gen_tokens.push_back(token);
         }
     }
+
+    /* Build policy from allowed_gens — do not require tokens to already be in current. */
+    std::vector<std::string> kept;
+    for (const auto &entry : k_whm_gen_tokens) {
+        if (allowed_gens.count(entry.second)) {
+            kept.push_back(entry.first);
+        }
+    }
+    kept.insert(kept.end(), non_gen_tokens.begin(), non_gen_tokens.end());
 
     if (kept.empty()) {
         return {};
