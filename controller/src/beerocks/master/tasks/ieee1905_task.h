@@ -72,7 +72,8 @@ public:
  * up to date.
  *
  * The task owns \ref m_als, a sidecar map that tracks per-AL lifetime state
- * (pending counters, deadlines) separately from the canonical \ref db::ieee1905_network_db.
+ * (pending counters, query/response times, deadlines) separately from the canonical
+ * \ref db::ieee1905_network_db.
  */
 class ieee1905_task : public task {
 public:
@@ -140,12 +141,12 @@ protected:
         /** To track the first Higher Layer Response (or timeout). */
         SingleShotCounter higher_layer_response_pending;
 
-        /** Next time a periodic Topology Query should be sent. */
-        time_point next_periodic_topology_query_deadline = time_point::max();
-        /** Next time a periodic Higher Layer Query should be sent. */
-        time_point next_periodic_higher_layer_query_deadline = time_point::min();
-        /** Next time a periodic Link Metric Query should be sent. */
-        time_point next_periodic_link_metric_query_deadline = time_point::min();
+        /** Last time a Topology Query was sent or Response was handled. */
+        time_point last_topology_activity = time_point::max();
+        /** Last time a Higher Layer Query was sent or Response was handled. */
+        time_point last_higher_layer_activity = time_point::max();
+        /** Last time a Link Metric Query was sent or Response was handled. */
+        time_point last_link_metric_activity = time_point::min();
     };
 
     /** @brief Task main loop: handles timeouts and sends periodic queries. */
