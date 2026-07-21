@@ -1097,6 +1097,7 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     if (bss_info_conf != nullptr) {
         m2_cfg.bss_index = bss_info_conf->bss_index;
         m2_cfg.vap_type  = bss_info_conf->vap_type;
+        m2_cfg.operating_generation = bss_info_conf->operating_generation;
 
         if (bss_info_conf->authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
             bss_info_conf->additional_auth ==

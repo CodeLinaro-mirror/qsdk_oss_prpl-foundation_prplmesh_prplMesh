@@ -2262,6 +2262,11 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
             LOG(INFO) << "VAP label not found or not set in Vendor Extension";
         }
 
+        info.m2_config.operating_generation = m2.operating_generation();
+        if (info.m2_config.operating_generation.empty()) {
+            LOG(DEBUG) << "OperatingGeneration not found or not set in Vendor Extension";
+        }
+
         info.m2_config.hidden_ssid = m2.hidden_ssid();
 
         // EM_AP_CONTROLLER specific Vendor Extension Attributes
@@ -3769,6 +3774,7 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
             static_cast<son::wireless_utils::eAdditionalAuth>(info.additional_auth);
         c->vap_type() = info.m2_config.vap_type;
         c->set_vap_label(info.m2_config.vap_label);
+        c->set_operating_generation(info.m2_config.operating_generation);
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

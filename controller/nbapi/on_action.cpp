@@ -2237,61 +2237,12 @@ static uint8_t template_allocate_stable_bss_index(
     return 0;
 }
 
-struct sWifiGenToken {
-    uint32_t generation = 0;
-    bool or_higher      = false;
-};
-
-static bool template_trim_parse_wifi_gen_token(std::string token, bool allow_plus,
-                                               sWifiGenToken &out)
-{
-    auto trim = [](std::string &s) {
-        s.erase(0, s.find_first_not_of(" \t"));
-        s.erase(s.find_last_not_of(" \t") + 1);
-    };
-
-    trim(token);
-    if (token.empty()) {
-        return false;
-    }
-
-    out.or_higher = false;
-    if (!token.empty() && token.back() == '+') {
-        if (!allow_plus) {
-            return false;
-        }
-        out.or_higher = true;
-        token.pop_back();
-        trim(token);
-    }
-
-    if (token.empty() ||
-        !std::all_of(token.begin(), token.end(),
-                     [](unsigned char c) { return std::isdigit(c) != 0; })) {
-        return false;
-    }
-
-    unsigned long v = std::strtoul(token.c_str(), nullptr, 10);
-    if (v == 0UL || v > 255UL) {
-        return false;
-    }
-    out.generation = static_cast<uint32_t>(v);
-    return true;
-}
+using sWifiGenToken = son::sWifiGenToken;
 
 static bool template_parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
-                                         std::vector<sWifiGenToken> &out)
+                                        std::vector<sWifiGenToken> &out)
 {
-    out.clear();
-    for (const auto &piece : parse_topology_flags(csv)) {
-        sWifiGenToken tok;
-        if (!template_trim_parse_wifi_gen_token(piece, allow_plus, tok)) {
-            LOG(WARNING) << "Invalid Wi-Fi generation token '" << piece << "'";
-            return false;
-        }
-        out.push_back(tok);
-    }
-    return true;
+    return son::wireless_utils::parse_wifi_gen_csv(csv, allow_plus, out);
 }
 
 /** TMN / BBF: per-radio PHY support for Wi-Fi generation integer N (1..255). */
@@ -2357,9 +2308,6 @@ static bool template_radio_template_generation_matches(const Agent::sRadio &radi
     if (!cand.operating_generation.empty()) {
         std::vector<sWifiGenToken> toks;
         if (!template_parse_wifi_gen_csv(cand.operating_generation, true, toks)) {
-            return false;
-        }
-        if (!check_tokens(toks)) {
             return false;
         }
     }
@@ -2654,6 +2602,7 @@ static bool template_stage_bss_on_radio(
     bss_info.vap_type = wireless_utils::string_to_vap_type(
         get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapType"));
     bss_info.vap_label = get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapLabel");
+    bss_info.operating_generation = get_param_string(radio_inst_dm, "OperatingGeneration");
 
     if (bss_info.vap_type == eVapType::OTHER &&
         bss_info.backhaul && !bss_info.fronthaul) {
@@ -2804,6 +2753,7 @@ static bool template_bss_staging_lists_equal(
             it_before->additional_auth != it_after->additional_auth ||
             it_before->rsn_security_ies != it_after->rsn_security_ies ||
             it_before->mld_id != it_after->mld_id ||
+            it_before->operating_generation != it_after->operating_generation ||
             it_before->vap_type != it_after->vap_type) {
             return false;
         }

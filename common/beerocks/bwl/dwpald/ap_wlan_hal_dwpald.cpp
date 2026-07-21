@@ -1426,6 +1426,13 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
         return false;
     }
 
+    std::set<uint8_t> allowed_gens;
+    if (son::wireless_utils::try_get_allowed_wifi_generations(bss_info_conf_list, allowed_gens)) {
+        for (const auto &entry : son::wireless_utils::hostapd_wifi_generation_flags(allowed_gens)) {
+            hostapd_config_set_value(hostapd_config_head, entry.first, entry.second);
+        }
+    }
+
     // Create an copy of the configuration's original state.
     const std::map<std::string, std::vector<std::string>> original_hostapd_config_vaps =
         hostapd_config_vaps;

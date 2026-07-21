@@ -936,6 +936,13 @@ bool ap_wlan_hal_nl80211::update_vap_credentials(
         return false;
     }
 
+    std::set<uint8_t> allowed_gens;
+    if (son::wireless_utils::try_get_allowed_wifi_generations(bss_info_conf_list, allowed_gens)) {
+        for (const auto &entry : son::wireless_utils::hostapd_wifi_generation_flags(allowed_gens)) {
+            conf.set_create_head_value(entry.first, entry.second);
+        }
+    }
+
     // If a Multi-AP Agent receives an AP-Autoconfiguration WSC message containing one or
     // more M2, it shall validate each M2 (based on its 1905 AL MAC address) and configure
     // a BSS on the corresponding radio for each of the M2. If the Multi-AP Agent is currently
