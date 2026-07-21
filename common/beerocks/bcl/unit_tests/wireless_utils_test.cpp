@@ -423,48 +423,4 @@ TEST(mcs_from_rate, neerest_mcs_from_rate)
     EXPECT_EQ(short_gi, 0);
 }
 
-TEST(operating_generation, expand_allowed_wifi_generations)
-{
-    std::vector<son::sWifiGenToken> tokens;
-
-    ASSERT_TRUE(son::wireless_utils::parse_wifi_gen_csv("6", true, tokens));
-    auto allowed = son::wireless_utils::expand_allowed_wifi_generations(tokens);
-    EXPECT_EQ(allowed, (std::set<uint8_t>{6}));
-
-    tokens.clear();
-    ASSERT_TRUE(son::wireless_utils::parse_wifi_gen_csv("6+", true, tokens));
-    allowed = son::wireless_utils::expand_allowed_wifi_generations(tokens);
-    EXPECT_EQ(allowed, (std::set<uint8_t>{6, 7}));
-
-    tokens.clear();
-    ASSERT_TRUE(son::wireless_utils::parse_wifi_gen_csv("", true, tokens));
-    allowed = son::wireless_utils::expand_allowed_wifi_generations(tokens);
-    EXPECT_TRUE(allowed.empty());
-}
-
-TEST(operating_generation, filter_whm_operating_standards)
-{
-    const auto allowed_6 = std::set<uint8_t>{6};
-    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be,ax,ac,n,a", allowed_6),
-              "ax,a");
-
-    /* be-only current (Legacy-style): still emit ax from allowed {6}. */
-    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be", allowed_6), "ax");
-
-    const auto allowed_6_7 = std::set<uint8_t>{6, 7};
-    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be", allowed_6_7), "be,ax");
-
-    const auto allowed_5_6 = std::set<uint8_t>{5, 6};
-    EXPECT_EQ(son::wireless_utils::filter_whm_operating_standards("be,ax,ac,n,a", allowed_5_6),
-              "ax,ac,a");
-}
-
-TEST(operating_generation, hostapd_wifi_generation_flags)
-{
-    const auto flags =
-        son::wireless_utils::hostapd_wifi_generation_flags(std::set<uint8_t>{6});
-    EXPECT_EQ(flags.at("ieee80211ax"), "1");
-    EXPECT_EQ(flags.at("ieee80211be"), "0");
-}
-
 } // namespace

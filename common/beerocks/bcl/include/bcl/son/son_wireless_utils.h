@@ -490,7 +490,13 @@ public:
 
     static bool parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
                                    std::vector<sWifiGenToken> &out);
-    static std::set<uint8_t> expand_allowed_wifi_generations(const std::vector<sWifiGenToken> &tokens);
+    /**
+     * @brief True if @p csv parses and every token is in apply range [WIFI_GEN_MIN..WIFI_GEN_MAX].
+     * Tokens below WIFI_GEN_MIN are rejected (not clamped).
+     */
+    static bool operating_generation_valid_for_apply(const std::string &csv);
+    static bool expand_allowed_wifi_generations(const std::vector<sWifiGenToken> &tokens,
+                                                std::set<uint8_t> &allowed_out);
     static bool try_get_allowed_wifi_generations(const std::list<sBssInfoConf> &bss_info_conf_list,
                                                  std::set<uint8_t> &allowed_gens_out);
     static std::map<std::string, std::string>

@@ -2556,25 +2556,51 @@ bool wireless_utils::parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
     return true;
 }
 
-std::set<uint8_t> wireless_utils::expand_allowed_wifi_generations(
-    const std::vector<sWifiGenToken> &tokens)
+static bool wifi_gen_tokens_in_apply_range(const std::vector<sWifiGenToken> &tokens)
 {
-    std::set<uint8_t> allowed;
     for (const auto &token : tokens) {
-        const uint8_t start =
-            std::max<uint8_t>(token.generation, WIFI_GEN_MIN);
+        if (token.generation < WIFI_GEN_MIN) {
+            LOG(WARNING) << "OperatingGeneration Wi-Fi generation " << int(token.generation)
+                         << " is below supported apply range " << int(WIFI_GEN_MIN) << "-"
+                         << int(WIFI_GEN_MAX) << "; rejecting";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool wireless_utils::operating_generation_valid_for_apply(const std::string &csv)
+{
+    std::vector<sWifiGenToken> tokens;
+    if (!parse_wifi_gen_csv(csv, true, tokens)) {
+        return false;
+    }
+    return wifi_gen_tokens_in_apply_range(tokens);
+}
+
+bool wireless_utils::expand_allowed_wifi_generations(const std::vector<sWifiGenToken> &tokens,
+                                                     std::set<uint8_t> &allowed_out)
+{
+    allowed_out.clear();
+    if (!wifi_gen_tokens_in_apply_range(tokens)) {
+        return false;
+    }
+
+    for (const auto &token : tokens) {
         if (token.generation > WIFI_GEN_MAX && !token.or_higher) {
             continue;
         }
-        const uint8_t end = token.or_higher ? WIFI_GEN_MAX : std::min<uint8_t>(token.generation, WIFI_GEN_MAX);
+        const uint8_t start = token.generation;
+        const uint8_t end =
+            token.or_higher ? WIFI_GEN_MAX : std::min<uint8_t>(token.generation, WIFI_GEN_MAX);
         if (start > end) {
             continue;
         }
         for (uint8_t gen = start; gen <= end; ++gen) {
-            allowed.insert(gen);
+            allowed_out.insert(gen);
         }
     }
-    return allowed;
+    return true;
 }
 
 bool wireless_utils::try_get_allowed_wifi_generations(
@@ -2590,7 +2616,11 @@ bool wireless_utils::try_get_allowed_wifi_generations(
                          << bss_info_conf.operating_generation;
             return false;
         }
-        allowed_gens_out = expand_allowed_wifi_generations(tokens);
+        if (!expand_allowed_wifi_generations(tokens, allowed_gens_out)) {
+            LOG(WARNING) << "OperatingGeneration out of apply range: "
+                         << bss_info_conf.operating_generation;
+            return false;
+        }
         return true;
     }
     return false;

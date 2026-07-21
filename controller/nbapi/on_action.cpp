@@ -2325,11 +2325,9 @@ static bool template_radio_template_generation_matches(const Agent::sRadio &radi
         }
     }
 
-    if (!cand.operating_generation.empty()) {
-        std::vector<sWifiGenToken> toks;
-        if (!template_parse_wifi_gen_csv(cand.operating_generation, true, toks)) {
-            return false;
-        }
+    if (!cand.operating_generation.empty() &&
+        !wireless_utils::operating_generation_valid_for_apply(cand.operating_generation)) {
+        return false;
     }
 
     return true;
@@ -2553,6 +2551,10 @@ static bool template_stage_bss_on_radio(
             const std::string radio_gen_csv = get_param_string(radio_inst_dm, "OperatingGeneration");
             std::vector<sWifiGenToken> offered;
             if (!radio_gen_csv.empty()) {
+                if (!wireless_utils::operating_generation_valid_for_apply(radio_gen_csv)) {
+                    LOG(WARNING) << "RadioTemplate OperatingGeneration invalid while matching security";
+                    return false;
+                }
                 if (!template_parse_wifi_gen_csv(radio_gen_csv, true, offered)) {
                     LOG(WARNING) << "RadioTemplate OperatingGeneration invalid while matching security";
                     return false;
@@ -2623,6 +2625,12 @@ static bool template_stage_bss_on_radio(
         get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapType"));
     bss_info.vap_label = get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapLabel");
     bss_info.operating_generation = get_param_string(radio_inst_dm, "OperatingGeneration");
+    if (!bss_info.operating_generation.empty() &&
+        !wireless_utils::operating_generation_valid_for_apply(bss_info.operating_generation)) {
+        LOG(WARNING) << "RadioTemplate OperatingGeneration not applicable for BSSTemplate["
+                     << bss_instance_index << "]";
+        return false;
+    }
 
     if (bss_info.vap_type == eVapType::OTHER &&
         bss_info.backhaul && !bss_info.fronthaul) {
