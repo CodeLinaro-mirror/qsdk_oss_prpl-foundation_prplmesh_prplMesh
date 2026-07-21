@@ -234,39 +234,63 @@ void ieee1905_task::work()
         handle_higher_layer_timeout(al_mac);
     }
 
-    // periodic (re-)queries
+    enum class QueryType { TOPOLOGY, HIGHER_LAYER, LINK_METRIC };
+
+    const sMacAddr *query_dst = nullptr;
+    time_point *last_activity = nullptr;
+    QueryType query_type      = QueryType::TOPOLOGY;
+    auto consider_periodic_query =
+        [&](const sMacAddr &al_mac, time_point &last, std::chrono::seconds interval, QueryType type,
+            std::chrono::seconds extra_delay = std::chrono::seconds::zero()) {
+            if (interval == std::chrono::seconds::zero()) {
+                return;
+            }
+            if (last > current_time - interval - extra_delay) {
+                return;
+            }
+            if (!last_activity || last < *last_activity) {
+                query_dst     = &al_mac;
+                last_activity = &last;
+                query_type    = type;
+            }
+        };
+
+    // Send at most one periodic query per work() invocation to spread requests between task ticks
     for (auto &entry : m_als) {
         const auto &al_mac = entry.first;
         auto &al           = entry.second;
 
-        if (current_time >= al.next_periodic_topology_query_deadline) {
-            if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
-                LOG(ERROR) << "Failed to send periodic topology query to " << al_mac;
-            }
-            al.next_periodic_topology_query_deadline =
-                current_time + periodic_topology_requery_interval;
-        }
+        consider_periodic_query(al_mac, al.last_topology_activity,
+                                periodic_topology_requery_interval, QueryType::TOPOLOGY);
+        consider_periodic_query(al_mac, al.last_higher_layer_activity,
+                                database.config.higher_layer_request_interval_seconds,
+                                QueryType::HIGHER_LAYER);
+        consider_periodic_query(al_mac, al.last_link_metric_activity,
+                                database.config.link_metrics_request_interval_seconds,
+                                QueryType::LINK_METRIC, link_metric_response_requery_delay_guard);
+    }
 
-        const auto hlq_interval = database.config.higher_layer_request_interval_seconds;
-        if (hlq_interval == std::chrono::seconds::zero()) {
-            al.next_periodic_higher_layer_query_deadline = time_point::min();
-        } else if (current_time >= al.next_periodic_higher_layer_query_deadline) {
-            if (!query_sender->send_higher_layer_query(al_mac, cmdu_tx)) {
-                LOG(ERROR) << "Failed to send periodic higher layer query to " << al_mac;
-            }
-            al.next_periodic_higher_layer_query_deadline = current_time + hlq_interval;
-        }
+    if (!query_dst) {
+        return;
+    }
 
-        const auto lmq_interval = database.config.link_metrics_request_interval_seconds;
-        if (lmq_interval == std::chrono::seconds::zero()) {
-            al.next_periodic_link_metric_query_deadline = time_point::min();
-        } else if (current_time >= al.next_periodic_link_metric_query_deadline) {
-            if (!query_sender->send_link_metric_query(al_mac, cmdu_tx)) {
-                LOG(ERROR) << "Failed to send periodic link metric query to " << al_mac;
-            }
-            al.next_periodic_link_metric_query_deadline =
-                current_time + lmq_interval + link_metric_response_requery_delay_guard;
-        }
+    bool sent = false;
+    switch (query_type) {
+    case QueryType::TOPOLOGY:
+        sent = query_sender->send_topology_query(*query_dst, cmdu_tx);
+        break;
+    case QueryType::HIGHER_LAYER:
+        sent = query_sender->send_higher_layer_query(*query_dst, cmdu_tx);
+        break;
+    case QueryType::LINK_METRIC:
+        sent = query_sender->send_link_metric_query(*query_dst, cmdu_tx);
+        break;
+    }
+
+    // Record the attempt even if sending fails to avoid retrying on every work() invocation
+    *last_activity = current_time;
+    if (!sent) {
+        LOG(ERROR) << "Failed to send periodic IEEE1905 query to " << *query_dst;
     }
 }
 
@@ -328,6 +352,7 @@ bool ieee1905_task::start_local_al_discovery()
 {
     const auto &al_mac = database.get_local_bridge_mac();
     auto &al           = m_als[al_mac];
+    const auto start   = now();
 
     al.info_pending              = SingleShotCounter(1, [this]() { status_pending.count_down(); });
     al.topology_response_pending = SingleShotCounter(1, [this, al_mac]() {
@@ -338,14 +363,12 @@ bool ieee1905_task::start_local_al_discovery()
         al_it->second.info_pending.count_down();
     });
 
-    al.first_topology_query_deadline = now() + topology_response_timeout;
+    al.first_topology_query_deadline = start + topology_response_timeout;
+    al.last_topology_activity        = start;
     if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
         LOG(ERROR) << "Failed to send topology query to " << al_mac;
         return false;
     }
-
-    // will be sent/armed to now() + interval on topology response
-    al.next_periodic_higher_layer_query_deadline = time_point::max();
 
     return true;
 }
@@ -375,6 +398,8 @@ bool ieee1905_task::start_remote_al_discovery(const sMacAddr &al_mac)
     const auto start                     = now();
     al.first_topology_query_deadline     = start + topology_response_timeout;
     al.first_higher_layer_query_deadline = start + higher_layer_response_timeout;
+    al.last_topology_activity            = start;
+    al.last_higher_layer_activity        = start;
 
     bool ret = true;
     if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
@@ -386,9 +411,6 @@ bool ieee1905_task::start_remote_al_discovery(const sMacAddr &al_mac)
         LOG(ERROR) << "Failed to send higher layer query to " << al_mac;
         ret = false;
     }
-
-    al.next_periodic_higher_layer_query_deadline =
-        start + database.config.higher_layer_request_interval_seconds;
 
     return ret;
 }
@@ -876,9 +898,7 @@ bool ieee1905_task::handle_topology_response(const sMacAddr &src_mac,
         if (!query_sender->send_higher_layer_query(al_mac, cmdu_tx)) {
             LOG(ERROR) << "Failed to send higher layer query to local " << al_mac;
         }
-
-        al.next_periodic_higher_layer_query_deadline =
-            now() + database.config.higher_layer_request_interval_seconds;
+        al.last_higher_layer_activity = now();
     }
 
     // this is a non-standard extension, DeviceIdentification TLV is normally not part of Topology Response
@@ -1073,7 +1093,7 @@ bool ieee1905_task::handle_topology_response(const sMacAddr &src_mac,
 
     al.first_topology_query_deadline = time_point::max();
     al.topology_response_pending.count_down();
-    al.next_periodic_topology_query_deadline = now() + periodic_topology_requery_interval;
+    al.last_topology_activity = now();
 
     return true;
 }
@@ -1230,9 +1250,7 @@ bool ieee1905_task::handle_higher_layer_response(const sMacAddr &src_mac,
 
     al.first_higher_layer_query_deadline = time_point::max();
     al.higher_layer_response_pending.count_down();
-
-    al.next_periodic_higher_layer_query_deadline =
-        now() + database.config.higher_layer_request_interval_seconds;
+    al.last_higher_layer_activity = now();
 
     return true;
 }
@@ -1304,9 +1322,7 @@ bool ieee1905_task::handle_link_metric_response(const sMacAddr &src_mac,
         return false;
     }
 
-    const auto lmq_interval = database.config.link_metrics_request_interval_seconds;
-    al_it->second.next_periodic_link_metric_query_deadline =
-        now() + lmq_interval + link_metric_response_requery_delay_guard;
+    al_it->second.last_link_metric_activity = now();
 
     using sAL      = db::ieee1905_network_db::sAL;
     using sRef     = sAL::sRef;
@@ -1432,7 +1448,8 @@ bool ieee1905_task::handle_topology_notification(const sMacAddr &src_mac,
 
     const auto &al_mac = tlv_al_mac->mac();
 
-    if (m_als.find(al_mac) == m_als.end()) {
+    auto al_it = m_als.find(al_mac);
+    if (al_it == m_als.end()) {
         LOG(WARNING) << "Topology notification from unknown AL " << al_mac << ", ignoring";
         return false;
     }
@@ -1445,6 +1462,7 @@ bool ieee1905_task::handle_topology_notification(const sMacAddr &src_mac,
         return true;
     }
 
+    al_it->second.last_topology_activity = now();
     if (!query_sender->send_topology_query(al_mac, cmdu_tx)) {
         LOG(ERROR) << "Failed to send topology query to " << al_mac;
         return false;
