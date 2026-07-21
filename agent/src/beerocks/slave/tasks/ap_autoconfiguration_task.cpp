@@ -2340,22 +2340,21 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
             }
         }
 
+        beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
         if (ap_mld.modes().str) {
-            current_ap_mld_conf.mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf.mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::STR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_STR);
         }
         if (ap_mld.modes().nstr) {
-            current_ap_mld_conf.mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf.mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::NSTR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_NSTR);
         }
         if (ap_mld.modes().emlsr) {
-            current_ap_mld_conf.mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf.mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::EMLSR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLSR);
         }
         if (ap_mld.modes().emlmr) {
-            current_ap_mld_conf.mld_config.mld_mode = AgentDB::sMLDConfiguration::mode(
-                current_ap_mld_conf.mld_config.mld_mode | AgentDB::sMLDConfiguration::mode::EMLMR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLMR);
         }
+
+        current_ap_mld_conf.mld_config.mld_mode = mld_mode;
 
         current_ap_mld_conf.affiliated_aps.clear();
         std::ostringstream radio_list_ss;
@@ -2413,8 +2412,7 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
                 new_iface_it->second.find(ssid) == new_iface_it->second.end()) {
                 // SSID not found in new configuration, disable it, radio_iface.empty refers to Reconfig flow
                 send_ap_mld_configuration(iface_name, ssid, DISABLED_MLDUNIT,
-                                          AgentDB::sMLDConfiguration::mode::NONE,
-                                          radio_iface.empty());
+                                          beerocks::MLO_MODE_NONE, radio_iface.empty());
             }
         }
     };
@@ -2541,7 +2539,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         db->bsta_mld_configuration.reset();
         LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, Setting MLDUNit to -1";
         send_bsta_mld_configuration(ruid, DISABLED_MLDUNIT,
-                                    static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
+                                    static_cast<uint8_t>(beerocks::MLO_MODE_NONE));
         return true;
     }
 
@@ -2568,34 +2566,28 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         }
     }
 
-    db->bsta_mld_configuration->mld_config.mld_mode = AgentDB::sMLDConfiguration::mode::NONE;
+    beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
     if (bsta_mld_configuration->modes().str) {
-        db->bsta_mld_configuration->mld_config.mld_mode =
-            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
-                                             AgentDB::sMLDConfiguration::mode::STR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_STR);
     }
     if (bsta_mld_configuration->modes().nstr) {
-        db->bsta_mld_configuration->mld_config.mld_mode =
-            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
-                                             AgentDB::sMLDConfiguration::mode::NSTR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_NSTR);
     }
     if (bsta_mld_configuration->modes().emlsr) {
-        db->bsta_mld_configuration->mld_config.mld_mode =
-            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
-                                             AgentDB::sMLDConfiguration::mode::EMLSR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLSR);
     }
     if (bsta_mld_configuration->modes().emlmr) {
-        db->bsta_mld_configuration->mld_config.mld_mode =
-            AgentDB::sMLDConfiguration::mode(db->bsta_mld_configuration->mld_config.mld_mode |
-                                             AgentDB::sMLDConfiguration::mode::EMLMR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLMR);
     }
 
+    db->bsta_mld_configuration->mld_config.mld_mode = mld_mode;
+
     // If no MLO configuration, set -1 for MLDUnit
-    if (db->bsta_mld_configuration->mld_config.mld_mode == AgentDB::sMLDConfiguration::mode::NONE) {
+    if (db->bsta_mld_configuration->mld_config.mld_mode == beerocks::MLO_MODE_NONE) {
         LOG(DEBUG) << "All MLO modes are disabled, "
                    << "send ACTION_BACKHAUL_MLD_UPDATE_REQUEST to BH manager with -1";
-        return send_bsta_mld_configuration(
-            ruid, DISABLED_MLDUNIT, static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
+        return send_bsta_mld_configuration(ruid, DISABLED_MLDUNIT,
+                                           static_cast<uint8_t>(beerocks::MLO_MODE_NONE));
     }
 
     std::ostringstream radio_list_ss;
@@ -2648,9 +2640,8 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         if (it != curr_bsta_mld_infos.end() &&
             bsta_mld_requests_infos.find(bsta_ruid) == bsta_mld_requests_infos.end()) {
             db->bsta_mld_configuration->affiliated_bstas.erase(bsta_ruid);
-            send_bsta_mld_configuration(
-                bsta_ruid, DISABLED_MLDUNIT,
-                static_cast<uint8_t>(AgentDB::sMLDConfiguration::mode::NONE));
+            send_bsta_mld_configuration(bsta_ruid, DISABLED_MLDUNIT,
+                                        static_cast<uint8_t>(beerocks::MLO_MODE_NONE));
         }
     };
 

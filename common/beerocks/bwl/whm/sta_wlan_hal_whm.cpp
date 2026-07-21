@@ -1205,10 +1205,10 @@ bool sta_wlan_hal_whm::update_mld_mode(uint8_t mld_mode)
         return false;
     }
 
-    bool str_enabled   = (mld_mode & beerocks::message::MLO_MODE_STR);
-    bool nstr_enabled  = (mld_mode & beerocks::message::MLO_MODE_NSTR);
-    bool emlsr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLSR);
-    bool emlmr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLMR);
+    bool str_enabled   = (mld_mode & beerocks::MLO_MODE_STR);
+    bool nstr_enabled  = (mld_mode & beerocks::MLO_MODE_NSTR);
+    bool emlsr_enabled = (mld_mode & beerocks::MLO_MODE_EMLSR);
+    bool emlmr_enabled = (mld_mode & beerocks::MLO_MODE_EMLMR);
 
     AmbiorixVariant stamld_config(AMXC_VAR_ID_HTABLE);
     stamld_config.add_child("STREnabled", str_enabled);

@@ -662,11 +662,10 @@ public:
     const uint8_t max_mlds = eBeeRocksIfaceIds::IFACE_TOTAL_VAPS;
 
     typedef struct {
-        std::string mld_ssid = "";
-        sMacAddr mld_mac     = net::network_utils::ZERO_MAC;
-        int8_t mld_unit      = DISABLED_MLDUNIT;
-        enum mode { NONE = 0, STR = 0x80, NSTR = 0x40, EMLSR = 0x20, EMLMR = 0x10 };
-        mode mld_mode;
+        std::string mld_ssid         = "";
+        sMacAddr mld_mac             = net::network_utils::ZERO_MAC;
+        int8_t mld_unit              = DISABLED_MLDUNIT;
+        beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
     } sMLDConfiguration;
 
     typedef struct {
@@ -694,10 +693,9 @@ public:
 
     typedef struct {
         typedef struct {
-            sMacAddr sta_mld_mac = beerocks::net::network_utils::ZERO_MAC;
-            sMacAddr ap_mld_mac  = beerocks::net::network_utils::ZERO_MAC;
-            enum mode { NONE = 0, STR = 0x80, NSTR = 0x40, EMLSR = 0x20, EMLMR = 0x10 };
-            mode mld_mode;
+            sMacAddr sta_mld_mac         = beerocks::net::network_utils::ZERO_MAC;
+            sMacAddr ap_mld_mac          = beerocks::net::network_utils::ZERO_MAC;
+            beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
         } sMLDConfiguration;
 
         typedef struct {

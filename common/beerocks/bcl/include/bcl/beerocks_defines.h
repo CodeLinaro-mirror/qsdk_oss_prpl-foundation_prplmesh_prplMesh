@@ -141,19 +141,20 @@ enum eStructsConsts {
     CHIPSET_VENDOR_LENGTH                = 64,
 };
 
-enum eMLOModes : uint8_t {
-    MLO_MODE_STR   = 0x80,
-    MLO_MODE_NSTR  = 0x40,
-    MLO_MODE_EMLSR = 0x20,
-    MLO_MODE_EMLMR = 0x10,
-};
-
 enum eMessageConsts {
     MESSAGE_VERSION       = 6,
     MESSAGE_MAGIC         = 0x55CDABEF,
     MESSAGE_BUFFER_LENGTH = 8192,
 };
 } //namespace message
+
+enum eMLOModes : uint8_t {
+    MLO_MODE_STR   = 0x80,
+    MLO_MODE_NSTR  = 0x40,
+    MLO_MODE_EMLSR = 0x20,
+    MLO_MODE_EMLMR = 0x10,
+    MLO_MODE_NONE  = 0x00,
+};
 
 enum eGlobals {
     HIERARCHY_MAX                           = 14,

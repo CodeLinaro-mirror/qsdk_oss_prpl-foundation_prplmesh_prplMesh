@@ -2513,8 +2513,7 @@ bool slave_thread::process_client_association(
         mld_info.mld_config.sta_mld_mac = client_mac;
         mld_info.mld_config.ap_mld_mac  = bssid;
         mld_info.mld_config.mld_mode =
-            static_cast<AgentDB::sAssociatedStaMld::sMLDConfiguration::mode>(
-                notification_in->mlo_modes());
+            static_cast<beerocks::eMLOModes>(notification_in->mlo_modes());
         LOG(DEBUG) << "Mld_mode: " << std::hex << static_cast<int>(mld_info.mld_config.mld_mode)
                    << std::dec << ", Number of affiliated STAs=" << int(num_affiliated);
 
@@ -6517,16 +6516,16 @@ bool slave_thread::add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx 
                 (ap_mld_conf.mld_config.mld_mac != net::network_utils::ZERO_MAC);
             ap_mld->set_ssid(ap_mld_conf.mld_config.mld_ssid);
             ap_mld->ap_mld_mac_addr() = ap_mld_conf.mld_config.mld_mac;
-            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::STR) {
+            if (ap_mld_conf.mld_config.mld_mode & beerocks::MLO_MODE_STR) {
                 ap_mld->modes().str = 1;
             }
-            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::NSTR) {
+            if (ap_mld_conf.mld_config.mld_mode & beerocks::MLO_MODE_NSTR) {
                 ap_mld->modes().nstr = 1;
             }
-            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLSR) {
+            if (ap_mld_conf.mld_config.mld_mode & beerocks::MLO_MODE_EMLSR) {
                 ap_mld->modes().emlsr = 1;
             }
-            if (ap_mld_conf.mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLMR) {
+            if (ap_mld_conf.mld_config.mld_mode & beerocks::MLO_MODE_EMLMR) {
                 ap_mld->modes().emlmr = 1;
             }
 
@@ -6587,16 +6586,16 @@ bool slave_thread::add_backhaul_sta_mld_configuration_tlv(ieee1905_1::CmduMessag
     // mac to which bh is connected
     tlvBackhaulStaMldConfiguration->ap_mld_mac_addr() = db->bsta_mld_configuration->ap_mld_mac;
 
-    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::STR) {
+    if (db->bsta_mld_configuration->mld_config.mld_mode & beerocks::MLO_MODE_STR) {
         tlvBackhaulStaMldConfiguration->modes().str = 1;
     }
-    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::NSTR) {
+    if (db->bsta_mld_configuration->mld_config.mld_mode & beerocks::MLO_MODE_NSTR) {
         tlvBackhaulStaMldConfiguration->modes().nstr = 1;
     }
-    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLSR) {
+    if (db->bsta_mld_configuration->mld_config.mld_mode & beerocks::MLO_MODE_EMLSR) {
         tlvBackhaulStaMldConfiguration->modes().emlsr = 1;
     }
-    if (db->bsta_mld_configuration->mld_config.mld_mode & AgentDB::sMLDConfiguration::mode::EMLMR) {
+    if (db->bsta_mld_configuration->mld_config.mld_mode & beerocks::MLO_MODE_EMLMR) {
         tlvBackhaulStaMldConfiguration->modes().emlmr = 1;
     }
 

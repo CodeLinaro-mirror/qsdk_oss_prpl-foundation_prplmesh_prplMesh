@@ -592,10 +592,9 @@ public:
      */
 
     typedef struct {
-        std::string mld_ssid = "";
-        sMacAddr mld_mac     = beerocks::net::network_utils::ZERO_MAC;
-        enum mode { NONE = 0, STR = 0x80, NSTR = 0x40, EMLSR = 0x20, EMLMR = 0x10 };
-        mode mld_mode;
+        std::string mld_ssid         = "";
+        sMacAddr mld_mac             = beerocks::net::network_utils::ZERO_MAC;
+        beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
     } sMLDInfo;
 
     typedef struct {

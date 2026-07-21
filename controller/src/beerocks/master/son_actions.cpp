@@ -630,25 +630,24 @@ bool son_actions::handle_agent_ap_mld_configuration_tlv(db &database, const sMac
             apmld->mld_info.mld_mac = ap_mld.ap_mld_mac_addr();
 
             // MLD MODE FLAGS - str, nstr, emlsr, emlmr
+            beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
             if (ap_mld.modes().str) {
-                apmld->mld_info.mld_mode =
-                    Agent::sMLDInfo::mode(apmld->mld_info.mld_mode | Agent::sMLDInfo::mode::STR);
+                mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_STR);
             }
 
             if (ap_mld.modes().nstr) {
-                apmld->mld_info.mld_mode =
-                    Agent::sMLDInfo::mode(apmld->mld_info.mld_mode | Agent::sMLDInfo::mode::NSTR);
+                mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_NSTR);
             }
 
             if (ap_mld.modes().emlsr) {
-                apmld->mld_info.mld_mode =
-                    Agent::sMLDInfo::mode(apmld->mld_info.mld_mode | Agent::sMLDInfo::mode::EMLSR);
+                mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLSR);
             }
 
             if (ap_mld.modes().emlmr) {
-                apmld->mld_info.mld_mode =
-                    Agent::sMLDInfo::mode(apmld->mld_info.mld_mode | Agent::sMLDInfo::mode::EMLMR);
+                mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLMR);
             }
+
+            apmld->mld_info.mld_mode = mld_mode;
 
             for (uint8_t affiliated_ap_it = 0; affiliated_ap_it < ap_mld.num_affiliated_ap();
                  ++affiliated_ap_it) {
@@ -818,18 +817,18 @@ bool son_actions::handle_backhaul_sta_mld_configuration_tlv(db &database, const 
         affiliated_bsta_list += tlvf::mac_to_string(affiliated_bsta.bssid);
         agent->bsta_mld.affiliated_bstas[affiliated_bsta.ruid] = affiliated_bsta;
     }
-    Agent::sMLDInfo::mode mld_mode = Agent::sMLDInfo::mode::NONE;
+    beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
     if (backhaul_sta_mld_configuration_tlv->modes().str) {
-        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::STR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::eMLOModes::MLO_MODE_STR);
     }
     if (backhaul_sta_mld_configuration_tlv->modes().nstr) {
-        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::NSTR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::eMLOModes::MLO_MODE_NSTR);
     }
     if (backhaul_sta_mld_configuration_tlv->modes().emlsr) {
-        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLSR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::eMLOModes::MLO_MODE_EMLSR);
     }
     if (backhaul_sta_mld_configuration_tlv->modes().emlmr) {
-        mld_mode = Agent::sMLDInfo::mode(mld_mode | Agent::sMLDInfo::mode::EMLMR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::eMLOModes::MLO_MODE_EMLMR);
     }
     database.dm_update_bsta_mld(*agent, backhaul_sta_mld_configuration_tlv->bsta_mld_mac_addr(),
                                 backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr(),
