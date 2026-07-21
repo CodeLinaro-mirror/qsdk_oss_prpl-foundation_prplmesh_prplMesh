@@ -168,6 +168,13 @@ cEncryptedSettingsPayload:
     _type: char
     _length: [vap_label_length]
     _length_max: WSC_MAX_VAP_LABEL_LENGTH
+  operating_generation_length:
+    _type: uint16_t
+    _length_var: True
+  operating_generation:
+    _type: char
+    _length: [operating_generation_length]
+    _length_max: WSC_MAX_OPERATING_GENERATION_LENGTH
 
 cWscAttrEncryptedSettings:
   _type: class

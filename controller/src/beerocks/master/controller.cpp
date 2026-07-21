@@ -1130,6 +1130,7 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
     if (bss_info_conf != nullptr) {
         m2_cfg.bss_index = bss_info_conf->bss_index;
         m2_cfg.vap_type  = bss_info_conf->vap_type;
+        m2_cfg.operating_generation = bss_info_conf->operating_generation;
 
         if (bss_info_conf->authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
             bss_info_conf->additional_auth ==
@@ -5623,6 +5624,29 @@ bool Controller::handle_tlv_profile3_1905_layer_security_capabilities(
 }
 
 #ifdef ENABLE_NBAPI
+static bool agent_has_radio_channel_caps(const Agent &agent)
+{
+    for (const auto &radio : agent.radios) {
+        if (!radio.second->supported_channels.empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void restage_wifi_templates_on_new_radio_channel_caps(Agent &agent,
+                                                             bool had_channel_caps_before)
+{
+    const bool channel_caps_learned =
+        !had_channel_caps_before && agent_has_radio_channel_caps(agent);
+
+    if (channel_caps_learned) {
+        LOG(INFO) << "Radio channel capabilities learned for agent " << agent.al_mac
+                  << ", re-staging Wi-Fi templates";
+        prplmesh::controller::actions::templates_restage_only();
+    }
+}
+
 static void restage_wifi_templates_on_new_security_caps(Agent &agent, bool had_cipher_before,
                                                         bool had_akm_before)
 {
@@ -5979,6 +6003,10 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         return false;
     }
 
+#ifdef ENABLE_NBAPI
+    const bool had_channel_caps_before = agent_has_radio_channel_caps(*agent);
+#endif
+
     agent->radios.keep_new_prepare();
 
     for (auto radio_tlv : cmdu_rx.getClassList<wfa_map::tlvApRadioBasicCapabilities>()) {
@@ -6092,6 +6120,7 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
                    << agent->al_mac;
     }
 #ifdef ENABLE_NBAPI
+    restage_wifi_templates_on_new_radio_channel_caps(*agent, had_channel_caps_before);
     restage_wifi_templates_on_new_security_caps(*agent, had_cipher_before, had_akm_before);
 #endif
 

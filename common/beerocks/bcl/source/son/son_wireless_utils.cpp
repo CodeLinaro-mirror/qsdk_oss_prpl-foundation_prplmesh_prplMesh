@@ -16,6 +16,9 @@
 #include <easylogging++.h>
 
 #include <cmath>
+#include <cctype>
+#include <numeric>
+#include <sstream>
 
 using namespace son;
 
@@ -1773,6 +1776,51 @@ std::list<uint8_t> wireless_utils::string_to_wsc_oper_class(const std::string &o
     return {};
 }
 
+std::set<uint8_t> wireless_utils::band_flag_token_to_channels(const std::string &token)
+{
+    std::set<uint8_t> ch;
+    if (token == "5_UNII_1") {
+        for (uint8_t c = 36; c <= 48; c += 4) ch.insert(c);
+    } else if (token == "5_UNII_2") {
+        for (uint8_t c = 52; c <= 64; c += 4) ch.insert(c);
+        for (uint8_t c = 100; c <= 144; c += 4) ch.insert(c);
+    } else if (token == "5_UNII_3") {
+        for (uint8_t c = 149; c <= 165; c += 4) ch.insert(c);
+    } else if (token == "5_UNII_4") {
+        // Unsupported in standard Part 15 Wi-Fi
+    } else if (token == "6_UNII_5") {
+        for (uint8_t c = 1; c <= 93; c += 4) ch.insert(c);
+    } else if (token == "6_UNII_6") {
+        for (uint8_t c = 97; c <= 113; c += 4) ch.insert(c);
+    } else if (token == "6_UNII_7") {
+        for (uint8_t c = 117; c <= 185; c += 4) ch.insert(c);
+    } else if (token == "6_UNII_8") {
+        for (uint8_t c = 189; c <= 233; c += 4) ch.insert(c);
+    }
+    return ch;
+}
+
+std::list<uint8_t> wireless_utils::band_flag_token_to_operating_classes(const std::string &token)
+{
+    if (token == "5_UNII_1") return {115, 116, 117, 128, 129, 130};
+    if (token == "5_UNII_2") return {118, 119, 120, 121, 122, 123, 128, 129, 130};
+    if (token == "5_UNII_3") return {124, 125, 126, 127, 128, 129, 130};
+    if (token == "5_UNII_4") return {};
+    
+    if (token == "5") return string_to_wsc_oper_class("5gh"); // pre-Task-5 coarse expansion (defaults)
+    if (token == "2.4") return string_to_wsc_oper_class("24g");
+    if (token == "6") return string_to_wsc_oper_class("6g");
+    
+    if (token == "6_UNII_5" || token == "6_UNII_6" || token == "6_UNII_7" || token == "6_UNII_8") {
+        return string_to_wsc_oper_class("6g");
+    }
+    
+    if (token != "Sub_1GHz") {
+        LOG(WARNING) << "BandFlag token [" << token << "] was not converted to operating classes.";
+    }
+    return {};
+}
+
 eVapType wireless_utils::string_to_vap_type(const std::string &type)
 {
     if (type.empty()) {
@@ -2478,4 +2526,208 @@ wireless_utils::get_bandwidth_from_channel_and_op_class(const uint8_t channel,
     LOG(ERROR) << "Bandwidth 320 found from op_class: " << op_class << ", but channel: " << channel
                << ", doesn't match any channel in 320-1 or 320-2";
     return beerocks::BANDWIDTH_UNKNOWN;
+}
+
+namespace {
+
+static void trim_wifi_gen_token(std::string &token)
+{
+    token.erase(0, token.find_first_not_of(" \t"));
+    token.erase(token.find_last_not_of(" \t") + 1);
+}
+
+static bool parse_wifi_gen_token(std::string token, bool allow_plus, sWifiGenToken &out)
+{
+    trim_wifi_gen_token(token);
+    if (token.empty()) {
+        return false;
+    }
+
+    out.or_higher = false;
+    if (token.back() == '+') {
+        if (!allow_plus) {
+            return false;
+        }
+        out.or_higher = true;
+        token.pop_back();
+        trim_wifi_gen_token(token);
+    }
+
+    if (token.empty() ||
+        !std::all_of(token.begin(), token.end(),
+                     [](unsigned char c) { return std::isdigit(c) != 0; })) {
+        return false;
+    }
+
+    unsigned long value = std::strtoul(token.c_str(), nullptr, 10);
+    if (value == 0UL || value > 255UL) {
+        return false;
+    }
+    out.generation = static_cast<uint8_t>(value);
+    return true;
+}
+
+static std::vector<std::string> split_wifi_gen_csv(const std::string &csv)
+{
+    std::vector<std::string> pieces;
+    if (csv.empty()) {
+        return pieces;
+    }
+
+    std::istringstream iss(csv);
+    std::string piece;
+    while (std::getline(iss, piece, ',')) {
+        trim_wifi_gen_token(piece);
+        if (!piece.empty()) {
+            pieces.push_back(piece);
+        }
+    }
+    return pieces;
+}
+
+} // namespace
+
+bool wireless_utils::parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
+                                        std::vector<sWifiGenToken> &out)
+{
+    out.clear();
+    for (const auto &piece : split_wifi_gen_csv(csv)) {
+        sWifiGenToken token;
+        if (!parse_wifi_gen_token(piece, allow_plus, token)) {
+            LOG(WARNING) << "Invalid Wi-Fi generation token '" << piece << "'";
+            return false;
+        }
+        out.push_back(token);
+    }
+    return true;
+}
+
+static bool wifi_gen_tokens_in_apply_range(const std::vector<sWifiGenToken> &tokens)
+{
+    for (const auto &token : tokens) {
+        if (token.generation < WIFI_GEN_MIN) {
+            LOG(WARNING) << "OperatingGeneration Wi-Fi generation " << int(token.generation)
+                         << " is below supported apply range " << int(WIFI_GEN_MIN) << "-"
+                         << int(WIFI_GEN_MAX) << "; rejecting";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool wireless_utils::operating_generation_valid_for_apply(const std::string &csv)
+{
+    std::vector<sWifiGenToken> tokens;
+    if (!parse_wifi_gen_csv(csv, true, tokens)) {
+        return false;
+    }
+    return wifi_gen_tokens_in_apply_range(tokens);
+}
+
+bool wireless_utils::expand_allowed_wifi_generations(const std::vector<sWifiGenToken> &tokens,
+                                                     std::set<uint8_t> &allowed_out)
+{
+    allowed_out.clear();
+    if (!wifi_gen_tokens_in_apply_range(tokens)) {
+        return false;
+    }
+
+    for (const auto &token : tokens) {
+        if (token.generation > WIFI_GEN_MAX && !token.or_higher) {
+            continue;
+        }
+        const uint8_t start = token.generation;
+        const uint8_t end =
+            token.or_higher ? WIFI_GEN_MAX : std::min<uint8_t>(token.generation, WIFI_GEN_MAX);
+        if (start > end) {
+            continue;
+        }
+        for (uint8_t gen = start; gen <= end; ++gen) {
+            allowed_out.insert(gen);
+        }
+    }
+    return true;
+}
+
+bool wireless_utils::try_get_allowed_wifi_generations(
+    const std::list<sBssInfoConf> &bss_info_conf_list, std::set<uint8_t> &allowed_gens_out)
+{
+    for (const auto &bss_info_conf : bss_info_conf_list) {
+        if (bss_info_conf.operating_generation.empty()) {
+            continue;
+        }
+        std::vector<sWifiGenToken> tokens;
+        if (!parse_wifi_gen_csv(bss_info_conf.operating_generation, true, tokens)) {
+            LOG(WARNING) << "Invalid operating_generation CSV: "
+                         << bss_info_conf.operating_generation;
+            return false;
+        }
+        if (!expand_allowed_wifi_generations(tokens, allowed_gens_out)) {
+            LOG(WARNING) << "OperatingGeneration out of apply range: "
+                         << bss_info_conf.operating_generation;
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+std::map<std::string, std::string>
+wireless_utils::hostapd_wifi_generation_flags(const std::set<uint8_t> &allowed_gens)
+{
+    static const std::pair<const char *, uint8_t> k_hostapd_gen_keys[] = {
+        {"ieee80211n", 4}, {"ieee80211ac", 5}, {"ieee80211ax", 6}, {"ieee80211be", 7}};
+
+    std::map<std::string, std::string> flags;
+    for (const auto &entry : k_hostapd_gen_keys) {
+        flags[entry.first] = allowed_gens.count(entry.second) ? "1" : "0";
+    }
+    return flags;
+}
+
+std::string wireless_utils::filter_whm_operating_standards(const std::string &current_standards,
+                                                           const std::set<uint8_t> &allowed_gens)
+{
+    /* Highest-first order matches common pWHM / Legacy-adjacent lists (be,ax,ac,n,...). */
+    static const std::pair<const char *, uint8_t> k_whm_gen_tokens[] = {
+        {"be", 7}, {"ax", 6}, {"ac", 5}, {"n", 4}};
+
+    std::vector<std::string> non_gen_tokens;
+    std::istringstream iss(current_standards);
+    std::string token;
+    while (std::getline(iss, token, ',')) {
+        trim_wifi_gen_token(token);
+        if (token.empty()) {
+            continue;
+        }
+
+        bool generation_token = false;
+        for (const auto &entry : k_whm_gen_tokens) {
+            if (token == entry.first) {
+                generation_token = true;
+                break;
+            }
+        }
+        if (!generation_token) {
+            non_gen_tokens.push_back(token);
+        }
+    }
+
+    /* Build policy from allowed_gens — do not require tokens to already be in current. */
+    std::vector<std::string> kept;
+    for (const auto &entry : k_whm_gen_tokens) {
+        if (allowed_gens.count(entry.second)) {
+            kept.push_back(entry.first);
+        }
+    }
+    kept.insert(kept.end(), non_gen_tokens.begin(), non_gen_tokens.end());
+
+    if (kept.empty()) {
+        return {};
+    }
+
+    return std::accumulate(kept.begin() + 1, kept.end(), kept.front(),
+                           [](const std::string &lhs, const std::string &rhs) {
+                               return lhs + "," + rhs;
+                           });
 }

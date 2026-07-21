@@ -35,6 +35,9 @@ constexpr float NOISE_FIGURE = 8.0f;
 
 constexpr int BIT_RATE_MAX_TABLE_SIZE = 42;
 
+constexpr uint8_t WIFI_GEN_MIN = 4;
+constexpr uint8_t WIFI_GEN_MAX = 7;
+
 constexpr uint8_t LAST_2G_CHANNEL            = 14;
 constexpr uint8_t FIRST_5G_CHANNEL           = 36;
 constexpr uint8_t FIRST_5G_6G_COMMON_CHANNEL = 149;
@@ -250,6 +253,11 @@ constexpr std::array<uint8_t, 70> wpa3_pcm_6g_eht = {
     0x20};
 
 namespace son {
+struct sWifiGenToken {
+    uint8_t generation = 0;
+    bool or_higher     = false;
+};
+
 class wireless_utils {
 public:
     enum eAdditionalAuth {
@@ -303,6 +311,7 @@ public:
         WSC::eWscVendorExtHiddenSsid hidden_ssid          = WSC::eWscVendorExtHiddenSsid::UNSET;
         eVapType vap_type                                 = eVapType::OTHER;
         std::string vap_label;
+        std::string operating_generation;
         std::string mld_id              = "";
         bool bSTA                       = false;
         uint8_t bss_index               = 0;
@@ -478,6 +487,29 @@ public:
     static std::string wsc_to_bwl_encryption(WSC::eWscEncr enctype);
     static beerocks::eBssType wsc_to_bwl_bss_type(WSC::eWscVendorExtSubelementBssType bss_type);
     static std::list<uint8_t> string_to_wsc_oper_class(const std::string &operating_class);
+    static std::set<uint8_t> band_flag_token_to_channels(const std::string &token);
+    static std::list<uint8_t> band_flag_token_to_operating_classes(const std::string &token);
+
+    static bool parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
+                                   std::vector<sWifiGenToken> &out);
+    /**
+     * @brief True if @p csv parses and every token is in apply range [WIFI_GEN_MIN..WIFI_GEN_MAX].
+     * Tokens below WIFI_GEN_MIN are rejected (not clamped).
+     */
+    static bool operating_generation_valid_for_apply(const std::string &csv);
+    static bool expand_allowed_wifi_generations(const std::vector<sWifiGenToken> &tokens,
+                                                std::set<uint8_t> &allowed_out);
+    static bool try_get_allowed_wifi_generations(const std::list<sBssInfoConf> &bss_info_conf_list,
+                                                 std::set<uint8_t> &allowed_gens_out);
+    static std::map<std::string, std::string>
+    hostapd_wifi_generation_flags(const std::set<uint8_t> &allowed_gens);
+    /**
+     * Build WHM OperatingStandards from allowed Wi-Fi gens (4..7 → n/ac/ax/be).
+     * Non-generation tokens from current (e.g. a/b/g) are preserved; gen tokens
+     * are taken from allowed_gens and need not already appear in current.
+     */
+    static std::string filter_whm_operating_standards(const std::string &current_standards,
+                                                      const std::set<uint8_t> &allowed_gens);
 
     /*
      * @brief Converts string to vap_type
