@@ -2340,18 +2340,18 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
             }
         }
 
-        beerocks::message::eMLOModes mld_mode = beerocks::message::MLO_MODE_NONE;
+        beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
         if (ap_mld.modes().str) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_STR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_STR);
         }
         if (ap_mld.modes().nstr) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_NSTR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_NSTR);
         }
         if (ap_mld.modes().emlsr) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLSR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLSR);
         }
         if (ap_mld.modes().emlmr) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLMR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLMR);
         }
 
         current_ap_mld_conf.mld_config.mld_mode = mld_mode;
@@ -2412,7 +2412,7 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
                 new_iface_it->second.find(ssid) == new_iface_it->second.end()) {
                 // SSID not found in new configuration, disable it, radio_iface.empty refers to Reconfig flow
                 send_ap_mld_configuration(iface_name, ssid, DISABLED_MLDUNIT,
-                                          beerocks::message::MLO_MODE_NONE, radio_iface.empty());
+                                          beerocks::MLO_MODE_NONE, radio_iface.empty());
             }
         }
     };
@@ -2539,7 +2539,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         db->bsta_mld_configuration.reset();
         LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, Setting MLDUNit to -1";
         send_bsta_mld_configuration(ruid, DISABLED_MLDUNIT,
-                                    static_cast<uint8_t>(beerocks::message::MLO_MODE_NONE));
+                                    static_cast<uint8_t>(beerocks::MLO_MODE_NONE));
         return true;
     }
 
@@ -2566,28 +2566,28 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
         }
     }
 
-    beerocks::message::eMLOModes mld_mode = beerocks::message::MLO_MODE_NONE;
+    beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
     if (bsta_mld_configuration->modes().str) {
-        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_STR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_STR);
     }
     if (bsta_mld_configuration->modes().nstr) {
-        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_NSTR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_NSTR);
     }
     if (bsta_mld_configuration->modes().emlsr) {
-        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLSR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLSR);
     }
     if (bsta_mld_configuration->modes().emlmr) {
-        mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLMR);
+        mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLMR);
     }
 
     db->bsta_mld_configuration->mld_config.mld_mode = mld_mode;
 
     // If no MLO configuration, set -1 for MLDUnit
-    if (db->bsta_mld_configuration->mld_config.mld_mode == beerocks::message::MLO_MODE_NONE) {
+    if (db->bsta_mld_configuration->mld_config.mld_mode == beerocks::MLO_MODE_NONE) {
         LOG(DEBUG) << "All MLO modes are disabled, "
                    << "send ACTION_BACKHAUL_MLD_UPDATE_REQUEST to BH manager with -1";
         return send_bsta_mld_configuration(ruid, DISABLED_MLDUNIT,
-                                           static_cast<uint8_t>(beerocks::message::MLO_MODE_NONE));
+                                           static_cast<uint8_t>(beerocks::MLO_MODE_NONE));
     }
 
     std::ostringstream radio_list_ss;
@@ -2641,7 +2641,7 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
             bsta_mld_requests_infos.find(bsta_ruid) == bsta_mld_requests_infos.end()) {
             db->bsta_mld_configuration->affiliated_bstas.erase(bsta_ruid);
             send_bsta_mld_configuration(bsta_ruid, DISABLED_MLDUNIT,
-                                        static_cast<uint8_t>(beerocks::message::MLO_MODE_NONE));
+                                        static_cast<uint8_t>(beerocks::MLO_MODE_NONE));
         }
     };
 

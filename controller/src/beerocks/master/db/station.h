@@ -192,7 +192,7 @@ public:
     typedef struct {
         sMacAddr sta_mld_mac = beerocks::net::network_utils::ZERO_MAC;
         sMacAddr ap_mld_mac  = beerocks::net::network_utils::ZERO_MAC;
-        beerocks::message::eMLOModes mld_mode;
+        beerocks::eMLOModes mld_mode;
     } sMLDConfiguration;
 
     typedef struct {

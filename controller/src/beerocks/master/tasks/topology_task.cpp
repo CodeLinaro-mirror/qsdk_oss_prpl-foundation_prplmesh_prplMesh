@@ -733,18 +733,18 @@ void topology_task::handle_assoc_sta_mld_configuration_tlv(ieee1905_1::CmduMessa
             continue;
         }
 
-        beerocks::message::eMLOModes mld_mode = beerocks::message::MLO_MODE_NONE;
+        beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
         if (assoc_sta_mld_conf_tlv->modes().str) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_STR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_STR);
         }
         if (assoc_sta_mld_conf_tlv->modes().nstr) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_NSTR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_NSTR);
         }
         if (assoc_sta_mld_conf_tlv->modes().emlsr) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLSR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLSR);
         }
         if (assoc_sta_mld_conf_tlv->modes().emlmr) {
-            mld_mode = beerocks::message::eMLOModes(mld_mode | beerocks::message::MLO_MODE_EMLMR);
+            mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_EMLMR);
         }
 
         std::vector<Station::sAssociatedStaMldConfiguration::sAffiliatedSta> affiliated_sta_vector;

@@ -1505,13 +1505,13 @@ bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta
 
     std::transform(mlo_mode.begin(), mlo_mode.end(), mlo_mode.begin(), ::toupper);
     if (mlo_mode.find("NSTR") != std::string::npos) {
-        mlo_info.mlo_modes |= beerocks::message::MLO_MODE_NSTR;
+        mlo_info.mlo_modes |= beerocks::MLO_MODE_NSTR;
     } else if (mlo_mode.find("STR") != std::string::npos) {
-        mlo_info.mlo_modes |= beerocks::message::MLO_MODE_STR;
+        mlo_info.mlo_modes |= beerocks::MLO_MODE_STR;
     } else if (mlo_mode.find("EMLSR") != std::string::npos) {
-        mlo_info.mlo_modes |= beerocks::message::MLO_MODE_EMLSR;
+        mlo_info.mlo_modes |= beerocks::MLO_MODE_EMLSR;
     } else if (mlo_mode.find("EMLMR") != std::string::npos) {
-        mlo_info.mlo_modes |= beerocks::message::MLO_MODE_EMLMR;
+        mlo_info.mlo_modes |= beerocks::MLO_MODE_EMLMR;
     } else {
         LOG(ERROR) << "MLO read failed";
     }
@@ -1566,11 +1566,10 @@ bool ap_wlan_hal_whm::collect_mlo_client_association_info(const std::string &sta
     }
 
     LOG(DEBUG) << "MLO params - mlo_modes: " << std::hex << int(mlo_info.mlo_modes) << std::dec
-               << " (str=" << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_STR) ? 1 : 0)
-               << ", nstr=" << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_NSTR) ? 1 : 0)
-               << ", emlsr=" << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_EMLSR) ? 1 : 0)
-               << ", emlmr=" << ((mlo_info.mlo_modes & beerocks::message::MLO_MODE_EMLMR) ? 1 : 0)
-               << ")";
+               << " (str=" << ((mlo_info.mlo_modes & beerocks::MLO_MODE_STR) ? 1 : 0)
+               << ", nstr=" << ((mlo_info.mlo_modes & beerocks::MLO_MODE_NSTR) ? 1 : 0)
+               << ", emlsr=" << ((mlo_info.mlo_modes & beerocks::MLO_MODE_EMLSR) ? 1 : 0)
+               << ", emlmr=" << ((mlo_info.mlo_modes & beerocks::MLO_MODE_EMLMR) ? 1 : 0) << ")";
 
     return true;
 }
@@ -2583,10 +2582,10 @@ bool ap_wlan_hal_whm::update_mld_mode(std::string ssid, uint8_t mld_mode)
         return false;
     }
 
-    bool str_enabled   = (mld_mode & beerocks::message::MLO_MODE_STR) != 0;
-    bool nstr_enabled  = (mld_mode & beerocks::message::MLO_MODE_NSTR) != 0;
-    bool emlsr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLSR) != 0;
-    bool emlmr_enabled = (mld_mode & beerocks::message::MLO_MODE_EMLMR) != 0;
+    bool str_enabled   = (mld_mode & beerocks::MLO_MODE_STR) != 0;
+    bool nstr_enabled  = (mld_mode & beerocks::MLO_MODE_NSTR) != 0;
+    bool emlsr_enabled = (mld_mode & beerocks::MLO_MODE_EMLSR) != 0;
+    bool emlmr_enabled = (mld_mode & beerocks::MLO_MODE_EMLMR) != 0;
 
     AmbiorixVariant apmld_config(AMXC_VAR_ID_HTABLE);
     apmld_config.add_child("STREnabled", str_enabled);

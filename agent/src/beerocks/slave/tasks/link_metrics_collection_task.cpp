@@ -690,19 +690,19 @@ bool LinkMetricsCollectionTask::add_assoc_sta_mld_config_report(
     tlvAssociatedStaMldConfigurationReport->ap_mld_mac_addr()  = mld_info.mld_config.ap_mld_mac;
 
     // Set Modes
-    if (mld_info.mld_config.mld_mode & beerocks::message::MLO_MODE_STR) {
+    if (mld_info.mld_config.mld_mode & beerocks::MLO_MODE_STR) {
         tlvAssociatedStaMldConfigurationReport->modes().str = 1;
     }
 
-    if (mld_info.mld_config.mld_mode & beerocks::message::MLO_MODE_NSTR) {
+    if (mld_info.mld_config.mld_mode & beerocks::MLO_MODE_NSTR) {
         tlvAssociatedStaMldConfigurationReport->modes().nstr = 1;
     }
 
-    if (mld_info.mld_config.mld_mode & beerocks::message::MLO_MODE_EMLSR) {
+    if (mld_info.mld_config.mld_mode & beerocks::MLO_MODE_EMLSR) {
         tlvAssociatedStaMldConfigurationReport->modes().emlsr = 1;
     }
 
-    if (mld_info.mld_config.mld_mode & beerocks::message::MLO_MODE_EMLMR) {
+    if (mld_info.mld_config.mld_mode & beerocks::MLO_MODE_EMLMR) {
         tlvAssociatedStaMldConfigurationReport->modes().emlmr = 1;
     }
 

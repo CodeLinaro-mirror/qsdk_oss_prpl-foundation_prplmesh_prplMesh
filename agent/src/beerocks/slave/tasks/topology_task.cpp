@@ -1174,19 +1174,19 @@ bool TopologyTask::add_assoc_sta_mld_config_reports()
         tlvAssociatedStaMldConfigurationReport->ap_mld_mac_addr() =
             sta_mld.second.mld_config.ap_mld_mac;
 
-        if (sta_mld.second.mld_config.mld_mode & beerocks::message::MLO_MODE_STR) {
+        if (sta_mld.second.mld_config.mld_mode & beerocks::MLO_MODE_STR) {
             tlvAssociatedStaMldConfigurationReport->modes().str = 1;
         }
 
-        if (sta_mld.second.mld_config.mld_mode & beerocks::message::MLO_MODE_NSTR) {
+        if (sta_mld.second.mld_config.mld_mode & beerocks::MLO_MODE_NSTR) {
             tlvAssociatedStaMldConfigurationReport->modes().nstr = 1;
         }
 
-        if (sta_mld.second.mld_config.mld_mode & beerocks::message::MLO_MODE_EMLSR) {
+        if (sta_mld.second.mld_config.mld_mode & beerocks::MLO_MODE_EMLSR) {
             tlvAssociatedStaMldConfigurationReport->modes().emlsr = 1;
         }
 
-        if (sta_mld.second.mld_config.mld_mode & beerocks::message::MLO_MODE_EMLMR) {
+        if (sta_mld.second.mld_config.mld_mode & beerocks::MLO_MODE_EMLMR) {
             tlvAssociatedStaMldConfigurationReport->modes().emlmr = 1;
         }
 

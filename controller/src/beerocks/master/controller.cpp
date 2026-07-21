@@ -4803,16 +4803,16 @@ bool Controller::reconfig_apmld(const sMacAddr &al_mac, const sMacAddr &mld_mac,
         ap_mld->ap_mld_mac_addr() = db_ap_mld.mld_info.mld_mac;
 
         // MLD MODES
-        if (db_ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_STR) {
+        if (db_ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_STR) {
             ap_mld->modes().str = 1;
         }
-        if (db_ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_NSTR) {
+        if (db_ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_NSTR) {
             ap_mld->modes().nstr = 1;
         }
-        if (db_ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_EMLSR) {
+        if (db_ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLSR) {
             ap_mld->modes().emlsr = 1;
         }
-        if (db_ap_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_EMLMR) {
+        if (db_ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLMR) {
             ap_mld->modes().emlmr = 1;
         }
 
@@ -4925,16 +4925,16 @@ bool Controller::reconfig_bstamld(const sMacAddr &al_mac, const sMacAddr &mld_ma
     tlvBackhaulStaMldConfiguration->bsta_mld_mac_addr() = bsta_mld.mld_info.mld_mac;
     tlvBackhaulStaMldConfiguration->ap_mld_mac_addr()   = bsta_mld.ap_mld_mac;
 
-    if (bsta_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_STR) {
+    if (bsta_mld.mld_info.mld_mode & beerocks::MLO_MODE_STR) {
         tlvBackhaulStaMldConfiguration->modes().str = 1;
     }
-    if (bsta_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_NSTR) {
+    if (bsta_mld.mld_info.mld_mode & beerocks::MLO_MODE_NSTR) {
         tlvBackhaulStaMldConfiguration->modes().nstr = 1;
     }
-    if (bsta_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_EMLSR) {
+    if (bsta_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLSR) {
         tlvBackhaulStaMldConfiguration->modes().emlsr = 1;
     }
-    if (bsta_mld.mld_info.mld_mode & beerocks::message::MLO_MODE_EMLMR) {
+    if (bsta_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLMR) {
         tlvBackhaulStaMldConfiguration->modes().emlmr = 1;
     }
     LOG(DEBUG) << "Sending BH Sta MLD configuration for " << bsta_mld.mld_info.mld_ssid
