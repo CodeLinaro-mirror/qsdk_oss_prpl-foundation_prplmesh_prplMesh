@@ -241,6 +241,12 @@ class cEncryptedSettingsPayload : public BaseClass
         bool set_vap_label(const std::string& str);
         bool set_vap_label(const char buffer[], size_t size);
         bool alloc_vap_label(size_t count = 1);
+        uint16_t& operating_generation_length();
+        std::string operating_generation_str();
+        char* operating_generation(size_t length = 0);
+        bool set_operating_generation(const std::string& str);
+        bool set_operating_generation(const char buffer[], size_t size);
+        bool alloc_operating_generation(size_t count = 1);
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -268,6 +274,9 @@ class cEncryptedSettingsPayload : public BaseClass
         uint16_t* m_vap_label_length = nullptr;
         char* m_vap_label = nullptr;
         size_t m_vap_label_idx__ = 0;
+        uint16_t* m_operating_generation_length = nullptr;
+        char* m_operating_generation = nullptr;
+        size_t m_operating_generation_idx__ = 0;
 };
 
 class cWscAttrEncryptedSettings : public BaseClass
