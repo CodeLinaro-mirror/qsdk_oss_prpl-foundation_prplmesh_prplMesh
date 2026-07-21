@@ -275,6 +275,87 @@ bool tlvTidToLinkMappingPolicy::init()
     return true;
 }
 
+cTidToLinkMapping::cTidToLinkMapping(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cTidToLinkMapping::cTidToLinkMapping(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cTidToLinkMapping::~cTidToLinkMapping() {
+}
+cTidToLinkMapping::sTidToLinkMapping_byte& cTidToLinkMapping::loByte() {
+    return (sTidToLinkMapping_byte&)(*m_loByte);
+}
+
+cTidToLinkMapping::sTidToLinkMapping_byte& cTidToLinkMapping::hiByte() {
+    return (sTidToLinkMapping_byte&)(*m_hiByte);
+}
+
+void cTidToLinkMapping::class_swap()
+{
+    m_loByte->struct_swap();
+    m_hiByte->struct_swap();
+}
+
+bool cTidToLinkMapping::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cTidToLinkMapping::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(sTidToLinkMapping_byte); // loByte
+    class_size += sizeof(sTidToLinkMapping_byte); // hiByte
+    return class_size;
+}
+
+bool cTidToLinkMapping::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_loByte = reinterpret_cast<sTidToLinkMapping_byte*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sTidToLinkMapping_byte))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sTidToLinkMapping_byte) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_loByte->struct_init(); }
+    m_hiByte = reinterpret_cast<sTidToLinkMapping_byte*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sTidToLinkMapping_byte))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sTidToLinkMapping_byte) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_hiByte->struct_init(); }
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cMapping::cMapping(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();
@@ -323,7 +404,7 @@ std::shared_ptr<cTidToLinkControlField> cMapping::create_tid_to_link_control_fie
         size_t move_length = getBuffRemainingBytes(src) - len;
         std::copy_n(src, move_length, dst);
     }
-    m_tid_to_link_mapping = (sTidToLinkMapping *)((uint8_t *)(m_tid_to_link_mapping) + len);
+    m_tid_to_link_mapping = (cTidToLinkMapping *)((uint8_t *)(m_tid_to_link_mapping) + len);
     m_reserved = (uint8_t *)((uint8_t *)(m_reserved) + len);
     return std::make_shared<cTidToLinkControlField>(src, getBuffRemainingBytes(src), m_parse__);
 }
@@ -348,7 +429,7 @@ bool cMapping::add_tid_to_link_control_field(std::shared_ptr<cTidToLinkControlFi
     }
     m_tid_to_link_control_field_init = true;
     size_t len = ptr->getLen();
-    m_tid_to_link_mapping = (sTidToLinkMapping *)((uint8_t *)(m_tid_to_link_mapping) + len - ptr->get_initial_size());
+    m_tid_to_link_mapping = (cTidToLinkMapping *)((uint8_t *)(m_tid_to_link_mapping) + len - ptr->get_initial_size());
     m_reserved = (uint8_t *)((uint8_t *)(m_reserved) + len - ptr->get_initial_size());
     m_tid_to_link_control_field_ptr = ptr;
     if (!buffPtrIncrementSafe(len)) {
@@ -359,8 +440,83 @@ bool cMapping::add_tid_to_link_control_field(std::shared_ptr<cTidToLinkControlFi
     return true;
 }
 
-cMapping::sTidToLinkMapping& cMapping::tid_to_link_mapping() {
-    return (sTidToLinkMapping&)(*m_tid_to_link_mapping);
+size_t cMapping::tid_to_link_mapping_length()
+{
+    size_t len = 0;
+    for (size_t i = 0; i < m_tid_to_link_mapping_idx__; i++) {
+        len += m_tid_to_link_mapping_vector[i]->getLen();
+    }
+    return len;
+}
+
+std::tuple<bool, cTidToLinkMapping&> cMapping::tid_to_link_mapping(size_t idx) {
+    bool ret_success = ( (m_tid_to_link_mapping_idx__ > 0) && (m_tid_to_link_mapping_idx__ > idx) );
+    size_t ret_idx = ret_success ? idx : 0;
+    if (!ret_success) {
+        TLVF_LOG(ERROR) << "Requested index is greater than the number of available entries";
+    }
+    return std::forward_as_tuple(ret_success, *(m_tid_to_link_mapping_vector[ret_idx]));
+}
+
+std::shared_ptr<cTidToLinkMapping> cMapping::create_tid_to_link_mapping() {
+    if (m_lock_order_counter__ > 1) {
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list tid_to_link_mapping, abort!";
+        return nullptr;
+    }
+    size_t len = cTidToLinkMapping::get_initial_size();
+    if (m_lock_allocation__) {
+        TLVF_LOG(ERROR) << "Can't create new element before adding the previous one";
+        return nullptr;
+    }
+    if (getBuffRemainingBytes() < len) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer";
+        return nullptr;
+    }
+    m_lock_order_counter__ = 1;
+    m_lock_allocation__ = true;
+    uint8_t *src = (uint8_t *)m_tid_to_link_mapping;
+    if (m_tid_to_link_mapping_idx__ > 0) {
+        src = (uint8_t *)m_tid_to_link_mapping_vector[m_tid_to_link_mapping_idx__ - 1]->getBuffPtr();
+    }
+    if (!m_parse__) {
+        uint8_t *dst = src + len;
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_reserved = (uint8_t *)((uint8_t *)(m_reserved) + len);
+    return std::make_shared<cTidToLinkMapping>(getBuffPtr(), getBuffRemainingBytes(), m_parse__);
+}
+
+bool cMapping::add_tid_to_link_mapping(std::shared_ptr<cTidToLinkMapping> ptr) {
+    if (ptr == nullptr) {
+        TLVF_LOG(ERROR) << "Received entry is nullptr";
+        return false;
+    }
+    if (m_lock_allocation__ == false) {
+        TLVF_LOG(ERROR) << "No call to create_tid_to_link_mapping was called before add_tid_to_link_mapping";
+        return false;
+    }
+    uint8_t *src = (uint8_t *)m_tid_to_link_mapping;
+    if (m_tid_to_link_mapping_idx__ > 0) {
+        src = (uint8_t *)m_tid_to_link_mapping_vector[m_tid_to_link_mapping_idx__ - 1]->getBuffPtr();
+    }
+    if (ptr->getStartBuffPtr() != src) {
+        TLVF_LOG(ERROR) << "Received entry pointer is different than expected (expecting the same pointer returned from add method)";
+        return false;
+    }
+    if (ptr->getLen() > getBuffRemainingBytes(ptr->getStartBuffPtr())) {;
+        TLVF_LOG(ERROR) << "Not enough available space on buffer";
+        return false;
+    }
+    m_tid_to_link_mapping_idx__++;
+    size_t len = ptr->getLen();
+    m_tid_to_link_mapping_vector.push_back(ptr);
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    m_lock_allocation__ = false;
+    return true;
 }
 
 uint8_t* cMapping::reserved(size_t idx) {
@@ -388,7 +544,9 @@ void cMapping::class_swap()
     m_add_remove->struct_swap();
     m_sta_mld_mac_addr->struct_swap();
     if (m_tid_to_link_control_field_ptr) { m_tid_to_link_control_field_ptr->class_swap(); }
-    m_tid_to_link_mapping->struct_swap();
+    for (size_t i = 0; i < m_tid_to_link_mapping_idx__; i++){
+        std::get<1>(tid_to_link_mapping(i)).class_swap();
+    }
 }
 
 bool cMapping::finalize()
@@ -423,7 +581,6 @@ size_t cMapping::get_initial_size()
     size_t class_size = 0;
     class_size += sizeof(sAddRemove); // add_remove
     class_size += sizeof(sMacAddr); // sta_mld_mac_addr
-    class_size += sizeof(sTidToLinkMapping); // tid_to_link_mapping
     class_size += 7 * sizeof(uint8_t); // reserved
     return class_size;
 }
@@ -460,12 +617,30 @@ bool cMapping::init()
         // swap back since tid_to_link_control_field will be swapped as part of the whole class swap
         tid_to_link_control_field->class_swap();
     }
-    m_tid_to_link_mapping = reinterpret_cast<sTidToLinkMapping*>(m_buff_ptr__);
-    if (!buffPtrIncrementSafe(sizeof(sTidToLinkMapping))) {
-        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sTidToLinkMapping) << ") Failed!";
-        return false;
+    m_tid_to_link_mapping = reinterpret_cast<cTidToLinkMapping*>(m_buff_ptr__);
+    if (m_parse__) {
+        size_t len = getBuffRemainingBytes();
+        uint8_t count = __builtin_popcount((uint8_t)m_tid_to_link_control_field_ptr->link_mapping_presence_indicator());
+        len = count * cTidToLinkMapping::get_initial_size();
+        for (size_t i = 0; i < count; i++) {
+            if (len < cTidToLinkMapping::get_initial_size()) {
+                TLVF_LOG(ERROR) << "Invalid length (tid_to_link_mapping)";
+                return false;
+            }
+            auto tid_to_link_mapping = create_tid_to_link_mapping();
+            if (!tid_to_link_mapping || !tid_to_link_mapping->isInitialized()) {
+                TLVF_LOG(ERROR) << "create_tid_to_link_mapping() failed";
+                return false;
+            }
+            if (!add_tid_to_link_mapping(tid_to_link_mapping)) {
+                TLVF_LOG(ERROR) << "add_tid_to_link_mapping() failed";
+                return false;
+            }
+            // swap back since tid_to_link_mapping will be swapped as part of the whole class swap
+            tid_to_link_mapping->class_swap();
+            len -= tid_to_link_mapping->getLen();
+        }
     }
-    if (!m_parse__) { m_tid_to_link_mapping->struct_init(); }
     m_reserved = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t) * (7))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) * (7) << ") Failed!";

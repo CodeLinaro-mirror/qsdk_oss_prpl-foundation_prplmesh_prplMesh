@@ -1354,6 +1354,52 @@ amxd_status_t trigger_prioritization(amxd_object_t *object, amxd_function_t *fun
     return amxd_status_ok;
 }
 
+//LOG(DEBUG) << "Tid1";
+amxd_status_t set_tid_to_link_mapping(amxd_object_t *object, amxd_function_t *func,
+                                      amxc_var_t *args, amxc_var_t *ret)
+{
+    LOG(DEBUG) << "Tid2";
+    if (!g_database) {
+        LOG(ERROR) << "Invalid database access";
+        return amxd_status_unknown_error;
+    }
+
+    auto controller = g_database->get_controller_ctx();
+    if (!controller) {
+        LOG(ERROR) << "Failed to get controller context";
+        return amxd_status_unknown_error;
+    }
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+
+    amxd_object_t *device_object = amxd_object_get_parent(object);
+    if (!device_object) {
+        LOG(ERROR) << "Failed to get Device parent of APMLD object";
+        amxc_var_clean(&value);
+        return amxd_status_object_not_found;
+    }
+
+    amxd_object_get_param(device_object, "ID", &value);
+    const std::string agent_mac_str = amxc_var_constcast(cstring_t, &value);
+    if (agent_mac_str.empty()) {
+        LOG(ERROR) << "agent_mac_str is empty";
+        amxc_var_clean(&value);
+        return amxd_status_parameter_not_found;
+    }
+
+    amxc_var_clean(&value);
+
+    if (!g_database->dm_configure_tid_to_link_mapping(tlvf::mac_from_string(agent_mac_str))) {
+        LOG(ERROR) << "dm_configure_tid_to_link_mapping failed for agent " << agent_mac_str;
+        return amxd_status_unknown_error;
+    }
+
+    controller->set_tid_to_link_mapping_config();
+    LOG(DEBUG) << "Tid3";
+    return amxd_status_ok;
+}
+
 /**
  * @brief Configure the controller MSCS disallowed STA list.
  */
@@ -1809,6 +1855,8 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
          set_qos_management},
         {"trigger_prioritization", DATAELEMENTS_ROOT_DM ".Network.SetServicePrioritization",
          trigger_prioritization},
+        {"set_tid_to_link_mapping", DATAELEMENTS_ROOT_DM ".Network.Device.APMLD",
+         set_tid_to_link_mapping},
         {"set_mscs_disallowed", DATAELEMENTS_ROOT_DM ".Network.SetMSCSDisallowed",
          set_mscs_disallowed},
         {"set_scs_disallowed", DATAELEMENTS_ROOT_DM ".Network.SetSCSDisallowed",

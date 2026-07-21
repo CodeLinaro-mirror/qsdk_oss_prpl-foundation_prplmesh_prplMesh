@@ -2692,6 +2692,62 @@ bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit, bool re
     return true;
 }
 
+bool ap_wlan_hal_whm::update_tid_to_link_mapping(
+    const sMacAddr &sta_mld_mac, const std::unordered_map<uint8_t, uint16_t> &mapping,
+    uint8_t control, uint32_t expected_duration)
+{
+    // Validate prerequisites before building the payload
+    if (m_radio_path.empty()) {
+        LOG(ERROR) << "Empty radio path for iface " << get_iface_name();
+        return false;
+    }
+
+    LOG(INFO) << "Applying TID-to-Link Mapping for STA " << tlvf::mac_to_string(sta_mld_mac)
+              << " entries=" << mapping.size();
+    LOG(ERROR) << "TTLM_FIX: ENTER update_tid_to_link_mapping";
+    LOG(ERROR) << "TTLM_FIX: STA=" << tlvf::mac_to_string(sta_mld_mac);
+    LOG(ERROR) << "TTLM_FIX: control=" << int(control);
+    LOG(ERROR) << "TTLM_FIX: expected_duration=" << expected_duration;
+    for (const auto &tid_mapping : mapping) {
+        LOG(ERROR) << "TTLM_FIX: TID=" << int(tid_mapping.first) << " MAP=" << tid_mapping.second;
+    }
+
+    // Build Ambiorix payload
+    beerocks::wbapi::AmbiorixVariant params(AMXC_VAR_ID_HTABLE);
+
+    params.add_child("StaMLDMACAddress", tlvf::mac_to_string(sta_mld_mac));
+    params.add_child("Control", control);
+    params.add_child("ExpectedDuration", expected_duration);
+
+    // Flatten mapping
+    for (const auto &tid_mapping : mapping) {
+
+        uint8_t tid       = tid_mapping.first;
+        uint16_t link_map = tid_mapping.second;
+
+        std::string tid_key = "TidToLinkMapping_TID_" + std::to_string(tid);
+        std::string map_key = "TidToLinkMapping_MAP_" + std::to_string(tid);
+
+        params.add_child(tid_key, tid);
+        params.add_child(map_key, link_map);
+
+        LOG(DEBUG) << " TID=" << int(tid) << " -> mapping=" << std::bitset<16>(link_map);
+        //    LOG(ERROR) << "TTLM_FIX: TID=" << int(tid_mapping.first) << " MAP=" << tid_mapping.second;
+    }
+
+    std::string config_path = m_radio_path + "TidToLinkMappingPolicy.";
+
+    // Push to Ambiorix
+    if (!m_ambiorix_cl.update_object(config_path, params)) {
+        LOG(ERROR) << "Failed to update TID-to-Link Mapping at " << config_path;
+        return false;
+    }
+
+    LOG(INFO) << "Successfully updated TID-to-Link Mapping at " << config_path;
+
+    return true;
+}
+
 void ap_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
                                                   beerocks::wbapi::AmbiorixVariant *updates)
 {

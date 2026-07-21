@@ -5685,6 +5685,185 @@ bool cACTION_APMANAGER_MLD_UPDATE_REQUEST::init()
     return true;
 }
 
+cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::~cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST() {
+}
+sMacAddr& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::sta_mld_mac() {
+    return (sMacAddr&)(*m_sta_mld_mac);
+}
+
+uint8_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::control() {
+    return (uint8_t&)(*m_control);
+}
+
+uint32_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::expected_duration() {
+    return (uint32_t&)(*m_expected_duration);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid0_mapping() {
+    return (uint16_t&)(*m_tid0_mapping);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid1_mapping() {
+    return (uint16_t&)(*m_tid1_mapping);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid2_mapping() {
+    return (uint16_t&)(*m_tid2_mapping);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid3_mapping() {
+    return (uint16_t&)(*m_tid3_mapping);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid4_mapping() {
+    return (uint16_t&)(*m_tid4_mapping);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid5_mapping() {
+    return (uint16_t&)(*m_tid5_mapping);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid6_mapping() {
+    return (uint16_t&)(*m_tid6_mapping);
+}
+
+uint16_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::tid7_mapping() {
+    return (uint16_t&)(*m_tid7_mapping);
+}
+
+void cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    m_sta_mld_mac->struct_swap();
+    tlvf_swap(32, reinterpret_cast<uint8_t*>(m_expected_duration));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid0_mapping));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid1_mapping));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid2_mapping));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid3_mapping));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid4_mapping));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid5_mapping));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid6_mapping));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_tid7_mapping));
+}
+
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(sMacAddr); // sta_mld_mac
+    class_size += sizeof(uint8_t); // control
+    class_size += sizeof(uint32_t); // expected_duration
+    class_size += sizeof(uint16_t); // tid0_mapping
+    class_size += sizeof(uint16_t); // tid1_mapping
+    class_size += sizeof(uint16_t); // tid2_mapping
+    class_size += sizeof(uint16_t); // tid3_mapping
+    class_size += sizeof(uint16_t); // tid4_mapping
+    class_size += sizeof(uint16_t); // tid5_mapping
+    class_size += sizeof(uint16_t); // tid6_mapping
+    class_size += sizeof(uint16_t); // tid7_mapping
+    return class_size;
+}
+
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_sta_mld_mac = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_sta_mld_mac->struct_init(); }
+    m_control = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_expected_duration = reinterpret_cast<uint32_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint32_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint32_t) << ") Failed!";
+        return false;
+    }
+    m_tid0_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_tid1_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_tid2_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_tid3_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_tid4_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_tid5_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_tid6_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_tid7_mapping = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST::cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();

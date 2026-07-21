@@ -1116,7 +1116,24 @@ class TlvF:
                     lines_cpp.append("if (m_%s__) {" % self.MEMBER_PARSE)
                     lines_cpp.append("%ssize_t len = getBuffRemainingBytes();" % (self.getIndentation(1)))
                 if TypeInfo(param_type).type == TypeInfo.CLASS:
-                    lines_cpp.append("%swhile (len > 0) {" % (self.getIndentation(1)))
+                    # TTLM special handling
+                    if obj_meta.name == "cMapping" and param_name == "tid_to_link_mapping":
+
+                        lines_cpp.append(
+                            "%suint8_t count = __builtin_popcount("
+                            "(uint8_t)m_tid_to_link_control_field_ptr->link_mapping_presence_indicator());"
+                            % (self.getIndentation(1)))
+                        lines_cpp.append(
+                            "%slen = count * cTidToLinkMapping::get_initial_size();"
+                            % (self.getIndentation(1)))
+                        lines_cpp.append(
+                            "%sfor (size_t i = 0; i < count; i++) {"
+                            % (self.getIndentation(1)))
+
+                    else:
+                        lines_cpp.append(
+                            "%swhile (len > 0) {"
+                            % (self.getIndentation(1)))
                     lines_cpp.append("%sif (len < %s::get_initial_size()) {" % (
                         self.getIndentation(2), param_type))
                     lines_cpp.append("%sTLVF_LOG(ERROR) << \"Invalid length (%s)\";" %
@@ -1140,8 +1157,13 @@ class TlvF:
                         "%s// swap back since %s will be swapped as part of the whole class swap" % (self.getIndentation(2), param_name))
                     lines_cpp.append("%s%s->class_swap();" %
                                      (self.getIndentation(2), param_name))
-                    lines_cpp.append("%slen -= %s->getLen();" %
-                                     (self.getIndentation(2), param_name))
+                    if not (obj_meta.name == "cMapping" and
+                            param_name == "tid_to_link_mapping"):
+                        lines_cpp.append("%slen -= %s->getLen();" %
+                                         (self.getIndentation(2), param_name))
+                    else:
+                        lines_cpp.append("%slen -= %s->getLen();" %
+                                         (self.getIndentation(2), param_name))
                     lines_cpp.append("%s}" % (self.getIndentation(1)))
                 else:
                     lines_cpp.append("%sm_%s_idx__ = len/sizeof(%s);" %

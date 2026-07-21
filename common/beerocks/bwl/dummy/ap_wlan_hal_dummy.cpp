@@ -909,6 +909,14 @@ bool ap_wlan_hal_dummy::update_mld_unit(std::string ssid_alias, int8_t mld_unit,
     return false;
 }
 
+bool ap_wlan_hal_dummy::update_tid_to_link_mapping(
+    const sMacAddr &sta_mld_mac, const std::unordered_map<uint8_t, uint16_t> &mapping,
+    uint8_t control, uint32_t expected_duration)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace dummy
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,
