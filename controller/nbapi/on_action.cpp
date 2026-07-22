@@ -2103,8 +2103,10 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
                 bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
                 if (suite_type == 0x02) {
                     bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
-                } else if (suite_type == 0x08 || suite_type == 0x18) {
+                } else if (suite_type == 0x08) {
                     bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+                } else if (suite_type == 0x18) {
+                    bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE_AKM24;
                 } else {
                     LOG(DEBUG) << "SecurityTemplate: unmapped IEEE AKM selector " << sel;
                     return false;
@@ -2146,6 +2148,24 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
         bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
         LOG(DEBUG) << "SecurityTemplate: WPA2-Personal";
+        return true;
+    }
+
+    const bool has_sae_ext_key = contains(akm_flags, "sae-ext-key") || contains(rsne_akm_list, "sae-ext-key");
+    const bool has_sae = contains(akm_flags, "sae") || contains(rsne_akm_list, "sae");
+    const bool has_psk = contains(akm_flags, "psk") || contains(rsne_akm_list, "psk");
+
+    if (has_sae_ext_key && !has_sae && !has_psk) {
+        if (!agent_for_match || !template_agent_akm_suite_type_supported(*agent_for_match, bss_info.fronthaul, bss_info.backhaul, 0x18)) {
+            LOG(DEBUG) << "SecurityTemplate: sae-ext-key not supported by agent";
+            return false;
+        }
+
+        bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE_AKM24;
+        bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+        bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
+
+        LOG(DEBUG) << "SecurityTemplate: WPA3-Personal (SAE-EXT-KEY / AKM24)";
         return true;
     }
 

@@ -74,6 +74,8 @@ static std::vector<uint8_t> build_ieee80211_akm_suite_types_for_capability_tlv()
                 akm_set.insert(0x08); // IEEE 802.11: SAE (AKM suite type 8)
             } else if (akm == WSC::eWscAuth::WSC_AUTH_SAE_AKM24) {
                 akm_set.insert(0x18); // IEEE 802.11: SAE-EXT-KEY (AKM suite type 24)
+            } else if (akm == WSC::eWscAuth::WSC_AUTH_OWE) {
+                akm_set.insert(0x12);
             }
         }
     }

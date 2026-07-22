@@ -639,16 +639,24 @@ update_vap_credentials_configure_wpa(const std::string &vap_if,
     std::string rsn_override_pairwise_2("");
     std::string rsn_override_mfp("");
 
-    // EasyMesh R1 only allows Open and WPA2 PSK auth&encryption methods.
+    // EasyMesh R1 only allows Open and WPA2 PSK auth&encryption methods (this comment predates
+    // the SAE/WPA3-PCM/AKM24/OWE branches already present or added in this chain -- kept for
+    // historical context but no longer an accurate description of what this function accepts).
     // Quote: A Multi-AP Controller shall set the Authentication Type attribute
     //        in M2 to indicate WPA2-Personal or Open System Authentication.
     // bss_info_conf.authentication_type is a bitfield, but we are not going
     // to accept any combinations due to the above limitation.
     if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_OPEN) {
-        wpa = 0x0;
-        if (bss_info_conf.encryption_type != WSC::eWscEncr::WSC_ENCR_NONE) {
+        if (bss_info_conf.encryption_type == WSC::eWscEncr::WSC_ENCR_AES) {
+            wpa = 0x2;
+            wpa_key_mgmt.assign("OWE");
+            wpa_pairwise.assign("CCMP");
+            ieee80211w.assign("2");
+        } else if (bss_info_conf.encryption_type != WSC::eWscEncr::WSC_ENCR_NONE) {
             LOG(ERROR) << "Autoconfiguration: " << vap_if << " encryption set on open VAP";
             return false;
+        } else {
+            wpa = 0x0;
         }
         if (bss_info_conf.network_key.length() > 0) {
             LOG(ERROR) << "Autoconfiguration: " << vap_if << " network key set for open VAP";
@@ -711,6 +719,27 @@ update_vap_credentials_configure_wpa(const std::string &vap_if,
 
         if (bss_info_conf.encryption_type != WSC::eWscEncr::WSC_ENCR_AES) {
             LOG(ERROR) << "Autoconfiguration:  " << vap_if << " CCMP(AES) is required for WPA3";
+            return false;
+        }
+        wpa_pairwise.assign("CCMP");
+
+        if (bss_info_conf.network_key.length() < 8 || bss_info_conf.network_key.length() > 64) {
+            LOG(ERROR) << "Autoconfiguration: " << vap_if << " invalid network key length "
+                       << bss_info_conf.network_key.length();
+            return false;
+        }
+        wpa_passphrase.assign(bss_info_conf.network_key);
+
+        ieee80211w.assign("2");
+        disable_pmksa_caching.assign("1");
+        okc.assign("1");
+        wpa_disable_eapol_key_retries.assign("0");
+    } else if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_SAE_AKM24) {
+        wpa = 0x2;
+        wpa_key_mgmt.assign("SAE-EXT-KEY");
+
+        if (bss_info_conf.encryption_type != WSC::eWscEncr::WSC_ENCR_AES) {
+            LOG(ERROR) << "Autoconfiguration:  " << vap_if << " CCMP(AES) is required for SAE-EXT-KEY";
             return false;
         }
         wpa_pairwise.assign("CCMP");
@@ -811,6 +840,62 @@ HALState ap_wlan_hal_dwpal::attach(bool block)
     }
 
     return state;
+}
+
+static void parse_akm_cipher_capability_tokens(const std::string &raw_reply,
+                                               std::vector<WSC::eWscAuth> &out_akms,
+                                               std::vector<WSC::eWscEncr> &out_ciphers)
+{
+    std::istringstream iss(raw_reply);
+    std::string token;
+    while (iss >> token) {
+        if (token == "SAE") {
+            out_akms.push_back(WSC::eWscAuth::WSC_AUTH_SAE);
+        } else if (token == "SAE-EXT-KEY") {
+            out_akms.push_back(WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+        } else if (token == "OWE") {
+            out_akms.push_back(WSC::eWscAuth::WSC_AUTH_OWE);
+        } else if (token == "WPA-PSK" || token == "WPA-PSK-SHA256") {
+            out_akms.push_back(WSC::eWscAuth::WSC_AUTH_WPA2PSK);
+        } else if (token == "CCMP" || token == "CCMP-128") {
+            out_ciphers.push_back(WSC::eWscEncr::WSC_ENCR_AES);
+        } else if (token == "BIP-CMAC-128" || token == "AES-128-CMAC") {
+            out_ciphers.push_back(WSC::eWscEncr::WSC_ENCR_BIP);
+        } else if (token == "GCMP-256" || token == "GCMP") {
+            out_ciphers.push_back(WSC::eWscEncr::WSC_ENCR_GCMP);
+        }
+    }
+}
+
+void ap_wlan_hal_dwpal::read_akm_cipher_support()
+{
+    m_radio_info.supported_akms.clear();
+    m_radio_info.supported_ciphers.clear();
+
+    static const char *k_capability_fields[] = {"key_mgmt", "pairwise", "group_mgmt"};
+    for (const char *field : k_capability_fields) {
+        char *reply = nullptr;
+        std::string cmd = std::string("GET_CAPABILITY ") + field;
+        if (dwpal_send_cmd(cmd, &reply) && reply) {
+            parse_akm_cipher_capability_tokens(reply, m_radio_info.supported_akms,
+                                               m_radio_info.supported_ciphers);
+        }
+    }
+
+    if (m_radio_info.supported_akms.empty() && m_radio_info.supported_ciphers.empty()) {
+        LOG(DEBUG) << "GET_CAPABILITY key_mgmt/pairwise/group_mgmt returned nothing usable on "
+                      "interface "
+                   << m_radio_info.iface_name
+                   << "; capability_reporting_task will use its conservative fallback";
+    }
+
+    m_radio_info.rsn_override_support =
+        std::find(m_radio_info.supported_akms.begin(), m_radio_info.supported_akms.end(),
+                  WSC::eWscAuth::WSC_AUTH_SAE) != m_radio_info.supported_akms.end();
+    LOG_IF(m_radio_info.rsn_override_support, DEBUG)
+        << "Interface " << m_radio_info.iface_name
+        << " reports SAE key_mgmt support; treating rsn_override_support as true (best-effort "
+           "proxy -- see read_akm_cipher_support() comment)";
 }
 
 bool ap_wlan_hal_dwpal::refresh_radio_info()
@@ -1003,6 +1088,8 @@ bool ap_wlan_hal_dwpal::refresh_radio_info()
     }
     break;
 }
+
+read_akm_cipher_support();
 
 return base_wlan_hal_dwpal::refresh_radio_info();
 } // namespace dwpal

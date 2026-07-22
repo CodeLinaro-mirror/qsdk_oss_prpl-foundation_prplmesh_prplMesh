@@ -419,6 +419,11 @@ bool base_wlan_hal_dummy::refresh_radio_info()
     m_radio_info.he_mcs_set           = {};
     m_radio_info.rsn_override_support = true;
 
+    m_radio_info.supported_akms = {WSC::eWscAuth::WSC_AUTH_WPA2PSK, WSC::eWscAuth::WSC_AUTH_SAE,
+        WSC::eWscAuth::WSC_AUTH_SAE_AKM24, WSC::eWscAuth::WSC_AUTH_OWE};
+    m_radio_info.supported_ciphers = {WSC::eWscEncr::WSC_ENCR_AES, WSC::eWscEncr::WSC_ENCR_BIP,
+        WSC::eWscEncr::WSC_ENCR_GCMP};
+
     std::string radio_mac;
     beerocks::net::network_utils::linux_iface_get_mac(m_radio_info.iface_name, radio_mac);
     for (int vap_id = 0; vap_id < predefined_vaps_num; vap_id++) {
