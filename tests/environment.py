@@ -422,7 +422,11 @@ def nbapi_ubus_command(entity: ALEntity, path: str, command: str, args: Dict = N
     result = entity.command(*command)
     if result:
         pattern = r'{\s*}\s*{\s*"amxd-error-code"\s*:\s*0\s*}'
+        if path == "Device.WiFi.DataElements.Network":
+            debug(f"(my) result: {len(result)}")
         result = re.sub(pattern, '', result)
+        if path == "Device.WiFi.DataElements.Network":
+            debug(f"(my) result2: {len(result)}")
         return json.loads(result)
     else:
         return result
