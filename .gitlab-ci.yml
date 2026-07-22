@@ -9,6 +9,7 @@ default:
 
 workflow:
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "api" && $CI_COMMIT_REF_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle"'
     - if: '$CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "web"'
     # Cfr. Workflows/MergeRequest-Pipelines.gitlab-ci.yml template
     - if: $CI_MERGE_REQUEST_IID
@@ -70,6 +71,8 @@ platform:
     - build-in-docker
     - image-build-boardfarm-ci
   rules:
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle"))'
+      when: always
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
     - !reference [.rules-for-expensive-job, rules]
   variables:

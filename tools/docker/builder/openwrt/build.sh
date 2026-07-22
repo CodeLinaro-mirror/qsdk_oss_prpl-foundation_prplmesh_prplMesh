@@ -163,9 +163,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-07-08"
-        OPENWRT_TOOLCHAIN_VERSION='89a4e6f86061dc82c971c0dfd7c60013e9575fb1'
-        OPENWRT_VERSION='89a4e6f86061dc82c971c0dfd7c60013e9575fb1'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS dev/PPM-4076-qca-ath-vlan-lifecycle"
+        OPENWRT_TOOLCHAIN_VERSION='a29a8228dedfdc4901c016f96b4391e68c85e884'
+        OPENWRT_VERSION='a29a8228dedfdc4901c016f96b4391e68c85e884'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -204,9 +204,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos latest-24.10_2026-07-08
-OPENWRT_TOOLCHAIN_VERSION='89a4e6f86061dc82c971c0dfd7c60013e9575fb1'
-OPENWRT_VERSION='89a4e6f86061dc82c971c0dfd7c60013e9575fb1'
+# prplos dev/PPM-4076-qca-ath-vlan-lifecycle
+OPENWRT_TOOLCHAIN_VERSION='a29a8228dedfdc4901c016f96b4391e68c85e884'
+OPENWRT_VERSION='a29a8228dedfdc4901c016f96b4391e68c85e884'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false

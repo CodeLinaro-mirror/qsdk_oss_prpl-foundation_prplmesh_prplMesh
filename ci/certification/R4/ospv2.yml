@@ -887,6 +887,8 @@ R4:urx_ospv2:MAP-4.18.1_ETH_FH24G:
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
     # Otherwise, make it a manual job
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle"))'
+      when: always
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.1_ETH_FH24G:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
     - when: manual
@@ -897,6 +899,8 @@ R4:urx_ospv2:MAP-4.18.1_ETH_FH5GL:
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
     # Otherwise, make it a manual job
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle"))'
+      when: always
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.1_ETH_FH5GL:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
     - when: manual
@@ -907,6 +911,8 @@ R4:urx_ospv2:MAP-4.18.1_ETH_FH5GH:
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
     # Otherwise, make it a manual job
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle"))'
+      when: always
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.1_ETH_FH5GH:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
     - when: manual
@@ -917,6 +923,8 @@ R4:urx_ospv2:MAP-4.18.1_BHWIFI_FH24G:
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
     # Otherwise, make it a manual job
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle"))'
+      when: always
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.1_BHWIFI_FH24G:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
     - when: manual
@@ -927,6 +935,8 @@ R4:urx_ospv2:MAP-4.18.1_BHWIFI_FH5GL:
   rules:
     # If the last commit description contains the test name and we're not on master, run it.
     # Otherwise, make it a manual job
+    - if: '(($CI_COMMIT_REF_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev/PPM-4076-qca-ath-vlan-lifecycle"))'
+      when: always
     - if: '$CI_COMMIT_DESCRIPTION =~ /.*MAP-4.18.1_BHWIFI_FH5GL:urx_ospv2.*/ && $CI_COMMIT_REF_NAME != "master"'
       when: on_success
     - when: manual
