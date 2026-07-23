@@ -15,7 +15,6 @@
 #include "tasks/btm_request_task.h"
 #include "tasks/client_steering_task.h"
 
-#include <bcl/network/network_utils.h>
 #include <bcl/network/sockets.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
@@ -451,7 +450,8 @@ bool son_actions::send_cmdu_to_agent(const sMacAddr &dest_mac, ieee1905_1::CmduM
     return controller_ctx->send_cmdu_to_broker(cmdu_tx, dest_mac, database.get_local_bridge_mac());
 }
 
-bool son_actions::send_ap_config_renew_msg(ieee1905_1::CmduMessageTx &cmdu_tx, db &database)
+bool son_actions::send_ap_config_renew_msg(ieee1905_1::CmduMessageTx &cmdu_tx, db &database,
+                                           const sMacAddr &dest_mac)
 {
     // Create AP-Configuration renew message
     auto cmdu_header =
@@ -459,6 +459,11 @@ bool son_actions::send_ap_config_renew_msg(ieee1905_1::CmduMessageTx &cmdu_tx, d
     if (!cmdu_header) {
         LOG(ERROR) << "Failed building IEEE1905 AP_AUTOCONFIGURATION_RENEW_MESSAGE";
         return false;
+    }
+
+    // Set relay indicator to 0 in case it is a unicast renew
+    if (dest_mac != network_utils::MULTICAST_1905_MAC_ADDR) {
+        cmdu_header->flags().relay_indicator = false;
     }
 
     // Add MAC address TLV
@@ -487,9 +492,8 @@ bool son_actions::send_ap_config_renew_msg(ieee1905_1::CmduMessageTx &cmdu_tx, d
     // Ragardless of what is sent here, the Agent will handle the Renew eitherway
     tlvSupportedFreqBand->value() = ieee1905_1::tlvSupportedFreqBand::eValue(0);
 
-    LOG(INFO) << "Send AP_AUTOCONFIGURATION_RENEW_MESSAGE";
-    return son_actions::send_cmdu_to_agent(network_utils::MULTICAST_1905_MAC_ADDR, cmdu_tx,
-                                           database);
+    LOG(INFO) << "Send AP_AUTOCONFIGURATION_RENEW_MESSAGE " << dest_mac;
+    return son_actions::send_cmdu_to_agent(dest_mac, cmdu_tx, database);
 }
 
 bool son_actions::send_topology_query_msg(const sMacAddr &dest_mac,
