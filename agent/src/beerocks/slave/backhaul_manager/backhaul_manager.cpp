@@ -51,6 +51,7 @@
 #include <algorithm>
 #include <set>
 #include <tuple>
+#include <utility>
 
 #include <net/if.h> // if_nametoindex
 
@@ -826,7 +827,7 @@ void BackhaulManager::maybe_send_wired_controller_probe()
         m_next_wired_controller_probe_candidate_index = 0;
     }
 
-    const auto wired_iface =
+    const auto &wired_iface =
         available_wired_candidates[m_next_wired_controller_probe_candidate_index];
     m_next_wired_controller_probe_candidate_index =
         (m_next_wired_controller_probe_candidate_index + 1) % available_wired_candidates.size();
@@ -1042,9 +1043,9 @@ bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
 
         // The response tells us which candidate actually carries controller traffic. Keep the
         // current wired session, but correct the DB metadata so status/logs reflect the real port.
-        db->ethernet.wan                  = candidate;
+        db->ethernet.wan                  = std::move(candidate);
         db->backhaul.selected_iface_name  = iface_name;
-        m_preferred_wired_candidate_iface = iface_name;
+        m_preferred_wired_candidate_iface = std::move(iface_name);
         return true;
     }
 
@@ -1060,8 +1061,8 @@ bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
     // previous wired-failure guard and remember the responding interface so ENABLED selects it on
     // the next pass instead of falling back to the first configured candidate.
     m_skip_wired_backhaul             = false;
-    m_preferred_wired_candidate_iface = iface_name;
-    db->ethernet.wan                  = candidate;
+    m_preferred_wired_candidate_iface = std::move(iface_name);
+    db->ethernet.wan                  = std::move(candidate);
 
     if (!FSM_IS_IN_STATE(RESTART)) {
         FSM_MOVE_STATE(RESTART);
