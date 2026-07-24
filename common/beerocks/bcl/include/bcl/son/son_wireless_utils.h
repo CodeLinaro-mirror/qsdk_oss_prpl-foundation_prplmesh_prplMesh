@@ -487,6 +487,8 @@ public:
     static std::string wsc_to_bwl_encryption(WSC::eWscEncr enctype);
     static beerocks::eBssType wsc_to_bwl_bss_type(WSC::eWscVendorExtSubelementBssType bss_type);
     static std::list<uint8_t> string_to_wsc_oper_class(const std::string &operating_class);
+    static std::set<uint8_t> band_flag_token_to_channels(const std::string &token);
+    static std::list<uint8_t> band_flag_token_to_operating_classes(const std::string &token);
 
     static bool parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
                                    std::vector<sWifiGenToken> &out);

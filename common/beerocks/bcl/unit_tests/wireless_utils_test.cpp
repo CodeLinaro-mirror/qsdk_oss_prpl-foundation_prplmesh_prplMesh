@@ -423,4 +423,42 @@ TEST(mcs_from_rate, neerest_mcs_from_rate)
     EXPECT_EQ(short_gi, 0);
 }
 
+TEST(band_flag_tokens, token_to_channels)
+{
+    // 6G test cases
+    auto ch_6_5 = son::wireless_utils::band_flag_token_to_channels("6_UNII_5");
+    EXPECT_TRUE(ch_6_5.find(37) != ch_6_5.end());
+    EXPECT_FALSE(ch_6_5.find(213) != ch_6_5.end()); // 6_UNII_5 vs ch213 false-positive test
+
+    auto ch_6_8 = son::wireless_utils::band_flag_token_to_channels("6_UNII_8");
+    EXPECT_FALSE(ch_6_8.find(37) != ch_6_8.end());
+    EXPECT_TRUE(ch_6_8.find(213) != ch_6_8.end());
+
+    // 5G test cases
+    auto ch_5_2 = son::wireless_utils::band_flag_token_to_channels("5_UNII_2");
+    EXPECT_TRUE(ch_5_2.find(52) != ch_5_2.end());
+    EXPECT_TRUE(ch_5_2.find(100) != ch_5_2.end());
+    EXPECT_FALSE(ch_5_2.find(68) != ch_5_2.end());
+
+    auto ch_5_4 = son::wireless_utils::band_flag_token_to_channels("5_UNII_4");
+    EXPECT_TRUE(ch_5_4.empty());
+}
+
+TEST(band_flag_tokens, token_to_operating_classes)
+{
+    auto oc_5_1 = son::wireless_utils::band_flag_token_to_operating_classes("5_UNII_1");
+    EXPECT_TRUE(std::find(oc_5_1.begin(), oc_5_1.end(), 115) != oc_5_1.end());
+
+    auto oc_6_5 = son::wireless_utils::band_flag_token_to_operating_classes("6_UNII_5");
+    EXPECT_TRUE(std::find(oc_6_5.begin(), oc_6_5.end(), 131) != oc_6_5.end());
+
+    auto oc_5_4 = son::wireless_utils::band_flag_token_to_operating_classes("5_UNII_4");
+    EXPECT_TRUE(oc_5_4.empty());
+
+    // Coarse "5" must keep pre-Task-5 5gh expansion (not full 5g / not UNII path)
+    auto oc_5 = son::wireless_utils::band_flag_token_to_operating_classes("5");
+    EXPECT_TRUE(std::find(oc_5.begin(), oc_5.end(), 121) != oc_5.end());
+    EXPECT_TRUE(std::find(oc_5.begin(), oc_5.end(), 115) == oc_5.end());
+}
+
 } // namespace
