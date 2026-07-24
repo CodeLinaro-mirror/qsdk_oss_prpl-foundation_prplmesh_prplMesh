@@ -594,8 +594,10 @@ static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
         char *endptr = nullptr;
         long v       = strtol(op_str.c_str(), &endptr, 10);
         if (endptr == op_str.c_str() || *endptr != '\0' || v < 0 || v > 255) {
-            LOG(WARNING) << "Invalid OpClassFlag token \"" << op_str << "\"";
-            continue;
+            LOG(WARNING) << "OpClassFlag contains invalid token \"" << op_str
+                         << "\"; rejecting entire OpClassFlag string";
+            bss_info.operating_class.clear();
+            return false;
         }
         uint8_t oc             = static_cast<uint8_t>(v);
         beerocks::eFreqType ft = freq_from_op_class(oc);
@@ -618,22 +620,60 @@ static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
 }
 
 /**
- * @brief Radio-first gate: true if this PHY radio’s band supports at least one template op class.
+ * @brief Radio-first gate for operating-class compatibility.
+ *
+ * When strict_op_class_flag_mode is false (BandFlag path):
+ *   Returns true if ANY op class in tpl_op_classes belongs to the radio's band
+ *   (coarse band-catalog check — unchanged until Task 5 UNII refinement).
+ *   BandFlag expands to 4–16 op classes; requiring ALL would break any non-full-spectrum radio.
+ *
+ * When strict_op_class_flag_mode is true (OpClassFlag path):
+ *   Returns true only if ALL listed op classes are hardware-supported by the agent radio.
+ *   Uses g_database->get_supported_channels_in_operating_class() per op class, which
+ *   intersects supported_channels against the op class channel set (channel + bandwidth).
+ *   Returns false immediately if any class is unsupported.
+ *   Fail-closed: returns false when supported_channels is empty (AP Radio Basic Capabilities
+ *   not yet received) — no coarse fallback for explicit OpClassFlag constraints.
  */
 static bool template_radio_matches_operating_classes(const Agent::sRadio &radio,
-                                                     const std::list<uint8_t> &tpl_op_classes)
+                                                     const std::list<uint8_t> &tpl_op_classes,
+                                                     bool strict_op_class_flag_mode)
 {
     if (radio.get_band() == beerocks::FREQ_UNKNOWN || tpl_op_classes.empty()) {
         return false;
     }
-    const auto radio_ocs =
-        son::wireless_utils::get_operating_classes_of_freq_type(radio.get_band());
+
+    if (!strict_op_class_flag_mode) {
+        // BandFlag path: coarse ANY check against static band catalog. Unchanged until Task 5.
+        const auto radio_ocs =
+            son::wireless_utils::get_operating_classes_of_freq_type(radio.get_band());
+        for (uint8_t oc : tpl_op_classes) {
+            if (std::find(radio_ocs.begin(), radio_ocs.end(), oc) != radio_ocs.end()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // OpClassFlag path: strict ALL hardware intersection (Level C+D).
+    // Fail-closed: if AP Radio Basic Capabilities have not arrived yet, do not match.
+    if (radio.supported_channels.empty()) {
+        LOG(DEBUG) << "Radio " << radio.radio_uid
+                   << ": supported_channels empty; deferring OpClassFlag match (fail-closed)";
+        return false;
+    }
+    if (!g_database) {
+        LOG(ERROR) << "g_database is null in template_radio_matches_operating_classes";
+        return false;
+    }
     for (uint8_t oc : tpl_op_classes) {
-        if (std::find(radio_ocs.begin(), radio_ocs.end(), oc) != radio_ocs.end()) {
-            return true;
+        if (g_database->get_supported_channels_in_operating_class(radio.radio_uid, oc).empty()) {
+            LOG(DEBUG) << "Radio " << radio.radio_uid << " does not support op class "
+                       << int(oc) << "; OpClassFlag template rejected";
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 /** BBF Templates_matching_notes: RSNOE/RSNO2E omitted when all parameters empty or MFP default-only. */
@@ -2341,7 +2381,10 @@ static sRadioTemplateRow template_select_radio_template(const Agent &agent, cons
         if (!cand.radio_inst || cand.operating_class.empty()) {
             continue;
         }
-        if (!template_radio_matches_operating_classes(radio, cand.operating_class)) {
+        // strict = true when only OpClassFlag was used (band_flag_csv is empty);
+        // strict = false when BandFlag was used (BandFlag always wins when both are set).
+        const bool strict = cand.band_flag_csv.empty();
+        if (!template_radio_matches_operating_classes(radio, cand.operating_class, strict)) {
             continue;
         }
         if (!template_radio_bandflag_satisfies_unii_multi_radio_rule(agent, radio.get_band(),
