@@ -276,7 +276,7 @@ template <typename BssConfig> static inline std::string dump_bssconfig_compact(c
 } // namespace
 
 static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS    = 3;
-static constexpr uint8_t MAX_WIRED_CONTROLLER_DISCOVERY_ATTEMPTS = 10;
+static constexpr uint8_t MAX_WIRED_CONTROLLER_DISCOVERY_ATTEMPTS = 20;
 #define HANDLE_THIRD_PARTY_ENABLE "1"
 #define VENDOR_RADIO_CFG 0x05
 
