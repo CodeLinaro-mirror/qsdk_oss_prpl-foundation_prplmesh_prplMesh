@@ -346,7 +346,10 @@ bool BrokerClientImpl::send_cmdu_message(ieee1905_1::CmduMessage &cmdu, const sM
     message.metadata()->length            = cmdu.getMessageLength();
     message.metadata()->msg_type          = static_cast<uint16_t>(cmdu.getMessageType());
     message.metadata()->preset_message_id = cmdu.getMessageId() ? 1 : 0;
-    message.metadata()->if_index          = iface_index;
+    if (iface_index != 0) {
+        message.metadata()->if_type = beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET;
+    }
+    message.metadata()->if_index = iface_index;
 
     std::copy_n(cmdu.getMessageBuff(), message.metadata()->length, message.data());
 
