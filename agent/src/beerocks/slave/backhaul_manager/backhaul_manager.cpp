@@ -1526,11 +1526,30 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         unregister_wan_monitor_handlers();
         m_backhaul_wire_interfaces.clear();
 
-        auto bridge_ifaces =
-            beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
-        std::vector<std::string> monitored_ifaces;
-
         if (!db->device_conf.local_gw) {
+            std::vector<std::string> monitored_ifaces;
+            for (const auto &candidate : db->ethernet.wan_candidates) {
+                if (!candidate.iface_name.empty()) {
+                    monitored_ifaces.push_back(candidate.iface_name);
+                }
+            }
+
+            // Subscribe before taking the initial snapshot. Link events received after this point
+            // remain queued until the candidate map is ready and the event-loop handler is
+            // registered.
+            bool wan_monitor_initialized = false;
+            if (!monitored_ifaces.empty()) {
+                wan_monitor_initialized = wan_mon.initialize(monitored_ifaces);
+                if (!wan_monitor_initialized) {
+                    // Initial selection can still use the state collected below.
+                    LOG(WARNING)
+                        << "wan_mon.initialize() failed, wired candidate monitoring disabled";
+                }
+            }
+
+            auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(
+                db->bridge.iface_name);
+
             for (const auto &candidate : db->ethernet.wan_candidates) {
                 if (candidate.iface_name.empty()) {
                     continue;
@@ -1539,8 +1558,8 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                 sBackhaulWireInterface wire_iface;
                 wire_iface.ethernet_port = wired_candidate_with_mac(candidate);
 
-                // Initial state is required because netlink reports only changes.
-                // The link may be already up before wan_monitor starts.
+                // Initial state is required because netlink reports only changes. Any change after
+                // monitor initialization is also queued on its socket and processed later.
                 wire_iface.up_and_running =
                     beerocks::net::network_utils::linux_iface_is_up_and_running(
                         candidate.iface_name);
@@ -1550,24 +1569,15 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
                                                      candidate.iface_name) != bridge_ifaces.end();
 
                 m_backhaul_wire_interfaces.emplace(candidate.iface_name, wire_iface);
-                monitored_ifaces.push_back(candidate.iface_name);
 
                 LOG(DEBUG) << "Wired backhaul candidate iface=" << candidate.iface_name
                            << ", up_and_running=" << int(wire_iface.up_and_running)
                            << ", bridge_member=" << int(wire_iface.bridge_member);
             }
 
-            if (!monitored_ifaces.empty()) {
-                if (!wan_mon.initialize(monitored_ifaces)) {
-                    // This does not not immediatly fail onboarding. It only disable live netlink monitoring.
-                    // Initial selection can still use state collected above.
-                    // This requires further thought.
-                    LOG(WARNING)
-                        << "wan_mon.initialize() failed, wired candidate monitoring disabled";
-                } else if (!register_wan_monitor_handlers()) {
-                    LOG(WARNING) << "register_wan_monitor_handlers() failed, wired candidate "
-                                    "monitoring disabled";
-                }
+            if (wan_monitor_initialized && !register_wan_monitor_handlers()) {
+                LOG(WARNING) << "register_wan_monitor_handlers() failed, wired candidate "
+                                "monitoring disabled";
             }
         }
 

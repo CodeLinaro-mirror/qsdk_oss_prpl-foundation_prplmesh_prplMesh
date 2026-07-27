@@ -23,6 +23,8 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include "son_slave_thread.h"
 
 #include <algorithm>
+#include <iterator>
+
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_event_loop_impl.h>
@@ -32,7 +34,6 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <bcl/beerocks_utils.h>
 #include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
-#include <iterator>
 #include <mapf/common/utils.h>
 
 #include <bpl/bpl_cfg.h>

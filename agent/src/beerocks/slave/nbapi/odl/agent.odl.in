@@ -43,7 +43,7 @@
             }
 
             /* Specifies the list of network interfaces to use for wired backhaul */
-            %persistent string BackhaulWireInterface {
+            %persistent csv_string BackhaulWireInterface {
                 default "wan";
                 on action validate call check_minimum_length 1;
             }

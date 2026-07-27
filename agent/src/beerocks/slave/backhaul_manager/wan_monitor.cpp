@@ -116,7 +116,6 @@ bool wan_monitor::initialize(const std::vector<std::string> &iface_names)
         return false;
     }
 
-    m_monitored_ifaces.clear();
     m_monitored_ifaces = std::move(monitored_ifaces);
 
     return true;
