@@ -12,6 +12,7 @@
 #include "controller.h"
 
 #include <bcl/beerocks_message_structs.h>
+#include <bcl/network/network_utils.h>
 #include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
 
 #define CLI_LOG(a) LOG(a)
@@ -57,7 +58,9 @@ public:
                                              const wireless_utils::sBssInfoConf &bss_info_conf);
     static bool send_cmdu_to_agent(const sMacAddr &dest_mac, ieee1905_1::CmduMessageTx &cmdu_tx,
                                    db &database, const std::string &radio_mac = std::string());
-    static bool send_ap_config_renew_msg(ieee1905_1::CmduMessageTx &cmdu_tx, db &database);
+    static bool send_ap_config_renew_msg(
+        ieee1905_1::CmduMessageTx &cmdu_tx, db &database,
+        const sMacAddr &dest_mac = beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR);
     static bool send_topology_query_msg(const sMacAddr &dest_mac,
                                         ieee1905_1::CmduMessageTx &cmdu_tx, db &database);
 
