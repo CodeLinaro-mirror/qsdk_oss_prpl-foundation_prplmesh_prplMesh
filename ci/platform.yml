@@ -65,6 +65,7 @@ build-for-mozart:
     - shell
     - docker-build
     - mozart-build
+  when: manual
 
 build-for-ospv2:
   extends: .build-for-openwrt
@@ -143,6 +144,7 @@ boardfarm-on-mozart:
     - mozart
   needs:
     - build-for-mozart
+  when: manual
 
 boardfarm-on-mozart-stability:
   extends: boardfarm-on-mozart
@@ -150,6 +152,7 @@ boardfarm-on-mozart-stability:
   rules:
     - if: '$STABILITY_TESTS == "yes"'
   retry: 0
+  when: manual
 
 .cram-on-target:
   stage: test
