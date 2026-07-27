@@ -2930,6 +2930,11 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
+        const bool prev_ht_supported  = radio->ht_supported;
+        const bool prev_vht_supported = radio->vht_supported;
+        const bool prev_he_supported  = radio->he_supported;
+        const bool prev_eht_supported = radio->eht_supported;
+
         radio->front.iface_mac    = notification->params().iface_mac;
         radio->number_of_antennas = notification->params().ant_num;
         radio->antenna_gain_dB    = notification->params().ant_gain;
@@ -2953,6 +2958,11 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                     radio->he_mcs_set.begin());
 
         radio->eht_supported = notification->params().eht_supported;
+
+        const bool radio_capabilities_changed = (prev_ht_supported != radio->ht_supported) ||
+                                                (prev_vht_supported != radio->vht_supported) ||
+                                                (prev_he_supported != radio->he_supported) ||
+                                                (prev_eht_supported != radio->eht_supported);
 
         if (radio->eht_supported) {
             radio->ap_modes_support.str_support    = (notification->params().ap_modes_support &
@@ -3021,6 +3031,13 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
         update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
+
+        if (radio_capabilities_changed && db->statuses.ap_autoconfiguration_completed) {
+            LOG(INFO) << "Radio capabilities changed on " << fronthaul_iface
+                      << ", sending AP_CAPABILITY_REPORT_MESSAGE";
+            m_task_pool.send_event(eTaskType::CAPABILITY_REPORTING,
+                                   CapabilityReportingTask::eEvent::AP_CAPABILITY);
+        }
 
         radio->chipset_vendor = notification->params().chipset_vendor;
 

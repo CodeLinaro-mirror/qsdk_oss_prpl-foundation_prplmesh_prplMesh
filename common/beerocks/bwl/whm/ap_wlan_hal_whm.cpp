@@ -1417,8 +1417,20 @@ bool ap_wlan_hal_whm::process_radio_event(const std::string &interface, const st
         LOG(WARNING) << "request updating vaps list of radio " << interface;
         event_queue_push(Event::APS_update_list);
         return true;
+    } else if (key == "OperatingStandards" || key == "OperatingStandardsFormat") {
+        LOG(INFO) << "radio " << interface << " " << key << " changed to "
+                  << value->get<std::string>();
+        handle_operating_standards_changed();
+        return true;
     }
     return true;
+}
+
+void ap_wlan_hal_whm::handle_operating_standards_changed()
+{
+    refresh_radio_info();
+    refresh_radio_capabilities();
+    event_queue_push(Event::AP_Attached);
 }
 
 bool ap_wlan_hal_whm::process_radio_channel_change_event(const AmbiorixVariant *value)
@@ -2831,9 +2843,7 @@ bool ap_wlan_hal_whm::change_radio_mode_config(
             LOG(ERROR) << "Could not set OperatingStandards for " << m_radio_path;
             return false;
         }
-        refresh_radio_info();
-        refresh_radio_capabilities();
-        event_queue_push(Event::AP_Attached);
+        handle_operating_standards_changed();
     }
 
     return true;

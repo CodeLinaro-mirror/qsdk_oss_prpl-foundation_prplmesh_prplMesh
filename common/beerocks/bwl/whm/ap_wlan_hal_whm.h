@@ -287,6 +287,8 @@ private:
 
     bool send_wds_iface_notification(const std::string &sta_mac, const sMacAddr &bssid,
                                      int8_t vap_id, const std::string &wds_iface_name);
+
+    void handle_operating_standards_changed();
 };
 
 } // namespace whm
