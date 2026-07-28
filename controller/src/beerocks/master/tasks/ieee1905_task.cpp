@@ -434,6 +434,45 @@ bool ieee1905_task::materialize_local_al()
     return true;
 }
 
+/** @name IEEE1905 data model parameter names */
+/// @{
+static const std::string Version                   = "Version";
+static const std::string FriendlyName              = "FriendlyName";
+static const std::string ManufacturerName          = "ManufacturerName";
+static const std::string ManufacturerModel         = "ManufacturerModel";
+static const std::string ControlURL                = "ControlURL";
+static const std::string AssocWiFiNetworkDeviceRef = "AssocWiFiNetworkDeviceRef";
+static const std::string MACAddress                = "MACAddress";
+static const std::string IPv4Address               = "IPv4Address";
+static const std::string IPv4AddressType           = "IPv4AddressType";
+static const std::string DHCPServer                = "DHCPServer";
+static const std::string IPv6Address               = "IPv6Address";
+static const std::string IPv6AddressType           = "IPv6AddressType";
+static const std::string IPv6AddressOrigin         = "IPv6AddressOrigin";
+static const std::string InterfaceId               = "InterfaceId";
+static const std::string MediaType                 = "MediaType";
+static const std::string Metric                    = ".Metric";
+static const std::string NetworkMembership         = "NetworkMembership";
+static const std::string Role                      = "Role";
+static const std::string APChannelBand             = "APChannelBand";
+static const std::string FrequencyIndex1           = "FrequencyIndex1";
+static const std::string FrequencyIndex2           = "FrequencyIndex2";
+static const std::string NeighborInterfaceId       = "NeighborInterfaceId";
+static const std::string NeighborDeviceId          = "NeighborDeviceId";
+static const std::string IEEE1905DeviceRef         = "IEEE1905DeviceRef";
+static const std::string IEEE802dot1Bridge         = "IEEE802dot1Bridge";
+static const std::string IEEE1905Id                = "IEEE1905Id";
+static const std::string PacketErrors              = "PacketErrors";
+static const std::string PacketErrorsReceived      = "PacketErrorsReceived";
+static const std::string TransmittedPackets        = "TransmittedPackets";
+static const std::string PacketsReceived           = "PacketsReceived";
+static const std::string MACThroughputCapacity     = "MACThroughputCapacity";
+static const std::string LinkAvailability          = "LinkAvailability";
+static const std::string PHYRate                   = "PHYRate";
+static const std::string RSSI                      = "RSSI";
+static const std::string InterfaceList             = "InterfaceList";
+/// @}
+
 bool ieee1905_task::ensure_al_in_dm(const sMacAddr &al_mac)
 {
     auto db_al_it = database.ieee1905_network->al.find(al_mac);
@@ -459,7 +498,7 @@ bool ieee1905_task::ensure_al_in_dm(const sMacAddr &al_mac)
         return false;
     }
 
-    if (!ambiorix->set(path, "IEEE1905Id", al_mac)) {
+    if (!ambiorix->set(path, IEEE1905Id, al_mac)) {
         LOG(ERROR) << "Failed to set IEEE1905Id for AL " << al_mac;
         const auto instance = db::get_dm_index_from_path(path);
         if (!ambiorix->remove_instance(instance.first, instance.second)) {
@@ -498,7 +537,7 @@ bool ieee1905_task::ensure_al_in_dm(const sMacAddr &al_mac)
             continue;
         }
 
-        ok &= source_neighbor_it->second.dm_path.set("IEEE1905DeviceRef", ieee1905_device_ref);
+        ok &= source_neighbor_it->second.dm_path.set(IEEE1905DeviceRef, ieee1905_device_ref);
     }
 
     return ok;
@@ -517,16 +556,16 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
     }
 
     bool ok = true;
-    ok &= al.dm_path.set("Version", al.version_is_1905a ? "1905.1a" : "1905.1");
-    ok &= al.dm_path.set("FriendlyName", al.friendly_name);
-    ok &= al.dm_path.set("ManufacturerName", al.manufacturer_name);
-    ok &= al.dm_path.set("ManufacturerModel", al.manufacturer_model);
-    ok &= al.dm_path.set("ControlURL", al.control_url);
+    ok &= al.dm_path.set(Version, al.version_is_1905a ? "1905.1a" : "1905.1");
+    ok &= al.dm_path.set(FriendlyName, al.friendly_name);
+    ok &= al.dm_path.set(ManufacturerName, al.manufacturer_name);
+    ok &= al.dm_path.set(ManufacturerModel, al.manufacturer_model);
+    ok &= al.dm_path.set(ControlURL, al.control_url);
 
     auto ambiorix = database.get_ambiorix_obj();
     const auto &assoc_wifi_network_device_ref_value =
         ambiorix ? assoc_wifi_network_device_ref(*ambiorix, al_mac) : std::string{};
-    ok &= al.dm_path.set("AssocWiFiNetworkDeviceRef", assoc_wifi_network_device_ref_value);
+    ok &= al.dm_path.set(AssocWiFiNetworkDeviceRef, assoc_wifi_network_device_ref_value);
 
     for (auto &ipv4_entry : al.ipv4_addresses) {
         const auto &key = ipv4_entry.first;
@@ -540,10 +579,10 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
             }
         }
 
-        ok &= ipv4.dm_path.set("MACAddress", key.mac);
-        ok &= ipv4.dm_path.set("IPv4Address", net_utils::ipv4_to_string(key.address));
-        ok &= ipv4.dm_path.set("IPv4AddressType", ipv4_address_type_to_dm_string(ipv4.type));
-        ok &= ipv4.dm_path.set("DHCPServer", net_utils::ipv4_to_string(ipv4.dhcp_server));
+        ok &= ipv4.dm_path.set(MACAddress, key.mac);
+        ok &= ipv4.dm_path.set(IPv4Address, net_utils::ipv4_to_string(key.address));
+        ok &= ipv4.dm_path.set(IPv4AddressType, ipv4_address_type_to_dm_string(ipv4.type));
+        ok &= ipv4.dm_path.set(DHCPServer, net_utils::ipv4_to_string(ipv4.dhcp_server));
     }
 
     for (auto &ipv6_entry : al.ipv6_addresses) {
@@ -558,13 +597,13 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
             }
         }
 
-        ok &= ipv6.dm_path.set("MACAddress", key.mac);
-        ok &= ipv6.dm_path.set("IPv6Address", key.address);
+        ok &= ipv6.dm_path.set(MACAddress, key.mac);
+        ok &= ipv6.dm_path.set(IPv6Address, key.address);
         const auto *ipv6_address_type = is_link_local_ipv6(key.address)
                                             ? "LinkLocal"
                                             : ipv6_address_type_to_dm_string(ipv6.type);
-        ok &= ipv6.dm_path.set("IPv6AddressType", ipv6_address_type);
-        ok &= ipv6.dm_path.set("IPv6AddressOrigin", ipv6.origin);
+        ok &= ipv6.dm_path.set(IPv6AddressType, ipv6_address_type);
+        ok &= ipv6.dm_path.set(IPv6AddressOrigin, ipv6.origin);
     }
 
     for (auto &iface_entry : al.interfaces) {
@@ -579,25 +618,23 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
             }
         }
 
-        ok &= iface.dm_path.set("InterfaceId", if_mac);
-        ok &= iface.dm_path.set("MediaType", ieee1905_1::eMediaType_str(iface.type));
+        ok &= iface.dm_path.set(InterfaceId, if_mac);
+        ok &= iface.dm_path.set(MediaType, ieee1905_1::eMediaType_str(iface.type));
 
         const auto media_type_group = iface.type >> 8;
         if (media_type_group == ieee1905_1::eMediaTypeGroup::IEEE_802_11) {
             if (iface.spec.network_membership != beerocks::net::network_utils::ZERO_MAC) {
-                ok &= iface.dm_path.set("NetworkMembership", iface.spec.network_membership);
+                ok &= iface.dm_path.set(NetworkMembership, iface.spec.network_membership);
             } else {
-                ok &= iface.dm_path.set("NetworkMembership", "");
+                ok &= iface.dm_path.set(NetworkMembership, "");
             }
-            ok &= iface.dm_path.set("Role", interface_role_to_dm_string(iface.spec.role));
-            ok &= iface.dm_path.set("APChannelBand",
+            ok &= iface.dm_path.set(Role, interface_role_to_dm_string(iface.spec.role));
+            ok &= iface.dm_path.set(APChannelBand,
                                     byte_to_hex_binary(iface.spec.ap_channel_bandwidth));
             ok &= iface.dm_path.set(
-                "FrequencyIndex1",
-                byte_to_hex_binary(iface.spec.ap_channel_center_frequency_index1));
+                FrequencyIndex1, byte_to_hex_binary(iface.spec.ap_channel_center_frequency_index1));
             ok &= iface.dm_path.set(
-                "FrequencyIndex2",
-                byte_to_hex_binary(iface.spec.ap_channel_center_frequency_index2));
+                FrequencyIndex2, byte_to_hex_binary(iface.spec.ap_channel_center_frequency_index2));
         }
 
         for (auto &neighbor_entry : iface.non_1905_neighbors) {
@@ -612,7 +649,7 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
                 }
             }
 
-            ok &= neighbor_dm_path.set("NeighborInterfaceId", neighbor_mac);
+            ok &= neighbor_dm_path.set(NeighborInterfaceId, neighbor_mac);
         }
 
         for (auto &neighbor_entry : iface.ieee1905_neighbors) {
@@ -627,14 +664,14 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
                 }
             }
 
-            ok &= neighbor.dm_path.set("NeighborDeviceId", neighbor_al_mac);
+            ok &= neighbor.dm_path.set(NeighborDeviceId, neighbor_al_mac);
             auto neighbor_al_it = database.ieee1905_network->al.find(neighbor_al_mac);
             const auto &ieee1905_device_ref =
                 (neighbor_al_it != database.ieee1905_network->al.end())
                     ? add_device_prefix(neighbor_al_it->second.dm_path.path)
                     : std::string{};
-            ok &= neighbor.dm_path.set("IEEE1905DeviceRef", ieee1905_device_ref);
-            ok &= neighbor.dm_path.set("IEEE802dot1Bridge", neighbor.ieee802dot1_bridge);
+            ok &= neighbor.dm_path.set(IEEE1905DeviceRef, ieee1905_device_ref);
+            ok &= neighbor.dm_path.set(IEEE802dot1Bridge, neighbor.ieee802dot1_bridge);
         }
 
         for (auto &link_entry : iface.links) {
@@ -654,24 +691,24 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
                 media_type = link.rx_link_metric.intfType;
             }
 
-            ok &= link.dm_path.set("InterfaceId", ref.if_mac);
-            ok &= link.dm_path.set("IEEE1905Id", ref.al_mac);
-            ok &= link.dm_path.set("MediaType", ieee1905_1::eMediaType_str(media_type));
+            ok &= link.dm_path.set(InterfaceId, ref.if_mac);
+            ok &= link.dm_path.set(IEEE1905Id, ref.al_mac);
+            ok &= link.dm_path.set(MediaType, ieee1905_1::eMediaType_str(media_type));
 
-            auto metric = link.dm_path.subpath(".Metric");
+            auto metric = link.dm_path.subpath(Metric);
             auto dot1bridge =
                 link.tx_link_metric.IEEE802_1BridgeFlag ==
                 ieee1905_1::tlvTransmitterLinkMetric::LINK_DOES_INCLUDE_ONE_OR_MORE_BRIDGE;
 
-            ok &= metric.set("IEEE802dot1Bridge", dot1bridge);
-            ok &= metric.set("PacketErrors", link.tx_link_metric.packet_errors);
-            ok &= metric.set("PacketErrorsReceived", link.rx_link_metric.packet_errors);
-            ok &= metric.set("TransmittedPackets", link.tx_link_metric.transmitted_packets);
-            ok &= metric.set("PacketsReceived", link.rx_link_metric.packets_received);
-            ok &= metric.set("MACThroughputCapacity", link.tx_link_metric.mac_throughput_capacity);
-            ok &= metric.set("LinkAvailability", link.tx_link_metric.link_availability);
-            ok &= metric.set("PHYRate", link.tx_link_metric.phy_rate);
-            ok &= metric.set("RSSI", link.rx_link_metric.rssi_db);
+            ok &= metric.set(IEEE802dot1Bridge, dot1bridge);
+            ok &= metric.set(PacketErrors, link.tx_link_metric.packet_errors);
+            ok &= metric.set(PacketErrorsReceived, link.rx_link_metric.packet_errors);
+            ok &= metric.set(TransmittedPackets, link.tx_link_metric.transmitted_packets);
+            ok &= metric.set(PacketsReceived, link.rx_link_metric.packets_received);
+            ok &= metric.set(MACThroughputCapacity, link.tx_link_metric.mac_throughput_capacity);
+            ok &= metric.set(LinkAvailability, link.tx_link_metric.link_availability);
+            ok &= metric.set(PHYRate, link.tx_link_metric.phy_rate);
+            ok &= metric.set(RSSI, link.rx_link_metric.rssi_db);
         }
     }
 
@@ -704,7 +741,7 @@ bool ieee1905_task::update_al_in_dm(const sMacAddr &al_mac)
             interface_list.pop_back();
         }
 
-        ok &= tuple.dm_path.set("InterfaceList", interface_list);
+        ok &= tuple.dm_path.set(InterfaceList, interface_list);
     }
 
     LOG_IF(!ok, ERROR) << "Failed to update AL " << al_mac << " in DM";
