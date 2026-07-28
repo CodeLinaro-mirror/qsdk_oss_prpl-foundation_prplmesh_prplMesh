@@ -13,6 +13,7 @@
 #include <string>
 
 #include <bcl/beerocks_defines.h>
+#include <bcl/network/network_utils.h>
 
 namespace beerocks {
 namespace net {
@@ -24,10 +25,15 @@ namespace net {
  */
 struct sTrafficSeparationConfig {
     std::string private_bridge;
-    uint32_t private_vid;
+    uint32_t private_vid = UNCONFIGURED_VLAN_ID;
 
     std::string guest_bridge;
-    uint32_t guest_vid;
+    uint32_t guest_vid = UNCONFIGURED_VLAN_ID;
+
+    /**
+     * @brief Check whether the effective policy contains a guest VLAN.
+     */
+    bool has_guest_network() const { return guest_vid != UNCONFIGURED_VLAN_ID; }
 
     bool operator==(const sTrafficSeparationConfig &other) const
     {

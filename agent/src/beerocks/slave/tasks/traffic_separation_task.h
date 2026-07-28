@@ -180,7 +180,10 @@ private:
     bool reset_transport_monitoring_on_bridge();
 
     /**
-     * @brief Build manager configuration (bridges + private/guest VLAN IDs) from DB/BPL.
+     * @brief Build manager configuration from DB/BPL.
+     *
+     * The private network is mandatory while the guest network is configured
+     * only when the received policy contains a Secondary VLAN.
      */
     bool build_ts_config(net::sTrafficSeparationConfig &cfg) const;
 

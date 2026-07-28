@@ -20,14 +20,6 @@ TrunkPortPlumbing8021q::TrunkPortPlumbing8021q(const sTrunkPort &trunk_port) : m
 
 bool TrunkPortPlumbing8021q::apply(const sTrafficSeparationConfig &cfg)
 {
-    if (cfg.private_bridge.empty() || cfg.guest_bridge.empty() ||
-        cfg.private_vid == net::UNCONFIGURED_VLAN_ID ||
-        cfg.guest_vid == net::UNCONFIGURED_VLAN_ID || cfg.private_vid > net::MAX_VLAN_ID ||
-        cfg.guest_vid > net::MAX_VLAN_ID) {
-        LOG(ERROR) << "invalid config";
-        return false;
-    }
-
     if (m_trunk.iface_name.empty()) {
         LOG(ERROR) << "empty trunk iface_name";
         return false;
@@ -107,18 +99,21 @@ bool TrunkPortPlumbing8021q::apply(const sTrafficSeparationConfig &cfg)
         }
     }
 
-    guest_subiface = network_utils::create_vlan_interface(m_trunk.iface_name, cfg.guest_vid);
-    if (guest_subiface.empty()) {
-        LOG(ERROR) << "failed to create guest subiface";
-        rollback();
-        return false;
-    }
+    if (cfg.has_guest_network()) {
+        guest_subiface = network_utils::create_vlan_interface(m_trunk.iface_name, cfg.guest_vid);
+        if (guest_subiface.empty()) {
+            LOG(ERROR) << "failed to create guest subiface";
+            rollback();
+            return false;
+        }
 
-    network_utils::set_interface_state(guest_subiface, true);
-    if (!network_utils::linux_add_iface_to_bridge(cfg.guest_bridge, guest_subiface)) {
-        LOG(ERROR) << "failed to add iface=" << guest_subiface << " to bridge=" << cfg.guest_bridge;
-        rollback();
-        return false;
+        network_utils::set_interface_state(guest_subiface, true);
+        if (!network_utils::linux_add_iface_to_bridge(cfg.guest_bridge, guest_subiface)) {
+            LOG(ERROR) << "failed to add iface=" << guest_subiface
+                       << " to bridge=" << cfg.guest_bridge;
+            rollback();
+            return false;
+        }
     }
 
     m_private_subiface = std::move(private_subiface);
