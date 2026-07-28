@@ -275,19 +275,25 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
     if (!bpl::cfg_get_private_bridge_iface(cfg.private_bridge)) {
         cfg.private_bridge = bpl::DEFAULT_PRIVATE_BRIDGE_IFACE;
     }
+
+    cfg.private_vid = primary_vid;
+
+    if (db->traffic_separation.secondary_vlans_ids.empty()) {
+        LOG(DEBUG) << "TS config: no secondary vlan id, applying primary VLAN only";
+        return true;
+    }
+
     if (!bpl::cfg_get_guest_bridge_iface(cfg.guest_bridge)) {
         cfg.guest_bridge = bpl::DEFAULT_GUEST_BRIDGE_IFACE;
     }
 
-    cfg.private_vid = primary_vid;
-
     const auto default_guest_vid = static_cast<uint32_t>(bpl::DEFAULT_GUEST_VLAN_ID);
-    if (!db->traffic_separation.secondary_vlans_ids.empty()) {
-        cfg.guest_vid = *db->traffic_separation.secondary_vlans_ids.begin();
-    } else {
-        cfg.guest_vid = default_guest_vid;
-        LOG(WARNING) << "TS config: no secondary vlan id, using default guest_vid="
-                     << cfg.guest_vid;
+    cfg.guest_vid                = *db->traffic_separation.secondary_vlans_ids.begin();
+
+    if (db->traffic_separation.secondary_vlans_ids.size() > 1) {
+        LOG(WARNING) << "TS config: multiple secondary VLAN IDs received; using guest_vid="
+                     << cfg.guest_vid << " and rejecting all other secondary VLAN IDs, count="
+                     << (db->traffic_separation.secondary_vlans_ids.size() - 1);
     }
 
     if (cfg.guest_vid < net::MIN_VLAN_ID || cfg.guest_vid > net::MAX_VLAN_ID) {
