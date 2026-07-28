@@ -29,6 +29,7 @@ public:
      * @param cfg Traffic separation configuration to apply.
      *            Currently unused for access ports, but accepted to keep
      *            the PortPlumbing interface uniform.
+     * @pre @p cfg was validated by TrafficSeparationManager::configure().
      * @return true on successful apply, false on error.
      */
     bool apply(const sTrafficSeparationConfig &cfg) override;

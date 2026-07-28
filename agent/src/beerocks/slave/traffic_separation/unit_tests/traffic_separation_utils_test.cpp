@@ -16,6 +16,32 @@ namespace {
 using beerocks::eUnsupportedProfileDisallowPolicy;
 using beerocks::net::is_untagged_mode;
 using beerocks::net::resolve_profile_disallow_flags;
+using beerocks::net::sTrafficSeparationConfig;
+using beerocks::net::UNCONFIGURED_VLAN_ID;
+
+TEST(TrafficSeparationUtilsTest, PrimaryOnlyConfigHasNoGuestNetwork)
+{
+    sTrafficSeparationConfig config{};
+    config.private_bridge = "br-lan";
+    config.private_vid    = 10;
+
+    EXPECT_FALSE(config.has_guest_network());
+}
+
+// cppcheck-suppress syntaxError
+TEST(TrafficSeparationUtilsTest, GuestNetworkDependsOnlyOnVid)
+{
+    sTrafficSeparationConfig config{};
+    config.guest_vid = 20;
+
+    EXPECT_TRUE(config.has_guest_network());
+
+    config.guest_bridge = "br-guest";
+    EXPECT_TRUE(config.has_guest_network());
+
+    config.guest_vid = UNCONFIGURED_VLAN_ID;
+    EXPECT_FALSE(config.has_guest_network());
+}
 
 TEST(TrafficSeparationUtilsTest, ResolveKeepsValidProfileDisallowFlags)
 {
