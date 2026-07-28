@@ -401,10 +401,10 @@ void ApAutoConfigurationTask::work()
         LOG(DEBUG) << "Link to the controller is established";
 
         // Trigger TS once per completed autoconfiguration cycle.
-        // Per-radio triggering causes repeated full TS resets while radios are still settling.
+        // Per-radio triggering causes repeated full reconciliation while radios are still settling.
         LOG(DEBUG) << "Trigger traffic separation after all radios are configured";
         m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                           TrafficSeparationTask::eEvent::TS_ENABLE);
+                                           TrafficSeparationTask::eEvent::TS_APPLY);
 
         // Send pre-associated sta notification request to all radio
         for (const auto &radios_conf_param_kv : m_radios_conf_params) {
@@ -1610,9 +1610,9 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
     }
 
     if (default_8021q_tlv_present || ts_policy_tlv_present) {
-        LOG(DEBUG) << "Trigger traffic separation on Multi-AP TS policy update";
+        LOG(DEBUG) << "Evaluate traffic separation on Multi-AP TS policy update";
         m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                           TrafficSeparationTask::eEvent::TS_ENABLE);
+                                           TrafficSeparationTask::eEvent::TS_POLICY_UPDATE);
     }
 
     /** Steering Policy **/

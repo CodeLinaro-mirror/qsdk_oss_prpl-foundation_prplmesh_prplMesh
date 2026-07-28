@@ -2295,7 +2295,7 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
     }
     case beerocks_message::ACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST: {
         task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                 TrafficSeparationTask::eEvent::TS_ENABLE);
+                                 TrafficSeparationTask::eEvent::TS_APPLY);
         break;
     }
     default: {

@@ -49,14 +49,25 @@ bool TrafficSeparationTask::cleanup_ts_runtime_state()
         success = false;
     }
 
+    // NO_CONFIG marks a fully completed cleanup. Keep CONFIGURED/APPLIED on
+    // failure so a subsequent policy update retries the remaining work.
+    if (success && m_mgr && !m_mgr->reset()) {
+        LOG(ERROR) << "manager reset failed";
+        success = false;
+    }
+
     return success;
 }
 
 void TrafficSeparationTask::handle_event(uint8_t event_enum_value, const void *event_obj)
 {
     switch (eEvent(event_enum_value)) {
-    case TS_ENABLE: {
-        request_full_apply();
+    case TS_APPLY: {
+        request_apply();
+        break;
+    }
+    case TS_POLICY_UPDATE: {
+        request_policy_update();
         break;
     }
     case TS_NEW_FH_IFACE: {
@@ -130,10 +141,22 @@ void TrafficSeparationTask::run_at(std::chrono::steady_clock::time_point due)
     }
 }
 
-void TrafficSeparationTask::request_full_apply()
+void TrafficSeparationTask::request_apply()
 {
     m_apply_pending = true;
-    run_at(std::chrono::steady_clock::now() + std::chrono::milliseconds(DEBOUNCE_MS));
+    run_at(std::chrono::steady_clock::now());
+}
+
+void TrafficSeparationTask::request_policy_update()
+{
+    net::sTrafficSeparationConfig config{};
+    const bool is_configured = m_mgr && build_ts_config(config) && m_mgr->is_applied_with(config);
+    if (is_configured) {
+        LOG(DEBUG) << "Effective TS policy is unchanged, preserving already applied TS state";
+        return;
+    }
+
+    request_apply();
 }
 
 void TrafficSeparationTask::request_wds_retry(const std::string &iface_name,
@@ -188,8 +211,8 @@ void TrafficSeparationTask::work()
     const auto apply_pending = m_apply_pending;
     m_apply_pending          = false;
 
-    if (apply_pending && !reset()) {
-        LOG(WARNING) << "TS reset failed";
+    if (apply_pending && !reconcile()) {
+        LOG(WARNING) << "TS reconciliation failed";
     }
 
     if (!retry_pending_wds_ifaces()) {
@@ -239,11 +262,14 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
 {
     auto db = AgentDB::get();
 
-    if (db->traffic_separation.primary_vlan_id == 0 ||
-        db->traffic_separation.primary_vlan_id > net::MAX_VLAN_ID) {
+    const auto primary_vid = db->traffic_separation.primary_vlan_id;
+    if (primary_vid > net::MAX_VLAN_ID) {
         LOG(ERROR) << "TS config: primary vlan id is out of range [" << net::MIN_VLAN_ID << "-"
-                   << net::MAX_VLAN_ID << "], got=" << db->traffic_separation.primary_vlan_id;
+                   << net::MAX_VLAN_ID << "], got=" << primary_vid;
         return false;
+    }
+    if (primary_vid == 0) {
+        return true;
     }
 
     if (!bpl::cfg_get_private_bridge_iface(cfg.private_bridge)) {
@@ -253,7 +279,7 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
         cfg.guest_bridge = bpl::DEFAULT_GUEST_BRIDGE_IFACE;
     }
 
-    cfg.private_vid = db->traffic_separation.primary_vlan_id;
+    cfg.private_vid = primary_vid;
 
     const auto default_guest_vid = static_cast<uint32_t>(bpl::DEFAULT_GUEST_VLAN_ID);
     if (!db->traffic_separation.secondary_vlans_ids.empty()) {
@@ -274,11 +300,13 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
     return true;
 }
 
-bool TrafficSeparationTask::reset()
+bool TrafficSeparationTask::reconcile()
 {
-    auto db = AgentDB::get();
-
-    const uint16_t primary_vid = db->traffic_separation.primary_vlan_id;
+    uint16_t primary_vid = 0;
+    {
+        auto db     = AgentDB::get();
+        primary_vid = db->traffic_separation.primary_vlan_id;
+    }
     if (primary_vid == 0 || primary_vid > net::MAX_VLAN_ID) {
         if (!cleanup_ts_runtime_state()) {
             LOG(ERROR) << "cleanup_ts_runtime_state failed (invalid/disabled primary_vlan_id)";
@@ -304,7 +332,7 @@ bool TrafficSeparationTask::reset()
         m_mgr = std::make_unique<net::TrafficSeparationManager>();
     }
 
-    // Full TS_ENABLE reconciliation must not trust cached APPLIED state:
+    // Full TS_APPLY reconciliation must not trust cached APPLIED state:
     // WDS reconnect can recreate the parent iface without its VLAN subifaces.
     // clear_policies() forces a fresh apply while keeping manager port entries;
     // refresh/DB restore below prune stale ports and repopulate missed FH/WDS events.
@@ -620,7 +648,7 @@ bool TrafficSeparationTask::handle_new_wds_iface(const std::string &iface_name)
             return true;
         }
 
-        auto retry_due = now + std::chrono::milliseconds(DEBOUNCE_MS);
+        auto retry_due = now + std::chrono::milliseconds(WDS_RETRY_INTERVAL_MS);
         if (retry_due > pending_it->second.deadline) {
             retry_due = pending_it->second.deadline;
         }
