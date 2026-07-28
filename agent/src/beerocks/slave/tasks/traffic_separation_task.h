@@ -58,12 +58,13 @@ public:
    * @brief Event IDs for TrafficSeparationTask.
    */
     enum eEvent : uint8_t {
-        TS_ENABLE          = 0, /**< Refresh config and reapply TS on managed ports. */
-        TS_NEW_FH_IFACE    = 1, /**< Incrementally add one pure-FH iface. */
-        TS_CLEAR_FH_IFACE  = 2, /**< Incrementally clear one pure-FH iface. */
-        TS_NEW_WDS_IFACE   = 3, /**< Add one WDS iface (e.g. `wlan1.2.sta1`). */
-        TS_CLEAR_WDS_IFACE = 4, /**< Clear one WDS iface (e.g. `wlan1.2.sta1`). */
-        TS_CLEAR           = 5  /**< Clear active TS policies and task-side deferred state. */
+        TS_APPLY           = 0, /**< Refresh config and apply/reapply TS on managed ports. */
+        TS_POLICY_UPDATE   = 1, /**< Apply only when the effective TS policy changed. */
+        TS_NEW_FH_IFACE    = 2, /**< Incrementally add one pure-FH iface. */
+        TS_CLEAR_FH_IFACE  = 3, /**< Incrementally clear one pure-FH iface. */
+        TS_NEW_WDS_IFACE   = 4, /**< Add one WDS iface (e.g. `wlan1.2.sta1`). */
+        TS_CLEAR_WDS_IFACE = 5, /**< Clear one WDS iface (e.g. `wlan1.2.sta1`). */
+        TS_CLEAR           = 6  /**< Clear active TS policies and task-side deferred state. */
     };
 
 private:
@@ -78,9 +79,14 @@ private:
     void run_at(std::chrono::steady_clock::time_point due);
 
     /**
-   * @brief Request a debounced full TS reapply.
+   * @brief Request a full TS reapply.
    */
-    void request_full_apply();
+    void request_apply();
+
+    /**
+     * @brief Apply a changed controller policy.
+     */
+    void request_policy_update();
 
     /**
    * @brief Register one WDS iface for deferred retry processing.
@@ -93,7 +99,7 @@ private:
                            std::chrono::steady_clock::time_point deadline);
 
     /**
-   * @brief Reset pending debounced apply state.
+   * @brief Reset pending apply state.
    */
     void clear_pending_apply();
 
@@ -103,17 +109,17 @@ private:
     void clear_scheduled_work();
 
     /**
-   * @brief Check whether the debounce timeout expired and apply can run now.
+   * @brief Check whether scheduled work can run now.
    */
     bool should_run_now() const;
 
     /**
-   * @brief Refresh config and reapply TS on currently managed ports.
+   * @brief Reconcile current config and reapply TS on managed ports.
    *
    * Keeps exact FH/WDS iface ownership event-driven while refreshing the
    * config and persistent DB-owned trunk ports.
    */
-    bool reset();
+    bool reconcile();
 
     /**
    * @brief Re-add exact FH/WDS ports from the current DB snapshot.
@@ -200,9 +206,7 @@ private:
     uint16_t m_last_primary_vid = 0;
 
 private:
-    // Debounce TS apply events to coalesce short bursts into one operation
-    // and avoid repetitive bridge/VLAN reconfiguration churn.
-    static constexpr int DEBOUNCE_MS = 200;
+    static constexpr int WDS_RETRY_INTERVAL_MS = 200;
     // Newly learned WDS netdevs may appear and become runnable shortly after
     // the property notification is emitted, so keep the first add attempt
     // out of the synchronous event path.

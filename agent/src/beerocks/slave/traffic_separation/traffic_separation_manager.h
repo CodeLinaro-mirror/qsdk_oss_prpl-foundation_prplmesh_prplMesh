@@ -120,6 +120,17 @@ public:
      */
     bool is_applied() const { return m_state == eTsManagerState::APPLIED; }
 
+    /**
+     * @brief Return true when the requested TS configuration is already applied.
+     */
+    bool is_applied_with(const sTrafficSeparationConfig &config) const
+    {
+        if (config == sTrafficSeparationConfig{}) {
+            return !has_config();
+        }
+        return is_applied() && m_config == config;
+    }
+
 private:
     bool has_any_ports() const
     {

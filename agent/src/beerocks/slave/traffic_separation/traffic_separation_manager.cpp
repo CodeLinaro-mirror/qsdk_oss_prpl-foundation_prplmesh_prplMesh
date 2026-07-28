@@ -278,13 +278,13 @@ bool TrafficSeparationManager::reset()
 {
     bool success = true;
 
-    if (!clear_policies()) {
+    if (is_applied() && !clear_policies()) {
         LOG(ERROR) << "clear_policies failed";
         success = false;
     }
 
-    // Avoid a second clear attempt while removing ports.
-    // clear_policies() was already executed above and may have partially succeeded.
+    // Avoid clearing ports again while removing them. If policies were applied,
+    // clear_policies() already attempted the cleanup above.
     m_state = eTsManagerState::CONFIGURED;
 
     if (!remove_all_trunk_ports()) {
