@@ -20,6 +20,7 @@
 #include <bcl/network/interface_state_reader_impl.h>
 #include <bcl/network/netlink_event_listener_impl.h>
 #include <bcl/network/sockets_impl.h>
+#include <bpl/bpl.h>
 
 #include <net/if.h>
 #include <unistd.h>
@@ -166,6 +167,11 @@ int main(int argc, char *argv[])
 
     mapf::Logger::Instance().LoggerInit("transport");
 
+    if (bpl::bpl_init() < 0) {
+        LOG(ERROR) << "Failed to initialize BPL!";
+        return 1;
+    }
+
     /**
      * Create required objects in the order defined by the dependency tree.
      */
@@ -223,6 +229,7 @@ int main(int argc, char *argv[])
      */
     ieee1905_transport.stop();
     broker->stop();
+    bpl::bpl_close();
 
     return 0;
 }

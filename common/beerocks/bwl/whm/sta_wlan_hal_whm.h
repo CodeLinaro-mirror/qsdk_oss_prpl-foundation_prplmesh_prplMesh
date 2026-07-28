@@ -45,6 +45,7 @@ public:
                          bool hidden_ssid) override;
 
     virtual bool disconnect() override;
+    bool clear_persistent_profiles() override;
 
     virtual bool reassociate() override;
 

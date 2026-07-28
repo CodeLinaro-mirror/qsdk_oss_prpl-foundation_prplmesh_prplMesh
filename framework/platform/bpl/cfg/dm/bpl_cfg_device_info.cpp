@@ -6,25 +6,31 @@
  * See LICENSE file for more details.
  */
 
-#include "bpl_cfg_pwhm.h"
+#include "bpl_cfg_service_helper.h"
 
 #include <bcl/beerocks_version.h>
 #include <bpl/bpl_cfg.h>
+#include <mapf/common/logger.h>
 
 namespace beerocks {
 namespace bpl {
+
+namespace {
+
+constexpr const char *DEVICE_INFO_PATH = "DeviceInfo.";
+
+template <typename T> bool read_device_info_param(const std::string &name, T &value)
+{
+    return read_param_via_common_socket(DEVICE_INFO_PATH, name, value);
+}
+
+} // namespace
 
 static bool get_string_value_dm(const std::string &attr, std::string &value)
 {
     value = "invalid";
 
-    auto obj = m_ambiorix_cl_ubus.get_object("DeviceInfo.");
-    if (!obj) {
-        LOG(WARNING) << "Failed to get DeviceInfo object";
-        return false;
-    }
-
-    if (!obj->read_child(value, attr)) {
+    if (!read_device_info_param(attr, value)) {
         LOG(WARNING) << "Failed to read DeviceInfo parameter " << attr;
         return false;
     }
@@ -71,22 +77,6 @@ bool get_model_number(std::string &model_number)
     if (!get_string_value_dm("ModelNumber", model_number) || model_number.empty()) {
         model_number = "18.04";
     }
-    return true;
-}
-
-bool get_ruid_chipset_vendor(const sMacAddr &ruid, std::string &chipset_vendor)
-{
-    (void)ruid;
-    chipset_vendor = "prplmesh";
-    return true;
-}
-
-bool get_max_prioritization_rules(uint32_t &max_prioritization_rules)
-{
-    // On EasyMesh standard 9.1 it is said that a Multi-AP Agent that implements Profile-3, need to:
-    // "Set Max Total Number Service Prioritization Rules to one".
-    // This requirement will probably change on future version of the standard.
-    max_prioritization_rules = 1;
     return true;
 }
 

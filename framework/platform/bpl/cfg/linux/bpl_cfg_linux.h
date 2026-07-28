@@ -9,13 +9,12 @@
 #ifndef _BPL_CFG_PRIVATE_H_
 #define _BPL_CFG_PRIVATE_H_
 
+#include "bpl_cfg_status.h"
+
 #include <bcl/son/son_wireless_utils.h>
 
 #include <stdint.h>
 #include <string>
-
-#define RETURN_OK 0
-#define RETURN_ERR -1
 
 namespace beerocks {
 namespace bpl {
@@ -39,14 +38,6 @@ bool cfg_get_param(const std::string &name, std::string &value);
  */
 bool cfg_get_params(std::unordered_map<std::string, std::string> &parameters,
                     std::function<bool(const std::string &name)> filter = nullptr);
-
-/**
- * @brief Saves given parameters into configuration file.
- *
- * @param[in] parameters Parameters to write to configuration file.
- * @return true on success and false otherwise.
- */
-bool cfg_set_params(const std::unordered_map<std::string, std::string> &parameters);
 
 } // namespace bpl
 } // namespace beerocks

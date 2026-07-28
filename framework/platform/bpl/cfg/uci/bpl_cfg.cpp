@@ -24,6 +24,26 @@ using namespace mapf;
 namespace beerocks {
 namespace bpl {
 
+bool bpl_cfg_get_agent_mac(std::string &agent_mac)
+{
+    agent_mac = DEFAULT_AGENT_MAC;
+    return true;
+}
+
+bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &client_secret)
+{
+    client_id     = DEFAULT_AIRTIES_CLOUD_CLIENT_ID;
+    client_secret = DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET;
+    return true;
+}
+
+bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature)
+{
+    (void)iface_name;
+    radio_temperature = DEFAULT_WIFI_RADIO_TEMPERATURE;
+    return true;
+}
+
 int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                     char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
 {
@@ -438,37 +458,31 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
     return cfg_set_prplmesh_config_no_commit(option, value);
 }
 
-int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band)
+int cfg_get_preferred_radio_band(int *preferred_radio_band)
 {
-    if (max_vaps) {
-        //get max_vaps
+    if (!preferred_radio_band) {
+        return RETURN_OK;
     }
 
-    if (network_enabled) {
-        //get network_enabled
+    *preferred_radio_band = BPL_RADIO_BAND_AUTO;
+
+    char backhaul_band[BPL_BACKHAUL_BAND_LEN] = {0};
+    if (cfg_get_prplmesh_param("backhaul_band", backhaul_band, BPL_BACKHAUL_BAND_LEN) ==
+        RETURN_ERR) {
+        MAPF_ERR("cfg_get_preferred_radio_band: Failed to read backhaul_band\n");
+        return RETURN_ERR;
     }
 
-    if (preferred_radio_band) {
-        char backhaul_band[BPL_BACKHAUL_BAND_LEN] = {0};
-        //get preferred_radio_band
-        int retVal = cfg_get_prplmesh_param("backhaul_band", backhaul_band, BPL_BACKHAUL_BAND_LEN);
-        if (retVal == RETURN_ERR) {
-            MAPF_ERR("cfg_get_backhaul_params: Failed to read backhaul_band parameter\n");
-            return RETURN_ERR;
-        }
-        std::string preferred_bh_band(backhaul_band);
-        if (preferred_bh_band.compare("2.4GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_2G;
-        } else if (preferred_bh_band.compare("5GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_5G;
-        } else if (preferred_bh_band.compare("6GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_6G;
-        } else if (preferred_bh_band.compare("auto") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_AUTO;
-        } else {
-            MAPF_ERR("cfg_get_backhaul_params: unknown backhaul_band parameter value\n");
-            return RETURN_ERR;
-        }
+    std::string preferred_bh_band(backhaul_band);
+    if (preferred_bh_band == "2.4GHz") {
+        *preferred_radio_band = BPL_RADIO_BAND_2G;
+    } else if (preferred_bh_band == "5GHz") {
+        *preferred_radio_band = BPL_RADIO_BAND_5G;
+    } else if (preferred_bh_band == "6GHz") {
+        *preferred_radio_band = BPL_RADIO_BAND_6G;
+    } else if (preferred_bh_band != "auto") {
+        MAPF_ERR("cfg_get_preferred_radio_band: unknown backhaul_band value\n");
+        return RETURN_ERR;
     }
 
     return RETURN_OK;
@@ -709,14 +723,6 @@ bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_po
     return true;
 }
 
-bool cfg_set_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy)
-{
-    std::string option = "unsuccessful_assoc_report_policy";
-    std::string value  = std::to_string((int)unsuccessful_assoc_report_policy);
-
-    return cfg_set_prplmesh_config(option, value);
-}
-
 bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     unsigned int &unsuccessful_assoc_max_reporting_rate)
 {
@@ -737,14 +743,6 @@ bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     unsuccessful_assoc_max_reporting_rate = retVal;
 
     return true;
-}
-
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_reporting_rate)
-{
-    std::string option = "unsuccessful_assoc_max_reporting_rate";
-    std::string value  = std::to_string(unsuccessful_assoc_max_reporting_rate);
-
-    return cfg_set_prplmesh_config(option, value);
 }
 
 bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
@@ -1085,18 +1083,6 @@ bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeou
     }
 
     timeout_seconds = std::chrono::seconds{retVal};
-    return true;
-}
-
-bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
-{
-    int val = -1;
-    if (cfg_get_prplmesh_param_int_default("clients_unicast_measurements", &val, int(false)) ==
-        RETURN_ERR) {
-        return false;
-    }
-
-    client_unicast_measurements = bool(val == 1);
     return true;
 }
 

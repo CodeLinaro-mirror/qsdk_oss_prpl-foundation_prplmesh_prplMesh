@@ -28,6 +28,26 @@ using namespace mapf;
 namespace beerocks {
 namespace bpl {
 
+bool bpl_cfg_get_agent_mac(std::string &agent_mac)
+{
+    agent_mac = DEFAULT_AGENT_MAC;
+    return true;
+}
+
+bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &client_secret)
+{
+    client_id     = DEFAULT_AIRTIES_CLOUD_CLIENT_ID;
+    client_secret = DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET;
+    return true;
+}
+
+bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature)
+{
+    (void)iface_name;
+    radio_temperature = DEFAULT_WIFI_RADIO_TEMPERATURE;
+    return true;
+}
+
 /**
  * @brief Returns the name of the configuration file to use.
  *
@@ -94,29 +114,6 @@ bool cfg_get_params(std::unordered_map<std::string, std::string> &parameters,
             std::string value = line.substr(pos + 1, line.size());
             parameters[name]  = value;
         }
-    }
-
-    return true;
-}
-
-bool cfg_set_params(const std::unordered_map<std::string, std::string> &parameters)
-{
-    std::string file_name;
-    if (!cfg_get_file_name(file_name)) {
-        MAPF_ERR("Failed opening file " << file_name);
-        return false;
-    }
-
-    std::ofstream file(file_name);
-
-    for (const auto &parameter : parameters) {
-        file << parameter.first << "=" << parameter.second << std::endl;
-    }
-
-    file.close();
-    if (!file.good()) {
-        MAPF_ERR("Failed writing to file " << file_name);
-        return false;
     }
 
     return true;
@@ -465,11 +462,11 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
     return true;
 }
 
-int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band)
+int cfg_get_preferred_radio_band(int *preferred_radio_band)
 {
-    *max_vaps             = 0;
-    *network_enabled      = 0;
-    *preferred_radio_band = 0;
+    if (preferred_radio_band) {
+        *preferred_radio_band = BPL_RADIO_BAND_AUTO;
+    }
     return RETURN_OK;
 }
 
@@ -675,11 +672,6 @@ bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_po
     return true;
 }
 
-bool cfg_set_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy)
-{
-    return true;
-}
-
 bool cfg_get_unsuccessful_assoc_max_reporting_rate(
     unsigned int &unsuccessful_assoc_max_reporting_rate)
 {
@@ -697,11 +689,6 @@ bool cfg_get_unsuccessful_assoc_max_reporting_rate(
 
     unsuccessful_assoc_max_reporting_rate = retVal;
 
-    return true;
-}
-
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_reporting_rate)
-{
     return true;
 }
 
@@ -971,12 +958,6 @@ bool get_controller_message_timeout_seconds(std::chrono::seconds &timeout_second
 bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeout_seconds)
 {
     timeout_seconds = std::chrono::seconds{DEFAULT_CONTROLLER_HEARTBEAT_STATE_TIMEOUT_SEC};
-    return true;
-}
-
-bool cfg_get_clients_unicast_measurements(bool &clients_unicast_measurements)
-{
-    clients_unicast_measurements = false;
     return true;
 }
 

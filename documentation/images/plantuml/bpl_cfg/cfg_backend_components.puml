@@ -1,0 +1,94 @@
+@startuml
+title BPL cfg backend/client ownership
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+component "public bpl/cfg API\ncfg_* / bpl_cfg_*" as API
+component "general/default cfg\nbpl_cfg.cpp\nincluding AirTies CloudComm" as Misc
+component "DM wrapper files\nbpl_cfg_agent.cpp\nbpl_cfg_controller.cpp\nbpl_cfg_device_info.cpp\nbpl_cfg_process_manager.cpp" as Wrappers
+component "bpl_cfg_wifi.cpp\nWiFi cfg reads" as Wifi
+component "bpl_cfg_service_helper.h\ngeneric common-bus operations" as Helpers
+component "BplConfigService\nbackend/client access" as Service
+component "BplConfigBackend\ninterface" as Backend
+component "AirTies integration\nUSE_PRPLMESH_WHM\nBPL and AgentDB consumer" as Airties
+component "AgentDB\nAgent.Info and radio state" as AgentDb
+component "Agent process\nBPL configuration owner" as Agent
+component "Fronthaul process\nAP manager and Monitor" as Fronthaul
+
+rectangle "DM backend\nUSE_PRPLMESH_WHM" {
+  component "BplConfigBackendDm" as DmBackend
+  component "common_client\nubus common bus" as Common
+  component "process-local NBAPI\nAmbiorix DM object" as Nbapi
+}
+
+rectangle "Direct pWHM owners outside BPL" {
+  component "WHM STA HAL\npersistent profile removal" as StaHal
+  component "direct pWHM USP client" as Direct
+}
+
+rectangle "Legacy backends" {
+  component "BplConfigBackendUci" as UciBackend
+  component "BplConfigBackendLinux" as LinuxBackend
+}
+
+cloud "Common DM bus\nWiFi.*\nDeviceInfo\nProcessManager\nAgent roots\nX_AIRTIES_Obj.CloudComm" as CommonBus
+cloud "pWHM direct DM\nWiFi.Radio.*\nWiFi.EndPoint.*.Profile" as Pwhm
+database "Local process DM\nController.Configuration\nAgent.Configuration" as LocalDm
+database "Agent-owned local DM\nAgent.Info status" as AgentInfo
+component "UCI cfg files/defaults" as UciFiles
+component "Linux cfg files/defaults" as LinuxFiles
+
+API --> Misc : general/default or CloudComm call
+API --> Wrappers : DM cfg call
+API --> Wifi : WiFi cfg call
+Airties --> API : CloudComm cfg in Non-Prpl-Controller-and-Agent mode;\nradio temperature cfg
+Airties --> AgentDb : radio name, MAC,\noperating-standard flags
+Agent --> API : hostapd path, monitored VAP,\nand measurement-mode read unless\nFEATURE_PRE_ASSOCIATION_STEERING
+Agent --> Fronthaul : ACTION_APMANAGER_CONFIGURE\ncomplete startup configuration
+Fronthaul --> Agent : ACTION_APMANAGER_JOINED\nradio state and capabilities
+Agent --> AgentDb : cache radio state
+Misc --> Helpers : CloudComm common WBAPI read
+Wrappers --> Helpers : common WBAPI operations
+Wrappers --> Service : local NBAPI access
+Wifi --> Helpers : common WBAPI operations
+Helpers --> Service : acquire common client
+Service *-- Backend : owns backend
+Backend <|.. DmBackend
+Backend <|.. UciBackend
+Backend <|.. LinuxBackend
+
+DmBackend *-- Common
+DmBackend o-- Nbapi
+Common --> CommonBus : common-bus reads
+Nbapi --> LocalDm : serves config roots
+AgentDb --> Nbapi : local Agent.Info writes
+Nbapi --> AgentInfo : publishes status root
+AgentInfo --> CommonBus : exported status
+
+note bottom of LocalDm
+Owner configuration uses local NBAPI.
+Non-owner Agent reads use common WBAPI.
+This avoids synchronous owner self-requests.
+end note
+
+StaHal --> Direct : platform-owned mutation
+Fronthaul --> Direct : AP HAL reads\nOperatingStandards
+Direct --> Pwhm : direct USP route
+
+UciBackend --> UciFiles : legacy adapter
+LinuxBackend --> LinuxFiles : legacy adapter
+
+note bottom of Wifi
+WiFi reads use common WBAPI and strip Device.
+BPL owns no direct pWHM client.
+end note
+
+note bottom of Service
+BPL consumers call bpl_init() before cfg access.
+Agent and controller register their local DM.
+Fronthaul has no BPL dependency.
+end note
+
+@enduml

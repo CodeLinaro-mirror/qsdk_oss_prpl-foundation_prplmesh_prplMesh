@@ -7,8 +7,10 @@
  */
 
 #include <bpl/bpl.h>
+#include <bpl/bpl_cfg.h>
 
-#include <mapf/common/logger.h>
+#include "bpl_cfg_backend_linux.h"
+#include "bpl_cfg_service.h"
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// Implementation ///////////////////////////////
@@ -19,14 +21,16 @@ namespace bpl {
 
 int bpl_init()
 {
-    // Do nothing
-    return 0;
+    auto &cfg_service = BplConfigService::instance();
+    if (!cfg_service.backend_configured()) {
+        cfg_service.set_backend(create_backend_linux());
+    }
+    return cfg_service.init();
 }
 
-void bpl_close()
-{
-    // Do nothing
-}
+void set_nbapi_dm(const std::shared_ptr<beerocks::nbapi::Ambiorix> &) {}
+
+void bpl_close() { BplConfigService::instance().shutdown(); }
 
 } // namespace bpl
 } // namespace beerocks

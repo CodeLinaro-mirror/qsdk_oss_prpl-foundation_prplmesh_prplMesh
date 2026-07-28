@@ -319,7 +319,8 @@ int main(int argc, char *argv[])
                     monitor_is_running = false;
                 }
                 continue;
-            } else if (monitor.start()) {
+            } else if (monitor.start(ap_manager.get_hal_conf(),
+                                     ap_manager.get_clients_measurement_mode())) {
                 monitor_is_running = true;
             } else {
                 CLOG(ERROR, g_logger_monitor->get_logger_id()) << "Unable to start monitor!";

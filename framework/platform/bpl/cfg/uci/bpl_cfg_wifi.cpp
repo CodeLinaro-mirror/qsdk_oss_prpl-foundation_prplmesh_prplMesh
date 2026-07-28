@@ -360,57 +360,6 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
     return true;
 }
 
-bool bpl_cfg_set_wifi_credentials(const std::string &iface,
-                                  const son::wireless_utils::sBssInfoConf &configuration)
-{
-    // Find the "wireless.wifi-iface" section in UCI configuration for the given interface
-    const std::string package_name = "wireless";
-    const std::string section_type = "wifi-iface";
-    const std::string option_name  = "ifname";
-    std::string section_name;
-    if (!uci_find_section_by_option(package_name, section_type, option_name, iface, section_name)) {
-        LOG(ERROR) << "Failed to find configuration section for interface " << iface;
-        return false;
-    }
-
-    if (section_name.empty()) {
-        LOG(ERROR) << "Configuration for interface " << iface << " not found";
-        return false;
-    }
-
-    // Overwrite UCI configuration with wireless credentials for the given interface
-    OptionsUnorderedMap options;
-    options["ssid"] = configuration.ssid;
-
-    auto get_encryption = [](WSC::eWscAuth authentication_type, WSC::eWscEncr encryption_type) {
-        std::string encryption = "none";
-        if (authentication_type == WSC::eWscAuth::WSC_AUTH_WPA2PSK) {
-            encryption = "psk2";
-            if (encryption_type == WSC::eWscEncr::WSC_ENCR_TKIP) {
-                encryption += "+tkip";
-            } else if (encryption_type == WSC::eWscEncr::WSC_ENCR_AES) {
-                encryption += "+aes";
-            }
-        } else if (authentication_type == WSC::eWscAuth::WSC_AUTH_SAE) {
-            encryption = "sae";
-        }
-        return encryption;
-    };
-    options["encryption"] =
-        get_encryption(configuration.authentication_type, configuration.encryption_type);
-
-    options["key"] = configuration.network_key;
-
-    // Write UCI options in the "wireless.wifi-iface" section for the given interface.
-    if (!uci_set_section(package_name, section_type, section_name, options, true)) {
-        LOG(ERROR) << "Failed to set wireless configuration for interface " << iface
-                   << " at section " << section_name;
-        return false;
-    }
-
-    return true;
-}
-
 bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces)
 {
     mandatory_interfaces.clear();
@@ -471,8 +420,6 @@ int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
 
     return RETURN_OK;
 }
-
-void cfg_wifi_reset_wps_credentials() { LOG(INFO) << __func__ << " NOT IMPLEMENTED"; }
 
 int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface)
 {

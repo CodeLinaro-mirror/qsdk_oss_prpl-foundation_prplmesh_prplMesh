@@ -8,11 +8,14 @@
 
 #include "tlvf_airties_utils.h"
 #include "agent_db.h"
+
+#include <ambiorix_variant.h>
 #include <bcl/beerocks_config_file.h>
+#include <bcl/beerocks_string_utils.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/son/son_wireless_utils.h>
+#include <bpl/bpl_cfg.h>
 #include <bpl/common/utils/utils.h>
-#include <cstring>
 #include <easylogging++.h>
 #include <linux/if_bridge.h>
 #include <mapf/common/utils.h>
@@ -28,9 +31,11 @@
 #include <tlvf/airties/tlvAirtiesRadioCapability.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
+#include <algorithm>
+#include <cstring>
+
 using namespace airties;
 using namespace beerocks;
-using namespace wbapi;
 
 /*
  * This Macro is to enable or disable
@@ -167,7 +172,7 @@ uint16_t set_supp_stats_val()
  * Check if its WAN or LAN interface.
  * If its WAN, then dont add it to the TLV.
  */
-bool check_wan_interface(AmbiorixVariantSmartPtr &eth_interface)
+bool check_wan_interface(wbapi::AmbiorixVariantSmartPtr &eth_interface)
 {
     uint8_t upstream_val = 0;
     if (!eth_interface->read_child(upstream_val, "Upstream")) {
@@ -180,9 +185,10 @@ bool check_wan_interface(AmbiorixVariantSmartPtr &eth_interface)
  * Utility function to read any data type from DM.
  */
 template <typename T>
-bool get_data_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string &param, T &data)
+bool get_data_from_dm(wbapi::AmbiorixVariantSmartPtr &eth_interface, const std::string &param,
+                      T &data)
 {
-    if (!eth_interface->read_child<>(data, param.c_str())) {
+    if (!eth_interface->read_child(data, param.c_str())) {
         return false;
     }
     return true;
@@ -567,27 +573,16 @@ bool tlvf_airties_utils::add_airties_version_reporting_tlv(ieee1905_1::CmduMessa
     return true;
 }
 
-/*
- * Function to update the Client details.
- * If the client details are not present, 
- * then the hard coded values will be saved in TLV.
- */
+/** Populate AirTies cloud client details. */
 bool update_client_details(std::shared_ptr<airties::tlvAirtiesDeviceInfo> &tlvDevinfo)
 {
-    std::string client_id     = "";
-    std::string client_secret = "";
-    std::string dm_path       = "X_AIRTIES_Obj.CloudComm.";
+    std::string client_id     = beerocks::bpl::DEFAULT_AIRTIES_CLOUD_CLIENT_ID;
+    std::string client_secret = beerocks::bpl::DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET;
 
-    auto cli_det = beerocks::bpl::m_ambiorix_cl.get_object(dm_path);
-    if (!cli_det) {
-        LOG(ERROR) << "Failed to get the ambiorix object for path,"
-                      " Setting default values "
-                   << dm_path;
-    }
-    //Retrieve the Client ID from DM
-    if (cli_det) {
-        cli_det->read_child<>(client_id, "ClientID");
-        cli_det->read_child<>(client_secret, "ClientPassword");
+    auto management_mode = AgentDB::get()->device_conf.management_mode;
+    if (management_mode == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT &&
+        !beerocks::bpl::bpl_cfg_get_airties_cloud_credentials(client_id, client_secret)) {
+        LOG(ERROR) << "Failed to read AirTies cloud credentials from BPL";
     }
 
     if (!tlvDevinfo->set_client_id(client_id)) {
@@ -778,63 +773,33 @@ bool devicemetrics_get_uptime(struct timespec &ts)
 
 bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetrics> &tlvDevMetrics)
 {
-    std::string dm_path      = "Device.WiFi.Radio.";
-    std::string stats_string = "Stats.";
-    std::string rad_details_path;
+    const auto &radios = AgentDB::get()->get_radios_list();
 
-    int num_of_radios = 0;
-    {
-        num_of_radios = AgentDB::get()->get_radios_list().size();
-    }
+    LOG(INFO) << "Device Metrics TLV: Number of radios  " << radios.size();
 
-    LOG(INFO) << "Device Metrics TLV: Number of radios  " << num_of_radios;
+    for (const auto &radio : radios) {
+        if (radio->front.iface_mac == beerocks::net::network_utils::ZERO_MAC) {
+            continue;
+        }
 
-    for (int radio_index = 1; radio_index <= num_of_radios; radio_index++) {
         auto rad_list = tlvDevMetrics->create_radio_list();
         if (!rad_list) {
-            LOG(ERROR) << "Failed to create radio list entry for radio index " << radio_index;
+            LOG(ERROR) << "Failed to create radio list entry for " << radio->front.iface_name;
             return false;
         }
 
-        //Radio ID
-        rad_details_path = dm_path + std::to_string(radio_index) + ".";
-
-        auto dev = beerocks::bpl::m_ambiorix_cl.get_object(rad_details_path);
-        if (!dev) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << rad_details_path;
-            return false;
-        }
-
-        std::string radio_name;
-        if (!dev->read_child<>(radio_name, "Name")) {
-            LOG(ERROR) << "Failed to read Name from " << rad_details_path;
-            return false;
-        }
-
-        std::string radio_mac;
-        if (!beerocks::net::network_utils::linux_iface_get_mac(radio_name, radio_mac)) {
-            LOG(ERROR) << "Failed to get radio mac from ifname " << radio_name;
-            return false;
-        }
-
-        rad_list->radio_id() = tlvf::mac_from_string(radio_mac);
-
-        //Temperature
-        rad_details_path = dm_path + std::to_string(radio_index) + "." + stats_string;
-
-        auto temp_obj = beerocks::bpl::m_ambiorix_cl.get_object(rad_details_path);
-        if (!temp_obj) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path for temp "
-                       << rad_details_path;
-            return false;
-        }
+        rad_list->radio_id() = radio->front.iface_mac;
 
         uint8_t radio_temp = 0;
-        temp_obj->read_child<>(radio_temp, "Temperature");
+        if (!beerocks::bpl::bpl_cfg_get_wifi_radio_temperature(radio->front.iface_name,
+                                                               radio_temp)) {
+            LOG(ERROR) << "Failed to read radio temperature for " << radio->front.iface_name;
+            return false;
+        }
         rad_list->radio_temperature() = radio_temp;
 
         if (!tlvDevMetrics->add_radio_list(std::move(rad_list))) {
-            LOG(ERROR) << "Failed to add radio list entry for radio index " << radio_index;
+            LOG(ERROR) << "Failed to add radio list entry for " << radio->front.iface_name;
             return false;
         }
     }
@@ -949,6 +914,10 @@ bool tlvf_airties_utils::add_radio_capability(ieee1905_1::CmduMessageTx &cmdu_tx
 {
     auto db = beerocks::AgentDB::get();
     for (const auto &radio : db->get_radios_list()) {
+        if (radio->front.iface_mac == beerocks::net::network_utils::ZERO_MAC) {
+            continue;
+        }
+
         auto tlvAirtiesRadioCapability = cmdu_tx.addClass<airties::tlvAirtiesRadioCapability>();
         if (!tlvAirtiesRadioCapability) {
             LOG(ERROR) << "addClass airties::tlvAirtiesRadioCapability failed";
@@ -960,36 +929,24 @@ bool tlvf_airties_utils::add_radio_capability(ieee1905_1::CmduMessageTx &cmdu_tx
         tlvAirtiesRadioCapability->tlv_id() =
             static_cast<int>(airties::eAirtiesTlVId::AIRTIES_RADIO_CAPABILITY);
 
-        std::string radio_path;
-        beerocks::bpl::m_ambiorix_cl.resolve_path(
-            wbapi_utils::search_path_radio_by_iface(radio->front.iface_name), radio_path);
-
-        auto radio_obj = beerocks::bpl::m_ambiorix_cl.get_object(radio_path);
-        if (!radio_obj) {
-            LOG(ERROR) << "Failed to get the ambiorix object for path " << radio_path;
+        if (radio->supported_standards.empty()) {
+            LOG(ERROR) << "Supported standards are unavailable for " << radio->front.iface_name;
             return false;
         }
 
-        std::string supported_standards;
-        radio_obj->read_child(supported_standards, "SupportedStandards");
+        const auto standards = beerocks::string_utils::str_split(radio->supported_standards, ',');
+        const auto supports  = [&standards](const char *standard) {
+            return std::find(standards.begin(), standards.end(), standard) != standards.end();
+        };
 
-        auto str_vec = beerocks::string_utils::str_split(supported_standards, ',');
-
-        tlvAirtiesRadioCapability->radio_id() = radio->front.iface_mac;
-        tlvAirtiesRadioCapability->standards().s_80211a =
-            std::find(str_vec.begin(), str_vec.end(), "a") != str_vec.end() ? 1 : 0;
-        tlvAirtiesRadioCapability->standards().s_80211b =
-            std::find(str_vec.begin(), str_vec.end(), "b") != str_vec.end() ? 1 : 0;
-        tlvAirtiesRadioCapability->standards().s_80211g =
-            std::find(str_vec.begin(), str_vec.end(), "g") != str_vec.end() ? 1 : 0;
-        tlvAirtiesRadioCapability->standards().s_80211n =
-            std::find(str_vec.begin(), str_vec.end(), "n") != str_vec.end() ? 1 : 0;
-        tlvAirtiesRadioCapability->standards().s_80211ac =
-            std::find(str_vec.begin(), str_vec.end(), "ac") != str_vec.end() ? 1 : 0;
-        tlvAirtiesRadioCapability->standards().s_80211ax =
-            std::find(str_vec.begin(), str_vec.end(), "ax") != str_vec.end() ? 1 : 0;
-        tlvAirtiesRadioCapability->standards().s_80211be =
-            std::find(str_vec.begin(), str_vec.end(), "be") != str_vec.end() ? 1 : 0;
+        tlvAirtiesRadioCapability->radio_id()            = radio->front.iface_mac;
+        tlvAirtiesRadioCapability->standards().s_80211a  = supports("a");
+        tlvAirtiesRadioCapability->standards().s_80211b  = supports("b");
+        tlvAirtiesRadioCapability->standards().s_80211g  = supports("g");
+        tlvAirtiesRadioCapability->standards().s_80211n  = supports("n");
+        tlvAirtiesRadioCapability->standards().s_80211ac = supports("ac");
+        tlvAirtiesRadioCapability->standards().s_80211ax = supports("ax");
+        tlvAirtiesRadioCapability->standards().s_80211be = supports("be");
     }
 
     return true;

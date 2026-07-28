@@ -16,7 +16,6 @@
 #include <bcl/network/network_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <bcl/transaction.h>
-#include <bpl/bpl_cfg.h>
 #include <easylogging++.h>
 
 #include <beerocks/tlvf/beerocks_message.h>
@@ -383,24 +382,9 @@ ApManager::ApManager(const std::string &iface, beerocks::logging &logger,
     m_iface = iface;
 }
 
-bool ApManager::create_ap_wlan_hal()
+bool ApManager::create_ap_wlan_hal(const bwl::hal_conf_t &hal_conf)
 {
     using namespace std::placeholders; // for `_1`
-
-    bwl::hal_conf_t hal_conf;
-    hal_conf.ap_acs_enabled     = acs_enabled;
-    hal_conf.certification_mode = certification_mode;
-    hal_conf.multi_ap_profile   = multi_ap_profile;
-
-    if (!beerocks::bpl::bpl_cfg_get_hostapd_ctrl_path(m_iface, hal_conf.wpa_ctrl_path)) {
-        LOG(ERROR) << "Couldn't get hostapd control path for interface " << m_iface;
-        return false;
-    }
-
-    if (!beerocks::bpl::bpl_cfg_get_monitored_BSSs_by_radio_iface(m_iface,
-                                                                  hal_conf.monitored_BSSs)) {
-        LOG(DEBUG) << "Failed to get radio-monitored-BSSs for interface " << m_iface;
-    }
 
     // Create a new AP HAL instance
     ap_wlan_hal = bwl::ap_wlan_hal_create(m_iface, hal_conf,
@@ -867,9 +851,7 @@ void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
     if (virtual_bss_creation_tlv) {
 
         std::string ifname = get_vbss_interface_name(virtual_bss_creation_tlv->bssid());
-        std::string bridge = "br-lan";
-
-        // TODO: PPM-2348 add the bridge name to BPL
+        std::string bridge = m_bridge_iface;
 
         // TODO: the VirtualBSSCreation TLV doesn't specify authentication and encryption types
         son::wireless_utils::sBssInfoConf bss_conf = {};
@@ -1235,12 +1217,20 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             return;
         }
 
-        acs_enabled = config->channel() == 0;
+        bwl::hal_conf_t hal_conf;
+        hal_conf.ap_acs_enabled     = config->channel() == 0;
+        hal_conf.certification_mode = config->certification_mode();
+        hal_conf.multi_ap_profile   = config->multi_ap_profile();
+        hal_conf.wpa_ctrl_path      = config->hostapd_ctrl_path_str();
+        m_clients_measurement_mode  = config->clients_measurement_mode();
+        m_bridge_iface              = config->bridge_iface().iface_name;
 
-        certification_mode = config->certification_mode();
-        multi_ap_profile   = config->multi_ap_profile();
+        for (size_t index = 0; index < config->monitored_vap_ifaces_size(); ++index) {
+            auto monitored_vap = config->monitored_vap_ifaces(index);
+            hal_conf.monitored_BSSs.emplace(std::get<1>(monitored_vap).iface_name);
+        }
 
-        if (create_ap_wlan_hal()) {
+        if (create_ap_wlan_hal(hal_conf)) {
             LOG(DEBUG) << "Move to ATTACHING state";
             m_state = eApManagerState::ATTACHING;
         } else {
@@ -3796,7 +3786,7 @@ void ApManager::handle_hostapd_attached()
 {
     LOG(DEBUG) << "handling enabled hostapd";
 
-    if (acs_enabled) {
+    if (ap_wlan_hal->get_hal_conf().ap_acs_enabled) {
         LOG(DEBUG) << "retrieving ACS report";
         int read_acs_attempt = 0;
         while (!ap_wlan_hal->read_acs_report()) {
@@ -3831,8 +3821,12 @@ void ApManager::handle_hostapd_attached()
 
     notification->params().frequency_band = ap_wlan_hal->get_radio_info().frequency_band;
     notification->params().max_bandwidth  = ap_wlan_hal->get_radio_info().max_bandwidth;
-    notification->params().ht_supported   = ap_wlan_hal->get_radio_info().ht_supported;
-    notification->params().ht_capability  = ap_wlan_hal->get_radio_info().ht_capability;
+    string_utils::copy_string(notification->params().supported_standards,
+                              ap_wlan_hal->get_radio_info().supported_standards.c_str(),
+                              message::WIFI_GENERIC_STRING_LENGTH);
+
+    notification->params().ht_supported  = ap_wlan_hal->get_radio_info().ht_supported;
+    notification->params().ht_capability = ap_wlan_hal->get_radio_info().ht_capability;
     std::copy_n(ap_wlan_hal->get_radio_info().ht_mcs_set.data(), beerocks::message::HT_MCS_SET_SIZE,
                 notification->params().ht_mcs_set);
     notification->params().vht_supported  = ap_wlan_hal->get_radio_info().vht_supported;
@@ -3981,7 +3975,7 @@ bool ApManager::handle_ap_enabled(int vap_id)
         LOG(ERROR) << "Failed updating vap info!!!";
     }
 
-    if (certification_mode) {
+    if (ap_wlan_hal->get_hal_conf().certification_mode) {
         if (!ap_wlan_hal->clear_blacklist()) {
             LOG(ERROR) << "Failed to clear blacklist!!!";
         }

@@ -130,43 +130,6 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
     return true;
 }
 
-bool bpl_cfg_set_wifi_credentials(const std::string &iface,
-                                  const son::wireless_utils::sBssInfoConf &configuration)
-{
-    // Read all configuration parameters
-    std::unordered_map<std::string, std::string> parameters;
-    if (!cfg_get_params(parameters)) {
-        MAPF_ERR("Failed to read configuration parameters");
-        return false;
-    }
-
-    // Overwrite configuration parameters with wireless credentials for the given interface
-    const std::string prefix    = "wireless." + iface + ".";
-    parameters[prefix + "ssid"] = configuration.ssid;
-
-    auto get_security_mode = [](WSC::eWscAuth authentication_type, WSC::eWscEncr encryption_type) {
-        std::string security_mode = "none";
-        if ((authentication_type == WSC::eWscAuth::WSC_AUTH_WPA2PSK) &&
-            (encryption_type == WSC::eWscEncr::WSC_ENCR_AES)) {
-            security_mode = "wpa2-psk";
-        }
-        return security_mode;
-    };
-
-    parameters[prefix + "security_mode"] =
-        get_security_mode(configuration.authentication_type, configuration.encryption_type);
-
-    parameters[prefix + "psk"] = configuration.network_key;
-
-    // Save configuration parameters
-    if (!cfg_set_params(parameters)) {
-        MAPF_ERR("Failed to write configuration parameters");
-        return false;
-    }
-
-    return true;
-}
-
 bool bpl_cfg_get_wpa_supplicant_ctrl_path(const std::string &iface, std::string &wpa_ctrl_path)
 {
     const std::string param = "wpa_supplicant_ctrl_path_" + iface;
@@ -218,8 +181,6 @@ int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface)
     sta_iface = token;
     return RETURN_OK;
 }
-
-void cfg_wifi_reset_wps_credentials() { LOG(INFO) << __func__ << " NOT IMPLEMENTED"; }
 
 int cfg_get_hostap_iface(int32_t radio_num, std::string &hostap_iface)
 {

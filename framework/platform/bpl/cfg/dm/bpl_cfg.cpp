@@ -6,23 +6,37 @@
  * See LICENSE file for more details.
  */
 
-#include "bpl_cfg_amx_helper.h"
-
+#include "bpl_cfg_service_helper.h"
+#include "bpl_cfg_status.h"
 #include <bcl/beerocks_string_utils.h>
 #include <bpl/bpl_cfg.h>
 #include <mapf/common/logger.h>
 
-#include <bcl/beerocks_os_utils.h>
-
-#include "bpl_cfg_pwhm.h"
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <set>
+#include <string>
 
 namespace beerocks {
 namespace bpl {
 
-/* ============================================================
- *                        Agent Config
- * ============================================================
- */
+bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &client_secret)
+{
+    constexpr const char *cloud_comm_path = "X_AIRTIES_Obj.CloudComm.";
+
+    auto cloud_comm_obj = get_object_via_common_socket(cloud_comm_path);
+    if (!cloud_comm_obj || !cloud_comm_obj->read_child(client_id, "ClientID") ||
+        !cloud_comm_obj->read_child(client_secret, "ClientPassword")) {
+        client_id.clear();
+        client_secret.clear();
+        LOG(ERROR) << "Failed to read AirTies cloud credentials from " << cloud_comm_path;
+        return false;
+    }
+
+    return true;
+}
+
 int cfg_is_master()
 {
     switch (cfg_get_management_mode()) {
@@ -44,75 +58,8 @@ int cfg_is_non_prplmesh_controller()
     return cfg_get_management_mode() == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT;
 }
 
-int cfg_get_stop_on_failure_attempts()
-{
-    int stop_on_failure_attempts{0};
-    read_agent_config_param("StopOnFailureAttempts", stop_on_failure_attempts);
-    return stop_on_failure_attempts;
-}
-
 int cfg_set_onboarding(int enable) { return 0; }
 int cfg_is_onboarding() { return 0; }
-
-bool cfg_get_band_steering(bool &band_steering)
-{
-    return read_controller_config_param("BandSteeringEnabled", band_steering);
-}
-
-bool cfg_set_band_steering(bool band_steering)
-{
-    return set_controller_config_param("BandSteeringEnabled", band_steering);
-}
-
-bool cfg_get_daisy_chaining_disabled(bool &daisy_chaining_disabled)
-{
-    return read_agent_config_param("DaisyChainingDisabled", daisy_chaining_disabled);
-}
-
-bool cfg_set_daisy_chaining_disabled(bool daisy_chaining_disabled)
-{
-    return set_agent_config_param("DaisyChainingDisabled", daisy_chaining_disabled);
-}
-
-bool cfg_get_client_11k_roaming(bool &eleven_k_roaming)
-{
-    return read_controller_config_param("Client11kRoamingEnabled", eleven_k_roaming);
-}
-
-bool cfg_set_client_11k_roaming(bool eleven_k_roaming)
-{
-    return set_controller_config_param("Client11kRoamingEnabled", eleven_k_roaming);
-}
-
-bool cfg_get_client_roaming(bool &client_roaming)
-{
-    return read_controller_config_param("ClientRoamingEnabled", client_roaming);
-}
-
-bool cfg_set_client_roaming(bool client_roaming)
-{
-    return set_controller_config_param("ClientRoamingEnabled", client_roaming);
-}
-
-bool cfg_get_load_balancing(bool &load_balancing)
-{
-    return read_agent_config_param("LoadBalancingTaskEnabled", load_balancing);
-}
-
-bool cfg_set_load_balancing(bool load_balancing)
-{
-    return set_agent_config_param("LoadBalancingTaskEnabled", load_balancing);
-}
-
-bool cfg_get_channel_select_task(bool &channel_select_task_enabled)
-{
-    return read_agent_config_param("ChannelSelectionTaskEnabled", channel_select_task_enabled);
-}
-
-bool cfg_set_channel_select_task(bool channel_select_task_enabled)
-{
-    return set_agent_config_param("ChannelSelectionTaskEnabled", channel_select_task_enabled);
-}
 
 int cfg_notify_onboarding_completed(const char ssid[BPL_SSID_LEN], const char pass[BPL_PASS_LEN],
                                     const char sec[BPL_SEC_LEN], const std::string &iface_name,
@@ -124,222 +71,6 @@ int cfg_notify_onboarding_completed(const char ssid[BPL_SSID_LEN], const char pa
 int cfg_notify_error(int code, const char data[BPL_ERROR_STRING_LEN]) { return 0; }
 int cfg_get_administrator_credentials(char pass[BPL_PASS_LEN]) { return 0; }
 
-bool cfg_get_zwdfs_flag(int &flag) { return read_agent_config_param("ZeroWaitDFSFlag", flag); }
-
-bool cfg_get_best_channel_rank_threshold(uint32_t &threshold)
-{
-    return read_agent_config_param("BestChannelRankThreshold", threshold);
-}
-
-bool cfg_get_multi_chan_bcn_req_duration(uint16_t &duration)
-{
-    return read_agent_config_param("MultiChanBcnReqDuration", duration);
-}
-
-bool bpl_cfg_get_backhaul_wire_iface(std::string &iface)
-{
-    return read_agent_config_param("BackhaulWireInterface", iface);
-}
-
-bool bpl_cfg_get_agent_multi_ap_profile(uint32_t &profile)
-{
-    return read_agent_config_param("MultiAPProfile", profile);
-}
-
-int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band)
-{
-    if (max_vaps) {
-        //get max_vaps
-    }
-
-    if (network_enabled) {
-        //get network_enabled
-    }
-
-    if (preferred_radio_band) {
-        std::string preferred_bh_band{};
-        read_agent_config_param("BackhaulBand", preferred_bh_band);
-
-        if (preferred_bh_band.compare("2.4GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_2G;
-        } else if (preferred_bh_band.compare("5GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_5G;
-        } else if (preferred_bh_band.compare("6GHz") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_6G;
-        } else if (preferred_bh_band.compare("auto") == 0) {
-            *preferred_radio_band = BPL_RADIO_BAND_AUTO;
-        } else {
-            MAPF_ERR("cfg_get_backhaul_params: unknown backhaul_band parameter value\n");
-            return RETURN_ERR;
-        }
-    }
-
-    return RETURN_OK;
-}
-
-bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measurement_mode)
-{
-    int mode_value = static_cast<int>(eClientsMeasurementMode::ENABLE_ALL);
-    if (!read_agent_config_param("ClientsMeasurementMode", mode_value)) {
-        MAPF_ERR("cfg_get_clients_measurement_mode: failed to read ClientsMeasurementMode\n");
-        return false;
-    }
-
-    if (mode_value < static_cast<int>(eClientsMeasurementMode::DISABLE_ALL) ||
-        mode_value >
-            static_cast<int>(eClientsMeasurementMode::ONLY_CLIENTS_SELECTED_FOR_STEERING)) {
-        MAPF_ERR("cfg_get_clients_measurement_mode: unknown ClientsMeasurementMode value\n");
-        return false;
-    }
-
-    clients_measurement_mode = static_cast<eClientsMeasurementMode>(mode_value);
-    return true;
-}
-
-int cfg_get_beerocks_credentials(const int radio_dir, char ssid[BPL_SSID_LEN],
-                                 char pass[BPL_PASS_LEN], char sec[BPL_SEC_LEN])
-{
-    auto safe_copy = [](const std::string &in, char *out, size_t max_len) {
-        size_t copy_len = std::min(in.size(), max_len - 1);
-        std::memcpy(out, in.data(), copy_len);
-        out[copy_len] = '\0';
-    };
-
-    bool success = true;
-    std::string tmp;
-
-    // SSID
-    if (!read_agent_config_param("SSID", tmp)) {
-        LOG(WARNING) << "cfg: missing SSID";
-        success = false;
-    } else {
-        safe_copy(tmp, ssid, BPL_SSID_LEN);
-    }
-
-    // Security
-    if (!read_agent_config_param("Security", tmp)) {
-        LOG(WARNING) << "cfg: missing Security";
-        success = false;
-    } else {
-        safe_copy(tmp, sec, BPL_SEC_LEN);
-    }
-
-    // Passphrase or WEPKey depending on security
-    if (tmp == "WEP-64" || tmp == "WEP-128") {
-        if (!read_agent_config_param("WEPKey", tmp)) {
-            LOG(WARNING) << "cfg: missing WEPKey";
-            success = false;
-        }
-    } else {
-        if (!read_agent_config_param("Passphrase", tmp)) {
-            LOG(WARNING) << "cfg: missing Passphrase";
-            success = false;
-        }
-    }
-    safe_copy(tmp, pass, BPL_PASS_LEN);
-
-    return success ? RETURN_OK : RETURN_ERR;
-}
-
-bool cfg_get_private_bridge_iface(std::string &bridge_iface)
-{
-    if (!read_agent_config_param("PrivateBridgeIface", bridge_iface)) {
-        LOG(ERROR) << "failed to read PrivateBridgeIface";
-        return false;
-    }
-    return true;
-}
-
-bool cfg_get_guest_bridge_iface(std::string &bridge_iface)
-{
-    if (!read_agent_config_param("GuestBridgeIface", bridge_iface)) {
-        LOG(ERROR) << "failed to read GuestBridgeIface";
-        return false;
-    }
-    return true;
-}
-
-/* ============================================================
- *                        Controller Config
- * ============================================================
- */
-bool cfg_get_dfs_reentry(bool &dfs_reentry_enabled)
-{
-    return read_controller_config_param("DFSReentryEnabled", dfs_reentry_enabled);
-}
-
-bool cfg_set_dfs_reentry(bool dfs_reentry_enabled)
-{
-    return set_controller_config_param("DFSReentryEnabled", dfs_reentry_enabled);
-}
-
-bool cfg_get_dfs_task(bool &dfs_task_enabled)
-{
-    return read_controller_config_param("DFSTaskEnabled", dfs_task_enabled);
-}
-
-bool cfg_set_dfs_task(bool dfs_task_enabled)
-{
-    return set_controller_config_param("DFSTaskEnabled", dfs_task_enabled);
-}
-
-bool cfg_get_health_check(bool &health_check_enabled)
-{
-    return read_controller_config_param("HealthCheckTaskEnabled", health_check_enabled);
-}
-
-bool cfg_set_health_check(bool health_check_enabled)
-{
-    return set_controller_config_param("HealthCheckTaskEnabled", health_check_enabled);
-}
-
-bool cfg_get_ire_roaming(bool &ire_roaming)
-{
-    return read_controller_config_param("IRERoamingEnabled", ire_roaming);
-}
-
-bool cfg_set_ire_roaming(bool ire_roaming)
-{
-    return set_controller_config_param("IRERoamingEnabled", ire_roaming);
-}
-
-bool cfg_get_optimal_path_prefer_signal_strenght(bool &optimal_path_prefer_signal_strenght)
-{
-    return read_controller_config_param("OptimalPathPreferSignalStrength",
-                                        optimal_path_prefer_signal_strenght);
-}
-
-bool cfg_set_optimal_path_prefer_signal_strenght(bool optimal_path_prefer_signal_strenght)
-{
-    return set_controller_config_param("OptimalPathPreferSignalStrength",
-                                       optimal_path_prefer_signal_strenght);
-}
-
-bool cfg_get_diagnostics_measurements(bool &diagnostics_measurements)
-{
-    return read_controller_config_param("OptimalPathPreferSignalStrenght",
-                                        diagnostics_measurements);
-}
-
-bool cfg_set_diagnostics_measurements(bool diagnostics_measurements)
-{
-    return set_controller_config_param("DiagnosticsMeasurements", diagnostics_measurements);
-}
-
-bool cfg_get_diagnostics_measurements_polling_rate_sec(
-    int &diagnostics_measurements_polling_rate_sec)
-{
-    return read_controller_config_param("DiagnosticsMeasurementsRate",
-                                        diagnostics_measurements_polling_rate_sec);
-}
-
-bool cfg_set_diagnostics_measurements_polling_rate_sec(
-    const int &diagnostics_measurements_polling_rate_sec)
-{
-    return set_controller_config_param("DiagnosticsMeasurementsRate",
-                                       diagnostics_measurements_polling_rate_sec);
-}
-
 int cfg_get_backhaul_vaps(char *backhaul_vaps_buf, const int buf_len) { return 0; }
 
 int cfg_get_security_policy()
@@ -348,9 +79,20 @@ int cfg_get_security_policy()
     return 0;
 }
 
-bool cfg_get_persistent_db_enable(bool &enable)
+bool get_ruid_chipset_vendor(const sMacAddr &ruid, std::string &chipset_vendor)
 {
-    return read_controller_config_param("PersistentDatabaseEnabled", enable);
+    (void)ruid;
+    chipset_vendor = "prplmesh";
+    return true;
+}
+
+bool get_max_prioritization_rules(uint32_t &max_prioritization_rules)
+{
+    // On EasyMesh standard 9.1 it is said that a Multi-AP Agent that implements Profile-3, need to:
+    // "Set Max Total Number Service Prioritization Rules to one".
+    // This requirement will probably change on future version of the standard.
+    max_prioritization_rules = 1;
+    return true;
 }
 
 bool cfg_get_persistent_db_commit_changes_interval(unsigned int &interval_sec)
@@ -359,159 +101,10 @@ bool cfg_get_persistent_db_commit_changes_interval(unsigned int &interval_sec)
     return true;
 }
 
-bool cfg_get_clients_persistent_db_max_size(int &max_size)
-{
-    return read_controller_config_param("ClientsPersistentDatabaseMaxSize", max_size);
-}
-
 bool cfg_get_steer_history_persistent_db_max_size(size_t &max_size)
 {
     max_size = DEFAULT_STEER_HISTORY_PERSISTENT_DB_MAX_SIZE;
     return true;
-}
-
-bool cfg_get_max_timelife_delay_minutes(int &max_timelife_delay_minutes)
-{
-    return read_controller_config_param("MaxTimeLifeDelayMinutes", max_timelife_delay_minutes);
-}
-
-bool cfg_get_unfriendly_device_max_timelife_delay_minutes(
-    int &unfriendly_device_max_timelife_delay_minutes)
-{
-    return read_controller_config_param("UnfriendlyDeviceMaxTimeLifeDelayMinutes",
-                                        unfriendly_device_max_timelife_delay_minutes);
-}
-
-bool cfg_get_persistent_db_aging_interval(int &persistent_db_aging_interval_sec)
-{
-    return read_controller_config_param("PersistentDatabaseAgingIntervalSec",
-                                        persistent_db_aging_interval_sec);
-}
-
-bool cfg_set_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec)
-{
-    return set_controller_config_param("LinkMetricsRequestIntervalSec",
-                                       link_metrics_request_interval_sec.count());
-}
-
-bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec)
-{
-    int64_t interval_sec = 0;
-    if (read_controller_config_param("LinkMetricsRequestIntervalSec", interval_sec)) {
-        return false;
-    }
-
-    link_metrics_request_interval_sec = std::chrono::seconds(interval_sec);
-    return true;
-}
-
-bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy)
-{
-    return read_controller_config_param("UnsuccessfulAssocReportPolicy",
-                                        unsuccessful_assoc_report_policy);
-}
-
-bool cfg_set_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy)
-{
-    return set_controller_config_param("UnsuccessfulAssocReportPolicy",
-                                       unsuccessful_assoc_report_policy);
-}
-
-bool cfg_get_unsuccessful_assoc_max_reporting_rate(
-    unsigned int &unsuccessful_assoc_max_reporting_rate)
-{
-    return read_controller_config_param("UnsuccessfulAssocMaxReportingRate",
-                                        unsuccessful_assoc_max_reporting_rate);
-}
-
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int unsuccessful_assoc_max_reporting_rate)
-{
-    return set_controller_config_param("UnsuccessfulAssocMaxReportingRate",
-                                       unsuccessful_assoc_max_reporting_rate);
-}
-
-bool cfg_get_roaming_hysteresis_percent_bonus(int &roaming_hysteresis_percent_bonus)
-{
-    return read_controller_config_param("RoamingHysteresisPercentBonus",
-                                        roaming_hysteresis_percent_bonus);
-}
-
-bool cfg_set_roaming_hysteresis_percent_bonus(int roaming_hysteresis_percent_bonus)
-{
-    return set_controller_config_param("RoamingHysteresisPercentBonus",
-                                       roaming_hysteresis_percent_bonus);
-}
-
-bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds steering_disassoc_timer_msec)
-{
-    // Convert std::chrono::milliseconds to int64_t before passing
-    int64_t timer_msec = steering_disassoc_timer_msec.count();
-
-    return set_controller_config_param("SteeringDisassociationTimerMSec", timer_msec);
-}
-
-bool cfg_get_steering_disassoc_timer_msec(std::chrono::milliseconds &steering_disassoc_timer_msec)
-{
-    int64_t timer_msec = 0;
-    read_controller_config_param("SteeringDisassociationTimerMSec", timer_msec);
-
-    steering_disassoc_timer_msec = std::chrono::milliseconds(timer_msec);
-    return true;
-}
-
-bool cfg_get_rssi_measurements_timeout(int &rssi_measurements_timeout_msec)
-{
-    return read_controller_config_param("RSSIMeasurementsTimeout", rssi_measurements_timeout_msec);
-}
-
-bool cfg_get_beacon_measurements_timeout(int &beacon_measurements_timeout_msec)
-{
-    return read_controller_config_param("BeaconMeasurementsTimeout",
-                                        beacon_measurements_timeout_msec);
-}
-
-bool cfg_get_sta_reporting_rcpi_threshold(unsigned int &sta_reporting_rcpi_threshold)
-{
-    return read_controller_config_param("STAReportingRCPIThreshold", sta_reporting_rcpi_threshold);
-}
-
-bool cfg_get_sta_reporting_rcpi_hyst_margin_override_threshold(
-    unsigned int &sta_reporting_rcpi_hyst_margin_override_threshold)
-{
-    return read_controller_config_param("STAReportingRCPIHystMarginOverrideThreshold",
-                                        sta_reporting_rcpi_hyst_margin_override_threshold);
-}
-
-bool cfg_get_ap_reporting_channel_utilization_threshold(
-    unsigned int &ap_reporting_channel_utilization_threshold)
-{
-    return read_controller_config_param("APReportingChannelUtilizationThreshold",
-                                        ap_reporting_channel_utilization_threshold);
-}
-
-bool cfg_get_assoc_sta_traffic_stats_inclusion_policy(
-    bool &assoc_sta_traffic_stats_inclusion_policy)
-{
-    return read_controller_config_param("AssocSTATrafficStatsInclusionPolicy",
-                                        assoc_sta_traffic_stats_inclusion_policy);
-}
-
-bool cfg_get_assoc_sta_link_metrics_inclusion_policy(bool &assoc_sta_link_metrics_inclusion_policy)
-{
-    return read_controller_config_param("AssocSTALinkMetricsInclusionPolicy",
-                                        assoc_sta_link_metrics_inclusion_policy);
-}
-
-bool cfg_get_assoc_wifi6_sta_status_report_inclusion_policy(
-    bool &assoc_wifi6_sta_status_report_inclusion_policy)
-{
-    return read_controller_config_param("AssocWiFi6STAStatusReportInclusionPolicy",
-                                        assoc_wifi6_sta_status_report_inclusion_policy);
-}
-
-bool cfg_get_steering_policy(unsigned int &steering_policy)
-{
-    return read_controller_config_param("SteeringPolicy", steering_policy);
 }
 
 bool cfg_get_channel_utilization_threshold(unsigned int &channel_utilization_threshold)
@@ -556,76 +149,32 @@ bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeou
     return true;
 }
 
-bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements)
+bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces)
 {
-    client_unicast_measurements = false;
+    // For pHWM implementation this feature is not used.
+    // This means we will not create son_slaves for currently-not-existing interfaces.
+    mandatory_interfaces.clear();
+
     return true;
 }
 
-int cfg_get_dcs_channel_pool(const BPL_WLAN_IFACE &iface,
-                             char channel_pool[BPL_DCS_CHANNEL_POOL_LEN])
+bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
+                                               std::set<std::string> &monitored_BSSs)
 {
-    static const std::unordered_map<int, std::string> radio_to_param = {
-        {eFreqType::FREQ_24G, "DCSChannelPool_24GHz"},
-        {eFreqType::FREQ_5G, "DCSChannelPool_5GHz"},
-        {eFreqType::FREQ_6G, "DCSChannelPool_6GHz"},
-    };
-
-    auto it = radio_to_param.find(iface.freq_type);
-    if (it == radio_to_param.end()) {
-        MAPF_ERR("cfg_get_dcs_channel_pool: Unknown freq_type");
-        return RETURN_ERR;
-    }
-
-    std::string config_value = DEFAULT_DCS_CHANNEL_POOL;
-    if (!read_controller_config_param(it->second, config_value)) {
-        MAPF_ERR("cfg_get_dcs_channel_pool: Failed to read config parameter '" + it->second + "'");
-        return RETURN_ERR;
-    }
-
-    snprintf(channel_pool, BPL_DCS_CHANNEL_POOL_LEN, "%s", config_value.c_str());
-    channel_pool[BPL_DCS_CHANNEL_POOL_LEN - 1] = '\0';
-
-    return RETURN_OK;
-}
-
-bool cfg_get_is_traffic_separation_enabled(bool &is_traffic_separation_enabled)
-{
-    if (!read_controller_config_param("TrafficSeparation.Enable", is_traffic_separation_enabled)) {
-        LOG(ERROR) << "failed to read TrafficSeparation.Enable";
-        return false;
-    }
     return true;
 }
 
-bool cfg_get_traffic_separation_private_vid(int &private_vid)
+bool bpl_cfg_get_wpa_supplicant_ctrl_path(const std::string &iface, std::string &wpa_ctrl_path)
 {
-    int configured_private_vid = DEFAULT_PRIVATE_VLAN_ID;
-    if (!read_controller_config_param("TrafficSeparation.PrivateVID", configured_private_vid)) {
-        LOG(ERROR) << "failed to read TrafficSeparation.PrivateVID";
-        return false;
-    }
-
-    private_vid = configured_private_vid;
+    wpa_ctrl_path = "/var/run/wpa_supplicant/" + iface;
     return true;
 }
 
-bool cfg_get_traffic_separation_guest_vid(int &guest_vid)
+bool bpl_cfg_get_hostapd_ctrl_path(const std::string &iface, std::string &hostapd_ctrl_path)
 {
-    int configured_guest_vid = DEFAULT_GUEST_VLAN_ID;
-    if (!read_controller_config_param("TrafficSeparation.GuestVID", configured_guest_vid)) {
-        LOG(ERROR) << "failed to read TrafficSeparation.GuestVID";
-        return false;
-    }
-
-    guest_vid = configured_guest_vid;
+    hostapd_ctrl_path = "/var/run/hostapd/" + iface;
     return true;
 }
-
-/* ============================================================
- *                        Other Config
- * ============================================================
- */
 
 int cfg_get_hostap_iface_steer_vaps(int32_t radio_num,
                                     char hostap_iface_steer_vaps[BPL_LOAD_STEER_ON_VAPS_LEN])
@@ -673,6 +222,5 @@ int cfg_get_load_steer_on_vaps(int num_of_interfaces,
 }
 
 bool cfg_commit_changes() { return true; }
-
 } // namespace bpl
 } // namespace beerocks

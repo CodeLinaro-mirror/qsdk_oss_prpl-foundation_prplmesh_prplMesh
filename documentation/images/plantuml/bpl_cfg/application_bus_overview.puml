@@ -1,0 +1,104 @@
+@startuml
+title prplMesh bus interactions
+
+top to bottom direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+database "NBAPI DM\nX_PRPLWARE-COM_Controller.Configuration\nX_PRPLWARE-COM_WiFiController" as ControllerNbapi
+database "NBAPI DM\nX_PRPLWARE-COM_Agent.Configuration\nX_PRPLWARE-COM_Agent.Info" as AgentNbapi
+database "Common bus DM\nWiFi.*, DeviceInfo, ProcessManager,\nController / Agent / DataElements roots,\nX_AIRTIES_Obj.CloudComm." as CommonBus
+database "pWHM direct DM" as Pwhm
+
+rectangle "Controller role" {
+  rectangle "ieee1905_transport process" as ControllerTransportProcess {
+    component "1905 transport\nand broker" as ControllerTransport
+    component "BPL cfg" as ControllerTransportBpl
+  }
+
+  rectangle "beerocks_controller process" {
+    component "Controller core" as Controller
+    component "Controller DB" as ControllerDb
+    component "WiFiManager" as WifiManager
+    component "BPL cfg" as ControllerBpl
+  }
+
+  Controller --> ControllerBpl : configuration
+  Controller --> ControllerDb : topology and\nconfiguration state
+  ControllerDb <-[#6A3D9A]-> ControllerNbapi : local DM\nstate/actions
+  ControllerBpl -[#6A3D9A]-> ControllerNbapi : owner-local cfg
+  Controller --> WifiManager : optional WHM component
+  WifiManager --> ControllerDb : BSS configuration
+  WifiManager --> ControllerBpl : configuration snapshots
+  Controller <--> ControllerTransport : broker UDS
+  ControllerTransport --> ControllerTransportBpl : management mode
+}
+
+cloud "IEEE 1905\nnetwork" as Ieee1905
+
+rectangle "Agent role" {
+  rectangle "ieee1905_transport process" as AgentTransportProcess {
+    component "1905 transport\nand broker" as AgentTransport
+    component "BPL cfg" as AgentTransportBpl
+  }
+
+  rectangle "beerocks_agent process" {
+    component "Agent core and\nPlatform Manager" as Agent
+    component "AirTies multi-vendor\nTLV handler" as AirtiesVendor
+    component "Backhaul Manager" as Backhaul
+    component "Agent DB" as AgentDb
+    component "BPL cfg" as AgentBpl
+    component "STA WLAN HAL" as StaHal
+  }
+
+  rectangle "beerocks_fronthaul process\n(one per radio; no BPL)" {
+    component "AP Manager" as ApManager
+    component "AP WLAN HAL" as ApHal
+    component "Monitor" as Monitor
+    component "Monitor WLAN HAL" as MonitorHal
+  }
+
+  rectangle "beerocks_vendor_message process" {
+    component "Vendor-specific\nCMDU handler" as VendorMessage
+    component "BPL cfg" as VendorBpl
+  }
+
+  AgentTransport <--> Agent : broker UDS
+  AgentTransport <--> Backhaul : broker UDS
+  AgentTransport <--> VendorMessage : broker UDS
+  AgentTransport --> AgentTransportBpl : management mode
+  Agent --> AgentBpl : configuration
+  Agent --> AgentDb : shared agent state
+  Agent --> AirtiesVendor : vendor-specific\n1905 TLVs
+  AirtiesVendor --> AgentBpl : X_AIRTIES_Obj.CloudComm.\ncredentials; radio temperature
+  AirtiesVendor --> AgentDb : radio name, MAC,\noperating-standard flags
+  AgentNbapi -[#6A3D9A]-> Agent : actions
+  AgentDb -[#6A3D9A]-> AgentNbapi : Agent.Info state
+  AgentBpl -[#6A3D9A]-> AgentNbapi : owner-local cfg
+  Backhaul --> AgentBpl : configuration
+  Backhaul --> AgentDb : backhaul state
+  Backhaul --> StaHal : backhaul control
+  VendorMessage --> VendorBpl : Agent.Info MAC
+  Agent <-down-> ApManager : local UDS configuration/events\nincluding operating-standard flags
+  Agent <-down-> Monitor : local UDS\ntelemetry/control
+  ApManager --> ApHal : radio control and\ncapabilities
+  Monitor --> MonitorHal : telemetry
+}
+
+ControllerTransport <--> Ieee1905 : IEEE 1905 CMDUs
+Ieee1905 <--> AgentTransport : IEEE 1905 CMDUs
+
+ControllerBpl -[#1F78B4]-> CommonBus : common WBAPI reads
+ControllerTransportBpl -[#1F78B4]-> CommonBus : common WBAPI read
+AgentBpl -[#1F78B4]-> CommonBus : common WBAPI reads
+AgentTransportBpl -[#1F78B4]-> CommonBus : common WBAPI read
+VendorBpl -[#1F78B4]-> CommonBus : common WBAPI read
+VendorMessage -[#1F78B4]-> CommonBus : AirTies Device actions
+
+WifiManager -[#E67E22]-> Pwhm : direct USP\nevent subscriptions
+StaHal -[#E67E22]-> Pwhm : direct USP
+ApHal -[#E67E22]-> Pwhm : direct USP
+MonitorHal -[#E67E22]-> Pwhm : direct USP
+
+@enduml

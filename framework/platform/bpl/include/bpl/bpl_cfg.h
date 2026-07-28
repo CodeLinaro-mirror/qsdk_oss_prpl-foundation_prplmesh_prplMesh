@@ -14,11 +14,15 @@
 
 #include <bcl/son/son_wireless_utils.h>
 
+#include <memory>
 #include <net/if.h>
 #include <stdint.h>
 #include <string>
 
 namespace beerocks {
+namespace nbapi {
+class Ambiorix;
+}
 namespace bpl {
 
 /****************************************************************************/
@@ -114,6 +118,11 @@ inline std::ostream &operator<<(std::ostream &out, eClientsMeasurementMode value
 #define BPL_GW_DB_MANAGE_MODE_LEN (127 + 1) /* Maximal length of MANAGEMENT MODE string */
 
 /* Default values */
+constexpr char DEFAULT_AGENT_MAC[]                   = "00:00:00:00:00:00";
+constexpr char DEFAULT_AIRTIES_CLOUD_CLIENT_ID[]     = "";
+constexpr char DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET[] = "";
+constexpr uint8_t DEFAULT_WIFI_RADIO_TEMPERATURE     = 0;
+
 constexpr int DEFAULT_STOP_ON_FAILURE_ATTEMPTS            = 1;
 constexpr int DEFAULT_DFS_REENTRY                         = 1;
 constexpr int DEFAULT_BAND_STEERING                       = 0;
@@ -168,10 +177,6 @@ constexpr int DEFAULT_MULTI_AP_PROFILE = 2;
 
 // Link metrics tasks send request with this interval.
 constexpr std::chrono::seconds DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC{60};
-
-// Default Linux Lan interface names. It needs to be space separated.
-constexpr char DEFAULT_LINUX_LAN_INTERFACE_NAMES[] =
-    "eth0_1 eth0_2 eth0_3 eth0_4 lan0 lan1 lan2 lan3";
 
 // Default DHCP tasks process lease information with this interval.
 constexpr std::chrono::seconds DEFAULT_DHCP_MONITOR_INTERVAL_VALUE_SEC{300};
@@ -364,6 +369,15 @@ struct BPL_WLAN_IFACE {
 /****************************************************************************/
 
 /**
+ * @brief Register the process-local NBAPI data model used by BPL cfg.
+ *
+ * Supported on DM backend. Linux/UCI backends ignore the pointer.
+ *
+ * @param[in] dm NBAPI data model object.
+ */
+void set_nbapi_dm(const std::shared_ptr<nbapi::Ambiorix> &dm);
+
+/**
  * Returns whether the current platform is configured as Master.
  *
  * @return 1 Master.
@@ -398,6 +412,13 @@ int cfg_get_management_mode();
  * @returns <0 on error
  */
 int cfg_get_management_mode(std::string &mode);
+
+/**
+ * @param reference to set the current management mode str from Agent Info
+ *
+ * @returns RETURN_OK on success, RETURN_ERR on error
+ */
+int cfg_get_management_mode_agent_info(std::string &mode);
 
 /**
  * Returns certification mode value.
@@ -668,16 +689,14 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
 int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_params);
 
 /**
- * Returns backhaul vaps configuration.
+ * Returns the preferred radio band for wireless backhaul.
  *
- * @param [out] max_vaps an int.
- * @param [out] network_enabled 1 if network is enabled or 0 otherwise.
- * @param [out] preferred_radio_band BPL_RADIO_BAND_5G or BPL_RADIO_BAND_2G or BPL_RADIO_BAND_AUTO
+ * @param[out] preferred_radio_band One of the BPL_RADIO_BAND_* values when non-null.
  *
  * @return 0 Success.
  * @return -1 Error.
  */
-int cfg_get_backhaul_params(int *max_vaps, int *network_enabled, int *preferred_radio_band);
+int cfg_get_preferred_radio_band(int *preferred_radio_band);
 
 /**
  * Returns backhaul vaps list.
@@ -770,11 +789,6 @@ int cfg_get_administrator_credentials(char pass[BPL_USER_PASS_LEN]);
  * @return -1 Error, or no sta_iface is configured.
  */
 int cfg_get_sta_iface(const std::string &iface, std::string &sta_iface);
-
-/**
- * Clear credentials received during wps session
-*/
-void cfg_wifi_reset_wps_credentials();
 
 /**
  * Returns the HOSTAP interface for the specified radio id.
@@ -955,38 +969,12 @@ bool cfg_set_link_metrics_request_interval(std::chrono::seconds &link_metrics_re
 bool cfg_get_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy);
 
 /**
- * @brief Sets policy setting for report unsuccessful associations.
- *
- * @param [in] unsuccessful_assoc_report_policy Policy setting for report unsuccessful associations to set.
- * @return true on success, otherwise false
- */
-bool cfg_set_unsuccessful_assoc_report_policy(bool &unsuccessful_assoc_report_policy);
-
-/**
  * @brief Reads maximum rate for reporting unsuccessful association attempts.
  *
  * @param [out] max_reporting_rate Maximum reporting rate.value in attempts per minute.
  * @return true on success, otherwise false
  */
 bool cfg_get_unsuccessful_assoc_max_reporting_rate(unsigned int &max_reporting_rate);
-
-/**
- * @brief Sets maximum rate for reporting unsuccessful association attempts.
- *
- * @param [in] max_reporting_rate Maximum reporting rate.value in attempts per minute.
- * @return true on success, otherwise false
- */
-bool cfg_set_unsuccessful_assoc_max_reporting_rate(int &max_reporting_rate);
-
-/**
- * @brief Writes wireless network configuration for the given interface.
- *
- * @param [in] iface Interface name.
- * @param [in] configuration Wireless network configuration.
- * @return true on success and false otherwise.
- */
-bool bpl_cfg_set_wifi_credentials(const std::string &iface,
-                                  const son::wireless_utils::sBssInfoConf &configuration);
 
 /**
  * @brief Reads mandatory interfaces configuration.
@@ -1067,14 +1055,48 @@ bool cfg_set_steering_disassoc_timer_msec(std::chrono::milliseconds steering_dis
 bool cfg_get_clients_measurement_mode(eClientsMeasurementMode &clients_measurement_mode);
 
 /**
- * @brief Get radio's monitored BSSIDs by radio's interface.
+ * @brief Get radio's monitored VAP interface names by radio interface.
  *
  * @param [in] iface Radio interface name.
- * @param [out] monitored_BSSs Set of BSSIDs to monitor.
+ * @param [out] monitored_BSSs Set of VAP interface names to monitor.
  * @return true on success, otherwise false.
  */
 bool bpl_cfg_get_monitored_BSSs_by_radio_iface(const std::string &iface,
                                                std::set<std::string> &monitored_BSSs);
+
+/**
+ * @brief Get Agent AL-MAC address.
+ *
+ * The DM backend reads Agent Info. Linux/UCI backends return DEFAULT_AGENT_MAC.
+ *
+ * @param[out] agent_mac Agent MAC address string.
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_agent_mac(std::string &agent_mac);
+
+/**
+ * @brief Get AirTies cloud credentials.
+ *
+ * The DM backend reads CloudComm through the common WBAPI client. Linux/UCI backends return
+ * DEFAULT_AIRTIES_CLOUD_CLIENT_ID and DEFAULT_AIRTIES_CLOUD_CLIENT_SECRET.
+ *
+ * @param[out] client_id AirTies cloud client ID.
+ * @param[out] client_secret AirTies cloud client secret.
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &client_secret);
+
+/**
+ * @brief Get Wi-Fi radio temperature by interface name.
+ *
+ * The DM backend reads the radio DM. Linux/UCI backends return
+ * DEFAULT_WIFI_RADIO_TEMPERATURE.
+ *
+ * @param[in] iface_name Radio interface name.
+ * @param[out] radio_temperature Radio temperature in Celsius.
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature);
 
 /**
  * @brief Get a string identifying the particular device that is unique for the indicated model
@@ -1323,8 +1345,6 @@ bool get_controller_message_timeout_seconds(std::chrono::seconds &timeout_second
  * @return true on success, otherwise false
  */
 bool get_controller_heartbeat_state_timeout_seconds(std::chrono::seconds &timeout_seconds);
-
-bool cfg_get_clients_unicast_measurements(bool &client_unicast_measurements);
 
 /**
  * @brief Reads private bridge iface name

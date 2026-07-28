@@ -3335,24 +3335,21 @@ void BackhaulManager::handle_dev_reset_default(
         active_hal->disconnect();
     }
 
-    // Claer remaining MLD Settings
+    // Clear persistent radio state.
     for (auto &radio_info : m_radios_info) {
-        if (radio_info->sta_wlan_hal) {
-            LOG(INFO) << "Setting Invalid MLDUnit for EndPoint on Radio "
-                      << radio_info->hostap_iface;
-            radio_info->sta_wlan_hal->update_mld_unit(DISABLED_MLDUNIT);
+        if (!radio_info->sta_wlan_hal) {
+            continue;
         }
-    }
 
-    // clear all known WPS credentials from persistent memory
-    bpl::cfg_wifi_reset_wps_credentials();
+        LOG(INFO) << "Setting Invalid MLDUnit for EndPoint on Radio " << radio_info->hostap_iface;
+        radio_info->sta_wlan_hal->update_mld_unit(DISABLED_MLDUNIT);
 
-    // clear unassociated devices
-    for (auto &radio_info : m_radios_info) {
-        if (radio_info->sta_wlan_hal) {
-            LOG(TRACE) << "Clearing non associated devices for radio " << radio_info->hostap_iface;
-            radio_info->sta_wlan_hal->clear_non_associated_devices();
+        if (!radio_info->sta_wlan_hal->clear_persistent_profiles()) {
+            LOG(ERROR) << "Failed to clear persistent profiles for " << radio_info->hostap_iface;
         }
+
+        LOG(TRACE) << "Clearing non associated devices for radio " << radio_info->hostap_iface;
+        radio_info->sta_wlan_hal->clear_non_associated_devices();
     }
 
     for (const auto &radio : db->get_radios_list()) {

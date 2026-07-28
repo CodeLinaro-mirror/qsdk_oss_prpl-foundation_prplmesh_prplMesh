@@ -371,6 +371,7 @@ typedef struct sNodeHostap {
     uint8_t tx_power;
     beerocks::eFreqType frequency_band;
     beerocks::eWiFiBandwidth max_bandwidth;
+    char supported_standards[beerocks::message::WIFI_GENERIC_STRING_LENGTH];
     uint8_t ht_supported;
     uint8_t ht_capability;
     uint8_t ht_mcs_set[beerocks::message::HT_MCS_SET_SIZE];

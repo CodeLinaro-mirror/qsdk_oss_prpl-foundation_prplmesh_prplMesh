@@ -88,6 +88,7 @@ std::string PlatformManager::query_db(const std::string &parameter)
                   " is_gateway \n"
                   " is_onboarding \n";
         }
+        bpl::bpl_close();
     }
     return ret;
 }
