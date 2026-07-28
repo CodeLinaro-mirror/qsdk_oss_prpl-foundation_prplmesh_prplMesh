@@ -24,14 +24,34 @@
     - docker
   needs: ["image-build-builder/ubuntu/bionic"]
 
-.run-test-in-docker:
+# Configures, builds and runs a single unit test target (named after the
+# CI job) with gcov instrumentation, then generates a per-job coverage
+# report. This does its own build rather than reusing build-in-docker's
+# artifacts because gcc/CMake bake the *absolute* compile-time path into
+# the .gcno/.gcda files: a downstream job with a different checkout path
+# (a different runner/concurrency slot) would silently produce 0%
+# coverage, and CTest itself hardcodes the build job's absolute binary
+# path. Building and running in the same job/container sidesteps both.
+.run-test-in-docker-with-coverage:
   stage: test
   extends: .in-prplmesh-builder
+  variables:
+    CMAKE_BUILD_TYPE: "Release"
   script:
-    - cd build/install
-    - ./tests/${CI_JOB_NAME}
-  needs:
-    - job: build-in-docker
+    - cmake -DBUILD_TESTS=ON -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+      -H. -Bbuild -G Ninja
+    - ninja -C build $CI_JOB_NAME
+    - cd build && ctest -R "^$CI_JOB_NAME$" --output-on-failure && cd ..
+    - ./coverage.sh
+  coverage: '/^TOTAL.*\s+(\d+\%)$/'
+  artifacts:
+    when: always
+    paths:
+      - build/reports/coverage
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: build/reports/coverage/cobertura.xml
 
 .build-for-openwrt:
   stage: build
