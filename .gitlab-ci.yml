@@ -248,34 +248,7 @@ build-in-docker-static:
   rules:
     - !reference [.rules-for-expensive-job, rules]
 
-tlvf_test:
-  extends: .run-test-in-docker-with-coverage
-
-bwl_whm_unit_tests:
-  extends: .run-test-in-docker-with-coverage
-
-bcl_unit_tests:
-  extends: .run-test-in-docker-with-coverage
-
-mapf_common_encryption_tests:
-  extends: .run-test-in-docker-with-coverage
-
-ieee1905_transport_broker_tests:
-  extends: .run-test-in-docker-with-coverage
-
-beerocks_agent_unit_tests:
-  extends: .run-test-in-docker-with-coverage
-
-nbapi_unit_tests:
-  extends: .run-test-in-docker-with-coverage
-
-db_unit_tests:
-  extends: .run-test-in-docker-with-coverage
-
-higher_layer_collection_task_test:
-  extends: .run-test-in-docker-with-coverage
-
-ieee1905_task_test:
+unit-test-with-coverage:
   extends: .run-test-in-docker-with-coverage
 
 test-gw-repeater:
