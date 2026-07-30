@@ -39,8 +39,8 @@ bool TrafficSeparationTask::cleanup_ts_runtime_state()
         success = false;
     }
 
-    if (!ensure_transport_primary_vlan(0)) {
-        LOG(ERROR) << "ensure_transport_primary_vlan(0) failed";
+    if (!ensure_transport_primary_vlan(net::UNCONFIGURED_VLAN_ID)) {
+        LOG(ERROR) << "ensure_transport_primary_vlan(" << net::UNCONFIGURED_VLAN_ID << ") failed";
         success = false;
     }
 
@@ -227,7 +227,7 @@ bool TrafficSeparationTask::ensure_transport_primary_vlan(uint16_t primary_vid)
         return true;
     }
 
-    const bool add = (primary_vid != 0);
+    const bool add = (primary_vid != net::UNCONFIGURED_VLAN_ID);
     if (!m_btl_ctx.m_broker_client) {
         LOG(WARNING) << "broker_client is null, skip";
         return false;
@@ -268,7 +268,7 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
                    << net::MAX_VLAN_ID << "], got=" << primary_vid;
         return false;
     }
-    if (primary_vid == 0) {
+    if (primary_vid == net::UNCONFIGURED_VLAN_ID) {
         return true;
     }
 
@@ -307,14 +307,15 @@ bool TrafficSeparationTask::reconcile()
         auto db     = AgentDB::get();
         primary_vid = db->traffic_separation.primary_vlan_id;
     }
-    if (primary_vid == 0 || primary_vid > net::MAX_VLAN_ID) {
+    if (primary_vid == net::UNCONFIGURED_VLAN_ID || primary_vid > net::MAX_VLAN_ID) {
         if (!cleanup_ts_runtime_state()) {
             LOG(ERROR) << "cleanup_ts_runtime_state failed (invalid/disabled primary_vlan_id)";
             return false;
         }
 
-        if (primary_vid == 0) {
-            LOG(INFO) << "primary_vlan_id=0, TS is disabled, clearing";
+        if (primary_vid == net::UNCONFIGURED_VLAN_ID) {
+            LOG(INFO) << "primary_vlan_id=" << net::UNCONFIGURED_VLAN_ID
+                      << ", TS is disabled, clearing";
             return true;
         } else {
             LOG(ERROR) << "primary_vlan_id is out of range [" << net::MIN_VLAN_ID << "-"

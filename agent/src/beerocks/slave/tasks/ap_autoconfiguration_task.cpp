@@ -20,6 +20,7 @@
 #include <bcl/beerocks_utils.h>
 #include <bcl/beerocks_version.h>
 #include <bcl/beerocks_wifi_channel.h>
+#include <bcl/network/network_utils.h>
 #include <mapf/common/utils.h>
 
 #include <beerocks/tlvf/beerocks_message.h>
@@ -1793,7 +1794,7 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
 
     if (ts_policy_tlv_present && db->traffic_separation.ssid_vid_mapping.empty()) {
         // Explicit empty TS TLV means TS policy is disabled.
-        db->traffic_separation.primary_vlan_id = 0;
+        db->traffic_separation.primary_vlan_id = net::UNCONFIGURED_VLAN_ID;
         db->traffic_separation.default_pcp     = 0;
         db->traffic_separation.secondary_vlans_ids.clear();
     }
