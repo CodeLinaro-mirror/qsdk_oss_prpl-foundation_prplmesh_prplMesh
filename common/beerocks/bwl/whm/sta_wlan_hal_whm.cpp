@@ -566,7 +566,7 @@ bool sta_wlan_hal_whm::reassociate()
             if (endpoint.multi_ap_primary_vlanid) {
                 msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
             } else {
-                msg->multi_ap_primary_vlan_id = 0;
+                msg->multi_ap_primary_vlan_id = beerocks::net::UNCONFIGURED_VLAN_ID;
             }
             event_queue_push(Event::Connected, msg_buff);
             return true;
@@ -920,7 +920,7 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             if (endpoint.multi_ap_primary_vlanid) {
                 msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
             } else {
-                msg->multi_ap_primary_vlan_id = 0;
+                msg->multi_ap_primary_vlan_id = beerocks::net::UNCONFIGURED_VLAN_ID;
             }
             event_queue_push(Event::Connected, msg_buff);
         } else if (m_current_connection_status == eWpsConnectionStatus::eConnected) {

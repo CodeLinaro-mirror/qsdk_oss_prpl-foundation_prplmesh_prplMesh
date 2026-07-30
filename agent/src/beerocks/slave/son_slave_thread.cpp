@@ -2040,7 +2040,7 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
                 return false;
             }
 
-            pvid_set_request->primary_vlan_id() = 0;
+            pvid_set_request->primary_vlan_id() = net::UNCONFIGURED_VLAN_ID;
             // Send ACTION_APMANAGER_HOSTAP_SET_PRIMARY_VLAN_ID_REQUEST.
             send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
 

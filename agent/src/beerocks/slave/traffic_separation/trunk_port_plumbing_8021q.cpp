@@ -20,8 +20,9 @@ TrunkPortPlumbing8021q::TrunkPortPlumbing8021q(const sTrunkPort &trunk_port) : m
 
 bool TrunkPortPlumbing8021q::apply(const sTrafficSeparationConfig &cfg)
 {
-    if (cfg.private_bridge.empty() || cfg.guest_bridge.empty() || cfg.private_vid == 0 ||
-        cfg.guest_vid == 0 || cfg.private_vid > net::MAX_VLAN_ID ||
+    if (cfg.private_bridge.empty() || cfg.guest_bridge.empty() ||
+        cfg.private_vid == net::UNCONFIGURED_VLAN_ID ||
+        cfg.guest_vid == net::UNCONFIGURED_VLAN_ID || cfg.private_vid > net::MAX_VLAN_ID ||
         cfg.guest_vid > net::MAX_VLAN_ID) {
         LOG(ERROR) << "invalid config";
         return false;

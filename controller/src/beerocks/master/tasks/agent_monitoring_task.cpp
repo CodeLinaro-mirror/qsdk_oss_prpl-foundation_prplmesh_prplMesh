@@ -10,6 +10,7 @@
 #include "../db/db_algo.h"
 #include "../son_actions.h"
 
+#include <bcl/network/network_utils.h>
 #include <bpl/bpl_cfg.h>
 #include <easylogging++.h>
 #include <tlvf/ieee_1905_1/tlv1905NeighborDevice.h>
@@ -584,7 +585,8 @@ bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
 
     // In MAP default 802.1Q settings, VLAN ID 0 means "not configured".
     // Use configured PrivateVID as fallback only in custom TS mode.
-    if (tlv_default_8021q_settings->primary_vlan_id() == 0 && is_custom_ts_enabled) {
+    if (tlv_default_8021q_settings->primary_vlan_id() == net::UNCONFIGURED_VLAN_ID &&
+        is_custom_ts_enabled) {
         int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
         if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
             LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="

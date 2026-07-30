@@ -203,7 +203,7 @@ private:
     std::chrono::steady_clock::time_point m_next_run{std::chrono::steady_clock::time_point::min()};
     std::unordered_map<std::string, sPendingWdsIfaceState> m_pending_wds_ifaces;
 
-    uint16_t m_last_primary_vid = 0;
+    uint16_t m_last_primary_vid = net::UNCONFIGURED_VLAN_ID;
 
 private:
     static constexpr int WDS_RETRY_INTERVAL_MS = 200;
