@@ -1108,8 +1108,13 @@ bool ap_wlan_hal_whm::generate_connected_clients_events(
             m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(associated_devices_path);
 
         if (associated_devices_pwhm == nullptr) {
-            LOG(DEBUG) << "Failed reading: " << associated_devices_path;
-            return true;
+            // The AccessPoint instance may have been removed while its cached VAP entry is
+            // still present. Do not leave is_finished_all_clients unset: the AP manager would
+            // otherwise retry the complete operation indefinitely. Skip this stale VAP and
+            // continue generating events for the remaining VAPs.
+            LOG(WARNING) << "Failed reading associated devices for VAP " << vap.first << " at "
+                         << associated_devices_path;
+            continue;
         }
 
         auto vap_id = get_vap_id_with_bss(vap.first);
