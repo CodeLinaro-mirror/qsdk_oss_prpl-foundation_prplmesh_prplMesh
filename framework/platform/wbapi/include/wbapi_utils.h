@@ -130,6 +130,11 @@ public:
     static std::string search_path_ssid();
 
     /**
+     * @brief return search/resolve path of SSID instance objects.
+     */
+    static std::string search_path_ssid_inst();
+
+    /**
      * @brief return path of AccessPoint template object.
      */
     static std::string search_path_ap();

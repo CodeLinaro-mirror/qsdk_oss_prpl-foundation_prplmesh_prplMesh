@@ -110,8 +110,10 @@ protected:
     int whm_get_vap_id(const std::string &iface);
     bool whm_get_radio_ref(const std::string &iface, std::string &ref);
     bool whm_get_radio_path(const std::string &iface, std::string &path);
-    bool refresh_vap_info(int id, const beerocks::wbapi::AmbiorixVariant &ap_obj);
-    bool get_radio_vaps(beerocks::wbapi::AmbiorixVariantMap &aps);
+    bool refresh_vap_info(int id, const beerocks::wbapi::AmbiorixVariant &ap_obj,
+                          const beerocks::wbapi::AmbiorixVariant &ssid_obj);
+    bool get_radio_vaps(beerocks::wbapi::AmbiorixVariantMap &aps,
+                        beerocks::wbapi::AmbiorixVariantMap &ssids);
     bool get_accesspoint_by_ssid(std::string &ssid_path, std::string &ap_path);
     bool has_enabled_vap() const;
     bool check_enabled_vap(const std::string &bss) const;
@@ -252,7 +254,7 @@ private:
      * @return None
      */
     void populate_mlo_fields(VAPElement &vap_element,
-                             const std::unique_ptr<beerocks::wbapi::AmbiorixVariant> &ssid_obj,
+                             const beerocks::wbapi::AmbiorixVariant &ssid_obj,
                              const std::string &ifname);
 
 protected:
