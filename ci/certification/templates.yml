@@ -39,7 +39,6 @@
     RUN_ON_DEVICE: "urx_ospv2"
   before_script:
     - tools/deploy_firmware.py --device urx_ospv2 --target-name "$RUN_ON_DEVICE" --image "$URX_OSPV2_FULLIMAGE" --whm --configuration ci/configuration/certification/R4/urx_ospv2.sh
-    - tools/deploy_ipk.sh --certification-mode $RUN_ON_DEVICE build/$RUN_ON_DEVICE/prplmesh.ipk
     - echo "Setting no on-boot scan for prplMesh"
     - ssh urx_ospv2 'sed -ri "s/on_boot_scan=.*/on_boot_scan=0/g" /opt/prplmesh/config/beerocks_agent.conf'
     - echo "Setting no profile disallow for prplMesh"
@@ -50,7 +49,7 @@
     - job: build-for-ospv2
   tags:
     - certs-tests-R4
-    - ospv2-SMD
+    - ospv2-SMD-batch
 
 .certification:R4:mozart:
   stage: R4-cert-mozart

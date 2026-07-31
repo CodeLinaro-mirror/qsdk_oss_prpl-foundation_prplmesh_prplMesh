@@ -102,11 +102,11 @@ def main():
         print("The device is already using the same version, no upgrade will be done.")
 
     # Apply the configuration if there is one:
-    if args.configuration:
+    if needs_upgrade and args.configuration:
         print("A configuration file was provided, it will be applied.")
         configure_device(dev, Path(args.configuration))
 
-    if args.configuration:
+    if needs_upgrade and args.configuration:
         # If the device was configured, give it some time to initialize:
         print("Waiting for the device to initialize.")
         time.sleep(dev.configuration_initialization_time)
