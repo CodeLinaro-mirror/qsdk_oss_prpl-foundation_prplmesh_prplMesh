@@ -924,63 +924,77 @@ bool base_wlan_hal_whm::refresh_radio_info()
     return true;
 }
 
-bool base_wlan_hal_whm::get_radio_vaps(AmbiorixVariantMap &aps)
+bool base_wlan_hal_whm::get_radio_vaps(AmbiorixVariantMap &aps, AmbiorixVariantMap &ssids)
 {
     aps.clear();
+    ssids.clear();
 
-    auto result = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+    auto ap_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
         wbapi_utils::search_path_ap_inst());
 
-    if (!result) {
+    if (!ap_objects) {
         LOG(ERROR) << "could not get ap multi object for " << wbapi_utils::search_path_ap();
         return false;
     }
 
-    auto rad_index = wbapi_utils::get_object_id(m_radio_path);
-    std::string radio_path;
-    for (auto &it : *result) {
-        auto &ap = it.second;
+    auto ssid_objects = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
+        wbapi_utils::search_path_ssid_inst());
+    if (!ssid_objects) {
+        LOG(ERROR) << "could not get ssid multi object for " << wbapi_utils::search_path_ssid();
+        return false;
+    }
 
-        if (ap.empty()) {
-            LOG(ERROR) << "iteration on ap " << it.first << " empty AP object";
+    auto radio_index = wbapi_utils::get_object_id(m_radio_path);
+    std::string radio_path;
+    for (auto &it : *ap_objects) {
+        const std::string &ap_path = it.first;
+        auto &ap_obj               = it.second;
+
+        if (ap_obj.empty()) {
+            LOG(ERROR) << "iteration on ap " << ap_path << " empty AP object";
             continue;
         }
 
-        const auto ref = wbapi_utils::get_path_radio_reference(ap);
+        const auto ref = wbapi_utils::get_path_radio_reference(ap_obj);
         bool resolved  = m_ambiorix_cl.resolve_path(ref, radio_path);
 
         // Try #2 (only if first failed)
         if (!resolved) {
-            LOG(INFO) << "Radio resolve path re-attempt for ap " << it.first << " ref=" << ref;
+            LOG(INFO) << "Radio resolve path re-attempt for ap " << ap_path << " ref=" << ref;
             radio_path.clear(); // avoid stale values
             resolved = m_ambiorix_cl.resolve_path(ref, radio_path);
 
             if (!resolved) {
-                LOG(ERROR) << "ap " << it.first
+                LOG(ERROR) << "ap " << ap_path
                            << ": failed to resolve radio reference after 2 attempts ref=" << ref
                            << ", m_radio_path=" << m_radio_path;
                 continue;
             }
         }
 
-        auto vap_rad_index = wbapi_utils::get_object_id(radio_path);
+        auto vap_radio_index = wbapi_utils::get_object_id(radio_path);
 
-        if (rad_index != vap_rad_index) {
+        if (radio_index != vap_radio_index) {
             continue;
         }
-        auto ssid_obj = m_ambiorix_cl.get_object(wbapi_utils::get_path_ssid_reference(ap));
-        if (!ssid_obj) {
-            LOG(ERROR) << "problem with ssid reference for " << it.first;
-            continue;
+
+        const auto ssid_path = wbapi_utils::get_path_ssid_reference(ap_obj);
+        auto ssid_it         = ssid_objects->find(ssid_path);
+        if (ssid_path.empty() || ssid_it == ssid_objects->end()) {
+            LOG(ERROR) << "SSID snapshot does not contain reference " << ssid_path << " for "
+                       << ap_path;
+            return false;
         }
-        std::string mac_addr = wbapi_utils::get_ssid_mac(*ssid_obj);
+        std::string mac_addr = wbapi_utils::get_ssid_mac(ssid_it->second);
 
         if (mac_addr == "00:00:00:00:00:00" || mac_addr.empty()) {
             continue;
         }
         LOG(DEBUG) << "add " << it.first << " to list of APs, with MAC " << mac_addr;
-        aps.emplace(std::move(mac_addr), std::move(ap));
+        aps.emplace(std::move(mac_addr), std::move(ap_obj));
     }
+
+    ssids = std::move(*ssid_objects);
     return true;
 }
 
@@ -1083,7 +1097,11 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
     bool ret = false;
 
     AmbiorixVariantMap curr_vaps;
-    get_radio_vaps(curr_vaps);
+    AmbiorixVariantMap ssid_objects;
+    if (!get_radio_vaps(curr_vaps, ssid_objects)) {
+        LOG(ERROR) << "Failed to get a complete VAP snapshot, preserving cached VAP information";
+        return false;
+    }
 
     AmbiorixVariant empty_vap;
     bool detectNewVaps = false;
@@ -1103,11 +1121,17 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
         auto updatedVAP = curr_vaps.find(vap.mac);
         if (updatedVAP != curr_vaps.end()) {
             LOG(INFO) << "update vap mac " << updatedVAP->first << ", insert in " << vap_id;
-            ret |= refresh_vap_info(vap_id, updatedVAP->second);
+            const auto ssid_path = wbapi_utils::get_path_ssid_reference(updatedVAP->second);
+            auto ssid_it         = ssid_objects.find(ssid_path);
+            if (ssid_it == ssid_objects.end()) {
+                LOG(ERROR) << "SSID snapshot entry disappeared for " << ssid_path;
+                return;
+            }
+            ret |= refresh_vap_info(vap_id, updatedVAP->second, ssid_it->second);
             curr_vaps.erase(vap.mac);
         } else {
             LOG(INFO) << "reset vap_id " << vap_id;
-            ret |= refresh_vap_info(vap_id, empty_vap);
+            ret |= refresh_vap_info(vap_id, empty_vap, empty_vap);
             empty_slots.push_back(vap_id);
             // slot of vap_id was freed by refresh_vap_info(empty_vap);
         }
@@ -1147,7 +1171,13 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
         int slot = empty_slots.back();
         LOG(INFO) << "insert new_vap with mac " << curr_vaps.begin()->first << " in slot " << slot;
 
-        ret |= refresh_vap_info(slot, curr_vaps.begin()->second);
+        const auto ssid_path = wbapi_utils::get_path_ssid_reference(curr_vaps.begin()->second);
+        auto ssid_it         = ssid_objects.find(ssid_path);
+        if (ssid_it == ssid_objects.end()) {
+            LOG(ERROR) << "SSID snapshot entry disappeared for " << ssid_path;
+            return false;
+        }
+        ret |= refresh_vap_info(slot, curr_vaps.begin()->second, ssid_it->second);
         if ((saved_vaps.find(slot) != saved_vaps.end()) &&
             check_enabled_vap(saved_vaps[slot].bss)) {
             newEnabledVaps.push_back(saved_vaps[slot].bss);
@@ -1170,8 +1200,21 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
     return ret;
 }
 
-bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
+bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj,
+                                         const AmbiorixVariant &ssid_obj)
 {
+    // An empty AP object is used by refresh_vaps_info() only when a VAP is confirmed absent from
+    // a successfully obtained AP snapshot. This is the only condition that removes cached state.
+    if (ap_obj.empty()) {
+        auto vap_it = m_radio_info.available_vaps.find(id);
+        if (vap_it != m_radio_info.available_vaps.end()) {
+            LOG(WARNING) << "Removed VAP " << vap_it->second.bss << " id (" << id << ") ";
+            m_vapsExtInfo.erase(vap_it->second.bss);
+            m_radio_info.available_vaps.erase(vap_it);
+        }
+        return true;
+    }
+
     VAPElement vap_element;
     VAPExtInfo vap_extInfo;
 
@@ -1179,62 +1222,55 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
     auto ifname         = wbapi_utils::get_ap_iface(ap_obj);
 
     LOG(INFO) << "refresh_vap_info " << id << " path " << wifi_ssid_path;
-    if (!wifi_ssid_path.empty() && !ifname.empty() &&
-        !wbapi_utils::get_path_radio_reference(ap_obj).empty()) {
-        std::string mac;
-        auto ssid_obj = m_ambiorix_cl.get_object(wifi_ssid_path);
-        if (ssid_obj && ((mac = wbapi_utils::get_ssid_mac(*ssid_obj)) != "") &&
-            (mac != beerocks::net::network_utils::ZERO_MAC_STRING)) {
-            vap_element.bss = ifname;
-            vap_element.mac = mac;
-            ssid_obj->read_child(vap_element.ssid, "SSID");
-            // This is to be aligned with NL80211 backend implementation, if ACCESSPOINT is disabled, SSID shall be null
-            // in practice, setting SSID to null is not accepted by whm/hostapd.
-            bool ap_enabled(false);
-            ap_obj.read_child(ap_enabled, "Enable");
-            if (ap_enabled == false) {
-                vap_element.ssid.clear();
-            }
-            vap_element.fronthaul = false;
-            vap_element.backhaul  = false;
-            std::string multi_ap_type;
-            if (ap_obj.read_child(multi_ap_type, "MultiAPType")) {
-                if (multi_ap_type.find("FronthaulBSS") != std::string::npos) {
-                    vap_element.fronthaul = true;
-                }
-                if (multi_ap_type.find("BackhaulBSS") != std::string::npos) {
-                    vap_element.backhaul = true;
-                }
-            }
+    if (wifi_ssid_path.empty() || ifname.empty() ||
+        wbapi_utils::get_path_radio_reference(ap_obj).empty() || ssid_obj.empty()) {
+        LOG(ERROR) << "Incomplete AP/SSID snapshot for VAP id " << id
+                   << ", preserving cached VAP information";
+        return false;
+    }
 
-            m_ambiorix_cl.resolve_path(wbapi_utils::search_path_ap_by_iface(ifname),
-                                       vap_extInfo.path);
+    auto mac = wbapi_utils::get_ssid_mac(ssid_obj);
+    if (mac.empty() || mac == beerocks::net::network_utils::ZERO_MAC_STRING) {
+        LOG(ERROR) << "Invalid BSSID in SSID snapshot " << wifi_ssid_path << " for VAP id " << id
+                   << ", preserving cached VAP information";
+        return false;
+    }
 
-            // Reading CustomAlias and deducing VAP type
-            const std::string custom_alias = wbapi_utils::get_custom_alias(ap_obj);
-            vap_element.vap_type           = wbapi_utils::vap_type_from_custom_alias(custom_alias);
-            vap_element.vap_label          = custom_alias;
-            LOG(DEBUG) << "base_wlan_hal_whm::refresh_vap_info: vap_type = "
-                       << eVapType_str(vap_element.vap_type)
-                       << " vap_label=" << vap_element.vap_label
-                       << " for SSID=" << vap_element.ssid;
-
-            m_ambiorix_cl.resolve_path(wifi_ssid_path, vap_extInfo.ssid_path);
-            vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
-            LOG(INFO) << "status for " << ifname << " " << vap_extInfo.status;
+    vap_element.bss = ifname;
+    vap_element.mac = mac;
+    ssid_obj.read_child(vap_element.ssid, "SSID");
+    // This is to be aligned with NL80211 backend implementation: if the AccessPoint is disabled,
+    // the SSID is considered empty. In practice, WHM/hostapd does not accept setting a null SSID.
+    bool ap_enabled(false);
+    ap_obj.read_child(ap_enabled, "Enable");
+    if (!ap_enabled) {
+        vap_element.ssid.clear();
+    }
+    vap_element.fronthaul = false;
+    vap_element.backhaul  = false;
+    std::string multi_ap_type;
+    if (ap_obj.read_child(multi_ap_type, "MultiAPType")) {
+        if (multi_ap_type.find("FronthaulBSS") != std::string::npos) {
+            vap_element.fronthaul = true;
+        }
+        if (multi_ap_type.find("BackhaulBSS") != std::string::npos) {
+            vap_element.backhaul = true;
         }
     }
 
-    // VAP does not exists
-    if (vap_element.mac.empty()) {
-        if (m_radio_info.available_vaps.find(id) != m_radio_info.available_vaps.end()) {
-            LOG(WARNING) << "Removed VAP " << m_radio_info.available_vaps[id].bss << " id (" << id
-                         << ") ";
-            m_vapsExtInfo.erase(m_radio_info.available_vaps[id].bss);
-            m_radio_info.available_vaps.erase(id);
-        }
-        return true;
-    }
+    m_ambiorix_cl.resolve_path(wbapi_utils::search_path_ap_by_iface(ifname), vap_extInfo.path);
+
+    // Reading CustomAlias and deducing VAP type
+    const std::string custom_alias = wbapi_utils::get_custom_alias(ap_obj);
+    vap_element.vap_type           = wbapi_utils::vap_type_from_custom_alias(custom_alias);
+    vap_element.vap_label          = custom_alias;
+    LOG(DEBUG) << "base_wlan_hal_whm::refresh_vap_info: vap_type = "
+               << eVapType_str(vap_element.vap_type) << " vap_label=" << vap_element.vap_label
+               << " for SSID=" << vap_element.ssid;
+
+    m_ambiorix_cl.resolve_path(wifi_ssid_path, vap_extInfo.ssid_path);
+    vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
+    LOG(INFO) << "status for " << ifname << " " << vap_extInfo.status;
 
     // Store the VAP element
     LOG(WARNING) << "Detected VAP id (" << id << ") - MAC: " << vap_element.mac
@@ -1284,7 +1320,8 @@ int base_wlan_hal_whm::whm_get_vap_id(const std::string &iface)
 {
     LOG(INFO) << "whm_get_vap_id " << iface;
     AmbiorixVariantMap aps;
-    if (get_radio_vaps(aps) && !aps.empty()) {
+    AmbiorixVariantMap ssids;
+    if (get_radio_vaps(aps, ssids) && !aps.empty()) {
         int vap_id = beerocks::IFACE_VAP_ID_MIN;
         for (const auto &ap : aps) {
             if (wbapi_utils::get_ap_iface(ap.second) == iface) {

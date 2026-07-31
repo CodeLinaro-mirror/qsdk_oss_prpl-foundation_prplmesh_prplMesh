@@ -205,6 +205,8 @@ std::string wbapi_utils::search_path_radio() { return search_path_wifi() + "Radi
 
 std::string wbapi_utils::search_path_ssid() { return search_path_wifi() + "SSID."; }
 
+std::string wbapi_utils::search_path_ssid_inst() { return search_path_ssid() + "*."; }
+
 std::string wbapi_utils::search_path_ap() { return search_path_wifi() + "AccessPoint."; }
 
 std::string wbapi_utils::search_path_ap_inst() { return search_path_wifi() + "AccessPoint.*."; }
