@@ -732,6 +732,8 @@ public:
 
         sMLDConfiguration mld_config;
         std::vector<sAffiliatedSta> affiliated_stas;
+        sMacAddr primary_bssid = beerocks::net::network_utils::ZERO_MAC;
+        std::string wds_iface_name;
         std::chrono::steady_clock::time_point association_time = std::chrono::steady_clock::now();
     } sAssociatedStaMld;
 
@@ -747,9 +749,10 @@ public:
      *   - affiliated_stas: Vector of affiliated STA links, each containing:
      *     - bssid: BSSID of the affiliated link
      *     - mac: MAC address of the affiliated STA
+     *   - primary_bssid and wds_iface_name: parent AssociatedDevice WDS state
      *
      * This map stores information about MLO clients that are associated with the AP,
-     * including their MLD configuration and all affiliated STA links.
+     * including their MLD configuration, affiliated STA links, and primary WDS state.
      */
     std::unordered_map<sMacAddr, sAssociatedStaMld> associated_sta_mlds;
 

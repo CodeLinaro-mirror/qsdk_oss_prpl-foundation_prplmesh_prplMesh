@@ -97,6 +97,7 @@ constexpr int MONITOR_HEARTBEAT_RETRIES                               = 10;
 constexpr int AP_MANAGER_HEARTBEAT_TIMEOUT_SEC                        = 10;
 constexpr int AP_MANAGER_HEARTBEAT_RETRIES                            = 10;
 constexpr std::chrono::seconds WAIT_FOR_FRONTHAUL_JOINED_TIMEOUT_SEC  = std::chrono::seconds(60);
+constexpr std::chrono::milliseconds MLO_WDS_DISCONNECT_GRACE_PERIOD{500};
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Functions ///////////////////////////
@@ -2569,22 +2570,53 @@ bool slave_thread::process_client_association(
             mld_info.affiliated_stas.push_back(affiliated_entry);
         }
 
+        // A station can be rediscovered as MLO after a legacy association was
+        // already stored. Remove that obsolete representation and its WDS state.
+        for (auto *existing_radio : db->get_radios_list()) {
+            if (!existing_radio) {
+                continue;
+            }
+
+            auto client_it = existing_radio->associated_clients.find(client_mac);
+            if (client_it == existing_radio->associated_clients.end()) {
+                continue;
+            }
+
+            if (!client_it->second.wds_iface_name.empty()) {
+                notify_clear_wds_iface(client_it->second.wds_iface_name);
+            }
+            existing_radio->associated_clients.erase(client_it);
+        }
+
+        auto existing_mld_it = db->associated_sta_mlds.find(client_mac);
+        if (existing_mld_it != db->associated_sta_mlds.end()) {
+            // Restart the parent WDS lifecycle on a complete-station association.
+            clear_mlo_client_wds_iface(existing_mld_it->second, client_mac,
+                                       existing_mld_it->second.primary_bssid);
+        }
+
         if (!mld_info.affiliated_stas.empty()) {
             LOG(INFO) << "Storing MLO client in associated_sta_mlds: STA MLD=" << client_mac
                       << ", AP MLD=" << bssid
                       << ", affiliated_stas count=" << mld_info.affiliated_stas.size();
-            db->associated_sta_mlds[client_mac] = std::move(mld_info);
-            LOG(INFO) << "MLO client stored successfully (total in map: "
-                      << db->associated_sta_mlds.size() << ")";
-            return true;
         } else {
             LOG(WARNING) << "MLO client has no affiliated STAs, storing anyway STA MLD="
                          << client_mac << ", AP MLD=" << bssid;
-            db->associated_sta_mlds[client_mac] = std::move(mld_info);
-            LOG(INFO) << "MLO client stored successfully (total in map: "
-                      << db->associated_sta_mlds.size() << ")";
-            return true;
         }
+
+        db->associated_sta_mlds[client_mac] = std::move(mld_info);
+
+        auto pending_wds_it = m_pending_wds_iface_notifications.find(client_mac);
+        if (pending_wds_it != m_pending_wds_iface_notifications.end()) {
+            set_mlo_client_wds_iface(db->associated_sta_mlds.at(client_mac), client_mac,
+                                     pending_wds_it->second.bssid,
+                                     pending_wds_it->second.iface_name);
+            m_pending_wds_iface_notifications.erase(pending_wds_it);
+        }
+
+        LOG(INFO) << "MLO client stored successfully (total in map: "
+                  << db->associated_sta_mlds.size() << ")";
+        return true;
     } else {
         // Handle legacy (non-MLO) client
 
@@ -2612,6 +2644,12 @@ bool slave_thread::process_client_association(
             task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
                                      ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
                                      existing_client.wds_iface_name.c_str());
+        }
+
+        auto existing_mld_it = db->associated_sta_mlds.find(client_mac);
+        if (existing_mld_it != db->associated_sta_mlds.end()) {
+            clear_mlo_client_wds_iface(existing_mld_it->second, client_mac,
+                                       existing_mld_it->second.primary_bssid);
         }
 
         // Erase client details to clear any previous association information.
@@ -2735,6 +2773,88 @@ bool slave_thread::set_client_wds_iface(AgentDB::sRadio &radio, const sMacAddr &
     return true;
 }
 
+void slave_thread::notify_new_wds_iface(const std::string &wds_iface_name)
+{
+    task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                             TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                             wds_iface_name.c_str());
+    task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                             ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
+                             wds_iface_name.c_str());
+}
+
+void slave_thread::notify_clear_wds_iface(const std::string &wds_iface_name)
+{
+    task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                             TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                             wds_iface_name.c_str());
+    task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
+                             ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                             wds_iface_name.c_str());
+}
+
+void slave_thread::clear_mlo_client_wds_iface(AgentDB::sAssociatedStaMld &mld_info,
+                                              const sMacAddr &sta_mld_mac,
+                                              const sMacAddr &primary_bssid)
+{
+    if (mld_info.primary_bssid != primary_bssid) {
+        LOG(DEBUG) << "Ignoring stale cleared MLO WDS iface notification for " << sta_mld_mac
+                   << ", bssid=" << primary_bssid
+                   << ", db_primary_bssid=" << mld_info.primary_bssid;
+        return;
+    }
+
+    if (mld_info.wds_iface_name.empty()) {
+        return;
+    }
+
+    notify_clear_wds_iface(mld_info.wds_iface_name);
+    mld_info.primary_bssid = network_utils::ZERO_MAC;
+    mld_info.wds_iface_name.clear();
+}
+
+void slave_thread::set_mlo_client_wds_iface(AgentDB::sAssociatedStaMld &mld_info,
+                                            const sMacAddr &sta_mld_mac,
+                                            const sMacAddr &primary_bssid,
+                                            const std::string &wds_iface_name)
+{
+    if (primary_bssid == network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Ignoring MLO WDS iface notification with zero primary BSSID for "
+                     << sta_mld_mac;
+        return;
+    }
+
+    if (mld_info.primary_bssid == primary_bssid && mld_info.wds_iface_name == wds_iface_name) {
+        return;
+    }
+
+    clear_mlo_client_wds_iface(mld_info, sta_mld_mac, mld_info.primary_bssid);
+
+    mld_info.primary_bssid  = primary_bssid;
+    mld_info.wds_iface_name = wds_iface_name;
+    notify_new_wds_iface(mld_info.wds_iface_name);
+}
+
+void slave_thread::update_mlo_wds_ifaces(const sMacAddr &bssid, const std::string &source,
+                                         bool retrigger)
+{
+    auto db = AgentDB::get();
+    for (const auto &mld_kv : db->associated_sta_mlds) {
+        const auto &mld_info = mld_kv.second;
+        if (mld_info.primary_bssid != bssid || mld_info.wds_iface_name.empty()) {
+            continue;
+        }
+
+        LOG(DEBUG) << "Trigger traffic separation on " << source
+                   << (retrigger ? " disallow change" : "")
+                   << " for MLO WDS iface=" << mld_info.wds_iface_name << ", bssid=" << bssid;
+        notify_clear_wds_iface(mld_info.wds_iface_name);
+        if (retrigger) {
+            notify_new_wds_iface(mld_info.wds_iface_name);
+        }
+    }
+}
+
 bool slave_thread::handle_client_wds_iface_notification(
     const std::shared_ptr<beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>
         notification_in)
@@ -2751,10 +2871,24 @@ bool slave_thread::handle_client_wds_iface_notification(
     const std::string wds_iface_name = notification_in->wds_iface_name_str();
 
     if (wds_iface_name.empty()) {
+        auto mld_it = db->associated_sta_mlds.find(client_mac);
+        if (mld_it != db->associated_sta_mlds.end() &&
+            m_pending_mlo_disconnections.find(client_mac) != m_pending_mlo_disconnections.end() &&
+            mld_it->second.primary_bssid == bssid) {
+            LOG(DEBUG) << "Deferring cleared MLO WDS iface notification for " << client_mac
+                       << ", bssid=" << bssid << " until parent disconnect is validated";
+            return true;
+        }
+
         auto pending_wds_it = m_pending_wds_iface_notifications.find(client_mac);
         if (pending_wds_it != m_pending_wds_iface_notifications.end() &&
             pending_wds_it->second.bssid == bssid) {
             m_pending_wds_iface_notifications.erase(pending_wds_it);
+        }
+
+        if (mld_it != db->associated_sta_mlds.end()) {
+            clear_mlo_client_wds_iface(mld_it->second, client_mac, bssid);
+            return true;
         }
 
         auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
@@ -2799,6 +2933,12 @@ bool slave_thread::handle_client_wds_iface_notification(
         return true;
     }
 
+    auto mld_it = db->associated_sta_mlds.find(client_mac);
+    if (mld_it != db->associated_sta_mlds.end()) {
+        set_mlo_client_wds_iface(mld_it->second, client_mac, bssid, wds_iface_name);
+        return true;
+    }
+
     auto client_it = radio->associated_clients.find(client_mac);
     if (client_it == radio->associated_clients.end()) {
         LOG(DEBUG) << "Caching WDS iface notification for " << client_mac
@@ -2809,6 +2949,188 @@ bool slave_thread::handle_client_wds_iface_notification(
     }
 
     return set_client_wds_iface(*radio, client_mac, bssid, wds_iface_name);
+}
+
+bool slave_thread::defer_mlo_client_disconnection(const sClientDisconnection &notification,
+                                                  const std::string &fronthaul_iface)
+{
+    auto db           = AgentDB::get();
+    const auto mld_it = db->associated_sta_mlds.find(notification.mac);
+    if (mld_it == db->associated_sta_mlds.end() || mld_it->second.wds_iface_name.empty()) {
+        return false;
+    }
+
+    auto pending_it = m_pending_mlo_disconnections.find(notification.mac);
+    if (pending_it != m_pending_mlo_disconnections.end()) {
+        pending_it->second.notification    = notification;
+        pending_it->second.fronthaul_iface = fronthaul_iface;
+        return true;
+    }
+
+    const auto client_mac = notification.mac;
+    const auto timer_fd   = m_timer_manager->add_timer(
+        "MLO WDS Disconnect Validation", MLO_WDS_DISCONNECT_GRACE_PERIOD,
+        std::chrono::milliseconds::zero(), [this, client_mac](int timer_fd, EventLoop &) {
+            auto pending_it = m_pending_mlo_disconnections.find(client_mac);
+            if (pending_it == m_pending_mlo_disconnections.end()) {
+                LOG(ERROR) << "Pending MLO disconnect not found for " << client_mac;
+                return true;
+            }
+
+            const auto pending = std::move(pending_it->second);
+            m_pending_mlo_disconnections.erase(pending_it);
+            if (!m_timer_manager->remove_timer(timer_fd)) {
+                LOG(ERROR) << "Failed removing MLO disconnect validation timer for " << client_mac;
+            }
+
+            auto db           = AgentDB::get();
+            const auto mld_it = db->associated_sta_mlds.find(client_mac);
+            if (mld_it != db->associated_sta_mlds.end() && !mld_it->second.wds_iface_name.empty() &&
+                network_utils::linux_iface_is_up_and_running(mld_it->second.wds_iface_name)) {
+                LOG(INFO) << "Ignoring transient MLO parent disconnect for " << client_mac
+                          << ", primary WDS iface remains active: "
+                          << mld_it->second.wds_iface_name;
+                return true;
+            }
+
+            if (!process_client_disconnection(pending.notification, pending.fronthaul_iface)) {
+                LOG(ERROR) << "Failed processing validated MLO client disconnect for "
+                           << client_mac;
+            }
+            return true;
+        });
+
+    if (timer_fd == net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "Failed creating MLO disconnect validation timer for " << client_mac;
+        return false;
+    }
+
+    m_pending_mlo_disconnections.emplace(
+        client_mac, sPendingMloDisconnection{notification, fronthaul_iface, timer_fd});
+    LOG(DEBUG) << "Deferring MLO parent disconnect for " << client_mac
+               << " while validating primary WDS iface " << mld_it->second.wds_iface_name;
+    return true;
+}
+
+bool slave_thread::process_client_disconnection(const sClientDisconnection &notification,
+                                                const std::string &fronthaul_iface)
+{
+    const auto &client_mac = notification.mac;
+    auto bssid             = notification.bssid;
+
+    // If exists, remove client association information for disconnected client.
+    auto db    = AgentDB::get();
+    auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+    if (radio) {
+        auto client_it = radio->associated_clients.find(client_mac);
+        if (client_it != radio->associated_clients.end() && client_it->second.bssid == bssid &&
+            !client_it->second.wds_iface_name.empty()) {
+            notify_clear_wds_iface(client_it->second.wds_iface_name);
+        }
+    }
+
+    // Find if STA is MLD, if so update BSSID as AP MLD MAC.
+    auto mld_it         = db->associated_sta_mlds.find(client_mac);
+    auto pending_wds_it = m_pending_wds_iface_notifications.find(client_mac);
+    if (pending_wds_it != m_pending_wds_iface_notifications.end() &&
+        (mld_it != db->associated_sta_mlds.end() || pending_wds_it->second.bssid == bssid)) {
+        m_pending_wds_iface_notifications.erase(pending_wds_it);
+    }
+
+    if (mld_it != db->associated_sta_mlds.end()) {
+        LOG(DEBUG) << "Removing MLO client from associated_sta_mlds: STA MLD=" << client_mac
+                   << ", AP MLD=" << mld_it->second.mld_config.ap_mld_mac;
+
+        clear_mlo_client_wds_iface(mld_it->second, client_mac, mld_it->second.primary_bssid);
+
+        bssid = mld_it->second.mld_config.ap_mld_mac;
+
+        db->erase_client(client_mac);
+    } else {
+        db->erase_client(client_mac, bssid);
+    }
+
+    // Notify controller.
+    if (!link_to_controller()) {
+        LOG(DEBUG) << "Controller is not connected";
+        return true;
+    }
+
+    // Build 1905.1 message CMDU to send to the controller.
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type TOPOLOGY_NOTIFICATION_MESSAGE, has failed";
+        return false;
+    }
+
+    auto tlv_al_mac_address = cmdu_tx.addClass<ieee1905_1::tlvAlMacAddress>();
+    if (!tlv_al_mac_address) {
+        LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
+        return false;
+    }
+    tlv_al_mac_address->mac() = db->bridge.mac;
+
+    auto client_association_event_tlv = cmdu_tx.addClass<wfa_map::tlvClientAssociationEvent>();
+    if (!client_association_event_tlv) {
+        LOG(ERROR) << "addClass tlvClientAssociationEvent failed";
+        return false;
+    }
+    client_association_event_tlv->client_mac() = client_mac;
+    client_association_event_tlv->bssid()      = bssid;
+    client_association_event_tlv->association_event() =
+        wfa_map::tlvClientAssociationEvent::CLIENT_HAS_LEFT_THE_BSS;
+
+    if (!db->controller_info.prplmesh_controller) {
+        LOG(DEBUG) << "non-prplMesh, not adding ClientAssociationEvent VS TLV";
+    } else {
+        auto vs_tlv =
+            message_com::add_vs_tlv<beerocks_message::tlvVsClientAssociationEvent>(cmdu_tx);
+        if (!vs_tlv) {
+            LOG(ERROR) << "add_vs_tlv tlvVsClientAssociationEvent failed";
+            return false;
+        }
+
+        vs_tlv->mac()               = notification.mac;
+        vs_tlv->bssid()             = notification.bssid;
+        vs_tlv->vap_id()            = notification.vap_id;
+        vs_tlv->disconnect_reason() = notification.reason;
+        vs_tlv->disconnect_source() = notification.source;
+        vs_tlv->disconnect_type()   = notification.type;
+    }
+
+    send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
+
+    // Profile-2 Client Disassociation Stats.
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CLIENT_DISASSOCIATION_STATS_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type CLIENT_DISASSOCIATION_STATS_MESSAGE, has failed";
+        return false;
+    }
+
+    auto sta_mac_address_tlv = cmdu_tx.addClass<wfa_map::tlvStaMacAddressType>();
+    if (!sta_mac_address_tlv) {
+        LOG(ERROR) << "addClass sta_mac_address_tlv failed";
+        return false;
+    }
+    sta_mac_address_tlv->sta_mac() = notification.mac;
+
+    auto reason_code_tlv = cmdu_tx.addClass<wfa_map::tlvProfile2ReasonCode>();
+    if (!reason_code_tlv) {
+        LOG(ERROR) << "addClass reason_code_tlv failed";
+        return false;
+    }
+    reason_code_tlv->reason_code() =
+        static_cast<wfa_map::tlvProfile2ReasonCode::eReasonCode>(notification.reason);
+
+    // TEMPORARY: add empty statistics.
+    auto associated_sta_traffic_stats_tlv =
+        cmdu_tx.addClass<wfa_map::tlvAssociatedStaTrafficStats>();
+    if (!associated_sta_traffic_stats_tlv) {
+        LOG(ERROR) << "addClass associated_sta_traffic_stats_tlv failed";
+        return false;
+    }
+    associated_sta_traffic_stats_tlv->sta_mac() = notification.mac;
+
+    send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
+    return true;
 }
 
 bool slave_thread::affiliated_link_change_missing_client(const sMacAddr &sta_mld_mac,
@@ -3241,6 +3563,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                             ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
                             client.wds_iface_name.c_str());
                     }
+                    update_mlo_wds_ifaces(bss_mac, "AP_DISABLED");
                 }
                 if (bss.fronthaul_bss && !bss.backhaul_bss && !bss.iface_name.empty()) {
                     LOG(DEBUG) << "Trigger traffic separation on AP_DISABLED for "
@@ -3428,134 +3751,16 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
-        auto &client_mac = notification_in->params().mac;
-        auto &bssid      = notification_in->params().bssid;
-        LOG(INFO) << "client disconnected sta_mac=" << client_mac << " from bssid=" << bssid;
+        const auto &notification = notification_in->params();
+        LOG(INFO) << "client disconnected sta_mac=" << notification.mac
+                  << " from bssid=" << notification.bssid;
 
-        // If exists, remove client association information for disconnected client.
-        auto db    = AgentDB::get();
-        auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
-        if (radio) {
-            auto client_it = radio->associated_clients.find(client_mac);
-            if (client_it != radio->associated_clients.end() && client_it->second.bssid == bssid &&
-                !client_it->second.wds_iface_name.empty()) {
-                const auto &wds_iface_name = client_it->second.wds_iface_name;
-                task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
-                                         TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
-                                         wds_iface_name.c_str());
-                task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
-                                         ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
-                                         wds_iface_name.c_str());
-            }
+        if (defer_mlo_client_disconnection(notification, fronthaul_iface)) {
+            break;
         }
-        auto pending_wds_it = m_pending_wds_iface_notifications.find(client_mac);
-        if (pending_wds_it != m_pending_wds_iface_notifications.end() &&
-            pending_wds_it->second.bssid == bssid) {
-            m_pending_wds_iface_notifications.erase(pending_wds_it);
-        }
-
-        // Find if STA is MLD, if so update BSSID as AP MLD MAC
-        auto mld_it = db->associated_sta_mlds.find(client_mac);
-        if (mld_it != db->associated_sta_mlds.end()) {
-            LOG(DEBUG) << "Removing MLO client from associated_sta_mlds: STA MLD=" << client_mac
-                       << ", AP MLD=" << mld_it->second.mld_config.ap_mld_mac;
-
-            bssid = mld_it->second.mld_config.ap_mld_mac;
-
-            db->erase_client(client_mac);
-            mld_it = db->associated_sta_mlds.end();
-        } else {
-            db->erase_client(client_mac, bssid);
-        }
-
-        // notify master
-        if (!link_to_controller()) {
-            LOG(DEBUG) << "Controller is not connected";
-            return true;
-        }
-
-        // build 1905.1 message CMDU to send to the controller
-        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE)) {
-            LOG(ERROR) << "cmdu creation of type TOPOLOGY_NOTIFICATION_MESSAGE, has failed";
+        if (!process_client_disconnection(notification, fronthaul_iface)) {
             return false;
         }
-
-        auto tlvAlMacAddress = cmdu_tx.addClass<ieee1905_1::tlvAlMacAddress>();
-        if (!tlvAlMacAddress) {
-            LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
-            return false;
-        }
-        tlvAlMacAddress->mac() = db->bridge.mac;
-
-        auto client_association_event_tlv = cmdu_tx.addClass<wfa_map::tlvClientAssociationEvent>();
-        if (!client_association_event_tlv) {
-            LOG(ERROR) << "addClass tlvClientAssociationEvent failed";
-            return false;
-        }
-        client_association_event_tlv->client_mac() = client_mac;
-        client_association_event_tlv->bssid()      = bssid;
-        client_association_event_tlv->association_event() =
-            wfa_map::tlvClientAssociationEvent::CLIENT_HAS_LEFT_THE_BSS;
-
-        if (!db->controller_info.prplmesh_controller) {
-            LOG(DEBUG) << "non-prplMesh, not adding ClientAssociationEvent VS TLV";
-        } else {
-            // Add vendor specific tlv
-            auto vs_tlv =
-                message_com::add_vs_tlv<beerocks_message::tlvVsClientAssociationEvent>(cmdu_tx);
-
-            if (!vs_tlv) {
-                LOG(ERROR) << "add_vs_tlv tlvVsClientAssociationEvent failed";
-                return false;
-            }
-
-            vs_tlv->mac()               = notification_in->params().mac;
-            vs_tlv->bssid()             = notification_in->params().bssid;
-            vs_tlv->vap_id()            = notification_in->params().vap_id;
-            vs_tlv->disconnect_reason() = notification_in->params().reason;
-            vs_tlv->disconnect_source() = notification_in->params().source;
-            vs_tlv->disconnect_type()   = notification_in->params().type;
-        }
-
-        send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
-
-        // profile-2
-
-        // build 1905.1 0x8022 Client Disassociation Stats
-        // message CMDU to send to the controller
-        if (!cmdu_tx.create(0, ieee1905_1::eMessageType::CLIENT_DISASSOCIATION_STATS_MESSAGE)) {
-            LOG(ERROR) << "cmdu creation of type CLIENT_DISASSOCIATION_STATS_MESSAGE, has failed";
-            return false;
-        }
-
-        // 17.2.23 STA MAC Address Type
-        auto sta_mac_address_tlv = cmdu_tx.addClass<wfa_map::tlvStaMacAddressType>();
-        if (!sta_mac_address_tlv) {
-            LOG(ERROR) << "addClass sta_mac_address_tlv failed";
-            return false;
-        }
-        sta_mac_address_tlv->sta_mac() = notification_in->params().mac;
-
-        // 17.2.64 Reason Code
-        auto reason_code_tlv = cmdu_tx.addClass<wfa_map::tlvProfile2ReasonCode>();
-        if (!reason_code_tlv) {
-            LOG(ERROR) << "addClass reason_code_tlv failed";
-            return false;
-        }
-        reason_code_tlv->reason_code() = static_cast<wfa_map::tlvProfile2ReasonCode::eReasonCode>(
-            notification_in->params().reason);
-
-        // 17.2.35 Associated STA Traffic Stats
-        // TEMPORARY: adding empty statistics
-        auto associated_sta_traffic_stats_tlv =
-            cmdu_tx.addClass<wfa_map::tlvAssociatedStaTrafficStats>();
-        if (!associated_sta_traffic_stats_tlv) {
-            LOG(ERROR) << "addClass associated_sta_traffic_stats_tlv failed";
-            return false;
-        }
-        associated_sta_traffic_stats_tlv->sta_mac() = notification_in->params().mac;
-
-        send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
 
         break;
     }
@@ -3788,10 +3993,41 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         // Save information AgentDB
         auto db = AgentDB::get();
 
+        const auto mld_it = db->associated_sta_mlds.find(client_mac);
+        if (mld_it != db->associated_sta_mlds.end()) {
+            const auto &mld_info = mld_it->second;
+            // WHM can briefly report the active MLO parent without APMLDMacAddress.
+            const bool same_parent = notification_in->is_mlo()
+                                         ? bssid == mld_info.mld_config.ap_mld_mac
+                                         : bssid == mld_info.primary_bssid;
+            if (same_parent && !mld_info.wds_iface_name.empty() &&
+                network_utils::linux_iface_is_up_and_running(mld_info.wds_iface_name)) {
+                LOG(INFO) << "Ignoring duplicate parent connection for active MLO client "
+                          << client_mac << ", reported bssid=" << bssid
+                          << ", is_mlo=" << notification_in->is_mlo();
+                break;
+            }
+        }
+
+        auto pending_disconnect_it = m_pending_mlo_disconnections.find(client_mac);
+        if (pending_disconnect_it != m_pending_mlo_disconnections.end()) {
+            if (!m_timer_manager->remove_timer(pending_disconnect_it->second.validation_timer_fd)) {
+                LOG(ERROR) << "Failed removing stale MLO disconnect validation timer for "
+                           << client_mac;
+            }
+            m_pending_mlo_disconnections.erase(pending_disconnect_it);
+        }
+
         // Set client association information for associated client
-        auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+        // The MLO association carries the AP MLD MAC, not necessarily a
+        // physical BSSID. The AP-manager socket already identifies the radio
+        // that delivered this complete-station connection event.
+        auto radio = notification_in->is_mlo()
+                         ? db->radio(fronthaul_iface)
+                         : db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
         if (!radio) {
-            LOG(DEBUG) << "Radio containing bssid " << bssid << " not found";
+            LOG(DEBUG) << "Radio for client association on " << fronthaul_iface << " with bssid "
+                       << bssid << " not found";
             break;
         }
 
@@ -6455,6 +6691,8 @@ bool slave_thread::update_vaps_info(const std::string &iface,
                                          ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
                                          client.wds_iface_name.c_str());
             }
+
+            update_mlo_wds_ifaces(previous_bssid, "VAPS_LIST_UPDATE");
         };
 
         const auto retrigger_wds_ts = [&](const char *source) {
@@ -6480,6 +6718,8 @@ bool slave_thread::update_vaps_info(const std::string &iface,
                                          ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
                                          client.wds_iface_name.c_str());
             }
+
+            update_mlo_wds_ifaces(bss.mac, source, true);
         };
 
         // Keep BSS identity as soon as a MAC is reported. Some startup VAP

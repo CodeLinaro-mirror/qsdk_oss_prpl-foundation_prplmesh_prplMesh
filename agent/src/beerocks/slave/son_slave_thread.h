@@ -538,6 +538,16 @@ private:
 
     std::unordered_map<sMacAddr, sPendingWdsIfaceNotification> m_pending_wds_iface_notifications;
 
+    using sClientDisconnection = beerocks_message::sClientDisconnectionParams;
+
+    struct sPendingMloDisconnection {
+        sClientDisconnection notification;
+        std::string fronthaul_iface;
+        int validation_timer_fd = net::FileDescriptor::invalid_descriptor;
+    };
+
+    std::unordered_map<sMacAddr, sPendingMloDisconnection> m_pending_mlo_disconnections;
+
     /**
      * @brief Reset a Fronthaul by disconnecting a socket to one of its threads.
      *
@@ -612,9 +622,21 @@ private:
             notification_in);
     bool set_client_wds_iface(AgentDB::sRadio &radio, const sMacAddr &client_mac,
                               const sMacAddr &bssid, const std::string &wds_iface_name);
+    void notify_new_wds_iface(const std::string &wds_iface_name);
+    void notify_clear_wds_iface(const std::string &wds_iface_name);
+    void clear_mlo_client_wds_iface(AgentDB::sAssociatedStaMld &mld_info,
+                                    const sMacAddr &sta_mld_mac, const sMacAddr &primary_bssid);
+    void set_mlo_client_wds_iface(AgentDB::sAssociatedStaMld &mld_info, const sMacAddr &sta_mld_mac,
+                                  const sMacAddr &primary_bssid, const std::string &wds_iface_name);
+    void update_mlo_wds_ifaces(const sMacAddr &bssid, const std::string &source,
+                               bool retrigger = false);
     bool handle_client_wds_iface_notification(
         const std::shared_ptr<beerocks_message::cACTION_APMANAGER_WDS_IFACE_NOTIFICATION>
             notification_in);
+    bool defer_mlo_client_disconnection(const sClientDisconnection &notification,
+                                        const std::string &fronthaul_iface);
+    bool process_client_disconnection(const sClientDisconnection &notification,
+                                      const std::string &fronthaul_iface);
 
     /**
      * @brief Save channel list into AgentDB from beerocks_message::cChannelList class.
