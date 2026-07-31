@@ -467,6 +467,17 @@ bool TrafficSeparationTask::restore_exact_ports_from_db()
         }
     }
 
+    for (const auto &mld_kv : db->associated_sta_mlds) {
+        const auto &wds_iface_name = mld_kv.second.wds_iface_name;
+        if (wds_iface_name.empty() || !restored_wds_ifaces.emplace(wds_iface_name).second) {
+            continue;
+        }
+
+        if (!handle_new_wds_iface(wds_iface_name)) {
+            success = false;
+        }
+    }
+
     return success;
 }
 
@@ -555,6 +566,26 @@ bool TrafficSeparationTask::fill_wds_trunk_from_db(const std::string &iface_name
                 continue;
             }
 
+            return fill_trunk(*bss_it);
+        }
+    }
+
+    for (const auto &mld_kv : db->associated_sta_mlds) {
+        const auto &mld_info = mld_kv.second;
+        if (mld_info.wds_iface_name != iface_name) {
+            continue;
+        }
+
+        auto radio = db->get_radio_by_mac(mld_info.primary_bssid, AgentDB::eMacType::BSSID);
+        if (!radio) {
+            continue;
+        }
+
+        const auto bss_it = std::find_if(
+            radio->front.bssids.begin(), radio->front.bssids.end(), [&](const auto &bss) {
+                return bss.enabled && bss.backhaul_bss && (bss.mac == mld_info.primary_bssid);
+            });
+        if (bss_it != radio->front.bssids.end()) {
             return fill_trunk(*bss_it);
         }
     }

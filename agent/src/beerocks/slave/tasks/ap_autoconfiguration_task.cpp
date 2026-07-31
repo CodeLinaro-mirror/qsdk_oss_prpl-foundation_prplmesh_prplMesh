@@ -2972,7 +2972,8 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     bssid->active  = true;
     bssid->enabled = true;
 
-    if (was_backhaul_bss && !vap_info.backhaul_vap) {
+    const bool backhaul_role_removed = was_backhaul_bss && !vap_info.backhaul_vap;
+    if (backhaul_role_removed) {
         for (const auto &client_kv : radio->associated_clients) {
             const auto &client = client_kv.second;
             if (client.bssid != bssid->mac || client.wds_iface_name.empty()) {
@@ -3018,6 +3019,34 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
             m_btl_ctx.task_pool_try_send_event(eTaskType::SERVICE_PRIORITIZATION,
                                                ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
                                                client.wds_iface_name.c_str());
+        }
+    }
+
+    if (backhaul_role_removed || disallow_changed) {
+        for (const auto &mld_kv : db->associated_sta_mlds) {
+            const auto &mld_info = mld_kv.second;
+            if (mld_info.primary_bssid != bssid->mac || mld_info.wds_iface_name.empty()) {
+                continue;
+            }
+
+            LOG(DEBUG) << "Trigger traffic separation on AP_ENABLED for MLO WDS iface="
+                       << mld_info.wds_iface_name << ", bss=" << vap_info.iface_name;
+            m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                               TrafficSeparationTask::eEvent::TS_CLEAR_WDS_IFACE,
+                                               mld_info.wds_iface_name.c_str());
+            m_btl_ctx.task_pool_try_send_event(
+                eTaskType::SERVICE_PRIORITIZATION,
+                ServicePrioritizationTask::eEvent::QOS_CLEAR_WDS_IFACE,
+                mld_info.wds_iface_name.c_str());
+            if (disallow_changed) {
+                m_btl_ctx.task_pool_try_send_event(eTaskType::TRAFFIC_SEPARATION,
+                                                   TrafficSeparationTask::eEvent::TS_NEW_WDS_IFACE,
+                                                   mld_info.wds_iface_name.c_str());
+                m_btl_ctx.task_pool_try_send_event(
+                    eTaskType::SERVICE_PRIORITIZATION,
+                    ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
+                    mld_info.wds_iface_name.c_str());
+            }
         }
     }
 
