@@ -38,11 +38,14 @@ else Traffic Separation Policy received
 end
 
 == 2. Trigger TS task ==
-AC -> ST: task_pool_try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
-ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
+AC -> ST: task_pool_try_send_event(TRAFFIC_SEPARATION, TS_POLICY_UPDATE)
+ST -> TP: try_send_event(TRAFFIC_SEPARATION, TS_POLICY_UPDATE)
 alt task exists
-    TP -> TST: TS_ENABLE event
-    TST -> TST: schedule_apply()\ndebounce
+    TP -> TST: TS_POLICY_UPDATE event
+    TST -> TST: compare effective config
+    opt config changed
+        TST -> TST: request_apply()
+    end
 else task absent
     TP -> TP: return false
 end
@@ -63,7 +66,7 @@ opt task exists
         Runtime exact-WDS churn is handled by
         TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE.
 
-        reset() preserves event-managed port
+        reconcile() preserves event-managed port
         ownership and refreshes only config plus
         persistent DB-owned trunks.
         end note
@@ -172,7 +175,7 @@ WDS readiness retry runs from work() after the
 settle delay, so try_send_event() does not block
 for WDS iface add.
 
-Policy disable is modeled today as TS_ENABLE plus
+Policy disable is modeled today as TS_POLICY_UPDATE plus
 primary_vlan_id=0. TS_CLEAR remains available for
 explicit runtime cleanup, but it is not the normal
 Multi-AP policy-disable producer in this branch.
