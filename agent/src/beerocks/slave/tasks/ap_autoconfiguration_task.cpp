@@ -3018,7 +3018,8 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     bssid->active  = true;
     bssid->enabled = true;
 
-    if (was_backhaul_bss && !vap_info.backhaul_vap) {
+    const bool backhaul_role_removed = was_backhaul_bss && !vap_info.backhaul_vap;
+    if (backhaul_role_removed) {
         for (const auto &client_kv : radio->associated_clients) {
             const auto &client = client_kv.second;
             if (client.bssid != bssid->mac || client.wds_iface_name.empty()) {
@@ -3065,6 +3066,10 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
                                                ServicePrioritizationTask::eEvent::QOS_NEW_WDS_IFACE,
                                                client.wds_iface_name.c_str());
         }
+    }
+
+    if (backhaul_role_removed || disallow_changed) {
+        m_btl_ctx.update_mlo_wds_ifaces(bssid->mac, "AP_ENABLED", disallow_changed);
     }
 
     if (vap_info.fronthaul_vap && !vap_info.backhaul_vap && vap_info.iface_name[0] != '\0') {
