@@ -73,12 +73,6 @@ fi
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
-# Configure Operating Standards
-ba-cli "WiFi.Radio.*.OperatingStandardsFormat=\"Standard\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingStandards=\"b,g,n\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].OperatingStandards=\"a,n,ac,ax\""
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"6GHz\"].OperatingStandards=\"ax\""
-
 # Restrict channel bandwidth or the certification test could miss beacons
 # (see PPM-258)
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].OperatingChannelBandwidth=20MHz"
@@ -105,16 +99,7 @@ ba-cli WiFi.Radio.*.AutoChannelEnable=0
 #ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].Channel=6"
 #ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].Channel=36"
 
-# Don't hide the BH AP SSID (PPW-1399)
-ba-cli WiFi.AccessPoint.*.SSIDAdvertisementEnabled=1
-
 sleep 5
-
-# enable STA-mode on 2.4 and 5GHz
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].STA_Mode=1"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].STASupported_Mode=1"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].STA_Mode=1"
-ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"5GHz\"].STASupported_Mode=1"
 
 ba-cli "WiFi.set_trace_zone(zone=genHapd, level=500)"
 ba-cli "WiFi.set_trace_zone(zone=hapdAP, level=500)"
