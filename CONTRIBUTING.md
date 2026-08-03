@@ -325,6 +325,9 @@ So, it is expected from every developer to use his/hers good judgement, consult 
 with real devices using the prplmesh CI infrastructure which allows triggering a test in the CI testbed for a given branch.
 For more information on how to trigger a test, see [Testing in CI](https://confluence.prplfoundation.org/display/PRPLMESH/Testing+in+CI).
 
+For guidance on designing C++ code for unit testing, see
+[Unit testing](documentation/unit-testing.md).
+
 ### Definition of done
 
 Before a merge request can be merged, it must be considered "Done".
