@@ -1745,15 +1745,31 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
             }
         }
 
-        he_caps_ptr->max_num_of_supported_rx_spatial_streams =
-            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_80_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_160_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_8080_OFFSET)});
+        /*
+         * The 160MHz and 80+80MHz MCS maps are only present when the matching PHY capability
+         * bit is set (cf. ieee80211_he_mcs_nss_size()). nl80211 always dumps all 12 bytes, so
+         * absent maps arrive zeroed - and an all-zero map decodes as "8 streams at MCS 0-7",
+         * which would always win the std::max and overstate the stream count.
+         */
+        uint8_t rx_ss = calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_80_OFFSET);
+        uint8_t tx_ss = calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_80_OFFSET);
 
-        he_caps_ptr->max_num_of_supported_tx_spatial_streams =
-            std::max<uint8_t>({calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_80_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_160_OFFSET),
-                               calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_8080_OFFSET)});
+        if (he_caps_ptr->he_support_160mhz) {
+            rx_ss = std::max<uint8_t>(
+                rx_ss, calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_160_OFFSET));
+            tx_ss = std::max<uint8_t>(
+                tx_ss, calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_160_OFFSET));
+        }
+
+        if (he_caps_ptr->he_support_80_80mhz) {
+            rx_ss = std::max<uint8_t>(
+                rx_ss, calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_8080_OFFSET));
+            tx_ss = std::max<uint8_t>(
+                tx_ss, calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_8080_OFFSET));
+        }
+
+        he_caps_ptr->max_num_of_supported_rx_spatial_streams = rx_ss;
+        he_caps_ptr->max_num_of_supported_tx_spatial_streams = tx_ss;
 
         //Wi-Fi 6 capabilities
         struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
