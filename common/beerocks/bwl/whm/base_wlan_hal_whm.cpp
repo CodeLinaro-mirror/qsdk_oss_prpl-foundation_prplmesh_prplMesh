@@ -1751,21 +1751,19 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
          * absent maps arrive zeroed - and an all-zero map decodes as "8 streams at MCS 0-7",
          * which would always win the std::max and overstate the stream count.
          */
-        uint8_t rx_ss = calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_80_OFFSET);
-        uint8_t tx_ss = calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_80_OFFSET);
+        const uint8_t *he_mcs_set = m_radio_info.he_mcs_set.data();
+
+        uint8_t rx_ss = calc_ss(he_mcs_set, RX_HE_MCS_MAP_80_OFFSET);
+        uint8_t tx_ss = calc_ss(he_mcs_set, TX_HE_MCS_MAP_80_OFFSET);
 
         if (he_caps_ptr->he_support_160mhz) {
-            rx_ss = std::max<uint8_t>(
-                rx_ss, calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_160_OFFSET));
-            tx_ss = std::max<uint8_t>(
-                tx_ss, calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_160_OFFSET));
+            rx_ss = std::max(rx_ss, calc_ss(he_mcs_set, RX_HE_MCS_MAP_160_OFFSET));
+            tx_ss = std::max(tx_ss, calc_ss(he_mcs_set, TX_HE_MCS_MAP_160_OFFSET));
         }
 
         if (he_caps_ptr->he_support_80_80mhz) {
-            rx_ss = std::max<uint8_t>(
-                rx_ss, calc_ss(m_radio_info.he_mcs_set.data(), RX_HE_MCS_MAP_8080_OFFSET));
-            tx_ss = std::max<uint8_t>(
-                tx_ss, calc_ss(m_radio_info.he_mcs_set.data(), TX_HE_MCS_MAP_8080_OFFSET));
+            rx_ss = std::max(rx_ss, calc_ss(he_mcs_set, RX_HE_MCS_MAP_8080_OFFSET));
+            tx_ss = std::max(tx_ss, calc_ss(he_mcs_set, TX_HE_MCS_MAP_8080_OFFSET));
         }
 
         he_caps_ptr->max_num_of_supported_rx_spatial_streams = rx_ss;
