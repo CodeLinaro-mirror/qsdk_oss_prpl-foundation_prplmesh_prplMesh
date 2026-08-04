@@ -1321,8 +1321,9 @@ static bool add_rsn_parameters_configuration_tlv(
     db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agt_mac, const sMacAddr ruid,
     const std::list<son::wireless_utils::sBssInfoConf> &bss_info_confs, beerocks::eFreqType band)
 {
+    (void)band; // Band-specific IE bytes are already selected when filling rsn_security_ies.
     // In easymesh 6.1, it will be the new way to configure security mode.
-    // For now just send RSN Parameters Configuration TLV for WPA3-PCM security mode.
+    // Send RSN Parameters Configuration TLV when auth type is WSC_AUTH_RSN and IE bytes are set.
     // we implement for now only in ap wsc configuration so one is sent per radio, to rework if same function used for another message
     auto rsn_parameters_configuration = cmdu_tx.addClass<wfa_map::tlvRsnParametersConfiguration>();
     auto rsn_parameters_radio         = rsn_parameters_configuration->create_radios();
@@ -1337,37 +1338,19 @@ static bool add_rsn_parameters_configuration_tlv(
             (bss_info_conf.target_radio_uid != ruid)) {
             continue;
         }
-        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
-            const uint8_t *sec_ies = nullptr;
-            size_t sec_len         = 0;
-
-            if (!bss_info_conf.rsn_security_ies.empty()) {
-                sec_ies = bss_info_conf.rsn_security_ies.data();
-                sec_len = bss_info_conf.rsn_security_ies.size();
-                LOG(DEBUG) << "RSN Parameters TLV payload for BSS " << bss_info_conf.bss_index
-                           << " (" << sec_len << " octets)";
-            } else if (bss_info_conf.additional_auth ==
-                       son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
-                LOG(DEBUG) << "Setting WPA3 compatibility for BSS " << bss_info_conf.bss_index;
-                if (band == beerocks::eFreqType::FREQ_6G) {
-                    sec_ies = wpa3_pcm_6g_eht.data();
-                    sec_len = wpa3_pcm_6g_eht.size();
-                } else if (band == beerocks::eFreqType::FREQ_5G ||
-                           band == beerocks::eFreqType::FREQ_24G) {
-                    sec_ies = wpa3_pcm_2g_5g_eht.data();
-                    sec_len = wpa3_pcm_2g_5g_eht.size();
-                } else {
-                    LOG(ERROR) << "Unhandled Radio band " << band;
-                    continue;
-                }
-            } else {
-                LOG(ERROR) << "Unhandled RSN type (no security IEs)";
+        if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN ||
+            !bss_info_conf.rsn_security_ies.empty()) {
+            if (bss_info_conf.rsn_security_ies.empty()) {
+                LOG(ERROR) << "WSC_AUTH_RSN for BSS " << bss_info_conf.bss_index
+                           << " but rsn_security_ies is empty";
                 continue;
             }
 
-            if (sec_ies == nullptr || sec_len == 0) {
-                continue;
-            }
+            const uint8_t *sec_ies = bss_info_conf.rsn_security_ies.data();
+            const size_t sec_len   = bss_info_conf.rsn_security_ies.size();
+            LOG(DEBUG) << "RSN Parameters TLV pack BSS " << bss_info_conf.bss_index
+                       << " len=" << sec_len << " hex="
+                       << beerocks::string_utils::bytes_to_hex_string(sec_ies, sec_len);
 
             auto rsn_parameters_bss = rsn_parameters_radio->create_bsss();
             if (!rsn_parameters_bss) {
@@ -1914,7 +1897,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             return false;
         }
 
-        if (bss_info_copy.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN) {
+        if (bss_info_copy.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN ||
+            !bss_info_copy.rsn_security_ies.empty()) {
             rsn_tlv_required = true;
         }
     }

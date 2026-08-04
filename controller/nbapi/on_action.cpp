@@ -832,22 +832,6 @@ static bool template_radio_matches_operating_classes(const Agent::sRadio &radio,
     return true;
 }
 
-/** BBF Templates_matching_notes: RSNOE/RSNO2E omitted when all parameters empty or MFP default-only. */
-static bool template_rsn_child_has_explicit_nondefault_content(amxd_object_t *o)
-{
-    if (!o) {
-        return false;
-    }
-    if (!get_param_string(o, "GroupDataCipherSuite").empty() ||
-        !get_param_string(o, "PairwiseCipherSuite").empty() ||
-        !get_param_string(o, "AKMSuite").empty() || !get_param_string(o, "AKMSuiteSelector").empty() ||
-        !get_param_string(o, "GroupManagementCipherSuite").empty()) {
-        return true;
-    }
-    const std::string mfp = get_param_string(o, "MFP");
-    return (!mfp.empty() && mfp != "Capable");
-}
-
 /** BBF: if 2 or more radios on same 5/6 GHz band, BandFlag must use UNII tokens, not only "5"/"6". */
 static unsigned template_agent_radio_count_on_band(const Agent &agent, beerocks::eFreqType band)
 {
@@ -1582,6 +1566,19 @@ static std::vector<sMacAddr> template_filter_target_agents(
 /** BBF: 4-octet hex AKM suite selector without internal delimiters (e.g. 000FAC12). */
 static const std::string OWE_AKM_SELECTOR = "000FAC12";
 
+/** IEEE 802.11 suite selectors (OUI 00-0F-AC + type). Same type bytes as agent RSN_* names. */
+static const std::array<uint8_t, 4> RSN_AKM_PSK             = {{0x00, 0x0F, 0xAC, 0x02}};
+static const std::array<uint8_t, 4> RSN_AKM_SAE             = {{0x00, 0x0F, 0xAC, 0x08}};
+static const std::array<uint8_t, 4> RSN_AKM_SAE_EXT_KEY     = {{0x00, 0x0F, 0xAC, 0x18}};
+static const std::array<uint8_t, 4> RSN_CIPHER_CCMP_128     = {{0x00, 0x0F, 0xAC, 0x04}};
+static const std::array<uint8_t, 4> RSN_CIPHER_BIP_CMAC_128 = {{0x00, 0x0F, 0xAC, 0x06}};
+static const std::array<uint8_t, 4> RSN_CIPHER_GCMP_256     = {{0x00, 0x0F, 0xAC, 0x09}};
+
+/** WFA vendor OUI type for RSN Override IEs (OUI 50-6F-9A). */
+static constexpr uint8_t RSNOE_WFA_VENDOR_TYPE  = 0x29;
+static constexpr uint8_t RSNO2E_WFA_VENDOR_TYPE = 0x2A;
+static constexpr uint8_t RSNXOE_WFA_VENDOR_TYPE = 0x2B;
+
 /**
  * @brief Normalize 4-octet AKM suite selector (strip non-hex, uppercase).
  */
@@ -1737,8 +1734,8 @@ static void template_merge_akm_from_rsn_child_objects(amxd_object_t *security_te
                                                      std::vector<std::string> &akm_tokens,
                                                      std::string &merged_akm_selector_csv)
 {
-    static const char *k_rsne_children[] = {"RSNE", "RSNOE", "RSNO2E"};
-    for (const char *name : k_rsne_children) {
+    static const char *rsne_children[] = {"RSNE", "RSNOE", "RSNO2E"};
+    for (const char *name : rsne_children) {
         amxd_object_t *o = amxd_object_get_child(security_template_obj, name);
         if (!o) {
             continue;
@@ -1760,8 +1757,8 @@ static void template_merge_akm_from_rsn_child_objects(amxd_object_t *security_te
 static void template_merge_saeh2e_from_rsnx(amxd_object_t *security_template_obj,
                                             std::vector<std::string> &akm_tokens)
 {
-    static const char *k_rsnx[] = {"RSNXE", "RSNXOE"};
-    for (const char *name : k_rsnx) {
+    static const char *rsnx_children[] = {"RSNXE", "RSNXOE"};
+    for (const char *name : rsnx_children) {
         amxd_object_t *o = amxd_object_get_child(security_template_obj, name);
         if (!o || !get_param_bool(o, "SAEH2E")) {
             continue;
@@ -1823,15 +1820,15 @@ static bool template_parse_suite_token(std::string tok, std::array<uint8_t, 4> &
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
     if (tok == "ccmp" || tok == "aes" || tok == "ccmp-128" || tok == "ccmp128") {
-        out = {{0x00, 0x0F, 0xAC, 0x04}};
+        out = RSN_CIPHER_CCMP_128;
         return true;
     }
     if (tok == "gcmp" || tok == "gcmp-128") {
-        out = {{0x00, 0x0F, 0xAC, 0x08}};
+        out = {{0x00, 0x0F, 0xAC, 0x08}}; // GCMP-128
         return true;
     }
     if (tok == "gcmp-256" || tok == "gcmp256") {
-        out = {{0x00, 0x0F, 0xAC, 0x09}};
+        out = RSN_CIPHER_GCMP_256;
         return true;
     }
     std::string hex;
@@ -1894,6 +1891,93 @@ static bool template_read_one_suite(amxd_object_t *obj, const char *param,
     return false;
 }
 
+/** Map AKMSuite token / 4-octet selector to OUI+type bytes (BBF SecurityTemplate). */
+static bool template_parse_akm_token(const std::string &token, std::array<uint8_t, 4> &out)
+{
+    std::string normalized = token;
+    normalized.erase(0, normalized.find_first_not_of(" \t"));
+    if (!normalized.empty()) {
+        normalized.erase(normalized.find_last_not_of(" \t") + 1);
+    }
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    if (normalized == "psk") {
+        out = RSN_AKM_PSK;
+        return true;
+    }
+    if (normalized == "sae") {
+        out = RSN_AKM_SAE;
+        return true;
+    }
+    if (normalized == "sae-ext-key") {
+        out = RSN_AKM_SAE_EXT_KEY;
+        return true;
+    }
+    if (normalized == "dpp") {
+        out = {{0x50, 0x6F, 0x9A, 0x02}};
+        return true;
+    }
+
+    const std::string selector = normalize_akm_selector(token);
+    if (selector.empty()) {
+        return false;
+    }
+    for (size_t i = 0; i < out.size(); ++i) {
+        out[i] = static_cast<uint8_t>(std::strtoul(selector.substr(i * 2, 2).c_str(), nullptr, 16));
+    }
+    return true;
+}
+
+/**
+ * @brief Read AKMSuite / AKMSuiteSelector from an RSN* object into IE AKM list.
+ * Falls back to def_one (or def_list) when DM is empty.
+ */
+static void template_read_akm_list(amxd_object_t *obj, std::vector<std::array<uint8_t, 4>> &out,
+                                   const std::vector<std::array<uint8_t, 4>> &defaults)
+{
+    out.clear();
+    if (obj) {
+        for (const auto &token : parse_topology_flags(get_param_string(obj, "AKMSuite"))) {
+            if (token == "SuiteSelector") {
+                for (const auto &selector :
+                     parse_topology_flags(get_param_string(obj, "AKMSuiteSelector"))) {
+                    std::array<uint8_t, 4> akm{};
+                    if (template_parse_akm_token(selector, akm)) {
+                        out.push_back(akm);
+                    }
+                }
+                continue;
+            }
+            std::array<uint8_t, 4> akm{};
+            if (template_parse_akm_token(token, akm)) {
+                out.push_back(akm);
+            }
+        }
+    }
+    if (out.empty()) {
+        out = defaults;
+    }
+}
+
+/** True if RSN* child has any operator-configured field (not only defaults). */
+static bool template_rsn_child_has_content(amxd_object_t *obj)
+{
+    if (!obj) {
+        return false;
+    }
+    static const char *rsn_content_params[] = {
+        "GroupDataCipherSuite", "PairwiseCipherSuite", "AKMSuite", "AKMSuiteSelector",
+        "GroupManagementCipherSuite"};
+    for (const char *p : rsn_content_params) {
+        if (!get_param_string(obj, p).empty()) {
+            return true;
+        }
+    }
+    const std::string mfp = get_param_string(obj, "MFP");
+    return !mfp.empty() && mfp != "Capable";
+}
+
 static uint16_t template_mfp_to_rsn_cap_le(const std::string &mfp, bool vendor_extension)
 {
     std::string m = mfp;
@@ -1909,133 +1993,129 @@ static uint16_t template_mfp_to_rsn_cap_le(const std::string &mfp, bool vendor_e
     return vendor_extension ? static_cast<uint16_t>(0x000C) : static_cast<uint16_t>(0x0008);
 }
 
-static bool template_security_template_has_rsn_dm_overrides(amxd_object_t *security_template_obj)
-{
-    static const char *k_children[] = {"RSNE", "RSNOE", "RSNO2E", "RSNXE", "RSNXOE"};
-    for (const char *name : k_children) {
-        amxd_object_t *o = amxd_object_get_child(security_template_obj, name);
-        if (!o) {
-            continue;
-        }
-        if (!get_param_string(o, "GroupDataCipherSuite").empty() ||
-            !get_param_string(o, "PairwiseCipherSuite").empty() ||
-            !get_param_string(o, "AKMSuite").empty() || !get_param_string(o, "AKMSuiteSelector").empty() ||
-            !get_param_string(o, "GroupManagementCipherSuite").empty()) {
-            return true;
-        }
-        const std::string mfp = get_param_string(o, "MFP");
-        if (!mfp.empty() && mfp != "Capable") {
-            return true;
-        }
-        if (get_param_bool(o, "SAEH2E")) {
-            return true;
-        }
-    }
-    return false;
-}
-
 /**
- * @brief Build WPA3-PCM RSN IE chain for tlvRsnParametersConfiguration.
- * @param security_template_obj SecurityTemplate DM object.
- * @param is_6ghz_band True when BSS operating classes include 6 GHz.
- * @param out Output concatenated Security IE octets.
+ * @brief Build RSN IE octets from SecurityTemplate DM fields (BBF CTM structured path).
+ *
+ * When SecurityIEs is empty, build from RSN* objects:
+ * - RSNE always (AKMSuite preferred, except under PCM where the base element stays legacy-only)
+ * - RSNOE / RSNO2E from DM when filled, otherwise mode defaults for PCM
+ * - RSNXE / RSNXOE encode their corresponding SAEH2E value (always set for PCM)
  */
-static void template_fill_wpa3_pcm_rsn_ies(amxd_object_t *security_template_obj, bool is_6ghz_band,
-                                           std::vector<uint8_t> &out)
+enum class eTemplateRsnMode { PSK, SAE, SAE_EXT, TRANSITION, PCM };
+
+static void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool is_6ghz_band,
+                                           eTemplateRsnMode mode, std::vector<uint8_t> &out)
 {
-    static const std::array<uint8_t, 4> k_ccmp     = {{0x00, 0x0F, 0xAC, 0x04}};
-    static const std::array<uint8_t, 4> k_psk_akm  = {{0x00, 0x0F, 0xAC, 0x02}};
-    static const std::array<uint8_t, 4> k_sae_akm  = {{0x00, 0x0F, 0xAC, 0x08}};
-    static const std::array<uint8_t, 4> k_h2e_akm  = {{0x00, 0x0F, 0xAC, 0x18}};
-    static const std::array<uint8_t, 4> k_bip_cmac = {{0x00, 0x0F, 0xAC, 0x06}};
-
     out.clear();
-    if (!template_security_template_has_rsn_dm_overrides(security_template_obj)) {
-        if (is_6ghz_band) {
-            out.insert(out.end(), wpa3_pcm_6g_eht.begin(), wpa3_pcm_6g_eht.end());
+
+    auto child = [&](const char *name) -> amxd_object_t * {
+        return security_template_obj ? amxd_object_get_child(security_template_obj, name) : nullptr;
+    };
+    amxd_object_t *rsne   = child("RSNE");
+    amxd_object_t *rsnoe  = child("RSNOE");
+    amxd_object_t *rsno2e = child("RSNO2E");
+    amxd_object_t *rsnxe  = child("RSNXE");
+    amxd_object_t *rsnxoe = child("RSNXOE");
+
+    // RSNE (element ID 0x30): ciphers/MFP from the object, AKMs from AKMSuite or mode defaults.
+    auto append_rsne = [&](amxd_object_t *obj,
+                           const std::vector<std::array<uint8_t, 4>> &akm_defaults,
+                           bool vendor_caps, bool akm_from_dm) {
+        std::array<uint8_t, 4> group = RSN_CIPHER_CCMP_128;
+        std::array<uint8_t, 4> gm    = RSN_CIPHER_BIP_CMAC_128;
+        std::vector<std::array<uint8_t, 4>> pairwise, akm;
+        template_read_one_suite(obj, "GroupDataCipherSuite", RSN_CIPHER_CCMP_128, group);
+        template_read_cipher_list(obj, "PairwiseCipherSuite", pairwise, RSN_CIPHER_CCMP_128);
+        template_read_one_suite(obj, "GroupManagementCipherSuite", RSN_CIPHER_BIP_CMAC_128, gm);
+        if (akm_from_dm) {
+            template_read_akm_list(obj, akm, akm_defaults);
         } else {
-            out.insert(out.end(), wpa3_pcm_2g_5g_eht.begin(), wpa3_pcm_2g_5g_eht.end());
+            akm = akm_defaults;
         }
-        return;
-    }
+        const std::string mfp = obj ? get_param_string(obj, "MFP") : std::string("Capable");
+        const uint16_t cap =
+            template_mfp_to_rsn_cap_le(mfp.empty() ? "Capable" : mfp, vendor_caps);
 
-    amxd_object_t *rsne   = amxd_object_get_child(security_template_obj, "RSNE");
-    amxd_object_t *rsnoe  = amxd_object_get_child(security_template_obj, "RSNOE");
-    amxd_object_t *rsno2e = amxd_object_get_child(security_template_obj, "RSNO2E");
-    amxd_object_t *rsnxe = amxd_object_get_child(security_template_obj, "RSNXE");
+        out.push_back(0x30);
+        size_t len_idx = out.size();
+        out.push_back(0);
+        template_append_rsne_like_body(out, group, pairwise, akm, cap, gm);
+        template_finalize_ie_len(out, len_idx);
+    };
 
-    std::array<uint8_t, 4> group = k_ccmp;
-    template_read_one_suite(rsne, "GroupDataCipherSuite", k_ccmp, group);
-
-    std::vector<std::array<uint8_t, 4>> pw_rsne;
-    template_read_cipher_list(rsne, "PairwiseCipherSuite", pw_rsne, k_ccmp);
-
-    std::array<uint8_t, 4> gm_rsne = k_bip_cmac;
-    template_read_one_suite(rsne, "GroupManagementCipherSuite", k_bip_cmac, gm_rsne);
-
-    const std::string mfp_rsne = rsne ? get_param_string(rsne, "MFP") : std::string("Capable");
-    const uint16_t cap_rsne    = template_mfp_to_rsn_cap_le(mfp_rsne.empty() ? "Capable" : mfp_rsne, false);
-
-    std::vector<std::array<uint8_t, 4>> akm_rsne;
-    if (is_6ghz_band) {
-        akm_rsne.push_back(k_sae_akm);
-    } else {
-        akm_rsne.push_back(k_psk_akm);
-    }
-
-    out.push_back(0x30);
-    size_t rsne_len = out.size();
-    out.push_back(0);
-    template_append_rsne_like_body(out, group, pw_rsne, akm_rsne, cap_rsne, gm_rsne);
-    template_finalize_ie_len(out, rsne_len);
-
-    if (!is_6ghz_band) {
-        std::array<uint8_t, 4> g2 = group, gm2 = gm_rsne;
-        std::vector<std::array<uint8_t, 4>> pw2, ak2;
-        template_read_cipher_list(rsnoe, "PairwiseCipherSuite", pw2, k_ccmp);
-        template_read_one_suite(rsnoe, "GroupDataCipherSuite", group, g2);
-        ak2.push_back(k_sae_akm);
-        const std::string mfp2 = rsnoe ? get_param_string(rsnoe, "MFP") : std::string("Capable");
-        const uint16_t cap2 =
-            template_mfp_to_rsn_cap_le(mfp2.empty() ? "Capable" : mfp2, true);
-        template_read_one_suite(rsnoe, "GroupManagementCipherSuite", k_bip_cmac, gm2);
+    // RSNOE / RSNO2E: WFA vendor IE (0xDD) with OUI 50:6F:9A and the given type.
+    auto append_override = [&](amxd_object_t *obj, uint8_t oui_type,
+                               const std::vector<std::array<uint8_t, 4>> &akm_defaults,
+                               const std::array<uint8_t, 4> &pw_default) {
+        std::array<uint8_t, 4> group = RSN_CIPHER_CCMP_128;
+        std::array<uint8_t, 4> gm    = RSN_CIPHER_BIP_CMAC_128;
+        std::vector<std::array<uint8_t, 4>> pairwise, akm;
+        template_read_one_suite(obj, "GroupDataCipherSuite", RSN_CIPHER_CCMP_128, group);
+        template_read_cipher_list(obj, "PairwiseCipherSuite", pairwise, pw_default);
+        template_read_one_suite(obj, "GroupManagementCipherSuite", RSN_CIPHER_BIP_CMAC_128, gm);
+        template_read_akm_list(obj, akm, akm_defaults);
+        const std::string mfp = obj ? get_param_string(obj, "MFP") : std::string("Capable");
+        const uint16_t cap = template_mfp_to_rsn_cap_le(mfp.empty() ? "Capable" : mfp, true);
 
         out.push_back(0xDD);
-        size_t l2 = out.size();
+        size_t len_idx = out.size();
         out.push_back(0);
-        out.insert(out.end(), {0x50, 0x6F, 0x9A, 0x29});
-        template_append_rsne_like_body(out, g2, pw2, ak2, cap2, gm2);
-        template_finalize_ie_len(out, l2);
+        out.insert(out.end(), {0x50, 0x6F, 0x9A, oui_type});
+        template_append_rsne_like_body(out, group, pairwise, akm, cap, gm);
+        template_finalize_ie_len(out, len_idx);
+    };
+
+    // base_akm: AKMs written into the base RSNE (tag 0x30). Under PCM, overrides carry SAE/SAE-EXT.
+    std::vector<std::array<uint8_t, 4>> base_akm;
+    switch (mode) {
+    case eTemplateRsnMode::PSK:
+        base_akm = {RSN_AKM_PSK};
+        break;
+    case eTemplateRsnMode::SAE:
+        base_akm = {RSN_AKM_SAE};
+        break;
+    case eTemplateRsnMode::SAE_EXT:
+        base_akm = {RSN_AKM_SAE_EXT_KEY};
+        break;
+    case eTemplateRsnMode::TRANSITION:
+        base_akm = {RSN_AKM_PSK, RSN_AKM_SAE};
+        break;
+    case eTemplateRsnMode::PCM:
+        base_akm = {is_6ghz_band ? RSN_AKM_SAE : RSN_AKM_PSK};
+        break;
     }
 
-    if (template_rsn_child_has_explicit_nondefault_content(rsno2e)) {
-        std::array<uint8_t, 4> g3 = group, gm3 = gm_rsne;
-        std::vector<std::array<uint8_t, 4>> pw3, ak3;
-        const std::array<uint8_t, 4> k_pw_rsno2_def = {{0x00, 0x0F, 0xAC, 0x09}};
-        template_read_cipher_list(rsno2e, "PairwiseCipherSuite", pw3, k_pw_rsno2_def);
-        template_read_one_suite(rsno2e, "GroupDataCipherSuite", group, g3);
-        ak3.push_back(k_h2e_akm);
-        const std::string mfp3 = rsno2e ? get_param_string(rsno2e, "MFP") : std::string("Capable");
-        const uint16_t cap3 = template_mfp_to_rsn_cap_le(mfp3.empty() ? "Capable" : mfp3, true);
-        template_read_one_suite(rsno2e, "GroupManagementCipherSuite", k_bip_cmac, gm3);
+    const bool pcm = (mode == eTemplateRsnMode::PCM);
 
-        out.push_back(0xDD);
-        size_t l3 = out.size();
-        out.push_back(0);
-        out.insert(out.end(), {0x50, 0x6F, 0x9A, 0x2A});
-        template_append_rsne_like_body(out, g3, pw3, ak3, cap3, gm3);
-        template_finalize_ie_len(out, l3);
+    // Under RSN Overriding the base RSNE is the legacy view (PSK below 6GHz, SAE at 6GHz) and the
+    // WPA3 AKMs live in the override elements. A merged AKMSuite selects the mode; it must not
+    // widen the base element, or non-RSNO STAs would see a plain transition BSS.
+    append_rsne(rsne, base_akm, pcm && is_6ghz_band, !pcm);
+
+    // BBF: DM content is authoritative for RSNOE / RSNO2E. An unset child means "use the default
+    // for this mode", so PCM - which is defined by RSN Overriding - always carries its overrides.
+    const bool emit_rsnoe  = template_rsn_child_has_content(rsnoe) || (pcm && !is_6ghz_band);
+    const bool emit_rsno2e = template_rsn_child_has_content(rsno2e) || pcm;
+    if (emit_rsnoe) {
+        append_override(rsnoe, RSNOE_WFA_VENDOR_TYPE, {RSN_AKM_SAE}, RSN_CIPHER_CCMP_128);
+    }
+    if (emit_rsno2e) {
+        append_override(rsno2e, RSNO2E_WFA_VENDOR_TYPE, {RSN_AKM_SAE_EXT_KEY},
+                        RSN_CIPHER_GCMP_256);
     }
 
-    if (is_6ghz_band && (!rsnxe || get_param_bool(rsnxe, "SAEH2E"))) {
-        out.push_back(0xF4);
-        out.push_back(0x01);
-        out.push_back(static_cast<uint8_t>(0x20));
-    }
+    // BBF: SAEH2E selects the advertised capability bit; false encodes bit 0. PCM always sets it
+    // because RSNO2E offers SAE-EXT-KEY, which is only defined with hash-to-element.
+    const bool rsnxe_h2e  = (rsnxe && get_param_bool(rsnxe, "SAEH2E")) || pcm;
+    const bool rsnxoe_h2e = (rsnxoe && get_param_bool(rsnxoe, "SAEH2E")) || pcm;
+    out.insert(out.end(), {0xF4, 0x01, static_cast<uint8_t>(rsnxe_h2e ? 0x20 : 0x00)});
+    out.insert(out.end(), {0xDD, 0x05, 0x50, 0x6F, 0x9A, RSNXOE_WFA_VENDOR_TYPE,
+                           static_cast<uint8_t>(rsnxoe_h2e ? 0x20 : 0x00)});
 
-    out.push_back(0xDD);
-    out.push_back(0x05);
-    out.insert(out.end(), {0x50, 0x6F, 0x9A, 0x2B, 0x20});
+    LOG(DEBUG) << "RSN IE filled: mode=" << int(mode) << " len=" << out.size()
+               << " rsnoe=" << emit_rsnoe << " rsno2e=" << emit_rsno2e
+               << " rsnxe_h2e=" << rsnxe_h2e << " rsnxoe_h2e=" << rsnxoe_h2e << " hex="
+               << beerocks::string_utils::bytes_to_hex_string(out.data(), out.size());
 }
 
 /** BBF: SecurityIEs is hex (optional separators); used verbatim when non-empty. */
@@ -2060,8 +2140,8 @@ static bool template_parse_security_ies_hex(const std::string &in, std::vector<u
         LOG(WARNING) << "SecurityIEs: odd number of hex digits";
         return false;
     }
-    constexpr size_t k_max_security_ies = 2048;
-    if (hex.size() / 2 > k_max_security_ies) {
+    constexpr size_t MAX_SECURITY_IES_OCTETS = 2048;
+    if (hex.size() / 2 > MAX_SECURITY_IES_OCTETS) {
         LOG(WARNING) << "SecurityIEs: exceeds max length";
         return false;
     }
@@ -2169,7 +2249,7 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         if (agent_for_match &&
             !template_security_ies_hex_akms_match_agent(*agent_for_match, bss_info.fronthaul,
                                                         bss_info.backhaul, bss_info.rsn_security_ies)) {
-            LOG(DEBUG) << "SecurityTemplate SecurityIEs: AKM suites not supported by agent";
+            LOG(DEBUG) << "SecurityTemplate SecurityIEs: AKM/cipher suites not supported by agent";
             return false;
         }
         return true;
@@ -2271,14 +2351,23 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
                 }
                 bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
                 bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
+                eTemplateRsnMode rsn_mode = eTemplateRsnMode::PSK;
                 if (suite_type == 0x02) {
                     bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
-                } else if (suite_type == 0x08 || suite_type == 0x18) {
+                    rsn_mode                     = eTemplateRsnMode::PSK;
+                } else if (suite_type == 0x08) {
                     bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+                    rsn_mode                     = eTemplateRsnMode::SAE;
+                } else if (suite_type == 0x18) {
+                    bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE_AKM24;
+                    rsn_mode                     = eTemplateRsnMode::SAE_EXT;
                 } else {
                     LOG(DEBUG) << "SecurityTemplate: unmapped IEEE AKM selector " << sel;
                     return false;
                 }
+                const bool is_6g = template_operating_classes_include_6ghz(operating_classes);
+                template_fill_rsn_security_ies(security_template_obj, is_6g, rsn_mode,
+                                               bss_info.rsn_security_ies);
                 LOG(DEBUG) << "SecurityTemplate: IEEE AKM selector " << sel;
                 return true;
             }
@@ -2286,28 +2375,45 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         LOG(DEBUG) << "SecurityTemplate: SuiteSelector set but no handled selector";
     }
 
+    const bool is_6g = template_operating_classes_include_6ghz(operating_classes);
+
     if (contains(akm_flags, "sae") || contains(rsne_akm_list, "sae")) {
         const bool has_psk = contains(akm_flags, "psk") || contains(rsne_akm_list, "psk");
         if (has_psk && rsno_support) {
             bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_RSN;
-            bss_info.encryption_type       = WSC::eWscEncr::WSC_ENCR_AES;
+            bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
             bss_info.additional_auth =
                 son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
-            const bool is_6g = template_operating_classes_include_6ghz(operating_classes);
-            template_fill_wpa3_pcm_rsn_ies(security_template_obj, is_6g, bss_info.rsn_security_ies);
+            template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::PCM,
+                                           bss_info.rsn_security_ies);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Compatibility (RSNO)";
         } else if (has_psk) {
             bss_info.authentication_type = WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK |
                                                           WSC::eWscAuth::WSC_AUTH_SAE);
             bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
             bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
+            template_fill_rsn_security_ies(security_template_obj, is_6g,
+                                           eTemplateRsnMode::TRANSITION,
+                                           bss_info.rsn_security_ies);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Transition (PSK+SAE, no RSNO)";
         } else {
             bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
-            bss_info.encryption_type       = WSC::eWscEncr::WSC_ENCR_AES;
-            bss_info.additional_auth       = son::wireless_utils::eAdditionalAuth::NONE;
+            bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+            bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
+            template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::SAE,
+                                           bss_info.rsn_security_ies);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal (SAE)";
         }
+        return true;
+    }
+
+    if (contains(akm_flags, "sae-ext-key") || contains(rsne_akm_list, "sae-ext-key")) {
+        bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE_AKM24;
+        bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+        bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
+        template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::SAE_EXT,
+                                       bss_info.rsn_security_ies);
+        LOG(DEBUG) << "SecurityTemplate: WPA3-Personal (SAE-EXT-KEY / AKM24)";
         return true;
     }
 
@@ -2315,6 +2421,8 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
         bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
         bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
+        template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::PSK,
+                                       bss_info.rsn_security_ies);
         LOG(DEBUG) << "SecurityTemplate: WPA2-Personal";
         return true;
     }
@@ -2892,7 +3000,9 @@ static bool template_stage_bss_on_radio(
         }
         per_bss.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
         per_bss.rsn_security_ies.clear();
-        LOG(DEBUG) << "Agent " << agent->al_mac << " lacks RSN override; security downgraded";
+        LOG(DEBUG) << "Agent " << agent->al_mac << " RSN/PCM downgraded (rsno="
+                   << agent->rsn_overriding_supported << " caps_block="
+                   << capability_blocks_rsn_override << ")";
     }
 
     per_bss.bss_index = template_allocate_stable_bss_index(agent->al_mac, radio_uid,
@@ -2906,7 +3016,7 @@ static bool template_stage_bss_on_radio(
 
     g_database->add_bss_info_configuration(agent->al_mac, per_bss);
     LOG(DEBUG) << "Staged BSS for agent " << agent->al_mac << " radio " << radio_uid << " SSID \""
-               << bss_ssid << "\"";
+               << bss_ssid << "\" rsn_ies_len=" << per_bss.rsn_security_ies.size();
     return true;
 }
 
@@ -3383,6 +3493,10 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
                 bss_info.additional_auth =
                     son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                const bool is_6g =
+                    template_operating_classes_include_6ghz(bss_info.operating_class);
+                template_fill_rsn_security_ies(nullptr, is_6g, eTemplateRsnMode::PCM,
+                                               bss_info.rsn_security_ies);
             } else {
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_OPEN;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_NONE;
