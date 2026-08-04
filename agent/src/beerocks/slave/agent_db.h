@@ -136,6 +136,14 @@ public:
             beerocks::eFreqType backhaul_preferred_radio_band;
         } back_radio;
 
+        enum class eBackhaulWireDiscoveryMode {
+            StaticList = 0,
+            Auto,
+        };
+
+        // Put in DeviceConf since it is configuration policy, not current backhaul runtime state.
+        eBackhaulWireDiscoveryMode backhaul_wire_discovery_mode =
+            eBackhaulWireDiscoveryMode::StaticList;
         bool local_gw;
         bool local_controller;
         bool local_non_prplmesh_controller;
@@ -191,7 +199,8 @@ public:
     } controller_info;
 
     struct sStatus {
-        bool ap_autoconfiguration_completed;
+        bool ap_autoconfiguration_completed = false;
+        bool controller_connected           = false;
         uint32_t zwdfs_cac_remaining_time_sec;
     } statuses;
 
@@ -234,18 +243,22 @@ public:
         std::list<sBackhaulLink> backhaul_links;
     } backhaul;
 
-    struct {
-        struct sEthernetPort {
-            explicit sEthernetPort(const std::string &iface_name_,
-                                   const sMacAddr &mac_ = net::network_utils::ZERO_MAC)
-                : iface_name(iface_name_), mac(mac_)
-            {
-            }
-            sEthernetPort() : mac(net::network_utils::ZERO_MAC){};
-            std::string iface_name;
-            sMacAddr mac;
-        } wan;
+    struct sEthernetPort {
+        std::string iface_name;
+        sMacAddr mac = net::network_utils::ZERO_MAC;
+
+        sEthernetPort() = default;
+        explicit sEthernetPort(const std::string &iface_name_,
+                               const sMacAddr &mac_ = net::network_utils::ZERO_MAC)
+            : iface_name(iface_name_), mac(mac_)
+        {
+        }
+    };
+
+    struct sEthernet {
+        sEthernetPort wan;
         std::vector<sEthernetPort> lan;
+        std::vector<sEthernetPort> wan_candidates;
     } ethernet;
 
     struct sChannelPreference;
@@ -616,6 +629,8 @@ public:
     void dm_set_management_mode(const std::string &mode);
 
     void dm_set_agent_state(const std::string &cur, const std::string &max);
+
+    void dm_set_controller_connected(bool connected);
 
     std::string dm_create_fronthaul_object(const std::string &iface);
 

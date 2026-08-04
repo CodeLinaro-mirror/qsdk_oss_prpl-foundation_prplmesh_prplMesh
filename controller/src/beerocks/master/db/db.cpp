@@ -6919,8 +6919,8 @@ std::string db::dm_add_device_element(const sMacAddr &mac)
     auto index = m_ambiorix_datamodel->get_instance_index(
         DATAELEMENTS_ROOT_DM ".Network.Device.[ID == '%s'].", tlvf::mac_to_string(mac));
     if (index) {
-        LOG(WARNING) << "Device with ID: " << mac << " exists in the data model!";
-        return {};
+        LOG(DEBUG) << "Device with ID: " << mac << " already exists in the data model, reusing it";
+        return std::string(DATAELEMENTS_ROOT_DM ".Network.Device.") + std::to_string(index);
     }
 
     auto device_path = m_ambiorix_datamodel->add_instance(DATAELEMENTS_ROOT_DM ".Network.Device");

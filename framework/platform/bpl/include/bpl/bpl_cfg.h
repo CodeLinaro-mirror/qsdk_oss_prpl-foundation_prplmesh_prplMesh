@@ -985,6 +985,14 @@ bool cfg_get_unsuccessful_assoc_max_reporting_rate(unsigned int &max_reporting_r
 bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces);
 
 /**
+ * @brief Returns wire backhaul interface discovery mode.
+ *
+ * @param [out] mode Wire backhaul discovery mode.
+ * @return true on success, otherwise false.
+ */
+bool bpl_cfg_get_backhaul_wire_discovery_mode(std::string &mode);
+
+/**
  * @brief Returns wire backhaul interface.
  *
  * @param [out] iface Wire backhaul interface name.

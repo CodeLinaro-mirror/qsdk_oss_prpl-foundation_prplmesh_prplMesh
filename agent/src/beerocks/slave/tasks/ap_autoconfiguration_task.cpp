@@ -61,6 +61,7 @@
 #include <bpl/bpl_board.h>
 #include <bpl/bpl_cfg.h>
 
+#include <algorithm>
 #include <functional>
 #include <sstream>
 
@@ -73,6 +74,24 @@ using namespace net;
 using namespace multi_vendor;
 
 namespace {
+bool is_wired_backhaul_candidate(const std::string &iface_name)
+{
+    auto db = AgentDB::get();
+    return std::any_of(db->ethernet.wan_candidates.begin(), db->ethernet.wan_candidates.end(),
+                       [&](const AgentDB::sEthernetPort &candidate) {
+                           return candidate.iface_name == iface_name;
+                       });
+}
+
+bool is_lan_ethernet_iface(const std::string &iface_name)
+{
+    auto db = AgentDB::get();
+    return std::any_of(db->ethernet.lan.begin(), db->ethernet.lan.end(),
+                       [&](const AgentDB::sEthernetPort &lan_iface) {
+                           return lan_iface.iface_name == iface_name;
+                       });
+}
+
 bool is_valid_op_std(const std::string &radio_iface,
                      const airties::tlvAirtiesRadioCapability::sStandards &op_std)
 {
@@ -256,7 +275,8 @@ template <typename BssConfig> static inline std::string dump_bssconfig_compact(c
 
 } // namespace
 
-static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS = 3;
+static constexpr uint8_t AUTOCONFIG_DISCOVERY_TIMEOUT_SECONDS    = 3;
+static constexpr uint8_t MAX_WIRED_CONTROLLER_DISCOVERY_ATTEMPTS = 20;
 #define HANDLE_THIRD_PARTY_ENABLE "1"
 #define VENDOR_RADIO_CFG 0x05
 
@@ -355,14 +375,31 @@ void ApAutoConfigurationTask::work()
             if (!radio) {
                 continue;
             }
-            if (m_discovery_status[radio->wifi_channel.get_freq_type()].completed) {
+
+            auto &discovery_status = m_discovery_status[radio->wifi_channel.get_freq_type()];
+
+            if (discovery_status.completed) {
                 FSM_MOVE_STATE(radio_iface, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
                 break;
             }
 
             if (std::chrono::steady_clock::now() > conf_params.timeout) {
+                // Wired backhaul selection only proves that a usable bridge port exists.
+                // If controller discovery keeps timing out, the wired path is not valid and
+                // BackhaulManager should restart without selecting wired again.
+                if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+                    discovery_status.failed_attempts++;
+
+                    if (discovery_status.failed_attempts >=
+                            MAX_WIRED_CONTROLLER_DISCOVERY_ATTEMPTS &&
+                        !discovery_status.wired_onboarding_failed_notified) {
+                        discovery_status.wired_onboarding_failed_notified = true;
+                        m_btl_ctx.send_event(slave_thread::eEvent::WIRED_ONBOARDING_FAILED);
+                    }
+                }
+
                 FSM_MOVE_STATE(radio_iface, eState::CONTROLLER_DISCOVERY);
-                m_discovery_status[radio->wifi_channel.get_freq_type()].msg_sent = false;
+                discovery_status.msg_sent = false;
             }
             break;
         }
@@ -401,7 +438,9 @@ void ApAutoConfigurationTask::work()
     auto db = AgentDB::get();
     if (configured_aps_count > 0 && configured_aps_count == m_radios_conf_params.size()) {
         db->statuses.ap_autoconfiguration_completed = true;
-        m_task_is_active                            = false;
+        db->statuses.controller_connected           = true;
+        db->dm_set_controller_connected(true);
+        m_task_is_active = false;
         LOG(DEBUG) << "Link to the controller is established";
 
         // Trigger TS once per completed autoconfiguration cycle.
@@ -436,6 +475,8 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         auto db = AgentDB::get();
 
         db->statuses.ap_autoconfiguration_completed = false;
+        db->statuses.controller_connected           = false;
+        db->dm_set_controller_connected(false);
 
         // Reset the discovery statuses.
         for (auto &discovery_status : m_discovery_status) {
@@ -507,7 +548,7 @@ bool ApAutoConfigurationTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, ui
 {
     switch (cmdu_rx.getMessageType()) {
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE: {
-        handle_ap_autoconfiguration_response(cmdu_rx, src_mac);
+        handle_ap_autoconfiguration_response(cmdu_rx, iface_index, src_mac);
         return true;
     }
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE: {
@@ -1222,7 +1263,7 @@ bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
 }
 
 void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
-    ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac)
+    ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index, const sMacAddr &src_mac)
 {
     auto db = AgentDB::get();
     /*
@@ -1293,7 +1334,6 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
     if (discovery_status_it != m_discovery_status.end() && discovery_status_it->second.completed) {
         return;
     }
-    m_discovery_status[freq_type].completed = true;
 
     LOG(DEBUG) << "received ap_autoconfiguration response for " << band_name << " band";
 
@@ -1366,14 +1406,39 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
         LOG(WARNING)
             << "Invalid tlvSupportedService - supported service is not MULTI_AP_CONTROLLER";
         return;
-    } else {
-        m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_DISCOVERED);
     }
 
+    if (iface_index != 0) {
+        const auto iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+        const bool wired_backhaul_candidate = is_wired_backhaul_candidate(iface_name);
+
+        // A wired AP-Autoconfiguration Response is enough to prove controller reachability on
+        // that port. Enforce the configured candidate policy here before the generic
+        // CONTROLLER_DISCOVERED event can make the agent appear connected through a non-candidate
+        // Ethernet path. Wireless/local-bus responses are intentionally left to the normal flow.
+        if (!wired_backhaul_candidate && is_lan_ethernet_iface(iface_name)) {
+            LOG(WARNING) << "Ignoring AP-Autoconfiguration Response from controller on "
+                            "non-candidate wired interface "
+                         << iface_name << " (iface_index=" << iface_index << ")";
+            return;
+        }
+
+        if (wired_backhaul_candidate) {
+            LOG(DEBUG) << "Controller discovery response received on wired candidate " << iface_name
+                       << " (iface_index=" << iface_index << "). Notifying BackhaulManager.";
+            m_btl_ctx.send_event(slave_thread::eEvent::WIRED_CONTROLLER_DETECTED, iface_index);
+        }
+    }
+
+    m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_DISCOVERED);
+
     // Mark discovery status completed on band mentioned on the response and fill AgentDB fields.
-    db->controller_info.prplmesh_controller = prplmesh_controller;
-    db->controller_info.bridge_mac          = src_mac;
-    m_discovery_status[freq_type].completed = true;
+    db->controller_info.prplmesh_controller           = prplmesh_controller;
+    db->controller_info.bridge_mac                    = src_mac;
+    auto &discovery_status                            = m_discovery_status[freq_type];
+    discovery_status.completed                        = true;
+    discovery_status.failed_attempts                  = 0;
+    discovery_status.wired_onboarding_failed_notified = false;
     LOG(DEBUG) << "controller_discovered on " << band_name
                << " band, controller bridge_mac=" << src_mac
                << ", prplmesh_controller=" << prplmesh_controller;

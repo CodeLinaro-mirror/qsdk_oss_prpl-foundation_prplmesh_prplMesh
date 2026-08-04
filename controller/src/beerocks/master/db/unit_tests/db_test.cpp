@@ -37,6 +37,7 @@ constexpr auto g_bridge_oui                 = "465566";
 constexpr auto g_radio_mac_1                = "46:55:66:77:00:21";
 constexpr auto g_radio_mac_2                = "46:55:66:77:00:22";
 constexpr auto g_client_mac                 = "46:55:66:77:00:31";
+constexpr auto g_agent_mac                  = "46:55:66:77:00:51";
 constexpr auto g_vap_id_1                   = 1;
 constexpr auto g_bssid_1                    = "46:55:66:77:00:03";
 constexpr auto g_ssid_1                     = "dummy_ssid";
@@ -45,6 +46,8 @@ constexpr auto g_interface_mac_2            = "46:55:66:77:00:42";
 const std::string g_device_path_multiapcaps = std::string(g_device_path) + ".1.MultiAPCapabilities";
 const std::string g_radio_path_1            = std::string(g_device_path) + ".1.Radio.1";
 const std::string g_radio_path_2            = std::string(g_device_path) + ".1.Radio.2";
+const std::string g_agent_path              = std::string(g_device_path) + ".2";
+const std::string g_agent_path_multiapcaps  = g_agent_path + ".MultiAPCapabilities";
 const std::string g_radio_1_bss_path_1      = std::string(g_radio_path_1) + ".BSS.1";
 const std::string g_radio_1_bss_path_2      = std::string(g_radio_path_1) + ".BSS.2";
 const std::string g_radio_2_bss_path_1      = std::string(g_radio_path_2) + ".BSS.1";
@@ -156,6 +159,37 @@ protected:
                   m_db->get_radio_data_model_path(tlvf::mac_from_string(g_radio_mac_1)));
     }
 };
+
+TEST_F(DbTest, AddAgentReusesExistingDataModelDevice)
+{
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_agent_mac)).WillOnce(Return(2));
+
+    EXPECT_CALL(*m_ambiorix, set(g_agent_path_multiapcaps, "AgentInitiatedRCPIBasedSteering",
+                                 Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_agent_path_multiapcaps, "UnassociatedSTALinkMetricsCurrentlyOn",
+                                 Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_agent_path_multiapcaps, "UnassociatedSTALinkMetricsCurrentlyOff",
+                                 Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(std::string(g_device_path) + ".1", "CollectionInterval",
+                                 Matcher<const uint32_t &>(_)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_agent_path, "CollectionInterval", Matcher<const uint32_t &>(_)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_agent_path + ".MultiAPDevice", "ManufacturerOUI",
+                                 Matcher<const std::string &>(g_bridge_oui)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_agent_path + ".MultiAPDevice", "EasyMeshAgentOperationMode",
+                                 Matcher<const std::string &>("Running")))
+        .WillOnce(Return(true));
+
+    auto agent = m_db->add_agent(tlvf::mac_from_string(g_agent_mac));
+    ASSERT_TRUE(agent);
+    EXPECT_EQ(g_agent_path, agent->dm_path);
+    EXPECT_EQ(g_agent_path, m_db->get_agent_data_model_path(tlvf::mac_from_string(g_agent_mac)));
+}
 
 class DbTestRadio1Bss1 : public ::DbTestRadio1 {
 

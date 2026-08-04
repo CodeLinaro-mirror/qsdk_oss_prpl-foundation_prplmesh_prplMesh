@@ -223,6 +223,13 @@ void AgentDB::dm_set_agent_state(const std::string &cur, const std::string &max)
     m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "BestState", max);
 }
 
+void AgentDB::dm_set_controller_connected(bool connected)
+{
+    LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
+
+    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "ControllerConnected", connected);
+}
+
 void AgentDB::dm_set_management_mode(const std::string &mode)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";

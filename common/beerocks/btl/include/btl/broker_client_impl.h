@@ -60,6 +60,13 @@ public:
     bool subscribe(const std::set<ieee1905_1::eMessageType> &msg_types) override;
 
     /**
+     * @brief Subscribes for internal transport notifications.
+     *
+     * @see BrokerClient::subscribe()
+     */
+    bool subscribe(const std::set<beerocks::transport::messages::Type> &msg_types) override;
+
+    /**
      * @brief Configures the transport process to use given network bridge.
      *
      * @see BrokerClient::configure_interfaces()

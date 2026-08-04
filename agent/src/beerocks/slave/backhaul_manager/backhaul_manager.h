@@ -385,7 +385,58 @@ private:
     };
     std::unordered_map<std::string, ap_blacklist_entry> ap_blacklist;
 
+    struct sBackhaulWireInterface {
+        AgentDB::sEthernetPort ethernet_port;
+        bool bridge_member    = false;
+        bool up_and_running   = false;
+        bool has_1905_traffic = false; // later
+    };
+    std::unordered_map<std::string, sBackhaulWireInterface> m_backhaul_wire_interfaces;
+
+    enum class eLoopIfaceType { Unknown, WiredCandidate, WirelessEndpoint };
+
+    struct sLoopIfaceInfo {
+        uint32_t iface_index = 0;
+        std::string iface_name;
+        eLoopIfaceType iface_type              = eLoopIfaceType::Unknown;
+        size_t wired_candidate_order           = 0;
+        beerocks::eFreqType wireless_freq_type = beerocks::FREQ_UNKNOWN;
+        bool selected_backhaul                 = false;
+    };
+
+    void handle_duplicate_cmdu_notification(
+        const beerocks::btl::BrokerClient::DuplicateCmduNotification &notification);
+    sLoopIfaceInfo classify_loop_iface(uint32_t iface_index) const;
+    const char *loop_iface_type_to_string(eLoopIfaceType iface_type) const;
+    int wireless_loop_preference(beerocks::eFreqType freq_type) const;
+    AgentDB::sEthernetPort wired_candidate_with_mac(const AgentDB::sEthernetPort &candidate) const;
+    bool find_wired_candidate(const std::string &iface_name,
+                              AgentDB::sEthernetPort &candidate) const;
+    bool wired_candidate_is_available(const std::string &iface_name) const;
+    bool has_available_wired_candidate() const;
+    void maybe_send_wired_controller_probe();
+    std::string select_wired_controller_probe_radio_iface() const;
+    bool send_wired_controller_probe_on_candidate(const std::string &wired_iface);
+    bool send_wired_controller_probe_search(const std::string &radio_iface,
+                                            const std::string &wired_iface);
+    bool remove_wireless_backhaul_ifaces_from_bridge();
+    bool register_wan_monitor_handlers();
+    void unregister_wan_monitor_handlers();
+    bool handle_wan_monitor_events();
+    void handle_wan_monitor_event(const wan_monitor::LinkEvent &event);
+    bool handle_wired_controller_detected(uint32_t iface_index);
+    bool handle_wired_autoconfiguration_response(uint32_t iface_index,
+                                                 ieee1905_1::CmduMessageRx &cmdu_rx);
+
     wan_monitor wan_mon;
+    int m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+    // Runtime fallback guard. Set after wired controller discovery timeout and kept across the
+    // BackhaulManager restart so the next ENABLED pass can try wireless onboarding.
+    bool m_skip_wired_backhaul = false;
+    std::string m_preferred_wired_candidate_iface;
+    std::chrono::steady_clock::time_point m_next_wired_controller_probe_time =
+        std::chrono::steady_clock::time_point::min();
+    size_t m_next_wired_controller_probe_candidate_index = 0;
 
     // Future to hold the DHCP client process exit code
     std::future<int> m_ftDHCPRetCode;

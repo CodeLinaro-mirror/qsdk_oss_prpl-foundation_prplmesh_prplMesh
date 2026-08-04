@@ -36,10 +36,22 @@
 #include <tlvf/wfa_map/tlvBackhaulSteeringRequest.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
 #include <tlvf/wfa_map/tlvProfile2AssociationStatusNotification.h>
+#include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
+#include <tlvf/wfa_map/tlvSearchedService.h>
+#include <tlvf/wfa_map/tlvSupportedService.h>
+
+#include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
+#include <tlvf/ieee_1905_1/tlvAutoconfigFreqBand.h>
+#include <tlvf/ieee_1905_1/tlvSearchedRole.h>
 
 // BPL Error Codes
 #include <bpl/bpl_cfg.h>
 #include <bpl/bpl_err.h>
+
+#include <algorithm>
+#include <set>
+#include <tuple>
+#include <utility>
 
 #include <net/if.h> // if_nametoindex
 
@@ -62,6 +74,13 @@ constexpr auto fsm_timer_period = std::chrono::milliseconds(500);
  * Timeout to process a Backhaul Steering Request message.
  */
 constexpr auto backhaul_steering_timeout = std::chrono::milliseconds(10000);
+
+/**
+ * While the agent is trying/using wireless backhaul, probe the already configured transport path
+ * periodically. If a controller response arrives on a wired candidate, BackhaulManager can restart
+ * into the regular wired onboarding flow.
+ */
+constexpr auto wired_controller_probe_interval = std::chrono::seconds(60);
 
 /**
  * Timeout to process a "dev_reset_default" WFA-CA command.
@@ -274,8 +293,16 @@ bool BackhaulManager::thread_init()
     broker_client_handlers.on_cmdu_received = [&](uint32_t iface_index, const sMacAddr &dst_mac,
                                                   const sMacAddr &src_mac,
                                                   ieee1905_1::CmduMessageRx &cmdu_rx) {
+        if (handle_wired_autoconfiguration_response(iface_index, cmdu_rx)) {
+            return;
+        }
         handle_cmdu_from_broker(iface_index, dst_mac, src_mac, cmdu_rx);
     };
+
+    broker_client_handlers.on_duplicate_cmdu_received =
+        [&](const beerocks::btl::BrokerClient::DuplicateCmduNotification &notification) {
+            handle_duplicate_cmdu_notification(notification);
+        };
 
     // Install a connection-closed event handler.
     // Currently there is no recovery mechanism if connection with broker server gets interrupted
@@ -291,6 +318,7 @@ bool BackhaulManager::thread_init()
     // Subscribe for the reception of CMDU messages that this process is interested in
     if (!m_broker_client->subscribe(std::set<ieee1905_1::eMessageType>{
             ieee1905_1::eMessageType::ACK_MESSAGE,
+            ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE,
             ieee1905_1::eMessageType::BACKHAUL_STEERING_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::CAC_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::CAC_TERMINATION_MESSAGE,
@@ -304,6 +332,13 @@ bool BackhaulManager::thread_init()
             ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
         })) {
         LOG(ERROR) << "Failed subscribing to the Bus";
+        return false;
+    }
+
+    if (!m_broker_client->subscribe(std::set<beerocks::transport::messages::Type>{
+            beerocks::transport::messages::Type::DuplicateCmduNotificationMessage,
+        })) {
+        LOG(ERROR) << "Failed subscribing to transport duplicate CMDU notifications";
         return false;
     }
 
@@ -337,6 +372,8 @@ void BackhaulManager::on_thread_stop()
         m_platform_manager_client.reset();
     }
 
+    unregister_wan_monitor_handlers();
+
     if (m_broker_client) {
         m_broker_client->clear_handlers();
         m_broker_client.reset();
@@ -353,6 +390,696 @@ void BackhaulManager::on_thread_stop()
     LOG(DEBUG) << "stopped";
 
     return;
+}
+
+const char *BackhaulManager::loop_iface_type_to_string(eLoopIfaceType iface_type) const
+{
+    switch (iface_type) {
+    case eLoopIfaceType::WiredCandidate:
+        return "wired_candidate";
+    case eLoopIfaceType::WirelessEndpoint:
+        return "wireless_endpoint";
+    case eLoopIfaceType::Unknown:
+        return "unknown";
+    }
+
+    return "unknown";
+}
+
+int BackhaulManager::wireless_loop_preference(beerocks::eFreqType freq_type) const
+{
+    // Product policy for choosing between multiple wireless backhaul endpoints involved in a
+    // duplicate-path condition. Higher value wins.
+    switch (freq_type) {
+    case beerocks::FREQ_5G:
+        return 3;
+    case beerocks::FREQ_24G:
+        return 2;
+    case beerocks::FREQ_6G:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+BackhaulManager::sLoopIfaceInfo BackhaulManager::classify_loop_iface(uint32_t iface_index) const
+{
+    sLoopIfaceInfo iface_info;
+    iface_info.iface_index = iface_index;
+
+    // Index 0 is used by transport for local-bus-originated CMDUs and is not a physical ingress
+    // interface. Duplicate-loop notifications should normally be network-originated, but keep this
+    // guard to avoid misleading iface-name lookups.
+    if (iface_index == 0) {
+        return iface_info;
+    }
+
+    iface_info.iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+    if (iface_info.iface_name.empty()) {
+        return iface_info;
+    }
+
+    auto db = AgentDB::get();
+
+    for (size_t i = 0; i < db->ethernet.wan_candidates.size(); i++) {
+        const auto &candidate = db->ethernet.wan_candidates[i];
+        if (candidate.iface_name != iface_info.iface_name) {
+            continue;
+        }
+
+        iface_info.iface_type            = eLoopIfaceType::WiredCandidate;
+        iface_info.wired_candidate_order = i;
+        iface_info.selected_backhaul =
+            db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired &&
+            db->backhaul.selected_iface_name == iface_info.iface_name;
+        return iface_info;
+    }
+
+    for (const auto &radio_info : m_radios_info) {
+        if (!radio_info || radio_info->sta_iface != iface_info.iface_name) {
+            continue;
+        }
+
+        iface_info.iface_type = eLoopIfaceType::WirelessEndpoint;
+        auto radio            = db->radio(radio_info->sta_iface);
+        if (!radio) {
+            radio = db->radio(radio_info->hostap_iface);
+        }
+        if (radio) {
+            iface_info.wireless_freq_type = radio->wifi_channel.get_freq_type();
+        }
+        iface_info.selected_backhaul =
+            db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+            db->backhaul.selected_iface_name == iface_info.iface_name;
+        return iface_info;
+    }
+
+    return iface_info;
+}
+
+void BackhaulManager::handle_duplicate_cmdu_notification(
+    const beerocks::btl::BrokerClient::DuplicateCmduNotification &notification)
+{
+    const auto first_iface     = classify_loop_iface(notification.first_iface_index);
+    const auto duplicate_iface = classify_loop_iface(notification.duplicate_iface_index);
+
+    LOG(WARNING) << "Duplicate 1905 CMDU notification: first_iface_index="
+                 << notification.first_iface_index
+                 << ", first_iface_name=" << first_iface.iface_name
+                 << ", first_iface_type=" << loop_iface_type_to_string(first_iface.iface_type)
+                 << ", duplicate_iface_index=" << notification.duplicate_iface_index
+                 << ", duplicate_iface_name=" << duplicate_iface.iface_name
+                 << ", duplicate_iface_type="
+                 << loop_iface_type_to_string(duplicate_iface.iface_type)
+                 << ", src=" << notification.src_mac << ", dst=" << notification.dst_mac
+                 << ", message_type=" << notification.message_type
+                 << ", message_id=" << notification.message_id
+                 << ", fragment_id=" << int(notification.fragment_id);
+
+    if (first_iface.iface_type == eLoopIfaceType::Unknown ||
+        duplicate_iface.iface_type == eLoopIfaceType::Unknown) {
+        LOG(DEBUG) << "Duplicate 1905 CMDU involves an unknown interface. No loop mitigation "
+                      "proposal can be made yet.";
+        return;
+    }
+
+    const sLoopIfaceInfo *keep_iface  = nullptr;
+    const sLoopIfaceInfo *block_iface = nullptr;
+
+    // The selected backhaul path is the safest path to keep. If a duplicate path appears, the
+    // non-selected path is the first candidate for future blocking.
+    if (first_iface.selected_backhaul != duplicate_iface.selected_backhaul) {
+        keep_iface  = first_iface.selected_backhaul ? &first_iface : &duplicate_iface;
+        block_iface = first_iface.selected_backhaul ? &duplicate_iface : &first_iface;
+    } else if (first_iface.iface_type == eLoopIfaceType::WiredCandidate &&
+               duplicate_iface.iface_type == eLoopIfaceType::WiredCandidate) {
+        // For two wired candidates, preserve configuration/discovery order.
+        keep_iface = first_iface.wired_candidate_order <= duplicate_iface.wired_candidate_order
+                         ? &first_iface
+                         : &duplicate_iface;
+        block_iface = keep_iface == &first_iface ? &duplicate_iface : &first_iface;
+    } else if (first_iface.iface_type != duplicate_iface.iface_type) {
+        auto db = AgentDB::get();
+
+        // If wireless is already the selected backhaul, do not propose breaking it just because an
+        // unproven wired path appeared. Otherwise, prefer wired according to backhaul preference.
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
+            keep_iface = first_iface.iface_type == eLoopIfaceType::WirelessEndpoint
+                             ? &first_iface
+                             : &duplicate_iface;
+        } else {
+            keep_iface = first_iface.iface_type == eLoopIfaceType::WiredCandidate
+                             ? &first_iface
+                             : &duplicate_iface;
+        }
+        block_iface = keep_iface == &first_iface ? &duplicate_iface : &first_iface;
+    } else if (first_iface.iface_type == eLoopIfaceType::WirelessEndpoint &&
+               duplicate_iface.iface_type == eLoopIfaceType::WirelessEndpoint) {
+        // For two wireless endpoints without a selected winner, use product band preference:
+        // 5GHz > 2.4GHz > 6GHz. If both rank the same, keep the first ingress path for stability.
+        const auto first_preference = wireless_loop_preference(first_iface.wireless_freq_type);
+        const auto duplicate_preference =
+            wireless_loop_preference(duplicate_iface.wireless_freq_type);
+
+        keep_iface  = first_preference >= duplicate_preference ? &first_iface : &duplicate_iface;
+        block_iface = keep_iface == &first_iface ? &duplicate_iface : &first_iface;
+    }
+
+    if (!keep_iface || !block_iface) {
+        LOG(DEBUG) << "Duplicate 1905 CMDU classification did not produce a loop mitigation "
+                      "proposal.";
+        return;
+    }
+
+    // This is intentionally a proposal only. The next step is to add the actual blocking operation
+    // behind a separate policy switch after field logs confirm the classification is correct.
+    LOG(WARNING) << "Loop mitigation proposal (not applied): keep iface=" << keep_iface->iface_name
+                 << " type=" << loop_iface_type_to_string(keep_iface->iface_type)
+                 << ", block iface=" << block_iface->iface_name
+                 << " type=" << loop_iface_type_to_string(block_iface->iface_type);
+}
+
+AgentDB::sEthernetPort
+BackhaulManager::wired_candidate_with_mac(const AgentDB::sEthernetPort &candidate) const
+{
+    auto resolved_candidate = candidate;
+    if (resolved_candidate.iface_name.empty() ||
+        resolved_candidate.mac != beerocks::net::network_utils::ZERO_MAC) {
+        return resolved_candidate;
+    }
+
+    auto db = AgentDB::get();
+    for (const auto &lan_iface : db->ethernet.lan) {
+        if (lan_iface.iface_name == resolved_candidate.iface_name &&
+            lan_iface.mac != beerocks::net::network_utils::ZERO_MAC) {
+            resolved_candidate.mac = lan_iface.mac;
+            return resolved_candidate;
+        }
+    }
+
+    std::string iface_mac;
+    if (beerocks::net::network_utils::linux_iface_get_mac(resolved_candidate.iface_name,
+                                                          iface_mac)) {
+        resolved_candidate.mac = tlvf::mac_from_string(iface_mac);
+    } else {
+        LOG(WARNING) << "Failed getting MAC address for wired backhaul candidate "
+                     << resolved_candidate.iface_name;
+    }
+
+    return resolved_candidate;
+}
+
+bool BackhaulManager::find_wired_candidate(const std::string &iface_name,
+                                           AgentDB::sEthernetPort &candidate) const
+{
+    if (iface_name.empty()) {
+        return false;
+    }
+
+    auto db = AgentDB::get();
+    auto it = std::find_if(db->ethernet.wan_candidates.begin(), db->ethernet.wan_candidates.end(),
+                           [&](const AgentDB::sEthernetPort &wan_candidate) {
+                               return wan_candidate.iface_name == iface_name;
+                           });
+    if (it == db->ethernet.wan_candidates.end()) {
+        return false;
+    }
+
+    candidate = wired_candidate_with_mac(*it);
+    return true;
+}
+
+bool BackhaulManager::wired_candidate_is_available(const std::string &iface_name) const
+{
+    if (iface_name.empty()) {
+        return false;
+    }
+
+    auto db = AgentDB::get();
+
+    // This is a cheap point-in-time validation used before probing or preferring a wired path.
+    // Runtime link updates can be added later through wan_monitor, but the probe only needs to
+    // avoid obviously unusable candidates.
+    if (!beerocks::net::network_utils::linux_iface_is_up_and_running(iface_name)) {
+        return false;
+    }
+
+    auto bridge_ifaces =
+        beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+    return std::find(bridge_ifaces.begin(), bridge_ifaces.end(), iface_name) != bridge_ifaces.end();
+}
+
+bool BackhaulManager::has_available_wired_candidate() const
+{
+    auto db = AgentDB::get();
+    for (const auto &candidate : db->ethernet.wan_candidates) {
+        if (wired_candidate_is_available(candidate.iface_name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::string BackhaulManager::select_wired_controller_probe_radio_iface() const
+{
+    auto db = AgentDB::get();
+
+    for (auto preferred_freq : {beerocks::FREQ_24G, beerocks::FREQ_5G, beerocks::FREQ_6G}) {
+        for (const auto &radio : db->get_radios_list()) {
+            if (!radio || radio->front.iface_name.empty() ||
+                radio->wifi_channel.get_freq_type() != preferred_freq) {
+                continue;
+            }
+
+            return radio->front.iface_name;
+        }
+    }
+
+    return {};
+}
+
+bool BackhaulManager::send_wired_controller_probe_on_candidate(const std::string &wired_iface)
+{
+    if (!wired_candidate_is_available(wired_iface)) {
+        LOG(DEBUG) << "Skipping wired controller probe on " << wired_iface
+                   << ": candidate is not currently up and bridged";
+        return false;
+    }
+
+    auto probe_radio_iface = select_wired_controller_probe_radio_iface();
+    if (probe_radio_iface.empty()) {
+        LOG(DEBUG) << "Skipping wired controller probe: no supported radio is available";
+        return false;
+    }
+
+    return send_wired_controller_probe_search(probe_radio_iface, wired_iface);
+}
+
+bool BackhaulManager::send_wired_controller_probe_search(const std::string &radio_iface,
+                                                         const std::string &wired_iface)
+{
+    auto db    = AgentDB::get();
+    auto radio = db->radio(radio_iface);
+    if (!radio) {
+        LOG(DEBUG) << "Radio of iface " << radio_iface << " does not exist on the db";
+        return false;
+    }
+
+    ieee1905_1::tlvAutoconfigFreqBand::eValue freq_band =
+        ieee1905_1::tlvAutoconfigFreqBand::IEEE_802_11_2_4_GHZ;
+    if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_24G) {
+        freq_band = ieee1905_1::tlvAutoconfigFreqBand::IEEE_802_11_2_4_GHZ;
+    } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_5G) {
+        freq_band = ieee1905_1::tlvAutoconfigFreqBand::IEEE_802_11_5_GHZ;
+    } else if (radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_6G) {
+        freq_band = ieee1905_1::tlvAutoconfigFreqBand::IEEE_802_11_6_GHZ;
+    } else {
+        LOG(DEBUG) << "Skipping wired controller probe on unsupported radio freq_type="
+                   << int(radio->wifi_channel.get_freq_type()) << ", iface=" << radio_iface;
+        return false;
+    }
+
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type AP_AUTOCONFIGURATION_SEARCH_MESSAGE has failed";
+        return false;
+    }
+
+    auto tlv_al_mac_address = cmdu_tx.addClass<ieee1905_1::tlvAlMacAddress>();
+    if (!tlv_al_mac_address) {
+        LOG(ERROR) << "addClass ieee1905_1::tlvAlMacAddress failed";
+        return false;
+    }
+    tlv_al_mac_address->mac() = db->bridge.mac;
+
+    auto tlv_searched_role = cmdu_tx.addClass<ieee1905_1::tlvSearchedRole>();
+    if (!tlv_searched_role) {
+        LOG(ERROR) << "addClass ieee1905_1::tlvSearchedRole failed";
+        return false;
+    }
+    tlv_searched_role->value() = ieee1905_1::tlvSearchedRole::REGISTRAR;
+
+    auto tlv_autoconfig_freq_band = cmdu_tx.addClass<ieee1905_1::tlvAutoconfigFreqBand>();
+    if (!tlv_autoconfig_freq_band) {
+        LOG(ERROR) << "addClass ieee1905_1::tlvAutoconfigFreqBand failed";
+        return false;
+    }
+    tlv_autoconfig_freq_band->value() = freq_band;
+
+    auto tlv_supported_service = cmdu_tx.addClass<wfa_map::tlvSupportedService>();
+    if (!tlv_supported_service) {
+        LOG(ERROR) << "addClass wfa_map::tlvSupportedService failed";
+        return false;
+    }
+
+    const uint8_t supported_services_count = db->device_conf.certification_mode ? 1 : 2;
+    if (!tlv_supported_service->alloc_supported_service_list(supported_services_count)) {
+        LOG(ERROR) << "alloc_supported_service_list failed";
+        return false;
+    }
+
+    for (int service_id = 0; service_id < tlv_supported_service->supported_service_list_length();
+         service_id++) {
+        auto supported_service = tlv_supported_service->supported_service_list(service_id);
+        if (!std::get<0>(supported_service)) {
+            LOG(ERROR) << "Invalid tlvSupportedService";
+            return false;
+        }
+
+        std::get<1>(supported_service) =
+            service_id == 0 ? wfa_map::tlvSupportedService::eSupportedService::MULTI_AP_AGENT
+                            : wfa_map::tlvSupportedService::eSupportedService::EM_AP_AGENT;
+    }
+
+    auto tlv_searched_service = cmdu_tx.addClass<wfa_map::tlvSearchedService>();
+    if (!tlv_searched_service) {
+        LOG(ERROR) << "addClass wfa_map::tlvSearchedService failed";
+        return false;
+    }
+    if (!tlv_searched_service->alloc_searched_service_list()) {
+        LOG(ERROR) << "alloc_searched_service_list failed";
+        return false;
+    }
+
+    auto searched_service = tlv_searched_service->searched_service_list(0);
+    if (!std::get<0>(searched_service)) {
+        LOG(ERROR) << "Failed accessing searched_service_list";
+        return false;
+    }
+    std::get<1>(searched_service) =
+        wfa_map::tlvSearchedService::eSearchedService::MULTI_AP_CONTROLLER;
+
+    const bool include_profile_tlv =
+        (db->device_conf.multi_ap_profile >
+         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1) ||
+        db->device_conf.is_multiap_profile_1_as_of_r4;
+    if (include_profile_tlv) {
+        auto tlv_profile2_multi_ap_profile = cmdu_tx.addClass<wfa_map::tlvProfile2MultiApProfile>();
+        if (!tlv_profile2_multi_ap_profile) {
+            LOG(ERROR) << "addClass wfa_map::tlvProfile2MultiApProfile failed";
+            return false;
+        }
+        tlv_profile2_multi_ap_profile->profile() = db->device_conf.multi_ap_profile;
+    }
+
+    LOG(DEBUG) << "Sending wired controller probe AP-Autoconfiguration Search, radio_iface="
+               << radio_iface << ", wired_iface=" << wired_iface
+               << ", bridge_mac=" << db->bridge.mac
+               << ", multi_ap_profile=" << db->device_conf.multi_ap_profile
+               << (include_profile_tlv ? " with Profile TLV" : " without Profile TLV");
+
+    // This probe is intentionally sent through the broker/transport only to discover whether the
+    // controller is reachable on one of the wired candidates. A response restarts BackhaulManager
+    // into the regular wired onboarding flow; this probe does not complete onboarding by itself.
+    return send_cmdu_to_broker(cmdu_tx, beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR,
+                               db->bridge.mac, wired_iface);
+}
+
+void BackhaulManager::maybe_send_wired_controller_probe()
+{
+    auto db = AgentDB::get();
+
+    if (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
+        db->backhaul.connection_type != AgentDB::sBackhaul::eConnectionType::Wireless) {
+        return;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    if (now < m_next_wired_controller_probe_time) {
+        return;
+    }
+    m_next_wired_controller_probe_time = now + wired_controller_probe_interval;
+
+    std::vector<std::string> available_wired_candidates;
+    for (const auto &candidate : db->ethernet.wan_candidates) {
+        if (wired_candidate_is_available(candidate.iface_name)) {
+            available_wired_candidates.push_back(candidate.iface_name);
+        }
+    }
+
+    if (available_wired_candidates.empty()) {
+        LOG(DEBUG) << "Skipping wired controller probe: no wired candidate is currently up and "
+                      "bridged";
+        return;
+    }
+
+    if (m_next_wired_controller_probe_candidate_index >= available_wired_candidates.size()) {
+        m_next_wired_controller_probe_candidate_index = 0;
+    }
+
+    const auto &wired_iface =
+        available_wired_candidates[m_next_wired_controller_probe_candidate_index];
+    m_next_wired_controller_probe_candidate_index =
+        (m_next_wired_controller_probe_candidate_index + 1) % available_wired_candidates.size();
+
+    send_wired_controller_probe_on_candidate(wired_iface);
+}
+
+bool BackhaulManager::register_wan_monitor_handlers()
+{
+    const auto wan_monitor_fd = wan_mon.get_netlink_fd();
+    if (wan_monitor_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "Cannot register wan_monitor handlers: invalid netlink fd";
+        return false;
+    }
+
+    if (m_wan_monitor_fd == wan_monitor_fd) {
+        return true;
+    }
+
+    unregister_wan_monitor_handlers();
+
+    beerocks::EventLoop::EventHandlers wan_monitor_handlers{
+        .name     = "wan_monitor",
+        .on_read  = [this](int fd,
+                          beerocks::EventLoop &loop) { return handle_wan_monitor_events(); },
+        .on_write = nullptr,
+        .on_disconnect =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "wan_monitor disconnected on fd " << fd;
+                m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+                return false;
+            },
+        .on_error =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "wan_monitor error on fd " << fd;
+                m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+                return false;
+            },
+    };
+
+    if (!m_event_loop->register_handlers(wan_monitor_fd, wan_monitor_handlers)) {
+        LOG(ERROR) << "Unable to register wan_monitor handlers for fd " << wan_monitor_fd;
+        return false;
+    }
+
+    m_wan_monitor_fd = wan_monitor_fd;
+    LOG(DEBUG) << "wan_monitor handlers registered on fd " << m_wan_monitor_fd;
+
+    return true;
+}
+
+void BackhaulManager::unregister_wan_monitor_handlers()
+{
+    if (m_wan_monitor_fd == beerocks::net::FileDescriptor::invalid_descriptor || !m_event_loop) {
+        return;
+    }
+
+    if (!m_event_loop->remove_handlers(m_wan_monitor_fd)) {
+        LOG(ERROR) << "Failed to remove wan_monitor handlers for fd " << m_wan_monitor_fd;
+    }
+    m_wan_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+}
+
+bool BackhaulManager::handle_wan_monitor_events()
+{
+    std::vector<wan_monitor::LinkEvent> events;
+    if (!wan_mon.process(events)) {
+        LOG(ERROR) << "wan_monitor.process() failed";
+        return true;
+    }
+
+    for (const auto &event : events) {
+        handle_wan_monitor_event(event);
+    }
+
+    return true;
+}
+
+void BackhaulManager::handle_wan_monitor_event(const wan_monitor::LinkEvent &event)
+{
+    auto it = m_backhaul_wire_interfaces.find(event.iface_name);
+    if (it == m_backhaul_wire_interfaces.end()) {
+        LOG(DEBUG) << "Ignoring wan_monitor event for unknown wired candidate " << event.iface_name;
+        return;
+    }
+
+    auto db                   = AgentDB::get();
+    it->second.up_and_running = event.link_state == wan_monitor::ELinkState::eUp;
+
+    auto bridge_ifaces =
+        beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+    it->second.bridge_member = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                         event.iface_name) != bridge_ifaces.end();
+
+    LOG(DEBUG) << "Wired backhaul candidate iface=" << event.iface_name
+               << " link_state=" << int(event.link_state)
+               << ", bridge_member=" << int(it->second.bridge_member);
+
+    if (event.link_state != wan_monitor::ELinkState::eUp ||
+        db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
+        db->backhaul.connection_type != AgentDB::sBackhaul::eConnectionType::Wireless) {
+        return;
+    }
+
+    LOG(INFO) << "Wired backhaul candidate iface=" << event.iface_name
+              << " is up, sending immediate wired controller probe";
+
+    if (send_wired_controller_probe_on_candidate(event.iface_name)) {
+        m_next_wired_controller_probe_time =
+            std::chrono::steady_clock::now() + wired_controller_probe_interval;
+    }
+}
+
+bool BackhaulManager::remove_wireless_backhaul_ifaces_from_bridge()
+{
+    auto db      = AgentDB::get();
+    bool success = true;
+
+    for (const auto &radio_info : m_radios_info) {
+        if (!radio_info || radio_info->sta_iface.empty()) {
+            continue;
+        }
+
+        const auto &iface_name = radio_info->sta_iface;
+        const auto &bridge     = db->bridge.iface_name;
+        if (beerocks::net::network_utils::linux_iface_get_host_bridge(iface_name) != bridge) {
+            continue;
+        }
+
+        LOG(INFO) << "Removing wireless backhaul iface " << iface_name << " from bridge " << bridge
+                  << " before switching to wired backhaul";
+
+        if (!beerocks::net::network_utils::linux_remove_iface_from_bridge(bridge, iface_name)) {
+            LOG(ERROR) << "Failed to remove wireless backhaul iface " << iface_name
+                       << " from bridge " << bridge;
+            success = false;
+        }
+    }
+
+    return success;
+}
+
+bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
+{
+    // Transport uses index 0 for local-bus-originated messages. A real wired controller response
+    // must have a network ingress interface.
+    if (iface_index == 0) {
+        return false;
+    }
+
+    auto db         = AgentDB::get();
+    auto iface_name = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+    if (iface_name.empty()) {
+        LOG(WARNING) << "Controller detected on unknown interface index " << iface_index;
+        return false;
+    }
+
+    auto iface_info = classify_loop_iface(iface_index);
+    if (iface_info.iface_type == eLoopIfaceType::WirelessEndpoint) {
+        if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+            LOG(INFO) << "Controller AP-Autoconfiguration Response received on wireless "
+                         "backhaul iface "
+                      << iface_name
+                      << " while selected wired backhaul iface=" << db->backhaul.selected_iface_name
+                      << ". Correcting active backhaul type to wireless.";
+
+            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wireless;
+            db->backhaul.selected_iface_name = iface_name;
+
+            if (auto iface_hal = get_wireless_hal(iface_name)) {
+                db->backhaul.backhaul_bssid = tlvf::mac_from_string(iface_hal->get_bssid());
+            }
+        } else {
+            LOG(DEBUG) << "Controller AP-Autoconfiguration Response received on wireless "
+                          "backhaul iface "
+                       << iface_name;
+        }
+
+        return false;
+    }
+
+    AgentDB::sEthernetPort candidate;
+    if (!find_wired_candidate(iface_name, candidate)) {
+        LOG(WARNING) << "Controller detected on non-candidate interface " << iface_name
+                     << " (iface_index=" << iface_index
+                     << "). Ignoring because it is not in the wired backhaul candidate list.";
+        return false;
+    }
+
+    if (!wired_candidate_is_available(iface_name)) {
+        LOG(DEBUG) << "Ignoring AP-Autoconfiguration Response on wired candidate " << iface_name
+                   << ": candidate is no longer up and bridged";
+        return false;
+    }
+
+    if (!remove_wireless_backhaul_ifaces_from_bridge()) {
+        LOG(ERROR) << "Refusing wired backhaul switch on iface " << iface_name
+                   << " because a wireless backhaul iface could not be removed from bridge";
+        return false;
+    }
+
+    if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+        if (db->backhaul.selected_iface_name == iface_name) {
+            LOG(DEBUG) << "Controller AP-Autoconfiguration Response received on selected wired "
+                          "backhaul iface "
+                       << iface_name;
+            return true;
+        }
+
+        LOG(INFO) << "Updating selected wired backhaul iface from "
+                  << db->backhaul.selected_iface_name << " to " << iface_name
+                  << " based on AP-Autoconfiguration Response";
+
+        // The response tells us which candidate actually carries controller traffic. Keep the
+        // current wired session, but correct the DB metadata so status/logs reflect the real port.
+        db->ethernet.wan                  = std::move(candidate);
+        db->backhaul.selected_iface_name  = iface_name;
+        m_preferred_wired_candidate_iface = std::move(iface_name);
+        return true;
+    }
+
+    if (FSM_IS_IN_STATE(RESTART) && m_preferred_wired_candidate_iface == iface_name) {
+        LOG(DEBUG) << "Ignoring duplicate wired controller detection on candidate " << iface_name;
+        return true;
+    }
+
+    LOG(INFO) << "Controller AP-Autoconfiguration Response received on wired candidate "
+              << iface_name << ". Restarting backhaul manager for wired onboarding.";
+
+    // The response proves that the controller is reachable through this wired candidate. Clear the
+    // previous wired-failure guard and remember the responding interface so ENABLED selects it on
+    // the next pass instead of falling back to the first configured candidate.
+    m_skip_wired_backhaul             = false;
+    m_preferred_wired_candidate_iface = std::move(iface_name);
+    db->ethernet.wan                  = std::move(candidate);
+
+    if (!FSM_IS_IN_STATE(RESTART)) {
+        FSM_MOVE_STATE(RESTART);
+    }
+
+    return true;
+}
+
+bool BackhaulManager::handle_wired_autoconfiguration_response(uint32_t iface_index,
+                                                              ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    if (cmdu_rx.getMessageType() !=
+        ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_RESPONSE_MESSAGE) {
+        return false;
+    }
+
+    return handle_wired_controller_detected(iface_index);
 }
 
 bool BackhaulManager::send_cmdu(int fd, ieee1905_1::CmduMessageTx &cmdu_tx)
@@ -792,36 +1519,135 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             break;
         }
 
-        // link establish
-        auto ifaces =
-            beerocks::net::network_utils::linux_get_iface_list_from_bridge(db->bridge.iface_name);
+        // Backhaul interface logic
 
-        // If a wired (WAN) interface was provided, try it first, check if the interface is UP
-        wan_monitor::ELinkState wired_link_state = wan_monitor::ELinkState::eInvalid;
-        if (!db->device_conf.local_gw && !db->ethernet.wan.iface_name.empty()) {
-            wired_link_state = wan_mon.initialize(db->ethernet.wan.iface_name);
-            // Failure might be due to insufficient permissions, detailed error message is being
-            // printed inside.
-            if (wired_link_state == wan_monitor::ELinkState::eInvalid) {
-                LOG(WARNING) << "wan_mon.initialize() failed, skip wired link establishment";
+        // Build runtime state for all configured or discovered wired backhaul candidates.
+        // AgentDB keeps the static candidate list. Backhaul manager owns runtime state.
+        unregister_wan_monitor_handlers();
+        m_backhaul_wire_interfaces.clear();
+
+        if (!db->device_conf.local_gw) {
+            std::vector<std::string> monitored_ifaces;
+            for (const auto &candidate : db->ethernet.wan_candidates) {
+                if (!candidate.iface_name.empty()) {
+                    monitored_ifaces.push_back(candidate.iface_name);
+                }
+            }
+
+            // Subscribe before taking the initial snapshot. Link events received after this point
+            // remain queued until the candidate map is ready and the event-loop handler is
+            // registered.
+            bool wan_monitor_initialized = false;
+            if (!monitored_ifaces.empty()) {
+                wan_monitor_initialized = wan_mon.initialize(monitored_ifaces);
+                if (!wan_monitor_initialized) {
+                    // Initial selection can still use the state collected below.
+                    LOG(WARNING)
+                        << "wan_mon.initialize() failed, wired candidate monitoring disabled";
+                }
+            }
+
+            auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(
+                db->bridge.iface_name);
+
+            for (const auto &candidate : db->ethernet.wan_candidates) {
+                if (candidate.iface_name.empty()) {
+                    continue;
+                }
+
+                sBackhaulWireInterface wire_iface;
+                wire_iface.ethernet_port = wired_candidate_with_mac(candidate);
+
+                // Initial state is required because netlink reports only changes. Any change after
+                // monitor initialization is also queued on its socket and processed later.
+                wire_iface.up_and_running =
+                    beerocks::net::network_utils::linux_iface_is_up_and_running(
+                        candidate.iface_name);
+
+                // Initial bridge membership. Later this can be updated from netlink events.
+                wire_iface.bridge_member = std::find(bridge_ifaces.begin(), bridge_ifaces.end(),
+                                                     candidate.iface_name) != bridge_ifaces.end();
+
+                m_backhaul_wire_interfaces.emplace(candidate.iface_name, wire_iface);
+
+                LOG(DEBUG) << "Wired backhaul candidate iface=" << candidate.iface_name
+                           << ", up_and_running=" << int(wire_iface.up_and_running)
+                           << ", bridge_member=" << int(wire_iface.bridge_member);
+            }
+
+            if (wan_monitor_initialized && !register_wan_monitor_handlers()) {
+                LOG(WARNING) << "register_wan_monitor_handlers() failed, wired candidate "
+                                "monitoring disabled";
             }
         }
-        if ((wired_link_state == wan_monitor::ELinkState::eUp) &&
-            (m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH)) {
 
-            auto it = std::find(ifaces.begin(), ifaces.end(), db->ethernet.wan.iface_name);
-            if (it == ifaces.end()) {
-                LOG(ERROR) << "wire iface " << db->ethernet.wan.iface_name
-                           << " is not on the bridge";
-                FSM_MOVE_STATE(RESTART);
+        bool wired_backhaul_selected = false;
+        const bool allow_wired_backhaul_selection =
+            !m_skip_wired_backhaul || !m_preferred_wired_candidate_iface.empty();
+
+        // Keep selected_backhaul behavior
+        if ((m_selected_backhaul.empty() || m_selected_backhaul == DEV_SET_ETH) &&
+            allow_wired_backhaul_selection) {
+            if (!m_preferred_wired_candidate_iface.empty()) {
+                LOG(DEBUG) << "Trying preferred wired backhaul candidate "
+                           << m_preferred_wired_candidate_iface
+                           << " because controller discovery was received on it";
+            }
+
+            // Do not iterate m_backhaul_wire_interfaces because unordered_map has no stable order.
+            for (const auto &candidate : db->ethernet.wan_candidates) {
+                if (!m_preferred_wired_candidate_iface.empty() &&
+                    candidate.iface_name != m_preferred_wired_candidate_iface) {
+                    continue;
+                }
+
+                auto it = m_backhaul_wire_interfaces.find(candidate.iface_name);
+                if (it == m_backhaul_wire_interfaces.end()) {
+                    continue;
+                }
+
+                const auto &wire_iface = it->second;
+
+                if (!wire_iface.bridge_member) {
+                    LOG(DEBUG) << "Wired backhaul candidate " << candidate.iface_name
+                               << " is not on bridge " << db->bridge.iface_name;
+                    continue;
+                }
+
+                if (!wire_iface.up_and_running) {
+                    LOG(DEBUG) << "Wired backhaul candidate " << candidate.iface_name
+                               << " is not up and running";
+                    continue;
+                }
+
+                // Temporary compatibility selection. Existing code still consumes
+                // db->ethernet.wan as the selected active wired backhaul.
+                db->ethernet.wan = wire_iface.ethernet_port;
+
+                // Initial wired selection cannot require 1905 traffic because transport depends on
+                // BackhaulManager reaching wired onboarding first. Runtime reselection will use
+                // has_1905_traffic once traffic monitoring is available.
+                db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
+                db->backhaul.selected_iface_name = wire_iface.ethernet_port.iface_name;
+
+                LOG(INFO) << "Selected wired backhaul iface=" << db->backhaul.selected_iface_name;
+
+                wired_backhaul_selected = true;
+                m_preferred_wired_candidate_iface.clear();
                 break;
             }
 
-            // Mark the connection as WIRED
-            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wired;
-            db->backhaul.selected_iface_name = db->ethernet.wan.iface_name;
-
-        } else {
+            if (!wired_backhaul_selected && !m_preferred_wired_candidate_iface.empty()) {
+                LOG(WARNING) << "Preferred wired backhaul candidate "
+                             << m_preferred_wired_candidate_iface
+                             << " is no longer usable. Continuing with wireless fallback.";
+                m_preferred_wired_candidate_iface.clear();
+            }
+        } else if (!allow_wired_backhaul_selection) {
+            LOG(DEBUG) << "Skipping wired backhaul selection after previous wired onboarding "
+                          "failure. Wired candidate monitoring remains active.";
+        }
+        if (!wired_backhaul_selected) {
             // If no wired backhaul is configured, or it is down, we get into this else branch.
 
             // If selected backhaul is not empty, it's because we are in certification mode and
@@ -908,6 +1734,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
     }
     // Backhaul manager is OPERATIONAL!
     case EState::OPERATIONAL: {
+        // If the agent is operational through wireless backhaul, keep looking for a wired
+        // controller path at a low rate. This lets a later cable plug-in move the agent back to
+        // preferred wired onboarding without interrupting the current wireless connection first.
+        maybe_send_wired_controller_probe();
+
         /*
         * TODO
         * This code segment is commented out since wireless-backhaul is not yet supported and
@@ -1005,6 +1836,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 
 bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
 {
+    // While wireless onboarding is waiting/scanning/associating, the already configured transport
+    // can still receive 1905 traffic from wired candidates. Periodic AP-Autoconfiguration Search
+    // probes give us a clear signal when a controller becomes reachable on wire.
+    maybe_send_wired_controller_probe();
+
     switch (m_eFSMState) {
     case EState::INIT_HAL: {
         skip_select = true;
@@ -1960,6 +2796,35 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         }
 
         sta_wlan_hal->enable_disable_ep(static_cast<bool>(request->enable()));
+
+        break;
+    }
+    case beerocks_message::ACTION_BACKHAUL_WIRED_ONBOARDING_FAILED: {
+        LOG(WARNING) << "Wired onboarding failed, falling back to wireless backhaul";
+
+        // Keep this flag set across the BackhaulManager restart so ENABLED falls through to the
+        // wireless path instead of selecting the same wired candidate again.
+        m_skip_wired_backhaul = true;
+
+        if (FSM_IS_IN_STATE(CONNECTED) || FSM_IS_IN_STATE(OPERATIONAL)) {
+            FSM_MOVE_STATE(RESTART);
+        }
+
+        break;
+    }
+    case beerocks_message::ACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED: {
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED>();
+        if (!request) {
+            LOG(ERROR) << "addClass cACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED failed";
+            return false;
+        }
+
+        // AP-Autoconfiguration responses are consumed by the agent task. This action forwards the
+        // response ingress interface so BackhaulManager can switch back to wired only when the
+        // controller was actually reached through a configured wired candidate.
+        handle_wired_controller_detected(request->iface_index());
 
         break;
     }
@@ -3197,7 +4062,13 @@ bool BackhaulManager::initiate_wps_pbc_auto()
 {
     auto db = AgentDB::get();
 
-    if (db->statuses.ap_autoconfiguration_completed) {
+    const bool backhaul_operational = (m_eFSMState == EState::OPERATIONAL);
+    const bool ap_configured        = db->statuses.ap_autoconfiguration_completed;
+
+    // ap_autoconfiguration_completed is a configuration status and can stay true after the
+    // backhaul link is lost. Use the live BackhaulManager FSM as the connectivity gate so WPS
+    // auto falls back to bSTA onboarding while the backhaul is reconnecting.
+    if (backhaul_operational && ap_configured) {
         bool result = false;
         for (const auto radio : db->get_radios_list()) {
             //Skip 6GHz since WPS is not allowed on 6GHz per Wi-Fi 6E standard
@@ -3211,11 +4082,17 @@ bool BackhaulManager::initiate_wps_pbc_auto()
             }
         }
         return result;
-    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_5G)) { //Default frequency for WPS PBC is 5G
+    }
+
+    LOG(INFO) << "WPS PBC auto: using bSTA path, backhaul_operational=" << backhaul_operational
+              << ", ap_configured=" << ap_configured;
+
+    if (start_wps_pbc_ep_freq(eFreqType::FREQ_5G)) { //Default frequency for WPS PBC is 5G
         LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_5G";
         return true;
+    }
 
-    } else if (start_wps_pbc_ep_freq(eFreqType::FREQ_24G)) {
+    if (start_wps_pbc_ep_freq(eFreqType::FREQ_24G)) {
         LOG(INFO) << "WPS PBC bSTA path (agent not operational) on FREQ_24G";
         return true;
     }

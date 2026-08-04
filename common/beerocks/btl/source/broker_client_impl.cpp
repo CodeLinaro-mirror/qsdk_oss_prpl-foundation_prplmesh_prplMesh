@@ -95,6 +95,38 @@ bool BrokerClientImpl::subscribe(const std::set<ieee1905_1::eMessageType> &msg_t
     return send_message(message);
 }
 
+bool BrokerClientImpl::subscribe(const std::set<beerocks::transport::messages::Type> &msg_types)
+{
+    const size_t max_msg_types =
+        beerocks::transport::messages::SubscribeMessage::MAX_SUBSCRIBE_TYPES;
+    if (msg_types.size() > max_msg_types) {
+        LOG(ERROR) << "Subscribing to " << msg_types.size()
+                   << " internal transport messages is not supported. Maximum number of types "
+                      "allowed: "
+                   << max_msg_types;
+
+        return false;
+    }
+
+    // Build a subscription message for transport-originated internal messages.
+    beerocks::transport::messages::SubscribeMessage message;
+    message.metadata()->type = beerocks::transport::messages::SubscribeMessage::ReqType::SUBSCRIBE;
+
+    message.metadata()->msg_types_count = 0;
+    for (const auto &msg_type : msg_types) {
+        message.metadata()->msg_types[message.metadata()->msg_types_count].bits = {
+            .internal        = 1,
+            .vendor_specific = 0,
+            .reserved        = 0,
+            .type            = static_cast<uint32_t>(msg_type),
+        };
+
+        ++message.metadata()->msg_types_count;
+    }
+
+    return send_message(message);
+}
+
 bool BrokerClientImpl::configure_interfaces(const std::string &iface_name,
                                             const std::string &bridge_name, bool is_bridge,
                                             bool add)
@@ -206,6 +238,23 @@ void BrokerClientImpl::handle_close(int fd)
 
 void BrokerClientImpl::handle_message(const beerocks::transport::messages::Message &message)
 {
+    if (beerocks::transport::messages::Type::DuplicateCmduNotificationMessage == message.type()) {
+        auto duplicate_msg = reinterpret_cast<
+            const beerocks::transport::messages::DuplicateCmduNotificationMessage *>(&message);
+
+        BrokerClient::DuplicateCmduNotification notification;
+        notification.first_iface_index     = duplicate_msg->metadata()->first_if_index;
+        notification.duplicate_iface_index = duplicate_msg->metadata()->duplicate_if_index;
+        notification.src_mac               = duplicate_msg->metadata()->src;
+        notification.dst_mac               = duplicate_msg->metadata()->dst;
+        notification.message_type          = duplicate_msg->metadata()->message_type;
+        notification.message_id            = duplicate_msg->metadata()->message_id;
+        notification.fragment_id           = duplicate_msg->metadata()->fragment_id;
+
+        notify_duplicate_cmdu_received(notification);
+        return;
+    }
+
     // Check if received message contains a CMDU
     if (beerocks::transport::messages::Type::CmduRxMessage != message.type()) {
         LOG(ERROR) << "Received non CmduRxMessage:\n\tMessage: " << message
@@ -297,7 +346,10 @@ bool BrokerClientImpl::send_cmdu_message(ieee1905_1::CmduMessage &cmdu, const sM
     message.metadata()->length            = cmdu.getMessageLength();
     message.metadata()->msg_type          = static_cast<uint16_t>(cmdu.getMessageType());
     message.metadata()->preset_message_id = cmdu.getMessageId() ? 1 : 0;
-    message.metadata()->if_index          = iface_index;
+    if (iface_index != 0) {
+        message.metadata()->if_type = beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET;
+    }
+    message.metadata()->if_index = iface_index;
 
     std::copy_n(cmdu.getMessageBuff(), message.metadata()->length, message.data());
 

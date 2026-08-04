@@ -89,7 +89,7 @@ All Agent config options are located in path:
 | -------------------------- | ------ | ------------- | --------------------------------------------------------------------------- |
 | `BestChannelRankThreshold` | uint32 | 0             | Threshold for best channel rank in channel selection task.                  |
 | `BackhaulBand`             | string | auto          | Preferred band for wireless backhaul (`2.4GHz`, `5GHz`, `auto`).            |
-| `BackhaulWireInterface`    | string | wan           | Network interface used for wired backhaul.                                  |
+| `BackhaulWireInterface`    | csv_string | wan       | Comma-separated network interfaces used for wired backhaul.                 |
 | `StopOnFailureAttempts`    | uint32 | 1             | Retry attempts before stopping agent due to failures. 0 disables retries.   |
 | `ZeroWaitDFSFlag`          | uint32 | 0             | Bitwise flags controlling Zero Wait DFS features.                           |
 | `ClientsMeasurementMode`   | uint32 | 1             | Client measurement mode: 0-disabled, 1-enabled for all, 2-selected clients. |

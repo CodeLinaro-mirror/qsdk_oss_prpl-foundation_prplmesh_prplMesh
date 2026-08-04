@@ -44,7 +44,8 @@ enum class Type {
     CmduTxConfirmationMessage            = 4,
     InterfaceConfigurationRequestMessage = 5,
     AlMacAddressConfigurationMessage     = 6,
-    VlanConfigurationRequestMessage      = 7
+    VlanConfigurationRequestMessage      = 7,
+    DuplicateCmduNotificationMessage     = 8,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
@@ -58,6 +59,7 @@ static const char *Type_str(Type enum_value) {
     case Type::InterfaceConfigurationRequestMessage: return "Type::InterfaceConfigurationRequestMessage";
     case Type::AlMacAddressConfigurationMessage:     return "Type::AlMacAddressConfigurationMessage";
     case Type::VlanConfigurationRequestMessage:      return "Type::VlanConfigurationRequestMessage";
+    case Type::DuplicateCmduNotificationMessage:     return "Type::DuplicateCmduNotificationMessage";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
@@ -437,6 +439,63 @@ public:
            << std::endl;
 
         return os << ss.str();
+    }
+};
+
+class DuplicateCmduNotificationMessage : public Message {
+    static const uint8_t kVersion = 0;
+
+public:
+    struct Metadata {
+        uint8_t version             = kVersion;
+        uint32_t first_if_index     = 0;
+        uint32_t duplicate_if_index = 0;
+        sMacAddr src                = {};
+        sMacAddr dst                = {};
+        uint16_t message_type       = 0;
+        uint16_t message_id         = 0;
+        uint8_t fragment_id         = 0;
+    };
+
+    explicit DuplicateCmduNotificationMessage(std::initializer_list<Frame> frames = {})
+        : Message(Type::DuplicateCmduNotificationMessage, frames)
+    {
+        // maximum one frame is allowed (if none are given we will allocate one below)
+        mapf_assert(this->frames().size() <= 1);
+
+        if (this->frames().empty()) {
+            Message::Frame frame(sizeof(Metadata));
+            Add(frame);
+        } else if (this->frames().back().len() < sizeof(Metadata)) {
+            this->frames().back().set_size(sizeof(Metadata));
+        }
+    }
+
+    Metadata *metadata() const
+    {
+        mapf_assert(!frames().empty());
+
+        return reinterpret_cast<Metadata *>(frames().back().data());
+    };
+
+    virtual std::ostream &print(std::ostream &os) const override
+    {
+        Message::print(os);
+
+        Metadata *m = metadata();
+        os << " metadata:" << std::endl;
+        os << "  version            : " << (unsigned)m->version << std::endl;
+        os << "  first_if_index     : " << m->first_if_index << std::endl;
+        os << "  duplicate_if_index : " << m->duplicate_if_index << std::endl;
+        os << "  src                : " << m->src << std::endl;
+        os << "  dst                : " << m->dst << std::endl;
+        os << "  message_type       : " << std::hex << std::setfill('0') << std::setw(4)
+           << m->message_type << std::endl;
+        os << "  message_id         : " << std::hex << std::setfill('0') << std::setw(4)
+           << m->message_id << std::endl;
+        os << "  fragment_id        : " << std::dec << int(m->fragment_id) << std::endl;
+
+        return os;
     }
 };
 

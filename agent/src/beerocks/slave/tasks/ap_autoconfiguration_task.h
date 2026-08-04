@@ -134,9 +134,11 @@ private:
      * Value: Struct that contain flags on the discovery phase of mapped band.
      */
     struct sDiscoveryStatus {
-        bool completed = false;
-        bool msg_sent  = false;
-        bool skipped   = false;
+        bool completed                        = false;
+        bool msg_sent                         = false;
+        bool skipped                          = false;
+        uint8_t failed_attempts               = 0;
+        bool wired_onboarding_failed_notified = false;
     };
     // Decalaring unordered_map with key which is an enum, does not compiles on older gcc version.
     // It was considered a defect in the standard, and was fixed in C++14, and also fixed in the
@@ -162,10 +164,11 @@ private:
     * @brief Handles 1905 AP Autoconfiguration message.
     * 
     * @param[in] cmdu_rx Received CMDU.
+    * @param[in] iface_index Interface index on which the response was received.
     * @param[in] src_mac MAC address of the message sender.
     */
     void handle_ap_autoconfiguration_response(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                              const sMacAddr &src_mac);
+                                              uint32_t iface_index, const sMacAddr &src_mac);
 
     /**
      * @brief Parse AP-Autoconfiguration and apply configuration if M2/M8 is present.

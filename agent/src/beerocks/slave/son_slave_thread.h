@@ -162,8 +162,10 @@ public:
     enum eEvent : uint8_t {
         CONTROLLER_DISCOVERED,
         CONTROLLER_EARLY_AP_CAPABILITY,
+        WIRED_ONBOARDING_FAILED,
+        WIRED_CONTROLLER_DETECTED,
     };
-    bool send_event(eEvent event);
+    bool send_event(eEvent event, uint32_t iface_index = 0);
 
 private:
     /**

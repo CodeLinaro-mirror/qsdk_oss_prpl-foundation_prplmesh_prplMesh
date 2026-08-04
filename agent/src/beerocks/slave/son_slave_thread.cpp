@@ -41,6 +41,7 @@
 #include <beerocks/tlvf/beerocks_message_monitor.h>
 #include <beerocks/tlvf/beerocks_message_platform.h>
 #include <mapf/common/utils.h>
+
 #include <tlvf/AttrList.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
@@ -81,6 +82,7 @@
 #include <algorithm>
 #include <cstring>
 #include <sstream>
+#include <utility>
 
 #include <sys/socket.h>
 
@@ -5645,7 +5647,16 @@ bool slave_thread::ap_manager_heartbeat_check(const std::string &fronthaul_iface
 bool slave_thread::link_to_controller()
 {
     auto db = AgentDB::get();
-    return db->statuses.ap_autoconfiguration_completed;
+
+    // ap_autoconfiguration_completed means the agent was configured at least once. When controller
+    // connectivity monitoring is active, use the live status so tasks stop sending controller-bound
+    // messages after the backhaul path is lost.
+    if (db->device_conf.certification_mode || db->device_conf.local_controller ||
+        !db->device_conf.check_connectivity_to_controller_enable) {
+        return db->statuses.ap_autoconfiguration_completed;
+    }
+
+    return db->statuses.controller_connected;
 }
 
 bool slave_thread::send_cmdu_to_controller(const std::string &fronthaul_iface,
@@ -6779,13 +6790,13 @@ bool slave_thread::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
             eht_operations_bss->disabled_subchannel_bitmap() =
                 eht_ops->operation_informations.disabled_subchannel_bitmap;
 
-            if (!eht_operations_radio->add_bss_entries(eht_operations_bss)) {
+            if (!eht_operations_radio->add_bss_entries(std::move(eht_operations_bss))) {
                 LOG(ERROR) << "Failed adding BSS entry in eht operation TLV for ssid " << bss.ssid;
                 return false;
             }
         }
 
-        if (!tlv->add_radio_entries(eht_operations_radio)) {
+        if (!tlv->add_radio_entries(std::move(eht_operations_radio))) {
             LOG(ERROR) << "Failed adding Radio entry in eht operation TLV for mac "
                        << radio->front.iface_mac;
             return false;
@@ -6795,7 +6806,7 @@ bool slave_thread::add_eht_operations_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
     return true;
 }
 
-bool slave_thread::send_event(eEvent event)
+bool slave_thread::send_event(eEvent event, uint32_t iface_index)
 {
     switch (event) {
     case CONTROLLER_DISCOVERED:
@@ -6806,6 +6817,34 @@ bool slave_thread::send_event(eEvent event)
         m_task_pool.send_event(eTaskType::CAPABILITY_REPORTING,
                                CapabilityReportingTask::eEvent::EARLY_AP_CAPABILITY);
         return true;
+    case WIRED_ONBOARDING_FAILED: {
+        // Wired controller discovery timed out (30 seconds).
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_WIRED_ONBOARDING_FAILED>(cmdu_tx);
+
+        if (!request) {
+            LOG(ERROR) << "Failed building ACTION_BACKHAUL_WIRED_ONBOARDING_FAILED";
+            return false;
+        }
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
+        return true;
+    }
+    case WIRED_CONTROLLER_DETECTED: {
+        // AP-Autoconfiguration response arrived on a network interface while the
+        // BackhaulManager is in wireless fallback. Forward the ingress interface so
+        // BackhaulManager can decide whether it is one of the wired candidates.
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED>(cmdu_tx);
+
+        if (!request) {
+            LOG(ERROR) << "Failed building ACTION_BACKHAUL_WIRED_CONTROLLER_DETECTED";
+            return false;
+        }
+
+        request->iface_index() = iface_index;
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
+        return true;
+    }
     default:
         LOG(DEBUG) << "No known target for event " << event;
         return false;

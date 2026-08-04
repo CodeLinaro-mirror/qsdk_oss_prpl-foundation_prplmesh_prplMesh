@@ -544,7 +544,7 @@ bool Controller::handle_cmdu(int fd, uint32_t iface_index, const sMacAddr &dst_m
                 return false;
             }
         }
-        handle_cmdu_1905_1_message(src_mac, cmdu_rx);
+        handle_cmdu_1905_1_message(iface_index, src_mac, cmdu_rx);
         m_task_pool.handle_ieee1905_1_msg(src_mac, cmdu_rx);
 
         database.update_last_contact_time(src_mac);
@@ -583,14 +583,14 @@ bool Controller::handle_cmdu_from_broker(uint32_t iface_index, const sMacAddr &d
                        src_mac, cmdu_rx);
 }
 
-bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
+bool Controller::handle_cmdu_1905_1_message(uint32_t iface_index, const sMacAddr &src_mac,
                                             ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     switch (cmdu_rx.getMessageType()) {
     case ieee1905_1::eMessageType::ACK_MESSAGE:
         return handle_cmdu_1905_ack_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE:
-        return handle_cmdu_1905_autoconfiguration_search(src_mac, cmdu_rx);
+        return handle_cmdu_1905_autoconfiguration_search(iface_index, src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE:
         return handle_cmdu_1905_autoconfiguration_WSC(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::AP_CAPABILITY_REPORT_MESSAGE:
@@ -649,7 +649,8 @@ bool Controller::handle_cmdu_1905_1_message(const sMacAddr &src_mac,
     return true;
 }
 
-bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_mac,
+bool Controller::handle_cmdu_1905_autoconfiguration_search(uint32_t iface_index,
+                                                           const sMacAddr &src_mac,
                                                            ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_SEARCH_MESSAGE from src_mac: " << src_mac;
@@ -852,7 +853,18 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
     } else {
         LOG(DEBUG) << "Not prplMesh agent " << al_mac;
     }
-    LOG(DEBUG) << "sending autoconfig response message";
+    std::string ingress_iface;
+    if (iface_index != 0) {
+        ingress_iface = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+        if (ingress_iface.empty()) {
+            LOG(WARNING) << "Unable to resolve AP-Autoconfiguration Search ingress iface_index="
+                         << iface_index << "; using transport-selected response path";
+        }
+    }
+
+    LOG(DEBUG) << "sending autoconfig response message"
+               << (ingress_iface.empty() ? " using transport-selected path"
+                                         : " on ingress iface " + ingress_iface);
 
     if (tlvProfile2MultiApProfileAgent) {
         std::shared_ptr<Agent> agent;
@@ -887,7 +899,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(const sMacAddr &src_m
         }
     }
 
-    return son_actions::send_cmdu_to_agent(al_mac, cmdu_tx, database);
+    return send_cmdu_to_broker(cmdu_tx, al_mac, database.get_local_bridge_mac(), ingress_iface);
 }
 
 /**
