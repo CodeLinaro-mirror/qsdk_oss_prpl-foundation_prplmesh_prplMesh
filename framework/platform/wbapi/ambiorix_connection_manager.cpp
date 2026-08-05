@@ -46,7 +46,7 @@ AmbiorixConnectionManager::get_connection(const std::string &amxb_backend, const
             fall_back_to_wbap();
         }
 
-        if (stat(tempo_uri.c_str(), &sb) != 0) {
+        if (!tempo_uri.empty() && (stat(tempo_uri.c_str(), &sb) != 0)) {
             LOG(WARNING) << "Ambiorix uri " << new_uri << " does not exist!";
             fall_back_to_wbap();
         }
