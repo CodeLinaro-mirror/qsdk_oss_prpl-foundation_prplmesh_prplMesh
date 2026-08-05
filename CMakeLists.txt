@@ -11,7 +11,7 @@ endif()
 
 ## Function to generate defines for ODLs
 function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT_DM_FOOTER_VAR)
-    string(REPLACE "." "\\." ${ROOT_DM_LITERAL_VAR} ${${ROOT_DM_VAR}})
+    string(REPLACE "." "\\." literal ${${ROOT_DM_VAR}})
     set(${ROOT_DM_HEADER_VAR} "")
     set(${ROOT_DM_FOOTER_VAR} "")
 
@@ -27,6 +27,7 @@ function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT
         set(indent "    ${indent}")
     endforeach()
 
+    set(${ROOT_DM_LITERAL_VAR} "${literal}" PARENT_SCOPE)
     set(${ROOT_DM_HEADER_VAR} "${header}" PARENT_SCOPE)
     set(${ROOT_DM_FOOTER_VAR} "${footer}" PARENT_SCOPE)
 endfunction()
