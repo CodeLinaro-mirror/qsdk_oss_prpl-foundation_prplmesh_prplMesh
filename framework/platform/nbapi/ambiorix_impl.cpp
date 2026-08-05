@@ -8,6 +8,7 @@
 
 #include "ambiorix_impl.h"
 
+#include <amxb/amxb_connect.h>
 #include <amxb/amxb_register.h>
 #include <amxd/amxd_action.h>
 #include <amxd/amxd_object.h>
@@ -136,16 +137,22 @@ bool AmbiorixImpl::connect_and_register()
 
     const amxc_llist_t *uris =
         amxc_var_constcast(amxc_llist_t, GET_ARG(Amxrt::getConfig(), AMXRT_COPT_URIS));
+
     amxc_llist_for_each(it, uris)
     {
         int status                = 0;
         amxb_bus_ctx_t *m_bus_ctx = nullptr;
         const char *uri           = amxc_var_constcast(cstring_t, amxc_var_from_llist_it(it));
 
-        status = amxb_connect(&m_bus_ctx, uri);
-        if (status != 0) {
-            LOG(ERROR) << "Failed to connect to the uri: " << uri << ", status: " << status;
-            return false;
+        m_bus_ctx = amxb_find_uri(uri);
+        if (m_bus_ctx == nullptr) {
+            status = amxb_connect(&m_bus_ctx, uri);
+            if (status != 0) {
+                LOG(ERROR) << "Failed to connect to the uri: " << uri << ", status: " << status;
+                return false;
+            }
+        } else {
+            LOG(DEBUG) << "Reusing existing bus context for uri: " << uri;
         }
 
         status = amxb_register(m_bus_ctx, Amxrt::getDatamodel());
