@@ -13,6 +13,7 @@
 
 #include "include/ambiorix_connection.h"
 
+#include <amxb/amxb_connect.h>
 #include <amxb/amxb_operators.h>
 
 #include <amxd/amxd_path.h>
@@ -60,11 +61,16 @@ bool AmbiorixConnection::init()
         LOG(ERROR) << "Failed to load the " << m_amxb_backend.c_str() << " backend";
         return false;
     }
-    // Connect to the bus
-    ret = amxb_connect(&m_bus_ctx, m_bus_uri.c_str());
-    if (ret != 0) {
-        LOG(ERROR) << "Failed to connect to the " << m_bus_uri.c_str() << " bus";
-        return false;
+    m_bus_ctx = amxb_find_uri(m_bus_uri.c_str());
+    if (m_bus_ctx == nullptr) {
+        // Connect to the bus
+        ret = amxb_connect(&m_bus_ctx, m_bus_uri.c_str());
+        if (ret != 0) {
+            LOG(ERROR) << "Failed to connect to the " << m_bus_uri.c_str() << " bus";
+            return false;
+        }
+    } else {
+        LOG(DEBUG) << "Reusing existing bus context for uri: " << m_bus_uri;
     }
     m_fd        = amxb_get_fd(m_bus_ctx);
     m_signal_fd = amxp_signal_fd();
