@@ -1,0 +1,18 @@
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * SPDX-FileCopyrightText: 2026 the prplMesh contributors (see AUTHORS.md)
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
+ */
+
+%define {
+    @DATAELEMENTS_ROOT_DM_Header@
+        %read-only object Network {
+            %read-only object Device [] {
+                counted with DeviceNumberOfEntries;
+                %read-only %unique string ID;
+            }
+        }
+    @DATAELEMENTS_ROOT_DM_Footer@
+}

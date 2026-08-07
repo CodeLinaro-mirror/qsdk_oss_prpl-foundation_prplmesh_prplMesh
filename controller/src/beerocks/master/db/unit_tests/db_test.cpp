@@ -59,6 +59,126 @@ const std::string g_assoc_event_path_1 = std::string(g_assoc_event_path) + ".1";
 const std::string g_interface_path_1   = std::string(g_device_path) + ".1.Interface.1";
 const std::string g_interface_path_2   = std::string(g_device_path) + ".1.Interface.2";
 
+TEST(DbSingleShotCounter, callback_triggered_when_decrement_reaches_zero)
+{
+    unsigned callback_calls = 0;
+
+    son::SingleShotCounter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, callback_not_triggered_if_counter_does_not_reach_zero)
+{
+    unsigned callback_calls = 0;
+
+    son::SingleShotCounter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_up());
+    EXPECT_EQ(2U, counter.count_down());
+    EXPECT_EQ(0U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, callback_triggered_after_enough_decrements)
+{
+    unsigned callback_calls = 0;
+
+    son::SingleShotCounter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_up());
+    EXPECT_EQ(2U, counter.count_down());
+    EXPECT_EQ(0U, callback_calls);
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, callback_is_single_shot)
+{
+    unsigned callback_calls = 0;
+
+    son::SingleShotCounter counter(1, [&callback_calls]() { callback_calls++; });
+
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+    EXPECT_EQ(0U, counter.count_up());
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_EQ(1U, callback_calls);
+}
+
+TEST(DbSingleShotCounter, bool_operator_is_true_while_callback_is_armed)
+{
+    son::SingleShotCounter counter(1, []() {});
+
+    EXPECT_TRUE(counter);
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_FALSE(counter);
+}
+
+TEST(DbSingleShotCounter, bool_operator_stays_false_after_callback_fires)
+{
+    son::SingleShotCounter counter(1, []() {});
+
+    EXPECT_EQ(1U, counter.count_down());
+    EXPECT_FALSE(counter);
+    EXPECT_EQ(0U, counter.count_up());
+    EXPECT_FALSE(counter);
+}
+
+TEST(DbIeee1905NetworkDb, sref_hasher_uses_only_lower_four_octets_of_each_mac)
+{
+    using sRef = son::db::ieee1905_network_db::sAL::sRef;
+
+    const sRef ref1 = {tlvf::mac_from_string("aa:bb:01:02:03:04"),
+                       tlvf::mac_from_string("11:22:05:06:07:08")};
+    const sRef ref2 = {tlvf::mac_from_string("cc:dd:01:02:03:04"),
+                       tlvf::mac_from_string("33:44:05:06:07:08")};
+
+    EXPECT_FALSE(ref1 == ref2);
+    EXPECT_EQ(sRef::hasher{}(ref1), sRef::hasher{}(ref2));
+}
+
+TEST(DbIeee1905NetworkDb, erasing_al_cleans_references_via_ref_handles)
+{
+    const auto local_al_mac       = tlvf::mac_from_string(g_bridge_mac);
+    const auto local_iface_mac    = tlvf::mac_from_string("46:55:66:77:00:12");
+    const auto neighbor_al_mac    = tlvf::mac_from_string("de:ad:be:ef:00:00");
+    const auto neighbor_iface_mac = tlvf::mac_from_string("12:34:56:78:9a:bc");
+
+    son::db::ieee1905_network_db network;
+
+    auto &local_al = network.al[local_al_mac];
+    local_al.interfaces[local_iface_mac];
+
+    auto &neighbor_al = network.al[neighbor_al_mac];
+    neighbor_al.interfaces[neighbor_iface_mac];
+
+    // Neighbor refers to local AL.
+    neighbor_al.interfaces[neighbor_iface_mac].ieee1905_neighbors.emplace(
+        local_al_mac,
+        son::db::ieee1905_network_db::sAL::sNeighbor{
+            {}, false, {network.al, local_al_mac, {neighbor_al_mac, neighbor_iface_mac}}});
+
+    // Local AL refers to neighbor.
+    local_al.interfaces[local_iface_mac].ieee1905_neighbors.emplace(
+        neighbor_al_mac,
+        son::db::ieee1905_network_db::sAL::sNeighbor{
+            {}, false, {network.al, neighbor_al_mac, {local_al_mac, local_iface_mac}}});
+
+    EXPECT_EQ(1U, local_al.references.size());
+    EXPECT_EQ(1U, neighbor_al.references.size());
+
+    // Local AL no longer refers to neighbor.
+    local_al.interfaces[local_iface_mac].ieee1905_neighbors.erase(neighbor_al_mac);
+    EXPECT_EQ(0U, neighbor_al.references.size());
+
+    // Removing neighbor AL should also remove neighbor->local reference.
+    network.al.erase(neighbor_al_mac);
+    EXPECT_EQ(0U, network.al.count(neighbor_al_mac));
+    EXPECT_EQ(1U, network.al.count(local_al_mac));
+    EXPECT_EQ(0U, local_al.references.size());
+}
+
 class DbTest : public ::testing::Test {
 
 protected:

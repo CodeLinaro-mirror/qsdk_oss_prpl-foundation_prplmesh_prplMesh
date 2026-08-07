@@ -88,3 +88,5 @@ if (BUILD_TESTS)
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)
     add_test(NAME ${TEST_PROJECT_NAME} COMMAND $<TARGET_FILE:${TEST_PROJECT_NAME}>)
 endif()
+
+add_subdirectory("tasks/unit_tests")

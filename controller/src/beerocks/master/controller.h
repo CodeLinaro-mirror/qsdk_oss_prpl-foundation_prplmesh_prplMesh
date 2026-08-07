@@ -229,6 +229,7 @@ public:
      * @brief Function that starts all mandatory periodic tasks on controller start-up
      * Mandatory task list is
      * bml_task
+     * ieee1905_task
      * topology_task
      * client_association_task
      * agent_monitoring_task
@@ -252,6 +253,14 @@ public:
      * @return void.
      */
     void start_optional_tasks();
+
+    /**
+     * @brief Notify ieee1905 task about IEEE1905 Network.Enable change.
+     *
+     * @param enabled New value of IEEE1905 Network.Enable.
+     * @return true on success and false otherwise.
+     */
+    bool handle_ieee1905_network_enable_changed(bool enabled);
 
     /**
      * @brief add an unassociated station to be monitored

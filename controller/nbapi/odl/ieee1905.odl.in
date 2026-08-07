@@ -1,0 +1,543 @@
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * SPDX-FileCopyrightText: 2026 Inango
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
+ */
+
+%define {
+    /**
+     * This object represents the management functions
+     * for the 1905 capabilities as defined in IEEE1905.1a.
+     *
+     * @version 2.21
+     *
+     */
+    @IEEE1905_ROOT_DM_Header@
+    /**
+     * This object represents the Network Topology
+     * of the multi-hop mixed media IEEE 1905.1a datamodel.
+     *
+     * @version 2.21
+     *
+     */
+    %persistent object Network {
+        /**
+         * Enables or disables 1905 Network Topology reporting.
+         *
+         * @version 2.21
+         */
+        %persistent bool Enable = true {
+            userflags %upc;
+        }
+
+        /**
+         * Indicates the transient phase of discovery when Enable is true.
+         * Enumeration: Incomplete, Available, Error.
+         *
+         * @version 2.21
+         */
+        %read-only string Status = "Incomplete";
+
+        /**
+         * Discovered 1905 Devices in the network.
+         *
+         * @version 2.21
+         */
+        %read-only object AL [] {
+            counted with ALNumberOfEntries;
+
+            /**
+             * 1905 AL MAC Address.
+             *
+             * @version 2.21
+             * type: string(:17)
+             */
+            %read-only string IEEE1905Id;
+
+            /**
+             * 1905 profile version from Higher Layer Response.
+             * Enumeration: 1905.1, 1905.1a.
+             *
+             * @version 2.21
+             */
+            %read-only string Version;
+
+            /**
+             * Registrar frequency bands from AP-autoconfiguration response.
+             * List item enumeration: 802.11 2.4 GHz, 802.11 5 GHz, 802.11 6 GHz, 802.11 60 GHz.
+             *
+             * @version 2.21
+             * type: string[](:1024)
+             */
+            %read-only string RegistrarFreqBand;
+
+            /**
+             * Friendly Name from Device Identification Type TLV.
+             *
+             * @version 2.21
+             * type: string(:64)
+             */
+            %read-only string FriendlyName;
+
+            /**
+             * Manufacturer Name from Device Identification Type TLV.
+             *
+             * @version 2.21
+             * type: string(:64)
+             */
+            %read-only string ManufacturerName;
+
+            /**
+             * Manufacturer Model from Device Identification Type TLV.
+             *
+             * @version 2.21
+             * type: string(:64)
+             */
+            %read-only string ManufacturerModel;
+
+            /**
+             * Control URL from Control URL Type TLV.
+             *
+             * @version 2.21
+             * type: string(:2048)
+             */
+            %read-only string ControlURL;
+
+            /**
+             * Reference to associated Wi-Fi Network Data Elements Device.
+             * The ID in the referenced object MUST match IEEE1905Id.
+             *
+             * @version 2.21
+             */
+            %read-only string AssocWiFiNetworkDeviceRef;
+
+            /**
+             * IPv4 addresses reported for a MAC address (AL or interface).
+             *
+             * @version 2.21
+             */
+            %read-only object IPv4Address [] {
+                counted with IPv4AddressNumberOfEntries;
+
+                /**
+                 * MAC Address.
+                 *
+                 * @version 2.21
+                 * type: string(:17)
+                 */
+                %read-only string MACAddress;
+
+                /**
+                 * IPv4 Address.
+                 *
+                 * @version 2.21
+                 * type: string(:45)
+                 */
+                %read-only string IPv4Address;
+
+                /**
+                 * IPv4 Address Type.
+                 * Enumeration: Unknown, DHCP, Static, Auto-IP.
+                 *
+                 * @version 2.21
+                 */
+                %read-only string IPv4AddressType;
+
+                /**
+                 * DHCP server address.
+                 *
+                 * @version 2.21
+                 * type: string(:45)
+                 */
+                %read-only string DHCPServer;
+            }
+
+            /**
+             * IPv6 addresses reported for a MAC address (AL or interface).
+             *
+             * @version 2.21
+             */
+            %read-only object IPv6Address [] {
+                counted with IPv6AddressNumberOfEntries;
+
+                /**
+                 * MAC Address.
+                 *
+                 * @version 2.21
+                 * type: string(:17)
+                 */
+                %read-only string MACAddress;
+
+                /**
+                 * IPv6 Address.
+                 *
+                 * @version 2.21
+                 * type: string(:45)
+                 */
+                %read-only string IPv6Address;
+
+                /**
+                 * IPv6 Address Type.
+                 * Enumeration: Unknown, LinkLocal, DHCP, Static, SLAAC.
+                 *
+                 * @version 2.21
+                 */
+                %read-only string IPv6AddressType;
+
+                /**
+                 * "::" or IPv6 address of origin.
+                 *
+                 * @version 2.21
+                 * type: string(:45)
+                 */
+                %read-only string IPv6AddressOrigin;
+            }
+
+            /**
+             * Interfaces for the IEEE1905Device.
+             *
+             * @version 2.21
+             */
+            %read-only object Interface [] {
+                counted with InterfaceNumberOfEntries;
+
+                /**
+                 * MAC Address of the interface.
+                 *
+                 * @version 2.21
+                 * type: string(:17)
+                 */
+                %read-only string InterfaceId;
+
+                /**
+                 * Media type of this Interface.
+                 *
+                 * @version 2.21
+                 */
+                %read-only string MediaType;
+
+                /**
+                 * Power state of this Interface.
+                 * Enumeration: On, Power_Save, Off, Unsupported.
+                 *
+                 * @version 2.21
+                 */
+                %read-only string PowerState = "On";
+
+                /**
+                 * Network membership for 802.11 interface.
+                 *
+                 * @version 2.21
+                 * type: string(:17)
+                 */
+                %read-only string NetworkMembership;
+
+                /**
+                 * Role for 802.11 interface.
+                 * Enumeration: AP, non-AP/non-PCP STA, Wi-Fi P2P Client, Wi-Fi P2P Group Owner, 802.11adPCP.
+                 *
+                 * @version 2.21
+                 */
+                %read-only string Role;
+
+                /**
+                 * AP channel band field.
+                 *
+                 * @version 2.21
+                 * type: hexBinary(1)
+                 */
+                %read-only string APChannelBand;
+
+                /**
+                 * Frequency index 1 field.
+                 *
+                 * @version 2.21
+                 * type: hexBinary(1)
+                 */
+                %read-only string FrequencyIndex1;
+
+                /**
+                 * Frequency index 2 field.
+                 *
+                 * @version 2.21
+                 * type: hexBinary(1)
+                 */
+                %read-only string FrequencyIndex2;
+
+                /**
+                 * Generic PHY information for this Interface.
+                 *
+                 * @version 2.21
+                 */
+                %read-only object GenericPhy {
+                    /**
+                     * Generic PHY OUI.
+                     *
+                     * @version 2.21
+                     * type: string(6)
+                     */
+                    %read-only string OUI;
+
+                    /**
+                     * Generic PHY variant index.
+                     *
+                     * @version 2.21
+                     * type: hexBinary(1)
+                     */
+                    %read-only string Variant;
+
+                    /**
+                     * URL to Generic PHY XML description.
+                     *
+                     * @version 2.21
+                     * type: string(:2048)
+                     */
+                    %read-only string URL;
+                }
+
+                /**
+                 * 1905 neighbors and link properties.
+                 *
+                 * @version 2.21
+                 */
+                %read-only object Link [] {
+                    counted with LinkNumberOfEntries;
+
+                    /**
+                     * Neighbor interface MAC Address for this Link.
+                     *
+                     * @version 2.21
+                     * type: string(:17)
+                     */
+                    %read-only string InterfaceId;
+
+                    /**
+                     * Neighbor AL MAC Address for this Link.
+                     *
+                     * @version 2.21
+                     * type: string(:17)
+                     */
+                    %read-only string IEEE1905Id;
+
+                    /**
+                     * Media type of this Link.
+                     *
+                     * @version 2.21
+                     */
+                    %read-only string MediaType;
+
+                    /**
+                     * Generic PHY information for this Link.
+                     *
+                     * @version 2.21
+                     */
+                    %read-only object GenericPhy {
+                        /**
+                         * Generic PHY OUI.
+                         *
+                         * @version 2.21
+                         * type: string(6)
+                         */
+                        %read-only string OUI;
+
+                        /**
+                         * Generic PHY variant index.
+                         *
+                         * @version 2.21
+                         * type: hexBinary(1)
+                         */
+                        %read-only string Variant;
+
+                        /**
+                         * URL to Generic PHY XML description.
+                         *
+                         * @version 2.21
+                         * type: string(:2048)
+                         */
+                        %read-only string URL;
+                    }
+
+                    /**
+                     * Link metrics.
+                     *
+                     * @version 2.21
+                     */
+                    %read-only object Metric {
+                        /**
+                         * Whether the link includes one or more IEEE 802.1 bridges.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only bool IEEE802dot1Bridge;
+
+                        /**
+                         * Estimated lost packets on transmit side.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 PacketErrors;
+
+                        /**
+                         * Estimated lost packets on receive side.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 PacketErrorsReceived;
+
+                        /**
+                         * Estimated transmitted packets to neighbor.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 TransmittedPackets;
+
+                        /**
+                         * Estimated packets received from neighbor.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 PacketsReceived;
+
+                        /**
+                         * Estimated maximum MAC throughput in Mb/s.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 MACThroughputCapacity;
+
+                        /**
+                         * Estimated average percent of link availability.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 LinkAvailability;
+
+                        /**
+                         * Estimated PHY rate in Mb/s.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 PHYRate;
+
+                        /**
+                         * Estimated RSSI ratio in dB.
+                         *
+                         * @version 2.21
+                         */
+                        %read-only uint32 RSSI;
+                    }
+                }
+
+                /**
+                 * Non-IEEE1905 neighbors for this Interface.
+                 *
+                 * @version 2.21
+                 */
+                %read-only object NonIEEE1905Neighbor [] {
+                    counted with NonIEEE1905NeighborNumberOfEntries;
+
+                    /**
+                     * MAC Address of the interface for the NonIEEE1905Neighbor.
+                     *
+                     * @version 2.21
+                     * type: string(:17)
+                     */
+                    %read-only string NeighborInterfaceId;
+                }
+
+                /**
+                 * IEEE1905 neighbors for this Interface.
+                 *
+                 * @version 2.21
+                 */
+                %read-only object IEEE1905Neighbor [] {
+                    counted with IEEE1905NeighborNumberOfEntries;
+
+                    /**
+                     * 1905 AL MAC Address of the Neighbor.
+                     *
+                     * @version 2.21
+                     * type: string(:17)
+                     */
+                    %read-only string NeighborDeviceId;
+
+                    /**
+                     * Path Name reference to a row in Network.AL.
+                     * If referenced object does not exist, value is empty string.
+                     *
+                     * @version 2.21
+                     */
+                    %read-only string IEEE1905DeviceRef;
+
+                    /**
+                     * Whether the neighboring device includes one or more IEEE 802.1 bridges.
+                     *
+                     * @version 2.21
+                     */
+                    %read-only bool IEEE802dot1Bridge;
+                }
+
+                /**
+                 * L2 neighbors for this Interface.
+                 *
+                 * @version 2.21
+                 */
+                %read-only object L2Neighbor [] {
+                    counted with L2NeighborNumberOfEntries;
+
+                    /**
+                     * MAC Address of the L2Neighbor.
+                     *
+                     * @version 2.21
+                     * type: string(:17)
+                     */
+                    %read-only string NeighborInterfaceId;
+
+                    /**
+                     * Comma-separated list of behind-interface MAC addresses.
+                     *
+                     * @version 2.21
+                     * type: string(:17)[](:1024)
+                     */
+                    %read-only string BehindInterfaceIds;
+                }
+            }
+
+            /**
+             * Bridging tuples for this AL.
+             *
+             * @version 2.21
+             */
+            %read-only object BridgingTuple [] {
+                counted with BridgingTupleNumberOfEntries;
+
+                /**
+                 * Comma-separated list of references to AL Interfaces.
+                 *
+                 * @version 2.21
+                 * type: string(:256)[]
+                 */
+                %read-only string InterfaceList;
+            }
+        }
+
+    }
+    @IEEE1905_ROOT_DM_Footer@
+}
+
+%populate {
+    on event "dm:object-changed" call event_ieee1905_network_enable_changed
+        filter 'object matches "^@IEEE1905_ROOT_DM_literal@\.Network\.$" && contains("parameters.Enable")';
+
+    on event "dm:instance-added" call event_ieee1905_dataelements_network_device_changed
+        filter 'path == "@DATAELEMENTS_ROOT_DM@.Network.Device."';
+
+    on event "dm:instance-removed" call event_ieee1905_dataelements_network_device_changed
+        filter 'path == "@DATAELEMENTS_ROOT_DM@.Network.Device."';
+
+    on event "dm:object-changed" call event_ieee1905_dataelements_network_device_changed
+        filter 'path matches "^@DATAELEMENTS_ROOT_DM@\\.Network\\.Device\\.[0-9]+\\.$" &&
+                contains("parameters.ID")';
+}

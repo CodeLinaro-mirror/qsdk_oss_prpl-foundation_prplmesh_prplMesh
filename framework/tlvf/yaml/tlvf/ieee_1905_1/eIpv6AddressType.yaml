@@ -1,0 +1,11 @@
+---
+_namespace: ieee1905_1
+
+eIpv6AddressType:
+  _type: enum_class
+  _enum_storage: uint8_t
+  UNKNOWN: 0x00
+  DHCP:   0x01
+  STATIC: 0x02
+  SLAAC: 0x03
+  RESERVED: 0x04 # 0x04-0xFF reserved

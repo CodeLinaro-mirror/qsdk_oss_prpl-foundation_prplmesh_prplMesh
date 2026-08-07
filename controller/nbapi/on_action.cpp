@@ -1648,6 +1648,8 @@ static void event_configuration_changed(const char *const sig_name, const amxc_v
         amxd_object_get_int32_t(configuration, "SteeringDisassociationTimerMSec", nullptr)};
     nbapi_config.link_metrics_request_interval_seconds = std::chrono::seconds{
         amxd_object_get_int32_t(configuration, "LinkMetricsRequestIntervalSec", nullptr)};
+    nbapi_config.higher_layer_request_interval_seconds = std::chrono::seconds{
+        amxd_object_get_int32_t(configuration, "HigherLayerRequestIntervalSec", nullptr)};
 
     nbapi_config.channel_select_task =
         amxd_object_get_bool(configuration, "ChannelSelectionTaskEnabled", nullptr);
@@ -1761,6 +1763,132 @@ static void event_network_enable_changed(const char *const sig_name, const amxc_
     access_point_commit(network_obj, nullptr, nullptr, nullptr);
 }
 
+/**
+ * @brief Event handler for DataElements Network.Device instance changes.
+ *
+ * It's invoked when a Device.WiFi.DataElements.Network.Device instance is
+ * added, removed, or has its ID changed. It updates the
+ * AssocWiFiNetworkDeviceRef field of the corresponding IEEE1905.Network.AL.{i}
+ * entry in the data model.
+ *
+ * @param sig_name name of the Ambiorix signal that triggered this callback
+ *                 (e.g. "dm:instance-added", "dm:instance-removed", "dm:object-changed")
+ * @param data signal data carrying the affected object parameters and keys
+ * @param priv private data (unused)
+ */
+static void event_ieee1905_dataelements_network_device_changed(const char *const sig_name,
+                                                               const amxc_var_t *const data,
+                                                               void *const priv)
+{
+    if (!g_database) {
+        LOG(WARNING) << "Database is not initialized yet";
+        return;
+    }
+
+    if (!g_database->ieee1905_network || !data) {
+        return;
+    }
+
+    auto ambiorix = g_database->get_ambiorix_obj();
+    if (!ambiorix) {
+        LOG(ERROR) << "Ambiorix object is not available";
+        return;
+    }
+
+    auto update_assoc_ref_for_al = [&](const char *id) -> bool {
+        if (!id || !*id) {
+            return true;
+        }
+
+        auto id_s   = std::string(id);
+        auto al_mac = tlvf::mac_from_string(id_s);
+        auto al_it  = g_database->ieee1905_network->al.find(al_mac);
+        if (al_it == g_database->ieee1905_network->al.end() || !al_it->second.dm_path) {
+            return true;
+        }
+
+        auto device_index = ambiorix->get_instance_index(
+            DATAELEMENTS_ROOT_DM ".Network.Device.[ID == '%s'].", id_s);
+
+        const auto &assoc_wifi_network_device_ref =
+            device_index ? "Device.WiFi.DataElements.Network.Device." + std::to_string(device_index)
+                         : std::string{};
+
+        return al_it->second.dm_path.set("AssocWiFiNetworkDeviceRef",
+                                         assoc_wifi_network_device_ref);
+    };
+
+    const std::string signal     = sig_name ? sig_name : "";
+    const bool is_object_changed = (signal == "dm:object-changed");
+    const bool is_instance_event =
+        (signal == "dm:instance-added" || signal == "dm:instance-removed");
+
+    bool ok = true;
+
+    if (is_object_changed) {
+        const auto *id_from = GETP_CHAR(data, "parameters.ID.from");
+        const auto *id_to   = GETP_CHAR(data, "parameters.ID.to");
+
+        ok &= update_assoc_ref_for_al(id_from);
+        ok &= update_assoc_ref_for_al(id_to);
+    }
+
+    if (is_instance_event) {
+        const auto *id     = GETP_CHAR(data, "parameters.ID");
+        const auto *key_id = GETP_CHAR(data, "keys.ID");
+
+        ok &= update_assoc_ref_for_al(id);
+        ok &= update_assoc_ref_for_al(key_id);
+    }
+
+    if (!ok) {
+        LOG(ERROR) << "Failed to update AssocWiFiNetworkDeviceRef on DataElements event " << signal;
+    }
+}
+
+/**
+ * @brief Event handler for IEEE1905 Network.Enable change.
+ *
+ * Invoked when the value of IEEE1905_ROOT_DM.Network.Enable changes.
+ * It reads the new Enable value and forwards it to the controller via
+ * Controller::handle_ieee1905_network_enable_changed().
+ *
+ * @param sig_name name of the Ambiorix signal that triggered this callback
+ * @param data signal data used to retrieve the affected data model object
+ * @param priv private data (unused)
+ */
+static void event_ieee1905_network_enable_changed(const char *const sig_name,
+                                                  const amxc_var_t *const data, void *const priv)
+{
+    if (!g_database) {
+        LOG(WARNING) << "Database is not initialized yet";
+        return;
+    }
+
+    auto *network_obj = amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+    if (!network_obj) {
+        LOG(WARNING) << "Failed to get object " << IEEE1905_ROOT_DM << ".Network.";
+        return;
+    }
+
+    amxd_status_t status;
+    const bool enabled = amxd_object_get_bool(network_obj, "Enable", &status);
+    if (status != amxd_status_ok) {
+        LOG(ERROR) << "Failed to get " << IEEE1905_ROOT_DM << ".Network.Enable";
+        return;
+    }
+
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        LOG(WARNING) << "Failed to get controller context.";
+        return;
+    }
+
+    if (!controller_ctx->handle_ieee1905_network_enable_changed(enabled)) {
+        LOG(WARNING) << "Failed to handle " << IEEE1905_ROOT_DM << ".Network.Enable change.";
+    }
+}
+
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
 {
     const std::vector<beerocks::nbapi::sActionsCallback> actions_list = {
@@ -1776,6 +1904,9 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
         {"event_traffic_separation_changed", event_traffic_separation_changed},
+        {"event_ieee1905_dataelements_network_device_changed",
+         event_ieee1905_dataelements_network_device_changed},
+        {"event_ieee1905_network_enable_changed", event_ieee1905_network_enable_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed}};
     return events_list;

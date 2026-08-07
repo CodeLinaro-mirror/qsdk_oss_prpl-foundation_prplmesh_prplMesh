@@ -178,6 +178,9 @@ constexpr int DEFAULT_MULTI_AP_PROFILE = 2;
 // Link metrics tasks send request with this interval.
 constexpr std::chrono::seconds DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC{60};
 
+/** IEEE1905 task requests with this interval. */
+constexpr std::chrono::seconds DEFAULT_HIGHER_LAYER_REQUEST_INTERVAL_VALUE_SEC{60};
+
 // Default DHCP tasks process lease information with this interval.
 constexpr std::chrono::seconds DEFAULT_DHCP_MONITOR_INTERVAL_VALUE_SEC{300};
 
@@ -953,6 +956,14 @@ bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
 bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec);
 
 /**
+ * @brief Reads higher layer request interval configuration for periodic requests from agents.
+ *
+ * @param [out] higher_layer_request_interval_sec Interval for periodic higher layer request.
+ * @return true on success, otherwise false
+ */
+bool cfg_get_higher_layer_request_interval(std::chrono::seconds &higher_layer_request_interval_sec);
+
+/**
  * @brief Sets link metrics request interval configuration for periodic requests from agents.
  *
  * @param [in] link_metrics_request_interval_sec Interval for periodic link metrics request to set.
@@ -1105,6 +1116,14 @@ bool bpl_cfg_get_airties_cloud_credentials(std::string &client_id, std::string &
  * @return true on success, otherwise false.
  */
 bool bpl_cfg_get_wifi_radio_temperature(const std::string &iface_name, uint8_t &radio_temperature);
+
+/**
+ * @brief Get the device friendly name.
+ *
+ * @param[out] friendly_name Friendly name of the device.
+ * @return true on success, otherwise false.
+ */
+bool get_friendly_name(std::string &friendly_name);
 
 /**
  * @brief Get a string identifying the particular device that is unique for the indicated model

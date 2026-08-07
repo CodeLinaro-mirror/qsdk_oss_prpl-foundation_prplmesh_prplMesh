@@ -13,6 +13,8 @@
 #include "../tasks/channel_scan_task.h"
 #include "../tasks/channel_selection_task.h"
 #include "../tasks/coordinated_cac_task.h"
+#include "../tasks/higher_layer_collection_task.h"
+#include "../tasks/higher_layer_collection_task_ifaddrs_impl.h"
 #include "../tasks/spectrum_inquiry_task.h"
 #include "../tasks/switch_channel_task.h"
 #include "../tasks/topology_task.h"
@@ -146,10 +148,28 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     // handling TOPOLOGY_QUERY messages from the easyMesh Agents
     m_task_pool.add_task(std::make_shared<TopologyTask>(*this, cmdu_tx));
 
-    if (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
+    auto interface_provider = std::make_unique<HigherLayerCollectionTaskIfAddrsImpl>();
+    // FriendlyName is the only DeviceInfo field that can change at runtime,
+    // so query it on demand and keep Manufacturer/ModelName on the existing AgentDB path.
+    HigherLayerCollectionTask::get_friendly_name_f get_friendly_name = []() {
+        std::string friendly_name;
+        if (!beerocks::bpl::get_friendly_name(friendly_name)) {
+            friendly_name.clear();
+        }
+        return friendly_name;
+    };
+    m_task_pool.add_task(std::make_shared<HigherLayerCollectionTask>(
+        [this](const sMacAddr &dst_mac, ieee1905_1::CmduMessageTx &cmdu_tx) {
+            return send_cmdu_to_broker(cmdu_tx, dst_mac, AgentDB::get()->bridge.mac);
+        },
+        [] { return AgentDB::get()->bridge.mac; }, std::move(interface_provider), cmdu_tx,
+        std::move(get_friendly_name)));
+
+    if (db->agent_is_dummy()) {
 
         // TODO: DHCP management is handled in ApAutoConfigurationTask for MaxLinear platforms (PPM-1777)
-        LOG(INFO) << "Controller only mode is activated and agent is dummy. Do not run any tasks!";
+        LOG(INFO) << "Agent is dummy (management_mode=" << db->device_conf.management_mode
+                  << "). Do not run any tasks!";
         return;
     }
 
@@ -277,6 +297,11 @@ bool BackhaulManager::thread_init()
     LOG(DEBUG) << "FSM timer created with fd = " << m_fsm_timer;
     transaction.add_rollback_action([&]() { m_timer_manager->remove_timer(m_fsm_timer); });
 
+    if (!init_fdb_monitor()) {
+        LOG(ERROR) << "Failed to initialize FDB monitor";
+    }
+    transaction.add_rollback_action([&]() { stop_fdb_monitor(); });
+
     // Create an instance of a broker client connected to the broker server that is running in the
     // transport process
     m_broker_client = m_broker_client_factory->create_instance();
@@ -326,6 +351,7 @@ bool BackhaulManager::thread_init()
             ieee1905_1::eMessageType::CHANNEL_SCAN_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::CHANNEL_SELECTION_REQUEST_MESSAGE,
             ieee1905_1::eMessageType::HIGHER_LAYER_DATA_MESSAGE,
+            ieee1905_1::eMessageType::HIGHER_LAYER_QUERY_MESSAGE,
             ieee1905_1::eMessageType::TOPOLOGY_DISCOVERY_MESSAGE,
             ieee1905_1::eMessageType::TOPOLOGY_QUERY_MESSAGE,
             ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE,
@@ -351,6 +377,9 @@ bool BackhaulManager::thread_init()
 
 void BackhaulManager::on_thread_stop()
 {
+    m_topology_task_initialized = false;
+    stop_fdb_monitor();
+
     if (m_agent_fd != beerocks::net::FileDescriptor::invalid_descriptor) {
         m_cmdu_server->disconnect(m_agent_fd);
     }
@@ -1082,6 +1111,82 @@ bool BackhaulManager::handle_wired_autoconfiguration_response(uint32_t iface_ind
     return handle_wired_controller_detected(iface_index);
 }
 
+bool BackhaulManager::init_fdb_monitor()
+{
+    if (m_fdb_monitor_fd != beerocks::net::FileDescriptor::invalid_descriptor) {
+        return true;
+    }
+
+    if (!m_fdb_monitor.initialize()) {
+        return false;
+    }
+
+    m_fdb_monitor_fd = m_fdb_monitor.get_netlink_fd();
+    if (m_fdb_monitor_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "FDB monitor returned invalid netlink fd";
+        m_fdb_monitor.stop();
+        return false;
+    }
+
+    beerocks::EventLoop::EventHandlers handlers{
+        .name = "fdb_monitor",
+        .on_read =
+            [&](int fd, EventLoop &loop) {
+                if (!handle_fdb_monitor()) {
+                    LOG(ERROR) << "handle_fdb_monitor failed";
+                    return false;
+                }
+                return true;
+            },
+        .on_write = nullptr,
+        .on_disconnect =
+            [&](int fd, EventLoop &loop) {
+                LOG(ERROR) << "FDB monitor disconnected";
+                stop_fdb_monitor();
+                return false;
+            },
+        .on_error =
+            [&](int fd, EventLoop &loop) {
+                LOG(ERROR) << "FDB monitor error";
+                stop_fdb_monitor();
+                return false;
+            },
+    };
+
+    if (!m_event_loop->register_handlers(m_fdb_monitor_fd, handlers)) {
+        LOG(ERROR) << "Unable to register handlers for FDB monitor";
+        stop_fdb_monitor();
+        return false;
+    }
+
+    LOG(DEBUG) << "FDB monitor started with fd = " << m_fdb_monitor_fd;
+    return true;
+}
+
+void BackhaulManager::stop_fdb_monitor()
+{
+    if (m_fdb_monitor_fd != beerocks::net::FileDescriptor::invalid_descriptor) {
+        m_event_loop->remove_handlers(m_fdb_monitor_fd);
+        m_fdb_monitor_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+    }
+
+    m_fdb_monitor.stop();
+}
+
+bool BackhaulManager::handle_fdb_monitor()
+{
+    if (m_fdb_monitor.process() != fdb_monitor::EEvent::eFdbChanged) {
+        return true;
+    }
+
+    if (!m_topology_task_initialized) {
+        return true;
+    }
+
+    m_task_pool.send_event(eTaskType::TOPOLOGY, TopologyTask::eEvent::FDB_CHANGED);
+    return true;
+}
+
 bool BackhaulManager::send_cmdu(int fd, ieee1905_1::CmduMessageTx &cmdu_tx)
 {
     return m_cmdu_server->send_cmdu(fd, cmdu_tx);
@@ -1409,6 +1514,8 @@ bool BackhaulManager::handle_backhaul_connect()
 
 bool BackhaulManager::handle_backhaul_disconnect()
 {
+    m_topology_task_initialized = false;
+
     auto notification = message_com::create_vs_message<
         beerocks_message::cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION>(cmdu_tx);
     if (!notification) {
@@ -1713,6 +1820,7 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
          * Sending "AGENT_DEVICE_INITIALIZED" event will trigger sending of topology discovery
          * message.
          */
+        m_topology_task_initialized = true;
         m_task_pool.send_event(eTaskType::TOPOLOGY, TopologyTask::eEvent::AGENT_DEVICE_INITIALIZED);
 
         // This snippet is commented out since the only place that use it, is also commented out.

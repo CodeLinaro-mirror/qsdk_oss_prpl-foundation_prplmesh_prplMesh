@@ -18,6 +18,8 @@
 #include <mapf/common/utils.h>
 #include <tlvf/tlvftypes.h>
 
+#include <cstring>
+
 namespace beerocks {
 namespace nbapi {
 
@@ -284,6 +286,52 @@ bool AmbiorixImpl::remove_signal_loop()
 
     LOG(DEBUG) << "The event handlers for the Ambiorix signals fd removed successfully from the "
                   "event loop.";
+
+    return true;
+}
+
+bool AmbiorixImpl::remove_easymesh_datamodel()
+{
+    auto *dm   = Amxrt::getDatamodel();
+    auto *root = amxd_dm_get_root(dm);
+    if (!root) {
+        LOG(ERROR) << "Data model root was not found.";
+        return false;
+    }
+
+    auto *ieee1905_root   = amxd_object_get_child(root, IEEE1905_ROOT_DM);
+    auto *controller_root = amxd_object_get_child(root, CONTROLLER_ROOT_DM);
+    if (!ieee1905_root || !controller_root) {
+        LOG(ERROR) << "Data model roots to preserve were not found.";
+        return false;
+    }
+
+    static constexpr char controller_configuration[] = "Configuration";
+    if (!amxd_object_get_child(controller_root, controller_configuration)) {
+        LOG(ERROR) << "Controller configuration object was not found.";
+        return false;
+    }
+
+    amxd_object_for_each(child, it, controller_root)
+    {
+        auto *object     = amxc_container_of(it, amxd_object_t, it);
+        const auto *name = amxd_object_get_name(object, AMXD_OBJECT_NAMED);
+        if (name && std::strcmp(name, controller_configuration) != 0) {
+            amxd_object_send_del_object(object, false);
+            amxd_object_delete(&object);
+        }
+    }
+
+    amxd_object_for_each(child, it, root)
+    {
+        auto *object     = amxc_container_of(it, amxd_object_t, it);
+        const auto *name = amxd_object_get_name(object, AMXD_OBJECT_NAMED);
+        if (object != ieee1905_root && object != controller_root && name &&
+            amxd_dm_remove_root_object(dm, name) != amxd_status_ok) {
+            LOG(ERROR) << "Failed to remove data model root: " << name;
+            return false;
+        }
+    }
 
     return true;
 }

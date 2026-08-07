@@ -232,12 +232,23 @@ bool cfg_set_link_metrics_request_interval(std::chrono::seconds &link_metrics_re
 
 bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec)
 {
-    int64_t interval_sec = 0;
+    uint32_t interval_sec = 0;
     if (!read_controller_config_param("LinkMetricsRequestIntervalSec", interval_sec)) {
         return false;
     }
 
     link_metrics_request_interval_sec = std::chrono::seconds(interval_sec);
+    return true;
+}
+
+bool cfg_get_higher_layer_request_interval(std::chrono::seconds &higher_layer_request_interval_sec)
+{
+    uint32_t interval_sec = 0;
+    if (!read_controller_config_param("HigherLayerRequestIntervalSec", interval_sec)) {
+        return false;
+    }
+
+    higher_layer_request_interval_sec = std::chrono::seconds(interval_sec);
     return true;
 }
 

@@ -1,0 +1,3 @@
+%config {
+    %global "proxy-object.'Device.IEEE1905.'" = "@IEEE1905_ROOT_DM@.";
+}

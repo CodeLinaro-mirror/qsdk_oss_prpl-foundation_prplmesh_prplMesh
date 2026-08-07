@@ -1,0 +1,39 @@
+---
+_namespace: ieee1905_1
+
+tlvIpv6:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvType
+    _value_const: TLV_IPV6
+  length: uint16_t
+  number_of_entries:
+    _type: uint8_t
+    _length_var: True
+  ipv6_interfaces_list:
+    _type: cIpv6InterfaceBlock
+    _length: [ number_of_entries ]
+
+cIpv6InterfaceBlock:
+  _type: class
+  mac_address: sMacAddr
+  ipv6_link_local_address:
+    _type: uint8_t
+    _length: [ 16 ]
+  number_of_ipv6_addresses:
+    _type: uint8_t
+    _length_var: True
+  ipv6_address_entries:
+    _type: sIpv6AddressEntry
+    _length: [ number_of_ipv6_addresses ]
+
+sIpv6AddressEntry:
+  _type: struct
+  ipv6_address_type: eIpv6AddressType
+  ipv6_address:
+    _type: uint8_t
+    _length: [ 16 ]
+  ipv6_address_origin:
+    _type: uint8_t
+    _length: [ 16 ]

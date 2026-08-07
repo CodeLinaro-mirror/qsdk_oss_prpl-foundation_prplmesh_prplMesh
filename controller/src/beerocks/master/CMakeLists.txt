@@ -88,3 +88,4 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory("db/unit_tests")
+add_subdirectory("tasks/unit_tests")

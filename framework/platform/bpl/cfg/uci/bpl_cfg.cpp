@@ -75,6 +75,8 @@ int cfg_is_master()
         return 1;
     case BPL_MGMT_MODE_MULTIAP_CONTROLLER:
         return 1;
+    case BPL_MGMT_MODE_NOT_MULTIAP:
+        return 1;
     case BPL_MGMT_MODE_MULTIAP_AGENT:
         return 0;
     default:
@@ -698,6 +700,8 @@ bool cfg_get_link_metrics_request_interval(std::chrono::seconds &link_metrics_re
     link_metrics_request_interval_sec = std::chrono::seconds{retVal};
     return true;
 }
+
+bool cfg_get_higher_layer_request_interval(std::chrono::seconds &) { return false; }
 
 bool cfg_set_link_metrics_request_interval(std::chrono::seconds &link_metrics_request_interval_sec)
 {

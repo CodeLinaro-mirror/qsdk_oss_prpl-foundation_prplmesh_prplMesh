@@ -320,6 +320,14 @@ static void fill_master_config(son::db::sDbMasterConfig &master_conf,
         master_conf.link_metrics_request_interval_seconds =
             beerocks::bpl::DEFAULT_LINK_METRICS_REQUEST_INTERVAL_VALUE_SEC;
     }
+    if (!beerocks::bpl::cfg_get_higher_layer_request_interval(
+            master_conf.higher_layer_request_interval_seconds)) {
+        LOG(DEBUG) << "Failed to read higher_layer_request interval, setting to default value: "
+                   << beerocks::bpl::DEFAULT_HIGHER_LAYER_REQUEST_INTERVAL_VALUE_SEC.count();
+
+        master_conf.higher_layer_request_interval_seconds =
+            beerocks::bpl::DEFAULT_HIGHER_LAYER_REQUEST_INTERVAL_VALUE_SEC;
+    }
 
     master_conf.dhcp_monitor_interval_seconds =
         beerocks::bpl::DEFAULT_DHCP_MONITOR_INTERVAL_VALUE_SEC;
@@ -631,12 +639,6 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // Initialize the BPL (Beerocks Platform Library)
-    if (beerocks::bpl::bpl_init() < 0) {
-        LOG(ERROR) << "Failed to initialize BPL!";
-        return 1;
-    }
-
     // read master config file
     std::string master_config_file_path =
         CONF_FILES_WRITABLE_PATH + std::string(BEEROCKS_CONTROLLER) +
@@ -745,21 +747,36 @@ int main(int argc, char *argv[])
     auto amb_dm_obj = std::make_shared<beerocks::nbapi::AmbiorixDummy>();
 #endif //ENABLE_NBAPI
 
+    // Initialize the BPL (Beerocks Platform Library).
+    if (beerocks::bpl::bpl_init() < 0) {
+        LOG(ERROR) << "Failed to initialize BPL!";
+        return 1;
+    }
+
     beerocks::bpl::set_nbapi_dm(amb_dm_obj);
 
     // fill master configuration
     son::db::sDbMasterConfig master_conf;
     fill_master_config(master_conf, beerocks_master_conf);
 
-    // Set Network.ID to the Data Model
-    if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ID", bridge_info.mac)) {
-        LOG(ERROR) << "Failed to add Network.ID, mac: " << bridge_info.mac;
-        return false;
+#ifdef ENABLE_NBAPI
+    if (master_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG_IF(!amb_dm_obj->remove_easymesh_datamodel(), FATAL)
+            << "Failed to remove EasyMesh data model roots.";
     }
+#endif
 
-    if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ControllerID", bridge_info.mac)) {
-        LOG(ERROR) << "Failed to add Network.ControllerID, mac: " << bridge_info.mac;
-        return false;
+    if (master_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
+        // Set Network.ID to the Data Model
+        if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ID", bridge_info.mac)) {
+            LOG(ERROR) << "Failed to add Network.ID, mac: " << bridge_info.mac;
+            return false;
+        }
+
+        if (!amb_dm_obj->set(DATAELEMENTS_ROOT_DM ".Network", "ControllerID", bridge_info.mac)) {
+            LOG(ERROR) << "Failed to add Network.ControllerID, mac: " << bridge_info.mac;
+            return false;
+        }
     }
 
     son::db master_db(master_conf, logger, tlvf::mac_from_string(bridge_info.mac), amb_dm_obj);
@@ -822,7 +839,8 @@ int main(int argc, char *argv[])
     son::Controller controller(master_db, std::move(broker_client_factory), std::move(ucc_server),
                                std::move(cmdu_server), timer_manager, event_loop);
 
-    if (!amb_dm_obj->set_current_time(DATAELEMENTS_ROOT_DM ".Network")) {
+    if (master_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP &&
+        !amb_dm_obj->set_current_time(DATAELEMENTS_ROOT_DM ".Network")) {
         return false;
     };
 

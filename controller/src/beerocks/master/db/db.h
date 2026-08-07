@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  *
- * SPDX-FileCopyrightText: 2016-2022 the prplMesh contributors (see AUTHORS.md)
+ * SPDX-FileCopyrightText: 2016-2026 the prplMesh contributors (see AUTHORS.md)
  *
  * This code is subject to the terms of the BSD+Patent license.
  * See LICENSE file for more details.
@@ -23,6 +23,9 @@
 
 #include <tlvf/common/eVapType.h>
 #include <tlvf/common/sMacAddr.h>
+#include <tlvf/ieee_1905_1/eIpv4AddressType.h>
+#include <tlvf/ieee_1905_1/eIpv6AddressType.h>
+#include <tlvf/ieee_1905_1/s802_11SpecificInformation.h>
 #include <tlvf/ieee_1905_1/tlvReceiverLinkMetric.h>
 #include <tlvf/ieee_1905_1/tlvTransmitterLinkMetric.h>
 #include <tlvf/wfa_map/tlv1905LayerSecurityCapability.h>
@@ -45,10 +48,14 @@
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 
-#include <algorithm>
-#include <array>
+#include <bitset>
+#include <memory>
 #include <mutex>
 #include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #ifdef ENABLE_NBAPI
@@ -70,6 +77,35 @@ namespace son {
 
 // Forward declaration for Controller context saving
 class Controller;
+
+/**
+ * Invokes the \ref callback (if any) once, once the \ref counter reaches zero
+ */
+class SingleShotCounter {
+    unsigned counter = 0;
+    std::function<void()> callback;
+
+public:
+    SingleShotCounter() = default;
+    SingleShotCounter(unsigned initial, std::function<void()> f)
+        : counter(initial), callback(std::move(f))
+    {
+    }
+
+    ~SingleShotCounter()                             = default;
+    SingleShotCounter(SingleShotCounter &&) noexcept = default;
+    SingleShotCounter &operator=(SingleShotCounter &&) noexcept = default;
+
+    SingleShotCounter(const SingleShotCounter &) = delete;
+    SingleShotCounter &operator=(const SingleShotCounter &) = delete;
+
+    /** Increase counter and return the previous value. */
+    unsigned count_up();
+    /** Decrease counter and return the previous value; trigger callback once on zero. */
+    unsigned count_down();
+    /** True while the callback is still armed and the counter is non-zero. */
+    explicit operator bool() const { return counter && callback; }
+};
 
 class db {
 
@@ -196,6 +232,8 @@ public:
         int unfriendly_device_max_timelife_delay_minutes;
         unsigned int persistent_db_commit_changes_interval_seconds;
         std::chrono::seconds link_metrics_request_interval_seconds;
+        /** Interval between periodic IEEE1905 Higher Layer Queries; zero disables periodic queries. */
+        std::chrono::seconds higher_layer_request_interval_seconds;
         std::chrono::seconds dhcp_monitor_interval_seconds;
         std::chrono::milliseconds steering_disassoc_timer_msec;
         int management_mode;
@@ -269,6 +307,8 @@ public:
         int roaming_hysteresis_percent_bonus;
         std::chrono::milliseconds steering_disassoc_timer_msec;
         std::chrono::seconds link_metrics_request_interval_seconds;
+        /** Interval between periodic IEEE1905 Higher Layer Queries; zero disables periodic queries. */
+        std::chrono::seconds higher_layer_request_interval_seconds;
     } sDbNbapiConfig;
 
     typedef struct {
@@ -359,6 +399,289 @@ public:
 
         bool add_ap_metric_data(std::shared_ptr<wfa_map::tlvApMetrics> ApMetricData);
     };
+
+    /**
+     * Generic IEEE1905 topology DB used for IEEE1905 root data model.
+     *
+     * This DB is intentionally independent from EasyMesh Agent entities.
+     */
+    struct ieee1905_network_db {
+        struct sAL;
+        using ALMap = std::unordered_map<sMacAddr, sAL>;
+
+        struct sDmPath;
+
+        /**
+         * @brief View of an Ambiorix data model object path.
+         *
+         * Holds a weak reference to the Ambiorix instance and the absolute data model
+         * path string.  Unlike \ref sDmPath, copying is allowed and destruction does
+         * not remove the data model instance.
+         *
+         * Evaluates to false when the path is empty or the Ambiorix instance has been
+         * destroyed.
+         */
+        struct sDmPathView {
+            std::weak_ptr<beerocks::nbapi::Ambiorix> dm; ///< Weak reference to Ambiorix instance.
+            std::string path;                            ///< Absolute data model object path.
+
+            sDmPathView() = default;
+
+            /**
+             * @brief Construct a view from an Ambiorix weak pointer and a path string.
+             *
+             * @param dm_   weak reference to the Ambiorix instance
+             * @param path_ absolute data model object path
+             */
+            sDmPathView(std::weak_ptr<beerocks::nbapi::Ambiorix> dm_, std::string path_)
+                : dm(std::move(dm_)), path(std::move(path_))
+            {
+            }
+            ~sDmPathView()                   = default;
+            sDmPathView(const sDmPathView &) = default;
+            sDmPathView(sDmPathView &&)      = default;
+            sDmPathView &operator=(const sDmPathView &) = default;
+            sDmPathView &operator=(sDmPathView &&) = default;
+
+            /**
+             * @brief Set a parameter on this data model object
+             *
+             * No-op if the Ambiorix instance has been destroyed
+             *
+             * @tparam Value type of the value to set
+             * @param parameter parameter name relative to \ref path
+             * @param value new parameter value
+             *
+             * @return result of Ambiorix::set(), or false if Ambiorix is gone
+             */
+            template <typename Value>
+            auto set(const std::string &parameter, const Value &value)
+                -> decltype(dm.lock()->set(std::string{}, parameter, value))
+            {
+                auto ambiorix = dm.lock();
+                return ambiorix && ambiorix->set(path, parameter, value);
+            }
+
+            /**
+             * @brief Convenience overload that accepts a C-string value.
+             *
+             * @param parameter parameter name relative to \ref path
+             * @param value new parameter value as a C-string
+             *
+             * @return result of Ambiorix::set(), or false if Ambiorix is gone
+             */
+            auto set(const std::string &parameter, const char *value)
+            {
+                return set(parameter, std::string(value));
+            }
+
+            /**
+             * @brief Return a view of a child object by appending \p suffix to this path.
+             *
+             * @param suffix path suffix to append (e.g. "Interface.1.")
+             *
+             * @return view of the child object path.
+             */
+            sDmPathView subpath(const std::string &suffix) const;
+
+            /**
+             * @brief Add a new instance under \p subpath and return an owning \ref sDmPath.
+             *
+             * @param subpath relative path of the multi-instance object to add into
+             *
+             * @return path of the newly created instance.
+             */
+            sDmPath add_instance(const std::string &subpath);
+
+            /**
+             * @brief Returns true if the path is non-empty and the Ambiorix instance is alive.
+             */
+            explicit operator bool() const noexcept { return !path.empty() && dm.use_count(); }
+        };
+
+        /**
+         * (Not so) RAII class to unregister the \ref path from the \ref dm
+         *
+         * dm is a weak_ptr so that when the whole m_ambiorix_datamodel is freed,
+         * (assuming there are no more references to Ambiorix)
+         * we would not need to remove individual instances
+         */
+        struct sDmPath : public sDmPathView {
+            using sDmPathView::sDmPathView;
+
+            sDmPath() = default;
+            ~sDmPath();
+            sDmPath(const sDmPath &) = delete;
+            sDmPath(sDmPath &&)      = default;
+            sDmPath &operator=(const sDmPath &) = delete;
+            sDmPath &operator=(sDmPath &&) = default;
+        };
+
+        /**
+         * The class is backing IEEE1905.Network.AL.{i}.
+         *
+         * An AL is kept in the DB as long as there are references to it
+         * from sAL::sInterface::ieee1905_neighbors, because need to maintain
+         * Interface.{i}.IEEE1905Neighbor.{i}.IEEE1905DeviceRef.
+         *
+         * References by Interface.{i}.Link.{i}. are ignored.
+         */
+        struct sAL {
+            /** Reference by AL \ref al_mac 's Interface with \ref if_mac. */
+            struct sRef {
+                sMacAddr al_mac; ///< Source AL MAC.
+                sMacAddr if_mac; ///< Source interface MAC.
+
+                bool operator==(const sRef &that) const
+                {
+                    return (al_mac == that.al_mac) && (if_mac == that.if_mac);
+                }
+
+                struct hasher {
+                    std::size_t operator()(const sRef &ref) const noexcept;
+                };
+            };
+
+            /** AL.{i}.Interface.{i}.IEEE1905Neighbor.{i} backing object. */
+            struct sNeighbor {
+                /// @brief Owning data model path for this neighbor instance.
+                sDmPath dm_path;
+                /// @brief True when there is at least one IEEE 802.1D bridge between the AL and this neighbor.
+                bool ieee802dot1_bridge = false;
+
+                /** RAII reference guard for target AL lifetime. */
+                struct sRefHandle {
+                    ALMap *al;       ///< Pointer to AL container.
+                    sMacAddr al_mac; ///< Referenced target AL MAC.
+                    sRef ref;        ///< Source AL/interface reference held in target AL.
+
+                    /**
+                     * Registers source reference in target AL entity.
+                     *
+                     * @param al AL map container.
+                     * @param al_mac Target AL MAC.
+                     * @param ref Source AL/interface reference.
+                     */
+                    sRefHandle(ALMap &al, const sMacAddr &al_mac, sRef ref)
+                        : al(&al), al_mac(al_mac), ref(ref)
+                    {
+                        al[al_mac].references.insert(ref);
+                    }
+
+                    sRefHandle(sRefHandle &&that) noexcept
+                        : al(that.al), al_mac(that.al_mac), ref(that.ref)
+                    {
+                        that.al = nullptr;
+                    }
+
+                    sRefHandle(const sRefHandle &) = delete;
+                    sRefHandle &operator=(const sRefHandle &) = delete;
+                    sRefHandle &operator=(sRefHandle &&) = delete;
+
+                    /** Unregisters source reference from target AL entity. */
+                    ~sRefHandle();
+                } ref;
+            };
+
+            /** AL.{i}.Interface.{i} backing object. */
+            struct sInterface {
+                sDmPath dm_path;
+                ieee1905_1::eMediaType type = ieee1905_1::UNKNOWN_MEDIA;
+                ieee1905_1::s802_11SpecificInformation spec;
+
+                struct sLink {
+                    sDmPath dm_path;
+
+                    ieee1905_1::tlvReceiverLinkMetric::sLinkMetricInfo rx_link_metric;
+                    ieee1905_1::tlvTransmitterLinkMetric::sLinkMetricInfo tx_link_metric;
+                };
+
+                // Reuse sRef, because it has if_mac+al_mac
+                std::unordered_map<sRef, sLink, sRef::hasher> links;
+                /** Non-IEEE1905 neighbors keyed by neighbor MAC. */
+                std::unordered_map<sMacAddr, sDmPath> non_1905_neighbors;
+                /** IEEE1905 neighbors keyed by neighbor AL MAC. */
+                std::unordered_map<sMacAddr, sNeighbor> ieee1905_neighbors;
+            };
+
+            /** AL.{i}.IPv4Address.{i} backing object. */
+            struct sIPv4Address {
+                sDmPath dm_path;
+                ieee1905_1::eIpv4AddressType type;
+                beerocks::net::sIpv4Addr dhcp_server = {};
+
+                struct sKey {
+                    sMacAddr mac;
+                    beerocks::net::sIpv4Addr address;
+
+                    bool operator==(const sKey &that) const
+                    {
+                        return (mac == that.mac) && (address == that.address);
+                    }
+
+                    struct hasher {
+                        std::size_t operator()(const sKey &key) const noexcept;
+                    };
+                };
+            };
+
+            /** AL.{i}.IPv6Address.{i} backing object. */
+            struct sIPv6Address {
+                sDmPath dm_path;
+                ieee1905_1::eIpv6AddressType type;
+                std::string origin;
+
+                struct sKey {
+                    sMacAddr mac;
+                    std::string address;
+
+                    bool operator==(const sKey &that) const
+                    {
+                        return (mac == that.mac) && (address == that.address);
+                    }
+
+                    struct hasher {
+                        std::size_t operator()(const sKey &key) const noexcept;
+                    };
+                };
+            };
+
+            /** AL.{i}.BridgingTuple.{i} backing object. */
+            struct sBridgingTuple {
+                sDmPath dm_path;
+
+                std::unordered_set<sMacAddr> interfaces;
+            };
+
+            sDmPath dm_path;
+            bool version_is_1905a = false;
+            std::bitset<4> registrar_freq_band;
+            std::string friendly_name;
+            std::string manufacturer_name;
+            std::string manufacturer_model;
+            std::string control_url;
+
+            template <typename IP>
+            using IPMap = std::unordered_map<typename IP::sKey, IP, typename IP::sKey::hasher>;
+            IPMap<sIPv4Address> ipv4_addresses;
+            IPMap<sIPv6Address> ipv6_addresses;
+
+            std::unordered_map<sMacAddr, sInterface> interfaces;
+            std::vector<sBridgingTuple> bridging_tuples;
+
+            /** Incoming references from other AL/interface pairs. */
+            std::unordered_set<sRef, sRef::hasher> references;
+        };
+
+        /** Destroys all AL entities. */
+        ~ieee1905_network_db();
+
+        /** IEEE1905.Network.AL map keyed by AL MAC address. */
+        ALMap al;
+    };
+
+    /** nullptr when Network.Enable is false */
+    std::unique_ptr<ieee1905_network_db> ieee1905_network;
 
     // Unassoc sta link metrics variables
     bool m_measurement_done = false;
@@ -3054,6 +3377,20 @@ public:
     bool assign_bml_task_id(int new_task_id);
     int get_bml_task_id();
 
+    /**
+     * @brief Register the task ID of the running ieee1905_task
+     *
+     * @param new_task_id task ID assigned by the task scheduler
+     */
+    void assign_ieee1905_task_id(int new_task_id);
+
+    /**
+     * @brief Return the task ID of the running ieee1905_task, or -1 if not started
+     *
+     * @return registered ieee1905_task ID
+     */
+    int get_ieee1905_task_id();
+
     bool assign_pre_association_steering_task_id(int new_task_id);
     int get_pre_association_steering_task_id();
 
@@ -3483,10 +3820,17 @@ private:
                                      Agent::sRadio::sBss::sEhtOperations &bss);
     bool set_external_eht_operations(Agent::sRadio::sBss &bss);
 
+    /**
+     * @name Task IDs
+     *
+     * IDs of registered tasks, or -1 if not registered.
+     */
+    /// @{
     int network_optimization_task_id           = -1;
     int channel_selection_task_id              = -1;
     int dynamic_channel_selection_r2_task_id   = -1;
     int bml_task_id                            = -1;
+    int ieee1905_task_id                       = -1;
     int pre_association_steering_task_id       = -1;
     int config_update_task_id                  = -1;
     int persistent_db_aging_operation_id       = -1;
@@ -3496,6 +3840,7 @@ private:
     int statistics_polling_task_id             = -1;
     int vbss_task_id                           = -1;
     int link_metrics_task_id                   = -1;
+    /// @}
 
     std::mutex db_mutex;
 

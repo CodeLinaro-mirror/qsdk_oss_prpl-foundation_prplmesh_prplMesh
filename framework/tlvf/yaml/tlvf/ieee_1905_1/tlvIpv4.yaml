@@ -1,0 +1,32 @@
+---
+_namespace: ieee1905_1
+
+tlvIpv4:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvType
+    _value_const: TLV_IPV4
+  length: uint16_t
+  number_of_entries:
+    _type: uint8_t
+    _length_var: True
+  ipv4_interfaces_list:
+    _type: cIpv4InterfaceBlock
+    _length: [ number_of_entries ]
+
+cIpv4InterfaceBlock:
+  _type: class
+  mac_address: sMacAddr
+  number_of_ipv4_addresses:
+    _type: uint8_t
+    _length_var: True
+  ipv4_address_entries:
+    _type: sIpv4AddressEntry
+    _length: [ number_of_ipv4_addresses ]
+
+sIpv4AddressEntry:
+  _type: struct
+  ipv4_address_type: eIpv4AddressType
+  ipv4_address: uint32_t
+  ipv4_dhcp_server: uint32_t

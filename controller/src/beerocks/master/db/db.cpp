@@ -104,6 +104,132 @@ bool is_regressive_deferred_update(const Agent::sRadio &radio,
 
 } // namespace
 
+unsigned SingleShotCounter::count_up() { return counter++; }
+
+unsigned SingleShotCounter::count_down()
+{
+    if (counter == 0) {
+        return 0;
+    }
+
+    auto ret = counter;
+
+    if (--counter == 0 && callback) {
+        auto cb = std::move(callback);
+        cb();
+    }
+
+    return ret;
+}
+
+static uint32_t lower_four_octets(const sMacAddr &mac)
+{
+    return (uint32_t(mac.oct[2]) << 24) | (mac.oct[3] << 16) | (mac.oct[4] << 8) | mac.oct[5];
+}
+
+static uint32_t lower_four_octets(const sIpv4Addr &a)
+{
+    return (uint32_t(a.oct[0]) << 24) | (a.oct[1] << 16) | (a.oct[2] << 8) | a.oct[3];
+}
+
+// For example, AL MAC 11:22:01:02:03:04 and interface MAC 33:44:05:06:07:08 produce
+// 0x0102030405060708 with an identity integral std::hash implementation. The numeric
+// result is implementation-defined.
+std::size_t db::ieee1905_network_db::sAL::sRef::hasher::operator()(const sRef &ref) const noexcept
+{
+    const auto lower_al     = lower_four_octets(ref.al_mac);
+    const auto lower_if     = lower_four_octets(ref.if_mac);
+    const uint64_t combined = (static_cast<uint64_t>(lower_al) << 32) | lower_if;
+
+    return std::hash<uint64_t>{}(combined);
+}
+
+std::size_t db::ieee1905_network_db::sAL::sIPv4Address::sKey::hasher::
+operator()(const sKey &key) const noexcept
+{
+    const auto lower_mac    = lower_four_octets(key.mac);
+    const auto lower_ipv4   = lower_four_octets(key.address);
+    const uint64_t combined = (static_cast<uint64_t>(lower_mac) << 32) | lower_ipv4;
+
+    return std::hash<uint64_t>{}(combined);
+}
+
+std::size_t db::ieee1905_network_db::sAL::sIPv6Address::sKey::hasher::
+operator()(const sKey &key) const noexcept
+{
+    const auto lower_mac    = lower_four_octets(key.mac);
+    const auto hashed_ipv6  = static_cast<uint32_t>(std::hash<std::string>{}(key.address));
+    const uint64_t combined = (static_cast<uint64_t>(lower_mac) << 32) | hashed_ipv6;
+
+    return std::hash<uint64_t>{}(combined);
+}
+
+db::ieee1905_network_db::sAL::sNeighbor::sRefHandle::~sRefHandle()
+{
+    if (!al) {
+        return;
+    }
+
+    auto it = al->find(al_mac);
+    if (it == al->end()) {
+        return;
+    }
+
+    it->second.references.erase(ref);
+}
+
+db::ieee1905_network_db::sDmPathView
+db::ieee1905_network_db::sDmPathView::subpath(const std::string &suffix) const
+{
+    return {dm, path + suffix};
+}
+
+db::ieee1905_network_db::sDmPath
+db::ieee1905_network_db::sDmPathView::add_instance(const std::string &subpath)
+{
+    auto ambiorix = dm.lock();
+    if (!ambiorix) {
+        return {};
+    }
+
+    auto instance_path = ambiorix->add_instance(path + subpath);
+    if (instance_path.empty()) {
+        return {};
+    }
+
+    return {ambiorix, std::move(instance_path)};
+}
+
+db::ieee1905_network_db::sDmPath::~sDmPath()
+{
+    if (path.empty()) {
+        return;
+    }
+
+    auto dm = this->dm.lock();
+    if (!dm) {
+        return;
+    }
+
+    const auto instance = son::db::get_dm_index_from_path(path);
+    if (instance.first.empty() || instance.second <= 0) {
+        return;
+    }
+
+    LOG_IF(!dm->remove_instance(instance.first, instance.second), ERROR)
+        << "Failed to remove " << path;
+}
+
+db::ieee1905_network_db::~ieee1905_network_db()
+{
+    // Need to do this manually/explicitly,
+    // calling \ref al methods (find()/erase() in ~sRefHandle())
+    // during \ref al destructor invocation is UB
+    while (!al.empty()) {
+        al.erase(al.begin());
+    }
+}
+
 // static
 std::string db::type_to_string(beerocks::eType type)
 {
@@ -5884,6 +6010,10 @@ bool db::assign_bml_task_id(int new_task_id)
 
 int db::get_bml_task_id() { return bml_task_id; }
 
+void db::assign_ieee1905_task_id(int new_task_id) { ieee1905_task_id = new_task_id; }
+
+int db::get_ieee1905_task_id() { return ieee1905_task_id; }
+
 bool db::assign_pre_association_steering_task_id(int new_task_id)
 {
     pre_association_steering_task_id = new_task_id;
@@ -8312,6 +8442,8 @@ bool db::update_master_configuration(const sDbNbapiConfig &nbapi_config)
 
     config.diagnostics_measurements_polling_rate_sec =
         nbapi_config.diagnostics_measurements_polling_rate_sec;
+    config.higher_layer_request_interval_seconds =
+        nbapi_config.higher_layer_request_interval_seconds;
     config.link_metrics_request_interval_seconds =
         nbapi_config.link_metrics_request_interval_seconds;
     config.load_channel_select_task         = nbapi_config.channel_select_task;

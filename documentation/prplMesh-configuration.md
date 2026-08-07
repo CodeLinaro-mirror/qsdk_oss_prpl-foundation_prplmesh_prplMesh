@@ -52,6 +52,7 @@ All Controller config options are located in path:
 | `SteeringCurrentBonus`                        | uint32 | N/A           | Bonus applied to current BSS selection (`phy_rate` or `rssi`).              |
 | `SteeringDisassociationTimerMSec`             | uint32 | 200           | Disassociation timer used in client steering task.                          |
 | `LinkMetricsRequestIntervalSec`               | uint32 | 60            | Link metric request interval in seconds.                                    |
+| `HigherLayerRequestIntervalSec`               | uint32 | 60            | Higher layer query interval in seconds.                                     |
 | `ChannelSelectionTaskEnabled`                 | bool   | false         | Enables channel selection task.                                             |
 | `DynamicChannelSelectionTaskEnabled`          | bool   | false         | Enables dynamic channel selection task.                                     |
 | `BackhaulOptimizationEnabled`                 | bool   | false         | Enables IRE network optimization task.                                      |

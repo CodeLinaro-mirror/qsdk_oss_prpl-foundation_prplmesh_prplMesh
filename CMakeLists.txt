@@ -11,7 +11,7 @@ endif()
 
 ## Function to generate defines for ODLs
 function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT_DM_FOOTER_VAR)
-    string(REPLACE "." "\\." ${ROOT_DM_LITERAL_VAR} ${${ROOT_DM_VAR}})
+    string(REPLACE "." "\\." literal ${${ROOT_DM_VAR}})
     set(${ROOT_DM_HEADER_VAR} "")
     set(${ROOT_DM_FOOTER_VAR} "")
 
@@ -27,6 +27,7 @@ function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT
         set(indent "    ${indent}")
     endforeach()
 
+    set(${ROOT_DM_LITERAL_VAR} "${literal}" PARENT_SCOPE)
     set(${ROOT_DM_HEADER_VAR} "${header}" PARENT_SCOPE)
     set(${ROOT_DM_FOOTER_VAR} "${footer}" PARENT_SCOPE)
 endfunction()
@@ -41,6 +42,11 @@ if (NOT DEFINED CONTROLLER_ROOT_DM)
     set(CONTROLLER_ROOT_DM "X_PRPLWARE-COM_Controller")
 endif()
 
+## PrplMesh Controller IEEE1905 root path
+if (NOT DEFINED IEEE1905_ROOT_DM)
+    set(IEEE1905_ROOT_DM "IEEE1905")
+endif()
+
 ## PrplMesh Agent datamodel root path
 if (NOT DEFINED AGENT_ROOT_DM)
     set(AGENT_ROOT_DM "X_PRPLWARE-COM_Agent")
@@ -48,11 +54,13 @@ endif()
 
 add_definitions(-DDATAELEMENTS_ROOT_DM="${DATAELEMENTS_ROOT_DM}")
 add_definitions(-DCONTROLLER_ROOT_DM="${CONTROLLER_ROOT_DM}")
+add_definitions(-DIEEE1905_ROOT_DM="${IEEE1905_ROOT_DM}")
 add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
 
 
 process_root_dm(DATAELEMENTS_ROOT_DM DATAELEMENTS_ROOT_DM_literal DATAELEMENTS_ROOT_DM_Header DATAELEMENTS_ROOT_DM_Footer)
 process_root_dm(CONTROLLER_ROOT_DM CONTROLLER_ROOT_DM_literal CONTROLLER_ROOT_DM_Header CONTROLLER_ROOT_DM_Footer)
+process_root_dm(IEEE1905_ROOT_DM IEEE1905_ROOT_DM_literal IEEE1905_ROOT_DM_Header IEEE1905_ROOT_DM_Footer)
 process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_ROOT_DM_Footer)
 
 
@@ -164,6 +172,12 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
         set(INCLUDE_DM_MAPPER_CONFIG "include \"dm_mapper_cfg.odl\";")
     endif()
 
+    option(ENABLE_IEEE1905_USP "Publish IEEE1905 data model on USP" ON)
+    if(ENABLE_IEEE1905_USP)
+        message(STATUS "Enable IEEE1905 USP related configuration")
+        set(INCLUDE_IEEE1905_USP_CONFIG "include \"ieee1905_usp_cfg.odl\";")
+    endif()
+
     if (TARGET_PLATFORM_TYPE STREQUAL "ugw")
         add_definitions(-DBEEROCKS_UGW)
         list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")
@@ -256,6 +270,10 @@ endif()
 add_definitions(-DBEEROCKS_VERSION="${prplmesh_VERSION}")
 add_definitions(-DBEEROCKS_BUILD_DATE="${BUILD_DATE}")
 add_definitions(-DBEEROCKS_REVISION="${PRPLMESH_REVISION}")
+
+## Documentation
+
+add_subdirectory(documentation)
 
 ## Components
 
