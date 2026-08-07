@@ -28,6 +28,11 @@
 #include <tlvf/airties/tlvAirtiesRadioCapability.h>
 #include <tlvf/airties/tlvVersionReporting.h>
 
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <fstream>
+
 using namespace airties;
 using namespace beerocks;
 using namespace wbapi;
@@ -40,6 +45,7 @@ using namespace wbapi;
 #define TLV_BIT_ENABLE 0x1
 #define TLV_BIT_DISABLE 0x0
 
+#define BOOT_ID_FILE "/proc/sys/kernel/random/boot_id"
 #define CPU_TEMP_FILE "/sys/devices/virtual/thermal/thermal_zone0/temp"
 #define MEMINFO_FILE "/proc/meminfo"
 #define STAT_FILE "/proc/stat"
@@ -602,13 +608,35 @@ bool update_client_details(std::shared_ptr<airties::tlvAirtiesDeviceInfo> &tlvDe
     return true;
 }
 
+/**
+ * Derive the boot id from the kernel's per-boot UUID, which is regenerated only on reboot.
+ * Read once and cached, so the value stays fixed for the lifetime of the boot.
+ * Folded into 32 bits with FNV-1a hash function since the TLV field is uint32_t.
+ */
+static uint32_t get_boot_id()
+{
+    static const uint32_t boot_id = []() -> uint32_t {
+        std::ifstream boot_id_file(BOOT_ID_FILE);
+        std::string uuid;
+        if (!boot_id_file || !std::getline(boot_id_file, uuid) || uuid.empty()) {
+            LOG(ERROR) << "cannot read file " << BOOT_ID_FILE << ", boot id set to 0";
+            return 0;
+        }
+
+        uint32_t hash = 2166136261u;
+        for (unsigned char c : uuid) {
+            if (std::isxdigit(c)) {
+                hash = (hash ^ c) * 16777619u;
+            }
+        }
+        return hash;
+    }();
+
+    return boot_id;
+}
+
 bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m_cmdu_tx)
 {
-    uint32_t randomBootid;
-
-    srand((unsigned)time(NULL));
-    randomBootid = rand();
-
     auto tlvAirtiesDeviceInfo = m_cmdu_tx.addClass<airties::tlvAirtiesDeviceInfo>();
     if (!tlvAirtiesDeviceInfo) {
         LOG(ERROR) << "addClass wfa_map::tlvDeviceInfo failed";
@@ -617,7 +645,7 @@ bool tlvf_airties_utils::add_airties_deviceinfo_tlv(ieee1905_1::CmduMessageTx &m
     tlvAirtiesDeviceInfo->vendor_oui() =
         (sVendorOUI(airties::tlvAirtiesMsgType::airtiesVendorOUI::OUI_AIRTIES));
     tlvAirtiesDeviceInfo->tlv_id()  = static_cast<int>(airties::eAirtiesTlVId::AIRTIES_DEVICE_INFO);
-    tlvAirtiesDeviceInfo->boot_id() = randomBootid;
+    tlvAirtiesDeviceInfo->boot_id() = get_boot_id();
 
     if (!update_client_details(tlvAirtiesDeviceInfo)) {
         LOG(ERROR) << "Failed to update client details in Device Info TLV";
