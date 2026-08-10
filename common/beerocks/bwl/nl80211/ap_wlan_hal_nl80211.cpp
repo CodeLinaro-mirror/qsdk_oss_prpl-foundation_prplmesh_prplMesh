@@ -320,25 +320,25 @@ static bool assign_auth_encr_parameters(prplmesh::hostapd::Configuration &conf,
         disable_pmksa_caching.assign("1");
         okc.assign("1");
         wpa_disable_eapol_key_retries.assign("0");
-    } else if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
-           bss_info_conf.additional_auth ==
+    } else if (bss.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
+           bss.additional_auth ==
                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
 
         wpa = 0x2;
         wpa_key_mgmt.assign("WPA-PSK SAE");
 
-        if (bss_info_conf.encryption_type != WSC::eWscEncr::WSC_ENCR_AES) {
-            LOG(ERROR) << "Autoconfiguration: " << vap_if << " CCMP(AES) is required for WPA3-PCM";
+        if (bss.encryption_type != WSC::eWscEncr::WSC_ENCR_AES) {
+            LOG(ERROR) << "Autoconfiguration: " << vap_id << " CCMP(AES) is required for WPA3-PCM";
             return false;
         }
         wpa_pairwise.assign("CCMP");
 
-        if (bss_info_conf.network_key.length() < 8 || bss_info_conf.network_key.length() > 64) {
-            LOG(ERROR) << "Autoconfiguration: " << vap_if << " invalid network key length "
-                       << bss_info_conf.network_key.length();
+        if (bss.network_key.length() < 8 || bss.network_key.length() > 64) {
+            LOG(ERROR) << "Autoconfiguration: " << vap_id << " invalid network key length "
+                       << bss.network_key.length();
             return false;
         }
-        wpa_passphrase.assign(bss_info_conf.network_key);
+        wpa_passphrase.assign(bss.network_key);
 
         ieee80211w.assign("2");
         disable_pmksa_caching.assign("1");

@@ -1563,13 +1563,20 @@ static std::vector<sMacAddr> template_filter_target_agents(
     return target_agents;
 }
 
-/** BBF: 4-octet hex AKM suite selector without internal delimiters (e.g. 000FAC12). */
-static const std::string OWE_AKM_SELECTOR = "000FAC12";
+/**
+ * Recognize OWE / DPP SecurityTemplate
+ */
+static const std::string OWE_AKM_SELECTOR = "000FAC12"; // IEEE 00-0F-AC type 0x12
+static const std::string DPP_AKM_SELECTOR = "506F9A02"; // WFA 50-6F-9A type 0x02
+/** IEEE 802.11 OWE AKM suite type */
+static constexpr uint8_t RSN_AKM_TYPE_OWE = 0x12;
 
 /** IEEE 802.11 suite selectors (OUI 00-0F-AC + type). Same type bytes as agent RSN_* names. */
 static const std::array<uint8_t, 4> RSN_AKM_PSK             = {{0x00, 0x0F, 0xAC, 0x02}};
 static const std::array<uint8_t, 4> RSN_AKM_SAE             = {{0x00, 0x0F, 0xAC, 0x08}};
 static const std::array<uint8_t, 4> RSN_AKM_SAE_EXT_KEY     = {{0x00, 0x0F, 0xAC, 0x18}};
+static const std::array<uint8_t, 4> RSN_AKM_OWE             = {{0x00, 0x0F, 0xAC, 0x12}};
+static const std::array<uint8_t, 4> RSN_AKM_DPP             = {{0x50, 0x6F, 0x9A, 0x02}};
 static const std::array<uint8_t, 4> RSN_CIPHER_CCMP_128     = {{0x00, 0x0F, 0xAC, 0x04}};
 static const std::array<uint8_t, 4> RSN_CIPHER_BIP_CMAC_128 = {{0x00, 0x0F, 0xAC, 0x06}};
 static const std::array<uint8_t, 4> RSN_CIPHER_GCMP_256     = {{0x00, 0x0F, 0xAC, 0x09}};
@@ -1603,9 +1610,6 @@ static bool template_legacy_cipher_suite_type(uint8_t suite_type)
 {
     return suite_type == 0x04 || suite_type == 0x06 || suite_type == 0x09;
 }
-
-static const char *DPP_AKM_SELECTOR = "506F9A02"; // excluded from deployment per product scope
-
 static bool template_agent_akm_suite_type_supported(const Agent &agent, bool fronthaul, bool backhaul,
                                                      uint8_t suite_type)
 {
@@ -1665,13 +1669,19 @@ static bool template_security_rsne_cipher_suites_match_agent(const Agent &agent,
     return true;
 }
 
-/** Minimal RSNE scan: verify 00-0F-AC AKM suite types in first RSNE (0x30) in concatenated IEs. */
-static bool template_security_ies_hex_akms_match_agent(const Agent &agent, bool fh, bool bh,
-                                                       const std::vector<uint8_t> &ies)
+/**
+ * Minimal RSNE scan: verify 00-0F-AC AKM suite types in first RSNE (0x30) in concatenated IEs.
+ * Records OWE (00-0F-AC:12) and DPP (50-6F-9A:02) so callers can reject undeployable templates
+ * even when agent suite checks are skipped.
+ */
+static bool template_security_ies_hex_akms_match_agent(const Agent *agent, bool fh, bool bh,
+                                                       const std::vector<uint8_t> &ies,
+                                                       bool &contains_owe, bool &contains_dpp)
 {
-    if (!agent.security_capabilities.valid_akm_suites) {
-        return true;
-    }
+    contains_owe = false;
+    contains_dpp = false;
+    const bool check_agent_suites =
+        agent && agent->security_capabilities.valid_akm_suites;
     for (size_t i = 0; i + 1 < ies.size();) {
         uint8_t id  = ies[i++];
         uint8_t len = ies[i++];
@@ -1698,9 +1708,14 @@ static bool template_security_ies_hex_akms_match_agent(const Agent &agent, bool 
             p += 2;
             for (uint16_t k = 0; k < n_akm && p + 4 <= i + len; ++k, p += 4) {
                 if (ies[p] == 0x00 && ies[p + 1] == 0x0F && ies[p + 2] == 0xAC) {
-                    if (!template_agent_akm_suite_type_supported(agent, fh, bh, ies[p + 3])) {
+                    contains_owe |= (ies[p + 3] == RSN_AKM_TYPE_OWE);
+                    if (check_agent_suites &&
+                        !template_agent_akm_suite_type_supported(*agent, fh, bh, ies[p + 3])) {
                         return false;
                     }
+                } else if (ies[p] == 0x50 && ies[p + 1] == 0x6F && ies[p + 2] == 0x9A &&
+                           ies[p + 3] == 0x02) {
+                    contains_dpp = true;
                 }
             }
             return true;
@@ -1914,8 +1929,12 @@ static bool template_parse_akm_token(const std::string &token, std::array<uint8_
         out = RSN_AKM_SAE_EXT_KEY;
         return true;
     }
+    if (normalized == "owe") {
+        out = RSN_AKM_OWE;
+        return true;
+    }
     if (normalized == "dpp") {
-        out = {{0x50, 0x6F, 0x9A, 0x02}};
+        out = RSN_AKM_DPP;
         return true;
     }
 
@@ -2221,6 +2240,26 @@ static bool template_security_akm_flags_match_agent(const Agent &agent, bool fro
     return true;
 }
 
+static bool template_akm_token_in_lists(const std::vector<std::string> &a,
+                                        const std::vector<std::string> &b, const char *token)
+{
+    auto has = [token](const std::vector<std::string> &v) {
+        for (auto t : v) {
+            t.erase(0, t.find_first_not_of(" \t"));
+            if (!t.empty()) {
+                t.erase(t.find_last_not_of(" \t") + 1);
+            }
+            std::transform(t.begin(), t.end(), t.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (t == token) {
+                return true;
+            }
+        }
+        return false;
+    };
+    return has(a) || has(b);
+}
+
 /**
  * @brief Apply SecurityTemplate DM fields to bss_info (WSC auth / encr / additional_auth).
  * BBF: non-empty SecurityIEs overrides structured RSNE/RSNOE/RSNO2E parameters.
@@ -2246,10 +2285,26 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
         LOG(DEBUG) << "SecurityTemplate: SecurityIEs override (" << bss_info.rsn_security_ies.size()
                    << " octets), ignoring structured RSN* parameters";
-        if (agent_for_match &&
-            !template_security_ies_hex_akms_match_agent(*agent_for_match, bss_info.fronthaul,
-                                                        bss_info.backhaul, bss_info.rsn_security_ies)) {
+        bool contains_owe = false;
+        bool contains_dpp = false;
+        if (!template_security_ies_hex_akms_match_agent(agent_for_match, bss_info.fronthaul,
+                                                        bss_info.backhaul, bss_info.rsn_security_ies,
+                                                        contains_owe, contains_dpp)) {
             LOG(DEBUG) << "SecurityTemplate SecurityIEs: AKM/cipher suites not supported by agent";
+            return false;
+        }
+        if (contains_owe) {
+            LOG(WARNING) << "SecurityTemplate SecurityIEs: OWE recognized but not deployable yet;"
+                         << " skipping BSS ssid='" << bss_info.ssid << "' agent="
+                         << (agent_for_match ? agent_for_match->al_mac
+                                             : beerocks::net::network_utils::ZERO_MAC);
+            return false;
+        }
+        if (contains_dpp) {
+            LOG(WARNING) << "SecurityTemplate SecurityIEs: DPP recognized but not deployable yet;"
+                         << " skipping BSS ssid='" << bss_info.ssid << "' agent="
+                         << (agent_for_match ? agent_for_match->al_mac
+                                             : beerocks::net::network_utils::ZERO_MAC);
             return false;
         }
         return true;
@@ -2286,6 +2341,22 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
                                               rsne_akm_selector_str);
     template_merge_saeh2e_from_rsnx(security_template_obj, rsne_akm_list);
 
+    // Named owe/dpp before agent AKM-name matching
+    if (template_akm_token_in_lists(akm_flags, rsne_akm_list, "owe")) {
+        LOG(WARNING) << "SecurityTemplate AKMFlag: OWE recognized but not deployable yet;"
+                     << " skipping BSS ssid='" << bss_info.ssid << "' agent="
+                     << (agent_for_match ? agent_for_match->al_mac
+                                         : beerocks::net::network_utils::ZERO_MAC);
+        return false;
+    }
+    if (template_akm_token_in_lists(akm_flags, rsne_akm_list, "dpp")) {
+        LOG(WARNING) << "SecurityTemplate AKMFlag: DPP recognized but not deployable yet;"
+                     << " skipping BSS ssid='" << bss_info.ssid << "' agent="
+                     << (agent_for_match ? agent_for_match->al_mac
+                                         : beerocks::net::network_utils::ZERO_MAC);
+        return false;
+    }
+
     if (agent_for_match && rsne_obj &&
         !template_security_rsne_cipher_suites_match_agent(*agent_for_match, rsne_obj)) {
         LOG(DEBUG) << "SecurityTemplate RSNE cipher suites not supported by agent " << agent_for_match->al_mac;
@@ -2318,25 +2389,25 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         selector_values.erase(std::remove_if(selector_values.begin(), selector_values.end(),
                                              [](const std::string &x) { return x.empty(); }),
                               selector_values.end());
+        // Reject OWE/DPP before other selectors so ordering cannot bypass them.
+        if (std::find(selector_values.begin(), selector_values.end(), OWE_AKM_SELECTOR) !=
+            selector_values.end()) {
+            LOG(WARNING) << "SecurityTemplate SuiteSelector: OWE recognized but not deployable yet;"
+                         << " skipping BSS ssid='" << bss_info.ssid << "' agent="
+                         << (agent_for_match ? agent_for_match->al_mac
+                                             : beerocks::net::network_utils::ZERO_MAC);
+            return false;
+        }
+        if (std::find(selector_values.begin(), selector_values.end(), DPP_AKM_SELECTOR) !=
+            selector_values.end()) {
+            LOG(WARNING) << "SecurityTemplate SuiteSelector: DPP recognized but not deployable yet;"
+                         << " skipping BSS ssid='" << bss_info.ssid << "' agent="
+                         << (agent_for_match ? agent_for_match->al_mac
+                                             : beerocks::net::network_utils::ZERO_MAC);
+            return false;
+        }
 
         for (const auto &sel : selector_values) {
-            if (sel == std::string(DPP_AKM_SELECTOR)) {
-                LOG(DEBUG) << "SecurityTemplate: DPP AKM selector excluded";
-                return false;
-            }
-            if (sel == OWE_AKM_SELECTOR) {
-                if (!agent_for_match ||
-                    !template_agent_akm_suite_type_supported(*agent_for_match, bss_info.fronthaul,
-                                                             bss_info.backhaul, 0x12)) {
-                    LOG(DEBUG) << "SecurityTemplate: OWE AKM (0x12) not supported by agent";
-                    return false;
-                }
-                bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_OPEN;
-                bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
-                bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
-                LOG(DEBUG) << "SecurityTemplate: OWE (AKM suite selector)";
-                return true;
-            }
             if (sel.size() == 8 && sel.rfind("000FAC", 0) == 0) {
                 if (!agent_for_match) {
                     return false;
