@@ -456,8 +456,8 @@ bool base_wlan_hal_whm::set(const std::string &param, const std::string &value, 
 bool base_wlan_hal_whm::ping() { return true; }
 bool base_wlan_hal_whm::reassociate() { return true; }
 
-/* 9.4.2.55.4 Supported MCS Set field */
-#define RX_HT_MCS_BITMASK_LEN 10
+/* 9.4.2.55.4 Supported MCS Set field: bytes of the Rx MCS Bitmask holding MCS 0..31 */
+#define RX_HT_MCS_EQUAL_MOD_LEN 4
 
 /* 9.4.2.158.3 Supported VHT-MCS and NSS Set field */
 #define RX_VHT_MCS_MAP_OFFSET 0
@@ -621,13 +621,14 @@ bool base_wlan_hal_whm::refresh_radio_info()
         }
 
         /*
-         * 9.4.2.55.4 Supported HT-MCS Set field
-         * First 10 bytes represent supported spatial streams indexed from 0.
-         * The variable `ss` holds the highest supported stream index (0-based),
-         * so total spatial streams = ss + 1.
+         * 9.4.2.55.4 Supported MCS Set field: bytes 0..9 are the Rx MCS Bitmask, one bit per
+         * MCS index. Byte i covers MCS 8i..8i+7, which for the equal-modulation range
+         * MCS 0..31 is exactly spatial stream i+1, so a non-zero byte i means stream i+1 is
+         * supported. Bytes 4..9 are skipped: MCS 32 is the 40MHz duplicate mode and
+         * MCS 33..76 are unequal-modulation rates, neither of which are extra streams.
          */
         uint8_t ss = 0;
-        for (uint8_t i = 0; i < RX_HT_MCS_BITMASK_LEN; i++) {
+        for (uint8_t i = 0; i < RX_HT_MCS_EQUAL_MOD_LEN; i++) {
             if (m_radio_info.ht_mcs_set[i]) {
                 ss = i;
             }
