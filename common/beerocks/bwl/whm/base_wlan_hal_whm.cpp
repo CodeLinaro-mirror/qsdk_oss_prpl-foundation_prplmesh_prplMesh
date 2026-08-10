@@ -772,7 +772,7 @@ bool base_wlan_hal_whm::reassociate() { return true; }
 /* 9.4.2.55.4 Supported MCS Set field: bytes of the Rx MCS Bitmask holding MCS 0..31 */
 #define RX_HT_MCS_EQUAL_MOD_LEN 4
 
-/* 9.4.2.158.3 Supported VHT-MCS and NSS Set field */
+/* 9.4.2.157.3 Supported VHT-MCS and NSS Set field */
 #define RX_VHT_MCS_MAP_OFFSET 0
 #define TX_VHT_MCS_MAP_OFFSET 4
 
@@ -1606,12 +1606,17 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
             }
         }
 
+        /* 0 means "MCS not supported", so a failed read cannot fabricate streams. */
+        m_radio_info.ht_mcs_set.fill(0);
         if (radio->read_child(s_val, "SupportedHtMcsSet")) {
             auto nBytes = b64_decode(s_val.c_str(), m_radio_info.ht_mcs_set.data(),
                                      m_radio_info.ht_mcs_set.size());
             if (nBytes != beerocks::message::HT_MCS_SET_SIZE) {
-                LOG(ERROR) << "Failed to decode SupportedHtMcsSet str";
+                LOG(ERROR) << "Failed to decode SupportedHtMcsSet str, got " << nBytes
+                           << " bytes, expected " << int(beerocks::message::HT_MCS_SET_SIZE);
             }
+        } else {
+            LOG(WARNING) << "SupportedHtMcsSet is missing";
         }
 
         /*
@@ -1621,34 +1626,43 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
          * supported. Bytes 4..9 are skipped: MCS 32 is the 40MHz duplicate mode and
          * MCS 33..76 are unequal-modulation rates, neither of which are extra streams.
          */
-        uint8_t ss = 0;
+        uint8_t nss = 0;
         for (uint8_t i = 0; i < RX_HT_MCS_EQUAL_MOD_LEN; i++) {
             if (m_radio_info.ht_mcs_set[i]) {
-                ss = i;
+                nss = i + 1;
             }
         }
-        ht_caps_ptr->max_num_of_supported_rx_spatial_streams = ss;
-        ht_caps_ptr->max_num_of_supported_tx_spatial_streams = ss;
+        if (!nss) {
+            LOG(WARNING) << "HT Rx MCS bitmask advertises no MCS 0..31, assuming 1 SS";
+            nss = 1;
+        }
+
+        /* The AP HT Capabilities TLV encodes NSS-1, so 0 means one stream. */
+        ht_caps_ptr->max_num_of_supported_rx_spatial_streams = nss - 1;
+        ht_caps_ptr->max_num_of_supported_tx_spatial_streams = nss - 1;
+
+        LOG(DEBUG) << "HT caps: nss=" << unsigned(nss)
+                   << " sgi20=" << unsigned(ht_caps_ptr->short_gi_support_20mhz)
+                   << " sgi40=" << unsigned(ht_caps_ptr->short_gi_support_40mhz)
+                   << " bw40=" << unsigned(ht_caps_ptr->ht_support_40mhz);
     }
 
     /*
-     * Lambda to calculate spatial streams count for VHT and HE MCS sets.
-     * According to IEEE 802.11-2020 (VHT) and 802.11ax-2021 (HE),
-     * each spatial stream is encoded as 2 bits in a 16-bit MCS map.
-     * Supported streams have 2-bit value < 3.
-     * Returns highest supported stream index (0-based), so total streams = ss + 1.
+     * Number of spatial streams held by a VHT (9.4.2.157.3) / HE (9.4.2.248.4) 16-bit MCS map.
+     * Each stream occupies 2 bits and 3 is the "not supported" sentinel.
+     * Returns the stream count 1..8, or 0 when the map supports no stream at all.
      */
-    auto calc_ss = [](const uint8_t *mcsSet, uint8_t offset) {
-        uint8_t ss   = 0;
-        uint16_t mcs = 0xffff;
+    auto calc_nss = [](const uint8_t *mcsSet, uint8_t offset) {
+        uint8_t nss  = 0;
+        uint16_t mcs = 0;
         memcpy(&mcs, &mcsSet[offset], sizeof(mcs));
         /* up to 8 ss */
         for (int i = 0; i < 8; i++) {
             if (((mcs >> (2 * i)) & 0x3) < 3) {
-                ss = i;
+                nss = i + 1;
             }
         }
-        return ss;
+        return nss;
     };
 
     //VHT capabilities
@@ -1678,18 +1692,38 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
             }
         }
 
+        /* 0xff is "no stream supported", so a failed read cannot fabricate streams. */
+        m_radio_info.vht_mcs_set.fill(0xff);
         if (radio->read_child(s_val, "SupportedVhtMcsNssSet")) {
             auto nBytes = b64_decode(s_val.c_str(), m_radio_info.vht_mcs_set.data(),
                                      m_radio_info.vht_mcs_set.size());
             if (nBytes != beerocks::message::VHT_MCS_SET_SIZE) {
-                LOG(ERROR) << "Failed to decode SupportedVhtMcsNssSet str";
+                LOG(ERROR) << "Failed to decode SupportedVhtMcsNssSet str, got " << nBytes
+                           << " bytes, expected " << int(beerocks::message::VHT_MCS_SET_SIZE);
             }
+        } else {
+            LOG(WARNING) << "SupportedVhtMcsNssSet is missing";
         }
 
-        vht_caps_ptr->max_num_of_supported_rx_spatial_streams =
-            calc_ss(m_radio_info.vht_mcs_set.data(), RX_VHT_MCS_MAP_OFFSET);
-        vht_caps_ptr->max_num_of_supported_tx_spatial_streams =
-            calc_ss(m_radio_info.vht_mcs_set.data(), TX_VHT_MCS_MAP_OFFSET);
+        uint8_t rx_nss = calc_nss(m_radio_info.vht_mcs_set.data(), RX_VHT_MCS_MAP_OFFSET);
+        uint8_t tx_nss = calc_nss(m_radio_info.vht_mcs_set.data(), TX_VHT_MCS_MAP_OFFSET);
+        if (!rx_nss || !tx_nss) {
+            LOG(WARNING) << "VHT MCS map advertises no usable stream (rx=" << unsigned(rx_nss)
+                         << " tx=" << unsigned(tx_nss) << "), assuming 1 SS";
+            rx_nss = std::max<uint8_t>(rx_nss, 1);
+            tx_nss = std::max<uint8_t>(tx_nss, 1);
+        }
+
+        /* The AP VHT Capabilities TLV encodes NSS-1, so 0 means one stream. */
+        vht_caps_ptr->max_num_of_supported_rx_spatial_streams = rx_nss - 1;
+        vht_caps_ptr->max_num_of_supported_tx_spatial_streams = tx_nss - 1;
+
+        LOG(DEBUG) << "VHT caps: rx_nss=" << unsigned(rx_nss) << " tx_nss=" << unsigned(tx_nss)
+                   << " sgi80=" << unsigned(vht_caps_ptr->short_gi_support_80mhz)
+                   << " sgi160=" << unsigned(vht_caps_ptr->short_gi_support_160mhz_and_80_80mhz)
+                   << " bw160=" << unsigned(vht_caps_ptr->vht_support_160mhz)
+                   << " su_bfr=" << unsigned(vht_caps_ptr->su_beamformer_capable)
+                   << " mu_bfr=" << unsigned(vht_caps_ptr->mu_beamformer_capable);
     }
 
     //HE capabilities
@@ -1738,12 +1772,17 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
             }
         }
 
+        /* 0xff is "no stream supported", so a failed read cannot fabricate streams. */
+        m_radio_info.he_mcs_set.fill(0xff);
         if (radio->read_child(s_val, "SupportedHeMcsNssSet")) {
             auto nBytes = b64_decode(s_val.c_str(), m_radio_info.he_mcs_set.data(),
                                      m_radio_info.he_mcs_set.size());
             if (nBytes != beerocks::message::HE_MCS_SET_SIZE) {
-                LOG(ERROR) << "Failed to decode SupportedHeMcsNssSet str";
+                LOG(ERROR) << "Failed to decode SupportedHeMcsNssSet str, got " << nBytes
+                           << " bytes, expected " << int(beerocks::message::HE_MCS_SET_SIZE);
             }
+        } else {
+            LOG(WARNING) << "SupportedHeMcsNssSet is missing";
         }
 
         /*
@@ -1754,21 +1793,35 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
          */
         const uint8_t *he_mcs_set = m_radio_info.he_mcs_set.data();
 
-        uint8_t rx_ss = calc_ss(he_mcs_set, RX_HE_MCS_MAP_80_OFFSET);
-        uint8_t tx_ss = calc_ss(he_mcs_set, TX_HE_MCS_MAP_80_OFFSET);
+        uint8_t rx_nss = calc_nss(he_mcs_set, RX_HE_MCS_MAP_80_OFFSET);
+        uint8_t tx_nss = calc_nss(he_mcs_set, TX_HE_MCS_MAP_80_OFFSET);
 
         if (he_caps_ptr->he_support_160mhz) {
-            rx_ss = std::max(rx_ss, calc_ss(he_mcs_set, RX_HE_MCS_MAP_160_OFFSET));
-            tx_ss = std::max(tx_ss, calc_ss(he_mcs_set, TX_HE_MCS_MAP_160_OFFSET));
+            rx_nss = std::max(rx_nss, calc_nss(he_mcs_set, RX_HE_MCS_MAP_160_OFFSET));
+            tx_nss = std::max(tx_nss, calc_nss(he_mcs_set, TX_HE_MCS_MAP_160_OFFSET));
         }
 
         if (he_caps_ptr->he_support_80_80mhz) {
-            rx_ss = std::max(rx_ss, calc_ss(he_mcs_set, RX_HE_MCS_MAP_8080_OFFSET));
-            tx_ss = std::max(tx_ss, calc_ss(he_mcs_set, TX_HE_MCS_MAP_8080_OFFSET));
+            rx_nss = std::max(rx_nss, calc_nss(he_mcs_set, RX_HE_MCS_MAP_8080_OFFSET));
+            tx_nss = std::max(tx_nss, calc_nss(he_mcs_set, TX_HE_MCS_MAP_8080_OFFSET));
         }
 
-        he_caps_ptr->max_num_of_supported_rx_spatial_streams = rx_ss;
-        he_caps_ptr->max_num_of_supported_tx_spatial_streams = tx_ss;
+        if (!rx_nss || !tx_nss) {
+            LOG(WARNING) << "HE MCS map advertises no usable stream (rx=" << unsigned(rx_nss)
+                         << " tx=" << unsigned(tx_nss) << "), assuming 1 SS";
+            rx_nss = std::max<uint8_t>(rx_nss, 1);
+            tx_nss = std::max<uint8_t>(tx_nss, 1);
+        }
+
+        /* The AP HE Capabilities TLV encodes NSS-1, so 0 means one stream. */
+        he_caps_ptr->max_num_of_supported_rx_spatial_streams = rx_nss - 1;
+        he_caps_ptr->max_num_of_supported_tx_spatial_streams = tx_nss - 1;
+
+        LOG(DEBUG) << "HE caps: rx_nss=" << unsigned(rx_nss) << " tx_nss=" << unsigned(tx_nss)
+                   << " bw160=" << unsigned(he_caps_ptr->he_support_160mhz)
+                   << " bw80p80=" << unsigned(he_caps_ptr->he_support_80_80mhz)
+                   << " su_bfr=" << unsigned(he_caps_ptr->su_beamformer_capable)
+                   << " mu_bfr=" << unsigned(he_caps_ptr->mu_beamformer_capable);
 
         //Wi-Fi 6 capabilities
         struct beerocks::net::sWIFI6Capabilities *wifi6_caps_ptr =
