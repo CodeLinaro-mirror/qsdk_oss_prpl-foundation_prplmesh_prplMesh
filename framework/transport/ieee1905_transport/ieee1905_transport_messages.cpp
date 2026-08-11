@@ -58,8 +58,8 @@ std::unique_ptr<Message> read_transport_message(Socket &sd)
     // Peek into the header to check if the entire message received
     messages::Message::Header header;
     auto bytes_ready = sd.getBytesReady();
-    auto read_bytes =
-        sd.readBytes(reinterpret_cast<uint8_t *>(&header), sizeof(header), false, sizeof(header));
+    auto read_bytes  = sd.readBytes(reinterpret_cast<uint8_t *>(&header), sizeof(header), false,
+                                   sizeof(header), true);
 
     if (read_bytes != sizeof(header)) {
         LOG(ERROR) << "Error reading the message header: " << read_bytes;
@@ -94,18 +94,28 @@ std::unique_ptr<Message> read_transport_message(Socket &sd)
         return nullptr;
     }
 
-    // Check if all the message was received
-    if (header.len >= uint32_t(bytes_ready)) {
-        LOG(DEBUG) << "Message received partially " << bytes_ready << "/" << header.len;
-        return nullptr;
-    }
-
     // Validate message length
     if (header.len > messages::Message::kMaxFrameLength) {
         LOG(ERROR) << "Message length is too large: " << header.len << " > "
                    << messages::Message::kMaxFrameLength;
 
         discard_pending_bytes();
+        return nullptr;
+    }
+
+    // Check if the complete header and payload have been received. Since the header was only
+    // peeked above, bytes_ready includes both of them.
+    const size_t message_size = sizeof(header) + size_t(header.len);
+    if (bytes_ready < 0 || size_t(bytes_ready) < message_size) {
+        LOG(DEBUG) << "Message received partially " << bytes_ready << "/" << message_size;
+        return nullptr;
+    }
+
+    // Consume the header now that the complete message is available and validated.
+    read_bytes =
+        sd.readBytes(reinterpret_cast<uint8_t *>(&header), sizeof(header), false, sizeof(header));
+    if (read_bytes != sizeof(header)) {
+        LOG(ERROR) << "Error consuming the message header: " << read_bytes;
         return nullptr;
     }
 
