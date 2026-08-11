@@ -134,6 +134,14 @@ public:
         uint32_t len   = 0;             // total length of the message (excluding topic & header)
     };
 
+    struct ReadState {
+        Header header;
+        std::vector<uint8_t> payload;
+        size_t header_bytes_received  = 0;
+        size_t payload_bytes_received = 0;
+        bool header_received          = false;
+    };
+
     Message() {}
 
     explicit Message(Type type) : m_type(type) {}
@@ -608,11 +616,13 @@ create_transport_message(Type type, std::initializer_list<messages::Message::Fra
  * @brief Read and parse internal transport message from a socket.
  * 
  * @param [in] sd Socket of the incoming message.
+ * @param [in,out] state State retained while a message arrives over multiple socket events.
  * @param [out] status Result of parsing the bytes available on the socket.
  * 
  * @return Unique pointer to the received message object or nullptr on error.
  */
-std::unique_ptr<Message> read_transport_message(Socket &sd, Message::ReadStatus &status);
+std::unique_ptr<Message> read_transport_message(Socket &sd, Message::ReadState &state,
+                                                Message::ReadStatus &status);
 
 /**
  * @brief Send internal message to a socket.
