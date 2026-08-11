@@ -164,9 +164,10 @@ bool BrokerServer::handle_msg(std::shared_ptr<Socket> sd)
     }
 
     // Read and parse the message
-    auto message = messages::read_transport_message(*sd);
+    messages::Message::ReadStatus read_status;
+    auto message = messages::read_transport_message(*sd, read_status);
     if (!message) {
-        return false;
+        return read_status == messages::Message::ReadStatus::Incomplete;
     }
 
     // Handle the specific message
@@ -291,8 +292,12 @@ bool BrokerServer::socket_connected()
         // Handle incoming data
         .on_read =
             [new_socket, this](int fd, EventLoop &loop) {
-                // NOTE: Do NOT stop the broker on parsing errors...
-                handle_msg(new_socket);
+                if (!handle_msg(new_socket)) {
+                    LOG(ERROR) << "Closing FD (" << fd << ") after message handling failure";
+                    loop.remove_handlers(fd);
+                    socket_disconnected(new_socket);
+                    new_socket->closeSocket();
+                }
                 return true;
             },
 
