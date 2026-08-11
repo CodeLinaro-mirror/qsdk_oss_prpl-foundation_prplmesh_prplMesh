@@ -163,9 +163,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-08-04"
-        OPENWRT_TOOLCHAIN_VERSION='9f7218c2bce3252e5e2913cdd8f2b7274e3ce362'
-        OPENWRT_VERSION='9f7218c2bce3252e5e2913cdd8f2b7274e3ce362'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-08-11"
+        OPENWRT_TOOLCHAIN_VERSION='cf58abc4ea772e7d23da1d120b28d338ced5f06d'
+        OPENWRT_VERSION='cf58abc4ea772e7d23da1d120b28d338ced5f06d'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -204,9 +204,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos latest-24.10_2026-08-04
-OPENWRT_TOOLCHAIN_VERSION='9f7218c2bce3252e5e2913cdd8f2b7274e3ce362'
-OPENWRT_VERSION='9f7218c2bce3252e5e2913cdd8f2b7274e3ce362'
+# prplos latest-24.10_2026-08-11
+OPENWRT_TOOLCHAIN_VERSION='cf58abc4ea772e7d23da1d120b28d338ced5f06d'
+OPENWRT_VERSION='cf58abc4ea772e7d23da1d120b28d338ced5f06d'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
