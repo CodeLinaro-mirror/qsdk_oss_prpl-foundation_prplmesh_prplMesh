@@ -62,9 +62,9 @@ public:
 protected:
     bool m_error_occurred = false;
 
-    bool handle_msg(std::shared_ptr<Socket> sd) override
+    bool handle_msg(std::shared_ptr<Socket> sd, bool *fatal_error = nullptr) override
     {
-        if (BrokerServer::handle_msg(sd) == false) {
+        if (BrokerServer::handle_msg(sd, fatal_error) == false) {
             m_error_occurred = true;
             return false;
         }
@@ -102,6 +102,87 @@ TEST(transport_message, maximum_cmdu_fits_in_transport_frame)
     EXPECT_LE(message.len(), Message::kMaxFrameLength);
 }
 
+TEST(broker_server, maximum_cmdu_transport_message)
+{
+    auto server_socket = std::make_shared<SocketServer>(broker_uds_file, broker_listen_buffer);
+    auto event_loop    = std::make_shared<EventLoopImpl>(broker_timeout);
+    BrokerServerWrapper broker_wrapper(server_socket, event_loop);
+
+    size_t received_length = 0;
+    broker_wrapper.register_external_message_handler(
+        [&](std::unique_ptr<messages::Message> &msg, BrokerServer &broker) -> bool {
+            received_length = msg->len();
+            return true;
+        });
+    ASSERT_TRUE(broker_wrapper.start());
+
+    CmduTxMessage message;
+    message.metadata()->length = Message::kMaxCmduLength;
+    message.data();
+
+    SocketClient sock(broker_uds_file);
+    ASSERT_EQ(1, event_loop->run()); // Accept the connection
+    ASSERT_TRUE(messages::send_transport_message(sock, message));
+    ASSERT_EQ(1, event_loop->run()); // Process
+
+    EXPECT_EQ(message.len(), received_length);
+    EXPECT_FALSE(broker_wrapper.error());
+    ASSERT_TRUE(broker_wrapper.stop());
+}
+
+TEST(broker_server, fragmented_header_and_payload)
+{
+    auto server_socket = std::make_shared<SocketServer>(broker_uds_file, broker_listen_buffer);
+    auto event_loop    = std::make_shared<EventLoopImpl>(broker_timeout);
+    BrokerServerWrapper broker_wrapper(server_socket, event_loop);
+
+    size_t messages_received = 0;
+    broker_wrapper.register_internal_message_handler(
+        [&](std::unique_ptr<messages::Message> &msg, BrokerServer &broker) -> bool {
+            ++messages_received;
+            return true;
+        });
+    ASSERT_TRUE(broker_wrapper.start());
+
+    Message::Frame frame(32);
+    Message message(Type::InterfaceConfigurationRequestMessage, {frame});
+    auto header       = message.header();
+    auto header_bytes = reinterpret_cast<const uint8_t *>(&header);
+
+    SocketClient sock(broker_uds_file);
+    ASSERT_EQ(1, event_loop->run()); // Accept the connection
+
+    constexpr size_t first_header_part = 5;
+    ASSERT_EQ(first_header_part, sock.writeBytes(header_bytes, first_header_part));
+    ASSERT_EQ(1, event_loop->run());
+    EXPECT_EQ(0U, messages_received);
+    EXPECT_FALSE(broker_wrapper.error());
+    EXPECT_EQ(0, event_loop->run()); // Partial header was consumed; socket is no longer readable.
+
+    ASSERT_EQ(
+        sizeof(header) - first_header_part,
+        sock.writeBytes(header_bytes + first_header_part, sizeof(header) - first_header_part));
+    ASSERT_EQ(1, event_loop->run());
+    EXPECT_EQ(0U, messages_received);
+    EXPECT_FALSE(broker_wrapper.error());
+    EXPECT_EQ(0, event_loop->run()); // Header was consumed while waiting for the payload.
+
+    constexpr size_t first_payload_part = 11;
+    ASSERT_EQ(first_payload_part, sock.writeBytes(frame.data(), first_payload_part));
+    ASSERT_EQ(1, event_loop->run());
+    EXPECT_EQ(0U, messages_received);
+    EXPECT_FALSE(broker_wrapper.error());
+    EXPECT_EQ(0, event_loop->run()); // Partial payload was buffered; socket is not left readable.
+
+    ASSERT_EQ(frame.len() - first_payload_part,
+              sock.writeBytes(frame.data() + first_payload_part, frame.len() - first_payload_part));
+    ASSERT_EQ(1, event_loop->run());
+    EXPECT_EQ(1U, messages_received);
+    EXPECT_FALSE(broker_wrapper.error());
+
+    ASSERT_TRUE(broker_wrapper.stop());
+}
+
 TEST(broker_server, invalid_message_magic)
 {
     auto server_socket = std::make_shared<SocketServer>(broker_uds_file, broker_listen_buffer);
@@ -128,6 +209,7 @@ TEST(broker_server, invalid_message_magic)
     ASSERT_TRUE(messages::send_transport_message(sock1, dummy, &header));
     ASSERT_EQ(1, event_loop->run()); // Process
     ASSERT_TRUE(broker_wrapper.error());
+    ASSERT_EQ(1, event_loop->run()); // Process the shutdown socket event.
 
     // A framing error closes the offending client. Reconnect before sending another message.
     SocketClient sock2(broker_uds_file);
@@ -183,6 +265,14 @@ TEST(broker_server, subscribe_empty_message)
     ASSERT_EQ(1, event_loop->run()); // Process
 
     ASSERT_TRUE(broker_wrapper.error());
+
+    // A valid frame with invalid message contents is a non-fatal handler error. The same client
+    // connection must remain usable for subsequent messages.
+    subscribe.metadata()->msg_types_count    = 1;
+    subscribe.metadata()->msg_types[0].value = 5;
+    ASSERT_TRUE(messages::send_transport_message(sock1, subscribe));
+    ASSERT_EQ(1, event_loop->run()); // Process on the existing connection
+    ASSERT_FALSE(broker_wrapper.error());
 
     ASSERT_TRUE(broker_wrapper.stop());
 }

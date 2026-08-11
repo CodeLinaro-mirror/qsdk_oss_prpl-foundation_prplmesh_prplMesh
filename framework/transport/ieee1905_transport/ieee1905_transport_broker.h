@@ -105,9 +105,12 @@ protected:
      * 
      * @param [in] sd The socket interface on which the incoming data event originated.
      * 
-     * @return true on success and false otherwise.
+     * @param [out] fatal_error Set to true when framing or socket failure makes it unsafe to keep
+     *                         reading from this connection.
+     *
+     * @return true on success or when waiting for more data, and false otherwise.
      */
-    virtual bool handle_msg(std::shared_ptr<Socket> sd);
+    virtual bool handle_msg(std::shared_ptr<Socket> sd, bool *fatal_error = nullptr);
 
 private:
     /**
@@ -156,6 +159,11 @@ private:
      * Map for storing CMDU Type->Socket subscriptions.
      */
     std::unordered_map<uint32_t, std::unordered_set<std::shared_ptr<Socket>>> m_type_to_soc;
+
+    /**
+     * Partially received message state for each connected socket.
+     */
+    std::unordered_map<std::shared_ptr<Socket>, messages::Message::ReadState> m_read_states;
 
     /**
      * Handler for internal (non-CMDU) messages.
