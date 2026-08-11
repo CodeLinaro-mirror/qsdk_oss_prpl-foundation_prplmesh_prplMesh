@@ -27,7 +27,6 @@ class BrokerClientImpl : public BrokerClient {
      * Size of the buffer to store messages exchanged with broker server
      */
     static constexpr size_t broker_buffer_size =
-        sizeof(beerocks::transport::messages::CmduXxMessage::Metadata) +
         sizeof(beerocks::transport::messages::Message::Header) +
         beerocks::transport::messages::Message::kMaxFrameLength;
 
