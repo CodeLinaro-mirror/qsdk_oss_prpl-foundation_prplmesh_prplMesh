@@ -92,6 +92,16 @@ TEST(broker_server, setup)
     el::Loggers::reconfigureLogger("default", defaultConf);
 }
 
+TEST(transport_message, maximum_cmdu_fits_in_transport_frame)
+{
+    CmduTxMessage message;
+    message.metadata()->length = Message::kMaxCmduLength;
+    message.data();
+
+    EXPECT_EQ(sizeof(CmduXxMessage::Metadata) + Message::kMaxCmduLength, message.len());
+    EXPECT_LE(message.len(), Message::kMaxFrameLength);
+}
+
 TEST(broker_server, invalid_message_magic)
 {
     auto server_socket = std::make_shared<SocketServer>(broker_uds_file, broker_listen_buffer);
