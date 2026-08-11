@@ -56,8 +56,10 @@ create_transport_message(Type type, std::initializer_list<messages::Message::Fra
     }
 }
 
-std::unique_ptr<Message> read_transport_message(Socket &sd)
+std::unique_ptr<Message> read_transport_message(Socket &sd, Message::ReadStatus &status)
 {
+    status = Message::ReadStatus::Error;
+
     // Peek into the header to check if the entire message received
     messages::Message::Header header;
     auto bytes_ready = sd.getBytesReady();
@@ -69,31 +71,10 @@ std::unique_ptr<Message> read_transport_message(Socket &sd)
         return nullptr;
     }
 
-    auto discard_pending_bytes = [&]() {
-        if (!sd.getBytesReady()) {
-            return;
-        }
-
-        // Discard all the "ready" bytes in the socket
-        // Reading an invalid message magic means that somehow the data synchronization
-        // was lost. Since the data is not necessarily aligned to any known size, we have
-        // two options here:
-        // 1. Safe - Discard 1 byte at a time, until finding the magic word
-        // 2. Faster - Discard sizeof(Header) bytes and hope to find a valid header afterwads
-        // 2. Fastest - Discard all the bytes and assume the sender will re-send the message
-        // For now we'll use the "Faster" method.
-        auto discarded_bytes =
-            sd.readBytes(reinterpret_cast<uint8_t *>(&header), sizeof(header), false);
-
-        LOG(DEBUG) << "Discarded " << discarded_bytes << " bytes from fd = " << sd.getSocketFd();
-    };
-
     // Validate the header
     if (header.magic != messages::Message::kMessageMagic) {
         LOG(ERROR) << "Invalid message header: magic = 0x" << std::hex << header.magic << std::dec
                    << ", length = " << header.len << ", fd = " << sd.getSocketFd();
-
-        discard_pending_bytes();
         return nullptr;
     }
 
@@ -101,8 +82,6 @@ std::unique_ptr<Message> read_transport_message(Socket &sd)
     if (header.len > messages::Message::kMaxFrameLength) {
         LOG(ERROR) << "Message length is too large: " << header.len << " > "
                    << messages::Message::kMaxFrameLength;
-
-        discard_pending_bytes();
         return nullptr;
     }
 
@@ -111,6 +90,7 @@ std::unique_ptr<Message> read_transport_message(Socket &sd)
     const size_t message_size = sizeof(header) + size_t(header.len);
     if (bytes_ready < 0 || size_t(bytes_ready) < message_size) {
         LOG(DEBUG) << "Message received partially " << bytes_ready << "/" << message_size;
+        status = Message::ReadStatus::Incomplete;
         return nullptr;
     }
 
@@ -142,6 +122,7 @@ std::unique_ptr<Message> read_transport_message(Socket &sd)
     }
 
     LOG_IF(!message, ERROR) << "Failed creating message object for type: " << header.type;
+    status = message ? Message::ReadStatus::Complete : Message::ReadStatus::Error;
     return message;
 }
 

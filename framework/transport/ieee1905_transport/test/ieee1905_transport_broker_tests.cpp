@@ -129,10 +129,36 @@ TEST(broker_server, invalid_message_magic)
     ASSERT_EQ(1, event_loop->run()); // Process
     ASSERT_TRUE(broker_wrapper.error());
 
+    // A framing error closes the offending client. Reconnect before sending another message.
+    SocketClient sock2(broker_uds_file);
+    ASSERT_EQ(1, event_loop->run()); // Accept the connection
+
     LOG(DEBUG) << "Sending VALID magic...";
-    ASSERT_TRUE(messages::send_transport_message(sock1, dummy));
+    ASSERT_TRUE(messages::send_transport_message(sock2, dummy));
     ASSERT_EQ(1, event_loop->run());
     ASSERT_FALSE(broker_wrapper.error());
+
+    ASSERT_TRUE(broker_wrapper.stop());
+}
+
+TEST(broker_server, oversized_message_length)
+{
+    auto server_socket = std::make_shared<SocketServer>(broker_uds_file, broker_listen_buffer);
+    auto event_loop    = std::make_shared<EventLoopImpl>(broker_timeout);
+    BrokerServerWrapper broker_wrapper(server_socket, event_loop);
+
+    ASSERT_TRUE(broker_wrapper.start());
+
+    messages::Message::Header header;
+    header.len = Message::kMaxFrameLength + 1;
+
+    SocketClient sock(broker_uds_file);
+    ASSERT_EQ(1, event_loop->run()); // Accept the connection
+
+    ASSERT_EQ(sizeof(header),
+              sock.writeBytes(reinterpret_cast<const uint8_t *>(&header), sizeof(header)));
+    ASSERT_EQ(1, event_loop->run()); // Process and disconnect the client
+    ASSERT_TRUE(broker_wrapper.error());
 
     ASSERT_TRUE(broker_wrapper.stop());
 }

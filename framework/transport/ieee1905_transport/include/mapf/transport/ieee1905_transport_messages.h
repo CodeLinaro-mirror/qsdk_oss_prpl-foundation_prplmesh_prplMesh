@@ -70,6 +70,22 @@ inline std::ostream &operator<<(std::ostream &out, Type value) { return out << T
 
 class Message {
 public:
+    enum class ReadStatus { Complete, Incomplete, Error };
+    // Enum AutoPrint generated code snippet begining- DON'T EDIT!
+    // clang-format off
+    static const char *ReadStatus_str(ReadStatus enum_value) {
+        switch (enum_value) {
+        case ReadStatus::Complete:   return "ReadStatus::Complete";
+        case ReadStatus::Incomplete: return "ReadStatus::Incomplete";
+        case ReadStatus::Error:      return "ReadStatus::Error";
+        }
+        static std::string out_str = std::to_string(int(enum_value));
+        return out_str.c_str();
+    }
+    friend inline std::ostream &operator<<(std::ostream &out, ReadStatus value) { return out << ReadStatus_str(value); }
+    // clang-format on
+    // Enum AutoPrint generated code snippet end
+
     static constexpr uint32_t kMessageMagic  = 0xB8C16F47;
     static constexpr uint32_t kMaxCmduLength = 8192;
 
@@ -651,10 +667,11 @@ create_transport_message(Type type, std::initializer_list<messages::Message::Fra
  * @brief Read and parse internal transport message from a socket.
  * 
  * @param [in] sd Socket of the incoming message.
+ * @param [out] status Result of parsing the bytes available on the socket.
  * 
  * @return Unique pointer to the received message object or nullptr on error.
  */
-std::unique_ptr<Message> read_transport_message(Socket &sd);
+std::unique_ptr<Message> read_transport_message(Socket &sd, Message::ReadStatus &status);
 
 /**
  * @brief Send internal message to a socket.
