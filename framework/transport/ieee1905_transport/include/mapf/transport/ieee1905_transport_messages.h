@@ -70,8 +70,14 @@ inline std::ostream &operator<<(std::ostream &out, Type value) { return out << T
 
 class Message {
 public:
-    static constexpr uint32_t kMessageMagic   = 0xB8C16F47;
-    static constexpr uint32_t kMaxFrameLength = 8192;
+    static constexpr uint32_t kMessageMagic  = 0xB8C16F47;
+    static constexpr uint32_t kMaxCmduLength = 8192;
+
+    // A transport frame carries both the CMDU and transport-specific metadata. Keep enough room
+    // for the metadata without reducing the maximum CMDU size. The static assertion following
+    // CmduXxMessage ensures that its metadata fits in the reserved space.
+    static constexpr uint32_t kMaxTransportMetadataLength = 64;
+    static constexpr uint32_t kMaxFrameLength = kMaxCmduLength + kMaxTransportMetadataLength;
 
     class Frame {
     public:
@@ -283,6 +289,9 @@ public:
     {
     }
 };
+
+static_assert(sizeof(CmduXxMessage::Metadata) <= Message::kMaxTransportMetadataLength,
+              "CmduXxMessage metadata exceeds the space reserved in a transport frame");
 
 class CmduTxMessage : public CmduXxMessage {
 public:
