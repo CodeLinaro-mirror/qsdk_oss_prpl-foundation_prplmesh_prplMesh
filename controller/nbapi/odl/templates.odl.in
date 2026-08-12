@@ -30,7 +30,7 @@
                     on action validate call matches_regexp "[a-zA-Z].*";
                     on action validate call check_maximum_length 64;
             }
-            %key %persistent string BSSTemplateID = "";
+            %key %persistent string BSSTemplateID;
             %persistent uint32 Priority = 0 {
                 on action validate call check_range [0, 255];
             }
@@ -82,7 +82,7 @@
                     on action validate call matches_regexp "[a-zA-Z].*";
                     on action validate call check_maximum_length 64;
             }
-            %key %persistent string RadioTemplateID = "";
+            %key %persistent string RadioTemplateID;
             %persistent bool Enable = true;
             %persistent string OperatingGeneration = "";
             %persistent int32 TransmitPowerLimit = 0 {
@@ -119,7 +119,7 @@
                     on action validate call matches_regexp "[a-zA-Z].*";
                     on action validate call check_maximum_length 64;
             }
-            %key %persistent string APMLDTemplateID = "";
+            %key %persistent string APMLDTemplateID;
             %persistent bool MLOEnable = false;
             %persistent bool STREnable = false;
             %persistent bool NSTREnable = false;
@@ -135,7 +135,7 @@
                     on action validate call matches_regexp "[a-zA-Z].*";
                     on action validate call check_maximum_length 64;
             }
-            %key %persistent string SSCTemplateID = "";
+            %key %persistent string SSCTemplateID;
             %persistent bool SSCEnable = true;
             %persistent uint32 VID = 0 {
                 on action validate call check_range [0, 4095];
@@ -146,7 +146,7 @@
         %persistent object SecurityGroup[] {
             counted with SecurityGroupNumberOfEntries;
 
-            %key %persistent string SecurityGroupID = "";
+            %key %persistent string SecurityGroupID;
             %persistent csv_string SecurityTemplateReferences = "";
             %read-only csv_string LinkedSecurityTemplateID = "";
         }
@@ -158,7 +158,7 @@
                     on action validate call matches_regexp "[a-zA-Z].*";
                     on action validate call check_maximum_length 64;
             }
-            %key %persistent string SecurityTemplateID = "";
+            %key %persistent string SecurityTemplateID;
             %persistent bool Enable = true;
             %persistent string SecurityIEs = "";
             %persistent uint32 Priority = 0 {
@@ -229,4 +229,45 @@
             }
         }
     @TEMPLATES_ROOT_DM_Footer@
+}
+
+%populate {
+    on event "dm:object-changed" call event_templates_network_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\." && (contains("parameters.Enable") || contains("parameters.TopologyFlag") || contains("parameters.IEEE1905ALID") || contains("parameters.PrimarySSCTemplateReference"))';
+
+    on event "dm:object-changed" call event_apmld_template_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.APMLDTemplate\."';
+
+    on event regexp("^dm:instance-(added|removed)$") call event_apmld_template_instance_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.APMLDTemplate\."';
+
+    on event "dm:object-changed" call event_bss_template_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\." && !contains("parameters.LinkedRadioTemplateID") && !contains("parameters.LinkedSSCTemplateID") && !contains("parameters.LinkedAPMLDTemplateID") && !contains("parameters.LinkedSecurityGroupID")';
+
+    on event regexp("^dm:instance-(added|removed)$") call event_bss_template_instance_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.BSSTemplate\."';
+
+    on event "dm:object-changed" call event_radio_template_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.RadioTemplate\."';
+
+    on event regexp("^dm:instance-(added|removed)$") call event_radio_template_instance_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.RadioTemplate\."';
+
+    on event "dm:object-changed" call event_ssc_template_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SSCTemplate\."';
+
+    on event regexp("^dm:instance-(added|removed)$") call event_ssc_template_instance_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SSCTemplate\."';
+
+    on event "dm:object-changed" call event_security_template_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityTemplate\."';
+
+    on event regexp("^dm:instance-(added|removed)$") call event_security_template_instance_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityTemplate\."';
+
+    on event "dm:object-changed" call event_templates_security_group_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\." && contains("parameters.SecurityTemplateReferences")';
+
+    on event regexp("^dm:instance-(added|removed)$") call event_templates_security_group_instance_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
 }
