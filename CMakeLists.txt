@@ -52,9 +52,10 @@ if (NOT DEFINED AGENT_ROOT_DM)
     set(AGENT_ROOT_DM "X_PRPLWARE-COM_Agent")
 endif()
 
-## Device.WiFi.Templates
+## Vendor singleton for Templates (public TR-181 path via proxy: Device.WiFi.Templates.)
+## Nesting under Device.WiFi in the controller DM breaks DataElements proxy ownership
 if (NOT DEFINED TEMPLATES_ROOT_DM)
-    set(TEMPLATES_ROOT_DM "Device.WiFi.Templates")
+    set(TEMPLATES_ROOT_DM "X_PRPLWARE-COM_Templates")
 endif()
 
 add_definitions(-DDATAELEMENTS_ROOT_DM="${DATAELEMENTS_ROOT_DM}")
