@@ -865,7 +865,7 @@ static bool template_radio_bandflag_satisfies_unii_multi_radio_rule(const Agent 
 /**
  * @brief Resolve a reference path and update the linked ID field
  *
- * @param reference_path Full path like "Device.WiFi.Templates.RadioTemplate.1"
+ * @param reference_path Full path like "X_PRPLWARE-COM_Templates.RadioTemplate.1" (TEMPLATES_ROOT_DM)
  * @param template_id_param_name Parameter name to read (e.g., "RadioTemplateID", "SSCTemplateID")
  * @param target_object Object where to set the linked ID
  * @param target_param_name Parameter name to set (e.g., "LinkedRadioTemplateID", "LinkedSSCTemplateID", "PrimarySSCTemplateID")
@@ -1086,7 +1086,7 @@ static void event_bss_template_configuration_changed(const char *const sig_name,
     amxd_object_t *bss_template_obj =
         amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
     if (!bss_template_obj) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.BSSTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".BSSTemplate instance from signal";
         return;
     }
 
@@ -1105,7 +1105,7 @@ static void event_bss_template_instance_changed(const char *const sig_name,
     }
 
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.BSSTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".BSSTemplate from instance signal";
         return;
     }
 
@@ -1121,7 +1121,7 @@ static void event_radio_template_configuration_changed(const char *const sig_nam
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.RadioTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".RadioTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_radio_template_configuration_changed";
@@ -1136,7 +1136,7 @@ static void event_radio_template_instance_changed(const char *const sig_name,
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.RadioTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".RadioTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_radio_template_instance_changed";
@@ -1151,7 +1151,7 @@ static void event_ssc_template_configuration_changed(const char *const sig_name,
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.SSCTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SSCTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_ssc_template_configuration_changed";
@@ -1166,7 +1166,7 @@ static void event_ssc_template_instance_changed(const char *const sig_name,
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.SSCTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SSCTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_ssc_template_instance_changed";
@@ -1181,7 +1181,7 @@ static void event_security_template_configuration_changed(const char *const sig_
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.SecurityTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_security_template_configuration_changed";
@@ -1196,7 +1196,7 @@ static void event_security_template_instance_changed(const char *const sig_name,
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.SecurityTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_security_template_instance_changed";
@@ -1214,7 +1214,7 @@ static void event_templates_security_group_configuration_changed(const char *con
     amxd_object_t *security_group_obj =
         amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
     if (!security_group_obj) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.SecurityGroup instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityGroup instance from signal";
         return;
     }
 
@@ -1230,7 +1230,7 @@ static void event_templates_security_group_instance_changed(const char *const si
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.SecurityGroup from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityGroup from instance signal";
         return;
     }
     LOG(DEBUG) << "event_templates_security_group_instance_changed";
@@ -1245,7 +1245,7 @@ static void event_apmld_template_configuration_changed(const char *const sig_nam
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.APMLDTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".APMLDTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_apmld_template_configuration_changed";
@@ -1260,7 +1260,7 @@ static void event_apmld_template_instance_changed(const char *const sig_name,
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get Device.WiFi.Templates.APMLDTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".APMLDTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_apmld_template_instance_changed";
@@ -2529,7 +2529,7 @@ static std::string template_tr181_row_path(const char *table_name, amxd_object_t
     if (!table_name || !row) {
         return {};
     }
-    return std::string("Device.WiFi.Templates") + "." + table_name + "." +
+    return std::string(TEMPLATES_ROOT_DM) + "." + table_name + "." +
            std::to_string(amxd_object_get_index(row));
 }
 
@@ -5058,9 +5058,9 @@ static void event_ieee1905_network_enable_changed(const char *const sig_name,
 static std::string resolve_master_config_file_path()
 {
     const std::string name = std::string(BEEROCKS_CONTROLLER) + ".conf";
+    const std::string writable_path = std::string(CONF_FILES_WRITABLE_PATH) + name;
     const std::array<std::string, 3> candidates = {{
-        std::string("/tmp/") + name,
-        std::string(CONF_FILES_WRITABLE_PATH) + name,
+        std::string("/tmp/") + name, writable_path,
         mapf::utils::get_install_path() + "config/" + name,
     }};
 
@@ -5069,10 +5069,12 @@ static std::string resolve_master_config_file_path()
             return path;
         }
     }
-    return candidates[1];
+    return writable_path;
 }
 
-static void event_use_dataelements_vap_config_changed(const char *const sig_name, const amxc_var_t *const data, void *const priv)
+static void event_use_dataelements_vap_config_changed(const char *const sig_name,
+                                                      const amxc_var_t *const data,
+                                                      void *const priv)
 {
     if (!is_templates_dm_initialized()) {
         LOG(DEBUG) << "Ignoring startup event";
@@ -5204,9 +5206,9 @@ static void templates_commit(void)
         return;
     }
     amxd_object_t *templates_root =
-        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", "Device.WiFi.Templates");
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", TEMPLATES_ROOT_DM);
     if (!templates_root) {
-        LOG(WARNING) << "wifi templates: DM root not found (Device.WiFi.Templates)";
+        LOG(WARNING) << "wifi templates: DM root not found (" << TEMPLATES_ROOT_DM << ")";
         return;
     }
     template_sync_all_linked_ids(templates_root);

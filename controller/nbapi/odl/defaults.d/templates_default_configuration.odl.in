@@ -86,11 +86,11 @@
 		object SecurityGroup {
 			instance add ("cpe-SecurityGroup-1") {
 				parameter 'SecurityGroupID' = "sec-group-sae";
-				parameter 'SecurityTemplateReferences' = "Device.WiFi.Templates.SecurityTemplate.1";
+				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.1";
 			}
 			instance add ("cpe-SecurityGroup-2") {
 				parameter 'SecurityGroupID' = "sec-group-transition";
-				parameter 'SecurityTemplateReferences' = "Device.WiFi.Templates.SecurityTemplate.2";
+				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.2";
 			}
 		}
 
@@ -125,9 +125,9 @@
 				parameter 'AdvertisementEnable' = true;
 				parameter 'TopologyFlag' = "Root,Repeater";
 				parameter 'X_PRPLWARE-COM_VapType' = "backhaul";
-				parameter 'RadioTemplateReference' = "Device.WiFi.Templates.RadioTemplate.2";
-				parameter 'SSCTemplateReference' = "Device.WiFi.Templates.SSCTemplate.1";
-				parameter 'SecurityGroupReference' = "Device.WiFi.Templates.SecurityGroup.1";
+				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.2";
+				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.1";
+				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.1";
 			}
 
 			instance add ("cpe-BSSTemplate-home") {
@@ -139,9 +139,9 @@
 				parameter 'AdvertisementEnable' = true;
 				parameter 'TopologyFlag' = "Root,Repeater";
 				parameter 'X_PRPLWARE-COM_VapType' = "home";
-				parameter 'RadioTemplateReference' = "Device.WiFi.Templates.RadioTemplate.1";
-				parameter 'SSCTemplateReference' = "Device.WiFi.Templates.SSCTemplate.2";
-				parameter 'SecurityGroupReference' = "Device.WiFi.Templates.SecurityGroup.2";
+				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.1";
+				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.2";
+				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.2";
 			}
 
 			instance add ("cpe-BSSTemplate-guest") {
@@ -153,9 +153,9 @@
 				parameter 'AdvertisementEnable' = true;
 				parameter 'TopologyFlag' = "Root,Repeater";
 				parameter 'X_PRPLWARE-COM_VapType' = "guest";
-				parameter 'RadioTemplateReference' = "Device.WiFi.Templates.RadioTemplate.2";
-				parameter 'SSCTemplateReference' = "Device.WiFi.Templates.SSCTemplate.2";
-				parameter 'SecurityGroupReference' = "Device.WiFi.Templates.SecurityGroup.2";
+				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.2";
+				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.2";
+				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.2";
 			}
 		}
 	}

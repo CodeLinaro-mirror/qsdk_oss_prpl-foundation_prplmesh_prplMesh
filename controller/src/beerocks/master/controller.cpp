@@ -5675,8 +5675,10 @@ bool Controller::handle_cmdu_1905_bss_configuration_request_message(
         LOG(ERROR) << "Couldn't handle Profile-2 AP Capability TLV from Agent " << src_mac;
     }
 
+#ifdef ENABLE_NBAPI
     const bool had_cipher_before = agent->security_capabilities.valid_cipher_suites;
     const bool had_akm_before    = agent->security_capabilities.valid_akm_suites;
+#endif
     if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
         LOG(DEBUG) << "tlvAkmSuiteCapabilities not present or empty in BSS_CONFIGURATION_REQUEST from "
@@ -6091,8 +6093,10 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
     /* Wi-Fi Templates match SecurityTemplate AKM/cipher against agent.security_capabilities.
      * Parse AKM from AP/EARLY capability report for Profile-1+ so Early AP Capability
      * (sent before profile may be upgraded) still populates valid_akm_suites. */
+#ifdef ENABLE_NBAPI
     const bool had_cipher_before = agent->security_capabilities.valid_cipher_suites;
     const bool had_akm_before    = agent->security_capabilities.valid_akm_suites;
+#endif
     if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
         LOG(DEBUG) << "tlvAkmSuiteCapabilities not present or empty in AP capability report from Agent "

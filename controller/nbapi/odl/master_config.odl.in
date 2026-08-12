@@ -53,5 +53,6 @@
 @INCLUDE_DM_MAPPER_CONFIG@
 @INCLUDE_IEEE1905_USP_CONFIG@
 include "$@@{definition_file}";
+include "templates.odl";
 //include "mod_pcm_svc.odl";
 import "mod-dmext.so";
