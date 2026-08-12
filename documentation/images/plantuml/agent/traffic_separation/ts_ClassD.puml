@@ -10,12 +10,13 @@ package "beerocks" {
     -m_last_primary_vid : uint16_t
     +work() : void
     +handle_event(event_enum_value : uint8_t, event_obj : void*) : void
-    -schedule_apply() : void
-    -schedule_deferred_work(due) : void
+    -request_apply() : void
+    -request_policy_update() : void
+    -run_at(due) : void
     -clear_pending_apply() : void
     -clear_scheduled_work() : void
     -should_run_now() : bool
-    -reset() : bool
+    -reconcile() : bool
     -handle_new_fh_iface(iface_name : std::string) : bool
     -handle_clear_fh_iface(iface_name : std::string) : bool
     -handle_new_wds_iface(iface_name : std::string) : bool
@@ -30,7 +31,8 @@ package "beerocks" {
   }
 
   enum eEvent {
-    TS_ENABLE
+    TS_APPLY
+    TS_POLICY_UPDATE
     TS_NEW_FH_IFACE
     TS_CLEAR_FH_IFACE
     TS_NEW_WDS_IFACE
@@ -138,18 +140,21 @@ TrafficSeparationManager --> sAccessPort
 TrafficSeparationManager --> sTrafficSeparationConfig
 
 note right of TrafficSeparationTask
-  TS_ENABLE is still the only debounced event.
-  work() runs reset() for pending TS_ENABLE and
+  TS_APPLY requests an unconditional reconciliation.
+  TS_POLICY_UPDATE requests one only when the
+  effective config changed.
+
+  work() runs reconcile() for a pending apply and
   retry_pending_wds_ifaces() for deferred WDS
   readiness checks.
 
-  reset() clears active plumbing, refreshes the
+  reconcile() clears active plumbing, refreshes the
   config, re-adds persistent DB-owned trunks, and
   reapplies policies on already managed ports.
 
   Pure-FH and exact-WDS ownership is event-driven:
   TS_NEW_* adds one iface, TS_CLEAR_* removes one.
-  reset() does not reconcile FH access ports from
+  reconcile() does not reconcile FH access ports from
   DB anymore.
 
   TS_CLEAR clears active policies plus deferred

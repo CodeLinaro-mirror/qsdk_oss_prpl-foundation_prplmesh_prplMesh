@@ -27,11 +27,11 @@ package "Agent" {
 }
 
 ApAutoConfigurationTask --> AgentDB : read TS policy and BSS role
-ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TS_ENABLE)\nafter radios configured or policy update\ntask_pool_try_send_event(TS_NEW_FH_IFACE)\non AP_ENABLED for pure FH BSS
+ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TS_APPLY)\nafter radios are configured\ntask_pool_try_send_event(TS_POLICY_UPDATE)\non policy update\ntask_pool_try_send_event(TS_NEW_FH_IFACE)\non AP_ENABLED for pure FH BSS
 ApAutoConfigurationTask --> slave_thread : task_pool_try_send_event(TS_CLEAR_WDS_IFACE / TS_NEW_WDS_IFACE)\non AP_ENABLED disallow-flag change
 slave_thread --> AgentDB : read boot-time profile\naudit VAP snapshots\ntrack client WDS iface state
 slave_thread --> TaskPool : add_task(TrafficSeparationTask)\nwhen TS is supported
-slave_thread --> TaskPool : try_send_event(TS_ENABLE)\ntry_send_event(TS_NEW_FH_IFACE / TS_CLEAR_FH_IFACE)\nfrom AP disable or VAP snapshot transitions\ntry_send_event(TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE)\nfrom WDS notifications, association replacement,\nand disconnect cleanup
+slave_thread --> TaskPool : try_send_event(TS_APPLY)\nfrom backhaul primary VLAN update\ntry_send_event(TS_NEW_FH_IFACE / TS_CLEAR_FH_IFACE)\nfrom AP disable or VAP snapshot transitions\ntry_send_event(TS_NEW_WDS_IFACE / TS_CLEAR_WDS_IFACE)\nfrom WDS notifications, association replacement,\nand disconnect cleanup
 slave_thread --> TaskPool : try_send_event(TS_CLEAR_WDS_IFACE / TS_NEW_WDS_IFACE)\nfrom VAPS_LIST_UPDATE disallow-flag changes
 slave_thread --> slave_thread : cache WDS notifications until\nprocess_client_association()
 TaskPool --> TrafficSeparationTask : handle_event() only when task exists
@@ -50,11 +50,12 @@ TrunkPortPlumbing8021q --> network_utils : create_vlan_interface()\nlinux_add_if
 AccessPortPlumbing8021q --> network_utils : linux_iface_exists()\nset_vlan_packet_filter()
 
 note bottom of TrafficSeparationTask
-  TS_ENABLE stays on the debounced apply path.
-  work() runs reset() for policy refresh and
+  TS_APPLY requests unconditional reconciliation.
+  TS_POLICY_UPDATE skips unchanged configuration.
+  work() runs reconcile() for policy refresh and
   bounded WDS retries after the settle delay.
 
-  reset() refreshes config plus persistent DB-owned
+  reconcile() refreshes config plus persistent DB-owned
   trunks and preserves event-managed FH and WDS
   ownership.
 
@@ -63,7 +64,7 @@ note bottom of TrafficSeparationTask
   readiness retry stays on the deferred work path.
 
   Policy disable currently reaches cleanup through
-  TS_ENABLE plus primary_vlan_id=0. TS_CLEAR exists for
+  TS_POLICY_UPDATE plus primary_vlan_id=0. TS_CLEAR exists for
   explicit runtime cleanup but is not the normal policy
   disable producer in the current tree.
 end note

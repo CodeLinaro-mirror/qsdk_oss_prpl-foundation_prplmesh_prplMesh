@@ -19,17 +19,17 @@ else TS unsupported
   ST -> ST : task is not registered
 end
 
-== Debounced TS apply ==
-ACT -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
-ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_ENABLE)
+== TS apply ==
+ACT -> ST : task_pool_try_send_event(TRAFFIC_SEPARATION, TS_APPLY)
+ST -> TP : try_send_event(TRAFFIC_SEPARATION, TS_APPLY)
 alt task exists
-  TP -> TST : TS_ENABLE event
-  TST -> TST : schedule_apply()\nwait debounce
+  TP -> TST : TS_APPLY event
+  TST -> TST : request_apply()
 else task absent
   TP -> TP : return false
 end
 
-opt task exists and debounce expires
+opt task exists
   TST -> DB : read primary_vlan_id
   alt primary_vlan_id == 0 or invalid
     TST -> TST : cleanup_ts_runtime_state()
@@ -215,11 +215,11 @@ note over ACT,TST
 FH and WDS runtime lifecycles are event-driven.
 No debounce is used for incremental add and remove events.
 
-Debounced work() runs reset() only for TS_ENABLE.
+work() runs reconcile() for a pending TS_APPLY.
 WDS readiness retry also runs from work() after the
 settle delay, so handle_event() does not sleep.
 
-reset() only refreshes config and persistent
+reconcile() only refreshes config and persistent
 DB-owned trunks. Event-managed FH and WDS ports stay
 owned by their runtime events.
 end note
