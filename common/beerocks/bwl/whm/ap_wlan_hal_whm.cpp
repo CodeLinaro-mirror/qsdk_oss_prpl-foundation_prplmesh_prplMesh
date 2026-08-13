@@ -706,6 +706,17 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             LOG(ERROR) << "Failed to update Security object " << wifi_ap_sec_path;
             continue;
         }
+
+        // Point this VAP's hostapd at the device-wide WiFi.DPPRelay TCP listener so
+        // incoming over-the-air DPP frames get forwarded to it (dpp_controller=).
+        std::string wifi_ap_dpp_path = wifi_vap_path + "DPP.";
+        new_obj.set_type(AMXC_VAR_ID_HTABLE);
+        new_obj.add_child<bool>("Enable", true);
+        new_obj.add_child("Role", "Relay");
+        if (!m_ambiorix_cl.update_object(wifi_ap_dpp_path, new_obj)) {
+            LOG(ERROR) << "Failed to set DPP relay role for " << wifi_ap_dpp_path;
+        }
+
         if (ifname == "new_interface") {
             // skip update of vap_info, new instance in vap_info will be added asynchronously on a pwhm event
             continue;

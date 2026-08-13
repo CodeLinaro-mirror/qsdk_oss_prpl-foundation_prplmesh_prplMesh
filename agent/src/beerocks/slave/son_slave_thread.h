@@ -10,6 +10,7 @@
 #define _SON_SLAVE_THREAD_H
 
 #include "agent_db.h"
+#include "tasks/dpp_agent_task.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
 
@@ -23,6 +24,7 @@
 #include <bcl/network/sockets_impl.h>
 #include <btl/broker_client.h>
 #include <btl/broker_client_factory.h>
+#include <bwl/slave_wlan_hal.h>
 
 #include <beerocks/tlvf/beerocks_header.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
@@ -246,6 +248,13 @@ private:
     void platform_notify_error(bpl::eErrorCode code, const std::string &error_data);
     bool monitor_heartbeat_check(const std::string &fronthaul_iface);
     bool ap_manager_heartbeat_check(const std::string &fronthaul_iface);
+
+    bool hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr);
+    bool register_event_handlers();
+    bool register_ext_events_handlers(int fd);
+    void clear_event_handlers();
+    void slave_wlan_hal_fsm();
+    void start_dpp_tcp_relay_server();
 
 public:
     /**
@@ -518,6 +527,22 @@ public:
     std::shared_ptr<btl::BrokerClient> m_broker_client;
 
     std::shared_ptr<ServicePrioritizationTask> m_service_prioritization_task_configurator;
+
+    std::shared_ptr<bwl::slave_wlan_hal> m_slave_wlan_hal;
+    std::vector<int> slave_hal_ext_events = {beerocks::net::FileDescriptor::invalid_descriptor};
+    int slave_hal_int_events              = beerocks::net::FileDescriptor::invalid_descriptor;
+
+    /**
+     * @brief Accessor used by DppAgentTask to send frames directly to hostapd via the
+     * DPP-over-TCP relay owned by m_slave_wlan_hal (see bwl::slave_wlan_hal::dpp_send_frame()).
+     */
+    std::shared_ptr<bwl::slave_wlan_hal> get_slave_wlan_hal() const { return m_slave_wlan_hal; }
+
+    /**
+     * @brief DPP Agent Task — relays DPP frames to/from hostapd via the DPP-over-TCP relay
+     * owned in-process by m_slave_wlan_hal.
+     */
+    std::shared_ptr<DppAgentTask> m_dpp_agent_task;
 
 private:
     /**

@@ -161,6 +161,7 @@ elseif(BWL_TYPE STREQUAL "DUMMY")
         ${MODULE_PATH}/dummy/ap_wlan_hal_dummy.cpp
         ${MODULE_PATH}/dummy/base_wlan_hal_dummy.cpp
         ${MODULE_PATH}/dummy/sta_wlan_hal_dummy.cpp
+        ${MODULE_PATH}/dummy/slave_wlan_hal_dummy.cpp
     )
 
 elseif(BWL_TYPE STREQUAL "WHM")

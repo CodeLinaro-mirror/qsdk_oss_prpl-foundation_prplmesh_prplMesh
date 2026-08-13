@@ -403,6 +403,20 @@ bool slave_thread::thread_init()
         return false;
     }
 
+    // Create and attach the slave_wlan_hal HAL, used for the DPP-over-TCP relay to hostapd.
+    if (!m_slave_wlan_hal) {
+        using namespace std::placeholders; // for `_1`
+        bwl::hal_conf_t hal_conf;
+        m_slave_wlan_hal = bwl::slave_wlan_hal_create(
+            "slave", std::bind(&slave_thread::hal_event_handler, this, _1), hal_conf);
+
+        LOG_IF(!m_slave_wlan_hal, FATAL) << "Failed creating HAL instance!";
+    }
+
+    if (!register_event_handlers()) {
+        LOG(ERROR) << "Failed to register slave_wlan_hal event handlers";
+    }
+
     auto db = AgentDB::get();
     m_task_pool.add_task_check_mode<ApAutoConfigurationTask>(
         "ApAutoConfigurationTask", db->device_conf.management_mode, *this, cmdu_tx);
@@ -431,6 +445,9 @@ bool slave_thread::thread_init()
     m_task_pool.add_task_check_mode<VbssTask>("VbssTask", db->device_conf.management_mode, *this,
                                               cmdu_tx);
 
+    m_dpp_agent_task = std::make_shared<DppAgentTask>(*this, cmdu_tx);
+    m_task_pool.add_task(m_dpp_agent_task);
+
     m_agent_state = STATE_INIT;
     LOG(DEBUG) << "Agent Started";
 
@@ -439,6 +456,11 @@ bool slave_thread::thread_init()
 
 void slave_thread::stop_slave_thread()
 {
+    clear_event_handlers();
+    if (m_slave_wlan_hal) {
+        m_slave_wlan_hal->stop_dpp_relay();
+        m_slave_wlan_hal.reset();
+    }
     agent_reset();
     should_stop = true;
 }
@@ -828,6 +850,7 @@ void slave_thread::handle_client_disconnected(int fd)
 
 bool slave_thread::fsm_all()
 {
+
     auto radio_fsm = [&](const sManagedRadio &radio_manager, const std::string &fronthaul_iface) {
         if (!monitor_heartbeat_check(fronthaul_iface) ||
             !ap_manager_heartbeat_check(fronthaul_iface)) {
@@ -850,6 +873,196 @@ bool slave_thread::fsm_all()
     }
 
     return true;
+}
+
+bool slave_thread::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
+{
+    if (!event_ptr) {
+        LOG(ERROR) << "Invalid event!";
+        return false;
+    }
+
+    typedef bwl::slave_wlan_hal::Event Event;
+    auto event = (Event)(event_ptr->first);
+    switch (event) {
+    case Event::Dpp_Frame_Received: {
+        auto dpp_event =
+            std::static_pointer_cast<bwl::slave_wlan_hal::sDppFrameEvent>(event_ptr->second);
+        if (m_dpp_agent_task && dpp_event) {
+            m_dpp_agent_task->on_dpp_frame_received(dpp_event->tcp_type, dpp_event->frame.data(),
+                                                    dpp_event->frame.size());
+        }
+        break;
+    }
+    case Event::Dpp_Client_Connected: {
+        if (m_dpp_agent_task) {
+            m_dpp_agent_task->on_relay_status(true);
+        }
+        break;
+    }
+    case Event::Dpp_Client_Disconnected: {
+        if (m_dpp_agent_task) {
+            m_dpp_agent_task->on_relay_status(false);
+        }
+        break;
+    }
+    default: {
+        LOG(ERROR) << "Unhandled event: " << int(event);
+        return false;
+    }
+    }
+
+    return true;
+}
+
+bool slave_thread::register_ext_events_handlers(int fd)
+{
+    beerocks::EventLoop::EventHandlers ext_event_handlers{
+        .name = "slave_hal_ext_events",
+        .on_read =
+            [this](int fd, beerocks::EventLoop &loop) {
+                if (!m_slave_wlan_hal || !m_slave_wlan_hal->process_ext_events(fd)) {
+                    LOG(ERROR) << "on_read process_ext_events(" << fd << ") failed!";
+                    return false;
+                }
+                return true;
+            },
+        .on_write = nullptr,
+        .on_disconnect =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "slave_wlan_hal ext events disconnected! on fd " << fd;
+                if (m_slave_wlan_hal) {
+                    m_slave_wlan_hal->process_ext_events(fd);
+                }
+                auto it = std::find(slave_hal_ext_events.begin(), slave_hal_ext_events.end(), fd);
+                if (it != slave_hal_ext_events.end()) {
+                    slave_hal_ext_events.erase(it);
+                }
+                return false;
+            },
+        .on_error =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "slave_wlan_hal ext events error! on fd " << fd;
+                if (m_slave_wlan_hal) {
+                    m_slave_wlan_hal->process_ext_events(fd);
+                }
+                auto it = std::find(slave_hal_ext_events.begin(), slave_hal_ext_events.end(), fd);
+                if (it != slave_hal_ext_events.end()) {
+                    slave_hal_ext_events.erase(it);
+                }
+                return false;
+            },
+    };
+
+    if (!m_event_loop->register_handlers(fd, ext_event_handlers)) {
+        LOG(ERROR) << "Unable to register handlers for slave_wlan_hal ext event fd " << fd;
+        return false;
+    }
+
+    return true;
+}
+
+bool slave_thread::register_event_handlers()
+{
+    // External events
+    int ext_event_fd_max = -1;
+    slave_hal_ext_events = m_slave_wlan_hal->get_ext_events_fds();
+    if (slave_hal_ext_events.empty()) {
+        ext_event_fd_max = 0;
+    } else {
+        for (auto &ext_event_fd : slave_hal_ext_events) {
+            if (ext_event_fd < 0) {
+                ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+                continue;
+            }
+            if (!register_ext_events_handlers(ext_event_fd)) {
+                return false;
+            }
+            LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
+            ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
+        }
+    }
+    if (ext_event_fd_max == 0) {
+        LOG(DEBUG) << "No external event FD is available, periodic polling will be done instead.";
+    } else if (ext_event_fd_max < 0) {
+        LOG(ERROR) << "Invalid external event file descriptors: " << ext_event_fd_max;
+        return false;
+    }
+
+    slave_hal_int_events = m_slave_wlan_hal->get_int_events_fd();
+    if (slave_hal_int_events == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(DEBUG) << "No slave_wlan_hal internal events fd to register";
+        return false;
+    }
+
+    beerocks::EventLoop::EventHandlers int_event_handlers{
+        .name = "slave_hal_int_events",
+        .on_read =
+            [this](int fd, beerocks::EventLoop &loop) {
+                if (!m_slave_wlan_hal || !m_slave_wlan_hal->process_int_events()) {
+                    LOG(ERROR) << "on_read process_int_events(" << fd << ") failed!";
+                    return false;
+                }
+                return true;
+            },
+        .on_write = nullptr,
+        .on_disconnect =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "slave_wlan_hal events disconnected! on fd " << fd;
+                slave_hal_int_events = beerocks::net::FileDescriptor::invalid_descriptor;
+                return false;
+            },
+        .on_error =
+            [this](int fd, beerocks::EventLoop &loop) {
+                LOG(ERROR) << "slave_wlan_hal events error! on fd " << fd;
+                slave_hal_int_events = beerocks::net::FileDescriptor::invalid_descriptor;
+                return false;
+            },
+    };
+
+    if (!m_event_loop->register_handlers(slave_hal_int_events, int_event_handlers)) {
+        LOG(ERROR) << "Unable to register handlers for slave_wlan_hal int event fd "
+                   << slave_hal_int_events;
+        return false;
+    }
+    LOG(DEBUG) << "Registered slave_wlan_hal int event with fd = " << slave_hal_int_events;
+
+    return true;
+}
+
+void slave_thread::clear_event_handlers()
+{
+    for (auto fd : slave_hal_ext_events) {
+        if (fd != beerocks::net::FileDescriptor::invalid_descriptor) {
+            m_event_loop->remove_handlers(fd);
+        }
+    }
+    slave_hal_ext_events.clear();
+
+    if (slave_hal_int_events != beerocks::net::FileDescriptor::invalid_descriptor) {
+        m_event_loop->remove_handlers(slave_hal_int_events);
+        slave_hal_int_events = beerocks::net::FileDescriptor::invalid_descriptor;
+    }
+}
+
+void slave_thread::start_dpp_tcp_relay_server()
+{
+    if (!m_dpp_agent_task) {
+        return;
+    }
+    if (m_dpp_agent_task->is_relay_active()) {
+        LOG(DEBUG) << "DPP: TCP relay server already active";
+        return;
+    }
+
+    LOG(INFO) << "DPP: starting TCP relay listener for downstream enrollee proxying";
+
+    if (!m_slave_wlan_hal || !m_slave_wlan_hal->init_dpp_relay()) {
+        LOG(ERROR) << "DPP: failed to start TCP relay listener";
+        return;
+    }
+
+    m_dpp_agent_task->on_relay_status(m_slave_wlan_hal->is_dpp_client_connected());
 }
 
 bool slave_thread::handle_cmdu(int fd, ieee1905_1::CmduMessageRx &cmdu_rx)
@@ -5490,6 +5703,8 @@ bool slave_thread::agent_fsm()
     // See state STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE.
     case STATE_OPERATIONAL: {
         LOG(TRACE) << "Agent is in STATE_OPERATIONAL";
+
+        start_dpp_tcp_relay_server();
 
         // In certification mode, if prplMesh is configured with local controller, do not enable the
         // transport process until agent has connected to controller. This way we prevent the agent
