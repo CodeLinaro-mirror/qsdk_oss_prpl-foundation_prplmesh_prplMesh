@@ -29,15 +29,22 @@ foreach(file ${files})
   configure_file_odl(${file} ${ODL_OUTPUT_DIR})
 endforeach()
 
-# Parse master_config.odl file
-message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : master_config.odl")
-execute_process(COMMAND amxo-cg ${ODL_OUTPUT_DIR}/odl/master_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
+find_program(AMXO_CG_EXECUTABLE amxo-cg)
+# Be permissive if amxo-cg is not found
+if(NOT AMXO_CG_EXECUTABLE)
+  message(WARNING "${BoldWhite}amxo-cg not found: ignore datamodel parsing.${ColourReset}")
+else()
+  # Parse master_config.odl file
+  message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : master_config.odl")
+  execute_process(COMMAND ${AMXO_CG_EXECUTABLE} ${ODL_OUTPUT_DIR}/odl/master_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
 
-# If parser find errors - generate FATAL_ERROR
-if(${DATAMODEL_PARSE_RESULT})
+  # If parser find errors - generate FATAL_ERROR
+  if(NOT ${DATAMODEL_PARSE_RESULT} EQUAL 0)
     message(FATAL_ERROR "Failed to parse controller data model!")
+  else()
+    message(STATUS "${BoldGreen}Controller data model parsed successfully!${ColourReset}")
+  endif()
 endif()
-message(STATUS "${BoldGreen}Controller data model parsed successfully!${ColourReset}")
 
 # Install ODL files
 install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/controller)
