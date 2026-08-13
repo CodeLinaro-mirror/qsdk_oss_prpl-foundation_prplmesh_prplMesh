@@ -22,15 +22,23 @@ foreach(file ${files})
   configure_file_odl(${file} ${ODL_OUTPUT_DIR})
 endforeach()
 
-# Parse agent.odl file
-message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : slave_config.odl")
-execute_process(COMMAND amxo-cg ${ODL_OUTPUT_DIR}/odl/slave_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
+# Find amxo-cg into the host system and not in the staging/sysroot dirs
+find_program(AMXO_CG_EXECUTABLE NAMES amxo-cg PATHS /usr/bin NO_DEFAULT_PATH)
+# Be permissive if amxo-cg is not found
+if(NOT AMXO_CG_EXECUTABLE)
+  message(WARNING "${BoldWhite}amxo-cg not found: ignore datamodel parsing.${ColourReset}")
+else()
+  # Parse agent.odl file
+  message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : slave_config.odl")
+  execute_process(COMMAND ${AMXO_CG_EXECUTABLE} ${ODL_OUTPUT_DIR}/odl/slave_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
 
-# Check for parser errors
-if(${DATAMODEL_PARSE_RESULT})
+  # If parser find errors - generate FATAL_ERROR
+  if(NOT ${DATAMODEL_PARSE_RESULT} EQUAL 0)
     message(FATAL_ERROR "Failed to parse agent data model!")
+  else()
+    message(STATUS "${BoldGreen}Agent data model parsed successfully!${ColourReset}")
+  endif()
 endif()
-message(STATUS "${BoldGreen}Agent data model parsed successfully!${ColourReset}")
 
 # Install ODL files
 install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/agent)
