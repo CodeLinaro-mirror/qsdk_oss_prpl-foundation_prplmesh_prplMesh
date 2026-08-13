@@ -29,6 +29,11 @@ foreach(file ${files})
   configure_file_odl(${file} ${ODL_OUTPUT_DIR})
 endforeach()
 
+if(NOT "${INCLUDE_DM_MAPPER_CONFIG}" STREQUAL "")
+  execute_process(COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/odl/dm_mapper_cfg ${ODL_OUTPUT_DIR}/odl/dm_mapper_cfg.odl)
+endif()
+
+
 find_program(AMXO_CG_EXECUTABLE amxo-cg)
 # Be permissive if amxo-cg is not found
 if(NOT AMXO_CG_EXECUTABLE)
@@ -48,10 +53,6 @@ endif()
 
 # Install ODL files
 install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/controller)
-
-if(NOT "${INCLUDE_DM_MAPPER_CONFIG}" STREQUAL "")
-  install(FILES "${CMAKE_SOURCE_DIR}/controller/nbapi/odl/dm_mapper_cfg" DESTINATION "config/controller/odl" RENAME "dm_mapper_cfg.odl" )
-endif()
 
 if(NOT "${INCLUDE_IEEE1905_USP_CONFIG}" STREQUAL "")
   install(FILES "${ODL_OUTPUT_DIR}/odl/ieee1905_usp_cfg.odl" DESTINATION "config/controller/odl")
