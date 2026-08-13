@@ -29,7 +29,8 @@ enum class HALType {
 
     AccessPoint,
     Monitor,
-    Station
+    Station,
+    Slave
 };
 
 enum class IfaceType {
