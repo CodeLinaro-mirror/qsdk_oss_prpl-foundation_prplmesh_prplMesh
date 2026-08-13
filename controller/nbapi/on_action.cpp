@@ -1670,7 +1670,9 @@ static bool template_security_rsne_cipher_suites_match_agent(const Agent &agent,
 }
 
 /**
- * Minimal RSNE scan: verify 00-0F-AC AKM suite types in first RSNE (0x30) in concatenated IEs.
+ * Validate every IEEE (00-0F-AC) group/pairwise cipher and AKM in the concatenated blob
+ * against agent caps — base RSNE (0x30) and RSNOE/RSNO2E (WFA 0x29/0x2A).
+ * RSNXE / RSNXOE have no suites and are skipped.
  * Records OWE (00-0F-AC:12) and DPP (50-6F-9A:02) so callers can reject undeployable templates
  * even when agent suite checks are skipped.
  */
@@ -1681,44 +1683,72 @@ static bool template_security_ies_hex_akms_match_agent(const Agent *agent, bool 
     contains_owe = false;
     contains_dpp = false;
     const bool check_agent_suites =
-        agent && agent->security_capabilities.valid_akm_suites;
+        agent && (agent->security_capabilities.valid_akm_suites ||
+                  agent->security_capabilities.valid_cipher_suites);
+
+    auto check_body = [&](const uint8_t *b, size_t blen) -> bool {
+        if (blen < 12) {
+            return true;
+        }
+        size_t p = 2; // skip version
+        if (check_agent_suites && b[p] == 0x00 && b[p + 1] == 0x0F && b[p + 2] == 0xAC &&
+            !template_agent_cipher_suite_type_supported(*agent, b[p + 3])) {
+            return false;
+        }
+        p += 4;
+        if (p + 2 > blen) {
+            return true;
+        }
+        uint16_t n_pw = static_cast<uint16_t>(b[p] | (uint16_t(b[p + 1]) << 8));
+        p += 2;
+        if (p + n_pw * 4u > blen) {
+            return true;
+        }
+        for (uint16_t i = 0; i < n_pw; ++i, p += 4) {
+            if (check_agent_suites && b[p] == 0x00 && b[p + 1] == 0x0F && b[p + 2] == 0xAC &&
+                !template_agent_cipher_suite_type_supported(*agent, b[p + 3])) {
+                return false;
+            }
+        }
+        if (p + 2 > blen) {
+            return true;
+        }
+        uint16_t n_akm = static_cast<uint16_t>(b[p] | (uint16_t(b[p + 1]) << 8));
+        p += 2;
+        if (p + n_akm * 4u > blen) {
+            return true;
+        }
+        for (uint16_t i = 0; i < n_akm; ++i, p += 4) {
+            if (b[p] == 0x00 && b[p + 1] == 0x0F && b[p + 2] == 0xAC) {
+                contains_owe |= (b[p + 3] == RSN_AKM_TYPE_OWE);
+                if (check_agent_suites &&
+                    !template_agent_akm_suite_type_supported(*agent, fh, bh, b[p + 3])) {
+                    return false;
+                }
+            } else if (b[p] == 0x50 && b[p + 1] == 0x6F && b[p + 2] == 0x9A &&
+                       b[p + 3] == 0x02) {
+                contains_dpp = true;
+            }
+        }
+        return true;
+    };
+
     for (size_t i = 0; i + 1 < ies.size();) {
         uint8_t id  = ies[i++];
         uint8_t len = ies[i++];
         if (i + len > ies.size()) {
             break;
         }
-        if (id == 0x30 && len >= 14) {
-            size_t p = i;
-            p += 2; // version
-            p += 4; // group
-            if (p + 2 > i + len) {
-                break;
+        if (id == 0x30) {
+            if (!check_body(&ies[i], len)) {
+                return false;
             }
-            uint16_t n_pw = static_cast<uint16_t>(ies[p] | (uint16_t(ies[p + 1]) << 8));
-            p += 2;
-            if (p + n_pw * 4 > i + len) {
-                break;
+        } else if (id == 0xDD && len >= 4 && ies[i] == 0x50 && ies[i + 1] == 0x6F &&
+                   ies[i + 2] == 0x9A &&
+                   (ies[i + 3] == RSNOE_WFA_VENDOR_TYPE || ies[i + 3] == RSNO2E_WFA_VENDOR_TYPE)) {
+            if (!check_body(&ies[i + 4], len - 4)) {
+                return false;
             }
-            p += n_pw * 4;
-            if (p + 2 > i + len) {
-                break;
-            }
-            uint16_t n_akm = static_cast<uint16_t>(ies[p] | (uint16_t(ies[p + 1]) << 8));
-            p += 2;
-            for (uint16_t k = 0; k < n_akm && p + 4 <= i + len; ++k, p += 4) {
-                if (ies[p] == 0x00 && ies[p + 1] == 0x0F && ies[p + 2] == 0xAC) {
-                    contains_owe |= (ies[p + 3] == RSN_AKM_TYPE_OWE);
-                    if (check_agent_suites &&
-                        !template_agent_akm_suite_type_supported(*agent, fh, bh, ies[p + 3])) {
-                        return false;
-                    }
-                } else if (ies[p] == 0x50 && ies[p + 1] == 0x6F && ies[p + 2] == 0x9A &&
-                           ies[p + 3] == 0x02) {
-                    contains_dpp = true;
-                }
-            }
-            return true;
         }
         i += len;
     }
@@ -2123,10 +2153,9 @@ static void template_fill_rsn_security_ies(amxd_object_t *security_template_obj,
                         RSN_CIPHER_GCMP_256);
     }
 
-    // BBF: SAEH2E selects the advertised capability bit; false encodes bit 0. PCM always sets it
-    // because RSNO2E offers SAE-EXT-KEY, which is only defined with hash-to-element.
-    const bool rsnxe_h2e  = (rsnxe && get_param_bool(rsnxe, "SAEH2E")) || pcm;
-    const bool rsnxoe_h2e = (rsnxoe && get_param_bool(rsnxoe, "SAEH2E")) || pcm;
+    // SAEH2E selects the advertised capability bit; false encodes bit 0.
+    const bool rsnxe_h2e  = (rsnxe && get_param_bool(rsnxe, "SAEH2E"));
+    const bool rsnxoe_h2e = (rsnxoe && get_param_bool(rsnxoe, "SAEH2E"));
     out.insert(out.end(), {0xF4, 0x01, static_cast<uint8_t>(rsnxe_h2e ? 0x20 : 0x00)});
     out.insert(out.end(), {0xDD, 0x05, 0x50, 0x6F, 0x9A, RSNXOE_WFA_VENDOR_TYPE,
                            static_cast<uint8_t>(rsnxoe_h2e ? 0x20 : 0x00)});
