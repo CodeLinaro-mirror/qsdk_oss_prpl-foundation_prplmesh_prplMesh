@@ -2005,6 +2005,7 @@ std::vector<uint8_t> wireless_utils::center_channel_to_beacon_channels(
         beacon_channel = center_channel - 14;
         beacon_channels.reserve(8);
         break;
+    case beerocks::BANDWIDTH_320:
     case beerocks::BANDWIDTH_320_1:
     case beerocks::BANDWIDTH_320_2:
         beacon_channel = center_channel - 30;

@@ -1180,7 +1180,8 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
     for (const auto &oper_class : son::wireless_utils::operating_classes_list) {
         const auto oper_class_num       = oper_class.first;
         const auto &oper_class_channels = oper_class.second.channels;
-        const auto oper_class_bw        = oper_class.second.band;
+        const auto oper_class_bw_orig   = oper_class.second.band;
+        auto oper_class_bw              = oper_class_bw_orig;
 
         if (radio->wifi_channel.get_freq_type() !=
             son::wireless_utils::which_freq_op_cls(oper_class_num)) {
@@ -1189,6 +1190,13 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
         }
 
         for (auto channel_of_oper_class : oper_class_channels) {
+            // intentionally distinguish 320M-1 and 320M-2
+            // an "easy" way to make the 320M selection work under current design
+            if (oper_class_bw_orig == eWiFiBandwidth::BANDWIDTH_320) {
+                oper_class_bw = son::wireless_utils::get_bandwidth_from_channel_and_op_class(
+                    channel_of_oper_class, oper_class_num);
+            }
+
             // Operating classes 128-130,132-135 use center channel **unlike the other classes**,
             // so convert center channel and bandwidth to main channel.
             // For more info, refer to Table E-4 in the 802.11 specification.
