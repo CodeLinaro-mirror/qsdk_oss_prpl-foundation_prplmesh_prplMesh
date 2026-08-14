@@ -239,6 +239,7 @@ private:
     bool fsm_all();
     bool agent_fsm();
     void agent_reset();
+    bool send_fronthaul_bss_teardown();
     void stop_slave_thread();
     void fronthaul_start(const std::string &fronthaul_iface);
     void fronthaul_stop(const std::string &fronthaul_iface);
