@@ -878,6 +878,25 @@ class cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND : public BaseClass
         eActionOp_BACKHAUL* m_action_op = nullptr;
 };
 
+class cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION : public BaseClass
+{
+    public:
+        cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION();
+
+        static eActionOp_BACKHAUL get_action_op(){
+            return (eActionOp_BACKHAUL)(ACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION);
+        }
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_BACKHAUL* m_action_op = nullptr;
+};
+
 class cACTION_BACKHAUL_TRIGGER_ON_BOOT_SCAN : public BaseClass
 {
     public:

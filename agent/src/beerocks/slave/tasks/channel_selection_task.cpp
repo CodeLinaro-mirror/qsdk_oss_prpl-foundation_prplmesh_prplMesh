@@ -11,6 +11,7 @@
 #include "../backhaul_manager/backhaul_manager.h"
 #include "../cac_status_database.h"
 #include "../tlvf_utils.h"
+#include <bwl/afc_spectrum_helper.h>
 
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
 #include <beerocks/tlvf/beerocks_message_backhaul.h>
@@ -1116,6 +1117,96 @@ void ChannelSelectionTask::handle_ap_enable_event(const std::string &iface)
     }
 }
 
+/**
+ * @brief Populate @p radio->channel_preferences with AFC-denied channels only.
+ * Shared by inquiry optional Channel Preference TLV (reason 0xD) and Channel Preference Query
+ * responses (reason 0xC when the controller requests preferences).
+ *
+ * @param changed_channels_out If non-null, receives denied channel indices (inquiry delta tracking).
+ * @param beacon_operable_snapshot_out If non-null, receives per-beacon AFC operability snapshot.
+ * @return Number of denied channel entries added.
+ */
+static size_t build_afc_denied_channel_preferences(
+    AgentDB::sRadio *radio, const std::string &iface_name,
+    wfa_map::cPreferenceOperatingClasses::eReasonCode reason,
+    std::set<uint8_t> *changed_channels_out                         = nullptr,
+    std::unordered_map<uint8_t, bool> *beacon_operable_snapshot_out = nullptr)
+{
+    if (!radio || radio->wifi_channel.get_freq_type() != beerocks::eFreqType::FREQ_6G) {
+        return 0;
+    }
+
+    std::unordered_set<uint8_t> afc_allowed_channels;
+    const bool use_dm_allowed_channels =
+        bwl::whm::afc_spectrum_helper::read_possible_channels(iface_name, afc_allowed_channels);
+
+    const auto is_beacon_channel_operable = [&](uint8_t beacon_channel) -> bool {
+        if (use_dm_allowed_channels) {
+            return afc_allowed_channels.count(beacon_channel) > 0;
+        }
+
+        const auto channel_it = radio->channels_list.find(beacon_channel);
+        if (channel_it == radio->channels_list.end()) {
+            return false;
+        }
+        for (const auto &bw_info : channel_it->second.supported_bw_list) {
+            if (bw_info.multiap_preference > 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    radio->channel_preferences.clear();
+
+    size_t denied_channel_count = 0;
+    for (const auto &oper_class : son::wireless_utils::operating_classes_list) {
+        const auto oper_class_num       = oper_class.first;
+        const auto &oper_class_channels = oper_class.second.channels;
+        const auto oper_class_bw        = oper_class.second.band;
+
+        if (son::wireless_utils::which_freq_op_cls(oper_class_num) !=
+            beerocks::eFreqType::FREQ_6G) {
+            continue;
+        }
+
+        AgentDB::sChannelPreference oper_class_preference_key(
+            oper_class_num, wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE,
+            reason);
+
+        for (auto channel_of_oper_class : oper_class_channels) {
+            const auto beacon_channels =
+                son::wireless_utils::is_operating_class_using_central_channel(oper_class_num)
+                    ? son::wireless_utils::center_channel_to_beacon_channels(
+                          channel_of_oper_class, oper_class_bw, beerocks::eFreqType::FREQ_6G)
+                    : std::vector<uint8_t>{channel_of_oper_class};
+
+            for (const auto beacon_channel : beacon_channels) {
+                if (beacon_operable_snapshot_out) {
+                    (*beacon_operable_snapshot_out)[beacon_channel] =
+                        is_beacon_channel_operable(beacon_channel);
+                }
+            }
+
+            const bool operable = !beacon_channels.empty() &&
+                                  std::all_of(beacon_channels.begin(), beacon_channels.end(),
+                                              [&](uint8_t beacon_channel) {
+                                                  return is_beacon_channel_operable(beacon_channel);
+                                              });
+
+            if (!operable) {
+                radio->channel_preferences[oper_class_preference_key].insert(channel_of_oper_class);
+                if (changed_channels_out) {
+                    changed_channels_out->insert(channel_of_oper_class);
+                }
+                denied_channel_count++;
+            }
+        }
+    }
+
+    return denied_channel_count;
+}
+
 bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio_mac)
 {
     auto db    = AgentDB::get();
@@ -1123,17 +1214,48 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
     if (!radio) {
         return false;
     }
+    const bool apply_afc_regulatory_restrictions =
+        radio->wifi_channel.get_freq_type() == beerocks::eFreqType::FREQ_6G &&
+        bwl::whm::afc_spectrum_helper::is_afc_regulatory_preference_applicable(
+            radio->front.iface_name);
+
+    std::unordered_set<uint8_t> afc_allowed_channels;
+    const bool use_dm_allowed_channels =
+        apply_afc_regulatory_restrictions && bwl::whm::afc_spectrum_helper::read_possible_channels(
+                                                 radio->front.iface_name, afc_allowed_channels);
+
+    if (apply_afc_regulatory_restrictions) {
+        LOG(INFO) << "Applying EasyMesh §8.1 AFC regulatory channel preferences for radio "
+                  << radio_mac << " (StandardPower, AFC grant completed)";
+        if (use_dm_allowed_channels) {
+            LOG(INFO) << "Using " << afc_allowed_channels.size()
+                      << " AFC-allowed channel(s) from PossibleChannels DM";
+        }
+    }
 
     auto get_preference_key =
-        [&radio](
+        [&radio, apply_afc_regulatory_restrictions, &afc_allowed_channels, use_dm_allowed_channels](
             const uint8_t channel, const uint8_t operating_class,
             beerocks::eWiFiBandwidth operating_bandwidth) -> const AgentDB::sChannelPreference {
         // Channel is not supported.
         auto it_ch = radio->channels_list.find(channel);
         if (it_ch == radio->channels_list.end()) {
+            if (use_dm_allowed_channels && afc_allowed_channels.count(channel) > 0) {
+                return AgentDB::sChannelPreference(
+                    operating_class, wfa_map::cPreferenceOperatingClasses::ePreference::PREFERRED1,
+                    wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED);
+            }
+
+            const auto reason_code =
+                apply_afc_regulatory_restrictions &&
+                        (!use_dm_allowed_channels || afc_allowed_channels.count(channel) == 0)
+                    ? wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                          OPERATION_DISALLOWED_BY_REGULATORY_RESTRICTION
+                    : wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED;
+
             return AgentDB::sChannelPreference(
                 operating_class, wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE,
-                wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED);
+                reason_code);
         }
 
         // Bandwidth of a channel is not supported.
@@ -1154,6 +1276,18 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
                 operating_class, wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE,
                 wfa_map::cPreferenceOperatingClasses::eReasonCode::
                     OPERATION_DISALLOWED_DUE_TO_RADAR_DETECTION_ON_A_DFS_CHANNEL);
+        }
+        if (apply_afc_regulatory_restrictions) {
+            const bool afc_allowed = use_dm_allowed_channels
+                                         ? (afc_allowed_channels.count(channel) > 0)
+                                         : (it_bw->multiap_preference > 0);
+            if (!afc_allowed) {
+                return AgentDB::sChannelPreference(
+                    operating_class,
+                    wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE,
+                    wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                        OPERATION_DISALLOWED_BY_REGULATORY_RESTRICTION);
+            }
         }
 
         auto reason_code = wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED;
@@ -1226,6 +1360,49 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
     return true;
 }
 
+bool ChannelSelectionTask::build_afc_channel_preference_report(const sMacAddr &radio_mac)
+{
+    auto db    = AgentDB::get();
+    auto radio = db->get_radio_by_mac(radio_mac, AgentDB::eMacType::RADIO);
+    if (!radio) {
+        return false;
+    }
+
+    if (radio->wifi_channel.get_freq_type() != beerocks::eFreqType::FREQ_6G) {
+        return false;
+    }
+
+    if (!bwl::whm::afc_spectrum_helper::is_afc_regulatory_preference_applicable(
+            radio->front.iface_name)) {
+        LOG(INFO) << "Skipping AFC inquiry channel preference TLV for radio " << radio_mac
+                  << " (requires StandardPower and successful AFC grant)";
+        return false;
+    }
+
+    auto &afc_state = db->afc_radio_states[radio_mac];
+    afc_state.changed_channels.clear();
+
+    const auto afc_reason = wfa_map::cPreferenceOperatingClasses::eReasonCode::
+        CHANGE_DUE_TO_AVAILABLE_SPECTRUM_INQUIRY_AFC;
+
+    std::unordered_map<uint8_t, bool> beacon_operable_snapshot;
+    const size_t denied_channel_count = build_afc_denied_channel_preferences(
+        radio, radio->front.iface_name, afc_reason, &afc_state.changed_channels,
+        &beacon_operable_snapshot);
+
+    afc_state.channel_operable_snapshot = beacon_operable_snapshot;
+
+    if (denied_channel_count > 0) {
+        LOG(INFO) << "AFC inquiry channel preferences for radio " << radio_mac << ": "
+                  << denied_channel_count << " AFC-denied channel(s) with reason 0xD";
+    } else {
+        LOG(WARNING) << "No AFC-denied channels for radio " << radio_mac
+                     << " (all 6 GHz channels appear AFC-allowed)";
+    }
+
+    return !afc_state.changed_channels.empty();
+}
+
 bool ChannelSelectionTask::channel_preference_report_ready()
 {
     if (m_pending_preference.preference_ready.empty()) {
@@ -1286,15 +1463,24 @@ bool ChannelSelectionTask::send_channel_preference_report()
 
 bool ChannelSelectionTask::create_channel_preference_tlv(const sMacAddr &radio_mac)
 {
+    return add_channel_preference_tlv(m_cmdu_tx, radio_mac);
+}
+
+bool ChannelSelectionTask::add_channel_preference_tlv(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                      const sMacAddr &radio_mac)
+{
     auto db    = AgentDB::get();
     auto radio = db->get_radio_by_mac(radio_mac, AgentDB::eMacType::RADIO);
     if (!radio) {
         return false;
     }
+    if (radio->channel_preferences.empty()) {
+        return true;
+    }
 
     std::stringstream ss;
 
-    auto channel_preference_tlv = m_cmdu_tx.addClass<wfa_map::tlvChannelPreference>();
+    auto channel_preference_tlv = cmdu_tx.addClass<wfa_map::tlvChannelPreference>();
     if (!channel_preference_tlv) {
         LOG(ERROR) << "addClass ieee1905_1::tlvChannelPreference has failed";
         return false;
@@ -1319,10 +1505,24 @@ bool ChannelSelectionTask::create_channel_preference_tlv(const sMacAddr &radio_m
                                                         static_non_oper_channels.end());
 
         std::vector<uint8_t> dynamic_non_oper_channels;
-        std::copy_if(operating_class_channels_list.begin(), operating_class_channels_list.end(),
-                     std::back_inserter(dynamic_non_oper_channels), [&](uint8_t channel) {
-                         return static_non_oper_set.find(channel) == static_non_oper_set.end();
-                     });
+        const auto reason_code = operating_class_info.flags.reason_code;
+        const bool include_static_non_operable_channels =
+            reason_code == wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                               CHANGE_DUE_TO_AVAILABLE_SPECTRUM_INQUIRY_AFC ||
+            reason_code == wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                               OPERATION_DISALLOWED_BY_REGULATORY_RESTRICTION;
+
+        if (include_static_non_operable_channels) {
+            // AFC-denied channels are absent from PossibleChannels and therefore appear in the
+            // static non-operable set. They must still be reported with the AFC reason code.
+            dynamic_non_oper_channels.assign(operating_class_channels_list.begin(),
+                                             operating_class_channels_list.end());
+        } else {
+            std::copy_if(operating_class_channels_list.begin(), operating_class_channels_list.end(),
+                         std::back_inserter(dynamic_non_oper_channels), [&](uint8_t channel) {
+                             return static_non_oper_set.find(channel) == static_non_oper_set.end();
+                         });
+        }
 
         // dynamic_non_oper_channels is empty only if all channels are statically non-operable
         if (dynamic_non_oper_channels.empty()) {
@@ -1363,7 +1563,19 @@ bool ChannelSelectionTask::create_channel_preference_tlv(const sMacAddr &radio_m
         }
     }
     ss << std::endl;
-    LOG(DEBUG) << ss.str();
+    if (std::any_of(radio->channel_preferences.begin(), radio->channel_preferences.end(),
+                    [](const auto &pref) {
+                        const auto reason = pref.first.flags.reason_code;
+                        return reason == wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                                             CHANGE_DUE_TO_AVAILABLE_SPECTRUM_INQUIRY_AFC ||
+                               reason == wfa_map::cPreferenceOperatingClasses::eReasonCode::
+                                             OPERATION_DISALLOWED_BY_REGULATORY_RESTRICTION;
+                    })) {
+        LOG(INFO) << ss.str();
+    } else {
+        LOG(DEBUG) << ss.str();
+    }
+
     return true;
 }
 

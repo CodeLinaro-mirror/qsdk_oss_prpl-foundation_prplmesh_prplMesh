@@ -2719,6 +2719,20 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         }
     } break;
 
+    case Event::AFCUpdate: {
+        LOG(INFO) << "AFC :AFCUpdate event received";
+
+        auto notification = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION>(cmdu_tx);
+        if (!notification) {
+            LOG(ERROR)
+                << "AFC : Failed building cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION message!";
+            break;
+        }
+
+        send_cmdu(cmdu_tx);
+    } break;
+
     // STA Connected
     case Event::STA_Connected: {
 

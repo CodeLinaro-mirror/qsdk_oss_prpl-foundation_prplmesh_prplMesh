@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <unordered_set>
@@ -513,6 +514,27 @@ public:
             return false;
         }
     };
+    struct sAfcRadioState {
+        std::unordered_map<uint8_t, bool> channel_operable_snapshot;
+        std::set<uint8_t> changed_channels;
+    };
+
+    /**
+     * @brief Per-radio AFC channel operability snapshots for delta Channel Preference reporting.
+     */
+    std::unordered_map<sMacAddr, sAfcRadioState> afc_radio_states;
+
+    /**
+     * @brief Cached AFC inquiry payloads read from Device.WiFi.AFC.Stats.
+     */
+    std::string afc_available_spectrum_request;
+    std::string afc_available_spectrum_response;
+
+    /**
+     * @brief Set after a valid AFC update event (InquiryStatus=UPDATE) with successful grant.
+     * Used for EasyMesh Section 8.1 regulatory channel preferences on 6 GHz Standard Power radios.
+     */
+    bool afc_spectrum_update_completed = false;
 
     /**
      * @brief Get pointer to the radio data struct of a specific interface. The function can

@@ -127,6 +127,9 @@ class cPreferenceOperatingClasses : public BaseClass
             OPERATION_WOULD_PREVENT_BACKHAUL_OPERATION_USING_SHARED_RADIO = 0x8,
             IMMEDIATE_OPERATION_POSSIBLE_ON_A_DFS_CHANNEL_CAC_HAS_BEEN_RUN__CHANNEL_HAS_BEEN_CLEARED_FOR_USE = 0x9,
             DFS_CHANNEL_STATE_UNKNOWN_CAC_HAS_NOT_RUN = 0xa,
+            CONTROLLER_DFS_CHANNEL_CLEAR_INDICATION = 0xb,
+            OPERATION_DISALLOWED_BY_REGULATORY_RESTRICTION = 0xc,
+            CHANGE_DUE_TO_AVAILABLE_SPECTRUM_INQUIRY_AFC = 0xd,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off
@@ -143,6 +146,9 @@ class cPreferenceOperatingClasses : public BaseClass
             case OPERATION_WOULD_PREVENT_BACKHAUL_OPERATION_USING_SHARED_RADIO:                                    return "OPERATION_WOULD_PREVENT_BACKHAUL_OPERATION_USING_SHARED_RADIO";
             case IMMEDIATE_OPERATION_POSSIBLE_ON_A_DFS_CHANNEL_CAC_HAS_BEEN_RUN__CHANNEL_HAS_BEEN_CLEARED_FOR_USE: return "IMMEDIATE_OPERATION_POSSIBLE_ON_A_DFS_CHANNEL_CAC_HAS_BEEN_RUN__CHANNEL_HAS_BEEN_CLEARED_FOR_USE";
             case DFS_CHANNEL_STATE_UNKNOWN_CAC_HAS_NOT_RUN:                                                        return "DFS_CHANNEL_STATE_UNKNOWN_CAC_HAS_NOT_RUN";
+            case CONTROLLER_DFS_CHANNEL_CLEAR_INDICATION:                                                          return "CONTROLLER_DFS_CHANNEL_CLEAR_INDICATION";
+            case OPERATION_DISALLOWED_BY_REGULATORY_RESTRICTION:                                                   return "OPERATION_DISALLOWED_BY_REGULATORY_RESTRICTION";
+            case CHANGE_DUE_TO_AVAILABLE_SPECTRUM_INQUIRY_AFC:                                                     return "CHANGE_DUE_TO_AVAILABLE_SPECTRUM_INQUIRY_AFC";
             }
             static std::string out_str = std::to_string(int(enum_value));
             return out_str.c_str();

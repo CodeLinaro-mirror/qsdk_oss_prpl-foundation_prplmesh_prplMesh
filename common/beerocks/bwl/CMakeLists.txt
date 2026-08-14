@@ -225,6 +225,7 @@ if (BUILD_TESTS)
         ${MODULE_PATH}/unit_tests/action_frame_parsing_test.cpp
         ${MODULE_PATH}/unit_tests/assoc_frame_body_extract_test.cpp
         ${MODULE_PATH}/unit_tests/csv_bitmask_filtering.cpp
+        ${MODULE_PATH}/unit_tests/afc_spectrum_helper_test.cpp
     )
     if(NOT BWL_TYPE STREQUAL "WHM")
         list(APPEND unit_tests_sources
@@ -246,7 +247,7 @@ if (BUILD_TESTS)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
     target_link_libraries(${TEST_PROJECT_NAME} prplmesh_hostapd bcl elpp ${BWL_LIBS})
-    target_link_libraries(${TEST_PROJECT_NAME} gtest_main)
+    target_link_libraries(${TEST_PROJECT_NAME} gtest_main gmock)
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)
     add_test(NAME ${TEST_PROJECT_NAME} COMMAND $<TARGET_FILE:${TEST_PROJECT_NAME}>)
 endif()

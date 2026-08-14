@@ -8671,6 +8671,79 @@ bool db::dm_add_cac_status_report(
     return ret_val;
 }
 
+bool db::dm_set_afc_available_spectrum_inquiry(std::shared_ptr<Agent> agent,
+                                               const std::string &request,
+                                               const std::string &response)
+{
+    if (agent->dm_path.empty()) {
+        return true;
+    }
+
+    const auto afc_path = agent->dm_path + ".AFCAvailableSpectrum";
+
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(afc_path, "AFCAvailableSpectrumInquiryRequest", request);
+    ret_val &= m_ambiorix_datamodel->set(afc_path, "AFCAvailableSpectrumInquiryResponse", response);
+
+    return ret_val;
+}
+
+bool db::set_afc_max_eirp(const sMacAddr &radio_mac, uint8_t operating_class, uint8_t channel,
+                          int8_t max_eirp_dbm)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "unable to get radio " << radio_mac;
+        return false;
+    }
+
+    radio->afc_max_eirp_dbm[std::make_pair(operating_class, channel)] = max_eirp_dbm;
+    return true;
+}
+
+bool db::clear_afc_max_eirp(const sMacAddr &radio_mac)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "unable to get radio " << radio_mac;
+        return false;
+    }
+
+    radio->afc_max_eirp_dbm.clear();
+    radio->afc_transmit_power_limit_valid = false;
+    radio->afc_transmit_power_limit_dbm   = 0;
+    return true;
+}
+
+bool db::set_afc_transmit_power_limit(const sMacAddr &radio_mac, int8_t limit_dbm)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "unable to get radio " << radio_mac;
+        return false;
+    }
+
+    radio->afc_transmit_power_limit_dbm   = limit_dbm;
+    radio->afc_transmit_power_limit_valid = true;
+    return true;
+}
+
+bool db::get_afc_transmit_power_limit(const sMacAddr &radio_mac, int8_t &limit_dbm)
+{
+    auto radio = get_radio_by_uid(radio_mac);
+    if (!radio) {
+        LOG(ERROR) << "unable to get radio " << radio_mac;
+        return false;
+    }
+
+    if (!radio->afc_transmit_power_limit_valid) {
+        return false;
+    }
+
+    limit_dbm = radio->afc_transmit_power_limit_dbm;
+    return true;
+}
+
 bool db::dm_update_collection_intervals(std::chrono::milliseconds interval)
 {
     auto ret_val = true;

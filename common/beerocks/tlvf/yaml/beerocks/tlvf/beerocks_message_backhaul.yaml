@@ -193,6 +193,9 @@ cACTION_BACKHAUL_MLD_UPDATE_REQUEST:
 cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND:
   _type: class
 
+cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION:
+  _type: class
+
 ################################################
 # CHANNEL SCAN REQUESTS/RESPONSES
 ################################################

@@ -3764,6 +3764,26 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION: {
+        auto notification_in =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION>();
+        if (!notification_in) {
+            LOG(ERROR) << "addClass ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION failed";
+            return false;
+        }
+        LOG(INFO) << "received ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION";
+
+        auto notification_out_bhm = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION>(cmdu_tx);
+        if (!notification_out_bhm) {
+            LOG(ERROR) << "Failed building ACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION message!";
+            return false;
+        }
+
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
+        break;
+    }
     case beerocks_message::ACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION: {
         auto notification_in =
             beerocks_header

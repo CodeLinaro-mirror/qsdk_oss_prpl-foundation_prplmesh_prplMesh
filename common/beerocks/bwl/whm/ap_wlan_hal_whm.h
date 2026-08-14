@@ -12,6 +12,12 @@
 #include "base_wlan_hal_whm.h"
 #include <bwl/ap_wlan_hal.h>
 
+#include <bcl/beerocks_string_utils.h>
+
+#include <cstdint>
+#include <string>
+#include <unordered_set>
+
 namespace bwl {
 namespace whm {
 
