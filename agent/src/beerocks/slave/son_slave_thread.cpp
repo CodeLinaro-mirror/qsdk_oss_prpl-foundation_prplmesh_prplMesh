@@ -498,6 +498,117 @@ void slave_thread::agent_reset()
     m_agent_state = STATE_INIT;
 }
 
+bool slave_thread::send_fronthaul_bss_teardown()
+{
+    auto db = AgentDB::get();
+
+    // In non-EasyMesh mode, never modify hostapd configuration. EasyMesh and manually configured
+    // VAPs cannot currently be distinguished in that mode.
+    if (db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+        LOG(WARNING) << "non-EasyMesh mode - skip tearing down fronthaul BSSs";
+        return true;
+    }
+
+    bool success = true;
+
+    for (const auto &radio_manager_element : m_radio_managers.get()) {
+        const auto &radio_iface   = radio_manager_element.first;
+        const auto &radio_manager = radio_manager_element.second;
+
+        if (radio_manager.ap_manager_fd == net::FileDescriptor::invalid_descriptor) {
+            LOG(WARNING) << "Cannot tear down fronthaul BSSs on " << radio_iface
+                         << ": AP manager is unavailable";
+            success = false;
+            continue;
+        }
+
+        auto radio = db->radio(radio_iface);
+        if (!radio) {
+            LOG(ERROR) << "Cannot tear down fronthaul BSSs: radio " << radio_iface
+                       << " was not found in AgentDB";
+            success = false;
+            continue;
+        }
+
+        // Reset VLAN configuration before tearing down the BSSs.
+        auto pvid_set_request = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_HOSTAP_SET_PRIMARY_VLAN_ID_REQUEST>(cmdu_tx);
+        if (!pvid_set_request) {
+            LOG(ERROR) << "Failed building primary VLAN reset for " << radio_iface;
+            success = false;
+        } else {
+            pvid_set_request->primary_vlan_id() = 0;
+            if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+                LOG(ERROR) << "Failed sending primary VLAN reset to AP manager for " << radio_iface;
+                success = false;
+            }
+        }
+
+        auto request_out = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>(cmdu_tx);
+        if (!request_out) {
+            LOG(ERROR) << "Failed building fronthaul BSS teardown request for " << radio_iface;
+            success = false;
+            continue;
+        }
+        if (!request_out->set_bridge_ifname(db->bridge.iface_name)) {
+            LOG(ERROR) << "Failed setting bridge interface in fronthaul BSS teardown request for "
+                       << radio_iface;
+            success = false;
+            continue;
+        }
+
+        size_t teardown_bss_count = 0;
+        bool request_valid        = true;
+        for (const auto &bss : radio->front.bssids) {
+            // A non-zero BSSID identifies a BSS configured on this radio.
+            if (bss.mac == network_utils::ZERO_MAC) {
+                continue;
+            }
+
+            auto wifi_credentials = request_out->create_wifi_credentials();
+            if (!wifi_credentials) {
+                LOG(ERROR) << "Failed building BSS teardown entry for " << radio_iface;
+                success       = false;
+                request_valid = false;
+                break;
+            }
+
+            wifi_credentials->bssid_attr().data = bss.mac;
+            wifi_credentials->bss_type()        = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+            wifi_credentials->set_ssid("");
+            wifi_credentials->set_network_key("");
+            wifi_credentials->authentication_type_attr().data = WSC::eWscAuth::WSC_AUTH_INVALID;
+            wifi_credentials->encryption_type_attr().data     = WSC::eWscEncr::WSC_ENCR_INVALID;
+
+            if (!request_out->add_wifi_credentials(std::move(wifi_credentials))) {
+                LOG(ERROR) << "Failed adding BSS teardown entry for " << radio_iface;
+                success       = false;
+                request_valid = false;
+                break;
+            }
+            teardown_bss_count++;
+        }
+
+        if (!request_valid) {
+            continue;
+        }
+        if (teardown_bss_count == 0) {
+            LOG(DEBUG) << "No configured fronthaul BSSs to tear down on " << radio_iface;
+            continue;
+        }
+
+        LOG(INFO) << "Sending teardown for " << teardown_bss_count << " fronthaul BSS(s) on "
+                  << radio_iface;
+        if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+            LOG(ERROR) << "Failed sending fronthaul BSS teardown to AP manager for " << radio_iface;
+            success = false;
+        }
+    }
+
+    return success;
+}
+
 bool slave_thread::read_platform_configuration()
 {
     auto db = AgentDB::get();
@@ -1754,6 +1865,15 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
 
         m_stopped |= bool(notification->stopped());
 
+        if (notification->teardown_fronthaul()) {
+            if (!send_fronthaul_bss_teardown()) {
+                LOG(ERROR) << "Failed to tear down one or more fronthaul radios after backhaul "
+                              "disconnect; continuing Agent reset";
+            }
+        } else {
+            LOG(DEBUG) << "Backhaul Manager restart does not require fronthaul BSS teardown";
+        }
+
         agent_reset();
 
         m_task_pool.send_event(
@@ -2047,72 +2167,8 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
     }
     case beerocks_message::ACTION_BACKHAUL_RADIO_TEAR_DOWN_REQUEST: {
         LOG(DEBUG) << "ACTION_BACKHAUL_RADIO_TEAR_DOWN_REQUEST";
-
-        ///////////////////////////////////////////////////////////////////
-        // Short term solution
-        // In non-EasyMesh mode, never modify hostapd configuration
-        // and in this case VAPs credentials
-        //
-        // Long term solution
-        // All EasyMesh VAPs will be stored in the platform DB.
-        // All other VAPs are manual, AKA should not be modified by prplMesh
-        ////////////////////////////////////////////////////////////////////
-        auto db = AgentDB::get();
-        if (db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
-            LOG(WARNING) << "non-EasyMesh mode - skip updating VAP credentials";
-            break;
-        }
-        LOG(DEBUG) << "Request agent to tear down";
-        for (const auto &radio_manager_element : m_radio_managers.get()) {
-            auto &radio_manager = radio_manager_element.second;
-            auto radio_iface =
-                m_radio_managers.get_radio_iface_from_fd(radio_manager.ap_manager_fd);
-            auto radio = db->radio(radio_iface);
-            if (!radio) {
-                LOG(ERROR) << "Could not find Radio for " << radio_iface;
-                return false;
-            }
-            // Reset VLAN Config before tear down
-            auto pvid_set_request = message_com::create_vs_message<
-                beerocks_message::cACTION_APMANAGER_HOSTAP_SET_PRIMARY_VLAN_ID_REQUEST>(cmdu_tx);
-            if (!pvid_set_request) {
-                LOG(ERROR) << "Failed building message!";
-                return false;
-            }
-
-            pvid_set_request->primary_vlan_id() = 0;
-            // Send ACTION_APMANAGER_HOSTAP_SET_PRIMARY_VLAN_ID_REQUEST.
-            send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
-
-            // Tear down all VAPS in the radio by sending an update request with an empty
-            // configuration.
-            auto request_out = message_com::create_vs_message<
-                beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>(cmdu_tx);
-            if (!request_out) {
-                LOG(ERROR) << "Failed building message "
-                              "cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST!";
-                return false;
-            }
-            request_out->set_bridge_ifname(db->bridge.iface_name);
-            for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
-                if (radio->front.bssids[vap_idx].mac == network_utils::ZERO_MAC) {
-                    continue;
-                }
-                auto wifi_credentials = request_out->create_wifi_credentials();
-                if (!wifi_credentials) {
-                    LOG(ERROR) << "Failed building wifi_credentials message!";
-                    return false;
-                }
-
-                wifi_credentials->bssid_attr().data = radio->front.bssids[vap_idx].mac;
-                wifi_credentials->bss_type()        = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
-                wifi_credentials->set_ssid("");
-                wifi_credentials->set_network_key("");
-                wifi_credentials->authentication_type_attr().data = WSC::eWscAuth::WSC_AUTH_INVALID;
-                wifi_credentials->encryption_type_attr().data     = WSC::eWscEncr::WSC_ENCR_INVALID;
-                request_out->add_wifi_credentials(wifi_credentials);
-            }
-            send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
+        if (!send_fronthaul_bss_teardown()) {
+            LOG(ERROR) << "Failed to tear down one or more fronthaul radios";
         }
         break;
     }

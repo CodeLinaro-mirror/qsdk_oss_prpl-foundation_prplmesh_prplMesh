@@ -1089,9 +1089,10 @@ bool BackhaulManager::handle_wired_controller_detected(uint32_t iface_index)
     // The response proves that the controller is reachable through this wired candidate. Clear the
     // previous wired-failure guard and remember the responding interface so ENABLED selects it on
     // the next pass instead of falling back to the first configured candidate.
-    m_skip_wired_backhaul             = false;
-    m_preferred_wired_candidate_iface = std::move(iface_name);
-    db->ethernet.wan                  = std::move(candidate);
+    m_skip_wired_backhaul              = false;
+    m_teardown_fronthaul_on_disconnect = false;
+    m_preferred_wired_candidate_iface  = std::move(iface_name);
+    db->ethernet.wan                   = std::move(candidate);
 
     if (!FSM_IS_IN_STATE(RESTART)) {
         FSM_MOVE_STATE(RESTART);
@@ -1405,6 +1406,8 @@ void BackhaulManager::platform_notify_error(bpl::eErrorCode code, const std::str
 
 bool BackhaulManager::handle_backhaul_connect()
 {
+    m_teardown_fronthaul_on_disconnect = false;
+
     // Build the notification message
     auto notification =
         message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_CONNECTED_NOTIFICATION>(
@@ -1525,9 +1528,12 @@ bool BackhaulManager::handle_backhaul_disconnect()
 
     notification->stopped() =
         static_cast<uint8_t>(configuration_stop_on_failure_attempts && !stop_on_failure_attempts);
+    notification->teardown_fronthaul() = static_cast<uint8_t>(m_teardown_fronthaul_on_disconnect);
 
-    LOG(DEBUG) << "Sending DISCONNECTED notification";
+    LOG(DEBUG) << "Sending DISCONNECTED notification, teardown_fronthaul="
+               << m_teardown_fronthaul_on_disconnect;
     send_cmdu(m_agent_fd, cmdu_tx);
+    m_teardown_fronthaul_on_disconnect = false;
     return true;
 }
 
@@ -2464,6 +2470,9 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
         auto now = std::chrono::steady_clock::now();
         if (now > state_time_stamp_timeout) {
             LOG(DEBUG) << "reconnect wait timed out";
+            // A transient disconnect has now exceeded the reconnect grace period. If recovery
+            // eventually requires RESTART, tell the Agent to tear down its fronthaul BSSs.
+            m_teardown_fronthaul_on_disconnect = true;
 
             // increment attempts count in blacklist
             if (!selected_bssid.empty()) {
@@ -2795,6 +2804,9 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
                    << FSM_CURR_STATE_STR;
 
         if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {
+            // ControllerConnectivityTask sends this command after it confirms that controller
+            // connectivity cannot be recovered through the current backhaul.
+            m_teardown_fronthaul_on_disconnect = true;
             FSM_MOVE_STATE(RESTART);
         }
         break;
@@ -2805,6 +2817,12 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
                    << FSM_CURR_STATE_STR;
 
         auto db = AgentDB::get();
+
+        // ControllerConnectivityTask sends this after controller connectivity over the current
+        // backhaul has timed out and a stored wireless link is available. Keep the fronthaul up
+        // while attempting that fallback. A successful connection clears this flag in
+        // handle_backhaul_connect(); a failed attempt tears the fronthaul down on RESTART.
+        m_teardown_fronthaul_on_disconnect = true;
 
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
             FSM_MOVE_STATE(INIT_HAL);
@@ -3252,6 +3270,8 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         } else if (FSM_IS_IN_STATE(WIRELESS_WAIT_FOR_RECONNECT)) {
             LOG(DEBUG) << "reconnected successfully, continuing";
 
+            m_teardown_fronthaul_on_disconnect = false;
+
             // IRE running controller
             if (db->device_conf.local_controller && !db->device_conf.local_gw) {
                 FSM_MOVE_STATE(CONNECTED);
@@ -3277,7 +3297,6 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         }
         if (iface == db->backhaul.selected_iface_name) {
             if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {
-
                 // If this event comes as a result of a steering request, then do not consider it
                 // as an error.
                 if (m_backhaul_steering_bssid == beerocks::net::network_utils::ZERO_MAC) {
@@ -3331,6 +3350,9 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         platform_notify_error(bpl::eErrorCode::BH_WPA_SUPPLICANT_TERMINATED,
                               "wpa_supplicant terminated");
         stop_on_failure_attempts--;
+        if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {
+            m_teardown_fronthaul_on_disconnect = true;
+        }
         FSM_MOVE_STATE(RESTART);
 
     } break;
