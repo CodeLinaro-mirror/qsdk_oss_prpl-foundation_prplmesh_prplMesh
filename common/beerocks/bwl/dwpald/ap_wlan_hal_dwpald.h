@@ -136,6 +136,7 @@ public:
     virtual bool configure_service_priority(const uint8_t *data) override;
     virtual bool
     start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) override;
+    virtual bool get_afc_spectrum_update_data(sAfcSpectrumUpdateData &data) override;
 
     enum eConstant : int {
         PCP_RANGE_LEN                      = 8,
