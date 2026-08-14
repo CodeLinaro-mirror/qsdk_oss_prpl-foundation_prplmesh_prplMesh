@@ -125,6 +125,7 @@ public:
     virtual bool update_mld_mode(std::string ssid, uint8_t mld_mode) override;
     virtual bool update_mld_unit(std::string ssid_alias, int8_t mld_unit,
                                  bool reconfigure) override;
+    virtual bool get_afc_spectrum_update_data(sAfcSpectrumUpdateData &data) override;
     virtual bool configure_service_priority(const uint8_t *data) override;
     virtual bool
     start_platform_acs(const std::shared_ptr<airties::cACSChannelList> &acs_list) override;
