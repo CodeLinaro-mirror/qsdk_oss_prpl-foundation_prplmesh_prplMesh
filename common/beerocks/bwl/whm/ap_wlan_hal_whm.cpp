@@ -7,6 +7,7 @@
  */
 
 #include "ap_wlan_hal_whm.h"
+#include "ap_wlan_hal_whm_afc_utils.h"
 
 #include <algorithm>
 #include <bcl/beerocks_defines.h>
@@ -2226,15 +2227,9 @@ bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVari
 
 bool ap_wlan_hal_whm::process_afc_update_event(const AmbiorixVariant *value)
 {
-    auto parameters = value->find_child("Updates");
-    if (!parameters || parameters->empty()) {
-        LOG(ERROR) << "Received AFC Update event without Updates parameter";
-        return false;
-    }
-
     std::string status;
-    if (!parameters->read_child(status, "InquiryStatus")) {
-        LOG(ERROR) << "Received AFC Update event without InquiryStatus parameter";
+    if (!afc_utils::parse_afc_update_inquiry_status(value, status)) {
+        LOG(ERROR) << "Received AFC Update event without Updates/InquiryStatus parameter";
         return false;
     }
 
@@ -2245,6 +2240,57 @@ bool ap_wlan_hal_whm::process_afc_update_event(const AmbiorixVariant *value)
 
     // Emit AFCUpdate event when status is UPDATE
     event_queue_push(Event::AFCUpdate);
+    return true;
+}
+
+bool ap_wlan_hal_whm::get_afc_spectrum_update_data(sAfcSpectrumUpdateData &data)
+{
+    data = {};
+
+    if (!m_ambiorix_cl.get_param(data.inquiry_request, afc_utils::AFC_STATS_PATH,
+                                 afc_utils::AFC_REQUEST_PARAM)) {
+        LOG(ERROR) << "Failed to read " << afc_utils::AFC_STATS_PATH
+                   << afc_utils::AFC_REQUEST_PARAM;
+        return false;
+    }
+
+    if (!m_ambiorix_cl.get_param(data.inquiry_response, afc_utils::AFC_STATS_PATH,
+                                 afc_utils::AFC_RESPONSE_PARAM)) {
+        LOG(ERROR) << "Failed to read " << afc_utils::AFC_STATS_PATH
+                   << afc_utils::AFC_RESPONSE_PARAM;
+        return false;
+    }
+
+    std::string grant_status;
+    if (m_ambiorix_cl.get_param(grant_status, afc_utils::AFC_STATS_PATH,
+                                afc_utils::AFC_GRANT_STATUS_PARAM)) {
+        data.grant_successful = (grant_status == "Success");
+        if (!data.grant_successful) {
+            LOG(INFO) << "AFC grant status is not Success: " << grant_status;
+        }
+    }
+
+    const auto &iface_name = get_radio_info().iface_name;
+    if (!iface_name.empty()) {
+        const auto radio_path = wbapi_utils::search_path_radio_by_iface(iface_name);
+
+        std::string power_type;
+        if (m_ambiorix_cl.get_param(power_type, radio_path, afc_utils::RADIO_POWER_TYPE_PARAM) &&
+            power_type == "StandardPower" && data.grant_successful &&
+            !data.inquiry_request.empty() && !data.inquiry_response.empty()) {
+            data.regulatory_applicable = true;
+        }
+
+        std::string possible_channels_str;
+        if (m_ambiorix_cl.get_param(possible_channels_str, radio_path,
+                                    afc_utils::RADIO_POSSIBLE_CHANNELS_PARAM)) {
+            std::unordered_set<uint8_t> channels;
+            if (afc_utils::parse_possible_channels_list(possible_channels_str, channels)) {
+                data.possible_channels = afc_utils::channels_set_to_string(channels);
+            }
+        }
+    }
+
     return true;
 }
 

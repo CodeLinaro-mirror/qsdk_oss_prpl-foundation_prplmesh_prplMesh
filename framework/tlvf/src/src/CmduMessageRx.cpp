@@ -646,7 +646,7 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
         return msg.addClass<wfa_map::tlvEHTOperations>();
     }
     case (wfa_map::eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_REQUEST): {
-        return msg.addClass<wfa_map::tlvSpatialReuseReport>();
+        return msg.addClass<wfa_map::tlvAvailableSpectrumInquiryRequest>();
     }
     case (wfa_map::eTlvTypeMap::TLV_AVAILABLE_SPECTRUM_INQUIRY_RESPONSE): {
         return msg.addClass<wfa_map::tlvAvailableSpectrumInquiryResponse>();

@@ -65,12 +65,18 @@ public:
         std::string ISO_8601_timestamp;
     };
 
+    struct sAvailableSpectrumInquiryEvent {
+        sMacAddr agent_mac;
+        std::vector<sMacAddr> affected_6g_radios;
+    };
+
     enum eEvent : uint8_t {
         TRIGGER_ON_DEMAND_CHANNEL_SELECTION,
         REQUEST_NEW_PREFERENCE,
         TRIGGER_SINGLE_SCAN,
         RECEIVED_CHANNEL_SCAN_REPORT,
-        CONTINUOUS_STATE_CHANGED_PER_RADIO
+        CONTINUOUS_STATE_CHANGED_PER_RADIO,
+        AVAILABLE_SPECTRUM_INQUIRY_RECEIVED
     };
 
     enum class eRadioScanStatus : uint8_t { PENDING, TRIGGERED_WAIT_FOR_ACK, SCAN_IN_PROGRESS };
@@ -185,6 +191,18 @@ private:
     eScanState m_scan_state           = eScanState::IDLE;
     eSelectionState m_selection_state = eSelectionState::IDLE;
 
+    struct sAfcChannelSelectionRequest : public sChannelSelectionRequest {
+        explicit sAfcChannelSelectionRequest(uint8_t csa_count_, bool tx_power_limit_valid_ = false,
+                                             int8_t tx_power_limit_dbm_ = 0)
+            : sChannelSelectionRequest(csa_count_), tx_power_limit_valid(tx_power_limit_valid_),
+              tx_power_limit_dbm(tx_power_limit_dbm_)
+        {
+        }
+
+        bool tx_power_limit_valid = false;
+        int8_t tx_power_limit_dbm = 0;
+    };
+
     // Class constants
     static constexpr uint16_t INVALID_MID_ID = UINT16_MAX;
 
@@ -241,6 +259,10 @@ private:
      * @return true if successful, false otherwise.
      */
     bool handle_preference_request_event(const sPreferenceRequestEvent &preference_request_event);
+    /** @brief Handle Available Spectrum Inquiry from an agent (AFC update).
+     */
+    bool
+    handle_available_spectrum_inquiry_event(const sAvailableSpectrumInquiryEvent &inquiry_event);
 
     /**
      * @brief Send pending channel Selection requests

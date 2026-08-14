@@ -4029,6 +4029,13 @@ bool ap_wlan_hal_dwpal::change_radio_mode_config(
     return false;
 }
 
+bool ap_wlan_hal_dwpal::get_afc_spectrum_update_data(sAfcSpectrumUpdateData &data)
+{
+    (void)data;
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace dwpal
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, hal_conf_t hal_conf,

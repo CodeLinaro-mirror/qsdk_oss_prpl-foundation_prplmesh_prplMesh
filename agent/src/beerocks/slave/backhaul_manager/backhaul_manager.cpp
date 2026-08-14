@@ -191,9 +191,13 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     }
 
     // Agent tasks
-    m_task_pool.add_task(std::make_shared<ChannelSelectionTask>(*this, cmdu_tx));
+    auto channel_selection_task = std::make_shared<ChannelSelectionTask>(*this, cmdu_tx);
+    m_task_pool.add_task(channel_selection_task);
     m_task_pool.add_task(
         std::make_shared<ChannelScanTask>(*this, cmdu_tx, on_boot_scan, dwell_time));
+    m_task_pool.add_task(
+        std::make_shared<SpectrumInquiryTask>(*this, cmdu_tx, channel_selection_task));
+
     m_task_pool.add_task(
         std::make_shared<switch_channel::SwitchChannelTask>(m_task_pool, *this, cmdu_tx));
     m_task_pool.add_task(

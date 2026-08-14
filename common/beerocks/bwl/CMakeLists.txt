@@ -232,6 +232,13 @@ if (BUILD_TESTS)
              ${MODULE_PATH}/unit_tests/whm_vap_refresh_test.cpp
         )
     endif()
+    
+    if(BWL_TYPE STREQUAL "WHM")
+        list(APPEND unit_tests_sources
+            ${MODULE_PATH}/unit_tests/ap_wlan_hal_whm_afc_test.cpp
+        )
+    endif()
+
     if(NOT BWL_TYPE STREQUAL "WHM")
         list(APPEND unit_tests_sources
              ${MODULE_PATH}/unit_tests/nl80211_client_impl_test.cpp
@@ -264,7 +271,7 @@ if (BUILD_TESTS)
         endif()
     endif()
     target_link_libraries(${TEST_PROJECT_NAME} prplmesh_hostapd bcl elpp ${BWL_LIBS})
-    target_link_libraries(${TEST_PROJECT_NAME} gtest_main)
+    target_link_libraries(${TEST_PROJECT_NAME} gtest_main gmock)
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)
     add_test(NAME ${TEST_PROJECT_NAME} COMMAND $<TARGET_FILE:${TEST_PROJECT_NAME}>)
 endif()
