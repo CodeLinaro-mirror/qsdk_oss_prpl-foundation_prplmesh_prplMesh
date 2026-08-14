@@ -116,6 +116,7 @@ class cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION : public BaseClass
             return (eActionOp_BACKHAUL)(ACTION_BACKHAUL_DISCONNECTED_NOTIFICATION);
         }
         uint8_t& stopped();
+        uint8_t& teardown_fronthaul();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -124,6 +125,7 @@ class cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION : public BaseClass
         bool init();
         eActionOp_BACKHAUL* m_action_op = nullptr;
         uint8_t* m_stopped = nullptr;
+        uint8_t* m_teardown_fronthaul = nullptr;
 };
 
 class cACTION_BACKHAUL_ENABLE_APS_REQUEST : public BaseClass
