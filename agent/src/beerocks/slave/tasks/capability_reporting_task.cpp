@@ -1075,7 +1075,8 @@ bool CapabilityReportingTask::add_cac_capabilities_tlv()
             cac_type_tlv->cac_method() = static_cast<wfa_map::eCacMethod>(cac_method);
 
             uint32_t duration = m_cac_capabilities.get_cac_completion_duration(radio, cac_method);
-            memcpy(cac_type_tlv->duration(), &duration, 3);
+            duration          = htonl(duration);
+            memcpy(cac_type_tlv->duration(), reinterpret_cast<uint8_t *>(&duration) + 1, 3);
 
             // operating classes
             const CacCapabilities::CacOperatingClasses &cac_operating_classes =
