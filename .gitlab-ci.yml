@@ -265,6 +265,12 @@ higher_layer_collection_task_test:
 ieee1905_task_test:
   extends: .run-test-in-docker
 
+afc_spectrum_parser_unit_tests:
+  extends: .run-test-in-docker
+
+afc_easymesh_tlv_unit_tests:
+  extends: .run-test-in-docker
+
 test-gw-repeater:
   stage: test
   script:

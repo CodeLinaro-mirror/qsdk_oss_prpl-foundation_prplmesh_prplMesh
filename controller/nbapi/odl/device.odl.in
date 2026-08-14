@@ -364,6 +364,22 @@
                 %read-only uint32 Countdown = 0;
             }
         }
+        /* Available Spectrum Inquiry request/response from AFC [Section 8.2.5/EasyMesh]. */
+        %read-only object AFCAvailableSpectrum {
+            /**
+            * One JSON encoded AvailableSpectrumInquiryRequestMessage object as defined in
+            * [Section 8.2.5 and Section 17.2.104 Available Spectrum Inquiry Request TLV/EasyMesh].
+            * @version 2.19
+            */
+            %read-only string AFCAvailableSpectrumInquiryRequest;
+
+            /**
+            * One JSON encoded AvailableSpectrumInquiryResponseMessage object as defined in
+            * [Section 8.2.5 and Section 17.2.105 Available Spectrum Inquiry Response TLV/EasyMesh].
+            * @version 2.19
+            */
+            %read-only string AFCAvailableSpectrumInquiryResponse;
+        }
 
         /* IEEE 1905 security capabilities. */
         %read-only object IEEE1905Security [] {
