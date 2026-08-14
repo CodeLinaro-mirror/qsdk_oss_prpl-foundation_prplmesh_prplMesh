@@ -361,6 +361,29 @@ cACTION_APMANAGER_RADIO_MODE_CONFIG_REQUEST:
 cACTION_APMANAGER_HEARTBEAT_NOTIFICATION:
   _type: class
 
+cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION:
+  _type: class
+  grant_successful: uint8_t #bool
+  regulatory_applicable: uint8_t #bool
+  inquiry_request_length:
+    _type: uint16_t
+    _length_var: True
+  inquiry_request:
+    _type: char
+    _length: [inquiry_request_length]
+  inquiry_response_length:
+    _type: uint16_t
+    _length_var: True
+  inquiry_response:
+    _type: char
+    _length: [inquiry_response_length]
+  possible_channels_length:
+    _type: uint16_t
+    _length_var: True
+  possible_channels:
+    _type: char
+    _length: [possible_channels_length]
+
 cACTION_APMANAGER_CHANNELS_LIST_REQUEST:
   _type: class
 

@@ -5079,6 +5079,327 @@ bool cACTION_APMANAGER_HEARTBEAT_NOTIFICATION::init()
     return true;
 }
 
+cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::~cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION() {
+}
+uint8_t& cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::grant_successful() {
+    return (uint8_t&)(*m_grant_successful);
+}
+
+uint8_t& cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::regulatory_applicable() {
+    return (uint8_t&)(*m_regulatory_applicable);
+}
+
+uint16_t& cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::inquiry_request_length() {
+    return (uint16_t&)(*m_inquiry_request_length);
+}
+
+std::string cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::inquiry_request_str() {
+    char *inquiry_request_ = inquiry_request();
+    if (!inquiry_request_) { return std::string(); }
+    auto str = std::string(inquiry_request_, m_inquiry_request_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::inquiry_request(size_t length) {
+    if( (m_inquiry_request_idx__ == 0) || (m_inquiry_request_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "inquiry_request length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_inquiry_request);
+}
+
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::set_inquiry_request(const std::string& str) { return set_inquiry_request(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::set_inquiry_request(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_inquiry_request received a null pointer.";
+        return false;
+    }
+    if (m_inquiry_request_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_inquiry_request was already allocated!";
+        return false;
+    }
+    if (!alloc_inquiry_request(size)) { return false; }
+    std::copy(str, str + size, m_inquiry_request);
+    return true;
+}
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::alloc_inquiry_request(size_t count) {
+    if (m_lock_order_counter__ > 0) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list inquiry_request, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    m_lock_order_counter__ = 0;
+    uint8_t *src = (uint8_t *)&m_inquiry_request[*m_inquiry_request_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_inquiry_response_length = (uint16_t *)((uint8_t *)(m_inquiry_response_length) + len);
+    m_inquiry_response = (char *)((uint8_t *)(m_inquiry_response) + len);
+    m_possible_channels_length = (uint16_t *)((uint8_t *)(m_possible_channels_length) + len);
+    m_possible_channels = (char *)((uint8_t *)(m_possible_channels) + len);
+    m_inquiry_request_idx__ += count;
+    *m_inquiry_request_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
+uint16_t& cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::inquiry_response_length() {
+    return (uint16_t&)(*m_inquiry_response_length);
+}
+
+std::string cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::inquiry_response_str() {
+    char *inquiry_response_ = inquiry_response();
+    if (!inquiry_response_) { return std::string(); }
+    auto str = std::string(inquiry_response_, m_inquiry_response_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::inquiry_response(size_t length) {
+    if( (m_inquiry_response_idx__ == 0) || (m_inquiry_response_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "inquiry_response length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_inquiry_response);
+}
+
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::set_inquiry_response(const std::string& str) { return set_inquiry_response(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::set_inquiry_response(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_inquiry_response received a null pointer.";
+        return false;
+    }
+    if (m_inquiry_response_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_inquiry_response was already allocated!";
+        return false;
+    }
+    if (!alloc_inquiry_response(size)) { return false; }
+    std::copy(str, str + size, m_inquiry_response);
+    return true;
+}
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::alloc_inquiry_response(size_t count) {
+    if (m_lock_order_counter__ > 1) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list inquiry_response, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    m_lock_order_counter__ = 1;
+    uint8_t *src = (uint8_t *)&m_inquiry_response[*m_inquiry_response_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_possible_channels_length = (uint16_t *)((uint8_t *)(m_possible_channels_length) + len);
+    m_possible_channels = (char *)((uint8_t *)(m_possible_channels) + len);
+    m_inquiry_response_idx__ += count;
+    *m_inquiry_response_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
+uint16_t& cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::possible_channels_length() {
+    return (uint16_t&)(*m_possible_channels_length);
+}
+
+std::string cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::possible_channels_str() {
+    char *possible_channels_ = possible_channels();
+    if (!possible_channels_) { return std::string(); }
+    auto str = std::string(possible_channels_, m_possible_channels_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::possible_channels(size_t length) {
+    if( (m_possible_channels_idx__ == 0) || (m_possible_channels_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "possible_channels length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_possible_channels);
+}
+
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::set_possible_channels(const std::string& str) { return set_possible_channels(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::set_possible_channels(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_possible_channels received a null pointer.";
+        return false;
+    }
+    if (m_possible_channels_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_possible_channels was already allocated!";
+        return false;
+    }
+    if (!alloc_possible_channels(size)) { return false; }
+    std::copy(str, str + size, m_possible_channels);
+    return true;
+}
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::alloc_possible_channels(size_t count) {
+    if (m_lock_order_counter__ > 2) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list possible_channels, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    m_lock_order_counter__ = 2;
+    uint8_t *src = (uint8_t *)&m_possible_channels[*m_possible_channels_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_possible_channels_idx__ += count;
+    *m_possible_channels_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
+void cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_inquiry_request_length));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_inquiry_response_length));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_possible_channels_length));
+}
+
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(uint8_t); // grant_successful
+    class_size += sizeof(uint8_t); // regulatory_applicable
+    class_size += sizeof(uint16_t); // inquiry_request_length
+    class_size += sizeof(uint16_t); // inquiry_response_length
+    class_size += sizeof(uint16_t); // possible_channels_length
+    return class_size;
+}
+
+bool cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_grant_successful = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_regulatory_applicable = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_inquiry_request_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_inquiry_request_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_inquiry_request = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t inquiry_request_length = *m_inquiry_request_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&inquiry_request_length)); }
+    m_inquiry_request_idx__ = inquiry_request_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (inquiry_request_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (inquiry_request_length) << ") Failed!";
+        return false;
+    }
+    m_inquiry_response_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_inquiry_response_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_inquiry_response = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t inquiry_response_length = *m_inquiry_response_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&inquiry_response_length)); }
+    m_inquiry_response_idx__ = inquiry_response_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (inquiry_response_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (inquiry_response_length) << ") Failed!";
+        return false;
+    }
+    m_possible_channels_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_possible_channels_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_possible_channels = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t possible_channels_length = *m_possible_channels_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&possible_channels_length)); }
+    m_possible_channels_idx__ = possible_channels_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (possible_channels_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (possible_channels_length) << ") Failed!";
+        return false;
+    }
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cACTION_APMANAGER_CHANNELS_LIST_REQUEST::cACTION_APMANAGER_CHANNELS_LIST_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();

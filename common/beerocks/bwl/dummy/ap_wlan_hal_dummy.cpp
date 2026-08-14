@@ -909,6 +909,13 @@ bool ap_wlan_hal_dummy::update_mld_unit(std::string ssid_alias, int8_t mld_unit,
     return false;
 }
 
+bool ap_wlan_hal_dummy::get_afc_spectrum_update_data(sAfcSpectrumUpdateData &data)
+{
+    (void)data;
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace dummy
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,

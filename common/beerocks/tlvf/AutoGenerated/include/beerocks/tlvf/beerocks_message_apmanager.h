@@ -1377,6 +1377,57 @@ class cACTION_APMANAGER_HEARTBEAT_NOTIFICATION : public BaseClass
         eActionOp_APMANAGER* m_action_op = nullptr;
 };
 
+class cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION);
+        }
+        uint8_t& grant_successful();
+        uint8_t& regulatory_applicable();
+        uint16_t& inquiry_request_length();
+        std::string inquiry_request_str();
+        char* inquiry_request(size_t length = 0);
+        bool set_inquiry_request(const std::string& str);
+        bool set_inquiry_request(const char buffer[], size_t size);
+        bool alloc_inquiry_request(size_t count = 1);
+        uint16_t& inquiry_response_length();
+        std::string inquiry_response_str();
+        char* inquiry_response(size_t length = 0);
+        bool set_inquiry_response(const std::string& str);
+        bool set_inquiry_response(const char buffer[], size_t size);
+        bool alloc_inquiry_response(size_t count = 1);
+        uint16_t& possible_channels_length();
+        std::string possible_channels_str();
+        char* possible_channels(size_t length = 0);
+        bool set_possible_channels(const std::string& str);
+        bool set_possible_channels(const char buffer[], size_t size);
+        bool alloc_possible_channels(size_t count = 1);
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        uint8_t* m_grant_successful = nullptr;
+        uint8_t* m_regulatory_applicable = nullptr;
+        uint16_t* m_inquiry_request_length = nullptr;
+        char* m_inquiry_request = nullptr;
+        size_t m_inquiry_request_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+        uint16_t* m_inquiry_response_length = nullptr;
+        char* m_inquiry_response = nullptr;
+        size_t m_inquiry_response_idx__ = 0;
+        uint16_t* m_possible_channels_length = nullptr;
+        char* m_possible_channels = nullptr;
+        size_t m_possible_channels_idx__ = 0;
+};
+
 class cACTION_APMANAGER_CHANNELS_LIST_REQUEST : public BaseClass
 {
     public:

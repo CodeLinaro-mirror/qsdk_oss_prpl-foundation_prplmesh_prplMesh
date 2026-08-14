@@ -20,6 +20,7 @@
 #include <tlvf/wfa_map/tlvSpatialReuseRequest.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 #include <unordered_map>
+#include <vector>
 
 #include <beerocks/tlvf/enums/eDfsState.h>
 
@@ -41,6 +42,19 @@ public:
     bool handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index,
                      const sMacAddr &dst_mac, const sMacAddr &src_mac, int fd,
                      std::shared_ptr<beerocks_header> beerocks_header) override;
+
+    /**
+     * @brief Build 6 GHz channel preferences affected by an AFC spectrum update.
+     */
+    bool build_afc_channel_preference_report(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Encode radio->channel_preferences as tlvChannelPreference on the given CMDU.
+     *
+     * Generic for any message (preference report, AFC inquiry, etc.). What goes into the TLV
+     * depends on how radio->channel_preferences was populated beforehand.
+     */
+    bool add_channel_preference_tlv(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &radio_mac);
 
 private:
     /**

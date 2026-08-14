@@ -193,6 +193,29 @@ cACTION_BACKHAUL_MLD_UPDATE_REQUEST:
 cACTION_BACKHAUL_TOPOLOGY_NOTIFICATION_COMMAND:
   _type: class
 
+cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION:
+  _type: class
+  grant_successful: uint8_t #bool
+  regulatory_applicable: uint8_t #bool
+  inquiry_request_length:
+    _type: uint16_t
+    _length_var: True
+  inquiry_request:
+    _type: char
+    _length: [inquiry_request_length]
+  inquiry_response_length:
+    _type: uint16_t
+    _length_var: True
+  inquiry_response:
+    _type: char
+    _length: [inquiry_response_length]
+  possible_channels_length:
+    _type: uint16_t
+    _length_var: True
+  possible_channels:
+    _type: char
+    _length: [possible_channels_length]
+
 ################################################
 # CHANNEL SCAN REQUESTS/RESPONSES
 ################################################
