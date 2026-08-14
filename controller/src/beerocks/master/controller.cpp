@@ -7,6 +7,7 @@
  */
 
 #include "controller.h"
+#include "afc_spectrum_parser.h"
 #include "periodic/persistent_data_commit_operation.h"
 #include "periodic/persistent_database_aging.h"
 #include "son_actions.h"
@@ -32,6 +33,7 @@
 #include "tasks/dynamic_channel_selection_task.h"
 
 #include <bcl/beerocks_backport.h>
+#include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_utils.h>
 #include <bcl/beerocks_version.h>
 #include <bcl/beerocks_wifi_channel.h>
@@ -69,6 +71,7 @@
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvAssociatedWiFi6StaStatusReport.h>
 #include <tlvf/wfa_map/tlvAvailableSpectrumInquiryRequest.h>
+#include <tlvf/wfa_map/tlvAvailableSpectrumInquiryResponse.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaRadioCapabilities.h>
 #include <tlvf/wfa_map/tlvBackhaulSteeringResponse.h>
@@ -2439,7 +2442,185 @@ bool Controller::handle_cmdu_1905_available_spectrum_inquiry_message(
         return false;
     }
     LOG(DEBUG) << "sending ACK message back to agent, mid=" << std::hex << int(mid);
-    return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
+    if (!son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database)) {
+        LOG(ERROR) << "Failed to send ACK for AVAILABLE_SPECTRUM_INQUIRY_MESSAGE";
+        return false;
+    }
+
+    auto agent = database.get_agent(src_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent not found for AVAILABLE_SPECTRUM_INQUIRY_MESSAGE: " << src_mac;
+        return false;
+    }
+
+    std::string inquiry_request;
+    std::string inquiry_response;
+
+    if (auto request_tlv = cmdu_rx.getClass<wfa_map::tlvAvailableSpectrumInquiryRequest>()) {
+        const auto request_len = request_tlv->available_spectrum_inquiry_request_obj_length();
+        if (request_len > 0 && request_tlv->available_spectrum_inquiry_request_obj(0)) {
+            inquiry_request.assign(reinterpret_cast<const char *>(
+                                       request_tlv->available_spectrum_inquiry_request_obj(0)),
+                                   request_len);
+        }
+    } else {
+        LOG(ERROR) << "Missing tlvAvailableSpectrumInquiryRequest";
+        return false;
+    }
+
+    if (auto response_tlv = cmdu_rx.getClass<wfa_map::tlvAvailableSpectrumInquiryResponse>()) {
+        const auto response_len = response_tlv->available_spectrum_inquiry_response_obj_length();
+        if (response_len > 0 && response_tlv->available_spectrum_inquiry_response_obj(0)) {
+            inquiry_response.assign(reinterpret_cast<const char *>(
+                                        response_tlv->available_spectrum_inquiry_response_obj(0)),
+                                    response_len);
+        }
+    } else {
+        LOG(ERROR) << "Missing tlvAvailableSpectrumInquiryResponse";
+        return false;
+    }
+
+    if (!database.dm_set_afc_available_spectrum_inquiry(agent, inquiry_request, inquiry_response)) {
+        LOG(ERROR) << "Failed to store AFC Available Spectrum Inquiry on datamodel";
+    }
+
+    std::vector<son::afc_spectrum_parser::sAvailableChannel> afc_available_channels;
+    const bool parsed_afc_channels = son::afc_spectrum_parser::parse_available_channel_info(
+        inquiry_response, afc_available_channels);
+
+    dynamic_channel_selection_r2_task::sAvailableSpectrumInquiryEvent inquiry_event = {};
+    inquiry_event.agent_mac                                                         = src_mac;
+
+    std::unordered_set<sMacAddr> affected_radios;
+
+    for (const auto &channel_preference_tlv :
+         cmdu_rx.getClassList<wfa_map::tlvChannelPreference>()) {
+        const auto &radio_uid = channel_preference_tlv->radio_uid();
+        if (database.get_radio_freq_type(radio_uid) != beerocks::eFreqType::FREQ_6G) {
+            continue;
+        }
+
+        if (!database.get_radio_by_uid(radio_uid)) {
+            LOG(ERROR) << "Unknown radio in AFC inquiry Channel Preference TLV: " << radio_uid;
+            continue;
+        }
+
+        affected_radios.insert(radio_uid);
+
+        database.clear_channel_preference(radio_uid);
+        for (size_t i = 0; i < channel_preference_tlv->operating_classes_list_length(); i++) {
+            if (!std::get<0>(channel_preference_tlv->operating_classes_list(i))) {
+                LOG(ERROR) << "Invalid operating class in AFC inquiry tlvChannelPreference";
+                continue;
+            }
+            auto &operating_class  = std::get<1>(channel_preference_tlv->operating_classes_list(i));
+            const auto &op_cls_num = operating_class.operating_class();
+            const auto &op_cls_flags = operating_class.flags();
+
+            for (size_t j = 0; j < operating_class.channel_list_length(); j++) {
+                const auto channel = operating_class.channel_list(j);
+                if (!channel) {
+                    continue;
+                }
+                if (!database.set_channel_preference(radio_uid, op_cls_num, *channel,
+                                                     op_cls_flags.preference)) {
+                    LOG(ERROR) << "Failed to update Channel Preference from AFC inquiry";
+                    return false;
+                }
+            }
+        }
+    }
+
+    // EasyMesh §8.2.5: Channel Preference TLVs in the inquiry are optional. Always include
+    // the agent's 6 GHz radios so CSR can be triggered from the AFC grant/power update.
+    for (const auto &radio_iter : agent->radios) {
+        const auto &radio_uid = radio_iter.first;
+        if (database.get_radio_freq_type(radio_uid) == beerocks::eFreqType::FREQ_6G) {
+            affected_radios.insert(radio_uid);
+        }
+    }
+
+    // Apply allowed channels / maxEirp from AFC JSON when preference TLVs were absent,
+    // and always cache a Transmit Power Limit for the AFC CSR (§8.2.5).
+    for (const auto &radio_uid : affected_radios) {
+        database.clear_afc_max_eirp(radio_uid);
+
+        if (parsed_afc_channels) {
+            // When inquiry had no Channel Preference TLVs, derive prefs from AFC allowed set.
+            if (cmdu_rx.getClassList<wfa_map::tlvChannelPreference>().empty()) {
+                database.clear_channel_preference(radio_uid);
+
+                std::unordered_set<uint8_t> allowed_channels;
+                for (const auto &entry : afc_available_channels) {
+                    allowed_channels.insert(entry.channel);
+                    if (!database.set_channel_preference(
+                            radio_uid, entry.operating_class, entry.channel,
+                            static_cast<uint8_t>(
+                                beerocks::eChannelPreferenceRankingConsts::BEST))) {
+                        LOG(ERROR) << "Failed to set AFC-allowed channel preference";
+                        return false;
+                    }
+                    if (entry.max_eirp_valid) {
+                        database.set_afc_max_eirp(radio_uid, entry.operating_class, entry.channel,
+                                                  entry.max_eirp_dbm);
+                    }
+                }
+
+                for (const auto &oper_class : son::wireless_utils::operating_classes_list) {
+                    if (son::wireless_utils::which_freq_op_cls(oper_class.first) !=
+                        beerocks::eFreqType::FREQ_6G) {
+                        continue;
+                    }
+                    for (const auto channel : oper_class.second.channels) {
+                        // For center-channel op classes, channel is the center index.
+                        if (allowed_channels.count(channel) > 0) {
+                            continue;
+                        }
+                        if (!database.set_channel_preference(
+                                radio_uid, oper_class.first, channel,
+                                static_cast<uint8_t>(
+                                    beerocks::eChannelPreferenceRankingConsts::NON_OPERABLE))) {
+                            LOG(ERROR) << "Failed to set AFC-denied channel preference";
+                            return false;
+                        }
+                    }
+                }
+            } else {
+                for (const auto &entry : afc_available_channels) {
+                    if (entry.max_eirp_valid) {
+                        database.set_afc_max_eirp(radio_uid, entry.operating_class, entry.channel,
+                                                  entry.max_eirp_dbm);
+                    }
+                }
+            }
+
+            auto radio = database.get_radio_by_uid(radio_uid);
+            const uint8_t preferred_channel =
+                radio ? radio->wifi_channel.get_channel() : static_cast<uint8_t>(0);
+            int8_t tx_limit_dbm = 0;
+            if (son::afc_spectrum_parser::select_transmit_power_limit_dbm(
+                    afc_available_channels, preferred_channel, tx_limit_dbm)) {
+                database.set_afc_transmit_power_limit(radio_uid, tx_limit_dbm);
+                LOG(INFO) << "AFC Transmit Power Limit for radio " << radio_uid << ": "
+                          << int(tx_limit_dbm) << " dBm";
+            }
+        }
+    }
+
+    inquiry_event.affected_6g_radios.assign(affected_radios.begin(), affected_radios.end());
+
+    if (!inquiry_event.affected_6g_radios.empty() &&
+        database.settings_dynamic_channel_select_task()) {
+        const auto dcs_task_id = database.get_dynamic_channel_selection_r2_task_id();
+        if (m_task_pool.is_task_running(dcs_task_id)) {
+            m_task_pool.push_event(
+                dcs_task_id,
+                dynamic_channel_selection_r2_task::eEvent::AVAILABLE_SPECTRUM_INQUIRY_RECEIVED,
+                &inquiry_event);
+        }
+    }
+
+    return true;
 }
 
 bool Controller::handle_tlv_associated_sta_extended_link_metrics(const sMacAddr &src_mac,

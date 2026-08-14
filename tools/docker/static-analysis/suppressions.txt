@@ -13,3 +13,6 @@ selfAssignment:agent/src/beerocks/slave/platform_manager/platform_manager.cpp
 
 // Suppress error: syntax error.
 syntaxError:agent/src/beerocks/slave/gate/unit_tests/gate_test.cpp
+syntaxError:controller/src/beerocks/master/unit_tests/afc_easymesh_tlv_test.cpp
+syntaxError:common/beerocks/bwl/unit_tests/ap_wlan_hal_whm_afc_test.cpp
+syntaxError:controller/src/beerocks/master/unit_tests/afc_spectrum_parser_test.cpp

@@ -85,6 +85,16 @@ public:
         APS_update_list,
         AFCUpdate,
     };
+    /**
+     * @brief AFC spectrum inquiry data read from the platform datamodel (WHM/pWHM).
+     */
+    struct sAfcSpectrumUpdateData {
+        std::string inquiry_request;
+        std::string inquiry_response;
+        bool grant_successful      = false;
+        bool regulatory_applicable = false;
+        std::string possible_channels;
+    };
 
     struct sBtmRequestParams {
         int8_t vap_id           = 0;
@@ -712,6 +722,15 @@ public:
      * @return true if MLDUnit is set correctly, false otherwise.
      */
     virtual bool update_mld_unit(std::string ssid, int8_t mld_unit, bool reconfigure) = 0;
+    /**
+     * @brief Read AFC Available Spectrum Inquiry payloads and per-radio channel data from DM.
+     *
+     * Implemented on WHM BWL; other backends return false.
+     *
+     * @param[out] data Populated AFC inquiry/grant/channel data for this radio.
+     * @return true when inquiry request/response were read successfully.
+     */
+    virtual bool get_afc_spectrum_update_data(sAfcSpectrumUpdateData &data) = 0;
 
 private:
     static const int frame_body_idx = (sizeof(s80211MgmtFrame::sHeader) * 2);

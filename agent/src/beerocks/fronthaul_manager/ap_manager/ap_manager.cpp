@@ -2719,6 +2719,45 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         }
     } break;
 
+    case Event::AFCUpdate: {
+        LOG(INFO) << "AFC :AFCUpdate event received";
+
+        bwl::ap_wlan_hal::sAfcSpectrumUpdateData afc_data;
+        if (!ap_wlan_hal->get_afc_spectrum_update_data(afc_data)) {
+            LOG(ERROR) << "AFC : Failed to read AFC spectrum update data from platform HAL";
+            break;
+        }
+
+        auto notification = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION>(cmdu_tx);
+        if (!notification) {
+            LOG(ERROR)
+                << "AFC : Failed building cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION message!";
+            break;
+        }
+
+        notification->grant_successful()      = afc_data.grant_successful ? 1 : 0;
+        notification->regulatory_applicable() = afc_data.regulatory_applicable ? 1 : 0;
+
+        if (!notification->set_inquiry_request(afc_data.inquiry_request)) {
+            LOG(ERROR) << "AFC : Failed to serialize inquiry request (size="
+                       << afc_data.inquiry_request.size() << ")";
+            break;
+        }
+        if (!notification->set_inquiry_response(afc_data.inquiry_response)) {
+            LOG(ERROR) << "AFC : Failed to serialize inquiry response (size="
+                       << afc_data.inquiry_response.size() << ")";
+            break;
+        }
+        if (!afc_data.possible_channels.empty() &&
+            !notification->set_possible_channels(afc_data.possible_channels)) {
+            LOG(ERROR) << "AFC : Failed to serialize possible channels list";
+            break;
+        }
+
+        send_cmdu(cmdu_tx);
+    } break;
+
     // STA Connected
     case Event::STA_Connected: {
 

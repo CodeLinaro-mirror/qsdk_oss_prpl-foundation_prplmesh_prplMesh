@@ -3764,6 +3764,65 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION: {
+        auto notification_in =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION>();
+        if (!notification_in) {
+            LOG(ERROR) << "addClass ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION failed";
+            return false;
+        }
+        LOG(INFO) << "received ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION";
+
+        auto notification_out_bhm = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION>(cmdu_tx);
+        if (!notification_out_bhm) {
+            LOG(ERROR) << "Failed building ACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION message!";
+            return false;
+        }
+
+        notification_out_bhm->grant_successful()      = notification_in->grant_successful();
+        notification_out_bhm->regulatory_applicable() = notification_in->regulatory_applicable();
+
+        const auto inquiry_request_len = notification_in->inquiry_request_length();
+        if (inquiry_request_len > 0) {
+            if (!notification_out_bhm->set_inquiry_request(
+                    notification_in->inquiry_request_str())) {
+                LOG(ERROR) << "Failed to forward AFC inquiry request payload";
+                return false;
+            }
+        }
+
+        const auto inquiry_response_len = notification_in->inquiry_response_length();
+        if (inquiry_response_len > 0) {
+            if (!notification_out_bhm->set_inquiry_response(
+                    notification_in->inquiry_response_str())) {
+                LOG(ERROR) << "Failed to forward AFC inquiry response payload";
+                return false;
+            }
+        }
+
+        const auto possible_channels_len = notification_in->possible_channels_length();
+        if (possible_channels_len > 0) {
+            if (!notification_out_bhm->set_possible_channels(
+                    notification_in->possible_channels_str())) {
+                LOG(ERROR) << "Failed to forward AFC possible channels payload";
+                return false;
+            }
+        }
+
+        auto db    = AgentDB::get();
+        auto radio = db->radio(fronthaul_iface);
+        if (!radio) {
+            LOG(ERROR) << "Unknown fronthaul interface for AFC update: " << fronthaul_iface;
+            return false;
+        }
+        auto action_header         = message_com::get_beerocks_header(cmdu_tx)->actionhdr();
+        action_header->radio_mac() = radio->front.iface_mac;
+
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
+        break;
+    }
     case beerocks_message::ACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION: {
         auto notification_in =
             beerocks_header

@@ -14,6 +14,7 @@
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
 #include <easylogging++.h>
 #include <memory>
+#include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 
 constexpr std::chrono::seconds CHANNEL_SCAN_REPORT_WAIT_TIME(300);
 
@@ -157,6 +158,13 @@ void dynamic_channel_selection_r2_task::handle_event(int event_enum_value, void 
             reinterpret_cast<const sPreferenceRequestEvent *>(event_obj);
         LOG(TRACE) << "Received REQUEST_NEW_PREFERENCE event";
         handle_preference_request_event(*new_preference_request_event);
+        break;
+    }
+    case AVAILABLE_SPECTRUM_INQUIRY_RECEIVED: {
+        auto inquiry_event = reinterpret_cast<const sAvailableSpectrumInquiryEvent *>(event_obj);
+        LOG(TRACE) << "Received AVAILABLE_SPECTRUM_INQUIRY_RECEIVED event from agent "
+                   << inquiry_event->agent_mac;
+        handle_available_spectrum_inquiry_event(*inquiry_event);
         break;
     }
     default: {
@@ -814,6 +822,41 @@ bool dynamic_channel_selection_r2_task::handle_preference_request_event(
     return true;
 }
 
+bool dynamic_channel_selection_r2_task::handle_available_spectrum_inquiry_event(
+    const sAvailableSpectrumInquiryEvent &inquiry_event)
+{
+    if (inquiry_event.affected_6g_radios.empty()) {
+        LOG(INFO) << "No 6 GHz radios affected by AFC inquiry for agent "
+                  << inquiry_event.agent_mac;
+        return true;
+    }
+
+    // EasyMesh §8.2.5: always queue AFC CSR. If selection FSM is busy, IDLE work()
+    // will drain m_pending_selection_requests when ready (same pattern as on-demand).
+    if (m_selection_state != eSelectionState::IDLE) {
+        LOG(INFO) << "Queuing AFC channel selection while DCS R2 selection state is busy";
+    }
+
+    static constexpr uint8_t AFC_CHANNEL_SELECTION_CSA_COUNT = 5;
+
+    for (const auto &radio_mac : inquiry_event.affected_6g_radios) {
+        int8_t tx_limit_dbm = 0;
+        const bool tx_valid = database.get_afc_transmit_power_limit(radio_mac, tx_limit_dbm);
+        m_pending_selection_requests[inquiry_event.agent_mac][radio_mac] =
+            std::make_shared<sAfcChannelSelectionRequest>(AFC_CHANNEL_SELECTION_CSA_COUNT, tx_valid,
+                                                          tx_limit_dbm);
+        if (tx_valid) {
+            LOG(INFO) << "Queued AFC CSR for radio " << radio_mac << " with Transmit Power Limit "
+                      << int(tx_limit_dbm) << " dBm";
+        } else {
+            LOG(INFO) << "Queued AFC CSR for radio " << radio_mac
+                      << " (no Transmit Power Limit available yet)";
+        }
+    }
+
+    return true;
+}
+
 bool dynamic_channel_selection_r2_task::handle_continuous_scan_request_event(
     const sContinuousScanRequestStateChangeEvent &scan_request_event)
 {
@@ -1355,10 +1398,51 @@ bool dynamic_channel_selection_r2_task::send_selection_requests()
                               << ", skip tlvVsChannelScanRequestExtension creation";
                 }
             } else {
-                // Create Channel-Preference TLV.
-                if (!create_channel_preference_tlv(radio_mac, request_details, preference_report)) {
-                    LOG(ERROR) << "Failed to create Channel Preference TLV!";
-                    return false;
+                const auto afc_details =
+                    std::dynamic_pointer_cast<sAfcChannelSelectionRequest>(request_details);
+
+                // AFC CSR follows the same prplMesh convention as 2.4/5 GHz certification /
+                // on-demand CSR: include only non-operable channels (preference 0). Channels
+                // omitted from the TLV are treated as most preferred by the agent
+                // (see get_preference_for_channel() on the agent).
+                radio_preference_tlv_format csr_preference_report = preference_report;
+                if (afc_details) {
+                    csr_preference_report.clear();
+                    for (const auto &iter : preference_report) {
+                        if (iter.first.second ==
+                            static_cast<uint8_t>(
+                                beerocks::eChannelPreferenceRankingConsts::NON_OPERABLE)) {
+                            csr_preference_report.insert(iter);
+                        }
+                    }
+                    LOG(INFO) << "AFC CSR for radio " << radio_mac << ": "
+                              << csr_preference_report.size()
+                              << " non-operable operating-class group(s)";
+                }
+
+                if (!csr_preference_report.empty() || !afc_details) {
+                    if (!create_channel_preference_tlv(radio_mac, request_details,
+                                                       csr_preference_report)) {
+                        LOG(ERROR) << "Failed to create Channel Preference TLV!";
+                        return false;
+                    }
+                } else {
+                    LOG(INFO) << "AFC CSR for radio " << radio_mac
+                              << ": omitting Channel Preference TLV (no non-operable channels)";
+                }
+
+                // EasyMesh §8.2.5: AFC CSR should enforce updated allowed power level(s).
+                if (afc_details && afc_details->tx_power_limit_valid) {
+                    auto tx_power_limit_tlv = cmdu_tx.addClass<wfa_map::tlvTransmitPowerLimit>();
+                    if (!tx_power_limit_tlv) {
+                        LOG(ERROR) << "addClass tlvTransmitPowerLimit has failed";
+                        return false;
+                    }
+                    tx_power_limit_tlv->radio_uid() = radio_mac;
+                    tx_power_limit_tlv->transmit_power_limit_dbm() =
+                        afc_details->tx_power_limit_dbm;
+                    LOG(INFO) << "Added Transmit Power Limit TLV for radio " << radio_mac << ": "
+                              << int(afc_details->tx_power_limit_dbm) << " dBm";
                 }
             }
         }

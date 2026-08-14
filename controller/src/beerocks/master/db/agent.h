@@ -282,6 +282,16 @@ public:
         */
         PreferenceReportMap channel_preference_report;
         std::chrono::steady_clock::time_point last_preference_report_change = {};
+        /**
+         * @brief Per (operating class, channel) max EIRP (dBm) from the latest AFC response.
+         *
+         * Used when building Channel Selection Request Transmit Power Limit TLVs (§8.2.5).
+         */
+        using AfcMaxEirpMap = std::unordered_map<channel_preference_report_key, int8_t,
+                                                 channel_preference_report_hash>;
+        AfcMaxEirpMap afc_max_eirp_dbm;
+        bool afc_transmit_power_limit_valid = false;
+        int8_t afc_transmit_power_limit_dbm = 0;
 
         struct channel_scan_config {
             bool is_enabled = false;

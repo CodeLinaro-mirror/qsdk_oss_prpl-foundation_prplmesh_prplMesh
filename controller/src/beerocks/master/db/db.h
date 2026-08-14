@@ -2888,6 +2888,39 @@ public:
         const std::vector<wfa_map::tlvProfile2CacStatusReport::sDetectedPairs>
             &non_occupancy_channels,
         const std::vector<wfa_map::tlvProfile2CacStatusReport::sActiveCacPairs> &active_channels);
+    /**
+     * @brief Store AFC Available Spectrum Inquiry request/response on the agent datamodel.
+     *
+     * @param[in] agent Agent db object.
+     * @param[in] request Available Spectrum Inquiry request payload.
+     * @param[in] response Available Spectrum Inquiry response payload.
+     * @return true on success, otherwise false.
+     */
+    bool dm_set_afc_available_spectrum_inquiry(std::shared_ptr<Agent> agent,
+                                               const std::string &request,
+                                               const std::string &response);
+
+    /**
+     * @brief Store AFC max EIRP for a radio channel (from Available Spectrum Inquiry Response).
+     */
+    bool set_afc_max_eirp(const sMacAddr &radio_mac, uint8_t operating_class, uint8_t channel,
+                          int8_t max_eirp_dbm);
+
+    /**
+     * @brief Clear AFC max EIRP map and cached transmit power limit for a radio.
+     */
+    bool clear_afc_max_eirp(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Cache the Transmit Power Limit (dBm) to include in the next AFC CSR for this radio.
+     */
+    bool set_afc_transmit_power_limit(const sMacAddr &radio_mac, int8_t limit_dbm);
+
+    /**
+     * @brief Get cached AFC Transmit Power Limit for a radio.
+     * @return true if a valid limit is stored.
+     */
+    bool get_afc_transmit_power_limit(const sMacAddr &radio_mac, int8_t &limit_dbm);
 
     /**
      * @brief Removes excessive NBAPI objects from system bus, if amount of them succeed the limit.
