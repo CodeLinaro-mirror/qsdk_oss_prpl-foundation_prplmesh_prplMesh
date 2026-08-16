@@ -1776,51 +1776,6 @@ std::list<uint8_t> wireless_utils::string_to_wsc_oper_class(const std::string &o
     return {};
 }
 
-std::set<uint8_t> wireless_utils::band_flag_token_to_channels(const std::string &token)
-{
-    std::set<uint8_t> ch;
-    if (token == "5_UNII_1") {
-        for (uint8_t c = 36; c <= 48; c += 4) ch.insert(c);
-    } else if (token == "5_UNII_2") {
-        for (uint8_t c = 52; c <= 64; c += 4) ch.insert(c);
-        for (uint8_t c = 100; c <= 144; c += 4) ch.insert(c);
-    } else if (token == "5_UNII_3") {
-        for (uint8_t c = 149; c <= 165; c += 4) ch.insert(c);
-    } else if (token == "5_UNII_4") {
-        // Unsupported in standard Part 15 Wi-Fi
-    } else if (token == "6_UNII_5") {
-        for (uint8_t c = 1; c <= 93; c += 4) ch.insert(c);
-    } else if (token == "6_UNII_6") {
-        for (uint8_t c = 97; c <= 113; c += 4) ch.insert(c);
-    } else if (token == "6_UNII_7") {
-        for (uint8_t c = 117; c <= 185; c += 4) ch.insert(c);
-    } else if (token == "6_UNII_8") {
-        for (uint8_t c = 189; c <= 233; c += 4) ch.insert(c);
-    }
-    return ch;
-}
-
-std::list<uint8_t> wireless_utils::band_flag_token_to_operating_classes(const std::string &token)
-{
-    if (token == "5_UNII_1") return {115, 116, 117, 128, 129, 130};
-    if (token == "5_UNII_2") return {118, 119, 120, 121, 122, 123, 128, 129, 130};
-    if (token == "5_UNII_3") return {124, 125, 126, 127, 128, 129, 130};
-    if (token == "5_UNII_4") return {};
-    
-    if (token == "5") return string_to_wsc_oper_class("5gh"); // pre-Task-5 coarse expansion (defaults)
-    if (token == "2.4") return string_to_wsc_oper_class("24g");
-    if (token == "6") return string_to_wsc_oper_class("6g");
-    
-    if (token == "6_UNII_5" || token == "6_UNII_6" || token == "6_UNII_7" || token == "6_UNII_8") {
-        return string_to_wsc_oper_class("6g");
-    }
-    
-    if (token != "Sub_1GHz") {
-        LOG(WARNING) << "BandFlag token [" << token << "] was not converted to operating classes.";
-    }
-    return {};
-}
-
 eVapType wireless_utils::string_to_vap_type(const std::string &type)
 {
     if (type.empty()) {

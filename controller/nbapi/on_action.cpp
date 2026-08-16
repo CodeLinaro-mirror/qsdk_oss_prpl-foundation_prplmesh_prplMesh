@@ -492,13 +492,88 @@ static amxd_object_t *template_resolve_security_template(amxd_object_t *template
     return best_inst;
 }
 
+enum class eBandFlagTokenKind { Coarse, Unii5, Unii6, Sub1GHz, Unknown };
+
+static std::string template_fold_bandflag_token(const std::string &token)
+{
+    std::string folded = token;
+    std::transform(folded.begin(), folded.end(), folded.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    return folded;
+}
+
+static eBandFlagTokenKind template_classify_bandflag_token(const std::string &token)
+{
+    const std::string folded = template_fold_bandflag_token(token);
+    if (folded == "SUB_1GHZ") {
+        return eBandFlagTokenKind::Sub1GHz;
+    }
+    if (folded == "5_UNII_1" || folded == "5_UNII_2" || folded == "5_UNII_3" ||
+        folded == "5_UNII_4") {
+        return eBandFlagTokenKind::Unii5;
+    }
+    if (folded == "6_UNII_5" || folded == "6_UNII_6" || folded == "6_UNII_7" ||
+        folded == "6_UNII_8") {
+        return eBandFlagTokenKind::Unii6;
+    }
+    if (folded.find("UNII") != std::string::npos) {
+        return eBandFlagTokenKind::Unknown;
+    }
+    if (folded == "2.4" || folded == "5" || folded == "6") {
+        return eBandFlagTokenKind::Coarse;
+    }
+    return eBandFlagTokenKind::Unknown;
+}
+
+static beerocks::eFreqType template_freq_from_bandflag_token(const std::string &token)
+{
+    switch (template_classify_bandflag_token(token)) {
+    case eBandFlagTokenKind::Coarse:
+        if (token == "2.4" || template_fold_bandflag_token(token) == "2.4") {
+            return beerocks::FREQ_24G;
+        }
+        if (token == "5" || template_fold_bandflag_token(token) == "5") {
+            return beerocks::FREQ_5G;
+        }
+        if (token == "6" || template_fold_bandflag_token(token) == "6") {
+            return beerocks::FREQ_6G;
+        }
+        return beerocks::FREQ_UNKNOWN;
+    case eBandFlagTokenKind::Unii5:
+        return beerocks::FREQ_5G;
+    case eBandFlagTokenKind::Unii6:
+        return beerocks::FREQ_6G;
+    case eBandFlagTokenKind::Sub1GHz:
+    case eBandFlagTokenKind::Unknown:
+        break;
+    }
+    return beerocks::FREQ_UNKNOWN;
+}
+
+static bool template_bandflag_csv_has_unii_token(const std::string &band_flag_csv)
+{
+    std::istringstream iss(band_flag_csv);
+    std::string token;
+    while (std::getline(iss, token, ',')) {
+        token.erase(0, token.find_first_not_of(" \t"));
+        token.erase(token.find_last_not_of(" \t") + 1);
+        if (token.empty()) {
+            continue;
+        }
+        const auto kind = template_classify_bandflag_token(token);
+        if (kind == eBandFlagTokenKind::Unii5 || kind == eBandFlagTokenKind::Unii6) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * @brief Fill bss_info.operating_class from RadioTemplate BandFlag / OpClassFlag.
  *
- * If both BandFlag and OpClassFlag are set, BandFlag wins (with warning).
- * BandFlag: "2.4"/"5"/"6" (coarse) or 5_UNII_/6_UNII_ tokens all must be one band.
- * Mixing coarse and UNII tokens in one CSV is rejected. UNII tokens expand via
- * band_flag_token_to_operating_classes(); coarse "5" keeps pre-Task-5 "5gh" expansion.
+ * Exactly one of BandFlag or OpClassFlag must be set.
+ * BandFlag: coarse "2.4"/"5"/"6", or UNII tokens 5_UNII_1..4 / 6_UNII_5..8 mapped to the
+ * parent 5/6 GHz catalog. Sub_1GHz is rejected. Coarse and UNII tokens must not be mixed.
  * OpClassFlag: decimal op classes; all must map to the same 2.4/5/6 GHz band.
  */
 static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
@@ -506,61 +581,60 @@ static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
 {
     bss_info.operating_class.clear();
 
-    auto freq_from_band_token = [](const std::string &band) -> beerocks::eFreqType {
-        if (band == "2.4") {
-            return beerocks::FREQ_24G;
-        }
-        if (band == "5" || band == "5_UNII_1" || band == "5_UNII_2" || band == "5_UNII_3" ||
-            band == "5_UNII_4") {
-            return beerocks::FREQ_5G;
-        }
-        if (band == "6" || band == "6_UNII_5" || band == "6_UNII_6" || band == "6_UNII_7" ||
-            band == "6_UNII_8") {
-            return beerocks::FREQ_6G;
-        }
-        if (band == "Sub_1GHz") {
-            // BBF token exists, but not supported by this controller implementation yet.
-            return beerocks::FREQ_UNKNOWN;
-        }
-        return beerocks::FREQ_UNKNOWN;
-    };
-
-    auto freq_from_op_class = [](uint8_t oc) -> beerocks::eFreqType {
-        static const beerocks::eFreqType kBands[] = {beerocks::FREQ_24G, beerocks::FREQ_5G,
-                                                     beerocks::FREQ_6G};
-        for (auto ft : kBands) {
-            const auto v = son::wireless_utils::get_operating_classes_of_freq_type(ft);
-            if (std::find(v.begin(), v.end(), oc) != v.end()) {
-                return ft;
-            }
-        }
-        return beerocks::FREQ_UNKNOWN;
-    };
-
     std::string band_flag     = get_param_string(radio_inst, "BandFlag");
     std::string op_class_flag = get_param_string(radio_inst, "OpClassFlag");
 
     if (!band_flag.empty() && !op_class_flag.empty()) {
-        LOG(WARNING) << "RadioTemplate has both BandFlag and OpClassFlag; using BandFlag only";
+        LOG(WARNING) << "RadioTemplate has both BandFlag and OpClassFlag; exactly one must be set";
+        return false;
     }
 
     if (!band_flag.empty()) {
         beerocks::eFreqType band_choice = beerocks::FREQ_UNKNOWN;
+        bool saw_coarse                 = false;
+        bool saw_unii                   = false;
         std::istringstream iss(band_flag);
         std::string token;
-        bool has_coarse = false;
-        bool has_unii = false;
-        
         while (std::getline(iss, token, ',')) {
             token.erase(0, token.find_first_not_of(" \t"));
             token.erase(token.find_last_not_of(" \t") + 1);
             if (token.empty()) {
                 continue;
             }
-            beerocks::eFreqType ft = freq_from_band_token(token);
+            const eBandFlagTokenKind kind = template_classify_bandflag_token(token);
+            if (kind == eBandFlagTokenKind::Sub1GHz) {
+                LOG(WARNING) << "BandFlag token \"" << token
+                             << "\" is Sub_1GHz; prplMesh has no parent 2.4/5/6 GHz band for this "
+                                "token, so this RadioTemplate is not loaded";
+                bss_info.operating_class.clear();
+                return false;
+            }
+            if (kind == eBandFlagTokenKind::Unknown) {
+                LOG(WARNING) << "Unknown BandFlag token \"" << token << "\"";
+                continue;
+            }
+            if (kind == eBandFlagTokenKind::Coarse) {
+                saw_coarse = true;
+            } else {
+                saw_unii = true;
+            }
+            if (saw_coarse && saw_unii) {
+                LOG(WARNING) << "BandFlag mixes coarse 2.4/5/6 with UNII sub-band tokens; "
+                                "exactly one style must be used";
+                bss_info.operating_class.clear();
+                return false;
+            }
+            beerocks::eFreqType ft = template_freq_from_bandflag_token(token);
             if (ft == beerocks::FREQ_UNKNOWN) {
                 LOG(WARNING) << "Unknown BandFlag token \"" << token << "\"";
                 continue;
+            }
+            if (kind == eBandFlagTokenKind::Unii5 || kind == eBandFlagTokenKind::Unii6) {
+                LOG(INFO) << "RadioTemplate BandFlag token \"" << token
+                          << "\" is a UNII sub-band; applying it as the parent "
+                          << (ft == beerocks::FREQ_5G ? "5 GHz" : "6 GHz")
+                          << " band. UNII sub-band channel intersection with the agent radio "
+                             "supported channels is not performed.";
             }
             if (band_choice == beerocks::FREQ_UNKNOWN) {
                 band_choice = ft;
@@ -569,36 +643,19 @@ static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
                 bss_info.operating_class.clear();
                 return false;
             }
-            
-            if (token == "2.4" || token == "5" || token == "6") {
-                has_coarse = true;
-            } else {
-                has_unii = true;
-            }
-            
-            auto op_classes = son::wireless_utils::band_flag_token_to_operating_classes(token);
-            if (op_classes.empty()) {
-                LOG(WARNING) << "BandFlag token \"" << token << "\" yielded no operating classes.";
-                continue;
-            }
-            bss_info.operating_class.splice(bss_info.operating_class.end(), op_classes);
         }
         if (band_choice == beerocks::FREQ_UNKNOWN) {
             return false;
         }
-        if (has_coarse && has_unii) {
-            LOG(WARNING) << "BandFlag mixes coarse bands and UNII tokens; invalid RadioTemplate";
-            bss_info.operating_class.clear();
-            return false;
+        if (band_choice == beerocks::FREQ_24G) {
+            bss_info.operating_class = son::wireless_utils::string_to_wsc_oper_class("24g");
+        } else if (band_choice == beerocks::FREQ_5G) {
+            // BandFlag "5" = entire 5 GHz (not DataElements Band5GH / "5gh").
+            bss_info.operating_class = son::wireless_utils::string_to_wsc_oper_class("5g");
+        } else {
+            bss_info.operating_class = son::wireless_utils::string_to_wsc_oper_class("6g");
         }
-        if (bss_info.operating_class.empty()) {
-            return false;
-        }
-        // Unique the list
-        bss_info.operating_class.sort();
-        bss_info.operating_class.unique();
-        
-        return true;
+        return !bss_info.operating_class.empty();
     }
 
     if (op_class_flag.empty()) {
@@ -623,7 +680,7 @@ static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
             return false;
         }
         uint8_t oc             = static_cast<uint8_t>(v);
-        beerocks::eFreqType ft = freq_from_op_class(oc);
+        beerocks::eFreqType ft = son::wireless_utils::which_freq_op_cls(oc);
         if (ft == beerocks::FREQ_UNKNOWN) {
             LOG(WARNING) << "Operating class " << int(oc) << " not mapped to 2.4/5/6 GHz";
             bss_info.operating_class.clear();
@@ -642,177 +699,29 @@ static bool template_load_radio_operating_classes(amxd_object_t *radio_inst,
     return !bss_info.operating_class.empty();
 }
 
-/** True if BandFlag CSV contains any UNII token (case-insensitive substring "unii"). */
-static bool template_bandflag_has_unii(const std::string &band_flag_csv)
-{
-    std::istringstream iss(band_flag_csv);
-    std::string token;
-    while (std::getline(iss, token, ',')) {
-        token.erase(0, token.find_first_not_of(" \t"));
-        token.erase(token.find_last_not_of(" \t") + 1);
-        if (token.empty()) {
-            continue;
-        }
-        std::string tl = token;
-        std::transform(tl.begin(), tl.end(), tl.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (tl.find("unii") != std::string::npos) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Coarse "5"/"6" without UNII tokens — used by multi-radio disambiguation rule.
- * Intentionally does not treat "2.4" as coarse here: that rule only applies to 5/6 GHz.
- */
-static bool template_bandflag_coarse_without_unii(const std::string &band_flag_csv)
-{
-    if (band_flag_csv.empty()) {
-        return false;
-    }
-    bool saw_unii = false;
-    bool saw_coarse = false;
-    std::istringstream iss(band_flag_csv);
-    std::string token;
-    while (std::getline(iss, token, ',')) {
-        token.erase(0, token.find_first_not_of(" \t"));
-        token.erase(token.find_last_not_of(" \t") + 1);
-        if (token.empty()) {
-            continue;
-        }
-        std::string tl = token;
-        std::transform(tl.begin(), tl.end(), tl.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (tl.find("unii") != std::string::npos) {
-            saw_unii = true;
-        }
-        if (token == "5" || token == "6") {
-            saw_coarse = true;
-        }
-    }
-    return saw_coarse && !saw_unii;
-}
-
-/** Freq type implied by a BandFlag UNII token; UNKNOWN if not a UNII token. */
-static beerocks::eFreqType template_bandflag_unii_token_freq(const std::string &token)
-{
-    if (token.rfind("5_UNII_", 0) == 0) {
-        return beerocks::FREQ_5G;
-    }
-    if (token.rfind("6_UNII_", 0) == 0) {
-        return beerocks::FREQ_6G;
-    }
-    return beerocks::FREQ_UNKNOWN;
-}
-
-/**
- * UNII-only BandFlag hardware match: for each UNII token, radio must support ≥1 channel
- * in that token's channel set, on the matching frequency band.
- * Must not be used for coarse BandFlag ("2.4"/"5"/"6") — those keep catalog ANY matching.
- */
-static bool template_radio_matches_bandflag_unii(const Agent::sRadio &radio,
-                                                const std::string &band_flag_csv)
-{
-    if (radio.supported_channels.empty()) {
-        LOG(DEBUG) << "Radio " << radio.radio_uid
-                   << ": supported_channels empty; deferring UNII BandFlag match (fail-closed)";
-        return false;
-    }
-
-    bool saw_unii_token = false;
-    std::istringstream iss(band_flag_csv);
-    std::string token;
-    while (std::getline(iss, token, ',')) {
-        token.erase(0, token.find_first_not_of(" \t"));
-        token.erase(token.find_last_not_of(" \t") + 1);
-        if (token.empty()) {
-            continue;
-        }
-
-        const beerocks::eFreqType token_freq = template_bandflag_unii_token_freq(token);
-        if (token_freq == beerocks::FREQ_UNKNOWN) {
-            continue;
-        }
-        saw_unii_token = true;
-
-        // Channel numbers collide across bands (e.g. 2.4 ch1–13 vs 6G UNII-5; 5G ch36 vs 6G ch36).
-        if (radio.get_band() != token_freq) {
-            LOG(DEBUG) << "Radio " << radio.radio_uid << " band does not match UNII token " << token
-                       << "; template rejected";
-            return false;
-        }
-
-        auto ch_set = son::wireless_utils::band_flag_token_to_channels(token);
-        if (ch_set.empty()) {
-            // Unsupported token (e.g. 5_UNII_4)
-            return false;
-        }
-
-        bool token_matched = false;
-        for (const auto &ch : radio.supported_channels) {
-            if (ch.get_freq_type() != token_freq) {
-                continue;
-            }
-            if (ch_set.find(ch.get_channel()) != ch_set.end()) {
-                token_matched = true;
-                break;
-            }
-        }
-
-        if (!token_matched) {
-            LOG(DEBUG) << "Radio " << radio.radio_uid << " does not support any channels for UNII token "
-                       << token << "; template rejected";
-            return false;
-        }
-    }
-
-    // No UNII tokens in CSV — caller must not route coarse BandFlag here.
-    return saw_unii_token;
-}
-
 /**
  * @brief Radio-first gate for operating-class compatibility.
  *
  * When strict_op_class_flag_mode is false (BandFlag path):
- *   If BandFlag has UNII tokens: hardware channel-set match (UNII-only path).
- *   Else (coarse "2.4"/"5"/"6"): ANY op class in tpl_op_classes vs radio band catalog
- *   (pre-Task-5 behavior — no hardware channel intersection).
+ *   radio band equals the template's single loaded band (no hardware channel intersection).
  *
  * When strict_op_class_flag_mode is true (OpClassFlag path):
  *   Returns true only if ALL listed op classes are hardware-supported by the agent radio.
- *   Uses g_database->get_supported_channels_in_operating_class() per op class.
+ *   Fail-closed if AP Radio Basic Capabilities have not arrived yet.
  */
 static bool template_radio_matches_operating_classes(const Agent::sRadio &radio,
                                                      const std::list<uint8_t> &tpl_op_classes,
-                                                     bool strict_op_class_flag_mode,
-                                                     const std::string &band_flag_csv)
+                                                     bool strict_op_class_flag_mode)
 {
     if (radio.get_band() == beerocks::FREQ_UNKNOWN || tpl_op_classes.empty()) {
         return false;
     }
 
     if (!strict_op_class_flag_mode) {
-        // UNII BandFlag only — do not use !coarse_without_unii (that misses "2.4" and
-        // would falsely route coarse templates into the UNII matcher).
-        if (template_bandflag_has_unii(band_flag_csv)) {
-            return template_radio_matches_bandflag_unii(radio, band_flag_csv);
-        }
-
-        // BandFlag coarse path ("2.4"/"5"/"6"): ANY check against static band catalog.
-        const auto radio_ocs =
-            son::wireless_utils::get_operating_classes_of_freq_type(radio.get_band());
-        for (uint8_t oc : tpl_op_classes) {
-            if (std::find(radio_ocs.begin(), radio_ocs.end(), oc) != radio_ocs.end()) {
-                return true;
-            }
-        }
-        return false;
+        // BandFlag path: parent 2.4/5/6 GHz only (UNII tokens were mapped to that band at load).
+        return son::wireless_utils::which_freq_op_cls(tpl_op_classes.front()) == radio.get_band();
     }
 
-    // OpClassFlag path: strict ALL hardware intersection (Level C+D).
-    // Fail-closed: if AP Radio Basic Capabilities have not arrived yet, do not match.
     if (radio.supported_channels.empty()) {
         LOG(DEBUG) << "Radio " << radio.radio_uid
                    << ": supported_channels empty; deferring OpClassFlag match (fail-closed)";
@@ -832,33 +741,21 @@ static bool template_radio_matches_operating_classes(const Agent::sRadio &radio,
     return true;
 }
 
-/** BBF: if 2 or more radios on same 5/6 GHz band, BandFlag must use UNII tokens, not only "5"/"6". */
-static unsigned template_agent_radio_count_on_band(const Agent &agent, beerocks::eFreqType band)
+/**
+ * Match RadioTemplate BandFlag UNII sub-band tokens against the agent radio.
+ *
+ * TODO: Intersect each 5_UNII_* / 6_UNII_* token with radio's supported channels
+ * Fail closed when supported_channels is empty.
+ * This function returns true. The caller has already required the parent
+ * 5 GHz or 6 GHz band via template_radio_matches_operating_classes on the
+ * BandFlag path. Dual 5 GHz high/low selection is not UNII-accurate yet; use
+ * OpClassFlag when a specific operating-class set is required.
+ */
+static bool template_radio_matches_bandflag_subband(const Agent::sRadio &radio,
+                                                    const std::string &band_flag_csv)
 {
-    unsigned n = 0;
-    for (const auto &kv : agent.radios) {
-        if (kv.second && kv.second->get_band() == band) {
-            ++n;
-        }
-    }
-    return n;
-}
-
-
-
-static bool template_radio_bandflag_satisfies_unii_multi_radio_rule(const Agent &agent,
-                                                                    beerocks::eFreqType radio_band,
-                                                                    const std::string &band_flag_csv)
-{
-    if (!template_bandflag_coarse_without_unii(band_flag_csv)) {
-        return true;
-    }
-    if (radio_band == beerocks::FREQ_5G) {
-        return template_agent_radio_count_on_band(agent, beerocks::FREQ_5G) < 2U;
-    }
-    if (radio_band == beerocks::FREQ_6G) {
-        return template_agent_radio_count_on_band(agent, beerocks::FREQ_6G) < 2U;
-    }
+    (void)radio;
+    (void)band_flag_csv;
     return true;
 }
 
@@ -1391,7 +1288,7 @@ static uint32_t template_agent_wlan_hop_count(const Agent &agent)
         if (!parent) {
             break;
         }
-        cur = parent;
+        cur = std::move(parent);
     }
     return hops;
 }
@@ -1597,7 +1494,10 @@ static std::string normalize_akm_selector(const std::string &raw)
             out += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
         }
     }
-    return (out.size() == 8u) ? out : "";
+    if (out.size() != 8u) {
+        return {};
+    }
+    return out;
 }
 
 /** Legacy suites advertised by agent capability_reporting_task when TLV cache is empty. */
@@ -1687,7 +1587,7 @@ static bool template_security_ies_hex_akms_match_agent(const Agent *agent, bool 
                   agent->security_capabilities.valid_cipher_suites);
 
     auto check_body = [&](const uint8_t *b, size_t blen) -> bool {
-        if (blen < 12) {
+        if (blen < 6) {
             return true;
         }
         size_t p = 2; // skip version
@@ -1929,7 +1829,7 @@ static bool template_read_one_suite(amxd_object_t *obj, const char *param,
         return false;
     }
     std::string tok = s;
-    if (template_parse_suite_token(tok, out)) {
+    if (template_parse_suite_token(std::move(tok), out)) {
         return true;
     }
     out = deflt;
@@ -2569,6 +2469,7 @@ struct sRadioTemplateRow {
     std::string operating_generation;
     std::string supported_generation_flag_csv;
     std::string band_flag_csv;
+    bool has_band_flag = false;
     bool has_transmit_power_limit = false;
     int8_t transmit_power_limit_dbm = 0;
     eTemplateTriState dfs_support_flag = eTemplateTriState::NULL_VALUE;
@@ -2691,7 +2592,7 @@ static bool template_radio_template_generation_matches(const Agent::sRadio &radi
     return true;
 }
 
-static sRadioTemplateRow template_select_radio_template(const Agent &agent, const Agent::sRadio &radio,
+static sRadioTemplateRow template_select_radio_template(const Agent::sRadio &radio,
                                                         const std::vector<sRadioTemplateRow> &candidates)
 {
     sRadioTemplateRow selected{};
@@ -2699,14 +2600,13 @@ static sRadioTemplateRow template_select_radio_template(const Agent &agent, cons
         if (!cand.radio_inst || cand.operating_class.empty()) {
             continue;
         }
-        // strict = true when only OpClassFlag was used (band_flag_csv is empty);
-        // strict = false when BandFlag was used (BandFlag always wins when both are set).
-        const bool strict = cand.band_flag_csv.empty();
-        if (!template_radio_matches_operating_classes(radio, cand.operating_class, strict, cand.band_flag_csv)) {
+        // strict = OpClassFlag (has_band_flag false); BandFlag matches by radio band.
+        const bool strict = !cand.has_band_flag;
+        if (!template_radio_matches_operating_classes(radio, cand.operating_class, strict)) {
             continue;
         }
-        if (!template_radio_bandflag_satisfies_unii_multi_radio_rule(agent, radio.get_band(),
-                                                                     cand.band_flag_csv)) {
+        if (cand.has_band_flag && template_bandflag_csv_has_unii_token(cand.band_flag_csv) &&
+            !template_radio_matches_bandflag_subband(radio, cand.band_flag_csv)) {
             continue;
         }
         if (!template_tri_state_satisfied(
@@ -2861,7 +2761,7 @@ static bool template_stage_bss_on_radio(
 
     son::wireless_utils::sBssInfoConf bss_info{};
     bss_info.ssid             = bss_ssid;
-    bss_info.network_key      = bss_key_passphrase;
+    bss_info.network_key      = std::move(bss_key_passphrase);
     bss_info.hidden_ssid      = bss_advertisement_enable ? WSC::eWscVendorExtHiddenSsid::DISABLED
                                                          : WSC::eWscVendorExtHiddenSsid::ENABLED;
     bss_info.operating_class  = radio_operating_classes;
@@ -3044,8 +2944,6 @@ static bool template_stage_bss_on_radio(
         LOG(WARNING) << "BSSTemplate " << bss_ssid << " missing KeyPassphrase for selected security";
     }
 
-    son::wireless_utils::sBssInfoConf per_bss = bss_info;
-
     auto agent_supports_wpa3_pcm = [&](const Agent &a) -> bool {
         // Fail closed: require explicit capability vectors.
         if (!a.security_capabilities.valid_akm_suites || !a.security_capabilities.valid_cipher_suites) {
@@ -3062,7 +2960,7 @@ static bool template_stage_bss_on_radio(
         const bool supports_bip  = a.security_capabilities.cipher_suite_types.test(0x06);
 
         bool has_non_6g = false;
-        for (uint8_t oc : per_bss.operating_class) {
+        for (uint8_t oc : bss_info.operating_class) {
             const bool is_6g = (oc >= OPCLASS_6GHZ_USING_CENTER_CHANNEL_FIRST &&
                             oc <= OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST &&
                             oc != OPCLASS_6GHZ_EXCEPTION);
@@ -3075,16 +2973,16 @@ static bool template_stage_bss_on_radio(
     };
 
     const bool wants_rsn_override =
-        per_bss.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
-        (!per_bss.rsn_security_ies.empty() ||
-         per_bss.additional_auth == son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY);
+        bss_info.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
+        (!bss_info.rsn_security_ies.empty() ||
+         bss_info.additional_auth == son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY);
 
     const bool capability_blocks_rsn_override =
         wants_rsn_override && agent->rsn_overriding_supported && !agent_supports_wpa3_pcm(*agent);
 
     if ((wants_rsn_override && !agent->rsn_overriding_supported) || capability_blocks_rsn_override) {
         bool any_6g = false;
-        for (uint8_t oc : per_bss.operating_class) {
+        for (uint8_t oc : bss_info.operating_class) {
             if (oc >= OPCLASS_6GHZ_USING_CENTER_CHANNEL_FIRST &&
                 oc <= OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST && oc != OPCLASS_6GHZ_EXCEPTION) {
                 any_6g = true;
@@ -3092,31 +2990,31 @@ static bool template_stage_bss_on_radio(
             }
         }
         if (any_6g) {
-            per_bss.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
-            per_bss.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+            bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
+            bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
         } else {
-            per_bss.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
-            per_bss.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
+            bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
+            bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
         }
-        per_bss.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
-        per_bss.rsn_security_ies.clear();
+        bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
+        bss_info.rsn_security_ies.clear();
         LOG(DEBUG) << "Agent " << agent->al_mac << " RSN/PCM downgraded (rsno="
                    << agent->rsn_overriding_supported << " caps_block="
                    << capability_blocks_rsn_override << ")";
     }
 
-    per_bss.bss_index = template_allocate_stable_bss_index(agent->al_mac, radio_uid,
-                                                            previous_for_agent, per_bss,
+    bss_info.bss_index = template_allocate_stable_bss_index(agent->al_mac, radio_uid,
+                                                            previous_for_agent, bss_info,
                                                             selection_state);
-    if (per_bss.bss_index == 0) {
+    if (bss_info.bss_index == 0) {
         LOG(WARNING) << "Unable to allocate BSS_Index for agent " << agent->al_mac << " radio "
                      << radio_uid << " SSID \"" << bss_ssid << "\"";
         return false;
     }
 
-    g_database->add_bss_info_configuration(agent->al_mac, per_bss);
+    g_database->add_bss_info_configuration(agent->al_mac, bss_info);
     LOG(DEBUG) << "Staged BSS for agent " << agent->al_mac << " radio " << radio_uid << " SSID \""
-               << bss_ssid << "\" rsn_ies_len=" << per_bss.rsn_security_ies.size();
+               << bss_ssid << "\" rsn_ies_len=" << bss_info.rsn_security_ies.size();
     return true;
 }
 
@@ -3252,6 +3150,7 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
             row.operating_generation          = get_param_string(radio_inst, "OperatingGeneration");
             row.supported_generation_flag_csv = get_param_string(radio_inst, "SupportedGenerationFlag");
             row.band_flag_csv = get_param_string(radio_inst, "BandFlag");
+            row.has_band_flag = !row.band_flag_csv.empty();
             row.dfs_support_flag =
                 template_parse_tri_state_flag(get_param_string(radio_inst, "DFSSupportFlag"));
             row.afc_support_flag =
@@ -3328,7 +3227,7 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
                     filtered_candidates.push_back(cand);
                 }
             }
-            auto row = template_select_radio_template(*agent, *radio, filtered_candidates);
+            auto row = template_select_radio_template(*radio, filtered_candidates);
             if (row.radio_inst) {
                 selected_per_radio.emplace_back(ruid, row);
                 used_radio_template_rows.insert(row.radio_inst);
@@ -3391,7 +3290,7 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         }
         const auto agent_key = tlvf::mac_to_string(agent->al_mac);
         const auto &before   = staging_before_by_agent[agent_key];
-        const auto after     = g_database->get_bss_info_configuration(agent->al_mac);
+        const auto &after    = g_database->get_bss_info_configuration(agent->al_mac);
         if (!template_bss_staging_lists_equal(before, after)) {
             changed_agents.push_back(agent->al_mac);
         }
@@ -5117,7 +5016,7 @@ static void event_use_dataelements_vap_config_changed(const char *const sig_name
     }
 
     const bool enabled = amxd_object_get_bool(network, "UseDataElementsVapConfigs", nullptr);
-    const char *value  = enabled ? "1" : "0";
+    const std::string value = enabled ? "1" : "0";
     LOG(INFO) << "use_dataelements_vap_configs=" << enabled;
 
     const auto active_path = resolve_master_config_file_path();
