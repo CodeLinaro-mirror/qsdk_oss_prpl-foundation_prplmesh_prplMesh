@@ -965,10 +965,39 @@ static void event_templates_network_configuration_changed(const char *const sig_
         return;
     }
 
+    const bool enable_now   = get_param_bool(network_obj, "Enable");
+    static bool s_last_enable = false; // initialized false to match default ODL
+    const bool falling_edge = s_last_enable && !enable_now;
+    s_last_enable           = enable_now;
+
     LOG(DEBUG) << "event_templates_network_configuration_changed: Enable="
-               << (get_param_bool(network_obj, "Enable") ? "true" : "false")
+               << (enable_now ? "true" : "false")
                << " TopologyFlag=\"" << get_param_string(network_obj, "TopologyFlag") << "\"";
 
+    if (!enable_now) {
+        if (falling_edge && g_database) {
+            // Operator explicitly disabled templates: tear down any staged BSS on agents.
+            std::vector<sMacAddr> changed_agents;
+            for (const auto &agent : g_database->get_all_connected_agents()) {
+                if (agent && !g_database->get_bss_info_configuration(agent->al_mac).empty()) {
+                    changed_agents.push_back(agent->al_mac);
+                }
+            }
+            g_database->clear_bss_info_configuration();
+            g_database->clear_traffic_separation_configurations();
+            g_database->clear_mld_info_configuration();
+            if (!changed_agents.empty()) {
+                LOG(INFO) << "wifi templates: Network.Enable=false, unicast renew to "
+                          << changed_agents.size() << " agent(s) with cleared staging";
+                template_send_ap_config_renew_message(changed_agents);
+            } else {
+                LOG(DEBUG) << "wifi templates: Network.Enable=false, no staged BSS to clear";
+            }
+            template_apply_pending_radio_transmit_power_limits({});
+        }
+        // false→false (topology flag, ALIDs, etc. changed while disabled): no-op
+        return;
+    }
     templates_request_apply();
 }
 
@@ -3074,23 +3103,11 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
 
     std::unordered_map<std::string, std::string> apmld_ssid_by_id;
     if (!get_param_bool(network_obj, "Enable")) {
-        std::vector<sMacAddr> changed_agents;
-        for (const auto &agent : g_database->get_all_connected_agents()) {
-            if (agent && !g_database->get_bss_info_configuration(agent->al_mac).empty()) {
-                changed_agents.push_back(agent->al_mac);
-            }
-        }
-        g_database->clear_bss_info_configuration();
-        g_database->clear_traffic_separation_configurations();
-        g_database->clear_mld_info_configuration();
-        if (!changed_agents.empty()) {
-            LOG(INFO) << "wifi templates: Network.Enable=false, unicast renew to "
-                      << changed_agents.size() << " agent(s) with cleared staging";
-            template_send_ap_config_renew_message(changed_agents);
-        } else {
-            LOG(DEBUG) << "Templates.Network.Enable=false: cleared staged BSS/MLD (no AP config renew)";
-        }
-        template_apply_pending_radio_transmit_power_limits({});
+        // Templates are disabled: staged BSS/MLD is not rebuilt here.
+        // Teardown (clear + unicast renew) is handled by the event handler on the
+        // Enable true→false falling edge only, so CAPI-configured BSS is never wiped
+        // by a topology restage or agent-connect while templates are simply inactive.
+        LOG(DEBUG) << "wifi templates: Network.Enable=false, skipping staged rebuild";
         return true;
     }
 
@@ -4982,6 +4999,8 @@ static void event_ieee1905_network_enable_changed(const char *const sig_name,
     if (!controller_ctx->handle_ieee1905_network_enable_changed(enabled)) {
         LOG(WARNING) << "Failed to handle " << IEEE1905_ROOT_DM << ".Network.Enable change.";
     }
+}
+
 /** First existing master conf: /tmp override, then writable, then install (matches read_config_file). */
 static std::string resolve_master_config_file_path()
 {
@@ -5200,6 +5219,16 @@ void templates_restage_only(void)
     if (!g_database->config.use_dataelements_vap_configs) {
         LOG(ERROR) << "wifi templates: restage skipped (use_dataelements_vap_configs is false)";
         return;
+    }
+
+    amxd_object_t *templates_root =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", TEMPLATES_ROOT_DM);
+    if (templates_root) {
+        amxd_object_t *network_obj = amxd_object_get_child(templates_root, "Network");
+        if (network_obj && !get_param_bool(network_obj, "Enable")) {
+            LOG(DEBUG) << "wifi templates: restage skipped (Network.Enable=false)";
+            return;
+        }
     }
 
     if (g_templates_topology_restage_armed) {
