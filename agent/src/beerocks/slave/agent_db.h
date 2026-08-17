@@ -451,6 +451,10 @@ public:
         uint16_t primary_vlan_id;
         uint8_t default_pcp;
         std::unordered_set<uint16_t> secondary_vlans_ids;
+        // UNCONFIGURED_VLAN_ID alone cannot distinguish startup state, where backhaul
+        // telemetry may provide the primary VLAN, from an explicitly disabled policy,
+        // where such telemetry must not re-enable Traffic Separation.
+        bool is_enabled = true;
     } traffic_separation;
 
     struct {
