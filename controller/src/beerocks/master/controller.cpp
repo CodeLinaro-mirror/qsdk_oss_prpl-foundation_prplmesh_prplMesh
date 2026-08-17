@@ -1816,8 +1816,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         }
     }
 
-    bool is_custom_ts_enabled = beerocks::bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
-    if (!beerocks::bpl::cfg_get_is_traffic_separation_enabled(is_custom_ts_enabled)) {
+    bool ts_override_enabled = beerocks::bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    if (!beerocks::bpl::cfg_get_is_traffic_separation_enabled(ts_override_enabled)) {
         LOG(ERROR) << "failed to read "
                       "is_traffic_separation_enabled, "
                       "using default is_ts_enabled="
@@ -1825,6 +1825,13 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     }
 
     const bool has_configured_bss = !database.get_configured_bss_info(ruid).empty();
+    const bool ts_override_reset_pending =
+        agent->traffic_separation_override_reset_state != Agent::eTsResetState::NONE;
+    if (ts_override_reset_pending && !database.dm_clear_device_ssid_to_vid_map(*agent)) {
+        LOG(ERROR) << "Failed clearing Traffic Separation override policy for agent "
+                   << m1->mac_addr();
+        return false;
+    }
 
     // If no BSS (either because none are configured, or because they don't match), tear down.
     if (!has_configured_bss) {
@@ -1833,13 +1840,32 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
             return false;
         }
     } else {
-        agent_monitoring_task::add_traffic_separation_policy_tlv(database, cmdu_tx, m1->mac_addr());
-        agent_monitoring_task::add_profile_2default_802q_settings_tlv(database, cmdu_tx,
-                                                                      m1->mac_addr());
+        if (ts_override_enabled && !ts_override_reset_pending &&
+            !agent_monitoring_task::apply_traffic_separation_override(database, m1->mac_addr())) {
+            return false;
+        }
     }
 
-    if (!has_configured_bss && is_custom_ts_enabled) {
-        LOG(DEBUG) << "Custom traffic separation is enabled, but no configured BSS matched ruid="
+    const auto &traffic_separation_configs =
+        ts_override_reset_pending ? std::list<wireless_utils::sTrafficSeparationSsid>{}
+                                  : database.get_traffic_separation_configuration(m1->mac_addr());
+    if ((has_configured_bss && (!traffic_separation_configs.empty() || ts_override_enabled)) ||
+        ts_override_reset_pending) {
+        const auto default_8021q_config = ts_override_reset_pending
+                                              ? wireless_utils::s8021QSettings{}
+                                              : database.get_default_8021q_setting(m1->mac_addr());
+        if (!agent_monitoring_task::add_traffic_separation_policy_tlv(cmdu_tx,
+                                                                      traffic_separation_configs)) {
+            return false;
+        }
+        if (!agent_monitoring_task::add_default_8021q_settings_tlv(
+                database, cmdu_tx, m1->mac_addr(), default_8021q_config)) {
+            return false;
+        }
+    }
+
+    if (!has_configured_bss && ts_override_enabled) {
+        LOG(DEBUG) << "Traffic Separation override is enabled, but no configured BSS matched ruid="
                    << ruid << "; skipping TS TLVs in teardown flow";
     }
 
@@ -1902,6 +1928,10 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     agent->device_info.manufacturer_model = m1->model_name();
     agent->device_info.serial_number      = m1->serial_number();
     database.dm_set_profile1_device_info(*agent);
+
+    if (ts_override_reset_pending) {
+        agent->traffic_separation_override_reset_state = Agent::eTsResetState::SENT;
+    }
 
     return true;
 }
@@ -5279,6 +5309,12 @@ bool Controller::set_eht_operations(const sMacAddr &agent_mac_addr, const sMacAd
 void Controller::trigger_prioritization_config()
 {
     auto ev = agent_monitoring_task::CONFIGURE_QOS;
+    m_task_pool.push_event(database.get_agent_monitoring_task_id(), ev);
+}
+
+void Controller::trigger_traffic_separation_override()
+{
+    auto ev = agent_monitoring_task::CONFIGURE_TRAFFIC_SEPARATION_OVERRIDE;
     m_task_pool.push_event(database.get_agent_monitoring_task_id(), ev);
 }
 

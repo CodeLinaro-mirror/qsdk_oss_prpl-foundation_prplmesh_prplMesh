@@ -11,7 +11,6 @@
 #include "../son_actions.h"
 
 #include <bcl/beerocks_string_utils.h>
-#include <bcl/network/network_utils.h>
 #include <beerocks/tlvf/beerocks_message_control.h>
 #include <bpl/bpl_cfg.h>
 #include <easylogging++.h>
@@ -33,6 +32,7 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace beerocks;
@@ -47,38 +47,79 @@ constexpr int MAX_TS_VID = 4094;
 
 bool is_valid_ts_vid(const int vid) { return (vid >= MIN_TS_VID) && (vid <= MAX_TS_VID); }
 
-bool is_custom_ts_enabled_now()
+/**
+ * @brief Read the live controller-specific Traffic Separation override state.
+ *
+ * This state is separate from the standard TR-181 SetTrafficSeparation input.
+ * It is read when the override is applied and while building policy TLVs so
+ * runtime changes also affect later Agent onboarding and configuration renewals.
+ */
+bool is_traffic_separation_override_enabled()
 {
-    bool is_custom_ts_enabled = bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
-    // Read the current controller DM value here because single-device TS can be toggled
-    // after controller startup and later policy messages must follow the live setting.
-    if (!bpl::cfg_get_is_traffic_separation_enabled(is_custom_ts_enabled)) {
+    bool ts_override_enabled = bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
+    if (!bpl::cfg_get_is_traffic_separation_enabled(ts_override_enabled)) {
         LOG(ERROR) << "Failed to read "
                       "is_traffic_separation_enabled, "
                       "using default is_ts_enabled="
                    << bpl::DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED;
     }
 
-    return is_custom_ts_enabled;
+    return ts_override_enabled;
 }
+} // namespace
 
-std::list<wireless_utils::sTrafficSeparationSsid>
-build_custom_ts_config(const std::list<wireless_utils::sBssInfoConf> &bss_infos,
-                       const int private_vid, const int guest_vid)
+/**
+ * @brief Replace an Agent's Traffic Separation policy with the controller override.
+ *
+ * Builds the SSID-to-VID mapping from the Agent's configured fronthaul BSSes
+ * and the override PrivateVID and GuestVID values, then stores it in both the
+ * controller database and DataElements DM.
+ *
+ * @param database Controller database.
+ * @param al_mac Agent AL-MAC address.
+ * @return True when the complete override was stored, otherwise false.
+ */
+bool agent_monitoring_task::apply_traffic_separation_override(db &database, const sMacAddr &al_mac)
 {
-    std::list<wireless_utils::sTrafficSeparationSsid> configs;
-    std::set<std::string> unique_ssids;
+    auto agent = database.m_agents.get(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with mac is not found in database mac=" << al_mac;
+        return false;
+    }
 
-    for (const auto &bss_info : bss_infos) {
+    int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
+    if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
+        LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="
+                   << bpl::DEFAULT_PRIVATE_VLAN_ID;
+    }
+
+    int guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
+    if (!bpl::cfg_get_traffic_separation_guest_vid(guest_vid)) {
+        LOG(ERROR) << "Failed to read TrafficSeparation.GuestVID, using default value="
+                   << bpl::DEFAULT_GUEST_VLAN_ID;
+    }
+
+    if (!is_valid_ts_vid(private_vid)) {
+        LOG(WARNING) << "Invalid PrivateVID=" << private_vid
+                     << ", using default value=" << bpl::DEFAULT_PRIVATE_VLAN_ID;
+        private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
+    }
+
+    if (!is_valid_ts_vid(guest_vid)) {
+        LOG(WARNING) << "Invalid GuestVID=" << guest_vid
+                     << ", using default value=" << bpl::DEFAULT_GUEST_VLAN_ID;
+        guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
+    }
+
+    std::list<wireless_utils::sTrafficSeparationSsid> traffic_separation_configs;
+    std::set<std::string> unique_ssids;
+    for (const auto &bss_info : database.get_bss_info_configuration(al_mac)) {
         if (bss_info.ssid.empty()) {
             continue;
         }
-
-        // Skip backhaul-only BSS entries.
         if (bss_info.backhaul && !bss_info.fronthaul) {
             continue;
         }
-
         if (!unique_ssids.insert(bss_info.ssid).second) {
             continue;
         }
@@ -87,12 +128,92 @@ build_custom_ts_config(const std::list<wireless_utils::sBssInfoConf> &bss_infos,
         config.ssid = bss_info.ssid;
         config.vlan_id =
             static_cast<uint16_t>(bss_info.vap_type == eVapType::GUEST ? guest_vid : private_vid);
-        configs.push_back(config);
+        traffic_separation_configs.push_back(std::move(config));
     }
 
-    return configs;
+    if (traffic_separation_configs.empty()) {
+        LOG(WARNING) << "No fronthaul SSIDs found for Traffic Separation override policy";
+    }
+
+    if (!database.dm_clear_device_ssid_to_vid_map(*agent)) {
+        LOG(ERROR) << "Failed clearing Traffic Separation override policy for agent " << al_mac;
+        return false;
+    }
+    for (const auto &config : traffic_separation_configs) {
+        if (!database.dm_set_device_ssid_to_vid_map(*agent, config)) {
+            LOG(ERROR) << "Failed setting Traffic Separation override policy for agent " << al_mac;
+            return false;
+        }
+    }
+
+    database.clear_traffic_separation_configurations(al_mac);
+    for (const auto &config : traffic_separation_configs) {
+        database.add_traffic_separation_configuration(al_mac, config);
+    }
+
+    wireless_utils::s8021QSettings default_8021q_config{static_cast<uint16_t>(private_vid), 0};
+    database.add_default_8021q_settings(al_mac, default_8021q_config);
+    return true;
 }
 
+bool agent_monitoring_task::add_traffic_separation_policy_tlv(
+    ieee1905_1::CmduMessageTx &cmdu_tx,
+    const std::list<wireless_utils::sTrafficSeparationSsid> &traffic_separation_configs)
+{
+    auto tlv_traffic_policy = cmdu_tx.addClass<wfa_map::tlvProfile2TrafficSeparationPolicy>();
+    if (!tlv_traffic_policy) {
+        LOG(ERROR) << "Failed adding tlvProfile2TrafficSeparationPolicy";
+        return false;
+    }
+
+    for (const auto &config : traffic_separation_configs) {
+        auto ssid_vlan_id_entry = tlv_traffic_policy->create_ssids_vlan_id_list();
+        if (!ssid_vlan_id_entry) {
+            LOG(ERROR) << "Failed creating ssid_vlan_id entry";
+            return false;
+        }
+        if (!ssid_vlan_id_entry->set_ssid_name(config.ssid)) {
+            LOG(ERROR) << "Failed setting ssid";
+            return false;
+        }
+        ssid_vlan_id_entry->vlan_id() = config.vlan_id;
+        if (!tlv_traffic_policy->add_ssids_vlan_id_list(std::move(ssid_vlan_id_entry))) {
+            LOG(ERROR) << "Failed adding ssid_vlan_entry";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool agent_monitoring_task::add_default_8021q_settings_tlv(
+    db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &al_mac,
+    const wireless_utils::s8021QSettings &config)
+{
+    auto agent = database.m_agents.get(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent with mac is not found in database mac=" << al_mac;
+        return false;
+    }
+
+    auto default_8021q_settings = cmdu_tx.addClass<wfa_map::tlvProfile2Default802dotQSettings>();
+    if (!default_8021q_settings) {
+        LOG(ERROR) << "Failed adding tlvProfile2Default802dotQSettings";
+        return false;
+    }
+
+    default_8021q_settings->primary_vlan_id() = config.primary_vlan_id;
+    default_8021q_settings->default_pcp()     = config.default_pcp;
+
+    if (!database.dm_set_default_8021q(*agent, config.primary_vlan_id, config.default_pcp)) {
+        LOG(ERROR) << "Failed to set default 802.1Q parameters for agent " << al_mac;
+        return false;
+    }
+
+    return true;
+}
+
+namespace {
 /**
  * @brief Add a QoS Management Policy TLV from controller DB state.
  */
@@ -307,6 +428,51 @@ void agent_monitoring_task::handle_event(int event_type, void *obj)
         }
         break;
     }
+    case (CONFIGURE_TRAFFIC_SEPARATION_OVERRIDE): {
+        const bool ts_override_enabled = is_traffic_separation_override_enabled();
+
+        for (const auto &agent_entry : database.m_agents) {
+            auto agent = agent_entry.second;
+            if (!agent) {
+                continue;
+            }
+
+            agent->traffic_separation_override_reset_state = Agent::eTsResetState::NONE;
+
+            if (!ts_override_enabled) {
+                const bool had_traffic_separation_policy =
+                    !database.get_traffic_separation_configuration(agent->al_mac).empty();
+                const bool dm_clear_succeeded = database.dm_clear_device_ssid_to_vid_map(*agent);
+                if (!dm_clear_succeeded) {
+                    LOG(ERROR) << "Failed clearing Traffic Separation override policy for agent "
+                               << agent->al_mac;
+                }
+                database.clear_traffic_separation_configurations(agent->al_mac);
+                database.clear_default_8021q_settings(agent->al_mac);
+
+                const bool profile_2_or_later =
+                    agent->profile >=
+                    wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
+                const bool profile_2_capabilities_reported =
+                    agent->traffic_separation_support || agent->max_total_number_of_vids > 0;
+                agent->traffic_separation_override_reset_state =
+                    (!dm_clear_succeeded || profile_2_or_later || profile_2_capabilities_reported ||
+                     had_traffic_separation_policy)
+                        ? Agent::eTsResetState::PENDING
+                        : Agent::eTsResetState::NONE;
+
+                if (agent->traffic_separation_override_reset_state == Agent::eTsResetState::NONE) {
+                    continue;
+                }
+            }
+
+            if (!send_multi_ap_policy_config_request(agent->al_mac, cmdu_tx)) {
+                LOG(ERROR) << "Failed sending Traffic Separation override policy to agent "
+                           << agent->al_mac;
+            }
+        }
+        break;
+    }
     default:
         break;
     }
@@ -398,6 +564,13 @@ bool agent_monitoring_task::start_agent_monitoring(const sMacAddr &src_mac,
     }
     if (database.get_agent_monitoring_task_id() == db::TASK_ID_NOT_FOUND) {
         database.assign_agent_monitoring_task_id(id);
+    }
+
+    auto agent = database.m_agents.get(al_mac);
+    if (agent && agent->traffic_separation_override_reset_state == Agent::eTsResetState::SENT) {
+        LOG(DEBUG) << "Traffic Separation override reset completed during onboarding for agent "
+                   << al_mac;
+        agent->traffic_separation_override_reset_state = Agent::eTsResetState::NONE;
     }
     return true;
 }
@@ -522,9 +695,34 @@ bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &
         num_bsss += m_bss_configured[radio.second->radio_uid].size();
     }
 
-    if (num_bsss) {
-        add_traffic_separation_policy_tlv(database, cmdu_tx, dst_mac);
-        add_profile_2default_802q_settings_tlv(database, cmdu_tx, dst_mac);
+    // Reapply an enabled override during onboarding and configuration renewals,
+    // superseding any SSID-to-VID mapping previously supplied through TR-181.
+    const bool ts_override_enabled = is_traffic_separation_override_enabled();
+    const bool ts_override_reset_pending =
+        agent->traffic_separation_override_reset_state != Agent::eTsResetState::NONE;
+    if (num_bsss && ts_override_enabled && !ts_override_reset_pending &&
+        !apply_traffic_separation_override(database, dst_mac)) {
+        return false;
+    }
+
+    if (ts_override_reset_pending && !database.dm_clear_device_ssid_to_vid_map(*agent)) {
+        LOG(ERROR) << "Failed clearing Traffic Separation override policy for agent " << dst_mac;
+        return false;
+    }
+    const auto &traffic_separation_configs =
+        ts_override_reset_pending ? std::list<wireless_utils::sTrafficSeparationSsid>{}
+                                  : database.get_traffic_separation_configuration(dst_mac);
+    if (ts_override_reset_pending ||
+        (num_bsss && (!traffic_separation_configs.empty() || ts_override_enabled))) {
+        const auto default_8021q_config = ts_override_reset_pending
+                                              ? wireless_utils::s8021QSettings{}
+                                              : database.get_default_8021q_setting(dst_mac);
+        if (!add_traffic_separation_policy_tlv(cmdu_tx, traffic_separation_configs)) {
+            return false;
+        }
+        if (!add_default_8021q_settings_tlv(database, cmdu_tx, dst_mac, default_8021q_config)) {
+            return false;
+        }
     }
 
     auto metric_reporting_policy_tlv = cmdu_tx.addClass<wfa_map::tlvMetricReportingPolicy>();
@@ -677,7 +875,12 @@ bool agent_monitoring_task::send_multi_ap_policy_config_request(const sMacAddr &
         return false;
     }
 
-    return son_actions::send_cmdu_to_agent(dst_mac, cmdu_tx, database);
+    const bool sent = son_actions::send_cmdu_to_agent(dst_mac, cmdu_tx, database);
+    if (sent && agent->traffic_separation_override_reset_state != Agent::eTsResetState::NONE) {
+        // TODO: Use an Agent-applied Traffic Separation completion signal (PPM-4212).
+        agent->traffic_separation_override_reset_state = Agent::eTsResetState::SENT;
+    }
+    return sent;
 }
 
 bool agent_monitoring_task::send_backhaul_sta_capability_query(const sMacAddr &dst_mac,
@@ -823,123 +1026,9 @@ bool agent_monitoring_task::send_tlv_empty_channel_selection_request(
 bool agent_monitoring_task::add_profile_2default_802q_settings_tlv(
     db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &al_mac)
 {
-    const bool is_custom_ts_enabled = is_custom_ts_enabled_now();
-    auto default_8021q_config       = database.get_default_8021q_setting(al_mac);
-    auto agent                      = database.m_agents.get(al_mac);
+    const auto default_8021q_config = database.get_default_8021q_setting(al_mac);
 
-    if (!agent) {
-        LOG(ERROR) << "Agent with mac is not found in database mac=" << al_mac;
-        return false;
-    }
-
-    auto tlv_default_8021q_settings =
-        cmdu_tx.addClass<wfa_map::tlvProfile2Default802dotQSettings>();
-    if (!tlv_default_8021q_settings) {
-        LOG(ERROR) << "Failed adding tlvProfile2Default802dotQSettings";
-        return false;
-    }
-    tlv_default_8021q_settings->primary_vlan_id() = default_8021q_config.primary_vlan_id;
-    tlv_default_8021q_settings->default_pcp()     = default_8021q_config.default_pcp;
-
-    // In MAP default 802.1Q settings, VLAN ID 0 means "not configured".
-    // Use configured PrivateVID as fallback only in custom TS mode.
-    if (tlv_default_8021q_settings->primary_vlan_id() == net::UNCONFIGURED_VLAN_ID &&
-        is_custom_ts_enabled) {
-        int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
-        if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="
-                       << bpl::DEFAULT_PRIVATE_VLAN_ID;
-        }
-        if (!is_valid_ts_vid(private_vid)) {
-            LOG(WARNING) << "Invalid PrivateVID=" << private_vid
-                         << ", using default value=" << bpl::DEFAULT_PRIVATE_VLAN_ID;
-            private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
-        }
-        tlv_default_8021q_settings->primary_vlan_id() = static_cast<uint16_t>(private_vid);
-    }
-
-    if (!database.dm_set_default_8021q(*agent, tlv_default_8021q_settings->primary_vlan_id(),
-                                       default_8021q_config.default_pcp)) {
-        LOG(ERROR) << "Failed to set default 802.1Q parameters for agent" << al_mac;
-        return false;
-    }
-
-    return true;
-}
-
-bool agent_monitoring_task::add_traffic_separation_policy_tlv(db &database,
-                                                              ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                              const sMacAddr &al_mac)
-{
-    const bool is_custom_ts_enabled = is_custom_ts_enabled_now();
-    auto traffic_separation_configs = database.get_traffic_separation_configuration(al_mac);
-    auto agent                      = database.m_agents.get(al_mac);
-    if (!agent) {
-        LOG(ERROR) << "Agent with mac is not found in database mac=" << al_mac;
-        return false;
-    }
-
-    // if traffic_separation_configs is empty -> check custom configuration
-    if (traffic_separation_configs.empty() && is_custom_ts_enabled) {
-        int private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
-        if (!bpl::cfg_get_traffic_separation_private_vid(private_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.PrivateVID, using default value="
-                       << bpl::DEFAULT_PRIVATE_VLAN_ID;
-        }
-
-        int guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
-        if (!bpl::cfg_get_traffic_separation_guest_vid(guest_vid)) {
-            LOG(ERROR) << "Failed to read TrafficSeparation.GuestVID, using default value="
-                       << bpl::DEFAULT_GUEST_VLAN_ID;
-        }
-
-        if (!is_valid_ts_vid(private_vid)) {
-            LOG(WARNING) << "Invalid PrivateVID=" << private_vid
-                         << ", using default value=" << bpl::DEFAULT_PRIVATE_VLAN_ID;
-            private_vid = bpl::DEFAULT_PRIVATE_VLAN_ID;
-        }
-
-        if (!is_valid_ts_vid(guest_vid)) {
-            LOG(WARNING) << "Invalid GuestVID=" << guest_vid
-                         << ", using default value=" << bpl::DEFAULT_GUEST_VLAN_ID;
-            guest_vid = bpl::DEFAULT_GUEST_VLAN_ID;
-        }
-
-        // No per-SSID TS policy exists; derive private/guest VLAN from BSS vap_type.
-        traffic_separation_configs = build_custom_ts_config(
-            database.get_bss_info_configuration(al_mac), private_vid, guest_vid);
-        if (traffic_separation_configs.empty()) {
-            LOG(WARNING) << "No fronthaul SSIDs found for custom TrafficSeparation policy";
-        }
-    }
-
-    // Make TrafficSeparationPolicy TLV
-    if (!traffic_separation_configs.empty()) {
-        auto tlv_traffic_policy = cmdu_tx.addClass<wfa_map::tlvProfile2TrafficSeparationPolicy>();
-        if (!tlv_traffic_policy) {
-            LOG(ERROR) << "Failed adding tlvProfile2TrafficSeparationPolicy";
-            return false;
-        }
-        for (auto &config : traffic_separation_configs) {
-            auto ssid_vlan_id_entry = tlv_traffic_policy->create_ssids_vlan_id_list();
-            if (!ssid_vlan_id_entry) {
-                LOG(ERROR) << "Failed creating ssid_vlan_id entry";
-                return false;
-            }
-            if (!ssid_vlan_id_entry->set_ssid_name(config.ssid)) {
-                LOG(ERROR) << "Failed setting ssid";
-                return false;
-            }
-            ssid_vlan_id_entry->vlan_id() = config.vlan_id;
-            if (!tlv_traffic_policy->add_ssids_vlan_id_list(ssid_vlan_id_entry)) {
-                LOG(ERROR) << "Failed adding ssid_vlan_entry";
-                return false;
-            }
-
-            database.dm_set_device_ssid_to_vid_map(*agent, config);
-        }
-    }
-    return true;
+    return add_default_8021q_settings_tlv(database, cmdu_tx, al_mac, default_8021q_config);
 }
 
 void agent_monitoring_task::dm_add_sta_to_agent_connected_event(

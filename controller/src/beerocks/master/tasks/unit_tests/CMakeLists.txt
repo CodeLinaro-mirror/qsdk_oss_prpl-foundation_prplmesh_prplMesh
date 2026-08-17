@@ -54,4 +54,22 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
 
     install(TARGETS ${PROJECT_NAME} DESTINATION tests)
     add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+
+    add_executable(traffic_separation_event_test
+        ${CMAKE_CURRENT_LIST_DIR}/traffic_separation_event_test.cpp
+    )
+    target_compile_definitions(traffic_separation_event_test
+        PRIVATE
+            CONTROLLER_ODL_PATH="${CMAKE_BINARY_DIR}/controller/nbapi/controller/odl/controller.odl"
+    )
+    target_link_libraries(traffic_separation_event_test
+        mapfcommon bcl nbapi amxc amxd amxp libamxrt gtest_main)
+    target_include_directories(traffic_separation_event_test
+        PRIVATE
+            ${PLATFORM_INCLUDE_DIR}
+    )
+
+    install(TARGETS traffic_separation_event_test DESTINATION tests)
+    add_test(NAME traffic_separation_event_test
+        COMMAND $<TARGET_FILE:traffic_separation_event_test>)
 endif()
