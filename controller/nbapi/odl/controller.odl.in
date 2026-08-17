@@ -359,20 +359,29 @@
                         default "0";
                     }
 
-                    /* Traffic Separation configuration */
+                    /*
+                     * prplMesh Traffic Separation override.
+                     *
+                     * This controller-specific configuration is separate from the
+                     * TR-181 SetTrafficSeparation operation. Changing Enable
+                     * restarts Agent autoconfiguration so the override is applied
+                     * or cleared.
+                     */
                     %persistent object TrafficSeparation {
-                        /* If true, then prplMesh Controller applies TS policies for the network */
+                        /*
+                         * Enable the override.
+                         */
                         %persistent bool Enable {
                             default false;
                         }
 
-                        /* VLAN ID to use for private/home SSIDs */
+                        /* Override VLAN ID for private/home SSIDs. */
                         %persistent int32 PrivateVID {
                             default 10;
                             on action validate call check_range [1, 4094];
                         }
 
-                        /* VLAN ID to use for guest SSIDs */
+                        /* Override VLAN ID for guest SSIDs. */
                         %persistent int32 GuestVID {
                             default 20;
                             on action validate call check_range [1, 4094];
@@ -518,10 +527,10 @@
 
 %populate {
     on event "dm:object-changed" call event_configuration_changed
-        filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Configuration\."';
+        filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Configuration\.$"';
 
-    on event "dm:object-changed" call event_traffic_separation_changed
-        filter 'object matches "@CONTROLLER_ROOT_DM_literal@\.Configuration\.TrafficSeparation\."';
+    on event "dm:object-changed" call event_traffic_separation_override_changed
+        filter 'object matches "^@CONTROLLER_ROOT_DM_literal@\.Configuration\.TrafficSeparation\.$" && contains("parameters.Enable")';
 
     on event "dm:object-changed" call event_network_enable_changed
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\." && contains("parameters.Enable")';

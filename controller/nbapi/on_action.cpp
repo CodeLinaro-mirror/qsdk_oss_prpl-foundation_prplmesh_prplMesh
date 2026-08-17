@@ -1708,17 +1708,27 @@ static void event_configuration_changed(const char *const sig_name, const amxc_v
 }
 
 /**
- * @brief Event handler for controller traffic separation configuration changes.
+ * @brief Handle changes to the controller-specific Traffic Separation override.
  *
- * TS can be enabled after controller startup in controller+agent mode, so renew
- * autoconfig to push the updated TS TLVs to the local agent as well.
+ * Unlike the TR-181 SetTrafficSeparation operation, an override Enable change
+ * restarts Agent autoconfiguration so it is applied or cleared during onboarding.
  */
-static void event_traffic_separation_changed(const char *const sig_name,
-                                             const amxc_var_t *const data, void *const priv)
+static void event_traffic_separation_override_changed(const char *const sig_name,
+                                                      const amxc_var_t *const data,
+                                                      void *const priv)
 {
-    if (!send_ap_config_renew()) {
-        LOG(ERROR) << "Failed to renew AP config after traffic separation change";
+    if (!g_database) {
+        LOG(ERROR) << "Invalid database access";
+        return;
     }
+
+    auto controller = g_database->get_controller_ctx();
+    if (!controller) {
+        LOG(ERROR) << "Failed to get controller context";
+        return;
+    }
+
+    controller->trigger_traffic_separation_override();
 }
 
 /**
@@ -1903,10 +1913,10 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
 {
     const std::vector<beerocks::nbapi::sEvents> events_list = {
         {"event_configuration_changed", event_configuration_changed},
-        {"event_traffic_separation_changed", event_traffic_separation_changed},
         {"event_ieee1905_dataelements_network_device_changed",
          event_ieee1905_dataelements_network_device_changed},
         {"event_ieee1905_network_enable_changed", event_ieee1905_network_enable_changed},
+        {"event_traffic_separation_override_changed", event_traffic_separation_override_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed}};
     return events_list;

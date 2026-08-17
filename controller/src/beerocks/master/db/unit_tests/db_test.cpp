@@ -496,6 +496,39 @@ TEST_F(DbTest, dm_should_have_controller_bridge)
     EXPECT_TRUE(m_db->get_agent(tlvf::mac_from_string(g_bridge_mac)));
 }
 
+TEST_F(DbTest, dm_should_replace_device_ssid_to_vid_mapping)
+{
+    const auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+
+    const auto mapping_path  = agent->dm_path + ".SSIDtoVIDMapping";
+    const auto instance_path = mapping_path + ".1";
+    son::wireless_utils::sTrafficSeparationSsid mapping;
+    mapping.ssid    = "guest";
+    mapping.vlan_id = 20;
+
+    EXPECT_CALL(*m_ambiorix, remove_all_instances(mapping_path)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_instance(mapping_path)).WillOnce(Return(instance_path));
+    EXPECT_CALL(*m_ambiorix, set(instance_path, "SSID", Matcher<const std::string &>(mapping.ssid)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(instance_path, "VID", Matcher<const uint16_t &>(mapping.vlan_id)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_clear_device_ssid_to_vid_map(*agent));
+    EXPECT_TRUE(m_db->dm_set_device_ssid_to_vid_map(*agent, mapping));
+}
+
+TEST_F(DbTest, dm_should_report_failure_clearing_device_ssid_to_vid_mapping)
+{
+    const auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+
+    const auto mapping_path = agent->dm_path + ".SSIDtoVIDMapping";
+    EXPECT_CALL(*m_ambiorix, remove_all_instances(mapping_path)).WillOnce(Return(false));
+
+    EXPECT_FALSE(m_db->dm_clear_device_ssid_to_vid_map(*agent));
+}
+
 TEST_F(DbTest, test_add_node_radio)
 {
     const std::string radio_path = std::string(g_device_path) + ".1.Radio";

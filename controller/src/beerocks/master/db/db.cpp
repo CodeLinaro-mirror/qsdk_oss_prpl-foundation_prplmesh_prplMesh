@@ -8895,6 +8895,15 @@ bool db::dm_set_device_ssid_to_vid_map(const Agent &agent,
     return ret_val;
 }
 
+bool db::dm_clear_device_ssid_to_vid_map(const Agent &agent)
+{
+    if (agent.dm_path.empty()) {
+        return true;
+    }
+
+    return m_ambiorix_datamodel->remove_all_instances(agent.dm_path + ".SSIDtoVIDMapping");
+}
+
 bool db::dm_set_default_8021q(const Agent &agent, const uint16_t primary_vlan_id,
                               const uint8_t default_pcp)
 {

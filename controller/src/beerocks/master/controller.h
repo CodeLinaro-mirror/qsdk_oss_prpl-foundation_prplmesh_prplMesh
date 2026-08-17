@@ -226,6 +226,15 @@ public:
     void trigger_prioritization_config();
 
     /**
+     * @brief Queue application of the controller-specific Traffic Separation override.
+     *
+     * Enabling the override regenerates per-Agent SSID-to-VID mappings from the
+     * configured BSSes and override VIDs. Disabling it clears those mappings so
+     * an empty Traffic Separation policy is sent to each Agent.
+     */
+    void trigger_traffic_separation_override();
+
+    /**
      * @brief Function that starts all mandatory periodic tasks on controller start-up
      * Mandatory task list is
      * bml_task

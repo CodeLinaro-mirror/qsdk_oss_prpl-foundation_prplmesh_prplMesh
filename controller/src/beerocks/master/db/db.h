@@ -2989,6 +2989,14 @@ public:
                                        const wireless_utils::sTrafficSeparationSsid &config);
 
     /**
+     * @brief Clears the Service Set Identifier (SSID) to VLAN ID (VID) mapping.
+     *
+     * @param[in] agent Agent whose SSIDtoVIDMapping objects are removed.
+     * @return True on success, false otherwise.
+     */
+    bool dm_clear_device_ssid_to_vid_map(const Agent &agent);
+
+    /**
      * @brief Sets the default 802.1Q settings for EasyMesh service prioritization.
      *
      * DM path : "Device.WiFi.DataElements.Network.Device.{i}.Default8021Q.{i}."
