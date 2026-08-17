@@ -141,18 +141,32 @@ bool TrunkPortPlumbing8021q::clear()
         return true;
     }
 
-    // Clear GUEST network setup
-    if (!m_guest_subiface.empty()) {
-        network_utils::delete_interface(m_guest_subiface);
-        m_guest_subiface = {};
+    const auto clear_subiface = [&](std::string &subiface) {
+        if (subiface.empty()) {
+            return true;
+        }
+
+        network_utils::delete_interface(subiface);
+        if (network_utils::linux_iface_exists(subiface)) {
+            LOG(ERROR) << "failed to delete VLAN iface=" << subiface
+                       << " for trunk=" << m_trunk.iface_name;
+            return false;
+        }
+
+        subiface.clear();
+        return true;
+    };
+
+    // Keep failed subinterface names so their removal can be retried.
+    if (!clear_subiface(m_guest_subiface)) {
+        return false;
     }
 
     // If wireless trunk, then PRIVATE network has subiface for primary vlan -> needs to be cleared
     if (!m_trunk.is_ethernet) {
         // Remove private subiface
-        if (!m_private_subiface.empty()) {
-            network_utils::delete_interface(m_private_subiface);
-            m_private_subiface = {};
+        if (!clear_subiface(m_private_subiface)) {
+            return false;
         }
 
         // Reattach m_trunk.iface_name to a default bridge.

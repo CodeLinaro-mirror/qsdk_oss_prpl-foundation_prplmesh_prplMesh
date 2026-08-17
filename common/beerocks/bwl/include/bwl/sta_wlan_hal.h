@@ -37,7 +37,8 @@ public:
 
         Interface_Connected_OK,
         Interface_Reconnected_OK,
-        Interface_Disconnected
+        Interface_Disconnected,
+        Primary_VLAN_ID_Changed
     };
 
     using ChannelFreqPair = std::pair<uint8_t, beerocks::eFreqType>;

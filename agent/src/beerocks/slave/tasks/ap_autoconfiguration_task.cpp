@@ -93,6 +93,24 @@ bool is_lan_ethernet_iface(const std::string &iface_name)
                        });
 }
 
+void update_traffic_separation_policy_state(AgentDB::SafeDB &db, bool policy_tlv_present)
+{
+    // An absent TLV does not replace the current policy.
+    if (policy_tlv_present) {
+        db->traffic_separation.is_enabled = !db->traffic_separation.ssid_vid_mapping.empty();
+    }
+
+    if (db->traffic_separation.is_enabled) {
+        return;
+    }
+
+    // An explicit empty TS policy is authoritative over default settings and
+    // backhaul Primary VLAN telemetry until a non-empty policy is received.
+    db->traffic_separation.primary_vlan_id = net::UNCONFIGURED_VLAN_ID;
+    db->traffic_separation.default_pcp     = 0;
+    db->traffic_separation.secondary_vlans_ids.clear();
+}
+
 bool is_valid_op_std(const std::string &radio_iface,
                      const airties::tlvAirtiesRadioCapability::sStandards &op_std)
 {
@@ -1529,13 +1547,16 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
     }
 
     std::unordered_set<std::string> misconfigured_ssids;
+    const bool ts_policy_tlv_present =
+        static_cast<bool>(cmdu_rx.getClass<wfa_map::tlvProfile2TrafficSeparationPolicy>());
     // tlvProfile2TrafficSeparationPolicy is not mandatory.
-    if (!cmdu_rx.getClass<wfa_map::tlvProfile2TrafficSeparationPolicy>()) {
+    if (!ts_policy_tlv_present) {
         LOG(INFO) << "tlvProfile2TrafficSeparationPolicy not found";
     } else if (!handle_profile2_traffic_separation_policy_tlv(cmdu_rx, misconfigured_ssids)) {
         LOG(ERROR) << "handle_profile2_traffic_separation_policy_tlv has failed!";
         return;
     }
+    update_traffic_separation_policy_state(db, ts_policy_tlv_present);
 
     std::vector<sBssConfig> bss_infos;
     if (!handle_wsc_m2_tlv(cmdu_rx, radio->front.iface_name, m2_list, bss_infos,
@@ -1792,12 +1813,7 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
         return;
     }
 
-    if (ts_policy_tlv_present && db->traffic_separation.ssid_vid_mapping.empty()) {
-        // Explicit empty TS TLV means TS policy is disabled.
-        db->traffic_separation.primary_vlan_id = net::UNCONFIGURED_VLAN_ID;
-        db->traffic_separation.default_pcp     = 0;
-        db->traffic_separation.secondary_vlans_ids.clear();
-    }
+    update_traffic_separation_policy_state(db, ts_policy_tlv_present);
 
     std::vector<std::pair<wfa_map::tlvProfile2ErrorCode::eReasonCode, sMacAddr>> bss_errors;
     if (!misconfigured_ssids.empty()) {

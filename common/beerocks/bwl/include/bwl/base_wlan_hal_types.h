@@ -290,6 +290,10 @@ typedef struct {
 } sACTION_BACKHAUL_CONNECTED_NOTIFICATION;
 
 typedef struct {
+    uint16_t multi_ap_primary_vlan_id;
+} sACTION_BACKHAUL_PRIMARY_VLAN_ID_CHANGED_NOTIFICATION;
+
+typedef struct {
     uint32_t disconnect_reason;
     sMacAddr bssid;
 } sACTION_BACKHAUL_DISCONNECT_REASON_NOTIFICATION;
