@@ -34,8 +34,9 @@
 namespace beerocks {
 namespace net {
 
-constexpr uint16_t MIN_VLAN_ID = 1;
-constexpr uint16_t MAX_VLAN_ID = 4094;
+constexpr uint16_t UNCONFIGURED_VLAN_ID = 0;
+constexpr uint16_t MIN_VLAN_ID          = 1;
+constexpr uint16_t MAX_VLAN_ID          = 4094;
 
 // According to 802.11-2016 convertion table (Table 9-154).
 

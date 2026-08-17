@@ -530,7 +530,7 @@ bool sta_wlan_hal_dwpal::process_dwpal_event(char *buffer, int bufLen, const std
         if (read_param("multi_ap_primary_vlanid", parsed_obj, tmp_int)) {
             msg->multi_ap_primary_vlan_id = tmp_int;
         } else {
-            msg->multi_ap_primary_vlan_id = 0;
+            msg->multi_ap_primary_vlan_id = beerocks::net::UNCONFIGURED_VLAN_ID;
         }
 
         // Forward the event

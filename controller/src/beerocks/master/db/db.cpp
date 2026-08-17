@@ -8911,7 +8911,8 @@ bool db::dm_set_default_8021q(const Agent &agent, const uint16_t primary_vlan_id
     if (default_8021q_path.empty()) {
         return false;
     }
-    ret_val &= m_ambiorix_datamodel->set(default_8021q_path, "Enable", bool(primary_vlan_id > 0));
+    ret_val &= m_ambiorix_datamodel->set(default_8021q_path, "Enable",
+                                         bool(primary_vlan_id > net::UNCONFIGURED_VLAN_ID));
     ret_val &= m_ambiorix_datamodel->set(default_8021q_path, "PrimaryVID", primary_vlan_id);
     ret_val &= m_ambiorix_datamodel->set(default_8021q_path, "DefaultPCP", default_pcp);
 

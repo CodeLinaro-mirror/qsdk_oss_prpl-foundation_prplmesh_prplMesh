@@ -19,12 +19,8 @@ AccessPortPlumbing8021q::AccessPortPlumbing8021q(const sAccessPort &access_port)
 {
 }
 
-bool AccessPortPlumbing8021q::apply(const sTrafficSeparationConfig &cfg)
+bool AccessPortPlumbing8021q::apply(const sTrafficSeparationConfig &)
 {
-    if (cfg == beerocks::net::sTrafficSeparationConfig()) {
-        LOG(WARNING) << "TS config is empty";
-    }
-
     if (m_access_port.iface_name.empty()) {
         LOG(ERROR) << "empty iface_name";
         return false;

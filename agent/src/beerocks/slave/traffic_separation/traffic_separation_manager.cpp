@@ -21,11 +21,26 @@ namespace beerocks::net {
 
 bool TrafficSeparationManager::configure(const sTrafficSeparationConfig &cfg)
 {
-    if (cfg.private_bridge.empty() || cfg.guest_bridge.empty() || cfg.private_vid == 0 ||
-        cfg.guest_vid == 0 || cfg.private_vid > net::MAX_VLAN_ID ||
-        cfg.guest_vid > net::MAX_VLAN_ID) {
-        LOG(ERROR) << "invalid config";
+    if (cfg.private_bridge.empty()) {
+        LOG(ERROR) << "private bridge is empty";
         return false;
+    }
+
+    if (cfg.private_vid == net::UNCONFIGURED_VLAN_ID || cfg.private_vid > net::MAX_VLAN_ID) {
+        LOG(ERROR) << "invalid private VLAN ID=" << cfg.private_vid;
+        return false;
+    }
+
+    if (cfg.has_guest_network()) {
+        if (cfg.guest_vid > net::MAX_VLAN_ID) {
+            LOG(ERROR) << "invalid guest VLAN ID=" << cfg.guest_vid;
+            return false;
+        }
+
+        if (cfg.guest_bridge.empty()) {
+            LOG(ERROR) << "guest bridge is empty";
+            return false;
+        }
     }
 
     const bool was_applied = is_applied();
