@@ -1603,8 +1603,9 @@ bool ChannelScanTask::send_channel_scan_report_to_controller(
             return false;
         }
 
-        // Signal Strength
-        neighbor_res->signal_strength() = neighbor.signal_strength_dBm;
+        // Signal Strength, encoded as RCPI (EasyMesh 17.2.40)
+        neighbor_res->signal_strength() = son::wireless_utils::convert_rcpi_from_rssi(
+            static_cast<int8_t>(neighbor.signal_strength_dBm));
 
         // Bandwidth
         auto eChannelScanResultChannelBandwidth_toString =

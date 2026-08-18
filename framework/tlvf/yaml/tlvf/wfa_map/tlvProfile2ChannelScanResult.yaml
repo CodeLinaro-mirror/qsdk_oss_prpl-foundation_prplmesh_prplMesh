@@ -93,9 +93,9 @@ cNeighbors:
   signal_strength:
     _type: uint8_t
     _comment: |
-      An indicator of radio signal strength (RSSI) of the Beacon or Probe
-      Response frames of the neighboring BSS as received by the radio
-      measured in dBm
+      An indicator of radio signal strength (RCPI) of the Beacon or Probe
+      Response frames of the neighboring BSS as received by the radio,
+      encoded as in IEEE 802.11-2020 Table 9-176
   channel_bw_length:
     _type: uint8_t
     _length_var: True
