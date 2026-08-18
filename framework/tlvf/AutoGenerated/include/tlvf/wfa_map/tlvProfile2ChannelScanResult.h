@@ -201,9 +201,9 @@ class cNeighbors : public BaseClass
         bool set_ssid(const std::string& str);
         bool set_ssid(const char buffer[], size_t size);
         bool alloc_ssid(size_t count = 1);
-        //An indicator of radio signal strength (RSSI) of the Beacon or Probe
-        //Response frames of the neighboring BSS as received by the radio
-        //measured in dBm
+        //An indicator of radio signal strength (RCPI) of the Beacon or Probe
+        //Response frames of the neighboring BSS as received by the radio,
+        //encoded as in IEEE 802.11-2020 Table 9-176
         uint8_t& signal_strength();
         uint8_t& channel_bw_length();
         //String indicating the maximum bandwidth at which the neighbor BSS is
