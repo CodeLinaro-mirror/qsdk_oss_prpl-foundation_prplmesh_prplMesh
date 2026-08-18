@@ -1,11 +1,12 @@
 #! /bin/sh
+scriptdir="$(cd "${0%/*}" && pwd)"
+rootdir="$scriptdir"
+
+# shellcheck source=tools/functions.sh
+. "${rootdir}/tools/functions.sh"
+
 # cd to the script directory:
 cd "${0%/*}" || { echo "Couldn't cd to ${0%/*}!"; exit 1; }
-CLANG_FORMAT="clang-format"
-if ! [ -x "$(command -v ${CLANG_FORMAT})" ]; then
-  echo "{$CLANG_FORMAT} not found. skipping..."
-  exit 1
-fi
 
 IGNORE_FILE=".clang-ignore"
 filter="grep ."
@@ -15,4 +16,22 @@ else
     filter="grep ."
 fi
 
-git ls-files -- '*.c' '*.cpp' '*.h' '*.hpp' '*.cc' | $filter | xargs clang-format -i -style=file
+if ! command -v clang-format-6 >/dev/null 2>&1; then
+    echo "clang-format-6 not found. Starting Docker..."
+
+    docker run --rm -i \
+        -v "$(pwd):/workspace" \
+        -w /workspace \
+        "${DOCKER_REGISTRY}prplmesh-clang-format:latest" \
+        "/workspace/$(basename "$0")"
+
+    exit $?
+fi
+
+find . -type f \( \
+    -name '*.c' \
+    -o -name '*.cpp' \
+    -o -name '*.h' \
+    -o -name '*.hpp' \
+    -o -name '*.cc' \
+\) -print | $filter | xargs clang-format-6 -i -style=file

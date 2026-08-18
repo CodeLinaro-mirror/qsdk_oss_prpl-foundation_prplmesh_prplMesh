@@ -54,6 +54,12 @@ image-build-cppcheck:
 image-build-scripts:
   extends: .image-build
 
+# Only push on master branch
+image-build-clang-format:
+  extends: .image-build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 image-build-cram:
   stage: containers
   script:
