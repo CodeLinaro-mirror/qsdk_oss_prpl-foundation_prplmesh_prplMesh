@@ -132,3 +132,5 @@ RUN \
     cd mod-dmext && make && make install
 
 ADD start-prplmesh.sh /root/
+
+RUN ln -s /usr/bin/clang-format-6.0 /usr/local/bin/clang-format-6
