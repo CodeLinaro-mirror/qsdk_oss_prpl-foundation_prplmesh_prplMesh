@@ -54,10 +54,6 @@ endif()
 # Install ODL files
 install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/controller)
 
-if(NOT "${INCLUDE_IEEE1905_USP_CONFIG}" STREQUAL "")
-  install(FILES "${ODL_OUTPUT_DIR}/odl/ieee1905_usp_cfg.odl" DESTINATION "config/controller/odl")
-endif()
-
 if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d)
     install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d DESTINATION config/controller/odl)
 endif()
