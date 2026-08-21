@@ -33,6 +33,7 @@
 #define UTILS_SLEEP_MSEC(msec) usleep(msec * 1000)
 
 #include <string>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace beerocks {
@@ -100,6 +101,7 @@ public:
      */
     static bool read_pid_file(const std::string &path, const std::string &file_name, int &pid);
 
+    static bool mkdir_recursive(const std::string &path, mode_t mode = 0755);
     static bool write_pid_file(const std::string &path, const std::string &file_name);
 
     static bool touch_pid_file(const std::string &file_path);

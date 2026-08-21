@@ -590,6 +590,8 @@ int main(int argc, char *argv[])
 
     std::cout << "Beerocks Controller Process Start" << std::endl;
 
+    ELPP_INITIALIZE_SYSLOG("prplmesh", 0, LOG_USER);
+
 #ifdef INCLUDE_BREAKPAD
     breakpad_ExceptionHandler();
 #endif
@@ -699,6 +701,7 @@ int main(int argc, char *argv[])
         beerocks::os_utils::redirect_console_std(beerocks_master_conf.sLog.files_path +
                                                  base_master_name + "_std.log");
     }
+
     //write pid file
     beerocks::os_utils::write_pid_file(beerocks_master_conf.temp_path, base_master_name);
     std::string pid_file_path =

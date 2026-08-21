@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <iostream>
 #include <linux/limits.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include <easylogging++.h>
@@ -287,7 +288,7 @@ bool log_levels::trace_enabled() { return (m_level_set.end() != m_level_set.find
 // logging
 //====================================================================================
 const std::string logging::format("%level %datetime{%H:%m:%s:%g} <%thread> %fbase[%line] --> %msg");
-const std::string logging::syslogFormat("<%thread> %fbase[%line] --> %msg");
+const std::string logging::syslogFormat("%datetime{%H:%m:%s:%g} %fbase[%line] --> %msg");
 
 logging::logging(const std::string &module_name, const std::string &config_path,
                  const std::string &logger_id)

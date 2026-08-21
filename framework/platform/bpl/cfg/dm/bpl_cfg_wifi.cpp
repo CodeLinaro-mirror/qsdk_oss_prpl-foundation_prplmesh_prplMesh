@@ -215,6 +215,35 @@ int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_p
     return RETURN_OK;
 }
 
+int cfg_get_wifi_universal_index(const std::string &iface, int &index)
+{
+    index = -1;
+
+    std::string radio_path;
+    if (!resolve_path_via_common_socket(wbapi_utils::search_path_radio_by_iface(iface),
+                                        radio_path)) {
+        return RETURN_ERR;
+    }
+
+    const size_t pos = radio_path.find_last_of('.');
+    if (pos == std::string::npos || pos + 1 >= radio_path.size())
+        return RETURN_ERR;
+
+    const std::string suffix = radio_path.substr(pos + 1);
+
+    int value = 0;
+    for (char c : suffix) {
+        if (c < '0' || c > '9')
+            return RETURN_ERR;
+
+        value = value * 10 + (c - '0');
+    }
+
+    index = value - 1;
+
+    return RETURN_OK;
+}
+
 bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> &wireless_settings)
 {
     auto aps = get_object_multi_via_common_socket(wbapi_utils::search_path_ap());

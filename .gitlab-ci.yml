@@ -239,7 +239,7 @@ build-in-docker:
 build-in-docker-legacy:
   extends: .build-in-docker
   variables:
-    EXTRA_CMAKE_FLAGS: "-DENABLE_VBSS=ON -DUSE_PRPLMESH_WHM=OFF"
+    EXTRA_CMAKE_FLAGS: "-DENABLE_VBSS=ON -DUSE_PRPLMESH_WHM=OFF -DBEEROCKS_LOG_FILES_ENABLED:STRING=true -DBEEROCKS_LOG_SYSLOG_ENABLED:STRING=false -DBEEROCKS_LOG_FILES_PATH=/tmp/beerocks/logs -DBEEROCKS_SYSLOG_LEVEL_LIST=all"
 
 build-in-docker-static:
   extends: build-in-docker

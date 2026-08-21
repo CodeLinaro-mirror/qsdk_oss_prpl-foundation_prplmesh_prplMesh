@@ -14,9 +14,11 @@
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 
+#include <bcl/beerocks_os_utils.h>
 #include <bcl/beerocks_string_utils.h>
 
 #define closesocket close
@@ -185,6 +187,10 @@ SocketServer::SocketServer(const std::string &uds_path, int connections, SocketM
         return;
     }
 
+    if (!beerocks::os_utils::mkdir_recursive(uds_path)) {
+        m_error = "fail to create parent directory for " + uds_path;
+        return;
+    }
     // Server socket is always internally managed
     m_external_handler = false;
 

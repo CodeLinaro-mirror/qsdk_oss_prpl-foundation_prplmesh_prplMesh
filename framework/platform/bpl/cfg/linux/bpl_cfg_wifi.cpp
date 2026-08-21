@@ -71,6 +71,12 @@ int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_p
     return RETURN_OK;
 }
 
+int cfg_get_wifi_universal_index(const std::string &iface, int &index)
+{
+    index = -1;
+    return RETURN_OK;
+}
+
 bool bpl_cfg_get_wireless_settings(std::list<son::wireless_utils::sBssInfoConf> &wireless_settings)
 {
     int num_of_interfaces = beerocks::MAX_RADIOS_PER_AGENT;

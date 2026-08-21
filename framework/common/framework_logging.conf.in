@@ -1,7 +1,8 @@
 {
 	"logging": {
 		"default": {
-			"level" : "INFO",
+			"level" : "ERROR",
+			"comment" : "DEBUG,INFO,WARNING,ERROR, set minimal level",
 			"syslog" : @BEEROCKS_LOG_SYSLOG_ENABLED@,
 			"console" : @BEEROCKS_LOG_STDOUT_ENABLED@,
 			"file" : {

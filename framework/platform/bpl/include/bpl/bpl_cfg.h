@@ -692,6 +692,29 @@ bool cfg_set_diagnostics_measurements_polling_rate_sec(
 int cfg_get_wifi_params(const std::string &iface, struct BPL_WLAN_PARAMS *wlan_params);
 
 /**
+ * Returns universal index for given radio name
+ *
+ * @param [in] iface Interface name for the requested parameters.
+ * @param [out] index.
+ *
+ * Rationals: why to do this
+ *
+ * interfaces name varies among boards, i.e.
+ *   wlan0/wlan1/wlan2
+ *   wlan1/wlan2/wlan4
+ * even in data model, alias name varies, i.e
+ *   wlan0 -> radio0
+ *   wlan0 -> radio0_band0
+ *
+ * in some cases, deterministic & unique identifier is wanted
+ * i.e. in log usage, we need to distinguish log lines from different radios
+ *
+ * @return 0 Success.
+ * @return -1 Error.
+ */
+int cfg_get_wifi_universal_index(const std::string &iface, int &index);
+
+/**
  * Returns the preferred radio band for wireless backhaul.
  *
  * @param[out] preferred_radio_band One of the BPL_RADIO_BAND_* values when non-null.

@@ -5610,7 +5610,17 @@ void slave_thread::fronthaul_start(const std::string &fronthaul_iface)
     if (access(file_name.c_str(), F_OK) == -1) {
         file_name = mapf::utils::get_install_path() + "bin/" + std::string(BEEROCKS_FRONTHAUL);
     }
-    std::string cmd = file_name + " -i " + fronthaul_iface;
+
+    std::string env("");
+    int index = -1;
+    if (bpl::cfg_get_wifi_universal_index(fronthaul_iface, index) == 0) {
+        if (index != -1) {
+            env = "PRPLMESH_FRONTHAUL_SUB_IDENTIFIER=wlan";
+            env += std::to_string(index);
+            LOG(INFO) << fronthaul_iface << " uses env " << env;
+        }
+    }
+    std::string cmd = env + " " + file_name + " -i " + fronthaul_iface;
     SYSTEM_CALL(cmd, true);
 }
 

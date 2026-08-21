@@ -159,6 +159,8 @@ int main(int argc, char *argv[])
 {
     std::cout << "IEEE1905 Transport Process Start" << std::endl;
 
+    ELPP_INITIALIZE_SYSLOG("prplmesh", 0, LOG_USER);
+
 #ifdef INCLUDE_BREAKPAD
     breakpad_ExceptionHandler();
 #endif

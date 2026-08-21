@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <sstream>
 #include <sys/inotify.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #define DEFAULT_LOGGER_NAME "default"
@@ -100,15 +101,6 @@ void Logger::LoggerInit(const char *logger_name)
         if (rc)
             MAPF_ERR("Unable to create watcher thread");
 #endif //#ifdef USE_INOTIFY
-
-#ifdef ELPP_SYSLOG
-        el::Configurations syslogConf;
-        syslogConf.setToDefault();
-        syslogConf.parseFromText(
-            std::string(std::string("*GLOBAL:\n FORMAT = ") + std::string(kSyslogMessageFormat))
-                .c_str());
-        el::Loggers::reconfigureLogger("syslog", syslogConf);
-#endif //#ifdef ELPP_SYSLOG
     }
 }
 
@@ -193,7 +185,14 @@ void Logger::Config::SetValuesFromJson(struct json_object *jlogger, const std::s
 std::string Logger::Config::ToEasyLoggingString()
 {
     std::string settings("*GLOBAL:\n");
+#ifdef ELPP_SYSLOG
+    if (write_to_syslog_)
+        settings += std::string("FORMAT = ") + kSyslogMessageFormat + "\n";
+    else
+        settings += std::string("FORMAT = ") + kMessageFormat + "\n";
+#else
     settings += std::string("FORMAT = ") + kMessageFormat + "\n";
+#endif
     settings += "FILENAME = " + file_path_ + "\n";
     settings += "ENABLED = " + bool_to_string(false) + "\n";
     settings += "TO_FILE = " + bool_to_string(write_to_file_) + "\n";
