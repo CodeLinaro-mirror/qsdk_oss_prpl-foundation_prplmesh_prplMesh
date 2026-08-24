@@ -73,6 +73,7 @@ platform:
     - image-build-boardfarm-ci
     - image-build-cram
   rules:
+    - if: '(($CI_COMMIT_BRANCH == "feature/PPM-4176-cram-ts-tests") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4176-cram-ts-tests"))'
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
     - !reference [.rules-for-expensive-job, rules]
   variables:

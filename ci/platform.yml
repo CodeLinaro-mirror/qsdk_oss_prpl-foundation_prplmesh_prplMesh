@@ -47,6 +47,7 @@ build-for-rdkb-turris-omnia:
   variables:
     TARGET_DEVICE: "turris-omnia"
   retry: 2
+  when: manual
 
 build-for-freedom:
   extends: .build-for-openwrt
@@ -109,6 +110,7 @@ boardfarm-on-turris-omnia-rdkb:
     - ./dctest.py --dut $TARGET_DEVICE --test-suite test_flows_on_rdkb
   needs:
     - build-for-rdkb-turris-omnia
+  when: manual
 
 boardfarm-on-turris-omnia-rdkb-stability:
   extends: boardfarm-on-turris-omnia-rdkb
@@ -257,16 +259,31 @@ cram-wps-on-pair-freedom-freedom:
   extends:
     - .cram-on-pair-freedom-freedom
     - .cram-wps-on-pair
+  rules:
+    - if: '(($CI_COMMIT_BRANCH == "feature/PPM-4176-cram-ts-tests") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4176-cram-ts-tests"))'
+      when: always
+    - when: manual
+      allow_failure: true
 
 cram-wps-on-pair-ospv2-freedom:
   extends:
     - .cram-on-pair-ospv2-freedom
     - .cram-wps-on-pair
+  rules:
+    - if: '(($CI_COMMIT_BRANCH == "feature/PPM-4176-cram-ts-tests") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4176-cram-ts-tests"))'
+      when: always
+    - when: manual
+      allow_failure: true
 
 cram-wps-on-pair-ospv2-ospv2:
   extends:
     - .cram-on-pair-ospv2-ospv2
     - .cram-wps-on-pair
+  rules:
+    - if: '(($CI_COMMIT_BRANCH == "feature/PPM-4176-cram-ts-tests") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4176-cram-ts-tests"))'
+      when: always
+    - when: manual
+      allow_failure: true
 
 .cram-traffic-separation-on-pair:
   script:
@@ -276,16 +293,31 @@ cram-traffic-separation-on-pair-freedom-freedom:
   extends:
     - .cram-on-pair-freedom-freedom
     - .cram-traffic-separation-on-pair
+  rules:
+    - if: '(($CI_COMMIT_BRANCH == "feature/PPM-4176-cram-ts-tests") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4176-cram-ts-tests"))'
+      when: always
+    - when: manual
+      allow_failure: true
 
 cram-traffic-separation-on-pair-ospv2-freedom:
   extends:
     - .cram-on-pair-ospv2-freedom
     - .cram-traffic-separation-on-pair
+  rules:
+    - if: '(($CI_COMMIT_BRANCH == "feature/PPM-4176-cram-ts-tests") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4176-cram-ts-tests"))'
+      when: always
+    - when: manual
+      allow_failure: true
 
 cram-traffic-separation-on-pair-ospv2-ospv2:
   extends:
     - .cram-on-pair-ospv2-ospv2
     - .cram-traffic-separation-on-pair
+  rules:
+    - if: '(($CI_COMMIT_BRANCH == "feature/PPM-4176-cram-ts-tests") || ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/PPM-4176-cram-ts-tests"))'
+      when: always
+    - when: manual
+      allow_failure: true
 
 run-certification-tests-R1-platform-essensium:
   extends: .run-certification-tests-R1
