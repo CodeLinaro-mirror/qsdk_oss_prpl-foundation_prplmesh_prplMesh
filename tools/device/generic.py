@@ -100,6 +100,7 @@ class GenericDevice():
         """
         self.device = device
         self.name = name
+        self.ssh_host = name
         self.image = image
         self.rootfs = rootfs
         if ipaddr is not None:
@@ -134,7 +135,7 @@ class GenericDevice():
             try:
                 with pexpect.pxssh.pxssh(options={"StrictHostKeyChecking": "no",
                                                   "UserKnownHostsFile": "/dev/null"}) as shell:
-                    shell.login(self.name, self.username, login_timeout=5)
+                    shell.login(self.ssh_host, self.username, login_timeout=5)
                     return True
             except (pexpect.pxssh.ExceptionPxssh, pexpect.exceptions.EOF):
                 print("Waiting for the device to be reachable")

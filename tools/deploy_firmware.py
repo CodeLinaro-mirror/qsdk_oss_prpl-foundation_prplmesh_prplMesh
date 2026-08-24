@@ -27,7 +27,11 @@ def main():
     parser.add_argument(
         '-t',
         '--target-name',
-        help="Name of the target to upgrade (make sure it's reachable through ssh).", required=True)
+        help="Name of the target to upgrade and its /dev serial endpoint.", required=True)
+
+    parser.add_argument(
+        '--ssh-host',
+        help="SSH host to use when it differs from the serial target name.", required=False)
 
     parser.add_argument(
         '-i',
@@ -68,6 +72,12 @@ def main():
         '--configuration',
         help="The path to an optional configuration file.", required=False)
 
+    parser.add_argument(
+        '--configuration-arguments',
+        nargs='*',
+        default=[],
+        help="Positional arguments passed to the configuration file.")
+
     args = parser.parse_args()
 
     if args.device == "freedom" and args.rootfs is None:
@@ -75,6 +85,8 @@ def main():
 
     dev = device_from_name(args.device, args.target_name, args.image, args.rootfs,
                            args.ipaddr, args.serverip)
+    if args.ssh_host:
+        dev.ssh_host = args.ssh_host
 
     def do_upgrade(dev):
         try:
@@ -104,7 +116,7 @@ def main():
     # Apply the configuration if there is one:
     if args.configuration:
         print("A configuration file was provided, it will be applied.")
-        configure_device(dev, Path(args.configuration))
+        configure_device(dev, Path(args.configuration), args.configuration_arguments)
 
     if args.configuration:
         # If the device was configured, give it some time to initialize:
