@@ -197,6 +197,96 @@ cram-on-ospv2:
     - cram
     - ospv2-SMD
 
+.cram-on-pair:
+  stage: test
+  interruptible: false
+  timeout: 2h
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  after_script:
+    - ci/cram-testbed-isolation.sh restore
+  resource_group: cram-testbed
+  artifacts:
+    when: always
+    paths:
+      - cram-pair-artifacts/
+      - cram-pair-run/**/*.t.err
+  rules:
+    - when: manual
+      allow_failure: true
+
+.cram-on-pair-freedom-freedom:
+  extends: .cram-on-pair
+  variables:
+    PAIR_CONTROLLER_TARGET: "freedom"
+    PAIR_AGENT_TARGET: "freedom2"
+  needs:
+    - job: build-for-freedom
+  tags:
+    - cram
+    - freedom-SMD
+
+.cram-on-pair-ospv2-freedom:
+  extends: .cram-on-pair
+  variables:
+    PAIR_CONTROLLER_TARGET: "urx_ospv2"
+    PAIR_AGENT_TARGET: "freedom"
+  needs:
+    - job: build-for-ospv2
+    - job: build-for-freedom
+  tags:
+    - cram
+    - ospv2-SMD
+
+.cram-on-pair-ospv2-ospv2:
+  extends: .cram-on-pair
+  variables:
+    PAIR_CONTROLLER_TARGET: "urx_ospv2"
+    PAIR_AGENT_TARGET: "urx_ospv22"
+  needs:
+    - job: build-for-ospv2
+  tags:
+    - cram
+    - ospv2-SMD
+
+.cram-wps-on-pair:
+  script:
+    - ci/run-pair-cram.sh wps
+
+cram-wps-on-pair-freedom-freedom:
+  extends:
+    - .cram-on-pair-freedom-freedom
+    - .cram-wps-on-pair
+
+cram-wps-on-pair-ospv2-freedom:
+  extends:
+    - .cram-on-pair-ospv2-freedom
+    - .cram-wps-on-pair
+
+cram-wps-on-pair-ospv2-ospv2:
+  extends:
+    - .cram-on-pair-ospv2-ospv2
+    - .cram-wps-on-pair
+
+.cram-traffic-separation-on-pair:
+  script:
+    - ci/run-pair-cram.sh eth wifi
+
+cram-traffic-separation-on-pair-freedom-freedom:
+  extends:
+    - .cram-on-pair-freedom-freedom
+    - .cram-traffic-separation-on-pair
+
+cram-traffic-separation-on-pair-ospv2-freedom:
+  extends:
+    - .cram-on-pair-ospv2-freedom
+    - .cram-traffic-separation-on-pair
+
+cram-traffic-separation-on-pair-ospv2-ospv2:
+  extends:
+    - .cram-on-pair-ospv2-ospv2
+    - .cram-traffic-separation-on-pair
+
 run-certification-tests-R1-platform-essensium:
   extends: .run-certification-tests-R1
   before_script:
