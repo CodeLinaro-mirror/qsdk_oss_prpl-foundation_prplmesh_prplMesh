@@ -70,8 +70,30 @@ inline std::ostream &operator<<(std::ostream &out, Type value) { return out << T
 
 class Message {
 public:
-    static constexpr uint32_t kMessageMagic   = 0xB8C16F47;
-    static constexpr uint32_t kMaxFrameLength = 8192;
+    enum class ReadStatus { Complete, Incomplete, Error };
+    // Enum AutoPrint generated code snippet begining- DON'T EDIT!
+    // clang-format off
+    static const char *ReadStatus_str(ReadStatus enum_value) {
+        switch (enum_value) {
+        case ReadStatus::Complete:   return "ReadStatus::Complete";
+        case ReadStatus::Incomplete: return "ReadStatus::Incomplete";
+        case ReadStatus::Error:      return "ReadStatus::Error";
+        }
+        static std::string out_str = std::to_string(int(enum_value));
+        return out_str.c_str();
+    }
+    friend inline std::ostream &operator<<(std::ostream &out, ReadStatus value) { return out << ReadStatus_str(value); }
+    // clang-format on
+    // Enum AutoPrint generated code snippet end
+
+    static constexpr uint32_t kMessageMagic  = 0xB8C16F47;
+    static constexpr uint32_t kMaxCmduLength = 8192;
+
+    // A transport frame carries both the CMDU and transport-specific metadata. Keep enough room
+    // for the metadata without reducing the maximum CMDU size. The static assertion following
+    // CmduXxMessage ensures that its metadata fits in the reserved space.
+    static constexpr uint32_t kMaxTransportMetadataLength = 64;
+    static constexpr uint32_t kMaxFrameLength = kMaxCmduLength + kMaxTransportMetadataLength;
 
     class Frame {
     public:
@@ -112,6 +134,14 @@ public:
         uint32_t magic = kMessageMagic; // magic value
         uint32_t type  = 0;             // message type
         uint32_t len   = 0;             // total length of the message (excluding topic & header)
+    };
+
+    struct ReadState {
+        Header header;
+        std::vector<uint8_t> payload;
+        size_t header_bytes_received  = 0;
+        size_t payload_bytes_received = 0;
+        bool header_received          = false;
     };
 
     Message() {}
@@ -283,6 +313,9 @@ public:
     {
     }
 };
+
+static_assert(sizeof(CmduXxMessage::Metadata) <= Message::kMaxTransportMetadataLength,
+              "CmduXxMessage metadata exceeds the space reserved in a transport frame");
 
 class CmduTxMessage : public CmduXxMessage {
 public:
@@ -642,10 +675,13 @@ create_transport_message(Type type, std::initializer_list<messages::Message::Fra
  * @brief Read and parse internal transport message from a socket.
  * 
  * @param [in] sd Socket of the incoming message.
+ * @param [in,out] state State retained while a message arrives over multiple socket events.
+ * @param [out] status Result of parsing the bytes available on the socket.
  * 
  * @return Unique pointer to the received message object or nullptr on error.
  */
-std::unique_ptr<Message> read_transport_message(Socket &sd);
+std::unique_ptr<Message> read_transport_message(Socket &sd, Message::ReadState &state,
+                                                Message::ReadStatus &status);
 
 /**
  * @brief Send internal message to a socket.

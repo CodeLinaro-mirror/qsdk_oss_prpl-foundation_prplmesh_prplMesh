@@ -14,7 +14,9 @@
 // System
 #include <cerrno>
 #include <sys/eventfd.h>
+#include <sys/socket.h>
 #include <sys/uio.h>
+#include <utility>
 
 #include <easylogging++.h>
 
@@ -127,7 +129,9 @@ bool BrokerServer::publish(const messages::Message &msg)
         return true;
     }
 
-    // Send the message to subscribed FDs
+    // Send the message to subscribed FDs. A failed complete write may have left a partial frame on
+    // the stream, so disconnect that subscriber before any later message can corrupt framing.
+    std::vector<std::shared_ptr<Socket>> failed_sockets;
     for (auto soc : types_set_it->second) {
         LOG(DEBUG) << "Sending message with type (0x" << std::hex << msg_opcode.value << std::dec
                    << ") to FD (" << soc->getSocketFd() << ")";
@@ -135,11 +139,21 @@ bool BrokerServer::publish(const messages::Message &msg)
         if (!messages::send_transport_message(*soc, msg)) {
             LOG(ERROR) << "Failed sending message with type (0x" << std::hex << msg_opcode.value
                        << std::dec << ") to FD (" << soc->getSocketFd() << ")";
-
-            continue;
+            failed_sockets.push_back(std::move(soc));
         }
     }
 
+    for (auto &soc : failed_sockets) {
+        auto fd = soc->getSocketFd();
+        LOG(WARNING) << "Disconnecting FD (" << fd << ") after transport write failure";
+        socket_disconnected(soc);
+        if (shutdown(fd, SHUT_RDWR) != 0 && errno != ENOTCONN) {
+            LOG(ERROR) << "Failed shutting down FD (" << fd << "): " << strerror(errno);
+        }
+    }
+
+    // A failed subscriber has been isolated. Publishing to it must not prevent the caller from
+    // forwarding the same CMDU to its other destinations.
     return true;
 }
 
@@ -155,18 +169,22 @@ void BrokerServer::register_external_message_handler(const MessageHandler &handl
     m_external_message_handler = handler;
 }
 
-bool BrokerServer::handle_msg(std::shared_ptr<Socket> sd)
+bool BrokerServer::handle_msg(std::shared_ptr<Socket> sd, bool *fatal_error)
 {
-    // Check if the socket contains enough bytes for the header
-    if (sd->getBytesReady() < static_cast<ssize_t>(sizeof(messages::Message::Header))) {
-        // Received partial header - do nothing...
-        return true;
+    if (fatal_error) {
+        *fatal_error = false;
     }
 
+    auto &read_state = m_read_states[sd];
+
     // Read and parse the message
-    auto message = messages::read_transport_message(*sd);
+    messages::Message::ReadStatus read_status;
+    auto message = messages::read_transport_message(*sd, read_state, read_status);
     if (!message) {
-        return false;
+        if (fatal_error) {
+            *fatal_error = read_status == messages::Message::ReadStatus::Error;
+        }
+        return read_status == messages::Message::ReadStatus::Incomplete;
     }
 
     // Handle the specific message
@@ -291,8 +309,14 @@ bool BrokerServer::socket_connected()
         // Handle incoming data
         .on_read =
             [new_socket, this](int fd, EventLoop &loop) {
-                // NOTE: Do NOT stop the broker on parsing errors...
-                handle_msg(new_socket);
+                bool fatal_error = false;
+                if (!handle_msg(new_socket, &fatal_error) && fatal_error) {
+                    LOG(ERROR) << "Shutting down FD (" << fd << ") after message handling failure";
+                    socket_disconnected(new_socket);
+                    if (shutdown(fd, SHUT_RDWR) != 0 && errno != ENOTCONN) {
+                        LOG(ERROR) << "Failed shutting down FD (" << fd << "): " << strerror(errno);
+                    }
+                }
                 return true;
             },
 
@@ -326,12 +350,15 @@ bool BrokerServer::socket_disconnected(std::shared_ptr<Socket> sd)
     LOG(DEBUG) << "Socket disconnected: FD(" << sd->getSocketFd() << ")";
 
     // Delete the Socket from the list of types subscriptions
-    for (auto &type : m_soc_to_type[sd]) {
-        m_type_to_soc[type].erase(sd);
+    auto socket_types = m_soc_to_type.find(sd);
+    if (socket_types != m_soc_to_type.end()) {
+        for (auto &type : socket_types->second) {
+            m_type_to_soc[type].erase(sd);
+        }
+        m_soc_to_type.erase(socket_types);
     }
 
-    // Delete the type from the list of this Socket subscriptions
-    m_soc_to_type.erase(sd);
+    m_read_states.erase(sd);
 
     return true;
 }
