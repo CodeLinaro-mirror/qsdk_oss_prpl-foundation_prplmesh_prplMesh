@@ -50,8 +50,10 @@ class GenericPrplOS(GenericDevice):
             The content of the prplwrt-version file on the device as a list of strings.
         """
         version = None
-        with pexpect.pxssh.pxssh(logfile=sys.stdout.buffer) as shell:
-            shell.login(self.name, self.username)
+        with pexpect.pxssh.pxssh(logfile=sys.stdout.buffer,
+                                 options={"StrictHostKeyChecking": "no",
+                                          "UserKnownHostsFile": "/dev/null"}) as shell:
+            shell.login(self.ssh_host, self.username)
             shell.sendline("cat /etc/prplwrt-version")
             shell.expect("cat /etc/prplwrt-version")
             shell.prompt()
@@ -114,9 +116,13 @@ class GenericPrplOS(GenericDevice):
                              + "Please make sure you have an appropriate udev rule for it.")
         print("Copying image '{}' to the target".format(self.image))
         try:
-            subprocess.check_output(["scp",
+            subprocess.check_output(["scp", "-O",
+                                     "-o", "StrictHostKeyChecking=no",
+                                     "-o", "UserKnownHostsFile=/dev/null",
+                                     "-o", "LogLevel=ERROR",
                                      "{}/{}".format(self.artifacts_dir, self.image),
-                                     "{}:/tmp/{}".format(self.name, self.image)])
+                                     "{}@{}:/tmp/{}".format(
+                                         self.username, self.ssh_host, self.image)])
         except subprocess.CalledProcessError as exc:
             print("Failed to copy the image to the target:\n{}".format(exc.output))
             raise exc
