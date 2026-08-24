@@ -3,7 +3,7 @@ FROM python:3.14
 RUN useradd -ms /bin/bash cram
 
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends yq
+    apt-get install --yes --no-install-recommends openssh-client yq
 
 # Checkout and build CRAM
 RUN git clone https://github.com/aiiie/cram.git \
