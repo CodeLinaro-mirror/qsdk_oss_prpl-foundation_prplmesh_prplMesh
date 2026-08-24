@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
 if [ -z ${TARGET_DEVICE_1+x} ]; then
     echo "No TARGET_DEVICE_1 specified!"
     exit 1
