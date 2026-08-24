@@ -8,6 +8,7 @@
 
 # Standard library
 import hashlib
+import shlex
 import time
 from pathlib import Path
 
@@ -17,7 +18,8 @@ from device.generic import GenericDevice
 from device.serial import SerialDevice
 
 
-def configure_device(device: GenericDevice, configuration_file: Path):
+def configure_device(device: GenericDevice, configuration_file: Path,
+                     configuration_arguments=()):
     """Configure a device over a serial line.
 
     It is assumed that the device is accessible over serial at
@@ -39,6 +41,8 @@ def configure_device(device: GenericDevice, configuration_file: Path):
     configuration_file
         The shell file to use to configure the device (relative to the
         repository's top-level directory).
+    configuration_arguments
+        Positional arguments passed to the shell configuration file.
     """
     configuration_file = device.rootdir / configuration_file
     if not configuration_file.is_file():
@@ -82,7 +86,10 @@ def configure_device(device: GenericDevice, configuration_file: Path):
             raise ValueError("The md5 of the configuration file doesn't match! Aborting.")
 
         print(md5.hexdigest())
-        shell.sendline(f"sh -x {conf_file_location}")
+        command = " ".join(
+            shlex.quote(argument)
+            for argument in ("sh", "-x", conf_file_location, *configuration_arguments))
+        shell.sendline(command)
         shell.expect(device.serial_prompt, timeout=150)
         shell.sendline("echo conf_file_exit_code=$?")
         try:

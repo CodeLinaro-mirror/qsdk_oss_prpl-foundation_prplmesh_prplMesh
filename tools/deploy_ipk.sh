@@ -12,6 +12,7 @@ usage() {
     echo "      -h|--help - show this help menu"
     echo "      --certification-mode - enable certification-mode on the target"
     echo "      --proxy - use ssh proxy <user>@<proxy>"
+    echo "      --no-host-key-cache - ignore host keys for reimaged test devices"
 }
 
 deploy() {
@@ -84,7 +85,7 @@ EOF
 }
 
 main() {
-    if ! OPTS=$(getopt -o 'h' --long help,certification-mode,proxy: -n 'parse-options' -- "$@"); then
+    if ! OPTS=$(getopt -o 'h' --long help,certification-mode,proxy:,no-host-key-cache -n 'parse-options' -- "$@"); then
         echo "Failed parsing options." >&2
         usage
         exit 1
@@ -102,6 +103,10 @@ main() {
             --proxy)
                 SSH_OPTIONS="$SSH_OPTIONS \"-oProxyJump \"$2\"\""
                 shift 2
+                ;;
+            --no-host-key-cache)
+                SSH_OPTIONS="$SSH_OPTIONS \"-oUserKnownHostsFile=/dev/null\" \"-oLogLevel=ERROR\""
+                shift
                 ;;
             -- ) shift; break ;;
             * ) echo "unsupported argument $1"; usage; exit 1 ;;
