@@ -2626,13 +2626,13 @@ bool is_valid_bandwidth_6g(uint8_t channel, beerocks::eWiFiBandwidth bandwidth)
     return true;
 }
 
-void trim_wifi_gen_token(std::string &token)
+static void trim_wifi_gen_token(std::string &token)
 {
     token.erase(0, token.find_first_not_of(" \t"));
     token.erase(token.find_last_not_of(" \t") + 1);
 }
 
-bool parse_wifi_gen_token(std::string token, bool allow_plus, sWifiGenToken &out)
+static bool parse_wifi_gen_token(std::string token, bool allow_plus, sWifiGenToken &out)
 {
     trim_wifi_gen_token(token);
     if (token.empty()) {
@@ -2663,7 +2663,7 @@ bool parse_wifi_gen_token(std::string token, bool allow_plus, sWifiGenToken &out
     return true;
 }
 
-std::vector<std::string> split_wifi_gen_csv(const std::string &csv)
+static std::vector<std::string> split_wifi_gen_csv(const std::string &csv)
 {
     std::vector<std::string> pieces;
     if (csv.empty()) {
@@ -2681,12 +2681,12 @@ std::vector<std::string> split_wifi_gen_csv(const std::string &csv)
     return pieces;
 }
 
-bool wifi_gen_tokens_in_apply_range(const std::vector<sWifiGenToken> &tokens)
+static bool wifi_gen_tokens_in_apply_range(const std::vector<sWifiGenToken> &tokens)
 {
     for (const auto &token : tokens) {
-        if (token.generation < WIFI_GEN_MIN) {
+        if (token.generation < WIFI_GEN_MIN || token.generation > WIFI_GEN_MAX) {
             LOG(WARNING) << "OperatingGeneration Wi-Fi generation " << int(token.generation)
-                         << " is below supported apply range " << int(WIFI_GEN_MIN) << "-"
+                         << " is outside supported apply range " << int(WIFI_GEN_MIN) << "-"
                          << int(WIFI_GEN_MAX) << "; rejecting";
             return false;
         }

@@ -5406,6 +5406,15 @@ void Controller::trigger_prioritization_config()
     m_task_pool.push_event(database.get_agent_monitoring_task_id(), ev);
 }
 
+void Controller::schedule_templates_commit_apply()
+{
+    const int task_id = database.get_agent_monitoring_task_id();
+    if (task_id == db::TASK_ID_NOT_FOUND) {
+        return;
+    }
+    m_task_pool.push_event(task_id, agent_monitoring_task::TEMPLATES_COMMIT_APPLY);
+}
+
 void Controller::trigger_traffic_separation_override()
 {
     auto ev = agent_monitoring_task::CONFIGURE_TRAFFIC_SEPARATION_OVERRIDE;

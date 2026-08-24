@@ -492,7 +492,8 @@ public:
                                    std::vector<sWifiGenToken> &out);
     /**
      * @brief True if @p csv parses and every token is in apply range [WIFI_GEN_MIN..WIFI_GEN_MAX].
-     * Tokens below WIFI_GEN_MIN are rejected (not clamped).
+     * Tokens below WIFI_GEN_MIN or above WIFI_GEN_MAX are rejected (not clamped).
+     * `N+` is allowed only when N itself is in that range.
      */
     static bool operating_generation_valid_for_apply(const std::string &csv);
     static bool expand_allowed_wifi_generations(const std::vector<sWifiGenToken> &tokens,
