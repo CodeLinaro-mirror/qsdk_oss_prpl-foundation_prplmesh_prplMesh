@@ -46,12 +46,12 @@
     definition_file = "controller.odl";
 
     //persistent storage
-    //pcm_svc_config = {
-    //    "Objects" = "@CONTROLLER_ROOT_DM@"
-    //};
+    pcm_svc_config = {
+        "Objects" = "@CONTROLLER_ROOT_DM@"
+    };
 }
 @INCLUDE_DM_MAPPER_CONFIG@
 @INCLUDE_IEEE1905_USP_CONFIG@
 include "$@@{definition_file}";
-//include "mod_pcm_svc.odl";
+#include "mod_pcm_svc.odl";
 import "mod-dmext.so";
