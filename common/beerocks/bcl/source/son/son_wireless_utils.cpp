@@ -2560,9 +2560,9 @@ bool wireless_utils::parse_wifi_gen_csv(const std::string &csv, bool allow_plus,
 static bool wifi_gen_tokens_in_apply_range(const std::vector<sWifiGenToken> &tokens)
 {
     for (const auto &token : tokens) {
-        if (token.generation < WIFI_GEN_MIN) {
+        if (token.generation < WIFI_GEN_MIN || token.generation > WIFI_GEN_MAX) {
             LOG(WARNING) << "OperatingGeneration Wi-Fi generation " << int(token.generation)
-                         << " is below supported apply range " << int(WIFI_GEN_MIN) << "-"
+                         << " is outside supported apply range " << int(WIFI_GEN_MIN) << "-"
                          << int(WIFI_GEN_MAX) << "; rejecting";
             return false;
         }
