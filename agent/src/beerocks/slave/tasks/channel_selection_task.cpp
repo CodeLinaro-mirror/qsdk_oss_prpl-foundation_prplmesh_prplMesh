@@ -1856,7 +1856,7 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
             if (bandwidth >= eWiFiBandwidth::BANDWIDTH_80) {
                 LOG(INFO) << "[" << channel << "-" << operating_class << "("
                           << beerocks::utils::convert_bandwidth_to_string(bandwidth)
-                          << "MHz)] uses a beacon channel.";
+                          << ")] uses a beacon channel.";
                 auto best_channel_pair =
                     find_best_beacon_channel(channel, bandwidth, operating_class);
                 // For any fail case, we should switch to the selected primary channel
@@ -1868,7 +1868,7 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
 
             LOG(INFO) << "[" << channel << "-" << operating_class << "("
                       << beerocks::utils::convert_bandwidth_to_string(bandwidth)
-                      << "MHz)] has a preference score of " << primary_preference;
+                      << ")] has a preference score of " << primary_preference;
 
             if (primary_preference < best_channel.preference_score) {
                 // Found preference is lower then best, skip.
@@ -1883,7 +1883,7 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
 
             LOG(INFO) << "[" << channel << "-" << operating_class << "("
                       << beerocks::utils::convert_bandwidth_to_string(bandwidth)
-                      << "MHz)] is the new Best-Channel";
+                      << ")] is the new Best-Channel";
             // Override selected channel
             best_channel.channel          = channel;
             best_channel.preference_score = primary_preference;

@@ -5930,8 +5930,8 @@ bool db::update_sta_wifi_channel_bw(const sMacAddr &mac, beerocks::eWiFiBandwidt
     eWiFiBandwidth prev_bw = pSta->wifi_channel.get_bandwidth();
     pSta->wifi_channel.set_bandwidth(bw);
     LOG(INFO) << "updating station " << mac << " bandwidth from "
-              << beerocks::utils::convert_bandwidth_to_string(prev_bw) << "MHz to "
-              << beerocks::utils::convert_bandwidth_to_string(bw) << "MHz";
+              << beerocks::utils::convert_bandwidth_to_string(prev_bw) << " to "
+              << beerocks::utils::convert_bandwidth_to_string(bw);
     return true;
 }
 
