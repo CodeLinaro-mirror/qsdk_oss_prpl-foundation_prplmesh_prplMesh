@@ -1495,19 +1495,28 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
 
-    auto db = AgentDB::get();
+    std::string radio_iface;
+    sMacAddr radio_iface_mac;
+    eFreqType radio_freq_type;
+    bool em_ap_controller_found = false;
+    {
+        auto db    = AgentDB::get();
+        auto radio = db->get_radio_by_mac(ruid->radio_uid(), AgentDB::eMacType::RADIO);
+        if (!radio) {
+            LOG(ERROR) << "Failed to find ruid " << ruid->radio_uid() << " in the Agent";
+            return;
+        }
 
-    auto radio = db->get_radio_by_mac(ruid->radio_uid(), AgentDB::eMacType::RADIO);
-    if (!radio) {
-        LOG(ERROR) << "Failed to find ruid " << ruid->radio_uid() << " in the Agent";
-        return;
+        radio_iface            = radio->front.iface_name;
+        radio_iface_mac        = radio->front.iface_mac;
+        radio_freq_type        = radio->wifi_channel.get_freq_type();
+        em_ap_controller_found = db->em_ap_controller_found;
     }
-    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE for iface " << radio->front.iface_name;
+    LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE for iface " << radio_iface;
 
-    if (db->em_ap_controller_found) {
+    if (em_ap_controller_found) {
         LOG(DEBUG) << "EM+ controller is found. Check for Service Status";
-        if (!airties_vs_ap_autoconfiguration_wsc_parse_service_status(cmdu_rx,
-                                                                      radio->front.iface_name)) {
+        if (!airties_vs_ap_autoconfiguration_wsc_parse_service_status(cmdu_rx, radio_iface)) {
             LOG(INFO) << "Service Status is not found in Vendor Specific TLV";
         }
     }
@@ -1556,17 +1565,19 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_profile2_traffic_separation_policy_tlv has failed!";
         return;
     }
-    update_traffic_separation_policy_state(db, ts_policy_tlv_present);
+    {
+        auto db = AgentDB::get();
+        update_traffic_separation_policy_state(db, ts_policy_tlv_present);
+    }
 
     std::vector<sBssConfig> bss_infos;
-    if (!handle_wsc_m2_tlv(cmdu_rx, radio->front.iface_name, m2_list, bss_infos,
-                           misconfigured_ssids)) {
+    if (!handle_wsc_m2_tlv(cmdu_rx, radio_iface, m2_list, bss_infos, misconfigured_ssids)) {
         LOG(ERROR) << "handle_wsc_m2_tlv has failed!";
         return;
     }
 
     sBStaConfig bsta_info;
-    if (m8 && !handle_wsc_m8_tlv(radio->front.iface_name, m8, bsta_info)) {
+    if (m8 && !handle_wsc_m8_tlv(radio_iface, m8, bsta_info)) {
         LOG(ERROR) << "handle_wsc_m8_tlv has failed!";
         return;
     }
@@ -1586,14 +1597,14 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
 
     // Auto-configuration should start from clean state
     m_ap_mld_requests_infos.clear();
-    if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, radio->front.iface_name)) {
+    if (!handle_agent_ap_mld_configuration_tlv(cmdu_rx, radio_iface)) {
         LOG(ERROR) << "handle_agent_ap_mld_configuration_tlv has failed!";
         return;
     }
 
     // RSN
     if (!handle_rsn_parameters_configuration_tlv(cmdu_rx, bss_infos, ruid->radio_uid(),
-                                                 radio->wifi_channel.get_freq_type())) {
+                                                 radio_freq_type)) {
         LOG(ERROR) << "handle_rsn_parameters_configuration_tlv has failed!";
         return;
     }
@@ -1603,8 +1614,13 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         return;
     }
 
-    if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
-        handle_bss_reconfiguration(radio->front.iface_name, bss_infos);
+    bool is_multi_ap_mode;
+    {
+        auto db          = AgentDB::get();
+        is_multi_ap_mode = db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP;
+    }
+    if (is_multi_ap_mode) {
+        handle_bss_reconfiguration(radio_iface, bss_infos);
         if (!bss_infos.empty()) {
             // Get new credentials
             std::vector<WSC::EncryptedSettingsPayload::config> new_credentials;
@@ -1615,37 +1631,42 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
 
             // Update the BSS credentials if a backhaul link for this radio already exists
             // or add a new one otherwise.
-            auto it =
-                find_if(db->backhaul.backhaul_links.begin(), db->backhaul.backhaul_links.end(),
-                        [&](const AgentDB::sBackhaul::sBackhaulLink &c) {
-                            return c.iface_name == radio->front.iface_name;
-                        });
-            if (it != db->backhaul.backhaul_links.end()) {
-                LOG(DEBUG) << "Updating credentials for backhaul interface with type="
-                           << int(it->connection_type) << ", iface_name=" << it->iface_name
-                           << ", iface_mac=" << it->iface_mac;
-                it->credentials = new_credentials;
-            } else {
-                LOG(DEBUG) << "Storing backhaul credentials for new interface: "
-                           << radio->front.iface_name << ", iface_mac=" << radio->front.iface_mac;
-                db->backhaul.backhaul_links.emplace_back(
-                    AgentDB::sBackhaul::eConnectionType::Wireless, radio->front.iface_name,
-                    radio->front.iface_mac, new_credentials);
+            bool early_ap_capability = false;
+            {
+                auto db = AgentDB::get();
+                auto it =
+                    find_if(db->backhaul.backhaul_links.begin(), db->backhaul.backhaul_links.end(),
+                            [&](const AgentDB::sBackhaul::sBackhaulLink &c) {
+                                return c.iface_name == radio_iface;
+                            });
+                if (it != db->backhaul.backhaul_links.end()) {
+                    LOG(DEBUG) << "Updating credentials for backhaul interface with type="
+                               << int(it->connection_type) << ", iface_name=" << it->iface_name
+                               << ", iface_mac=" << it->iface_mac;
+                    it->credentials = std::move(new_credentials);
+                } else {
+                    LOG(DEBUG) << "Storing backhaul credentials for new interface: " << radio_iface
+                               << ", iface_mac=" << radio_iface_mac;
+                    db->backhaul.backhaul_links.emplace_back(
+                        AgentDB::sBackhaul::eConnectionType::Wireless, radio_iface, radio_iface_mac,
+                        new_credentials);
+                }
+                early_ap_capability = db->controller_info.early_ap_capability;
             }
 
             if (m8) {
-                send_bsta_configuration(radio->front.iface_mac, bsta_info);
-            } else if (db->controller_info.early_ap_capability) {
-                send_enable_disable_endpoint(radio->front.iface_mac, false);
+                send_bsta_configuration(radio_iface_mac, bsta_info);
+            } else if (early_ap_capability) {
+                send_enable_disable_endpoint(radio_iface_mac, false);
             }
 
             // Populate mld_id in bss_infos
-            if (!populate_mld_id_in_bss_infos(radio->front.iface_name, bss_infos)) {
+            if (!populate_mld_id_in_bss_infos(radio_iface, bss_infos)) {
                 LOG(ERROR) << "populate_mld_id_in_bss_infos has failed!";
                 return;
             }
 
-            send_ap_bss_configuration_message(radio->front.iface_name, bss_infos);
+            send_ap_bss_configuration_message(radio_iface, bss_infos);
         } else {
             LOG(INFO) << "Reconfiguration is not needed";
         }
@@ -1653,7 +1674,7 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(WARNING) << "non-EasyMesh mode - skip updating VAP credentials";
     }
 
-    if (!handle_ap_autoconfiguration_wsc_vs_extension_tlv(cmdu_rx, radio->front.iface_name)) {
+    if (!handle_ap_autoconfiguration_wsc_vs_extension_tlv(cmdu_rx, radio_iface)) {
         LOG(ERROR) << "handle_ap_autoconfiguration_wsc_vs_extension_tlv has failed";
         return;
     }
@@ -1663,27 +1684,26 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
     // any MLD unit or link-level configuration changes. MLDUnit is already
     // handled in send_ap_bss_configuration_message API
 
-    for (const auto &ap_mld_request : m_ap_mld_requests_infos[radio->front.iface_name]) {
+    for (const auto &ap_mld_request : m_ap_mld_requests_infos[radio_iface]) {
         LOG(DEBUG) << "handle_ap_autoconfiguration_wsc:invoking send_ap_mld_mode";
-        send_ap_mld_mode(radio->front.iface_name, ap_mld_request.first,
-                         std::get<1>(ap_mld_request.second));
+        send_ap_mld_mode(radio_iface, ap_mld_request.first, std::get<1>(ap_mld_request.second));
     }
 
     // Initialize for next state
-    auto &radio_conf_params = m_radios_conf_params[radio->front.iface_name];
+    auto &radio_conf_params = m_radios_conf_params[radio_iface];
 
     radio_conf_params.num_of_bss_available = 0;
     radio_conf_params.enabled_bssids.clear();
     radio_conf_params.sent_vaps_list_update     = false;
     radio_conf_params.received_vaps_list_update = false;
 
-    if (db->device_conf.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
-        FSM_MOVE_STATE(radio->front.iface_name, eState::WAIT_AP_CONFIGURATION_COMPLETE);
+    if (is_multi_ap_mode) {
+        FSM_MOVE_STATE(radio_iface, eState::WAIT_AP_CONFIGURATION_COMPLETE);
         return;
     }
 
     // MODE is NOT_MULTIAP
-    FSM_MOVE_STATE(radio->front.iface_name, eState::CONFIGURED);
+    FSM_MOVE_STATE(radio_iface, eState::CONFIGURED);
     return;
 }
 
