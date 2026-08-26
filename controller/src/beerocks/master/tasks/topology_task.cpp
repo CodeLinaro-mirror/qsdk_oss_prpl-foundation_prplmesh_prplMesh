@@ -384,14 +384,11 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         handle_bss_configuration_report_tlv(src_mac, tlvBssConfigurationReport);
     }
 
-    for (const auto &iface_mac : interface_macs) {
-
-        auto interface = database.get_interface_on_agent(al_mac, iface_mac);
-        if (!interface) {
-            LOG(ERROR) << "Failed to get interface with mac: " << iface_mac;
-            continue;
-        }
-        interface->m_neighbors.keep_new_prepare();
+    // Neighbors are attached to the interface named by the Neighbor Device TLVs, which is not
+    // necessarily one of the interfaces listed in the Device Information TLV. Prepare every
+    // interface the Agent is known to have, so that no neighbor list escapes the sweep below.
+    for (const auto &interface : agent->interfaces) {
+        interface.second->m_neighbors.keep_new_prepare();
     }
 
     // The reported neighbors list might not be correct since the reporting al_mac hasn't received
@@ -515,19 +512,21 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     }
 
     // Update active neighbors mac list of the interface node
-    for (const auto &iface_mac : interface_macs) {
+    for (const auto &interface : agent->interfaces) {
 
-        auto interface = database.get_interface_on_agent(al_mac, iface_mac);
-        if (!interface) {
-            LOG(ERROR) << "Failed to get interface with mac: " << iface_mac;
-            continue;
-        }
-
-        auto removed_neighbors = interface->m_neighbors.keep_new_remove_old();
+        auto removed_neighbors = interface.second->m_neighbors.keep_new_remove_old();
 
         // Removed members needs to be cleaned up from datamodel also.
         for (const auto &removed_neighbor : removed_neighbors) {
-            database.dm_remove_interface_neighbor(removed_neighbor->dm_path);
+            if (!database.dm_remove_interface_neighbor(removed_neighbor->dm_path)) {
+                LOG(ERROR) << "Failed to remove neighbor " << removed_neighbor->mac
+                           << " from the data model, keeping it for the next sweep";
+
+                // keep_new_remove_old() has already dropped the entry. Putting it back keeps
+                // the only reference to the data model path alive, so a later sweep can retry
+                // the removal. Dropping it here would orphan the instance permanently.
+                interface.second->m_neighbors.add(removed_neighbor);
+            }
         }
     }
 
@@ -1169,6 +1168,19 @@ bool topology_task::handle_topology_notification(const sMacAddr &src_mac,
 
         if (reported_by_parent && !database.dm_remove_sta(*client)) {
             LOG(ERROR) << "Failed to remove STA from data model mac:" << client_mac_str;
+        }
+
+        // While associated, the station is also reported as a non-IEEE1905 neighbor of the
+        // Agent's interface. This notification carries a Client Association Event TLV, so no
+        // Topology Query is sent above and no Topology Response will arrive to sweep the
+        // neighbor away. Remove it here, otherwise it is retained for the Agent's lifetime.
+        //
+        // Gated on reported_by_parent for the same reason dm_remove_sta is: db::remove_neighbor
+        // sweeps the neighbor off every interface of the Agent, so on a same-Agent band steering
+        // a late disconnect from the previous BSS would otherwise wipe the neighbor from the
+        // interface the station has just moved to, with nothing to restore it.
+        if (reported_by_parent && !database.remove_neighbor(src_mac, client_mac)) {
+            LOG(ERROR) << "Failed to remove neighbor " << client_mac_str << " of " << src_mac;
         }
 
         // TODO: Validate usages of reported_by_parent flag usages (PPM-1948)

@@ -8280,6 +8280,37 @@ bool db::dm_remove_interface_neighbor(const std::string &dm_path)
     return true;
 }
 
+bool db::remove_neighbor(const sMacAddr &device_mac, const sMacAddr &neighbor_mac)
+{
+    auto agent = m_agents.get(device_mac);
+    if (!agent) {
+        // The Agent is gone already, and with it the whole Device subtree.
+        return true;
+    }
+
+    bool ret_val = true;
+    for (const auto &interface : agent->interfaces) {
+
+        auto neighbor = interface.second->m_neighbors.get(neighbor_mac);
+        if (!neighbor) {
+            continue;
+        }
+
+        if (!dm_remove_interface_neighbor(neighbor->dm_path)) {
+            // Leave the entry in place so the Topology Response sweep retries the removal.
+            // Erasing it here would orphan the data model instance permanently.
+            ret_val = false;
+            continue;
+        }
+
+        // Unmark the entry in case a keep_new process is in progress, otherwise
+        // keep_new_remove_old() would look up a MAC that is no longer in the map.
+        interface.second->m_neighbors.keep_new(neighbor_mac);
+        interface.second->m_neighbors.erase(neighbor_mac);
+    }
+    return ret_val;
+}
+
 bool db::dm_set_sta_extended_link_metrics(
     const sMacAddr &sta_mac, const wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics &metrics)
 {
