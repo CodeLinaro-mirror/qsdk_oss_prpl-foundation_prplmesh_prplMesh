@@ -1864,6 +1864,59 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_completion_repor
     return true;
 }
 
+/**
+ * @brief Tell whether an (operating class, channel) pair may legitimately appear in a
+ * CAC Status Report TLV.
+ *
+ * CAC (Channel Availability Check) is a DFS radar-detection procedure, so per EasyMesh
+ * 6.1 section 17.2.44 every pair reported in a CAC Status Report - available,
+ * non-occupancy or active - must denote a 5 GHz DFS channel. Third-party agents have
+ * been observed reporting their whole supported-channel list instead (2.4 GHz operating
+ * classes 81/83/84 and the non-DFS 5 GHz classes included), which carries no CAC status
+ * and needlessly inflates the CACStatus data model sub-tree.
+ *
+ * @param operating_class Operating class as reported in the TLV.
+ * @param channel Channel as reported in the TLV - the beacon channel, or the centre
+ * channel for the operating classes that use one.
+ * @return true if the pair is CAC-applicable, false if it must be discarded.
+ */
+static bool is_cac_applicable_pair(uint8_t operating_class, uint8_t channel)
+{
+    // DFS exists on 5 GHz only, so anything else is discarded up front. This also
+    // rejects reserved operating classes, which map to FREQ_UNKNOWN.
+    if (son::wireless_utils::which_freq_op_cls(operating_class) != beerocks::eFreqType::FREQ_5G) {
+        return false;
+    }
+
+    // The 80/160 MHz operating classes carry the centre channel rather than the beacon
+    // channel, so the whole block has to be tested against the DFS sub-bands: e.g. class
+    // 129 centre 50 spans 36-64 and therefore does overlap DFS channels 52-64.
+    if (son::wireless_utils::is_operating_class_using_central_channel(operating_class)) {
+        // Half-width of the block in channel numbers (adjacent 20 MHz channels differ by 4).
+        uint32_t half_width = 0;
+        switch (son::wireless_utils::operating_class_to_bandwidth(operating_class)) {
+        case beerocks::eWiFiBandwidth::BANDWIDTH_80:
+            half_width = 6; // 4 x 20 MHz, e.g. centre 42 spans 36-48
+            break;
+        case beerocks::eWiFiBandwidth::BANDWIDTH_160:
+            half_width = 14; // 8 x 20 MHz, e.g. centre 50 spans 36-64
+            break;
+        default:
+            // 80+80 MHz and anything unexpected: fall back to testing the centre alone.
+            break;
+        }
+
+        const uint32_t first = (channel > half_width) ? (channel - half_width) : 0;
+        const uint32_t last  = uint32_t(channel) + half_width;
+
+        // Does [first, last] overlap either DFS sub-band?
+        return (first <= END_OF_LOW_DFS_SUBBAND && last >= START_OF_LOW_DFS_SUBBAND) ||
+               (first <= END_OF_HIGH_DFS_SUBBAND && last >= START_OF_HIGH_DFS_SUBBAND);
+    }
+
+    return son::wireless_utils::is_dfs_channel(channel, beerocks::eFreqType::FREQ_5G);
+}
+
 bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
     const std::shared_ptr<Agent> agent,
     const std::shared_ptr<wfa_map::tlvProfile2CacStatusReport> &cac_status_report_tlv)
@@ -1884,6 +1937,16 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
         }
 
         const auto &available_channel = std::get<1>(cac_status_report_tlv->available_channels(i));
+
+        // Skip pairs that cannot carry a CAC status, so that no data model instance is
+        // created for them. The rest of the TLV is still processed.
+        if (!is_cac_applicable_pair(available_channel.operating_class, available_channel.channel)) {
+            LOG(DEBUG) << "Ignoring non CAC-applicable available channel [OC: "
+                       << int(available_channel.operating_class)
+                       << ", channel: " << int(available_channel.channel) << "]";
+            continue;
+        }
+
         available_channels.push_back(available_channel);
         ss << "Available: [OC: " << int(available_channel.operating_class)
            << ", channel: " << int(available_channel.channel)
@@ -1899,6 +1962,15 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
         }
 
         const auto &non_occupancy_channel = std::get<1>(cac_status_report_tlv->detected_pairs(i));
+
+        if (!is_cac_applicable_pair(non_occupancy_channel.operating_class_detected,
+                                    non_occupancy_channel.channel_detected)) {
+            LOG(DEBUG) << "Ignoring non CAC-applicable non-occupancy channel [OC: "
+                       << int(non_occupancy_channel.operating_class_detected)
+                       << ", channel: " << int(non_occupancy_channel.channel_detected) << "]";
+            continue;
+        }
+
         non_occupancy_channels.push_back(non_occupancy_channel);
         ss << "Non-occupancy: [OC: " << int(non_occupancy_channel.operating_class_detected)
            << ", channel: " << int(non_occupancy_channel.channel_detected)
@@ -1914,6 +1986,15 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
         }
 
         const auto &active_channel = std::get<1>(cac_status_report_tlv->active_cac_pairs(i));
+
+        if (!is_cac_applicable_pair(active_channel.operating_class_active_cac,
+                                    active_channel.channel_active_cac)) {
+            LOG(DEBUG) << "Ignoring non CAC-applicable active channel [OC: "
+                       << int(active_channel.operating_class_active_cac)
+                       << ", channel: " << int(active_channel.channel_active_cac) << "]";
+            continue;
+        }
+
         active_channels.push_back(active_channel);
         memcpy(&channelCountdown, active_channel.countdown, sizeof(active_channel.countdown));
         ss << "Active: [OC: " << int(active_channel.operating_class_active_cac)
