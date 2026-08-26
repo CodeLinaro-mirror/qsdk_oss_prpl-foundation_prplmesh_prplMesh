@@ -351,7 +351,7 @@ const std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, wireless_utils::sChan
     },
     { 173,      {
                    { beerocks::BANDWIDTH_20,  { 173,            { 173, 173                      } } },
-                   { beerocks::BANDWIDTH_40,  { 175,            { 165, 169                      } } },
+                   { beerocks::BANDWIDTH_40,  { 175,            { 173, 177                      } } },
                    { beerocks::BANDWIDTH_80,  { 171,            { 165, 177                      } } },
                    { beerocks::BANDWIDTH_160, { 163,            { 149, 177                      } } },
                 }
