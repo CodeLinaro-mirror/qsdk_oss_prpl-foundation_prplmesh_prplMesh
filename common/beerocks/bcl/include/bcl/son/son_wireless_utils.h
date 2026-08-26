@@ -312,9 +312,9 @@ public:
         eVapType vap_type                                 = eVapType::OTHER;
         std::string vap_label;
         std::string operating_generation;
-        std::string mld_id              = "";
-        bool bSTA                       = false;
-        uint8_t bss_index               = 0;
+        std::string mld_id = "";
+        bool bSTA          = false;
+        uint8_t bss_index  = 0;
         sMacAddr target_radio_uid{};
         std::string radio_template_ref;
         std::string bss_template_ref;

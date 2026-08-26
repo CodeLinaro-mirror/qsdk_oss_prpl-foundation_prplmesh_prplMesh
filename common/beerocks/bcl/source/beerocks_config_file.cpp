@@ -360,7 +360,10 @@ bool config_file::update_section_key(const std::string &config_file_path,
     output.close();
 
     if (std::rename(tmp_path.c_str(), config_file_path.c_str()) != 0) {
-        std::remove(tmp_path.c_str());
+        if (std::remove(tmp_path.c_str()) != 0) {
+            std::cout << "WARNING: failed to remove temporary config file '" << tmp_path << "'"
+                      << std::endl;
+        }
         return false;
     }
     return true;

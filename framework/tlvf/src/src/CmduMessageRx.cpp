@@ -127,6 +127,7 @@
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
+#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 #include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
@@ -137,6 +138,7 @@
 #include <tlvf/wfa_map/tlvSteeringBTMReport.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringRequest.h>
+#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
 #include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 #include <tlvf/wfa_map/tlvTimestamp.h>
@@ -152,8 +154,6 @@
 #include <tlvf/wfa_map/tlvVirtualBssDestruction.h>
 #include <tlvf/wfa_map/tlvVirtualBssEvent.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
-#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
-#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 
 using namespace ieee1905_1;
 
