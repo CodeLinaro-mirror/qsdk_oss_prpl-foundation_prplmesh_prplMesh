@@ -1726,6 +1726,18 @@ public:
     const beerocks::message::sRadioCapabilities *
     get_sta_current_capabilities(const std::string &mac);
 
+    /**
+     * @brief Get the capabilities of a station on a band.
+     *
+     * A station keeps a single capability set, the last one reported, tagged with the band of
+     * the radio that reported it. The set is returned only if its band tag is @a freq_type.
+     *
+     * @param client_mac Station MAC address.
+     * @param freq_type Band to get the capabilities for. Must be 2.4GHz, 5GHz or 6GHz.
+     * @return Pointer to the stored capabilities, or nullptr if the station is unknown,
+     * @a freq_type is not a valid band, no capabilities have been reported yet, or the last
+     * report came from a radio on another band.
+     */
     const beerocks::message::sRadioCapabilities *
     get_sta_capabilities(const std::string &client_mac, beerocks::eFreqType freq_type);
     bool set_sta_capabilities(const std::string &client_mac,
