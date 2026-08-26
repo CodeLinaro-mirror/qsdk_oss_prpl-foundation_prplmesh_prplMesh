@@ -117,4 +117,30 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     install(TARGETS traffic_separation_event_test DESTINATION tests)
     add_test(NAME traffic_separation_event_test
         COMMAND $<TARGET_FILE:traffic_separation_event_test>)
+
+    add_executable(dynamic_channel_selection_r2_task_test
+        ${CMAKE_CURRENT_LIST_DIR}/dynamic_channel_selection_r2_task_test.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/db.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../task.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../dynamic_channel_selection_r2_task.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/station.cpp
+    )
+    target_link_libraries(dynamic_channel_selection_r2_task_test
+        mapfcommon bpl bcl btl btlvf nbapi gtest_main gmock)
+    # The task and the database refer to controller code that the test does not use.
+    target_link_options(dynamic_channel_selection_r2_task_test
+        PRIVATE
+            -Wl,--unresolved-symbols=ignore-all
+    )
+    target_include_directories(dynamic_channel_selection_r2_task_test
+        PRIVATE
+            ${PLATFORM_INCLUDE_DIR}
+            ${CMAKE_SOURCE_DIR}/common/beerocks/btl/include
+            ${CMAKE_SOURCE_DIR}/controller/nbapi
+            ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db
+    )
+
+    install(TARGETS dynamic_channel_selection_r2_task_test DESTINATION tests)
+    add_test(NAME dynamic_channel_selection_r2_task_test
+        COMMAND $<TARGET_FILE:dynamic_channel_selection_r2_task_test>)
 endif()
