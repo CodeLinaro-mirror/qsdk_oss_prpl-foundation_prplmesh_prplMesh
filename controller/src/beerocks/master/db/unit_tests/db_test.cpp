@@ -44,6 +44,8 @@ constexpr auto g_bssid_1                    = "46:55:66:77:00:03";
 constexpr auto g_ssid_1                     = "dummy_ssid";
 constexpr auto g_interface_mac_1            = "46:55:66:77:00:41";
 constexpr auto g_interface_mac_2            = "46:55:66:77:00:42";
+constexpr auto g_neighbor_mac               = "46:55:66:77:00:61";
+constexpr auto g_unknown_agent_mac          = "46:55:66:77:00:71";
 const std::string g_device_path_multiapcaps = std::string(g_device_path) + ".1.MultiAPCapabilities";
 const std::string g_radio_path_1            = std::string(g_device_path) + ".1.Radio.1";
 const std::string g_radio_path_2            = std::string(g_device_path) + ".1.Radio.2";
@@ -1817,6 +1819,84 @@ TEST_F(DbTestInterface1, test_interface_1_creation)
 
     EXPECT_FALSE(m_db->get_interface_on_agent(tlvf::mac_from_string(g_bridge_mac),
                                               tlvf::mac_from_string(g_interface_mac_1)));
+}
+
+TEST_F(DbTestInterface1, test_remove_neighbor_sweeps_every_interface_of_the_agent)
+{
+    const auto agent_mac              = tlvf::mac_from_string(g_bridge_mac);
+    const auto neighbor_mac           = tlvf::mac_from_string(g_neighbor_mac);
+    const std::string neighbor_path_1 = std::string(g_interface_path_1) + ".Neighbor";
+    const std::string neighbor_path_2 = std::string(g_interface_path_2) + ".Neighbor";
+
+    // A station associated to a radio is reported as a non-IEEE1905 neighbor. Report it on both
+    // interfaces of the Agent, which is what a band steering within one Agent leaves behind.
+    EXPECT_CALL(*m_ambiorix, add_instance(neighbor_path_1))
+        .WillOnce(Return(neighbor_path_1 + ".1"));
+    EXPECT_CALL(*m_ambiorix, add_instance(neighbor_path_2))
+        .WillOnce(Return(neighbor_path_2 + ".1"));
+    EXPECT_CALL(*m_ambiorix,
+                set(neighbor_path_1 + ".1", "ID", Matcher<const sMacAddr &>(neighbor_mac)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(neighbor_path_2 + ".1", "ID", Matcher<const sMacAddr &>(neighbor_mac)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(neighbor_path_1 + ".1", "IsIEEE1905", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(neighbor_path_2 + ".1", "IsIEEE1905", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->add_neighbor(agent_mac, tlvf::mac_from_string(g_interface_mac_1),
+                                   neighbor_mac, false));
+    EXPECT_TRUE(m_db->add_neighbor(agent_mac, tlvf::mac_from_string(g_interface_mac_2),
+                                   neighbor_mac, false));
+
+    // Removing the neighbor drops it from both interfaces and from the data model.
+    EXPECT_CALL(*m_ambiorix, remove_instance(neighbor_path_1, 1)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, remove_instance(neighbor_path_2, 1)).WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->remove_neighbor(agent_mac, neighbor_mac));
+
+    // The entries are gone, so a repeated removal is a no-op. The mock is strict, so any further
+    // remove_instance() call would fail the test.
+    EXPECT_TRUE(m_db->remove_neighbor(agent_mac, neighbor_mac));
+}
+
+TEST_F(DbTestInterface1, test_remove_neighbor_of_unknown_agent_succeeds)
+{
+    // The Agent is gone already, and with it the whole Device subtree, so there is nothing left
+    // to remove and nothing to report as a failure.
+    EXPECT_TRUE(m_db->remove_neighbor(tlvf::mac_from_string(g_unknown_agent_mac),
+                                      tlvf::mac_from_string(g_neighbor_mac)));
+}
+
+TEST_F(DbTestInterface1, test_remove_neighbor_keeps_entry_when_data_model_removal_fails)
+{
+    const auto agent_mac              = tlvf::mac_from_string(g_bridge_mac);
+    const auto neighbor_mac           = tlvf::mac_from_string(g_neighbor_mac);
+    const std::string neighbor_path_1 = std::string(g_interface_path_1) + ".Neighbor";
+
+    EXPECT_CALL(*m_ambiorix, add_instance(neighbor_path_1))
+        .WillOnce(Return(neighbor_path_1 + ".1"));
+    EXPECT_CALL(*m_ambiorix,
+                set(neighbor_path_1 + ".1", "ID", Matcher<const sMacAddr &>(neighbor_mac)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(neighbor_path_1 + ".1", "IsIEEE1905", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->add_neighbor(agent_mac, tlvf::mac_from_string(g_interface_mac_1),
+                                   neighbor_mac, false));
+
+    // A failed instance removal must be reported and must leave the entry in place, otherwise the
+    // data model instance is orphaned with nothing left to retry the removal.
+    EXPECT_CALL(*m_ambiorix, remove_instance(neighbor_path_1, 1))
+        .WillOnce(Return(false))
+        .WillOnce(Return(true));
+
+    EXPECT_FALSE(m_db->remove_neighbor(agent_mac, neighbor_mac));
+    EXPECT_TRUE(m_db->remove_neighbor(agent_mac, neighbor_mac));
 }
 
 } // namespace
