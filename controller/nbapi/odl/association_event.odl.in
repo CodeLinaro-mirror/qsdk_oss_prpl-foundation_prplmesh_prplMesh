@@ -1,4 +1,3 @@
-
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  *
  * SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
@@ -15,25 +14,25 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@ {
-        // The events generated when a STA associates to a BSS.
+        /**
+        * This object contains the events generated when a STA associates to a BSS.
+        * @version 2.19.1
+        */
         object AssociationEvent {
-            object AssociationEventData[] {
-                counted with AssociationEventDataNumberOfEntries;
-
-                extend using mib HTCapabilities;
-                extend using mib VHTCapabilities;
-                extend using mib WiFi6Capabilities;
-
-                %read-only string BSSID;  /* The MAC address of the logical BSS (BSSID) which is
-                                            reporting the association event. */
-                %read-only string MACAddress;  /* MAC address of the associating station */
-                %read-only uint16 StatusCode;  /* The status code sent to the STA in the
-                                                latest Association Response frame */
-                // The time this event was collected
-                %read-only string TimeStamp = "2020-08-31T11:22:39Z";
-                %read-only string ClientCapabilities; /* The frame body of the most recently
-                                                       received (Re)Association Request frame
-                                                       from this client (STA) */
+            /**
+            * The event is generated when an Associated Device (STA) associates to a BSS.
+            */
+            event 'Associated!' {
+                string BSSID;
+                string MACAddress;
+                uint32 StatusCode;
+                datetime TimeStamp;
+                htable HTCapabilities;
+                htable VHTCapabilities;
+                string ClientCapabilities;
+                uint32 OpClass;
+                uint32 Channel;
+                htable WiFi6Capabilities;
             }
         }
     }

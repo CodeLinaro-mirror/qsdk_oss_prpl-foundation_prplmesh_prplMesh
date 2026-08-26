@@ -54,23 +54,14 @@ private:
                                                            ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
-     * @brief Adds AssociationEventData data model object
-     * 
-     * @param src_mac STA MAC.
-     * @param bssid BSSID of BSS with which STA associated.
-     * @return True on success, false otherwise.
-     */
-    bool dm_add_sta_association_event(const sMacAddr &sta_mac, const sMacAddr &bssid);
-
-    /**
-     * @brief Creates additional sub-objects STA HT(VHT)Capabilities
-     * to AssociationEventData data model object.
+     * @brief Emits the Associated! event of the latest join of a station, once per join.
      *
-     * @param src_mac STA MAC.
-     * @param bssid BSSID of BSS with which STA associated.
-     * @return True on success, false otherwise.
+     * @param sta_mac MAC address of the station.
+     * @param bssid BSSID of the BSS the station joined.
+     * @param report Data of the Client Capability Report, nullptr if the report has none.
      */
-    bool dm_add_sta_association_event_caps(const sMacAddr &sta_mac, const sMacAddr &bssid);
+    void emit_association_event(const sMacAddr &sta_mac, const sMacAddr &bssid,
+                                const db::sAssociationReport *report);
 };
 
 } // namespace son

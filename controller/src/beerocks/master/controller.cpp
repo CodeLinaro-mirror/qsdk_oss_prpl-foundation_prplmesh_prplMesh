@@ -3034,12 +3034,10 @@ bool Controller::handle_cmdu_1905_failed_connection_message(const sMacAddr &src_
     if (profile2_reason_code_tlv) {
         reason_code = profile2_reason_code_tlv->reason_code();
     }
-    if (status_code != 0) {
-        if (!database.dm_add_failed_connection_event(bssid_tlv->bssid(), sta_mac_tlv->sta_mac(),
-                                                     reason_code, status_code)) {
-            LOG(ERROR) << "Failed to add FailedConnectionEvent.";
-            return false;
-        }
+    if (!database.dm_emit_failed_connection_event(bssid_tlv->bssid(), sta_mac_tlv->sta_mac(),
+                                                  reason_code, status_code)) {
+        LOG(ERROR) << "Failed to emit the FailedConnection! event.";
+        return false;
     }
     return true;
 }

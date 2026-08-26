@@ -12,7 +12,10 @@
 #include <amxb/amxb.h>
 #include <amxb/amxb_be.h>
 #include <amxd/amxd_dm.h>
+#include <amxd/amxd_object_event.h>
 #include <amxd/amxd_object_parameter.h>
+#include <amxp/amxp_signal.h>
+#include <amxp/amxp_slot.h>
 
 #include "amxb_mock.h"
 #include <gmock/gmock.h>
@@ -73,6 +76,17 @@ constexpr auto g_odl_contents          = "%config {\n"
                                 "        object Strings [] {\n"
                                 "            %read-only string String = \"\";\n"
                                 "            counted with NumberOfStrings;\n"
+                                "        }\n"
+                                "        object Events {\n"
+                                "            event 'Changed!' {\n"
+                                "                string Text;\n"
+                                "                datetime Time;\n"
+                                "                bool Flag;\n"
+                                "                uint16 Small;\n"
+                                "                uint32 Number;\n"
+                                "                uint64 Counter;\n"
+                                "                htable Nested;\n"
+                                "            }\n"
                                 "        }\n"
                                 "    }\n"
                                 "}\n";
@@ -222,6 +236,72 @@ TEST_F(AmbiorixTest, test_optional_subobject)
     // should fail, because already removed
     // ToDo: does not fail!!!
     //EXPECT_FALSE(m_ambiorix->remove_optional_subobject(g_ParamPathTest, g_ObjectOptional));
+}
+
+void save_event_data(const char *const sig_name, const amxc_var_t *const data, void *const priv)
+{
+    auto received = static_cast<amxc_var_t *>(priv);
+    amxc_var_copy(received, data);
+}
+
+TEST_F(AmbiorixTest, emit_event_queues_the_event_with_its_arguments)
+{
+    amxd_object_t *obj = find_object("Test.Events");
+    ASSERT_TRUE(obj);
+
+    amxc_var_t received;
+    amxc_var_init(&received);
+    ASSERT_EQ(0, amxp_slot_connect(&amxd_object_get_dm(obj)->sigmngr, "Changed!", nullptr,
+                                   save_event_data, &received));
+
+    beerocks::nbapi::EventArgs args;
+    args.strings.emplace_back("Text", g_param_value_foo);
+    args.datetimes.emplace_back("Time", "2026-11-12T10:00:00Z");
+    args.booleans.emplace_back("Flag", true);
+    args.uint16s.emplace_back("Small", 0xfffa);
+    args.uint32s.emplace_back("Number", 7);
+    args.uint64s.emplace_back("Counter", 0x100000000ULL);
+    args.uint32s.emplace_back("Nested.Number", 8);
+    EXPECT_TRUE(m_ambiorix->emit_event("Test.Events", "Changed!", args));
+
+    // Queued, not triggered: nothing is delivered before the signal queue is read.
+    EXPECT_EQ(AMXC_VAR_ID_NULL, amxc_var_type_of(&received));
+    while (amxp_signal_read() == 0)
+        ;
+
+    ASSERT_EQ(AMXC_VAR_ID_HTABLE, amxc_var_type_of(&received));
+    EXPECT_STREQ("Test.Events.", GET_CHAR(&received, "path"));
+    EXPECT_STREQ(g_param_value_foo, GET_CHAR(&received, "Text"));
+    ASSERT_NE(nullptr, GET_ARG(&received, "Time"));
+    EXPECT_EQ(AMXC_VAR_ID_TIMESTAMP, amxc_var_type_of(GET_ARG(&received, "Time")));
+    char *time = amxc_var_dyncast(cstring_t, GET_ARG(&received, "Time"));
+    EXPECT_STREQ("2026-11-12T10:00:00Z", time);
+    free(time);
+    EXPECT_TRUE(GET_BOOL(&received, "Flag"));
+    EXPECT_EQ(AMXC_VAR_ID_UINT16, amxc_var_type_of(GET_ARG(&received, "Small")));
+    EXPECT_EQ(0xfffaU, amxc_var_dyncast(uint16_t, GET_ARG(&received, "Small")));
+    EXPECT_EQ(7U, GET_UINT32(&received, "Number"));
+    EXPECT_EQ(0x100000000ULL, amxc_var_dyncast(uint64_t, GET_ARG(&received, "Counter")));
+    EXPECT_EQ(8U, GET_UINT32(GET_ARG(&received, "Nested"), "Number"));
+
+    // No instance is created.
+    EXPECT_EQ(0U, amxd_object_get_instance_count(obj));
+
+    amxp_slot_disconnect_all(save_event_data);
+    amxc_var_clean(&received);
+}
+
+TEST_F(AmbiorixTest, emit_event_fails_for_a_time_that_is_not_rfc3339)
+{
+    beerocks::nbapi::EventArgs args;
+    args.datetimes.emplace_back("Time", "12 November 2026");
+    EXPECT_FALSE(m_ambiorix->emit_event("Test.Events", "Changed!", args));
+}
+
+TEST_F(AmbiorixTest, emit_event_fails_for_an_unknown_object)
+{
+    beerocks::nbapi::EventArgs args;
+    EXPECT_FALSE(m_ambiorix->emit_event(g_param_path_unknown, "Changed!", args));
 }
 
 TEST_F(AmbiorixTest, set_string_should_succeed)

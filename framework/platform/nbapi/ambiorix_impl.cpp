@@ -1337,6 +1337,88 @@ bool AmbiorixImpl::set_time(const std::string &path_to_object, const std::string
     return true;
 }
 
+/**
+ * @brief Add an event argument to a table, in a nested table if the name has dots.
+ *
+ * @param table The table of the event data.
+ * @param name Name of the argument, for example "WiFi6Capabilities.HE160".
+ * @return The new variant on success, nullptr otherwise.
+ */
+static amxc_var_t *add_event_arg(amxc_var_t *table, const std::string &name)
+{
+    size_t start = 0;
+    size_t dot;
+    while ((dot = name.find('.', start)) != std::string::npos) {
+        auto key   = name.substr(start, dot - start);
+        auto child = amxc_var_get_key(table, key.c_str(), AMXC_VAR_FLAG_DEFAULT);
+        if (!child) {
+            child = amxc_var_add_new_key(table, key.c_str());
+            amxc_var_set_type(child, AMXC_VAR_ID_HTABLE);
+        } else if (amxc_var_type_of(child) != AMXC_VAR_ID_HTABLE) {
+            return nullptr;
+        }
+        table = child;
+        start = dot + 1;
+    }
+    return amxc_var_add_new_key(table, name.substr(start).c_str());
+}
+
+bool AmbiorixImpl::emit_event(const std::string &object_path, const std::string &event_name,
+                              const EventArgs &args)
+{
+    auto object = find_object(object_path);
+    if (!object) {
+        LOG(ERROR) << "Failed to emit " << event_name << " of " << object_path;
+        return false;
+    }
+
+    amxc_var_t data;
+    amxc_var_init(&data);
+    amxc_var_set_type(&data, AMXC_VAR_ID_HTABLE);
+
+    bool ret_val = true;
+    for (const auto &arg : args.strings) {
+        auto value = add_event_arg(&data, arg.first);
+        ret_val &= value && amxc_var_set(cstring_t, value, arg.second.c_str()) == 0;
+    }
+    for (const auto &arg : args.datetimes) {
+        auto value = add_event_arg(&data, arg.first);
+        amxc_ts_t time;
+        if (amxc_ts_parse(&time, arg.second.c_str(), arg.second.size()) != 0) {
+            LOG(ERROR) << arg.first << ": " << arg.second << " is not an RFC 3339 time";
+            ret_val = false;
+            continue;
+        }
+        ret_val &= value && amxc_var_set(amxc_ts_t, value, &time) == 0;
+    }
+    for (const auto &arg : args.booleans) {
+        auto value = add_event_arg(&data, arg.first);
+        ret_val &= value && amxc_var_set(bool, value, arg.second) == 0;
+    }
+    for (const auto &arg : args.uint16s) {
+        auto value = add_event_arg(&data, arg.first);
+        ret_val &= value && amxc_var_set(uint16_t, value, arg.second) == 0;
+    }
+    for (const auto &arg : args.uint32s) {
+        auto value = add_event_arg(&data, arg.first);
+        ret_val &= value && amxc_var_set(uint32_t, value, arg.second) == 0;
+    }
+    for (const auto &arg : args.uint64s) {
+        auto value = add_event_arg(&data, arg.first);
+        ret_val &= value && amxc_var_set(uint64_t, value, arg.second) == 0;
+    }
+
+    if (ret_val) {
+        // Queue the event; the event loop sends it.
+        amxd_object_emit_signal(object, event_name.c_str(), &data);
+    } else {
+        LOG(ERROR) << "Failed to build the arguments of " << event_name << " of " << object_path;
+    }
+
+    amxc_var_clean(&data);
+    return ret_val;
+}
+
 bool AmbiorixImpl::remove_all_instances(const std::string &relative_path)
 {
     amxd_trans_t transaction;

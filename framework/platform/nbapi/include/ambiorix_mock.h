@@ -122,6 +122,10 @@ public:
                 (const std::string &path_to_object, const std::string &object), (override));
     MOCK_METHOD(bool, set_time, (const std::string &path_to_object, const std::string &time_stamp),
                 (override));
+    MOCK_METHOD(bool, emit_event,
+                (const std::string &object_path, const std::string &event_name,
+                 const EventArgs &args),
+                (override));
 };
 
 } // namespace nbapi

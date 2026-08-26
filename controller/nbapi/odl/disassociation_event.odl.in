@@ -1,4 +1,3 @@
-
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  *
  * SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
@@ -15,24 +14,38 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@ {
-        // The events generated when a STA disassociates from a BSS.
+        /**
+        * This object contains the events generated when an Associated Device (STA)
+        * disassociates from a BSS.
+        * @version 2.19.1
+        */
         object DisassociationEvent {
-            object DisassociationEventData[] {
-                counted with DisassociationEventDataNumberOfEntries;
-                %read-only string BSSID = "00:00:00:00:00:00";
-                %read-only string MACAddress = "00:00:00:00:00:00";
-                %read-only uint16 ReasonCode = 0 {
-                    on action validate call check_range [0, 65535];
-                }
-                %read-only uint64 BytesSent = 0;
-                %read-only uint64 BytesReceived = 0;
-                %read-only uint64 PacketsSent = 0;
-                %read-only uint64 PacketsReceived = 0;
-                %read-only uint32 ErrorsSent = 0;
-                %read-only uint32 ErrorsReceived = 0;
-                %read-only uint32 RetransCount = 0;
-                // The time this event was collected
-                %read-only string TimeStamp = "2020-08-31T11:22:39Z";
+            /**
+            * The event is generated when an Associated Device (STA) disassociates from a BSS.
+            */
+            event 'Disassociated!' {
+                string BSSID;
+                string MACAddress;
+                uint32 ReasonCode;
+                uint64 BytesSent;
+                uint64 BytesReceived;
+                uint64 PacketsSent;
+                uint64 PacketsReceived;
+                uint32 ErrorsSent;
+                uint32 ErrorsReceived;
+                uint32 RetransCount;
+                datetime TimeStamp;
+                uint32 LastDataDownlinkRate;
+                uint32 LastDataUplinkRate;
+                uint64 UtilizationReceive;
+                uint64 UtilizationTransmit;
+                uint32 EstMACDataRateDownlink;
+                uint32 EstMACDataRateUplink;
+                uint32 SignalStrength;
+                uint32 LastConnectTime;
+                uint32 Noise;
+                uint32 OpClass;
+                uint32 Channel;
             }
         }
     }

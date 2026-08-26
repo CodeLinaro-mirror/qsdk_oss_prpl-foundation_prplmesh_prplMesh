@@ -1621,6 +1621,122 @@ db::get_sta_current_capabilities(const std::string &mac)
     return (pSta->capabilities);
 }
 
+/**
+ * @brief Writes a set of capability fields to a data model object.
+ */
+static bool set_capability_fields(beerocks::nbapi::Ambiorix &datamodel, const std::string &path,
+                                  const beerocks::nbapi::EventArgs &fields)
+{
+    bool ret_val = true;
+    for (const auto &field : fields.booleans) {
+        ret_val &= datamodel.set(path, field.first, field.second);
+    }
+    for (const auto &field : fields.uint16s) {
+        ret_val &= datamodel.set(path, field.first, field.second);
+    }
+    for (const auto &field : fields.uint32s) {
+        ret_val &= datamodel.set(path, field.first, field.second);
+    }
+    return ret_val;
+}
+
+/**
+ * @brief Gets the fields of the HTCapabilities object of a station.
+ *
+ * @param fields The fields, each name with the prefix in front.
+ * @param prefix Prefix of the names, for example "HTCapabilities." for an event table.
+ * @param sta_cap Station capabilities.
+ */
+static void get_sta_ht_capability_fields(beerocks::nbapi::EventArgs &fields,
+                                         const std::string &prefix,
+                                         const beerocks::message::sRadioCapabilities &sta_cap)
+{
+    fields.booleans.emplace_back(prefix + "HTShortGI20", sta_cap.ht_low_bw_short_gi);
+    fields.booleans.emplace_back(prefix + "HTShortGI40", sta_cap.ht_high_bw_short_gi);
+    fields.booleans.emplace_back(prefix + "HT40", sta_cap.ht_bw == beerocks::BANDWIDTH_40);
+    // TODO: find value for tx_spatial_streams PPM-792.
+    // Parse the (Re)Association Request frame.
+    fields.uint32s.emplace_back(prefix + "MaxNumberOfTxSpatialStreams", sta_cap.ht_ss);
+    fields.uint32s.emplace_back(prefix + "MaxNumberOfRxSpatialStreams", sta_cap.ht_ss);
+}
+
+/**
+ * @brief Gets the fields of the VHTCapabilities object of a station.
+ *
+ * @param fields The fields, each name with the prefix in front.
+ * @param prefix Prefix of the names, for example "VHTCapabilities." for an event table.
+ * @param sta_cap Station capabilities.
+ */
+static void get_sta_vht_capability_fields(beerocks::nbapi::EventArgs &fields,
+                                          const std::string &prefix,
+                                          const beerocks::message::sRadioCapabilities &sta_cap)
+{
+    auto vht_mcs_set = son::wireless_utils::get_vht_mcs_set(sta_cap.vht_mcs, sta_cap.vht_ss);
+
+    fields.uint16s.emplace_back(prefix + "MCSNSSTxSet", vht_mcs_set);
+    fields.uint16s.emplace_back(prefix + "MCSNSSRxSet", vht_mcs_set);
+    // TODO: find value for tx_spatial_streams PPM-792.
+    // Parse the (Re)Association Request frame.
+    fields.uint32s.emplace_back(prefix + "MaxNumberOfTxSpatialStreams", sta_cap.vht_ss);
+    fields.uint32s.emplace_back(prefix + "MaxNumberOfRxSpatialStreams", sta_cap.vht_ss);
+    fields.booleans.emplace_back(prefix + "VHTShortGI80", sta_cap.vht_low_bw_short_gi);
+    fields.booleans.emplace_back(prefix + "VHTShortGI160", sta_cap.vht_high_bw_short_gi);
+    fields.booleans.emplace_back(prefix + "VHT8080", BANDWIDTH_80_80 <= sta_cap.vht_bw);
+    fields.booleans.emplace_back(prefix + "VHT160", BANDWIDTH_160 <= sta_cap.vht_bw);
+    fields.booleans.emplace_back(prefix + "SUBeamformer", sta_cap.vht_su_beamformer);
+    fields.booleans.emplace_back(prefix + "MUBeamformer", sta_cap.vht_mu_beamformer);
+}
+
+/**
+ * @brief Gets the fields of the WiFi6Capabilities object of a station.
+ *
+ * The MCSNSS table of the object is not filled.
+ *
+ * @param fields The fields, each name with the prefix in front.
+ * @param prefix Prefix of the names, for example "WiFi6Capabilities." for an event table.
+ * @param sta_cap Station capabilities.
+ */
+static void get_sta_he_capability_fields(beerocks::nbapi::EventArgs &fields,
+                                         const std::string &prefix,
+                                         const beerocks::message::sRadioCapabilities &sta_cap)
+{
+    auto add_bool = [&](const char *name, bool value) {
+        fields.booleans.emplace_back(prefix + name, value);
+    };
+    auto add_uint32 = [&](const char *name, uint32_t value) {
+        fields.uint32s.emplace_back(prefix + name, value);
+    };
+
+    add_uint32("MaxNumberOfTxSpatialStreams", sta_cap.he_ss);
+    add_uint32("MaxNumberOfRxSpatialStreams", sta_cap.he_ss);
+    add_bool("HE8080", sta_cap.he_bw == BANDWIDTH_80_80);
+    add_bool("HE160", sta_cap.he_bw == BANDWIDTH_160);
+    add_bool("SUBeamformer", sta_cap.he_su_beamformer);
+    add_bool("SUBeamformee", sta_cap.he_su_beamformee);
+    add_bool("MUBeamformer", sta_cap.he_mu_beamformer);
+    add_bool("Beamformee80orLess",
+             sta_cap.he_su_beamformee ? sta_cap.he_beamformee_sts_less_80mhz : false);
+    add_bool("BeamformeeAbove80", sta_cap.he_su_beamformee && (sta_cap.he_bw > BANDWIDTH_80)
+                                      ? sta_cap.he_beamformee_sts_great_80mhz
+                                      : false);
+    add_bool("ULMUMIMO", sta_cap.ul_mu_mimo);
+    add_bool("ULOFDMA", sta_cap.ul_ofdma);
+    add_bool("DLOFDMA", sta_cap.dl_ofdma);
+    // TODO: find the values for the unfilled parameters, PPM-2112
+    add_uint32("MaxDLMUMIMO", sta_cap.dl_mu_mimo_max_users);
+    add_uint32("MaxULMUMIMO", sta_cap.ul_mu_mimo_max_users);
+    add_uint32("MaxDLOFDMA", sta_cap.dl_ofdma_max_users);
+    add_uint32("MaxULOFDMA", sta_cap.ul_ofdma_max_users);
+    add_bool("RTS", false);
+    add_bool("MURTS", sta_cap.ul_ofdma);
+    add_bool("MultiBSSID", false);
+    add_bool("MUEDCA", false);
+    add_bool("TWTRequestor", sta_cap.twt_requester);
+    add_bool("TWTResponder", sta_cap.twt_responder);
+    add_bool("SpatialReuse", false);
+    add_bool("AnticipatedChannelUsage", false);
+}
+
 bool db::dm_set_sta_he_capabilities(const std::string &path_to_sta,
                                     const beerocks::message::sRadioCapabilities &sta_cap)
 {
@@ -1629,53 +1745,9 @@ bool db::dm_set_sta_he_capabilities(const std::string &path_to_sta,
         return false;
     }
 
-    bool ret_val            = true;
-    std::string path_to_obj = path_to_sta + "WiFi6Capabilities.";
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE8080",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_80_80));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_160));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.he_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformee",
-                                         static_cast<bool>(sta_cap.he_su_beamformee));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.he_mu_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "Beamformee80orLess",
-        static_cast<bool>(sta_cap.he_su_beamformee ? sta_cap.he_beamformee_sts_less_80mhz : false));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "BeamformeeAbove80",
-        static_cast<bool>(sta_cap.he_su_beamformee && (sta_cap.he_bw > BANDWIDTH_80)
-                              ? sta_cap.he_beamformee_sts_great_80mhz
-                              : false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULMUMIMO", static_cast<bool>(sta_cap.ul_mu_mimo));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULOFDMA", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "DLOFDMA", static_cast<bool>(sta_cap.dl_ofdma));
-    // TODO: find the values for the unfilled parameters, PPM-2112
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLMUMIMO", sta_cap.dl_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULMUMIMO", sta_cap.ul_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLOFDMA", sta_cap.dl_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULOFDMA", sta_cap.ul_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "RTS", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MURTS", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MultiBSSID", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUEDCA", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTRequestor",
-                                         static_cast<bool>(sta_cap.twt_requester));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTResponder",
-                                         static_cast<bool>(sta_cap.twt_responder));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SpatialReuse", static_cast<bool>(false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "AnticipatedChannelUsage", static_cast<bool>(false));
-
-    return ret_val;
+    beerocks::nbapi::EventArgs fields;
+    get_sta_he_capability_fields(fields, {}, sta_cap);
+    return set_capability_fields(*m_ambiorix_datamodel, path_to_sta + "WiFi6Capabilities.", fields);
 }
 
 bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_tlv)
@@ -2314,21 +2386,9 @@ bool db::dm_set_sta_ht_capabilities(const std::string &path_to_sta,
         return false;
     }
 
-    bool ret_val            = true;
-    std::string path_to_obj = path_to_sta + "HTCapabilities.";
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HTShortGI20",
-                                         static_cast<bool>(sta_cap.ht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HTShortGI40",
-                                         static_cast<bool>(sta_cap.ht_high_bw_short_gi));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "HT40", (sta_cap.ht_bw == beerocks::BANDWIDTH_40));
-    // TODO: find value for tx_spatial_streams PPM-792.
-    // Parse the (Re)Association Request frame.
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.ht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.ht_ss);
-
-    return ret_val;
+    beerocks::nbapi::EventArgs fields;
+    get_sta_ht_capability_fields(fields, {}, sta_cap);
+    return set_capability_fields(*m_ambiorix_datamodel, path_to_sta + "HTCapabilities.", fields);
 }
 
 bool db::dm_set_sta_vht_capabilities(const std::string &path_to_sta,
@@ -2339,176 +2399,9 @@ bool db::dm_set_sta_vht_capabilities(const std::string &path_to_sta,
         return false;
     }
 
-    bool ret_val            = true;
-    std::string path_to_obj = path_to_sta + "VHTCapabilities.";
-
-    auto vht_mcs_set = son::wireless_utils::get_vht_mcs_set(sta_cap.vht_mcs, sta_cap.vht_ss);
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MCSNSSTxSet", vht_mcs_set);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MCSNSSRxSet", vht_mcs_set);
-    // TODO: find value for tx_spatial_streams PPM-792.
-    // Parse the (Re)Association Request frame.
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.vht_ss);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.vht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHTShortGI80",
-                                         static_cast<bool>(sta_cap.vht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHTShortGI160",
-                                         static_cast<bool>(sta_cap.vht_high_bw_short_gi));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "VHT8080", (BANDWIDTH_80_80 <= sta_cap.vht_bw));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHT160", (BANDWIDTH_160 <= sta_cap.vht_bw));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_mu_beamformer));
-
-    return ret_val;
-}
-
-bool db::dm_add_assoc_event_sta_caps(const std::string &assoc_event_path,
-                                     const beerocks::message::sRadioCapabilities &sta_cap)
-{
-    if (assoc_event_path.empty()) {
-        return true;
-    }
-
-    std::string path_to_event = assoc_event_path + '.';
-
-    // Remove previous entry
-    m_ambiorix_datamodel->remove_optional_subobject(path_to_event, "HTCapabilities");
-    m_ambiorix_datamodel->remove_optional_subobject(path_to_event, "VHTCapabilities");
-    m_ambiorix_datamodel->remove_optional_subobject(path_to_event, "WiFi6Capabilities");
-
-    if (sta_cap.ht_bw != beerocks::BANDWIDTH_UNKNOWN) {
-        dm_set_assoc_event_sta_ht_cap(path_to_event, sta_cap);
-    }
-    if (sta_cap.vht_bw != beerocks::BANDWIDTH_UNKNOWN) {
-        dm_set_assoc_event_sta_vht_cap(path_to_event, sta_cap);
-    }
-    if (sta_cap.he_bw != beerocks::BANDWIDTH_UNKNOWN) {
-        dm_set_assoc_event_sta_he_cap(path_to_event, sta_cap);
-    }
-    return true;
-}
-
-bool db::dm_set_assoc_event_sta_ht_cap(const std::string &path_to_event,
-                                       const beerocks::message::sRadioCapabilities &sta_cap)
-{
-    if (!m_ambiorix_datamodel->add_optional_subobject(path_to_event, "HTCapabilities")) {
-        LOG(ERROR) << "Failed to add sub-object " << path_to_event << "HTCapabilities";
-        return false;
-    }
-
-    bool ret_val               = true;
-    std::string path_to_ht_cap = path_to_event + "HTCapabilities.";
-
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfTxSpatialStreams", sta_cap.ht_ss);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfRxSpatialStreams", sta_cap.ht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "HTShortGI20",
-                                         static_cast<bool>(sta_cap.ht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "HTShortGI40",
-                                         static_cast<bool>(sta_cap.ht_high_bw_short_gi));
-    // Set to 1 if both 20 MHz and 40 MHz operation is supported
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "HT40",
-                                         (sta_cap.ht_bw == beerocks::BANDWIDTH_40));
-
-    return ret_val;
-}
-
-bool db::dm_set_assoc_event_sta_vht_cap(const std::string &path_to_event,
-                                        const beerocks::message::sRadioCapabilities &sta_cap)
-{
-    if (!m_ambiorix_datamodel->add_optional_subobject(path_to_event, "VHTCapabilities")) {
-        LOG(ERROR) << "Failed to add sub-object " << path_to_event << "VHTCapabilities";
-        return false;
-    }
-
-    bool ret_val               = true;
-    std::string path_to_ht_cap = path_to_event + "VHTCapabilities.";
-
-    auto vht_mcs_set = son::wireless_utils::get_vht_mcs_set(sta_cap.vht_mcs, sta_cap.vht_ss);
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "MCSNSSTxSet", vht_mcs_set);
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "MCSNSSRxSet", vht_mcs_set);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfTxSpatialStreams", sta_cap.vht_ss);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfRxSpatialStreams", sta_cap.vht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "VHTShortGI80",
-                                         static_cast<bool>(sta_cap.vht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "VHTShortGI160",
-                                         static_cast<bool>(sta_cap.vht_high_bw_short_gi));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "VHT8080", (BANDWIDTH_80_80 <= sta_cap.vht_bw));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "VHT160", (BANDWIDTH_160 <= sta_cap.vht_bw));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_mu_beamformer));
-
-    return ret_val;
-}
-
-bool db::dm_set_assoc_event_sta_he_cap(const std::string &path_to_event,
-                                       const beerocks::message::sRadioCapabilities &sta_cap)
-{
-    if (!m_ambiorix_datamodel->add_optional_subobject(path_to_event, "WiFi6Capabilities")) {
-        LOG(ERROR) << "Failed to add sub-object " << path_to_event << "WiFi6Capabilities";
-        return false;
-    }
-
-    bool ret_val            = true;
-    std::string path_to_obj = path_to_event + "WiFi6Capabilities.";
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE8080",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_80_80));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_160));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.he_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformee",
-                                         static_cast<bool>(sta_cap.he_su_beamformee));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.he_mu_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "Beamformee80orLess",
-        static_cast<bool>(sta_cap.he_su_beamformee ? sta_cap.he_beamformee_sts_less_80mhz : false));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "BeamformeeAbove80",
-        static_cast<bool>(sta_cap.he_su_beamformee && (sta_cap.he_bw > BANDWIDTH_80)
-                              ? sta_cap.he_beamformee_sts_great_80mhz
-                              : false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULMUMIMO", static_cast<bool>(sta_cap.ul_mu_mimo));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULOFDMA", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "DLOFDMA", static_cast<bool>(sta_cap.dl_ofdma));
-    // TODO: find the values for the unfilled parameters, PPM-2112
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLMUMIMO", sta_cap.dl_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULMUMIMO", sta_cap.ul_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLOFDMA", sta_cap.dl_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULOFDMA", sta_cap.ul_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "RTS", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MURTS", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MultiBSSID", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUEDCA", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTRequestor",
-                                         static_cast<bool>(sta_cap.twt_requester));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTResponder",
-                                         static_cast<bool>(sta_cap.twt_responder));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SpatialReuse", static_cast<bool>(false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "AnticipatedChannelUsage", static_cast<bool>(false));
-
-    return ret_val;
+    beerocks::nbapi::EventArgs fields;
+    get_sta_vht_capability_fields(fields, {}, sta_cap);
+    return set_capability_fields(*m_ambiorix_datamodel, path_to_sta + "VHTCapabilities.", fields);
 }
 
 bool db::set_sta_capabilities(const std::string &client_mac,
@@ -2577,15 +2470,7 @@ bool db::set_client_capabilities(const sMacAddr &sta_mac, const std::string &fra
         return true;
     }
 
-    if (station->assoc_event_path.empty()) {
-        return true;
-    }
-
-    bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "ClientCapabilities", frame);
-    ret_val &= m_ambiorix_datamodel->set(station->assoc_event_path, "ClientCapabilities", frame);
-
-    return ret_val;
+    return m_ambiorix_datamodel->set(station->dm_path, "ClientCapabilities", frame);
 }
 
 const beerocks::message::sRadioCapabilities *db::get_sta_capabilities(const std::string &client_mac,
@@ -5457,55 +5342,6 @@ void db::dm_prune_history_references(std::queue<std::string> &paths, const std::
     }
 }
 
-bool db::notify_sta_disconnection(const std::string &client_mac, const uint16_t reason_code,
-                                  const std::string &bssid)
-{
-    std::shared_ptr<Station> pSta = get_station(tlvf::mac_from_string(client_mac));
-    if (!pSta) {
-        LOG(ERROR) << "Station not found for mac " << client_mac;
-        return false;
-    }
-
-    std::string path_to_disassoc_event_data =
-        DATAELEMENTS_ROOT_DM ".DisassociationEvent.DisassociationEventData";
-
-    if (!dm_check_objects_limit(m_disassoc_events, MAX_EVENT_HISTORY_SIZE)) {
-        return false;
-    }
-
-    std::string path_to_eventdata = m_ambiorix_datamodel->add_instance(path_to_disassoc_event_data);
-
-    if (path_to_eventdata.empty()) {
-        return false;
-    }
-
-    m_disassoc_events.push(path_to_eventdata);
-
-    bool ret_val = true;
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "BSSID", bssid);
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "MACAddress", client_mac);
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "ReasonCode", reason_code);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "BytesSent", pSta->stats_info->tx_bytes);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "BytesReceived", pSta->stats_info->rx_bytes);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "PacketsSent", pSta->stats_info->tx_packets);
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "PacketsReceived",
-                                         pSta->stats_info->rx_packets);
-
-    // ErrorsSent and ErrorsReceived are not available yet on stats_info
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "ErrorsSent", static_cast<uint32_t>(0));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "ErrorsReceived", static_cast<uint32_t>(0));
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "RetransCount",
-                                         pSta->stats_info->retrans_count);
-    ret_val &= m_ambiorix_datamodel->set_current_time(path_to_eventdata);
-
-    return ret_val;
-}
-
 bool db::set_sta_stats_info(const sMacAddr &mac, const beerocks_message::sStaStatsParams *params)
 
 {
@@ -7082,70 +6918,140 @@ void db::dm_increment_steer_summary_stats(const std::string &param_name)
     dm_uint64_param_one_up(DATAELEMENTS_ROOT_DM ".Network.MultiAPSteeringSummaryStats", param_name);
 }
 
-bool db::dm_add_failed_connection_event(const sMacAddr &bssid, const sMacAddr &sta_mac,
-                                        const uint16_t reason_code, const uint16_t status_code)
+void db::dm_add_event_addresses(beerocks::nbapi::EventArgs &args, const sMacAddr &client_mac,
+                                const sMacAddr &bssid)
 {
-    std::string event_path =
-        DATAELEMENTS_ROOT_DM ".FailedConnectionEvent.FailedConnectionEventData";
+    auto sta_mac = client_mac;
+    auto ap_mac  = bssid;
 
-    event_path = m_ambiorix_datamodel->add_instance(event_path);
-
-    if (event_path.empty() && NBAPI_ON) {
-        return false;
+    std::shared_ptr<Station> mld_station;
+    auto station = get_station(client_mac);
+    if (station && station->is_mld) {
+        mld_station = std::move(station);
+    } else {
+        // Find the STA MLD the station is affiliated to.
+        for (const auto &entry : m_stations) {
+            const auto &candidate = entry.second;
+            if (!candidate || !candidate->is_mld) {
+                continue;
+            }
+            const auto &affiliated_stas = candidate->sta_mld_configuration.affiliated_stas;
+            if (std::any_of(affiliated_stas.begin(), affiliated_stas.end(),
+                            [&](const Station::sAssociatedStaMldConfiguration::sAffiliatedSta
+                                    &affiliated_sta) {
+                                return affiliated_sta.affiliated_sta_mac == client_mac;
+                            })) {
+                mld_station = candidate;
+                break;
+            }
+        }
     }
 
-    bool ret_val = true;
+    if (mld_station) {
+        const auto &mld_config = mld_station->sta_mld_configuration.mld_config;
+        if (mld_config.sta_mld_mac != beerocks::net::network_utils::ZERO_MAC) {
+            sta_mac = mld_config.sta_mld_mac;
+        }
+        if (mld_config.ap_mld_mac != beerocks::net::network_utils::ZERO_MAC) {
+            ap_mac = mld_config.ap_mld_mac;
+        }
+    }
 
-    ret_val &= m_ambiorix_datamodel->set_current_time(event_path);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "BSSID", bssid);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "MACAddress", sta_mac);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "StatusCode", status_code);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "ReasonCode", reason_code);
-    return ret_val;
+    args.strings.emplace_back("BSSID", tlvf::mac_to_string(ap_mac));
+    args.strings.emplace_back("MACAddress", tlvf::mac_to_string(sta_mac));
 }
 
-std::string db::dm_add_association_event(const sMacAddr &bssid, const sMacAddr &client_mac,
-                                         const std::string &assoc_ts)
+beerocks::WifiChannel db::dm_add_event_channel(beerocks::nbapi::EventArgs &args,
+                                               const sMacAddr &bssid)
 {
-    std::string path_association_event =
-        DATAELEMENTS_ROOT_DM ".AssociationEvent.AssociationEventData";
+    auto parent_radio = get_bss_parent_radio(tlvf::mac_to_string(bssid));
+    auto wifi_channel = parent_radio.empty()
+                            ? beerocks::WifiChannel()
+                            : get_radio_wifi_channel(tlvf::mac_from_string(parent_radio));
+    if (!wifi_channel.is_empty()) {
+        auto op_class = son::wireless_utils::get_operating_class_by_channel(wifi_channel);
+        if (op_class) {
+            args.uint32s.emplace_back("OpClass", op_class);
+        }
+        args.uint32s.emplace_back("Channel", wifi_channel.get_channel());
+    }
+    return wifi_channel;
+}
 
-    if (!dm_check_objects_limit(m_assoc_events, MAX_EVENT_HISTORY_SIZE)) {
-        return {};
-    }
-    path_association_event = m_ambiorix_datamodel->add_instance(path_association_event);
-
-    if (path_association_event.empty()) {
-        return {};
-    }
-    m_assoc_events.push(path_association_event);
-    if (!m_ambiorix_datamodel->set(path_association_event, "BSSID", bssid)) {
-        LOG(ERROR) << "Failed to set " << path_association_event << ".BSSID: " << bssid;
-        return {};
-    }
-    if (!m_ambiorix_datamodel->set(path_association_event, "MACAddress", client_mac)) {
-        LOG(ERROR) << "Failed to set " << path_association_event << ".MACAddress: " << client_mac;
-        return {};
-    }
-
-    if (assoc_ts.empty()) {
-        m_ambiorix_datamodel->set_current_time(path_association_event);
-    } else if (!m_ambiorix_datamodel->set(path_association_event, "TimeStamp", assoc_ts)) {
-        LOG(ERROR) << "Failed to set " << path_association_event << ".TimeStamp: " << client_mac;
-        return {};
-    }
-
+bool db::dm_emit_association_event(const sMacAddr &bssid, const sMacAddr &client_mac,
+                                   const std::string &assoc_ts, const sAssociationReport *report)
+{
+    beerocks::nbapi::EventArgs args;
+    dm_add_event_addresses(args, client_mac, bssid);
+    args.datetimes.emplace_back("TimeStamp", assoc_ts.empty()
+                                                 ? m_ambiorix_datamodel->get_datamodel_time_format()
+                                                 : assoc_ts);
     /*
      TODO:  Set the status code to real value. Now value hardcoded to 0
             means connection successfull (IEEE802.11-16, Table 9.46).
             Should be fixed after PPM-864.
     */
-    if (!m_ambiorix_datamodel->set(path_association_event, "StatusCode",
-                                   static_cast<uint16_t>(0))) {
-        LOG(ERROR) << "Failed to set " << path_association_event << ".StatusCode: " << 0;
-        return {};
+    args.uint32s.emplace_back("StatusCode", 0);
+    dm_add_event_channel(args, bssid);
+
+    if (report) {
+        if (!report->client_capabilities.empty()) {
+            args.strings.emplace_back("ClientCapabilities", report->client_capabilities);
+        }
+
+        const auto *sta_cap = report->capabilities;
+        if (sta_cap && sta_cap->ht_bw != beerocks::BANDWIDTH_UNKNOWN) {
+            get_sta_ht_capability_fields(args, "HTCapabilities.", *sta_cap);
+        }
+        if (sta_cap && sta_cap->vht_bw != beerocks::BANDWIDTH_UNKNOWN) {
+            get_sta_vht_capability_fields(args, "VHTCapabilities.", *sta_cap);
+        }
+        if (sta_cap && (sta_cap->wifi_standard & beerocks::STANDARD_AX)) {
+            get_sta_he_capability_fields(args, "WiFi6Capabilities.", *sta_cap);
+        }
     }
-    return path_association_event;
+
+    return m_ambiorix_datamodel->emit_event(DATAELEMENTS_ROOT_DM ".AssociationEvent", "Associated!",
+                                            args);
+}
+
+bool db::dm_emit_disassociation_event(const sMacAddr &client_mac, uint16_t reason_code,
+                                      const sMacAddr &bssid)
+{
+    beerocks::nbapi::EventArgs args;
+    dm_add_event_addresses(args, client_mac, bssid);
+    args.datetimes.emplace_back("TimeStamp", m_ambiorix_datamodel->get_datamodel_time_format());
+    args.uint32s.emplace_back("ReasonCode", reason_code);
+    dm_add_event_channel(args, bssid);
+
+    auto station = get_station(client_mac);
+    if (station && station->stats_info) {
+        args.uint64s.emplace_back("BytesSent", station->stats_info->tx_bytes);
+        args.uint64s.emplace_back("BytesReceived", station->stats_info->rx_bytes);
+        args.uint64s.emplace_back("PacketsSent", station->stats_info->tx_packets);
+        args.uint64s.emplace_back("PacketsReceived", station->stats_info->rx_packets);
+        args.uint32s.emplace_back("RetransCount", station->stats_info->retrans_count);
+    }
+
+    return m_ambiorix_datamodel->emit_event(DATAELEMENTS_ROOT_DM ".DisassociationEvent",
+                                            "Disassociated!", args);
+}
+
+bool db::dm_emit_failed_connection_event(const sMacAddr &bssid, const sMacAddr &sta_mac,
+                                         uint16_t reason_code, uint16_t status_code)
+{
+    if (status_code == 0) {
+        return true;
+    }
+
+    beerocks::nbapi::EventArgs args;
+    dm_add_event_addresses(args, sta_mac, bssid);
+    args.datetimes.emplace_back("TimeStamp", m_ambiorix_datamodel->get_datamodel_time_format());
+    args.uint32s.emplace_back("StatusCode", status_code);
+    args.uint32s.emplace_back("ReasonCode", reason_code);
+
+    return m_ambiorix_datamodel->emit_event(DATAELEMENTS_ROOT_DM ".FailedConnectionEvent",
+                                            "FailedConnection!", args);
 }
 
 std::string db::dm_add_device_element(const sMacAddr &mac)

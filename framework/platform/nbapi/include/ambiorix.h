@@ -12,8 +12,30 @@
 #include "tlvf/common/sMacAddr.h"
 #include <easylogging++.h>
 
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace beerocks {
 namespace nbapi {
+
+/**
+ * @brief Arguments of a data model event.
+ *
+ * A name with a dot puts the value into a nested table.
+ * For example "WiFi6Capabilities.HE160" sets HE160 in the WiFi6Capabilities table.
+ *
+ * A value in datetimes is an RFC 3339 time (example: "2020-08-31T11:22:39Z"), sent with the
+ * Ambiorix datetime type.
+ */
+struct EventArgs {
+    std::vector<std::pair<std::string, std::string>> strings;
+    std::vector<std::pair<std::string, std::string>> datetimes;
+    std::vector<std::pair<std::string, bool>> booleans;
+    std::vector<std::pair<std::string, uint16_t>> uint16s;
+    std::vector<std::pair<std::string, uint32_t>> uint32s;
+    std::vector<std::pair<std::string, uint64_t>> uint64s;
+};
 
 /**
  * @class Ambiorix
@@ -186,6 +208,20 @@ public:
      * @return True if date and time successfully set, false otherwise.
      */
     virtual bool set_time(const std::string &path_to_object, const std::string &time_stamp) = 0;
+
+    /**
+     * @brief Emit an event of a data model object.
+     *
+     * The event must be declared in the ODL file of the object. The event is queued and sent
+     * from the event loop.
+     *
+     * @param object_path Path to the object (example: "Device.WiFi.DataElements.AssociationEvent").
+     * @param event_name Name of the event (example: "Associated!").
+     * @param args Arguments of the event.
+     * @return True on success, false otherwise.
+     */
+    virtual bool emit_event(const std::string &object_path, const std::string &event_name,
+                            const EventArgs &args) = 0;
 };
 
 inline Ambiorix::~Ambiorix() {}
