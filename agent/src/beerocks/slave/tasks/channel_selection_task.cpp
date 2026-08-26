@@ -1197,35 +1197,38 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
                     channel_of_oper_class, oper_class_num);
             }
 
-            // Operating classes 128-130,132-135 use center channel **unlike the other classes**,
-            // so convert center channel and bandwidth to main channel.
-            // For more info, refer to Table E-4 in the 802.11 specification.
-            const auto beacon_channels =
-                son::wireless_utils::is_operating_class_using_central_channel(oper_class_num)
-                    ? son::wireless_utils::center_channel_to_beacon_channels(
-                          channel_of_oper_class, oper_class_bw,
-                          son::wireless_utils::which_freq_op_cls(oper_class_num))
-                    : std::vector<uint8_t>{channel_of_oper_class};
+            // Channels that are wider than 20MHz (which can be referred to as
+            // "super channel" or a "composite channel" in this context) need
+            // to have their preference computed out of the 20MHz sub-channels
+            // they consist of.
+            std::unordered_set<uint8_t> sub_channels;
+            if (!son::wireless_utils::get_subset_20MHz_channels(
+                    channel_of_oper_class, oper_class_num, oper_class_bw_orig, sub_channels)) {
+                LOG(ERROR) << "Failed to get subset of 20MHz channels for channel "
+                           << int(channel_of_oper_class) << " in operating class "
+                           << int(oper_class_num);
+            }
 
-            // Assume non-operable
-            AgentDB::sChannelPreference preference_key(
-                oper_class_num, wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE,
-                wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED);
-            for (const auto beacon_channel : beacon_channels) {
-                auto tmp_preference_key =
-                    get_preference_key(beacon_channel, oper_class_num, oper_class_bw);
-                if (tmp_preference_key.flags.preference == 0) {
-                    LOG(INFO) << "Channel #" << beacon_channel << " in Class #" << oper_class_num
+            auto superchan_pref   = wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE;
+            auto superchan_reason = wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED;
+            for (const auto sub_channel : sub_channels) {
+                auto sub_channel_pref =
+                    get_preference_key(sub_channel, oper_class_num, oper_class_bw);
+                if (sub_channel_pref.flags.preference == 0) {
+                    LOG(INFO) << "Channel #" << sub_channel << " in Class #" << oper_class_num
                               << " is non-operable";
-                    if (preference_key.flags.reason_code < tmp_preference_key.flags.reason_code) {
-                        preference_key.flags.reason_code = tmp_preference_key.flags.reason_code;
-                        break;
-                    }
-                } else if (preference_key.flags.preference < tmp_preference_key.flags.preference) {
-                    // Set as the highest preference in the beacon channels
-                    preference_key = tmp_preference_key;
+                    superchan_pref =
+                        wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE;
+                    superchan_reason = sub_channel_pref.flags.reason_code;
+                    break;
+                } else if (superchan_pref < sub_channel_pref.flags.preference) {
+                    // superchannel preference is computed as max(subchannel_preferences)
+                    superchan_pref = static_cast<wfa_map::cPreferenceOperatingClasses::ePreference>(
+                        sub_channel_pref.flags.preference);
                 }
             }
+            AgentDB::sChannelPreference preference_key(oper_class_num, superchan_pref,
+                                                       superchan_reason);
             radio->channel_preferences[preference_key].insert(channel_of_oper_class);
         }
     }
