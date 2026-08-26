@@ -2138,11 +2138,13 @@ bool wireless_utils::get_subset_20MHz_channels(const uint8_t channel_number,
         } else {
             channels_table = &(son::wireless_utils::channels_table_6g);
         }
+        const auto op_class_bw = son::wireless_utils::get_bandwidth_from_channel_and_op_class(
+            channel_number, operating_class);
         // The given channel number is a central channel
         // Iterate over the 5GHz/6GHz channel table.
         for (const auto &channel_it : *channels_table) {
             // Find the bandwidth within the channel
-            const auto bw_channel_elem = channel_it.second.find(operating_bandwidth);
+            const auto bw_channel_elem = channel_it.second.find(op_class_bw);
             if (bw_channel_elem == channel_it.second.end()) {
                 continue;
             }
