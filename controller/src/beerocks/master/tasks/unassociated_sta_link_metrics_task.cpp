@@ -94,7 +94,7 @@ void UnassociatedStaLinkMetricsTask::work()
                     std::get<1>(channel_params->sta_list(sta_idx++)) = sta_mac;
                 }
 
-                if (!query_tlv->add_channel_list(channel_params)) {
+                if (!query_tlv->add_channel_list(std::move(channel_params))) {
                     LOG(ERROR) << "add_channel_list() failed";
                     return;
                 }
@@ -285,7 +285,7 @@ void UnassociatedStaLinkMetricsTask::handle_event(int event_enum_value, void *ev
         unassoc_sta_list       = unassoc_sta_link_metric_event->unassoc_sta_mac;
 
         // Add channel_list object to TLV
-        if (!tlvUnassociatedStaLinkMetricsQuery->add_channel_list(unassocChanList)) {
+        if (!tlvUnassociatedStaLinkMetricsQuery->add_channel_list(std::move(unassocChanList))) {
             LOG(ERROR) << "add_channel_list() failed";
             return;
         }
