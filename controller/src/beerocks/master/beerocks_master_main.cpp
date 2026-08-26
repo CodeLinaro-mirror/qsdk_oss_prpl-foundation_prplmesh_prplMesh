@@ -793,7 +793,8 @@ int main(int argc, char *argv[])
     LOG(INFO) << "Initializing UseDataElementsVapConfigs=" << use_templates;
 
     if (!amb_dm_obj->set(CONTROLLER_ROOT_DM, "UseDataElementsVapConfigs", use_templates)) {
-        LOG(ERROR) << "Failed syncing " << "UseDataElementsVapConfigs";
+        LOG(ERROR) << "Failed syncing "
+                   << "UseDataElementsVapConfigs";
     }
 #ifdef ENABLE_NBAPI
     prplmesh::controller::actions::set_templates_dm_initialized(true);

@@ -21,6 +21,7 @@ namespace actions {
 
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void);
 std::vector<beerocks::nbapi::sEvents> get_events_list(void);
+std::vector<beerocks::nbapi::sEvents> get_ieee1905_events_list(void);
 std::vector<beerocks::nbapi::sFunctions> get_func_list(void);
 beerocks::nbapi::ambiorix_func_ptr get_access_point_commit(void);
 

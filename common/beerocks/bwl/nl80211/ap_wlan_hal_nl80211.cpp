@@ -321,8 +321,8 @@ static bool assign_auth_encr_parameters(prplmesh::hostapd::Configuration &conf,
         okc.assign("1");
         wpa_disable_eapol_key_retries.assign("0");
     } else if (bss.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
-           bss.additional_auth ==
-               son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+               bss.additional_auth ==
+                   son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
 
         wpa = 0x2;
         wpa_key_mgmt.assign("WPA-PSK SAE");
