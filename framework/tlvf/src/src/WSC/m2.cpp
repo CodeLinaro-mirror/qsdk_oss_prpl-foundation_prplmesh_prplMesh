@@ -254,7 +254,8 @@ bool m2::init(const config &cfg, bool bss_index_support)
     if (!cfg.operating_generation.empty()) {
         auto vendor_ext_attr = addAttr<cWscAttrVendorExtension>();
         if (!vendor_ext_attr) {
-            TLVF_LOG(ERROR) << "addAttr<cWscAttrVendorExtension> (Airties operating_generation) failed";
+            TLVF_LOG(ERROR)
+                << "addAttr<cWscAttrVendorExtension> (Airties operating_generation) failed";
             return false;
         }
         vendor_ext_attr->vendor_id_0() = WSC::eWscVendorId::WSC_VENDOR_ID_AIRTIES_1;

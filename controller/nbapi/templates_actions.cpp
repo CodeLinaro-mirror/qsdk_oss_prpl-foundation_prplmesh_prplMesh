@@ -16,15 +16,15 @@
 #include <bcl/son/son_wireless_utils.h>
 #include <cctype>
 #include <list>
+#include <set>
 #include <sstream>
+#include <tlvf/ieee_1905_1/eMessageType.h>
+#include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include <set>
-#include <tuple>
-#include <tlvf/ieee_1905_1/eMessageType.h>
-#include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 
 using namespace beerocks;
 using namespace net;
@@ -39,7 +39,7 @@ bool g_templates_commit_pending         = false;
 bool g_templates_topology_restage_armed = false;
 bool g_templates_apply_in_progress      = false;
 std::unordered_map<std::string, int8_t> g_template_applied_tx_power_limit_dbm;
-}
+} // namespace
 
 static void template_sync_all_linked_ids(amxd_object_t *templates_root);
 static bool template_rebuild_staged_configuration(amxd_object_t *templates_root);
@@ -101,12 +101,14 @@ static void template_send_ap_config_renew_message(const std::vector<sMacAddr> &t
     }
 }
 
-static std::string template_radio_tx_power_key(const sMacAddr &agent_al_mac, const sMacAddr &radio_uid)
+static std::string template_radio_tx_power_key(const sMacAddr &agent_al_mac,
+                                               const sMacAddr &radio_uid)
 {
     return tlvf::mac_to_string(agent_al_mac) + "|" + tlvf::mac_to_string(radio_uid);
 }
 
-static bool template_resolve_nominal_radio_tx_limit_dbm(const sMacAddr &radio_uid, int8_t &tx_limit_dbm)
+static bool template_resolve_nominal_radio_tx_limit_dbm(const sMacAddr &radio_uid,
+                                                        int8_t &tx_limit_dbm)
 {
     if (!g_database || radio_uid == beerocks::net::network_utils::ZERO_MAC) {
         return false;
@@ -131,11 +133,13 @@ static bool template_resolve_nominal_radio_tx_limit_dbm(const sMacAddr &radio_ui
     }
 
     if (!radio->supported_channels.empty()) {
-        auto strongest_channel = std::max_element(
-            radio->supported_channels.begin(), radio->supported_channels.end(),
-            [](const auto &lhs, const auto &rhs) { return lhs.get_tx_power() < rhs.get_tx_power(); });
-        tx_limit_dbm = static_cast<int8_t>(std::min<int>(strongest_channel->get_tx_power(),
-                                                         std::numeric_limits<int8_t>::max()));
+        auto strongest_channel =
+            std::max_element(radio->supported_channels.begin(), radio->supported_channels.end(),
+                             [](const auto &lhs, const auto &rhs) {
+                                 return lhs.get_tx_power() < rhs.get_tx_power();
+                             });
+        tx_limit_dbm = static_cast<int8_t>(
+            std::min<int>(strongest_channel->get_tx_power(), std::numeric_limits<int8_t>::max()));
         return true;
     }
 
@@ -177,8 +181,8 @@ static bool template_send_radio_transmit_power_limit(const sMacAddr &agent_al_ma
         return false;
     }
 
-    LOG(DEBUG) << "Template TransmitPowerLimit sent: agent=" << agent_al_mac << " ruid=" << radio_uid
-               << " dBm=" << int(limit_dbm);
+    LOG(DEBUG) << "Template TransmitPowerLimit sent: agent=" << agent_al_mac
+               << " ruid=" << radio_uid << " dBm=" << int(limit_dbm);
     return true;
 }
 
@@ -191,12 +195,14 @@ static void template_apply_pending_radio_transmit_power_limits(
 
     std::unordered_map<std::string, int8_t> desired_by_key;
     for (const auto &e : desired) {
-        desired_by_key[template_radio_tx_power_key(std::get<0>(e), std::get<1>(e))] = std::get<2>(e);
+        desired_by_key[template_radio_tx_power_key(std::get<0>(e), std::get<1>(e))] =
+            std::get<2>(e);
     }
 
     for (const auto &kv : desired_by_key) {
         const auto applied_it = g_template_applied_tx_power_limit_dbm.find(kv.first);
-        if (applied_it != g_template_applied_tx_power_limit_dbm.end() && applied_it->second == kv.second) {
+        if (applied_it != g_template_applied_tx_power_limit_dbm.end() &&
+            applied_it->second == kv.second) {
             continue;
         }
         const auto separator = kv.first.find('|');
@@ -227,8 +233,9 @@ static void template_apply_pending_radio_transmit_power_limits(
 
         int8_t nominal_dbm = 0;
         if (!template_resolve_nominal_radio_tx_limit_dbm(radio_uid, nominal_dbm)) {
-            LOG(DEBUG) << "Deferring template tx power rollback until nominal capabilities exist for "
-                       << radio_uid;
+            LOG(DEBUG)
+                << "Deferring template tx power rollback until nominal capabilities exist for "
+                << radio_uid;
             continue;
         }
         if (template_send_radio_transmit_power_limit(agent_al_mac, radio_uid, nominal_dbm)) {
@@ -248,9 +255,10 @@ static void template_apply_pending_radio_transmit_power_limits(
  * SecurityTemplateReferences (comma-separated object paths).
  */
 static amxd_object_t *template_resolve_security_template(amxd_object_t *templates_root,
-                                                          amxd_object_t *security_group_obj)
+                                                         amxd_object_t *security_group_obj)
 {
-    amxd_object_t *security_template_table = amxd_object_get_child(templates_root, "SecurityTemplate");
+    amxd_object_t *security_template_table =
+        amxd_object_get_child(templates_root, "SecurityTemplate");
     if (!security_template_table) {
         LOG(WARNING) << "SecurityTemplate table not found";
         return nullptr;
@@ -539,8 +547,8 @@ static bool template_radio_matches_operating_classes(const Agent::sRadio &radio,
     }
     for (uint8_t oc : tpl_op_classes) {
         if (g_database->get_supported_channels_in_operating_class(radio.radio_uid, oc).empty()) {
-            LOG(DEBUG) << "Radio " << radio.radio_uid << " does not support op class "
-                       << int(oc) << "; OpClassFlag template rejected";
+            LOG(DEBUG) << "Radio " << radio.radio_uid << " does not support op class " << int(oc)
+                       << "; OpClassFlag template rejected";
             return false;
         }
     }
@@ -581,8 +589,7 @@ static bool update_linked_template_id(const std::string &reference_path,
                                       amxd_object_t *target_object,
                                       const std::string &target_param_name)
 {
-    const std::string current_linked =
-        get_param_string(target_object, target_param_name.c_str());
+    const std::string current_linked = get_param_string(target_object, target_param_name.c_str());
 
     if (reference_path.empty()) {
         if (current_linked.empty()) {
@@ -600,8 +607,8 @@ static bool update_linked_template_id(const std::string &reference_path,
         return (status == amxd_status_ok);
     }
 
-    amxd_object_t *referenced_obj = amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(),
-                                                   "%s", reference_path.c_str());
+    amxd_object_t *referenced_obj =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", reference_path.c_str());
     if (!referenced_obj) {
         LOG(WARNING) << "Failed to find referenced object: " << reference_path;
         return false;
@@ -623,8 +630,7 @@ static bool update_linked_template_id(const std::string &reference_path,
     amxd_trans_set_attr(&transaction, amxd_tattr_change_ro, true);
     amxd_trans_select_object(&transaction, target_object);
     amxd_trans_set_value(cstring_t, &transaction, target_param_name.c_str(), template_id.c_str());
-    amxd_status_t status =
-        amxd_trans_apply(&transaction, beerocks::nbapi::Amxrt::getDatamodel());
+    amxd_status_t status = amxd_trans_apply(&transaction, beerocks::nbapi::Amxrt::getDatamodel());
     amxd_trans_clean(&transaction);
 
     if (status == amxd_status_ok) {
@@ -633,8 +639,8 @@ static bool update_linked_template_id(const std::string &reference_path,
         return true;
     }
 
-    LOG(ERROR) << "Failed to update " << target_param_name << ", status: "
-               << amxd_status_string(status);
+    LOG(ERROR) << "Failed to update " << target_param_name
+               << ", status: " << amxd_status_string(status);
     return false;
 }
 
@@ -701,7 +707,6 @@ static void template_sync_security_group_linked_ids(amxd_object_t *security_grou
             linked_ids += ",";
         }
         linked_ids += tid;
-
     }
 
     const std::string current_linked =
@@ -773,14 +778,14 @@ static void event_templates_network_configuration_changed(const char *const sig_
         return;
     }
 
-    const bool enable_now   = get_param_bool(network_obj, "Enable");
+    const bool enable_now     = get_param_bool(network_obj, "Enable");
     static bool s_last_enable = false; // initialized false to match default ODL
-    const bool falling_edge = s_last_enable && !enable_now;
-    s_last_enable           = enable_now;
+    const bool falling_edge   = s_last_enable && !enable_now;
+    s_last_enable             = enable_now;
 
     LOG(DEBUG) << "event_templates_network_configuration_changed: Enable="
-               << (enable_now ? "true" : "false")
-               << " TopologyFlag=\"" << get_param_string(network_obj, "TopologyFlag") << "\"";
+               << (enable_now ? "true" : "false") << " TopologyFlag=\""
+               << get_param_string(network_obj, "TopologyFlag") << "\"";
 
     if (!enable_now) {
         if (falling_edge && g_database) {
@@ -810,8 +815,7 @@ static void event_templates_network_configuration_changed(const char *const sig_
 }
 
 static void event_bss_template_configuration_changed(const char *const sig_name,
-                                                     const amxc_var_t *const data,
-                                                     void *const priv)
+                                                     const amxc_var_t *const data, void *const priv)
 {
     if (!templates_events_enabled()) {
         return;
@@ -820,7 +824,8 @@ static void event_bss_template_configuration_changed(const char *const sig_name,
     amxd_object_t *bss_template_obj =
         amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
     if (!bss_template_obj) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".BSSTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".BSSTemplate instance from signal";
         return;
     }
 
@@ -831,15 +836,15 @@ static void event_bss_template_configuration_changed(const char *const sig_name,
 }
 
 static void event_bss_template_instance_changed(const char *const sig_name,
-                                                const amxc_var_t *const data,
-                                                void *const priv)
+                                                const amxc_var_t *const data, void *const priv)
 {
     if (!templates_events_enabled()) {
         return;
     }
 
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".BSSTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".BSSTemplate from instance signal";
         return;
     }
 
@@ -855,7 +860,8 @@ static void event_radio_template_configuration_changed(const char *const sig_nam
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".RadioTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".RadioTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_radio_template_configuration_changed";
@@ -863,14 +869,14 @@ static void event_radio_template_configuration_changed(const char *const sig_nam
 }
 
 static void event_radio_template_instance_changed(const char *const sig_name,
-                                                  const amxc_var_t *const data,
-                                                  void *const priv)
+                                                  const amxc_var_t *const data, void *const priv)
 {
     if (!templates_events_enabled()) {
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".RadioTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".RadioTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_radio_template_instance_changed";
@@ -878,14 +884,14 @@ static void event_radio_template_instance_changed(const char *const sig_name,
 }
 
 static void event_ssc_template_configuration_changed(const char *const sig_name,
-                                                     const amxc_var_t *const data,
-                                                     void *const priv)
+                                                     const amxc_var_t *const data, void *const priv)
 {
     if (!templates_events_enabled()) {
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SSCTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".SSCTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_ssc_template_configuration_changed";
@@ -893,14 +899,14 @@ static void event_ssc_template_configuration_changed(const char *const sig_name,
 }
 
 static void event_ssc_template_instance_changed(const char *const sig_name,
-                                                const amxc_var_t *const data,
-                                                void *const priv)
+                                                const amxc_var_t *const data, void *const priv)
 {
     if (!templates_events_enabled()) {
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SSCTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".SSCTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_ssc_template_instance_changed";
@@ -915,7 +921,8 @@ static void event_security_template_configuration_changed(const char *const sig_
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".SecurityTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_security_template_configuration_changed";
@@ -923,14 +930,14 @@ static void event_security_template_configuration_changed(const char *const sig_
 }
 
 static void event_security_template_instance_changed(const char *const sig_name,
-                                                     const amxc_var_t *const data,
-                                                     void *const priv)
+                                                     const amxc_var_t *const data, void *const priv)
 {
     if (!templates_events_enabled()) {
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".SecurityTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_security_template_instance_changed";
@@ -948,7 +955,8 @@ static void event_templates_security_group_configuration_changed(const char *con
     amxd_object_t *security_group_obj =
         amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
     if (!security_group_obj) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityGroup instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".SecurityGroup instance from signal";
         return;
     }
 
@@ -964,7 +972,8 @@ static void event_templates_security_group_instance_changed(const char *const si
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".SecurityGroup from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".SecurityGroup from instance signal";
         return;
     }
     LOG(DEBUG) << "event_templates_security_group_instance_changed";
@@ -979,7 +988,8 @@ static void event_apmld_template_configuration_changed(const char *const sig_nam
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".APMLDTemplate instance from signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".APMLDTemplate instance from signal";
         return;
     }
     LOG(DEBUG) << "event_apmld_template_configuration_changed";
@@ -987,14 +997,14 @@ static void event_apmld_template_configuration_changed(const char *const sig_nam
 }
 
 static void event_apmld_template_instance_changed(const char *const sig_name,
-                                                  const amxc_var_t *const data,
-                                                  void *const priv)
+                                                  const amxc_var_t *const data, void *const priv)
 {
     if (!templates_events_enabled()) {
         return;
     }
     if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
-        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << ".APMLDTemplate from instance signal";
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM
+                     << ".APMLDTemplate from instance signal";
         return;
     }
     LOG(DEBUG) << "event_apmld_template_instance_changed";
@@ -1005,8 +1015,7 @@ static bool template_agent_has_backhaul_sta(const Agent &agent)
 {
     for (const auto &radio_kv : agent.radios) {
         const auto &radio = radio_kv.second;
-        if (radio &&
-            radio->backhaul_station_mac != beerocks::net::network_utils::ZERO_MAC) {
+        if (radio && radio->backhaul_station_mac != beerocks::net::network_utils::ZERO_MAC) {
             return true;
         }
     }
@@ -1030,8 +1039,7 @@ static bool template_agent_is_wireless_repeater(const Agent &agent)
     }
     if (g_database && agent.backhaul.backhaul_interface != beerocks::net::network_utils::ZERO_MAC &&
         agent.backhaul.backhaul_interface != agent.al_mac) {
-        if (g_database->is_sta_wireless(
-                tlvf::mac_to_string(agent.backhaul.backhaul_interface))) {
+        if (g_database->is_sta_wireless(tlvf::mac_to_string(agent.backhaul.backhaul_interface))) {
             return true;
         }
     }
@@ -1148,8 +1156,7 @@ static bool template_radio_agent_supports_afc(const Agent::sRadio &radio)
     return radio.supports_6ghz;
 }
 
-static bool template_operating_classes_include_5g(
-    const std::list<uint8_t> &operating_classes)
+static bool template_operating_classes_include_5g(const std::list<uint8_t> &operating_classes)
 {
     for (uint8_t oc : operating_classes) {
         if (oc >= OPCLASS_5GHZ_USING_CENTER_CHANNEL_FIRST &&
@@ -1163,13 +1170,11 @@ static bool template_operating_classes_include_5g(
     return false;
 }
 
-static bool template_operating_classes_include_6g(
-    const std::list<uint8_t> &operating_classes)
+static bool template_operating_classes_include_6g(const std::list<uint8_t> &operating_classes)
 {
     for (uint8_t oc : operating_classes) {
         if (oc >= OPCLASS_6GHZ_USING_CENTER_CHANNEL_FIRST &&
-            oc <= OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST &&
-            oc != OPCLASS_6GHZ_EXCEPTION) {
+            oc <= OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST && oc != OPCLASS_6GHZ_EXCEPTION) {
             return true;
         }
     }
@@ -1190,9 +1195,10 @@ static bool template_agent_is_wired_repeater(const Agent &agent)
  * BBF Templates: TopologyFlag matches if any list item matches (OR). Empty list means no
  * topology-role restriction from that parameter. "ALID" uses the paired IEEE1905ALID MAC list.
  */
-static bool template_agent_matches_topology_flags(const Agent &agent, const std::vector<std::string> &flags,
-                                             const std::vector<sMacAddr> &alids_for_alid_token,
-                                             bool ignore_topology_flags)
+static bool template_agent_matches_topology_flags(const Agent &agent,
+                                                  const std::vector<std::string> &flags,
+                                                  const std::vector<sMacAddr> &alids_for_alid_token,
+                                                  bool ignore_topology_flags)
 {
     if (ignore_topology_flags) {
         return true;
@@ -1227,29 +1233,29 @@ static bool template_agent_matches_topology_flags(const Agent &agent, const std:
                 }
                 alid_list_str += tlvf::mac_to_string(mac);
             }
-            LOG(INFO) << "Evaluating ALID override. Target Agent: " << agent.al_mac << " | Whitelisted ALIDs: [" << alid_list_str << "]";
+            LOG(INFO) << "Evaluating ALID override. Target Agent: " << agent.al_mac
+                      << " | Whitelisted ALIDs: [" << alid_list_str << "]";
 
             if (std::find(alids_for_alid_token.begin(), alids_for_alid_token.end(), agent.al_mac) !=
                 alids_for_alid_token.end()) {
-                    return true;
+                return true;
             }
         }
     }
     return false;
 }
 
-static std::vector<sMacAddr> template_filter_target_agents(
-    const std::vector<std::shared_ptr<Agent>> &connected_agents,
-    const std::vector<std::string> &network_topology_flags,
-    const std::vector<sMacAddr> &network_alids,
-    const std::vector<std::string> &bss_topology_flags,
-    const std::vector<sMacAddr> &bss_alids)
+static std::vector<sMacAddr>
+template_filter_target_agents(const std::vector<std::shared_ptr<Agent>> &connected_agents,
+                              const std::vector<std::string> &network_topology_flags,
+                              const std::vector<sMacAddr> &network_alids,
+                              const std::vector<std::string> &bss_topology_flags,
+                              const std::vector<sMacAddr> &bss_alids)
 {
     std::vector<sMacAddr> target_agents;
     const bool ignore_network_topology =
         (connected_agents.size() <= 1) && network_topology_flags.empty();
-    const bool ignore_bss_topology =
-        (connected_agents.size() <= 1) && bss_topology_flags.empty();
+    const bool ignore_bss_topology = (connected_agents.size() <= 1) && bss_topology_flags.empty();
 
     for (const auto &agent : connected_agents) {
         if (!agent) {
@@ -1347,8 +1353,8 @@ static bool template_legacy_cipher_suite_type(uint8_t suite_type)
 {
     return suite_type == 0x04 || suite_type == 0x06 || suite_type == 0x09;
 }
-static bool template_agent_akm_suite_type_supported(const Agent &agent, bool fronthaul, bool backhaul,
-                                                     uint8_t suite_type)
+static bool template_agent_akm_suite_type_supported(const Agent &agent, bool fronthaul,
+                                                    bool backhaul, uint8_t suite_type)
 {
     if (!agent.security_capabilities.valid_akm_suites) {
         return template_legacy_akm_suite_type(suite_type);
@@ -1373,7 +1379,8 @@ static bool template_agent_cipher_suite_type_supported(const Agent &agent, uint8
 
 static bool template_parse_suite_token(std::string tok, std::array<uint8_t, 4> &out);
 
-static bool template_security_rsne_cipher_suites_match_agent(const Agent &agent, amxd_object_t *rsne_obj)
+static bool template_security_rsne_cipher_suites_match_agent(const Agent &agent,
+                                                             amxd_object_t *rsne_obj)
 {
     if (!rsne_obj) {
         return true;
@@ -1417,11 +1424,10 @@ static bool template_security_ies_hex_akms_match_agent(const Agent *agent, bool 
                                                        const std::vector<uint8_t> &ies,
                                                        bool &contains_owe, bool &contains_dpp)
 {
-    contains_owe = false;
-    contains_dpp = false;
-    const bool check_agent_suites =
-        agent && (agent->security_capabilities.valid_akm_suites ||
-                  agent->security_capabilities.valid_cipher_suites);
+    contains_owe                  = false;
+    contains_dpp                  = false;
+    const bool check_agent_suites = agent && (agent->security_capabilities.valid_akm_suites ||
+                                              agent->security_capabilities.valid_cipher_suites);
 
     auto check_body = [&](const uint8_t *b, size_t blen) -> bool {
         if (blen < 12) {
@@ -1459,8 +1465,7 @@ static bool template_security_ies_hex_akms_match_agent(const Agent *agent, bool 
                     !template_agent_akm_suite_type_supported(*agent, fh, bh, b[p + 3])) {
                     return false;
                 }
-            } else if (b[p] == 0x50 && b[p + 1] == 0x6F && b[p + 2] == 0x9A &&
-                       b[p + 3] == 0x02) {
+            } else if (b[p] == 0x50 && b[p + 1] == 0x6F && b[p + 2] == 0x9A && b[p + 3] == 0x02) {
                 contains_dpp = true;
             }
         }
@@ -1510,8 +1515,8 @@ static void template_merge_unique_csv(std::vector<std::string> &dst, const std::
 }
 
 static void template_merge_akm_from_rsn_child_objects(amxd_object_t *security_template_obj,
-                                                     std::vector<std::string> &akm_tokens,
-                                                     std::string &merged_akm_selector_csv)
+                                                      std::vector<std::string> &akm_tokens,
+                                                      std::string &merged_akm_selector_csv)
 {
     static const char *rsne_children[] = {"RSNE", "RSNOE", "RSNO2E"};
     for (const char *name : rsne_children) {
@@ -1542,7 +1547,8 @@ static void template_merge_saeh2e_from_rsnx(amxd_object_t *security_template_obj
         if (!o || !get_param_bool(o, "SAEH2E")) {
             continue;
         }
-        if (std::find(akm_tokens.begin(), akm_tokens.end(), std::string("sae")) == akm_tokens.end()) {
+        if (std::find(akm_tokens.begin(), akm_tokens.end(), std::string("sae")) ==
+            akm_tokens.end()) {
             akm_tokens.push_back("sae");
         }
         return;
@@ -1565,11 +1571,11 @@ static void template_finalize_ie_len(std::vector<uint8_t> &v, size_t len_idx)
 
 /** RSNE / WFA RSNO* payload body: Version through Group Management Cipher Suite (PMKID count 0). */
 static void template_append_rsne_like_body(std::vector<uint8_t> &v,
-                                            const std::array<uint8_t, 4> &group,
-                                            const std::vector<std::array<uint8_t, 4>> &pairwise,
-                                            const std::vector<std::array<uint8_t, 4>> &akm,
-                                            uint16_t rsn_cap_le,
-                                            const std::array<uint8_t, 4> &group_mgmt)
+                                           const std::array<uint8_t, 4> &group,
+                                           const std::vector<std::array<uint8_t, 4>> &pairwise,
+                                           const std::vector<std::array<uint8_t, 4>> &akm,
+                                           uint16_t rsn_cap_le,
+                                           const std::array<uint8_t, 4> &group_mgmt)
 {
     template_append_u16_le(v, 1); // version
     v.insert(v.end(), group.begin(), group.end());
@@ -1651,7 +1657,8 @@ static void template_read_cipher_list(amxd_object_t *obj, const char *param,
 }
 
 static bool template_read_one_suite(amxd_object_t *obj, const char *param,
-                                     const std::array<uint8_t, 4> &deflt, std::array<uint8_t, 4> &out)
+                                    const std::array<uint8_t, 4> &deflt,
+                                    std::array<uint8_t, 4> &out)
 {
     if (!obj) {
         out = deflt;
@@ -1749,9 +1756,9 @@ static bool template_rsn_child_has_content(amxd_object_t *obj)
     if (!obj) {
         return false;
     }
-    static const char *rsn_content_params[] = {
-        "GroupDataCipherSuite", "PairwiseCipherSuite", "AKMSuite", "AKMSuiteSelector",
-        "GroupManagementCipherSuite"};
+    static const char *rsn_content_params[] = {"GroupDataCipherSuite", "PairwiseCipherSuite",
+                                               "AKMSuite", "AKMSuiteSelector",
+                                               "GroupManagementCipherSuite"};
     for (const char *p : rsn_content_params) {
         if (!get_param_string(obj, p).empty()) {
             return true;
@@ -1814,8 +1821,7 @@ void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool i
             akm = akm_defaults;
         }
         const std::string mfp = obj ? get_param_string(obj, "MFP") : std::string("Capable");
-        const uint16_t cap =
-            template_mfp_to_rsn_cap_le(mfp.empty() ? "Capable" : mfp, vendor_caps);
+        const uint16_t cap = template_mfp_to_rsn_cap_le(mfp.empty() ? "Capable" : mfp, vendor_caps);
 
         out.push_back(0x30);
         size_t len_idx = out.size();
@@ -1836,7 +1842,7 @@ void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool i
         template_read_one_suite(obj, "GroupManagementCipherSuite", RSN_CIPHER_BIP_CMAC_128, gm);
         template_read_akm_list(obj, akm, akm_defaults);
         const std::string mfp = obj ? get_param_string(obj, "MFP") : std::string("Capable");
-        const uint16_t cap = template_mfp_to_rsn_cap_le(mfp.empty() ? "Capable" : mfp, true);
+        const uint16_t cap    = template_mfp_to_rsn_cap_le(mfp.empty() ? "Capable" : mfp, true);
 
         out.push_back(0xDD);
         size_t len_idx = out.size();
@@ -1881,8 +1887,7 @@ void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool i
         append_override(rsnoe, RSNOE_WFA_VENDOR_TYPE, {RSN_AKM_SAE}, RSN_CIPHER_CCMP_128);
     }
     if (emit_rsno2e) {
-        append_override(rsno2e, RSNO2E_WFA_VENDOR_TYPE, {RSN_AKM_SAE_EXT_KEY},
-                        RSN_CIPHER_GCMP_256);
+        append_override(rsno2e, RSNO2E_WFA_VENDOR_TYPE, {RSN_AKM_SAE_EXT_KEY}, RSN_CIPHER_GCMP_256);
     }
 
     // SAEH2E selects the advertised capability bit; false encodes bit 0.
@@ -1893,9 +1898,9 @@ void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool i
                            static_cast<uint8_t>(rsnxoe_h2e ? 0x20 : 0x00)});
 
     LOG(DEBUG) << "RSN IE filled: mode=" << int(mode) << " len=" << out.size()
-               << " rsnoe=" << emit_rsnoe << " rsno2e=" << emit_rsno2e
-               << " rsnxe_h2e=" << rsnxe_h2e << " rsnxoe_h2e=" << rsnxoe_h2e << " hex="
-               << beerocks::string_utils::bytes_to_hex_string(out.data(), out.size());
+               << " rsnoe=" << emit_rsnoe << " rsno2e=" << emit_rsno2e << " rsnxe_h2e=" << rsnxe_h2e
+               << " rsnxoe_h2e=" << rsnxoe_h2e
+               << " hex=" << beerocks::string_utils::bytes_to_hex_string(out.data(), out.size());
 }
 
 /** BBF: SecurityIEs is hex (optional separators); used verbatim when non-empty. */
@@ -1968,9 +1973,10 @@ static bool template_security_akm_name_supported_by_agent(const Agent &agent, bo
     return false;
 }
 
-static bool template_security_akm_flags_match_agent(const Agent &agent, bool fronthaul, bool backhaul,
-                                                   const std::vector<std::string> &akm_flags,
-                                                   const std::vector<std::string> &rsne_akm_list)
+static bool template_security_akm_flags_match_agent(const Agent &agent, bool fronthaul,
+                                                    bool backhaul,
+                                                    const std::vector<std::string> &akm_flags,
+                                                    const std::vector<std::string> &rsne_akm_list)
 {
     std::vector<std::string> merged;
     for (const auto &t : akm_flags) {
@@ -1983,11 +1989,10 @@ static bool template_security_akm_flags_match_agent(const Agent &agent, bool fro
         std::transform(t.begin(), t.end(), t.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     }
-    merged.erase(std::remove_if(merged.begin(), merged.end(),
-                                [](const std::string &s) {
-                                    return s.empty() || s == "suiteselector";
-                                }),
-                  merged.end());
+    merged.erase(
+        std::remove_if(merged.begin(), merged.end(),
+                       [](const std::string &s) { return s.empty() || s == "suiteselector"; }),
+        merged.end());
     std::sort(merged.begin(), merged.end());
     merged.erase(std::unique(merged.begin(), merged.end()), merged.end());
 
@@ -2048,9 +2053,9 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
                    << " octets), ignoring structured RSN* parameters";
         bool contains_owe = false;
         bool contains_dpp = false;
-        if (!template_security_ies_hex_akms_match_agent(agent_for_match, bss_info.fronthaul,
-                                                        bss_info.backhaul, bss_info.rsn_security_ies,
-                                                        contains_owe, contains_dpp)) {
+        if (!template_security_ies_hex_akms_match_agent(
+                agent_for_match, bss_info.fronthaul, bss_info.backhaul, bss_info.rsn_security_ies,
+                contains_owe, contains_dpp)) {
             LOG(DEBUG) << "SecurityTemplate SecurityIEs: AKM/cipher suites not supported by agent";
             return false;
         }
@@ -2071,15 +2076,18 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         return true;
     }
 
-    std::string rsno_support_flag       = get_param_string(security_template_obj, "RSNOSupportFlag");
-    std::string supported_akm_flag      = get_param_string(security_template_obj, "SupportedAKMSuiteFlag");
-    std::string supported_selector_flag = get_param_string(security_template_obj, "SupportedAKMSuiteSelectorFlag");
+    std::string rsno_support_flag = get_param_string(security_template_obj, "RSNOSupportFlag");
+    std::string supported_akm_flag =
+        get_param_string(security_template_obj, "SupportedAKMSuiteFlag");
+    std::string supported_selector_flag =
+        get_param_string(security_template_obj, "SupportedAKMSuiteSelectorFlag");
 
     const bool rsno_support = (rsno_support_flag == "true");
 
     if (agent_for_match) {
         if (rsno_support_flag == "true" && !agent_for_match->rsn_overriding_supported) {
-            LOG(DEBUG) << "SecurityTemplate RSNOSupportFlag=true but agent lacks RSNO / RSN override";
+            LOG(DEBUG)
+                << "SecurityTemplate RSNOSupportFlag=true but agent lacks RSNO / RSN override";
             return false;
         }
         if (rsno_support_flag == "false" && agent_for_match->rsn_overriding_supported) {
@@ -2120,7 +2128,8 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
 
     if (agent_for_match && rsne_obj &&
         !template_security_rsne_cipher_suites_match_agent(*agent_for_match, rsne_obj)) {
-        LOG(DEBUG) << "SecurityTemplate RSNE cipher suites not supported by agent " << agent_for_match->al_mac;
+        LOG(DEBUG) << "SecurityTemplate RSNE cipher suites not supported by agent "
+                   << agent_for_match->al_mac;
         return false;
     }
 
@@ -2133,7 +2142,7 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
 
     if (agent_for_match) {
         if (!template_security_akm_flags_match_agent(*agent_for_match, bss_info.fronthaul,
-                                                      bss_info.backhaul, akm_flags, rsne_akm_list)) {
+                                                     bss_info.backhaul, akm_flags, rsne_akm_list)) {
             return false;
         }
     }
@@ -2173,16 +2182,15 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
                 if (!agent_for_match) {
                     return false;
                 }
-                const unsigned long st =
-                    std::strtoul(sel.substr(6, 2).c_str(), nullptr, 16);
-                const auto suite_type = static_cast<uint8_t>(st);
+                const unsigned long st = std::strtoul(sel.substr(6, 2).c_str(), nullptr, 16);
+                const auto suite_type  = static_cast<uint8_t>(st);
                 if (!template_agent_akm_suite_type_supported(*agent_for_match, bss_info.fronthaul,
-                                                               bss_info.backhaul, suite_type)) {
+                                                             bss_info.backhaul, suite_type)) {
                     LOG(DEBUG) << "SecurityTemplate: selector " << sel << " not supported by agent";
                     return false;
                 }
-                bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
-                bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
+                bss_info.encryption_type  = WSC::eWscEncr::WSC_ENCR_AES;
+                bss_info.additional_auth  = son::wireless_utils::eAdditionalAuth::NONE;
                 eTemplateRsnMode rsn_mode = eTemplateRsnMode::PSK;
                 if (suite_type == 0x02) {
                     bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
@@ -2220,13 +2228,12 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
                                            bss_info.rsn_security_ies);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Compatibility (RSNO)";
         } else if (has_psk) {
-            bss_info.authentication_type = WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK |
-                                                          WSC::eWscAuth::WSC_AUTH_SAE);
+            bss_info.authentication_type =
+                WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_SAE);
             bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
             bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
             template_fill_rsn_security_ies(security_template_obj, is_6g,
-                                           eTemplateRsnMode::TRANSITION,
-                                           bss_info.rsn_security_ies);
+                                           eTemplateRsnMode::TRANSITION, bss_info.rsn_security_ies);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Transition (PSK+SAE, no RSNO)";
         } else {
             bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
@@ -2301,9 +2308,9 @@ struct sRadioTemplateRow {
     std::string operating_generation;
     std::string supported_generation_flag_csv;
     std::string band_flag_csv;
-    bool has_band_flag = false;
-    bool has_transmit_power_limit = false;
-    int8_t transmit_power_limit_dbm = 0;
+    bool has_band_flag                 = false;
+    bool has_transmit_power_limit      = false;
+    int8_t transmit_power_limit_dbm    = 0;
     eTemplateTriState dfs_support_flag = eTemplateTriState::NULL_VALUE;
     eTemplateTriState afc_support_flag = eTemplateTriState::NULL_VALUE;
 };
@@ -2312,7 +2319,8 @@ struct sAgentBssIndexState {
     std::unordered_map<std::string, std::set<uint8_t>> used_bss_indexes_by_radio;
 };
 
-static std::string template_bss_index_scope_key(const sMacAddr &agent_al_mac, const sMacAddr &radio_uid)
+static std::string template_bss_index_scope_key(const sMacAddr &agent_al_mac,
+                                                const sMacAddr &radio_uid)
 {
     return tlvf::mac_to_string(agent_al_mac) + "|" + tlvf::mac_to_string(radio_uid);
 }
@@ -2381,8 +2389,7 @@ static bool radio_template_includes_wifi7(amxd_object_t *radio_inst_dm)
         return false;
     }
     for (const auto &t : toks) {
-        const bool spans_wifi7 =
-            (t.generation >= 7U) || (t.or_higher && t.generation >= 6U);
+        const bool spans_wifi7 = (t.generation >= 7U) || (t.or_higher && t.generation >= 6U);
         if (spans_wifi7) {
             return true;
         }
@@ -2424,8 +2431,9 @@ static bool template_radio_template_generation_matches(const Agent::sRadio &radi
     return true;
 }
 
-static sRadioTemplateRow template_select_radio_template(const Agent::sRadio &radio,
-                                                        const std::vector<sRadioTemplateRow> &candidates)
+static sRadioTemplateRow
+template_select_radio_template(const Agent::sRadio &radio,
+                               const std::vector<sRadioTemplateRow> &candidates)
 {
     sRadioTemplateRow selected{};
     for (const auto &cand : candidates) {
@@ -2467,9 +2475,8 @@ static sRadioTemplateRow template_select_radio_template(const Agent::sRadio &rad
             const std::string sel_id  = get_param_string(selected.radio_inst, "RadioTemplateID");
             if (cand_id < sel_id) {
                 selected = cand;
-            } else if (cand_id == sel_id &&
-                       amxd_object_get_index(cand.radio_inst) <
-                           amxd_object_get_index(selected.radio_inst)) {
+            } else if (cand_id == sel_id && amxd_object_get_index(cand.radio_inst) <
+                                                amxd_object_get_index(selected.radio_inst)) {
                 selected = cand;
             }
         }
@@ -2479,11 +2486,11 @@ static sRadioTemplateRow template_select_radio_template(const Agent::sRadio &rad
 
 static bool template_stage_bss_on_radio(
     amxd_object_t *templates_root, amxd_object_t *network_obj,
-    const std::vector<std::shared_ptr<Agent>> &connected_agents, const std::shared_ptr<Agent> &agent,
-    const sMacAddr &radio_uid, amxd_object_t *radio_inst_dm,
+    const std::vector<std::shared_ptr<Agent>> &connected_agents,
+    const std::shared_ptr<Agent> &agent, const sMacAddr &radio_uid, amxd_object_t *radio_inst_dm,
     const std::list<uint8_t> &radio_operating_classes, amxd_object_t *bss_template_obj,
-    const std::vector<std::string> &network_topology_flags, const std::vector<sMacAddr> &network_alids,
-    sAgentBssIndexState &selection_state,
+    const std::vector<std::string> &network_topology_flags,
+    const std::vector<sMacAddr> &network_alids, sAgentBssIndexState &selection_state,
     const std::list<son::wireless_utils::sBssInfoConf> &previous_for_agent)
 {
     if (!g_database || !templates_root || !network_obj || !agent || !radio_inst_dm ||
@@ -2493,24 +2500,27 @@ static bool template_stage_bss_on_radio(
 
     const uint32_t bss_instance_index = amxd_object_get_index(bss_template_obj);
 
-    std::string network_primary_ssc_ref = get_param_string(network_obj, "PrimarySSCTemplateReference");
+    std::string network_primary_ssc_ref =
+        get_param_string(network_obj, "PrimarySSCTemplateReference");
 
     std::string bss_ssid = get_param_string(bss_template_obj, "SSID");
     if (bss_ssid.empty()) {
         return false;
     }
 
-    std::string bss_key_passphrase     = get_param_string(bss_template_obj, "KeyPassphrase");
-    bool bss_advertisement_enable      = get_param_bool(bss_template_obj, "AdvertisementEnable");
-    std::string bss_topology_flag_str  = get_param_string(bss_template_obj, "TopologyFlag");
-    std::string bss_ieee1905_alid_str   = get_param_string(bss_template_obj, "IEEE1905ALID");
-    std::string bss_radio_template_ref = get_param_string(bss_template_obj, "RadioTemplateReference");
-    std::string bss_ssc_template_ref   = get_param_string(bss_template_obj, "SSCTemplateReference");
-    std::string bss_linked_ssc_id      = get_param_string(bss_template_obj, "LinkedSSCTemplateID");
-    std::string bss_linked_apmld_id = get_param_string(bss_template_obj, "LinkedAPMLDTemplateID");
-    std::string bss_linked_radio_id = get_param_string(bss_template_obj, "LinkedRadioTemplateID");
-    std::string bss_security_group_ref = get_param_string(bss_template_obj, "SecurityGroupReference");
-    std::string bss_apmld_ref          = get_param_string(bss_template_obj, "APMLDTemplateReference");
+    std::string bss_key_passphrase    = get_param_string(bss_template_obj, "KeyPassphrase");
+    bool bss_advertisement_enable     = get_param_bool(bss_template_obj, "AdvertisementEnable");
+    std::string bss_topology_flag_str = get_param_string(bss_template_obj, "TopologyFlag");
+    std::string bss_ieee1905_alid_str = get_param_string(bss_template_obj, "IEEE1905ALID");
+    std::string bss_radio_template_ref =
+        get_param_string(bss_template_obj, "RadioTemplateReference");
+    std::string bss_ssc_template_ref = get_param_string(bss_template_obj, "SSCTemplateReference");
+    std::string bss_linked_ssc_id    = get_param_string(bss_template_obj, "LinkedSSCTemplateID");
+    std::string bss_linked_apmld_id  = get_param_string(bss_template_obj, "LinkedAPMLDTemplateID");
+    std::string bss_linked_radio_id  = get_param_string(bss_template_obj, "LinkedRadioTemplateID");
+    std::string bss_security_group_ref =
+        get_param_string(bss_template_obj, "SecurityGroupReference");
+    std::string bss_apmld_ref = get_param_string(bss_template_obj, "APMLDTemplateReference");
 
     if (bss_radio_template_ref.empty() || bss_ssc_template_ref.empty() ||
         bss_security_group_ref.empty()) {
@@ -2530,16 +2540,14 @@ static bool template_stage_bss_on_radio(
     }
 
     amxd_object_t *resolved_radio =
-        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s",
-                      bss_radio_template_ref.c_str());
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", bss_radio_template_ref.c_str());
     if (resolved_radio != radio_inst_dm) {
         return false;
     }
 
     if (!network_primary_ssc_ref.empty()) {
-        amxd_object_t *pri_ssc =
-            amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s",
-                          network_primary_ssc_ref.c_str());
+        amxd_object_t *pri_ssc = amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s",
+                                               network_primary_ssc_ref.c_str());
         if (!pri_ssc) {
             LOG(WARNING) << "Network.PrimarySSCTemplateReference not found: "
                          << network_primary_ssc_ref;
@@ -2566,9 +2574,10 @@ static bool template_stage_bss_on_radio(
     std::vector<sMacAddr> bss_alids;
     template_parse_alid_csv(bss_ieee1905_alid_str, bss_alids);
 
-    auto target_agents = template_filter_target_agents(connected_agents, network_topology_flags, network_alids,
-                                               bss_topology_flags, bss_alids);
-    if (std::find(target_agents.begin(), target_agents.end(), agent->al_mac) == target_agents.end()) {
+    auto target_agents = template_filter_target_agents(
+        connected_agents, network_topology_flags, network_alids, bss_topology_flags, bss_alids);
+    if (std::find(target_agents.begin(), target_agents.end(), agent->al_mac) ==
+        target_agents.end()) {
         return false;
     }
 
@@ -2592,18 +2601,17 @@ static bool template_stage_bss_on_radio(
     }
 
     son::wireless_utils::sBssInfoConf bss_info{};
-    bss_info.ssid             = bss_ssid;
-    bss_info.network_key      = std::move(bss_key_passphrase);
-    bss_info.hidden_ssid      = bss_advertisement_enable ? WSC::eWscVendorExtHiddenSsid::DISABLED
-                                                         : WSC::eWscVendorExtHiddenSsid::ENABLED;
-    bss_info.operating_class  = radio_operating_classes;
-    bss_info.target_radio_uid = radio_uid;
+    bss_info.ssid        = bss_ssid;
+    bss_info.network_key = std::move(bss_key_passphrase);
+    bss_info.hidden_ssid = bss_advertisement_enable ? WSC::eWscVendorExtHiddenSsid::DISABLED
+                                                    : WSC::eWscVendorExtHiddenSsid::ENABLED;
+    bss_info.operating_class    = radio_operating_classes;
+    bss_info.target_radio_uid   = radio_uid;
     bss_info.radio_template_ref = template_tr181_row_path("RadioTemplate", radio_inst_dm);
     bss_info.bss_template_ref   = template_tr181_row_path("BSSTemplate", bss_template_obj);
 
     amxd_object_t *security_group_obj =
-        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s",
-                      bss_security_group_ref.c_str());
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", bss_security_group_ref.c_str());
     if (!security_group_obj) {
         LOG(WARNING) << "SecurityGroup not found: " << bss_security_group_ref;
         return false;
@@ -2623,7 +2631,7 @@ static bool template_stage_bss_on_radio(
         return false;
     }
 
-    std::string haul_type  = get_param_string(ssc_inst, "HaulType");
+    std::string haul_type = get_param_string(ssc_inst, "HaulType");
     bss_info.backhaul     = (haul_type.find("Backhaul") != std::string::npos);
     bss_info.fronthaul    = (haul_type.find("Fronthaul") != std::string::npos);
 
@@ -2641,20 +2649,24 @@ static bool template_stage_bss_on_radio(
                 return false;
             }
 
-            const std::string radio_gen_csv = get_param_string(radio_inst_dm, "OperatingGeneration");
+            const std::string radio_gen_csv =
+                get_param_string(radio_inst_dm, "OperatingGeneration");
             std::vector<sWifiGenToken> offered;
             if (!radio_gen_csv.empty()) {
                 if (!wireless_utils::operating_generation_valid_for_apply(radio_gen_csv)) {
-                    LOG(WARNING) << "RadioTemplate OperatingGeneration invalid while matching security";
+                    LOG(WARNING)
+                        << "RadioTemplate OperatingGeneration invalid while matching security";
                     return false;
                 }
                 if (!template_parse_wifi_gen_csv(radio_gen_csv, true, offered)) {
-                    LOG(WARNING) << "RadioTemplate OperatingGeneration invalid while matching security";
+                    LOG(WARNING)
+                        << "RadioTemplate OperatingGeneration invalid while matching security";
                     return false;
                 }
             }
 
-            auto gen_contains = [](const sWifiGenToken &container, const sWifiGenToken &need) -> bool {
+            auto gen_contains = [](const sWifiGenToken &container,
+                                   const sWifiGenToken &need) -> bool {
                 if (!need.or_higher) {
                     if (container.or_higher) {
                         return container.generation <= need.generation;
@@ -2689,8 +2701,8 @@ static bool template_stage_bss_on_radio(
             }
             for (const auto &need : required) {
                 if (!template_radio_phy_supports_generation_number(*phy, need.generation)) {
-                    LOG(DEBUG) << "Security OperatingGenerationFlag requires gen " << need.generation
-                               << " not supported on radio " << radio_uid;
+                    LOG(DEBUG) << "Security OperatingGenerationFlag requires gen "
+                               << need.generation << " not supported on radio " << radio_uid;
                     return false;
                 }
             }
@@ -2698,7 +2710,7 @@ static bool template_stage_bss_on_radio(
     }
 
     if (!template_apply_security_to_bss_info(security_inst, agent.get(), bss_info,
-                                               radio_operating_classes)) {
+                                             radio_operating_classes)) {
         LOG(WARNING) << "SecurityTemplate not applicable for BSSTemplate[" << bss_instance_index
                      << "] SSID \"" << bss_ssid << "\"";
         return false;
@@ -2716,7 +2728,7 @@ static bool template_stage_bss_on_radio(
 
     bss_info.vap_type = wireless_utils::string_to_vap_type(
         get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapType"));
-    bss_info.vap_label = get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapLabel");
+    bss_info.vap_label            = get_param_string(bss_template_obj, "X_PRPLWARE-COM_VapLabel");
     bss_info.operating_generation = get_param_string(radio_inst_dm, "OperatingGeneration");
     if (!bss_info.operating_generation.empty() &&
         !wireless_utils::operating_generation_valid_for_apply(bss_info.operating_generation)) {
@@ -2725,8 +2737,7 @@ static bool template_stage_bss_on_radio(
         return false;
     }
 
-    if (bss_info.vap_type == eVapType::OTHER &&
-        bss_info.backhaul && !bss_info.fronthaul) {
+    if (bss_info.vap_type == eVapType::OTHER && bss_info.backhaul && !bss_info.fronthaul) {
         bss_info.vap_type = eVapType::BACKHAUL;
     }
 
@@ -2735,7 +2746,7 @@ static bool template_stage_bss_on_radio(
             amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", bss_apmld_ref.c_str());
         if (apmld_inst && get_param_bool(apmld_inst, "MLOEnable")) {
             const std::string mld_key = get_param_string(apmld_inst, "APMLDTemplateID");
-            auto phy = agent->radios.get(radio_uid);
+            auto phy                  = agent->radios.get(radio_uid);
             if (!phy || agent->max_num_mlds == 0 || !phy->eht_supported ||
                 !radio_template_includes_wifi7(radio_inst_dm)) {
                 LOG(WARNING) << "BSSTemplate[" << bss_instance_index
@@ -2773,29 +2784,29 @@ static bool template_stage_bss_on_radio(
 
     if (bss_info.authentication_type != WSC::eWscAuth::WSC_AUTH_OPEN &&
         bss_info.network_key.empty()) {
-        LOG(WARNING) << "BSSTemplate " << bss_ssid << " missing KeyPassphrase for selected security";
+        LOG(WARNING) << "BSSTemplate " << bss_ssid
+                     << " missing KeyPassphrase for selected security";
     }
 
     auto agent_supports_wpa3_pcm = [&](const Agent &a) -> bool {
         // Fail closed: require explicit capability vectors.
-        if (!a.security_capabilities.valid_akm_suites || !a.security_capabilities.valid_cipher_suites) {
+        if (!a.security_capabilities.valid_akm_suites ||
+            !a.security_capabilities.valid_cipher_suites) {
             return false;
         }
 
-        const std::bitset<256> fh_or_bh_akm =
-            a.security_capabilities.fronthaul_akm_suite_types |
-            a.security_capabilities.backhaul_akm_suite_types;
-        const bool supports_psk = fh_or_bh_akm.test(0x02);
-        const bool supports_sae =
-            fh_or_bh_akm.test(0x08) || fh_or_bh_akm.test(0x18);
+        const std::bitset<256> fh_or_bh_akm = a.security_capabilities.fronthaul_akm_suite_types |
+                                              a.security_capabilities.backhaul_akm_suite_types;
+        const bool supports_psk  = fh_or_bh_akm.test(0x02);
+        const bool supports_sae  = fh_or_bh_akm.test(0x08) || fh_or_bh_akm.test(0x18);
         const bool supports_ccmp = a.security_capabilities.cipher_suite_types.test(0x04);
         const bool supports_bip  = a.security_capabilities.cipher_suite_types.test(0x06);
 
         bool has_non_6g = false;
         for (uint8_t oc : bss_info.operating_class) {
-            const bool is_6g = (oc >= OPCLASS_6GHZ_USING_CENTER_CHANNEL_FIRST &&
-                            oc <= OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST &&
-                            oc != OPCLASS_6GHZ_EXCEPTION);
+            const bool is_6g =
+                (oc >= OPCLASS_6GHZ_USING_CENTER_CHANNEL_FIRST &&
+                 oc <= OPCLASS_6GHZ_USING_CENTER_CHANNEL_LAST && oc != OPCLASS_6GHZ_EXCEPTION);
             if (!is_6g) {
                 has_non_6g = true;
                 break;
@@ -2807,12 +2818,14 @@ static bool template_stage_bss_on_radio(
     const bool wants_rsn_override =
         bss_info.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
         (!bss_info.rsn_security_ies.empty() ||
-         bss_info.additional_auth == son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY);
+         bss_info.additional_auth ==
+             son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY);
 
     const bool capability_blocks_rsn_override =
         wants_rsn_override && agent->rsn_overriding_supported && !agent_supports_wpa3_pcm(*agent);
 
-    if ((wants_rsn_override && !agent->rsn_overriding_supported) || capability_blocks_rsn_override) {
+    if ((wants_rsn_override && !agent->rsn_overriding_supported) ||
+        capability_blocks_rsn_override) {
         bool any_6g = false;
         for (uint8_t oc : bss_info.operating_class) {
             if (oc >= OPCLASS_6GHZ_USING_CENTER_CHANNEL_FIRST &&
@@ -2830,14 +2843,13 @@ static bool template_stage_bss_on_radio(
         }
         bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
         bss_info.rsn_security_ies.clear();
-        LOG(DEBUG) << "Agent " << agent->al_mac << " RSN/PCM downgraded (rsno="
-                   << agent->rsn_overriding_supported << " caps_block="
-                   << capability_blocks_rsn_override << ")";
+        LOG(DEBUG) << "Agent " << agent->al_mac
+                   << " RSN/PCM downgraded (rsno=" << agent->rsn_overriding_supported
+                   << " caps_block=" << capability_blocks_rsn_override << ")";
     }
 
-    bss_info.bss_index = template_allocate_stable_bss_index(agent->al_mac, radio_uid,
-                                                            previous_for_agent, bss_info,
-                                                            selection_state);
+    bss_info.bss_index = template_allocate_stable_bss_index(
+        agent->al_mac, radio_uid, previous_for_agent, bss_info, selection_state);
     if (bss_info.bss_index == 0) {
         LOG(WARNING) << "Unable to allocate BSS_Index for agent " << agent->al_mac << " radio "
                      << radio_uid << " SSID \"" << bss_ssid << "\"";
@@ -2850,9 +2862,9 @@ static bool template_stage_bss_on_radio(
     return true;
 }
 
-static bool template_bss_staging_lists_equal(
-    const std::list<son::wireless_utils::sBssInfoConf> &before,
-    const std::list<son::wireless_utils::sBssInfoConf> &after)
+static bool
+template_bss_staging_lists_equal(const std::list<son::wireless_utils::sBssInfoConf> &before,
+                                 const std::list<son::wireless_utils::sBssInfoConf> &after)
 {
     if (before.size() != after.size()) {
         return false;
@@ -2890,7 +2902,8 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         return false;
     }
     if (!g_database->config.use_dataelements_vap_configs) {
-        LOG(DEBUG) << "template_rebuild_staged_configuration failed: UseDataElementsVapConfigs is false";
+        LOG(DEBUG)
+            << "template_rebuild_staged_configuration failed: UseDataElementsVapConfigs is false";
         return false;
     }
     if (!templates_root) {
@@ -2933,17 +2946,17 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         bss_to_commit.push_back(inst);
     }
 
-    std::sort(bss_to_commit.begin(), bss_to_commit.end(),
-              [](amxd_object_t *a, amxd_object_t *b) {
-                  if (get_param_uint32(a, "Priority") != get_param_uint32(b, "Priority")) {
-                      return get_param_uint32(a, "Priority") > get_param_uint32(b, "Priority");
-                  }
-                  return amxd_object_get_index(a) < amxd_object_get_index(b);
-              });
+    std::sort(bss_to_commit.begin(), bss_to_commit.end(), [](amxd_object_t *a, amxd_object_t *b) {
+        if (get_param_uint32(a, "Priority") != get_param_uint32(b, "Priority")) {
+            return get_param_uint32(a, "Priority") > get_param_uint32(b, "Priority");
+        }
+        return amxd_object_get_index(a) < amxd_object_get_index(b);
+    });
 
     std::string network_topology_flag_str = get_param_string(network_obj, "TopologyFlag");
-    std::string network_ieee1905_alid_str  = get_param_string(network_obj, "IEEE1905ALID");
-    std::vector<std::string> network_topology_flags = parse_topology_flags(network_topology_flag_str);
+    std::string network_ieee1905_alid_str = get_param_string(network_obj, "IEEE1905ALID");
+    std::vector<std::string> network_topology_flags =
+        parse_topology_flags(network_topology_flag_str);
 
     std::vector<sMacAddr> network_alids;
     template_parse_alid_csv(network_ieee1905_alid_str, network_alids);
@@ -2967,8 +2980,9 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
             }
             row.operating_class = std::move(tmp.operating_class);
 
-            row.operating_generation          = get_param_string(radio_inst, "OperatingGeneration");
-            row.supported_generation_flag_csv = get_param_string(radio_inst, "SupportedGenerationFlag");
+            row.operating_generation = get_param_string(radio_inst, "OperatingGeneration");
+            row.supported_generation_flag_csv =
+                get_param_string(radio_inst, "SupportedGenerationFlag");
             row.band_flag_csv = get_param_string(radio_inst, "BandFlag");
             row.has_band_flag = !row.band_flag_csv.empty();
             row.dfs_support_flag =
@@ -2977,15 +2991,16 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
                 template_parse_tri_state_flag(get_param_string(radio_inst, "AFCSupportFlag"));
 
             amxd_status_t tpl_tx_status = amxd_status_ok;
-            int32_t tpl_tx = amxd_object_get_int32_t(radio_inst, "TransmitPowerLimit", &tpl_tx_status);
+            int32_t tpl_tx =
+                amxd_object_get_int32_t(radio_inst, "TransmitPowerLimit", &tpl_tx_status);
             if (tpl_tx_status == amxd_status_ok && tpl_tx != 0) {
                 if (tpl_tx < -128) {
                     tpl_tx = -128;
                 } else if (tpl_tx > 127) {
                     tpl_tx = 127;
                 }
-                row.transmit_power_limit_dbm   = static_cast<int8_t>(tpl_tx);
-                row.has_transmit_power_limit   = true;
+                row.transmit_power_limit_dbm = static_cast<int8_t>(tpl_tx);
+                row.has_transmit_power_limit = true;
             }
 
             radio_candidates.push_back(std::move(row));
@@ -3035,7 +3050,7 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         std::set<amxd_object_t *> used_radio_template_rows;
 
         for (const auto &pr : radios_sorted) {
-            const auto &ruid = pr.first;
+            const auto &ruid  = pr.first;
             const auto &radio = pr.second;
             if (!radio) {
                 continue;
@@ -3071,11 +3086,10 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
                 template_radio_tx_power_applies.emplace_back(agent->al_mac, ruid,
                                                              radio_row.transmit_power_limit_dbm);
             }
-            auto phy_radio = agent->radios.get(ruid);
-            const uint32_t max_bss =
-                (phy_radio && phy_radio->maximum_number_of_bsss_supported > 0)
-                    ? phy_radio->maximum_number_of_bsss_supported
-                    : std::numeric_limits<uint32_t>::max();
+            auto phy_radio         = agent->radios.get(ruid);
+            const uint32_t max_bss = (phy_radio && phy_radio->maximum_number_of_bsss_supported > 0)
+                                         ? phy_radio->maximum_number_of_bsss_supported
+                                         : std::numeric_limits<uint32_t>::max();
             uint32_t staged_on_radio = 0;
 
             for (amxd_object_t *bss_inst : bss_to_commit) {
@@ -3087,13 +3101,13 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
                 }
                 const std::string bss_ssid_check = get_param_string(bss_inst, "SSID");
                 if (!template_track_apmld_ssid_consistency(bss_inst, bss_ssid_check,
-                                                             apmld_ssid_by_id)) {
+                                                           apmld_ssid_by_id)) {
                     continue;
                 }
-                if (template_stage_bss_on_radio(templates_root, network_obj, connected_agents, agent,
-                                                ruid, radio_row.radio_inst, radio_row.operating_class,
-                                                bss_inst, network_topology_flags, network_alids,
-                                                selection_state, previous)) {
+                if (template_stage_bss_on_radio(
+                        templates_root, network_obj, connected_agents, agent, ruid,
+                        radio_row.radio_inst, radio_row.operating_class, bss_inst,
+                        network_topology_flags, network_alids, selection_state, previous)) {
                     bss_template_used_on_agent.insert(bss_inst);
                     ++staged_on_radio;
                 }
@@ -3223,15 +3237,9 @@ void templates_restage_only(void)
     templates_request_apply();
 }
 
-bool is_templates_dm_initialized()
-{
-    return g_templates_dm_initialized;
-}
+bool is_templates_dm_initialized() { return g_templates_dm_initialized; }
 
-void set_templates_dm_initialized(bool initialized)
-{
-    g_templates_dm_initialized = initialized;
-}
+void set_templates_dm_initialized(bool initialized) { g_templates_dm_initialized = initialized; }
 
 std::vector<beerocks::nbapi::sEvents> get_templates_events_list(void)
 {
