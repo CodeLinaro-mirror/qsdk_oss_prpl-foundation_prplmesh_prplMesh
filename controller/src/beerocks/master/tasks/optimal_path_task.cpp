@@ -746,6 +746,15 @@ void optimal_path_task::work()
 
                     sta_capabilities =
                         database.get_sta_capabilities(sta_mac, sta_wifi_channel.get_freq_type());
+                    if (sta_capabilities == nullptr) {
+                        TASK_LOG(WARNING)
+                            << "STA capabilities are empty - use default capabilities";
+                        if (!get_station_default_capabilities(sta_wifi_channel.get_freq_type(),
+                                                              default_sta_cap)) {
+                            continue;
+                        }
+                        sta_capabilities = &default_sta_cap;
+                    }
                     current_ul_params = son::wireless_utils::estimate_ul_params(
                         rx_rssi, sta_phy_tx_rate_100kb, sta_capabilities, hostap_params.bw,
                         hostap_params.is_5ghz);

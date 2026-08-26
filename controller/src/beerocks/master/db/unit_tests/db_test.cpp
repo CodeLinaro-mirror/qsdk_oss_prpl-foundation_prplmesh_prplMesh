@@ -2107,6 +2107,56 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_capabilities)
     EXPECT_TRUE(m_db->dm_add_assoc_event_sta_caps(g_assoc_event_path_1, *cur_sta_caps));
 }
 
+TEST_F(DbTestRadio1Sta1, get_sta_capabilities_returns_set_only_for_reporting_band)
+{
+    // No HT, VHT or HE capabilities: the report only removes the old capability objects.
+    EXPECT_CALL(*m_ambiorix, remove_optional_subobject(g_sta_path_1 + '.', _))
+        .WillRepeatedly(Return(true));
+
+    auto radio_5g = m_db->get_radio_by_uid(tlvf::mac_from_string(g_radio_mac_1));
+    ASSERT_TRUE(radio_5g);
+    radio_5g->band = beerocks::FREQ_5G;
+
+    beerocks::message::sRadioCapabilities caps_5g;
+    caps_5g.ht_bw         = beerocks::BANDWIDTH_UNKNOWN;
+    caps_5g.vht_bw        = beerocks::BANDWIDTH_UNKNOWN;
+    caps_5g.wifi_standard = beerocks::STANDARD_NONE;
+    caps_5g.ant_num       = 4;
+    ASSERT_TRUE(m_db->set_sta_capabilities(g_client_mac, caps_5g));
+
+    auto caps = m_db->get_sta_capabilities(g_client_mac, beerocks::FREQ_5G);
+    ASSERT_NE(caps, nullptr);
+    EXPECT_EQ(caps->ant_num, 4);
+    EXPECT_EQ(m_db->get_sta_capabilities(g_client_mac, beerocks::FREQ_24G), nullptr);
+
+    // The station moves to a BSS on a 2.4 GHz radio and reports there.
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_2)).WillRepeatedly(Return(2));
+    EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
+        .WillOnce(Return(g_radio_path_2));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_path_2, "ID",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_radio_mac_2))))
+        .WillOnce(Return(true));
+    ASSERT_TRUE(
+        m_db->add_radio(tlvf::mac_from_string(g_radio_mac_2), tlvf::mac_from_string(g_bridge_mac)));
+    auto radio_24g = m_db->get_radio_by_uid(tlvf::mac_from_string(g_radio_mac_2));
+    ASSERT_TRUE(radio_24g);
+    radio_24g->band = beerocks::FREQ_24G;
+    auto bss_24g    = radio_24g->bsses.add(tlvf::mac_from_string("46:55:66:77:00:04"), *radio_24g);
+    m_db->set_station_bss(m_db->get_station(tlvf::mac_from_string(g_client_mac)), bss_24g);
+
+    // Moved to 2.4 GHz, no new report yet (or it failed): the 5 GHz set is not returned.
+    EXPECT_EQ(m_db->get_sta_capabilities(g_client_mac, beerocks::FREQ_24G), nullptr);
+
+    beerocks::message::sRadioCapabilities caps_24g = caps_5g;
+    caps_24g.ant_num                               = 2;
+    ASSERT_TRUE(m_db->set_sta_capabilities(g_client_mac, caps_24g));
+
+    caps = m_db->get_sta_capabilities(g_client_mac, beerocks::FREQ_24G);
+    ASSERT_NE(caps, nullptr);
+    EXPECT_EQ(caps->ant_num, 2);
+    EXPECT_EQ(m_db->get_sta_capabilities(g_client_mac, beerocks::FREQ_5G), nullptr);
+}
+
 TEST_F(DbTestRadio1Sta1, test_set_sta_link_metrics)
 {
     const std::string ht_capabilities1  = std::string(g_sta_path_1) + ".HTCapabilities";

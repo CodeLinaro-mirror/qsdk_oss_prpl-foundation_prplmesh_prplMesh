@@ -2527,19 +2527,10 @@ bool db::set_sta_capabilities(const std::string &client_mac,
         return false;
     }
 
-    if (is_radio_5ghz(tlvf::mac_from_string(parent_radio))) {
-        pSta->m_sta_5ghz_capabilities       = sta_cap;
-        pSta->m_sta_5ghz_capabilities.valid = true;
-        pSta->capabilities                  = &pSta->m_sta_5ghz_capabilities;
-    } else if (is_radio_6ghz(tlvf::mac_from_string(parent_radio))) {
-        pSta->m_sta_6ghz_capabilities       = sta_cap;
-        pSta->m_sta_6ghz_capabilities.valid = true;
-        pSta->capabilities                  = &pSta->m_sta_6ghz_capabilities;
-    } else {
-        pSta->m_sta_24ghz_capabilities       = sta_cap;
-        pSta->m_sta_24ghz_capabilities.valid = true;
-        pSta->capabilities                   = &pSta->m_sta_24ghz_capabilities;
-    }
+    pSta->m_sta_capabilities       = sta_cap;
+    pSta->m_sta_capabilities.valid = true;
+    pSta->m_sta_capabilities_band  = get_radio_freq_type(tlvf::mac_from_string(parent_radio));
+    pSta->capabilities             = &pSta->m_sta_capabilities;
 
     // Prepare path to the STA
     // Example: Device.WiFi.DataElements.Network.Device.1.Radio.1.BSS.1.STA.1
@@ -2613,21 +2604,19 @@ const beerocks::message::sRadioCapabilities *db::get_sta_capabilities(const std:
         return nullptr;
     }
 
-    if ((freq_type == eFreqType::FREQ_24G) && (pSta->m_sta_24ghz_capabilities.valid == true)) {
-        return &pSta->m_sta_24ghz_capabilities;
+    if (!pSta->m_sta_capabilities.valid) {
+        LOG(ERROR) << "Failed to find valid sta capabilities for freq type "
+                   << beerocks::utils::convert_frequency_type_to_string(freq_type);
+        return nullptr;
     }
 
-    if ((freq_type == eFreqType::FREQ_5G) && (pSta->m_sta_5ghz_capabilities.valid == true)) {
-        return &pSta->m_sta_5ghz_capabilities;
+    if (pSta->m_sta_capabilities_band != freq_type) {
+        LOG(DEBUG) << "No sta capabilities reported on freq type "
+                   << beerocks::utils::convert_frequency_type_to_string(freq_type);
+        return nullptr;
     }
 
-    if ((freq_type == eFreqType::FREQ_6G) && (pSta->m_sta_6ghz_capabilities.valid == true)) {
-        return &pSta->m_sta_6ghz_capabilities;
-    }
-
-    LOG(ERROR) << "Failed to find valid sta capabilities for freq type "
-               << beerocks::utils::convert_frequency_type_to_string(freq_type);
-    return nullptr;
+    return &pSta->m_sta_capabilities;
 }
 
 bool db::set_radio_ant_num(const sMacAddr &mac, const beerocks::eWiFiAntNum ant_num)
