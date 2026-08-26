@@ -1,4 +1,3 @@
-
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  *
  * SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
@@ -15,25 +14,19 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@ {
-        // The events generated when a STA disassociates from a BSS.
+        /**
+        * Container for the events generated when an Associated Device (STA)
+        * disassociates from a BSS.
+        *
+        * TR-181 keeps this object as the mount point of the USP event
+        * Device.WiFi.DataElements.DisassociationEvent.Disassociated!. Only its
+        * DisassociationEventData.{i}. table and DisassociationEventDataNumberOfEntries
+        * were deprecated in 2.17 and deleted in 2.20, precisely because the USP event
+        * replaces them, so the object itself must stay. It holds no data until the event
+        * is implemented, which costs one amxd_object_t and nothing per station.
+        * @version 2.13
+        */
         object DisassociationEvent {
-            object DisassociationEventData[] {
-                counted with DisassociationEventDataNumberOfEntries;
-                %read-only string BSSID = "00:00:00:00:00:00";
-                %read-only string MACAddress = "00:00:00:00:00:00";
-                %read-only uint16 ReasonCode = 0 {
-                    on action validate call check_range [0, 65535];
-                }
-                %read-only uint64 BytesSent = 0;
-                %read-only uint64 BytesReceived = 0;
-                %read-only uint64 PacketsSent = 0;
-                %read-only uint64 PacketsReceived = 0;
-                %read-only uint32 ErrorsSent = 0;
-                %read-only uint32 ErrorsReceived = 0;
-                %read-only uint32 RetransCount = 0;
-                // The time this event was collected
-                %read-only string TimeStamp = "2020-08-31T11:22:39Z";
-            }
         }
     }
 }
