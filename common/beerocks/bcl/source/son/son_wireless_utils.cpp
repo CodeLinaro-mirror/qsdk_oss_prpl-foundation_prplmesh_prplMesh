@@ -2140,7 +2140,8 @@ bool wireless_utils::get_subset_20MHz_channels(const uint8_t channel_number,
         }
         const auto op_class_bw = son::wireless_utils::get_bandwidth_from_channel_and_op_class(
             channel_number, operating_class);
-        // The given channel number is a central channel
+        const bool op_class_uses_centers =
+            son::wireless_utils::is_operating_class_using_central_channel(operating_class);
         // Iterate over the 5GHz/6GHz channel table.
         for (const auto &channel_it : *channels_table) {
             // Find the bandwidth within the channel
@@ -2148,9 +2149,15 @@ bool wireless_utils::get_subset_20MHz_channels(const uint8_t channel_number,
             if (bw_channel_elem == channel_it.second.end()) {
                 continue;
             }
-            // Check if the central channel matches the found bandwidth element
-            if (bw_channel_elem->second.center_channel != channel_number) {
-                continue;
+            if (op_class_uses_centers) {
+                // Check if the central channel matches the found bandwidth element
+                if (bw_channel_elem->second.center_channel != channel_number) {
+                    continue;
+                }
+            } else {
+                if (channel_it.first != channel_number) {
+                    continue;
+                }
             }
             // Get the range of the subset of 20MHz channels
             get_range(bw_channel_elem->second.overlap_beacon_channels_range);
