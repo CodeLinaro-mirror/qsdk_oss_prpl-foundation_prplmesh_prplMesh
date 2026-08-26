@@ -8329,6 +8329,35 @@ bool db::dm_remove_interface_neighbor(const std::string &dm_path)
     return true;
 }
 
+bool db::remove_neighbor(const sMacAddr &device_mac, const sMacAddr &neighbor_mac)
+{
+    auto agent = m_agents.get(device_mac);
+    if (!agent) {
+        // No Agent, so no neighbor to remove.
+        return true;
+    }
+
+    bool ret_val = true;
+    for (const auto &interface : agent->interfaces) {
+
+        auto neighbor = interface.second->m_neighbors.get(neighbor_mac);
+        if (!neighbor) {
+            continue;
+        }
+
+        if (!dm_remove_interface_neighbor(neighbor->dm_path)) {
+            // Keep the entry, so that the next sweep retries the removal.
+            ret_val = false;
+            continue;
+        }
+
+        // Unmark the entry for a keep_new process in progress, then erase it.
+        interface.second->m_neighbors.keep_new(neighbor_mac);
+        interface.second->m_neighbors.erase(neighbor_mac);
+    }
+    return ret_val;
+}
+
 bool db::dm_set_sta_extended_link_metrics(
     const sMacAddr &sta_mac, const wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics &metrics)
 {

@@ -24,6 +24,7 @@
 #include <tlvf/ieee_1905_1/tlvNon1905neighborDeviceList.h>
 #include <tlvf/ieee_1905_1/tlvReceiverLinkMetric.h>
 #include <tlvf/ieee_1905_1/tlvTransmitterLinkMetric.h>
+#include <tlvf/wfa_map/tlvClientAssociationEvent.h>
 
 #include <ambiorix_impl.h>
 #include <ambiorix_runtime.h>
@@ -329,6 +330,39 @@ protected:
                     return false;
                 }
             }
+        }
+
+        if (!m_cmdu_tx->finalize()) {
+            return false;
+        }
+
+        std::copy_n(m_tx_buffer, m_cmdu_tx->getMessageLength(), m_rx_buffer);
+        return cmdu_rx.parse();
+    }
+
+    bool build_topology_notification_cmdu(const sMacAddr &al_mac,
+                                          ieee1905_1::CmduMessageRx &cmdu_rx,
+                                          bool with_client_association_event)
+    {
+        if (!m_cmdu_tx->create(0, ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE)) {
+            return false;
+        }
+
+        auto tlv_al_mac = m_cmdu_tx->addClass<ieee1905_1::tlvAlMacAddress>();
+        if (!tlv_al_mac) {
+            return false;
+        }
+        tlv_al_mac->mac() = al_mac;
+
+        if (with_client_association_event) {
+            auto event_tlv = m_cmdu_tx->addClass<wfa_map::tlvClientAssociationEvent>();
+            if (!event_tlv) {
+                return false;
+            }
+            event_tlv->client_mac() = tlvf::mac_from_string("aa:bb:cc:dd:ee:a1");
+            event_tlv->bssid()      = tlvf::mac_from_string("aa:bb:cc:dd:ee:b1");
+            event_tlv->association_event() =
+                wfa_map::tlvClientAssociationEvent::eAssociationEvent::CLIENT_HAS_LEFT_THE_BSS;
         }
 
         if (!m_cmdu_tx->finalize()) {
@@ -1881,6 +1915,40 @@ TEST_F(IEEE1905TaskTest, nonstandard_topology_response_with_device_identificatio
     EXPECT_EQ(friendly_name, read_al_param(m_local_al_mac, "FriendlyName"));
     EXPECT_EQ(manufacturer_name, read_al_param(m_local_al_mac, "ManufacturerName"));
     EXPECT_EQ(manufacturer_model, read_al_param(m_local_al_mac, "ManufacturerModel"));
+}
+
+TEST_F(IEEE1905TaskTest, topology_notification_with_client_association_event_sends_topology_query)
+{
+    ieee1905_1::CmduMessageRx topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, topology_rx));
+    ASSERT_TRUE(m_database->add_agent(m_local_al_mac));
+    clear_sent_queries();
+
+    // A client disconnect.
+    ieee1905_1::CmduMessageRx notification_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_notification_cmdu(m_local_al_mac, notification_rx, true));
+    EXPECT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, notification_rx));
+
+    ASSERT_EQ(1U, m_query_sender->topology_queries.size());
+    EXPECT_EQ(m_local_al_mac, m_query_sender->topology_queries.front());
+}
+
+TEST_F(IEEE1905TaskTest,
+       topology_notification_without_client_association_event_sends_no_topology_query)
+{
+    ieee1905_1::CmduMessageRx topology_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_response_cmdu(m_local_al_mac, topology_rx));
+    ASSERT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, topology_rx));
+    ASSERT_TRUE(m_database->add_agent(m_local_al_mac));
+    clear_sent_queries();
+
+    // No Client Association Event TLV.
+    ieee1905_1::CmduMessageRx notification_rx(m_rx_buffer, sizeof(m_rx_buffer));
+    ASSERT_TRUE(build_topology_notification_cmdu(m_local_al_mac, notification_rx, false));
+    EXPECT_TRUE(m_task->handle_ieee1905_1_msg(m_local_al_mac, notification_rx));
+
+    EXPECT_TRUE(m_query_sender->topology_queries.empty());
 }
 
 } // namespace

@@ -527,7 +527,13 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
 
         // Removed members needs to be cleaned up from datamodel also.
         for (const auto &removed_neighbor : removed_neighbors) {
-            database.dm_remove_interface_neighbor(removed_neighbor->dm_path);
+            if (!database.dm_remove_interface_neighbor(removed_neighbor->dm_path)) {
+                LOG(ERROR) << "Failed to remove neighbor " << removed_neighbor->mac
+                           << " from the data model, keeping it for the next sweep";
+
+                // Put the entry back, so that the next sweep retries the removal.
+                interface->m_neighbors.add(removed_neighbor);
+            }
         }
     }
 
@@ -1178,6 +1184,12 @@ bool topology_task::handle_topology_notification(const sMacAddr &src_mac,
 
         if (reported_by_parent && !database.dm_remove_sta(*client)) {
             LOG(ERROR) << "Failed to remove STA from data model mac:" << client_mac_str;
+        }
+
+        // Remove the station from the non-IEEE1905 neighbors of the Agent's interfaces. Like
+        // dm_remove_sta(), only when the parent BSS reports the disconnect.
+        if (reported_by_parent && !database.remove_neighbor(src_mac, client_mac)) {
+            LOG(ERROR) << "Failed to remove neighbor " << client_mac_str << " of " << src_mac;
         }
 
         // TODO: Validate usages of reported_by_parent flag usages (PPM-1948)
