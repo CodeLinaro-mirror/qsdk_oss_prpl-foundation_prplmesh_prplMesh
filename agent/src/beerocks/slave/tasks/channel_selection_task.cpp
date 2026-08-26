@@ -1200,32 +1200,38 @@ bool ChannelSelectionTask::build_channel_preference_report(const sMacAddr &radio
             // Operating classes 128-130,132-135 use center channel **unlike the other classes**,
             // so convert center channel and bandwidth to main channel.
             // For more info, refer to Table E-4 in the 802.11 specification.
-            const auto beacon_channels =
-                son::wireless_utils::is_operating_class_using_central_channel(oper_class_num)
-                    ? son::wireless_utils::center_channel_to_beacon_channels(
-                          channel_of_oper_class, oper_class_bw,
-                          son::wireless_utils::which_freq_op_cls(oper_class_num))
-                    : std::vector<uint8_t>{channel_of_oper_class};
+            std::unordered_set<uint8_t> beacon_channels;
+            if (!son::wireless_utils::get_subset_20MHz_channels(
+                    channel_of_oper_class, oper_class_num, oper_class_bw_orig, beacon_channels)) {
+                LOG(ERROR) << "Failed to get subset of 20MHz channels for channel "
+                           << int(channel_of_oper_class) << " in operating class "
+                           << int(oper_class_num);
+            }
 
-            // Assume non-operable
-            AgentDB::sChannelPreference preference_key(
-                oper_class_num, wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE,
-                wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED);
+            auto pref     = wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE;
+            auto reason   = wfa_map::cPreferenceOperatingClasses::eReasonCode::UNSPECIFIED;
+            bool non_oper = beacon_channels.empty() ? true : false;
             for (const auto beacon_channel : beacon_channels) {
                 auto tmp_preference_key =
                     get_preference_key(beacon_channel, oper_class_num, oper_class_bw);
                 if (tmp_preference_key.flags.preference == 0) {
                     LOG(INFO) << "Channel #" << beacon_channel << " in Class #" << oper_class_num
                               << " is non-operable";
-                    if (preference_key.flags.reason_code < tmp_preference_key.flags.reason_code) {
-                        preference_key.flags.reason_code = tmp_preference_key.flags.reason_code;
+                    non_oper = true;
+                    if (reason < tmp_preference_key.flags.reason_code) {
+                        reason = tmp_preference_key.flags.reason_code;
                         break;
                     }
-                } else if (preference_key.flags.preference < tmp_preference_key.flags.preference) {
+                } else if (pref < tmp_preference_key.flags.preference) {
                     // Set as the highest preference in the beacon channels
-                    preference_key = tmp_preference_key;
+                    pref = static_cast<wfa_map::cPreferenceOperatingClasses::ePreference>(
+                        tmp_preference_key.flags.preference);
                 }
             }
+            if (non_oper) {
+                pref = wfa_map::cPreferenceOperatingClasses::ePreference::NON_OPERABLE;
+            }
+            AgentDB::sChannelPreference preference_key(oper_class_num, pref, reason);
             radio->channel_preferences[preference_key].insert(channel_of_oper_class);
         }
     }
