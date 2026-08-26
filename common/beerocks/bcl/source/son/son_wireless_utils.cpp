@@ -1160,6 +1160,39 @@ bool wireless_utils::is_dfs_channel(const uint32_t chn, beerocks::eFreqType freq
     return false;
 }
 
+bool wireless_utils::is_cac_applicable_pair(uint8_t operating_class, uint8_t channel)
+{
+    // DFS exists on 5 GHz only. This also rejects reserved operating classes, which map to
+    // FREQ_UNKNOWN.
+    if (which_freq_op_cls(operating_class) != beerocks::eFreqType::FREQ_5G) {
+        return false;
+    }
+
+    if (is_operating_class_using_central_channel(operating_class)) {
+        // Half-width of the block in channel numbers (adjacent 20 MHz channels differ by 4).
+        uint32_t half_width = 0;
+        switch (operating_class_to_bandwidth(operating_class)) {
+        case beerocks::eWiFiBandwidth::BANDWIDTH_80:
+            half_width = 6; // 4 x 20 MHz, e.g. centre 42 spans 36-48
+            break;
+        case beerocks::eWiFiBandwidth::BANDWIDTH_160:
+            half_width = 14; // 8 x 20 MHz, e.g. centre 50 spans 36-64
+            break;
+        default:
+            // 80+80 MHz and anything unexpected: test the centre alone.
+            break;
+        }
+
+        const uint32_t first = (channel > half_width) ? (channel - half_width) : 0;
+        const uint32_t last  = uint32_t(channel) + half_width;
+
+        return (first <= END_OF_LOW_DFS_SUBBAND && last >= START_OF_LOW_DFS_SUBBAND) ||
+               (first <= END_OF_HIGH_DFS_SUBBAND && last >= START_OF_HIGH_DFS_SUBBAND);
+    }
+
+    return is_dfs_channel(channel, beerocks::eFreqType::FREQ_5G);
+}
+
 std::vector<std::pair<uint8_t, beerocks::eWifiChannelType>>
 wireless_utils::split_channel_to_20MHz(int channel, beerocks::eWiFiBandwidth bw,
                                        bool channel_ext_above_secondary,

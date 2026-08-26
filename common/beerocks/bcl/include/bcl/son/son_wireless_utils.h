@@ -453,6 +453,19 @@ public:
     static bool is_low_subband(const uint32_t chn);
     static bool is_high_subband(const uint32_t chn);
     static bool is_dfs_channel(const uint32_t chn, beerocks::eFreqType freq_type);
+    /**
+     * @brief Tell whether CAC can apply to an operating class and channel pair.
+     *
+     * CAC (Channel Availability Check) applies to 5 GHz DFS channels only. For the operating
+     * classes that use a centre channel, the pair is CAC-applicable if its block overlaps a
+     * DFS sub-band: class 129 centre 50 spans 36-64, so it overlaps DFS channels 52-64.
+     *
+     * @param operating_class Operating class.
+     * @param channel Channel: the beacon channel, or the centre channel for the operating
+     * classes that use one.
+     * @return true if CAC can apply to the pair, false otherwise.
+     */
+    static bool is_cac_applicable_pair(uint8_t operating_class, uint8_t channel);
     static bool is_same_interface(const std::string &ifname1, const std::string &ifname2);
     static std::vector<std::pair<uint8_t, beerocks::eWifiChannelType>>
     split_channel_to_20MHz(int channel, beerocks::eWiFiBandwidth bw,

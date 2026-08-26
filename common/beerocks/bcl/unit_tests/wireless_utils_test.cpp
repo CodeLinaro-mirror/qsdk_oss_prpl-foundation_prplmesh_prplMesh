@@ -446,6 +446,33 @@ TEST(has_operating_class_channel, every_listed_channel_matches_its_own_class)
     }
 }
 
+TEST(is_cac_applicable_pair, non_dfs_5g_channel)
+{
+    EXPECT_FALSE(son::wireless_utils::is_cac_applicable_pair(115, 36));
+}
+
+TEST(is_cac_applicable_pair, dfs_5g_channel)
+{
+    EXPECT_TRUE(son::wireless_utils::is_cac_applicable_pair(118, 52));
+}
+
+TEST(is_cac_applicable_pair, block_overlapping_dfs_subband)
+{
+    // Class 129 centre 50 spans 36-64.
+    EXPECT_TRUE(son::wireless_utils::is_cac_applicable_pair(129, 50));
+}
+
+TEST(is_cac_applicable_pair, block_outside_dfs_subbands)
+{
+    // Class 128 centre 42 spans 36-48.
+    EXPECT_FALSE(son::wireless_utils::is_cac_applicable_pair(128, 42));
+}
+
+TEST(is_cac_applicable_pair, band_2g_channel)
+{
+    EXPECT_FALSE(son::wireless_utils::is_cac_applicable_pair(81, 6));
+}
+
 // clang-format off
 const auto staCaps_2_4 = []() {
     beerocks::message::sRadioCapabilities caps;

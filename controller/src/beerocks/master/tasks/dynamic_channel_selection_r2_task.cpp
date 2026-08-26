@@ -1883,6 +1883,7 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
             continue;
         }
 
+        // Non-DFS channels are valid here: they are available with Minutes = 0.
         const auto &available_channel = std::get<1>(cac_status_report_tlv->available_channels(i));
         available_channels.push_back(available_channel);
         ss << "Available: [OC: " << int(available_channel.operating_class)
@@ -1899,6 +1900,18 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
         }
 
         const auto &non_occupancy_channel = std::get<1>(cac_status_report_tlv->detected_pairs(i));
+
+        // Skip pairs that cannot carry a CAC status, so that no data model instance is
+        // created for them. The rest of the TLV is still processed.
+        if (!son::wireless_utils::is_cac_applicable_pair(
+                non_occupancy_channel.operating_class_detected,
+                non_occupancy_channel.channel_detected)) {
+            LOG(DEBUG) << "Ignoring non CAC-applicable non-occupancy channel [OC: "
+                       << int(non_occupancy_channel.operating_class_detected)
+                       << ", channel: " << int(non_occupancy_channel.channel_detected) << "]";
+            continue;
+        }
+
         non_occupancy_channels.push_back(non_occupancy_channel);
         ss << "Non-occupancy: [OC: " << int(non_occupancy_channel.operating_class_detected)
            << ", channel: " << int(non_occupancy_channel.channel_detected)
@@ -1914,6 +1927,15 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
         }
 
         const auto &active_channel = std::get<1>(cac_status_report_tlv->active_cac_pairs(i));
+
+        if (!son::wireless_utils::is_cac_applicable_pair(active_channel.operating_class_active_cac,
+                                                         active_channel.channel_active_cac)) {
+            LOG(DEBUG) << "Ignoring non CAC-applicable active channel [OC: "
+                       << int(active_channel.operating_class_active_cac)
+                       << ", channel: " << int(active_channel.channel_active_cac) << "]";
+            continue;
+        }
+
         active_channels.push_back(active_channel);
         memcpy(&channelCountdown, active_channel.countdown, sizeof(active_channel.countdown));
         ss << "Active: [OC: " << int(active_channel.operating_class_active_cac)
