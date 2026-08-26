@@ -181,12 +181,14 @@
                         on action validate call check_range [0, 255];
                     }
 
-                    %read-only object Channel [] {
-                        counted with ChannelNumberOfEntries;
-                        %read-only uint32 Channel = 0 {
-                            on action validate call check_range [0, 255];
-                        }
-                    }
+                    /**
+                    * Comma-separated list of channels (unsignedInt[], each element
+                    * 0..255) within the operating class for which the CAC method is
+                    * supported. An empty list means no channel of the operating class
+                    * was reported for this CAC method.
+                    * @version 2.15
+                    */
+                    %read-only csv_string ChannelList = "";
                 }
             }
         }
@@ -212,12 +214,14 @@
                     on action validate call check_range [0, 255];
                 }
 
-                %read-only object Channel [] {
-                    counted with ChannelNumberOfEntries;
-                    %read-only uint32 Channel = 0 {
-                        on action validate call check_range [0, 255];
-                    }
-                }
+                /**
+                * Comma-separated list of channels (unsignedInt[], each element 0..255)
+                * in this operating class which the radio is capable of scanning.
+                * An empty list means no channel of the operating class was reported
+                * as scannable.
+                * @version 2.15
+                */
+                %read-only csv_string ChannelList = "";
             }
         }
 
