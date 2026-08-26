@@ -10,9 +10,9 @@
 #define AGENT_H
 
 #include <array>
+#include <bitset>
 #include <memory>
 #include <string>
-#include <bitset>
 
 #include <bcl/beerocks_defines.h>
 #include <bcl/beerocks_mac_map.h>
@@ -191,8 +191,8 @@ public:
 
         bool is_acs_enabled = false;
 
-        bool eht_supported = false;
-        bool wifi6_phy_reported = false;
+        bool eht_supported                     = false;
+        bool wifi6_phy_reported                = false;
         uint32_t max_wifi_generation_supported = 0;
         struct sWiFi7Capabilities {
             typedef struct {

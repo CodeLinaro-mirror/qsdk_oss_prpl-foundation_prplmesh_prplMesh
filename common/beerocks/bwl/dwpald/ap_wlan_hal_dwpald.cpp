@@ -735,8 +735,8 @@ static bool create_credential_map(const std::string &vap_if,
         okc.assign("1");
         wpa_disable_eapol_key_retries.assign("0");
     } else if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
-           bss_info_conf.additional_auth ==
-               son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+               bss_info_conf.additional_auth ==
+                   son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
 
         wpa = 0x2;
         wpa_key_mgmt.assign("WPA-PSK SAE");
@@ -781,11 +781,11 @@ static bool create_credential_map(const std::string &vap_if,
     value_map["wpa_passphrase"]                = wpa_passphrase;
     value_map["disable_pmksa_caching"]         = disable_pmksa_caching;
     value_map["wpa_disable_eapol_key_retries"] = wpa_disable_eapol_key_retries;
-    value_map["rsn_override_key_mgmt"]   = rsn_override_key_mgmt;
-    value_map["rsn_override_key_mgmt_2"] = rsn_override_key_mgmt_2;
-    value_map["rsn_override_pairwise"]   = rsn_override_pairwise;
-    value_map["rsn_override_pairwise_2"] = rsn_override_pairwise_2;
-    value_map["rsn_override_mfp"]        = rsn_override_mfp;
+    value_map["rsn_override_key_mgmt"]         = rsn_override_key_mgmt;
+    value_map["rsn_override_key_mgmt_2"]       = rsn_override_key_mgmt_2;
+    value_map["rsn_override_pairwise"]         = rsn_override_pairwise;
+    value_map["rsn_override_pairwise_2"]       = rsn_override_pairwise_2;
+    value_map["rsn_override_mfp"]              = rsn_override_mfp;
 
     return true;
 }

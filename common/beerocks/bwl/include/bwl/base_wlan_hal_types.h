@@ -13,8 +13,8 @@
 #include <bcl/beerocks_message_structs.h>
 #include <bcl/network/net_struct.h>
 
-#include <tlvf/common/eVapType.h>
 #include <tlvf/WSC/EncryptedSettingsPayload.h>
+#include <tlvf/common/eVapType.h>
 
 #include <stdint.h>
 

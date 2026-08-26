@@ -15,8 +15,8 @@
 
 #include <easylogging++.h>
 
-#include <cmath>
 #include <cctype>
+#include <cmath>
 #include <numeric>
 #include <sstream>
 
@@ -2508,9 +2508,8 @@ static bool parse_wifi_gen_token(std::string token, bool allow_plus, sWifiGenTok
         trim_wifi_gen_token(token);
     }
 
-    if (token.empty() ||
-        !std::all_of(token.begin(), token.end(),
-                     [](unsigned char c) { return std::isdigit(c) != 0; })) {
+    if (token.empty() || !std::all_of(token.begin(), token.end(),
+                                      [](unsigned char c) { return std::isdigit(c) != 0; })) {
         return false;
     }
 
@@ -2681,8 +2680,7 @@ std::string wireless_utils::filter_whm_operating_standards(const std::string &cu
         return {};
     }
 
-    return std::accumulate(kept.begin() + 1, kept.end(), kept.front(),
-                           [](const std::string &lhs, const std::string &rhs) {
-                               return lhs + "," + rhs;
-                           });
+    return std::accumulate(
+        kept.begin() + 1, kept.end(), kept.front(),
+        [](const std::string &lhs, const std::string &rhs) { return lhs + "," + rhs; });
 }

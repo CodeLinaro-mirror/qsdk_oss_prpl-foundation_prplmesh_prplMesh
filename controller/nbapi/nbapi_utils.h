@@ -10,8 +10,8 @@
 #define NBAPI_UTILS_H
 
 #include <amxd/amxd_object.h>
-#include <easylogging++.h>
 #include <cstdint>
+#include <easylogging++.h>
 #include <string>
 
 namespace prplmesh {

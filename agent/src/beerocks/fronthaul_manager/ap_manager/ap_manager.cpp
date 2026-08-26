@@ -32,10 +32,10 @@
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
-#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
+#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 #include <tlvf/wfa_map/tlvStaMacAddressType.h>
 #include <tlvf/wfa_map/tlvTriggerChannelSwitchAnnouncement.h>
 #include <tlvf/wfa_map/tlvTunnelledData.h>
@@ -1968,8 +1968,8 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.hidden_ssid = config_data.hidden_ssid();
             bss_info_conf.additional_auth =
                 static_cast<son::wireless_utils::eAdditionalAuth>(config_data.additional_auth());
-            bss_info_conf.vap_type  = config_data.vap_type();
-            bss_info_conf.vap_label = config_data.vap_label_str();
+            bss_info_conf.vap_type             = config_data.vap_type();
+            bss_info_conf.vap_label            = config_data.vap_label_str();
             bss_info_conf.operating_generation = config_data.operating_generation_str();
 
             bss_info_conf_list.push_back(bss_info_conf);
@@ -3731,8 +3731,8 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             break;
         }
 
-        rsn_diagnostic_tlv->bssid()   = sta_conn_fail->bssid;
-        rsn_diagnostic_tlv->sta_mac() = sta_conn_fail->sta_mac;
+        rsn_diagnostic_tlv->bssid()          = sta_conn_fail->bssid;
+        rsn_diagnostic_tlv->sta_mac()        = sta_conn_fail->sta_mac;
         rsn_diagnostic_tlv->rsn_error_type() = rsn_error_type_val;
 
         send_cmdu(cmdu_tx);

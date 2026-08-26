@@ -50,8 +50,8 @@
 #include <tlvf/wfa_map/tlvProfile2ApRadioAdvancedCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2CacCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2MetricCollectionInterval.h>
-#include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 #include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
+#include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 
 #include <set>
 
@@ -63,7 +63,7 @@ static std::vector<uint8_t> build_ieee80211_akm_suite_types_for_capability_tlv()
 {
     std::set<uint8_t> akm_set;
     auto db = AgentDB::get();
-    for (const auto* radio : db->get_radios_list()) {
+    for (const auto *radio : db->get_radios_list()) {
         if (!radio) {
             continue;
         }
@@ -89,7 +89,7 @@ static std::vector<uint8_t> build_ieee80211_cipher_suite_types_for_capability_tl
 {
     std::set<uint8_t> cipher_set;
     auto db = AgentDB::get();
-    for (const auto* radio : db->get_radios_list()) {
+    for (const auto *radio : db->get_radios_list()) {
         if (!radio) {
             continue;
         }

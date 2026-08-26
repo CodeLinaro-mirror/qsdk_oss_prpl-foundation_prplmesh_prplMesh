@@ -15,10 +15,10 @@ namespace WSC {
 namespace vendor_extension {
 namespace airties {
 
-constexpr uint8_t VENDOR_HIDE_SSID = 0x80;
-constexpr uint8_t VENDOR_BSS_CFG   = 0x02;
-constexpr uint8_t VENDOR_VAP_TYPE  = 0x00;
-constexpr uint8_t VENDOR_VAP_LABEL = 0x01;
+constexpr uint8_t VENDOR_HIDE_SSID            = 0x80;
+constexpr uint8_t VENDOR_BSS_CFG              = 0x02;
+constexpr uint8_t VENDOR_VAP_TYPE             = 0x00;
+constexpr uint8_t VENDOR_VAP_LABEL            = 0x01;
 constexpr uint8_t VENDOR_OPERATING_GENERATION = 0x03;
 
 } // namespace airties
@@ -219,7 +219,8 @@ public:
             const auto *data = vendor_ext_attr->vendor_data();
             const size_t len = vendor_ext_attr->vendor_data_length();
 
-            if (len >= 2 && data[0] == WSC::vendor_extension::airties::VENDOR_OPERATING_GENERATION) {
+            if (len >= 2 &&
+                data[0] == WSC::vendor_extension::airties::VENDOR_OPERATING_GENERATION) {
                 return std::string(reinterpret_cast<const char *>(data + 1), len - 1);
             }
         }

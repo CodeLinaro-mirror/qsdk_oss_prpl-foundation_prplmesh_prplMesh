@@ -12,9 +12,9 @@
 #include <array>
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_defines.h>
-#include <bcl/son/son_wireless_utils.h>
 #include <bcl/beerocks_qos_utils.h>
 #include <bcl/beerocks_string_utils.h>
+#include <bcl/son/son_wireless_utils.h>
 #include <beerocks/tlvf/beerocks_message_bml.h>
 #include <cctype>
 #include <chrono>
@@ -1854,10 +1854,11 @@ static void event_ieee1905_network_enable_changed(const char *const sig_name,
 /** First existing master conf: /tmp override, then writable, then install (matches read_config_file). */
 static std::string resolve_master_config_file_path()
 {
-    const std::string name = std::string(BEEROCKS_CONTROLLER) + ".conf";
-    const std::string writable_path = std::string(CONF_FILES_WRITABLE_PATH) + name;
+    const std::string name                      = std::string(BEEROCKS_CONTROLLER) + ".conf";
+    const std::string writable_path             = std::string(CONF_FILES_WRITABLE_PATH) + name;
     const std::array<std::string, 3> candidates = {{
-        std::string("/tmp/") + name, writable_path,
+        std::string("/tmp/") + name,
+        writable_path,
         mapf::utils::get_install_path() + "config/" + name,
     }};
 
@@ -1884,7 +1885,7 @@ static void event_use_dataelements_vap_config_changed(const char *const sig_name
         return;
     }
 
-    const bool enabled = amxd_object_get_bool(network, "UseDataElementsVapConfigs", nullptr);
+    const bool enabled      = amxd_object_get_bool(network, "UseDataElementsVapConfigs", nullptr);
     const std::string value = enabled ? "1" : "0";
     LOG(INFO) << "use_dataelements_vap_configs=" << enabled;
 
@@ -1905,7 +1906,6 @@ static void event_use_dataelements_vap_config_changed(const char *const sig_name
             LOG(WARNING) << "Updated /tmp conf but failed updating writable " << writable_path;
         }
     }
-
 }
 
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
@@ -1916,6 +1916,15 @@ std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
         {"action_last_steer_time", action_last_steer_time},
     };
     return actions_list;
+}
+
+std::vector<beerocks::nbapi::sEvents> get_ieee1905_events_list(void)
+{
+    return {
+        {"event_ieee1905_dataelements_network_device_changed",
+         event_ieee1905_dataelements_network_device_changed},
+        {"event_ieee1905_network_enable_changed", event_ieee1905_network_enable_changed},
+    };
 }
 
 std::vector<beerocks::nbapi::sEvents> get_events_list(void)

@@ -63,8 +63,8 @@
 #include <bpl/bpl_cfg.h>
 
 #include <algorithm>
-#include <cstring>
 #include <bitset>
+#include <cstring>
 #include <functional>
 #include <sstream>
 
@@ -280,9 +280,9 @@ template <typename BssConfig> static inline std::string dump_bssconfig_compact(c
 }
 
 struct sParsedRsnIes {
-    bool has_rsn_ie       = false;
-    bool has_rsnoe_ie     = false;
-    bool has_rsno2e_ie    = false;
+    bool has_rsn_ie          = false;
+    bool has_rsnoe_ie        = false;
+    bool has_rsno2e_ie       = false;
     std::bitset<256> akms    = {};
     std::bitset<256> ciphers = {};
 };
@@ -461,7 +461,7 @@ static bool resolve_auth_from_rsn_security_ies(
     is_wpa3_pcm_compatible &= parsed.has_rsno2e_ie ? has_gcmp256 : true;
 
     if (is_wpa3_pcm_compatible) {
-        authentication_type            = WSC::eWscAuth::WSC_AUTH_RSN;
+        authentication_type = WSC::eWscAuth::WSC_AUTH_RSN;
         additional_authentication_type =
             son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
         return true;
@@ -2480,10 +2480,10 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     {
         if (!db->device_conf.local_gw) {
             // ---- Select the first Backhaul BSS from parsed M2 payload ----
-            const WSC::EncryptedSettingsPayload::config* backhaul = nullptr;
+            const WSC::EncryptedSettingsPayload::config *backhaul = nullptr;
             for (const auto &info : infos) {
                 if ((info.payload_config.bss_type &
-                    WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS) != 0) {
+                     WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS) != 0) {
                     backhaul = &info.payload_config;
                     break;
                 }
@@ -2500,11 +2500,12 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
                     WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA;
 
                 if (!send_bsta_configuration(radio->front.iface_mac, bsta_info)) {
-                    LOG(ERROR) << "[AUTO-STA] Failed to send bSTA credentials to backhaul manager (SSID='"
-                               << backhaul->ssid << "')";
+                    LOG(ERROR)
+                        << "[AUTO-STA] Failed to send bSTA credentials to backhaul manager (SSID='"
+                        << backhaul->ssid << "')";
                 } else {
-                    LOG(INFO)  << "[AUTO-STA] bSTA credentials sent to backhaul manager (SSID='"
-                               << backhaul->ssid << "')";
+                    LOG(INFO) << "[AUTO-STA] bSTA credentials sent to backhaul manager (SSID='"
+                              << backhaul->ssid << "')";
                     // Ensure endpoint enabled on this radio
                     if (!send_enable_disable_endpoint(radio->front.iface_mac, true)) {
                         LOG(WARNING) << "[AUTO-STA] Endpoint enable request failed (SSID='"
@@ -3035,8 +3036,7 @@ bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
                     (info.m2_config.bss_index != 0 &&
                      info.m2_config.bss_index == rsn_parameters_bss.bss_index());
                 const bool matched_by_bssid =
-                    bssid_present &&
-                    (info.payload_config.bssid == rsn_parameters_bss.bssid());
+                    bssid_present && (info.payload_config.bssid == rsn_parameters_bss.bssid());
                 const bool matched_bss = matched_by_bss_index || matched_by_bssid;
 
                 if (matched_bss) {
@@ -3050,9 +3050,9 @@ bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
 
                     WSC::eWscAuth resolved_auth_type;
                     son::wireless_utils::eAdditionalAuth resolved_additional_auth_type;
-                    if (!resolve_auth_from_rsn_security_ies(
-                            rsn_ies, rsn_len, freq_type, resolved_auth_type,
-                            resolved_additional_auth_type)) {
+                    if (!resolve_auth_from_rsn_security_ies(rsn_ies, rsn_len, freq_type,
+                                                            resolved_auth_type,
+                                                            resolved_additional_auth_type)) {
                         LOG(WARNING) << "Unsupported RSN Security IEs for BSS index "
                                      << info.m2_config.bss_index << " (len=" << rsn_len << ")";
                         continue;

@@ -727,8 +727,8 @@ update_vap_credentials_configure_wpa(const std::string &vap_if,
         okc.assign("1");
         wpa_disable_eapol_key_retries.assign("0");
     } else if (bss_info_conf.authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
-           bss_info_conf.additional_auth ==
-               son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+               bss_info_conf.additional_auth ==
+                   son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
 
         wpa = 0x2;
         wpa_key_mgmt.assign("WPA-PSK SAE");
@@ -775,9 +775,11 @@ update_vap_credentials_configure_wpa(const std::string &vap_if,
     hostapd_config_set_value(vap_hostapd_config, "wpa_disable_eapol_key_retries",
                              wpa_disable_eapol_key_retries);
     hostapd_config_set_value(vap_hostapd_config, "rsn_override_key_mgmt", rsn_override_key_mgmt);
-    hostapd_config_set_value(vap_hostapd_config, "rsn_override_key_mgmt_2", rsn_override_key_mgmt_2);
+    hostapd_config_set_value(vap_hostapd_config, "rsn_override_key_mgmt_2",
+                             rsn_override_key_mgmt_2);
     hostapd_config_set_value(vap_hostapd_config, "rsn_override_pairwise", rsn_override_pairwise);
-    hostapd_config_set_value(vap_hostapd_config, "rsn_override_pairwise_2", rsn_override_pairwise_2);
+    hostapd_config_set_value(vap_hostapd_config, "rsn_override_pairwise_2",
+                             rsn_override_pairwise_2);
     hostapd_config_set_value(vap_hostapd_config, "rsn_override_mfp", rsn_override_mfp);
     return true;
 }

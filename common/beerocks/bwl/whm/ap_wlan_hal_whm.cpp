@@ -495,16 +495,15 @@ bool ap_wlan_hal_whm::update_vap_credentials(
     std::set<uint8_t> allowed_gens;
     if (son::wireless_utils::try_get_allowed_wifi_generations(bss_info_conf_list, allowed_gens)) {
         if (m_radio_path.empty()) {
-            m_ambiorix_cl.resolve_path(wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name),
-                                       m_radio_path);
+            m_ambiorix_cl.resolve_path(
+                wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name), m_radio_path);
         }
         AmbiorixVariantSmartPtr radio_obj = m_ambiorix_cl.get_object(m_radio_path);
         if (radio_obj) {
             std::string current_standards;
             if (radio_obj->read_child(current_standards, "OperatingStandards")) {
-                const std::string filtered =
-                    son::wireless_utils::filter_whm_operating_standards(current_standards,
-                                                                       allowed_gens);
+                const std::string filtered = son::wireless_utils::filter_whm_operating_standards(
+                    current_standards, allowed_gens);
                 if (!filtered.empty() && filtered != current_standards) {
                     AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
                     new_obj.add_child("OperatingStandards", filtered);

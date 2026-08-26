@@ -59,7 +59,6 @@
 #include <tlvf/wfa_map/tlvAffiliatedStaMetrics.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvAkmSuiteCapabilities.h>
-#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 #include <tlvf/wfa_map/tlvApCapability.h>
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
@@ -98,14 +97,15 @@
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
-#include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
+#include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
 #include <tlvf/wfa_map/tlvSpatialReuseRequest.h>
 #include <tlvf/wfa_map/tlvStaMacAddressType.h>
 #include <tlvf/wfa_map/tlvSteeringBTMReport.h>
+#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
 #include <tlvf/wfa_map/tlvTimestamp.h>
 #include <tlvf/wfa_map/tlvTunnelledData.h>
@@ -1128,8 +1128,8 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
         WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_OPEN | WSC::eWscAuth::WSC_AUTH_WPA2PSK |
                       WSC::eWscAuth::WSC_AUTH_SAE);
     if (bss_info_conf != nullptr) {
-        m2_cfg.bss_index = bss_info_conf->bss_index;
-        m2_cfg.vap_type  = bss_info_conf->vap_type;
+        m2_cfg.bss_index            = bss_info_conf->bss_index;
+        m2_cfg.vap_type             = bss_info_conf->vap_type;
         m2_cfg.operating_generation = bss_info_conf->operating_generation;
 
         if (bss_info_conf->authentication_type == WSC::eWscAuth::WSC_AUTH_RSN &&
@@ -1141,7 +1141,7 @@ bool Controller::autoconfig_wsc_add_m2(WSC::m1 &m1,
             } else {
                 m2_auth_type_flags =
                     WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_WPA2PSK | WSC::eWscAuth::WSC_AUTH_SAE |
-                                    WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+                                  WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
             }
         } else if (bss_info_conf->authentication_type != WSC::eWscAuth::WSC_AUTH_INVALID) {
             m2_auth_type_flags = bss_info_conf->authentication_type;
@@ -1268,7 +1268,8 @@ bool Controller::autoconfig_wsc_add_m8(WSC::m1 &m1,
     return true;
 }
 
-static sMacAddr resolve_radio_bssid_for_bss(db &database, const sMacAddr &agt_mac, const sMacAddr &ruid,
+static sMacAddr resolve_radio_bssid_for_bss(db &database, const sMacAddr &agt_mac,
+                                            const sMacAddr &ruid,
                                             const son::wireless_utils::sBssInfoConf &bss_info_conf)
 {
     if (bss_info_conf.bssid != beerocks::net::network_utils::ZERO_MAC) {
@@ -1294,9 +1295,9 @@ static sMacAddr resolve_radio_bssid_for_bss(db &database, const sMacAddr &agt_ma
     }
 
     if (!bss_info_conf.ssid.empty()) {
-        sMacAddr resolved_bssid        = beerocks::net::network_utils::ZERO_MAC;
-        bool single_ssid_match         = false;
-        bool multiple_ssid_match       = false;
+        sMacAddr resolved_bssid  = beerocks::net::network_utils::ZERO_MAC;
+        bool single_ssid_match   = false;
+        bool multiple_ssid_match = false;
         for (const auto &bss_entry : radio->bsses) {
             if (bss_entry.second->ssid != bss_info_conf.ssid) {
                 continue;
@@ -1349,8 +1350,8 @@ static bool add_rsn_parameters_configuration_tlv(
             const uint8_t *sec_ies = bss_info_conf.rsn_security_ies.data();
             const size_t sec_len   = bss_info_conf.rsn_security_ies.size();
             LOG(DEBUG) << "RSN Parameters TLV pack BSS " << bss_info_conf.bss_index
-                       << " len=" << sec_len << " hex="
-                       << beerocks::string_utils::bytes_to_hex_string(sec_ies, sec_len);
+                       << " len=" << sec_len
+                       << " hex=" << beerocks::string_utils::bytes_to_hex_string(sec_ies, sec_len);
 
             auto rsn_parameters_bss = rsn_parameters_radio->create_bsss();
             if (!rsn_parameters_bss) {
@@ -1655,8 +1656,8 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
                                            (mld_conf.emlsr && mld_cap.emlsr_support) ||
                                            (mld_conf.emlmr && mld_cap.emlmr_support);
 
-                    const bool non_mlo_mld_profile = !mld_conf.str && !mld_conf.nstr &&
-                                                       !mld_conf.emlsr && !mld_conf.emlmr;
+                    const bool non_mlo_mld_profile =
+                        !mld_conf.str && !mld_conf.nstr && !mld_conf.emlsr && !mld_conf.emlmr;
 
                     if (!radio_band_found) {
                         continue;
@@ -1813,8 +1814,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
         LOG(ERROR) << "No radio found for ruid=" << ruid << " on " << al_mac;
         return false;
     }
-    radio->maximum_number_of_bsss_supported =
-        radio_basic_caps->maximum_number_of_bsss_supported();
+    radio->maximum_number_of_bsss_supported = radio_basic_caps->maximum_number_of_bsss_supported();
     /*  Obtain the freq_type from the M1 message itself.
         This will help us to know the radio's frequency
         type before we run channel selection task.
@@ -1933,7 +1933,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     if (agent->max_num_mlds > 0) {
 
         // TODO: MLD Modes are not filled by Agent/bwl (PPM-3595)
-        radio->eht_supported = true;
+        radio->eht_supported                 = true;
         radio->max_wifi_generation_supported = std::max(radio->max_wifi_generation_supported, 7U);
     }
 
@@ -1952,7 +1952,8 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
 
     if (!(agent->max_num_mlds != 0 && radio->eht_supported) && any_bss_has_mld_id) {
         if (!add_agent_ap_mld_configuration_tlv(database, cmdu_tx, *agent)) {
-            LOG(ERROR) << "Couldn't add Agent AP MLD Configuration TLV (non-EHT / template MLD path)";
+            LOG(ERROR)
+                << "Couldn't add Agent AP MLD Configuration TLV (non-EHT / template MLD path)";
         }
     }
 
@@ -5636,8 +5637,7 @@ static void restage_wifi_templates_on_new_security_caps(Agent &agent, bool had_c
 {
     const bool cipher_learned =
         !had_cipher_before && agent.security_capabilities.valid_cipher_suites;
-    const bool akm_learned =
-        !had_akm_before && agent.security_capabilities.valid_akm_suites;
+    const bool akm_learned = !had_akm_before && agent.security_capabilities.valid_akm_suites;
 
     if (cipher_learned || akm_learned) {
         LOG(INFO) << "Security capabilities learned for agent " << agent.al_mac
@@ -5681,8 +5681,9 @@ bool Controller::handle_cmdu_1905_bss_configuration_request_message(
 #endif
     if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
-        LOG(DEBUG) << "tlvAkmSuiteCapabilities not present or empty in BSS_CONFIGURATION_REQUEST from "
-                   << agent->al_mac << " profile=" << int(agent->profile);
+        LOG(DEBUG)
+            << "tlvAkmSuiteCapabilities not present or empty in BSS_CONFIGURATION_REQUEST from "
+            << agent->al_mac << " profile=" << int(agent->profile);
     }
 
     if (!handle_tlv_supported_cipher_suites(*agent, cmdu_rx)) {
@@ -5815,14 +5816,13 @@ bool Controller::handle_tlv_profile3_akm_suite_capabilities(Agent &agent,
 
         const auto &radio_fronthaul_selectors =
             (!have_bss_role_information || radio_supports_fronthaul) ? fronthaul_bss_selectors
-                                                                      : empty_selectors;
+                                                                     : empty_selectors;
         const auto &radio_backhaul_selectors =
             (!have_bss_role_information || radio_supports_backhaul) ? backhaul_bss_selectors
                                                                     : empty_selectors;
 
-        if (!database.dm_add_radio_akm_suite_capabilities(*radio_kv.second,
-                                                          radio_fronthaul_selectors,
-                                                          radio_backhaul_selectors)) {
+        if (!database.dm_add_radio_akm_suite_capabilities(
+                *radio_kv.second, radio_fronthaul_selectors, radio_backhaul_selectors)) {
             LOG(ERROR) << "Failed to add AKM Suite Capabilities for radio="
                        << radio_kv.second->radio_uid;
             return false;
@@ -5840,7 +5840,8 @@ bool Controller::handle_tlv_profile3_akm_suite_capabilities(Agent &agent,
     return true;
 }
 
-bool Controller::handle_tlv_supported_cipher_suites(Agent &agent, ieee1905_1::CmduMessageRx &cmdu_rx)
+bool Controller::handle_tlv_supported_cipher_suites(Agent &agent,
+                                                    ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto supported_cipher_suites_tlv = cmdu_rx.getClass<wfa_map::tlvSupportedCipherSuites>();
     if (!supported_cipher_suites_tlv) {
@@ -6029,7 +6030,7 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
     for (const auto &radio : agent->radios) {
 
         // Reset EHT Capabilities
-        radio.second->eht_supported = false;
+        radio.second->eht_supported                 = false;
         radio.second->max_wifi_generation_supported = 0;
 
         // Update Radio Band
@@ -6099,8 +6100,9 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
 #endif
     if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
-        LOG(DEBUG) << "tlvAkmSuiteCapabilities not present or empty in AP capability report from Agent "
-                   << agent->al_mac << " profile=" << int(agent->profile);
+        LOG(DEBUG)
+            << "tlvAkmSuiteCapabilities not present or empty in AP capability report from Agent "
+            << agent->al_mac << " profile=" << int(agent->profile);
     }
 
     if (!handle_tlv_supported_cipher_suites(*agent, cmdu_rx)) {
