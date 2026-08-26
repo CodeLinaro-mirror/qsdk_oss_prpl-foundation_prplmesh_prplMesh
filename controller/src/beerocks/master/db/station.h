@@ -45,11 +45,9 @@ class Station {
 public:
     Station()                = delete;
     Station(const Station &) = delete;
-    explicit Station(const sMacAddr &mac_) : mac(mac_)
+    explicit Station(const sMacAddr &mac_) : mac(mac_), capabilities(nullptr)
     {
-        m_sta_6ghz_capabilities.valid  = false;
-        m_sta_5ghz_capabilities.valid  = false;
-        m_sta_24ghz_capabilities.valid = false;
+        m_sta_capabilities.valid = false;
     }
     ~Station();
 
@@ -159,9 +157,7 @@ public:
 
     std::shared_ptr<sta_stats_params> stats_info = std::make_shared<sta_stats_params>();
     beerocks::message::sRadioCapabilities *capabilities;
-    beerocks::message::sRadioCapabilities m_sta_6ghz_capabilities;
-    beerocks::message::sRadioCapabilities m_sta_5ghz_capabilities;
-    beerocks::message::sRadioCapabilities m_sta_24ghz_capabilities;
+    beerocks::message::sRadioCapabilities m_sta_capabilities;
 
     std::string assoc_timestamp;
 
