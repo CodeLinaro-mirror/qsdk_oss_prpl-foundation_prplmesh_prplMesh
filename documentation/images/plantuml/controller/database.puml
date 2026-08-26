@@ -4,7 +4,6 @@ class Station {
   sMacAddr mac
   string dm_path
   string ipv6
-  string assoc_event_path
   steering_summary_stats
 }
 

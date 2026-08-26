@@ -13,12 +13,22 @@
 #include "task.h"
 #include "task_pool.h"
 
+#include <chrono>
+#include <unordered_map>
+
 namespace son {
 
 class client_association_task : public task {
 public:
-    client_association_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_, task_pool &tasks_,
-                            const std::string &task_name_ = std::string("client_association_task"));
+    /**
+     * @param association_event_timeout Time to wait for the Client Capability Report of a join.
+     * Without a report in this time, the Associated! event of the join is emitted with the basic
+     * arguments only.
+     */
+    client_association_task(
+        db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_, task_pool &tasks_,
+        std::chrono::milliseconds association_event_timeout = std::chrono::seconds(3),
+        const std::string &task_name_ = std::string("client_association_task"));
     bool handle_ieee1905_1_msg(const sMacAddr &src_mac,
                                ieee1905_1::CmduMessageRx &cmdu_rx) override;
 
@@ -29,6 +39,20 @@ private:
     db &m_database;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
     task_pool &m_tasks;
+    const std::chrono::milliseconds m_association_event_timeout;
+
+    /**
+     * @brief A join whose Associated! event waits for the Client Capability Report.
+     */
+    struct sPendingAssociationEvent {
+        sMacAddr bssid;
+        std::chrono::steady_clock::time_point deadline;
+    };
+
+    /**
+     * Joins whose Associated! event is not emitted yet, by station MAC address.
+     */
+    std::unordered_map<sMacAddr, sPendingAssociationEvent> m_pending_association_events;
 
     /**
      * @brief If STA associate first time send Client Capability Query message.
@@ -54,23 +78,17 @@ private:
                                                            ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
-     * @brief Adds AssociationEventData data model object
-     * 
-     * @param src_mac STA MAC.
-     * @param bssid BSSID of BSS with which STA associated.
-     * @return True on success, false otherwise.
-     */
-    bool dm_add_sta_association_event(const sMacAddr &sta_mac, const sMacAddr &bssid);
-
-    /**
-     * @brief Creates additional sub-objects STA HT(VHT)Capabilities
-     * to AssociationEventData data model object.
+     * @brief Emits the Associated! event of the latest join of a station, once per join.
      *
-     * @param src_mac STA MAC.
-     * @param bssid BSSID of BSS with which STA associated.
-     * @return True on success, false otherwise.
+     * Emits nothing if the event of the join is already emitted, or if the latest join of the
+     * station is not to @a bssid.
+     *
+     * @param sta_mac MAC address of the station.
+     * @param bssid BSSID of the BSS the station joined.
+     * @param report Data of the Client Capability Report, nullptr if the report has none.
      */
-    bool dm_add_sta_association_event_caps(const sMacAddr &sta_mac, const sMacAddr &bssid);
+    void emit_association_event(const sMacAddr &sta_mac, const sMacAddr &bssid,
+                                const db::sAssociationReport *report);
 };
 
 } // namespace son

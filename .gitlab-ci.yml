@@ -271,6 +271,9 @@ ieee1905_task_test:
 dynamic_channel_selection_r2_task_test:
   extends: .run-test-in-docker
 
+client_association_task_test:
+  extends: .run-test-in-docker
+
 test-gw-repeater:
   stage: test
   script:

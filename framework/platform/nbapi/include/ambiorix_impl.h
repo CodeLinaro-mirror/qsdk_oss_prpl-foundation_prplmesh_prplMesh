@@ -179,6 +179,9 @@ public:
      */
     bool set_time(const std::string &path_to_object, const std::string &time_stamp) override;
 
+    bool emit_event(const std::string &object_path, const std::string &event_name,
+                    const EventArgs &args) override;
+
     bool remove_all_instances(const std::string &relative_path) override;
 
     bool add_optional_subobject(const std::string &path_to_obj,

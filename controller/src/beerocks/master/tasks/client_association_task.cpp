@@ -20,13 +20,31 @@ using namespace beerocks;
 using namespace net;
 using namespace son;
 
-client_association_task::client_association_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_,
-                                                 task_pool &tasks_, const std::string &task_name_)
-    : task(task_name_), m_database(database_), m_cmdu_tx(cmdu_tx_), m_tasks(tasks_)
+client_association_task::client_association_task(
+    db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_, task_pool &tasks_,
+    std::chrono::milliseconds association_event_timeout, const std::string &task_name_)
+    : task(task_name_), m_database(database_), m_cmdu_tx(cmdu_tx_), m_tasks(tasks_),
+      m_association_event_timeout(association_event_timeout)
 {
 }
 
-void client_association_task ::work() {}
+void client_association_task::work()
+{
+    // Emit the Associated! event with the basic arguments only for each join that got no Client
+    // Capability Report in time.
+    auto now = std::chrono::steady_clock::now();
+    for (auto it = m_pending_association_events.begin();
+         it != m_pending_association_events.end();) {
+        if (now < it->second.deadline) {
+            ++it;
+            continue;
+        }
+        auto sta_mac = it->first;
+        auto bssid   = it->second.bssid;
+        it           = m_pending_association_events.erase(it);
+        emit_association_event(sta_mac, bssid, nullptr);
+    }
+}
 
 bool client_association_task::handle_ieee1905_1_msg(const sMacAddr &src_mac,
                                                     ieee1905_1::CmduMessageRx &cmdu_rx)
@@ -71,8 +89,16 @@ bool client_association_task::verify_sta_association(const sMacAddr &src_mac,
 
     if (sta_assoc_tlv->association_event() ==
         wfa_map::tlvClientAssociationEvent::eAssociationEvent::CLIENT_HAS_JOINED_THE_BSS) {
-        station->assoc_timestamp = ambiorix_dm->get_datamodel_time_format();
-        dm_add_sta_association_event(sta_assoc_tlv->client_mac(), sta_assoc_tlv->bssid());
+        auto sta_mac = sta_assoc_tlv->client_mac();
+        auto bssid   = sta_assoc_tlv->bssid();
+
+        // A new join of the station emits the pending Associated! event of the previous join.
+        emit_association_event(sta_mac, station->association_event_bssid, nullptr);
+
+        station->assoc_timestamp              = ambiorix_dm->get_datamodel_time_format();
+        station->association_event_bssid      = bssid;
+        m_pending_association_events[sta_mac] = {bssid, std::chrono::steady_clock::now() +
+                                                            m_association_event_timeout};
 
         /*
          * Even though client capabilities exist in a legacy vendor
@@ -143,11 +169,14 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
               << ", Result Code= " << result_code << ", client MAC= " << sta_mac
               << ", BSSID= " << client_info_tlv->bssid();
 
+    auto bssid = client_info_tlv->bssid();
+
     /*
      * The remote agent reports no client capability data so return here.
      */
     if (client_capability_report_tlv->result_code() !=
         wfa_map::tlvClientCapabilityReport::SUCCESS) {
+        emit_association_event(sta_mac, bssid, nullptr);
         return true;
     }
 
@@ -155,6 +184,9 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
         beerocks::utils::dump_buffer(client_capability_report_tlv->association_frame(),
                                      client_capability_report_tlv->association_frame_length());
     LOG(DEBUG) << "(Re)Association Request frame= " << re_assoc_frame;
+
+    db::sAssociationReport report;
+    report.client_capabilities = re_assoc_frame;
 
     /*
      * Client capability data is latest assoc/reassoc request frame data
@@ -166,6 +198,7 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
 
     if (!assoc_frame) {
         LOG(ERROR) << "Failed to parse Association Request frame.";
+        emit_association_event(sta_mac, bssid, &report);
         return false;
     }
 
@@ -183,9 +216,13 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
                                                                                     capabilities);
     if (!result) {
         LOG(ERROR) << "Failed to parse station capabilities.";
+        emit_association_event(sta_mac, bssid, &report);
         return false;
     }
     son::wireless_utils::print_station_capabilities(capabilities);
+
+    report.capabilities = &capabilities;
+    emit_association_event(sta_mac, bssid, &report);
 
     // Save latest station capabilities to Station object
     auto sta_mac_str = tlvf::mac_to_string(sta_mac);
@@ -195,10 +232,7 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
         return false;
     }
 
-    // Save station capabilities into DM AssocEvent object
-    dm_add_sta_association_event_caps(client_info_tlv->client_mac(), client_info_tlv->bssid());
-
-    // Save ClientCapabilities to Station and AssocEvent object
+    // Save ClientCapabilities to Station object
     result = m_database.set_client_capabilities(sta_mac, re_assoc_frame, m_database);
     if (!result) {
         LOG(ERROR) << "Failed to save client capabilities.";
@@ -221,57 +255,15 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
     return true;
 }
 
-bool client_association_task::dm_add_sta_association_event(const sMacAddr &sta_mac,
-                                                           const sMacAddr &bssid)
+void client_association_task::emit_association_event(const sMacAddr &sta_mac, const sMacAddr &bssid,
+                                                     const db::sAssociationReport *report)
 {
-    // Add AssociationEventData data model object
-    auto station = m_database.get_station(sta_mac);
-    station->assoc_event_path =
-        m_database.dm_add_association_event(bssid, sta_mac, station->assoc_timestamp);
-
-    if (station->assoc_event_path.empty()) {
-        LOG(ERROR) << "Failed to add AssociationEventData for sta: " << sta_mac;
-        return false;
+    auto pending = m_pending_association_events.find(sta_mac);
+    if (pending != m_pending_association_events.end() && pending->second.bssid == bssid) {
+        m_pending_association_events.erase(pending);
     }
 
-    return true;
-}
-
-bool client_association_task::dm_add_sta_association_event_caps(const sMacAddr &sta_mac,
-                                                                const sMacAddr &bssid)
-{
-    auto station = m_database.get_station(sta_mac);
-    if (!station) {
-        return false;
+    if (!m_database.dm_emit_pending_association_event(sta_mac, bssid, report)) {
+        LOG(ERROR) << "Failed to emit the Associated! event for sta: " << sta_mac;
     }
-
-    auto assoc_event_path = station->assoc_event_path;
-    if (assoc_event_path.empty()) {
-        return false;
-    }
-
-    auto sta_mac_str = tlvf::mac_to_string(sta_mac);
-
-    auto parent_radio = m_database.get_bss_parent_radio(tlvf::mac_to_string(bssid));
-    if (parent_radio.empty()) {
-        return false;
-    }
-
-    auto wifi_channel = m_database.get_radio_wifi_channel(tlvf::mac_from_string(parent_radio));
-    if (wifi_channel.is_empty()) {
-        LOG(ERROR) << "WifiChannel is empty";
-        return false;
-    }
-
-    /* if station caps are available here
-     * 1) caps were retrieved from VS field in BSS_JOIN notification
-     * 2) station was previously associated to same freq band, so caps won't change
-     * Otherwise, controller has to query agent for client capabilities
-     */
-    auto capabilities = m_database.get_sta_capabilities(sta_mac_str, wifi_channel.get_freq_type());
-    if (!capabilities || !capabilities->valid) {
-        return false;
-    }
-
-    return m_database.dm_add_assoc_event_sta_caps(assoc_event_path, *capabilities);
 }

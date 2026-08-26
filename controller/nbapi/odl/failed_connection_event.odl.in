@@ -15,14 +15,21 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@ {
+        /**
+        * This object contains the events generated when a Station (STA) fails to connect
+        * to a Basic Service Set (BSS).
+        * @version 2.19.1
+        */
         object FailedConnectionEvent {
-            object FailedConnectionEventData[] {
-                counted with FailedConnectionEventDataNumberOfEntries;
-                %read-only string BSSID = "00:00:00:00:00:00";
-                %read-only string MACAddress = "00:00:00:00:00:00";
-                %read-only string TimeStamp = "2020-08-31T11:22:39Z";
-                %read-only uint16 StatusCode = "0x1"; /* Default: 'Unspecified reason' */
-                %read-only uint16 ReasonCode = "0x1"; /* Default: 'Unspecified failure' */
+            /**
+            * The event is generated when an Associated Device (STA) fails to connect to a BSS.
+            */
+            event 'FailedConnection!' {
+                string BSSID;
+                string MACAddress;
+                uint32 StatusCode;
+                uint32 ReasonCode;
+                datetime TimeStamp;
             }
         }
     }

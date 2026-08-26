@@ -173,5 +173,11 @@ bool AmbiorixDummy::set_time(const std::string &path_to_object, const std::strin
     return true;
 }
 
+bool AmbiorixDummy::emit_event(const std::string &object_path, const std::string &event_name,
+                               const EventArgs &args)
+{
+    return true;
+}
+
 } // namespace nbapi
 } // namespace beerocks

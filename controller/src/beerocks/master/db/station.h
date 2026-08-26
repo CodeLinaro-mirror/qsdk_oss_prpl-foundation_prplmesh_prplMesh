@@ -163,7 +163,11 @@ public:
 
     std::string assoc_timestamp;
 
-    std::string assoc_event_path; /**< assoc event data model path */
+    /**
+     * BSSID of the latest join of the station until its Associated! event is emitted, the zero
+     * MAC address otherwise.
+     */
+    sMacAddr association_event_bssid = beerocks::net::network_utils::ZERO_MAC;
 
     void assign_client_locating_task_id(int new_task_id, bool new_connection);
     int get_client_locating_task_id(bool new_connection);

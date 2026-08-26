@@ -3,7 +3,7 @@
 # This code is subject to the terms of the BSD+Patent license.
 # See LICENSE file for more details.
 
-from typing import Any, Dict, Union, Callable, NoReturn
+from typing import Any, Dict, List, Union, Callable, NoReturn
 
 from boardfarm.exceptions import SkipTest
 from boardfarm.tests import bft_base_test
@@ -11,6 +11,7 @@ from capi import tlv
 from opts import debug
 import connmap
 import environment as env
+import json
 import os
 import sniffer
 import subprocess
@@ -506,6 +507,55 @@ class PrplMeshBaseTest(bft_base_test.BftBaseTest):
                     time.sleep(.3)
                 else:
                     return ubus_obj
+
+    def start_event_capture(self, entity: env.ALEntity, path: str, duration: int = 60) -> str:
+        '''Write the ubus notifications of the data model object `path` on `entity` to a file.
+
+        The capture stops after `duration` seconds.
+
+        Returns the path of the file on `entity`.
+        '''
+        output = f"/tmp/{path}.events"
+        entity.command("sh", "-c",
+                       f"rm -f {output}; (timeout {duration} ubus subscribe {path} "
+                       f"> {output} 2>&1 &)")
+        # Give ubus the time to register the subscriber.
+        time.sleep(1)
+        return output
+
+    def get_captured_events(self, entity: env.ALEntity, output: str,
+                            event_name: str) -> List[Dict]:
+        '''Get the arguments of each `event_name` event in the capture file `output`.'''
+        text = entity.command("cat", output)
+        decoder = json.JSONDecoder()
+        events = []
+        pos = 0
+        while True:
+            start = text.find("{", pos)
+            if start < 0:
+                break
+            try:
+                notification, pos = decoder.raw_decode(text, start)
+            except json.JSONDecodeError:
+                pos = start + 1
+                continue
+            if isinstance(notification, dict) and event_name in notification:
+                events.append(notification[event_name])
+        return events
+
+    def wait_for_events(self, entity: env.ALEntity, output: str, event_name: str,
+                        sta_mac: str, timeout: float = 10) -> List[Dict]:
+        '''Wait until the capture `output` has an `event_name` event of the station `sta_mac`.
+
+        Returns the `event_name` events of `sta_mac` in the capture file.
+        '''
+        deadline = time.monotonic() + timeout
+        while True:
+            events = [event for event in self.get_captured_events(entity, output, event_name)
+                      if event.get("MACAddress") == sta_mac]
+            if events or time.monotonic() >= deadline:
+                return events
+            time.sleep(.5)
 
     def wait_radios_enabled(self, timeout: int = 10):
         """Waits and checks in .3 intervals until the timeout

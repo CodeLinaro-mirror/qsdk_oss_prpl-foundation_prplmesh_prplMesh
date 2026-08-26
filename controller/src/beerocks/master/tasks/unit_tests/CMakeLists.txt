@@ -143,4 +143,31 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     install(TARGETS dynamic_channel_selection_r2_task_test DESTINATION tests)
     add_test(NAME dynamic_channel_selection_r2_task_test
         COMMAND $<TARGET_FILE:dynamic_channel_selection_r2_task_test>)
+
+    add_executable(client_association_task_test
+        ${CMAKE_CURRENT_LIST_DIR}/client_association_task_test.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/db.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/station.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../son_actions.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../task.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../client_association_task.cpp
+    )
+    target_link_libraries(client_association_task_test
+        mapfcommon bpl bcl btl btlvf nbapi gtest_main gmock)
+    # The task and the database refer to controller code that the test does not use.
+    target_link_options(client_association_task_test
+        PRIVATE
+            -Wl,--unresolved-symbols=ignore-all
+    )
+    target_include_directories(client_association_task_test
+        PRIVATE
+            ${PLATFORM_INCLUDE_DIR}
+            ${CMAKE_SOURCE_DIR}/common/beerocks/btl/include
+            ${CMAKE_SOURCE_DIR}/controller/nbapi
+            ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db
+    )
+
+    install(TARGETS client_association_task_test DESTINATION tests)
+    add_test(NAME client_association_task_test
+        COMMAND $<TARGET_FILE:client_association_task_test>)
 endif()
