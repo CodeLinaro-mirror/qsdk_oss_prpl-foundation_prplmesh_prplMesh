@@ -12,6 +12,10 @@
 #include "base_wlan_hal_whm.h"
 #include <bwl/ap_wlan_hal.h>
 
+#include <chrono>
+#include <unordered_map>
+#include <unordered_set>
+
 namespace bwl {
 namespace whm {
 
@@ -265,6 +269,17 @@ private:
                                      beerocks::wbapi::AmbiorixVariant *value) override;
 
     std::unordered_set<std::string> m_unassociated_stations;
+
+    struct sUnAssocStaInfo {
+        int channel = 0;
+        uint8_t rcpi = 0;
+        std::chrono::steady_clock::time_point m_unassoc_sta_metrics_start;
+    };
+
+    // Unassoc STA link metrics state (NaStaMonitor path)
+    bool m_unassoc_link_metrics_measurement_start = false;
+    int m_unassoc_link_metrics_opclass             = 0;
+    std::unordered_map<std::string, sUnAssocStaInfo> m_unassoc_sta_map;
 
     /**
      * Set to true when CAC fails (success == 0). In this case, the next

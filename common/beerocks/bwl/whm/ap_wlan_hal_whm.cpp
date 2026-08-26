@@ -2314,13 +2314,163 @@ bool ap_wlan_hal_whm::send_delba(const std::string &ifname, const sMacAddr &dst,
 void ap_wlan_hal_whm::send_unassoc_sta_link_metric_query(
     std::shared_ptr<wfa_map::tlvUnassociatedStaLinkMetricsQuery> &query)
 {
+    if (!query) {
+        LOG(ERROR) << "send_unassoc_sta_link_metric_query: query is null";
+        return;
+    }
+
+    if (m_unassoc_link_metrics_measurement_start) {
+        LOG(DEBUG) << "Unassociated STA link metrics measurement already running";
+        return;
+    }
+
+    const auto opclass       = query->operating_class_of_channel_list();
+    const auto chan_list_len = query->channel_list_length();
+
+    // Skip radios whose band does not match the query operating class.
+    // The agent forwards the query to every ApManager.
+    if (son::wireless_utils::which_freq_op_cls(opclass) != m_radio_info.frequency_band) {
+        LOG(DEBUG) << "Skipping unassoc STA link metrics query: opclass=" << +opclass
+                   << " not suitable for radio band " << m_radio_info.frequency_band;
+        return;
+    }
+
+    if (m_radio_path.empty()) {
+        LOG(ERROR) << "send_unassoc_sta_link_metric_query: empty radio path";
+        return;
+    }
+
+    MYLOG("send_unassoc_sta_link_metric_query: opclass=" << +opclass
+                                                         << " channel_list_len=" << +chan_list_len);
+
+    m_unassoc_link_metrics_measurement_start = true;
+    m_unassoc_link_metrics_opclass           = opclass;
+    m_unassoc_sta_map.clear();
+
+    const std::string nasta_monitor_path = m_radio_path + "NaStaMonitor";
+    bool measurement_req_sent            = false;
+    auto measurement_start_time          = std::chrono::steady_clock::now();
+
+    for (uint8_t i = 0; i < chan_list_len; ++i) {
+        auto channel_list          = std::get<1>(query->channel_list(i));
+        const auto channel         = channel_list.channel_number();
+        const auto sta_list_length = channel_list.sta_list_length();
+        MYLOG("  channel=" << +channel << " sta_list_len=" << +sta_list_length);
+
+        for (uint8_t j = 0; j < sta_list_length; ++j) {
+            const auto sta      = std::get<1>(channel_list.sta_list(j));
+            const std::string mac = tlvf::mac_to_string(sta);
+            MYLOG("    sta[" << +j << "]=" << mac);
+
+            AmbiorixVariant result;
+            AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+            args.add_child("macaddress", mac);
+            args.add_child("channel", channel);
+            args.add_child("operatingClass", opclass);
+            if (!m_ambiorix_cl.call(nasta_monitor_path, "createNonAssociatedDevice", args,
+                                    result)) {
+                LOG(ERROR) << "createNonAssociatedDevice failed for " << mac << " on "
+                           << nasta_monitor_path;
+                continue;
+            }
+
+            sUnAssocStaInfo unassoc_sta;
+            unassoc_sta.channel                     = channel;
+            unassoc_sta.rcpi                        = 0;
+            unassoc_sta.m_unassoc_sta_metrics_start = measurement_start_time;
+            m_unassoc_sta_map[mac]                  = unassoc_sta;
+            measurement_req_sent                    = true;
+        }
+    }
+
+    if (!measurement_req_sent) {
+        LOG(DEBUG) << "No unassoc STA measurement requests sent for " << m_radio_path;
+        m_unassoc_link_metrics_measurement_start = false;
+        m_unassoc_sta_map.clear();
+        return;
+    }
+
+    AmbiorixVariant get_args, get_result;
+    if (!m_ambiorix_cl.call(nasta_monitor_path, "getNaStationStats", get_args, get_result)) {
+        LOG(ERROR) << "getNaStationStats failed for " << nasta_monitor_path;
+    }
+
+    const std::string non_associated_device_path =
+        m_radio_path + "NaStaMonitor.NonAssociatedDevice.";
+    auto non_ass_devices =
+        m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(non_associated_device_path);
+    if (non_ass_devices) {
+        for (auto &non_ass_device : *non_ass_devices) {
+            std::string mac_address_amx;
+            int32_t signal_strength = 0;
+            non_ass_device.second.read_child(mac_address_amx, "MACAddress");
+            if (mac_address_amx.empty()) {
+                continue;
+            }
+
+            auto sta_it = m_unassoc_sta_map.find(mac_address_amx);
+            if (sta_it == m_unassoc_sta_map.end()) {
+                continue;
+            }
+
+            non_ass_device.second.read_child(signal_strength, "SignalStrength");
+            sta_it->second.rcpi =
+                son::wireless_utils::convert_rcpi_from_rssi(static_cast<int8_t>(signal_strength));
+            MYLOG("  measured " << mac_address_amx << " rssi=" << signal_strength
+                                << " rcpi=" << +sta_it->second.rcpi);
+        }
+    } else {
+        LOG(WARNING) << "Failed to read NonAssociatedDevice objects under "
+                     << non_associated_device_path;
+    }
+
+    // Cleanup NaStaMonitor entries created for this query
+    for (const auto &sta_entry : m_unassoc_sta_map) {
+        AmbiorixVariant del_result;
+        AmbiorixVariant del_args(AMXC_VAR_ID_HTABLE);
+        del_args.add_child("macaddress", sta_entry.first);
+        if (!m_ambiorix_cl.call(nasta_monitor_path, "deleteNonAssociatedDevice", del_args,
+                                del_result)) {
+            LOG(WARNING) << "deleteNonAssociatedDevice failed for " << sta_entry.first;
+        }
+    }
+
+    LOG(DEBUG) << "Pushing STA_Unassoc_Link_Metrics for " << m_unassoc_sta_map.size()
+               << " station(s) on " << m_radio_path;
+    event_queue_push(Event::STA_Unassoc_Link_Metrics);
 }
 
 bool ap_wlan_hal_whm::prepare_unassoc_sta_link_metrics_response(
     std::shared_ptr<wfa_map::tlvUnassociatedStaLinkMetricsResponse> &response)
 {
-    //LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
-    return false;
+    if (!response) {
+        LOG(ERROR) << "prepare_unassoc_sta_link_metrics_response: response is null";
+        return false;
+    }
+
+    response->operating_class_of_channel_list() = m_unassoc_link_metrics_opclass;
+    const auto now                              = std::chrono::steady_clock::now();
+
+    if (!response->alloc_sta_list(m_unassoc_sta_map.size())) {
+        LOG(ERROR) << "Failed alloc_sta_list for " << m_unassoc_sta_map.size() << " stations";
+        return false;
+    }
+
+    size_t idx = 0;
+    for (const auto &sta_entry : m_unassoc_sta_map) {
+        auto &unassoc_sta                   = std::get<1>(response->sta_list(idx++));
+        unassoc_sta.channel_number          = sta_entry.second.channel;
+        unassoc_sta.uplink_rcpi_dbm_enc     = sta_entry.second.rcpi;
+        unassoc_sta.sta_mac                 = tlvf::mac_from_string(sta_entry.first);
+        unassoc_sta.measurement_to_report_delta_msec =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - sta_entry.second.m_unassoc_sta_metrics_start)
+                .count();
+    }
+
+    m_unassoc_sta_map.clear();
+    m_unassoc_link_metrics_measurement_start = false;
+    return true;
 }
 
 bool ap_wlan_hal_whm::set_beacon_da(const std::string &ifname, const sMacAddr &mac)
