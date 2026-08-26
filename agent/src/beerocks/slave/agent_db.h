@@ -11,6 +11,7 @@
 #include "cac_capabilities.h"
 #include "tasks/task_messages.h"
 #include <bcl/beerocks_defines.h>
+#include <bcl/beerocks_logging.h>
 #include <bcl/beerocks_mac_map.h>
 #include <bcl/beerocks_wifi_channel.h>
 #include <bcl/network/network_utils.h>
@@ -28,12 +29,14 @@
 
 #include <bpl/bpl_cfg.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <unordered_set>
+#include <vector>
 
 #include <unordered_map>
 #ifdef ENABLE_NBAPI
@@ -327,15 +330,24 @@ public:
             sClient(sMacAddr bssid_, size_t association_frame_length_, uint8_t *association_frame_,
                     uint8_t btm_supported_)
                 : bssid(bssid_), association_time(std::chrono::steady_clock::now()),
-                  association_frame_length(association_frame_length_), supports_11v(btm_supported_)
+                  association_frame_length(0), supports_11v(btm_supported_)
             {
-                std::copy_n(association_frame_, association_frame_length_,
-                            association_frame.begin());
+                if (association_frame_ != nullptr && association_frame_length_ > 0) {
+                    if (association_frame_length_ > ASSOCIATION_FRAME_SIZE) {
+                        LOG(WARNING) << "Association frame of " << association_frame_length_
+                                     << " bytes exceeds ASSOCIATION_FRAME_SIZE ("
+                                     << ASSOCIATION_FRAME_SIZE << "), truncating";
+                    }
+                    association_frame_length = std::min(
+                        association_frame_length_, static_cast<size_t>(ASSOCIATION_FRAME_SIZE));
+                    association_frame.assign(association_frame_,
+                                             association_frame_ + association_frame_length);
+                }
             }
             sMacAddr bssid;
             std::chrono::steady_clock::time_point association_time;
             size_t association_frame_length;
-            std::array<uint8_t, ASSOCIATION_FRAME_SIZE> association_frame;
+            std::vector<uint8_t> association_frame;
             bool supports_11v;
             std::string wds_iface_name;
         };
