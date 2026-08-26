@@ -2538,6 +2538,22 @@ bool slave_thread::process_client_association(
         LOG(DEBUG) << "Mld_mode: " << std::hex << static_cast<int>(mld_info.mld_config.mld_mode)
                    << std::dec << ", Number of affiliated STAs=" << int(num_affiliated);
 
+        const auto association_frame_length = notification_in->association_frame_length();
+        if (association_frame_length > beerocks::message::ASSOCIATION_MAX_LENGTH) {
+            LOG(ERROR) << "Invalid association frame length=" << association_frame_length
+                       << " (max=" << beerocks::message::ASSOCIATION_MAX_LENGTH << ")";
+            return false;
+        }
+        if (association_frame_length > 0) {
+            auto association_frame = notification_in->association_frame();
+            if (!association_frame) {
+                LOG(ERROR) << "Failed to get association frame for MLO client " << client_mac;
+                return false;
+            }
+            mld_info.association_frame.assign(association_frame,
+                                              association_frame + association_frame_length);
+        }
+
         for (size_t idx = 0; idx < num_affiliated; ++idx) {
             auto affiliated_tuple = notification_in->affiliated_sta(idx);
 
