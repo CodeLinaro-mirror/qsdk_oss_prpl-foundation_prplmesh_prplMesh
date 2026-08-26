@@ -72,7 +72,6 @@ bool client_association_task::verify_sta_association(const sMacAddr &src_mac,
     if (sta_assoc_tlv->association_event() ==
         wfa_map::tlvClientAssociationEvent::eAssociationEvent::CLIENT_HAS_JOINED_THE_BSS) {
         station->assoc_timestamp = ambiorix_dm->get_datamodel_time_format();
-        dm_add_sta_association_event(sta_assoc_tlv->client_mac(), sta_assoc_tlv->bssid());
 
         /*
          * Even though client capabilities exist in a legacy vendor
@@ -195,10 +194,7 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
         return false;
     }
 
-    // Save station capabilities into DM AssocEvent object
-    dm_add_sta_association_event_caps(client_info_tlv->client_mac(), client_info_tlv->bssid());
-
-    // Save ClientCapabilities to Station and AssocEvent object
+    // Save ClientCapabilities to Station object
     result = m_database.set_client_capabilities(sta_mac, re_assoc_frame, m_database);
     if (!result) {
         LOG(ERROR) << "Failed to save client capabilities.";
@@ -219,59 +215,4 @@ bool client_association_task::handle_cmdu_1905_client_capability_report_message(
     }
 
     return true;
-}
-
-bool client_association_task::dm_add_sta_association_event(const sMacAddr &sta_mac,
-                                                           const sMacAddr &bssid)
-{
-    // Add AssociationEventData data model object
-    auto station = m_database.get_station(sta_mac);
-    station->assoc_event_path =
-        m_database.dm_add_association_event(bssid, sta_mac, station->assoc_timestamp);
-
-    if (station->assoc_event_path.empty()) {
-        LOG(ERROR) << "Failed to add AssociationEventData for sta: " << sta_mac;
-        return false;
-    }
-
-    return true;
-}
-
-bool client_association_task::dm_add_sta_association_event_caps(const sMacAddr &sta_mac,
-                                                                const sMacAddr &bssid)
-{
-    auto station = m_database.get_station(sta_mac);
-    if (!station) {
-        return false;
-    }
-
-    auto assoc_event_path = station->assoc_event_path;
-    if (assoc_event_path.empty()) {
-        return false;
-    }
-
-    auto sta_mac_str = tlvf::mac_to_string(sta_mac);
-
-    auto parent_radio = m_database.get_bss_parent_radio(tlvf::mac_to_string(bssid));
-    if (parent_radio.empty()) {
-        return false;
-    }
-
-    auto wifi_channel = m_database.get_radio_wifi_channel(tlvf::mac_from_string(parent_radio));
-    if (wifi_channel.is_empty()) {
-        LOG(ERROR) << "WifiChannel is empty";
-        return false;
-    }
-
-    /* if station caps are available here
-     * 1) caps were retrieved from VS field in BSS_JOIN notification
-     * 2) station was previously associated to same freq band, so caps won't change
-     * Otherwise, controller has to query agent for client capabilities
-     */
-    auto capabilities = m_database.get_sta_capabilities(sta_mac_str, wifi_channel.get_freq_type());
-    if (!capabilities || !capabilities->valid) {
-        return false;
-    }
-
-    return m_database.dm_add_assoc_event_sta_caps(assoc_event_path, *capabilities);
 }
