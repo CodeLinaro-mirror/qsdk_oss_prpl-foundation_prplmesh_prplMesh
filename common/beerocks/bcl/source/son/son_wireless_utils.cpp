@@ -2121,8 +2121,14 @@ bool wireless_utils::get_subset_20MHz_channels(const uint8_t channel_number,
 
     // If the channel is using a 2.4GHz operating class
     if (operating_class < 115) {
-        // "channel_number" is an actual channel
+        // "channel_number" is the beacon channel
         resulting_channels.insert(channel_number);
+        // for 40mhz op classes the sideband channel is either +4 or -4 from the beacon channel
+        if (operating_class == 83) {
+            resulting_channels.insert(channel_number + 4);
+        } else if (operating_class == 84) {
+            resulting_channels.insert(channel_number - 4);
+        }
         return true;
     } else if (116 <= operating_class && operating_class <= 137) {
         const std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, wireless_utils::sChannel>>
