@@ -527,7 +527,15 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
 
         // Removed members needs to be cleaned up from datamodel also.
         for (const auto &removed_neighbor : removed_neighbors) {
-            database.dm_remove_interface_neighbor(removed_neighbor->dm_path);
+            if (!database.dm_remove_interface_neighbor(removed_neighbor->dm_path)) {
+                LOG(ERROR) << "Failed to remove neighbor " << removed_neighbor->mac
+                           << " from the data model, keeping it for the next sweep";
+
+                // keep_new_remove_old() has already dropped the entry. Putting it back keeps
+                // the only reference to the data model path alive, so a later sweep can retry
+                // the removal. Dropping it here would orphan the instance permanently.
+                interface->m_neighbors.add(removed_neighbor);
+            }
         }
     }
 
@@ -1178,6 +1186,19 @@ bool topology_task::handle_topology_notification(const sMacAddr &src_mac,
 
         if (reported_by_parent && !database.dm_remove_sta(*client)) {
             LOG(ERROR) << "Failed to remove STA from data model mac:" << client_mac_str;
+        }
+
+        // While associated, the station is also reported as a non-IEEE1905 neighbor of the
+        // Agent's interface. This notification carries a Client Association Event TLV, so no
+        // Topology Query is sent above and no Topology Response will arrive to sweep the
+        // neighbor away. Remove it here, otherwise it is retained for the Agent's lifetime.
+        //
+        // Gated on reported_by_parent for the same reason dm_remove_sta is: db::remove_neighbor
+        // sweeps the neighbor off every interface of the Agent, so on a same-Agent band steering
+        // a late disconnect from the previous BSS would otherwise wipe the neighbor from the
+        // interface the station has just moved to, with nothing to restore it.
+        if (reported_by_parent && !database.remove_neighbor(src_mac, client_mac)) {
+            LOG(ERROR) << "Failed to remove neighbor " << client_mac_str << " of " << src_mac;
         }
 
         // TODO: Validate usages of reported_by_parent flag usages (PPM-1948)

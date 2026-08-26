@@ -1399,6 +1399,23 @@ public:
     bool dm_remove_interface_neighbor(const std::string &dm_path);
 
     /**
+     * @brief Removes a neighbor from every Interface of an Agent, data model included.
+     *
+     * An associated station is reported as a non-IEEE1905 neighbor in the Agent's Topology
+     * Response. The mark-and-sweep in topology_task::handle_topology_response() is the only
+     * thing that drops such a neighbor again, and it runs solely when a new Topology Response
+     * arrives - which a disassociation does not trigger. Use this to remove the entry directly.
+     * If the neighbor is in fact still present, the next Topology Response re-adds it.
+     *
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.Interface.{i}.Neighbor.{i}
+     *
+     * @param device_mac AL MAC address of the Agent that reported the neighbor
+     * @param neighbor_mac MAC address of the neighbor to remove
+     * @return true on success, false if a data model instance could not be removed.
+     */
+    bool remove_neighbor(const sMacAddr &device_mac, const sMacAddr &neighbor_mac);
+
+    /**
      * @brief Sets Extended Link Metrics for corresponding STA.
      *
      * Path: Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}
