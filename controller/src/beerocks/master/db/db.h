@@ -3144,12 +3144,12 @@ public:
     /**
      * @brief Adds instance for CACCapability.CACMethod and fullfills it.
      *
-     * Also creates sub-objects: OpClassChannels and Channel.
+     * Also creates sub-objects: OpClassChannels.
      *
      * Data model paths :
      * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.CACCapability.CACMethod.{i}."
      * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.CACCapability.CACMethod.{i}.OpClassChannels.{i}."
-     * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.CACCapability.CACMethod.{i}.OpClassChannels.{i}.Channel.{i}."
+     * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.CACCapability.CACMethod.{i}.OpClassChannels.{i}.ChannelList"
      *
      * @param[in] radio Radio DB object.
      * @param[in] method CAC method supported.
@@ -3216,12 +3216,12 @@ public:
     /**
      * @brief Adds instance for ScanCapability and fullfills it.
      *
-     * Also creates sub-objects: OpClassChannels and Channel.
+     * Also creates sub-objects: OpClassChannels.
      *
      * Data model paths :
      * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.ScanCapability."
      * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.ScanCapability.OpClassChannels.{i}."
-     * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.ScanCapability.OpClassChannels.{i}.Channel.{i}."
+     * "Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.ScanCapability.OpClassChannels.{i}.ChannelList"
      *
      * @param[in] radio Radio DB object.
      * @return True on success, otherwise false.
