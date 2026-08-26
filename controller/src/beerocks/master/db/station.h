@@ -161,8 +161,6 @@ public:
 
     std::string assoc_timestamp;
 
-    std::string assoc_event_path; /**< assoc event data model path */
-
     void assign_client_locating_task_id(int new_task_id, bool new_connection);
     int get_client_locating_task_id(bool new_connection);
 

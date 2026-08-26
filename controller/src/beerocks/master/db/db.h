@@ -1486,35 +1486,6 @@ public:
     bool dm_remove_sta(Station &station);
 
     /**
-     * @brief Adds FailedConnectionEventData NBAPI object each time
-     * when station failed to associate. Set values for parameters of this object.
-     *
-     * Data model path example:
-     * "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnectionEventData"
-     *
-     * @param bssid BSSID of the interface where connection failure happened.
-     * @param sta_mac Client mac address.
-     * @param reason_code Reason code of clients failed association.
-     * @param status_code Status code of clients failed association.
-     * @return True on success, false otherwise.
-     */
-    bool dm_add_failed_connection_event(const sMacAddr &bssid, const sMacAddr &sta_mac,
-                                        const uint16_t reason_code, const uint16_t status_code);
-
-    /**
-     * @brief Adds station capabilities sub-objects into data model
-     * under instance of object AssociationEventData.
-     *
-     * @param assoc_event_path Path to instantiated AssociationEvent object.
-     * Example of full path to object:
-     * 'Device.WiFi.DataElements.AssociationEvent.AssociationEventData.1'.
-     * @param sta_cap Structure with station HT Capabilities.
-     * @return True on success, false otherwise.
-     */
-    bool dm_add_assoc_event_sta_caps(const std::string &assoc_event_path,
-                                     const beerocks::message::sRadioCapabilities &sta_cap);
-
-    /**
      * @brief Set STA DHCPv4 lease information for both node and datamodel.
      *
      * Path: Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}
@@ -1738,10 +1709,9 @@ public:
                               const beerocks::message::sRadioCapabilities &sta_cap);
 
     /**
-     * @brief Set ClientCapabilities values for Station and AssocEvent object
+     * @brief Set ClientCapabilities value for Station object
      * Full path to data element:
      * 'Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.ClientCapabilities'.
-     * 'Device.WiFi.DataElements.AssociationEvent.AssociationEventData.{i}.ClientCapabilities'.
      *
      * @param sta_mac Station MAC address.
      * @param frame (Re)Association Request frame.
@@ -2453,15 +2423,6 @@ public:
     void clear_radio_stats_info(const sMacAddr &al_mac, const sMacAddr &mac);
 
     /**
-     * @brief Notify about client disconnection.
-     * @param mac String with STA mac address.
-     * @param reason_code Reason code of clients failed association/connection.
-     * @param bssid String with left bss mac.
-     */
-    bool notify_sta_disconnection(const std::string &mac, const uint16_t reason_code,
-                                  const std::string &bssid);
-
-    /**
      * @brief Update the node stats info
      *
      * @param[in] mac MAC address of the given node
@@ -3086,21 +3047,6 @@ public:
      * @return True on success, false otherwise.
      */
     bool dm_set_profile3_device_info(const Agent &agent);
-
-    /**
-     * @brief Adds to data model an instance of object AssociationEventData.
-     *
-     * This object describes an event generated when a STA associates to a BSS.
-     * Example of full path to object:
-     * 'Device.WiFi.DataElements.AssociationEvent.AssociationEventData.1'.
-     *
-     * @param bssid BSS mac address.
-     * @param client_mac Client mac address.
-     * @param assoc_ts Timesamp in Data Model time format of station association.
-     * @return Path to object on success, empty sring otherwise.
-     */
-    std::string dm_add_association_event(const sMacAddr &bssid, const sMacAddr &client_mac,
-                                         const std::string &assoc_ts = {});
 
     /**
      * @brief Remove Radio data model object
@@ -3798,36 +3744,6 @@ private:
                                      const beerocks::message::sRadioCapabilities &sta_cap);
 
     /**
-     * @brief Sets value for parameters of optional sub-object STA HTCapabilities.
-     *
-     * @param path_to_event Path to event which contains STA HTCapabilities sub-object.
-     * @param sta_cap Structure with station HT Capabilities.
-     * @return True on success, false otherwise.
-     */
-    bool dm_set_assoc_event_sta_ht_cap(const std::string &path_to_event,
-                                       const beerocks::message::sRadioCapabilities &sta_cap);
-
-    /**
-     * @brief Sets value for parameters of optional sub-object STA VHTCapabilities.
-     *
-     * @param path_to_event Path to event which contains STA VHTCapabilities sub-object.
-     * @param sta_cap Structure with station VHT Capabilities.
-     * @return True on success, false otherwise.
-     */
-    bool dm_set_assoc_event_sta_vht_cap(const std::string &path_to_event,
-                                        const beerocks::message::sRadioCapabilities &sta_cap);
-
-    /**
-     * @brief Sets value for parameters of optional sub-object STA WiFi6Capabilities.
-     *
-     * @param path_to_event Path to event which contains STA WiFi6Capabilities sub-object.
-     * @param sta_cap Structure with station WiFi6 Capabilities.
-     * @return True on success, false otherwise.
-     */
-    bool dm_set_assoc_event_sta_he_cap(const std::string &path_to_event,
-                                       const beerocks::message::sRadioCapabilities &sta_cap);
-
-    /**
      * @brief Adds STA instance to the datamodel.
      *
      * Data model path example: "Device.WiFi.DataElements.Network.Device.1.Radio.1.BSS.2.STA.3"
@@ -4015,16 +3931,6 @@ private:
     *  The queue with paths of NBAPI SteerEvent NBAPI objects.
     */
     std::queue<std::string> m_steer_events;
-
-    /**
-     * @brief The queue with paths of NBAPI disassociation events.
-     */
-    std::queue<std::string> m_disassoc_events;
-
-    /**
-     * @brief The queue with paths of NBAPI association events.
-     */
-    std::queue<std::string> m_assoc_events;
 
     /**
      * @brief Maximum amount of NBAPI ScanResults registered on the system bus.

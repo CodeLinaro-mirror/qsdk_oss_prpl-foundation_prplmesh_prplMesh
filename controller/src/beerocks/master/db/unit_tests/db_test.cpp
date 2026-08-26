@@ -28,8 +28,7 @@ using ::testing::StrictMock;
 
 namespace {
 
-constexpr auto g_assoc_event_path = DATAELEMENTS_ROOT_DM ".AssociationEvent.AssociationEventData";
-constexpr auto g_device_path      = DATAELEMENTS_ROOT_DM ".Network.Device";
+constexpr auto g_device_path                = DATAELEMENTS_ROOT_DM ".Network.Device";
 constexpr auto g_controller_data_model_path = "config/odl/controller.odl";
 constexpr auto g_zero_mac                   = "00:00:00:00:00:00";
 constexpr auto g_bridge_mac                 = "46:55:66:77:00:00";
@@ -57,10 +56,9 @@ const std::string g_radio_2_bss_path_1      = std::string(g_radio_path_2) + ".BS
 const std::string g_radio_2_bss_path_2      = std::string(g_radio_path_2) + ".BSS.2";
 const std::string g_radio_1_qm_descriptor_path =
     std::string(g_radio_1_bss_path_1) + ".QMDescriptor";
-const std::string g_sta_path_1         = std::string(g_radio_1_bss_path_1) + ".STA.1";
-const std::string g_assoc_event_path_1 = std::string(g_assoc_event_path) + ".1";
-const std::string g_interface_path_1   = std::string(g_device_path) + ".1.Interface.1";
-const std::string g_interface_path_2   = std::string(g_device_path) + ".1.Interface.2";
+const std::string g_sta_path_1       = std::string(g_radio_1_bss_path_1) + ".STA.1";
+const std::string g_interface_path_1 = std::string(g_device_path) + ".1.Interface.1";
+const std::string g_interface_path_2 = std::string(g_device_path) + ".1.Interface.2";
 
 TEST(DbSingleShotCounter, callback_triggered_when_decrement_reaches_zero)
 {
@@ -406,20 +404,6 @@ protected:
         EXPECT_CALL(*m_ambiorix,
                     set(std::string(g_sta_path_1), "LastConnectTime", Matcher<const uint64_t &>(_)))
             .WillOnce(Return(true));
-
-        EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_assoc_event_path)))
-            .WillRepeatedly(Return(std::string(g_assoc_event_path_1)));
-        EXPECT_CALL(*m_ambiorix,
-                    set(std::string(g_assoc_event_path_1), "BSSID",
-                        Matcher<const sMacAddr &>(tlvf::mac_from_string(g_radio_mac_1))))
-            .WillRepeatedly(Return(true));
-        EXPECT_CALL(*m_ambiorix,
-                    set(std::string(g_assoc_event_path_1), "MACAddress",
-                        Matcher<const sMacAddr &>(tlvf::mac_from_string(g_client_mac))))
-            .WillRepeatedly(Return(true));
-        EXPECT_CALL(*m_ambiorix, set(std::string(g_assoc_event_path_1), "StatusCode",
-                                     Matcher<const uint16_t &>(static_cast<uint16_t>(0))))
-            .WillRepeatedly(Return(true));
 
         //prepare scenario
         EXPECT_TRUE(m_db->add_station(tlvf::mac_from_string(g_bridge_mac),
@@ -1479,9 +1463,6 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_capabilities)
     std::string ht_capabilities1  = std::string(g_sta_path_1) + ".HTCapabilities.";
     std::string vht_capabilities1 = std::string(g_sta_path_1) + ".VHTCapabilities.";
     std::string he_capabilities1  = std::string(g_sta_path_1) + ".WiFi6Capabilities.";
-    std::string ht_capabilities2  = std::string(g_assoc_event_path_1) + ".HTCapabilities.";
-    std::string vht_capabilities2 = std::string(g_assoc_event_path_1) + ".VHTCapabilities.";
-    std::string he_capabilities2  = std::string(g_assoc_event_path_1) + ".WiFi6Capabilities.";
 
     //expectations for set_sta_stats_info
     beerocks::message::sRadioCapabilities sta_cap;
@@ -1592,121 +1573,10 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_capabilities)
                 set(he_capabilities1, "AnticipatedChannelUsage", Matcher<const bool &>(_)))
         .WillOnce(Return(true));
 
-    EXPECT_CALL(*m_ambiorix,
-                remove_optional_subobject(g_assoc_event_path_1 + '.', "HTCapabilities"))
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                remove_optional_subobject(g_assoc_event_path_1 + '.', "VHTCapabilities"))
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                remove_optional_subobject(g_assoc_event_path_1 + '.', "WiFi6Capabilities"))
-        .WillRepeatedly(Return(true));
-
-    EXPECT_CALL(*m_ambiorix, add_optional_subobject(g_assoc_event_path_1 + '.', "HTCapabilities"))
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(*m_ambiorix, add_optional_subobject(g_assoc_event_path_1 + '.', "VHTCapabilities"))
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                add_optional_subobject(g_assoc_event_path_1 + '.', "WiFi6Capabilities"))
-        .WillRepeatedly(Return(true));
-
-    EXPECT_CALL(*m_ambiorix, set(ht_capabilities2, "HTShortGI20", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(ht_capabilities2, "HTShortGI40", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(ht_capabilities2, "HT40", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                set(ht_capabilities2, "MaxNumberOfTxSpatialStreams", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                set(ht_capabilities2, "MaxNumberOfRxSpatialStreams", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "MCSNSSTxSet", Matcher<const uint16_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "MCSNSSRxSet", Matcher<const uint16_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                set(vht_capabilities2, "MaxNumberOfTxSpatialStreams", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                set(vht_capabilities2, "MaxNumberOfRxSpatialStreams", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "VHTShortGI80", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "VHTShortGI160", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "VHT8080", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "VHT160", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "SUBeamformer", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(vht_capabilities2, "MUBeamformer", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set_current_time(g_assoc_event_path_1, _)).WillOnce(Return(true));
-
-    EXPECT_CALL(*m_ambiorix,
-                set(he_capabilities2, "MaxNumberOfTxSpatialStreams", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                set(he_capabilities2, "MaxNumberOfRxSpatialStreams", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "HE160", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "HE8080", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "SUBeamformer", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "SUBeamformee", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MUBeamformer", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "Beamformee80orLess", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "BeamformeeAbove80", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "ULMUMIMO", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "ULOFDMA", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "DLOFDMA", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MaxDLMUMIMO", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MaxULMUMIMO", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MaxDLOFDMA", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MaxULOFDMA", Matcher<const uint8_t &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "RTS", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MURTS", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MultiBSSID", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "MUEDCA", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "TWTRequestor", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "TWTResponder", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(he_capabilities2, "SpatialReuse", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix,
-                set(he_capabilities2, "AnticipatedChannelUsage", Matcher<const bool &>(_)))
-        .WillOnce(Return(true));
-
     //execute test
     EXPECT_TRUE(m_db->set_sta_capabilities(g_client_mac, sta_cap));
     auto cur_sta_caps = m_db->get_sta_current_capabilities(g_client_mac);
     EXPECT_NE(cur_sta_caps, nullptr);
-    EXPECT_EQ(m_db->dm_add_association_event(tlvf::mac_from_string(g_radio_mac_1),
-                                             tlvf::mac_from_string(g_client_mac)),
-              std::string(g_assoc_event_path_1));
-    EXPECT_TRUE(m_db->dm_add_assoc_event_sta_caps(g_assoc_event_path_1, *cur_sta_caps));
 }
 
 TEST_F(DbTestRadio1Sta1, test_set_sta_link_metrics)
@@ -1732,18 +1602,6 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_link_metrics)
 TEST_F(DbTestRadio1Sta1, test_add_sta_twice_with_same_mac)
 {
 
-    //expectations for add_station second time
-    EXPECT_CALL(*m_ambiorix, set(std::string(g_assoc_event_path_1), "BSSID",
-                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_radio_mac_1))))
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(std::string(g_assoc_event_path_1), "MACAddress",
-                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_client_mac))))
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(std::string(g_assoc_event_path_1), "StatusCode",
-                                 Matcher<const uint16_t &>(static_cast<uint16_t>(0))))
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(*m_ambiorix, set_current_time(std::string(g_assoc_event_path_1), _))
-        .WillRepeatedly(Return(true));
     //prepare scenario
     EXPECT_TRUE(m_db->add_station(tlvf::mac_from_string(g_client_mac),
                                   tlvf::mac_from_string(g_client_mac),

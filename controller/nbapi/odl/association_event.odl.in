@@ -1,4 +1,3 @@
-
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  *
  * SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
@@ -15,26 +14,18 @@
 
 %define {
     select @DATAELEMENTS_ROOT_DM@ {
-        // The events generated when a STA associates to a BSS.
+        /**
+        * Container for the events generated when a STA associates to a BSS.
+        *
+        * TR-181 keeps this object as the mount point of the USP event
+        * Device.WiFi.DataElements.AssociationEvent.Associated!. Only its
+        * AssociationEventData.{i}. table and AssociationEventDataNumberOfEntries were
+        * deprecated in 2.17 and deleted in 2.20, precisely because the USP event replaces
+        * them, so the object itself must stay. It holds no data until the event is
+        * implemented, which costs one amxd_object_t and nothing per station.
+        * @version 2.13
+        */
         object AssociationEvent {
-            object AssociationEventData[] {
-                counted with AssociationEventDataNumberOfEntries;
-
-                extend using mib HTCapabilities;
-                extend using mib VHTCapabilities;
-                extend using mib WiFi6Capabilities;
-
-                %read-only string BSSID;  /* The MAC address of the logical BSS (BSSID) which is
-                                            reporting the association event. */
-                %read-only string MACAddress;  /* MAC address of the associating station */
-                %read-only uint16 StatusCode;  /* The status code sent to the STA in the
-                                                latest Association Response frame */
-                // The time this event was collected
-                %read-only string TimeStamp = "2020-08-31T11:22:39Z";
-                %read-only string ClientCapabilities; /* The frame body of the most recently
-                                                       received (Re)Association Request frame
-                                                       from this client (STA) */
-            }
         }
     }
 }
