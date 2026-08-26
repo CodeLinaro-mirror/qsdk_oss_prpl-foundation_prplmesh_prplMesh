@@ -1661,7 +1661,7 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
     }
 
     radio->wifi6_phy_reported = true;
-    bool ret_val = true;
+    bool ret_val              = true;
     for (uint8_t i = 0; i < wifi6_caps_tlv.number_of_roles(); i++) {
         std::tuple<bool, wfa_map::cRole> role_tuple = wifi6_caps_tlv.role(i);
         if (!std::get<0>(role_tuple)) {
@@ -1746,7 +1746,7 @@ bool db::set_internal_wifi7_radio_capabilities(
 
     if (wifi7_role.str_support || wifi7_role.nstr_support || wifi7_role.emlsr_support ||
         wifi7_role.emlmr_support) {
-        radio.eht_supported = true;
+        radio.eht_supported                 = true;
         radio.max_wifi_generation_supported = std::max(radio.max_wifi_generation_supported, 7U);
     }
 

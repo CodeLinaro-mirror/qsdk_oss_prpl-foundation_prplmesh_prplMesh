@@ -150,7 +150,7 @@ protected:
 
         m_ambiorix = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
             m_event_loop, std::vector<beerocks::nbapi::sActionsCallback>{},
-            prplmesh::controller::actions::get_events_list(),
+            prplmesh::controller::actions::get_ieee1905_events_list(),
             std::vector<beerocks::nbapi::sFunctions>{});
 
         ASSERT_TRUE(m_ambiorix->load_datamodel(IEEE1905_ODL_PATH));
