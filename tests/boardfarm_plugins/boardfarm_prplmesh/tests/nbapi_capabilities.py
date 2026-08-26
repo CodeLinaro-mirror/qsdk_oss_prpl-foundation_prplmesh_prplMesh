@@ -32,8 +32,8 @@ class NbapiCapabilities(PrplMeshBaseTest):
                        nbapi_op_class_path: str, controller):
         class_nbapi = controller.nbapi_get_parameter(nbapi_op_class_path, "Class")
         max_tx_power_nbapi = controller.nbapi_get_parameter(nbapi_op_class_path, "MaxTxPower")
-        non_op_ch_count_nbapi = controller.nbapi_get_parameter(nbapi_op_class_path,
-                                                               "NumberOfNonOperChan")
+        # NonOperable is a TR-181 comma-separated list parameter, not a table.
+        non_operable_nbapi = controller.nbapi_get_parameter(nbapi_op_class_path, "NonOperable")
 
         matching_op_class = [
             op_class for op_class in supported_op_classes if int(op_class.op_class) == class_nbapi
@@ -42,18 +42,16 @@ class NbapiCapabilities(PrplMeshBaseTest):
         assert len(matching_op_class) == 1, f"Wrong NBAPI operating class [{class_nbapi}]."
         op_class = matching_op_class[0]
         self.assertEqualInt("MaxTxPower", max_tx_power_nbapi, op_class.max_power)
-        self.assertEqualInt("NumberOfNonOperChan", non_op_ch_count_nbapi, op_class.non_op_channels)
-        if non_op_ch_count_nbapi != 0:
-            non_op_channels_nbapi = controller.nbapi_get_list_instances(nbapi_op_class_path +
-                                                                        ".NonOperable")
-            for non_op_channel_nbapi in non_op_channels_nbapi:
-                channel = controller.nbapi_get_parameter(non_op_channel_nbapi, "NonOpChannelNumber")
 
-                non_op_channels = [
-                    o for o in op_class.non_operating_channel if str(channel) in vars(o).values()
-                ]
+        non_op_channels_nbapi = [ch for ch in str(non_operable_nbapi).split(",") if ch]
+        self.assertEqualInt("NonOperable count", len(non_op_channels_nbapi),
+                            op_class.non_op_channels)
+        for channel in non_op_channels_nbapi:
+            non_op_channels = [
+                o for o in op_class.non_operating_channel if str(int(channel)) in vars(o).values()
+            ]
 
-                assert len(non_op_channels) == 1, f"Non-operable channel {channel} was not found."
+            assert len(non_op_channels) == 1, f"Non-operable channel {channel} was not found."
         supported_op_classes.remove(op_class)
 
     @env.process_faults_check
