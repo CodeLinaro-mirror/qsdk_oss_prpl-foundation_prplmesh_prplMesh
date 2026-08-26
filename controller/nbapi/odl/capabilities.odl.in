@@ -58,10 +58,21 @@
             %read-only int32 MaxTxPower = 0 {
                 on action validate call check_range [-127, 127];
             }
-            %read-only object NonOperable [] {
-                uint32 NonOpChannelNumber;
-                counted with NumberOfNonOperChan;
-            }
+            /**
+            * Comma-separated list (unsignedInt[], each element 0..255) of the channel
+            * numbers which are statically non-operable in the operating class, i.e. the
+            * radio is never able to operate on them. Other channels of the operating
+            * class that are not listed here are supported by the radio.
+            * An empty list means no channel of the operating class is non-operable.
+            * @version 2.13
+            */
+            %read-only csv_string NonOperable = "";
+
+            /**
+            * The number of non-operable channels contained in NonOperable.
+            * @version 2.13
+            */
+            %read-only uint32 NumberOfNonOperChan = 0;
         }
 
         %read-only object VBSSCapabilities {

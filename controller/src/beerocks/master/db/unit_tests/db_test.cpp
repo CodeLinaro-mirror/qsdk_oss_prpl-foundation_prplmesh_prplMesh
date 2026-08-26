@@ -827,7 +827,6 @@ TEST_F(DbTest, test_add_hostap_supported_operating_class)
 {
     const std::string operating_classes =
         std::string(g_radio_path_1) + ".Capabilities.OperatingClasses";
-    const std::string non_operable = std::string(operating_classes) + ".1.NonOperable";
 
     //device always exists
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
@@ -859,23 +858,61 @@ TEST_F(DbTest, test_add_hostap_supported_operating_class)
     EXPECT_CALL(*m_ambiorix,
                 set(std::string(operating_classes) + ".1", "Class", Matcher<const uint8_t &>(0xFF)))
         .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, add_instance(std::string(non_operable)))
-        .WillOnce(Return(std::string(non_operable) + ".1"))
-        .WillOnce(Return(std::string(non_operable) + ".2"))
-        .WillOnce(Return(std::string(non_operable) + ".3"));
-    EXPECT_CALL(*m_ambiorix, set(std::string(non_operable) + ".1", "NonOpChannelNumber",
-                                 Matcher<const uint8_t &>(0x01)))
+    // NonOperable is a TR-181 comma-separated list parameter, not a table.
+    EXPECT_CALL(*m_ambiorix, set(std::string(operating_classes) + ".1", "NonOperable",
+                                 Matcher<const std::string &>(std::string("1,2,3"))))
         .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(std::string(non_operable) + ".2", "NonOpChannelNumber",
-                                 Matcher<const uint8_t &>(0x02)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set(std::string(non_operable) + ".3", "NonOpChannelNumber",
-                                 Matcher<const uint8_t &>(0x03)))
+    // Nothing derives the element count from a list parameter, so it is set explicitly.
+    EXPECT_CALL(*m_ambiorix, set(std::string(operating_classes) + ".1", "NumberOfNonOperChan",
+                                 Matcher<const uint32_t &>(3)))
         .WillOnce(Return(true));
 
     //execute test
     EXPECT_TRUE(m_db->add_hostap_supported_operating_class(
         tlvf::mac_from_string(g_radio_mac_1), 0xFF, 0x01, std::vector<uint8_t>{0x01, 0x02, 0x03}));
+}
+
+TEST_F(DbTest, test_add_hostap_supported_operating_class_without_non_operable_channels)
+{
+    const std::string operating_classes =
+        std::string(g_radio_path_1) + ".Capabilities.OperatingClasses";
+
+    //device always exists
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
+
+    //expectations for add_radio
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_1)).WillRepeatedly(Return(1));
+    EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
+        .WillOnce(Return(std::string(g_device_path) + ".1.Radio.1"));
+    EXPECT_CALL(*m_ambiorix, set(std::string(g_radio_path_1), "ID",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_radio_mac_1))))
+        .WillOnce(Return(true));
+
+    //prepare scenario
+    EXPECT_TRUE(
+        m_db->add_radio(tlvf::mac_from_string(g_radio_mac_1), tlvf::mac_from_string(g_bridge_mac)));
+
+    //expectations for add_hostap_supported_operating_class
+    EXPECT_CALL(*m_ambiorix, add_instance(std::string(operating_classes)))
+        .WillOnce(Return(std::string(operating_classes) + ".1"));
+    EXPECT_CALL(*m_ambiorix, set(std::string(operating_classes) + ".1", "MaxTxPower",
+                                 Matcher<const uint8_t &>(0x01)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(std::string(operating_classes) + ".1", "Class", Matcher<const uint8_t &>(0xFF)))
+        .WillOnce(Return(true));
+    // An empty channel set is rendered as an empty list, not as a missing parameter, and the
+    // count that describes it must agree.
+    EXPECT_CALL(*m_ambiorix, set(std::string(operating_classes) + ".1", "NonOperable",
+                                 Matcher<const std::string &>(std::string(""))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(std::string(operating_classes) + ".1", "NumberOfNonOperChan",
+                                 Matcher<const uint32_t &>(0U)))
+        .WillOnce(Return(true));
+
+    //execute test
+    EXPECT_TRUE(m_db->add_hostap_supported_operating_class(tlvf::mac_from_string(g_radio_mac_1),
+                                                           0xFF, 0x01, std::vector<uint8_t>{}));
 }
 
 TEST_F(DbTest, test_add_current_op_class)

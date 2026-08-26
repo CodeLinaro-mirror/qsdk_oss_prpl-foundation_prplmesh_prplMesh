@@ -44,6 +44,37 @@ constexpr std::chrono::seconds RADIO_CHANNEL_DEFERRED_UPDATE_GUARD(60);
 namespace {
 
 /**
+ * @brief Join a container of integral channel numbers into a TR-181
+ * comma-separated list parameter value.
+ *
+ * TR-181 models channel sets as a single comma-separated list parameter
+ * (e.g. OpClassChannels.{i}.ChannelList, CapableOperatingClassProfile.{i}.NonOperable)
+ * rather than as a table of one-parameter objects. An empty container yields an
+ * empty string, which is the correct representation of "no channels".
+ *
+ * The values are widened to unsigned before formatting so that uint8_t channel
+ * numbers are rendered as digits and not as characters.
+ *
+ * Note that the list form gives up the per-element "check_range [0, 255]" validation
+ * the replaced tables had: on a csv_string, libamxd reinterprets check_range as a
+ * string-length check, and check_enum is the only per-element validator, which is
+ * impractical for 0..255. The range is enforced here instead, by construction: every
+ * caller passes a container of uint8_t channel numbers, so no element can leave the
+ * range TR-181 specifies.
+ */
+template <class C> std::string channels_to_csv(const C &channels)
+{
+    std::string csv;
+    for (const auto &channel : channels) {
+        if (!csv.empty()) {
+            csv += ",";
+        }
+        csv += std::to_string(static_cast<unsigned>(channel));
+    }
+    return csv;
+}
+
+/**
  * @brief Parse a hex-encoded QoS management descriptor element.
  */
 qos_management::sDescriptorElementInfo
@@ -1539,20 +1570,22 @@ bool db::dm_add_ap_operating_classes(const std::string &radio_mac, uint8_t max_t
         return_value = false;
     }
 
-    path_to_obj = path_to_obj_instance + ".NonOperable";
-    for (auto non_op_channel : non_operable_channels) {
-        auto path_to_non_operable_instance = m_ambiorix_datamodel->add_instance(path_to_obj);
-        if (path_to_non_operable_instance.empty()) {
-            LOG(ERROR) << "Failed to add object: " << path_to_obj;
-            return_value = false;
-            continue;
-        }
-        if (!m_ambiorix_datamodel->set(path_to_non_operable_instance, "NonOpChannelNumber",
-                                       non_op_channel)) {
-            LOG(ERROR) << "Failed to set " << path_to_non_operable_instance
-                       << "NonOpChannelNumber: " << non_op_channel;
-            return_value = false;
-        }
+    const auto non_operable_list = channels_to_csv(non_operable_channels);
+    if (!m_ambiorix_datamodel->set(path_to_obj_instance, "NonOperable", non_operable_list)) {
+        LOG(ERROR) << "Failed to set " << path_to_obj_instance
+                   << " NonOperable: " << non_operable_list;
+        return_value = false;
+    }
+
+    // TR-181 defines NumberOfNonOperChan as the element count of the NonOperable list. The
+    // list is no longer a table, so nothing derives the count any more and it has to be set
+    // explicitly alongside the list it describes.
+    const auto non_operable_count = static_cast<uint32_t>(non_operable_channels.size());
+    if (!m_ambiorix_datamodel->set(path_to_obj_instance, "NumberOfNonOperChan",
+                                   non_operable_count)) {
+        LOG(ERROR) << "Failed to set " << path_to_obj_instance
+                   << " NumberOfNonOperChan: " << non_operable_count;
+        return_value = false;
     }
 
     return return_value;
@@ -9088,6 +9121,7 @@ bool db::dm_add_radio_cac_capabilities(
     ret_val &= m_ambiorix_datamodel->set(cac_method_path, "Method", method);
     ret_val &= m_ambiorix_datamodel->set(cac_method_path, "NumberOfSeconds", duration);
 
+    const std::string channel_list_param{"ChannelList"};
     for (auto &oc_ch : oc_channels) {
         auto oc_channels_path =
             m_ambiorix_datamodel->add_instance(cac_method_path + ".OpClassChannels");
@@ -9096,15 +9130,8 @@ bool db::dm_add_radio_cac_capabilities(
         }
 
         ret_val &= m_ambiorix_datamodel->set(oc_channels_path, "OpClass", oc_ch.first);
-
-        for (auto &channel : oc_ch.second) {
-            auto channels_path = m_ambiorix_datamodel->add_instance(oc_channels_path + ".Channel");
-            if (oc_channels_path.empty()) {
-                return false;
-            }
-
-            ret_val &= m_ambiorix_datamodel->set(channels_path, "Channel", channel);
-        }
+        ret_val &= m_ambiorix_datamodel->set(oc_channels_path, channel_list_param,
+                                             channels_to_csv(oc_ch.second));
     }
 
     return ret_val;
@@ -9197,6 +9224,7 @@ bool db::dm_add_radio_scan_capabilities(const Agent::sRadio &radio)
     }
 
     // Add new instances of the OpClassChannels sub-object.
+    const std::string channel_list_param{"ChannelList"};
     for (auto &oc_ch : scan_capabilities.operating_classes) {
         auto oc_channels_path =
             m_ambiorix_datamodel->add_instance(scan_capability_path + ".OpClassChannels");
@@ -9205,15 +9233,8 @@ bool db::dm_add_radio_scan_capabilities(const Agent::sRadio &radio)
         }
 
         ret_val &= m_ambiorix_datamodel->set(oc_channels_path, "OpClass", oc_ch.first);
-
-        for (auto &channel : oc_ch.second) {
-            auto channels_path = m_ambiorix_datamodel->add_instance(oc_channels_path + ".Channel");
-            if (oc_channels_path.empty()) {
-                return false;
-            }
-
-            ret_val &= m_ambiorix_datamodel->set(channels_path, "Channel", channel);
-        }
+        ret_val &= m_ambiorix_datamodel->set(oc_channels_path, channel_list_param,
+                                             channels_to_csv(oc_ch.second));
     }
 
     return ret_val;
