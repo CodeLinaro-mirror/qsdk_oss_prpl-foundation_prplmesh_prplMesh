@@ -21,6 +21,7 @@
 #include <bwl/sta_wlan_hal.h>
 #include <tlvf/WSC/EncryptedSettingsPayload.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
+#include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
 #include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
@@ -340,6 +341,8 @@ public:
             bool supports_11v;
             std::string wds_iface_name;
         };
+
+        wfa_map::tlvMetricReportingPolicy::sPolicy ap_metrics_reporting_policy{};
 
         struct sCacCapabilities {
             struct sCacMethodCapabilities {
@@ -763,6 +766,25 @@ public:
      * primary WDS state.
      */
     std::unordered_map<sMacAddr, sAssociatedStaMld> associated_sta_mlds;
+
+    struct sAssociatedStaMetricIdentity {
+        bool is_mld            = false;
+        sMacAddr reporting_mac = beerocks::net::network_utils::ZERO_MAC;
+        sMacAddr link_mac      = beerocks::net::network_utils::ZERO_MAC;
+        sMacAddr bssid         = beerocks::net::network_utils::ZERO_MAC;
+    };
+
+    /**
+     * @brief Resolve a STA identity used in an AP Metrics Response.
+     *
+     * @param [in] sta_mac Legacy STA, Client MLD, or affiliated STA MAC address.
+     * @param [in] bssid Link BSSID, or zero to resolve by affiliated STA MAC.
+     * @param [out] identity Legacy/Client MLD reporting MAC, per-link MAC, BSSID,
+     * and MLD status.
+     * @return true if a matching station is found, false otherwise.
+     */
+    bool get_associated_sta_metric_identity(const sMacAddr &sta_mac, const sMacAddr &bssid,
+                                            sAssociatedStaMetricIdentity &identity);
 
     std::string em_handle_third_party;
     bool em_ap_controller_found = false;

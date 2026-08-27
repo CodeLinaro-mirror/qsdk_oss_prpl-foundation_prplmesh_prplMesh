@@ -45,6 +45,15 @@ public:
                                            const std::vector<sMacAddr> &sta_macs,
                                            std::unordered_map<sMacAddr, SStaStats> &sta_stats,
                                            bool is_read_unicast) override;
+    /**
+     * @brief Read active affiliated STA statistics from pWHM across all radios.
+     *
+     * @param [in] sta_mac Parent AssociatedDevice MAC address.
+     * @param [out] sta_stats Active per-link statistics; empty for non-MLO stations.
+     * @return true on success, false if the parent station path is unavailable.
+     */
+    virtual bool get_affiliated_sta_stats(const std::string &sta_mac,
+                                          std::vector<sAffiliatedStaStats> &sta_stats) override;
     virtual bool update_station_qos_control_params(const std::string &vap_iface_name,
                                                    const std::string &sta_mac,
                                                    SStaQosCtrlParams &sta_qos_ctrl_params) override;
