@@ -1546,6 +1546,52 @@ uint16_t wireless_utils::get_vht_central_frequency(uint8_t channel,
     return 0;
 }
 
+static uint8_t s_get_2g_center_channel(uint8_t channel, uint8_t op_class)
+{
+    const auto channel_it = wireless_utils::channels_table_24g.find(channel);
+    if (channel_it == wireless_utils::channels_table_24g.end()) {
+        return 0;
+    }
+
+    const auto chan_info_map = channel_it->second;
+    const auto chan_info_it  = chan_info_map.find(op_class);
+    if (chan_info_it == chan_info_map.end()) {
+        return 0;
+    }
+
+    return chan_info_it->second;
+}
+
+uint8_t wireless_utils::get_center_channel(uint8_t channel, uint8_t op_class,
+                                           beerocks::eWiFiBandwidth bandwidth)
+{
+    const auto freq_type   = which_freq_op_cls(op_class);
+    const auto op_class_bw = get_bandwidth_from_op_class(op_class);
+    const bool is_320mhz   = (op_class_bw == beerocks::eWiFiBandwidth::BANDWIDTH_320);
+    const bool consistent  = is_320mhz ? (bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_320_1 ||
+                                         bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_320_2)
+                                      : (bandwidth == op_class_bw);
+    if (!consistent) {
+        LOG(ERROR) << "Bandwidth mismatch between operating class's " << int(op_class)
+                   << " bandwidth " << beerocks::utils::convert_bandwidth_to_string(op_class_bw)
+                   << " and given bandwidth "
+                   << beerocks::utils::convert_bandwidth_to_string(bandwidth);
+    }
+
+    switch (freq_type) {
+    case beerocks::eFreqType::FREQ_24G:
+        return s_get_2g_center_channel(channel, op_class);
+    case beerocks::eFreqType::FREQ_5G:
+        return get_center_channel(channel, freq_type, bandwidth);
+    case beerocks::eFreqType::FREQ_6G:
+        return get_center_channel(channel, freq_type, bandwidth);
+    default:
+        break;
+    }
+
+    return 0;
+}
+
 /**
  * @brief get operating class number by channel and channel bandwidth
  *
