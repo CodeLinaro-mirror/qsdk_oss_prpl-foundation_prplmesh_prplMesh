@@ -1921,6 +1921,7 @@ bool dynamic_channel_selection_r2_task::handle_tlv_profile2_cac_status_report(
            << ", countdown: " << channelCountdown << "]" << std::endl;
     }
 
+    database.dm_clear_cac_status_reports(agent);
     if (!database.dm_add_cac_status_report(agent, available_channels, non_occupancy_channels,
                                            active_channels)) {
         LOG(ERROR) << "Failed to add CAC Status Report to DM";
