@@ -149,6 +149,19 @@ public:
     virtual bool sta_allow(const sMacAddr &mac, const sMacAddr &bssid) = 0;
 
     /**
+     * @brief Allow a temporarily denied station with the given MAC address to connect.
+     *
+     * @param [in] mac The MAC address of the station.
+     * @param [in] bssid The BSSID to which the operation is applicable.
+     *
+     * @return true on success or false on error.
+     */
+    virtual bool sta_allow_temp(const sMacAddr &mac, const sMacAddr &bssid)
+    {
+        return sta_allow(mac, bssid);
+    }
+
+    /**
      * @brief Deny the station with the given MAC address from connecting to the AP.
      *
      * @param [in] mac The MAC address of the station.        
@@ -157,6 +170,19 @@ public:
      * @return true on success or false on error.
      */
     virtual bool sta_deny(const sMacAddr &mac, const sMacAddr &bssid) = 0;
+
+    /**
+     * @brief Temporarily deny the station with the given MAC address from connecting to the AP.
+     *
+     * @param [in] mac The MAC address of the station.
+     * @param [in] bssid The BSSID to which the operation is applicable.
+     *
+     * @return true on success or false on error.
+     */
+    virtual bool sta_deny_temp(const sMacAddr &mac, const sMacAddr &bssid)
+    {
+        return sta_deny(mac, bssid);
+    }
 
     /**
      * @brief Clears Blacklist

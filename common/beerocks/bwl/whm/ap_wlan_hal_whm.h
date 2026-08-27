@@ -40,7 +40,9 @@ public:
     set_channel(int chan, beerocks::eWiFiBandwidth bw = beerocks::eWiFiBandwidth::BANDWIDTH_UNKNOWN,
                 int center_channel = 0) override;
     virtual bool sta_allow(const sMacAddr &mac, const sMacAddr &bssid) override;
+    virtual bool sta_allow_temp(const sMacAddr &mac, const sMacAddr &bssid) override;
     virtual bool sta_deny(const sMacAddr &mac, const sMacAddr &bssid) override;
+    virtual bool sta_deny_temp(const sMacAddr &mac, const sMacAddr &bssid) override;
     virtual bool clear_blacklist() override;
     virtual bool sta_acceptlist_modify(const sMacAddr &mac, const sMacAddr &bssid,
                                        bwl::sta_acl_action action) override;

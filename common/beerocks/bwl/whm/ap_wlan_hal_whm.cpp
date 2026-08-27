@@ -300,6 +300,28 @@ bool ap_wlan_hal_whm::sta_allow(const sMacAddr &mac, const sMacAddr &bssid)
     return true;
 }
 
+bool ap_wlan_hal_whm::sta_allow_temp(const sMacAddr &mac, const sMacAddr &bssid)
+{
+    auto vap_id = get_vap_id_with_mac(tlvf::mac_to_string(bssid));
+    if (vap_id < 0) {
+        LOG(ERROR) << "no vap has bssid " << bssid;
+        return false;
+    }
+
+    const std::string &ifname = m_radio_info.available_vaps[vap_id].bss;
+    std::string mac_filter_path = wbapi_utils::search_path_mac_filtering(ifname);
+
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("mac", tlvf::mac_to_string(mac));
+    if (!m_ambiorix_cl.call(mac_filter_path, "delTempEntry", args, result)) {
+        LOG(ERROR) << "MACFiltering delTempEntry failed!";
+        return false;
+    }
+
+    return true;
+}
+
 bool ap_wlan_hal_whm::sta_deny(const sMacAddr &mac, const sMacAddr &bssid)
 {
     auto vap_id = get_vap_id_with_mac(tlvf::mac_to_string(bssid));
@@ -360,6 +382,28 @@ bool ap_wlan_hal_whm::sta_deny(const sMacAddr &mac, const sMacAddr &bssid)
     return true;
 }
 
+bool ap_wlan_hal_whm::sta_deny_temp(const sMacAddr &mac, const sMacAddr &bssid)
+{
+    auto vap_id = get_vap_id_with_mac(tlvf::mac_to_string(bssid));
+    if (vap_id < 0) {
+        LOG(ERROR) << "no vap has bssid " << bssid;
+        return false;
+    }
+
+    const std::string &ifname = m_radio_info.available_vaps[vap_id].bss;
+    std::string mac_filter_path = wbapi_utils::search_path_mac_filtering(ifname);
+
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("mac", tlvf::mac_to_string(mac));
+    if (!m_ambiorix_cl.call(mac_filter_path, "addTempEntry", args, result)) {
+        LOG(ERROR) << "MACFiltering addTempEntry failed!";
+        return false;
+    }
+
+    return true;
+}
+
 bool ap_wlan_hal_whm::clear_blacklist()
 {
     bool ret = true;
@@ -370,23 +414,29 @@ bool ap_wlan_hal_whm::clear_blacklist()
 
         AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
         new_obj.add_child("Mode", "Off");
-        ret = m_ambiorix_cl.update_object(mac_filter_path, new_obj);
+        if (!m_ambiorix_cl.update_object(mac_filter_path, new_obj)) {
+            LOG(ERROR) << "clear_blacklist: failed to set MACFiltering Mode to Off";
+            ret = false;
+        }
 
-        // Clear Entries
-        auto entries = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
-            wbapi_utils::search_path_mac_filtering_entries(vap_info.second.bss));
-        if (entries) {
+        auto clear_entries = [&](const std::string &entries_path, const char *method) {
+            auto entries =
+                m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(entries_path);
+            if (!entries) {
+                return;
+            }
+
             int entry_index{};
             for (auto const &it : *entries) {
                 auto &entry = it.second;
                 entry_index++;
 
-                // Getting STA MACAddress
                 std::string sta_mac{};
                 entry.read_child(sta_mac, "MACAddress");
                 if (sta_mac.empty()) {
                     LOG(ERROR) << "clear_blacklist: failed to get MACAddress from Entry #"
                                << entry_index;
+                    ret = false;
                     continue;
                 }
 
@@ -394,18 +444,23 @@ bool ap_wlan_hal_whm::clear_blacklist()
                            << " MACAddress: " << sta_mac;
                 AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
                 args.add_child("mac", sta_mac);
-                if (m_ambiorix_cl.call(mac_filter_path, "delEntry", args, result)) {
-                    LOG(ERROR) << "clear_blacklist: delEntry failed!";
+                if (!m_ambiorix_cl.call(mac_filter_path, method, args, result)) {
+                    LOG(ERROR) << "clear_blacklist: " << method << " failed!";
+                    ret = false;
                 }
             }
-        }
+        };
+
+        clear_entries(wbapi_utils::search_path_mac_filtering_entries(vap_info.second.bss),
+                      "delEntry");
+        clear_entries(wbapi_utils::search_path_mac_filtering_temp_entries(vap_info.second.bss),
+                      "delTempEntry");
     }
 
     if (!ret) {
         LOG(ERROR) << "clear_blacklist failed!";
-        return false;
     }
-    return true;
+    return ret;
 }
 
 bool ap_wlan_hal_whm::sta_acceptlist_modify(const sMacAddr &mac, const sMacAddr &bssid,

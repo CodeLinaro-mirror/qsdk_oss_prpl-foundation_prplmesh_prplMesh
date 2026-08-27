@@ -1672,7 +1672,11 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                                           wfa_map::tlvProfile2ReasonCode::AP_INITIATED);
             }
 
-            ap_wlan_hal->sta_deny(sta_info.mac, request->bssid());
+            if (request->validity_period_sec()) {
+                ap_wlan_hal->sta_deny_temp(sta_info.mac, request->bssid());
+            } else {
+                ap_wlan_hal->sta_deny(sta_info.mac, request->bssid());
+            }
 
             // Check if validity period is set then add it to the "disallowed client timeouts" list
             // This list will be polled in ap_manager_fsm() while in operational state through method
@@ -1736,11 +1740,16 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                 return;
             }
 
-            remove_client_from_disallowed_list(std::get<1>(sta_tuple), request->bssid());
+            const bool temporary =
+                remove_client_from_disallowed_list(std::get<1>(sta_tuple), request->bssid());
 
             LOG(DEBUG) << "CLIENT_ALLOW: mac = " << tlvf::mac_to_string(std::get<1>(sta_tuple))
                        << ", bssid = " << tlvf::mac_to_string(request->bssid());
-            ap_wlan_hal->sta_allow(std::get<1>(sta_tuple), request->bssid());
+            if (temporary) {
+                ap_wlan_hal->sta_allow_temp(std::get<1>(sta_tuple), request->bssid());
+            } else {
+                ap_wlan_hal->sta_allow(std::get<1>(sta_tuple), request->bssid());
+            }
         }
         break;
     }
@@ -3978,6 +3987,8 @@ bool ApManager::handle_ap_enabled(int vap_id)
     if (ap_wlan_hal->get_hal_conf().certification_mode) {
         if (!ap_wlan_hal->clear_blacklist()) {
             LOG(ERROR) << "Failed to clear blacklist!!!";
+        } else {
+            m_disallowed_clients.clear();
         }
     }
 
@@ -4075,17 +4086,19 @@ void ApManager::send_steering_return_status(beerocks_message::eActionOp_APMANAGE
     return;
 }
 
-void ApManager::remove_client_from_disallowed_list(const sMacAddr &mac, const sMacAddr &bssid)
+bool ApManager::remove_client_from_disallowed_list(const sMacAddr &mac, const sMacAddr &bssid)
 {
     auto it = std::find_if(m_disallowed_clients.begin(), m_disallowed_clients.end(),
                            [&](const son::ApManager::disallowed_client_t &element) {
                                return ((element.mac == mac) && (element.bssid == bssid));
                            });
 
-    if (it != m_disallowed_clients.end()) {
-        // remove client from the disallow list
-        it = m_disallowed_clients.erase(it);
+    if (it == m_disallowed_clients.end()) {
+        return false;
     }
+
+    m_disallowed_clients.erase(it);
+    return true;
 }
 
 void ApManager::allow_expired_clients()
@@ -4094,7 +4107,7 @@ void ApManager::allow_expired_clients()
     for (auto it = m_disallowed_clients.begin(); it != m_disallowed_clients.end();) {
         if (std::chrono::steady_clock::now() > it->timeout) {
             LOG(DEBUG) << "CLIENT_ALLOW: mac = " << it->mac << ", bssid = " << it->bssid;
-            ap_wlan_hal->sta_allow(it->mac, it->bssid);
+            ap_wlan_hal->sta_allow_temp(it->mac, it->bssid);
             it = m_disallowed_clients.erase(it);
         } else {
             it++;
