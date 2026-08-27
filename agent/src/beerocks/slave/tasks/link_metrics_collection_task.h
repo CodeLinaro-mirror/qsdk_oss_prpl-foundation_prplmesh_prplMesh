@@ -17,6 +17,7 @@
 #include <tlvf/ieee_1905_1/eLinkMetricsType.h>
 #include <tlvf/ieee_1905_1/eMediaType.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
+#include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsQuery.h>
 
@@ -26,6 +27,7 @@
 #include <cstddef>
 #include <cstring>
 #include <set>
+#include <unordered_set>
 
 #include "../helpers/link_metrics/link_metrics.h"
 
@@ -76,11 +78,14 @@ private:
     void handle_ap_metrics_response(ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &src_mac);
 
     /**
-     * @brief Sends an AP Metrics Query message for each bssid on 'bssid_list' to the Fronthaul.
-     * If the 'bssid_list' is empty, sends a query on each bssid that exists on the Agent.
+     * @brief Collects AP metrics from every local BSSID through the Fronthaul.
+     *
+     * The bssid_list limits the BSSIDs included in the external response. An empty list requests
+     * every local BSSID. Internal collection still covers every BSSID so the monitor owning a
+     * Client MLD can provide metrics for affiliated links on other radios.
      *
      * @param mid MID of the message to be sent.
-     * @param bssid_list List of bssids to send a query on.
+     * @param bssid_list BSSIDs to include in the external response.
      * @return true on success, otherwise false.
      */
     bool send_ap_metric_query_message(uint16_t mid, const std::unordered_set<sMacAddr> &bssid_list =
@@ -235,6 +240,8 @@ private:
     };
 
     std::unordered_map<uint16_t, std::vector<sApMetricsQuery>> m_ap_metric_query;
+    /** BSSIDs requested by the Controller, excluding extra internal collection BSSIDs. */
+    std::unordered_map<uint16_t, std::unordered_set<sMacAddr>> m_ap_metric_query_requested_bssids;
     /**
      * Number of monitor AP_METRICS_RESPONSE messages expected per MID.
      */
@@ -242,6 +249,8 @@ private:
 
     struct sStaTrafficStats {
         sMacAddr sta_mac;
+        sMacAddr bssid;
+        bool is_mld;
         uint32_t byte_sent;
         uint32_t byte_received;
         uint32_t packets_sent;
@@ -256,8 +265,15 @@ private:
         wfa_map::tlvAssociatedStaLinkMetrics::sBssidInfo bssid_info;
     };
 
+    struct sStaExtendedLinkMetrics {
+        sMacAddr sta_mac;
+        wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics metrics;
+    };
+
     struct sStaQosCtrlParams {
         sMacAddr sta_mac;
+        sMacAddr bssid;
+        bool is_mld;
         int8_t tid_queue_size[IEEE80211_QOS_TID_MAX_UP];
     };
 
@@ -294,6 +310,7 @@ private:
 
     struct sAffiliatedStaMetrics {
         sMacAddr sta_mac;
+        sMacAddr bssid;
         uint32_t bytes_sent;
         uint32_t bytes_received;
         uint32_t packets_sent;
@@ -306,6 +323,7 @@ private:
         sApExtendedMetrics extended_metric;
         std::vector<sStaTrafficStats> sta_traffic_stats;
         std::vector<sStaLinkMetrics> sta_link_metrics;
+        std::vector<sStaExtendedLinkMetrics> sta_extended_link_metrics;
         std::vector<sStaQosCtrlParams> sta_wifi_6_status;
         sAffiliatedApMetrics affiliated_ap_metrics;
         std::vector<sAffiliatedStaMetrics> affiliated_sta_metrics;

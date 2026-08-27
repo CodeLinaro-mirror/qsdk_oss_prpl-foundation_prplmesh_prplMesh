@@ -45,6 +45,8 @@ public:
                                            const std::vector<sMacAddr> &sta_macs,
                                            std::unordered_map<sMacAddr, SStaStats> &sta_stats,
                                            bool is_read_unicast) override;
+    virtual bool get_affiliated_sta_stats(const std::string &sta_mac,
+                                          std::vector<sAffiliatedStaStats> &sta_stats) override;
     virtual bool update_station_qos_control_params(const std::string &vap_iface_name,
                                                    const std::string &sta_mac,
                                                    SStaQosCtrlParams &sta_qos_ctrl_params) override;
