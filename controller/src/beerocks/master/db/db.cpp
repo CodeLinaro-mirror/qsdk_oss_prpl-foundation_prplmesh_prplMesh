@@ -6248,6 +6248,45 @@ void db::disable_periodic_link_metrics_requests()
                               config.link_metrics_request_interval_seconds.count());
 }
 
+std::shared_ptr<Agent::sAPMLD::sStaMLD> db::get_sta_mld(const sMacAddr &agent_mac,
+                                                        const sMacAddr &sta_mld_mac)
+{
+    auto agent = m_agents.get(agent_mac);
+    if (!agent) {
+        return {};
+    }
+
+    for (auto &ap_mld : agent->ap_mlds) {
+        auto sta_mld = ap_mld.second.sta_mlds.get(sta_mld_mac);
+        if (sta_mld) {
+            return sta_mld;
+        }
+    }
+
+    return {};
+}
+
+std::shared_ptr<Agent::sAPMLD::sStaMLD::sAffiliatedSta>
+db::get_affiliated_sta(const sMacAddr &agent_mac, const sMacAddr &sta_mac, const sMacAddr &bssid)
+{
+    auto agent = m_agents.get(agent_mac);
+    if (!agent) {
+        return {};
+    }
+
+    for (auto &ap_mld : agent->ap_mlds) {
+        for (auto &sta_mld : ap_mld.second.sta_mlds) {
+            auto affiliated_sta = sta_mld.second->affiliated_stas.get(sta_mac);
+            if (affiliated_sta && (bssid == beerocks::net::network_utils::ZERO_MAC ||
+                                   affiliated_sta->bssid == bssid)) {
+                return affiliated_sta;
+            }
+        }
+    }
+
+    return {};
+}
+
 bool db::dm_set_sta_link_metrics(const sMacAddr &sta_mac, uint32_t downlink_est_mac_data_rate,
                                  uint32_t uplink_est_mac_data_rate, uint8_t signal_strength)
 {
@@ -6287,6 +6326,44 @@ bool db::dm_set_sta_link_metrics(const sMacAddr &sta_mac, uint32_t downlink_est_
                                          uplink_est_mac_data_rate);
     ret_val &= m_ambiorix_datamodel->set(station->dm_path, "SignalStrength", signal_strength);
 
+    return ret_val;
+}
+
+bool db::dm_set_sta_link_metrics(const sMacAddr &agent_mac, const sMacAddr &sta_mac,
+                                 const sMacAddr &bssid, uint32_t downlink_est_mac_data_rate,
+                                 uint32_t uplink_est_mac_data_rate, uint8_t signal_strength)
+{
+    auto affiliated_sta = get_affiliated_sta(agent_mac, sta_mac, bssid);
+    if (!affiliated_sta) {
+        auto station = get_station(sta_mac);
+        if (!station) {
+            LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
+            return false;
+        }
+
+        auto parent_bss = station->get_bss();
+        if (!parent_bss || parent_bss->bssid != bssid) {
+            LOG(INFO) << "Reported STA BSSID is not matching with datamodel. Reported bssid:"
+                      << bssid;
+            return false;
+        }
+
+        return dm_set_sta_link_metrics(sta_mac, downlink_est_mac_data_rate,
+                                       uplink_est_mac_data_rate, signal_strength);
+    }
+
+    if (affiliated_sta->dm_path.empty()) {
+        LOG(ERROR) << "Data Model path is empty for Affiliated STA: " << sta_mac;
+        return false;
+    }
+
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "EstMACDataRateDownlink",
+                                         downlink_est_mac_data_rate);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "EstMACDataRateUplink",
+                                         uplink_est_mac_data_rate);
+    ret_val &=
+        m_ambiorix_datamodel->set(affiliated_sta->dm_path, "SignalStrength", signal_strength);
     return ret_val;
 }
 
@@ -8237,7 +8314,58 @@ bool db::dm_set_sta_extended_link_metrics(
     return ret_val;
 }
 
+bool db::dm_set_sta_extended_link_metrics(
+    const sMacAddr &agent_mac, const sMacAddr &sta_mac,
+    const wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics &metrics)
+{
+    auto affiliated_sta = get_affiliated_sta(agent_mac, sta_mac, metrics.bssid);
+    if (!affiliated_sta) {
+        auto station = get_station(sta_mac);
+        if (!station) {
+            LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
+            return false;
+        }
+
+        auto parent_bss = station->get_bss();
+        if (!parent_bss || parent_bss->bssid != metrics.bssid) {
+            LOG(INFO) << "Reported STA BSSID is not matching with datamodel. Reported bssid:"
+                      << metrics.bssid;
+            return false;
+        }
+
+        return dm_set_sta_extended_link_metrics(sta_mac, metrics);
+    }
+
+    if (affiliated_sta->dm_path.empty()) {
+        LOG(ERROR) << "Data Model path is empty for Affiliated STA: " << sta_mac;
+        return false;
+    }
+
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "LastDataDownlinkRate",
+                                         metrics.last_data_down_link_rate);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "LastDataUplinkRate",
+                                         metrics.last_data_up_link_rate);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "UtilizationReceive",
+                                         metrics.utilization_receive);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "UtilizationTransmit",
+                                         metrics.utilization_transmit);
+    return ret_val;
+}
+
 bool db::dm_set_sta_traffic_stats(const sMacAddr &sta_mac, sAssociatedStaTrafficStats &stats)
+{
+    auto station = get_station(sta_mac);
+    if (!station) {
+        LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
+        return false;
+    }
+
+    return dm_set_sta_traffic_stats(station->al_mac, sta_mac, stats);
+}
+
+bool db::dm_set_sta_traffic_stats(const sMacAddr &agent_mac, const sMacAddr &sta_mac,
+                                  sAssociatedStaTrafficStats &stats)
 {
     bool ret_val = true;
     auto station = get_station(sta_mac);
@@ -8271,60 +8399,54 @@ bool db::dm_set_sta_traffic_stats(const sMacAddr &sta_mac, sAssociatedStaTraffic
         }
     }
 
-    // Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.
-    if (station->dm_path.empty()) {
+    // MLO aggregate traffic belongs to STAMLD; legacy traffic belongs to STA.
+    std::string dm_path = station->dm_path;
+    bool is_mld         = false;
+    auto sta_mld        = get_sta_mld(agent_mac, sta_mac);
+    if (sta_mld && !sta_mld->dm_path.empty()) {
+        dm_path = sta_mld->dm_path;
+        is_mld  = true;
+    } else if (!station->sta_mld_configuration.dm_path.empty()) {
+        dm_path = station->sta_mld_configuration.dm_path;
+        is_mld  = true;
+    }
+    if (dm_path.empty()) {
         return true;
     }
 
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "BytesSent", stats.m_byte_sent);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "BytesReceived", stats.m_byte_received);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "PacketsSent", stats.m_packets_sent);
-    ret_val &=
-        m_ambiorix_datamodel->set(station->dm_path, "PacketsReceived", stats.m_packets_received);
-    ret_val &=
-        m_ambiorix_datamodel->set(station->dm_path, "RetransCount", stats.m_retransmission_count);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "ErrorsSent", stats.m_tx_packets_error);
-    ret_val &=
-        m_ambiorix_datamodel->set(station->dm_path, "ErrorsReceived", stats.m_rx_packets_error);
-    ret_val &= m_ambiorix_datamodel->set_current_time(station->dm_path);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "BytesSent", stats.m_byte_sent);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "BytesReceived", stats.m_byte_received);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "PacketsSent", stats.m_packets_sent);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "PacketsReceived", stats.m_packets_received);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "RetransCount", stats.m_retransmission_count);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "ErrorsSent", stats.m_tx_packets_error);
+    ret_val &= m_ambiorix_datamodel->set(dm_path, "ErrorsReceived", stats.m_rx_packets_error);
+    if (!is_mld) {
+        ret_val &= m_ambiorix_datamodel->set_current_time(dm_path);
+    }
 
     return ret_val;
 }
 
-bool db::dm_set_affiliated_sta_metrics(const sMacAddr &sta_mac,
+bool db::dm_set_affiliated_sta_metrics(const sMacAddr &agent_mac, const sMacAddr &sta_mac,
                                        sAffiliatedStaMetrics &affl_sta_metrics)
 {
-    bool ret_val = true;
-    auto station = get_station(sta_mac);
-    if (!station) {
-        LOG(ERROR) << "Failed to get station on db with mac: " << sta_mac;
-        return false;
-    }
-
-    std::string affiliated_sta_dm_path = "";
-
-    // Get Affiliated STA DM path from Station DB
-    for (auto &affiliated_sta : station->sta_mld_configuration.affiliated_stas) {
-        if (affiliated_sta.affiliated_sta_mac == sta_mac) {
-            affiliated_sta_dm_path = affiliated_sta.dm_path;
-            break;
-        }
-    }
-
-    if (affiliated_sta_dm_path.empty()) {
+    auto affiliated_sta = get_affiliated_sta(agent_mac, sta_mac);
+    if (!affiliated_sta || affiliated_sta->dm_path.empty()) {
         LOG(ERROR) << "Failed to get Data Model path for Affiliated STA: " << sta_mac;
         return false;
     }
 
-    ret_val &=
-        m_ambiorix_datamodel->set(affiliated_sta_dm_path, "BytesSent", affl_sta_metrics.bytes_sent);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "BytesReceived",
+    bool ret_val = true;
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "BytesSent",
+                                         affl_sta_metrics.bytes_sent);
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "BytesReceived",
                                          affl_sta_metrics.bytes_received);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "PacketsSent",
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "PacketsSent",
                                          affl_sta_metrics.packets_sent);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "PacketsReceived",
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "PacketsReceived",
                                          affl_sta_metrics.packets_received);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "ErrorsSent",
+    ret_val &= m_ambiorix_datamodel->set(affiliated_sta->dm_path, "ErrorsSent",
                                          affl_sta_metrics.packets_sent_errors);
 
     return ret_val;
@@ -8342,10 +8464,8 @@ bool db::dm_add_tid_queue_sizes(
         return false;
     }
 
-    bool ret_val = true;
-
-    // Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.TIDQueueSizes.{i}.
-    for (auto &tid_queue : tid_queue_vector) {
+    bool ret_val             = true;
+    const auto add_tid_queue = [&](const auto &tid_queue) {
         auto tid_queue_size_path =
             m_ambiorix_datamodel->add_instance(station.dm_path + ".TIDQueueSizes");
         if (tid_queue_size_path.empty()) {
@@ -8354,6 +8474,25 @@ bool db::dm_add_tid_queue_sizes(
 
         ret_val &= m_ambiorix_datamodel->set(tid_queue_size_path, "TID", tid_queue.tid);
         ret_val &= m_ambiorix_datamodel->set(tid_queue_size_path, "Size", tid_queue.queue_size);
+        return true;
+    };
+
+    // TID is unique and a new instance defaults to TID 0. Add nonzero TIDs
+    // first so each instance can be assigned its unique key before adding the
+    // single TID 0 instance.
+    for (const auto &tid_queue : tid_queue_vector) {
+        if (tid_queue.tid != 0) {
+            if (!add_tid_queue(tid_queue)) {
+                return false;
+            }
+        }
+    }
+    for (const auto &tid_queue : tid_queue_vector) {
+        if (tid_queue.tid == 0) {
+            if (!add_tid_queue(tid_queue)) {
+                return false;
+            }
+        }
     }
 
     return ret_val;
