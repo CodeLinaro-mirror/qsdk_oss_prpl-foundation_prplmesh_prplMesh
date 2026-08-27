@@ -1790,6 +1790,24 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
 
     sSelectedChannel best_channel = {};
 
+    std::vector<std::pair<uint8_t, beerocks::eWiFiBandwidth>> op_class_bw_pairs;
+    for (const auto &op_it : son::wireless_utils::operating_classes_list) {
+        const auto op_class_num = op_it.first;
+        const auto op_class_bw  = son::wireless_utils::get_bandwidth_from_op_class(op_class_num);
+        const auto op_class_freq_type = son::wireless_utils::which_freq_op_cls(op_class_num);
+        if (op_class_freq_type == freq_type) {
+            if (freq_type == beerocks::FREQ_6G &&
+                op_class_bw == beerocks::eWiFiBandwidth::BANDWIDTH_320) {
+                constexpr auto bw1 = beerocks::eWiFiBandwidth::BANDWIDTH_320_1;
+                constexpr auto bw2 = beerocks::eWiFiBandwidth::BANDWIDTH_320_2;
+                op_class_bw_pairs.push_back({op_class_num, bw1});
+                op_class_bw_pairs.push_back({op_class_num, bw2});
+            } else {
+                op_class_bw_pairs.push_back({op_class_num, op_class_bw});
+            }
+        }
+    }
+
     for (const auto &channel_iter : radio->channels_list) {
         const auto channel_number = channel_iter.first;
         const auto &channel_info  = channel_iter.second;
@@ -1799,20 +1817,18 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
             continue;
         }
 
+        std::unordered_set<beerocks::eWiFiBandwidth> supported_bws;
         for (auto &bw_info : channel_info.supported_bw_list) {
-            const auto bandwidth = bw_info.bandwidth;
-            if (freq_type == beerocks::eFreqType::FREQ_6G &&
-                ((channel_number <= BANDWIDTH_320_2_LOWER_CHANNEL_LIMIT &&
-                  bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_320_2) ||
-                 (channel_number >= BANDWIDTH_320_1_UPPER_CHANNEL_LIMIT &&
-                  bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_320_1))) {
-                continue;
-            }
-            const auto operating_class = son::wireless_utils::get_operating_class_by_channel(
-                beerocks::WifiChannel(channel_number, freq_type, bandwidth));
+            const auto bw = bw_info.bandwidth;
+            supported_bws.insert(bw);
+        }
 
-            if (operating_class == 0) {
-                // Skip invalid operating class
+        for (const auto &op_class_bw_it : op_class_bw_pairs) {
+            const auto operating_class = op_class_bw_it.first;
+            const auto bandwidth       = op_class_bw_it.second;
+
+            const bool bw_not_supported = (supported_bws.find(bandwidth) == supported_bws.end());
+            if (bw_not_supported) {
                 continue;
             }
 
