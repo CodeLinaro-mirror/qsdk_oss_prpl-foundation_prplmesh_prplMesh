@@ -118,7 +118,6 @@ void CapabilityReportingTask::handle_client_capability_query(ieee1905_1::CmduMes
         LOG(ERROR) << "addClass wfa_map::tlvClientInfo has failed";
         return;
     }
-    client_info_tlv_t->bssid()      = client_info_tlv_r->bssid();
     client_info_tlv_t->client_mac() = client_info_tlv_r->client_mac();
 
     auto client_capability_report_tlv = m_cmdu_tx.addClass<wfa_map::tlvClientCapabilityReport>();
@@ -127,42 +126,71 @@ void CapabilityReportingTask::handle_client_capability_query(ieee1905_1::CmduMes
         return;
     }
 
-    // Check if it is an error scenario - if the STA specified in the Client Capability Query
-    // message is not associated with any of the BSS operated by the Multi-AP Agent [ though the
-    // TLV does contain a BSSID, the specification says that we should answer if the client is
-    // associated with any BSS on this agent.]
-    auto radio = db->get_radio_by_mac(client_info_tlv_r->client_mac(), AgentDB::eMacType::CLIENT);
-    if (!radio) {
-        LOG(ERROR) << "radio for client mac " << client_info_tlv_r->client_mac() << " not found";
+    const auto &client_mac           = client_info_tlv_r->client_mac();
+    auto response_bssid              = client_info_tlv_r->bssid();
+    const uint8_t *association_frame = nullptr;
+    size_t association_frame_length  = 0;
+    bool client_found                = false;
 
-        // If it is an error scenario, set Success status to 0x01 = Failure and do nothing after it.
-        client_capability_report_tlv->result_code() = wfa_map::tlvClientCapabilityReport::FAILURE;
+    // Per EasyMesh R6 sections 9.2 and 17.2.18, locate the client by its MAC across any BSS
+    // operated by the Agent and report the BSSID/AP MLD MAC from the stored association.
+    auto mld_it = db->associated_sta_mlds.find(client_mac);
+    if (mld_it != db->associated_sta_mlds.end()) {
+        client_found             = true;
+        response_bssid           = mld_it->second.mld_config.ap_mld_mac;
+        association_frame        = mld_it->second.association_frame.data();
+        association_frame_length = mld_it->second.association_frame.size();
+    } else {
+        auto radio = db->get_radio_by_mac(client_mac, AgentDB::eMacType::CLIENT);
+        if (radio) {
+            auto client_it = radio->associated_clients.find(client_mac);
+            if (client_it != radio->associated_clients.end()) {
+                client_found             = true;
+                response_bssid           = client_it->second.bssid;
+                association_frame        = client_it->second.association_frame.data();
+                association_frame_length = client_it->second.association_frame_length;
+            }
+        }
+    }
+    client_info_tlv_t->bssid() = response_bssid;
 
-        LOG(DEBUG) << "Result Code: FAILURE";
-        LOG(DEBUG) << "STA specified in the Client Capability Query message is not associated with "
-                      "any of the BSS operated by the Multi-AP Agent ";
-        // Add an Error Code TLV
-        auto error_code_tlv = m_cmdu_tx.addClass<wfa_map::tlvErrorCode>();
-        if (!error_code_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvErrorCode has failed";
+    auto failure_reason =
+        wfa_map::tlvErrorCode::STA_NOT_ASSOCIATED_WITH_ANY_BSS_OPERATED_BY_THE_AGENT;
+    if (client_found) {
+        if (association_frame_length > 0) {
+            // Add frame body of the most recently received (Re)Association Request frame from this
+            // client.
+            if (!client_capability_report_tlv->set_association_frame(association_frame,
+                                                                     association_frame_length)) {
+                LOG(ERROR) << "Failed to set association frame for client mac " << client_mac;
+                return;
+            }
+
+            client_capability_report_tlv->result_code() =
+                wfa_map::tlvClientCapabilityReport::SUCCESS;
+            LOG(DEBUG) << "Result Code: SUCCESS";
+            LOG(DEBUG) << "Send a CLIENT_CAPABILITY_REPORT_MESSAGE back to controller";
+            m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
             return;
         }
-        error_code_tlv->reason_code() =
-            wfa_map::tlvErrorCode::STA_NOT_ASSOCIATED_WITH_ANY_BSS_OPERATED_BY_THE_AGENT;
-        error_code_tlv->sta_mac() = client_info_tlv_r->client_mac();
-        m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
-        return;
+
+        LOG(ERROR) << "Association frame is empty for client mac: " << client_mac;
+        failure_reason = wfa_map::tlvErrorCode::CLIENT_CAPABILITY_REPORT_UNSPECIFIED_FAILURE;
+    } else {
+        LOG(ERROR) << "Client capability not found mac: " << client_mac;
     }
 
-    client_capability_report_tlv->result_code() = wfa_map::tlvClientCapabilityReport::SUCCESS;
-    LOG(DEBUG) << "Result Code: SUCCESS";
+    client_capability_report_tlv->result_code() = wfa_map::tlvClientCapabilityReport::FAILURE;
+    LOG(DEBUG) << "Result Code: FAILURE";
 
-    // Add frame body of the most recently received (Re)Association Request frame from this client.
-    auto &client_info = radio->associated_clients.at(client_info_tlv_r->client_mac());
-    client_capability_report_tlv->set_association_frame(client_info.association_frame.data(),
-                                                        client_info.association_frame_length);
-
-    LOG(DEBUG) << "Send a CLIENT_CAPABILITY_REPORT_MESSAGE back to controller";
+    // Add an Error Code TLV
+    auto error_code_tlv = m_cmdu_tx.addClass<wfa_map::tlvErrorCode>();
+    if (!error_code_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvErrorCode has failed";
+        return;
+    }
+    error_code_tlv->reason_code() = failure_reason;
+    error_code_tlv->sta_mac()     = client_mac;
     m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 
