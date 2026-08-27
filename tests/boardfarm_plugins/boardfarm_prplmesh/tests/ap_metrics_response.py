@@ -104,6 +104,11 @@ class ApMetricsResponse(PrplMeshBaseTest):
                 self.fail("STA traffic stats with wrong MAC {} instead of {}".format(
                     sta_stats_1.assoc_sta_traffic_stats_mac_addr, sta1.mac))
 
+        extended_link_metrics_type = self.ieee1905['eTlvTypeMap'][
+            'TLV_ASSOCIATED_STA_EXTENDED_LINK_METRICS']
+        if any(tlv.tlv_type == extended_link_metrics_type for tlv in response.ieee1905_tlvs):
+            self.fail("Traffic Stats policy unexpectedly added Extended Link Metrics")
+
         debug("Send AP Metrics query message to agent 2 expecting"
               " STA Metrics for {}".format(sta2.mac))
         self.send_and_check_policy_config_metric_reporting(controller, agent2, False, True)
@@ -138,6 +143,9 @@ class ApMetricsResponse(PrplMeshBaseTest):
             elif sta_metrics_2.bss[0].bssid != vap2.bssid:
                 self.fail("STA metrics with wrong BSSID {} instead of {}".format(
                     sta_metrics_2.bss[0].bssid, vap2.bssid))
+
+        debug("Check AP metrics response has STA Extended Link Metrics")
+        self.check_cmdu_has_tlv_single(response, extended_link_metrics_type)
 
         sta1.wifi_disconnect(vap1)
         sta2.wifi_disconnect(vap2)

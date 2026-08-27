@@ -12,6 +12,8 @@
 #include "base_wlan_hal_types.h"
 #include <stdint.h>
 
+#include <vector>
+
 namespace bwl {
 
 const int WIFI_SSID_MAX_LENGTH = 32 + 1 + 3; // 1 byte for null termination + 3 for alignment
@@ -67,12 +69,12 @@ struct sMldStats {
     uint32_t tx_packets_cnt     = 0;
     uint32_t rx_packets_cnt     = 0;
     uint32_t tx_packets_err_cnt = 0;
-    uint32_t tx_ucast_bytes     = 0;
-    uint32_t rx_ucast_bytes     = 0;
-    uint32_t tx_mcast_bytes     = 0;
-    uint32_t rx_mcast_bytes     = 0;
-    uint32_t tx_bcast_bytes     = 0;
-    uint32_t rx_bcast_bytes     = 0;
+    uint64_t tx_ucast_bytes     = 0;
+    uint64_t rx_ucast_bytes     = 0;
+    uint64_t tx_mcast_bytes     = 0;
+    uint64_t rx_mcast_bytes     = 0;
+    uint64_t tx_bcast_bytes     = 0;
+    uint64_t rx_bcast_bytes     = 0;
 };
 
 struct SVapStats {
@@ -104,11 +106,18 @@ struct SVapStats {
 };
 
 struct sAffiliatedStaStats {
-    uint32_t bytes_sent          = 0;
-    uint32_t bytes_received      = 0;
-    uint32_t packets_sent        = 0;
-    uint32_t packets_received    = 0;
-    uint32_t packets_sent_errors = 0;
+    sMacAddr sta_mac                 = {};
+    sMacAddr bssid                   = {};
+    uint64_t bytes_sent              = 0;
+    uint64_t bytes_received          = 0;
+    uint32_t packets_sent            = 0;
+    uint32_t packets_received        = 0;
+    uint32_t packets_sent_errors     = 0;
+    int32_t signal_strength          = 0;
+    uint32_t last_data_downlink_rate = 0;
+    uint32_t last_data_uplink_rate   = 0;
+    uint32_t utilization_receive     = 0;
+    uint32_t utilization_transmit    = 0;
 };
 
 struct SStaStats {
@@ -126,25 +135,28 @@ struct SStaStats {
     // uint16_t rx_phy_rate_100kb_avg;
     // uint16_t rx_phy_rate_100kb_min;
     // uint16_t rx_phy_rate_100kb_acc;
-    uint64_t tx_bytes_cnt   = 0;
-    uint64_t rx_bytes_cnt   = 0;
-    uint64_t tx_packets_cnt = 0;
-    uint64_t rx_packets_cnt = 0;
-    uint64_t tx_errors_cnt  = 0;
-    uint64_t rx_errors_cnt  = 0;
-    uint32_t tx_packets     = 0;
-    uint32_t tx_bytes       = 0;
-    uint32_t tx_errors      = 0;
-    uint32_t rx_packets     = 0;
-    uint32_t rx_bytes       = 0;
-    uint32_t rx_errors      = 0;
-    uint32_t retrans_count  = 0;
+    uint64_t tx_bytes_cnt            = 0;
+    uint64_t rx_bytes_cnt            = 0;
+    uint64_t tx_packets_cnt          = 0;
+    uint64_t rx_packets_cnt          = 0;
+    uint64_t tx_errors_cnt           = 0;
+    uint64_t rx_errors_cnt           = 0;
+    uint32_t tx_packets              = 0;
+    uint32_t tx_bytes                = 0;
+    uint32_t tx_errors               = 0;
+    uint32_t rx_packets              = 0;
+    uint32_t rx_bytes                = 0;
+    uint32_t rx_errors               = 0;
+    uint32_t retrans_count           = 0;
+    uint32_t last_data_downlink_rate = 0;
+    uint32_t last_data_uplink_rate   = 0;
     // uint8_t  tx_load_percent_curr=0;
     // uint8_t  tx_load_percent_prev=0;
     // uint8_t  rx_load_percent_curr=0;
     // uint8_t  rx_load_percent_prev=0;
-    uint8_t dl_bandwidth = 0; //beerocks::eWiFiBandwidth
-    sAffiliatedStaStats affiliated_sta_stats;
+    uint8_t dl_bandwidth          = 0; //beerocks::eWiFiBandwidth
+    uint32_t utilization_receive  = 0;
+    uint32_t utilization_transmit = 0;
 };
 
 struct sStaExtendedStats {

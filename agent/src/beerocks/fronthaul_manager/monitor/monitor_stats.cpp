@@ -17,6 +17,7 @@
 #include <tlvf/wfa_map/tlvAffiliatedStaMetrics.h>
 #include <tlvf/wfa_map/tlvApExtendedMetrics.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
+#include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaTrafficStats.h>
 #include <tlvf/wfa_map/tlvAssociatedWiFi6StaStatusReport.h>
@@ -502,17 +503,23 @@ bool monitor_stats::add_ap_extended_metrics(ieee1905_1::CmduMessageTx &cmdu_tx,
         return false;
     }
 
-    ap_extended_metrics_tlv->bssid()              = tlvf::mac_from_string(vap_node.get_mac());
-    const auto &stats                             = vap_node.get_stats().hal_stats;
-    ap_extended_metrics_tlv->unicast_bytes_sent() = recalculate_byte_units(stats.tx_ucast_bytes);
-    ap_extended_metrics_tlv->unicast_bytes_received() =
-        recalculate_byte_units(stats.rx_ucast_bytes);
-    ap_extended_metrics_tlv->multicast_bytes_sent() = recalculate_byte_units(stats.tx_mcast_bytes);
-    ap_extended_metrics_tlv->multicast_bytes_received() =
-        recalculate_byte_units(stats.rx_mcast_bytes);
-    ap_extended_metrics_tlv->broadcast_bytes_sent() = recalculate_byte_units(stats.tx_bcast_bytes);
-    ap_extended_metrics_tlv->broadcast_bytes_received() =
-        recalculate_byte_units(stats.rx_bcast_bytes);
+    ap_extended_metrics_tlv->bssid() = tlvf::mac_from_string(vap_node.get_mac());
+    const auto &stats                = vap_node.get_stats().hal_stats;
+    const auto non_mld_counter       = [](uint64_t total, uint64_t mld) {
+        return total >= mld ? total - mld : uint64_t(0);
+    };
+    ap_extended_metrics_tlv->unicast_bytes_sent() = recalculate_byte_units(
+        non_mld_counter(stats.tx_ucast_bytes, stats.mld_stats.tx_ucast_bytes));
+    ap_extended_metrics_tlv->unicast_bytes_received() = recalculate_byte_units(
+        non_mld_counter(stats.rx_ucast_bytes, stats.mld_stats.rx_ucast_bytes));
+    ap_extended_metrics_tlv->multicast_bytes_sent() = recalculate_byte_units(
+        non_mld_counter(stats.tx_mcast_bytes, stats.mld_stats.tx_mcast_bytes));
+    ap_extended_metrics_tlv->multicast_bytes_received() = recalculate_byte_units(
+        non_mld_counter(stats.rx_mcast_bytes, stats.mld_stats.rx_mcast_bytes));
+    ap_extended_metrics_tlv->broadcast_bytes_sent() = recalculate_byte_units(
+        non_mld_counter(stats.tx_bcast_bytes, stats.mld_stats.tx_bcast_bytes));
+    ap_extended_metrics_tlv->broadcast_bytes_received() = recalculate_byte_units(
+        non_mld_counter(stats.rx_bcast_bytes, stats.mld_stats.rx_bcast_bytes));
 
     return true;
 }
@@ -539,7 +546,8 @@ bool monitor_stats::add_ap_assoc_sta_traffic_stat(ieee1905_1::CmduMessageTx &cmd
 }
 
 bool monitor_stats::add_ap_assoc_sta_link_metric(ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                 const sMacAddr &bssid, monitor_sta_node &sta_node)
+                                                 const sMacAddr &bssid, monitor_sta_node &sta_node,
+                                                 const bwl::sAffiliatedStaStats *affiliated_sta)
 {
     auto ap_assoc_sta_link_metric_tlv = cmdu_tx.addClass<wfa_map::tlvAssociatedStaLinkMetrics>();
     if (!ap_assoc_sta_link_metric_tlv) {
@@ -547,7 +555,8 @@ bool monitor_stats::add_ap_assoc_sta_link_metric(ieee1905_1::CmduMessageTx &cmdu
         return false;
     }
 
-    ap_assoc_sta_link_metric_tlv->sta_mac() = tlvf::mac_from_string(sta_node.get_mac());
+    ap_assoc_sta_link_metric_tlv->sta_mac() =
+        affiliated_sta ? affiliated_sta->sta_mac : tlvf::mac_from_string(sta_node.get_mac());
 
     // Every STA is associated with exactly one BSS in our model, so there is always a single
     // bssid_info.
@@ -561,12 +570,59 @@ bool monitor_stats::add_ap_assoc_sta_link_metric(ieee1905_1::CmduMessageTx &cmdu
     bss_info.bssid        = bssid;
     bss_info.earliest_measurement_delta = sta_stats.delta_ms;
 
-    // TODO: MAC data rate and Phy rate are not necessarily the same
-    // https://github.com/prplfoundation/prplMesh/issues/1195
-    bss_info.downlink_estimated_mac_data_rate_mbps = sta_stats.tx_phy_rate_100kb_avg / 10;
-    bss_info.uplink_estimated_mac_data_rate_mbps   = sta_stats.rx_phy_rate_100kb_avg / 10;
-    bss_info.sta_measured_uplink_rcpi_dbm_enc =
-        wireless_utils::convert_rcpi_from_rssi(sta_stats.rx_rssi_curr);
+    if (affiliated_sta) {
+        bss_info.downlink_estimated_mac_data_rate_mbps =
+            affiliated_sta->last_data_downlink_rate / 1000;
+        bss_info.uplink_estimated_mac_data_rate_mbps = affiliated_sta->last_data_uplink_rate / 1000;
+        bss_info.sta_measured_uplink_rcpi_dbm_enc    = wireless_utils::convert_rcpi_from_rssi(
+            static_cast<int8_t>(affiliated_sta->signal_strength));
+    } else {
+        // TODO: MAC data rate and Phy rate are not necessarily the same
+        // https://github.com/prplfoundation/prplMesh/issues/1195
+        bss_info.downlink_estimated_mac_data_rate_mbps = sta_stats.tx_phy_rate_100kb_avg / 10;
+        bss_info.uplink_estimated_mac_data_rate_mbps   = sta_stats.rx_phy_rate_100kb_avg / 10;
+        bss_info.sta_measured_uplink_rcpi_dbm_enc =
+            wireless_utils::convert_rcpi_from_rssi(sta_stats.rx_rssi_curr);
+    }
+
+    return true;
+}
+
+bool monitor_stats::add_ap_assoc_sta_extended_link_metric(
+    ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &bssid, const monitor_sta_node &sta_node,
+    const bwl::sAffiliatedStaStats *affiliated_sta)
+{
+    auto extended = cmdu_tx.addClass<wfa_map::tlvAssociatedStaExtendedLinkMetrics>();
+    if (!extended) {
+        LOG(ERROR) << "Couldn't addClass tlvAssociatedStaExtendedLinkMetrics";
+        return false;
+    }
+
+    extended->associated_sta() =
+        affiliated_sta ? affiliated_sta->sta_mac : tlvf::mac_from_string(sta_node.get_mac());
+    if (!extended->alloc_metrics_list(1)) {
+        LOG(ERROR) << "Failed alloc_metrics_list";
+        return false;
+    }
+
+    auto &metrics = std::get<1>(extended->metrics_list(0));
+    metrics.bssid = bssid;
+    if (affiliated_sta) {
+        metrics.last_data_down_link_rate = affiliated_sta->last_data_downlink_rate;
+        metrics.last_data_up_link_rate   = affiliated_sta->last_data_uplink_rate;
+        metrics.utilization_receive      = affiliated_sta->utilization_receive;
+        metrics.utilization_transmit     = affiliated_sta->utilization_transmit;
+    } else {
+        const auto &stats                = sta_node.get_stats().hal_stats;
+        metrics.last_data_down_link_rate = stats.last_data_downlink_rate
+                                               ? stats.last_data_downlink_rate
+                                               : stats.tx_phy_rate_100kb * 100;
+        metrics.last_data_up_link_rate = stats.last_data_uplink_rate
+                                             ? stats.last_data_uplink_rate
+                                             : stats.rx_phy_rate_100kb * 100;
+        metrics.utilization_receive  = stats.utilization_receive;
+        metrics.utilization_transmit = stats.utilization_transmit;
+    }
 
     return true;
 }
@@ -601,22 +657,19 @@ bool monitor_stats::add_ap_assoc_wifi_6_sta_status_report(ieee1905_1::CmduMessag
 }
 
 bool monitor_stats::add_affiliated_sta_metrics(ieee1905_1::CmduMessageTx &cmdu_tx,
-                                               const monitor_sta_node &sta_node)
+                                               const bwl::sAffiliatedStaStats &sta_stats)
 {
     auto affiliated_sta_metrics_tlv = cmdu_tx.addClass<wfa_map::tlvAffiliatedStaMetrics>();
     if (!affiliated_sta_metrics_tlv) {
         LOG(ERROR) << "Couldn't addClass affiliated_sta_metrics_tlv";
         return false;
     }
-    auto affiliated_sta_stats = sta_node.get_stats().hal_stats.affiliated_sta_stats;
-    affiliated_sta_metrics_tlv->sta_mac_addr() = tlvf::mac_from_string(sta_node.get_mac());
-    affiliated_sta_metrics_tlv->bytes_sent() =
-        recalculate_byte_units(affiliated_sta_stats.bytes_sent);
-    affiliated_sta_metrics_tlv->bytes_received() =
-        recalculate_byte_units(affiliated_sta_stats.bytes_received);
-    affiliated_sta_metrics_tlv->packets_sent()        = affiliated_sta_stats.packets_sent;
-    affiliated_sta_metrics_tlv->packets_received()    = affiliated_sta_stats.packets_received;
-    affiliated_sta_metrics_tlv->packets_sent_errors() = affiliated_sta_stats.packets_sent_errors;
+    affiliated_sta_metrics_tlv->sta_mac_addr()   = sta_stats.sta_mac;
+    affiliated_sta_metrics_tlv->bytes_sent()     = recalculate_byte_units(sta_stats.bytes_sent);
+    affiliated_sta_metrics_tlv->bytes_received() = recalculate_byte_units(sta_stats.bytes_received);
+    affiliated_sta_metrics_tlv->packets_sent()   = sta_stats.packets_sent;
+    affiliated_sta_metrics_tlv->packets_received()    = sta_stats.packets_received;
+    affiliated_sta_metrics_tlv->packets_sent_errors() = sta_stats.packets_sent_errors;
 
     return true;
 }
