@@ -37,7 +37,9 @@ constexpr auto g_bridge_oui                 = "465566";
 constexpr auto g_radio_mac_1                = "46:55:66:77:00:21";
 constexpr auto g_radio_mac_2                = "46:55:66:77:00:22";
 constexpr auto g_client_mac                 = "46:55:66:77:00:31";
+constexpr auto g_affiliated_sta_mac         = "46:55:66:77:00:32";
 constexpr auto g_agent_mac                  = "46:55:66:77:00:51";
+constexpr auto g_ap_mld_mac                 = "46:55:66:77:00:61";
 constexpr auto g_vap_id_1                   = 1;
 constexpr auto g_bssid_1                    = "46:55:66:77:00:03";
 constexpr auto g_ssid_1                     = "dummy_ssid";
@@ -54,10 +56,13 @@ const std::string g_radio_2_bss_path_1      = std::string(g_radio_path_2) + ".BS
 const std::string g_radio_2_bss_path_2      = std::string(g_radio_path_2) + ".BSS.2";
 const std::string g_radio_1_qm_descriptor_path =
     std::string(g_radio_1_bss_path_1) + ".QMDescriptor";
-const std::string g_sta_path_1         = std::string(g_radio_1_bss_path_1) + ".STA.1";
-const std::string g_assoc_event_path_1 = std::string(g_assoc_event_path) + ".1";
-const std::string g_interface_path_1   = std::string(g_device_path) + ".1.Interface.1";
-const std::string g_interface_path_2   = std::string(g_device_path) + ".1.Interface.2";
+const std::string g_sta_path_1            = std::string(g_radio_1_bss_path_1) + ".STA.1";
+const std::string g_sta_mld_path          = std::string(g_device_path) + ".1.APMLD.1.STAMLD.1";
+const std::string g_affiliated_sta_path   = g_sta_mld_path + ".AffiliatedSTA.1";
+const std::string g_affiliated_sta_path_2 = g_sta_mld_path + ".AffiliatedSTA.2";
+const std::string g_assoc_event_path_1    = std::string(g_assoc_event_path) + ".1";
+const std::string g_interface_path_1      = std::string(g_device_path) + ".1.Interface.1";
+const std::string g_interface_path_2      = std::string(g_device_path) + ".1.Interface.2";
 
 TEST(DbSingleShotCounter, callback_triggered_when_decrement_reaches_zero)
 {
@@ -427,6 +432,33 @@ protected:
                   m_db->get_sta_data_model_path(tlvf::mac_from_string(g_client_mac)));
 
         EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_client_mac)).WillRepeatedly(Return(1));
+    }
+};
+
+class DbTestRadio1StaMld : public ::DbTestRadio1Sta1 {
+
+protected:
+    void SetUp() override
+    {
+        DbTestRadio1Sta1::SetUp();
+
+        auto agent = m_db->m_agents.get(tlvf::mac_from_string(g_bridge_mac));
+        ASSERT_TRUE(agent);
+
+        auto &ap_mld = agent->ap_mlds[tlvf::mac_from_string(g_ap_mld_mac)];
+        auto sta_mld = ap_mld.sta_mlds.add(tlvf::mac_from_string(g_client_mac));
+        ASSERT_TRUE(sta_mld);
+        sta_mld->dm_path = g_sta_mld_path;
+
+        auto affiliated_sta = sta_mld->affiliated_stas.add(tlvf::mac_from_string(g_client_mac));
+        ASSERT_TRUE(affiliated_sta);
+        affiliated_sta->bssid   = tlvf::mac_from_string(g_bssid_1);
+        affiliated_sta->dm_path = g_affiliated_sta_path;
+
+        affiliated_sta = sta_mld->affiliated_stas.add(tlvf::mac_from_string(g_affiliated_sta_mac));
+        ASSERT_TRUE(affiliated_sta);
+        affiliated_sta->bssid   = tlvf::mac_from_string(g_bssid_1);
+        affiliated_sta->dm_path = g_affiliated_sta_path_2;
     }
 };
 
@@ -977,6 +1009,7 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
 
     //expectations for dm_set_sta_extended_link_metrics
     wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics metrics;
+    metrics.bssid                    = tlvf::mac_from_string(g_bssid_1);
     metrics.last_data_down_link_rate = 1;
     metrics.last_data_up_link_rate   = 2;
     metrics.utilization_receive      = 3;
@@ -1028,9 +1061,10 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
 
     EXPECT_CALL(*m_ambiorix, set_current_time(g_sta_path_1, _)).WillOnce(Return(true));
 
-    EXPECT_TRUE(
-        m_db->dm_set_sta_extended_link_metrics(tlvf::mac_from_string(g_client_mac), metrics));
-    EXPECT_TRUE(m_db->dm_set_sta_traffic_stats(tlvf::mac_from_string(g_client_mac), stats));
+    EXPECT_TRUE(m_db->dm_set_sta_extended_link_metrics(
+        tlvf::mac_from_string(g_bridge_mac), tlvf::mac_from_string(g_client_mac), metrics));
+    EXPECT_TRUE(m_db->dm_set_sta_traffic_stats(tlvf::mac_from_string(g_bridge_mac),
+                                               tlvf::mac_from_string(g_client_mac), stats));
 }
 
 TEST_F(DbTest, test_set_vap_stats_info)
@@ -1358,7 +1392,135 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_link_metrics)
         .WillOnce(Return(true));
 
     //execute test
-    EXPECT_TRUE(m_db->dm_set_sta_link_metrics(tlvf::mac_from_string(g_client_mac), 1, 2, 3));
+    EXPECT_TRUE(m_db->dm_set_sta_link_metrics(tlvf::mac_from_string(g_bridge_mac),
+                                              tlvf::mac_from_string(g_client_mac),
+                                              tlvf::mac_from_string(g_bssid_1), 1, 2, 3));
+}
+
+TEST_F(DbTestRadio1StaMld, test_set_affiliated_sta_link_metrics_when_link_mac_is_mld_mac)
+{
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path, "EstMACDataRateDownlink", Matcher<const uint32_t &>(1U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path, "EstMACDataRateUplink", Matcher<const uint32_t &>(2U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path, "SignalStrength", Matcher<const uint8_t &>(3)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_set_sta_link_metrics(tlvf::mac_from_string(g_bridge_mac),
+                                              tlvf::mac_from_string(g_client_mac),
+                                              tlvf::mac_from_string(g_bssid_1), 1, 2, 3));
+
+    wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics metrics;
+    metrics.bssid                    = tlvf::mac_from_string(g_bssid_1);
+    metrics.last_data_down_link_rate = 4;
+    metrics.last_data_up_link_rate   = 5;
+    metrics.utilization_receive      = 6;
+    metrics.utilization_transmit     = 7;
+
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path, "LastDataDownlinkRate", Matcher<const uint32_t &>(4U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path, "LastDataUplinkRate", Matcher<const uint32_t &>(5U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path, "UtilizationReceive", Matcher<const uint32_t &>(6U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path, "UtilizationTransmit", Matcher<const uint32_t &>(7U)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_set_sta_extended_link_metrics(
+        tlvf::mac_from_string(g_bridge_mac), tlvf::mac_from_string(g_client_mac), metrics));
+}
+
+TEST_F(DbTestRadio1StaMld, test_set_affiliated_sta_traffic_metrics_without_legacy_station)
+{
+    son::db::sAffiliatedStaMetrics metrics;
+    metrics.bytes_sent          = 1;
+    metrics.bytes_received      = 2;
+    metrics.packets_sent        = 3;
+    metrics.packets_received    = 4;
+    metrics.packets_sent_errors = 5;
+
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path_2, "BytesSent", Matcher<const uint64_t &>(1U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path_2, "BytesReceived", Matcher<const uint64_t &>(2U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path_2, "PacketsSent", Matcher<const uint32_t &>(3U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path_2, "PacketsReceived", Matcher<const uint32_t &>(4U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_affiliated_sta_path_2, "ErrorsSent", Matcher<const uint32_t &>(5U)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_set_affiliated_sta_metrics(
+        tlvf::mac_from_string(g_bridge_mac), tlvf::mac_from_string(g_affiliated_sta_mac), metrics));
+}
+
+TEST_F(DbTestRadio1StaMld, test_set_mld_aggregate_traffic_metrics_on_sta_mld)
+{
+    son::db::sAssociatedStaTrafficStats stats;
+    stats.m_byte_sent            = 1;
+    stats.m_byte_received        = 2;
+    stats.m_packets_sent         = 3;
+    stats.m_packets_received     = 4;
+    stats.m_retransmission_count = 5;
+    stats.m_tx_packets_error     = 6;
+    stats.m_rx_packets_error     = 7;
+
+    EXPECT_CALL(*m_ambiorix, set(g_sta_mld_path, "BytesSent", Matcher<const uint64_t &>(1U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_sta_mld_path, "BytesReceived", Matcher<const uint64_t &>(2U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_sta_mld_path, "PacketsSent", Matcher<const uint64_t &>(3U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_sta_mld_path, "PacketsReceived", Matcher<const uint64_t &>(4U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_sta_mld_path, "RetransCount", Matcher<const uint32_t &>(5U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_sta_mld_path, "ErrorsSent", Matcher<const uint32_t &>(6U)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_sta_mld_path, "ErrorsReceived", Matcher<const uint32_t &>(7U)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_set_sta_traffic_stats(tlvf::mac_from_string(g_bridge_mac),
+                                               tlvf::mac_from_string(g_client_mac), stats));
+}
+
+TEST_F(DbTestRadio1Sta1, test_add_tid_queue_sizes_adds_default_zero_key_last)
+{
+    const wfa_map::tlvAssociatedWiFi6StaStatusReport::sTidQueueSize tid_zero = {0, 10};
+    const wfa_map::tlvAssociatedWiFi6StaStatusReport::sTidQueueSize tid_one  = {1, 11};
+    const std::vector<wfa_map::tlvAssociatedWiFi6StaStatusReport::sTidQueueSize> tid_queues = {
+        tid_zero, tid_one};
+    const auto tid_queue_path = g_sta_path_1 + ".TIDQueueSizes";
+
+    InSequence sequence;
+    EXPECT_CALL(*m_ambiorix, remove_all_instances(tid_queue_path)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_instance(tid_queue_path)).WillOnce(Return(tid_queue_path + ".1"));
+    EXPECT_CALL(*m_ambiorix, set(tid_queue_path + ".1", "TID", Matcher<const uint8_t &>(1)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(tid_queue_path + ".1", "Size", Matcher<const uint8_t &>(11)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_instance(tid_queue_path)).WillOnce(Return(tid_queue_path + ".2"));
+    EXPECT_CALL(*m_ambiorix,
+                set(tid_queue_path + ".2", "TID", Matcher<const uint8_t &>(uint8_t{0})))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(tid_queue_path + ".2", "Size", Matcher<const uint8_t &>(10)))
+        .WillOnce(Return(true));
+
+    auto station = m_db->m_stations.get(tlvf::mac_from_string(g_client_mac));
+    ASSERT_TRUE(station);
+    EXPECT_TRUE(m_db->dm_add_tid_queue_sizes(*station, tid_queues));
 }
 
 TEST_F(DbTestRadio1Sta1, test_add_sta_twice_with_same_mac)

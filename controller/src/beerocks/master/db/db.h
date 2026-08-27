@@ -1412,6 +1412,21 @@ public:
         const wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics &metrics);
 
     /**
+     * @brief Sets Extended Link Metrics for an affiliated or legacy STA.
+     *
+     * An affiliated STA is resolved within the reporting Agent by both link MAC
+     * and BSSID. If no affiliated STA matches, the legacy STA path is used.
+     *
+     * @param agent_mac reporting Agent AL MAC address
+     * @param sta_mac associated or affiliated STA MAC address
+     * @param metrics extended metrics of associated sta
+     * @return true on success, false otherwise.
+     */
+    bool dm_set_sta_extended_link_metrics(
+        const sMacAddr &agent_mac, const sMacAddr &sta_mac,
+        const wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics &metrics);
+
+    /**
      * @brief Sets Traffic Identifiers (TIDs), and Queue Size for each TID, for Associated Device (STA)
      *
      * Path: Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.TIDQueueSizes.{i}.
@@ -1437,15 +1452,30 @@ public:
     bool dm_set_sta_traffic_stats(const sMacAddr &sta_mac, db::sAssociatedStaTrafficStats &stats);
 
     /**
+     * @brief Sets aggregate Traffic Stats for an MLD or legacy STA.
+     *
+     * The Client MLD is resolved within the reporting Agent. If it is not an
+     * MLD, the legacy STA path is used.
+     *
+     * @param agent_mac reporting Agent AL MAC address
+     * @param sta_mac Client MLD or legacy STA MAC address
+     * @param stats associated STA traffic stats
+     * @return true on success, false otherwise.
+     */
+    bool dm_set_sta_traffic_stats(const sMacAddr &agent_mac, const sMacAddr &sta_mac,
+                                  db::sAssociatedStaTrafficStats &stats);
+
+    /**
      * @brief Sets Metrics for corresponding Affiliated STA.
      *
-     * Path: Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.AffiliatedSta.{i}
+     * Path: Device.WiFi.DataElements.Network.Device.{i}.APMLD.{i}.STAMLD.{i}.AffiliatedSTA.{i}
      *
-     * @param sta_mac sta MAC address for node matching
+     * @param agent_mac reporting Agent AL MAC address
+     * @param sta_mac affiliated STA MAC address
      * @param affl_sta_metrics metrics of affiliated sta
      * @return true on success, false otherwise.
      */
-    bool dm_set_affiliated_sta_metrics(const sMacAddr &sta_mac,
+    bool dm_set_affiliated_sta_metrics(const sMacAddr &agent_mac, const sMacAddr &sta_mac,
                                        db::sAffiliatedStaMetrics &affl_sta_metrics);
 
     /**
@@ -1662,6 +1692,24 @@ public:
      * @return True on success, false otherwise.
      */
     bool dm_set_sta_link_metrics(const sMacAddr &sta_mac, uint32_t downlink_est_mac_data_rate,
+                                 uint32_t uplink_est_mac_data_rate, uint8_t signal_strength);
+
+    /**
+     * @brief Sets Link Metrics for an affiliated or legacy STA.
+     *
+     * An affiliated STA is resolved within the reporting Agent by both link MAC
+     * and BSSID. If no affiliated STA matches, the legacy STA path is used.
+     *
+     * @param agent_mac reporting Agent AL MAC address
+     * @param sta_mac associated or affiliated STA MAC address
+     * @param bssid BSSID reported with the link metrics
+     * @param downlink_est_mac_data_rate estimated downlink MAC data rate
+     * @param uplink_est_mac_data_rate estimated uplink MAC data rate
+     * @param signal_strength encoded uplink RCPI
+     * @return true on success, false otherwise.
+     */
+    bool dm_set_sta_link_metrics(const sMacAddr &agent_mac, const sMacAddr &sta_mac,
+                                 const sMacAddr &bssid, uint32_t downlink_est_mac_data_rate,
                                  uint32_t uplink_est_mac_data_rate, uint8_t signal_strength);
 
     const beerocks::message::sRadioCapabilities *
@@ -3614,6 +3662,28 @@ public:
     std::shared_ptr<Agent::sEthSwitch> get_eth_switch(const sMacAddr &mac);
 
 private:
+    /**
+     * @brief Find a Client MLD within one Agent.
+     *
+     * @param agent_mac Agent AL MAC address
+     * @param sta_mld_mac Client MLD MAC address
+     * @return matching Client MLD, or nullptr when not found
+     */
+    std::shared_ptr<Agent::sAPMLD::sStaMLD> get_sta_mld(const sMacAddr &agent_mac,
+                                                        const sMacAddr &sta_mld_mac);
+
+    /**
+     * @brief Find an affiliated STA within one Agent.
+     *
+     * @param agent_mac Agent AL MAC address
+     * @param sta_mac affiliated STA MAC address
+     * @param bssid affiliated STA BSSID, or zero to match any BSSID
+     * @return matching affiliated STA, or nullptr when not found
+     */
+    std::shared_ptr<Agent::sAPMLD::sStaMLD::sAffiliatedSta>
+    get_affiliated_sta(const sMacAddr &agent_mac, const sMacAddr &sta_mac,
+                       const sMacAddr &bssid = beerocks::net::network_utils::ZERO_MAC);
+
     /**
      * @brief Updates the client values in the persistent db.
      *

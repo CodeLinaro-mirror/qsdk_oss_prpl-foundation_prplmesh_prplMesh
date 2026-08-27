@@ -2406,14 +2406,7 @@ bool Controller::handle_tlv_associated_sta_link_metrics(const sMacAddr &src_mac,
 
         auto bssid_info = std::get<1>(response_list);
 
-        // Verify reported BSSID and data model registered STAs BSSID is same.
-        if (database.get_sta_parent(tlvf::mac_to_string(sta_link_metric->sta_mac())) !=
-            tlvf::mac_to_string(bssid_info.bssid)) {
-            LOG(INFO) << "Reported STA BSSID is not matching with datamodel. Reported bssid:"
-                      << bssid_info.bssid;
-            continue;
-        }
-        if (!database.dm_set_sta_link_metrics(sta_link_metric->sta_mac(),
+        if (!database.dm_set_sta_link_metrics(src_mac, sta_link_metric->sta_mac(), bssid_info.bssid,
                                               bssid_info.downlink_estimated_mac_data_rate_mbps,
                                               bssid_info.uplink_estimated_mac_data_rate_mbps,
                                               bssid_info.sta_measured_uplink_rcpi_dbm_enc)) {
@@ -2464,27 +2457,8 @@ bool Controller::handle_tlv_associated_sta_extended_link_metrics(const sMacAddr 
 
         auto metrics = std::get<1>(metrics_list);
 
-        // Verify reported BSSID and data model registered STAs BSSID is same.
-        auto station = database.get_station(sta_extended_link_metric->associated_sta());
-        if (!station) {
-            LOG(ERROR) << "Failed to get station on db with mac: "
-                       << sta_extended_link_metric->associated_sta();
-            continue;
-        }
-
-        auto parent_bss = station->get_bss();
-        if (!parent_bss) {
-            LOG(ERROR) << "Connected BSS of the station is not found, sta mac="
-                       << sta_extended_link_metric->associated_sta();
-            continue;
-        }
-        if (parent_bss->bssid != metrics.bssid) {
-            LOG(INFO) << "Reported STA BSSID is not matching with datamodel. Reported bssid:"
-                      << metrics.bssid;
-            continue;
-        }
-        if (!database.dm_set_sta_extended_link_metrics(sta_extended_link_metric->associated_sta(),
-                                                       metrics)) {
+        if (!database.dm_set_sta_extended_link_metrics(
+                src_mac, sta_extended_link_metric->associated_sta(), metrics)) {
             LOG(ERROR) << "Failed to set extended link metrics for STA:"
                        << sta_extended_link_metric->associated_sta();
             ret_val = false;
@@ -2522,7 +2496,7 @@ bool Controller::handle_tlv_associated_sta_traffic_stats(const sMacAddr &src_mac
         stats.m_rx_packets_error     = sta_traffic_stat->rx_packets_error();
         stats.m_tx_packets_error     = sta_traffic_stat->tx_packets_error();
 
-        if (!database.dm_set_sta_traffic_stats(sta_traffic_stat->sta_mac(), stats)) {
+        if (!database.dm_set_sta_traffic_stats(src_mac, sta_traffic_stat->sta_mac(), stats)) {
             LOG(ERROR) << "Failed to set traffic stats for STA:" << sta_traffic_stat->sta_mac();
             ret_val = false;
         }
@@ -2595,6 +2569,7 @@ bool Controller::handle_tlv_affiliated_ap_metrics(const sMacAddr &src_mac,
         db::sAffiliatedApMetrics affl_ap_metrics;
 
         // Recalculate counters according to Agent Byte Units.
+        affl_ap_metrics.bssid              = affiliated_ap_metrics->bssid();
         affl_ap_metrics.packets_sent       = affiliated_ap_metrics->packets_sent();
         affl_ap_metrics.packets_received   = affiliated_ap_metrics->packets_received();
         affl_ap_metrics.packet_sent_errors = affiliated_ap_metrics->packets_sent_errors();
@@ -2646,7 +2621,7 @@ bool Controller::handle_tlv_affiliated_sta_metrics(const sMacAddr &src_mac,
         affl_sta_metrics.packets_sent        = affiliated_sta_metrics->packets_sent();
         affl_sta_metrics.packets_sent_errors = affiliated_sta_metrics->packets_sent_errors();
 
-        if (!database.dm_set_affiliated_sta_metrics(affiliated_sta_metrics->sta_mac_addr(),
+        if (!database.dm_set_affiliated_sta_metrics(src_mac, affiliated_sta_metrics->sta_mac_addr(),
                                                     affl_sta_metrics)) {
             LOG(ERROR) << "Failed to set metrics for Affiliated STA:"
                        << affiliated_sta_metrics->sta_mac_addr();
