@@ -42,6 +42,9 @@
 
 #include "../gate/1905_beacon_query_to_vs.h"
 
+#include <unordered_set>
+#include <utility>
+
 using namespace multi_vendor;
 
 /* Minimum delay between consecutive Beacon Metrics Queries (in ms) */
@@ -890,8 +893,10 @@ bool LinkMetricsCollectionTask::send_ap_metric_query_message(
 {
     auto db                 = AgentDB::get();
     auto &ap_metric_queries = m_ap_metric_query[mid];
+    auto &requested_bssids  = m_ap_metric_query_requested_bssids[mid];
     auto &pending_responses = m_ap_metric_query_pending_responses[mid];
     ap_metric_queries.clear();
+    requested_bssids.clear();
     pending_responses = 0;
 
     for (const auto radio : db->get_radios_list()) {
@@ -899,26 +904,18 @@ bool LinkMetricsCollectionTask::send_ap_metric_query_message(
             continue;
         }
 
-        // copy all relevant bssids to bssid_query
+        // Query every local BSSID so the monitor that owns a pWHM parent MLD can export all
+        // affiliated-link statistics. Keep the Controller's requested BSSIDs separately so
+        // additional internal collection data is not included in the external response.
         std::vector<sMacAddr> bssid_query;
 
-        if (bssid_list.empty()) {
-            // we were given an empty list,
-            // therefore we copy ALL non ZERO_MAC bssids
-            for (const auto &bssid : radio->front.bssids) {
-                if (bssid.mac != net::network_utils::ZERO_MAC && !bssid.ssid.empty()) {
-                    bssid_query.emplace_back(bssid.mac);
-                }
+        for (const auto &bssid : radio->front.bssids) {
+            if (bssid.mac == net::network_utils::ZERO_MAC || bssid.ssid.empty()) {
+                continue;
             }
-        } else {
-            // we were given a non empty list,
-            // therefore we copy only those that are both in the
-            // radio and in the given list
-            for (const auto &bssid : radio->front.bssids) {
-                if (bssid.mac != net::network_utils::ZERO_MAC && !bssid.ssid.empty() &&
-                    bssid_list.find(bssid.mac) != bssid_list.end()) {
-                    bssid_query.emplace_back(bssid.mac);
-                }
+            bssid_query.emplace_back(bssid.mac);
+            if (bssid_list.empty() || bssid_list.find(bssid.mac) != bssid_list.end()) {
+                requested_bssids.insert(bssid.mac);
             }
         }
 
@@ -970,6 +967,7 @@ bool LinkMetricsCollectionTask::send_ap_metric_query_message(
         LOG(ERROR) << "Failed sending AP_METRICS_QUERY_MESSAGE to monitor for mid=" << std::hex
                    << mid;
         m_ap_metric_query.erase(mid);
+        m_ap_metric_query_requested_bssids.erase(mid);
         m_ap_metric_query_pending_responses.erase(mid);
         return false;
     }
@@ -1048,6 +1046,11 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
     if (ap_metric_queries_map == m_ap_metric_query.end()) {
         LOG(ERROR) << "No AP_Metrics_Query map found for MID : " << std::hex << mid_index
                    << " found";
+        return;
+    }
+    auto requested_bssids_map = m_ap_metric_query_requested_bssids.find(mid_index);
+    if (requested_bssids_map == m_ap_metric_query_requested_bssids.end()) {
+        LOG(ERROR) << "No requested AP Metrics BSSIDs found for MID : " << std::hex << mid_index;
         return;
     }
     auto pending_responses_map = m_ap_metric_query_pending_responses.find(mid_index);
@@ -1137,11 +1140,13 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 continue;
             }
 
-            auto assoc_client = radio->associated_clients.find(sta_traffic->sta_mac());
-            if (assoc_client != radio->associated_clients.end() &&
-                assoc_client->second.bssid == metric.bssid) {
+            AgentDB::sAssociatedStaMetricIdentity identity;
+            if (db->get_associated_sta_metric_identity(sta_traffic->sta_mac(), metric.bssid,
+                                                       identity)) {
                 traffic_stats_response.push_back({
-                    sta_traffic->sta_mac(),
+                    identity.reporting_mac,
+                    identity.bssid,
+                    identity.is_mld,
                     sta_traffic->byte_sent(),
                     sta_traffic->byte_received(),
                     sta_traffic->packets_sent(),
@@ -1165,9 +1170,32 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 continue;
             }
             auto response_list = sta_link_metric->bssid_info_list(0);
-            if (std::get<1>(response_list).bssid == metric.bssid) {
-                link_metrics_response.push_back(
-                    {sta_link_metric->sta_mac(), std::get<1>(response_list)});
+            auto &bssid_info   = std::get<1>(response_list);
+            AgentDB::sAssociatedStaMetricIdentity identity;
+            if (db->get_associated_sta_metric_identity(sta_link_metric->sta_mac(), bssid_info.bssid,
+                                                       identity)) {
+                link_metrics_response.push_back({identity.link_mac, bssid_info});
+            }
+        }
+
+        std::vector<sStaExtendedLinkMetrics> extended_link_metrics_response;
+        for (const auto &extended_link_metric :
+             cmdu_rx.getClassList<wfa_map::tlvAssociatedStaExtendedLinkMetrics>()) {
+            if (!extended_link_metric) {
+                LOG(ERROR) << "Failed getClassList<wfa_map::tlvAssociatedStaExtendedLinkMetrics>";
+                continue;
+            }
+            if (extended_link_metric->metrics_list_length() != 1) {
+                LOG(ERROR) << "extended_link_metric->metrics_list_length() should be equal to 1";
+                continue;
+            }
+
+            auto metrics_list = extended_link_metric->metrics_list(0);
+            auto &metrics     = std::get<1>(metrics_list);
+            AgentDB::sAssociatedStaMetricIdentity identity;
+            if (db->get_associated_sta_metric_identity(extended_link_metric->associated_sta(),
+                                                       metrics.bssid, identity)) {
+                extended_link_metrics_response.push_back({identity.link_mac, metrics});
             }
         }
 
@@ -1178,13 +1206,15 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 LOG(ERROR) << "Failed getClassList<wfa_map::tlvAssociatedWiFi6StaStatusReport>";
                 return;
             }
-            auto assoc_client = radio->associated_clients.find(sta_qos_ctrl_params->sta_mac());
-            if (assoc_client != radio->associated_clients.end() &&
-                assoc_client->second.bssid == metric.bssid) {
+            AgentDB::sAssociatedStaMetricIdentity identity;
+            if (db->get_associated_sta_metric_identity(sta_qos_ctrl_params->sta_mac(), metric.bssid,
+                                                       identity)) {
                 uint8_t tid_list_length = sta_qos_ctrl_params->tid_queue_size_list_length();
 
                 sStaQosCtrlParams sta_qos_params;
-                sta_qos_params.sta_mac = sta_qos_ctrl_params->sta_mac();
+                sta_qos_params.sta_mac = identity.reporting_mac;
+                sta_qos_params.bssid   = identity.bssid;
+                sta_qos_params.is_mld  = identity.is_mld;
                 for (uint8_t tid_index = 0; tid_index < tid_list_length; tid_index++) {
                     auto tid_tuple        = sta_qos_ctrl_params->tid_queue_size_list(tid_index);
                     auto &qos_ctrl_params = std::get<1>(tid_tuple);
@@ -1227,11 +1257,13 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                 continue;
             }
 
-            auto assoc_client = radio->associated_clients.find(affl_sta_metrics->sta_mac_addr());
-            if (assoc_client != radio->associated_clients.end() &&
-                assoc_client->second.bssid == metric.bssid) {
+            AgentDB::sAssociatedStaMetricIdentity identity;
+            if (db->get_associated_sta_metric_identity(affl_sta_metrics->sta_mac_addr(),
+                                                       net::network_utils::ZERO_MAC, identity) &&
+                identity.is_mld) {
                 affiliated_sta_metrics.push_back({
-                    affl_sta_metrics->sta_mac_addr(),
+                    identity.link_mac,
+                    identity.bssid,
                     affl_sta_metrics->bytes_sent(),
                     affl_sta_metrics->bytes_received(),
                     affl_sta_metrics->packets_sent(),
@@ -1242,9 +1274,11 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
         }
 
         // Fill a response vector
-        m_ap_metric_response.push_back({metric, extended_metrics, traffic_stats_response,
-                                        link_metrics_response, qos_ctrl_response,
-                                        affiliated_ap_metrics, affiliated_sta_metrics});
+        m_ap_metric_response.push_back(
+            {std::move(metric), extended_metrics, std::move(traffic_stats_response),
+             std::move(link_metrics_response), std::move(extended_link_metrics_response),
+             std::move(qos_ctrl_response), affiliated_ap_metrics,
+             std::move(affiliated_sta_metrics)});
 
         // Remove an entry from the processed query
         ap_metric_queries_map->second.erase(
@@ -1275,7 +1309,9 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
                      << ". Sending partial AP_METRICS_RESPONSE_MESSAGE";
     }
 
+    auto requested_bssids = std::move(requested_bssids_map->second);
     m_ap_metric_query.erase(ap_metric_queries_map);
+    m_ap_metric_query_requested_bssids.erase(requested_bssids_map);
     m_ap_metric_query_pending_responses.erase(pending_responses_map);
 
     // We received all responses - prepare and send response message to the controller
@@ -1286,51 +1322,110 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
         return;
     }
 
+    std::unordered_set<sMacAddr> added_traffic_stats;
+    std::unordered_set<sMacAddr> added_link_metrics;
+    std::unordered_set<sMacAddr> added_extended_link_metrics;
+    std::unordered_set<sMacAddr> added_wifi_6_status;
+    std::unordered_set<sMacAddr> added_affiliated_sta_metrics;
+
+    enum class eStaMetricPolicy { TRAFFIC_STATS, LINK_METRICS, WIFI_6_STATUS };
+
+    const auto is_bssid_requested = [&](const sMacAddr &bssid) {
+        return requested_bssids.find(bssid) != requested_bssids.end();
+    };
+
+    const auto policy_enabled_for_bssid = [&](const sMacAddr &bssid,
+                                              eStaMetricPolicy requested_policy) -> bool {
+        auto radio = db->get_radio_by_mac(bssid, AgentDB::eMacType::BSSID);
+        if (!radio || !is_bssid_requested(bssid)) {
+            return false;
+        }
+
+        const auto &policy = radio->ap_metrics_reporting_policy;
+        switch (requested_policy) {
+        case eStaMetricPolicy::TRAFFIC_STATS:
+            return policy.include_associated_sta_traffic_stats_tlv_in_ap_metrics_response;
+        case eStaMetricPolicy::LINK_METRICS:
+            return policy.include_associated_sta_link_metrics_tlv_in_ap_metrics_response;
+        case eStaMetricPolicy::WIFI_6_STATUS:
+            return policy.include_associated_wifi_6_sta_status_report_tlv_in_ap_metrics_response;
+        }
+        return false;
+    };
+
+    const auto policy_enabled_for_sta = [&](const sMacAddr &sta_mac, const sMacAddr &bssid,
+                                            bool is_mld, eStaMetricPolicy requested_policy) {
+        if (!is_mld) {
+            return policy_enabled_for_bssid(bssid, requested_policy);
+        }
+
+        auto mld = db->associated_sta_mlds.find(sta_mac);
+        if (mld == db->associated_sta_mlds.end()) {
+            return false;
+        }
+        return std::any_of(mld->second.affiliated_stas.begin(), mld->second.affiliated_stas.end(),
+                           [&](const AgentDB::sAssociatedStaMld::sAffiliatedSta &link) {
+                               return policy_enabled_for_bssid(link.bssid, requested_policy);
+                           });
+    };
+
     // Prepare tlvApMetrics for each processed query
     for (const auto &response : m_ap_metric_response) {
-        auto ap_metrics_response_tlv = m_cmdu_tx.addClass<wfa_map::tlvApMetrics>();
-        if (!ap_metrics_response_tlv) {
-            LOG(ERROR) << "Failed addClass<wfa_map::tlvApMetrics>";
-            return;
+        const bool report_bss_metrics = is_bssid_requested(response.metric.bssid);
+        if (report_bss_metrics) {
+            auto ap_metrics_response_tlv = m_cmdu_tx.addClass<wfa_map::tlvApMetrics>();
+            if (!ap_metrics_response_tlv) {
+                LOG(ERROR) << "Failed addClass<wfa_map::tlvApMetrics>";
+                return;
+            }
+
+            ap_metrics_response_tlv->bssid()               = response.metric.bssid;
+            ap_metrics_response_tlv->channel_utilization() = response.metric.channel_utilization;
+            ap_metrics_response_tlv->number_of_stas_currently_associated() =
+                response.metric.number_of_stas_currently_associated;
+            ap_metrics_response_tlv->estimated_service_parameters() =
+                response.metric.estimated_service_parameters;
+            if (!ap_metrics_response_tlv->alloc_estimated_service_info_field(
+                    response.metric.estimated_service_info_field.size())) {
+                LOG(ERROR) << "Couldn't allocate "
+                              "ap_metrics_response_tlv->alloc_estimated_service_info_field";
+                return;
+            }
+            std::copy_n(response.metric.estimated_service_info_field.begin(),
+                        response.metric.estimated_service_info_field.size(),
+                        ap_metrics_response_tlv->estimated_service_info_field());
+
+            auto ap_extended_metrics_tlv = m_cmdu_tx.addClass<wfa_map::tlvApExtendedMetrics>();
+
+            if (!ap_extended_metrics_tlv) {
+                LOG(ERROR) << "Failed addClass<wfa_map::tlvApExtendedMetrics>";
+                return;
+            }
+
+            ap_extended_metrics_tlv->bssid() = response.extended_metric.bssid;
+            ap_extended_metrics_tlv->unicast_bytes_sent() =
+                response.extended_metric.unicast_bytes_sent;
+            ap_extended_metrics_tlv->unicast_bytes_received() =
+                response.extended_metric.unicast_bytes_received;
+            ap_extended_metrics_tlv->broadcast_bytes_sent() =
+                response.extended_metric.broadcast_bytes_sent;
+            ap_extended_metrics_tlv->broadcast_bytes_received() =
+                response.extended_metric.broadcast_bytes_received;
+            ap_extended_metrics_tlv->multicast_bytes_sent() =
+                response.extended_metric.multicast_bytes_sent;
+            ap_extended_metrics_tlv->multicast_bytes_received() =
+                response.extended_metric.multicast_bytes_received;
         }
-
-        ap_metrics_response_tlv->bssid()               = response.metric.bssid;
-        ap_metrics_response_tlv->channel_utilization() = response.metric.channel_utilization;
-        ap_metrics_response_tlv->number_of_stas_currently_associated() =
-            response.metric.number_of_stas_currently_associated;
-        ap_metrics_response_tlv->estimated_service_parameters() =
-            response.metric.estimated_service_parameters;
-        if (!ap_metrics_response_tlv->alloc_estimated_service_info_field(
-                response.metric.estimated_service_info_field.size())) {
-            LOG(ERROR) << "Couldn't allocate "
-                          "ap_metrics_response_tlv->alloc_estimated_service_info_field";
-            return;
-        }
-        std::copy_n(response.metric.estimated_service_info_field.begin(),
-                    response.metric.estimated_service_info_field.size(),
-                    ap_metrics_response_tlv->estimated_service_info_field());
-
-        auto ap_extended_metrics_tlv = m_cmdu_tx.addClass<wfa_map::tlvApExtendedMetrics>();
-
-        if (!ap_extended_metrics_tlv) {
-            LOG(ERROR) << "Failed addClass<wfa_map::tlvApExtendedMetrics>";
-            return;
-        }
-
-        ap_extended_metrics_tlv->bssid()              = response.extended_metric.bssid;
-        ap_extended_metrics_tlv->unicast_bytes_sent() = response.extended_metric.unicast_bytes_sent;
-        ap_extended_metrics_tlv->unicast_bytes_received() =
-            response.extended_metric.unicast_bytes_received;
-        ap_extended_metrics_tlv->broadcast_bytes_sent() =
-            response.extended_metric.broadcast_bytes_sent;
-        ap_extended_metrics_tlv->broadcast_bytes_received() =
-            response.extended_metric.broadcast_bytes_received;
-        ap_extended_metrics_tlv->multicast_bytes_sent() =
-            response.extended_metric.multicast_bytes_sent;
-        ap_extended_metrics_tlv->multicast_bytes_received() =
-            response.extended_metric.multicast_bytes_received;
 
         for (auto &stat : response.sta_traffic_stats) {
+            if (!policy_enabled_for_sta(stat.sta_mac, stat.bssid, stat.is_mld,
+                                        eStaMetricPolicy::TRAFFIC_STATS)) {
+                continue;
+            }
+            if (!added_traffic_stats.insert(stat.sta_mac).second) {
+                continue;
+            }
+
             auto sta_traffic_response_tlv =
                 m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaTrafficStats>();
 
@@ -1347,17 +1442,17 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
             sta_traffic_response_tlv->tx_packets_error()     = stat.tx_packets_error;
             sta_traffic_response_tlv->rx_packets_error()     = stat.rx_packets_error;
             sta_traffic_response_tlv->retransmission_count() = stat.retransmission_count;
-
-            // adding, currently only with sta-mac set, an associated sta EXTENDED link metrics tlv
-            auto extended = m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaExtendedLinkMetrics>();
-            if (!extended) {
-                LOG(ERROR) << "adding wfa_map::tlvAssociatedStaExtendedLinkMetrics failed";
-                continue;
-            }
-            extended->associated_sta() = stat.sta_mac;
         }
 
         for (auto &link_metric : response.sta_link_metrics) {
+            if (!policy_enabled_for_bssid(link_metric.bssid_info.bssid,
+                                          eStaMetricPolicy::LINK_METRICS)) {
+                continue;
+            }
+            if (!added_link_metrics.insert(link_metric.sta_mac).second) {
+                continue;
+            }
+
             auto sta_link_metric_response_tlv =
                 m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaLinkMetrics>();
 
@@ -1376,10 +1471,43 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
             sta_link_metric_response = link_metric.bssid_info;
         }
 
+        for (auto &extended_link_metric : response.sta_extended_link_metrics) {
+            if (!policy_enabled_for_bssid(extended_link_metric.metrics.bssid,
+                                          eStaMetricPolicy::LINK_METRICS)) {
+                continue;
+            }
+            if (!added_extended_link_metrics.insert(extended_link_metric.sta_mac).second) {
+                continue;
+            }
+
+            auto extended = m_cmdu_tx.addClass<wfa_map::tlvAssociatedStaExtendedLinkMetrics>();
+            if (!extended) {
+                LOG(ERROR) << "Failed addClass<wfa_map::tlvAssociatedStaExtendedLinkMetrics>";
+                continue;
+            }
+
+            extended->associated_sta() = extended_link_metric.sta_mac;
+            if (!extended->alloc_metrics_list(1)) {
+                LOG(ERROR) << "Failed alloc_metrics_list";
+                continue;
+            }
+            auto &metrics = std::get<1>(extended->metrics_list(0));
+            metrics       = extended_link_metric.metrics;
+        }
+
         // For each station one "Associated Wifi 6 Sta Status tlv" is added to
         // "AP Metrics Response Message". And value of the tlv fields are populated
         // with values from response vector.
         for (auto &qos_control_params : response.sta_wifi_6_status) {
+            if (!policy_enabled_for_sta(qos_control_params.sta_mac, qos_control_params.bssid,
+                                        qos_control_params.is_mld,
+                                        eStaMetricPolicy::WIFI_6_STATUS)) {
+                continue;
+            }
+            if (!added_wifi_6_status.insert(qos_control_params.sta_mac).second) {
+                continue;
+            }
+
             auto sta_wifi6_status_report_response_tlv =
                 m_cmdu_tx.addClass<wfa_map::tlvAssociatedWiFi6StaStatusReport>();
 
@@ -1402,84 +1530,77 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
             }
         }
 
-        // Add Affiliated AP Metrics TLV only for Affiliated APs
-        bool affiliated_ap = 0;
-        for (auto &ApMld : db->ap_mld_configurations) {
-            for (auto &AffiliatedAp : ApMld.affiliated_aps) {
-                if (AffiliatedAp.bssid == response.affiliated_ap_metrics.bssid) {
-                    affiliated_ap = 1;
+        if (report_bss_metrics) {
+            // Add Affiliated AP Metrics TLV only for Affiliated APs
+            bool affiliated_ap = 0;
+            for (auto &ApMld : db->ap_mld_configurations) {
+                for (auto &AffiliatedAp : ApMld.affiliated_aps) {
+                    if (AffiliatedAp.bssid == response.affiliated_ap_metrics.bssid) {
+                        affiliated_ap = 1;
+                        break;
+                    }
+                }
+                if (affiliated_ap) {
                     break;
                 }
             }
+
             if (affiliated_ap) {
-                break;
-            }
-        }
+                auto affiliated_ap_metrics_tlv =
+                    m_cmdu_tx.addClass<wfa_map::tlvAffiliatedApMetrics>();
+                if (!affiliated_ap_metrics_tlv) {
+                    LOG(ERROR) << "Failed addClass<wfa_map::tlvAffiliatedApMetrics>";
+                    return;
+                }
 
-        if (affiliated_ap) {
-            auto affiliated_ap_metrics_tlv = m_cmdu_tx.addClass<wfa_map::tlvAffiliatedApMetrics>();
-            if (!affiliated_ap_metrics_tlv) {
-                LOG(ERROR) << "Failed addClass<wfa_map::tlvAffiliatedApMetrics>";
-                return;
+                // populate Affiliated AP metrics TLV
+                affiliated_ap_metrics_tlv->bssid() = response.affiliated_ap_metrics.bssid;
+                affiliated_ap_metrics_tlv->packets_sent() =
+                    response.affiliated_ap_metrics.packets_sent;
+                affiliated_ap_metrics_tlv->packets_received() =
+                    response.affiliated_ap_metrics.packets_received;
+                affiliated_ap_metrics_tlv->packets_sent_errors() =
+                    response.affiliated_ap_metrics.packet_sent_errors;
+                affiliated_ap_metrics_tlv->unicast_bytes_sent() =
+                    response.affiliated_ap_metrics.unicast_bytes_sent;
+                affiliated_ap_metrics_tlv->unicast_bytes_received() =
+                    response.affiliated_ap_metrics.unicast_bytes_received;
+                affiliated_ap_metrics_tlv->multicast_bytes_sent() =
+                    response.affiliated_ap_metrics.multicast_bytes_sent;
+                affiliated_ap_metrics_tlv->multicast_bytes_received() =
+                    response.affiliated_ap_metrics.multicast_bytes_received;
+                affiliated_ap_metrics_tlv->broadcast_bytes_sent() =
+                    response.affiliated_ap_metrics.broadcast_bytes_sent;
+                affiliated_ap_metrics_tlv->broadcast_bytes_received() =
+                    response.affiliated_ap_metrics.broadcast_bytes_received;
             }
-
-            // populate Affiliated AP metrics TLV
-            affiliated_ap_metrics_tlv->bssid()        = response.affiliated_ap_metrics.bssid;
-            affiliated_ap_metrics_tlv->packets_sent() = response.affiliated_ap_metrics.packets_sent;
-            affiliated_ap_metrics_tlv->packets_received() =
-                response.affiliated_ap_metrics.packets_received;
-            affiliated_ap_metrics_tlv->packets_sent_errors() =
-                response.affiliated_ap_metrics.packet_sent_errors;
-            affiliated_ap_metrics_tlv->unicast_bytes_sent() =
-                response.affiliated_ap_metrics.unicast_bytes_sent;
-            affiliated_ap_metrics_tlv->unicast_bytes_received() =
-                response.affiliated_ap_metrics.unicast_bytes_received;
-            affiliated_ap_metrics_tlv->multicast_bytes_sent() =
-                response.affiliated_ap_metrics.multicast_bytes_sent;
-            affiliated_ap_metrics_tlv->multicast_bytes_received() =
-                response.affiliated_ap_metrics.multicast_bytes_received;
-            affiliated_ap_metrics_tlv->broadcast_bytes_sent() =
-                response.affiliated_ap_metrics.broadcast_bytes_sent;
-            affiliated_ap_metrics_tlv->broadcast_bytes_received() =
-                response.affiliated_ap_metrics.broadcast_bytes_received;
         }
 
         // For each Affiliated station one "Affiliated STA Metrics tlv" is added to
         // "AP Metrics Response Message". And value of the tlv fields are populated
         // with values from response vector.
         for (auto &stat : response.affiliated_sta_metrics) {
-
-            // Add Affiliated STA Metrics TLV only for Affiliated STAs
-            bool is_affiliated_sta = false;
-            for (auto &mld_entry : db->associated_sta_mlds) {
-                auto &associated_sta_mld = mld_entry.second;
-                for (auto &affiliated_sta : associated_sta_mld.affiliated_stas) {
-                    if (affiliated_sta.affiliated_sta_mac == stat.sta_mac) {
-                        is_affiliated_sta = true;
-                        break;
-                    }
-                }
-                if (is_affiliated_sta) {
-                    break;
-                }
+            if (!policy_enabled_for_bssid(stat.bssid, eStaMetricPolicy::TRAFFIC_STATS)) {
+                continue;
+            }
+            if (!added_affiliated_sta_metrics.insert(stat.sta_mac).second) {
+                continue;
             }
 
-            if (is_affiliated_sta) {
-                auto affiliated_sta_metrics_tlv =
-                    m_cmdu_tx.addClass<wfa_map::tlvAffiliatedStaMetrics>();
+            auto affiliated_sta_metrics_tlv =
+                m_cmdu_tx.addClass<wfa_map::tlvAffiliatedStaMetrics>();
 
-                if (!affiliated_sta_metrics_tlv) {
-                    LOG(ERROR) << "Failed addClass<wfa_map::tlvAffiliatedStaMetrics>";
-                    continue;
-                }
-
-                affiliated_sta_metrics_tlv->sta_mac_addr()        = stat.sta_mac;
-                affiliated_sta_metrics_tlv->bytes_sent()          = stat.bytes_sent;
-                affiliated_sta_metrics_tlv->bytes_received()      = stat.bytes_received;
-                affiliated_sta_metrics_tlv->packets_sent()        = stat.packets_sent;
-                affiliated_sta_metrics_tlv->packets_received()    = stat.packets_received;
-                affiliated_sta_metrics_tlv->packets_sent_errors() = stat.packets_sent_errors;
+            if (!affiliated_sta_metrics_tlv) {
+                LOG(ERROR) << "Failed addClass<wfa_map::tlvAffiliatedStaMetrics>";
+                continue;
             }
+
+            affiliated_sta_metrics_tlv->sta_mac_addr()        = stat.sta_mac;
+            affiliated_sta_metrics_tlv->bytes_sent()          = stat.bytes_sent;
+            affiliated_sta_metrics_tlv->bytes_received()      = stat.bytes_received;
+            affiliated_sta_metrics_tlv->packets_sent()        = stat.packets_sent;
+            affiliated_sta_metrics_tlv->packets_received()    = stat.packets_received;
+            affiliated_sta_metrics_tlv->packets_sent_errors() = stat.packets_sent_errors;
         }
     }
 
@@ -1819,6 +1940,7 @@ void LinkMetricsCollectionTask::ap_metrics_reporting_cb(void)
      * query can be cleared in case of query is sent to all bissids.
      */
     m_ap_metric_query.clear();
+    m_ap_metric_query_requested_bssids.clear();
     m_ap_metric_query_pending_responses.clear();
 
     /**
@@ -1887,6 +2009,7 @@ void LinkMetricsCollectionTask::handle_event(uint8_t event_enum_value, const voi
         }
 
         m_ap_metric_query.clear();
+        m_ap_metric_query_requested_bssids.clear();
         m_ap_metric_query_pending_responses.clear();
         m_ap_metrics_reporting_info.reporting_interval_s = 0;
 

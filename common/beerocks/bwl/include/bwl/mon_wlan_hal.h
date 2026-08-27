@@ -97,6 +97,22 @@ public:
     }
 
     /**
+     * @brief Get per-link statistics for the affiliated STAs of a Client MLD.
+     *
+     * HALs without MLO support return an empty list.
+     *
+     * @param [in] sta_mac Associated STA or Client MLD MAC address.
+     * @param [out] sta_stats Per-link statistics; empty for non-MLO stations.
+     * @return true on success, false if station statistics cannot be read.
+     */
+    virtual bool get_affiliated_sta_stats(const std::string &sta_mac,
+                                          std::vector<sAffiliatedStaStats> &sta_stats)
+    {
+        sta_stats.clear();
+        return true;
+    }
+
+    /**
      * @brief Update station qos control params for already associated wifi6 clients.
      * This is used to update tid and queue size for associated wifi6 clients.
      * 
