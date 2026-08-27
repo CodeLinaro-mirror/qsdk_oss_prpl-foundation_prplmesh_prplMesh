@@ -1467,6 +1467,7 @@ bool ChannelSelectionTask::handle_transmit_power_limit(
      * In the outgoing request, set the channel & bandwidth to that of the current radio.
      */
     radio_request.outgoing_request.channel        = radio->wifi_channel.get_channel();
+    radio_request.outgoing_request.center         = 0;
     radio_request.outgoing_request.bandwidth      = radio->wifi_channel.get_bandwidth();
     radio_request.outgoing_request.freq_type      = radio->wifi_channel.get_freq_type();
     radio_request.outgoing_request.tx_limit       = new_tx_power_limit_dbm;
@@ -1616,9 +1617,31 @@ bool ChannelSelectionTask::check_is_there_better_channel_than_current(const sMac
                << " has a preference score of " << (int)selected_channel.preference_score
                << " and a DFS state of " << (int)selected_channel.dfs_state << ".";
 
-    if (radio->wifi_channel.get_channel() == selected_channel.channel &&
-        radio->wifi_channel.get_bandwidth() == selected_channel.bw) {
+    const auto freq_type = son::wireless_utils::which_freq_op_cls(selected_channel.operating_class);
+    const auto center_channel = son::wireless_utils::get_center_channel(
+        selected_channel.channel, selected_channel.operating_class, selected_channel.bw);
+    if (center_channel == 0) {
+        LOG(ERROR) << "Failed to get center channel for " << (int)selected_channel.channel << "-"
+                   << (int)selected_channel.operating_class;
+        return false;
+    }
 
+    const auto center_freq = son::wireless_utils::channel_to_freq(center_channel, freq_type);
+    if (center_freq == 0) {
+        LOG(ERROR) << "Failed to get center frequency for " << (int)selected_channel.channel << "-"
+                   << (int)selected_channel.operating_class;
+        return false;
+    }
+
+    /* Technically only 2.4GHz 40MHz channels require this check. All channels
+     * in 5GHz and 6GHz have non-ambiguous channel-bandwidth-center mappings.
+     */
+    const bool center_matches = (selected_channel.bw == beerocks::eWiFiBandwidth::BANDWIDTH_40)
+                                    ? (radio->wifi_channel.get_center_frequency() == center_freq)
+                                    : true;
+
+    if (radio->wifi_channel.get_channel() == selected_channel.channel &&
+        radio->wifi_channel.get_bandwidth() == selected_channel.bw && center_matches) {
         LOG(DEBUG) << "Already operating on channel: " << (int)selected_channel.channel
                    << " with bandwidth: "
                    << beerocks::utils::convert_bandwidth_to_string(
@@ -1670,6 +1693,7 @@ bool ChannelSelectionTask::check_is_there_better_channel_than_current(const sMac
 
     radio_request.selected_channel         = selected_channel;
     radio_request.outgoing_request.channel = selected_channel.channel;
+    radio_request.outgoing_request.center  = center_channel;
     radio_request.outgoing_request.freq_type =
         son::wireless_utils::which_freq_op_cls(selected_channel.operating_class);
     radio_request.outgoing_request.bandwidth = selected_channel.bw;
@@ -1980,6 +2004,12 @@ bool ChannelSelectionTask::send_channel_switch_request(
         const auto freq_type      = request.outgoing_request.freq_type;
         request_msg->cs_params().vht_center_frequency =
             son::wireless_utils::get_vht_central_frequency(beacon_channel, bandwidth, freq_type);
+
+        if (request.outgoing_request.bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_40 &&
+            request.outgoing_request.center != 0) {
+            request_msg->cs_params().vht_center_frequency = son::wireless_utils::channel_to_freq(
+                request.outgoing_request.center, request.outgoing_request.freq_type);
+        }
     } else {
         request_msg->cs_params().vht_center_frequency = son::wireless_utils::channel_to_freq(
             request.outgoing_request.channel, request.outgoing_request.freq_type);

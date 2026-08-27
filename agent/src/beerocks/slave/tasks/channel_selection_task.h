@@ -87,6 +87,7 @@ private:
         eRadioChanSwitchState chan_sel_state = INVALID;
         struct sChannelSelectionParams {
             uint8_t channel                    = 0;
+            uint8_t center                     = 0;
             beerocks::eFreqType freq_type      = beerocks::eFreqType::FREQ_UNKNOWN;
             beerocks::eWiFiBandwidth bandwidth = beerocks::eWiFiBandwidth::BANDWIDTH_UNKNOWN;
             int8_t tx_limit                    = 0;
