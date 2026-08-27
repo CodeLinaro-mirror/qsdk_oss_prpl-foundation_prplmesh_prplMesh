@@ -33,6 +33,7 @@ RUN \
     lzop \
     nmap \
     openssh-client \
+    pkg-config \
     pwgen \
     python3 \
     python3-distlib \
