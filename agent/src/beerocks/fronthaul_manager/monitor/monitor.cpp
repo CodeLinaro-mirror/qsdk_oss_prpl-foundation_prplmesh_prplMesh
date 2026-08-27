@@ -790,16 +790,54 @@ bool Monitor::create_ap_metrics_response(uint16_t mid, const std::vector<sMacAdd
                     continue;
                 }
 
+                std::vector<bwl::sAffiliatedStaStats> affiliated_sta_stats;
+                bool affiliated_sta_stats_available = true;
+                if (include_sta_traffic_stats_tlv || include_sta_link_metrics_tlv) {
+                    affiliated_sta_stats_available = mon_wlan_hal->get_affiliated_sta_stats(
+                        sta_node->get_mac(), affiliated_sta_stats);
+                    if (!affiliated_sta_stats_available) {
+                        LOG(WARNING)
+                            << "Failed to get affiliated STA metrics for " << sta_node->get_mac();
+                    }
+                }
+
                 if (include_sta_traffic_stats_tlv) {
                     LOG(TRACE) << "Include STA traffic stats for " << sta_node->get_mac();
                     if (!mon_stats.add_ap_assoc_sta_traffic_stat(cmdu_tx, *sta_node)) {
                         LOG(ERROR) << "Failed to add sta_traffic_stat tlv";
                     }
+
+                    for (const auto &affiliated_sta : affiliated_sta_stats) {
+                        if (affiliated_sta.bssid != bssid) {
+                            continue;
+                        }
+                        if (!mon_stats.add_affiliated_sta_metrics(cmdu_tx, affiliated_sta)) {
+                            LOG(ERROR) << "Failed to add Affiliated STA metrics tlv";
+                            return false;
+                        }
+                    }
                 }
                 if (include_sta_link_metrics_tlv) {
                     LOG(TRACE) << "Include STA link metrics for " << sta_node->get_mac();
-                    if (!mon_stats.add_ap_assoc_sta_link_metric(cmdu_tx, bssid, *sta_node)) {
-                        LOG(ERROR) << "Failed to add sta_link_metric tlv";
+                    if (affiliated_sta_stats.empty()) {
+                        if (affiliated_sta_stats_available &&
+                            (!mon_stats.add_ap_assoc_sta_link_metric(cmdu_tx, bssid, *sta_node) ||
+                             !mon_stats.add_ap_assoc_sta_extended_link_metric(cmdu_tx, bssid,
+                                                                              *sta_node))) {
+                            LOG(ERROR) << "Failed to add STA link metrics TLVs";
+                        }
+                    } else {
+                        for (const auto &affiliated_sta : affiliated_sta_stats) {
+                            if (affiliated_sta.bssid != bssid) {
+                                continue;
+                            }
+                            if (!mon_stats.add_ap_assoc_sta_link_metric(cmdu_tx, bssid, *sta_node,
+                                                                        &affiliated_sta) ||
+                                !mon_stats.add_ap_assoc_sta_extended_link_metric(
+                                    cmdu_tx, bssid, *sta_node, &affiliated_sta)) {
+                                LOG(ERROR) << "Failed to add affiliated STA link metrics TLVs";
+                            }
+                        }
                     }
                 }
                 if (include_wifi_6_sta_status_report_tlv) {
@@ -808,11 +846,6 @@ bool Monitor::create_ap_metrics_response(uint16_t mid, const std::vector<sMacAdd
                         LOG(ERROR) << "Failed to add wifi_6_sta_status_report tlv";
                         return false;
                     }
-                }
-
-                if (!mon_stats.add_affiliated_sta_metrics(cmdu_tx, *sta_node)) {
-                    LOG(ERROR) << "Failed to add Affiliated STA metrics tlv";
-                    return false;
                 }
             }
         }

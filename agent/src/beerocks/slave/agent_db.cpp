@@ -129,6 +129,57 @@ void AgentDB::erase_client(const sMacAddr &client_mac, sMacAddr bssid)
     }
 }
 
+bool AgentDB::get_associated_sta_metric_identity(const sMacAddr &sta_mac, const sMacAddr &bssid,
+                                                 sAssociatedStaMetricIdentity &identity)
+{
+    identity = {};
+
+    auto mld_it = associated_sta_mlds.find(sta_mac);
+    if (mld_it != associated_sta_mlds.end()) {
+        auto affiliated_sta = std::find_if(
+            mld_it->second.affiliated_stas.begin(), mld_it->second.affiliated_stas.end(),
+            [&](const sAssociatedStaMld::sAffiliatedSta &link) { return link.bssid == bssid; });
+        if (affiliated_sta == mld_it->second.affiliated_stas.end()) {
+            return false;
+        }
+
+        identity.is_mld        = true;
+        identity.reporting_mac = sta_mac;
+        identity.link_mac      = affiliated_sta->affiliated_sta_mac;
+        return true;
+    }
+
+    for (const auto &mld_entry : associated_sta_mlds) {
+        auto affiliated_sta = std::find_if(
+            mld_entry.second.affiliated_stas.begin(), mld_entry.second.affiliated_stas.end(),
+            [&](const sAssociatedStaMld::sAffiliatedSta &link) {
+                return link.affiliated_sta_mac == sta_mac && link.bssid == bssid;
+            });
+        if (affiliated_sta == mld_entry.second.affiliated_stas.end()) {
+            continue;
+        }
+
+        identity.is_mld        = true;
+        identity.reporting_mac = mld_entry.first;
+        identity.link_mac      = affiliated_sta->affiliated_sta_mac;
+        return true;
+    }
+
+    auto radio = get_radio_by_mac(bssid, eMacType::BSSID);
+    if (!radio) {
+        return false;
+    }
+
+    auto client = radio->associated_clients.find(sta_mac);
+    if (client == radio->associated_clients.end() || client->second.bssid != bssid) {
+        return false;
+    }
+
+    identity.reporting_mac = sta_mac;
+    identity.link_mac      = sta_mac;
+    return true;
+}
+
 bool AgentDB::get_mac_by_ssid(const sMacAddr &ruid, const std::string &ssid, sMacAddr &value)
 {
     value      = net::network_utils::ZERO_MAC;

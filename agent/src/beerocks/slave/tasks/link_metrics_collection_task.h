@@ -17,6 +17,7 @@
 #include <tlvf/ieee_1905_1/eLinkMetricsType.h>
 #include <tlvf/ieee_1905_1/eMediaType.h>
 #include <tlvf/wfa_map/tlvApMetrics.h>
+#include <tlvf/wfa_map/tlvAssociatedStaExtendedLinkMetrics.h>
 #include <tlvf/wfa_map/tlvAssociatedStaLinkMetrics.h>
 #include <tlvf/wfa_map/tlvBeaconMetricsQuery.h>
 
@@ -256,6 +257,11 @@ private:
         wfa_map::tlvAssociatedStaLinkMetrics::sBssidInfo bssid_info;
     };
 
+    struct sStaExtendedLinkMetrics {
+        sMacAddr sta_mac;
+        wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics metrics;
+    };
+
     struct sStaQosCtrlParams {
         sMacAddr sta_mac;
         int8_t tid_queue_size[IEEE80211_QOS_TID_MAX_UP];
@@ -306,6 +312,7 @@ private:
         sApExtendedMetrics extended_metric;
         std::vector<sStaTrafficStats> sta_traffic_stats;
         std::vector<sStaLinkMetrics> sta_link_metrics;
+        std::vector<sStaExtendedLinkMetrics> sta_extended_link_metrics;
         std::vector<sStaQosCtrlParams> sta_wifi_6_status;
         sAffiliatedApMetrics affiliated_ap_metrics;
         std::vector<sAffiliatedStaMetrics> affiliated_sta_metrics;
