@@ -28,11 +28,11 @@ monitor_rssi::monitor_rssi(ieee1905_1::CmduMessageTx &cmdu_tx_) : cmdu_tx(cmdu_t
     m_idle_unit_time_ms      = DEFAULT_IDLE_UNIT_TIME_MS;
 }
 
+monitor_rssi::~monitor_rssi() { stop(); }
+
 void monitor_rssi::stop()
 {
-    if (arp_socket_class) {
-        arp_socket_class = nullptr;
-    }
+    arp_socket_class.reset();
     if (arp_socket >= 0) {
         close(arp_socket);
         arp_socket = -1;
@@ -58,17 +58,17 @@ bool monitor_rssi::start(monitor_db *mon_db_, std::shared_ptr<beerocks::CmduClie
         LOG(ERROR) << "Opening ARP socket: " << strerror(errno);
         return false;
     }
-    arp_socket_class = new Socket(arp_socket);
+    arp_socket_class = std::make_unique<Socket>(arp_socket);
     std::string err  = arp_socket_class->getError();
     if (!err.empty()) {
-        arp_socket = -1;
         LOG(ERROR) << "Opening Socket err:" << err;
+        stop();
         return false;
     }
     return true;
 }
 
-Socket *monitor_rssi::get_arp_socket() { return arp_socket_class; }
+Socket *monitor_rssi::get_arp_socket() { return arp_socket_class.get(); }
 
 void monitor_rssi::arp_recv()
 {

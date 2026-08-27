@@ -17,6 +17,8 @@
 
 #include <tlvf/CmduMessageTx.h>
 
+#include <memory>
+
 const unsigned DEFAULT_IDLE_UNIT_TX_THRESHOLD = 50000;
 const unsigned DEFAULT_IDLE_UNIT_RX_THRESHOLD = 50000;
 const unsigned DEFAULT_IDLE_UNIT_TIME_MS      = 1000;
@@ -26,7 +28,7 @@ class monitor_rssi {
 
 public:
     explicit monitor_rssi(ieee1905_1::CmduMessageTx &cmdu_tx_);
-    ~monitor_rssi() {}
+    ~monitor_rssi();
     bool start(monitor_db *mon_db_, std::shared_ptr<beerocks::CmduClient> slave_client);
     void stop();
     Socket *get_arp_socket();
@@ -51,7 +53,7 @@ private:
     std::shared_ptr<beerocks::CmduClient> m_slave_client;
 
     int arp_socket;
-    Socket *arp_socket_class;
+    std::unique_ptr<Socket> arp_socket_class;
 
     unsigned m_idle_unit_tx_threshold;
     unsigned m_idle_unit_rx_threshold;
