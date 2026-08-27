@@ -21,6 +21,7 @@
 #include <bwl/sta_wlan_hal.h>
 #include <tlvf/WSC/EncryptedSettingsPayload.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
+#include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
 #include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
@@ -339,6 +340,8 @@ public:
             bool supports_11v;
             std::string wds_iface_name;
         };
+
+        wfa_map::tlvMetricReportingPolicy::sPolicy ap_metrics_reporting_policy{};
 
         struct sCacCapabilities {
             struct sCacMethodCapabilities {
@@ -758,6 +761,27 @@ public:
      * including their MLD configuration, affiliated STA links, and association frame.
      */
     std::unordered_map<sMacAddr, sAssociatedStaMld> associated_sta_mlds;
+
+    struct sAssociatedStaMetricIdentity {
+        bool is_mld            = false;
+        sMacAddr reporting_mac = beerocks::net::network_utils::ZERO_MAC;
+        sMacAddr link_mac      = beerocks::net::network_utils::ZERO_MAC;
+        sMacAddr bssid         = beerocks::net::network_utils::ZERO_MAC;
+    };
+
+    /**
+     * @brief Resolve a STA identity used in an AP Metrics Response.
+     *
+     * The input MAC can be a legacy STA, Client MLD, or Affiliated STA MAC.
+     * reporting_mac is the legacy STA or Client MLD identity, while link_mac
+     * is the per-link Affiliated STA identity required by link metrics, and
+     * bssid identifies that link's Affiliated AP.
+     *
+     * A zero input BSSID resolves only an Affiliated STA MAC. This is used for
+     * Affiliated STA Metrics TLVs, which do not carry a BSSID.
+     */
+    bool get_associated_sta_metric_identity(const sMacAddr &sta_mac, const sMacAddr &bssid,
+                                            sAssociatedStaMetricIdentity &identity);
 
     std::string em_handle_third_party;
     bool em_ap_controller_found = false;

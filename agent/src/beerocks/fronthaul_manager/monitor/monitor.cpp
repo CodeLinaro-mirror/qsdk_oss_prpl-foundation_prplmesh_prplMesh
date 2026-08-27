@@ -776,42 +776,74 @@ bool Monitor::create_ap_metrics_response(uint16_t mid, const std::vector<sMacAdd
         auto include_wifi_6_sta_status_report_tlv =
             reporting_info.include_associated_wifi_6_sta_status_report_tlv_in_ap_metrics_response;
 
-        if (include_sta_traffic_stats_tlv || include_sta_link_metrics_tlv ||
-            include_wifi_6_sta_status_report_tlv) {
-            for (auto it = mon_db.sta_begin(); it != mon_db.sta_end(); ++it) {
-                const auto &sta_mac  = it->first;
-                const auto &sta_node = it->second;
+        for (auto it = mon_db.sta_begin(); it != mon_db.sta_end(); ++it) {
+            const auto &sta_mac  = it->first;
+            const auto &sta_node = it->second;
 
-                if (sta_node == nullptr) {
-                    LOG(WARNING) << "Invalid node pointer for STA = " << sta_mac;
-                    continue;
-                }
-                if (sta_node->get_vap_id() != vap_node->get_vap_id()) {
-                    continue;
+            if (sta_node == nullptr) {
+                LOG(WARNING) << "Invalid node pointer for STA = " << sta_mac;
+                continue;
+            }
+            if (sta_node->get_vap_id() != vap_node->get_vap_id()) {
+                continue;
+            }
+
+            std::vector<bwl::sAffiliatedStaStats> affiliated_sta_stats;
+            bool affiliated_sta_stats_available =
+                mon_wlan_hal->get_affiliated_sta_stats(sta_node->get_mac(), affiliated_sta_stats);
+            if (!affiliated_sta_stats_available) {
+                LOG(WARNING) << "Failed to get affiliated STA metrics for " << sta_node->get_mac();
+            }
+            const bool is_mld               = !affiliated_sta_stats.empty();
+            const bool export_all_mld_links = is_mld && mid != 0;
+
+            // pWHM keeps one parent AssociatedDevice with links from multiple radios. Export
+            // every active MLO link for an Agent-aggregated response; the Agent applies each link
+            // radio's policy. Unsolicited responses (MID 0) are forwarded without aggregation and
+            // therefore remain restricted to this monitor's radio and policy.
+            if (include_sta_traffic_stats_tlv || export_all_mld_links) {
+                LOG(TRACE) << "Include STA traffic stats for " << sta_node->get_mac();
+                if (!mon_stats.add_ap_assoc_sta_traffic_stat(cmdu_tx, *sta_node)) {
+                    LOG(ERROR) << "Failed to add sta_traffic_stat tlv";
                 }
 
-                if (include_sta_traffic_stats_tlv) {
-                    LOG(TRACE) << "Include STA traffic stats for " << sta_node->get_mac();
-                    if (!mon_stats.add_ap_assoc_sta_traffic_stat(cmdu_tx, *sta_node)) {
-                        LOG(ERROR) << "Failed to add sta_traffic_stat tlv";
+                for (const auto &affiliated_sta : affiliated_sta_stats) {
+                    if (!export_all_mld_links && affiliated_sta.bssid != bssid) {
+                        continue;
                     }
-                }
-                if (include_sta_link_metrics_tlv) {
-                    LOG(TRACE) << "Include STA link metrics for " << sta_node->get_mac();
-                    if (!mon_stats.add_ap_assoc_sta_link_metric(cmdu_tx, bssid, *sta_node)) {
-                        LOG(ERROR) << "Failed to add sta_link_metric tlv";
-                    }
-                }
-                if (include_wifi_6_sta_status_report_tlv) {
-                    LOG(TRACE) << "Include Wifi 6 STA status report for " << sta_node->get_mac();
-                    if (!mon_stats.add_ap_assoc_wifi_6_sta_status_report(cmdu_tx, *sta_node)) {
-                        LOG(ERROR) << "Failed to add wifi_6_sta_status_report tlv";
+                    if (!mon_stats.add_affiliated_sta_metrics(cmdu_tx, affiliated_sta)) {
+                        LOG(ERROR) << "Failed to add Affiliated STA metrics tlv";
                         return false;
                     }
                 }
-
-                if (!mon_stats.add_affiliated_sta_metrics(cmdu_tx, *sta_node)) {
-                    LOG(ERROR) << "Failed to add Affiliated STA metrics tlv";
+            }
+            if (include_sta_link_metrics_tlv || export_all_mld_links) {
+                LOG(TRACE) << "Include STA link metrics for " << sta_node->get_mac();
+                if (affiliated_sta_stats.empty()) {
+                    if (affiliated_sta_stats_available &&
+                        (!mon_stats.add_ap_assoc_sta_link_metric(cmdu_tx, bssid, *sta_node) ||
+                         !mon_stats.add_ap_assoc_sta_extended_link_metric(cmdu_tx, bssid,
+                                                                          *sta_node))) {
+                        LOG(ERROR) << "Failed to add STA link metrics TLVs";
+                    }
+                } else {
+                    for (const auto &affiliated_sta : affiliated_sta_stats) {
+                        if (!export_all_mld_links && affiliated_sta.bssid != bssid) {
+                            continue;
+                        }
+                        if (!mon_stats.add_ap_assoc_sta_link_metric(cmdu_tx, affiliated_sta.bssid,
+                                                                    *sta_node, &affiliated_sta) ||
+                            !mon_stats.add_ap_assoc_sta_extended_link_metric(
+                                cmdu_tx, affiliated_sta.bssid, *sta_node, &affiliated_sta)) {
+                            LOG(ERROR) << "Failed to add affiliated STA link metrics TLVs";
+                        }
+                    }
+                }
+            }
+            if (include_wifi_6_sta_status_report_tlv || export_all_mld_links) {
+                LOG(TRACE) << "Include Wifi 6 STA status report for " << sta_node->get_mac();
+                if (!mon_stats.add_ap_assoc_wifi_6_sta_status_report(cmdu_tx, *sta_node)) {
+                    LOG(ERROR) << "Failed to add wifi_6_sta_status_report tlv";
                     return false;
                 }
             }

@@ -1946,6 +1946,8 @@ void ApAutoConfigurationTask::handle_multi_ap_policy_config_request(
                 continue;
             }
 
+            radio->ap_metrics_reporting_policy = metrics_reporting_conf.policy;
+
             auto monitor_fd = m_btl_ctx.get_monitor_fd(radio->front.iface_name);
 
             /**

@@ -74,13 +74,17 @@ static void read_station_stats(const AmbiorixVariant &station_obj, SStaStats &st
     }
 
     station_obj.read_child(sta_stats.retrans_count, "Tx_Retransmissions");
+    station_obj.read_child(sta_stats.utilization_receive, "UtilizationReceive");
+    station_obj.read_child(sta_stats.utilization_transmit, "UtilizationTransmit");
 
     uint32_t u32Val = 0;
     if (station_obj.read_child(u32Val, "LastDataDownlinkRate")) {
-        sta_stats.tx_phy_rate_100kb = u32Val / 100;
+        sta_stats.last_data_downlink_rate = u32Val;
+        sta_stats.tx_phy_rate_100kb       = u32Val / 100;
     }
     if (station_obj.read_child(u32Val, "LastDataUplinkRate")) {
-        sta_stats.rx_phy_rate_100kb = u32Val / 100;
+        sta_stats.last_data_uplink_rate = u32Val;
+        sta_stats.rx_phy_rate_100kb     = u32Val / 100;
     }
 
     if (station_obj.read_child(u32Val, "DownlinkBandwidth")) {
@@ -547,6 +551,62 @@ bool mon_wlan_hal_whm::update_vap_stations_stats(const std::string &vap_iface_na
         updated_sta_stats.emplace(sta_mac, updated_stats);
     }
     sta_stats.swap(updated_sta_stats);
+
+    return true;
+}
+
+bool mon_wlan_hal_whm::get_affiliated_sta_stats(const std::string &sta_mac,
+                                                std::vector<sAffiliatedStaStats> &sta_stats)
+{
+    sta_stats.clear();
+
+    auto sta_path = base_wlan_hal_whm::get_station_path(sta_mac);
+    if (sta_path.empty()) {
+        LOG(ERROR) << "Failed to find AssociatedDevice path for " << sta_mac;
+        return false;
+    }
+
+    auto affiliated_sta_objects =
+        m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(sta_path + "AffiliatedSta.");
+    if (!affiliated_sta_objects) {
+        return true;
+    }
+
+    for (const auto &affiliated_sta_object : *affiliated_sta_objects) {
+        const auto &object = affiliated_sta_object.second;
+        bool active        = false;
+        if (!object.read_child(active, "Active") || !active) {
+            continue;
+        }
+
+        std::string sta_mac_string;
+        std::string bssid_string;
+        if (!object.read_child(sta_mac_string, "MACAddress") ||
+            !object.read_child(bssid_string, "BSSID")) {
+            LOG(WARNING) << "Incomplete AffiliatedSta identity under " << sta_path;
+            continue;
+        }
+
+        sAffiliatedStaStats stats;
+        stats.sta_mac = tlvf::mac_from_string(sta_mac_string);
+        stats.bssid   = tlvf::mac_from_string(bssid_string);
+        if (stats.sta_mac == beerocks::net::network_utils::ZERO_MAC ||
+            stats.bssid == beerocks::net::network_utils::ZERO_MAC) {
+            LOG(WARNING) << "Invalid AffiliatedSta identity under " << sta_path;
+            continue;
+        }
+        object.read_child(stats.bytes_sent, "BytesSent");
+        object.read_child(stats.bytes_received, "BytesReceived");
+        object.read_child(stats.packets_sent, "PacketsSent");
+        object.read_child(stats.packets_received, "PacketsReceived");
+        object.read_child(stats.packets_sent_errors, "ErrorsSent");
+        object.read_child(stats.signal_strength, "SignalStrength");
+        object.read_child(stats.last_data_downlink_rate, "LastDataDownlinkRate");
+        object.read_child(stats.last_data_uplink_rate, "LastDataUplinkRate");
+        object.read_child(stats.utilization_receive, "UtilizationReceive");
+        object.read_child(stats.utilization_transmit, "UtilizationTransmit");
+        sta_stats.push_back(stats);
+    }
 
     return true;
 }
