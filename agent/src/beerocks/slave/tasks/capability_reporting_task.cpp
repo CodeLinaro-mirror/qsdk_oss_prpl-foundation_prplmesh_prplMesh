@@ -50,6 +50,7 @@
 #include <tlvf/wfa_map/tlvProfile2ApRadioAdvancedCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2CacCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2MetricCollectionInterval.h>
+#include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 
 using namespace multi_vendor;
@@ -519,13 +520,21 @@ void CapabilityReportingTask::handle_ap_capability_query(ieee1905_1::CmduMessage
                                                          const sMacAddr &src_mac)
 {
     const auto mid = cmdu_rx.getMessageId();
-    LOG(DEBUG) << "Received AP_CAPABILITY_QUERY_MESSAGE, mid=" << std::hex << mid;
+    LOG(DEBUG) << "Received AP_CAPABILITY_QUERY_MESSAGE, mid=" << std::hex << mid
+               << ", from=" << src_mac;
 
     auto db = AgentDB::get();
-    if (src_mac != db->controller_info.bridge_mac) {
-        LOG(ERROR) << "[Multiple Controllers Detected] Ignoring AP_CAPABILITY_QUERY_MESSAGE from "
-                      "an unknown Controller: "
-                   << src_mac;
+
+    const bool supports_agent_originated_query =
+        db->device_conf.is_multiap_profile_1_as_of_r4 ||
+        db->device_conf.multi_ap_profile >
+            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+
+    if (src_mac != db->controller_info.bridge_mac && !supports_agent_originated_query) {
+        LOG(DEBUG) << "Ignoring AP_CAPABILITY_QUERY_MESSAGE from non-Controller or unknown "
+                      "Controller "
+                   << src_mac << ": operating profile " << db->device_conf.multi_ap_profile
+                   << " predates Agent originated queries";
         return;
     }
 
@@ -539,9 +548,9 @@ void CapabilityReportingTask::handle_ap_capability_query(ieee1905_1::CmduMessage
         return;
     }
 
-    // send the constructed report
-    LOG(DEBUG) << "Sending AP_CAPABILITY_REPORT_MESSAGE , mid: " << std::hex << mid;
-    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+    LOG(DEBUG) << "Sending AP_CAPABILITY_REPORT_MESSAGE to " << src_mac << ", mid: " << std::hex
+               << mid;
+    m_btl_ctx.send_cmdu_to_mac(src_mac, m_cmdu_tx);
 }
 
 bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
