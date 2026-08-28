@@ -200,9 +200,14 @@ TEST_F(AmbiorixTest, test_optional_subobject)
 {
     //must fail because path does not exists
     EXPECT_FALSE(m_ambiorix->add_optional_subobject(g_param_path_unknown, g_object_optional));
+    EXPECT_FALSE(m_ambiorix->has_optional_subobject(g_param_path_unknown, g_object_optional));
+
+    // not attached yet
+    EXPECT_FALSE(m_ambiorix->has_optional_subobject(g_param_path_test, g_object_optional));
 
     //success
     EXPECT_TRUE(m_ambiorix->add_optional_subobject(g_param_path_test, g_object_optional));
+    EXPECT_TRUE(m_ambiorix->has_optional_subobject(g_param_path_test, g_object_optional));
 
     // must fail, because of duplicate
     EXPECT_FALSE(m_ambiorix->add_optional_subobject(g_param_path_test, g_object_optional));
@@ -212,6 +217,7 @@ TEST_F(AmbiorixTest, test_optional_subobject)
 
     //success
     EXPECT_TRUE(m_ambiorix->remove_optional_subobject(g_param_path_test, g_object_optional));
+    EXPECT_FALSE(m_ambiorix->has_optional_subobject(g_param_path_test, g_object_optional));
 
     // should fail, because already removed
     // ToDo: does not fail!!!

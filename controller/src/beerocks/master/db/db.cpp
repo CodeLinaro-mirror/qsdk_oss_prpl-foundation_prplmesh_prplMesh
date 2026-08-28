@@ -7372,6 +7372,20 @@ bool db::get_last_sta_stats(const sMacAddr &sta_mac, wireless_utils::sta_statist
     return true;
 }
 
+bool db::ensure_spatial_reuse_object(const std::string &radio_path)
+{
+    if (m_ambiorix_datamodel->has_optional_subobject(radio_path + ".", "SpatialReuse")) {
+        return true;
+    }
+
+    if (!m_ambiorix_datamodel->add_optional_subobject(radio_path + ".", "SpatialReuse")) {
+        LOG(ERROR) << "Failed to add sub-object " << radio_path << ".SpatialReuse";
+        return false;
+    }
+
+    return true;
+}
+
 bool db::add_spatial_reuse_parameters(wfa_map::tlvSpatialReuseReport &spatial_reuse_report_tlv)
 {
     LOG(INFO) << "add_spatial_reuse_parameters, radio_uid: "
@@ -7406,6 +7420,10 @@ bool db::add_spatial_reuse_parameters(wfa_map::tlvSpatialReuseReport &spatial_re
     if (!is_any_field_set) {
         LOG(INFO) << "All parameters in spatial_reuse_report_tlv are empty";
         return true;
+    }
+
+    if (!ensure_spatial_reuse_object(radio_path)) {
+        return false;
     }
 
     // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.SpatialReuse

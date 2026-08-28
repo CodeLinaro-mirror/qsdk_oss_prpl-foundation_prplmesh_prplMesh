@@ -157,6 +157,12 @@ bool AmbiorixDummy::remove_optional_subobject(const std::string &path_to_obj,
     return true;
 }
 
+bool AmbiorixDummy::has_optional_subobject(const std::string &path_to_obj,
+                                           const std::string &subobject_name)
+{
+    return false;
+}
+
 bool AmbiorixDummy::set_current_time(const std::string &path_to_object, const std::string &param)
 {
     return true;

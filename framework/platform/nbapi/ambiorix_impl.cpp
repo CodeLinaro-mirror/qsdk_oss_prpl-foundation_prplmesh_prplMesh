@@ -400,6 +400,18 @@ bool AmbiorixImpl::remove_optional_subobject(const std::string &path_to_obj,
     return true;
 }
 
+bool AmbiorixImpl::has_optional_subobject(const std::string &path_to_obj,
+                                          const std::string &subobject_name)
+{
+    amxd_object_t *object = find_object(path_to_obj);
+
+    if (!object) {
+        return false;
+    }
+
+    return amxd_object_has_mib(object, subobject_name.c_str());
+}
+
 amxd_object_t *AmbiorixImpl::prepare_transaction(const std::string &relative_path,
                                                  amxd_trans_t &transaction)
 {

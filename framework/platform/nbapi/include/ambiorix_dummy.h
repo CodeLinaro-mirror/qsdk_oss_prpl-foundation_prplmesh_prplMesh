@@ -77,6 +77,8 @@ public:
                                 const std::string &subobject_name) override;
     bool remove_optional_subobject(const std::string &path_to_obj,
                                    const std::string &subobject_name) override;
+    bool has_optional_subobject(const std::string &path_to_obj,
+                                const std::string &subobject_name) override;
     bool set_current_time(const std::string &path_to_object,
                           const std::string &param = "TimeStamp") override;
     bool set_time(const std::string &path_to_object, const std::string &time_stamp) final;

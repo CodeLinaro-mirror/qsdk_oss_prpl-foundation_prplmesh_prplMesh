@@ -160,6 +160,16 @@ public:
                                            const std::string &subobject_name) = 0;
 
     /**
+     * @brief Check whether an optional sub-object is instantiated.
+     *
+     * @param path_to_obj path to the object in datamodel (example: "Device.WiFi.DataElements.Network").
+     * @param subobject_name name of the optional subobject (example: "HTCapabilities").
+     * @return true if the mib is attached to the object, false otherwise
+     */
+    virtual bool has_optional_subobject(const std::string &path_to_obj,
+                                        const std::string &subobject_name) = 0;
+
+    /**
      * @brief Set current data and time in RFC 3339 format.
      *
      * @param path_to_object Path to NBAPI object which has parameter object.

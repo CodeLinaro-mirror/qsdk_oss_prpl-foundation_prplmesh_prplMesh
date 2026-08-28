@@ -1670,6 +1670,19 @@ public:
     bool get_last_sta_stats(const sMacAddr &sta_mac, wireless_utils::sta_statistic_t &sta_stats);
 
     /**
+     * @brief Attach the 'SpatialReuse' mib to a radio unless it is attached already.
+     *
+     * The object exists only after the first Spatial Reuse Report with a non-empty
+     * field or the first SetSpatialReuse() call, whichever comes first. Calling this
+     * on a radio that already has the object is a no-op.
+     *
+     * @param radio_path Data model path of the radio, for example
+     * "Device.WiFi.DataElements.Network.Device.1.Radio.1".
+     * @return True if the object is attached on return, false otherwise.
+     */
+    bool ensure_spatial_reuse_object(const std::string &radio_path);
+
+    /**
      * @brief Add 'SpatialReuse' data element, set values to its parameters.
      * Example of full path to object:
      * "Device.WiFi.DataElements.Netwok.Device.1.Radio.1.SpatialReuse"
