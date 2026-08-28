@@ -1465,12 +1465,15 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             }
         }
 
-        if ((!request->cs_params().channel) ||
-            (ap_wlan_hal->get_radio_info().channel == request->cs_params().channel &&
-             ap_wlan_hal->get_radio_info().vht_center_freq ==
-                 request->cs_params().vht_center_frequency &&
-             ap_wlan_hal->get_radio_info().bandwidth == request->cs_params().bandwidth)) {
-            // No need to switch channels
+        const auto &radio            = ap_wlan_hal->get_radio_info();
+        const auto &csa              = request->cs_params();
+        const bool channel_invalid   = !csa.channel;
+        const bool control_changed   = (radio.channel != csa.channel);
+        const bool center_changed    = (radio.vht_center_freq != csa.vht_center_frequency);
+        const bool bandwidth_changed = (radio.bandwidth != csa.bandwidth);
+        const bool channel_changed   = control_changed || center_changed || bandwidth_changed;
+
+        if (channel_invalid || !channel_changed) {
             LOG(INFO) << "No need to switch channels as current channel and requested channels are "
                          "the same.";
             return;
