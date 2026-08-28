@@ -9611,7 +9611,15 @@ bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
         return true;
     }
 
-    bool ret_val(true);
+    if (bsta_mld_mac == network_utils::ZERO_MAC) {
+        m_ambiorix_datamodel->remove_optional_subobject(agent.dm_path + ".", "bSTAMLD");
+        return true;
+    }
+
+    m_ambiorix_datamodel->remove_optional_subobject(agent.dm_path + ".", "bSTAMLD");
+
+    bool ret_val = m_ambiorix_datamodel->add_optional_subobject(agent.dm_path + ".", "bSTAMLD");
+
     std::string bsta_mld_path = agent.dm_path + ".bSTAMLD";
     if (!m_ambiorix_datamodel->set(bsta_mld_path, "MLDMACAddress", bsta_mld_mac)) {
         LOG(ERROR) << "Failed to set MLDMACAddress " << bsta_mld_mac;
