@@ -9121,9 +9121,21 @@ bool db::dm_save_radio_cac_completion_report(wfa_map::cCacCompletionReportRadio 
         return true;
     }
 
+    if (radioReport.cac_completion_status() ==
+        wfa_map::cCacCompletionReportRadio::eCompletionStatus::NOT_PERFORMED) {
+        m_ambiorix_datamodel->remove_optional_subobject(pRadio->dm_path + ".",
+                                                        "X_PRPLWARE-COM_CACCompletion");
+        return true;
+    }
+
+    m_ambiorix_datamodel->remove_optional_subobject(pRadio->dm_path + ".",
+                                                    "X_PRPLWARE-COM_CACCompletion");
+
+    bool ret_val = m_ambiorix_datamodel->add_optional_subobject(pRadio->dm_path + ".",
+                                                                "X_PRPLWARE-COM_CACCompletion");
+
     const auto CAC_completion_path       = pRadio->dm_path + ".X_PRPLWARE-COM_CACCompletion";
     const auto CAC_completion_pairs_path = CAC_completion_path + ".Pairs";
-    bool ret_val                         = true;
 
     // Clear old pairs instances
     if (!m_ambiorix_datamodel->remove_all_instances(CAC_completion_pairs_path)) {

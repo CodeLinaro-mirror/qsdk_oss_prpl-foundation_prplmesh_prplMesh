@@ -1150,6 +1150,57 @@ TEST_F(DbTestRadio1, add_spatial_reuse_parameters_adds_optional_subobject)
     EXPECT_TRUE(m_db->add_spatial_reuse_parameters(tlv));
 }
 
+TEST_F(DbTestRadio1, dm_save_radio_cac_completion_report_adds_optional_subobject)
+{
+    std::vector<uint8_t> buffer(g_tlv_buffer_size, 0);
+    wfa_map::cCacCompletionReportRadio radio_report(buffer.data(), buffer.size());
+    radio_report.radio_uid()       = tlvf::mac_from_string(g_radio_mac_1);
+    radio_report.operating_class() = 121;
+    radio_report.channel()         = 100;
+    radio_report.cac_completion_status() =
+        wfa_map::cCacCompletionReportRadio::eCompletionStatus::SUCCESSFUL;
+
+    const std::string cac_completion_path = g_radio_path_1 + ".X_PRPLWARE-COM_CACCompletion";
+
+    InSequence sequence;
+
+    EXPECT_CALL(*m_ambiorix,
+                remove_optional_subobject(g_radio_path_1 + ".", "X_PRPLWARE-COM_CACCompletion"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                add_optional_subobject(g_radio_path_1 + ".", "X_PRPLWARE-COM_CACCompletion"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, remove_all_instances(cac_completion_path + ".Pairs"))
+        .WillOnce(Return(true));
+
+    EXPECT_CALL(*m_ambiorix,
+                set(cac_completion_path, "OperatingClass", Matcher<const uint8_t &>(121)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(cac_completion_path, "Channel", Matcher<const uint8_t &>(100)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(cac_completion_path, "Status", Matcher<const uint8_t &>(_)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_save_radio_cac_completion_report(radio_report));
+}
+
+TEST_F(DbTestRadio1, dm_save_radio_cac_completion_report_clears_object_when_not_performed)
+{
+    std::vector<uint8_t> buffer(g_tlv_buffer_size, 0);
+    wfa_map::cCacCompletionReportRadio radio_report(buffer.data(), buffer.size());
+    radio_report.radio_uid()       = tlvf::mac_from_string(g_radio_mac_1);
+    radio_report.operating_class() = 121;
+    radio_report.channel()         = 100;
+    radio_report.cac_completion_status() =
+        wfa_map::cCacCompletionReportRadio::eCompletionStatus::NOT_PERFORMED;
+
+    EXPECT_CALL(*m_ambiorix,
+                remove_optional_subobject(g_radio_path_1 + ".", "X_PRPLWARE-COM_CACCompletion"))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_save_radio_cac_completion_report(radio_report));
+}
+
 TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
 {
 
