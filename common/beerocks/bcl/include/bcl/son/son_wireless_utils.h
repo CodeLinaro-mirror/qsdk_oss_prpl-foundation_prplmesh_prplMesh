@@ -654,8 +654,25 @@ public:
     // Key: Operating Class
     static const std::map<uint8_t, sOperatingClass> operating_classes_list;
 
-    static bool has_operating_class_5g_channel(const sOperatingClass &oper_class, uint8_t channel,
-                                               beerocks::eWiFiBandwidth bw);
+    /**
+     * @brief Check whether a primary channel and bandwidth are part of an operating class.
+     *
+     * Most operating classes list primary channels (e.g. 81-84, 115-127, 131, 136), so a
+     * plain lookup in @p operating_class_info.channels is enough. Others list center
+     * channels instead (e.g. 128-130, 132-135, 137), so @p channel is first converted to its
+     * center channel. @p operating_class_info alone can't tell which scheme applies, hence
+     * the separate @p operating_class number.
+     *
+     * @param operating_class Numeric operating class identifier.
+     * @param operating_class_info The sOperatingClass entry for @p operating_class, as found
+     * in operating_classes_list.
+     * @param channel Radio's primary channel number to test.
+     * @param bw Bandwidth to test. BANDWIDTH_320_1/320_2 match a BANDWIDTH_320 class.
+     * @return true if the channel/bandwidth pair belongs to the operating class.
+     */
+    static bool has_operating_class_channel(uint8_t operating_class,
+                                            const sOperatingClass &operating_class_info,
+                                            uint8_t channel, beerocks::eWiFiBandwidth bw);
 
     /**
      * @brief Get a list of operating classes that are associated with the frequency type

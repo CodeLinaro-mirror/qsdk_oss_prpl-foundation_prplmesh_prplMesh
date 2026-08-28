@@ -32,21 +32,21 @@ static int8_t get_operating_class_max_tx_power(
     const std::unordered_map<uint8_t, beerocks::AgentDB::sRadio::sChannelInfo> &channels_list,
     uint8_t operating_class)
 {
-    int8_t max_tx_power = 0;
-    auto oper_class_it  = son::wireless_utils::operating_classes_list.find(operating_class);
-    if (oper_class_it == son::wireless_utils::operating_classes_list.end()) {
+    int8_t max_tx_power     = 0;
+    auto operating_class_it = son::wireless_utils::operating_classes_list.find(operating_class);
+    if (operating_class_it == son::wireless_utils::operating_classes_list.end()) {
         LOG(ERROR) << "Operating class does not exist: " << operating_class;
         return beerocks::eGlobals::RSSI_INVALID;
     }
 
-    const auto &oper_class = oper_class_it->second;
+    const auto &operating_class_info = operating_class_it->second;
 
     for (const auto &channel_info_element : channels_list) {
         auto channel       = channel_info_element.first;
         auto &channel_info = channel_info_element.second;
         for (const auto &bw_info : channel_info.supported_bw_list) {
-            if (son::wireless_utils::has_operating_class_5g_channel(oper_class, channel,
-                                                                    bw_info.bandwidth)) {
+            if (son::wireless_utils::has_operating_class_channel(
+                    operating_class, operating_class_info, channel, bw_info.bandwidth)) {
                 max_tx_power = std::max(max_tx_power, channel_info.tx_power_dbm);
             }
         }
