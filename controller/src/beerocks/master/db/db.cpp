@@ -1673,9 +1673,19 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
         // First bit represents agent role, second bit is reserved according to R3.
         uint8_t agent_role_first_bit = flags1.agent_role & 0x01;
 
-        const std::string path_to_obj =
-            radio->dm_path + ".Capabilities." +
+        const std::string role_name =
             (agent_role_first_bit == 0x0 ? "WiFi6APRole" : "WiFi6bSTARole");
+        const std::string capabilities_path = radio->dm_path + ".Capabilities.";
+
+        m_ambiorix_datamodel->remove_optional_subobject(capabilities_path, role_name);
+
+        if (!m_ambiorix_datamodel->add_optional_subobject(capabilities_path, role_name)) {
+            LOG(ERROR) << "Failed to add sub-object " << capabilities_path << role_name;
+            ret_val = false;
+            continue;
+        }
+
+        const std::string path_to_obj = capabilities_path + role_name;
 
         //TODO: Need to set the value for MCS_NSS and OFDMA (PPM-2288)
         ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
@@ -6799,6 +6809,8 @@ bool db::clear_ap_capabilities(const sMacAddr &radio_uid)
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "HTCapabilities");
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "VHTCapabilities");
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi6Capabilities");
+    ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi6APRole");
+    ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi6bSTARole");
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi7APRole");
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi7bSTARole");
 

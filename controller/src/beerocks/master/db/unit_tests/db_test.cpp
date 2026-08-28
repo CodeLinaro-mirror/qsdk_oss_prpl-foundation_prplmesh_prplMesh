@@ -39,6 +39,7 @@ constexpr auto g_radio_mac_2                = "46:55:66:77:00:22";
 constexpr auto g_client_mac                 = "46:55:66:77:00:31";
 constexpr auto g_agent_mac                  = "46:55:66:77:00:51";
 constexpr auto g_vap_id_1                   = 1;
+constexpr auto g_tlv_buffer_size            = 64;
 constexpr auto g_bssid_1                    = "46:55:66:77:00:03";
 constexpr auto g_ssid_1                     = "dummy_ssid";
 constexpr auto g_interface_mac_1            = "46:55:66:77:00:41";
@@ -1055,6 +1056,69 @@ TEST_F(DbTestRadio1, set_wifi7_support_skips_when_no_capability_reported)
     radio->wifi7_capabilities.ap_role.emlmr_support = false;
 
     EXPECT_TRUE(m_db->set_wifi7_support(*radio, false));
+}
+
+TEST_F(DbTestRadio1, set_ap_wifi6_capabilities_adds_optional_subobject)
+{
+    std::vector<uint8_t> buffer(g_tlv_buffer_size, 0);
+    wfa_map::tlvApWifi6Capabilities tlv(buffer.data(), buffer.size());
+    tlv.radio_uid() = tlvf::mac_from_string(g_radio_mac_1);
+
+    auto role = tlv.create_role();
+    ASSERT_TRUE(role);
+    role->flags1().agent_role           = 0x0; // AP role
+    role->flags1().he_support_160mhz    = true;
+    role->flags1().he_support_80_80mhz  = false;
+    role->flags2().su_beamformer        = true;
+    role->flags2().su_beamformee        = false;
+    role->flags2().mu_Beamformer_status = false;
+    ASSERT_TRUE(tlv.add_role(role));
+
+    const std::string capabilities_path = g_radio_path_1 + ".Capabilities.";
+    EXPECT_CALL(*m_ambiorix, remove_optional_subobject(capabilities_path, "WiFi6APRole"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(capabilities_path, "WiFi6APRole"))
+        .WillOnce(Return(true));
+
+    const std::string role_path = capabilities_path + "WiFi6APRole";
+
+    EXPECT_CALL(*m_ambiorix, set(role_path, _, Matcher<const bool &>(_)))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(role_path, _, Matcher<const int &>(_)))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(role_path, _, Matcher<const unsigned char &>(_)))
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(*m_ambiorix, set(role_path, "HE160", Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(role_path, "HE8080", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(role_path, "SUBeamformer", Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_ap_wifi6_capabilities(tlv));
+}
+
+TEST_F(DbTestRadio1, set_ap_wifi6_capabilities_reports_failure_when_attach_fails)
+{
+    std::vector<uint8_t> buffer(g_tlv_buffer_size, 0);
+    wfa_map::tlvApWifi6Capabilities tlv(buffer.data(), buffer.size());
+    tlv.radio_uid() = tlvf::mac_from_string(g_radio_mac_1);
+
+    auto role = tlv.create_role();
+    ASSERT_TRUE(role);
+    role->flags1().agent_role        = 0x0; // AP role
+    role->flags1().he_support_160mhz = true;
+    ASSERT_TRUE(tlv.add_role(role));
+
+    const std::string capabilities_path = g_radio_path_1 + ".Capabilities.";
+
+    EXPECT_CALL(*m_ambiorix, remove_optional_subobject(capabilities_path, "WiFi6APRole"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(capabilities_path, "WiFi6APRole"))
+        .WillOnce(Return(false));
+
+    EXPECT_FALSE(m_db->set_ap_wifi6_capabilities(tlv));
 }
 
 TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
