@@ -9636,6 +9636,18 @@ bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
         return true;
     }
 
+    if (bsta_mld_mac == network_utils::ZERO_MAC) {
+        m_ambiorix_datamodel->remove_optional_subobject(agent.dm_path + ".", "bSTAMLD");
+        return true;
+    }
+
+    m_ambiorix_datamodel->remove_optional_subobject(agent.dm_path + ".", "bSTAMLD");
+
+    if (!m_ambiorix_datamodel->add_optional_subobject(agent.dm_path + ".", "bSTAMLD")) {
+        LOG(ERROR) << "Failed to add sub-object " << agent.dm_path << ".bSTAMLD";
+        return false;
+    }
+
     bool ret_val(true);
     std::string bsta_mld_path = agent.dm_path + ".bSTAMLD";
     if (!m_ambiorix_datamodel->set(bsta_mld_path, "MLDMACAddress", bsta_mld_mac)) {
