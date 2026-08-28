@@ -972,6 +972,91 @@ TEST_F(DbTestRadio1, test_operating_channel_report_overrides_deferred_radio_stat
     EXPECT_EQ(operating_channel.get_bandwidth(), actual_channel.get_bandwidth());
 }
 
+TEST_F(DbTestRadio1, set_wifi7_support_adds_optional_subobject)
+{
+    auto radio =
+        m_db->get_radio(tlvf::mac_from_string(g_bridge_mac), tlvf::mac_from_string(g_radio_mac_1));
+    ASSERT_TRUE(radio);
+
+    radio->wifi7_capabilities.ap_role.str_support   = true;
+    radio->wifi7_capabilities.ap_role.nstr_support  = false;
+    radio->wifi7_capabilities.ap_role.emlsr_support = true;
+    radio->wifi7_capabilities.ap_role.emlmr_support = false;
+
+    const std::string capabilities_path = g_radio_path_1 + ".Capabilities.";
+
+    EXPECT_CALL(*m_ambiorix, remove_optional_subobject(capabilities_path, "WiFi7APRole"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(capabilities_path, "WiFi7APRole"))
+        .WillOnce(Return(true));
+
+    const std::string role_path = capabilities_path + "WiFi7APRole.";
+    EXPECT_CALL(*m_ambiorix, set(role_path, "STRSupport", Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(role_path, "NSTRSupport", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(role_path, "EMLSRSupport", Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(role_path, "EMLMRSupport", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_wifi7_support(*radio, false));
+}
+
+TEST_F(DbTestRadio1, set_wifi7_support_reports_failure_when_attach_fails)
+{
+    auto radio =
+        m_db->get_radio(tlvf::mac_from_string(g_bridge_mac), tlvf::mac_from_string(g_radio_mac_1));
+    ASSERT_TRUE(radio);
+
+    radio->wifi7_capabilities.ap_role.str_support   = true;
+    radio->wifi7_capabilities.ap_role.nstr_support  = true;
+    radio->wifi7_capabilities.ap_role.emlsr_support = false;
+    radio->wifi7_capabilities.ap_role.emlmr_support = true;
+
+    const std::string capabilities_path = g_radio_path_1 + ".Capabilities.";
+
+    EXPECT_CALL(*m_ambiorix, remove_optional_subobject(capabilities_path, "WiFi7APRole"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(capabilities_path, "WiFi7APRole"))
+        .WillOnce(Return(false));
+
+    EXPECT_FALSE(m_db->set_wifi7_support(*radio, false));
+}
+
+TEST_F(DbTestRadio1, set_wifi7_capabilities_skips_when_no_mlo_mode_supported)
+{
+    auto radio =
+        m_db->get_radio(tlvf::mac_from_string(g_bridge_mac), tlvf::mac_from_string(g_radio_mac_1));
+    ASSERT_TRUE(radio);
+
+    radio->wifi7_capabilities.ap_role.str_support   = false;
+    radio->wifi7_capabilities.ap_role.nstr_support  = false;
+    radio->wifi7_capabilities.ap_role.emlsr_support = false;
+    radio->wifi7_capabilities.ap_role.emlmr_support = false;
+
+    Agent::sRadio::sWiFi7Capabilities::sRole::sFreqSeparation freq_separation;
+    freq_separation.ruid            = tlvf::mac_from_string(g_radio_mac_1);
+    freq_separation.freq_separation = 1;
+    radio->wifi7_capabilities.ap_role.str_freq_separations.push_back(freq_separation);
+
+    EXPECT_TRUE(m_db->set_wifi7_capabilities(*radio, false));
+}
+
+TEST_F(DbTestRadio1, set_wifi7_support_skips_when_no_capability_reported)
+{
+    auto radio =
+        m_db->get_radio(tlvf::mac_from_string(g_bridge_mac), tlvf::mac_from_string(g_radio_mac_1));
+    ASSERT_TRUE(radio);
+
+    radio->wifi7_capabilities.ap_role.str_support   = false;
+    radio->wifi7_capabilities.ap_role.nstr_support  = false;
+    radio->wifi7_capabilities.ap_role.emlsr_support = false;
+    radio->wifi7_capabilities.ap_role.emlmr_support = false;
+
+    EXPECT_TRUE(m_db->set_wifi7_support(*radio, false));
+}
+
 TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
 {
 

@@ -1815,14 +1815,43 @@ bool db::set_internal_wifi7_radio_capabilities(
     return true;
 }
 
+/**
+ * @brief Check if a Wi-Fi 7 role reports at least one MLO mode.
+ *
+ * The WiFi7APRole/WiFi7bSTARole object exists only for a radio that supports at least one of
+ * STR/NSTR/EMLSR/EMLMR. Both writers of that object gate on this helper, so they always agree
+ * on whether the mib is attached.
+ *
+ * @param role Wi-Fi 7 role to check.
+ * @return True if the role supports at least one MLO mode, false otherwise.
+ */
+static bool wifi7_role_is_supported(const Agent::sRadio::sWiFi7Capabilities::sRole &role)
+{
+    return role.str_support || role.nstr_support || role.emlsr_support || role.emlmr_support;
+}
+
 bool db::set_wifi7_support(const Agent::sRadio &radio, bool is_bsta)
 {
     bool ret_val(true);
 
     const Agent::sRadio::sWiFi7Capabilities::sRole &wifi7_role =
         is_bsta ? radio.wifi7_capabilities.bsta_role : radio.wifi7_capabilities.ap_role;
-    std::string path_to_obj = radio.dm_path + ".Capabilities.";
-    path_to_obj += (is_bsta ? "WiFi7bSTARole." : "WiFi7APRole.");
+
+    if (!wifi7_role_is_supported(wifi7_role)) {
+        return true;
+    }
+
+    const std::string role_name         = is_bsta ? "WiFi7bSTARole" : "WiFi7APRole";
+    const std::string capabilities_path = radio.dm_path + ".Capabilities.";
+
+    m_ambiorix_datamodel->remove_optional_subobject(capabilities_path, role_name);
+
+    if (!m_ambiorix_datamodel->add_optional_subobject(capabilities_path, role_name)) {
+        LOG(ERROR) << "Failed to add sub-object " << capabilities_path << role_name;
+        return false;
+    }
+
+    const std::string path_to_obj = capabilities_path + role_name + ".";
 
     ret_val &= m_ambiorix_datamodel->set(path_to_obj, "STRSupport", wifi7_role.str_support);
     ret_val &= m_ambiorix_datamodel->set(path_to_obj, "NSTRSupport", wifi7_role.nstr_support);
@@ -1838,6 +1867,10 @@ bool db::set_wifi7_capabilities(const Agent::sRadio &radio, bool is_bsta)
 
     const Agent::sRadio::sWiFi7Capabilities::sRole &wifi7_role =
         is_bsta ? radio.wifi7_capabilities.bsta_role : radio.wifi7_capabilities.ap_role;
+
+    if (!wifi7_role_is_supported(wifi7_role)) {
+        return true;
+    }
 
     // Device.WiFi.DataElements.Network.Device.{i}.Radio.{i}.Capabilities
     std::string path_to_obj = radio.dm_path + ".Capabilities.";
@@ -6766,6 +6799,8 @@ bool db::clear_ap_capabilities(const sMacAddr &radio_uid)
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "HTCapabilities");
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "VHTCapabilities");
     ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi6Capabilities");
+    ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi7APRole");
+    ret_val &= m_ambiorix_datamodel->remove_optional_subobject(path_to_obj, "WiFi7bSTARole");
 
     return ret_val;
 }

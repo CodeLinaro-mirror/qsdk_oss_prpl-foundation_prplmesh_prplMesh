@@ -1626,6 +1626,41 @@ public:
     bool set_ap_vht_capabilities(wfa_map::tlvApVhtCapabilities &vht_caps_tlv);
 
     /**
+     * @brief Add 'WiFi7APRole'/'WiFi7bSTARole' data element, set values to its parameters.
+     * Example of full path to object:
+     * "Device.WiFi.DataElements.Network.Device.1.Radio.1.Capabilities.WiFi7APRole"
+     *
+     * The object is added only for a radio that supports at least one of STR/NSTR/EMLSR/EMLMR.
+     * A radio that supports none of them reports nothing here, which is not an error.
+     *
+     * @param radio radio whose Wi-Fi 7 role capabilities are set.
+     * @param is_bsta true for the backhaul STA role (WiFi7bSTARole), false for the AP role
+     * (WiFi7APRole).
+     * @return True if the radio supports no MLO mode, or if the sub-object was added and the
+     * values for its parameters were set. False if the sub-object could not be added or a value
+     * could not be set.
+     */
+    bool set_wifi7_support(const Agent::sRadio &radio, bool is_bsta);
+
+    /**
+     * @brief Add the frequency separation instances of 'WiFi7APRole'/'WiFi7bSTARole'.
+     * Example of full path to object:
+     * "Device.WiFi.DataElements.Network.Device.1.Radio.1.Capabilities.WiFi7APRole
+     * .STRFreqSeparation.1"
+     *
+     * The instances live under the object that set_wifi7_support() attaches, so this gates on
+     * the same condition. A radio that supports no MLO mode has no object to hold them, and
+     * reports nothing here, which is not an error.
+     *
+     * @param radio radio whose Wi-Fi 7 frequency separations are set.
+     * @param is_bsta true for the backhaul STA role (WiFi7bSTARole), false for the AP role
+     * (WiFi7APRole).
+     * @return True if the radio supports no MLO mode, or if every instance was added and its
+     * parameters were set. False otherwise.
+     */
+    bool set_wifi7_capabilities(const Agent::sRadio &radio, bool is_bsta);
+
+    /**
      * @brief Get last statistics for given STA from DB
      *
      * @param sta_mac Station MAC address.
@@ -3814,8 +3849,6 @@ private:
     bool set_internal_wifi7_radio_capabilities(
         wfa_map::cRadioWifi7Capabilities &radio_wifi7_capabilities, Agent::sRadio &radio,
         bool is_bsta);
-    bool set_wifi7_support(const Agent::sRadio &radio, bool is_bsta);
-    bool set_wifi7_capabilities(const Agent::sRadio &radio, bool is_bsta);
     void set_internal_eht_operations(wfa_map::cBssEntry &eht_operations_bss,
                                      Agent::sRadio::sBss::sEhtOperations &bss);
     bool set_external_eht_operations(Agent::sRadio::sBss &bss);
