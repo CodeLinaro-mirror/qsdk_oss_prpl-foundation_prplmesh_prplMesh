@@ -1121,6 +1121,35 @@ TEST_F(DbTestRadio1, set_ap_wifi6_capabilities_reports_failure_when_attach_fails
     EXPECT_FALSE(m_db->set_ap_wifi6_capabilities(tlv));
 }
 
+TEST_F(DbTestRadio1, add_spatial_reuse_parameters_adds_optional_subobject)
+{
+    std::vector<uint8_t> buffer(g_tlv_buffer_size, 0);
+    wfa_map::tlvSpatialReuseReport tlv(buffer.data(), buffer.size());
+    tlv.radio_uid()                = tlvf::mac_from_string(g_radio_mac_1);
+    tlv.flags1().bss_color         = 5;
+    tlv.flags1().partial_bss_color = 1;
+
+    const std::string radio_path = g_radio_path_1;
+
+    EXPECT_CALL(*m_ambiorix, remove_optional_subobject(radio_path + ".", "SpatialReuse"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(radio_path + ".", "SpatialReuse"))
+        .WillOnce(Return(true));
+
+    const std::string spatial_reuse_path = radio_path + ".SpatialReuse";
+
+    EXPECT_CALL(*m_ambiorix, set(spatial_reuse_path, _, Matcher<const uint8_t &>(_)))
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(*m_ambiorix, set(spatial_reuse_path, "BSSColor", Matcher<const uint8_t &>(5)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(spatial_reuse_path, "PartialBSSColor", Matcher<const uint8_t &>(1)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->add_spatial_reuse_parameters(tlv));
+}
+
 TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
 {
 

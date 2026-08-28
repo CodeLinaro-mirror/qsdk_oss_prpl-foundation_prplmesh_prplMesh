@@ -7408,6 +7408,13 @@ bool db::add_spatial_reuse_parameters(wfa_map::tlvSpatialReuseReport &spatial_re
         return true;
     }
 
+    m_ambiorix_datamodel->remove_optional_subobject(radio_path + ".", "SpatialReuse");
+
+    if (!m_ambiorix_datamodel->add_optional_subobject(radio_path + ".", "SpatialReuse")) {
+        LOG(ERROR) << "Failed to add sub-object " << radio_path << ".SpatialReuse";
+        return false;
+    }
+
     // Data model path example: Device.WiFi.DataElements.Network.Device.1.Radio.1.SpatialReuse
     const auto spatial_reuse_path = radio_path + ".SpatialReuse";
 

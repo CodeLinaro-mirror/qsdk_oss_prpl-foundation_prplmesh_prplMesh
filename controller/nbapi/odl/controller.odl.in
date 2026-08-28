@@ -293,6 +293,50 @@
     }
 }
 
+%define {
+    mib SpatialReuse {
+        /* The spatial reuse configuration of this radio. Applies only to Wi-Fi 6 [802.11ax] and possibly later generations of radios */
+        %read-only object SpatialReuse {
+            %read-only uint32 PartialBSSColor;
+            %read-only uint32 BSSColor;
+            %read-only bool HESIGASpatialReuseValue15Allowed;
+            %read-only bool SRGInformationValid;
+            %read-only bool NonSRGOffsetValid;
+            %read-only bool PSRDisallowed;
+            %read-only uint32 NonSRGOBSSPDMaxOffset;
+            %read-only uint32 SRGOBSSPDMinOffset;
+            %read-only uint32 SRGOBSSPDMaxOffset;
+
+            /**
+            * The value of dot11SRGAPBSSColorBitmap (i.e. the SRG BSS Color Bitmap being used to control the tranmissions of the specified radio). (EasyMesh TLV Field: SRG BSS Color Bitmap)
+            * This field is valid only if SRGInformationValid is true.
+            * @version 2.19.1
+            */
+            %read-only string SRGBSSColorBitmap {
+                on action validate call check_range [0, 8];
+            }
+
+            /**
+            * The value of dot11SRGAPBSSIDBitmap (i.e. the SRG Partial BSSID Color Bitmap being used to control the transmissions of the specified radio). (EasyMesh TLV Field: SRG Partial BSSID Bitmap)
+            * This field is valid only if SRGInformationValid is true.
+            * Note: See rules in section 26.10.2.3 of [17] regarding the members of an SRG.
+            * @version 2.19.1
+            */
+            %read-only string SRGPartialBSSIDBitmap {
+                on action validate call check_range [0, 8];
+            }
+
+            /**
+            * Bitmap of BSS colors of Overlapping BSSs (OBSSs) that the High-Efficiency (HE) AP has identified by itself or via the autonomous BSS Color collision reports received from associated non-AP HE STAs.
+            * @version 2.19.1
+            */
+            %read-only string NeighborBSSColorInUseBitmap {
+                on action validate call check_range [0, 8];
+            }
+        }
+    }
+}
+
 
 %define {
 
