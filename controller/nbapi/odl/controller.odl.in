@@ -401,6 +401,18 @@
     }
 }
 
+%define {
+    /* Input of the last SetQoSManagement() call on the BSS; attached on the first call. */
+    mib SetQoSManagementInput {
+        %read-only object SetQoSManagementInput {
+            %read-only bool QosMapEnable = false;
+            %read-only bool MSCSEnable = false;
+            %read-only bool SCSEnable = false;
+            %read-only bool DSCPPolicyEnable = false;
+            %read-only bool SCSTrafficDescriptionEnable = false;
+        }
+    }
+}
 
 %define {
 
