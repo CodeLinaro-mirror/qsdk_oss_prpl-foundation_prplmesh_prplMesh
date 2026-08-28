@@ -9588,6 +9588,14 @@ bool db::dm_set_bss_qos_management_settings(const sMacAddr &bssid,
         return true;
     }
 
+    m_ambiorix_datamodel->remove_optional_subobject(bss->dm_path + ".", "SetQoSManagementInput");
+
+    if (!m_ambiorix_datamodel->add_optional_subobject(bss->dm_path + ".",
+                                                      "SetQoSManagementInput")) {
+        LOG(ERROR) << "Failed to add sub-object " << bss->dm_path << ".SetQoSManagementInput";
+        return false;
+    }
+
     const auto settings_path = bss->dm_path + ".SetQoSManagementInput";
 
     bool ret_val = true;
