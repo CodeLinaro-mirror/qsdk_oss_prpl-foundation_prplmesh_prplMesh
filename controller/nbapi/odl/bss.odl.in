@@ -119,14 +119,6 @@
             %read-only string DescriptorElement = "";
         }
 
-        %read-only object SetQoSManagementInput {
-            %read-only bool QosMapEnable = false;
-            %read-only bool MSCSEnable = false;
-            %read-only bool SCSEnable = false;
-            %read-only bool DSCPPolicyEnable = false;
-            %read-only bool SCSTrafficDescriptionEnable = false;
-        }
-
         /**
         * Object describing a single Associated Device (STA).
         * At most one entry in this table can exist with a given value for MACAddress.

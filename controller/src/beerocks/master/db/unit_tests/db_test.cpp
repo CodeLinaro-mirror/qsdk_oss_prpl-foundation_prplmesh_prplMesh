@@ -1278,6 +1278,29 @@ TEST_F(DbTest, dm_update_bsta_mld_clears_object_when_no_bsta_mld_reported)
     EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, zero_mac, zero_mac, "", beerocks::MLO_MODE_NONE));
 }
 
+TEST_F(DbTestRadio1Bss1, dm_set_bss_qos_management_settings_adds_optional_subobject)
+{
+    son::db::sQosManagementSettings settings;
+    settings.mscs_enable = true;
+    settings.scs_enable  = false;
+
+    EXPECT_CALL(*m_ambiorix,
+                remove_optional_subobject(g_radio_1_bss_path_1 + ".", "SetQoSManagementInput"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                add_optional_subobject(g_radio_1_bss_path_1 + ".", "SetQoSManagementInput"))
+        .WillOnce(Return(true));
+
+    const std::string settings_path = g_radio_1_bss_path_1 + ".SetQoSManagementInput";
+    EXPECT_CALL(*m_ambiorix, set(settings_path, "MSCSEnable", Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(settings_path, "SCSEnable", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(
+        m_db->dm_set_bss_qos_management_settings(tlvf::mac_from_string(g_bssid_1), settings));
+}
+
 TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
 {
 

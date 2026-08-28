@@ -9563,9 +9563,13 @@ bool db::dm_set_bss_qos_management_settings(const sMacAddr &bssid,
         return true;
     }
 
+    m_ambiorix_datamodel->remove_optional_subobject(bss->dm_path + ".", "SetQoSManagementInput");
+
+    bool ret_val =
+        m_ambiorix_datamodel->add_optional_subobject(bss->dm_path + ".", "SetQoSManagementInput");
+
     const auto settings_path = bss->dm_path + ".SetQoSManagementInput";
 
-    bool ret_val = true;
     ret_val &= m_ambiorix_datamodel->set(settings_path, "MSCSEnable", settings.mscs_enable);
     ret_val &= m_ambiorix_datamodel->set(settings_path, "SCSEnable", settings.scs_enable);
 
