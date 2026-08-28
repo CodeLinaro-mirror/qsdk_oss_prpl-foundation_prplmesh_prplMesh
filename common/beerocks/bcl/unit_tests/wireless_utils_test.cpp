@@ -166,7 +166,10 @@ std::string bandwidth_to_string(uint8_t value)
         {beerocks::BANDWIDTH_40, "40"},
         {beerocks::BANDWIDTH_80, "80"},
         {beerocks::BANDWIDTH_80_80, "80_80"},
-        {beerocks::BANDWIDTH_160, "160"}
+        {beerocks::BANDWIDTH_160, "160"},
+        {beerocks::BANDWIDTH_320_1, "320_1"},
+        {beerocks::BANDWIDTH_320_2, "320_2"},
+        {beerocks::BANDWIDTH_320, "320"}
     };
     // clang-format on
 
@@ -298,6 +301,273 @@ TEST(overlapping_channels, channel_112)
     EXPECT_TRUE(std::find(result.begin(), result.end(),
                           std::pair<uint8_t, beerocks::eWiFiBandwidth>(
                               128, beerocks::BANDWIDTH_160)) != result.end());
+}
+
+/**
+ * Parameter type used in value-parameterized tests of has_operating_class_channel().
+ * Tuple elements, in order: the operating class number to test against, the radio's primary
+ * channel, the bandwidth, and whether the channel/bandwidth pair is expected to belong to
+ * that operating class.
+ */
+typedef std::tuple<uint8_t, uint8_t, beerocks::eWiFiBandwidth, bool> tHasOperatingClassChannelParam;
+
+/**
+ * @brief Gets a list of parameters to has_operating_class_channel() together with the expected
+ * result for each one of them. Covers 6GHz (incl. center-channel classes, 320MHz-1/2, and the
+ * class 136 exception), 5GHz center-channel classes, and 2.4GHz.
+ *
+ * @return vector with parameters of has_operating_class_channel() and their expected result.
+ */
+std::vector<tHasOperatingClassChannelParam> has_operating_class_channel_parameters()
+{
+    // clang-format off
+    return {
+        // 6GHz, primary channel 37: one operating class per bandwidth
+        {131, 37, beerocks::BANDWIDTH_20,    true},
+        {131, 37, beerocks::BANDWIDTH_40,    false},
+        {131, 37, beerocks::BANDWIDTH_80,    false},
+        {132, 37, beerocks::BANDWIDTH_20,    false},
+        {132, 37, beerocks::BANDWIDTH_40,    true},
+        {132, 37, beerocks::BANDWIDTH_80,    false},
+        {133, 37, beerocks::BANDWIDTH_40,    false},
+        {133, 37, beerocks::BANDWIDTH_80,    true},
+        {133, 37, beerocks::BANDWIDTH_160,   false},
+        {134, 37, beerocks::BANDWIDTH_80,    false},
+        {134, 37, beerocks::BANDWIDTH_160,   true},
+        {134, 37, beerocks::BANDWIDTH_320_1, false},
+        {137, 37, beerocks::BANDWIDTH_160,   false},
+        {137, 37, beerocks::BANDWIDTH_320_1, true},
+        {137, 37, beerocks::BANDWIDTH_320_2, true},
+        // 6GHz, primary channel 1: no 320MHz-2 center channel below channel 33
+        {131,  1, beerocks::BANDWIDTH_20,    true},
+        {132,  1, beerocks::BANDWIDTH_40,    true},
+        {133,  1, beerocks::BANDWIDTH_80,    true},
+        {134,  1, beerocks::BANDWIDTH_160,   true},
+        {137,  1, beerocks::BANDWIDTH_320_1, true},
+        {137,  1, beerocks::BANDWIDTH_320_2, false},
+        {137, 33, beerocks::BANDWIDTH_320_2, true},
+        // Class 136: the 132-137 exception, not center-channel-indexed
+        {136,  2, beerocks::BANDWIDTH_20,    true},
+        {136,  1, beerocks::BANDWIDTH_20,    false},
+        {136, 37, beerocks::BANDWIDTH_20,    false},
+        {136,  2, beerocks::BANDWIDTH_40,    false},
+        // 5GHz, primary channel 36
+        {115, 36, beerocks::BANDWIDTH_20,    true},
+        {116, 36, beerocks::BANDWIDTH_40,    true},
+        {128, 36, beerocks::BANDWIDTH_80,    true},
+        {128, 36, beerocks::BANDWIDTH_160,   false},
+        {129, 36, beerocks::BANDWIDTH_80,    false},
+        {129, 36, beerocks::BANDWIDTH_160,   true},
+        // 2.4GHz, no conversion involved. 1, 6, 11 are the non-overlapping channels.
+        {81,   1, beerocks::BANDWIDTH_20,    true},
+        {81,   6, beerocks::BANDWIDTH_20,    true},
+        {81,  11, beerocks::BANDWIDTH_20,    true},
+        {81,  13, beerocks::BANDWIDTH_20,    true},
+        {81,   1, beerocks::BANDWIDTH_40,    false},
+        {82,  11, beerocks::BANDWIDTH_20,    false},
+        {83,   1, beerocks::BANDWIDTH_40,    true},
+        {83,   6, beerocks::BANDWIDTH_40,    true},
+        {83,  11, beerocks::BANDWIDTH_40,    false},
+        {83,   1, beerocks::BANDWIDTH_20,    false},
+        {84,   1, beerocks::BANDWIDTH_40,    false},
+        {84,   6, beerocks::BANDWIDTH_40,    true},
+        {84,  11, beerocks::BANDWIDTH_40,    true},
+        {84,  13, beerocks::BANDWIDTH_40,    true},
+    };
+    // clang-format on
+}
+
+/**
+ * @brief Converts a parameter of a has_operating_class_channel() value-parameterized test to
+ * its string representation.
+ *
+ * Helper function to create a custom test name suffix based on the test parameter value.
+ *
+ * @param info Information of the value-parameterized test parameter.
+ * @return Value-parameterized test parameter as a string.
+ */
+std::string has_operating_class_channel_param_to_string(
+    const testing::TestParamInfo<tHasOperatingClassChannelParam> &info)
+{
+    const auto &param = info.param;
+
+    return operating_class_to_string(std::get<0>(param)) + "_" +
+           channel_to_string(std::get<1>(param)) + "_" + bandwidth_to_string(std::get<2>(param)) +
+           "_" + (std::get<3>(param) ? "supported" : "unsupported");
+}
+
+/**
+ * Fixture class to write value-parameterized tests for method
+ * wireless_utils::has_operating_class_channel()
+ *
+ * See Value-Parameterized Tests documentation at
+ * https://github.com/google/googletest/blob/master/googletest/docs/advanced.md#value-parameterized-tests
+ */
+class WirelessUtilsHasOperatingClassChannelTest
+    : public testing::TestWithParam<tHasOperatingClassChannelParam> {
+};
+
+TEST_P(WirelessUtilsHasOperatingClassChannelTest, should_return_expected)
+{
+    uint8_t operating_class;
+    uint8_t channel;
+    beerocks::eWiFiBandwidth bandwidth;
+    bool expected_result;
+    std::tie(operating_class, channel, bandwidth, expected_result) = GetParam();
+
+    const auto it = son::wireless_utils::operating_classes_list.find(operating_class);
+    ASSERT_NE(it, son::wireless_utils::operating_classes_list.end())
+        << "operating class " << int(operating_class) << " is missing from operating_classes_list";
+
+    EXPECT_EQ(son::wireless_utils::has_operating_class_channel(operating_class, it->second, channel,
+                                                               bandwidth),
+              expected_result);
+}
+
+INSTANTIATE_TEST_SUITE_P(ValidParamsInstance, WirelessUtilsHasOperatingClassChannelTest,
+                         testing::ValuesIn(has_operating_class_channel_parameters()),
+                         has_operating_class_channel_param_to_string);
+
+TEST(has_operating_class_channel, every_listed_channel_matches_its_own_class)
+{
+    // Every operating class must recognize each channel it lists for itself, at its own
+    // bandwidth. No independent oracle needed: membership is true by construction. Does not
+    // exercise the primary-to-center conversion; see the hand-picked cases above for that.
+    for (const auto &operating_class_entry : son::wireless_utils::operating_classes_list) {
+        uint8_t operating_class = operating_class_entry.first;
+        const son::wireless_utils::sOperatingClass &operating_class_info =
+            operating_class_entry.second;
+
+        for (uint8_t channel : operating_class_info.channels) {
+            EXPECT_TRUE(son::wireless_utils::has_operating_class_channel(
+                operating_class, operating_class_info, channel, operating_class_info.band))
+                << "operating class " << int(operating_class) << ", channel " << int(channel);
+        }
+    }
+}
+
+// Pins down get_center_channel(), the conversion has_operating_class_channel() relies on.
+TEST(center_channel, channel_36_5g)
+{
+    const uint8_t channel = 36;
+    const auto freq_type  = beerocks::eFreqType::FREQ_5G;
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_20),
+              36);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
+              38);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
+              42);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
+              50);
+    // BANDWIDTH_80_80 is normalized to BANDWIDTH_80 for the lookup.
+    EXPECT_EQ(
+        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80_80), 42);
+}
+
+TEST(center_channel, channel_100_5g)
+{
+    const uint8_t channel = 100;
+    const auto freq_type  = beerocks::eFreqType::FREQ_5G;
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_20),
+              100);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
+              102);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
+              106);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
+              114);
+}
+
+TEST(center_channel, channel_149_5g)
+{
+    const uint8_t channel = 149;
+    const auto freq_type  = beerocks::eFreqType::FREQ_5G;
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_20),
+              149);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
+              151);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
+              155);
+}
+
+TEST(center_channel, channel_132_5g_160_unsupported)
+{
+    // 5GHz channels 132-144 don't support 160MHz; always 0, regardless of bandwidth.
+    EXPECT_EQ(son::wireless_utils::get_center_channel(132, beerocks::eFreqType::FREQ_5G,
+                                                      beerocks::BANDWIDTH_160),
+              0);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(144, beerocks::eFreqType::FREQ_5G,
+                                                      beerocks::BANDWIDTH_160),
+              0);
+}
+
+TEST(center_channel, channel_37_6g)
+{
+    const uint8_t channel = 37;
+    const auto freq_type  = beerocks::eFreqType::FREQ_6G;
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
+              35);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
+              39);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
+              47);
+    EXPECT_EQ(
+        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_1), 31);
+    EXPECT_EQ(
+        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_2), 63);
+}
+
+TEST(center_channel, channel_1_6g)
+{
+    const uint8_t channel = 1;
+    const auto freq_type  = beerocks::eFreqType::FREQ_6G;
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
+              3);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
+              7);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
+              15);
+    EXPECT_EQ(
+        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_1), 31);
+    // First 320MHz-2 center channel is 63, covering channel 33 and up.
+    EXPECT_EQ(
+        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_2), 0);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(33, freq_type, beerocks::BANDWIDTH_320_2),
+              63);
+}
+
+TEST(center_channel, band_mismatch)
+{
+    // 5GHz and 6GHz channel tables are independent.
+    EXPECT_EQ(son::wireless_utils::get_center_channel(37, beerocks::eFreqType::FREQ_5G,
+                                                      beerocks::BANDWIDTH_80),
+              0);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(36, beerocks::eFreqType::FREQ_6G,
+                                                      beerocks::BANDWIDTH_80),
+              0);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(36, beerocks::eFreqType::FREQ_5G,
+                                                      beerocks::BANDWIDTH_80),
+              42);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(36, beerocks::eFreqType::FREQ_5G,
+                                                      beerocks::BANDWIDTH_160),
+              50);
+}
+
+TEST(center_channel, unsupported_2_4g)
+{
+    // get_center_channel() only supports 5GHz and 6GHz; 2.4GHz always returns 0, since 2.4GHz
+    // operating classes list primary channels directly and never need this conversion.
+    EXPECT_EQ(son::wireless_utils::get_center_channel(1, beerocks::eFreqType::FREQ_24G,
+                                                      beerocks::BANDWIDTH_20),
+              0);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(6, beerocks::eFreqType::FREQ_24G,
+                                                      beerocks::BANDWIDTH_40),
+              0);
 }
 
 // clang-format off
