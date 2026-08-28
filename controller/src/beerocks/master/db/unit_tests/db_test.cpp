@@ -1526,6 +1526,156 @@ TEST_F(DbTestRadio1, dm_save_radio_cac_completion_report_clears_object_when_not_
     EXPECT_TRUE(m_db->dm_save_radio_cac_completion_report(radio_report));
 }
 
+void expect_bsta_mld_fields(
+    const std::shared_ptr<StrictMock<beerocks::nbapi::AmbiorixMock>> &ambiorix,
+    const sMacAddr &bsta_mld_mac, const sMacAddr &ap_mld_mac, const std::string &affiliated,
+    beerocks::eMLOModes mld_mode)
+{
+    const std::string bsta_mld_path   = std::string(g_device_path) + ".1.bSTAMLD";
+    const std::string bsta_mld_config = bsta_mld_path + ".bSTAMLDConfig";
+
+    EXPECT_CALL(*ambiorix,
+                set(bsta_mld_path, "MLDMACAddress", Matcher<const sMacAddr &>(bsta_mld_mac)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+    EXPECT_CALL(*ambiorix, set(bsta_mld_path, "BSSID", Matcher<const sMacAddr &>(ap_mld_mac)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+    EXPECT_CALL(*ambiorix,
+                set(bsta_mld_path, "AffiliatedbSTAList", Matcher<const std::string &>(affiliated)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+    EXPECT_CALL(*ambiorix, set(bsta_mld_config, "STREnabled",
+                               Matcher<const bool &>((mld_mode & beerocks::MLO_MODE_STR) != 0)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+    EXPECT_CALL(*ambiorix, set(bsta_mld_config, "NSTREnabled",
+                               Matcher<const bool &>((mld_mode & beerocks::MLO_MODE_NSTR) != 0)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+    EXPECT_CALL(*ambiorix, set(bsta_mld_config, "EMLSREnabled",
+                               Matcher<const bool &>((mld_mode & beerocks::MLO_MODE_EMLSR) != 0)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+    EXPECT_CALL(*ambiorix, set(bsta_mld_config, "EMLMREnabled",
+                               Matcher<const bool &>((mld_mode & beerocks::MLO_MODE_EMLMR) != 0)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+}
+
+TEST_F(DbTest, dm_update_bsta_mld_adds_optional_subobject)
+{
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
+    auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+
+    const sMacAddr bsta_mld_mac  = tlvf::mac_from_string("aa:bb:cc:dd:ee:01");
+    const sMacAddr ap_mld_mac    = tlvf::mac_from_string("aa:bb:cc:dd:ee:02");
+    const std::string affiliated = "aa:bb:cc:dd:ee:03";
+
+    EXPECT_CALL(*m_ambiorix, has_optional_subobject(std::string(g_device_path) + ".1.", "bSTAMLD"))
+        .WillOnce(Return(false));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(std::string(g_device_path) + ".1.", "bSTAMLD"))
+        .WillOnce(Return(true));
+    expect_bsta_mld_fields(m_ambiorix, bsta_mld_mac, ap_mld_mac, affiliated,
+                           beerocks::MLO_MODE_STR);
+
+    EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, bsta_mld_mac, ap_mld_mac, affiliated,
+                                         beerocks::MLO_MODE_STR));
+}
+
+TEST_F(DbTest, dm_update_bsta_mld_writes_object_when_no_optional_mlo_mode_negotiated)
+{
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
+    auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+
+    const sMacAddr bsta_mld_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:ff");
+    const sMacAddr ap_mld_mac   = tlvf::mac_from_string("11:22:33:44:55:66");
+
+    EXPECT_CALL(*m_ambiorix, has_optional_subobject(std::string(g_device_path) + ".1.", "bSTAMLD"))
+        .WillOnce(Return(false));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(std::string(g_device_path) + ".1.", "bSTAMLD"))
+        .WillOnce(Return(true));
+    expect_bsta_mld_fields(m_ambiorix, bsta_mld_mac, ap_mld_mac, "", beerocks::MLO_MODE_NONE);
+
+    EXPECT_TRUE(
+        m_db->dm_update_bsta_mld(*agent, bsta_mld_mac, ap_mld_mac, "", beerocks::MLO_MODE_NONE));
+}
+
+TEST_F(DbTest, dm_update_bsta_mld_updates_attached_object_in_place)
+{
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
+    auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+
+    const sMacAddr bsta_mld_mac       = tlvf::mac_from_string("aa:bb:cc:dd:ee:01");
+    const sMacAddr other_bsta_mld_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:11");
+    const sMacAddr ap_mld_mac         = tlvf::mac_from_string("aa:bb:cc:dd:ee:02");
+    const std::string affiliated      = "aa:bb:cc:dd:ee:03";
+    const std::string agent_path      = std::string(g_device_path) + ".1.";
+
+    // Over all the reports below: the first report attaches the object, only the zero MLD MAC
+    // detaches it, and no report writes the northbound-writable TIDLinkMapNegotiation.
+    EXPECT_CALL(*m_ambiorix, has_optional_subobject(agent_path, "bSTAMLD"))
+        .WillOnce(Return(false))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(agent_path, "bSTAMLD")).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, remove_optional_subobject(agent_path, "bSTAMLD"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(_, "TIDLinkMapNegotiation", Matcher<const bool &>(_))).Times(0);
+
+    // First report.
+    expect_bsta_mld_fields(m_ambiorix, bsta_mld_mac, ap_mld_mac, affiliated,
+                           beerocks::MLO_MODE_STR);
+    EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, bsta_mld_mac, ap_mld_mac, affiliated,
+                                         beerocks::MLO_MODE_STR));
+
+    // Repeated report for the same MLD, with another mode.
+    expect_bsta_mld_fields(m_ambiorix, bsta_mld_mac, ap_mld_mac, affiliated,
+                           beerocks::MLO_MODE_EMLSR);
+    EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, bsta_mld_mac, ap_mld_mac, affiliated,
+                                         beerocks::MLO_MODE_EMLSR));
+
+    // Report with another MLD MAC for the same agent.
+    expect_bsta_mld_fields(m_ambiorix, other_bsta_mld_mac, ap_mld_mac, "", beerocks::MLO_MODE_NONE);
+    EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, other_bsta_mld_mac, ap_mld_mac, "",
+                                         beerocks::MLO_MODE_NONE));
+
+    // A zero MLD MAC removes the object.
+    const sMacAddr zero_mac = tlvf::mac_from_string(g_zero_mac);
+    EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, zero_mac, zero_mac, "", beerocks::MLO_MODE_NONE));
+}
+
+TEST_F(DbTest, dm_update_bsta_mld_does_nothing_when_no_bsta_mld_is_attached)
+{
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
+    auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+
+    EXPECT_CALL(*m_ambiorix, has_optional_subobject(std::string(g_device_path) + ".1.", "bSTAMLD"))
+        .WillOnce(Return(false));
+
+    const sMacAddr zero_mac = tlvf::mac_from_string(g_zero_mac);
+    EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, zero_mac, zero_mac, "", beerocks::MLO_MODE_NONE));
+}
+
+TEST_F(DbTest, dm_update_bsta_mld_clears_object_when_no_bsta_mld_reported)
+{
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
+    auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+
+    EXPECT_CALL(*m_ambiorix, has_optional_subobject(std::string(g_device_path) + ".1.", "bSTAMLD"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                remove_optional_subobject(std::string(g_device_path) + ".1.", "bSTAMLD"))
+        .WillOnce(Return(true));
+
+    const sMacAddr zero_mac = tlvf::mac_from_string(g_zero_mac);
+    EXPECT_TRUE(m_db->dm_update_bsta_mld(*agent, zero_mac, zero_mac, "", beerocks::MLO_MODE_NONE));
+}
+
 TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
 {
 

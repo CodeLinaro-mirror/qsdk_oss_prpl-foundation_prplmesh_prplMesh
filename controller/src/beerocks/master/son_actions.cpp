@@ -804,10 +804,11 @@ bool son_actions::handle_backhaul_sta_mld_configuration_tlv(db &database, const 
     }
     LOG(DEBUG) << "Received tlvBackhaulStaMldConfiguration from " << agent->al_mac;
     if (!backhaul_sta_mld_configuration_tlv->addr_valid().bsta_mld_mac_addr_valid) {
-        LOG(ERROR)
-            << "bSTA MLD MAC address is not valid in tlvBackhaulStaMldConfiguration from agent "
-            << agent->al_mac;
-        return false;
+        // The agent has no bSTA MLD (any more): drop the stored state and the data model object.
+        LOG(DEBUG) << "No bSTA MLD in tlvBackhaulStaMldConfiguration from agent " << agent->al_mac;
+        agent->bsta_mld = {};
+        return database.dm_update_bsta_mld(*agent, network_utils::ZERO_MAC, network_utils::ZERO_MAC,
+                                           "", beerocks::MLO_MODE_NONE);
     }
     if (!backhaul_sta_mld_configuration_tlv->addr_valid().ap_mld_mac_addr_valid) {
         LOG(DEBUG)

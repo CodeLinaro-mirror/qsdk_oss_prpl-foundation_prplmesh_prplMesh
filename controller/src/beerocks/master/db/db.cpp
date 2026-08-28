@@ -9675,6 +9675,22 @@ bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
         return true;
     }
 
+    if (bsta_mld_mac == network_utils::ZERO_MAC) {
+        // Agents without an MLO backhaul report this on every topology response.
+        if (m_ambiorix_datamodel->has_optional_subobject(agent.dm_path + ".", "bSTAMLD")) {
+            m_ambiorix_datamodel->remove_optional_subobject(agent.dm_path + ".", "bSTAMLD");
+        }
+        return true;
+    }
+
+    // Attach the object once and update it in place on later reports, so that the writable
+    // bSTAMLDConfig.TIDLinkMapNegotiation keeps the value set through the northbound API.
+    if (!m_ambiorix_datamodel->has_optional_subobject(agent.dm_path + ".", "bSTAMLD") &&
+        !m_ambiorix_datamodel->add_optional_subobject(agent.dm_path + ".", "bSTAMLD")) {
+        LOG(ERROR) << "Failed to add sub-object " << agent.dm_path << ".bSTAMLD";
+        return false;
+    }
+
     bool ret_val(true);
     std::string bsta_mld_path = agent.dm_path + ".bSTAMLD";
     if (!m_ambiorix_datamodel->set(bsta_mld_path, "MLDMACAddress", bsta_mld_mac)) {

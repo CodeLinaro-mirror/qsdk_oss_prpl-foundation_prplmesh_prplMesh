@@ -3382,6 +3382,9 @@ public:
     /**
      * @brief Fill bSTAMLD node
      *
+     * The node is attached on the first report and updated in place on later reports. A zero
+     * @a bsta_mld_mac removes it.
+     *
      * @param[in] agent Agent to which the STA MLD is connected
      * @param[in] bsta_mld_mac MAC Address of the bSTA MLD
      * @param[in] ap_mld_mac MAC Address of the AP MLD it is connected

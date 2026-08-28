@@ -55,6 +55,31 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     install(TARGETS ${PROJECT_NAME} DESTINATION tests)
     add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 
+    add_executable(bsta_mld_configuration_test
+        ${CMAKE_CURRENT_LIST_DIR}/bsta_mld_configuration_test.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/db.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/station.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../son_actions.cpp
+    )
+    target_link_libraries(bsta_mld_configuration_test
+        mapfcommon bpl bcl btl btlvf nbapi gtest_main gmock)
+    # son_actions and the database refer to controller code that the test does not use.
+    target_link_options(bsta_mld_configuration_test
+        PRIVATE
+            -Wl,--unresolved-symbols=ignore-all
+    )
+    target_include_directories(bsta_mld_configuration_test
+        PRIVATE
+            ${PLATFORM_INCLUDE_DIR}
+            ${CMAKE_SOURCE_DIR}/common/beerocks/btl/include
+            ${CMAKE_SOURCE_DIR}/controller/nbapi
+            ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db
+    )
+
+    install(TARGETS bsta_mld_configuration_test DESTINATION tests)
+    add_test(NAME bsta_mld_configuration_test
+        COMMAND $<TARGET_FILE:bsta_mld_configuration_test>)
+
     add_executable(traffic_separation_event_test
         ${CMAKE_CURRENT_LIST_DIR}/traffic_separation_event_test.cpp
     )
