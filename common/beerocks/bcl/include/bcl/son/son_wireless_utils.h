@@ -654,8 +654,9 @@ public:
     // Key: Operating Class
     static const std::map<uint8_t, sOperatingClass> operating_classes_list;
 
-    static bool has_operating_class_5g_channel(const sOperatingClass &oper_class, uint8_t channel,
-                                               beerocks::eWiFiBandwidth bw);
+    static bool has_operating_class_channel(uint8_t operating_class,
+                                            const sOperatingClass &oper_class, uint8_t channel,
+                                            beerocks::eWiFiBandwidth bw);
 
     /**
      * @brief Get a list of operating classes that are associated with the frequency type

@@ -513,10 +513,13 @@ constexpr beerocks::eWiFiSS wireless_utils::phy_rate_table_mode_to_ss[PHY_RATE_T
 constexpr wireless_utils::sPhyRateBitRateEntry
     wireless_utils::bit_rate_max_table_mbps[BIT_RATE_MAX_TABLE_SIZE];
 
-bool wireless_utils::has_operating_class_5g_channel(const sOperatingClass &oper_class,
-                                                    uint8_t channel, beerocks::eWiFiBandwidth bw)
+bool wireless_utils::has_operating_class_channel(uint8_t operating_class,
+                                                 const sOperatingClass &oper_class, uint8_t channel,
+                                                 beerocks::eWiFiBandwidth bw)
 {
-    if (oper_class.band != bw) {
+    if (oper_class.band != bw && !((bw == beerocks::eWiFiBandwidth::BANDWIDTH_320_1 ||
+                                    bw == beerocks::eWiFiBandwidth::BANDWIDTH_320_2) &&
+                                   oper_class.band == beerocks::eWiFiBandwidth::BANDWIDTH_320)) {
         return false;
     }
     auto it = oper_class.channels.find(channel);
@@ -524,13 +527,14 @@ bool wireless_utils::has_operating_class_5g_channel(const sOperatingClass &oper_
         return true;
     }
 
-    // operating classes 128,129,130 use center channel **unlike the other classes**,
+    // Some 5GHz and 6GHz operating classes list center channels rather than primary channels,
     // so convert channel and bandwidth to center channel.
     // For more info, refer to Table E-4 in the 802.11 specification.
-    if (channel < 36) {
+    if (!wireless_utils::is_operating_class_using_central_channel(operating_class)) {
         return false;
     }
-    auto center_channel = wireless_utils::get_5g_center_channel(channel, bw);
+    auto center_channel = wireless_utils::get_center_channel(
+        channel, wireless_utils::which_freq_op_cls(operating_class), bw);
     if (center_channel == 0) {
         return false;
     }
