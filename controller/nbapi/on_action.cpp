@@ -665,6 +665,20 @@ amxd_status_t trigger_set_spatial_reuse(amxd_object_t *object, amxd_function_t *
 
     sMacAddr radio_uid = tlvf::mac_from_string(radio_mac_str);
 
+    auto radio = g_database->get_radio_by_uid(radio_uid);
+    if (!radio) {
+        LOG(ERROR) << "Failed to get radio " << radio_uid;
+        return amxd_status_object_not_found;
+    }
+
+    // SpatialReuse is a mib that a radio gets on its first Spatial Reuse Report with a non-empty
+    // field. A radio that has not sent one yet has no object to read the defaults from, so attach
+    // it here; the report that follows the request writes into the same object.
+    if (!g_database->ensure_spatial_reuse_object(radio->dm_path)) {
+        LOG(ERROR) << "Failed to attach SpatialReuse to " << radio->dm_path;
+        return amxd_status_unknown_error;
+    }
+
     amxc_var_clean(ret);
     amxd_object_t *spatial_reuse = amxd_object_get_child(object, "SpatialReuse");
 
