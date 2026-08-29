@@ -695,7 +695,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                 new_obj.add_child("EncryptionMode", encryption_mode);
             }
 
-            new_obj.add_child("KeyPassPhrase", bss_info_conf.network_key);
+            new_obj.add_child("KeyPassphrase", bss_info_conf.network_key);
             if (security_mode.find("WPA3") != std::string::npos) {
                 new_obj.add_child("SAEPassphrase", bss_info_conf.network_key);
             }
