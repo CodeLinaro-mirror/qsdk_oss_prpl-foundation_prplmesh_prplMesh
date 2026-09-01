@@ -40,6 +40,15 @@ int amxb_connect(amxb_bus_ctx_t **ctx, const char *uri)
     return -1;
 }
 
+amxb_bus_ctx_t *amxb_find_uri(const char *uri)
+{
+    if (c_wrappers::amxb_wrapper_singleton)
+        return c_wrappers::amxb_wrapper_singleton->amxb_find_uri(uri);
+    else
+        ADD_FAILURE();
+    return nullptr;
+}
+
 int amxb_register(amxb_bus_ctx_t *const ctx, amxd_dm_t *const dm)
 {
     if (c_wrappers::amxb_wrapper_singleton)

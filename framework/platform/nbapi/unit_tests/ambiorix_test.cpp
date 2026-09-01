@@ -126,6 +126,7 @@ private:
             std::vector<beerocks::nbapi::sEvents>(), std::vector<beerocks::nbapi::sFunctions>());
 
         EXPECT_CALL(m_amxb_mock, amxb_be_load(_)).WillRepeatedly(Return(0));
+        EXPECT_CALL(m_amxb_mock, amxb_find_uri(_)).WillRepeatedly(Return(nullptr));
         EXPECT_CALL(m_amxb_mock, amxb_connect(_, _)).WillRepeatedly(Return(0));
         // fetch datamodel pointer from amxb_register call
         EXPECT_CALL(m_amxb_mock, amxb_register(_, _))

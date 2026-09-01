@@ -27,6 +27,7 @@ public:
 
     virtual int amxb_be_load(const char *path_name)                           = 0;
     virtual int amxb_connect(amxb_bus_ctx_t **ctx, const char *uri)           = 0;
+    virtual amxb_bus_ctx_t *amxb_find_uri(const char *uri)                    = 0;
     virtual int amxb_register(amxb_bus_ctx_t *const ctx, amxd_dm_t *const dm) = 0;
     virtual int amxb_read(const amxb_bus_ctx_t *const ctx)                    = 0;
     virtual int amxb_get_fd(const amxb_bus_ctx_t *const ctx)                  = 0;
