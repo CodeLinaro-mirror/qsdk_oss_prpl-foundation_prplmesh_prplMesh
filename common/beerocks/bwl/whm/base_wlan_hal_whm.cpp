@@ -38,10 +38,10 @@ get_applicable_bandwidths_per_channel(const std::string &radio_path,
     std::map<uint32_t, std::vector<beerocks::eWiFiBandwidth>> applicable_bandwidths_per_channel;
     AmbiorixVariant args;
     AmbiorixVariant return_value;
-    bool result = ambiorix_cl.call(radio_path, "X_PRPLWARE-COM_getApplicableBandwidthPerChannel",
-                                   args, return_value);
+    bool result =
+        ambiorix_cl.call(radio_path, "getApplicableBandwidthPerChannel", args, return_value);
     if (!result) {
-        LOG(ERROR) << "Failed to call X_PRPLWARE-COM_getApplicableBandwidthPerChannel";
+        LOG(ERROR) << "Failed to call getApplicableBandwidthPerChannel";
         return {};
     }
 
@@ -49,7 +49,7 @@ get_applicable_bandwidths_per_channel(const std::string &radio_path,
     result = return_value.get_children(return_list, false);
     if (!result || return_list->size() != 1) {
         LOG(ERROR) << "Failed to read value returned by "
-                      "X_PRPLWARE-COM_getApplicableChannelBandwidthsPerChannel";
+                      "getApplicableChannelBandwidthsPerChannel";
         return {};
     }
 
@@ -57,7 +57,7 @@ get_applicable_bandwidths_per_channel(const std::string &radio_path,
     result = return_list->at(0).get_children(channel_bandwith_list, false);
     if (!result) {
         LOG(ERROR) << "Failed to read value returned by "
-                      "X_PRPLWARE-COM_getApplicableChannelBandwidthsPerChannel";
+                      "getApplicableChannelBandwidthsPerChannel";
         return {};
     }
 
