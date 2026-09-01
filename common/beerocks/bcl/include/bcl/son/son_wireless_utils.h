@@ -715,6 +715,7 @@ public:
      * @brief Retrieve the subset of 20MHz channels of the given channel & bandwidth
      * 
      * @param [in] channel_number Central channel number.
+     * @param [in] operating_class Operating class of the given channel.
      * @param [in] operating_bandwidth Bandwidth of the given channel.
      * @param [out] resulting_channels set containing the resulting 20MHz channels
      * @return true if the operation was successful, otherwise false. 

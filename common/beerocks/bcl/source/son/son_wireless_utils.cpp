@@ -2147,8 +2147,14 @@ bool wireless_utils::get_subset_20MHz_channels(const uint8_t channel_number,
 
     // If the channel is using a 2.4GHz operating class
     if (operating_class < 115) {
-        // "channel_number" is an actual channel
+        // "channel_number" is the beacon channel
         resulting_channels.insert(channel_number);
+        // for 40mhz op classes the sideband channel is either +4 or -4 from the beacon channel
+        if (operating_class == 83) {
+            resulting_channels.insert(channel_number + 4);
+        } else if (operating_class == 84) {
+            resulting_channels.insert(channel_number - 4);
+        }
         return true;
     } else if (116 <= operating_class && operating_class <= 137) {
         const std::map<uint8_t, std::map<beerocks::eWiFiBandwidth, wireless_utils::sChannel>>
@@ -2158,17 +2164,26 @@ bool wireless_utils::get_subset_20MHz_channels(const uint8_t channel_number,
         } else {
             channels_table = &(son::wireless_utils::channels_table_6g);
         }
-        // The given channel number is a central channel
+        const auto op_class_bw = son::wireless_utils::get_bandwidth_from_channel_and_op_class(
+            channel_number, operating_class);
+        const bool op_class_uses_centers =
+            son::wireless_utils::is_operating_class_using_central_channel(operating_class);
         // Iterate over the 5GHz/6GHz channel table.
         for (const auto &channel_it : *channels_table) {
             // Find the bandwidth within the channel
-            const auto bw_channel_elem = channel_it.second.find(operating_bandwidth);
+            const auto bw_channel_elem = channel_it.second.find(op_class_bw);
             if (bw_channel_elem == channel_it.second.end()) {
                 continue;
             }
-            // Check if the central channel matches the found bandwidth element
-            if (bw_channel_elem->second.center_channel != channel_number) {
-                continue;
+            if (op_class_uses_centers) {
+                // Check if the central channel matches the found bandwidth element
+                if (bw_channel_elem->second.center_channel != channel_number) {
+                    continue;
+                }
+            } else {
+                if (channel_it.first != channel_number) {
+                    continue;
+                }
             }
             // Get the range of the subset of 20MHz channels
             get_range(bw_channel_elem->second.overlap_beacon_channels_range);
