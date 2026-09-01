@@ -3981,6 +3981,19 @@ bool ApManager::handle_ap_enabled(int vap_id)
         }
     }
 
+    if (vap_id == beerocks::IFACE_RADIO_ID) {
+        auto notification = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION>(cmdu_tx);
+        if (!notification) {
+            LOG(ERROR)
+                << "Failed building cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION message!";
+            return false;
+        }
+        notification->vap_id() = vap_id;
+        send_cmdu(cmdu_tx);
+        return true;
+    }
+
     auto vap_iter = ap_wlan_hal->get_radio_info().available_vaps.find(vap_id);
     if (vap_iter == ap_wlan_hal->get_radio_info().available_vaps.end()) {
         LOG(ERROR) << "Received AP-ENABLED but can't get vap info";

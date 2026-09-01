@@ -320,7 +320,8 @@ public:
         } back;
 
         struct sStatus {
-            bool channel_scan_in_progress = false;
+            bool channel_scan_in_progress                              = false;
+            enum class eRadioStatus { ENABLED, DISABLED } radio_status = eRadioStatus::ENABLED;
         } statuses;
 
         struct sClient {

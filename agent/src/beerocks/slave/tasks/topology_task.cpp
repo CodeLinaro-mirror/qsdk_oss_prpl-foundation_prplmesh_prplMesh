@@ -1109,18 +1109,20 @@ bool TopologyTask::add_ap_operational_bss_tlv()
 
         auto radio_list         = tlvApOperationalBSS->create_radio_list();
         radio_list->radio_uid() = radio->front.iface_mac;
-        for (const auto &bssid : radio->front.bssids) {
-            if (bssid.mac == network_utils::ZERO_MAC) {
-                continue;
-            }
-            if (bssid.ssid.empty()) {
-                continue;
-            }
-            auto radio_bss_list           = radio_list->create_radio_bss_list();
-            radio_bss_list->radio_bssid() = bssid.mac;
-            radio_bss_list->set_ssid(bssid.ssid);
+        if (radio->statuses.radio_status != AgentDB::sRadio::sStatus::eRadioStatus::DISABLED) {
+            for (const auto &bssid : radio->front.bssids) {
+                if (bssid.mac == network_utils::ZERO_MAC) {
+                    continue;
+                }
+                if (bssid.ssid.empty()) {
+                    continue;
+                }
+                auto radio_bss_list           = radio_list->create_radio_bss_list();
+                radio_bss_list->radio_bssid() = bssid.mac;
+                radio_bss_list->set_ssid(bssid.ssid);
 
-            radio_list->add_radio_bss_list(radio_bss_list);
+                radio_list->add_radio_bss_list(radio_bss_list);
+            }
         }
         tlvApOperationalBSS->add_radio_list(radio_list);
     }

@@ -3212,12 +3212,18 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             notification_out->set_iface(fronthaul_iface);
             m_backhaul_manager_client->send_cmdu(cmdu_tx);
 
-            LOG(WARNING) << __FUNCTION__ << "AP_Disabled on radio, slave reset";
+            LOG(WARNING) << __FUNCTION__ << "AP_Disabled on radio";
+            auto db    = AgentDB::get();
+            auto radio = db->radio(fronthaul_iface);
+            if (radio) {
+                radio->statuses.radio_status = AgentDB::sRadio::sStatus::eRadioStatus::DISABLED;
+            }
             if (radio_manager.configuration_in_progress) {
                 LOG(INFO) << "configuration in progress, ignoring";
                 break;
             }
-            fronthaul_reset(radio_manager);
+            // Keep ap_manager alive to receive re-enable commands
+            // fronthaul_reset(radio_manager);
         } else {
             auto db    = AgentDB::get();
             auto radio = db->radio(fronthaul_iface);
@@ -5294,6 +5300,10 @@ bool slave_thread::agent_fsm()
             auto &radio_conf  = radio_conf_element.second;
             LOG_IF(!radio_conf.band_enabled, DEBUG) << "radio " << radio_iface << " is disabled";
             all_radios_disabled &= !radio_conf.band_enabled;
+
+            db->radio(radio_iface)->statuses.radio_status =
+                radio_conf.band_enabled ? AgentDB::sRadio::sStatus::eRadioStatus::ENABLED
+                                        : AgentDB::sRadio::sStatus::eRadioStatus::DISABLED;
         }
 
         if (all_radios_disabled) {

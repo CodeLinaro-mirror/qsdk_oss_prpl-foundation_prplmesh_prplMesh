@@ -1241,10 +1241,12 @@ void LinkMetricsCollectionTask::handle_ap_metrics_response(ieee1905_1::CmduMessa
             }
         }
 
-        // Fill a response vector
-        m_ap_metric_response.push_back({metric, extended_metrics, traffic_stats_response,
-                                        link_metrics_response, qos_ctrl_response,
-                                        affiliated_ap_metrics, affiliated_sta_metrics});
+        // Fill a response vector (skip disabled radios)
+        if (radio->statuses.radio_status != AgentDB::sRadio::sStatus::eRadioStatus::DISABLED) {
+            m_ap_metric_response.push_back({metric, extended_metrics, traffic_stats_response,
+                                            link_metrics_response, qos_ctrl_response,
+                                            affiliated_ap_metrics, affiliated_sta_metrics});
+        }
 
         // Remove an entry from the processed query
         ap_metric_queries_map->second.erase(

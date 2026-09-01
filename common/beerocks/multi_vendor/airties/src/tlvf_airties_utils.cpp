@@ -807,6 +807,11 @@ bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetri
             continue;
         }
 
+        if (radio->statuses.radio_status == AgentDB::sRadio::sStatus::eRadioStatus::DISABLED) {
+            LOG(WARNING) << "Skipping disabled radio " << radio->front.iface_name;
+            continue;
+        }
+
         auto rad_list = tlvDevMetrics->create_radio_list();
         if (!rad_list) {
             LOG(ERROR) << "Failed to create radio list entry for " << radio->front.iface_name;

@@ -2901,7 +2901,13 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     }
 
     LOG(INFO) << "received ACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION "
-              << notification_in->vap_info().iface_name;
+              << notification_in->vap_info().iface_name
+              << " vap_id=" << static_cast<int>(notification_in->vap_id());
+
+    if (notification_in->vap_id() == beerocks::IFACE_RADIO_ID) {
+        radio->statuses.radio_status = AgentDB::sRadio::sStatus::eRadioStatus::ENABLED;
+        return;
+    }
 
     const auto &vap_info = notification_in->vap_info();
     auto bssid           = std::find_if(radio->front.bssids.begin(), radio->front.bssids.end(),

@@ -1411,6 +1411,21 @@ bool ap_wlan_hal_whm::process_radio_event(const std::string &interface, const st
         if (status.empty()) {
             return true;
         }
+        if (status == "Up") {
+            auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sHOSTAP_ENABLED_NOTIFICATION));
+            auto msg      = reinterpret_cast<sHOSTAP_ENABLED_NOTIFICATION *>(msg_buff.get());
+            LOG_IF(!msg, FATAL) << "Memory allocation failed!";
+            memset(msg_buff.get(), 0, sizeof(sHOSTAP_ENABLED_NOTIFICATION));
+            msg->vap_id = beerocks::IFACE_RADIO_ID;
+            event_queue_push(Event::AP_Enabled, msg_buff);
+        } else if (status == "Down") {
+            auto msg_buff = ALLOC_SMART_BUFFER(sizeof(sHOSTAP_DISABLED_NOTIFICATION));
+            auto msg      = reinterpret_cast<sHOSTAP_DISABLED_NOTIFICATION *>(msg_buff.get());
+            LOG_IF(!msg, FATAL) << "Memory allocation failed!";
+            memset(msg_buff.get(), 0, sizeof(sHOSTAP_DISABLED_NOTIFICATION));
+            msg->vap_id = beerocks::IFACE_RADIO_ID;
+            event_queue_push(Event::AP_Disabled, msg_buff);
+        }
         LOG(WARNING) << "radio " << interface << " status " << status;
     } else if (key == "Channel") {
 
