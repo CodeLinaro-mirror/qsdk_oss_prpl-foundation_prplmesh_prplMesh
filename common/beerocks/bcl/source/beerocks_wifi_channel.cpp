@@ -216,7 +216,7 @@ std::ostream &operator<<(std::ostream &out, const WifiChannel &wifi_channel)
     return (out << "*WifiChannel* Channel Number: " << int(wifi_channel.m_channel)
                 << ", Bandwidth: "
                 << beerocks::utils::convert_bandwidth_to_string(wifi_channel.m_bandwidth)
-                << "Mhz, Center Frequency: " << wifi_channel.m_center_frequency << center_freq_2_str
+                << ", Center Frequency: " << wifi_channel.m_center_frequency << center_freq_2_str
                 << ", Frequency Type: "
                 << beerocks::utils::convert_frequency_type_to_string(wifi_channel.m_freq_type)
                 << is_dfs_str << ", ext_above_primary: " << wifi_channel.m_ext_above_primary
@@ -323,7 +323,7 @@ bool WifiChannel::are_params_valid(uint8_t channel, eFreqType freq_type, uint16_
             } else if (channel_it->second.find(bandwidth) == channel_it->second.end()) {
                 LOG(ERROR) << "Failed find bandwidth "
                            << beerocks::utils::convert_bandwidth_to_string(bandwidth)
-                           << "MHz of channel " << channel << " in 5ghz channels table.";
+                           << " of channel " << channel << " in 5ghz channels table.";
                 return false;
             }
         }
@@ -337,7 +337,7 @@ bool WifiChannel::are_params_valid(uint8_t channel, eFreqType freq_type, uint16_
             } else if (channel_it->second.find(bandwidth) == channel_it->second.end()) {
                 LOG(ERROR) << "Failed find bandwidth "
                            << beerocks::utils::convert_bandwidth_to_string(bandwidth)
-                           << "MHz of channel " << channel << " in 6ghz channels table.";
+                           << " of channel " << channel << " in 6ghz channels table.";
                 return false;
             }
 
