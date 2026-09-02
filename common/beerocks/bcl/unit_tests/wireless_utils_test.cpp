@@ -423,4 +423,99 @@ TEST(mcs_from_rate, neerest_mcs_from_rate)
     EXPECT_EQ(short_gi, 0);
 }
 
+TEST(get_center_channel, band_2g)
+{
+    constexpr const int op20                      = 81;
+    constexpr const int op40plus                  = 83;
+    constexpr const int op40minus                 = 84;
+    constexpr const beerocks::eWiFiBandwidth bw20 = beerocks::BANDWIDTH_20;
+    constexpr const beerocks::eWiFiBandwidth bw40 = beerocks::BANDWIDTH_40;
+    const uint8_t c6 = son::wireless_utils::get_center_channel(6, op20, bw20);
+    const uint8_t c8 = son::wireless_utils::get_center_channel(6, op40plus, bw40);
+    const uint8_t c4 = son::wireless_utils::get_center_channel(6, op40minus, bw40);
+    const uint8_t c3 = son::wireless_utils::get_center_channel(1, op40plus, bw40);
+    const uint8_t c0 = son::wireless_utils::get_center_channel(1, op40minus, bw40);
+
+    EXPECT_EQ(c0, 0);
+    EXPECT_EQ(c3, 3);
+    EXPECT_EQ(c4, 4);
+    EXPECT_EQ(c6, 6);
+    EXPECT_EQ(c8, 8);
+}
+
+TEST(get_center_channel, band_5g)
+{
+    constexpr const int op20                       = 115;
+    constexpr const int op40plus                   = 116;
+    constexpr const int op40minus                  = 117;
+    constexpr const int op80                       = 128;
+    constexpr const int op160                      = 129;
+    constexpr const beerocks::eWiFiBandwidth bw20  = beerocks::BANDWIDTH_20;
+    constexpr const beerocks::eWiFiBandwidth bw40  = beerocks::BANDWIDTH_40;
+    constexpr const beerocks::eWiFiBandwidth bw80  = beerocks::BANDWIDTH_80;
+    constexpr const beerocks::eWiFiBandwidth bw160 = beerocks::BANDWIDTH_160;
+    const uint8_t c36   = son::wireless_utils::get_center_channel(36, op20, bw20);
+    const uint8_t c38_1 = son::wireless_utils::get_center_channel(36, op40plus, bw40);
+    const uint8_t c38_2 = son::wireless_utils::get_center_channel(40, op40minus, bw40);
+    const uint8_t c42_1 = son::wireless_utils::get_center_channel(36, op80, bw80);
+    const uint8_t c42_2 = son::wireless_utils::get_center_channel(40, op80, bw80);
+    const uint8_t c42_3 = son::wireless_utils::get_center_channel(44, op80, bw80);
+    const uint8_t c42_4 = son::wireless_utils::get_center_channel(48, op80, bw80);
+    const uint8_t c50_1 = son::wireless_utils::get_center_channel(36, op160, bw160);
+    const uint8_t c50_2 = son::wireless_utils::get_center_channel(40, op160, bw160);
+    const uint8_t c50_3 = son::wireless_utils::get_center_channel(44, op160, bw160);
+    const uint8_t c50_4 = son::wireless_utils::get_center_channel(48, op160, bw160);
+    const uint8_t c50_5 = son::wireless_utils::get_center_channel(52, op160, bw160);
+    const uint8_t c50_6 = son::wireless_utils::get_center_channel(56, op160, bw160);
+    const uint8_t c50_7 = son::wireless_utils::get_center_channel(60, op160, bw160);
+    const uint8_t c50_8 = son::wireless_utils::get_center_channel(64, op160, bw160);
+
+    EXPECT_EQ(c36, 36);
+    EXPECT_EQ(c38_1, 38);
+    EXPECT_EQ(c38_2, 38);
+    EXPECT_EQ(c42_1, 42);
+    EXPECT_EQ(c42_2, 42);
+    EXPECT_EQ(c42_3, 42);
+    EXPECT_EQ(c42_4, 42);
+    EXPECT_EQ(c50_1, 50);
+    EXPECT_EQ(c50_2, 50);
+    EXPECT_EQ(c50_3, 50);
+    EXPECT_EQ(c50_4, 50);
+    EXPECT_EQ(c50_5, 50);
+    EXPECT_EQ(c50_6, 50);
+    EXPECT_EQ(c50_7, 50);
+    EXPECT_EQ(c50_8, 50);
+}
+
+TEST(get_center_channel, band_6g)
+{
+    constexpr const int op20                         = 131;
+    constexpr const int op40                         = 132;
+    constexpr const int op80                         = 133;
+    constexpr const int op160                        = 135;
+    constexpr const int op320                        = 137;
+    constexpr const beerocks::eWiFiBandwidth bw20    = beerocks::BANDWIDTH_20;
+    constexpr const beerocks::eWiFiBandwidth bw40    = beerocks::BANDWIDTH_40;
+    constexpr const beerocks::eWiFiBandwidth bw80    = beerocks::BANDWIDTH_80;
+    constexpr const beerocks::eWiFiBandwidth bw160   = beerocks::BANDWIDTH_160;
+    constexpr const beerocks::eWiFiBandwidth bw320   = beerocks::BANDWIDTH_320;
+    constexpr const beerocks::eWiFiBandwidth bw320_1 = beerocks::BANDWIDTH_320_1;
+    constexpr const beerocks::eWiFiBandwidth bw320_2 = beerocks::BANDWIDTH_320_2;
+    const uint8_t c33 = son::wireless_utils::get_center_channel(33, op20, bw20);
+    const uint8_t c35 = son::wireless_utils::get_center_channel(33, op40, bw40);
+    const uint8_t c39 = son::wireless_utils::get_center_channel(33, op80, bw80);
+    const uint8_t c47 = son::wireless_utils::get_center_channel(33, op160, bw160);
+    const uint8_t c31 = son::wireless_utils::get_center_channel(33, op320, bw320_1);
+    const uint8_t c63 = son::wireless_utils::get_center_channel(33, op320, bw320_2);
+    const uint8_t c0  = son::wireless_utils::get_center_channel(33, op320, bw320);
+
+    EXPECT_EQ(c0, 0);
+    EXPECT_EQ(c33, 33);
+    EXPECT_EQ(c35, 35);
+    EXPECT_EQ(c39, 39);
+    EXPECT_EQ(c47, 47);
+    EXPECT_EQ(c31, 31);
+    EXPECT_EQ(c63, 63);
+}
+
 } // namespace
