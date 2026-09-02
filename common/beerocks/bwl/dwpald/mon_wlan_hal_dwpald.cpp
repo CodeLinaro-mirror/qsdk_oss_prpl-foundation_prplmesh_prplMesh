@@ -1683,7 +1683,8 @@ bool mon_wlan_hal_dwpal::process_dwpal_event(char *ifname, char *buffer, int buf
             }
         }
 
-        msg->mac = tlvf::mac_from_string(MACAddress);
+        msg->vap_id = beerocks::utils::get_ids_from_iface_string(VAP).vap_id;
+        msg->mac    = tlvf::mac_from_string(MACAddress);
 
         event_queue_push(Event::STA_Disconnected, msg_buff); // send message to the AP manager
         break;

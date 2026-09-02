@@ -1763,7 +1763,7 @@ bool ap_wlan_hal_whm::process_sta_connected_event(
             event_queue_push(Event::STA_Connected, msg_buff);
         } else {
             // connected == false
-            base_wlan_hal_whm::remove_station_path(sta_mac, AUTHENTICATION_STATE_DOWN);
+            base_wlan_hal_whm::remove_station_path(sta_mac, sta_path, AUTHENTICATION_STATE_DOWN);
         }
     } else if (key == "WdsInterfaceName") {
         const auto bssid          = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
