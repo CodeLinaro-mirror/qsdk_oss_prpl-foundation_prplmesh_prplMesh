@@ -27,6 +27,7 @@
 #include "structs/sCacStartedNotificationParams.h"
 #include "tlvf/WSC/WSC_Attributes.h"
 #include "tlvf/wfa_map/tlvProfile2MultiApProfile.h"
+#include "tlvf/wfa_map/tlvClientAssociationControlRequest.h"
 #include "tlvf/airties/ACSChannelList.h"
 #include "tlvf/airties/tlvAirtiesRadioCapability.h"
 
@@ -855,6 +856,7 @@ class cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST : public BaseClass
         bool alloc_sta(size_t count = 1);
         sMacAddr& bssid();
         uint16_t& validity_period_sec();
+        wfa_map::tlvClientAssociationControlRequest::eAssociationControl& association_control();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -868,6 +870,7 @@ class cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST : public BaseClass
         int m_lock_order_counter__ = 0;
         sMacAddr* m_bssid = nullptr;
         uint16_t* m_validity_period_sec = nullptr;
+        wfa_map::tlvClientAssociationControlRequest::eAssociationControl* m_association_control = nullptr;
 };
 
 class cACTION_APMANAGER_CLIENT_ALLOW_REQUEST : public BaseClass
