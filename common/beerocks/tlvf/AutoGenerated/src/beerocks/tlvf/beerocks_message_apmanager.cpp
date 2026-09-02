@@ -3452,6 +3452,7 @@ bool cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::alloc_sta(size_t count) {
     }
     m_bssid = (sMacAddr *)((uint8_t *)(m_bssid) + len);
     m_validity_period_sec = (uint16_t *)((uint8_t *)(m_validity_period_sec) + len);
+    m_association_control = (wfa_map::tlvClientAssociationControlRequest::eAssociationControl *)((uint8_t *)(m_association_control) + len);
     m_sta_idx__ += count;
     *m_sta_list_size += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -3472,6 +3473,10 @@ uint16_t& cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::validity_period_sec() {
     return (uint16_t&)(*m_validity_period_sec);
 }
 
+wfa_map::tlvClientAssociationControlRequest::eAssociationControl& cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::association_control() {
+    return (wfa_map::tlvClientAssociationControlRequest::eAssociationControl&)(*m_association_control);
+}
+
 void cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
@@ -3480,6 +3485,7 @@ void cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::class_swap()
     }
     m_bssid->struct_swap();
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_validity_period_sec));
+    tlvf_swap(8*sizeof(wfa_map::tlvClientAssociationControlRequest::eAssociationControl), reinterpret_cast<uint8_t*>(m_association_control));
 }
 
 bool cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::finalize()
@@ -3515,6 +3521,7 @@ size_t cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::get_initial_size()
     class_size += sizeof(uint8_t); // sta_list_size
     class_size += sizeof(sMacAddr); // bssid
     class_size += sizeof(uint16_t); // validity_period_sec
+    class_size += sizeof(wfa_map::tlvClientAssociationControlRequest::eAssociationControl); // association_control
     return class_size;
 }
 
@@ -3546,6 +3553,11 @@ bool cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST::init()
     m_validity_period_sec = reinterpret_cast<uint16_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_association_control = reinterpret_cast<wfa_map::tlvClientAssociationControlRequest::eAssociationControl*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(wfa_map::tlvClientAssociationControlRequest::eAssociationControl))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(wfa_map::tlvClientAssociationControlRequest::eAssociationControl) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

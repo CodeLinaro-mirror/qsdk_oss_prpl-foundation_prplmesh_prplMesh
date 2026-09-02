@@ -402,6 +402,11 @@ public:
     static std::string search_path_mac_filtering_entries(const std::string &vap_ifname);
 
     /**
+     * @brief return search path of AccessPoint's temporary MAC filter Entries instances
+     */
+    static std::string search_path_mac_filtering_temp_entries(const std::string &vap_ifname);
+
+    /**
      * @brief return search path of AccessPoint's MAC filter entry object
      * by station mac
      */
