@@ -547,8 +547,14 @@ bool mon_wlan_hal_nl80211::process_nl80211_event(parsed_obj_map_t &parsed_obj)
         // Initialize the message
         memset(msg_buff.get(), 0, sizeof(sACTION_MONITOR_CLIENT_DISCONNECTED_NOTIFICATION));
 
+        if (vap_id < 0) {
+            LOG(ERROR) << "Invalid vap_id " << vap_id;
+            return false;
+        }
+
         // Store the MAC address of the disconnected STA
-        msg->mac = tlvf::mac_from_string(parsed_obj["_mac"]);
+        msg->vap_id = vap_id;
+        msg->mac    = tlvf::mac_from_string(parsed_obj["_mac"]);
 
         // Add the message to the queue
         event_queue_push(Event::STA_Disconnected, msg_buff);

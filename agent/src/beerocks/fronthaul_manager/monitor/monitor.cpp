@@ -2233,9 +2233,24 @@ bool Monitor::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         auto msg = static_cast<bwl::sACTION_MONITOR_CLIENT_DISCONNECTED_NOTIFICATION *>(data);
         auto mac = tlvf::mac_to_string(msg->mac);
 
-        LOG(INFO) << "STA_Disconnected event: mac = " << mac;
+        auto sta_node = mon_db.sta_find(mac);
+        if (!sta_node) {
+            LOG(DEBUG) << "STA_Disconnected event for untracked mac=" << mac
+                       << " vap_id=" << int(msg->vap_id);
+            break;
+        }
+        if (sta_node->get_vap_id() != msg->vap_id) {
+            LOG(INFO) << "Ignoring stale STA_Disconnected event for mac=" << mac
+                      << " vap_id=" << int(msg->vap_id)
+                      << " because current vap_id=" << int(sta_node->get_vap_id());
+            break;
+        }
 
-        mon_db.sta_erase(mac);
+        LOG(INFO) << "STA_Disconnected event: mac=" << mac << " vap_id=" << int(msg->vap_id);
+
+        if (!mon_db.sta_erase(mac, msg->vap_id)) {
+            LOG(ERROR) << "Failed erasing STA after validating its VAP: mac=" << mac;
+        }
         break;
     }
 

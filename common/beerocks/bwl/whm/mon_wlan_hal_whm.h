@@ -109,6 +109,7 @@ private:
                                      const std::string &vap_path) override;
     bool process_sta_disassoc_event(const std::string &interface,
                                     const beerocks::wbapi::AmbiorixVariant *event_data) override;
+    bool queue_sta_disconnected_event(const std::string &interface, const std::string &sta_mac);
 
     virtual bool process_scan_complete_event(const std::string &result) override;
 

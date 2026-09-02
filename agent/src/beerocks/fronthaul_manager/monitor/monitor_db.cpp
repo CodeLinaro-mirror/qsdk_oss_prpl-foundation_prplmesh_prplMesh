@@ -351,6 +351,17 @@ void monitor_db::sta_erase(const std::string &sta_mac)
     }
 }
 
+bool monitor_db::sta_erase(const std::string &sta_mac, int8_t vap_id)
+{
+    auto it = sta_nodes.find(sta_mac);
+    if (it == sta_nodes.end() || it->second->get_vap_id() != vap_id) {
+        return false;
+    }
+
+    sta_erase(sta_mac);
+    return true;
+}
+
 void monitor_db::sta_erase_all()
 {
     for (auto it = sta_nodes.begin(); it != sta_nodes.end(); it++) {
