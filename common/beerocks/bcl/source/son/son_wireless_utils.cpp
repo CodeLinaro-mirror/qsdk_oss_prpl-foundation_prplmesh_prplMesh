@@ -1409,8 +1409,8 @@ uint8_t wireless_utils::get_5g_center_channel(uint8_t channel, beerocks::eWiFiBa
     return bw_info_it->second.center_channel;
 }
 
-uint8_t wireless_utils::get_center_channel(uint8_t channel, beerocks::eFreqType freq_type,
-                                           beerocks::eWiFiBandwidth bandwidth)
+static uint8_t s_get_5g_6g_center_channel(uint8_t channel, beerocks::eFreqType freq_type,
+                                          beerocks::eWiFiBandwidth bandwidth)
 {
     if (freq_type != beerocks::eFreqType::FREQ_5G && freq_type != beerocks::eFreqType::FREQ_6G) {
         LOG(ERROR) << "The band type "
@@ -1419,8 +1419,9 @@ uint8_t wireless_utils::get_center_channel(uint8_t channel, beerocks::eFreqType 
         return 0;
     }
 
-    const auto &channels_table =
-        (freq_type == beerocks::eFreqType::FREQ_5G) ? channels_table_5g : channels_table_6g;
+    const auto &channels_table = (freq_type == beerocks::eFreqType::FREQ_5G)
+                                     ? wireless_utils::channels_table_5g
+                                     : wireless_utils::channels_table_6g;
 
     if (freq_type == beerocks::eFreqType::FREQ_5G) {
         if (channel >= 132 && channel <= 144 &&
@@ -1497,9 +1498,9 @@ uint8_t wireless_utils::get_center_channel(uint8_t channel, uint8_t op_class,
     case beerocks::eFreqType::FREQ_24G:
         return s_get_2g_center_channel(channel, op_class);
     case beerocks::eFreqType::FREQ_5G:
-        return get_center_channel(channel, freq_type, bandwidth);
+        return s_get_5g_6g_center_channel(channel, freq_type, bandwidth);
     case beerocks::eFreqType::FREQ_6G:
-        return get_center_channel(channel, freq_type, bandwidth);
+        return s_get_5g_6g_center_channel(channel, freq_type, bandwidth);
     default:
         break;
     }
