@@ -1856,8 +1856,8 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
 
             auto channel = channel_number;
             if (son::wireless_utils::is_operating_class_using_central_channel(operating_class)) {
-                channel = son::wireless_utils::get_center_channel(
-                    channel, son::wireless_utils::which_freq_op_cls(operating_class), bandwidth);
+                channel =
+                    son::wireless_utils::get_center_channel(channel, operating_class, bandwidth);
                 if (!channel) {
                     LOG(WARNING) << "Couldn't find source channel " << channel_number
                                  << " for overlapping channels";
