@@ -10,10 +10,12 @@
 #define _BWL_AP_WLAN_HAL_H_
 
 #include "base_wlan_hal.h"
+#include <bcl/beerocks_logging.h>
 #include <bcl/beerocks_string_utils.h>
 #include <tlvf/AssociationRequestFrame/AssocReqFrame.h>
 #include <tlvf/airties/ACSChannelList.h>
 #include <tlvf/airties/tlvAirtiesRadioCapability.h>
+#include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsQuery.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
 #include <vector>
@@ -151,12 +153,38 @@ public:
     /**
      * @brief Deny the station with the given MAC address from connecting to the AP.
      *
-     * @param [in] mac The MAC address of the station.        
+     * @param [in] mac The MAC address of the station.
      * @param [in] bssid The BSSID to which the operation is applicable.
-     * 
+     *
      * @return true on success or false on error.
      */
     virtual bool sta_deny(const sMacAddr &mac, const sMacAddr &bssid) = 0;
+
+    /**
+     * @brief Apply EasyMesh client association control for the given station.
+     *
+     * @param [in] mac The MAC address of the station.
+     * @param [in] bssid The BSSID to which the operation is applicable.
+     * @param [in] association_control The EasyMesh association control type.
+     *
+     * @return true on success or false on error.
+     */
+    virtual bool sta_association_control(
+        const sMacAddr &mac, const sMacAddr &bssid,
+        wfa_map::tlvClientAssociationControlRequest::eAssociationControl association_control)
+    {
+        switch (association_control) {
+        case wfa_map::tlvClientAssociationControlRequest::UNBLOCK:
+            return sta_allow(mac, bssid);
+        case wfa_map::tlvClientAssociationControlRequest::BLOCK:
+        case wfa_map::tlvClientAssociationControlRequest::TIMED_BLOCK:
+        case wfa_map::tlvClientAssociationControlRequest::INDEFINITE_BLOCK:
+            return sta_deny(mac, bssid);
+        default:
+            LOG(ERROR) << "Unexpected association control type " << association_control;
+            return false;
+        }
+    }
 
     /**
      * @brief Clears Blacklist

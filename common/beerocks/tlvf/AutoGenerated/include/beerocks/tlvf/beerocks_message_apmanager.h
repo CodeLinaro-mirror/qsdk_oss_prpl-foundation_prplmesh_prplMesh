@@ -943,6 +943,7 @@ class cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST : public BaseClass
         bool alloc_sta(size_t count = 1);
         sMacAddr& bssid();
         uint16_t& validity_period_sec();
+        uint8_t& association_control();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -956,6 +957,7 @@ class cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST : public BaseClass
         int m_lock_order_counter__ = 0;
         sMacAddr* m_bssid = nullptr;
         uint16_t* m_validity_period_sec = nullptr;
+        uint8_t* m_association_control = nullptr;
 };
 
 class cACTION_APMANAGER_CLIENT_ALLOW_REQUEST : public BaseClass

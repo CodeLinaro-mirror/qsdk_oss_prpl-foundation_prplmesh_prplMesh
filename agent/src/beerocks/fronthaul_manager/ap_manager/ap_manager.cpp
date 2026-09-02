@@ -26,6 +26,7 @@
 #include <tlvf/wfa_map/tlvBeaconMetricsResponse.h>
 #include <tlvf/wfa_map/tlvBssid.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
+#include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
 #include <tlvf/wfa_map/tlvClientCapabilityReport.h>
 #include <tlvf/wfa_map/tlvClientInfo.h>
 #include <tlvf/wfa_map/tlvClientSecurityContext.h>
@@ -1672,7 +1673,11 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                                           wfa_map::tlvProfile2ReasonCode::AP_INITIATED);
             }
 
-            ap_wlan_hal->sta_deny(sta_info.mac, request->bssid());
+            const auto association_control =
+                static_cast<wfa_map::tlvClientAssociationControlRequest::eAssociationControl>(
+                    request->association_control());
+            ap_wlan_hal->sta_association_control(sta_info.mac, request->bssid(),
+                                                   association_control);
 
             // Check if validity period is set then add it to the "disallowed client timeouts" list
             // This list will be polled in ap_manager_fsm() while in operational state through method
@@ -1740,7 +1745,9 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
             LOG(DEBUG) << "CLIENT_ALLOW: mac = " << tlvf::mac_to_string(std::get<1>(sta_tuple))
                        << ", bssid = " << tlvf::mac_to_string(request->bssid());
-            ap_wlan_hal->sta_allow(std::get<1>(sta_tuple), request->bssid());
+            ap_wlan_hal->sta_association_control(
+                std::get<1>(sta_tuple), request->bssid(),
+                wfa_map::tlvClientAssociationControlRequest::UNBLOCK);
         }
         break;
     }
@@ -3978,6 +3985,8 @@ bool ApManager::handle_ap_enabled(int vap_id)
     if (ap_wlan_hal->get_hal_conf().certification_mode) {
         if (!ap_wlan_hal->clear_blacklist()) {
             LOG(ERROR) << "Failed to clear blacklist!!!";
+        } else {
+            m_disallowed_clients.clear();
         }
     }
 
@@ -4094,7 +4103,8 @@ void ApManager::allow_expired_clients()
     for (auto it = m_disallowed_clients.begin(); it != m_disallowed_clients.end();) {
         if (std::chrono::steady_clock::now() > it->timeout) {
             LOG(DEBUG) << "CLIENT_ALLOW: mac = " << it->mac << ", bssid = " << it->bssid;
-            ap_wlan_hal->sta_allow(it->mac, it->bssid);
+            ap_wlan_hal->sta_association_control(
+                it->mac, it->bssid, wfa_map::tlvClientAssociationControlRequest::UNBLOCK);
             it = m_disallowed_clients.erase(it);
         } else {
             it++;
