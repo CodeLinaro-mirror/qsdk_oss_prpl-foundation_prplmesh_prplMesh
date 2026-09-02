@@ -42,6 +42,10 @@ public:
                 int center_channel = 0) override;
     virtual bool sta_allow(const sMacAddr &mac, const sMacAddr &bssid) override;
     virtual bool sta_deny(const sMacAddr &mac, const sMacAddr &bssid) override;
+    virtual bool
+    sta_association_control(const sMacAddr &mac, const sMacAddr &bssid,
+                            wfa_map::tlvClientAssociationControlRequest::eAssociationControl
+                                association_control) override;
     virtual bool clear_blacklist() override;
     virtual bool sta_acceptlist_modify(const sMacAddr &mac, const sMacAddr &bssid,
                                        bwl::sta_acl_action action) override;
@@ -141,6 +145,9 @@ protected:
     virtual bool set(const std::string &param, const std::string &value, int vap_id) override;
 
 private:
+    bool sta_allow_temp(const sMacAddr &mac, const sMacAddr &bssid);
+    bool sta_deny_temp(const sMacAddr &mac, const sMacAddr &bssid);
+
     beerocks::wbapi::AmbiorixVariantSmartPtr get_last_assoc_frame(const std::string &vap_iface,
                                                                   const std::string &sta_mac);
     bool process_radio_event(const std::string &interface, const std::string &key,
