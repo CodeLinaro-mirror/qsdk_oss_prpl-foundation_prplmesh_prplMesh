@@ -167,7 +167,7 @@ cACTION_APMANAGER_HOSTAP_ZWDFS_ANT_CHANNEL_SWITCH_REQUEST:
   channel: uint8_t
   bandwidth: beerocks::eWiFiBandwidth
   center_frequency: uint32_t
-  csa_count: 
+  csa_count:
     _type: uint8_t
     _value: 5
 
@@ -269,6 +269,7 @@ cACTION_APMANAGER_CLIENT_DISALLOW_REQUEST:
     _length: [sta_list_size]
   bssid: sMacAddr
   validity_period_sec: uint16_t
+  association_control: uint8_t
 
 cACTION_APMANAGER_CLIENT_ALLOW_REQUEST:
   _type: class

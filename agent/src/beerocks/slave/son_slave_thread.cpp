@@ -5903,7 +5903,8 @@ bool slave_thread::handle_client_association_request(ieee1905_1::CmduMessageRx &
             sta_info.disassoc = sta.first;
             sta_info.mac      = sta.second;
         }
-        request_out->bssid() = bssid;
+        request_out->bssid()               = bssid;
+        request_out->association_control() = static_cast<uint8_t>(block);
         request_out->validity_period_sec() =
             (block != wfa_map::tlvClientAssociationControlRequest::INDEFINITE_BLOCK)
                 ? association_control_request_tlv->validity_period_sec()
