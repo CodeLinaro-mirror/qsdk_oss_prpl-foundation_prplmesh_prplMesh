@@ -375,6 +375,7 @@ typedef struct {
 
 typedef struct {
     sMacAddr mac;
+    int8_t vap_id;
 } sACTION_MONITOR_CLIENT_DISCONNECTED_NOTIFICATION;
 
 typedef struct {

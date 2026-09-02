@@ -292,6 +292,7 @@ void base_wlan_hal_whm::subscribe_to_sta_events()
                          AMX_CL_OBJECT_CHANGED_EVT +
                          "')"
                          " && ((contains('parameters.AuthenticationState'))"
+                         " || (contains('parameters.Active'))"
                          " || (contains('parameters.MACAddress'))"
                          " || (contains('parameters.WdsInterfaceName')))";
 
@@ -1507,13 +1508,20 @@ const std::string base_wlan_hal_whm::get_station_path(const std::string &mac_add
     return sta_it->second;
 }
 
-void base_wlan_hal_whm::remove_station_path(const std::string &mac_addr, const char *event)
+void base_wlan_hal_whm::remove_station_path(const std::string &mac_addr, const std::string &path,
+                                            const char *event)
 {
     std::string lower_case_mac(mac_addr);
     std::transform(lower_case_mac.begin(), lower_case_mac.end(), lower_case_mac.begin(), ::tolower);
 
     auto sta_it = m_station_paths.find(lower_case_mac);
     if (sta_it != m_station_paths.end()) {
+        if (sta_it->second != path) {
+            LOG(DEBUG) << "Keeping current station path for " << lower_case_mac
+                       << " while processing stale path " << path << " event: " << event;
+            return;
+        }
+
         // erase(iterator) because erase(key) can throw exceptions
         m_station_paths.erase(sta_it);
 
