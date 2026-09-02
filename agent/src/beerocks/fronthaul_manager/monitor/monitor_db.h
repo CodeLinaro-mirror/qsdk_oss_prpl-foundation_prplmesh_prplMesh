@@ -479,6 +479,7 @@ public:
     // STA's //
     monitor_sta_node *sta_add(const std::string &sta_mac, const int8_t vap_id);
     void sta_erase(const std::string &sta_mac);
+    bool sta_erase(const std::string &sta_mac, int8_t vap_id);
     void sta_erase_all();
     monitor_sta_node *sta_find(const std::string &mac);
     monitor_sta_node *sta_find_by_ipv4(const std::string &ipv4);
