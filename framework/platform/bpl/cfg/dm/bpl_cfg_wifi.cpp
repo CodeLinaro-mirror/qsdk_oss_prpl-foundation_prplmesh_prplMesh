@@ -86,34 +86,44 @@ int cfg_get_all_prplmesh_wifi_interfaces(BPL_WLAN_IFACE *interfaces, int *num_of
     // pwhm dm path: WiFi.Radio.*
     auto radios = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(
         wbapi_utils::search_path_radio());
-    if (radios) {
-        for (auto const &it : *radios) {
-            auto &radio = it.second;
+    if (!radios || radios->empty()) {
+        MAPF_ERR("cfg_get_all_prplmesh_wifi_interfaces: no radio objects available");
+        return RETURN_ERR;
+    }
 
-            // Getting ifname
-            auto ifname = wbapi_utils::get_radio_iface(radio);
-            if (ifname.empty()) {
-                MAPF_ERR(
-                    "cfg_get_all_prplmesh_wifi_interfaces: failed to get radio iface for radio " +
-                    std::to_string(interfaces_count));
-                continue;
-            }
-            mapf::utils::copy_string(interfaces[interfaces_count].ifname, ifname.c_str(),
-                                     BPL_IFNAME_LEN);
-            interfaces[interfaces_count].radio_num = interfaces_count;
-
-            // Getting freq band
-            auto freq_band_str = wbapi_utils::get_radio_op_freq_band(radio);
-            if (freq_band_str.empty()) {
-                MAPF_ERR(
-                    "cfg_get_all_prplmesh_wifi_interfaces: failed to get freq band for radio " +
-                    std::to_string(interfaces_count));
-                continue;
-            }
-            interfaces->freq_type = string_to_freq_type(freq_band_str);
-
-            interfaces_count++;
+    for (auto const &it : *radios) {
+        if (interfaces_count >= *num_of_interfaces) {
+            MAPF_WARN("cfg_get_all_prplmesh_wifi_interfaces: interface buffer is full");
+            break;
         }
+        auto &radio = it.second;
+
+        // Getting ifname
+        std::string ifname;
+        if (!radio.read_child(ifname, "Name") || ifname.empty()) {
+            std::string radio_status;
+            if (radio.read_child(radio_status, "Status") && radio_status == "NotPresent") {
+                LOG(DEBUG) << "cfg_get_all_prplmesh_wifi_interfaces: skip not-present radio "
+                           << it.first;
+                continue;
+            }
+            MAPF_ERR("cfg_get_all_prplmesh_wifi_interfaces: failed to get radio iface for radio " +
+                     std::to_string(interfaces_count));
+            if (interfaces_count == 0) {interfaces_count++; continue;} else {return RETURN_ERR;}
+        }
+        mapf::utils::copy_string(interfaces[interfaces_count].ifname, ifname.c_str(), BPL_IFNAME_LEN);
+        interfaces[interfaces_count].radio_num = interfaces_count;
+
+        // Getting freq band
+        std::string freq_band_str;
+        if (!radio.read_child(freq_band_str, "OperatingFrequencyBand") || freq_band_str.empty()) {
+            MAPF_ERR("cfg_get_all_prplmesh_wifi_interfaces: failed to get freq band for radio " +
+                     std::to_string(interfaces_count));
+            return RETURN_ERR;
+        }
+        interfaces[interfaces_count].freq_type = string_to_freq_type(freq_band_str);
+
+        interfaces_count++;
     }
 
     *num_of_interfaces = interfaces_count;
