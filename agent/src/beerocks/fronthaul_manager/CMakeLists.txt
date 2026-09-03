@@ -42,3 +42,5 @@ target_link_libraries(${PROJECT_NAME} bcl btlvf rt dl tlvf elpp bwl mapfcommon $
 
 # Install
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+add_subdirectory("monitor/unit_tests")
