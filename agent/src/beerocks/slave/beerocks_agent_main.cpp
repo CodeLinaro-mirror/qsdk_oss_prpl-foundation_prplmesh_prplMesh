@@ -23,7 +23,9 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include "son_slave_thread.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iterator>
+#include <thread>
 
 #include <bcl/beerocks_cmdu_server_factory.h>
 #include <bcl/beerocks_config_file.h>
@@ -56,6 +58,9 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 // Do not use this macro anywhere else in ire process
 // It should only be there in one place in each executable module
 BEEROCKS_INIT_BEEROCKS_VERSION
+
+constexpr std::chrono::seconds INTERFACE_RETRY_INTERVAL = std::chrono::seconds(3);
+constexpr std::chrono::seconds INTERFACE_RETRY_TIMEOUT  = std::chrono::seconds(150);
 
 static bool g_running = true;
 static int s_signal   = 0;
@@ -746,11 +751,6 @@ int main(int argc, char *argv[])
     // Controller only mode does not take care of interfaces
     // TODO: MaxLinear DHCP monitoring may need to fill interfaces (PPM-1777)
     beerocks::bpl::BPL_WLAN_IFACE interfaces[beerocks::MAX_RADIOS_PER_AGENT] = {0};
-    int num_of_interfaces = beerocks::MAX_RADIOS_PER_AGENT;
-    if (beerocks::bpl::cfg_get_all_prplmesh_wifi_interfaces(interfaces, &num_of_interfaces)) {
-        std::cout << "ERROR: Failed to read interfaces map" << std::endl;
-        return 1;
-    }
     std::string mandatory_interfaces;
     std::vector<std::string> mandatory_interfaces_vec;
     // Read the mandatory interfaces list from config and parse it if not empty
@@ -759,20 +759,45 @@ int main(int argc, char *argv[])
             mandatory_interfaces_vec = beerocks::string_utils::str_split(mandatory_interfaces, ',');
         }
     }
-    for (int i = 0; i < num_of_interfaces; i++) {
-        // If interface is mandatory
-        if (std::find(mandatory_interfaces_vec.begin(), mandatory_interfaces_vec.end(),
-                      interfaces[i].ifname) != mandatory_interfaces_vec.end()) {
-            interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
-        } else if (beerocks::net::network_utils::linux_iface_exists(interfaces[i].ifname)) {
-            // if interface is not mandatory and exists
-            interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
-        }
-    }
 
-    if (interfaces_map.empty()) {
-        std::cout << "INFO: No radio interfaces are available" << std::endl;
-        return 0;
+    const auto interface_retry_deadline =
+        std::chrono::steady_clock::now() + INTERFACE_RETRY_TIMEOUT;
+
+    while (interfaces_map.empty()) {
+        std::fill(std::begin(interfaces), std::end(interfaces), beerocks::bpl::BPL_WLAN_IFACE{});
+        int num_of_interfaces = beerocks::MAX_RADIOS_PER_AGENT;
+
+        if (!beerocks::bpl::cfg_get_all_prplmesh_wifi_interfaces(interfaces, &num_of_interfaces)) {
+            for (int i = 0; i < num_of_interfaces; i++) {
+                // If interface is mandatory
+                if (std::find(mandatory_interfaces_vec.begin(), mandatory_interfaces_vec.end(),
+                              interfaces[i].ifname) != mandatory_interfaces_vec.end()) {
+                    interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
+                } else if (beerocks::net::network_utils::linux_iface_exists(interfaces[i].ifname)) {
+                    // if interface is not mandatory and exists
+                    interfaces_map[interfaces[i].radio_num] = std::string(interfaces[i].ifname);
+                }
+            }
+        }
+
+        if (!interfaces_map.empty()) {
+            break;
+        }
+
+        // A controller-only process intentionally has no radio interfaces.
+        if (beerocks::bpl::cfg_get_management_mode() == BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
+            std::cout << "INFO: No radio interfaces are available" << std::endl;
+            return 0;
+        }
+
+        if (std::chrono::steady_clock::now() >= interface_retry_deadline) {
+            std::cout << "ERROR: Timed out waiting for radio interfaces" << std::endl;
+            return 1;
+        }
+
+        LOG(WARNING) << "Radio interfaces are not ready, retrying in "
+                     << INTERFACE_RETRY_INTERVAL.count() << " seconds";
+        std::this_thread::sleep_for(INTERFACE_RETRY_INTERVAL);
     }
 
     // killall running slave
