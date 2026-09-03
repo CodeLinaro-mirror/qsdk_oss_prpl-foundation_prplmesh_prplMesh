@@ -180,7 +180,8 @@ void sta_wlan_hal_whm::subscribe_to_ep_events()
                          AMX_CL_OBJECT_CHANGED_EVT +
                          "')"
                          " && ((contains('parameters.ConnectionStatus'))"
-                         " || (contains('parameters.IntfName')))";
+                         " || (contains('parameters.IntfName'))"
+                         " || (contains('parameters.MultiAPVlanId')))";
 
     m_ambiorix_cl.subscribe_to_object_event(wifi_ep_path, event_handler, filter);
 }
@@ -1143,6 +1144,24 @@ bool sta_wlan_hal_whm::process_ep_event(const std::string &interface, const std:
             }
         }
         update_wps_connection_status(new_status);
+    } else if (key == "MultiAPVlanId") {
+        Endpoint endpoint;
+        if (!read_status(endpoint)) {
+            LOG(ERROR) << "Failed reading Endpoint status after MultiAPVlanId change on iface: "
+                       << interface;
+            return false;
+        }
+        if (!is_connected(endpoint.connection_status)) {
+            LOG(DEBUG) << "Ignoring MultiAPVlanId change on disconnected iface: " << interface;
+            return true;
+        }
+
+        auto msg_buff =
+            ALLOC_SMART_BUFFER(sizeof(sACTION_BACKHAUL_PRIMARY_VLAN_ID_CHANGED_NOTIFICATION));
+        auto msg = reinterpret_cast<sACTION_BACKHAUL_PRIMARY_VLAN_ID_CHANGED_NOTIFICATION *>(
+            msg_buff.get());
+        msg->multi_ap_primary_vlan_id = endpoint.multi_ap_primary_vlanid;
+        event_queue_push(Event::Primary_VLAN_ID_Changed, msg_buff);
     }
     return true;
 }
