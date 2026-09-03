@@ -109,8 +109,13 @@ static bool bpl_cfg_read_wifi_credentials(const AmbiorixVariant &ssid_obj,
         }
     }
 
+    const char *pass_phrase_param_name = "KeyPassphraseVisible";
+    if (mode_enabled.find("WPA3") != std::string::npos) {
+        pass_phrase_param_name = "SAEPassphraseVisible";
+    }
+
     std::string key_pass_phrase;
-    if (ap_sec_obj.read_child(key_pass_phrase, "KeyPassphraseVisible")) {
+    if (ap_sec_obj.read_child(key_pass_phrase, pass_phrase_param_name)) {
         configuration.network_key = std::move(key_pass_phrase);
     }
 
