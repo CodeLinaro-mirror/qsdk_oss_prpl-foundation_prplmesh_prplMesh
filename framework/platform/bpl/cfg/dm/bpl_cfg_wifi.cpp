@@ -109,9 +109,24 @@ static bool bpl_cfg_read_wifi_credentials(const AmbiorixVariant &ssid_obj,
         }
     }
 
-    std::string key_pass_phrase;
-    if (ap_sec_obj.read_child(key_pass_phrase, "KeyPassphraseVisible")) {
-        configuration.network_key = std::move(key_pass_phrase);
+    std::string passphrase;
+    bool use_sae = mode_enabled.find("WPA3") != std::string::npos;
+    bool has_sae = false;
+    if (use_sae) {
+        has_sae = ap_sec_obj.read_child(passphrase, "SAEPassphraseVisible");
+        if (!has_sae) {
+            LOG(WARNING)
+                << "Failed to read SAEPassphraseVisible, falling back to KeyPassphraseVisible";
+        } else if (passphrase.empty()) {
+            has_sae = false;
+            LOG(WARNING) << "SAEPassphraseVisible is empty, falling back to KeyPassphraseVisible";
+        } else {
+            configuration.network_key = passphrase;
+        }
+    }
+
+    if ((!use_sae || !has_sae) && ap_sec_obj.read_child(passphrase, "KeyPassphraseVisible")) {
+        configuration.network_key = std::move(passphrase);
     }
 
     return true;
