@@ -516,13 +516,28 @@ public:
 
     /**
      * @brief Get the center channel of the channel
-     * 
-     * @param channel channel number
-     * @param freq_type either 5G or 6G frequency type
+     *
+     * Supports 2.4GHz, 5GHz and 6GHz bands.
+     *
+     * The reason for the seemingly redundant op_class and
+     * bandwidth arguments are the following:
+     *
+     * 1. only the bandwidth argument can differentiate
+     *    between 6GHz 320MHz-1 and 320MHz-2 variants
+     *
+     * 2. only the op_class argument can differentiate
+     *    between 2.4GHz 40MHz plus and minus behaviors
+     *
+     * The given op_class bandwidth and the given
+     * bandwidth are expected to be aligned.
+     * If they are not, the behavior is undefined.
+     *
+     * @param channel the channel number
+     * @param op_class the operating class
      * @param bandwidth the bandiwdth of the channel
-     * @return the centeral channel. on failure, 0 is returned.
+     * @return the center channel. on failure, 0 is returned.
      */
-    static uint8_t get_center_channel(uint8_t channel, beerocks::eFreqType freq_type,
+    static uint8_t get_center_channel(uint8_t channel, uint8_t op_class,
                                       beerocks::eWiFiBandwidth bandwidth);
 
     static bool is_valid_bandwidth(uint8_t channel, beerocks::eFreqType freq_type,
