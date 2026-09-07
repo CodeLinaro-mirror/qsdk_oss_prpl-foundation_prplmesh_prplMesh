@@ -1905,9 +1905,12 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
             break;
         }
 
+        ControllerConnectivityTask::sBackhaulDisconnectedEvent disconnect_event;
+        disconnect_event.teardown_fronthaul = bool(notification->teardown_fronthaul());
         m_task_pool.send_event(
             eTaskType::CONTROLLER_CONNECTIVITY,
-            ControllerConnectivityTask::eEvent::BACKHAUL_DISCONNECTED_NOTIFICATION);
+            ControllerConnectivityTask::eEvent::BACKHAUL_DISCONNECTED_NOTIFICATION,
+            &disconnect_event);
 
         if (notification->teardown_fronthaul()) {
             m_fronthaul_bss_teardown.start(std::chrono::steady_clock::now() +

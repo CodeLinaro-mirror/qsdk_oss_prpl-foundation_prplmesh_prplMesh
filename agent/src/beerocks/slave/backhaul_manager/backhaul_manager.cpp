@@ -1406,6 +1406,10 @@ void BackhaulManager::platform_notify_error(bpl::eErrorCode code, const std::str
 
 bool BackhaulManager::handle_backhaul_connect()
 {
+    // This flag applies to the current Backhaul Manager connection attempt. A connected link
+    // completes that attempt, but does not prove Controller recovery. ControllerConnectivityTask
+    // keeps its own absolute recovery deadline and sends an authoritative disconnect command if
+    // Controller discovery does not succeed before that deadline.
     m_teardown_fronthaul_on_disconnect = false;
 
     // Build the notification message
@@ -2470,9 +2474,9 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
         auto now = std::chrono::steady_clock::now();
         if (now > state_time_stamp_timeout) {
             LOG(DEBUG) << "reconnect wait timed out";
-            // A transient disconnect has now exceeded the reconnect grace period. If recovery
-            // eventually requires RESTART, tell the Agent to tear down its fronthaul BSSs.
-            m_teardown_fronthaul_on_disconnect = true;
+            // The teardown obligation was recorded when the established backhaul was lost. Keep
+            // it set while leaving the reconnect grace state so a later RESTART tears down the
+            // fronthaul BSSs.
 
             // increment attempts count in blacklist
             if (!selected_bssid.empty()) {
@@ -2803,10 +2807,12 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
         LOG(DEBUG) << "ACTION_BACKHAUL_DISCONNECT_COMMAND is received, when active state is "
                    << FSM_CURR_STATE_STR;
 
-        if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {
-            // ControllerConnectivityTask sends this command after it confirms that controller
-            // connectivity cannot be recovered through the current backhaul.
-            m_teardown_fronthaul_on_disconnect = true;
+        // ControllerConnectivityTask sends this command after Controller recovery has failed. It
+        // is authoritative in every Backhaul FSM state, including STOPPED. Enter RESTART so the
+        // Agent receives a disconnected notification with fronthaul teardown requested; the
+        // normal retry policy may return the Backhaul Manager to STOPPED afterward.
+        m_teardown_fronthaul_on_disconnect = true;
+        if (!FSM_IS_IN_STATE(RESTART)) {
             FSM_MOVE_STATE(RESTART);
         }
         break;
@@ -2818,10 +2824,10 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
 
         auto db = AgentDB::get();
 
-        // ControllerConnectivityTask sends this after controller connectivity over the current
+        // ControllerConnectivityTask sends this after Controller connectivity over the current
         // backhaul has timed out and a stored wireless link is available. Keep the fronthaul up
-        // while attempting that fallback. A successful connection clears this flag in
-        // handle_backhaul_connect(); a failed attempt tears the fronthaul down on RESTART.
+        // during the bounded recovery attempt. A link association clears this per-attempt flag,
+        // while ControllerConnectivityTask keeps the recovery deadline until Controller discovery.
         m_teardown_fronthaul_on_disconnect = true;
 
         if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
@@ -3347,6 +3353,11 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                 state_time_stamp_timeout =
                     std::chrono::steady_clock::now() +
                     std::chrono::seconds(WIRELESS_WAIT_FOR_RECONNECT_TIMEOUT);
+
+                // Record the loss of an established backhaul before entering the reconnect grace
+                // state. A successful reconnect clears this flag, while any hard failure or
+                // restart during the grace period propagates the teardown request to the Agent.
+                m_teardown_fronthaul_on_disconnect = true;
                 FSM_MOVE_STATE(WIRELESS_WAIT_FOR_RECONNECT);
             } else if (FSM_IS_IN_STATE(WIRELESS_ASSOCIATE_4ADDR_WAIT)) {
                 if (!data) {

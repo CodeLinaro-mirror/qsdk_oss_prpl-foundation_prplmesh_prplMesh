@@ -85,6 +85,26 @@ void ControllerConnectivityTask::work()
         return;
     }
 
+    auto db        = AgentDB::get();
+    const auto now = std::chrono::steady_clock::now();
+
+    // controller_connected records verified reachability, while a non-default reconnect_timeout
+    // records that a confirmed Controller connectivity failure is in its bounded recovery window.
+    // A Backhaul Manager connection alone must not extend or complete this recovery window.
+    if (!db->statuses.controller_connected &&
+        reconnect_timeout != std::chrono::steady_clock::time_point{} && now >= reconnect_timeout &&
+        !FSM_IS_IN_STATE(BACKHAUL_LINK_DISCONNECTED)) {
+        LOG(WARNING) << "Controller recovery deadline expired; forcing backhaul restart with "
+                        "fronthaul teardown";
+        if (send_disconnect_to_backhaul_manager()) {
+            // Keep the deadline until the Backhaul Manager confirms that the disconnect is being
+            // handed to the fronthaul teardown/reset flow. This prevents a routine Agent reset
+            // between command transmission and notification from losing the teardown obligation.
+            FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
+        }
+        return;
+    }
+
     switch (m_task_state) {
     case eState::INIT: {
         // TODO: Add new search/initialization mechanism to attach previously stored BH credentials (PPM-2281)
@@ -120,17 +140,25 @@ void ControllerConnectivityTask::work()
         break;
     }
     case eState::CONNECTION_TIMEOUT: {
-        auto db                           = AgentDB::get();
         db->statuses.controller_connected = false;
         db->dm_set_controller_connected(false);
 
         auto it =
             find_if(db->backhaul.backhaul_links.begin(), db->backhaul.backhaul_links.end(),
                     [&](const AgentDB::sBackhaul::sBackhaulLink &c) {
-                        return c.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless;
+                        return c.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+                               !c.credentials.empty();
                     });
         // Try to reconnect to the wireless using the existing credentials
         if (it != db->backhaul.backhaul_links.end()) {
+
+            // Start one absolute recovery deadline for this Controller outage. Repeated wireless
+            // associations and Controller discovery retries must not extend it.
+            if (reconnect_timeout == std::chrono::steady_clock::time_point{}) {
+                reconnect_timeout = now + std::chrono::seconds(RECONNECT_TIMEOUT_SEC);
+                LOG(INFO) << "Starting bounded Controller recovery window of "
+                          << RECONNECT_TIMEOUT_SEC << " seconds";
+            }
 
             // Debug log
             for (auto &link : db->backhaul.backhaul_links) {
@@ -162,7 +190,9 @@ void ControllerConnectivityTask::work()
             break;
         }
 
-        send_disconnect_to_backhaul_manager();
+        if (send_disconnect_to_backhaul_manager()) {
+            FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
+        }
         break;
     }
     case eState::BACKHAUL_LINK_DISCONNECTED: {
@@ -171,16 +201,12 @@ void ControllerConnectivityTask::work()
     case eState::RECONNECTION: {
         LOG(DEBUG) << "state RECONNECTION";
         send_reconnect_to_backhaul_manager();
-        reconnect_timeout =
-            std::chrono::steady_clock::now() + std::chrono::seconds(RECONNECT_TIMEOUT_SEC);
-
         FSM_MOVE_STATE(WAIT_FOR_RECONNECT);
         break;
     }
     case eState::WAIT_FOR_RECONNECT: {
-        if (std::chrono::steady_clock::now() > reconnect_timeout) {
-            FSM_MOVE_STATE(RECONNECTION);
-        }
+        // Backhaul events drive the next state. The absolute Controller recovery deadline is
+        // checked before the FSM switch so it also applies while associating or discovering.
         break;
     }
     default:
@@ -196,6 +222,11 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = false;
         db->dm_set_controller_connected(false);
+        // INIT_TASK is also sent during routine Agent resets. A default-constructed task already
+        // has no deadline on cold startup, so preserve any active Controller recovery window here.
+        if (reconnect_timeout != std::chrono::steady_clock::time_point{}) {
+            LOG(INFO) << "Preserving Controller recovery deadline across Agent reinitialization";
+        }
         LOG(DEBUG) << "INIT_TASK is received and task activity: " << m_task_is_active;
         break;
     }
@@ -207,25 +238,68 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = false;
         db->dm_set_controller_connected(false);
+
+        // BACKHAUL_LINK_DISCONNECTED with an active deadline means that the terminal disconnect
+        // command was already sent and is waiting for a teardown-confirming notification. Do not
+        // accept a new link as recovery before that handoff completes.
+        if (FSM_IS_IN_STATE(BACKHAUL_LINK_DISCONNECTED) &&
+            reconnect_timeout != std::chrono::steady_clock::time_point{}) {
+            LOG(WARNING) << "Ignoring Backhaul connected notification while waiting for "
+                            "fronthaul teardown handoff";
+            break;
+        }
+
         m_direct_link_to_controller                   = false;
         db->controller_info.direct_link_to_controller = false;
         m_backhaul_connected_time                     = std::chrono::steady_clock::now();
+        if (reconnect_timeout != std::chrono::steady_clock::time_point{}) {
+            LOG(INFO) << "Backhaul connected during Controller recovery; waiting for verified "
+                         "Controller discovery without extending the recovery deadline";
+        }
         FSM_MOVE_STATE(WAIT_FOR_CONTROLLER_DISCOVERY);
         break;
     }
     case BACKHAUL_DISCONNECTED_NOTIFICATION: {
         LOG(DEBUG) << "BACKHAUL_DISCONNECTED_NOTIFICATION is received";
+        const auto *disconnect_event  = static_cast<const sBackhaulDisconnectedEvent *>(event_obj);
+        const bool teardown_fronthaul = disconnect_event && disconnect_event->teardown_fronthaul;
+
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = false;
         db->dm_set_controller_connected(false);
-        FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
+
+        if (teardown_fronthaul) {
+            // The outstanding Controller outage is now owned by the asynchronous fronthaul
+            // teardown/reset flow. It is safe to retire the recovery deadline.
+            reconnect_timeout = {};
+            FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
+        } else if (reconnect_timeout != std::chrono::steady_clock::time_point{}) {
+            // Routine Backhaul Manager restarts do not prove Controller recovery and do not tear
+            // down the fronthaul. Keep the original absolute deadline across the Agent reset.
+            LOG(INFO) << "Preserving Controller recovery deadline across Backhaul Manager restart";
+            FSM_MOVE_STATE(WAIT_FOR_RECONNECT);
+        } else {
+            FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
+        }
         break;
     }
     case CONTROLLER_DISCOVERED: {
         LOG(DEBUG) << "CONTROLLER_DISCOVERED is received";
+        const bool recovery_deadline_expired =
+            reconnect_timeout != std::chrono::steady_clock::time_point{} &&
+            std::chrono::steady_clock::now() >= reconnect_timeout;
+        if (FSM_IS_IN_STATE(BACKHAUL_LINK_DISCONNECTED) || recovery_deadline_expired) {
+            LOG(WARNING) << "Ignoring Controller discovery after the recovery deadline expired or "
+                            "a backhaul disconnect was requested";
+            break;
+        }
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = true;
         db->dm_set_controller_connected(true);
+        if (reconnect_timeout != std::chrono::steady_clock::time_point{}) {
+            LOG(INFO) << "Controller connectivity restored; clearing recovery deadline";
+            reconnect_timeout = {};
+        }
         FSM_MOVE_STATE(CONTROLLER_MONITORING);
         break;
     }
