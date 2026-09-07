@@ -323,6 +323,10 @@ cACTION_APMANAGER_STEERING_EVENT_AUTH_FAIL_NOTIFICATION:
 
 cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST:
   _type: class
+  # Request a separate, correlated completion response for an Agent-initiated teardown.
+  report_teardown_completion:
+    _type: uint8_t
+    _value: 0
   bridge_ifname_length:
     _type: uint8_t
     _length_var: True
@@ -339,6 +343,10 @@ cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST:
 cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_RESPONSE:
   _type: class
   number_of_bss_available: uint8_t
+
+cACTION_APMANAGER_BSS_TEARDOWN_RESPONSE:
+  _type: class
+  success: uint8_t
 
 cACTION_APMANAGER_START_WPS_PBC_REQUEST:
   _type: class

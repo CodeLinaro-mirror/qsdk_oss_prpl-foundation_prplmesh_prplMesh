@@ -44,6 +44,7 @@
 #include <tlvf/wfa_map/tlvVirtualBssDestruction.h>
 #include <tlvf/wfa_map/tlvVirtualBssEvent.h>
 
+#include <algorithm>
 #include <iterator>
 #include <numeric>
 #include <type_traits>
@@ -1920,6 +1921,18 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         std::string bridge_name = request->bridge_ifname_str();
 
         LOG(DEBUG) << "handle ACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST";
+        const bool report_teardown_completion = request->report_teardown_completion();
+        const auto request_id                 = beerocks_header->id();
+        auto report_teardown_result           = [&](bool success) {
+            auto response = message_com::create_vs_message<
+                beerocks_message::cACTION_APMANAGER_BSS_TEARDOWN_RESPONSE>(cmdu_tx, request_id);
+            if (!response) {
+                LOG(ERROR) << "Failed building BSS teardown response";
+                return;
+            }
+            response->success() = success;
+            send_cmdu(cmdu_tx);
+        };
         std::list<son::wireless_utils::sBssInfoConf> bss_info_conf_list;
         auto wifi_credentials_size = request->wifi_credentials_size();
 
@@ -1929,6 +1942,9 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             auto config_data_tuple = request->wifi_credentials(i);
             if (!std::get<0>(config_data_tuple)) {
                 LOG(ERROR) << "getting config data entry has failed!";
+                if (report_teardown_completion) {
+                    report_teardown_result(false);
+                }
                 return;
             }
             auto &config_data = std::get<1>(config_data_tuple);
@@ -1976,6 +1992,24 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.vap_label = config_data.vap_label_str();
 
             bss_info_conf_list.push_back(bss_info_conf);
+        }
+
+        if (report_teardown_completion) {
+            // Agent-initiated teardown has its own completion response. Do not wait for
+            // VAPs to become enabled, or send an autoconfiguration-complete response.
+            // Applying disabled AP configuration must also work when the radio is disabled.
+            const bool teardown_only =
+                !bss_info_conf_list.empty() &&
+                std::all_of(
+                    bss_info_conf_list.begin(), bss_info_conf_list.end(),
+                    [](const son::wireless_utils::sBssInfoConf &bss) { return bss.teardown; });
+            const bool success = teardown_only && ap_wlan_hal->update_vap_credentials(
+                                                      bss_info_conf_list, {}, {}, bridge_name);
+            if (!success) {
+                LOG(ERROR) << "Failed applying Agent-requested BSS teardown";
+            }
+            report_teardown_result(success);
+            break;
         }
 
         // Before updating vap credentials we need to make sure hostapd is enabled.

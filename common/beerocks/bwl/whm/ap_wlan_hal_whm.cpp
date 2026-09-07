@@ -491,8 +491,9 @@ bool ap_wlan_hal_whm::update_vap_credentials(
 {
     LOG(DEBUG) << "updating vap credentials of radio " << get_iface_name()
                << " and bridge=" << bridge_ifname;
-    bool ret          = false;
-    int new_vap_index = m_radio_info.available_vaps.size();
+    bool ret              = false;
+    bool teardown_success = true;
+    int new_vap_index     = m_radio_info.available_vaps.size();
 
     for (const auto &bss_info_conf : bss_info_conf_list) {
         std::string wifi_vap_path, wifi_ssid_path;
@@ -500,6 +501,33 @@ bool ap_wlan_hal_whm::update_vap_credentials(
 
         const auto bssid = tlvf::mac_to_string(bss_info_conf.bssid);
         int vap_id       = get_vap_id_with_mac(bssid);
+
+        if (bss_info_conf.teardown) {
+            // Resolve existing VAPs before the creation path. A missing BSS must not create a
+            // new AP, and a failure on one BSS must not be hidden by success on another.
+            if (!check_vap_id(vap_id)) {
+                LOG(ERROR) << "Cannot tear down unknown BSSID " << bssid;
+                teardown_success = false;
+                continue;
+            }
+            const auto &vap_info = m_radio_info.available_vaps.at(vap_id);
+            auto vap_it          = m_vapsExtInfo.find(vap_info.bss);
+            if (vap_it == m_vapsExtInfo.end()) {
+                LOG(ERROR) << "Cannot tear down BSSID " << bssid << ": VAP information is missing";
+                teardown_success = false;
+                continue;
+            }
+            AmbiorixVariant disabled(AMXC_VAR_ID_HTABLE);
+            disabled.add_child<bool>("Enable", false);
+            if (!m_ambiorix_cl.update_object(vap_it->second.path, disabled)) {
+                LOG(ERROR) << "Failed to disable vap " << vap_info.bss;
+                teardown_success = false;
+                continue;
+            }
+            vap_it->second.teardown = true;
+            LOG(INFO) << "BSS " << bss_info_conf.bssid << " flagged for tear down.";
+            continue;
+        }
 
         if (!check_vap_id(vap_id) || (bssid == beerocks::net::network_utils::WILD_MAC_STRING)) {
             LOG(DEBUG) << "create new vap for wildcard bssid";
@@ -572,31 +600,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         * */
 
         AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
-        if (bss_info_conf.teardown) {
-            // Re-check validity right before use; VAP may have been removed meanwhile.
-            if (!check_vap_id(vap_id)) {
-                LOG(WARNING) << "teardown requested but vap_id invalid for bssid " << bssid
-                             << " - skipping";
-                continue;
-            }
-            auto &vap_info = m_radio_info.available_vaps[vap_id];
-            ifname         = vap_info.bss;
-            auto vap_it    = m_vapsExtInfo.find(ifname);
-            if (vap_it == m_vapsExtInfo.end()) {
-                LOG(WARNING) << "teardown requested but VAP ext info missing for ifname " << ifname
-                             << " - skipping";
-                continue;
-            }
-            vap_it->second.teardown = true;
-
-            LOG(INFO) << "BSS " << bss_info_conf.bssid << " flagged for tear down.";
-            new_obj.add_child<bool>("Enable", false);
-            ret = m_ambiorix_cl.update_object(wifi_vap_path, new_obj);
-            if (!ret) {
-                LOG(ERROR) << "Failed to disable vap " << ifname;
-            }
-            continue;
-        } else {
+        {
             LOG(DEBUG) << "enable vap " << wifi_vap_path;
             new_obj.add_child("Enable", true);
             std::string multi_ap;
@@ -765,7 +769,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         }
     }
 
-    return true;
+    return teardown_success;
 }
 
 bool ap_wlan_hal_whm::sta_unassoc_rssi_measurement(const std::string &mac, int chan,
