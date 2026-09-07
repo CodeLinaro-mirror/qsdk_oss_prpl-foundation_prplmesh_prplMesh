@@ -445,6 +445,9 @@ void slave_thread::stop_slave_thread()
 {
     // Explicit process shutdown cannot wait for further event-loop callbacks.
     m_fronthaul_bss_teardown.reset();
+    m_pending_fronthaul_bss_teardown_retries.clear();
+    m_current_fronthaul_bss_teardown_retries.clear();
+    m_reset_after_fronthaul_bss_teardown = false;
     agent_reset();
     should_stop = true;
 }
@@ -509,7 +512,8 @@ void slave_thread::agent_reset()
     m_agent_state = STATE_INIT;
 }
 
-bool slave_thread::send_fronthaul_bss_teardown(bool report_completion)
+bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
+                                               const std::string &radio_iface_filter)
 {
     auto db = AgentDB::get();
 
@@ -526,10 +530,7 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion)
         const auto &radio_iface   = radio_manager_element.first;
         const auto &radio_manager = radio_manager_element.second;
 
-        if (radio_manager.ap_manager_fd == net::FileDescriptor::invalid_descriptor) {
-            LOG(WARNING) << "Cannot tear down fronthaul BSSs on " << radio_iface
-                         << ": AP manager is unavailable";
-            success = false;
+        if (!radio_iface_filter.empty() && radio_iface != radio_iface_filter) {
             continue;
         }
 
@@ -537,6 +538,32 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion)
         if (!radio) {
             LOG(ERROR) << "Cannot tear down fronthaul BSSs: radio " << radio_iface
                        << " was not found in AgentDB";
+            success = false;
+            continue;
+        }
+
+        const auto teardown_bss_count =
+            std::count_if(radio->front.bssids.begin(), radio->front.bssids.end(),
+                          [](const AgentDB::sRadio::sFront::sBssid &bss) {
+                              return bss.mac != network_utils::ZERO_MAC;
+                          });
+        if (teardown_bss_count == 0) {
+            LOG(DEBUG) << "No configured fronthaul BSSs to tear down on " << radio_iface;
+            if (report_completion) {
+                m_pending_fronthaul_bss_teardown_retries.erase(radio_iface);
+            }
+            continue;
+        }
+
+        if (report_completion) {
+            // Interface names survive AP-manager restarts; socket descriptors do not. Retain the
+            // radio until a successful HAL response so it can be replayed after Agent reset.
+            m_pending_fronthaul_bss_teardown_retries.insert(radio_iface);
+        }
+
+        if (radio_manager.ap_manager_fd == net::FileDescriptor::invalid_descriptor) {
+            LOG(WARNING) << "Cannot tear down fronthaul BSSs on " << radio_iface
+                         << ": AP manager is unavailable";
             success = false;
             continue;
         }
@@ -571,8 +598,7 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion)
             continue;
         }
 
-        size_t teardown_bss_count = 0;
-        bool request_valid        = true;
+        bool request_valid = true;
         for (const auto &bss : radio->front.bssids) {
             // A non-zero BSSID identifies a BSS configured on this radio.
             if (bss.mac == network_utils::ZERO_MAC) {
@@ -600,14 +626,9 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion)
                 request_valid = false;
                 break;
             }
-            teardown_bss_count++;
         }
 
         if (!request_valid) {
-            continue;
-        }
-        if (teardown_bss_count == 0) {
-            LOG(DEBUG) << "No configured fronthaul BSSs to tear down on " << radio_iface;
             continue;
         }
 
@@ -962,10 +983,27 @@ bool slave_thread::fsm_all()
         if (m_fronthaul_bss_teardown.ready(std::chrono::steady_clock::now())) {
             for (const auto &pending : m_fronthaul_bss_teardown.pending()) {
                 LOG(ERROR) << "Timed out waiting for BSS teardown on " << pending.second
-                           << "; continuing Agent reset";
+                           << (m_reset_after_fronthaul_bss_teardown ? "; continuing Agent reset"
+                                                                    : "; finishing teardown retry");
             }
+
+            const bool reset_agent = m_reset_after_fronthaul_bss_teardown;
             m_fronthaul_bss_teardown.reset();
-            agent_reset();
+            m_reset_after_fronthaul_bss_teardown = false;
+
+            if (reset_agent) {
+                agent_reset();
+            } else {
+                // A replay is attempted once after the AP manager attaches again. Do not block
+                // Agent recovery indefinitely if the AP manager still cannot apply the teardown.
+                for (const auto &radio_iface : m_current_fronthaul_bss_teardown_retries) {
+                    if (m_pending_fronthaul_bss_teardown_retries.erase(radio_iface) != 0) {
+                        LOG(ERROR) << "Final BSS teardown retry failed on " << radio_iface
+                                   << "; continuing Agent recovery";
+                    }
+                }
+                m_current_fronthaul_bss_teardown_retries.clear();
+            }
         }
         return true;
     }
@@ -1915,6 +1953,8 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
         if (notification->teardown_fronthaul()) {
             m_fronthaul_bss_teardown.start(std::chrono::steady_clock::now() +
                                            FRONTHAUL_BSS_TEARDOWN_TIMEOUT);
+            m_reset_after_fronthaul_bss_teardown = true;
+            m_current_fronthaul_bss_teardown_retries.clear();
             m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
                                    ApAutoConfigurationTask::eEvent::INIT_TASK);
             if (!send_fronthaul_bss_teardown(true)) {
@@ -3008,8 +3048,11 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         }
         if (!response->success()) {
             LOG(ERROR) << "BSS teardown failed on " << fronthaul_iface
-                       << "; continuing reset after the remaining AP managers finish";
+                       << (m_reset_after_fronthaul_bss_teardown
+                               ? "; continuing reset after the remaining AP managers finish"
+                               : "; pending retry will be abandoned after this replay");
         } else {
+            m_pending_fronthaul_bss_teardown_retries.erase(fronthaul_iface);
             LOG(INFO) << "BSS teardown completed on " << fronthaul_iface;
         }
         return true;
@@ -3106,7 +3149,10 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         radio_manager.dm_instance = db->dm_create_fronthaul_object(iface);
 
-        return send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
+        if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+            return false;
+        }
+        return true;
     }
 
     if (fronthaul_iface.empty()) {
@@ -3255,6 +3301,23 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
         update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
+
+        if (m_pending_fronthaul_bss_teardown_retries.count(fronthaul_iface) != 0) {
+            // AP_MANAGER_UP precedes HAL attachment. Replay only after JOINED, when the HAL is
+            // operational and the AgentDB BSS list has been refreshed from the AP manager.
+            if (!m_fronthaul_bss_teardown.active()) {
+                m_fronthaul_bss_teardown.start(std::chrono::steady_clock::now() +
+                                               FRONTHAUL_BSS_TEARDOWN_TIMEOUT);
+                m_reset_after_fronthaul_bss_teardown = false;
+                m_current_fronthaul_bss_teardown_retries.clear();
+            }
+            if (!m_reset_after_fronthaul_bss_teardown) {
+                m_current_fronthaul_bss_teardown_retries.insert(fronthaul_iface);
+            }
+            if (!send_fronthaul_bss_teardown(true, fronthaul_iface)) {
+                LOG(ERROR) << "Failed replaying pending BSS teardown on " << fronthaul_iface;
+            }
+        }
 
         if (radio_capabilities_changed && db->statuses.ap_autoconfiguration_completed) {
             LOG(INFO) << "Radio capabilities changed on " << fronthaul_iface

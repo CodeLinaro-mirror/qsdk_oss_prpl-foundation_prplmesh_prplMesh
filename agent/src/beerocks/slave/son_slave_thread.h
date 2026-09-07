@@ -28,6 +28,8 @@
 #include <beerocks/tlvf/beerocks_header.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 
+#include <set>
+
 // Forward decleration
 namespace beerocks_message {
 class cChannelList;
@@ -240,7 +242,8 @@ private:
     bool fsm_all();
     bool agent_fsm();
     void agent_reset();
-    bool send_fronthaul_bss_teardown(bool report_completion = false);
+    bool send_fronthaul_bss_teardown(bool report_completion         = false,
+                                     const std::string &radio_iface = {});
     void stop_slave_thread();
     void fronthaul_start(const std::string &fronthaul_iface);
     void fronthaul_stop(const std::string &fronthaul_iface);
@@ -395,6 +398,11 @@ private:
     bool m_is_backhaul_disconnected = false;
     int m_agent_resets_counter      = 0;
     FronthaulBssTeardown m_fronthaul_bss_teardown;
+    bool m_reset_after_fronthaul_bss_teardown = false;
+    // Stable interface names retain failed work across AP-manager socket/process replacement.
+    std::set<std::string> m_pending_fronthaul_bss_teardown_retries;
+    // Subset attempted in the current post-reset replay, used for bounded final failure handling.
+    std::set<std::string> m_current_fronthaul_bss_teardown_retries;
 
     TaskPool m_task_pool;
 
