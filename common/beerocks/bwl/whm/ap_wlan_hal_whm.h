@@ -191,6 +191,11 @@ public:
     virtual bool update_mld_mode(std::string ssid, uint8_t mld_mode) override;
     virtual bool update_mld_unit(std::string ssid_alias, int8_t mld_unit,
                                  bool reconfigure) override;
+    virtual bool
+    update_tid_to_link_mapping(const std::string &ssid, uint8_t mode,
+                               uint32_t advertised_expected_duration,
+                               uint32_t advertised_map_switch_time,
+                               const std::string &advertised_link_map_frequency_bands) override;
 
     virtual bool configure_service_priority(const uint8_t *data) override;
     virtual bool

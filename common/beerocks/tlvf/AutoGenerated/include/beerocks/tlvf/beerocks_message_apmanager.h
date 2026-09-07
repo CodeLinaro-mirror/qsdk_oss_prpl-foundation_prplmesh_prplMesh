@@ -1532,6 +1532,44 @@ class cACTION_APMANAGER_MLD_UPDATE_REQUEST : public BaseClass
         uint8_t* m_reconfigure = nullptr;
 };
 
+class cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST);
+        }
+        std::string ssid_str();
+        char* ssid(size_t length = 0);
+        bool set_ssid(const std::string& str);
+        bool set_ssid(const char buffer[], size_t size);
+        uint8_t& mode();
+        uint32_t& advertised_expected_duration();
+        uint32_t& advertised_map_switch_time();
+        std::string advertised_link_map_frequency_bands_str();
+        char* advertised_link_map_frequency_bands(size_t length = 0);
+        bool set_advertised_link_map_frequency_bands(const std::string& str);
+        bool set_advertised_link_map_frequency_bands(const char buffer[], size_t size);
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        char* m_ssid = nullptr;
+        size_t m_ssid_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+        uint8_t* m_mode = nullptr;
+        uint32_t* m_advertised_expected_duration = nullptr;
+        uint32_t* m_advertised_map_switch_time = nullptr;
+        char* m_advertised_link_map_frequency_bands = nullptr;
+        size_t m_advertised_link_map_frequency_bands_idx__ = 0;
+};
+
 class cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST : public BaseClass
 {
     public:

@@ -5685,6 +5685,174 @@ bool cACTION_APMANAGER_MLD_UPDATE_REQUEST::init()
     return true;
 }
 
+cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::~cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST() {
+}
+std::string cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::ssid_str() {
+    char *ssid_ = ssid();
+    if (!ssid_) { return std::string(); }
+    auto str = std::string(ssid_, m_ssid_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::ssid(size_t length) {
+    if( (m_ssid_idx__ == 0) || (m_ssid_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "ssid length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_ssid);
+}
+
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::set_ssid(const std::string& str) { return set_ssid(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::set_ssid(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_ssid received a null pointer.";
+        return false;
+    }
+    if (size > 32) {
+        TLVF_LOG(ERROR) << "Received buffer size is smaller than string length";
+        return false;
+    }
+    std::copy(str, str + size, m_ssid);
+    return true;
+}
+uint8_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::mode() {
+    return (uint8_t&)(*m_mode);
+}
+
+uint32_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::advertised_expected_duration() {
+    return (uint32_t&)(*m_advertised_expected_duration);
+}
+
+uint32_t& cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::advertised_map_switch_time() {
+    return (uint32_t&)(*m_advertised_map_switch_time);
+}
+
+std::string cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::advertised_link_map_frequency_bands_str() {
+    char *advertised_link_map_frequency_bands_ = advertised_link_map_frequency_bands();
+    if (!advertised_link_map_frequency_bands_) { return std::string(); }
+    auto str = std::string(advertised_link_map_frequency_bands_, m_advertised_link_map_frequency_bands_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::advertised_link_map_frequency_bands(size_t length) {
+    if( (m_advertised_link_map_frequency_bands_idx__ == 0) || (m_advertised_link_map_frequency_bands_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "advertised_link_map_frequency_bands length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_advertised_link_map_frequency_bands);
+}
+
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::set_advertised_link_map_frequency_bands(const std::string& str) { return set_advertised_link_map_frequency_bands(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::set_advertised_link_map_frequency_bands(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_advertised_link_map_frequency_bands received a null pointer.";
+        return false;
+    }
+    if (size > 32) {
+        TLVF_LOG(ERROR) << "Received buffer size is smaller than string length";
+        return false;
+    }
+    std::copy(str, str + size, m_advertised_link_map_frequency_bands);
+    return true;
+}
+void cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    tlvf_swap(32, reinterpret_cast<uint8_t*>(m_advertised_expected_duration));
+    tlvf_swap(32, reinterpret_cast<uint8_t*>(m_advertised_map_switch_time));
+}
+
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += 32 * sizeof(char); // ssid
+    class_size += sizeof(uint8_t); // mode
+    class_size += sizeof(uint32_t); // advertised_expected_duration
+    class_size += sizeof(uint32_t); // advertised_map_switch_time
+    class_size += 32 * sizeof(char); // advertised_link_map_frequency_bands
+    return class_size;
+}
+
+bool cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_ssid = reinterpret_cast<char*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(char) * (32))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (32) << ") Failed!";
+        return false;
+    }
+    m_ssid_idx__  = 32;
+    m_mode = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_advertised_expected_duration = reinterpret_cast<uint32_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint32_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint32_t) << ") Failed!";
+        return false;
+    }
+    m_advertised_map_switch_time = reinterpret_cast<uint32_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint32_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint32_t) << ") Failed!";
+        return false;
+    }
+    m_advertised_link_map_frequency_bands = reinterpret_cast<char*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(char) * (32))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (32) << ") Failed!";
+        return false;
+    }
+    m_advertised_link_map_frequency_bands_idx__  = 32;
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST::cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();

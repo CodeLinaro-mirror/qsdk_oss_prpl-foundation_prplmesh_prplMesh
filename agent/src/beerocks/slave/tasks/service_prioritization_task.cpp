@@ -9,14 +9,18 @@
 #include "service_prioritization_task.h"
 #include "../agent_db.h"
 #include "../son_slave_thread.h"
+#include "../tid_to_link_utils.h"
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
 
+#include <algorithm>
 #include <bcl/beerocks_utils.h>
 #include <bcl/network/network_utils.h>
 #include <bpl/bpl_service_prio_utils.h>
+#include <set>
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 #include <vector>
 
@@ -371,6 +375,20 @@ void ServicePrioritizationTask::handle_service_prioritization_request(
     if (!qos_apply_active_rule()) {
         LOG(ERROR) << "Failed setting up QoS active rule";
     }
+
+    // Tid-To-Link Mapping policy TLV handler
+    //auto tlvTidToLinkMapping = cmdu_rx.getClass<wfa_map::tlvTidToLinkMappingPolicy>();
+    //if (tlvTidToLinkMapping) {
+    //    handle_tid_to_link_mapping_policy_tlv(std::move(tlvTidToLinkMapping));
+    //}
+    auto tlvTidToLinkMapping = cmdu_rx.getClass<wfa_map::tlvTidToLinkMappingPolicy>();
+    if (tlvTidToLinkMapping) {
+
+        if (!handle_tid_to_link_mapping_policy_tlv(std::move(tlvTidToLinkMapping))) {
+            LOG(ERROR) << "handle_tid_to_link_mapping_policy_tlv failed";
+            return;
+        }
+    }
 }
 
 bool ServicePrioritizationTask::handle_qos_management_descriptors(
@@ -701,6 +719,283 @@ bool ServicePrioritizationTask::send_service_prio_config(
             m_btl_ctx.send_cmdu(radio_manager.ap_manager_fd, m_cmdu_tx);
             return true;
         });
+    return true;
+}
+
+namespace {
+
+std::string band_for_freq_type(beerocks::eFreqType freq_type)
+{
+    switch (freq_type) {
+    case beerocks::FREQ_24G:
+        return "2.4GHz";
+    case beerocks::FREQ_5G:
+        return "5GHz";
+    case beerocks::FREQ_6G:
+        return "6GHz";
+    default:
+        return {};
+    }
+}
+
+std::string resolve_advertised_bands(AgentDB::SafeDB db, const sMacAddr &mld_mac,
+                                     const std::unordered_map<uint8_t, uint16_t> &tid_link_map)
+{
+    std::unordered_map<int8_t, std::string> link_band;
+
+    for (auto radio : db->get_radios_list()) {
+        if (!radio) {
+            continue;
+        }
+
+        auto band = band_for_freq_type(radio->wifi_channel.get_freq_type());
+
+        if (band.empty()) {
+            continue;
+        }
+
+        for (const auto &bss : radio->front.bssids) {
+
+            if (bss.apmld_mac != mld_mac || bss.link_id < 0) {
+                continue;
+            }
+
+            link_band[bss.link_id] = band;
+        }
+    }
+
+    std::set<std::string> bands;
+
+    for (const auto &tid_entry : tid_link_map) {
+
+        uint16_t bitmap = tid_entry.second;
+
+        for (uint8_t link_id = 0; link_id < 16; link_id++) {
+
+            if (!(bitmap & (1u << link_id))) {
+                continue;
+            }
+
+            auto it = link_band.find(link_id);
+
+            if (it != link_band.end()) {
+                bands.insert(it->second);
+            }
+        }
+    }
+
+    std::string csv;
+
+    for (const auto &band : bands) {
+
+        if (!csv.empty()) {
+            csv += ",";
+        }
+
+        csv += band;
+    }
+
+    return csv;
+}
+
+} // namespace
+
+bool ServicePrioritizationTask::send_tid_to_link_mapping_request(
+    const sMacAddr &mld_mac, const AgentDB::sTidToLinkMappingEntry &entry, bool negotiation_enabled)
+{
+    auto db = AgentDB::get();
+
+    std::string advertised_bands = resolve_advertised_bands(db, mld_mac, entry.TID_to_Link_Mapping);
+
+    static const sMacAddr BROADCAST_MAC = tlvf::mac_from_string("ff:ff:ff:ff:ff:ff");
+
+    bool is_mandatory_bss_mapping = (entry.STA_MLD_MAC_Addr == BROADCAST_MAC);
+
+    uint8_t mode;
+
+    if (!entry.addRemove) {
+        mode = 0;
+    } else if (is_mandatory_bss_mapping) {
+        mode = 1;
+    } else {
+        mode = negotiation_enabled ? 2 : 0;
+    }
+
+    bool all_sent = true;
+    bool any_sent = false;
+
+    for (auto radio : db->get_radios_list()) {
+        if (!radio) {
+            continue;
+        }
+
+        std::string ssid;
+        for (const auto &bss : radio->front.bssids) {
+            if (bss.apmld_mac == mld_mac && bss.fronthaul_bss) {
+                ssid = bss.ssid;
+                break;
+            }
+        }
+
+        if (ssid.empty()) {
+            continue;
+        }
+
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST>(m_cmdu_tx);
+
+        if (!request) {
+            LOG(ERROR) << "Failed building message "
+                       << "cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST!";
+            all_sent = false;
+            continue;
+        }
+
+        request->set_ssid(ssid);
+        request->mode()                         = mode;
+        request->advertised_expected_duration() = entry.Expected_Duration;
+        request->advertised_map_switch_time()   = 0;
+        request->set_advertised_link_map_frequency_bands(advertised_bands);
+
+        auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio->front.iface_name);
+
+        if (!m_btl_ctx.send_cmdu(ap_manager_fd, m_cmdu_tx)) {
+            LOG(ERROR) << "Can't send ACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST";
+            all_sent = false;
+            continue;
+        }
+
+        any_sent = true;
+    }
+
+    if (!any_sent) {
+        LOG(ERROR) << "send_tid_to_link_mapping_request: AP MLD " << mld_mac
+                   << " is not hosted on any local radio";
+        return false;
+    }
+
+    return all_sent;
+}
+
+bool ServicePrioritizationTask::handle_tid_to_link_mapping_policy_tlv(
+    std::shared_ptr<wfa_map::tlvTidToLinkMappingPolicy> tlvTidToLinkMapping)
+{
+    LOG(INFO) << "Received TID-to-Link Mapping Policy TLV";
+
+    if (!tlvTidToLinkMapping) {
+        LOG(ERROR) << "Invalid Tid-To-Link-Mapping TLV";
+        return false;
+    }
+    auto db = AgentDB::get();
+    // get AP MLD MAC
+    sMacAddr mld_mac = tlvTidToLinkMapping->mld_mac_addr();
+
+    // select correct DB map
+    bool is_bsta     = tlvTidToLinkMapping->is_bsta_config().is_bsta_mld;
+    auto &target_map = is_bsta ? db->service_prioritization.bsta_mld_client
+                               : db->service_prioritization.ap_mld_client;
+
+    // clear old data for this MLD
+    target_map[mld_mac].clear();
+    // config object
+    beerocks::AgentDB::TID_to_Link_Mapping_Config config = {};
+
+    config.is_bSTA_Config = is_bsta;
+    config.MLD_MAC_Addr   = mld_mac;
+    config.TID_To_Link_Mapping_Negotiation =
+        tlvTidToLinkMapping->tid_to_link_mapping_negotiation().is_enabled;
+    config.Num_Mapping = tlvTidToLinkMapping->num_mapping();
+
+    // LOOP: mappings
+
+    for (size_t i = 0; i < tlvTidToLinkMapping->num_mapping(); i++) {
+        auto mapping_tuple = tlvTidToLinkMapping->mapping(i);
+        if (!std::get<0>(mapping_tuple)) {
+            LOG(ERROR) << "Invalid Mapping Index" << i;
+            continue;
+        }
+
+        auto &mapping                                   = std::get<1>(mapping_tuple);
+        beerocks::AgentDB::sTidToLinkMappingEntry entry = {};
+        // basic fields
+        entry.addRemove        = mapping.add_remove().should_be_removed;
+        entry.STA_MLD_MAC_Addr = mapping.sta_mld_mac_addr();
+        // control field
+        auto controlField = mapping.tid_to_link_control_field();
+        uint8_t control   = 0;
+        tid_to_link_utils::set_direction(control, controlField->tid_to_link_control().direction);
+        tid_to_link_utils::set_default_link_mapping(
+            control, controlField->tid_to_link_control().default_link_mapping);
+        tid_to_link_utils::set_mapping_switch_time(
+            control, controlField->tid_to_link_control().mapping_switch_time_present);
+        tid_to_link_utils::set_expected_duration_present(
+            control, controlField->tid_to_link_control().expected_duration_present);
+        tid_to_link_utils::set_link_mapping_size(
+            control, controlField->tid_to_link_control().link_mapping_size);
+        entry.tid_to_link_control_field = control;
+
+        // presence bitmap
+        uint8_t presence                      = controlField->link_mapping_presence_indicator();
+        entry.Link_Mapping_Presence_Indicator = presence;
+        // expected duration
+        if (controlField->tid_to_link_control().expected_duration_present) {
+            auto duration           = controlField->expected_duration();
+            entry.Expected_Duration = (duration[0] << 16) | (duration[1] << 8) | duration[2];
+        }
+        // TID to Link Mapping Parsing
+        uint8_t tid_mapping_count = mapping.tid_to_link_mapping_length();
+        if (tid_mapping_count == 0) {
+            LOG(WARNING) << "No TID Mappings Present";
+            continue;
+        }
+        uint8_t tid_index = 0;
+        for (uint8_t tid = 0; tid < 8; tid++) {
+            // check presence bitmap
+            if (!(presence & (1 << tid)))
+                continue;
+            // prevent access beyond available mappings
+            if (tid_index >= tid_mapping_count) {
+                LOG(WARNING) << "TID mapping count exhausted";
+                break;
+            }
+
+            auto result   = mapping.tid_to_link_mapping(tid_index);
+            bool ok       = std::get<0>(result);
+            auto &tid_map = std::get<1>(result);
+            if (!ok) {
+                LOG(ERROR) << "Invalid TID mapping index";
+                break;
+            }
+            // extract bytes
+            uint8_t lower                  = get_tid_byte(tid_map.loByte());
+            uint8_t upper                  = get_tid_byte(tid_map.hiByte());
+            uint16_t value                 = lower | (upper << 8);
+            entry.TID_to_Link_Mapping[tid] = value;
+            LOG(DEBUG) << "Parsed TID " << int(tid) << " mapping: " << std::bitset<16>(value);
+            tid_index++;
+        }
+        // add entry
+        config.mappings.push_back(std::move(entry));
+    }
+    // store in DB (key = STA MLD MAC)/
+    for (auto &entry : config.mappings) { //1
+
+        target_map[mld_mac][entry.STA_MLD_MAC_Addr] = config; //2
+
+        LOG(DEBUG) << "Stored TID-to-Link Mapping Policy in DB"; //3
+
+        if (!send_tid_to_link_mapping_request(mld_mac, entry,
+                                              config.TID_To_Link_Mapping_Negotiation)) {
+
+            LOG(ERROR) << "Failed to send TID-to-Link Mapping Request";
+        }
+    }
+    // store in DB (key = STA MLD MAC)
+    //for (auto &entry : config.mappings) {
+    //  target_map[mld_mac][entry.STA_MLD_MAC_Addr] = config;
+    // LOG(DEBUG) << "Stored TID-to-Link Mapping Policy in DB";
+    //}
+
     return true;
 }
 

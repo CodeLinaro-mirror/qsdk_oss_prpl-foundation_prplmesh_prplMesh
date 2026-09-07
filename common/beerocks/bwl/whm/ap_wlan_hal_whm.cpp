@@ -2697,6 +2697,63 @@ bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit, bool re
     return true;
 }
 
+bool ap_wlan_hal_whm::update_tid_to_link_mapping(
+    const std::string &ssid, uint8_t mode, uint32_t advertised_expected_duration,
+    uint32_t advertised_map_switch_time, const std::string &advertised_link_map_frequency_bands)
+{
+    std::string radio_path_no_dot = m_radio_path;
+    if (radio_path_no_dot.back() == '.') {
+        radio_path_no_dot.pop_back();
+    }
+
+    std::string search_path =
+        wbapi_utils::search_path_ssid_by_ssid_and_radio(ssid, radio_path_no_dot);
+
+    auto ssids = m_ambiorix_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(search_path);
+    if (!ssids || ssids->empty()) {
+        LOG(ERROR) << "update_tid_to_link_mapping: No SSID instances found with name: " << ssid;
+        return false;
+    }
+
+    const std::string &ssid_path = ssids->begin()->first;
+    int8_t mld_id                = DISABLED_MLDUNIT;
+
+    if (!m_ambiorix_cl.get_param(mld_id, ssid_path, "MLDUnit") || mld_id <= DISABLED_MLDUNIT) {
+        LOG(ERROR) << "SSID is not part of an AP MLD";
+        return false;
+    }
+
+    std::string apmld_path;
+    if (!m_ambiorix_cl.resolve_path(wbapi_utils::search_path_apmld_by_mldid(mld_id), apmld_path) ||
+        apmld_path.empty()) {
+        LOG(ERROR) << "Failed to resolve APMLD path";
+        return false;
+    }
+
+    static const char *const mode_strings[3] = {"Disabled", "Advertised", "Negotiated"};
+
+    if (mode >= 3) {
+        LOG(ERROR) << "Invalid mode";
+        return false;
+    }
+
+    AmbiorixVariant ttlm_config(AMXC_VAR_ID_HTABLE);
+
+    ttlm_config.add_child("Mode", std::string(mode_strings[mode]));
+    ttlm_config.add_child("AdvertisedExpectedDuration", advertised_expected_duration);
+    ttlm_config.add_child("AdvertisedMapSwitchTime", advertised_map_switch_time);
+    ttlm_config.add_child("AdvertisedLinkMapFrequencyBands", advertised_link_map_frequency_bands);
+
+    std::string ttlm_config_path = apmld_path + "TIDLinkMapConfig.";
+
+    if (!m_ambiorix_cl.update_object(ttlm_config_path, ttlm_config)) {
+        LOG(ERROR) << "Failed to update TIDLinkMapConfig";
+        return false;
+    }
+
+    return true;
+}
+
 void ap_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
                                                   beerocks::wbapi::AmbiorixVariant *updates)
 {

@@ -2510,6 +2510,27 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         ap_wlan_hal->update_mld_mode(request->ssid(), request->mld_mode());
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST: {
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST>();
+
+        if (!request) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
+
+        LOG(DEBUG) << "handle ACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST";
+
+        if (!ap_wlan_hal->update_tid_to_link_mapping(
+                request->ssid(), request->mode(), request->advertised_expected_duration(),
+                request->advertised_map_switch_time(),
+                request->advertised_link_map_frequency_bands())) {
+            LOG(ERROR) << "Failed to update TID-to-Link mapping";
+        }
+
+        break;
+    }
     case beerocks_message::ACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST: {
         auto request =
             beerocks_header

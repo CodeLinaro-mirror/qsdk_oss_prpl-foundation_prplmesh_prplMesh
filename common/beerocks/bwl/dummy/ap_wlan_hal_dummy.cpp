@@ -909,6 +909,14 @@ bool ap_wlan_hal_dummy::update_mld_unit(std::string ssid_alias, int8_t mld_unit,
     return false;
 }
 
+bool ap_wlan_hal_dummy::update_tid_to_link_mapping(
+    const std::string &ssid, uint8_t mode, uint32_t advertised_expected_duration,
+    uint32_t advertised_map_switch_time, const std::string &advertised_link_map_frequency_bands)
+{
+    LOG(TRACE) << __func__ << " - NOT IMPLEMENTED!";
+    return false;
+}
+
 } // namespace dummy
 
 std::shared_ptr<ap_wlan_hal> ap_wlan_hal_create(std::string iface_name, bwl::hal_conf_t hal_conf,

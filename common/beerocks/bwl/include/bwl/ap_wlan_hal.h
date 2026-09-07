@@ -713,6 +713,25 @@ public:
      */
     virtual bool update_mld_unit(std::string ssid, int8_t mld_unit, bool reconfigure) = 0;
 
+    /**
+     * @brief Update TID-to-Link mapping policy for a STA MLD.
+     *
+     * Applies per‑TID link mapping configuration for the given STA MLD
+     * through the AP HAL implementation.
+     *
+     * @param sta_mld_mac STA MLD MAC address.
+     * @param mapping Map of TID to link bitmap.
+     * @param control TID-to-Link control field.
+     * @param expected_duration Expected duration value for the mapping policy.
+     *
+     * @return true on success, false otherwise.
+     */
+    virtual bool
+    update_tid_to_link_mapping(const std::string &ssid, uint8_t mode,
+                               uint32_t advertised_expected_duration,
+                               uint32_t advertised_map_switch_time,
+                               const std::string &advertised_link_map_frequency_bands) = 0;
+
 private:
     static const int frame_body_idx = (sizeof(s80211MgmtFrame::sHeader) * 2);
 
