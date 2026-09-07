@@ -1977,10 +1977,15 @@ sDfsCacCompleted& cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION::param
     return (sDfsCacCompleted&)(*m_params);
 }
 
+sApChannelSwitch& cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION::cs_params() {
+    return (sApChannelSwitch&)(*m_cs_params);
+}
+
 void cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
     m_params->struct_swap();
+    m_cs_params->struct_swap();
 }
 
 bool cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION::finalize()
@@ -2014,6 +2019,7 @@ size_t cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION::get_initial_size
 {
     size_t class_size = 0;
     class_size += sizeof(sDfsCacCompleted); // params
+    class_size += sizeof(sApChannelSwitch); // cs_params
     return class_size;
 }
 
@@ -2029,6 +2035,12 @@ bool cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION::init()
         return false;
     }
     if (!m_parse__) { m_params->struct_init(); }
+    m_cs_params = reinterpret_cast<sApChannelSwitch*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sApChannelSwitch))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sApChannelSwitch) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_cs_params->struct_init(); }
     if (m_parse__) { class_swap(); }
     return true;
 }

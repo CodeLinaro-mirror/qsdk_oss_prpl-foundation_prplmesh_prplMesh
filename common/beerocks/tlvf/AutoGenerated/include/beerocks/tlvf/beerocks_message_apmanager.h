@@ -550,6 +550,7 @@ class cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION : public BaseClass
             return (eActionOp_APMANAGER)(ACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION);
         }
         sDfsCacCompleted& params();
+        sApChannelSwitch& cs_params();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -558,6 +559,7 @@ class cACTION_APMANAGER_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION : public BaseClass
         bool init();
         eActionOp_APMANAGER* m_action_op = nullptr;
         sDfsCacCompleted* m_params = nullptr;
+        sApChannelSwitch* m_cs_params = nullptr;
 };
 
 class cACTION_APMANAGER_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION : public BaseClass

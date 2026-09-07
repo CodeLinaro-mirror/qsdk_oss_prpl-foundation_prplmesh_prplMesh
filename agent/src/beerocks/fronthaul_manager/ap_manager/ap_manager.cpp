@@ -3106,6 +3106,10 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             break;
         }
 
+        if (ap_wlan_hal->refresh_radio_info()) {
+            fill_cs_params(response->cs_params());
+        }
+
         response->params().timeout           = msg->params.timeout;
         response->params().frequency         = msg->params.frequency;
         response->params().center_frequency1 = msg->params.center_frequency1;

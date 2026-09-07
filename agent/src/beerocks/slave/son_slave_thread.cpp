@@ -3724,10 +3724,21 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
-        // Existing channel is used to prevent overwritting of the channel issue (PPM-2858)
-        radio->wifi_channel = beerocks::WifiChannel(
-            radio->wifi_channel.get_channel(), notification_in->params().center_frequency1,
-            static_cast<beerocks::eWiFiBandwidth>(notification_in->params().bandwidth));
+        const auto &cs_params = notification_in->cs_params();
+
+        if (cs_params.channel != 0 &&
+            (radio->wifi_channel.get_channel() != cs_params.channel ||
+             radio->wifi_channel.get_center_frequency() != cs_params.vht_center_frequency ||
+             radio->wifi_channel.get_bandwidth() !=
+                 static_cast<beerocks::eWiFiBandwidth>(cs_params.bandwidth))) {
+            LOG(DEBUG) << "Updating db after CAC completion: " << radio->wifi_channel
+                       << " -> ch: " << +cs_params.channel
+                       << ", cf: " << cs_params.vht_center_frequency << ", bw: "
+                       << beerocks::utils::convert_bandwidth_to_string(
+                              static_cast<beerocks::eWiFiBandwidth>(cs_params.bandwidth));
+            save_channel_params_to_db(fronthaul_iface, cs_params);
+            send_operating_channel_report(fronthaul_iface);
+        }
 
         auto notification_out = message_com::create_vs_message<
             beerocks_message::cACTION_CONTROL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION>(cmdu_tx);
