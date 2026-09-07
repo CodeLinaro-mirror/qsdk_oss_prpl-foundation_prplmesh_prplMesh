@@ -84,6 +84,9 @@ public:
     static bool handle_backhaul_sta_mld_configuration_tlv(db &database, const sMacAddr &al_mac,
                                                           ieee1905_1::CmduMessageRx &cmdu_rx);
 
+    static bool handle_tid_to_link_mapping_policy_tlv(db &database, const sMacAddr &al_mac,
+                                                      ieee1905_1::CmduMessageRx &cmdu_rx);
+
 private:
     static bool
     check_hostap_activability(db &database,

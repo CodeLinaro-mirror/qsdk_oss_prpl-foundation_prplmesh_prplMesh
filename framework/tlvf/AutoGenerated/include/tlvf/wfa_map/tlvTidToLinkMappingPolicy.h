@@ -28,6 +28,7 @@
 
 namespace wfa_map {
 
+class cTidToLinkMapping;
 class cMapping;
 class cTidToLinkControlField;
 
@@ -102,6 +103,53 @@ class tlvTidToLinkMappingPolicy : public BaseClass
         bool m_lock_allocation__ = false;
 };
 
+class cTidToLinkMapping : public BaseClass
+{
+    public:
+        cTidToLinkMapping(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cTidToLinkMapping(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cTidToLinkMapping();
+
+        typedef struct sTidToLinkMapping_byte {
+            #if defined(__LITTLE_ENDIAN_BITFIELD)
+            uint8_t bit0 : 1;
+            uint8_t bit1 : 1;
+            uint8_t bit2 : 1;
+            uint8_t bit3 : 1;
+            uint8_t bit4 : 1;
+            uint8_t bit5 : 1;
+            uint8_t bit6 : 1;
+            uint8_t bit7 : 1;
+            #elif defined(__BIG_ENDIAN_BITFIELD)
+            uint8_t bit7 : 1;
+            uint8_t bit6 : 1;
+            uint8_t bit5 : 1;
+            uint8_t bit4 : 1;
+            uint8_t bit3 : 1;
+            uint8_t bit2 : 1;
+            uint8_t bit1 : 1;
+            uint8_t bit0 : 1;
+            #else
+            #error "Bitfield macros are not defined"
+            #endif
+            void struct_swap(){
+            }
+            void struct_init(){
+            }
+        } __attribute__((packed)) sTidToLinkMapping_byte;
+        
+        sTidToLinkMapping_byte& loByte();
+        sTidToLinkMapping_byte& hiByte();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        sTidToLinkMapping_byte* m_loByte = nullptr;
+        sTidToLinkMapping_byte* m_hiByte = nullptr;
+};
+
 class cMapping : public BaseClass
 {
     public:
@@ -125,41 +173,17 @@ class cMapping : public BaseClass
             }
         } __attribute__((packed)) sAddRemove;
         
-        typedef struct sTidToLinkMapping {
-            #if defined(__LITTLE_ENDIAN_BITFIELD)
-            uint8_t bit0 : 1;
-            uint8_t bit1 : 1;
-            uint8_t bit2 : 1;
-            uint8_t bit3 : 1;
-            uint8_t bit4 : 1;
-            uint8_t bit5 : 1;
-            uint8_t bit6 : 1;
-            uint8_t bit7 : 1;
-            #elif defined(__BIG_ENDIAN_BITFIELD)
-            uint8_t bit7 : 1;
-            uint8_t bit6 : 1;
-            uint8_t bit5 : 1;
-            uint8_t bit4 : 1;
-            uint8_t bit3 : 1;
-            uint8_t bit2 : 1;
-            uint8_t bit1 : 1;
-            uint8_t bit0 : 1;
-            #else
-            #error "Bitfield macros are not defined"
-            #endif
-            void struct_swap(){
-            }
-            void struct_init(){
-            }
-        } __attribute__((packed)) sTidToLinkMapping;
-        
         sAddRemove& add_remove();
         sMacAddr& sta_mld_mac_addr();
         bool isPostInitSucceeded() override;
         std::shared_ptr<cTidToLinkControlField> create_tid_to_link_control_field();
         bool add_tid_to_link_control_field(std::shared_ptr<cTidToLinkControlField> ptr);
         std::shared_ptr<cTidToLinkControlField> tid_to_link_control_field() { return m_tid_to_link_control_field_ptr; }
-        sTidToLinkMapping& tid_to_link_mapping();
+        //For every TID identified by a set bit in the Link_Mapping_Presence_Indicator field
+        size_t tid_to_link_mapping_length();
+        std::tuple<bool, cTidToLinkMapping&> tid_to_link_mapping(size_t idx);
+        std::shared_ptr<cTidToLinkMapping> create_tid_to_link_mapping();
+        bool add_tid_to_link_mapping(std::shared_ptr<cTidToLinkMapping> ptr);
         uint8_t* reserved(size_t idx = 0);
         bool set_reserved(const void* buffer, size_t size);
         void class_swap() override;
@@ -175,7 +199,9 @@ class cMapping : public BaseClass
         bool m_tid_to_link_control_field_init = false;
         bool m_lock_allocation__ = false;
         int m_lock_order_counter__ = 0;
-        sTidToLinkMapping* m_tid_to_link_mapping = nullptr;
+        cTidToLinkMapping* m_tid_to_link_mapping = nullptr;
+        size_t m_tid_to_link_mapping_idx__ = 0;
+        std::vector<std::shared_ptr<cTidToLinkMapping>> m_tid_to_link_mapping_vector;
         uint8_t* m_reserved = nullptr;
         size_t m_reserved_idx__ = 0;
 };
