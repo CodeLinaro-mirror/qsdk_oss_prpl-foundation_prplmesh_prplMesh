@@ -1395,6 +1395,7 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
 
     // Find first VAP entry
     auto hostapd_vap_iterator = hostapd_config_vaps.begin();
+    std::vector<std::string> torn_down_vaps;
 
     // Clear all VAPs from the available container, since we preset it with configuration.
     m_radio_info.available_vaps.clear();
@@ -1403,6 +1404,33 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
 
     // Go through the bss_info_conf_list and change the hostapd config accordingly
     for (const auto &bss_info_conf : bss_info_conf_list) {
+        if (bss_info_conf.teardown) {
+            const auto bssid = tlvf::mac_to_string(bss_info_conf.bssid);
+            auto vap_it      = std::find_if(
+                hostapd_config_vaps.begin(), hostapd_config_vaps.end(),
+                [&](const std::pair<std::string, std::vector<std::string>> &vap) {
+                    std::string configured_bssid;
+                    return hostapd_config_get_value(vap.second, "bssid", configured_bssid) &&
+                           beerocks::string_utils::case_insensitive_compare(configured_bssid,
+                                                                            bssid);
+                });
+            if (vap_it == hostapd_config_vaps.end()) {
+                LOG(ERROR) << "Could not find BSS " << bss_info_conf.bssid << " for teardown";
+                return false;
+            }
+
+            LOG(INFO) << "Tearing down BSS " << bss_info_conf.bssid << " on " << vap_it->first;
+            hostapd_config_set_value(vap_it->second, "ssid", "");
+            hostapd_config_set_value(vap_it->second, "start_disabled", "1");
+            hostapd_config_set_value(vap_it->second, "multi_ap", "0");
+            hostapd_config_set_value(vap_it->second, "multi_ap_backhaul_ssid", "");
+            hostapd_config_set_value(vap_it->second, "multi_ap_backhaul_wpa_passphrase", "");
+            hostapd_config_set_value(vap_it->second, "multi_ap_profile1_disallow", "");
+            hostapd_config_set_value(vap_it->second, "multi_ap_profile2_disallow", "");
+            torn_down_vaps.push_back(vap_it->first);
+            continue;
+        }
+
         auto auth_type = son::wireless_utils::wsc_to_bwl_authentication(
             bss_info_conf.authentication_type, bss_info_conf.additional_auth);
         if (auth_type == "INVALID") {
@@ -1417,11 +1445,6 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
             return false;
         }
 
-        if (!bridge_ifname.empty() &&
-            beerocks::net::network_utils::linux_iface_is_up(bridge_ifname)) {
-            hostapd_config_set_value(hostapd_config->second, "bridge", bridge_ifname);
-        }
-
         LOG(DEBUG) << "Autoconfiguration for ssid: " << bss_info_conf.ssid
                    << " auth_type: " << auth_type << " encr_type: " << enc_type
                    << " network_key: " << bss_info_conf.network_key
@@ -1430,10 +1453,17 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
 
         // We only can use AP entries, skip STAs if ended up on one
         std::string entry_mode;
-        while (hostapd_vap_iterator != hostapd_config_vaps.end() &&
-               hostapd_config_get_value(hostapd_vap_iterator->second, "mode", entry_mode) &&
-               entry_mode != "ap") {
-            LOG(DEBUG) << "Autoconfiguration: skipping STA entry";
+        while (hostapd_vap_iterator != hostapd_config_vaps.end()) {
+            const bool torn_down = std::find(torn_down_vaps.begin(), torn_down_vaps.end(),
+                                             hostapd_vap_iterator->first) != torn_down_vaps.end();
+            const bool non_ap =
+                hostapd_config_get_value(hostapd_vap_iterator->second, "mode", entry_mode) &&
+                entry_mode != "ap";
+            if (!torn_down && !non_ap) {
+                break;
+            }
+            LOG(DEBUG) << "Autoconfiguration: skipping "
+                       << (torn_down ? "torn-down VAP" : "STA entry");
             ++hostapd_vap_iterator;
         }
 
@@ -1446,6 +1476,11 @@ bool ap_wlan_hal_dwpal::update_vap_credentials(
         // Update VAP settings in hostapd config
         const std::string &vap_if                    = hostapd_vap_iterator->first;
         std::vector<std::string> &vap_hostapd_config = hostapd_vap_iterator->second;
+
+        if (!bridge_ifname.empty() &&
+            beerocks::net::network_utils::linux_iface_is_up(bridge_ifname)) {
+            hostapd_config_set_value(vap_hostapd_config, "bridge", bridge_ifname);
+        }
 
         // SSID
         hostapd_config_set_value(vap_hostapd_config, "ssid", bss_info_conf.ssid);

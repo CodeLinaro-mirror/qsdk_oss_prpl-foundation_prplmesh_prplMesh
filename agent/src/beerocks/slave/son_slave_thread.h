@@ -10,6 +10,7 @@
 #define _SON_SLAVE_THREAD_H
 
 #include "agent_db.h"
+#include "helpers/fronthaul_bss_teardown.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
 
@@ -239,7 +240,7 @@ private:
     bool fsm_all();
     bool agent_fsm();
     void agent_reset();
-    bool send_fronthaul_bss_teardown();
+    bool send_fronthaul_bss_teardown(bool report_completion = false);
     void stop_slave_thread();
     void fronthaul_start(const std::string &fronthaul_iface);
     void fronthaul_stop(const std::string &fronthaul_iface);
@@ -393,6 +394,7 @@ private:
 
     bool m_is_backhaul_disconnected = false;
     int m_agent_resets_counter      = 0;
+    FronthaulBssTeardown m_fronthaul_bss_teardown;
 
     TaskPool m_task_pool;
 
@@ -551,6 +553,9 @@ private:
      */
     inline void fronthaul_reset(const sManagedRadio &radio_manager) const
     {
+        if (m_fronthaul_bss_teardown.active()) {
+            return;
+        }
         m_cmdu_server->disconnect(radio_manager.ap_manager_fd);
     }
 
