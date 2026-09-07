@@ -162,6 +162,13 @@ boardfarm-on-mozart-stability:
     - export CRAM_REMOTE_COMMAND=${CRAM_REMOTE_COMMAND_BASE}${TARGET_LAN_IP}
     - export TARGET_DEVICE=$TARGET_DEVICE
     - docker run -v "$CI_PROJECT_DIR/tests/cram:/home/cram/prplMesh" -e CRAM_REMOTE_COMMAND -e TARGET_LAN_IP -e TARGET_DEVICE $CI_REGISTRY_IMAGE/prplmesh-cram:$PRPLOS_HASH
+  after_script:
+    - scp -O -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -r root@${TARGET_LAN_IP}:/var/log/ logs > /dev/null
+  artifacts:
+    paths:
+      - "logs/*"
+    expire_in: 4 weeks
+    when: always
   rules:
     - if: '$CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"'
       when: always
