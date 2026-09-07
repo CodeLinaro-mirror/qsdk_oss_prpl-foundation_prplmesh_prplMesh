@@ -1279,10 +1279,9 @@ bool ap_wlan_hal_whm::process_radio_channel_change_event(const AmbiorixVariant *
         LOG(ERROR) << "Received event without ChannelChangeReason parameter" << chan_change_reason;
         return false;
     }
-    if (chan_change_reason != "MANUAL" && chan_change_reason != "AUTO") {
-        LOG(ERROR) << "chan_change_reason other than MANUAL or AUTO:" << chan_change_reason;
-
-        if (chan_change_reason != "DFS" || !m_accept_dfs_channel_change_after_cac_failure) {
+    LOG(INFO) << "Channel change reason is " << chan_change_reason;
+    if (chan_change_reason == "DFS") {
+        if (!m_accept_dfs_channel_change_after_cac_failure) {
             return false;
         }
 
