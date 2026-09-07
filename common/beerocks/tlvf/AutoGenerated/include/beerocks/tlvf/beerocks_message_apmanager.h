@@ -1532,6 +1532,47 @@ class cACTION_APMANAGER_MLD_UPDATE_REQUEST : public BaseClass
         uint8_t* m_reconfigure = nullptr;
 };
 
+class cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST);
+        }
+        sMacAddr& sta_mld_mac();
+        uint8_t& control();
+        uint32_t& expected_duration();
+        uint16_t& tid0_mapping();
+        uint16_t& tid1_mapping();
+        uint16_t& tid2_mapping();
+        uint16_t& tid3_mapping();
+        uint16_t& tid4_mapping();
+        uint16_t& tid5_mapping();
+        uint16_t& tid6_mapping();
+        uint16_t& tid7_mapping();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_sta_mld_mac = nullptr;
+        uint8_t* m_control = nullptr;
+        uint32_t* m_expected_duration = nullptr;
+        uint16_t* m_tid0_mapping = nullptr;
+        uint16_t* m_tid1_mapping = nullptr;
+        uint16_t* m_tid2_mapping = nullptr;
+        uint16_t* m_tid3_mapping = nullptr;
+        uint16_t* m_tid4_mapping = nullptr;
+        uint16_t* m_tid5_mapping = nullptr;
+        uint16_t* m_tid6_mapping = nullptr;
+        uint16_t* m_tid7_mapping = nullptr;
+};
+
 class cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST : public BaseClass
 {
     public:

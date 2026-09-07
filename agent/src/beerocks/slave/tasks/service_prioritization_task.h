@@ -11,9 +11,11 @@
 
 #include "task.h"
 
+#include "../agent_db.h"
 #include <bpl/bpl.h>
 #include <bpl/bpl_service_prio_utils.h>
 #include <tlvf/CmduMessageTx.h>
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 
 #include <chrono>
 #include <string>
@@ -59,12 +61,29 @@ private:
     void handle_slave_channel_selection_response(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                  const sMacAddr &src_mac);
 
+    // helper funtion
+    inline uint8_t get_tid_byte(const wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map)
+    {
+        return *reinterpret_cast<const uint8_t *>(&map);
+    }
+
+    /**
+    * @brief parse tidtolinkmappingpolicy tlv and add into db
+    *
+    * @return true if parsed tlv and added data in db, otherwise false
+    * */
+
+    bool handle_tid_to_link_mapping_policy_tlv(
+        std::shared_ptr<wfa_map::tlvTidToLinkMappingPolicy> tlvTidToLinkMapping);
     /**
     * @brief Sends notification to HostAP/Driver about the current service prioritization config
     *
     * @return true if config applied or handled properly, otherwise false.
     * */
     bool send_service_prio_config(const beerocks_message::sServicePrioConfig &request);
+
+    bool send_tid_to_link_mapping_request(const beerocks::AgentDB::sTidToLinkMappingEntry &entry,
+                                          const std::string &radio_iface);
 
     void gather_iface_details(std::list<bpl::ServicePrioritizationUtils::sInterfaceTagInfo> *);
 

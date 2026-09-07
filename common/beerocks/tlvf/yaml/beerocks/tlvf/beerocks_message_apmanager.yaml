@@ -397,6 +397,42 @@ cACTION_APMANAGER_MLD_UPDATE_REQUEST:
     _type: uint8_t
   reconfigure: uint8_t #bool
 
+cACTION_APMANAGER_TID_TO_LINK_MAPPING_REQUEST:
+  _type: class
+
+  sta_mld_mac:
+    _type: sMacAddr
+
+  control:
+    _type: uint8_t
+
+  expected_duration:
+    _type: uint32_t
+
+  tid0_mapping:
+    _type: uint16_t
+
+  tid1_mapping:
+    _type: uint16_t
+
+  tid2_mapping:
+    _type: uint16_t
+
+  tid3_mapping:
+    _type: uint16_t
+
+  tid4_mapping:
+    _type: uint16_t
+
+  tid5_mapping:
+    _type: uint16_t
+
+  tid6_mapping:
+    _type: uint16_t
+
+  tid7_mapping:
+    _type: uint16_t
+
 cACTION_APMANAGER_MLD_MODE_UPDATE_REQUEST:
   _type: class
   ssid:

@@ -15,6 +15,7 @@
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/ieee_1905_1/eMediaType.h>
 
+#include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -206,6 +207,19 @@ private:
      * @return true on success, otherwise false.
      */
     bool add_assoc_sta_mld_config_reports();
+
+    /* helper function to set TID bytes */
+    static void set_tid_byte(wfa_map::cTidToLinkMapping::sTidToLinkMapping_byte &map, uint8_t value)
+    {
+        *reinterpret_cast<uint8_t *>(&map) = value;
+    }
+
+    /**
+     * @brief add and fill tid to link mapping tlv.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_tid_to_link_mapping_policy_tlv();
 
     /**
      * @brief Add and fill BSS configuration report tlv.
