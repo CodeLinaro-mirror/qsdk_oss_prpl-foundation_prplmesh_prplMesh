@@ -9670,6 +9670,12 @@ bool db::update_assoc_sta_mld(
         ret_val = false;
     }
 
+    // Remove STA entry for MLD STA if present
+    auto station_mld = m_stations.get(sta_mld_mac);
+    if (station_mld != nullptr && !station_mld->dm_path.empty()) {
+        dm_remove_sta(*station_mld);
+    }
+
     // Reconcile affiliated STAs under this STAMLD instance.
     sta_mld->affiliated_stas.keep_new_prepare();
 
@@ -9710,6 +9716,12 @@ bool db::update_assoc_sta_mld(
             LOG(ERROR) << "Failed to set MACAddress for affiliated station "
                        << affiliated_sta.affiliated_sta_mac;
             ret_val = false;
+        }
+
+        // Remove STA entry for Affiliated STA if present
+        auto station_mld_aff = m_stations.get(affiliated_sta.affiliated_sta_mac);
+        if (station_mld_aff != nullptr && !station_mld_aff->dm_path.empty()) {
+            dm_remove_sta(*station_mld_aff);
         }
     }
 

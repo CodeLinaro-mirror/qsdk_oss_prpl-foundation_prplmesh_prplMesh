@@ -811,7 +811,11 @@ bool topology_task::handle_associated_clients_tlv(ieee1905_1::CmduMessageRx &cmd
         for (auto &bss_pair : radio->bsses) {
             std::shared_ptr<Agent::sRadio::sBss> &bss = bss_pair.second;
             for (auto &connected_pair : bss->connected_stations) {
-                previous_connected.insert({connected_pair.first, bss->bssid});
+                // Don't handle MLD STA
+                auto station = database.m_stations.get(connected_pair.first);
+                if (station != nullptr && station->sta_mld_configuration.dm_path.empty()) {
+                    previous_connected.insert({connected_pair.first, bss->bssid});
+                }
             }
         }
     }
@@ -821,8 +825,12 @@ bool topology_task::handle_associated_clients_tlv(ieee1905_1::CmduMessageRx &cmd
     for (int i = 0; i < assoc_client_tlv->bss_list_length(); i++) {
         wfa_map::cBssInfo &bss = std::get<1>(assoc_client_tlv->bss_list(i));
         for (int j = 0; j < bss.clients_associated_list_length(); j++) {
-            wfa_map::cClientInfo &client    = std::get<1>(bss.clients_associated_list(j));
-            current_connected[client.mac()] = bss.bssid();
+            wfa_map::cClientInfo &client = std::get<1>(bss.clients_associated_list(j));
+            // Don't handle MLD STA
+            auto station = database.m_stations.get(client.mac());
+            if (station != nullptr && station->sta_mld_configuration.dm_path.empty()) {
+                current_connected[client.mac()] = bss.bssid();
+            }
         }
     }
 
