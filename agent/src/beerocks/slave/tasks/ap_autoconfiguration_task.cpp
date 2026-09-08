@@ -2427,12 +2427,13 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
         AgentDB::sAPMLDConfiguration &current_ap_mld_conf = db->ap_mld_configurations.back();
         current_ap_mld_conf.mld_config.mld_ssid           = ssid;
 
-        // Find new MLD Unit
+        // Find preconfigured or new MLD Unit
         if (current_ap_mld_conf.mld_config.mld_unit == DISABLED_MLDUNIT) {
-            int8_t mld_unit = find_available_ap_mld_unit();
+            int8_t mld_unit = find_available_ap_mld_unit(ssid);
             if (mld_unit != DISABLED_MLDUNIT) {
                 current_ap_mld_conf.mld_config.mld_unit = mld_unit;
-                LOG(DEBUG) << "MLD Unit " << mld_unit << " has been assigned to AP MLD " << ssid;
+                LOG(DEBUG) << "MLD Unit " << int(mld_unit) << " has been selected for AP MLD "
+                           << ssid;
             }
         }
 
@@ -2961,6 +2962,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
             vap_info.profile2_backhaul_sta_association_disallowed;
     }
 
+    bssid->mld_id    = notification_in->mld_unit();
     bssid->link_id   = vap_info.link_id;
     bssid->apmld_mac = vap_info.ap_mld_mac;
 
@@ -3086,6 +3088,8 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
 
     m_btl_ctx.update_vaps_info(fronthaul_iface, notification_in->params().vaps);
     m_btl_ctx.update_vaps_type(fronthaul_iface, notification_in->vap_type_list().vap_types);
+    m_btl_ctx.update_vaps_mld_units(fronthaul_iface,
+                                    notification_in->vap_mld_unit_list().vap_mld_units);
 
     auto notification_out = message_com::create_vs_message<
         beerocks_message::cACTION_CONTROL_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION>(m_cmdu_tx);
@@ -3398,6 +3402,7 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
             // Controller can't reconfigure local VAP type/label -> keep local.
             it->m2_config.vap_type  = local_bss.vap_type;
             it->m2_config.vap_label = local_bss.vap_label;
+            it->mld_id              = local_bss.mld_id;
 
             if (is_bss_reconfiguration_required(local_bss, *it)) {
                 LOG(DEBUG) << "BSS " << local_bss.mac << " needs reconfiguration.";
@@ -3832,13 +3837,33 @@ bool ApAutoConfigurationTask::send_monitor_son_config(
     return true;
 }
 
-int8_t ApAutoConfigurationTask::find_available_ap_mld_unit()
+int8_t ApAutoConfigurationTask::find_available_ap_mld_unit(const std::string &ssid)
 {
     auto db = AgentDB::get();
 
     std::unordered_set<int8_t> used_mld_units;
+    int8_t preconfigured_mld_unit = DISABLED_MLDUNIT;
     for (const auto &ap_mld_conf : db->ap_mld_configurations) {
         used_mld_units.insert(ap_mld_conf.mld_config.mld_unit);
+    }
+    for (const auto &radio : db->get_radios_list()) {
+        for (const auto &bss : radio->front.bssids) {
+            if (bss.mld_id != DISABLED_MLDUNIT) {
+                used_mld_units.insert(bss.mld_id);
+                if (bss.ssid == ssid) {
+                    if (preconfigured_mld_unit != DISABLED_MLDUNIT &&
+                        preconfigured_mld_unit != bss.mld_id) {
+                        LOG(ERROR) << "Conflicting preconfigured MLD units for AP MLD " << ssid;
+                        return DISABLED_MLDUNIT;
+                    }
+                    preconfigured_mld_unit = bss.mld_id;
+                }
+            }
+        }
+    }
+
+    if (preconfigured_mld_unit != DISABLED_MLDUNIT) {
+        return preconfigured_mld_unit;
     }
 
     for (int8_t mld_unit = 0; mld_unit < db->max_mlds; ++mld_unit) {
@@ -3865,11 +3890,18 @@ bool ApAutoConfigurationTask::populate_mld_id_in_bss_infos(const std::string &ra
     for (auto &bss_info : bss_infos) {
         const std::string &ssid = bss_info.payload_config.ssid;
         auto ssid_it            = ssid_mld_map.find(ssid);
-        if (ssid_it != ssid_mld_map.end()) {
-            int8_t mld_unit = std::get<0>(ssid_it->second);
-            bss_info.mld_id = mld_unit;
-        } else {
+        if (ssid_it == ssid_mld_map.end()) {
             bss_info.mld_id = DISABLED_MLDUNIT;
+            continue;
+        }
+        if (bss_info.mld_id != DISABLED_MLDUNIT) {
+            for (auto &ap_mld_conf : AgentDB::get()->ap_mld_configurations) {
+                if (ap_mld_conf.mld_config.mld_ssid == ssid) {
+                    ap_mld_conf.mld_config.mld_unit = bss_info.mld_id;
+                }
+            }
+        } else {
+            bss_info.mld_id = std::get<0>(ssid_it->second);
         }
     }
 

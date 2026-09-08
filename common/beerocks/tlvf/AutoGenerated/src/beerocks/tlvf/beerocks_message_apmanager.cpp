@@ -450,6 +450,7 @@ std::shared_ptr<cChannelList> cACTION_APMANAGER_JOINED_NOTIFICATION::create_chan
     }
     m_vap_list = (sVapsList *)((uint8_t *)(m_vap_list) + len);
     m_vap_type_list = (sVapTypesList *)((uint8_t *)(m_vap_type_list) + len);
+    m_vap_mld_unit_list = (sVapMldUnitsList *)((uint8_t *)(m_vap_mld_unit_list) + len);
     m_radio_max_bss = (uint8_t *)((uint8_t *)(m_radio_max_bss) + len);
     m_radio_rsn_override_support = (uint8_t *)((uint8_t *)(m_radio_rsn_override_support) + len);
     m_radio_mscs_support = (uint8_t *)((uint8_t *)(m_radio_mscs_support) + len);
@@ -479,6 +480,7 @@ bool cACTION_APMANAGER_JOINED_NOTIFICATION::add_channel_list(std::shared_ptr<cCh
     size_t len = ptr->getLen();
     m_vap_list = (sVapsList *)((uint8_t *)(m_vap_list) + len - ptr->get_initial_size());
     m_vap_type_list = (sVapTypesList *)((uint8_t *)(m_vap_type_list) + len - ptr->get_initial_size());
+    m_vap_mld_unit_list = (sVapMldUnitsList *)((uint8_t *)(m_vap_mld_unit_list) + len - ptr->get_initial_size());
     m_radio_max_bss = (uint8_t *)((uint8_t *)(m_radio_max_bss) + len - ptr->get_initial_size());
     m_radio_rsn_override_support = (uint8_t *)((uint8_t *)(m_radio_rsn_override_support) + len - ptr->get_initial_size());
     m_radio_mscs_support = (uint8_t *)((uint8_t *)(m_radio_mscs_support) + len - ptr->get_initial_size());
@@ -498,6 +500,10 @@ sVapsList& cACTION_APMANAGER_JOINED_NOTIFICATION::vap_list() {
 
 sVapTypesList& cACTION_APMANAGER_JOINED_NOTIFICATION::vap_type_list() {
     return (sVapTypesList&)(*m_vap_type_list);
+}
+
+sVapMldUnitsList& cACTION_APMANAGER_JOINED_NOTIFICATION::vap_mld_unit_list() {
+    return (sVapMldUnitsList&)(*m_vap_mld_unit_list);
 }
 
 uint8_t& cACTION_APMANAGER_JOINED_NOTIFICATION::radio_max_bss() {
@@ -524,6 +530,7 @@ void cACTION_APMANAGER_JOINED_NOTIFICATION::class_swap()
     if (m_channel_list_ptr) { m_channel_list_ptr->class_swap(); }
     m_vap_list->struct_swap();
     m_vap_type_list->struct_swap();
+    m_vap_mld_unit_list->struct_swap();
 }
 
 bool cACTION_APMANAGER_JOINED_NOTIFICATION::finalize()
@@ -560,6 +567,7 @@ size_t cACTION_APMANAGER_JOINED_NOTIFICATION::get_initial_size()
     class_size += sizeof(sApChannelSwitch); // cs_params
     class_size += sizeof(sVapsList); // vap_list
     class_size += sizeof(sVapTypesList); // vap_type_list
+    class_size += sizeof(sVapMldUnitsList); // vap_mld_unit_list
     class_size += sizeof(uint8_t); // radio_max_bss
     class_size += sizeof(uint8_t); // radio_rsn_override_support
     class_size += sizeof(uint8_t); // radio_mscs_support
@@ -611,6 +619,12 @@ bool cACTION_APMANAGER_JOINED_NOTIFICATION::init()
         return false;
     }
     if (!m_parse__) { m_vap_type_list->struct_init(); }
+    m_vap_mld_unit_list = reinterpret_cast<sVapMldUnitsList*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sVapMldUnitsList))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sVapMldUnitsList) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_vap_mld_unit_list->struct_init(); }
     m_radio_max_bss = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
@@ -1016,6 +1030,10 @@ sVapInfo& cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION::vap_info() {
     return (sVapInfo&)(*m_vap_info);
 }
 
+int8_t& cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION::mld_unit() {
+    return (int8_t&)(*m_mld_unit);
+}
+
 void cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
@@ -1054,6 +1072,7 @@ size_t cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION::get_initial_size()
     size_t class_size = 0;
     class_size += sizeof(int8_t); // vap_id
     class_size += sizeof(sVapInfo); // vap_info
+    class_size += sizeof(int8_t); // mld_unit
     return class_size;
 }
 
@@ -1074,6 +1093,11 @@ bool cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION::init()
         return false;
     }
     if (!m_parse__) { m_vap_info->struct_init(); }
+    m_mld_unit = reinterpret_cast<int8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(int8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(int8_t) << ") Failed!";
+        return false;
+    }
     if (m_parse__) { class_swap(); }
     return true;
 }
@@ -1212,11 +1236,16 @@ sVapTypesList& cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION::vap_type_
     return (sVapTypesList&)(*m_vap_type_list);
 }
 
+sVapMldUnitsList& cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION::vap_mld_unit_list() {
+    return (sVapMldUnitsList&)(*m_vap_mld_unit_list);
+}
+
 void cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
     m_params->struct_swap();
     m_vap_type_list->struct_swap();
+    m_vap_mld_unit_list->struct_swap();
 }
 
 bool cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION::finalize()
@@ -1251,6 +1280,7 @@ size_t cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION::get_initial_size(
     size_t class_size = 0;
     class_size += sizeof(sVapsList); // params
     class_size += sizeof(sVapTypesList); // vap_type_list
+    class_size += sizeof(sVapMldUnitsList); // vap_mld_unit_list
     return class_size;
 }
 
@@ -1272,6 +1302,12 @@ bool cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION::init()
         return false;
     }
     if (!m_parse__) { m_vap_type_list->struct_init(); }
+    m_vap_mld_unit_list = reinterpret_cast<sVapMldUnitsList*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sVapMldUnitsList))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sVapMldUnitsList) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_vap_mld_unit_list->struct_init(); }
     if (m_parse__) { class_swap(); }
     return true;
 }

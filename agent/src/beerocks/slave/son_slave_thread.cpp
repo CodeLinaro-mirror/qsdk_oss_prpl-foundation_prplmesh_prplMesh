@@ -3129,6 +3129,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
         update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
+        update_vaps_mld_units(fronthaul_iface, notification->vap_mld_unit_list().vap_mld_units);
 
         if (radio_capabilities_changed && db->statuses.ap_autoconfiguration_completed) {
             LOG(INFO) << "Radio capabilities changed on " << fronthaul_iface
@@ -6631,6 +6632,31 @@ bool slave_thread::update_vaps_type(const std::string &iface,
         LOG(DEBUG) << "Updated vap_type: iface=" << bss.iface_name << " idx=" << int(vap_idx)
                    << " vap_id=" << int(vap_types[vap_idx].vap_id)
                    << " vap_type=" << eVapType_str(bss.vap_type) << " vap_label=" << bss.vap_label;
+    }
+
+    return true;
+}
+
+bool slave_thread::update_vaps_mld_units(const std::string &iface,
+                                         const beerocks_message::sVapMldUnit vap_mld_units[])
+{
+    auto db    = AgentDB::get();
+    auto radio = db->radio(iface);
+    if (!radio) {
+        return false;
+    }
+
+    for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
+        auto &bss                 = radio->front.bssids[vap_idx];
+        const int expected_vap_id = int(beerocks::IFACE_VAP_ID_MIN) + int(vap_idx);
+        if (vap_mld_units[vap_idx].vap_id != expected_vap_id) {
+            LOG(WARNING) << "vap_mld_units mapping mismatch: idx=" << int(vap_idx)
+                         << " expected_vap_id=" << expected_vap_id
+                         << " got=" << int(vap_mld_units[vap_idx].vap_id);
+            bss.mld_id = DISABLED_MLDUNIT;
+            continue;
+        }
+        bss.mld_id = vap_mld_units[vap_idx].mld_unit;
     }
 
     return true;

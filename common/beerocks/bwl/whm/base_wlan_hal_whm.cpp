@@ -1477,11 +1477,6 @@ void base_wlan_hal_whm::populate_mlo_fields(
     vap_element.link_id = DISABLED_MLDUNIT;
     vap_element.ap_mld_mac.clear();
 
-    if (vap_element.ssid.empty()) {
-        LOG(DEBUG) << "VAP is disabled, clear MLO fileds ifname:" << ifname;
-        return;
-    }
-
     int8_t mld_unit = DISABLED_MLDUNIT;
     if (!ssid_obj->read_child(mld_unit, "MLDUnit")) {
         LOG(ERROR) << "MLDUnit could not be read for ifname: " << ifname;
@@ -1491,6 +1486,11 @@ void base_wlan_hal_whm::populate_mlo_fields(
     vap_element.mld_id = mld_unit;
     if (mld_unit == DISABLED_MLDUNIT) {
         LOG(DEBUG) << "MLDUnit is disabled for ifname: " << ifname;
+        return;
+    }
+
+    if (vap_element.ssid.empty()) {
+        LOG(DEBUG) << "VAP is disabled, skip operational MLO fields for ifname: " << ifname;
         return;
     }
 

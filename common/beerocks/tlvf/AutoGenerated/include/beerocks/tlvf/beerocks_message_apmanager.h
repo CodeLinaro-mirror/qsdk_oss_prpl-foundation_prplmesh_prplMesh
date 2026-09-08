@@ -133,6 +133,7 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         std::shared_ptr<cChannelList> channel_list() { return m_channel_list_ptr; }
         sVapsList& vap_list();
         sVapTypesList& vap_type_list();
+        sVapMldUnitsList& vap_mld_unit_list();
         uint8_t& radio_max_bss();
         uint8_t& radio_rsn_override_support();
         uint8_t& radio_mscs_support();
@@ -153,6 +154,7 @@ class cACTION_APMANAGER_JOINED_NOTIFICATION : public BaseClass
         int m_lock_order_counter__ = 0;
         sVapsList* m_vap_list = nullptr;
         sVapTypesList* m_vap_type_list = nullptr;
+        sVapMldUnitsList* m_vap_mld_unit_list = nullptr;
         uint8_t* m_radio_max_bss = nullptr;
         uint8_t* m_radio_rsn_override_support = nullptr;
         uint8_t* m_radio_mscs_support = nullptr;
@@ -280,6 +282,7 @@ class cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION : public BaseClass
         }
         int8_t& vap_id();
         sVapInfo& vap_info();
+        int8_t& mld_unit();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -289,6 +292,7 @@ class cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION : public BaseClass
         eActionOp_APMANAGER* m_action_op = nullptr;
         int8_t* m_vap_id = nullptr;
         sVapInfo* m_vap_info = nullptr;
+        int8_t* m_mld_unit = nullptr;
 };
 
 class cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_REQUEST : public BaseClass
@@ -341,6 +345,7 @@ class cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION : public BaseClass
         }
         sVapsList& params();
         sVapTypesList& vap_type_list();
+        sVapMldUnitsList& vap_mld_unit_list();
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -350,6 +355,7 @@ class cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION : public BaseClass
         eActionOp_APMANAGER* m_action_op = nullptr;
         sVapsList* m_params = nullptr;
         sVapTypesList* m_vap_type_list = nullptr;
+        sVapMldUnitsList* m_vap_mld_unit_list = nullptr;
 };
 
 class cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START : public BaseClass

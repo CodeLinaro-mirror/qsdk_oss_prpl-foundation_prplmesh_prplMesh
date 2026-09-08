@@ -64,6 +64,7 @@ cACTION_APMANAGER_JOINED_NOTIFICATION:
   channel_list: cChannelList
   vap_list: sVapsList
   vap_type_list: sVapTypesList
+  vap_mld_unit_list: sVapMldUnitsList
   radio_max_bss: uint8_t
   radio_rsn_override_support : uint8_t #bool
   radio_mscs_support: uint8_t #bool
@@ -95,6 +96,7 @@ cACTION_APMANAGER_HOSTAP_AP_ENABLED_NOTIFICATION:
   _type: class
   vap_id: int8_t
   vap_info: sVapInfo
+  mld_unit: int8_t
 
 cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_REQUEST:
   _type: class
@@ -106,6 +108,7 @@ cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION:
   _type: class
   params: sVapsList
   vap_type_list: sVapTypesList
+  vap_mld_unit_list: sVapMldUnitsList
 
 cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START:
   _type: class
