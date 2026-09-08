@@ -841,8 +841,15 @@ bool sta_wlan_hal_whm::set_profile_params(const Profile &profile)
     std::string profile_security_path = profile_path + "Security.";
 
     // Configure Profile.Security object
+    const auto security_mode = utils_wlan_hal_whm::security_type_to_string(profile.sec);
+    if (security_mode == "INVALID") {
+        LOG(ERROR) << "Unsupported security type " << profile.sec << " for profile on interface "
+                   << get_iface_name();
+        return false;
+    }
+
     params.set_type(AMXC_VAR_ID_HTABLE);
-    params.add_child("ModeEnabled", "WPA3-Personal-Transition");
+    params.add_child("ModeEnabled", security_mode);
     params.add_child("KeyPassphrase", profile.pass);
     params.add_child("SAEPassphrase", profile.pass);
     params.add_child("MFPConfig", "Optional");
