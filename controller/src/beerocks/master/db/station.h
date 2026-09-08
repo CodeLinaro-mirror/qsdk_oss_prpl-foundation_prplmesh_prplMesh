@@ -208,6 +208,7 @@ public:
     } sAssociatedStaMldConfiguration;
 
     sAssociatedStaMldConfiguration sta_mld_configuration;
+    bool is_mlo = false;
 
 private:
     int m_client_locating_task_id_new_connection   = -1;
