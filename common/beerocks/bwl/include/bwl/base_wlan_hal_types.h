@@ -60,6 +60,8 @@ struct VAPElement {
      */
     std::string bss;
     std::string ssid;
+    // Configured SSID remains available while the operational SSID is empty (disabled VAP).
+    std::string configured_ssid;
     std::string mac;
     bool fronthaul;
     bool backhaul;
