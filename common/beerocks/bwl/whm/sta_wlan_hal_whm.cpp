@@ -1173,7 +1173,7 @@ bool sta_wlan_hal_whm::process_ep_wps_event(const std::string &interface,
     if (reason == "Success") {
         std::string ssid, key, mode;
         data->read_child(ssid, "SSID");
-        data->read_child(key, "KeyPassphraseVisible");
+        data->read_child(key, "KeyPassPhrase");
         data->read_child(mode, "securitymode");
         if (ssid.empty() || key.empty() || mode.empty()) {
             return false;
