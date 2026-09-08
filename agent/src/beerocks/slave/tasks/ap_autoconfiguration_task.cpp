@@ -441,7 +441,12 @@ void ApAutoConfigurationTask::work()
             break;
         }
         case eState::CONFIGURED: {
-            configured_aps_count++;
+            if (conf_params.pending_renew) {
+                conf_params.pending_renew = false;
+                FSM_MOVE_STATE(radio_iface, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
+            } else {
+                configured_aps_count++;
+            }
             break;
         }
         case eState::SKIPPED: {
@@ -1753,8 +1758,9 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_renew(
             (radio_conf_params.state == eState::WAIT_AP_AUTOCONFIGURATION_WSC_M2) ||
             (radio_conf_params.state == eState::WAIT_AP_CONFIGURATION_COMPLETE);
         if (renew_already_in_progress) {
-            LOG(DEBUG) << "Ignore duplicate renew on " << radio->front.iface_name
-                       << " while state is " << fsm_state_to_string(radio_conf_params.state);
+            LOG(DEBUG) << "Delay renew on " << radio->front.iface_name << " while state is "
+                       << fsm_state_to_string(radio_conf_params.state);
+            radio_conf_params.pending_renew = true;
             continue;
         }
 

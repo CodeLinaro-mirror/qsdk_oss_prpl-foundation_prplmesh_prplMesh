@@ -76,6 +76,7 @@ private:
         std::unordered_set<sMacAddr> enabled_bssids;
         bool sent_vaps_list_update;
         bool received_vaps_list_update;
+        bool pending_renew = false;
     };
 
     /**
