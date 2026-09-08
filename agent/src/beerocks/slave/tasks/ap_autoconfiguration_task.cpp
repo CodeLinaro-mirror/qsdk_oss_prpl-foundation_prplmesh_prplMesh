@@ -423,6 +423,18 @@ void ApAutoConfigurationTask::work()
             break;
         }
         case eState::SEND_AP_AUTOCONFIGURATION_WSC_M1: {
+            // The early capability report has no response to key a retry off of, so ride
+            // along on M1's own retry cadence instead of a separate timer: as long as we
+            // haven't seen a first M2 yet, every (re)send of M1 also re-sends it. Once the
+            // controller has generated M2 for any radio, it has already made its
+            // capability-dependent decisions - resending afterward can't change that and
+            // could make it reprocess/reset per-radio capability state while other radios
+            // are still mid-negotiation (see PPM-4245).
+            auto db = AgentDB::get();
+            if (db->controller_info.early_ap_capability && !db->statuses.first_m2_received) {
+                m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_EARLY_AP_CAPABILITY);
+            }
+
             send_ap_autoconfiguration_wsc_m1_message(radio_iface);
             conf_params.timeout =
                 std::chrono::steady_clock::now() +
@@ -495,6 +507,7 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
 
         db->statuses.ap_autoconfiguration_completed = false;
         db->statuses.controller_connected           = false;
+        db->statuses.first_m2_received              = false;
         db->dm_set_controller_connected(false);
 
         // Reset the discovery statuses.
@@ -1511,6 +1524,16 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         radio_iface_mac        = radio->front.iface_mac;
         radio_freq_type        = radio->wifi_channel.get_freq_type();
         em_ap_controller_found = db->em_ap_controller_found;
+
+        // The controller has now generated M2 for at least one radio, which means it
+        // already made its capability-dependent decisions (e.g. whether to include MLD
+        // configuration TLVs) using whatever capability info it had at that time. From
+        // here on, CapabilityReportingTask stops retrying the early capability report:
+        // resending it now would have no effect on M2s already sent, and could make the
+        // controller reprocess/reset per-radio capability state (see
+        // Controller::handle_ap_capability_report()) while other radios are still
+        // mid-negotiation.
+        db->statuses.first_m2_received = true;
     }
     LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE for iface " << radio_iface_name;
 
