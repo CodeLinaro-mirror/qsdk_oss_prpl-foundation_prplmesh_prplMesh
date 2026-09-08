@@ -9670,6 +9670,12 @@ bool db::update_assoc_sta_mld(
         ret_val = false;
     }
 
+    // Remove STA entry for MLD STA if present to avoid having station in both STA and STAMLD entry
+    auto station_mld = m_stations.get(sta_mld_mac);
+    if (station_mld) {
+        dm_remove_sta(*station_mld);
+    }
+
     // Reconcile affiliated STAs under this STAMLD instance.
     sta_mld->affiliated_stas.keep_new_prepare();
 
@@ -9711,6 +9717,12 @@ bool db::update_assoc_sta_mld(
                        << affiliated_sta.affiliated_sta_mac;
             ret_val = false;
         }
+
+        // Remove STA entry for Affiliated STA if present to avoid having station in both STA and STAMLD entry
+        auto station_mld_aff = m_stations.get(affiliated_sta.affiliated_sta_mac);
+        if (station_mld_aff) {
+            dm_remove_sta(*station_mld_aff);
+        }
     }
 
     auto removed_affiliated_stas = sta_mld->affiliated_stas.keep_new_remove_old();
@@ -9730,6 +9742,7 @@ bool db::update_assoc_sta_mld(
     // TODO: Implement tests and review MLD STA Flow. PPM-3766.
     auto station = m_stations.get(sta_mld_mac);
     if (station) {
+        station->is_mld                                       = true;
         station->sta_mld_configuration.dm_path                = sta_mld->dm_path;
         station->sta_mld_configuration.mld_config.sta_mld_mac = sta_mld_mac;
         station->sta_mld_configuration.mld_config.ap_mld_mac  = ap_mld_mac;
