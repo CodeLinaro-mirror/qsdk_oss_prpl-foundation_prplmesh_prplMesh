@@ -465,8 +465,6 @@ bool sta_wlan_hal_whm::set_profile(Profile &profile)
         return false;
     }
 
-    m_active_profile_id = profile_id;
-
     LOG(DEBUG) << "Profile with id " << profile_id << " has been added and enabled on interface "
                << get_iface_name();
 
@@ -488,23 +486,17 @@ bool sta_wlan_hal_whm::disconnect()
         return true;
     }
 
-    LOG(TRACE) << "Disconnect profile id " << endpoint.active_profile_id
+    LOG(TRACE) << "Disconnect profile id " << endpoint.selected_profile_id
                << " on interface: " << get_iface_name();
 
-    if (endpoint.active_profile_id <= 0) {
+    if (endpoint.selected_profile_id <= 0) {
         LOG(ERROR) << "Cannot disconnect connected EndPoint " << m_ep_path
                    << ": ProfileReference is empty or cannot be resolved";
         return false;
     }
 
-    // ProfileReference can be changed by pWHM independently of the HAL's cached state.
-    if (m_active_profile_id > 0 && m_active_profile_id != endpoint.active_profile_id) {
-        LOG(WARNING) << "Profile id changed: cached=" << m_active_profile_id
-                     << ", current=" << endpoint.active_profile_id;
-    }
-
-    if (!remove_profile(endpoint.active_profile_id)) {
-        LOG(ERROR) << "Failed to disconnect profile " << endpoint.active_profile_id;
+    if (!remove_profile(endpoint.selected_profile_id)) {
+        LOG(ERROR) << "Failed to disconnect profile " << endpoint.selected_profile_id;
         return false;
     }
 
@@ -949,7 +941,7 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
         if (!m_ambiorix_cl.resolve_path(profile_ref + ".", profile_path)) {
             LOG(WARNING) << "Failed to resolve EndPoint ProfileReference " << profile_ref;
         } else {
-            endpoint.active_profile_id = wbapi_utils::get_object_id(profile_path);
+            endpoint.selected_profile_id = wbapi_utils::get_object_id(profile_path);
         }
     }
 
@@ -961,11 +953,9 @@ void sta_wlan_hal_whm::update_status(const Endpoint &endpoint)
     m_active_bssid             = endpoint.bssid;
     m_active_ssid              = endpoint.ssid;
     m_active_connection_status = endpoint.connection_status;
-    m_active_profile_id        = endpoint.active_profile_id;
     m_active_channel           = endpoint.channel;
 
-    LOG(DEBUG) << "m_active_profile_id= " << m_active_profile_id
-               << ", active_bssid= " << m_active_bssid << ", active_channel= " << m_active_channel
+    LOG(DEBUG) << "active_bssid= " << m_active_bssid << ", active_channel= " << m_active_channel
                << ", active_ssid= " << m_active_ssid;
 }
 
@@ -977,7 +967,6 @@ void sta_wlan_hal_whm::clear_conn_state()
     m_active_pass              = "";
     m_active_connection_status = "";
     m_active_channel           = 0;
-    m_active_profile_id        = -1;
 }
 
 bool sta_wlan_hal_whm::is_connected(const std::string &status)
