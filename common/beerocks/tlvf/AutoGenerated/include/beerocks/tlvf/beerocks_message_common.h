@@ -79,6 +79,15 @@ typedef struct sVapType {
     }
 } __attribute__((packed)) sVapType;
 
+typedef struct sVapMldUnit {
+    int8_t vap_id;
+    int8_t mld_unit;
+    void struct_swap(){
+    }
+    void struct_init(){
+    }
+} __attribute__((packed)) sVapMldUnit;
+
 typedef struct sSonConfig {
     uint8_t monitor_total_ch_load_notification_lo_th_percent;
     uint8_t monitor_total_ch_load_notification_hi_th_percent;
@@ -469,6 +478,20 @@ typedef struct sVapTypesList {
             }
     }
 } __attribute__((packed)) sVapTypesList;
+
+typedef struct sVapMldUnitsList {
+    sVapMldUnit vap_mld_units[beerocks::IFACE_TOTAL_VAPS];
+    void struct_swap(){
+        for (size_t i = 0; i < beerocks::IFACE_TOTAL_VAPS; i++){
+            (vap_mld_units[i]).struct_swap();
+        }
+    }
+    void struct_init(){
+            for (size_t i = 0; i < beerocks::IFACE_TOTAL_VAPS; i++) {
+                (vap_mld_units[i]).struct_init();
+            }
+    }
+} __attribute__((packed)) sVapMldUnitsList;
 
 typedef struct sArpMonitorData {
     sMacAddr mac;

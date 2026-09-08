@@ -8,6 +8,7 @@
 
 #include "ap_autoconfiguration_task.h"
 #include "link_metrics_collection_task.h"
+#include "mld_unit_utils.h"
 #include "service_prioritization_task.h"
 #include "traffic_separation_task.h"
 
@@ -2443,12 +2444,13 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
         AgentDB::sAPMLDConfiguration &current_ap_mld_conf = db->ap_mld_configurations.back();
         current_ap_mld_conf.mld_config.mld_ssid           = ssid;
 
-        // Find new MLD Unit
+        // Find preconfigured or new MLD Unit
         if (current_ap_mld_conf.mld_config.mld_unit == DISABLED_MLDUNIT) {
-            int8_t mld_unit = find_available_ap_mld_unit();
+            int8_t mld_unit = find_available_ap_mld_unit(ssid);
             if (mld_unit != DISABLED_MLDUNIT) {
                 current_ap_mld_conf.mld_config.mld_unit = mld_unit;
-                LOG(DEBUG) << "MLD Unit " << mld_unit << " has been assigned to AP MLD " << ssid;
+                LOG(DEBUG) << "MLD Unit " << int(mld_unit) << " has been selected for AP MLD "
+                           << ssid;
             }
         }
 
@@ -2977,6 +2979,7 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
             vap_info.profile2_backhaul_sta_association_disallowed;
     }
 
+    bssid->mld_id    = notification_in->mld_unit();
     bssid->link_id   = vap_info.link_id;
     bssid->apmld_mac = vap_info.ap_mld_mac;
 
@@ -3102,6 +3105,8 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
 
     m_btl_ctx.update_vaps_info(fronthaul_iface, notification_in->params().vaps);
     m_btl_ctx.update_vaps_type(fronthaul_iface, notification_in->vap_type_list().vap_types);
+    m_btl_ctx.update_vaps_mld_units(fronthaul_iface,
+                                    notification_in->vap_mld_unit_list().vap_mld_units);
 
     auto notification_out = message_com::create_vs_message<
         beerocks_message::cACTION_CONTROL_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION>(m_cmdu_tx);
@@ -3414,6 +3419,8 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
             // Controller can't reconfigure local VAP type/label -> keep local.
             it->m2_config.vap_type  = local_bss.vap_type;
             it->m2_config.vap_label = local_bss.vap_label;
+            it->mld_id              = mld_unit_utils::preserve_mld_unit_for_matching_ssid(
+                local_bss.ssid, local_bss.mld_id, it->payload_config.ssid, it->mld_id);
 
             if (is_bss_reconfiguration_required(local_bss, *it)) {
                 LOG(DEBUG) << "BSS " << local_bss.mac << " needs reconfiguration.";
@@ -3848,24 +3855,39 @@ bool ApAutoConfigurationTask::send_monitor_son_config(
     return true;
 }
 
-int8_t ApAutoConfigurationTask::find_available_ap_mld_unit()
+int8_t ApAutoConfigurationTask::find_available_ap_mld_unit(const std::string &ssid)
 {
     auto db = AgentDB::get();
 
-    std::unordered_set<int8_t> used_mld_units;
+    std::vector<mld_unit_utils::sMldUnitAssignment> assigned_mld_units;
     for (const auto &ap_mld_conf : db->ap_mld_configurations) {
-        used_mld_units.insert(ap_mld_conf.mld_config.mld_unit);
+        assigned_mld_units.emplace_back(ap_mld_conf.mld_config.mld_ssid,
+                                        ap_mld_conf.mld_config.mld_unit);
     }
 
-    for (int8_t mld_unit = 0; mld_unit < db->max_mlds; ++mld_unit) {
-        if (used_mld_units.find(mld_unit) == used_mld_units.end()) {
-            LOG(DEBUG) << "Available MLD unit: " << mld_unit;
-            return mld_unit;
+    std::vector<mld_unit_utils::sMldUnitAssignment> preconfigured_bss_units;
+    for (const auto &radio : db->get_radios_list()) {
+        for (const auto &bss : radio->front.bssids) {
+            if (bss.mld_id != DISABLED_MLDUNIT) {
+                preconfigured_bss_units.emplace_back(bss.ssid, bss.mld_id);
+            }
         }
     }
 
-    LOG(DEBUG) << "No available MLD unit found, returning DISABLED_MLDUNIT";
-    return DISABLED_MLDUNIT;
+    const auto selection = mld_unit_utils::select_ap_mld_unit(
+        ssid, db->max_mlds, assigned_mld_units, preconfigured_bss_units);
+    if (selection.conflicting_preconfigured_units) {
+        LOG(ERROR) << "Conflicting preconfigured MLD units for AP MLD " << ssid;
+        return DISABLED_MLDUNIT;
+    }
+    if (selection.preconfigured_unit_in_use) {
+        LOG(WARNING) << "Preconfigured MLD unit " << int(selection.preconfigured_mld_unit)
+                     << " for AP MLD " << ssid << " is already used by a different SSID";
+    }
+    if (selection.mld_unit == DISABLED_MLDUNIT) {
+        LOG(DEBUG) << "No available MLD unit found, returning DISABLED_MLDUNIT";
+    }
+    return selection.mld_unit;
 }
 
 bool ApAutoConfigurationTask::populate_mld_id_in_bss_infos(const std::string &radio_iface,
@@ -3881,11 +3903,18 @@ bool ApAutoConfigurationTask::populate_mld_id_in_bss_infos(const std::string &ra
     for (auto &bss_info : bss_infos) {
         const std::string &ssid = bss_info.payload_config.ssid;
         auto ssid_it            = ssid_mld_map.find(ssid);
-        if (ssid_it != ssid_mld_map.end()) {
-            int8_t mld_unit = std::get<0>(ssid_it->second);
-            bss_info.mld_id = mld_unit;
-        } else {
+        if (ssid_it == ssid_mld_map.end()) {
             bss_info.mld_id = DISABLED_MLDUNIT;
+            continue;
+        }
+        if (bss_info.mld_id != DISABLED_MLDUNIT) {
+            for (auto &ap_mld_conf : AgentDB::get()->ap_mld_configurations) {
+                if (ap_mld_conf.mld_config.mld_ssid == ssid) {
+                    ap_mld_conf.mld_config.mld_unit = bss_info.mld_id;
+                }
+            }
+        } else {
+            bss_info.mld_id = std::get<0>(ssid_it->second);
         }
     }
 

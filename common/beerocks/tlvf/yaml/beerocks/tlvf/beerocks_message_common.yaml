@@ -57,6 +57,11 @@ sVapType:
     _type: char
     _length: ["beerocks::message::VAP_LABEL_MAX_LENGTH"]
 
+sVapMldUnit:
+  _type: struct
+  vap_id: int8_t
+  mld_unit: int8_t
+
 sSonConfig:
   _type: struct
   monitor_total_ch_load_notification_lo_th_percent: uint8_t
@@ -346,6 +351,12 @@ sVapTypesList:
   _type: struct
   vap_types:
     _type: sVapType
+    _length: ["beerocks::IFACE_TOTAL_VAPS"]
+
+sVapMldUnitsList:
+  _type: struct
+  vap_mld_units:
+    _type: sVapMldUnit
     _length: ["beerocks::IFACE_TOTAL_VAPS"]
 
 sArpMonitorData:

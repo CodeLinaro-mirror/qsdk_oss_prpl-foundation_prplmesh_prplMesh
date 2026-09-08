@@ -133,6 +133,15 @@ public:
     bool update_vaps_type(const std::string &iface, const beerocks_message::sVapType vap_types[]);
 
     /**
+     * @brief Update the VAP MLD units in the Agent DB.
+     * @param iface The interface to use to find the radio in the DB.
+     * @param vap_mld_units The array of VAP MLD units to use for the update.
+     * @return true on success, false on failure.
+     */
+    bool update_vaps_mld_units(const std::string &iface,
+                               const beerocks_message::sVapMldUnit vap_mld_units[]);
+
+    /**
      * @brief Add and fill agent_ap_mld_configuration tlv.
      *
      * @return true on success, otherwise false.
