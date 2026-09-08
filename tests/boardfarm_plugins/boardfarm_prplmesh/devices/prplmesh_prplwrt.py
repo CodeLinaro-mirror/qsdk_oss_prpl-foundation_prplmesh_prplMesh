@@ -88,6 +88,7 @@ class PrplMeshPrplWRT(OpenWrtRouter, PrplMeshBase):
         # Boards will be reflashed from time to time and it will change their ssh identity.
         conn_cmd = "ssh -o PubkeyAuthentication=no" \
                    " -o StrictHostKeyChecking=no" \
+                   " -o HostkeyAlgorithms=+ssh-rsa" \
                    " {}@{}".format(self.username, self.control_ip)
 
         self.connection = connection_decider.connection(device=self,

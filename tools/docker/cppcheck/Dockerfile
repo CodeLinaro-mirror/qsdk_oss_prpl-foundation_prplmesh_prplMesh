@@ -1,9 +1,7 @@
-FROM debian:bullseye
-
-# Use a specific snapshot to try to make the docker image a little bit more reproducible:
-RUN printf '%s\n' 'deb     https://snapshot.debian.org/archive/debian/20210105T023154Z/ stable main' > /etc/apt/source.list.d
+FROM debian:trixie
 
 ARG PACKAGES_FOR_BUILD="\
+    ca-certificates \
     binutils \
     cmake \
     gcc \
@@ -16,7 +14,7 @@ ARG PACKAGES_FOR_RUN="\
     bash \
     git"
 
-ARG CPPCHECK_VERSION=2.4
+ARG CPPCHECK_VERSION=2.6
 
 RUN apt-get update && \
     apt-get install -y $PACKAGES_FOR_BUILD && \
@@ -30,5 +28,4 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && \
-    apt-get install -y $PACKAGES_FOR_RUN && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y $PACKAGES_FOR_RUN

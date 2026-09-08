@@ -605,7 +605,7 @@ def _device_wait_for_log(device: None, checkpoints: Dict[str, int], regex: str,
         for logfilename in checkpoints.keys():
             start_line = checkpoints[logfilename]
             command = ['tail', '-n', f'+{start_line}', logfilename]
-            output = subprocess.check_output(['ssh', device.control_ip] + command)
+            output = subprocess.check_output(['ssh', "-o HostkeyAlgorithms=+ssh-rsa", device.control_ip] + command)
 
             for (i, v) in enumerate(output.split(b"\n")):
                 search = re.search(regex.encode('utf-8'), v)
@@ -1075,7 +1075,7 @@ class ALEntityPrplWrt(ALEntity):
         """Execute `command` in device and return its output."""
 
         command_str = shlex.join(command)
-        return subprocess.check_output(["ssh", self.device.control_ip, command_str]).decode()
+        return subprocess.check_output(["ssh", "-o HostkeyAlgorithms=+ssh-rsa", self.device.control_ip, command_str]).decode()
 
     def wait_for_log(self, regex: str, start_line: int, timeout: float,
                      fail_on_mismatch: bool = True) -> bool:
@@ -1128,7 +1128,7 @@ class ALEntityRDKB(ALEntity):
         """Execute `command` in device and return its output."""
 
         command_str = shlex.join(command)
-        return subprocess.check_output(["ssh", self.device.control_ip, command_str]).decode()
+        return subprocess.check_output(["ssh", "-o HostkeyAlgorithms=+ssh-rsa", self.device.control_ip, command_str]).decode()
 
     def wait_for_log(self, regex: str, start_line: int, timeout: float,
                      fail_on_mismatch: bool = True) -> bool:
@@ -1181,7 +1181,7 @@ class ALEntityCGR(ALEntity):
         """Execute `command` in device and return its output."""
 
         command_str = shlex.join(command)
-        return subprocess.check_output(["ssh", self.device.control_ip, command_str]).decode()
+        return subprocess.check_output(["ssh", "-o HostkeyAlgorithms=+ssh-rsa", self.device.control_ip, command_str]).decode()
 
     def wait_for_log(self, regex: str, start_line: int, timeout: float,
                      fail_on_mismatch: bool = True) -> bool:

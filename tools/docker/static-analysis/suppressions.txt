@@ -13,3 +13,6 @@ selfAssignment:agent/src/beerocks/slave/platform_manager/platform_manager.cpp
 
 // Suppress error: syntax error.
 syntaxError:agent/src/beerocks/slave/gate/unit_tests/gate_test.cpp
+
+// Supress false positive of uninitialized variable "keys.buf", from bumping cppcheck 2.4 -> 2.6
+uninitvar:framework/common/encryption.cpp

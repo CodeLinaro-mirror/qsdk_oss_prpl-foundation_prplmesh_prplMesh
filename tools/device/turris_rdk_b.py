@@ -308,7 +308,8 @@ class TurrisRdkb(GenericDevice):
         """ Retrieve RDKB rootfs build date."""
 
         with pexpect.pxssh.pxssh(options={"StrictHostKeyChecking": "no",
-                                          "UserKnownHostsFile": "/dev/null"}) as shell:
+                                          "UserKnownHostsFile": "/dev/null",
+                                          "HostKeyAlgorithms": "+ssh-rsa"}) as shell:
             shell.login(self.name, self.username)
 
             shell.sendline(f"mount /dev/{self.ROOTFS_PARTITION} /mnt")
