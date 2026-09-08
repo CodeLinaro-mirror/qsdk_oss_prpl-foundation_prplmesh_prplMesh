@@ -7,6 +7,8 @@
 
 .image-build:
   stage: containers
+  variables:
+    BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
   tags:
     - shell
     - docker-build
