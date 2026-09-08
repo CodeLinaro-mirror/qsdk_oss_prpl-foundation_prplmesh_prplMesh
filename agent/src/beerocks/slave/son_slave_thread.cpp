@@ -17,6 +17,7 @@
 #include "tasks/capability_reporting_task.h"
 #include "tasks/controller_connectivity_task.h"
 #include "tasks/link_metrics_collection_task.h"
+#include "tasks/mld_unit_utils.h"
 #include "tasks/proxy_agent_dpp_task.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/spectrum_inquiry_task.h"
@@ -3629,6 +3630,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
         update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
+        update_vaps_mld_units(fronthaul_iface, notification->vap_mld_unit_list().vap_mld_units);
 
         if (m_pending_fronthaul_bss_teardown_retries.count(fronthaul_iface) != 0) {
             // AP_MANAGER_UP precedes HAL attachment. Replay only after JOINED, when the HAL is
@@ -7047,7 +7049,9 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         }
 
         for (auto &ap_mld_conf : db->ap_mld_configurations) {
-            if (ap_mld_conf.mld_config.mld_ssid == bss.ssid) {
+            if (ap_mld_conf.mld_config.mld_ssid == bss.ssid &&
+                std::any_of(ap_mld_conf.affiliated_aps.begin(), ap_mld_conf.affiliated_aps.end(),
+                            [&](const auto &ap) { return ap.ruid == radio->front.iface_mac; })) {
                 ap_mld_conf.mld_config.mld_mac = vaps[vap_idx].ap_mld_mac;
                 LOG(DEBUG) << "AP MLD MAC for SSID: " << bss.ssid << ", BSSID: " << bss.mac
                            << ", AP MLD MAC: " << ap_mld_conf.mld_config.mld_mac;
@@ -7103,6 +7107,30 @@ bool slave_thread::update_vaps_type(const std::string &iface,
         LOG(DEBUG) << "Updated vap_type: iface=" << bss.iface_name << " idx=" << int(vap_idx)
                    << " vap_id=" << int(vap_types[vap_idx].vap_id)
                    << " vap_type=" << eVapType_str(bss.vap_type) << " vap_label=" << bss.vap_label;
+    }
+
+    return true;
+}
+
+bool slave_thread::update_vaps_mld_units(const std::string &iface,
+                                         const beerocks_message::sVapMldUnit vap_mld_units[])
+{
+    auto db    = AgentDB::get();
+    auto radio = db->radio(iface);
+    if (!radio) {
+        return false;
+    }
+
+    const auto mismatched_vap_ids =
+        mld_unit_utils::update_vaps_mld_units(radio->front.bssids, vap_mld_units);
+    for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
+        if (!mismatched_vap_ids.test(vap_idx)) {
+            continue;
+        }
+        const int expected_vap_id = int(beerocks::IFACE_VAP_ID_MIN) + int(vap_idx);
+        LOG(WARNING) << "vap_mld_units mapping mismatch: idx=" << int(vap_idx)
+                     << " expected_vap_id=" << expected_vap_id
+                     << " got=" << int(vap_mld_units[vap_idx].vap_id);
     }
 
     return true;
