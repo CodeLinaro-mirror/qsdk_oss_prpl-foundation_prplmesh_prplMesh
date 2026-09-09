@@ -1,4 +1,15 @@
 FROM python:3.12.4-slim-bullseye
+
+# Use a Debian snapshot repository, because LTS support for bullseye -security has dropped
+RUN echo "Acquire::Check-Valid-Until false;" | tee -a /etc/apt/apt.conf.d/10-nocheckvalid
+RUN echo 'Acquire::https::snapshot.debian.org::Verify-Peer "false";' | tee -a /etc/apt/apt.conf.d/20-nocheckverify
+
+RUN printf '%s\n%s\n%s\n' \
+    "deb https://snapshot.debian.org/archive/debian/20260801T022406Z bullseye main" \
+    "deb https://snapshot.debian.org/archive/debian-security/20260801T022406Z bullseye-security main" \
+    "deb https://snapshot.debian.org/archive/debian/20260801T022406Z bullseye-updates main" \
+    > /etc/apt/sources.list
+
 # Debian dependencies to install docker and docker compose from docker.com
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
