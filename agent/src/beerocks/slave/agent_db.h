@@ -206,6 +206,7 @@ public:
     struct sStatus {
         bool ap_autoconfiguration_completed = false;
         bool controller_connected           = false;
+        bool first_m2_received              = false;
         uint32_t zwdfs_cac_remaining_time_sec;
     } statuses;
 

@@ -229,7 +229,9 @@ void CapabilityReportingTask::create_early_ap_capability_report_message()
 
     // send the constructed report
     LOG(DEBUG) << "Sending EARLY_AP_CAPABILITY_REPORT_MESSAGE";
-    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
+    if (!m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx)) {
+        LOG(WARNING) << "Failed to send EARLY_AP_CAPABILITY_REPORT_MESSAGE, will retry";
+    }
 }
 
 void CapabilityReportingTask::create_ap_capability_report_message()

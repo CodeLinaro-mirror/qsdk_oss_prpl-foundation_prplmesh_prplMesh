@@ -432,6 +432,17 @@ void ApAutoConfigurationTask::work()
         }
         case eState::WAIT_AP_AUTOCONFIGURATION_WSC_M2: {
             if (std::chrono::steady_clock::now() > conf_params.timeout) {
+
+                // About to retry M1 after a timeout: the initial early
+                // capability report already went out on discovery, so this
+                // covers only actual retries, not the first M1 send.
+                auto db = AgentDB::get();
+                if (db->controller_info.early_ap_capability && !db->statuses.first_m2_received) {
+                    LOG(DEBUG) << "M1 retry timeout for " << radio_iface
+                               << ", resending early AP capability report";
+                    m_btl_ctx.send_event(slave_thread::eEvent::CONTROLLER_EARLY_AP_CAPABILITY);
+                }
+
                 FSM_MOVE_STATE(radio_iface, eState::SEND_AP_AUTOCONFIGURATION_WSC_M1);
             }
             break;
@@ -495,6 +506,7 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
 
         db->statuses.ap_autoconfiguration_completed = false;
         db->statuses.controller_connected           = false;
+        db->statuses.first_m2_received              = false;
         db->dm_set_controller_connected(false);
 
         // Reset the discovery statuses.
@@ -1511,6 +1523,10 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         radio_iface_mac        = radio->front.iface_mac;
         radio_freq_type        = radio->wifi_channel.get_freq_type();
         em_ap_controller_found = db->em_ap_controller_found;
+
+        // M2 received: controller already made its capability-dependent
+        // decisions, stop retrying the early capability report.
+        db->statuses.first_m2_received = true;
     }
     LOG(DEBUG) << "Received AP_AUTOCONFIGURATION_WSC_MESSAGE for iface " << radio_iface_name;
 
