@@ -938,9 +938,8 @@ static std::vector<uint8_t> get_operating_class_oper_channels(
                 }
                 if (son::wireless_utils::is_operating_class_using_central_channel(
                         operating_class)) {
-                    channel = son::wireless_utils::get_center_channel(
-                        channel, son::wireless_utils::which_freq_op_cls(operating_class),
-                        bw_info.bandwidth);
+                    channel = son::wireless_utils::get_center_channel(channel, operating_class,
+                                                                      bw_info.bandwidth);
                 }
                 if (op_class_channel == channel) {
                     oper_channels.push_back(op_class_channel);

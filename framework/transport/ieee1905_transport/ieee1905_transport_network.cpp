@@ -218,16 +218,19 @@ bool Ieee1905Transport::attach_interface_socket_filter(NetworkInterface &interfa
     auto management_mode = bpl::cfg_get_management_mode();
     LOG_IF((management_mode < 0), ERROR) << "Failed to get management mode";
 
-    // 1st step is to put the interface in promiscuous mode.
-    // promiscuous mode is required since we expect to receive packets destined to
-    // the AL MAC address (which is different than the interfaces HW address)
-    struct packet_mreq mr = {0};
-    mr.mr_ifindex         = if_nametoindex(interface.ifname.c_str());
-    mr.mr_type            = PACKET_MR_PROMISC;
-    if (setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
-        MAPF_ERR("Interface cannot be put in promiscuous mode for FD ("
-                 << fd << "), error: \"" << strerror(errno) << "\" (" << errno << ").");
-        return false;
+    if (!interface.is_bridge) {
+        // 1st step is to put the interface in promiscuous mode.
+        // promiscuous mode is required since we expect to receive packets destined to
+        // the AL MAC address (which is different than the interfaces HW address)
+        // Avoid enabling it on bridge interfaces as it may affect the system's hardware acceleration
+        struct packet_mreq mr = {0};
+        mr.mr_ifindex         = if_nametoindex(interface.ifname.c_str());
+        mr.mr_type            = PACKET_MR_PROMISC;
+        if (setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
+            MAPF_ERR("Interface cannot be put in promiscuous mode for FD ("
+                     << fd << "), error: \"" << strerror(errno) << "\" (" << errno << ").");
+            return false;
+        }
     }
 
     // BPF does not apply to buffered frames, there is a chance that "after create the socket and before applying the BPF",

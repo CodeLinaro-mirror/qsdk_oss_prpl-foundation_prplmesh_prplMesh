@@ -103,12 +103,12 @@ private:
     };
 
     /**
-     * @brief subscribe to WiFi.EndPoint.*.ConnectionStatus and IntfName dm object change
+     * @brief Subscribe to Endpoint connection, interface and Multi-AP VLAN ID changes.
      */
     void subscribe_to_ep_events();
 
     /**
-     * *@brief Process the event WiFi.EndPoint.*.ConnectionStatus and IntfName dm event
+     * @brief Process an Endpoint connection, interface or Multi-AP VLAN ID change.
      *
      * @param interface the interface name
      * @param key the object name

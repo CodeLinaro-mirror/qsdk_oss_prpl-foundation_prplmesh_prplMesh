@@ -170,6 +170,16 @@ bool PlatformManager::start()
         if (hostap_iface_elm == interfaces_map.end() || hostap_iface_elm->second.empty())
             continue;
 
+        // pre-populate wlan params map for every configured radio
+        const auto &hostap_iface = hostap_iface_elm->second;
+        bpl::BPL_WLAN_PARAMS params;
+        if (bpl::cfg_get_wifi_params(hostap_iface.c_str(), &params) == 0) {
+            auto params_ptr          = std::make_shared<beerocks_message::sWlanSettings>();
+            params_ptr->band_enabled = params.enabled;
+            params_ptr->channel      = params.channel;
+            bpl_iface_wlan_params_map[hostap_iface] = std::move(params_ptr);
+        }
+
         config.sta_iface[slave_num] = get_sta_iface(hostap_iface_elm->second);
 
         if (config.sta_iface[slave_num].empty())

@@ -17,6 +17,8 @@
 #include <tlvf/wfa_map/tlvApOperationalBSS.h>
 #include <tlvf/wfa_map/tlvAssociatedClients.h>
 
+#include <unordered_map>
+
 namespace son {
 class agent_monitoring_task : public task {
 
@@ -26,13 +28,40 @@ public:
     bool handle_ieee1905_1_msg(const sMacAddr &src_mac,
                                ieee1905_1::CmduMessageRx &cmdu_rx) override;
 
+    /**
+     * @brief Replace an Agent's policy with the controller Traffic Separation override.
+     *
+     * The generated mapping is stored in the controller database and DataElements DM.
+     */
+    static bool apply_traffic_separation_override(db &database, const sMacAddr &al_mac);
+
+    /**
+     * @brief Add the Traffic Separation Policy TLV.
+     *
+     * An empty SSID-to-VID mapping intentionally creates an empty Traffic
+     * Separation Policy TLV, which disables Traffic Separation on the Agent.
+     */
+    static bool add_traffic_separation_policy_tlv(
+        ieee1905_1::CmduMessageTx &cmdu_tx,
+        const std::list<wireless_utils::sTrafficSeparationSsid> &traffic_separation_configs);
+
+    /** @brief Add the Default 802.1Q Settings TLV and update the DataElements DM. */
+    static bool
+    add_default_8021q_settings_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                   const sMacAddr &al_mac,
+                                   const wireless_utils::s8021QSettings &default_8021q_config);
+
+    /** @brief Add the Default 802.1Q Settings TLV to a BSS Configuration Response. */
     static bool add_profile_2default_802q_settings_tlv(db &database,
                                                        ieee1905_1::CmduMessageTx &cmdu_tx,
                                                        const sMacAddr &al_mac);
-    static bool add_traffic_separation_policy_tlv(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                  const sMacAddr &al_mac);
 
-    enum Event : uint8_t { DISCONNECTED, CONFIGURE_QOS };
+    enum Event : uint8_t {
+        DISCONNECTED,
+        CONFIGURE_QOS,
+        /** Apply a changed controller Traffic Separation override to Agents. */
+        CONFIGURE_TRAFFIC_SEPARATION_OVERRIDE,
+    };
 
 protected:
     void work() override;

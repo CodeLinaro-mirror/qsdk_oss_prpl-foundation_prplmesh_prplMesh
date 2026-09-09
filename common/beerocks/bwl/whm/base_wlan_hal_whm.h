@@ -28,6 +28,7 @@ namespace whm {
 constexpr char GENERATE_CONNECTED_EVENTS[] = "GenerateConnectedEvents";
 constexpr char AUTHENTICATION_STATE_UP[]   = "AuthenticationStateUp";
 constexpr char AUTHENTICATION_STATE_DOWN[] = "AuthenticationStateDown";
+constexpr char ACTIVE_STATE_DOWN[]         = "ActiveStateDown";
 
 enum class whm_fsm_state { Delay, Init, GetRadioInfo, Attach, Operational, Detach };
 
@@ -116,6 +117,7 @@ protected:
     bool get_accesspoint_by_ssid(std::string &ssid_path, std::string &ap_path);
     bool has_enabled_vap() const;
     bool check_enabled_vap(const std::string &bss) const;
+    bool refresh_possible_channels_info(const beerocks::wbapi::AmbiorixVariantSmartPtr &radio);
 
     /**
      * @brief try to read MRSNO support for m_radio and fill
@@ -216,9 +218,11 @@ protected:
      * @brief Erase {mac_addr: path} pair from m_station_paths
      *
      * @param[in] mac_addr MACAddress of station
+     * @param[in] path datamodel path of the station being removed
      * @param[in] event information about the context where the function is called
      */
-    void remove_station_path(const std::string &mac_addr, const char *event);
+    void remove_station_path(const std::string &mac_addr, const std::string &path,
+                             const char *event);
 
     // Private data-members:
 private:

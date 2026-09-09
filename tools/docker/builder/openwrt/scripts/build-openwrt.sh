@@ -49,6 +49,7 @@ else
 fi
 
 git config --global url."https://git.w1.fi/hostap.git".insteadOf "https://w1.fi/hostap.git"
+sed -i -E 's;git.openwrt.org/(feed|project);github.com/openwrt;' feeds.conf.default
 ./scripts/gen_config.py "${args[@]}"
 
 # The initial 'make defconfig' invocation generates a wrong config, so

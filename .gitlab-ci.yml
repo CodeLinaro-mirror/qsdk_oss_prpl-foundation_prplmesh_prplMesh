@@ -266,6 +266,9 @@ ieee1905_transport_broker_tests:
 beerocks_agent_unit_tests:
   extends: .run-test-in-docker
 
+monitor_db_test:
+  extends: .run-test-in-docker
+
 nbapi_unit_tests:
   extends: .run-test-in-docker
 

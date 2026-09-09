@@ -427,7 +427,8 @@ bool mon_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj)
         }
 
         // Store the MAC address of the disconnected STA
-        msg->mac = tlvf::mac_from_string(tmp_str);
+        msg->vap_id = beerocks::IFACE_VAP_ID_MIN;
+        msg->mac    = tlvf::mac_from_string(tmp_str);
 
         // Add the message to the queue
         event_queue_push(Event::STA_Disconnected, msg_buff);

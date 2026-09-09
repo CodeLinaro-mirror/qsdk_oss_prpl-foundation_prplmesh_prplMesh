@@ -3101,6 +3101,40 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
 
     switch (event) {
 
+    case Event::Primary_VLAN_ID_Changed: {
+        auto msg = static_cast<bwl::sACTION_BACKHAUL_PRIMARY_VLAN_ID_CHANGED_NOTIFICATION *>(data);
+        if (!msg) {
+            LOG(ERROR) << "Primary VLAN ID changed notification not found";
+            return false;
+        }
+
+        auto db = AgentDB::get();
+        if (iface != db->backhaul.selected_iface_name) {
+            LOG(DEBUG) << "Ignoring Primary VLAN ID change on inactive iface " << iface;
+            break;
+        }
+        if (!db->traffic_separation.is_enabled) {
+            LOG(DEBUG) << "Ignoring Primary VLAN ID change while Traffic Separation policy is "
+                          "explicitly disabled";
+            break;
+        }
+        if (db->traffic_separation.primary_vlan_id == msg->multi_ap_primary_vlan_id) {
+            break;
+        }
+
+        LOG(INFO) << "Multi-AP Primary VLAN ID changed on iface " << iface << ": "
+                  << db->traffic_separation.primary_vlan_id << " -> "
+                  << msg->multi_ap_primary_vlan_id;
+        db->traffic_separation.primary_vlan_id = msg->multi_ap_primary_vlan_id;
+
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_APPLY_VLAN_POLICY_REQUEST>(cmdu_tx);
+        if (!request || !send_cmdu(m_agent_fd, cmdu_tx)) {
+            LOG(ERROR) << "Failed requesting VLAN policy application after Primary VLAN ID change";
+            return false;
+        }
+        break;
+    }
     case Event::Connected: {
 
         auto iface_hal = get_wireless_hal(iface);
@@ -3174,7 +3208,12 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                            << " ap_mld_mac: " << db->bsta_mld_configuration->ap_mld_mac;
             }
 
-            db->traffic_separation.primary_vlan_id     = msg->multi_ap_primary_vlan_id;
+            if (!db->traffic_separation.is_enabled) {
+                LOG(DEBUG) << "Ignoring connected backhaul Primary VLAN ID while Traffic "
+                              "Separation policy is explicitly disabled";
+            } else {
+                db->traffic_separation.primary_vlan_id = msg->multi_ap_primary_vlan_id;
+            }
             db->backhaul.backhaul_bss_multi_ap_profile = msg->multi_ap_profile;
 
             auto request = message_com::create_vs_message<

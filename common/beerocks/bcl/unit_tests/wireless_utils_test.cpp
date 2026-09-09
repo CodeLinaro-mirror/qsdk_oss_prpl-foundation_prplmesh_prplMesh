@@ -446,130 +446,6 @@ TEST(has_operating_class_channel, every_listed_channel_matches_its_own_class)
     }
 }
 
-// Pins down get_center_channel(), the conversion has_operating_class_channel() relies on.
-TEST(center_channel, channel_36_5g)
-{
-    const uint8_t channel = 36;
-    const auto freq_type  = beerocks::eFreqType::FREQ_5G;
-
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_20),
-              36);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
-              38);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
-              42);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
-              50);
-    // BANDWIDTH_80_80 is normalized to BANDWIDTH_80 for the lookup.
-    EXPECT_EQ(
-        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80_80), 42);
-}
-
-TEST(center_channel, channel_100_5g)
-{
-    const uint8_t channel = 100;
-    const auto freq_type  = beerocks::eFreqType::FREQ_5G;
-
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_20),
-              100);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
-              102);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
-              106);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
-              114);
-}
-
-TEST(center_channel, channel_149_5g)
-{
-    const uint8_t channel = 149;
-    const auto freq_type  = beerocks::eFreqType::FREQ_5G;
-
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_20),
-              149);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
-              151);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
-              155);
-}
-
-TEST(center_channel, channel_132_5g_160_unsupported)
-{
-    // 5GHz channels 132-144 don't support 160MHz; always 0, regardless of bandwidth.
-    EXPECT_EQ(son::wireless_utils::get_center_channel(132, beerocks::eFreqType::FREQ_5G,
-                                                      beerocks::BANDWIDTH_160),
-              0);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(144, beerocks::eFreqType::FREQ_5G,
-                                                      beerocks::BANDWIDTH_160),
-              0);
-}
-
-TEST(center_channel, channel_37_6g)
-{
-    const uint8_t channel = 37;
-    const auto freq_type  = beerocks::eFreqType::FREQ_6G;
-
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
-              35);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
-              39);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
-              47);
-    EXPECT_EQ(
-        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_1), 31);
-    EXPECT_EQ(
-        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_2), 63);
-}
-
-TEST(center_channel, channel_1_6g)
-{
-    const uint8_t channel = 1;
-    const auto freq_type  = beerocks::eFreqType::FREQ_6G;
-
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_40),
-              3);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_80),
-              7);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_160),
-              15);
-    EXPECT_EQ(
-        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_1), 31);
-    // First 320MHz-2 center channel is 63, covering channel 33 and up.
-    EXPECT_EQ(
-        son::wireless_utils::get_center_channel(channel, freq_type, beerocks::BANDWIDTH_320_2), 0);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(33, freq_type, beerocks::BANDWIDTH_320_2),
-              63);
-}
-
-TEST(center_channel, band_mismatch)
-{
-    // 5GHz and 6GHz channel tables are independent.
-    EXPECT_EQ(son::wireless_utils::get_center_channel(37, beerocks::eFreqType::FREQ_5G,
-                                                      beerocks::BANDWIDTH_80),
-              0);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(36, beerocks::eFreqType::FREQ_6G,
-                                                      beerocks::BANDWIDTH_80),
-              0);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(36, beerocks::eFreqType::FREQ_5G,
-                                                      beerocks::BANDWIDTH_80),
-              42);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(36, beerocks::eFreqType::FREQ_5G,
-                                                      beerocks::BANDWIDTH_160),
-              50);
-}
-
-TEST(center_channel, unsupported_2_4g)
-{
-    // get_center_channel() only supports 5GHz and 6GHz; 2.4GHz always returns 0, since 2.4GHz
-    // operating classes list primary channels directly and never need this conversion.
-    EXPECT_EQ(son::wireless_utils::get_center_channel(1, beerocks::eFreqType::FREQ_24G,
-                                                      beerocks::BANDWIDTH_20),
-              0);
-    EXPECT_EQ(son::wireless_utils::get_center_channel(6, beerocks::eFreqType::FREQ_24G,
-                                                      beerocks::BANDWIDTH_40),
-              0);
-}
-
 // clang-format off
 const auto staCaps_2_4 = []() {
     beerocks::message::sRadioCapabilities caps;
@@ -691,6 +567,136 @@ TEST(mcs_from_rate, neerest_mcs_from_rate)
     EXPECT_FALSE(result);
     EXPECT_EQ(mcs, beerocks::MCS_4);
     EXPECT_EQ(short_gi, 0);
+}
+
+TEST(get_center_channel, band_2g)
+{
+    constexpr const int op20                      = 81;
+    constexpr const int op40plus                  = 83;
+    constexpr const int op40minus                 = 84;
+    constexpr const beerocks::eWiFiBandwidth bw20 = beerocks::BANDWIDTH_20;
+    constexpr const beerocks::eWiFiBandwidth bw40 = beerocks::BANDWIDTH_40;
+    const uint8_t c6 = son::wireless_utils::get_center_channel(6, op20, bw20);
+    const uint8_t c8 = son::wireless_utils::get_center_channel(6, op40plus, bw40);
+    const uint8_t c4 = son::wireless_utils::get_center_channel(6, op40minus, bw40);
+    const uint8_t c3 = son::wireless_utils::get_center_channel(1, op40plus, bw40);
+    const uint8_t c0 = son::wireless_utils::get_center_channel(1, op40minus, bw40);
+
+    EXPECT_EQ(c0, 0);
+    EXPECT_EQ(c3, 3);
+    EXPECT_EQ(c4, 4);
+    EXPECT_EQ(c6, 6);
+    EXPECT_EQ(c8, 8);
+}
+
+TEST(get_center_channel, band_5g)
+{
+    constexpr const int op20                       = 115;
+    constexpr const int op40plus                   = 116;
+    constexpr const int op40minus                  = 117;
+    constexpr const int op80                       = 128;
+    constexpr const int op160                      = 129;
+    constexpr const beerocks::eWiFiBandwidth bw20  = beerocks::BANDWIDTH_20;
+    constexpr const beerocks::eWiFiBandwidth bw40  = beerocks::BANDWIDTH_40;
+    constexpr const beerocks::eWiFiBandwidth bw80  = beerocks::BANDWIDTH_80;
+    constexpr const beerocks::eWiFiBandwidth bw160 = beerocks::BANDWIDTH_160;
+    const uint8_t c36   = son::wireless_utils::get_center_channel(36, op20, bw20);
+    const uint8_t c38_1 = son::wireless_utils::get_center_channel(36, op40plus, bw40);
+    const uint8_t c38_2 = son::wireless_utils::get_center_channel(40, op40minus, bw40);
+    const uint8_t c42_1 = son::wireless_utils::get_center_channel(36, op80, bw80);
+    const uint8_t c42_2 = son::wireless_utils::get_center_channel(40, op80, bw80);
+    const uint8_t c42_3 = son::wireless_utils::get_center_channel(44, op80, bw80);
+    const uint8_t c42_4 = son::wireless_utils::get_center_channel(48, op80, bw80);
+    const uint8_t c50_1 = son::wireless_utils::get_center_channel(36, op160, bw160);
+    const uint8_t c50_2 = son::wireless_utils::get_center_channel(40, op160, bw160);
+    const uint8_t c50_3 = son::wireless_utils::get_center_channel(44, op160, bw160);
+    const uint8_t c50_4 = son::wireless_utils::get_center_channel(48, op160, bw160);
+    const uint8_t c50_5 = son::wireless_utils::get_center_channel(52, op160, bw160);
+    const uint8_t c50_6 = son::wireless_utils::get_center_channel(56, op160, bw160);
+    const uint8_t c50_7 = son::wireless_utils::get_center_channel(60, op160, bw160);
+    const uint8_t c50_8 = son::wireless_utils::get_center_channel(64, op160, bw160);
+
+    EXPECT_EQ(c36, 36);
+    EXPECT_EQ(c38_1, 38);
+    EXPECT_EQ(c38_2, 38);
+    EXPECT_EQ(c42_1, 42);
+    EXPECT_EQ(c42_2, 42);
+    EXPECT_EQ(c42_3, 42);
+    EXPECT_EQ(c42_4, 42);
+    EXPECT_EQ(c50_1, 50);
+    EXPECT_EQ(c50_2, 50);
+    EXPECT_EQ(c50_3, 50);
+    EXPECT_EQ(c50_4, 50);
+    EXPECT_EQ(c50_5, 50);
+    EXPECT_EQ(c50_6, 50);
+    EXPECT_EQ(c50_7, 50);
+    EXPECT_EQ(c50_8, 50);
+}
+
+TEST(get_center_channel, band_6g)
+{
+    constexpr const int op20                         = 131;
+    constexpr const int op40                         = 132;
+    constexpr const int op80                         = 133;
+    constexpr const int op160                        = 135;
+    constexpr const int op320                        = 137;
+    constexpr const beerocks::eWiFiBandwidth bw20    = beerocks::BANDWIDTH_20;
+    constexpr const beerocks::eWiFiBandwidth bw40    = beerocks::BANDWIDTH_40;
+    constexpr const beerocks::eWiFiBandwidth bw80    = beerocks::BANDWIDTH_80;
+    constexpr const beerocks::eWiFiBandwidth bw160   = beerocks::BANDWIDTH_160;
+    constexpr const beerocks::eWiFiBandwidth bw320   = beerocks::BANDWIDTH_320;
+    constexpr const beerocks::eWiFiBandwidth bw320_1 = beerocks::BANDWIDTH_320_1;
+    constexpr const beerocks::eWiFiBandwidth bw320_2 = beerocks::BANDWIDTH_320_2;
+    const uint8_t c33 = son::wireless_utils::get_center_channel(33, op20, bw20);
+    const uint8_t c35 = son::wireless_utils::get_center_channel(33, op40, bw40);
+    const uint8_t c39 = son::wireless_utils::get_center_channel(33, op80, bw80);
+    const uint8_t c47 = son::wireless_utils::get_center_channel(33, op160, bw160);
+    const uint8_t c31 = son::wireless_utils::get_center_channel(33, op320, bw320_1);
+    const uint8_t c63 = son::wireless_utils::get_center_channel(33, op320, bw320_2);
+    const uint8_t c0  = son::wireless_utils::get_center_channel(33, op320, bw320);
+
+    EXPECT_EQ(c0, 0);
+    EXPECT_EQ(c33, 33);
+    EXPECT_EQ(c35, 35);
+    EXPECT_EQ(c39, 39);
+    EXPECT_EQ(c47, 47);
+    EXPECT_EQ(c31, 31);
+    EXPECT_EQ(c63, 63);
+}
+
+TEST(get_center_channel, band_5g_channels_100_and_149)
+{
+    constexpr const int op20  = 115;
+    constexpr const int op40  = 116;
+    constexpr const int op80  = 128;
+    constexpr const int op160 = 129;
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(100, op20, beerocks::BANDWIDTH_20), 100);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(100, op40, beerocks::BANDWIDTH_40), 102);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(100, op80, beerocks::BANDWIDTH_80), 106);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(100, op160, beerocks::BANDWIDTH_160), 114);
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(149, op20, beerocks::BANDWIDTH_20), 149);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(149, op40, beerocks::BANDWIDTH_40), 151);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(149, op80, beerocks::BANDWIDTH_80), 155);
+}
+
+TEST(get_center_channel, band_5g_160mhz_unsupported_between_132_and_144)
+{
+    // Channels 132-144 don't support 160MHz, always 0.
+    constexpr const int op160 = 129;
+
+    EXPECT_EQ(son::wireless_utils::get_center_channel(132, op160, beerocks::BANDWIDTH_160), 0);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(144, op160, beerocks::BANDWIDTH_160), 0);
+}
+
+TEST(get_center_channel, band_6g_no_320mhz_2_below_channel_33)
+{
+    constexpr const int op320 = 137;
+
+    // Channel 1 has no 320MHz-2 center channel, channel 33 does.
+    EXPECT_EQ(son::wireless_utils::get_center_channel(1, op320, beerocks::BANDWIDTH_320_2), 0);
+    EXPECT_EQ(son::wireless_utils::get_center_channel(33, op320, beerocks::BANDWIDTH_320_2), 63);
 }
 
 } // namespace

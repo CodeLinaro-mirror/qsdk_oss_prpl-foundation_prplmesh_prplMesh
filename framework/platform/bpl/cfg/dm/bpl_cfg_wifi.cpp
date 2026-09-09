@@ -110,7 +110,7 @@ static bool bpl_cfg_read_wifi_credentials(const AmbiorixVariant &ssid_obj,
     }
 
     std::string key_pass_phrase;
-    if (ap_sec_obj.read_child(key_pass_phrase, "KeyPassPhrase")) {
+    if (ap_sec_obj.read_child(key_pass_phrase, "KeyPassphraseVisible")) {
         configuration.network_key = std::move(key_pass_phrase);
     }
 

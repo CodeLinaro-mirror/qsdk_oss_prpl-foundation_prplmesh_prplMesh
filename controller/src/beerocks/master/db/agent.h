@@ -142,6 +142,13 @@ public:
     /** Flag indicating whether this agent has pending M1-triggered requests and queries to be launched. */
     bool is_m1_task_pending = false;
 
+    /**
+     * Transient state used to clear a disabled controller Traffic Separation override. A sent
+     * reset remains active for later policy messages until successful onboarding confirms it.
+     */
+    enum class eTsResetState { NONE, PENDING, SENT };
+    eTsResetState traffic_separation_override_reset_state = eTsResetState::NONE;
+
     /** Stations for which local steering is disallowed */
     beerocks::mac_map<Station> disallowed_local_steering_stations;
     /** Stations for which BTM steering is disallowed */

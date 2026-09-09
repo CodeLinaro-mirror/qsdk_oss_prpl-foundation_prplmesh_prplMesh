@@ -5930,8 +5930,8 @@ bool db::update_sta_wifi_channel_bw(const sMacAddr &mac, beerocks::eWiFiBandwidt
     eWiFiBandwidth prev_bw = pSta->wifi_channel.get_bandwidth();
     pSta->wifi_channel.set_bandwidth(bw);
     LOG(INFO) << "updating station " << mac << " bandwidth from "
-              << beerocks::utils::convert_bandwidth_to_string(prev_bw) << "MHz to "
-              << beerocks::utils::convert_bandwidth_to_string(bw) << "MHz";
+              << beerocks::utils::convert_bandwidth_to_string(prev_bw) << " to "
+              << beerocks::utils::convert_bandwidth_to_string(bw);
     return true;
 }
 
@@ -8893,6 +8893,15 @@ bool db::dm_set_device_ssid_to_vid_map(const Agent &agent,
     ret_val &= m_ambiorix_datamodel->set(ssidtovidmapping_path, "VID", config.vlan_id);
 
     return ret_val;
+}
+
+bool db::dm_clear_device_ssid_to_vid_map(const Agent &agent)
+{
+    if (agent.dm_path.empty()) {
+        return true;
+    }
+
+    return m_ambiorix_datamodel->remove_all_instances(agent.dm_path + ".SSIDtoVIDMapping");
 }
 
 bool db::dm_set_default_8021q(const Agent &agent, const uint16_t primary_vlan_id,
