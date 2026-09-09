@@ -115,7 +115,7 @@ cppcheck:
       - cppcheck_results.txt
     when: always
   tags:
-    - docker
+    - docker-testing
   needs: ["image-build-cppcheck"]
 
 cppcheck-diff:
@@ -130,7 +130,7 @@ cppcheck-diff:
     expire_in: 4 weeks
     when: always
   tags:
-    - docker
+    - docker-testing
   needs: ["image-build-cppcheck"]
 
 flake8:
