@@ -242,6 +242,17 @@ private:
     bool fsm_all();
     bool agent_fsm();
     void agent_reset();
+
+    /**
+     * @brief Sends BSS teardown requests to the fronthaul AP managers.
+     *
+     * @param report_completion Request and track AP-manager completion responses. Completion is
+     *        asynchronous and handled by the Agent event loop.
+     * @param radio_iface If empty, process all radios. Otherwise, process only this radio.
+     * @return true if all applicable requests were built and sent successfully, false otherwise.
+     *         When completion reporting is requested, this return value does not include the
+     *         asynchronous HAL result.
+     */
     bool send_fronthaul_bss_teardown(bool report_completion         = false,
                                      const std::string &radio_iface = {});
     void stop_slave_thread();

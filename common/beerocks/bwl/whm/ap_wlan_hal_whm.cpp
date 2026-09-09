@@ -525,7 +525,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                 continue;
             }
             vap_it->second.teardown = true;
-            LOG(INFO) << "BSS " << bss_info_conf.bssid << " flagged for tear down.";
+            LOG(INFO) << "BSS " << bssid << " on interface " << vap_info.bss
+                      << " (vap_id=" << vap_id << ") flagged for tear down";
             continue;
         }
 

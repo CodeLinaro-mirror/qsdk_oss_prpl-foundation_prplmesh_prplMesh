@@ -85,24 +85,30 @@ void ControllerConnectivityTask::work()
         return;
     }
 
-    auto db        = AgentDB::get();
     const auto now = std::chrono::steady_clock::now();
 
     // controller_connected records verified reachability, while a non-default reconnect_timeout
     // records that a confirmed Controller connectivity failure is in its bounded recovery window.
     // A Backhaul Manager connection alone must not extend or complete this recovery window.
-    if (!db->statuses.controller_connected &&
-        reconnect_timeout != std::chrono::steady_clock::time_point{} && now >= reconnect_timeout &&
+    if (reconnect_timeout != std::chrono::steady_clock::time_point{} && now >= reconnect_timeout &&
         !FSM_IS_IN_STATE(BACKHAUL_LINK_DISCONNECTED)) {
-        LOG(WARNING) << "Controller recovery deadline expired; forcing backhaul restart with "
-                        "fronthaul teardown";
-        if (send_disconnect_to_backhaul_manager()) {
-            // Keep the deadline until the Backhaul Manager confirms that the disconnect is being
-            // handed to the fronthaul teardown/reset flow. This prevents a routine Agent reset
-            // between command transmission and notification from losing the teardown obligation.
-            FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
+        bool controller_connected;
+        {
+            auto db              = AgentDB::get();
+            controller_connected = db->statuses.controller_connected;
         }
-        return;
+        if (!controller_connected) {
+            LOG(WARNING) << "Controller recovery deadline expired; forcing backhaul restart with "
+                            "fronthaul teardown";
+            if (send_disconnect_to_backhaul_manager()) {
+                // Keep the deadline until the Backhaul Manager confirms that the disconnect is
+                // being handed to the fronthaul teardown/reset flow. This prevents a routine Agent
+                // reset between command transmission and notification from losing the teardown
+                // obligation.
+                FSM_MOVE_STATE(BACKHAUL_LINK_DISCONNECTED);
+            }
+            return;
+        }
     }
 
     switch (m_task_state) {
@@ -140,18 +146,52 @@ void ControllerConnectivityTask::work()
         break;
     }
     case eState::CONNECTION_TIMEOUT: {
-        db->statuses.controller_connected = false;
-        db->dm_set_controller_connected(false);
+        bool reconnect_wireless = false;
+        {
+            auto db                           = AgentDB::get();
+            db->statuses.controller_connected = false;
+            db->dm_set_controller_connected(false);
 
-        auto it =
-            find_if(db->backhaul.backhaul_links.begin(), db->backhaul.backhaul_links.end(),
-                    [&](const AgentDB::sBackhaul::sBackhaulLink &c) {
-                        return c.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
-                               !c.credentials.empty();
-                    });
-        // Try to reconnect to the wireless using the existing credentials
-        if (it != db->backhaul.backhaul_links.end()) {
+            auto it = find_if(
+                db->backhaul.backhaul_links.begin(), db->backhaul.backhaul_links.end(),
+                [&](const AgentDB::sBackhaul::sBackhaulLink &c) {
+                    return c.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+                           !c.credentials.empty();
+                });
+            // Try to reconnect to wireless using the existing credentials.
+            if (it != db->backhaul.backhaul_links.end()) {
+                reconnect_wireless = true;
 
+                // Debug log
+                for (auto &link : db->backhaul.backhaul_links) {
+                    LOG(DEBUG) << "Existing BH interfaces: " << std::endl
+                               << "type: " << int(link.connection_type) << std::endl
+                               << "iface_name: " << link.iface_name << std::endl
+                               << "iface_mac: " << link.iface_mac << std::endl;
+                    for (auto &cred : link.credentials) {
+                        LOG(DEBUG)
+                            << "Credentials: " << std::endl
+                            << "ssid: " << cred.ssid << std::endl
+                            << "bssid: " << cred.bssid << std::endl
+                            << "bss_type: " << cred.bss_type << std::endl
+                            << "auth_type: " << WSC::eWscAuth_str(cred.auth_type) << std::endl
+                            << "encr_type: " << WSC::eWscEncr_str(cred.encr_type) << std::endl
+                            << "network_key: " << cred.network_key << std::endl;
+                    }
+                }
+
+                db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wireless;
+                db->backhaul.selected_iface_name = it->iface_name;
+
+                // Fill credentials for the future backhaul connection.
+                db->device_conf.back_radio.ssid = it->credentials.front().ssid;
+                db->device_conf.back_radio.pass = it->credentials.front().network_key;
+                db->device_conf.back_radio.security_type =
+                    wsc_to_bwl_authentication(it->credentials.front().auth_type);
+            }
+        }
+
+        if (reconnect_wireless) {
             // Start one absolute recovery deadline for this Controller outage. Repeated wireless
             // associations and Controller discovery retries must not extend it.
             if (reconnect_timeout == std::chrono::steady_clock::time_point{}) {
@@ -159,33 +199,6 @@ void ControllerConnectivityTask::work()
                 LOG(INFO) << "Starting bounded Controller recovery window of "
                           << RECONNECT_TIMEOUT_SEC << " seconds";
             }
-
-            // Debug log
-            for (auto &link : db->backhaul.backhaul_links) {
-                LOG(DEBUG) << "Existing BH interfaces: " << std::endl
-                           << "type: " << int(link.connection_type) << std::endl
-                           << "iface_name: " << link.iface_name << std::endl
-                           << "iface_mac: " << link.iface_mac << std::endl;
-                for (auto &cred : link.credentials) {
-                    LOG(DEBUG) << "Credentials: " << std::endl
-                               << "ssid: " << cred.ssid << std::endl
-                               << "bssid: " << cred.bssid << std::endl
-                               << "bss_type: " << cred.bss_type << std::endl
-                               << "auth_type: " << WSC::eWscAuth_str(cred.auth_type) << std::endl
-                               << "encr_type: " << WSC::eWscEncr_str(cred.encr_type) << std::endl
-                               << "network_key: " << cred.network_key << std::endl;
-                }
-            }
-
-            db->backhaul.connection_type     = AgentDB::sBackhaul::eConnectionType::Wireless;
-            db->backhaul.selected_iface_name = it->iface_name;
-
-            // Filling in credentials for a future backhaul connection
-            db->device_conf.back_radio.ssid = it->credentials.front().ssid;
-            db->device_conf.back_radio.pass = it->credentials.front().network_key;
-            db->device_conf.back_radio.security_type =
-                wsc_to_bwl_authentication(it->credentials.front().auth_type);
-
             FSM_MOVE_STATE(RECONNECTION);
             break;
         }

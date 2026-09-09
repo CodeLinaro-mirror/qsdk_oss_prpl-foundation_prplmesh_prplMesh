@@ -81,8 +81,10 @@
 
 #include <algorithm>
 #include <cstring>
+#include <map>
 #include <sstream>
 #include <utility>
+#include <vector>
 
 #include <sys/socket.h>
 
@@ -515,16 +517,46 @@ void slave_thread::agent_reset()
 bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
                                                const std::string &radio_iface_filter)
 {
-    auto db = AgentDB::get();
-
-    // In non-EasyMesh mode, never modify hostapd configuration. EasyMesh and manually configured
-    // VAPs cannot currently be distinguished in that mode.
-    if (db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
-        LOG(WARNING) << "non-EasyMesh mode - skip tearing down fronthaul BSSs";
-        return true;
-    }
-
     bool success = true;
+    std::string bridge_iface;
+    std::map<std::string, std::vector<sMacAddr>> bssids_by_radio;
+
+    {
+        auto db = AgentDB::get();
+
+        // In non-EasyMesh mode, never modify hostapd configuration. EasyMesh and manually
+        // configured VAPs cannot currently be distinguished in that mode.
+        if (db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+            LOG(WARNING) << "non-EasyMesh mode - skip tearing down fronthaul BSSs";
+            return true;
+        }
+
+        bridge_iface = db->bridge.iface_name;
+
+        // Keep the AgentDB lock only while taking the snapshot used to build the requests below.
+        for (const auto &radio_manager_element : m_radio_managers.get()) {
+            const auto &radio_iface = radio_manager_element.first;
+
+            if (!radio_iface_filter.empty() && radio_iface != radio_iface_filter) {
+                continue;
+            }
+
+            auto radio = db->radio(radio_iface);
+            if (!radio) {
+                LOG(ERROR) << "Cannot tear down fronthaul BSSs: radio " << radio_iface
+                           << " was not found in AgentDB";
+                success = false;
+                continue;
+            }
+
+            auto &bssids = bssids_by_radio[radio_iface];
+            for (const auto &bss : radio->front.bssids) {
+                if (bss.mac != network_utils::ZERO_MAC) {
+                    bssids.push_back(bss.mac);
+                }
+            }
+        }
+    }
 
     for (const auto &radio_manager_element : m_radio_managers.get()) {
         const auto &radio_iface   = radio_manager_element.first;
@@ -534,19 +566,13 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
             continue;
         }
 
-        auto radio = db->radio(radio_iface);
-        if (!radio) {
-            LOG(ERROR) << "Cannot tear down fronthaul BSSs: radio " << radio_iface
-                       << " was not found in AgentDB";
-            success = false;
+        const auto bssids_it = bssids_by_radio.find(radio_iface);
+        if (bssids_it == bssids_by_radio.end()) {
             continue;
         }
 
-        const auto teardown_bss_count =
-            std::count_if(radio->front.bssids.begin(), radio->front.bssids.end(),
-                          [](const AgentDB::sRadio::sFront::sBssid &bss) {
-                              return bss.mac != network_utils::ZERO_MAC;
-                          });
+        const auto &bssids            = bssids_it->second;
+        const auto teardown_bss_count = bssids.size();
         if (teardown_bss_count == 0) {
             LOG(DEBUG) << "No configured fronthaul BSSs to tear down on " << radio_iface;
             if (report_completion) {
@@ -591,7 +617,7 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
             continue;
         }
         request_out->report_teardown_completion() = report_completion;
-        if (!request_out->set_bridge_ifname(db->bridge.iface_name)) {
+        if (!request_out->set_bridge_ifname(bridge_iface)) {
             LOG(ERROR) << "Failed setting bridge interface in fronthaul BSS teardown request for "
                        << radio_iface;
             success = false;
@@ -599,12 +625,7 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
         }
 
         bool request_valid = true;
-        for (const auto &bss : radio->front.bssids) {
-            // A non-zero BSSID identifies a BSS configured on this radio.
-            if (bss.mac == network_utils::ZERO_MAC) {
-                continue;
-            }
-
+        for (const auto &bssid : bssids) {
             auto wifi_credentials = request_out->create_wifi_credentials();
             if (!wifi_credentials) {
                 LOG(ERROR) << "Failed building BSS teardown entry for " << radio_iface;
@@ -613,7 +634,7 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
                 break;
             }
 
-            wifi_credentials->bssid_attr().data = bss.mac;
+            wifi_credentials->bssid_attr().data = bssid;
             wifi_credentials->bss_type()        = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
             wifi_credentials->set_ssid("");
             wifi_credentials->set_network_key("");
