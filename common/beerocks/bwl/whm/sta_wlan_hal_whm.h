@@ -149,11 +149,11 @@ private:
         std::string bssid;
         std::string ssid;
         std::string connection_status;
-        uint8_t multi_ap_profile;
-        uint8_t peer_multi_ap_profile = 0;
-        uint16_t multi_ap_primary_vlanid;
-        int channel;
-        int active_profile_id;
+        uint8_t multi_ap_profile         = 0;
+        uint8_t peer_multi_ap_profile    = 0;
+        uint16_t multi_ap_primary_vlanid = 0;
+        int channel                      = 0;
+        int selected_profile_id          = -1;
     };
 
     struct Profile {
@@ -192,7 +192,6 @@ private:
     std::string m_active_connection_status;
     WiFiSec m_active_secutiry = WiFiSec::Invalid;
     uint8_t m_active_channel  = 0;
-    int m_active_profile_id   = -1;
     bool m_scan_active        = false;
     // Internal EndPoint WPS connection status
     eWpsConnectionStatus m_current_connection_status;

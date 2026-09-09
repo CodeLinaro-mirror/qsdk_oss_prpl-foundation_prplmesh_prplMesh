@@ -465,8 +465,6 @@ bool sta_wlan_hal_whm::set_profile(Profile &profile)
         return false;
     }
 
-    m_active_profile_id = profile_id;
-
     LOG(DEBUG) << "Profile with id " << profile_id << " has been added and enabled on interface "
                << get_iface_name();
 
@@ -475,9 +473,6 @@ bool sta_wlan_hal_whm::set_profile(Profile &profile)
 
 bool sta_wlan_hal_whm::disconnect()
 {
-    LOG(TRACE) << "Disconnect profile id " << m_active_profile_id
-               << " on interface: " << get_iface_name();
-
     Endpoint endpoint;
     if (!read_status(endpoint)) {
         LOG(ERROR) << "Failed reading status for " << get_iface_name() << "! can't disconnect";
@@ -487,24 +482,21 @@ bool sta_wlan_hal_whm::disconnect()
     // Return gracefully if endpoint connection_status is not connected
     if (!is_connected(endpoint.connection_status)) {
         LOG(DEBUG) << "Active profile is not connected";
+        clear_conn_state();
         return true;
     }
 
-    // Return gracefully if no endpoint connection_status is connected
-    if (m_active_profile_id <= 0) {
-        LOG(DEBUG) << "Active profile does not exist";
-        return true;
-    }
+    LOG(TRACE) << "Disconnect profile id " << endpoint.selected_profile_id
+               << " on interface: " << get_iface_name();
 
-    // Connection status id must be the same as the active profile id
-    if (m_active_profile_id != endpoint.active_profile_id) {
-        LOG(ERROR) << "Profile id mismatch: m_active_profile_id(" << m_active_profile_id << ") != "
-                   << "endpoint.active_profile_id(" << endpoint.active_profile_id << ")";
+    if (endpoint.selected_profile_id <= 0) {
+        LOG(ERROR) << "Cannot disconnect connected EndPoint " << m_ep_path
+                   << ": ProfileReference is empty or cannot be resolved";
         return false;
     }
 
-    if (!remove_profile(m_active_profile_id)) {
-        LOG(ERROR) << "Failed to disconnect profile " << m_active_profile_id;
+    if (!remove_profile(endpoint.selected_profile_id)) {
+        LOG(ERROR) << "Failed to disconnect profile " << endpoint.selected_profile_id;
         return false;
     }
 
@@ -945,8 +937,12 @@ bool sta_wlan_hal_whm::read_status(Endpoint &endpoint)
 
     std::string profile_ref, profile_path;
     ep_obj->read_child(profile_ref, "ProfileReference");
-    if (!profile_ref.empty() && m_ambiorix_cl.resolve_path(profile_ref + ".", profile_path)) {
-        endpoint.active_profile_id = wbapi_utils::get_object_id(profile_path);
+    if (!profile_ref.empty()) {
+        if (!m_ambiorix_cl.resolve_path(profile_ref + ".", profile_path)) {
+            LOG(WARNING) << "Failed to resolve EndPoint ProfileReference " << profile_ref;
+        } else {
+            endpoint.selected_profile_id = wbapi_utils::get_object_id(profile_path);
+        }
     }
 
     return true;
@@ -957,11 +953,9 @@ void sta_wlan_hal_whm::update_status(const Endpoint &endpoint)
     m_active_bssid             = endpoint.bssid;
     m_active_ssid              = endpoint.ssid;
     m_active_connection_status = endpoint.connection_status;
-    m_active_profile_id        = endpoint.active_profile_id;
     m_active_channel           = endpoint.channel;
 
-    LOG(DEBUG) << "m_active_profile_id= " << m_active_profile_id
-               << ", active_bssid= " << m_active_bssid << ", active_channel= " << m_active_channel
+    LOG(DEBUG) << "active_bssid= " << m_active_bssid << ", active_channel= " << m_active_channel
                << ", active_ssid= " << m_active_ssid;
 }
 
@@ -973,7 +967,6 @@ void sta_wlan_hal_whm::clear_conn_state()
     m_active_pass              = "";
     m_active_connection_status = "";
     m_active_channel           = 0;
-    m_active_profile_id        = -1;
 }
 
 bool sta_wlan_hal_whm::is_connected(const std::string &status)
