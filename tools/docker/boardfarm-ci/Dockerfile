@@ -1,4 +1,4 @@
-FROM python:3.14-slim-trixie
+FROM python:3.12.4-slim-bookworm
 
 ARG PACKAGES_FOR_DOCKER_INSTALL="\
     apt-transport-https \
