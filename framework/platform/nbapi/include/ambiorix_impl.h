@@ -22,6 +22,8 @@
 #include <amxd/amxd_object_event.h>
 #include <amxd/amxd_transaction.h>
 
+#include <mutex>
+
 namespace beerocks {
 namespace nbapi {
 
@@ -252,7 +254,22 @@ private:
      */
     amxd_object_t *find_object(const std::string &relative_path);
 
+    /**
+     * @brief Lock the in-process libamxd data model.
+     *
+     * libamxd is not thread-safe. This instance is used from the Ambiorix event
+     * loop (`amxb_read`) and from other beerocks threads (`set`/`add`/`remove`).
+     * The mutex is recursive so nested calls (for example `set(sMacAddr)` ->
+     * `set(string)`, or an RPC that writes the DM while `amxb_read` holds the
+     * lock) do not deadlock.
+     */
+    std::unique_lock<std::recursive_mutex> dm_lock()
+    {
+        return std::unique_lock<std::recursive_mutex>(m_dm_mutex);
+    }
+
     // Variables
+    std::recursive_mutex m_dm_mutex;
     std::vector<amxb_bus_ctx_t *> m_bus_ctx_vect;
     std::shared_ptr<EventLoop> m_event_loop;
     //std::unordered_map<std::string, actions_callback> m_on_action_handlers;
