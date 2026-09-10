@@ -4356,7 +4356,13 @@ void BackhaulManager::handle_dev_reset_default(
     auto active_hal = get_wireless_hal();
     if (active_hal) {
         active_hal->set_3addr_mcast(false);
-        active_hal->disconnect();
+        if (!active_hal->disconnect()) {
+            LOG(ERROR) << "Failed to disconnect the active wireless backhaul while handling "
+                          "dev_reset_default";
+            m_agent_ucc_listener->send_reply(
+                fd, beerocks::beerocks_ucc_listener::command_failed_error_string);
+            return;
+        }
     }
 
     // Clear persistent radio state.
