@@ -63,6 +63,7 @@ image-build-cram:
   tags:
     - shell
     - docker-build
+  retry: 2
 
 platform:
   stage: platform
