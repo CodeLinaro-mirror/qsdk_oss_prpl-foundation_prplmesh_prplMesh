@@ -123,7 +123,7 @@ cppcheck-diff:
   stage: build
   image: $CI_REGISTRY_IMAGE/prplmesh-cppcheck:$CI_PIPELINE_ID
   script:
-    - ci/cppcheck/cppcheck-new-issues.sh
+    - ci/cppcheck/cppcheck-new-issues.sh --skip-cppcheck
   artifacts:
     paths:
       - cppcheck_results.txt
@@ -132,7 +132,8 @@ cppcheck-diff:
     when: always
   tags:
     - docker
-  needs: ["image-build-cppcheck"]
+  needs:
+    - job: cppcheck
 
 flake8:
   stage: build
