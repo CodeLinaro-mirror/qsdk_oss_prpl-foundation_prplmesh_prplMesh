@@ -270,7 +270,17 @@ std::string AgentDB::dm_create_fronthaul_object(const std::string &iface)
         LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
     }
 
-    m_ambiorix_datamodel->set(inst, "Iface", iface);
+    for (int i = 0; i < 3; i++) {
+        MYLOG("trying to set Iface");
+        if (m_ambiorix_datamodel->set(inst, "Iface", iface)) {
+            MYLOG("success");
+            break;
+        }
+
+        MYLOG("failed");
+        sleep(1);
+    }
+
     m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));
     m_ambiorix_datamodel->set(inst, "BestState", std::string("INIT (0)"));
 

@@ -168,6 +168,9 @@ boardfarm-on-mozart-stability:
       allow_failure: true
     - when: manual
       allow_failure: true
+  artifacts:
+    paths:
+      - /tmp/mylog
 
 cram-on-freedom:
   extends: .cram-on-target
