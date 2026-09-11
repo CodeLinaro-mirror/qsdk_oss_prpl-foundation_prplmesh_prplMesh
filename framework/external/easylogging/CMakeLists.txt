@@ -17,6 +17,15 @@ target_compile_definitions(${PROJECT_NAME}
         AUTO_INITIALIZE_EASYLOGGINGPP
     )
 
+# PUBLIC, not a global add_definitions(): the macro decides whether the
+# MessageBuilder/Writer stream operators are defined in libelpp or inline in the
+# installed easylogging++.h, so a mismatch between the two yields duplicate
+# definitions in one program. As a PUBLIC definition it is carried by
+# elppConfig.cmake.
+if(FLASH_OPTIMIZATION)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_OUT_OF_LINE_STREAM_OPS)
+endif()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 target_include_directories(${PROJECT_NAME}
     PUBLIC

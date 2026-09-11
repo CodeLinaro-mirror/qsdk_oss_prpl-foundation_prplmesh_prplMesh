@@ -75,15 +75,14 @@ option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
 option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
-# Routes the log statements of the generated codecs through the out-of-line
-# tlvf::logging sink (TLVF_FLASH_OPTIMIZATION) instead of expanding
-# easylogging++'s LOG() at every call site, replaces the inline codec guards
-# with calls to the out-of-line BaseClass helpers, and hides the generated
-# init() (TLVF_LOCAL).
+# Reduces logging call sites to one call per argument (ELPP_OUT_OF_LINE_STREAM_OPS
+# in easylogging++, TLVF_FLASH_OPTIMIZATION in the generated codecs), replaces
+# the inline codec guards with calls to the out-of-line BaseClass helpers, and
+# hides the generated init() (TLVF_LOCAL).
 #
-# The macro appears in an installed header, so it is a PUBLIC compile
-# definition on the tlvf target rather than a global one, and is carried in
-# TlvfConfig.cmake.
+# The two macros appear in installed headers, so they are PUBLIC compile
+# definitions on the elpp and tlvf targets rather than global ones, and are
+# carried in elppConfig.cmake/TlvfConfig.cmake.
 #
 # This changes the ABI of the installed libraries; dependent packages need a
 # clean rebuild.
