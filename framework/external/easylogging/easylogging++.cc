@@ -2543,6 +2543,36 @@ void LogDispatcher::dispatch(void) {
 
 // MessageBuilder
 
+#if defined(ELPP_OUT_OF_LINE_STREAM_OPS)
+// Bodies for the operator<< overloads declared with ELPP_SIMPLE_LOG_DECL in the
+// header.
+#define ELPP_SIMPLE_LOG_DEFN(LOG_TYPE)                     \
+  MessageBuilder& MessageBuilder::operator<<(LOG_TYPE msg) \
+  {                                                        \
+    m_logger->stream() << msg;                             \
+    if (ELPP->hasFlag(LoggingFlag::AutoSpacing)) {         \
+      m_logger->stream() << " ";                           \
+    }                                                      \
+    return *this;                                          \
+  }
+
+ELPP_SIMPLE_LOG_DEFN(char)
+ELPP_SIMPLE_LOG_DEFN(bool)
+ELPP_SIMPLE_LOG_DEFN(signed short)
+ELPP_SIMPLE_LOG_DEFN(unsigned short)
+ELPP_SIMPLE_LOG_DEFN(signed int)
+ELPP_SIMPLE_LOG_DEFN(unsigned int)
+ELPP_SIMPLE_LOG_DEFN(signed long)
+ELPP_SIMPLE_LOG_DEFN(unsigned long)
+ELPP_SIMPLE_LOG_DEFN(float)
+ELPP_SIMPLE_LOG_DEFN(double)
+ELPP_SIMPLE_LOG_DEFN(char*)
+ELPP_SIMPLE_LOG_DEFN(const char*)
+ELPP_SIMPLE_LOG_DEFN(const void*)
+ELPP_SIMPLE_LOG_DEFN(long double)
+#undef ELPP_SIMPLE_LOG_DEFN
+#endif  // ELPP_OUT_OF_LINE_STREAM_OPS
+
 void MessageBuilder::initialize(Logger* logger) {
   m_logger = logger;
   m_containerLogSeperator = ELPP->hasFlag(LoggingFlag::NewLineForContainer) ?
@@ -2577,6 +2607,47 @@ MessageBuilder& MessageBuilder::operator<<(const wchar_t* msg) {
 }
 
 // Writer
+
+#if defined(ELPP_OUT_OF_LINE_STREAM_OPS)
+#define ELPP_WRITER_SIMPLE_LOG_DEFN(LOG_TYPE)      \
+  Writer& Writer::operator<<(LOG_TYPE msg)         \
+  {                                                \
+    if (m_proceed) {                               \
+      m_messageBuilder << msg;                     \
+    }                                              \
+    return *this;                                  \
+  }
+
+ELPP_WRITER_SIMPLE_LOG_DEFN(char)
+ELPP_WRITER_SIMPLE_LOG_DEFN(bool)
+ELPP_WRITER_SIMPLE_LOG_DEFN(signed char)
+ELPP_WRITER_SIMPLE_LOG_DEFN(unsigned char)
+ELPP_WRITER_SIMPLE_LOG_DEFN(signed short)
+ELPP_WRITER_SIMPLE_LOG_DEFN(unsigned short)
+ELPP_WRITER_SIMPLE_LOG_DEFN(signed int)
+ELPP_WRITER_SIMPLE_LOG_DEFN(unsigned int)
+ELPP_WRITER_SIMPLE_LOG_DEFN(signed long)
+ELPP_WRITER_SIMPLE_LOG_DEFN(unsigned long)
+ELPP_WRITER_SIMPLE_LOG_DEFN(float)
+ELPP_WRITER_SIMPLE_LOG_DEFN(double)
+ELPP_WRITER_SIMPLE_LOG_DEFN(long double)
+ELPP_WRITER_SIMPLE_LOG_DEFN(char*)
+ELPP_WRITER_SIMPLE_LOG_DEFN(const char*)
+ELPP_WRITER_SIMPLE_LOG_DEFN(const void*)
+ELPP_WRITER_SIMPLE_LOG_DEFN(const std::string&)
+#undef ELPP_WRITER_SIMPLE_LOG_DEFN
+
+Writer::Writer(Level level, const char* file, base::type::LineNumber line,
+               const char* func, base::DispatchAction dispatchAction,
+               base::type::VerboseLevel verboseLevel) :
+  m_msg(nullptr), m_level(level), m_file(file), m_line(line), m_func(func), m_verboseLevel(verboseLevel),
+  m_logger(nullptr), m_proceed(false), m_dispatchAction(dispatchAction) {
+}
+
+Writer::~Writer(void) {
+  processDispatch();
+}
+#endif  // ELPP_OUT_OF_LINE_STREAM_OPS
 
 Writer& Writer::construct(Logger* logger, bool needLock) {
   m_logger = logger;
