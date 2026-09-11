@@ -42,3 +42,39 @@ bool BaseClass::buffPtrIncrementSafe(size_t length)
     m_buff_ptr__ += length;
     return true;
 }
+
+bool BaseClass::buffPtrIncrementSafeLogged(size_t length)
+{
+    if (buffPtrIncrementSafe(length)) {
+        return true;
+    }
+    TLVF_LOG(ERROR) << "buffPtrIncrementSafe(" << length << ") Failed!";
+    return false;
+}
+
+bool BaseClass::hasInitialSpace(size_t initial_size)
+{
+    if (getBuffRemainingBytes() >= initial_size) {
+        return true;
+    }
+    TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+    return false;
+}
+
+bool BaseClass::hasSpaceFor(size_t length, void *start)
+{
+    if (getBuffRemainingBytes(start) >= length) {
+        return true;
+    }
+    TLVF_LOG(ERROR) << "Not enough available space on buffer";
+    return false;
+}
+
+bool BaseClass::hasSpaceForAlloc(size_t length)
+{
+    if (getBuffRemainingBytes() >= length) {
+        return true;
+    }
+    TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+    return false;
+}
