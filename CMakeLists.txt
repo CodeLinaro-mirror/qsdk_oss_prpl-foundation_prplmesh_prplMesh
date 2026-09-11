@@ -75,6 +75,19 @@ option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
 option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
+# Reduces logging call sites to one call per argument (ELPP_OUT_OF_LINE_STREAM_OPS
+# in easylogging++, TLVF_FLASH_OPTIMIZATION in the generated codecs), hides inline
+# symbols and the generated init(), and drops unreferenced sections and the unwind
+# tables at link time.
+#
+# The two macros appear in installed headers, so they are PUBLIC compile
+# definitions on the elpp and tlvf targets rather than global ones, and are
+# carried in elppConfig.cmake/TlvfConfig.cmake.
+#
+# This changes the ABI of the installed libraries; dependent packages need a
+# clean rebuild.
+option(FLASH_OPTIMIZATION "Trade log call-site fidelity and symbol visibility for flash footprint" OFF)
+
 ## Generic checks and defaults
 
 include(FindPkgConfig)

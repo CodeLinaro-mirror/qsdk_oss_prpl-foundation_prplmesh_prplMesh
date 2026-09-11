@@ -49,6 +49,14 @@ add_library(tlvf ${TLVF_OUTPUTS} ${TLVF_SOURCES})
 set_target_properties(tlvf PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-fno-schedule-insns")
 target_link_libraries(tlvf PRIVATE elpp)
+
+# PUBLIC, not a global add_definitions(): the installed tlvflogging.h and
+# BaseClass.h must be compiled with the same setting the libraries were built
+# with. As a PUBLIC definition it reaches btlvf and is carried by
+# TlvfConfig.cmake.
+if(FLASH_OPTIMIZATION)
+    target_compile_definitions(tlvf PUBLIC TLVF_FLASH_OPTIMIZATION)
+endif()
 target_include_directories(tlvf
     PUBLIC
         $<BUILD_INTERFACE:${TLVF_OUT}/include>
