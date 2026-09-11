@@ -78,6 +78,18 @@ option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 option (ENABLE_BEEROCKS_CLI "Build beerocks CLI" ON)
 option (ENABLE_PRPLMESH_CLI "Build prplMesh CLI" ON)
 
+# Routes the log statements of the generated codecs through the out-of-line
+# tlvf::logging sink (TLVF_FLASH_OPTIMIZATION) instead of expanding
+# easylogging++'s LOG() at every call site.
+#
+# The macro appears in an installed header, so it is a PUBLIC compile
+# definition on the tlvf target rather than a global one, and is carried in
+# TlvfConfig.cmake.
+#
+# This changes the ABI of the installed libraries; dependent packages need a
+# clean rebuild.
+option(FLASH_OPTIMIZATION "Trade log call-site fidelity for flash footprint" OFF)
+
 ## Generic checks and defaults
 
 include(FindPkgConfig)
