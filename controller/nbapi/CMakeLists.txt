@@ -29,26 +29,30 @@ foreach(file ${files})
   configure_file_odl(${file} ${ODL_OUTPUT_DIR})
 endforeach()
 
-# Parse master_config.odl file
-message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : master_config.odl")
-execute_process(COMMAND amxo-cg ${ODL_OUTPUT_DIR}/odl/master_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
-
-# If parser find errors - generate FATAL_ERROR
-if(${DATAMODEL_PARSE_RESULT})
-    message(FATAL_ERROR "Failed to parse controller data model!")
+if(NOT "${INCLUDE_DM_MAPPER_CONFIG}" STREQUAL "")
+  execute_process(COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/odl/dm_mapper_cfg ${ODL_OUTPUT_DIR}/odl/dm_mapper_cfg.odl)
 endif()
-message(STATUS "${BoldGreen}Controller data model parsed successfully!${ColourReset}")
+
+# Find amxo-cg into the host system and not in the staging/sysroot dirs
+find_program(AMXO_CG_EXECUTABLE NAMES amxo-cg PATHS /usr/bin NO_DEFAULT_PATH)
+# Be permissive if amxo-cg is not found
+if(NOT AMXO_CG_EXECUTABLE)
+  message(WARNING "${BoldWhite}amxo-cg not found: ignore datamodel parsing.${ColourReset}")
+else()
+  # Parse master_config.odl file
+  message(STATUS "${BoldYellow}Parse odl using amxo${ColourReset} : master_config.odl")
+  execute_process(COMMAND ${AMXO_CG_EXECUTABLE} ${ODL_OUTPUT_DIR}/odl/master_config.odl --no-warnings RESULT_VARIABLE DATAMODEL_PARSE_RESULT)
+
+  # If parser find errors - generate FATAL_ERROR
+  if(NOT ${DATAMODEL_PARSE_RESULT} EQUAL 0)
+    message(FATAL_ERROR "Failed to parse controller data model!")
+  else()
+    message(STATUS "${BoldGreen}Controller data model parsed successfully!${ColourReset}")
+  endif()
+endif()
 
 # Install ODL files
 install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/controller)
-
-if(NOT "${INCLUDE_DM_MAPPER_CONFIG}" STREQUAL "")
-  install(FILES "${CMAKE_SOURCE_DIR}/controller/nbapi/odl/dm_mapper_cfg" DESTINATION "config/controller/odl" RENAME "dm_mapper_cfg.odl" )
-endif()
-
-if(NOT "${INCLUDE_IEEE1905_USP_CONFIG}" STREQUAL "")
-  install(FILES "${ODL_OUTPUT_DIR}/odl/ieee1905_usp_cfg.odl" DESTINATION "config/controller/odl")
-endif()
 
 if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d)
     install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d DESTINATION config/controller/odl)
