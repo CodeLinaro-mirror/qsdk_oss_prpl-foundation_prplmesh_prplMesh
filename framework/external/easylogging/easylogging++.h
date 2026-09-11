@@ -2911,6 +2911,20 @@ m_logger->stream() << " ";\
 return *this;\
 }
 
+// Under ELPP_OUT_OF_LINE_STREAM_OPS: same signature, declaration only, with the
+// bodies in easylogging++.cc, so a log argument costs one call instead of an
+// inlined stream()/operator<</hasFlag/AutoSpacing sequence. The catch-all
+//   template <class Class> ELPP_SIMPLE_LOG(const Class&)
+// below must stay a definition, hence a separate macro rather than a change to
+// ELPP_SIMPLE_LOG itself. Without the macro this falls back to ELPP_SIMPLE_LOG,
+// so the list of overloads below is written only once.
+#if defined(ELPP_OUT_OF_LINE_STREAM_OPS)
+#  define ELPP_SIMPLE_LOG_DECL(LOG_TYPE)\
+MessageBuilder& operator<<(LOG_TYPE msg);
+#else
+#  define ELPP_SIMPLE_LOG_DECL(LOG_TYPE) ELPP_SIMPLE_LOG(LOG_TYPE)
+#endif
+
   inline MessageBuilder& operator<<(const std::string& msg) {
     return operator<<(msg.c_str());
   }
@@ -2920,20 +2934,20 @@ return *this;\
   inline MessageBuilder& operator<<(uint8_t c) {
     return operator<<(+c);
   }
-  ELPP_SIMPLE_LOG(char)
-  ELPP_SIMPLE_LOG(bool)
-  ELPP_SIMPLE_LOG(signed short)
-  ELPP_SIMPLE_LOG(unsigned short)
-  ELPP_SIMPLE_LOG(signed int)
-  ELPP_SIMPLE_LOG(unsigned int)
-  ELPP_SIMPLE_LOG(signed long)
-  ELPP_SIMPLE_LOG(unsigned long)
-  ELPP_SIMPLE_LOG(float)
-  ELPP_SIMPLE_LOG(double)
-  ELPP_SIMPLE_LOG(char*)
-  ELPP_SIMPLE_LOG(const char*)
-  ELPP_SIMPLE_LOG(const void*)
-  ELPP_SIMPLE_LOG(long double)
+  ELPP_SIMPLE_LOG_DECL(char)
+  ELPP_SIMPLE_LOG_DECL(bool)
+  ELPP_SIMPLE_LOG_DECL(signed short)
+  ELPP_SIMPLE_LOG_DECL(unsigned short)
+  ELPP_SIMPLE_LOG_DECL(signed int)
+  ELPP_SIMPLE_LOG_DECL(unsigned int)
+  ELPP_SIMPLE_LOG_DECL(signed long)
+  ELPP_SIMPLE_LOG_DECL(unsigned long)
+  ELPP_SIMPLE_LOG_DECL(float)
+  ELPP_SIMPLE_LOG_DECL(double)
+  ELPP_SIMPLE_LOG_DECL(char*)
+  ELPP_SIMPLE_LOG_DECL(const char*)
+  ELPP_SIMPLE_LOG_DECL(const void*)
+  ELPP_SIMPLE_LOG_DECL(long double)
   inline MessageBuilder& operator<<(const std::wstring& msg) {
     return operator<<(msg.c_str());
   }
@@ -3185,6 +3199,7 @@ ELPP_LITERAL("(") << elem->first << ELPP_LITERAL(", ") << elem->second << ELPP_L
   template <class Class>
   ELPP_SIMPLE_LOG(const Class&)
 #undef ELPP_SIMPLE_LOG
+#undef ELPP_SIMPLE_LOG_DECL
 #undef ELPP_ITERATOR_CONTAINER_LOG_ONE_ARG
 #undef ELPP_ITERATOR_CONTAINER_LOG_TWO_ARG
 #undef ELPP_ITERATOR_CONTAINER_LOG_THREE_ARG
@@ -3233,21 +3248,60 @@ class NullWriter : base::NoCopy {
 /// @brief Main entry point of each logging
 class Writer : base::NoCopy {
  public:
+#if defined(ELPP_OUT_OF_LINE_STREAM_OPS)
+  // Out of line: the member initialisation includes a std::vector<std::string>
+  // and a MessageBuilder (which holds a std::string).
+  Writer(Level level, const char* file, base::type::LineNumber line,
+         const char* func, base::DispatchAction dispatchAction = base::DispatchAction::NormalLog,
+         base::type::VerboseLevel verboseLevel = 0);
+#else
   Writer(Level level, const char* file, base::type::LineNumber line,
          const char* func, base::DispatchAction dispatchAction = base::DispatchAction::NormalLog,
          base::type::VerboseLevel verboseLevel = 0) :
     m_msg(nullptr), m_level(level), m_file(file), m_line(line), m_func(func), m_verboseLevel(verboseLevel),
     m_logger(nullptr), m_proceed(false), m_dispatchAction(dispatchAction) {
   }
+#endif
 
   Writer(LogMessage* msg, base::DispatchAction dispatchAction = base::DispatchAction::NormalLog) :
     m_msg(msg), m_level(msg != nullptr ? msg->level() : Level::Unknown),
     m_line(0), m_logger(nullptr), m_proceed(false), m_dispatchAction(dispatchAction) {
   }
 
+#if defined(ELPP_OUT_OF_LINE_STREAM_OPS)
+  // Out of line for the same reason, plus it anchors the vtable in libelpp
+  // instead of emitting it in every translation unit that logs.
+  virtual ~Writer(void);
+
+  // Non-template overloads for the argument types that appear in log statements.
+  // They resolve ahead of the template below (a non-template wins an otherwise
+  // equal match) and are defined once in easylogging++.cc. Without the macro
+  // they are omitted and the template handles every one of these types.
+#  define ELPP_WRITER_SIMPLE_LOG_DECL(LOG_TYPE)\
+Writer& operator<<(LOG_TYPE msg);
+  ELPP_WRITER_SIMPLE_LOG_DECL(char)
+  ELPP_WRITER_SIMPLE_LOG_DECL(bool)
+  ELPP_WRITER_SIMPLE_LOG_DECL(signed char)
+  ELPP_WRITER_SIMPLE_LOG_DECL(unsigned char)
+  ELPP_WRITER_SIMPLE_LOG_DECL(signed short)
+  ELPP_WRITER_SIMPLE_LOG_DECL(unsigned short)
+  ELPP_WRITER_SIMPLE_LOG_DECL(signed int)
+  ELPP_WRITER_SIMPLE_LOG_DECL(unsigned int)
+  ELPP_WRITER_SIMPLE_LOG_DECL(signed long)
+  ELPP_WRITER_SIMPLE_LOG_DECL(unsigned long)
+  ELPP_WRITER_SIMPLE_LOG_DECL(float)
+  ELPP_WRITER_SIMPLE_LOG_DECL(double)
+  ELPP_WRITER_SIMPLE_LOG_DECL(long double)
+  ELPP_WRITER_SIMPLE_LOG_DECL(char*)
+  ELPP_WRITER_SIMPLE_LOG_DECL(const char*)
+  ELPP_WRITER_SIMPLE_LOG_DECL(const void*)
+  ELPP_WRITER_SIMPLE_LOG_DECL(const std::string&)
+#undef ELPP_WRITER_SIMPLE_LOG_DECL
+#else
   virtual ~Writer(void) {
     processDispatch();
   }
+#endif
 
   template <typename T>
   typename std::enable_if<not std::is_enum<T>::value, Writer&>::type
