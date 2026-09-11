@@ -15,6 +15,26 @@
 #include <stdint.h>
 #include <string>
 
+/**
+ * @brief Marks a generated codec method as library-local.
+ *
+ * The generated classes export roughly 12800 symbols between libtlvf and
+ * libbtlvf, and the resulting .dynstr/.dynsym/.hash are a large fraction of
+ * both libraries. init() is private and only ever called from the generated
+ * constructor in the same translation unit, so it needs no visibility outside
+ * the library defining it.
+ *
+ * finalize() and class_swap() must NOT be marked: callers outside the codec
+ * libraries invoke them directly on a concrete type (e.g.
+ * beerocks::CmduUtils::verify_cmdu calls tlvVendorSpecific::class_swap), so
+ * hiding either breaks the link.
+ */
+#if defined(TLVF_FLASH_OPTIMIZATION) && defined(__GNUC__) && __GNUC__ >= 4
+#define TLVF_LOCAL __attribute__((visibility("hidden")))
+#else
+#define TLVF_LOCAL
+#endif
+
 class ClassList;
 
 class BaseClass {
@@ -27,6 +47,27 @@ public:
     uint8_t *getStartBuffPtr();
     size_t getBuffRemainingBytes(void *start = nullptr);
     bool buffPtrIncrementSafe(size_t length);
+
+    /**
+     * @brief buffPtrIncrementSafe, logging the failure.
+     */
+    bool buffPtrIncrementSafeLogged(size_t length);
+
+    /**
+     * @brief Whether the buffer still holds initial_size bytes, logging if not.
+     */
+    bool hasInitialSpace(size_t initial_size);
+
+    /**
+     * @brief Whether length bytes remain from start (default: the current
+     * pointer), logging if not.
+     */
+    bool hasSpaceFor(size_t length, void *start = nullptr);
+
+    /**
+     * @brief hasSpaceFor for the alloc paths, which log a distinct message.
+     */
+    bool hasSpaceForAlloc(size_t length);
 
     size_t getLen();
     bool isInitialized();
