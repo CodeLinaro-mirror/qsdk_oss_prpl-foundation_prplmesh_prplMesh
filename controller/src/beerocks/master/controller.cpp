@@ -5626,7 +5626,6 @@ bool Controller::handle_tlv_profile3_1905_layer_security_capabilities(
     return true;
 }
 
-#ifdef ENABLE_NBAPI
 static bool agent_has_radio_channel_caps(const Agent &agent)
 {
     for (const auto &radio : agent.radios) {
@@ -5640,19 +5639,29 @@ static bool agent_has_radio_channel_caps(const Agent &agent)
 static void restage_wifi_templates_on_new_radio_channel_caps(Agent &agent,
                                                              bool had_channel_caps_before)
 {
+    if (!NBAPI_ON) {
+        return;
+    }
+
     const bool channel_caps_learned =
         !had_channel_caps_before && agent_has_radio_channel_caps(agent);
 
     if (channel_caps_learned) {
         LOG(INFO) << "Radio channel capabilities learned for agent " << agent.al_mac
                   << ", re-staging Wi-Fi templates";
+#if NBAPI_ON
         prplmesh::controller::actions::templates_restage_only();
+#endif
     }
 }
 
 static void restage_wifi_templates_on_new_security_caps(Agent &agent, bool had_cipher_before,
                                                         bool had_akm_before)
 {
+    if (!NBAPI_ON) {
+        return;
+    }
+
     const bool cipher_learned =
         !had_cipher_before && agent.security_capabilities.valid_cipher_suites;
     const bool akm_learned = !had_akm_before && agent.security_capabilities.valid_akm_suites;
@@ -5661,10 +5670,11 @@ static void restage_wifi_templates_on_new_security_caps(Agent &agent, bool had_c
         LOG(INFO) << "Security capabilities learned for agent " << agent.al_mac
                   << " (cipher=" << cipher_learned << ", akm=" << akm_learned
                   << "), re-staging Wi-Fi templates";
+#if NBAPI_ON
         prplmesh::controller::actions::templates_restage_only();
+#endif
     }
 }
-#endif
 
 bool Controller::handle_cmdu_1905_bss_configuration_request_message(
     const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
@@ -5693,10 +5703,8 @@ bool Controller::handle_cmdu_1905_bss_configuration_request_message(
         LOG(ERROR) << "Couldn't handle Profile-2 AP Capability TLV from Agent " << src_mac;
     }
 
-#ifdef ENABLE_NBAPI
     const bool had_cipher_before = agent->security_capabilities.valid_cipher_suites;
     const bool had_akm_before    = agent->security_capabilities.valid_akm_suites;
-#endif
     if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
         LOG(DEBUG)
@@ -5707,9 +5715,7 @@ bool Controller::handle_cmdu_1905_bss_configuration_request_message(
     if (!handle_tlv_supported_cipher_suites(*agent, cmdu_rx)) {
         LOG(ERROR) << "Couldn't handle Supported Cipher Suites TLV from Agent " << src_mac;
     }
-#ifdef ENABLE_NBAPI
     restage_wifi_templates_on_new_security_caps(*agent, had_cipher_before, had_akm_before);
-#endif
 
     if (!handle_tlv_profile2_ap_radio_advanced_capabilities(*agent, cmdu_rx)) {
         LOG(ERROR) << "Couldn't handle AP Radio Advanced Capabilities TLV from Agent "
@@ -6005,9 +6011,7 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         return false;
     }
 
-#ifdef ENABLE_NBAPI
     const bool had_channel_caps_before = agent_has_radio_channel_caps(*agent);
-#endif
 
     agent->radios.keep_new_prepare();
 
@@ -6109,10 +6113,8 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
     /* Wi-Fi Templates match SecurityTemplate AKM/cipher against agent.security_capabilities.
      * Parse AKM from AP/EARLY capability report for Profile-1+ so Early AP Capability
      * (sent before profile may be upgraded) still populates valid_akm_suites. */
-#ifdef ENABLE_NBAPI
     const bool had_cipher_before = agent->security_capabilities.valid_cipher_suites;
     const bool had_akm_before    = agent->security_capabilities.valid_akm_suites;
-#endif
     if (agent->profile >= wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile3_akm_suite_capabilities(*agent, cmdu_rx)) {
         LOG(DEBUG)
@@ -6124,10 +6126,8 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         LOG(DEBUG) << "tlvSupportedCipherSuites not present in AP capability report from Agent "
                    << agent->al_mac;
     }
-#ifdef ENABLE_NBAPI
     restage_wifi_templates_on_new_radio_channel_caps(*agent, had_channel_caps_before);
     restage_wifi_templates_on_new_security_caps(*agent, had_cipher_before, had_akm_before);
-#endif
 
     return all_radio_capabilities_saved_successfully;
 }
