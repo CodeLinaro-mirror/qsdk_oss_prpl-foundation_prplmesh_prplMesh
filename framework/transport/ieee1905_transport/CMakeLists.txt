@@ -1,4 +1,5 @@
 add_library(ieee1905_transport_lib 
+    ieee1905_fragmentation.cpp
     ieee1905_transport.cpp 
     ieee1905_transport_broker.cpp 
     ieee1905_transport_network.cpp 

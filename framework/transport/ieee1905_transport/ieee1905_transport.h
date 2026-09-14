@@ -16,6 +16,7 @@
 #include <bcl/network/bridge_state_manager.h>
 #include <bcl/network/interface_state_manager.h>
 
+#include "ieee1905_fragmentation.h"
 #include "ieee1905_transport_broker.h"
 
 #include <tlvf/tlvftypes.h>
@@ -160,41 +161,6 @@ private:
         uint16_t ether_type;           /* packet type ID field    */
     } __attribute__((__packed__));
 
-// IEEE1905 CMDU header in packed format
-#pragma pack(push, 1)
-    struct Ieee1905CmduHeader {
-        uint8_t messageVersion;
-        uint8_t _reservedField0;
-        uint16_t messageType;
-        uint16_t messageId;
-        uint8_t fragmentId;
-        uint8_t flags;
-        void SetLastFragmentIndicator(bool value)
-        {
-            flags = (flags & ~0x80) | (value ? 0x80 : 0x00);
-        };
-        bool GetLastFragmentIndicator() { return (flags & 0x80); };
-        void SetRelayIndicator(bool value) { flags = (flags & ~0x40) | (value ? 0x40 : 0x00); };
-        bool GetRelayIndicator() { return (flags & 0x40); };
-    };
-#pragma pack(pop)
-
-    // packed TLV struct to help in the parsing of the packet
-#pragma pack(push, 1)
-    struct Tlv {
-    protected:
-        uint8_t tlvType;
-        uint16_t tlvLength;
-
-    public:
-        uint8_t &type() { return tlvType; }
-
-        Tlv *next() { return (Tlv *)((uint8_t *)this + size()); }
-
-        size_t size() { return sizeof(Tlv) + ntohs(tlvLength); }
-    };
-#pragma pack(pop)
-
     // internal statistics counters
     enum CounterId {
         MESSAGE_ID_WRAPAROUND,
@@ -314,57 +280,8 @@ private:
     };
     std::map<DeDuplicationKey, DeDuplicationValue, DeDuplicationKeyCompare> de_duplication_map_;
 
-    // de-fragmentation internal data structures
-
-    // two IEE1905 packet fragments received from the same src address and with the same messageId
-    // will be considered as belonging to the same PDU iff they are received within a kMaximumDeFragmentionAge duration.
-    // This duration should be long enough to allow for any buffered/in-transit fragments to arrive; and
-    // should be short enough to handle the case when a device reboots (and reuses the same messageId).
-    const std::chrono::milliseconds kMaximumDeFragmentationAge = std::chrono::milliseconds(1000);
-
-    // limit the size of the de-fragmentation map (to prevent memory exhaustion attack)
-    const int kMaximumDeFragmentationThreads = 16;
-
-    static const size_t kMaximumDeFragmentionSize = (64 * 1024);
-
-    struct DeFragmentationKey {
-        sMacAddr src;
-        uint16_t
-            messageType; // required to distinguish the case of Request / Reply (when the reply carries an out of sync MID)
-        uint16_t messageId;
-    };
-    struct DeFragmentationKeyCompare {
-        // implement Compare for the std::map template
-        bool operator()(const DeFragmentationKey &lhs, const DeFragmentationKey &rhs) const
-        {
-            // compare based on src address first then messageId
-            int srccmp = memcmp(lhs.src.oct, rhs.src.oct, ETH_ALEN);
-            if (srccmp)
-                return srccmp < 0;
-            else if (lhs.messageType != rhs.messageType)
-                return lhs.messageType < rhs.messageType;
-            else
-                return lhs.messageId < rhs.messageId;
-        }
-    };
-    struct DeFragmentationValue {
-        std::chrono::steady_clock::time_point time;
-        uint8_t numFragments                   = 0;
-        uint8_t buf[kMaximumDeFragmentionSize] = {0};
-        int bufIndex                           = 0;
-        bool complete                          = false;
-    };
-    std::map<DeFragmentationKey, DeFragmentationValue, DeFragmentationKeyCompare>
-        de_fragmentation_map_;
-
-    static const int kIeee1905FragmentationThreashold = tlvf::
-        MAX_TLV_SIZE; // IEEE1905 packets (CMDU) should be fragmented if larger than this threashold
-
-    // When fragmenting a message it is expected that only the last fragment will have an END OF MESSAGE TLV.
-    // However, when sending a TLV smaller than then the minimum ethernet frame, a padding is added to the frame.
-    // This padding might cause us having unwanted EOM TLV.
-    static const int kIeee1905FragmentationMinimum = 64 - 2 * 6 /* src, dest MAC */ - 2 /* Type */;
-
+    Ieee1905Defragmenter de_fragmenter_{
+        [this]() { counters_[CounterId::DEFRAGMENTATION_FAILURE]++; }};
     //
     // NETWORK INTERFACE STUFF
     //
