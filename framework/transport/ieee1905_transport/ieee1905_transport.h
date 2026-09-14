@@ -59,7 +59,18 @@
 namespace beerocks {
 namespace transport {
 
+namespace tests {
+/**
+ * Test-only subclass that may access private packet-processing helpers.
+ * Friendship is required because those helpers are private (unlike the
+ * protected methods exposed via TestableIEEE1905Task elsewhere in prplMesh).
+ */
+class TestableIeee1905Transport;
+} // namespace tests
+
 class Ieee1905Transport {
+    friend class tests::TestableIeee1905Transport;
+
 public:
     /**
      * Class constructor
@@ -353,6 +364,8 @@ private:
         uint8_t buf[kMaximumDeFragmentionSize] = {0};
         int bufIndex                           = 0;
         bool complete                          = false;
+        // Leading bytes of the next fragment that continue a TLV split on a byte boundary.
+        size_t splitTlvRemaining = 0;
     };
     std::map<DeFragmentationKey, DeFragmentationValue, DeFragmentationKeyCompare>
         de_fragmentation_map_;
@@ -398,7 +411,7 @@ private:
                                     bool iface_added);
     void handle_interface_pollin_event(int fd);
     bool get_interface_mac_addr(unsigned int if_index, uint8_t *addr);
-    bool send_packet_to_network_interface(unsigned int if_index, Packet &packet);
+    virtual bool send_packet_to_network_interface(unsigned int if_index, Packet &packet);
     void set_al_mac_addr(const uint8_t *addr);
 
     //
