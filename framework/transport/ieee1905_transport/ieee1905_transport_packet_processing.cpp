@@ -9,6 +9,7 @@
 #include "ieee1905_transport.h"
 #include <tlvf/ieee_1905_1/eMessageType.h>
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <chrono>
 
@@ -371,31 +372,35 @@ bool Ieee1905Transport::de_fragment_packet(Packet &packet)
 
     // Only count end of message TLV for the last fragment
     if (ch->GetLastFragmentIndicator() == 0) {
-        Tlv *tlv          = reinterpret_cast<Tlv *>((uint8_t *)packet.payload.iov_base +
-                                           sizeof(Ieee1905CmduHeader));
-        size_t tlvsLength = fragmentTlvsLength;
+        uint8_t *body =
+            reinterpret_cast<uint8_t *>(packet.payload.iov_base) + sizeof(Ieee1905CmduHeader);
 
-        // Find EOM TLV in the fragment
-        while (tlv->type() != 0) {
-            if (tlv->size() > tlvsLength) {
-                // This can only happen if one of the TLVs is corrupt
-                MAPF_ERR("Found corrupt TLV! Dropping the fragment.");
-                return false;
+        if (val.splitTlvRemaining >= fragmentTlvsLength) {
+            // The whole fragment is the continuation of a TLV split on a byte boundary.
+            val.splitTlvRemaining -= fragmentTlvsLength;
+        } else {
+            // Skip leading bytes that continue a split TLV, then walk whole TLVs for EOM/padding.
+            size_t tlvsLength     = fragmentTlvsLength - val.splitTlvRemaining;
+            Tlv *tlv              = reinterpret_cast<Tlv *>(body + val.splitTlvRemaining);
+            val.splitTlvRemaining = 0;
+
+            while (tlv->type() != 0) {
+                if (tlv->size() > tlvsLength) {
+                    // TLV continues in the next fragment (byte-boundary split).
+                    val.splitTlvRemaining = tlv->size() - tlvsLength;
+                    tlvsLength            = 0;
+                    break;
+                }
+                tlvsLength -= tlv->size();
+
+                if (tlvsLength < sizeof(Tlv)) {
+                    break;
+                }
+
+                tlv = tlv->next();
             }
-
-            tlvsLength -= tlv->size();
-
-            if (tlvsLength < sizeof(Tlv)) {
-                // No EOM TLV or some padding. Good.
-                break;
-            }
-
-            tlv = tlv->next();
+            fragmentTlvsLength -= tlvsLength;
         }
-
-        // Remove any leftover at the end of the buffer.
-        // It might be as a result of padding or EOM TLV.
-        fragmentTlvsLength -= tlvsLength;
     }
 
     std::copy_n((uint8_t *)packet.payload.iov_base + sizeof(Ieee1905CmduHeader), fragmentTlvsLength,
@@ -420,8 +425,9 @@ bool Ieee1905Transport::de_fragment_packet(Packet &packet)
 // When an IEEE1905 packet (CMDU) is larger than a standard defined threshold (1500 bytes) it should be
 // fragmented into smaller than 1500 bytes fragments.
 //
-// Fragmentation should be done on TLV boundaries.
-//
+// Fragmentation is normally done on TLV boundaries (see paragraph 7.1.1 of IEEE1905.1-2013).
+// A single TLV larger than the fragmentation threshold is split on a byte boundary across
+// multiple fragments; reassembly concatenates fragment bodies in de_fragment_packet().
 // The CMDU length is considered starting from the IEEE1905 header (it does not include the Ethernet header)
 //
 // Fragmentation will only be done when transmitting a packet to the network (and not for the tunneled
@@ -448,57 +454,68 @@ bool Ieee1905Transport::fragment_and_send_packet_to_network_interface(unsigned i
 
     // copy the IEEE1905 header (will be reused by all fragments)
     std::copy_n((uint8_t *)packet.payload.iov_base, sizeof(Ieee1905CmduHeader), buf);
-    int remainingPacketLength = packet.payload.iov_len - sizeof(Ieee1905CmduHeader);
 
-    // points to the first TLV in the currently built fragment
-    Tlv *firstTlvInFragment =
-        (Tlv *)((uint8_t *)packet.payload.iov_base + sizeof(Ieee1905CmduHeader));
+    uint8_t *payload          = (uint8_t *)packet.payload.iov_base + sizeof(Ieee1905CmduHeader);
+    int remainingPacketLength = int(packet.payload.iov_len) - int(sizeof(Ieee1905CmduHeader));
+    int payloadOffset         = 0;
+
+    // Bytes of an oversized TLV still to send as raw continuation in following fragment(s).
+    int splitTlvRemaining = 0;
 
     for (int fragmentId = 0; fragmentId < 256 && remainingPacketLength > 0; fragmentId++) {
         // search for the optimal TLV boundary for fragmentation
         // include as many TLVs as can fit into the maximum fragment size (threashold).
         int fragmentTlvsLength = 0;
-        Tlv *nextTlv           = firstTlvInFragment;
-        while (1) {
-            if (remainingPacketLength == 0) {
-                // we are all done
-                break;
+
+        if (splitTlvRemaining > 0) {
+            fragmentTlvsLength = splitTlvRemaining < kIeee1905FragmentationThreashold
+                                     ? splitTlvRemaining
+                                     : kIeee1905FragmentationThreashold;
+            splitTlvRemaining -= fragmentTlvsLength;
+        } else {
+            // Pack as many whole TLVs as fit within the fragmentation threshold.
+            Tlv *nextTlv = reinterpret_cast<Tlv *>(payload + payloadOffset);
+            while (true) {
+                int avail = remainingPacketLength - fragmentTlvsLength;
+                if (avail == 0) {
+                    break;
+                }
+                if (avail < int(sizeof(Tlv))) {
+                    MAPF_WARN("bad packet format - extra bytes at end of message.");
+                    return false;
+                }
+                if (nextTlv->type() == 0 && avail > int(nextTlv->size())) {
+                    MAPF_WARN("bad packet format - extra bytes after end of message TLV. "
+                              << avail);
+                    return false;
+                }
+                if (int(nextTlv->size()) > avail) {
+                    MAPF_WARN("bad packet format - TLV exceeds packet bounds.");
+                    return false;
+                }
+                if (fragmentTlvsLength == 0 &&
+                    int(nextTlv->size()) > kIeee1905FragmentationThreashold) {
+                    // TLV too large for one fragment on a TLV boundary — byte-split it.
+                    fragmentTlvsLength = kIeee1905FragmentationThreashold;
+                    splitTlvRemaining  = int(nextTlv->size()) - kIeee1905FragmentationThreashold;
+                    break;
+                }
+                if (fragmentTlvsLength + int(nextTlv->size()) > kIeee1905FragmentationThreashold) {
+                    break;
+                }
+                fragmentTlvsLength += int(nextTlv->size());
+                nextTlv = nextTlv->next();
             }
-            if (remainingPacketLength < int(sizeof(Tlv))) {
-                // packet has a few padding bytes
-                MAPF_WARN("bad packet format - extra bytes at end of message.");
-                return false;
-            }
-            if (nextTlv->type() == 0 && remainingPacketLength > int(nextTlv->size())) {
-                MAPF_WARN("bad packet format - extra bytes after end of message TLV. "
-                          << remainingPacketLength);
-                return false;
-            }
-            if (nextTlv->size() > kIeee1905FragmentationThreashold) {
-                // this TLV is too large to fit in any fragment
-                MAPF_WARN("bad packet format - oversized TLV found.");
-                return false;
-            }
-            if (int(nextTlv->size()) > remainingPacketLength) {
-                MAPF_WARN("bad packet format - TLV exceeds packet bounds.");
-                return false;
-            }
-            if (fragmentTlvsLength + nextTlv->size() >= kIeee1905FragmentationThreashold) {
-                // including the next TLV will go over the threashold - let's fragment at this TLV's boundary
-                break;
-            }
-            fragmentTlvsLength += nextTlv->size();
-            remainingPacketLength -= nextTlv->size();
-            nextTlv = nextTlv->next();
         }
-        if (fragmentId == 256) {
-            MAPF_WARN("bad packet format - packet is too long.");
+
+        if (fragmentTlvsLength == 0) {
+            MAPF_WARN("bad packet format - unable to build a non-empty fragment.");
             return false;
         }
 
-        // copy the TLVs into the fragment packet buffer
-        std::copy_n((uint8_t *)firstTlvInFragment, fragmentTlvsLength,
-                    buf + sizeof(Ieee1905CmduHeader));
+        std::copy_n(payload + payloadOffset, fragmentTlvsLength, buf + sizeof(Ieee1905CmduHeader));
+        remainingPacketLength -= fragmentTlvsLength;
+        payloadOffset += fragmentTlvsLength;
 
         // update IEEE1905 header (fragmentId and lastFragmentIndicator)
         Ieee1905CmduHeader *hdr = reinterpret_cast<Ieee1905CmduHeader *>(buf);
@@ -519,8 +536,11 @@ bool Ieee1905Transport::fragment_and_send_packet_to_network_interface(unsigned i
         if (!send_packet_to_network_interface(if_index, fragment_packet)) {
             return false;
         }
+    }
 
-        firstTlvInFragment = nextTlv;
+    if (remainingPacketLength > 0) {
+        MAPF_WARN("bad packet format - packet is too long.");
+        return false;
     }
 
     return true;
