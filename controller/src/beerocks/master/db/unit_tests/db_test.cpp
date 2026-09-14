@@ -855,6 +855,81 @@ TEST_F(DbTest, test_set_ap_ht_capabilities)
     EXPECT_TRUE(m_db->set_ap_ht_capabilities(tlvf::mac_from_string(g_radio_mac_2), flags2));
 }
 
+/** BSS staging list used by Wi-Fi templates. */
+TEST_F(DbTest, test_bss_info_configuration_add_and_clear_for_wifi_templates)
+{
+    EXPECT_TRUE(m_db->get_bss_info_configuration().empty());
+
+    son::wireless_utils::sBssInfoConf bss{};
+    bss.ssid = "prplmesh";
+    m_db->add_bss_info_configuration(bss);
+
+    ASSERT_EQ(1U, m_db->get_bss_info_configuration().size());
+    EXPECT_EQ("prplmesh", m_db->get_bss_info_configuration().front().ssid);
+
+    m_db->clear_bss_info_configuration();
+    EXPECT_TRUE(m_db->get_bss_info_configuration().empty());
+}
+
+/** HT caps set max_wifi_generation_supported to at least Wi-Fi 4. */
+TEST_F(DbTestRadio1, test_ht_capabilities_set_max_wifi_generation_for_templates)
+{
+    auto radio = m_db->get_radio_by_uid(tlvf::mac_from_string(g_radio_mac_1));
+    ASSERT_TRUE(radio);
+    EXPECT_EQ(0U, radio->max_wifi_generation_supported);
+
+    wfa_map::tlvApHtCapabilities::sFlags flags    = {};
+    flags.ht_support_40mhz                        = 1;
+    flags.short_gi_support_20mhz                  = 1;
+    flags.max_num_of_supported_rx_spatial_streams = 1;
+    flags.max_num_of_supported_tx_spatial_streams = 1;
+
+    const std::string capabilities    = g_radio_path_1 + ".Capabilities.";
+    const std::string ht_capabilities = capabilities + "HTCapabilities.";
+
+    EXPECT_CALL(*m_ambiorix, add_optional_subobject(capabilities, "HTCapabilities"))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(ht_capabilities, "HTShortGI20", Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(ht_capabilities, "HTShortGI40", Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(ht_capabilities, "HT40", Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(ht_capabilities, "MaxNumberOfTxSpatialStreams", Matcher<const int32_t &>(2)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(ht_capabilities, "MaxNumberOfRxSpatialStreams", Matcher<const int32_t &>(2)))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->set_ap_ht_capabilities(tlvf::mac_from_string(g_radio_mac_1), flags));
+    EXPECT_EQ(4U, radio->max_wifi_generation_supported);
+}
+
+/** Op class 81 (2.4/20) vs 115 (5/20) channel lookup. */
+TEST_F(DbTestRadio1, test_supported_channels_op_class_lookup_for_wifi_templates)
+{
+    constexpr uint8_t op_class_24g = 81;
+    constexpr uint8_t op_class_5g  = 115;
+    constexpr uint8_t channel_6    = 6;
+
+    const auto radio_mac = tlvf::mac_from_string(g_radio_mac_1);
+    auto radio           = m_db->get_radio_by_uid(radio_mac);
+    ASSERT_TRUE(radio);
+    EXPECT_TRUE(radio->supported_channels.empty());
+    EXPECT_TRUE(m_db->get_supported_channels_in_operating_class(radio_mac, op_class_24g).empty());
+
+    beerocks::WifiChannel ch(channel_6, beerocks::eFreqType::FREQ_24G,
+                             beerocks::eWiFiBandwidth::BANDWIDTH_20);
+    ASSERT_TRUE(m_db->set_radio_supported_channels(radio_mac, &ch, 1));
+    EXPECT_TRUE(radio->supports_24ghz);
+
+    const auto in_24g = m_db->get_supported_channels_in_operating_class(radio_mac, op_class_24g);
+    EXPECT_EQ(1U, in_24g.size());
+    EXPECT_EQ(1U, in_24g.count(channel_6));
+    EXPECT_TRUE(m_db->get_supported_channels_in_operating_class(radio_mac, op_class_5g).empty());
+}
+
 TEST_F(DbTest, test_add_hostap_supported_operating_class)
 {
     const std::string operating_classes =
