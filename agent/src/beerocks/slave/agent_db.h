@@ -700,17 +700,60 @@ public:
         beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
     } sMLDConfiguration;
 
-    typedef struct {
+    struct sAPMLDConfiguration {
         typedef struct {
             std::string alias;
-            sMacAddr ruid;
-            sMacAddr bssid;
-            int8_t link_id;
+            sMacAddr ruid  = net::network_utils::ZERO_MAC;
+            sMacAddr bssid = net::network_utils::ZERO_MAC;
+            int8_t link_id = DISABLED_MLDUNIT;
+
+            bool has_valid_link_id() const { return link_id >= 0 && link_id <= 15; }
         } sAffiliatedAP;
 
         sMLDConfiguration mld_config;
         std::vector<sAffiliatedAP> affiliated_aps;
-    } sAPMLDConfiguration;
+
+        // Called on a freshly parsed descriptor. Preserve notification-confirmed
+        // fields for unchanged other radios, never pre-configuration BSS caches.
+        void retain_unchanged_links(const sAPMLDConfiguration &previous,
+                                    const sMacAddr &reconfigured_ruid)
+        {
+            if (reconfigured_ruid == net::network_utils::ZERO_MAC ||
+                mld_config.mld_unit == DISABLED_MLDUNIT ||
+                mld_config.mld_ssid != previous.mld_config.mld_ssid ||
+                mld_config.mld_unit != previous.mld_config.mld_unit ||
+                mld_config.mld_mode != previous.mld_config.mld_mode ||
+                previous.mld_config.mld_mac == net::network_utils::ZERO_MAC ||
+                affiliated_aps.size() != previous.affiliated_aps.size()) {
+                return;
+            }
+
+            std::unordered_map<sMacAddr, const sAffiliatedAP *> previous_links;
+            for (const auto &ap : previous.affiliated_aps) {
+                if (!previous_links.emplace(ap.ruid, &ap).second) {
+                    return;
+                }
+            }
+            std::unordered_set<sMacAddr> requested_ruids;
+            for (const auto &ap : affiliated_aps) {
+                if (ap.ruid == net::network_utils::ZERO_MAC ||
+                    !requested_ruids.insert(ap.ruid).second || !previous_links.count(ap.ruid)) {
+                    return;
+                }
+            }
+
+            for (auto &ap : affiliated_aps) {
+                const auto &old = *previous_links.at(ap.ruid);
+                if (ap.ruid == reconfigured_ruid || old.bssid == net::network_utils::ZERO_MAC ||
+                    !old.has_valid_link_id()) {
+                    continue;
+                }
+                ap.bssid           = old.bssid;
+                ap.link_id         = old.link_id;
+                mld_config.mld_mac = previous.mld_config.mld_mac;
+            }
+        }
+    };
 
     typedef struct {
         typedef struct {
