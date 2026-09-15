@@ -670,7 +670,7 @@ TopologyTask::sAdvertisedLocalInterfaces TopologyTask::collect_advertised_local_
 
         /* fronthaul interfaces */
         for (beerocks::AgentDB::sRadio::sFront::sBssid &bssid : radio->front.bssids) {
-            if ((bssid.mac != network_utils::ZERO_MAC) && !bssid.ssid.empty()) {
+            if ((bssid.mac != network_utils::ZERO_MAC) && !bssid.ssid.empty() && bssid.enabled) {
                 info.ifname          = bssid.iface_name;
                 info.is_backhaul     = false;
                 iface_map[bssid.mac] = info;
@@ -794,6 +794,13 @@ bool TopologyTask::add_device_information_and_bridging_capability_tlv(
 
         localInterfaceInfo->mac()        = iface.first;
         localInterfaceInfo->media_type() = iface.second.media_type;
+
+        if (iface.second.media_type == ieee1905_1::eMediaType::UNKNOWN_MEDIA) {
+            LOG(WARNING) << "Reporting local interface with UNKNOWN_MEDIA in Device Information "
+                            "TLV: mac="
+                         << iface.first << ", ifname=" << iface.second.ifname
+                         << ", is_wlan=" << iface.second.is_wlan;
+        }
 
         if (iface.second.is_wlan) {
             ieee1905_1::s802_11SpecificInformation media_info = {};

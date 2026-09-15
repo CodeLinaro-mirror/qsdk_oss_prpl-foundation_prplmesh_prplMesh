@@ -51,7 +51,14 @@ bool MediaType::get_media_type(const std::string &interface_name,
                 media_type = ieee1905_1::eMediaType::IEEE_802_3U_FAST_ETHERNET;
             } else if (SPEED_1000 <= max_speed) {
                 media_type = ieee1905_1::eMediaType::IEEE_802_3AB_GIGABIT_ETHERNET;
+            } else {
+                LOG(WARNING) << "Interface " << interface_name
+                             << " reported max_speed=" << max_speed << " (link_speed=" << link_speed
+                             << "), which doesn't map to a known 802.3 media type => UNKNOWN_MEDIA";
             }
+        } else {
+            LOG(WARNING) << "Failed getting link settings (ethtool) for interface "
+                         << interface_name << " => UNKNOWN_MEDIA";
         }
         result = true;
     } else if (ieee1905_1::eMediaTypeGroup::IEEE_802_11 == media_type_group) {
@@ -62,6 +69,16 @@ bool MediaType::get_media_type(const std::string &interface_name,
         if (radio) {
             media_type = get_802_11_media_type(*radio);
             result     = true;
+            if (media_type == ieee1905_1::eMediaType::UNKNOWN_MEDIA) {
+                LOG(WARNING) << "Interface " << interface_name << " radio capability flags "
+                             << "(ht=" << radio->ht_supported << ", vht=" << radio->vht_supported
+                             << ", he=" << radio->he_supported << ", eht=" << radio->eht_supported
+                             << ") and freq_type=" << int(radio->wifi_channel.get_freq_type())
+                             << " didn't resolve to a known 802.11 media type => UNKNOWN_MEDIA";
+            }
+        } else {
+            LOG(WARNING) << "No radio found in AgentDB for interface " << interface_name
+                         << " => UNKNOWN_MEDIA";
         }
 
     } else if (ieee1905_1::eMediaTypeGroup::IEEE_1901 == media_type_group) {
