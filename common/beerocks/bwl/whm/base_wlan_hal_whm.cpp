@@ -756,7 +756,9 @@ HALState base_wlan_hal_whm::attach(bool block)
 {
     m_radio_info.radio_state = eRadioState::ENABLED;
     populate_channels_max_tx_power();
-    refresh_radio_info();
+    if (!refresh_radio_info()) {
+        return (m_hal_state = block ? HALState::Failed : HALState::Initializing);
+    }
     return (m_hal_state = HALState::Operational);
 }
 
@@ -1325,10 +1327,15 @@ bool base_wlan_hal_whm::update_mld_status(
 
 bool base_wlan_hal_whm::refresh_vaps_info(int id)
 {
-    bool ret = false;
-
     AmbiorixVariantMap curr_vaps;
-    get_radio_vaps(curr_vaps);
+    if (!get_radio_vaps(curr_vaps)) {
+        return false;
+    }
+
+    auto saved_vaps_snapshot     = m_radio_info.available_vaps;
+    auto saved_vaps_ext_snapshot = m_vapsExtInfo;
+    bool refresh_succeeded       = true;
+    bool vap_refreshed           = false;
 
     AmbiorixVariant empty_vap;
     bool detectNewVaps = false;
@@ -1346,13 +1353,14 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
     auto handle_vap = [&](int vap_id, const bwl::VAPElement &vap) {
         bool wasEnabled = check_enabled_vap(vap.bss);
         auto updatedVAP = curr_vaps.find(vap.mac);
+        vap_refreshed   = true;
         if (updatedVAP != curr_vaps.end()) {
             LOG(INFO) << "update vap mac " << updatedVAP->first << ", insert in " << vap_id;
-            ret |= refresh_vap_info(vap_id, updatedVAP->second);
+            refresh_succeeded &= refresh_vap_info(vap_id, updatedVAP->second);
             curr_vaps.erase(vap.mac);
         } else {
             LOG(INFO) << "reset vap_id " << vap_id;
-            ret |= refresh_vap_info(vap_id, empty_vap);
+            refresh_succeeded &= refresh_vap_info(vap_id, empty_vap);
             empty_slots.push_back(vap_id);
             // slot of vap_id was freed by refresh_vap_info(empty_vap);
         }
@@ -1393,7 +1401,8 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
         int slot = empty_slots.back();
         LOG(INFO) << "insert new_vap with mac " << curr_vaps.begin()->first << " in slot " << slot;
 
-        ret |= refresh_vap_info(slot, curr_vaps.begin()->second);
+        vap_refreshed = true;
+        refresh_succeeded &= refresh_vap_info(slot, curr_vaps.begin()->second);
         if ((saved_vaps.find(slot) != saved_vaps.end()) &&
             check_enabled_vap(saved_vaps[slot].bss)) {
             newEnabledVaps.push_back(saved_vaps[slot].bss);
@@ -1401,6 +1410,13 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
         empty_slots.pop_back();
         curr_vaps.erase(curr_vaps.begin()->first);
         detectNewVaps |= true;
+    }
+
+    // A radio-wide refresh may succeed without any VAPs; a specific VAP must be found.
+    if (!refresh_succeeded || (id != IFACE_RADIO_ID && !vap_refreshed)) {
+        m_radio_info.available_vaps = std::move(saved_vaps_snapshot);
+        m_vapsExtInfo               = std::move(saved_vaps_ext_snapshot);
+        return false;
     }
 
     if (detectNewVaps) {
@@ -1413,7 +1429,7 @@ bool base_wlan_hal_whm::refresh_vaps_info(int id)
             process_ap_event(bss, "Status", status.get());
         }
     }
-    return ret;
+    return true;
 }
 
 bool base_wlan_hal_whm::update_vap_mlo_fields(VAPElement &vap_element)
@@ -1463,7 +1479,7 @@ bool base_wlan_hal_whm::update_vap_mlo_fields(VAPElement &vap_element)
     return true;
 }
 
-void base_wlan_hal_whm::populate_mlo_fields(
+bool base_wlan_hal_whm::populate_mlo_fields(
     VAPElement &vap_element, const std::unique_ptr<beerocks::wbapi::AmbiorixVariant> &ssid_obj,
     const std::string &ifname)
 {
@@ -1471,31 +1487,31 @@ void base_wlan_hal_whm::populate_mlo_fields(
 
     if (vap_element.mac.empty()) {
         LOG(ERROR) << "VAP element MAC is empty, skipping MLO field population for " << ifname;
-        return;
+        return false;
     }
 
     vap_element.link_id = DISABLED_MLDUNIT;
     vap_element.ap_mld_mac.clear();
 
-    if (vap_element.ssid.empty()) {
-        LOG(DEBUG) << "VAP is disabled, clear MLO fileds ifname:" << ifname;
-        return;
-    }
-
     int8_t mld_unit = DISABLED_MLDUNIT;
     if (!ssid_obj->read_child(mld_unit, "MLDUnit")) {
         LOG(ERROR) << "MLDUnit could not be read for ifname: " << ifname;
-        return;
+        return false;
     }
 
     vap_element.mld_id = mld_unit;
     if (mld_unit == DISABLED_MLDUNIT) {
         LOG(DEBUG) << "MLDUnit is disabled for ifname: " << ifname;
-        return;
+        return true;
+    }
+
+    if (vap_element.ssid.empty()) {
+        LOG(DEBUG) << "VAP is disabled, skip operational MLO fields for ifname: " << ifname;
+        return true;
     }
 
     update_vap_mlo_fields(vap_element);
-    return;
+    return true;
 }
 
 bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
@@ -1544,8 +1560,12 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
     // SSID shall be null in practice, setting SSID to null is not accepted by whm/hostapd.
     bool ap_enabled(false);
     ap_obj.read_child(ap_enabled, "Enable");
+    if (!ssid_obj->read_child(vap_element.configured_ssid, "SSID")) {
+        LOG(ERROR) << "SSID could not be read for " << wifi_ssid_path;
+        return false;
+    }
     if (ap_enabled) {
-        ssid_obj->read_child(vap_element.ssid, "SSID");
+        vap_element.ssid = vap_element.configured_ssid;
     } else {
         vap_element.ssid.clear();
     }
@@ -1578,7 +1598,9 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
     vap_extInfo.status = wbapi_utils::get_ap_status(ap_obj);
     LOG(INFO) << "status for " << vap_element.bss << " " << vap_extInfo.status;
 
-    populate_mlo_fields(vap_element, ssid_obj, vap_element.bss);
+    if (!populate_mlo_fields(vap_element, ssid_obj, vap_element.bss)) {
+        return false;
+    }
 
     // Store the VAP element
     LOG(WARNING) << "Detected VAP id (" << id << ") - MAC: " << vap_element.mac
@@ -1611,9 +1633,10 @@ bool base_wlan_hal_whm::refresh_vap_info(int id, const AmbiorixVariant &ap_obj)
     mapped_vap_element.vap_label = vap_element.vap_label;
     mapped_vap_extInfo.status    = vap_extInfo.status;
 
-    mapped_vap_element.mld_id     = vap_element.mld_id;
-    mapped_vap_element.link_id    = vap_element.link_id;
-    mapped_vap_element.ap_mld_mac = vap_element.ap_mld_mac;
+    mapped_vap_element.mld_id          = vap_element.mld_id;
+    mapped_vap_element.configured_ssid = vap_element.configured_ssid;
+    mapped_vap_element.link_id         = vap_element.link_id;
+    mapped_vap_element.ap_mld_mac      = vap_element.ap_mld_mac;
 
     return true;
 }
