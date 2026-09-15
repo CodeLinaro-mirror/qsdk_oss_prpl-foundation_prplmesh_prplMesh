@@ -2435,7 +2435,11 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
     }
 
     auto db(AgentDB::get());
+    const auto previous_ap_mld_configurations = std::move(db->ap_mld_configurations);
     db->ap_mld_configurations.clear();
+    const auto reconfigured_radio = radio_iface.empty() ? nullptr : db->radio(radio_iface);
+    const auto reconfigured_ruid =
+        reconfigured_radio ? reconfigured_radio->front.iface_mac : net::network_utils::ZERO_MAC;
 
     const auto prev_ap_mld_requests = m_ap_mld_requests_infos;
     m_ap_mld_requests_infos.clear();
@@ -2488,6 +2492,7 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
 
         current_ap_mld_conf.affiliated_aps.clear();
         std::ostringstream radio_list_ss;
+        bool duplicate_link_ignored = false;
         for (uint8_t affiliated_ap_it = 0; affiliated_ap_it < ap_mld.num_affiliated_ap();
              ++affiliated_ap_it) {
             std::tuple<bool, wfa_map::cAffiliatedAp &> affiliated_ap_tuple(
@@ -2506,18 +2511,57 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
                 continue;
             }
 
+            // A radio has one BSS per SSID, so it can be a link of only one AP MLD per SSID.
+            auto radio = db->get_radio_by_mac(affiliated_conf.ruid, AgentDB::eMacType::RADIO);
+            if (radio) {
+                const auto radio_requests = m_ap_mld_requests_infos.find(radio->front.iface_name);
+                if (radio_requests != m_ap_mld_requests_infos.end() &&
+                    radio_requests->second.count(ssid)) {
+                    LOG(WARNING) << "Ignoring duplicate AP MLD link of radio "
+                                 << radio->front.iface_name << " for SSID " << ssid;
+                    duplicate_link_ignored = true;
+                    continue;
+                }
+            }
+
             current_ap_mld_conf.affiliated_aps.push_back(affiliated_conf);
             radio_list_ss << " " << tlvf::mac_to_string(affiliated_conf.ruid);
 
             // Push AP MLD Configuration per radio_iface
-            auto radio = db->get_radio_by_mac(affiliated_conf.ruid, AgentDB::eMacType::RADIO);
             if (!radio) {
                 LOG(ERROR) << "RUID not found: " << affiliated_conf.ruid;
                 continue;
             }
+
             const std::string rad_iface = radio->front.iface_name;
             m_ap_mld_requests_infos[rad_iface][current_ap_mld_conf.mld_config.mld_ssid] = {
                 current_ap_mld_conf.mld_config.mld_unit, current_ap_mld_conf.mld_config.mld_mode};
+        }
+
+        if (duplicate_link_ignored && current_ap_mld_conf.affiliated_aps.empty()) {
+            LOG(WARNING) << "Ignoring AP MLD configuration for SSID " << ssid
+                         << ": all its links belong to another AP MLD";
+            db->ap_mld_configurations.pop_back();
+            continue;
+        }
+
+        // Each M2 clears the current radio until its fresh VAP notification.
+        // Other radios retain confirmed data only for an unchanged MLD. An
+        // explicit MLD reconfiguration has no radio context and retains nothing.
+        // AP MLDs may share an SSID on different radios, so match a link too.
+        const auto previous = std::find_if(
+            previous_ap_mld_configurations.begin(), previous_ap_mld_configurations.end(),
+            [&current_ap_mld_conf](const AgentDB::sAPMLDConfiguration &config) {
+                const auto &links = current_ap_mld_conf.affiliated_aps;
+                return config.mld_config.mld_ssid == current_ap_mld_conf.mld_config.mld_ssid &&
+                       !links.empty() &&
+                       std::any_of(config.affiliated_aps.begin(), config.affiliated_aps.end(),
+                                   [&links](const AgentDB::sAPMLDConfiguration::sAffiliatedAP &ap) {
+                                       return ap.ruid == links.front().ruid;
+                                   });
+            });
+        if (previous != previous_ap_mld_configurations.end()) {
+            current_ap_mld_conf.retain_unchanged_links(*previous, reconfigured_ruid);
         }
 
         LOG(DEBUG) << "Storing MLD configuration for AP MLD " << ssid
@@ -2998,23 +3042,12 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     bssid->link_id   = vap_info.link_id;
     bssid->apmld_mac = vap_info.ap_mld_mac;
 
-    for (auto &ap_mld_conf : db->ap_mld_configurations) {
-        if (ap_mld_conf.mld_config.mld_ssid == vap_info.ssid) {
-            ap_mld_conf.mld_config.mld_mac = vap_info.ap_mld_mac;
-            LOG(DEBUG) << "AP MLD MAC for SSID: " << vap_info.ssid << ", BSSID: " << vap_info.mac
-                       << ", AP MLD MAC: " << ap_mld_conf.mld_config.mld_mac;
-            for (auto &affiliated_ap : ap_mld_conf.affiliated_aps) {
-                if (affiliated_ap.ruid == radio->front.iface_mac) {
-                    LOG(DEBUG) << "Affiliated AP found ruid: " << affiliated_ap.ruid
-                               << ", ap bssid: " << vap_info.mac
-                               << ", link_id: " << vap_info.link_id;
-                    affiliated_ap.bssid   = vap_info.mac;
-                    affiliated_ap.link_id = vap_info.link_id;
-                    break;
-                }
-            }
-            break;
-        }
+    if (update_ap_mld_link(db->ap_mld_configurations, vap_info.ssid, radio->front.iface_mac,
+                           vap_info.mac, vap_info.link_id, vap_info.ap_mld_mac)) {
+        LOG(DEBUG) << "Affiliated AP updated for SSID: " << vap_info.ssid
+                   << ", ruid: " << radio->front.iface_mac << ", bssid: " << vap_info.mac
+                   << ", link_id: " << int(vap_info.link_id)
+                   << ", AP MLD MAC: " << vap_info.ap_mld_mac;
     }
 
     auto notification_out = message_com::create_vs_message<
