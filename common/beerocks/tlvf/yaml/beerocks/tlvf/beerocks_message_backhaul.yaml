@@ -32,6 +32,7 @@ cACTION_BACKHAUL_CONNECTED_NOTIFICATION:
 cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION:
   _type: class
   stopped: uint8_t
+  teardown_fronthaul: uint8_t
 
 cACTION_BACKHAUL_ENABLE_APS_REQUEST:
   _type: class

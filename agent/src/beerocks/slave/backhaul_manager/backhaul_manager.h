@@ -453,6 +453,9 @@ private:
     // Runtime fallback guard. Set after wired controller discovery timeout and kept across the
     // BackhaulManager restart so the next ENABLED pass can try wireless onboarding.
     bool m_skip_wired_backhaul = false;
+    // Set only when an established backhaul is confirmed lost. Other RESTART users must not cause
+    // the Agent to tear down its fronthaul BSSs.
+    bool m_teardown_fronthaul_on_disconnect = false;
     std::string m_preferred_wired_candidate_iface;
     std::chrono::steady_clock::time_point m_next_wired_controller_probe_time =
         std::chrono::steady_clock::time_point::min();

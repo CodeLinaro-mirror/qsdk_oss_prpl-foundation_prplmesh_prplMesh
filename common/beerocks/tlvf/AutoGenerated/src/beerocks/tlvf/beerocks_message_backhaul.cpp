@@ -261,6 +261,10 @@ uint8_t& cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION::stopped() {
     return (uint8_t&)(*m_stopped);
 }
 
+uint8_t& cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION::teardown_fronthaul() {
+    return (uint8_t&)(*m_teardown_fronthaul);
+}
+
 void cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION::class_swap()
 {
     tlvf_swap(8*sizeof(eActionOp_BACKHAUL), reinterpret_cast<uint8_t*>(m_action_op));
@@ -297,6 +301,7 @@ size_t cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION::get_initial_size()
 {
     size_t class_size = 0;
     class_size += sizeof(uint8_t); // stopped
+    class_size += sizeof(uint8_t); // teardown_fronthaul
     return class_size;
 }
 
@@ -307,6 +312,11 @@ bool cACTION_BACKHAUL_DISCONNECTED_NOTIFICATION::init()
         return false;
     }
     m_stopped = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_teardown_fronthaul = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;

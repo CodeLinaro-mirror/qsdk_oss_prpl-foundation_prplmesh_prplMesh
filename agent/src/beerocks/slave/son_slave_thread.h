@@ -10,6 +10,7 @@
 #define _SON_SLAVE_THREAD_H
 
 #include "agent_db.h"
+#include "helpers/fronthaul_bss_teardown.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
 
@@ -26,6 +27,8 @@
 
 #include <beerocks/tlvf/beerocks_header.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
+
+#include <set>
 
 // Forward decleration
 namespace beerocks_message {
@@ -239,6 +242,19 @@ private:
     bool fsm_all();
     bool agent_fsm();
     void agent_reset();
+
+    /**
+     * @brief Sends BSS teardown requests to the fronthaul AP managers.
+     *
+     * @param report_completion Request and track AP-manager completion responses. Completion is
+     *        asynchronous and handled by the Agent event loop.
+     * @param radio_iface If empty, process all radios. Otherwise, process only this radio.
+     * @return true if all applicable requests were built and sent successfully, false otherwise.
+     *         When completion reporting is requested, this return value does not include the
+     *         asynchronous HAL result.
+     */
+    bool send_fronthaul_bss_teardown(bool report_completion         = false,
+                                     const std::string &radio_iface = {});
     void stop_slave_thread();
     void fronthaul_start(const std::string &fronthaul_iface);
     void fronthaul_stop(const std::string &fronthaul_iface);
@@ -392,6 +408,12 @@ private:
 
     bool m_is_backhaul_disconnected = false;
     int m_agent_resets_counter      = 0;
+    FronthaulBssTeardown m_fronthaul_bss_teardown;
+    bool m_reset_after_fronthaul_bss_teardown = false;
+    // Stable interface names retain failed work across AP-manager socket/process replacement.
+    std::set<std::string> m_pending_fronthaul_bss_teardown_retries;
+    // Subset attempted in the current post-reset replay, used for bounded final failure handling.
+    std::set<std::string> m_current_fronthaul_bss_teardown_retries;
 
     TaskPool m_task_pool;
 
@@ -550,6 +572,9 @@ private:
      */
     inline void fronthaul_reset(const sManagedRadio &radio_manager) const
     {
+        if (m_fronthaul_bss_teardown.active()) {
+            return;
+        }
         m_cmdu_server->disconnect(radio_manager.ap_manager_fd);
     }
 

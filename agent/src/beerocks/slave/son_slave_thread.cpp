@@ -81,8 +81,10 @@
 
 #include <algorithm>
 #include <cstring>
+#include <map>
 #include <sstream>
 #include <utility>
+#include <vector>
 
 #include <sys/socket.h>
 
@@ -97,6 +99,7 @@ constexpr int MONITOR_HEARTBEAT_RETRIES                               = 10;
 constexpr int AP_MANAGER_HEARTBEAT_TIMEOUT_SEC                        = 10;
 constexpr int AP_MANAGER_HEARTBEAT_RETRIES                            = 10;
 constexpr std::chrono::seconds WAIT_FOR_FRONTHAUL_JOINED_TIMEOUT_SEC  = std::chrono::seconds(60);
+constexpr std::chrono::seconds FRONTHAUL_BSS_TEARDOWN_TIMEOUT{30};
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////// Local Module Functions ///////////////////////////
@@ -393,6 +396,9 @@ bool slave_thread::thread_init()
     m_tasks_timer = m_timer_manager->add_timer(
         "Agent Tasks", tasks_timer_period, tasks_timer_period,
         [&, tasks_timer_period](int fd, beerocks::EventLoop &loop) {
+            if (m_fronthaul_bss_teardown.active()) {
+                return true;
+            }
             // Allow tasks to execute up to 80% of the timer period
             m_task_pool.run_tasks(int(double(tasks_timer_period.count()) * 0.8));
             return true;
@@ -439,12 +445,22 @@ bool slave_thread::thread_init()
 
 void slave_thread::stop_slave_thread()
 {
+    // Explicit process shutdown cannot wait for further event-loop callbacks.
+    m_fronthaul_bss_teardown.reset();
+    m_pending_fronthaul_bss_teardown_retries.clear();
+    m_current_fronthaul_bss_teardown_retries.clear();
+    m_reset_after_fronthaul_bss_teardown = false;
     agent_reset();
     should_stop = true;
 }
 
 void slave_thread::agent_reset()
 {
+    // Socket-disconnect and platform callbacks may also request a reset while AP managers
+    // are applying teardown. Only the completion/timeout path may stop them in that phase.
+    if (m_fronthaul_bss_teardown.active()) {
+        return;
+    }
     // If already during reset, return.
     if (m_agent_state < eSlaveState::STATE_LOAD_PLATFORM_CONFIGURATION) {
         return;
@@ -496,6 +512,158 @@ void slave_thread::agent_reset()
 
     LOG(DEBUG) << "goto STATE_INIT";
     m_agent_state = STATE_INIT;
+}
+
+bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
+                                               const std::string &radio_iface_filter)
+{
+    bool success = true;
+    std::string bridge_iface;
+    std::map<std::string, std::vector<sMacAddr>> bssids_by_radio;
+
+    {
+        auto db = AgentDB::get();
+
+        // In non-EasyMesh mode, never modify hostapd configuration. EasyMesh and manually
+        // configured VAPs cannot currently be distinguished in that mode.
+        if (db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
+            LOG(WARNING) << "non-EasyMesh mode - skip tearing down fronthaul BSSs";
+            return true;
+        }
+
+        bridge_iface = db->bridge.iface_name;
+
+        // Keep the AgentDB lock only while taking the snapshot used to build the requests below.
+        for (const auto &radio_manager_element : m_radio_managers.get()) {
+            const auto &radio_iface = radio_manager_element.first;
+
+            if (!radio_iface_filter.empty() && radio_iface != radio_iface_filter) {
+                continue;
+            }
+
+            auto radio = db->radio(radio_iface);
+            if (!radio) {
+                LOG(ERROR) << "Cannot tear down fronthaul BSSs: radio " << radio_iface
+                           << " was not found in AgentDB";
+                success = false;
+                continue;
+            }
+
+            auto &bssids = bssids_by_radio[radio_iface];
+            for (const auto &bss : radio->front.bssids) {
+                if (bss.mac != network_utils::ZERO_MAC) {
+                    bssids.push_back(bss.mac);
+                }
+            }
+        }
+    }
+
+    for (const auto &radio_manager_element : m_radio_managers.get()) {
+        const auto &radio_iface   = radio_manager_element.first;
+        const auto &radio_manager = radio_manager_element.second;
+
+        if (!radio_iface_filter.empty() && radio_iface != radio_iface_filter) {
+            continue;
+        }
+
+        const auto bssids_it = bssids_by_radio.find(radio_iface);
+        if (bssids_it == bssids_by_radio.end()) {
+            continue;
+        }
+
+        const auto &bssids            = bssids_it->second;
+        const auto teardown_bss_count = bssids.size();
+        if (teardown_bss_count == 0) {
+            LOG(DEBUG) << "No configured fronthaul BSSs to tear down on " << radio_iface;
+            if (report_completion) {
+                m_pending_fronthaul_bss_teardown_retries.erase(radio_iface);
+            }
+            continue;
+        }
+
+        if (report_completion) {
+            // Interface names survive AP-manager restarts; socket descriptors do not. Retain the
+            // radio until a successful HAL response so it can be replayed after Agent reset.
+            m_pending_fronthaul_bss_teardown_retries.insert(radio_iface);
+        }
+
+        if (radio_manager.ap_manager_fd == net::FileDescriptor::invalid_descriptor) {
+            LOG(WARNING) << "Cannot tear down fronthaul BSSs on " << radio_iface
+                         << ": AP manager is unavailable";
+            success = false;
+            continue;
+        }
+
+        // Reset VLAN configuration before tearing down the BSSs.
+        auto pvid_set_request = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_HOSTAP_SET_PRIMARY_VLAN_ID_REQUEST>(cmdu_tx);
+        if (!pvid_set_request) {
+            LOG(ERROR) << "Failed building primary VLAN reset for " << radio_iface;
+            success = false;
+        } else {
+            pvid_set_request->primary_vlan_id() = net::UNCONFIGURED_VLAN_ID;
+            if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+                LOG(ERROR) << "Failed sending primary VLAN reset to AP manager for " << radio_iface;
+                success = false;
+            }
+        }
+
+        auto request_out = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>(
+            cmdu_tx, report_completion ? m_fronthaul_bss_teardown.request_id() : 0);
+        if (!request_out) {
+            LOG(ERROR) << "Failed building fronthaul BSS teardown request for " << radio_iface;
+            success = false;
+            continue;
+        }
+        request_out->report_teardown_completion() = report_completion;
+        if (!request_out->set_bridge_ifname(bridge_iface)) {
+            LOG(ERROR) << "Failed setting bridge interface in fronthaul BSS teardown request for "
+                       << radio_iface;
+            success = false;
+            continue;
+        }
+
+        bool request_valid = true;
+        for (const auto &bssid : bssids) {
+            auto wifi_credentials = request_out->create_wifi_credentials();
+            if (!wifi_credentials) {
+                LOG(ERROR) << "Failed building BSS teardown entry for " << radio_iface;
+                success       = false;
+                request_valid = false;
+                break;
+            }
+
+            wifi_credentials->bssid_attr().data = bssid;
+            wifi_credentials->bss_type()        = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
+            wifi_credentials->set_ssid("");
+            wifi_credentials->set_network_key("");
+            wifi_credentials->authentication_type_attr().data = WSC::eWscAuth::WSC_AUTH_INVALID;
+            wifi_credentials->encryption_type_attr().data     = WSC::eWscEncr::WSC_ENCR_INVALID;
+
+            if (!request_out->add_wifi_credentials(std::move(wifi_credentials))) {
+                LOG(ERROR) << "Failed adding BSS teardown entry for " << radio_iface;
+                success       = false;
+                request_valid = false;
+                break;
+            }
+        }
+
+        if (!request_valid) {
+            continue;
+        }
+
+        LOG(INFO) << "Sending teardown for " << teardown_bss_count << " fronthaul BSS(s) on "
+                  << radio_iface;
+        if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+            LOG(ERROR) << "Failed sending fronthaul BSS teardown to AP manager for " << radio_iface;
+            success = false;
+        } else if (report_completion) {
+            m_fronthaul_bss_teardown.add(radio_manager.ap_manager_fd, radio_iface);
+        }
+    }
+
+    return success;
 }
 
 bool slave_thread::read_platform_configuration()
@@ -781,6 +949,10 @@ void slave_thread::handle_client_disconnected(int fd)
         return;
     }
 
+    if (m_fronthaul_bss_teardown.disconnected(fd)) {
+        LOG(ERROR) << "AP manager fd=" << fd << " disconnected before completing BSS teardown";
+    }
+
     auto handle_disconnect = [&](const std::string &fronthaul_iface) {
         auto &radio_manager = m_radio_managers[fronthaul_iface];
 
@@ -797,7 +969,7 @@ void slave_thread::handle_client_disconnected(int fd)
             radio_manager.monitor_fd = net::FileDescriptor::invalid_descriptor;
             AgentDB::get()->dm_fronthaul_disconnected(radio_manager.dm_instance);
             if (radio_manager.ap_manager_fd != net::FileDescriptor::invalid_descriptor) {
-                m_cmdu_server->disconnect(radio_manager.ap_manager_fd);
+                fronthaul_reset(radio_manager);
             }
             found_fd = true;
         }
@@ -828,6 +1000,34 @@ void slave_thread::handle_client_disconnected(int fd)
 
 bool slave_thread::fsm_all()
 {
+    if (m_fronthaul_bss_teardown.active()) {
+        if (m_fronthaul_bss_teardown.ready(std::chrono::steady_clock::now())) {
+            for (const auto &pending : m_fronthaul_bss_teardown.pending()) {
+                LOG(ERROR) << "Timed out waiting for BSS teardown on " << pending.second
+                           << (m_reset_after_fronthaul_bss_teardown ? "; continuing Agent reset"
+                                                                    : "; finishing teardown retry");
+            }
+
+            const bool reset_agent = m_reset_after_fronthaul_bss_teardown;
+            m_fronthaul_bss_teardown.reset();
+            m_reset_after_fronthaul_bss_teardown = false;
+
+            if (reset_agent) {
+                agent_reset();
+            } else {
+                // A replay is attempted once after the AP manager attaches again. Do not block
+                // Agent recovery indefinitely if the AP manager still cannot apply the teardown.
+                for (const auto &radio_iface : m_current_fronthaul_bss_teardown_retries) {
+                    if (m_pending_fronthaul_bss_teardown_retries.erase(radio_iface) != 0) {
+                        LOG(ERROR) << "Final BSS teardown retry failed on " << radio_iface
+                                   << "; continuing Agent recovery";
+                    }
+                }
+                m_current_fronthaul_bss_teardown_retries.clear();
+            }
+        }
+        return true;
+    }
     auto radio_fsm = [&](const sManagedRadio &radio_manager, const std::string &fronthaul_iface) {
         if (!monitor_heartbeat_check(fronthaul_iface) ||
             !ap_manager_heartbeat_check(fronthaul_iface)) {
@@ -914,6 +1114,11 @@ bool slave_thread::handle_cmdu_from_broker(uint32_t iface_index, const sMacAddr 
                                            const sMacAddr &src_mac,
                                            ieee1905_1::CmduMessageRx &cmdu_rx)
 {
+    // A recovered Controller may already send configuration while teardown is pending.
+    // Finish the reset first; fresh autoconfiguration will run after backhaul recovery.
+    if (m_fronthaul_bss_teardown.active()) {
+        return true;
+    }
     {
         auto db = AgentDB::get();
         // Filter messages which are not destined to this agent
@@ -1754,11 +1959,36 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
 
         m_stopped |= bool(notification->stopped());
 
-        agent_reset();
+        // Duplicate disconnect notifications must not restart the wait or stop AP managers.
+        if (m_fronthaul_bss_teardown.active()) {
+            break;
+        }
 
+        ControllerConnectivityTask::sBackhaulDisconnectedEvent disconnect_event;
+        disconnect_event.teardown_fronthaul = bool(notification->teardown_fronthaul());
         m_task_pool.send_event(
             eTaskType::CONTROLLER_CONNECTIVITY,
-            ControllerConnectivityTask::eEvent::BACKHAUL_DISCONNECTED_NOTIFICATION);
+            ControllerConnectivityTask::eEvent::BACKHAUL_DISCONNECTED_NOTIFICATION,
+            &disconnect_event);
+
+        if (notification->teardown_fronthaul()) {
+            m_fronthaul_bss_teardown.start(std::chrono::steady_clock::now() +
+                                           FRONTHAUL_BSS_TEARDOWN_TIMEOUT);
+            m_reset_after_fronthaul_bss_teardown = true;
+            m_current_fronthaul_bss_teardown_retries.clear();
+            m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
+                                   ApAutoConfigurationTask::eEvent::INIT_TASK);
+            if (!send_fronthaul_bss_teardown(true)) {
+                LOG(ERROR) << "Failed to send one or more fronthaul teardown requests; waiting "
+                              "for the remaining AP managers before Agent reset";
+            }
+            // fsm_all() continues reset after all responses arrive or the deadline expires.
+            break;
+        } else {
+            LOG(DEBUG) << "Backhaul Manager restart does not require fronthaul BSS teardown";
+        }
+
+        agent_reset();
         break;
     }
     case beerocks_message::ACTION_BACKHAUL_CLIENT_RX_RSSI_MEASUREMENT_RESPONSE: {
@@ -2047,72 +2277,8 @@ bool slave_thread::handle_cmdu_backhaul_manager_message(
     }
     case beerocks_message::ACTION_BACKHAUL_RADIO_TEAR_DOWN_REQUEST: {
         LOG(DEBUG) << "ACTION_BACKHAUL_RADIO_TEAR_DOWN_REQUEST";
-
-        ///////////////////////////////////////////////////////////////////
-        // Short term solution
-        // In non-EasyMesh mode, never modify hostapd configuration
-        // and in this case VAPs credentials
-        //
-        // Long term solution
-        // All EasyMesh VAPs will be stored in the platform DB.
-        // All other VAPs are manual, AKA should not be modified by prplMesh
-        ////////////////////////////////////////////////////////////////////
-        auto db = AgentDB::get();
-        if (db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP) {
-            LOG(WARNING) << "non-EasyMesh mode - skip updating VAP credentials";
-            break;
-        }
-        LOG(DEBUG) << "Request agent to tear down";
-        for (const auto &radio_manager_element : m_radio_managers.get()) {
-            auto &radio_manager = radio_manager_element.second;
-            auto radio_iface =
-                m_radio_managers.get_radio_iface_from_fd(radio_manager.ap_manager_fd);
-            auto radio = db->radio(radio_iface);
-            if (!radio) {
-                LOG(ERROR) << "Could not find Radio for " << radio_iface;
-                return false;
-            }
-            // Reset VLAN Config before tear down
-            auto pvid_set_request = message_com::create_vs_message<
-                beerocks_message::cACTION_APMANAGER_HOSTAP_SET_PRIMARY_VLAN_ID_REQUEST>(cmdu_tx);
-            if (!pvid_set_request) {
-                LOG(ERROR) << "Failed building message!";
-                return false;
-            }
-
-            pvid_set_request->primary_vlan_id() = net::UNCONFIGURED_VLAN_ID;
-            // Send ACTION_APMANAGER_HOSTAP_SET_PRIMARY_VLAN_ID_REQUEST.
-            send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
-
-            // Tear down all VAPS in the radio by sending an update request with an empty
-            // configuration.
-            auto request_out = message_com::create_vs_message<
-                beerocks_message::cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST>(cmdu_tx);
-            if (!request_out) {
-                LOG(ERROR) << "Failed building message "
-                              "cACTION_APMANAGER_WIFI_CREDENTIALS_UPDATE_REQUEST!";
-                return false;
-            }
-            request_out->set_bridge_ifname(db->bridge.iface_name);
-            for (uint8_t vap_idx = 0; vap_idx < eBeeRocksIfaceIds::IFACE_TOTAL_VAPS; vap_idx++) {
-                if (radio->front.bssids[vap_idx].mac == network_utils::ZERO_MAC) {
-                    continue;
-                }
-                auto wifi_credentials = request_out->create_wifi_credentials();
-                if (!wifi_credentials) {
-                    LOG(ERROR) << "Failed building wifi_credentials message!";
-                    return false;
-                }
-
-                wifi_credentials->bssid_attr().data = radio->front.bssids[vap_idx].mac;
-                wifi_credentials->bss_type()        = WSC::eWscVendorExtSubelementBssType::TEARDOWN;
-                wifi_credentials->set_ssid("");
-                wifi_credentials->set_network_key("");
-                wifi_credentials->authentication_type_attr().data = WSC::eWscAuth::WSC_AUTH_INVALID;
-                wifi_credentials->encryption_type_attr().data     = WSC::eWscEncr::WSC_ENCR_INVALID;
-                request_out->add_wifi_credentials(wifi_credentials);
-            }
-            send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
+        if (!send_fronthaul_bss_teardown()) {
+            LOG(ERROR) << "Failed to tear down one or more fronthaul radios";
         }
         break;
     }
@@ -2889,6 +3055,30 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                                                   ieee1905_1::CmduMessageRx &cmdu_rx,
                                                   std::shared_ptr<beerocks_header> beerocks_header)
 {
+    if (beerocks_header->action_op() == beerocks_message::ACTION_APMANAGER_BSS_TEARDOWN_RESPONSE) {
+        auto response =
+            beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_BSS_TEARDOWN_RESPONSE>();
+        if (!response) {
+            LOG(ERROR) << "Failed parsing BSS teardown response";
+            return false;
+        }
+        if (!m_fronthaul_bss_teardown.complete(fd, beerocks_header->id())) {
+            LOG(DEBUG) << "Ignoring stale or unexpected BSS teardown response from "
+                       << fronthaul_iface;
+            return true;
+        }
+        if (!response->success()) {
+            LOG(ERROR) << "BSS teardown failed on " << fronthaul_iface
+                       << (m_reset_after_fronthaul_bss_teardown
+                               ? "; continuing reset after the remaining AP managers finish"
+                               : "; pending retry will be abandoned after this replay");
+        } else {
+            m_pending_fronthaul_bss_teardown_retries.erase(fronthaul_iface);
+            LOG(INFO) << "BSS teardown completed on " << fronthaul_iface;
+        }
+        return true;
+    }
+
     if (beerocks_header->action_op() == beerocks_message::ACTION_APMANAGER_UP_NOTIFICATION) {
         auto notification =
             beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_UP_NOTIFICATION>();
@@ -2980,7 +3170,10 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         radio_manager.dm_instance = db->dm_create_fronthaul_object(iface);
 
-        return send_cmdu(radio_manager.ap_manager_fd, cmdu_tx);
+        if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+            return false;
+        }
+        return true;
     }
 
     if (fronthaul_iface.empty()) {
@@ -3129,6 +3322,23 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         update_vaps_info(fronthaul_iface, notification->vap_list().vaps);
         update_vaps_type(fronthaul_iface, notification->vap_type_list().vap_types);
+
+        if (m_pending_fronthaul_bss_teardown_retries.count(fronthaul_iface) != 0) {
+            // AP_MANAGER_UP precedes HAL attachment. Replay only after JOINED, when the HAL is
+            // operational and the AgentDB BSS list has been refreshed from the AP manager.
+            if (!m_fronthaul_bss_teardown.active()) {
+                m_fronthaul_bss_teardown.start(std::chrono::steady_clock::now() +
+                                               FRONTHAUL_BSS_TEARDOWN_TIMEOUT);
+                m_reset_after_fronthaul_bss_teardown = false;
+                m_current_fronthaul_bss_teardown_retries.clear();
+            }
+            if (!m_reset_after_fronthaul_bss_teardown) {
+                m_current_fronthaul_bss_teardown_retries.insert(fronthaul_iface);
+            }
+            if (!send_fronthaul_bss_teardown(true, fronthaul_iface)) {
+                LOG(ERROR) << "Failed replaying pending BSS teardown on " << fronthaul_iface;
+            }
+        }
 
         if (radio_capabilities_changed && db->statuses.ap_autoconfiguration_completed) {
             LOG(INFO) << "Radio capabilities changed on " << fronthaul_iface

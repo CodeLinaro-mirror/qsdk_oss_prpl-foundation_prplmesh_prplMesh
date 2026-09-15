@@ -50,6 +50,12 @@ public:
         CONTROLLER_DISCOVERED,
     };
 
+    // Distinguishes a routine Backhaul Manager restart from an explicit handoff to the fronthaul
+    // teardown/reset flow without introducing another persistent recovery flag.
+    struct sBackhaulDisconnectedEvent {
+        bool teardown_fronthaul = false;
+    };
+
     void work() override;
     void handle_event(uint8_t event_enum_value, const void *event_obj) override;
     bool handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index,
@@ -136,12 +142,16 @@ private:
     std::chrono::steady_clock::time_point m_last_heartbeat_send_time;
 
     /**
-     * @brief Time point when waiting for reconnection exceeds
+     * @brief Absolute deadline for recovering from a confirmed Controller outage.
+     *
+     * A default-constructed value means that no Controller recovery is pending. Together with
+     * AgentDB::statuses.controller_connected, it distinguishes an active bounded recovery attempt
+     * from normal Controller discovery while disconnected.
      */
-    std::chrono::steady_clock::time_point reconnect_timeout;
+    std::chrono::steady_clock::time_point reconnect_timeout{};
 
     /**
-     * @brief Timeout to reconnect to the controller in seconds.
+     * @brief Maximum Controller recovery period in seconds.
      */
     const int RECONNECT_TIMEOUT_SEC = 120;
 
