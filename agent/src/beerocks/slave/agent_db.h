@@ -702,9 +702,23 @@ public:
     typedef struct {
         typedef struct {
             std::string alias;
-            sMacAddr ruid;
-            sMacAddr bssid;
-            int8_t link_id;
+            sMacAddr ruid  = net::network_utils::ZERO_MAC;
+            sMacAddr bssid = net::network_utils::ZERO_MAC;
+            int8_t link_id = DISABLED_MLDUNIT;
+
+            bool has_valid_link_id() const { return link_id >= 0 && link_id <= 15; }
+
+            bool update_from_bss(const sRadio::sFront::sBssid &bss, const std::string &ssid)
+            {
+                if (!bss.enabled || bss.ssid != ssid || bss.mac == net::network_utils::ZERO_MAC ||
+                    bss.apmld_mac == net::network_utils::ZERO_MAC || bss.link_id < 0 ||
+                    bss.link_id > 15) {
+                    return false;
+                }
+                bssid   = bss.mac;
+                link_id = bss.link_id;
+                return true;
+            }
         } sAffiliatedAP;
 
         sMLDConfiguration mld_config;

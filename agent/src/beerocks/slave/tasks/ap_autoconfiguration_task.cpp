@@ -2481,6 +2481,16 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
                 LOG(ERROR) << "RUID not found: " << affiliated_conf.ruid;
                 continue;
             }
+
+            // M2 arrives per radio. Restore links already learned on other radios
+            // from the operational BSS records when rebuilding the MLD list.
+            for (const auto &bss : radio->front.bssids) {
+                if (current_ap_mld_conf.affiliated_aps.back().update_from_bss(bss, ssid)) {
+                    current_ap_mld_conf.mld_config.mld_mac = bss.apmld_mac;
+                    break;
+                }
+            }
+
             const std::string rad_iface = radio->front.iface_name;
             m_ap_mld_requests_infos[rad_iface][current_ap_mld_conf.mld_config.mld_ssid] = {
                 current_ap_mld_conf.mld_config.mld_unit, current_ap_mld_conf.mld_config.mld_mode};
