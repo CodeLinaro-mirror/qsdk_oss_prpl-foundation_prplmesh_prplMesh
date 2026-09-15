@@ -82,7 +82,8 @@ constexpr auto vaps_refresh_retry_period        = std::chrono::seconds(5);
 
 static void copy_vaps_info_and_type(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_hal,
                                     beerocks_message::sVapInfo vaps[],
-                                    beerocks_message::sVapType vap_types[])
+                                    beerocks_message::sVapType vap_types[],
+                                    beerocks_message::sVapMldUnit vap_mld_units[])
 {
     const auto &radio_vaps = ap_wlan_hal->get_radio_info().available_vaps;
 
@@ -91,10 +92,13 @@ static void copy_vaps_info_and_type(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_h
          vap_id++, i++) {
 
         // init / clear
-        vaps[i]               = {};
-        vap_types[i]          = {};
-        vap_types[i].vap_id   = vap_id;
-        vap_types[i].vap_type = eVapType::OTHER;
+        vaps[i]                   = {};
+        vap_types[i]              = {};
+        vap_types[i].vap_id       = vap_id;
+        vap_types[i].vap_type     = eVapType::OTHER;
+        vap_mld_units[i]          = {};
+        vap_mld_units[i].vap_id   = vap_id;
+        vap_mld_units[i].mld_unit = beerocks::DISABLED_MLDUNIT;
 
         // If the VAP ID exists
         if (radio_vaps.find(vap_id) == radio_vaps.end()) {
@@ -130,6 +134,12 @@ static void copy_vaps_info_and_type(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_h
             curr_vap.profile2_backhaul_sta_association_disallowed;
         vaps[i].ap_mld_mac = tlvf::mac_from_string(curr_vap.ap_mld_mac);
         vaps[i].link_id    = curr_vap.link_id;
+
+        vap_mld_units[i].mld_unit = curr_vap.mld_id;
+        beerocks::string_utils::copy_string(
+            vap_mld_units[i].configured_ssid,
+            (curr_vap.configured_ssid.empty() ? curr_vap.ssid : curr_vap.configured_ssid).c_str(),
+            beerocks::message::WIFI_SSID_MAX_LENGTH);
 
         // copy sVapType
         vap_types[i].vap_type = curr_vap.vap_type;
@@ -3927,7 +3937,7 @@ void ApManager::handle_hostapd_attached()
 
     auto channel_list_class = notification->create_channel_list();
     build_channels_list(cmdu_tx, ap_wlan_hal->get_radio_info().channels_list, channel_list_class);
-    notification->add_channel_list(channel_list_class);
+    notification->add_channel_list(std::move(channel_list_class));
 
     LOG(INFO) << "send ACTION_APMANAGER_JOINED_NOTIFICATION";
     LOG(INFO) << " iface = " << ap_wlan_hal->get_iface_name();
@@ -3960,7 +3970,8 @@ void ApManager::handle_hostapd_attached()
     LOG(INFO) << " chipset_vendor = " << ap_wlan_hal->get_radio_info().chipset_vendor;
 
     copy_vaps_info_and_type(ap_wlan_hal, notification->vap_list().vaps,
-                            notification->vap_type_list().vap_types);
+                            notification->vap_type_list().vap_types,
+                            notification->vap_mld_unit_list().vap_mld_units);
 
     // Send CMDU
     send_cmdu(cmdu_tx);
@@ -3999,7 +4010,8 @@ bool ApManager::send_aps_update_list()
     }
 
     copy_vaps_info_and_type(ap_wlan_hal, notification->params().vaps,
-                            notification->vap_type_list().vap_types);
+                            notification->vap_type_list().vap_types,
+                            notification->vap_mld_unit_list().vap_mld_units);
 
     LOG(DEBUG) << "Sending Vap List update to controller";
     if (!send_cmdu(cmdu_tx)) {
@@ -4079,6 +4091,11 @@ bool ApManager::handle_ap_enabled(int vap_id)
 
     notification->vap_info().link_id    = vap_info.link_id;
     notification->vap_info().ap_mld_mac = tlvf::mac_from_string(vap_info.ap_mld_mac);
+    notification->mld_unit()            = vap_info.mld_id;
+    string_utils::copy_string(
+        notification->configured_ssid(),
+        (vap_info.configured_ssid.empty() ? vap_info.ssid : vap_info.configured_ssid).c_str(),
+        beerocks::message::WIFI_SSID_MAX_LENGTH);
 
     if (!send_cmdu(cmdu_tx)) {
         return false;

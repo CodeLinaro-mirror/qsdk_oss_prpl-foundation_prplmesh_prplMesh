@@ -2977,8 +2977,10 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
             vap_info.profile2_backhaul_sta_association_disallowed;
     }
 
-    bssid->link_id   = vap_info.link_id;
-    bssid->apmld_mac = vap_info.ap_mld_mac;
+    bssid->mld_id          = notification_in->mld_unit();
+    bssid->configured_ssid = notification_in->configured_ssid_str();
+    bssid->link_id         = vap_info.link_id;
+    bssid->apmld_mac       = vap_info.ap_mld_mac;
 
     for (auto &ap_mld_conf : db->ap_mld_configurations) {
         if (ap_mld_conf.mld_config.mld_ssid == vap_info.ssid) {
@@ -3102,6 +3104,8 @@ void ApAutoConfigurationTask::handle_vs_vaps_list_update_notification(
 
     m_btl_ctx.update_vaps_info(fronthaul_iface, notification_in->params().vaps);
     m_btl_ctx.update_vaps_type(fronthaul_iface, notification_in->vap_type_list().vap_types);
+    m_btl_ctx.update_vaps_mld_units(fronthaul_iface,
+                                    notification_in->vap_mld_unit_list().vap_mld_units);
 
     auto notification_out = message_com::create_vs_message<
         beerocks_message::cACTION_CONTROL_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION>(m_cmdu_tx);
