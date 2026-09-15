@@ -6882,10 +6882,12 @@ bool slave_thread::add_agent_ap_mld_configuration_tlv(ieee1905_1::CmduMessageTx 
                 affiliated_ap->affiliated_ap_fields_valid().affiliated_ap_mac_addr_valid =
                     (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
                 affiliated_ap->affiliated_ap_fields_valid().linkid_valid =
-                    (affiliated_ap_conf.bssid != net::network_utils::ZERO_MAC);
+                    affiliated_ap_conf.has_valid_link_id();
                 affiliated_ap->ruid()                   = affiliated_ap_conf.ruid;
                 affiliated_ap->affiliated_ap_mac_addr() = affiliated_ap_conf.bssid;
-                affiliated_ap->linkid()                 = affiliated_ap_conf.link_id;
+                affiliated_ap->linkid() = affiliated_ap->affiliated_ap_fields_valid().linkid_valid
+                                              ? affiliated_ap_conf.link_id
+                                              : 0;
 
                 if (!ap_mld->add_affiliated_ap(std::move(affiliated_ap))) {
                     LOG(ERROR)

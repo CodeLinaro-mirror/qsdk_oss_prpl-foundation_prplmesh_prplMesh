@@ -2417,7 +2417,11 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
     }
 
     auto db(AgentDB::get());
+    const auto previous_ap_mld_configurations = std::move(db->ap_mld_configurations);
     db->ap_mld_configurations.clear();
+    const auto reconfigured_radio = radio_iface.empty() ? nullptr : db->radio(radio_iface);
+    const auto reconfigured_ruid =
+        reconfigured_radio ? reconfigured_radio->front.iface_mac : net::network_utils::ZERO_MAC;
 
     const auto prev_ap_mld_requests = m_ap_mld_requests_infos;
     m_ap_mld_requests_infos.clear();
@@ -2497,9 +2501,22 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
                 LOG(ERROR) << "RUID not found: " << affiliated_conf.ruid;
                 continue;
             }
+
             const std::string rad_iface = radio->front.iface_name;
             m_ap_mld_requests_infos[rad_iface][current_ap_mld_conf.mld_config.mld_ssid] = {
                 current_ap_mld_conf.mld_config.mld_unit, current_ap_mld_conf.mld_config.mld_mode};
+        }
+
+        // Each M2 clears the current radio until its fresh VAP notification.
+        // Other radios retain confirmed data only for an unchanged MLD. An
+        // explicit MLD reconfiguration has no radio context and retains nothing.
+        const auto previous = std::find_if(previous_ap_mld_configurations.begin(),
+                                           previous_ap_mld_configurations.end(),
+                                           [&ssid](const AgentDB::sAPMLDConfiguration &config) {
+                                               return config.mld_config.mld_ssid == ssid;
+                                           });
+        if (previous != previous_ap_mld_configurations.end()) {
+            current_ap_mld_conf.retain_unchanged_links(*previous, reconfigured_ruid);
         }
 
         LOG(DEBUG) << "Storing MLD configuration for AP MLD " << ssid

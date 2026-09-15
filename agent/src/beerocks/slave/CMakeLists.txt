@@ -66,6 +66,7 @@ if (BUILD_TESTS)
     set(unit_tests_sources
         helpers/unit_tests/fronthaul_bss_teardown_test.cpp
         gate/unit_tests/gate_test.cpp
+        unit_tests/ap_mld_configuration_test.cpp
         traffic_separation/unit_tests/traffic_separation_utils_test.cpp
         ${MODULE_PATH}/gate/1905_beacon_query_to_vs.cpp
         ${MODULE_PATH}/gate/vs_beacon_response_to_1905.cpp
@@ -81,10 +82,12 @@ if (BUILD_TESTS)
         PRIVATE
             ${PLATFORM_INCLUDE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/gate
+            ${CMAKE_SOURCE_DIR}/common/beerocks/bwl/include
+            ${CMAKE_SOURCE_DIR}/framework/platform/nbapi/include
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
-    target_link_libraries(${TEST_PROJECT_NAME} btlvf tlvf mapfcommon)
+    target_link_libraries(${TEST_PROJECT_NAME} bpl btlvf tlvf mapfcommon)
     target_link_libraries(${TEST_PROJECT_NAME} gtest_main)
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)
     add_test(NAME ${TEST_PROJECT_NAME} COMMAND $<TARGET_FILE:${TEST_PROJECT_NAME}>)
