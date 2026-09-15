@@ -758,6 +758,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             vap_info.profile2_backhaul_sta_association_disallowed = false;
         }
 
+        vap_info.configured_ssid = bss_info_conf.ssid;
+
         // re-notify previously enabled vaps to unblock autoconf task
         auto status = m_ambiorix_cl.get_param(wifi_vap_path, "Status");
         if (status && !status->empty()) {
