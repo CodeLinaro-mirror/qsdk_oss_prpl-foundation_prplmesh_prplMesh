@@ -72,6 +72,7 @@ Individuals:
 - Vitalii Komisarenko (prpl Foundation via Essensium/Mind)
 - Vitaly Bukhovsky (MaxLinear via Devalore)
 - Vladyslav Tupikin (prpl Foundation via Inango)
+- Volodymyr Pavlenko (prpl Foundation via Mind)
 - Yevheniy-Vilhelm Vall (GlobalLogic)
 - Yaniv Yitzhak (MaxLinear)
 - Yoni Abecassis (MaxLinear via Devalore)
