@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <list>
+#include <set>
 
 namespace son {
 class ApManager {
@@ -172,7 +173,10 @@ private:
     bool hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr);
     void handle_hostapd_attached();
     bool handle_ap_enabled(int vap_id);
-    bool handle_aps_update_list();
+    void schedule_ap_enabled_notification(int vap_id);
+    void cancel_ap_enabled_notification(int vap_id);
+    void schedule_aps_update_list();
+    bool send_aps_update_list();
     void fill_cs_params(beerocks_message::sApChannelSwitch &params);
     void fill_sr_params(beerocks_message::sSpatialReuseParams &params);
 
@@ -312,6 +316,10 @@ private:
     std::string m_bridge_iface;
 
     std::chrono::steady_clock::time_point next_heartbeat_notification_timestamp;
+    std::set<int> m_pending_ap_enabled_notifications;
+    std::chrono::steady_clock::time_point m_next_ap_enabled_notification_attempt;
+    bool m_vaps_list_update_pending = false;
+    std::chrono::steady_clock::time_point m_next_vaps_refresh_attempt;
 
     const uint8_t HEARTBEAT_NOTIFICATION_DELAY_SEC = 1;
 

@@ -64,6 +64,7 @@ constexpr auto fsm_timer_period = std::chrono::milliseconds(1000);
 constexpr auto vbss_deauth_unknown_stas_grace_period = std::chrono::milliseconds(2000);
 
 constexpr auto wait_for_vaps_enable_timeout_sec = std::chrono::seconds(10);
+constexpr auto vaps_refresh_retry_period        = std::chrono::seconds(5);
 
 #define SELECT_TIMEOUT_MSC 1000
 #define ACS_READ_SLEEP_USC 1000
@@ -83,11 +84,6 @@ static void copy_vaps_info_and_type(std::shared_ptr<bwl::ap_wlan_hal> &ap_wlan_h
                                     beerocks_message::sVapInfo vaps[],
                                     beerocks_message::sVapType vap_types[])
 {
-    if (!ap_wlan_hal->refresh_vaps_info()) {
-        LOG(ERROR) << "Failed to refresh vaps info!";
-        return;
-    }
-
     const auto &radio_vaps = ap_wlan_hal->get_radio_info().available_vaps;
 
     // Copy the VAPs
@@ -693,8 +689,32 @@ bool ApManager::ap_manager_fsm(bool &continue_processing)
             }
         }
 
-        // Send Heartbeat notification if needed
         auto now = std::chrono::steady_clock::now();
+        if (!m_pending_ap_enabled_notifications.empty() &&
+            now >= m_next_ap_enabled_notification_attempt) {
+            for (auto pending_it = m_pending_ap_enabled_notifications.begin();
+                 pending_it != m_pending_ap_enabled_notifications.end();) {
+                const int vap_id = *pending_it++;
+                handle_ap_enabled(vap_id);
+            }
+            if (!m_pending_ap_enabled_notifications.empty()) {
+                m_next_ap_enabled_notification_attempt = now + vaps_refresh_retry_period;
+            }
+        }
+
+        if (m_vaps_list_update_pending && now >= m_next_vaps_refresh_attempt) {
+            if (!ap_wlan_hal->refresh_vaps_info()) {
+                LOG(WARNING) << "Failed to refresh VAPs info, retrying in "
+                             << vaps_refresh_retry_period.count() << " seconds";
+                m_next_vaps_refresh_attempt = now + vaps_refresh_retry_period;
+            } else if (send_aps_update_list()) {
+                m_vaps_list_update_pending = false;
+            } else {
+                m_next_vaps_refresh_attempt = now + vaps_refresh_retry_period;
+            }
+        }
+
+        // Send Heartbeat notification if needed
         if (now > next_heartbeat_notification_timestamp) {
             send_heartbeat();
             next_heartbeat_notification_timestamp =
@@ -1033,7 +1053,7 @@ void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         // refresh the vaps info.
         // TODO: re-visit after PPM-1923 is fixed.
-        handle_aps_update_list();
+        schedule_aps_update_list();
 
         // If we get here, we handled the creation successfully.
         send_virtual_bss_response(virtual_bss_creation_tlv->radio_uid(),
@@ -1079,7 +1099,7 @@ void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
 
         // refresh the vaps info.
-        handle_aps_update_list();
+        schedule_aps_update_list();
 
         // If we get here, we handled the destruction successfully.
         send_virtual_bss_response(virtual_bss_destruction_tlv->radio_uid(),
@@ -2194,10 +2214,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
     }
     case beerocks_message::ACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_REQUEST: {
         LOG(INFO) << "handle ACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_REQUEST";
-        if (!handle_aps_update_list()) {
-            LOG(ERROR) << "Failed notifying vaps list update!";
-            return;
-        }
+        schedule_aps_update_list();
 
         break;
     }
@@ -2675,12 +2692,18 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         }
 
         auto msg = static_cast<bwl::sHOSTAP_ENABLED_NOTIFICATION *>(data);
-        handle_ap_enabled(msg->vap_id);
+        if (msg->vap_id < beerocks::IFACE_VAP_ID_MIN || msg->vap_id > beerocks::IFACE_VAP_ID_MAX) {
+            LOG(ERROR) << "Invalid AP-enabled vap_id=" << int(msg->vap_id);
+            return false;
+        }
+        if (!handle_ap_enabled(msg->vap_id)) {
+            schedule_ap_enabled_notification(msg->vap_id);
+        }
 
     } break;
 
     case Event::APS_update_list: {
-        handle_aps_update_list();
+        schedule_aps_update_list();
     } break;
 
     // ACS/CSA Completed
@@ -3192,6 +3215,12 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             if (!notify_disabled) {
                 break;
             }
+        }
+
+        if (msg->vap_id == beerocks::IFACE_RADIO_ID) {
+            m_pending_ap_enabled_notifications.clear();
+        } else {
+            cancel_ap_enabled_notification(msg->vap_id);
         }
 
         // Pure-FH TS updates are per-VAP, so forward single-BSS disables as
@@ -3952,7 +3981,15 @@ void ApManager::send_heartbeat()
     send_cmdu(cmdu_tx);
 }
 
-bool ApManager::handle_aps_update_list()
+void ApManager::schedule_aps_update_list()
+{
+    if (!m_vaps_list_update_pending) {
+        m_vaps_list_update_pending  = true;
+        m_next_vaps_refresh_attempt = std::chrono::steady_clock::now();
+    }
+}
+
+bool ApManager::send_aps_update_list()
 {
     auto notification = message_com::create_vs_message<
         beerocks_message::cACTION_APMANAGER_HOSTAP_VAPS_LIST_UPDATE_NOTIFICATION>(cmdu_tx);
@@ -3977,7 +4014,9 @@ bool ApManager::handle_ap_enabled(int vap_id)
     LOG(INFO) << "AP_Enabled on vap_id = " << int(vap_id);
 
     if (!ap_wlan_hal->refresh_vaps_info(vap_id)) {
-        LOG(ERROR) << "Failed updating vap info!!!";
+        LOG(WARNING) << "Failed updating VAP info for vap_id=" << vap_id
+                     << ", postponing AP-enabled notification";
+        return false;
     }
 
     if (ap_wlan_hal->get_hal_conf().certification_mode) {
@@ -4041,9 +4080,27 @@ bool ApManager::handle_ap_enabled(int vap_id)
     notification->vap_info().link_id    = vap_info.link_id;
     notification->vap_info().ap_mld_mac = tlvf::mac_from_string(vap_info.ap_mld_mac);
 
-    send_cmdu(cmdu_tx);
+    if (!send_cmdu(cmdu_tx)) {
+        return false;
+    }
+
+    cancel_ap_enabled_notification(vap_id);
 
     return true;
+}
+
+void ApManager::schedule_ap_enabled_notification(int vap_id)
+{
+    if (m_pending_ap_enabled_notifications.empty()) {
+        m_next_ap_enabled_notification_attempt =
+            std::chrono::steady_clock::now() + vaps_refresh_retry_period;
+    }
+    m_pending_ap_enabled_notifications.insert(vap_id);
+}
+
+void ApManager::cancel_ap_enabled_notification(int vap_id)
+{
+    m_pending_ap_enabled_notifications.erase(vap_id);
 }
 
 void ApManager::send_steering_return_status(beerocks_message::eActionOp_APMANAGER ActionOp,
