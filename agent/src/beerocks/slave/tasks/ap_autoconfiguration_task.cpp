@@ -8,6 +8,7 @@
 
 #include "ap_autoconfiguration_task.h"
 #include "link_metrics_collection_task.h"
+#include "mld_unit_utils.h"
 #include "service_prioritization_task.h"
 #include "traffic_separation_task.h"
 
@@ -2443,15 +2444,6 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
         AgentDB::sAPMLDConfiguration &current_ap_mld_conf = db->ap_mld_configurations.back();
         current_ap_mld_conf.mld_config.mld_ssid           = ssid;
 
-        // Find new MLD Unit
-        if (current_ap_mld_conf.mld_config.mld_unit == DISABLED_MLDUNIT) {
-            int8_t mld_unit = find_available_ap_mld_unit();
-            if (mld_unit != DISABLED_MLDUNIT) {
-                current_ap_mld_conf.mld_config.mld_unit = mld_unit;
-                LOG(DEBUG) << "MLD Unit " << mld_unit << " has been assigned to AP MLD " << ssid;
-            }
-        }
-
         beerocks::eMLOModes mld_mode = beerocks::MLO_MODE_NONE;
         if (ap_mld.modes().str) {
             mld_mode = beerocks::eMLOModes(mld_mode | beerocks::MLO_MODE_STR);
@@ -2469,6 +2461,7 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
         current_ap_mld_conf.mld_config.mld_mode = mld_mode;
 
         current_ap_mld_conf.affiliated_aps.clear();
+        std::vector<sMacAddr> affiliated_ruids;
         std::ostringstream radio_list_ss;
         for (uint8_t affiliated_ap_it = 0; affiliated_ap_it < ap_mld.num_affiliated_ap();
              ++affiliated_ap_it) {
@@ -2489,8 +2482,14 @@ bool ApAutoConfigurationTask::handle_agent_ap_mld_configuration_tlv(
             }
 
             current_ap_mld_conf.affiliated_aps.push_back(affiliated_conf);
+            affiliated_ruids.push_back(affiliated_conf.ruid);
             radio_list_ss << " " << tlvf::mac_to_string(affiliated_conf.ruid);
+        }
 
+        // Select only after the requested group's affiliated radios are known.
+        current_ap_mld_conf.mld_config.mld_unit = select_ap_mld_unit(ssid, affiliated_ruids);
+
+        for (const auto &affiliated_conf : current_ap_mld_conf.affiliated_aps) {
             // Push AP MLD Configuration per radio_iface
             auto radio = db->get_radio_by_mac(affiliated_conf.ruid, AgentDB::eMacType::RADIO);
             if (!radio) {
@@ -2983,7 +2982,9 @@ void ApAutoConfigurationTask::handle_vs_ap_enabled_notification(
     bssid->apmld_mac       = vap_info.ap_mld_mac;
 
     for (auto &ap_mld_conf : db->ap_mld_configurations) {
-        if (ap_mld_conf.mld_config.mld_ssid == vap_info.ssid) {
+        if (ap_mld_conf.mld_config.mld_ssid == vap_info.ssid &&
+            std::any_of(ap_mld_conf.affiliated_aps.begin(), ap_mld_conf.affiliated_aps.end(),
+                        [&](const auto &ap) { return ap.ruid == radio->front.iface_mac; })) {
             ap_mld_conf.mld_config.mld_mac = vap_info.ap_mld_mac;
             LOG(DEBUG) << "AP MLD MAC for SSID: " << vap_info.ssid << ", BSSID: " << vap_info.mac
                        << ", AP MLD MAC: " << ap_mld_conf.mld_config.mld_mac;
@@ -3852,24 +3853,41 @@ bool ApAutoConfigurationTask::send_monitor_son_config(
     return true;
 }
 
-int8_t ApAutoConfigurationTask::find_available_ap_mld_unit()
+int8_t ApAutoConfigurationTask::select_ap_mld_unit(const std::string &ssid,
+                                                   const std::vector<sMacAddr> &affiliated_ruids)
 {
     auto db = AgentDB::get();
 
-    std::unordered_set<int8_t> used_mld_units;
+    std::vector<mld_unit_utils::sMldUnitAssignment> assigned_mld_units;
     for (const auto &ap_mld_conf : db->ap_mld_configurations) {
-        used_mld_units.insert(ap_mld_conf.mld_config.mld_unit);
+        assigned_mld_units.emplace_back(ap_mld_conf.mld_config.mld_ssid,
+                                        ap_mld_conf.mld_config.mld_unit);
     }
 
-    for (int8_t mld_unit = 0; mld_unit < db->max_mlds; ++mld_unit) {
-        if (used_mld_units.find(mld_unit) == used_mld_units.end()) {
-            LOG(DEBUG) << "Available MLD unit: " << mld_unit;
-            return mld_unit;
+    std::vector<mld_unit_utils::sMldUnitAssignment> preconfigured_bss_units;
+    for (const auto &radio : db->get_radios_list()) {
+        for (const auto &bss : radio->front.bssids) {
+            if (bss.mld_id != DISABLED_MLDUNIT) {
+                preconfigured_bss_units.emplace_back(bss.configured_ssid, bss.mld_id,
+                                                     radio->front.iface_mac);
+            }
         }
     }
 
-    LOG(DEBUG) << "No available MLD unit found, returning DISABLED_MLDUNIT";
-    return DISABLED_MLDUNIT;
+    const auto selection = mld_unit_utils::select_ap_mld_unit(
+        ssid, affiliated_ruids, db->max_mlds, assigned_mld_units, preconfigured_bss_units);
+    if (selection.conflicting_preconfigured_units) {
+        LOG(ERROR) << "Conflicting preconfigured MLD units for AP MLD " << ssid;
+        return DISABLED_MLDUNIT;
+    }
+    if (selection.preconfigured_unit_in_use) {
+        LOG(WARNING) << "Preconfigured MLD unit " << int(selection.preconfigured_mld_unit)
+                     << " for AP MLD " << ssid << " is already used by a different AP MLD";
+    }
+    if (selection.mld_unit == DISABLED_MLDUNIT) {
+        LOG(DEBUG) << "No available MLD unit found, returning DISABLED_MLDUNIT";
+    }
+    return selection.mld_unit;
 }
 
 bool ApAutoConfigurationTask::populate_mld_id_in_bss_infos(const std::string &radio_iface,
@@ -3878,20 +3896,9 @@ bool ApAutoConfigurationTask::populate_mld_id_in_bss_infos(const std::string &ra
     auto radio_it = m_ap_mld_requests_infos.find(radio_iface);
     if (radio_it == m_ap_mld_requests_infos.end()) {
         LOG(DEBUG) << "No MLD configuration found for radio interface: " << radio_iface;
-        return true;
     }
 
-    const auto &ssid_mld_map = radio_it->second;
-    for (auto &bss_info : bss_infos) {
-        const std::string &ssid = bss_info.payload_config.ssid;
-        auto ssid_it            = ssid_mld_map.find(ssid);
-        if (ssid_it != ssid_mld_map.end()) {
-            int8_t mld_unit = std::get<0>(ssid_it->second);
-            bss_info.mld_id = mld_unit;
-        } else {
-            bss_info.mld_id = DISABLED_MLDUNIT;
-        }
-    }
+    mld_unit_utils::populate_mld_id_in_bss_infos(radio_iface, m_ap_mld_requests_infos, bss_infos);
 
     return true;
 }
