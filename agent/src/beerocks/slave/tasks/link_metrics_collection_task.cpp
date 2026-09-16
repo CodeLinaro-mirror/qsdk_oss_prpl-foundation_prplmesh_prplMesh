@@ -1614,6 +1614,15 @@ LinkMetricsCollectionTask::create_link_metrics_collector(const sLinkInterface &l
         return std::make_unique<ieee802_11_link_metrics_collector>();
     }
 
+    // Virtual interfaces report no media type, but their statistics are still readable.
+    if (ieee1905_1::eMediaType::UNKNOWN_MEDIA == media_type) {
+        auto db = AgentDB::get();
+        if (db->radio(link_interface.iface_name)) {
+            return std::make_unique<ieee802_11_link_metrics_collector>();
+        }
+        return std::make_unique<ieee802_3_link_metrics_collector>();
+    }
+
     LOG(ERROR) << "Unable to create link metrics collector for interface '"
                << link_interface.iface_name << "' (unsupported media type " << std::hex
                << (int)media_type << ")";
@@ -1788,6 +1797,62 @@ bool LinkMetricsCollectionTask::get_neighbor_links(
             }
         }
     }
+
+    // The controller is not always on one of the interfaces above: a non-prplMesh controller
+    // colocated with the agent can be reached over a veth instead. A colocated prplMesh controller
+    // shares the agent's AL MAC, so it is not a neighbor and has no link to report.
+    const auto &controller_al_mac = db->controller_info.bridge_mac;
+    if (controller_al_mac == net::network_utils::ZERO_MAC || controller_al_mac == db->bridge.mac ||
+        ((neighbor_mac_filter != net::network_utils::ZERO_MAC) &&
+         (neighbor_mac_filter != controller_al_mac))) {
+        return true;
+    }
+
+    for (const auto &entry : neighbor_links_map) {
+        for (const auto &neighbor : entry.second) {
+            if (neighbor.al_mac == controller_al_mac) {
+                return true;
+            }
+        }
+    }
+
+    sLinkInterface interface;
+    sLinkNeighbor neighbor;
+    neighbor.al_mac = controller_al_mac;
+
+    for (const auto &neighbors_on_local_iface : db->neighbor_devices) {
+        const auto &neighbors = neighbors_on_local_iface.second;
+
+        auto controller_it = neighbors.find(controller_al_mac);
+        if (controller_it == neighbors.end()) {
+            continue;
+        }
+
+        interface.iface_name = controller_it->second.receiving_iface_name;
+        // Upper key is the local interface MAC.
+        interface.iface_mac = neighbors_on_local_iface.first;
+        neighbor.iface_mac  = controller_it->second.transmitting_iface_mac;
+        break;
+    }
+
+    if (interface.iface_name.empty()) {
+        LOG(DEBUG) << "No Topology Discovery on record from controller " << controller_al_mac
+                   << ", not a 1905 neighbor";
+        return true;
+    }
+
+    // Stays UNKNOWN_MEDIA for a veth and on failure.
+    if (net::network_utils::linux_iface_is_physical(interface.iface_name)) {
+        auto media_type_group = db->radio(interface.iface_name)
+                                    ? ieee1905_1::eMediaTypeGroup::IEEE_802_11
+                                    : ieee1905_1::eMediaTypeGroup::IEEE_802_3;
+        if (!MediaType::get_media_type(interface.iface_name, media_type_group,
+                                       interface.media_type)) {
+            LOG(DEBUG) << "Unknown media type for interface " << interface.iface_name;
+        }
+    }
+
+    neighbor_links_map[interface].insert(neighbor);
 
     return true;
 }
