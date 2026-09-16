@@ -414,6 +414,21 @@ def beerocks_cli_command(command: str) -> str:
     return res
 
 
+def _parse_ubus_json(result: str) -> Dict:
+    '''Parse ubus JSON, stripping the trailing empty object / amxd-error-code pair.'''
+    pattern = r'{\s*}\s*{\s*"amxd-error-code"\s*:\s*0\s*}'
+    cleaned = re.sub(pattern, '', result)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        err(f"Failed to parse ubus JSON: {e}")
+        err(f"raw data ({len(result)} bytes):")
+        err(result)
+        if e.pos is not None:
+            err(f"data from error pos {e.pos} ({len(cleaned) - e.pos} bytes): {cleaned[e.pos:]!r}")
+        raise
+
+
 # Helper function used by the implementations based on ubus
 def nbapi_ubus_command(entity: ALEntity, path: str, command: str, args: Dict = None) -> Dict:
     command = ['ubus', 'call', path, command]
@@ -421,13 +436,7 @@ def nbapi_ubus_command(entity: ALEntity, path: str, command: str, args: Dict = N
         command.append(json.dumps(args))
     result = entity.command(*command)
     if result:
-        pattern = r'{\s*}\s*{\s*"amxd-error-code"\s*:\s*0\s*}'
-        if path == "Device.WiFi.DataElements.Network":
-            debug(f"(my) result: {len(result)}")
-        result = re.sub(pattern, '', result)
-        if path == "Device.WiFi.DataElements.Network":
-            debug(f"(my) result2: {len(result)}")
-        return json.loads(result)
+        return _parse_ubus_json(result)
     else:
         return result
 
@@ -445,9 +454,7 @@ def nbapi_ubus_command_not_fail(entity: ALEntity, path: str, command: str,
         debug("ubus call command fail")
         debug(error)
     if result:
-        pattern = r'{\s*}\s*{\s*"amxd-error-code"\s*:\s*0\s*}'
-        result = re.sub(pattern, '', result)
-        return json.loads(result)
+        return _parse_ubus_json(result)
     else:
         return result
 
