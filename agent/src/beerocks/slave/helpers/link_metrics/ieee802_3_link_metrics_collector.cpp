@@ -33,6 +33,12 @@ bool ieee802_3_link_metrics_collector::get_link_metrics(
     net::network_utils::linux_iface_get_link_settings(local_interface_name, phy_rate_mbps,
                                                       max_speed_mbps, is_full_duplex);
 
+    // Unknown speed (ethtool failure, link down) or only a nominal one (veth, bridge: no link
+    // modes) is no capacity estimate.
+    if (phy_rate_mbps == UINT32_MAX || max_speed_mbps == UINT32_MAX) {
+        phy_rate_mbps = 0;
+    }
+
     /**
      * Note: The MAC throughput capacity is a function of the physical data rate and
      * of the MAC overhead. We could somehow compute such overhead or, for simplicity,
