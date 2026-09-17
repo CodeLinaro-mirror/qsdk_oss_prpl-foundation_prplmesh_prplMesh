@@ -225,6 +225,11 @@ int cfg_get_wifi_universal_index(const std::string &iface, int &index)
         return RETURN_ERR;
     }
 
+    LOG(DEBUG) << "radio path: " << radio_path << " for interface: " << iface;
+    if (!radio_path.empty() && radio_path.back() == '.') {
+        radio_path.pop_back();
+    }
+
     const size_t pos = radio_path.find_last_of('.');
     if (pos == std::string::npos || pos + 1 >= radio_path.size())
         return RETURN_ERR;
