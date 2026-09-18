@@ -3934,11 +3934,6 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
-        // Existing channel is used to prevent overwritting of the channel issue (PPM-2858)
-        radio->wifi_channel = beerocks::WifiChannel(
-            radio->wifi_channel.get_channel(), notification_in->params().center_frequency1,
-            static_cast<beerocks::eWiFiBandwidth>(notification_in->params().bandwidth));
-
         auto notification_out = message_com::create_vs_message<
             beerocks_message::cACTION_CONTROL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION>(cmdu_tx);
         if (notification_out == nullptr) {
@@ -3988,6 +3983,26 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         }
         notification_out->params() = notification_in->params();
         send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION: {
+        auto notification_in =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_AFC_UPDATE_NOTIFICATION>();
+        if (!notification_in) {
+            LOG(ERROR) << "addClass ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION failed";
+            return false;
+        }
+        LOG(INFO) << "received ACTION_APMANAGER_AFC_UPDATE_NOTIFICATION";
+
+        auto notification_out_bhm = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION>(cmdu_tx);
+        if (!notification_out_bhm) {
+            LOG(ERROR) << "Failed building ACTION_BACKHAUL_AFC_UPDATE_NOTIFICATION message!";
+            return false;
+        }
+
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
         break;
     }
     case beerocks_message::ACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION: {
