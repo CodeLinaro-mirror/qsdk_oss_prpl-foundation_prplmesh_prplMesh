@@ -58,6 +58,9 @@ deploy() {
       -exec rm -rf {} + || return 0
 EOF
 
+    # wait silly some seconds for the hardware disk resource to be really released
+    sleep 5
+
 # The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.
 # Therefore, set up a new connection just to install the prplMesh ipk
 
@@ -66,7 +69,7 @@ EOF
 if [ "$BOARD_TYPE" = "rdk" ]; then
     opkg install -V2 --force-depends "$DEST_FOLDER/$IPK_FILENAME"; 
 else
-    opkg install -V2 "$DEST_FOLDER/$IPK_FILENAME" || (rm /etc/prplwrt-version && du -h -d 2 /overlay/upper/ && false);
+    opkg install -V2 "$DEST_FOLDER/$IPK_FILENAME" || (rm /etc/prplwrt-version && false);
 fi
 EOF
 
