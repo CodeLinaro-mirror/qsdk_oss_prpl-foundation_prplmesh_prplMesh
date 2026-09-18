@@ -38,6 +38,7 @@ bool g_templates_dm_initialized         = false;
 bool g_templates_commit_pending         = false;
 bool g_templates_topology_restage_armed = false;
 bool g_templates_apply_in_progress      = false;
+bool g_templates_always_renew           = false;
 std::unordered_map<std::string, int8_t> g_template_applied_tx_power_limit_dbm;
 } // namespace
 
@@ -2484,6 +2485,67 @@ template_select_radio_template(const Agent::sRadio &radio,
     return selected;
 }
 
+/**
+ * CAPI parity: MLD-affiliated basic SAE also offers SAE-EXT-KEY (AKM24).
+ * Drop RSN IEs so the agent does not collapse SAE-EXT-KEY back to SAE.
+ */
+static void template_apply_mlo_basic_sae_akm24_parity(son::wireless_utils::sBssInfoConf &bss_info)
+{
+    if (bss_info.mld_id.empty() || bss_info.authentication_type != WSC::eWscAuth::WSC_AUTH_SAE ||
+        bss_info.additional_auth != son::wireless_utils::eAdditionalAuth::NONE) {
+        return;
+    }
+
+    bss_info.authentication_type =
+        WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_SAE | WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+    bss_info.rsn_security_ies.clear();
+}
+
+/** Empty TopologyFlag, or Root+Repeater together, may be shared via the unscoped global list. */
+static bool template_topology_flags_are_unrestricted(const std::vector<std::string> &flags)
+{
+    if (flags.empty()) {
+        return true;
+    }
+    auto has = [&flags](const char *token) {
+        return std::find(flags.begin(), flags.end(), token) != flags.end();
+    };
+    return has("Root") && has("Repeater");
+}
+
+/**
+ * AccessPointCommit equivalent: an agent with an empty per-agent list falls back to global.
+ * Copy only BSS that every topology role may consume (no ALID / role-narrow templates).
+ */
+static void
+template_maybe_publish_global_bss_copy(const son::wireless_utils::sBssInfoConf &staged,
+                                       const std::vector<std::string> &network_topology_flags,
+                                       const std::vector<sMacAddr> &network_alids,
+                                       const std::vector<std::string> &bss_topology_flags,
+                                       const std::vector<sMacAddr> &bss_alids)
+{
+    if (!network_alids.empty() || !bss_alids.empty() ||
+        !template_topology_flags_are_unrestricted(network_topology_flags) ||
+        !template_topology_flags_are_unrestricted(bss_topology_flags)) {
+        return;
+    }
+
+    auto &global = g_database->get_bss_info_configuration();
+    for (const auto &existing : global) {
+        if (existing.bss_template_ref == staged.bss_template_ref) {
+            return;
+        }
+    }
+    if (global.size() >= std::numeric_limits<uint8_t>::max()) {
+        return;
+    }
+
+    auto copy             = staged;
+    copy.target_radio_uid = beerocks::net::network_utils::ZERO_MAC;
+    copy.bss_index        = static_cast<uint8_t>(global.size() + 1);
+    g_database->add_bss_info_configuration(copy);
+}
+
 static bool template_stage_bss_on_radio(
     amxd_object_t *templates_root, amxd_object_t *network_obj,
     const std::vector<std::shared_ptr<Agent>> &connected_agents,
@@ -2848,6 +2910,8 @@ static bool template_stage_bss_on_radio(
                    << " caps_block=" << capability_blocks_rsn_override << ")";
     }
 
+    template_apply_mlo_basic_sae_akm24_parity(bss_info);
+
     bss_info.bss_index = template_allocate_stable_bss_index(
         agent->al_mac, radio_uid, previous_for_agent, bss_info, selection_state);
     if (bss_info.bss_index == 0) {
@@ -2857,6 +2921,8 @@ static bool template_stage_bss_on_radio(
     }
 
     g_database->add_bss_info_configuration(agent->al_mac, bss_info);
+    template_maybe_publish_global_bss_copy(bss_info, network_topology_flags, network_alids,
+                                           bss_topology_flags, bss_alids);
     LOG(DEBUG) << "Staged BSS for agent " << agent->al_mac << " radio " << radio_uid << " SSID \""
                << bss_ssid << "\" rsn_ies_len=" << bss_info.rsn_security_ies.size();
     return true;
@@ -2926,6 +2992,9 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         LOG(DEBUG) << "wifi templates: Network.Enable=false, skipping staged rebuild";
         return true;
     }
+
+    const bool always_renew  = g_templates_always_renew;
+    g_templates_always_renew = false;
 
     amxd_object_t *bss_table = amxd_object_get_child(templates_root, "BSSTemplate");
     if (!bss_table) {
@@ -3130,9 +3199,27 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
         }
     }
 
+    if (always_renew) {
+        for (const auto &agent : connected_agents) {
+            if (!agent) {
+                continue;
+            }
+            if (std::find(agents_in_network_scope.begin(), agents_in_network_scope.end(),
+                          agent->al_mac) == agents_in_network_scope.end()) {
+                continue;
+            }
+            if (std::find(changed_agents.begin(), changed_agents.end(), agent->al_mac) ==
+                changed_agents.end()) {
+                changed_agents.push_back(agent->al_mac);
+            }
+        }
+    }
+
     if (!changed_agents.empty()) {
-        LOG(INFO) << "wifi templates: staging changed, unicast renew to " << changed_agents.size()
-                  << " agent(s)";
+        LOG(INFO) << "wifi templates: "
+                  << (always_renew ? "always renew, unicast renew to "
+                                   : "staging changed, unicast renew to ")
+                  << changed_agents.size() << " agent(s)";
         template_send_ap_config_renew_message(changed_agents);
     } else {
         LOG(INFO) << "wifi templates: staging unchanged, skip AP renew";
@@ -3160,7 +3247,7 @@ static void templates_commit(void)
     template_rebuild_staged_configuration(templates_root);
 }
 
-void templates_request_apply(void)
+static void templates_schedule_apply(void)
 {
     if (!g_database) {
         LOG(ERROR) << "g_database is nullptr";
@@ -3184,6 +3271,17 @@ void templates_request_apply(void)
     controller->schedule_templates_commit_apply();
 }
 
+void templates_request_apply(void)
+{
+    g_templates_always_renew = true;
+    if (g_templates_apply_in_progress) {
+        g_templates_commit_pending = true;
+    }
+    templates_schedule_apply();
+}
+
+static void templates_request_apply_skip_if_unchanged(void) { templates_schedule_apply(); }
+
 void templates_commit_apply_pending(void)
 {
     if (g_templates_apply_in_progress) {
@@ -3204,7 +3302,7 @@ void templates_commit_apply_pending(void)
     // Topology armed during this apply still needs one follow-up schedule.
     if (g_templates_commit_pending || g_templates_topology_restage_armed) {
         g_templates_commit_pending = false;
-        templates_request_apply();
+        templates_request_apply_skip_if_unchanged();
     }
 }
 
@@ -3234,7 +3332,7 @@ void templates_restage_only(void)
         return;
     }
     g_templates_topology_restage_armed = true;
-    templates_request_apply();
+    templates_request_apply_skip_if_unchanged();
 }
 
 bool is_templates_dm_initialized() { return g_templates_dm_initialized; }

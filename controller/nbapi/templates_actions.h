@@ -21,8 +21,9 @@ namespace actions {
 
 /**
  * Request a templates restage and schedule at most one TEMPLATES_COMMIT_APPLY
- * (coalesces while pending / in progress). No-op while an apply is running so
- * DM writes from that apply cannot immediately re-arm another apply.
+ * (coalesces while pending / in progress). Unicasts WSC AP-Autoconfig Renew
+ * even if staging is unchanged. Topology restage / commit follow-up skip Renew
+ * when staging is equal.
  */
 void templates_request_apply(void);
 

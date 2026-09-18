@@ -494,33 +494,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
     bool ret              = false;
     bool teardown_success = true;
     int new_vap_index     = m_radio_info.available_vaps.size();
-
-    std::set<uint8_t> allowed_gens;
-    if (son::wireless_utils::try_get_allowed_wifi_generations(bss_info_conf_list, allowed_gens)) {
-        if (m_radio_path.empty()) {
-            m_ambiorix_cl.resolve_path(
-                wbapi_utils::search_path_radio_by_iface(m_radio_info.iface_name), m_radio_path);
-        }
-        AmbiorixVariantSmartPtr radio_obj = m_ambiorix_cl.get_object(m_radio_path);
-        if (radio_obj) {
-            std::string current_standards;
-            if (radio_obj->read_child(current_standards, "OperatingStandards")) {
-                const std::string filtered = son::wireless_utils::filter_whm_operating_standards(
-                    current_standards, allowed_gens);
-                if (!filtered.empty() && filtered != current_standards) {
-                    AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
-                    new_obj.add_child("OperatingStandards", filtered);
-                    if (m_ambiorix_cl.update_object(m_radio_path, new_obj)) {
-                        refresh_radio_info();
-                        refresh_radio_capabilities();
-                    } else {
-                        LOG(ERROR) << "Could not set OperatingStandards for " << m_radio_path;
-                    }
-                }
-            }
-        }
-    }
-
+    const std::string enable_key("Enable");
 
     for (const auto &bss_info_conf : bss_info_conf_list) {
         std::string wifi_vap_path, wifi_ssid_path;
@@ -545,7 +519,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                 continue;
             }
             AmbiorixVariant disabled(AMXC_VAR_ID_HTABLE);
-            disabled.add_child<bool>("Enable", false);
+            disabled.add_child<bool>(enable_key, false);
             if (!m_ambiorix_cl.update_object(vap_it->second.path, disabled)) {
                 LOG(ERROR) << "Failed to disable vap " << vap_info.bss;
                 teardown_success = false;
@@ -629,8 +603,6 @@ bool ap_wlan_hal_whm::update_vap_credentials(
 
         AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
         {
-            LOG(DEBUG) << "enable vap " << wifi_vap_path;
-            new_obj.add_child("Enable", true);
             std::string multi_ap;
             if (bss_info_conf.fronthaul) {
                 multi_ap += "FronthaulBSS";
@@ -665,8 +637,8 @@ bool ap_wlan_hal_whm::update_vap_credentials(
                       << bss_info_conf.hidden_ssid;
             ret = m_ambiorix_cl.update_object(wifi_vap_path, new_obj);
             if (!ret) {
-                LOG(ERROR) << "Failed to enable vap " << wifi_vap_path
-                           << " or to configure MultiAPType thereof " << multi_ap;
+                LOG(ERROR) << "Failed to configure MultiAPType for vap " << wifi_vap_path
+                           << " MultiAPType " << multi_ap;
             }
         }
 
@@ -738,6 +710,15 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             LOG(ERROR) << "Failed to update Security object " << wifi_ap_sec_path;
             continue;
         }
+
+        LOG(DEBUG) << "enable vap " << wifi_vap_path;
+        new_obj.set_type(AMXC_VAR_ID_HTABLE);
+        new_obj.add_child<bool>(enable_key, true);
+        ret = m_ambiorix_cl.update_object(wifi_vap_path, new_obj);
+        if (!ret) {
+            LOG(ERROR) << "Failed to enable vap " << wifi_vap_path;
+        }
+
         if (ifname == "new_interface") {
             // skip update of vap_info, new instance in vap_info will be added asynchronously on a pwhm event
             continue;
@@ -764,13 +745,6 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         if (prev_teardown) {
             prev_teardown = false;
             LOG(INFO) << "Re-enable BSS " << bss_info_conf.bssid << " after tear down.";
-            new_obj.set_type(AMXC_VAR_ID_HTABLE);
-            new_obj.add_child<bool>("Enable", true);
-            ret = m_ambiorix_cl.update_object(wifi_vap_path, new_obj);
-            if (!ret) {
-                LOG(ERROR) << "Failed to enable vap " << ifname;
-                continue;
-            }
         }
 
         vap_info.bss       = ifname;

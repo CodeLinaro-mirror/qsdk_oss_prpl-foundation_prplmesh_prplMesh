@@ -221,7 +221,7 @@ private:
         ieee1905_1::CmduMessageRx &cmdu_rx, std::unordered_set<std::string> &misconfigured_ssids);
     bool handle_wsc_m2_tlv(ieee1905_1::CmduMessageRx &cmdu_rx, const std::string &radio_iface,
                            const std::vector<WSC::m2> &m2_list, std::vector<sBssConfig> &infos,
-                           std::unordered_set<std::string> &misconfigured_ssids);
+                           std::unordered_set<std::string> &misconfigured_ssids, bool m8_present);
     bool handle_wsc_m8_tlv(const std::string &radio_iface, std::shared_ptr<WSC::m8> m8,
                            sBStaConfig &info);
 

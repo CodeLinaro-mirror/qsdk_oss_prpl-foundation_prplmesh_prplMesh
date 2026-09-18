@@ -159,6 +159,11 @@ template <typename BssConfig>
 bool is_bss_config_matching(const beerocks::AgentDB::sRadio::sFront::sBssid &local_bss,
                             const BssConfig &requested_bss)
 {
+    const auto &req_ssid = requested_bss.payload_config.ssid;
+    if (!local_bss.ssid.empty() && !req_ssid.empty()) {
+        return local_bss.ssid == req_ssid;
+    }
+
     const bool is_vap_type_applicable = (local_bss.vap_type != eVapType::OTHER) &&
                                         (requested_bss.m2_config.vap_type != eVapType::OTHER);
 
@@ -191,6 +196,11 @@ bool is_bss_config_similar(const AgentDB::sRadio::sFront::sBssid &local_bss,
     int matching_fields              = 0;
 
     const auto bss_type = requested_bss.payload_config.bss_type;
+
+    if (local_bss.active && !local_bss.ssid.empty() &&
+        local_bss.ssid != requested_bss.payload_config.ssid) {
+        return false;
+    }
 
     // SSID
     if (local_bss.ssid == requested_bss.payload_config.ssid) {
@@ -1800,7 +1810,8 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
     }
 
     std::vector<sBssConfig> bss_infos;
-    if (!handle_wsc_m2_tlv(cmdu_rx, radio_iface_name, m2_list, bss_infos, misconfigured_ssids)) {
+    if (!handle_wsc_m2_tlv(cmdu_rx, radio_iface_name, m2_list, bss_infos, misconfigured_ssids,
+                           static_cast<bool>(m8))) {
         LOG(ERROR) << "handle_wsc_m2_tlv has failed!";
         return;
     }
@@ -1878,7 +1889,17 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         }
 
         if (m8) {
-            send_bsta_configuration(radio_iface_mac, bsta_info);
+            auto db_bh = AgentDB::get();
+            const bool associated =
+                (db_bh->bsta_mld_configuration &&
+                 !db_bh->bsta_mld_configuration->mld_config.mld_ssid.empty()) ||
+                (db_bh->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+                 db_bh->backhaul.backhaul_bssid != network_utils::ZERO_MAC);
+            if (!associated) {
+                send_bsta_configuration(radio_iface_mac, bsta_info);
+            } else {
+                LOG(INFO) << "[AUTO-STA] skip M8 bSTA credentials; already associated";
+            }
         } else if (early_ap_capability) {
             send_enable_disable_endpoint(radio_iface_mac, false);
         }
@@ -2335,7 +2356,7 @@ bool ApAutoConfigurationTask::handle_profile2_traffic_separation_policy_tlv(
 bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     ieee1905_1::CmduMessageRx &cmdu_rx, const std::string &radio_iface,
     const std::vector<WSC::m2> &m2_list, std::vector<sBssConfig> &infos,
-    std::unordered_set<std::string> &misconfigured_ssids)
+    std::unordered_set<std::string> &misconfigured_ssids, bool m8_present)
 {
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
@@ -2520,42 +2541,46 @@ bool ApAutoConfigurationTask::handle_wsc_m2_tlv(
     LOG(INFO) << "Finished M2 parsing with " << infos.size() << " vaps and " << bss_errors.size()
               << " errors.";
 
-    // Non-gateway: pick first Backhaul BSS from parsed M2, push credentials to the backhaul
-    // manager via send_bsta_configuration(), then enable the endpoint with
-    // send_enable_disable_endpoint(..., true). Replaces prior DM-based wiring.
     {
         if (!db->device_conf.local_gw) {
-            // ---- Select the first Backhaul BSS from parsed M2 payload ----
-            const WSC::EncryptedSettingsPayload::config *backhaul = nullptr;
-            for (const auto &info : infos) {
-                if ((info.payload_config.bss_type &
-                     WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS) != 0) {
-                    backhaul = &info.payload_config;
-                    break;
-                }
-            }
-
-            if (!backhaul) {
-                LOG(DEBUG) << "[AUTO-STA] No Backhaul BSS found in M2 for this radio; skipping";
+            const bool associated =
+                (db->bsta_mld_configuration &&
+                 !db->bsta_mld_configuration->mld_config.mld_ssid.empty()) ||
+                (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+                 db->backhaul.backhaul_bssid != network_utils::ZERO_MAC);
+            if (m8_present) {
+                LOG(DEBUG) << "[AUTO-STA] M8 present; skip M2 bSTA credentials";
+            } else if (associated) {
+                LOG(INFO) << "[AUTO-STA] skip M2 bSTA credentials; already associated";
             } else {
-                // ---- Send bSTA credentials to backhaul manager (no DM writes) ----
-                sBStaConfig bsta_info;
-                bsta_info.payload_config = *backhaul; // copy SSID/key/auth/encr
-                // Ensure BACKHAUL_STA bit is set for STA join:
-                bsta_info.payload_config.bss_type |=
-                    WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA;
+                const WSC::EncryptedSettingsPayload::config *backhaul = nullptr;
+                for (const auto &info : infos) {
+                    if ((info.payload_config.bss_type &
+                         WSC::eWscVendorExtSubelementBssType::BACKHAUL_BSS) != 0) {
+                        backhaul = &info.payload_config;
+                        break;
+                    }
+                }
 
-                if (!send_bsta_configuration(radio->front.iface_mac, bsta_info)) {
-                    LOG(ERROR)
-                        << "[AUTO-STA] Failed to send bSTA credentials to backhaul manager (SSID='"
-                        << backhaul->ssid << "')";
+                if (!backhaul) {
+                    LOG(DEBUG) << "[AUTO-STA] No Backhaul BSS found in M2 for this radio; skipping";
                 } else {
-                    LOG(INFO) << "[AUTO-STA] bSTA credentials sent to backhaul manager (SSID='"
-                              << backhaul->ssid << "')";
-                    // Ensure endpoint enabled on this radio
-                    if (!send_enable_disable_endpoint(radio->front.iface_mac, true)) {
-                        LOG(WARNING) << "[AUTO-STA] Endpoint enable request failed (SSID='"
-                                     << backhaul->ssid << "')";
+                    sBStaConfig bsta_info;
+                    bsta_info.payload_config = *backhaul;
+                    bsta_info.payload_config.bss_type |=
+                        WSC::eWscVendorExtSubelementBssType::BACKHAUL_STA;
+
+                    if (!send_bsta_configuration(radio->front.iface_mac, bsta_info)) {
+                        LOG(ERROR) << "[AUTO-STA] Failed to send bSTA credentials to backhaul "
+                                      "manager (SSID='"
+                                   << backhaul->ssid << "')";
+                    } else {
+                        LOG(INFO) << "[AUTO-STA] bSTA credentials sent to backhaul manager (SSID='"
+                                  << backhaul->ssid << "')";
+                        if (!send_enable_disable_endpoint(radio->front.iface_mac, true)) {
+                            LOG(WARNING) << "[AUTO-STA] Endpoint enable request failed (SSID='"
+                                         << backhaul->ssid << "')";
+                        }
                     }
                 }
             }
