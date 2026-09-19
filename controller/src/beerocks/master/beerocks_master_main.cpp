@@ -797,6 +797,20 @@ int main(int argc, char *argv[])
         if (beerocks::bpl::bpl_cfg_get_wireless_settings(wireless_settings)) {
             for (const auto &configuration : wireless_settings) {
                 master_db.add_bss_info_configuration(configuration);
+#ifdef USE_PRPLMESH_WHM
+                if (configuration.mld_id.empty() ||
+                    configuration.mld_id == std::to_string(beerocks::DISABLED_MLDUNIT)) {
+                    continue;
+                }
+
+                son::wireless_utils::sMldInfoConf mld_config;
+                if (!beerocks::bpl::bpl_cfg_get_mld_info_config(
+                        configuration.ssid, std::stoi(configuration.mld_id), mld_config)) {
+                    LOG(ERROR) << "Failed to read MLD configuration for " << configuration.mld_id;
+                    continue;
+                }
+                master_db.add_mld_info_configuration(mld_config, configuration.mld_id);
+#endif
             }
         } else {
             LOG(DEBUG) << "failed to read wireless settings";
