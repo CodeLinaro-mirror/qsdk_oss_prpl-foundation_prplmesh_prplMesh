@@ -35,17 +35,24 @@
 		}
 
 		/* ---------------------- */
-		/* SSC                    */
+		/* SSC (purpose collections) */
+		/* .1 backhaul, .2 private, .3 guest */
 		/* ---------------------- */
 		object SSCTemplate {
-			instance add ("cpe-SSCTemplate-1") {
-				parameter 'SSCTemplateID' = "ssc-template-bh";
+			instance add ("cpe-SSCTemplate-backhaul") {
+				parameter 'SSCTemplateID' = "ssc-backhaul";
 				parameter 'SSCEnable' = true;
 				parameter 'VID' = 0;
 				parameter 'HaulType' = "Backhaul";
 			}
-			instance add ("cpe-SSCTemplate-2") {
-				parameter 'SSCTemplateID' = "ssc-template-fh";
+			instance add ("cpe-SSCTemplate-private") {
+				parameter 'SSCTemplateID' = "ssc-private";
+				parameter 'SSCEnable' = true;
+				parameter 'VID' = 0;
+				parameter 'HaulType' = "Fronthaul";
+			}
+			instance add ("cpe-SSCTemplate-guest") {
+				parameter 'SSCTemplateID' = "ssc-guest";
 				parameter 'SSCEnable' = true;
 				parameter 'VID' = 0;
 				parameter 'HaulType' = "Fronthaul";
@@ -56,25 +63,71 @@
 		/* Security Templates     */
 		/* ---------------------- */
 		object SecurityTemplate {
-			instance add ("cpe-SecurityTemplate-1") {
-				parameter 'SecurityTemplateID' = "security-template-sae";
+			/* WPA3-Personal only (SAE) */
+			instance add ("cpe-wpa3-personal") {
+				parameter 'Alias' = "cpe-wpa3-personal";
+				parameter 'SecurityTemplateID' = "sec-template-wpa3-personal";
 				parameter 'Enable' = true;
 				parameter 'Priority' = 220;
+				parameter 'RSNOSupportFlag' = "null";
 				object RSNE {
 					parameter 'GroupDataCipherSuite' = "ccmp";
 					parameter 'PairwiseCipherSuite' = "ccmp";
+					parameter 'GroupManagementCipherSuite' = "";
 					parameter 'AKMSuite' = "sae";
+					parameter 'AKMSuiteSelector' = "";
 					parameter 'MFP' = "Required";
 				}
 			}
-			instance add ("cpe-SecurityTemplate-2") {
-				parameter 'SecurityTemplateID' = "security-template-transition";
+			/* WPA3-Personal Transition (PSK+SAE in base RSNE) */
+			instance add ("cpe-wpa3-personal-transition") {
+				parameter 'Alias' = "cpe-wpa3-personal-transition";
+				parameter 'SecurityTemplateID' = "sec-template-wpa3-personal-transition";
 				parameter 'Enable' = true;
 				parameter 'Priority' = 210;
+				parameter 'RSNOSupportFlag' = "null";
 				object RSNE {
 					parameter 'GroupDataCipherSuite' = "ccmp";
 					parameter 'PairwiseCipherSuite' = "ccmp";
+					parameter 'GroupManagementCipherSuite' = "";
 					parameter 'AKMSuite' = "psk,sae";
+					parameter 'AKMSuiteSelector' = "";
+					parameter 'MFP' = "Capable";
+				}
+			}
+			/* WPA2-Personal only (PSK) */
+			instance add ("cpe-wpa2-personal") {
+				parameter 'Alias' = "cpe-wpa2-personal";
+				parameter 'SecurityTemplateID' = "sec-template-wpa2-personal";
+				parameter 'Enable' = true;
+				parameter 'Priority' = 200;
+				parameter 'RSNOSupportFlag' = "null";
+				object RSNE {
+					parameter 'GroupDataCipherSuite' = "ccmp";
+					parameter 'PairwiseCipherSuite' = "ccmp";
+					parameter 'GroupManagementCipherSuite' = "";
+					parameter 'AKMSuite' = "psk";
+					parameter 'AKMSuiteSelector' = "";
+					parameter 'MFP' = "Capable";
+				}
+			}
+			/*
+			 * WPA3-Personal Compatibility (PCM / RSN Overriding).
+			 * RSNOSupportFlag=true + RSNE.AKMSuite="psk,sae"
+			 * BSSTemplate for PCM is added at runtime (SecurityGroup.4).
+			 */
+			instance add ("cpe-wpa3-personal-compatibility") {
+				parameter 'Alias' = "cpe-wpa3-personal-compatibility";
+				parameter 'SecurityTemplateID' = "sec-template-wpa3-personal-compatibility";
+				parameter 'Enable' = true;
+				parameter 'Priority' = 205;
+				parameter 'RSNOSupportFlag' = "true";
+				object RSNE {
+					parameter 'GroupDataCipherSuite' = "ccmp";
+					parameter 'PairwiseCipherSuite' = "ccmp";
+					parameter 'GroupManagementCipherSuite' = "";
+					parameter 'AKMSuite' = "psk,sae";
+					parameter 'AKMSuiteSelector' = "";
 					parameter 'MFP' = "Required";
 				}
 			}
@@ -82,15 +135,24 @@
 
 		/* ---------------------- */
 		/* Security Groups        */
+		/* .1 SAE, .2 transition, .3 WPA2, .4 PCM */
 		/* ---------------------- */
 		object SecurityGroup {
-			instance add ("cpe-SecurityGroup-1") {
-				parameter 'SecurityGroupID' = "sec-group-sae";
+			instance add ("cpe-sec-group-wpa3-personal") {
+				parameter 'SecurityGroupID' = "sec-group-wpa3-personal";
 				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.1";
 			}
-			instance add ("cpe-SecurityGroup-2") {
-				parameter 'SecurityGroupID' = "sec-group-transition";
+			instance add ("cpe-sec-group-wpa3-personal-transition") {
+				parameter 'SecurityGroupID' = "sec-group-wpa3-personal-transition";
 				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.2";
+			}
+			instance add ("cpe-sec-group-wpa2-personal") {
+				parameter 'SecurityGroupID' = "sec-group-wpa2-personal";
+				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.3";
+			}
+			instance add ("cpe-sec-group-wpa3-personal-compatibility") {
+				parameter 'SecurityGroupID' = "sec-group-wpa3-personal-compatibility";
+				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.4";
 			}
 		}
 
@@ -111,51 +173,47 @@
 		}
 
 		/* ---------------------- */
-		/* BSS Templates (3)      */
-		/* 1 Backhaul, 1 FH Private (home), 1 FH Guest */
+		/* BSS Templates          */
 		/* ---------------------- */
 		object BSSTemplate {
-			/* Backhaul */
-			instance add ("cpe-BSSTemplate-bh") {
-				parameter 'BSSTemplateID' = "bss-template-bh";
+			instance add ("cpe-BSSTemplate-priv-5") {
+				parameter 'BSSTemplateID' = "PRPL-PRIVATE-5G";
 				parameter 'Enable' = false;
-				parameter 'Priority' = 240;
-				parameter 'SSID' = "prplmesh-bh";
+				parameter 'Priority' = 230;
+				parameter 'SSID' = "PRPL-PRIVATE-5G";
 				parameter 'KeyPassphrase' = "password";
 				parameter 'AdvertisementEnable' = true;
+				parameter 'TopologyFlag' = "Root,Repeater";
+				parameter 'X_PRPLWARE-COM_VapType' = "home";
+				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.2";
+				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.2";
+				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.2";
+			}
+			instance add ("cpe-BSSTemplate-guest-2.4") {
+				parameter 'BSSTemplateID' = "PRPL-GUEST-2G";
+				parameter 'Enable' = false;
+				parameter 'Priority' = 220;
+				parameter 'SSID' = "PRPL-GUEST-2G";
+				parameter 'KeyPassphrase' = "password";
+				parameter 'AdvertisementEnable' = true;
+				parameter 'TopologyFlag' = "Root,Repeater";
+				parameter 'X_PRPLWARE-COM_VapType' = "guest";
+				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.1";
+				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.3";
+				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.2";
+			}
+			instance add ("cpe-BSSTemplate-bh-5") {
+				parameter 'BSSTemplateID' = "PRPL-BH-5G";
+				parameter 'Enable' = false;
+				parameter 'Priority' = 240;
+				parameter 'SSID' = "PRPL-BH-5G";
+				parameter 'KeyPassphrase' = "password";
+				parameter 'AdvertisementEnable' = false;
 				parameter 'TopologyFlag' = "Root,Repeater";
 				parameter 'X_PRPLWARE-COM_VapType' = "backhaul";
 				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.2";
 				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.1";
 				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.1";
-			}
-
-			instance add ("cpe-BSSTemplate-home") {
-				parameter 'BSSTemplateID' = "bss-template-home";
-				parameter 'Enable' = false;
-				parameter 'Priority' = 230;
-				parameter 'SSID' = "prplmesh";
-				parameter 'KeyPassphrase' = "password";
-				parameter 'AdvertisementEnable' = true;
-				parameter 'TopologyFlag' = "Root,Repeater";
-				parameter 'X_PRPLWARE-COM_VapType' = "home";
-				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.1";
-				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.2";
-				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.2";
-			}
-
-			instance add ("cpe-BSSTemplate-guest") {
-				parameter 'BSSTemplateID' = "bss-template-guest";
-				parameter 'Enable' = false;
-				parameter 'Priority' = 220;
-				parameter 'SSID' = "prplmesh-guest";
-				parameter 'KeyPassphrase' = "password";
-				parameter 'AdvertisementEnable' = true;
-				parameter 'TopologyFlag' = "Root,Repeater";
-				parameter 'X_PRPLWARE-COM_VapType' = "guest";
-				parameter 'RadioTemplateReference' = "@TEMPLATES_ROOT_DM@.RadioTemplate.2";
-				parameter 'SSCTemplateReference' = "@TEMPLATES_ROOT_DM@.SSCTemplate.2";
-				parameter 'SecurityGroupReference' = "@TEMPLATES_ROOT_DM@.SecurityGroup.2";
 			}
 		}
 	}
