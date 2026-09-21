@@ -2828,7 +2828,18 @@ static bool template_stage_bss_on_radio(
                 LOG(DEBUG) << "BSSTemplate[" << bss_instance_index << "] APMLD " << mld_key;
             }
         } else if (apmld_inst && !get_param_bool(apmld_inst, "MLOEnable")) {
-            const std::string mld_key = get_param_string(apmld_inst, "APMLDTemplateID");
+            // TR-181: MLOEnable=false disables multi-link affiliation; each related
+            // BSSTemplate deployment becomes its own AP MLD with a single affiliated AP.
+            // BSSs remain enabled. Use a per-BSSTemplate mld_id so deployments are not
+            // multi-affiliated under the shared APMLDTemplateID.
+            std::string mld_key = get_param_string(bss_template_obj, "BSSTemplateID");
+            if (mld_key.empty()) {
+                mld_key = get_param_string(apmld_inst, "APMLDTemplateID");
+                if (!mld_key.empty()) {
+                    mld_key += "-bss-" + std::to_string(bss_instance_index);
+                }
+            }
+
             if (!mld_key.empty()) {
                 son::wireless_utils::sMldInfoConf mld_info;
                 mld_info.ssid  = bss_ssid;
