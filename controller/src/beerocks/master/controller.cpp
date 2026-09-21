@@ -483,8 +483,10 @@ bool Controller::send_cmdu(int fd, ieee1905_1::CmduMessageTx &cmdu_tx)
     return m_cmdu_server->send_cmdu(fd, cmdu_tx);
 }
 
-bool Controller::send_cmdu_to_broker(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac,
-                                     const sMacAddr &src_mac, const std::string &iface_name)
+bool Controller::send_cmdu_to_broker(
+    ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac, const sMacAddr &src_mac,
+    const std::string &iface_name,
+    beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type)
 {
     if (!m_broker_client) {
         LOG(ERROR) << "Unable to send CMDU to broker server";
@@ -496,7 +498,7 @@ bool Controller::send_cmdu_to_broker(ieee1905_1::CmduMessageTx &cmdu_tx, const s
         iface_index = if_nametoindex(iface_name.c_str());
     }
 
-    return m_broker_client->send_cmdu(cmdu_tx, dst_mac, src_mac, iface_index);
+    return m_broker_client->send_cmdu(cmdu_tx, dst_mac, src_mac, iface_index, iface_type);
 }
 
 void Controller::handle_connected(int fd) { LOG(INFO) << "UDS socket connected, fd = " << fd; }
@@ -920,7 +922,11 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(uint32_t iface_index,
         }
     }
 
-    return send_cmdu_to_broker(cmdu_tx, al_mac, database.get_local_bridge_mac(), ingress_iface);
+    const auto iface_type = ingress_iface.empty()
+                                ? beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE
+                                : beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET;
+    return send_cmdu_to_broker(cmdu_tx, al_mac, database.get_local_bridge_mac(), ingress_iface,
+                               iface_type);
 }
 
 /**

@@ -821,7 +821,8 @@ bool BackhaulManager::send_wired_controller_probe_search(const std::string &radi
     // controller is reachable on one of the wired candidates. A response restarts BackhaulManager
     // into the regular wired onboarding flow; this probe does not complete onboarding by itself.
     return send_cmdu_to_broker(cmdu_tx, beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR,
-                               db->bridge.mac, wired_iface);
+                               db->bridge.mac, wired_iface,
+                               beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET);
 }
 
 void BackhaulManager::maybe_send_wired_controller_probe()
@@ -1200,9 +1201,10 @@ bool BackhaulManager::forward_cmdu_to_uds(int fd, uint32_t iface_index, const sM
     return m_cmdu_server->forward_cmdu(fd, iface_index, dst_mac, src_mac, cmdu_rx);
 }
 
-bool BackhaulManager::send_cmdu_to_broker(ieee1905_1::CmduMessageTx &cmdu_tx,
-                                          const sMacAddr &dst_mac, const sMacAddr &src_mac,
-                                          const std::string &iface_name)
+bool BackhaulManager::send_cmdu_to_broker(
+    ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac, const sMacAddr &src_mac,
+    const std::string &iface_name,
+    beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type)
 {
     if (!m_broker_client) {
         LOG(ERROR) << "Unable to send CMDU to broker server";
@@ -1227,7 +1229,7 @@ bool BackhaulManager::send_cmdu_to_broker(ieee1905_1::CmduMessageTx &cmdu_tx,
         return false;
     }
 
-    return m_broker_client->send_cmdu(cmdu_tx, dst_mac, src_mac, iface_index);
+    return m_broker_client->send_cmdu(cmdu_tx, dst_mac, src_mac, iface_index, iface_type);
 }
 
 bool BackhaulManager::send_ack_to_controller(ieee1905_1::CmduMessageTx &cmdu_tx, uint32_t mid)

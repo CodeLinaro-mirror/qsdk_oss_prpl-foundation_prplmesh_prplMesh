@@ -93,7 +93,9 @@ public:
      * @see BrokerClient::send_cmdu()
      */
     bool send_cmdu(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac,
-                   const sMacAddr &src_mac, uint32_t iface_index = 0) override;
+                   const sMacAddr &src_mac, uint32_t iface_index = 0,
+                   beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type =
+                       beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE) override;
 
     /**
      * @brief Forwards a CMDU message to the transport process for dispatching.
@@ -158,7 +160,8 @@ private:
      * @return true on success and false otherwise.
      */
     bool send_cmdu_message(ieee1905_1::CmduMessage &cmdu, const sMacAddr &dst_mac,
-                           const sMacAddr &src_mac, uint32_t iface_index);
+                           const sMacAddr &src_mac, uint32_t iface_index,
+                           beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type);
     /**
      * @brief Sends a transport message to the server.
      *
