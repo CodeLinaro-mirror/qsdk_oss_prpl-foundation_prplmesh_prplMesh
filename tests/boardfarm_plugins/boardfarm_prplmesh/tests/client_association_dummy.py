@@ -44,6 +44,10 @@ class ClientAssociationDummy(PrplMeshBaseTest):
         except AttributeError as ae:
             raise SkipTest(ae)
 
+        if not controller.beerocks_cli_available():
+            raise SkipTest("beerocks_cli is not installed; "
+                           "build prplMesh with PRPLMESH_BML to run this test")
+
         self.dev.DUT.wired_sniffer.start(self.__class__.__name__ + "-" + self.dev.DUT.name)
 
         debug("Connect dummy STA to wlan0 with SSID ClientAssocDummy")
