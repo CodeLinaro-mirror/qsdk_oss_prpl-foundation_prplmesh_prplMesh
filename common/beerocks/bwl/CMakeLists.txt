@@ -35,6 +35,8 @@ if (USE_PRPLMESH_WHM)
 endif()
 
 set(BWL_TYPE ${BWL_TYPE} CACHE STRING "Which BWL backend to use")
+# Export the derived value to the parent directory.
+set(BWL_TYPE ${BWL_TYPE} PARENT_SCOPE)
 
 ##########################################################################
 ##########################################################################
