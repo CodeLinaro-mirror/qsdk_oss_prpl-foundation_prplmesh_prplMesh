@@ -123,6 +123,14 @@ private:
                                           const sMacAddr &src_mac);
 
     /**
+     * @brief Sends ACTION_BACKHAUL_CHANNELS_LIST_REQUEST for a single radio.
+     *
+     * @param[in] radio_mac MAC address of the radio to request the channels list for.
+     * @return true if the request was sent, false otherwise.
+     */
+    bool send_channels_list_request(const sMacAddr &radio_mac);
+
+    /**
      * @brief Handles Vendor Specific messages.
      *
      * @param[in] cmdu_rx Received CMDU.

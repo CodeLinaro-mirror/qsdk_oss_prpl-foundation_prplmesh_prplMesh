@@ -254,24 +254,32 @@ void ChannelSelectionTask::handle_channel_preference_query(ieee1905_1::CmduMessa
 
         m_pending_preference.preference_ready[radio->front.iface_mac] = false;
 
-        auto request = message_com::create_vs_message<
-            beerocks_message::cACTION_BACKHAUL_CHANNELS_LIST_REQUEST>(m_cmdu_tx);
-        if (!request) {
-            LOG(ERROR) << "Failed to build message";
+        if (!send_channels_list_request(radio->front.iface_mac)) {
             break;
         }
-
-        auto agent_fd = m_btl_ctx.get_agent_fd();
-        if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
-            LOG(ERROR) << "socket to Agent not found";
-            break;
-        }
-
-        auto action_header         = message_com::get_beerocks_header(m_cmdu_tx)->actionhdr();
-        action_header->radio_mac() = radio->front.iface_mac;
-
-        m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx);
     }
+}
+
+bool ChannelSelectionTask::send_channels_list_request(const sMacAddr &radio_mac)
+{
+    auto request =
+        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_CHANNELS_LIST_REQUEST>(
+            m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed to build CHANNELS_LIST_REQUEST message";
+        return false;
+    }
+
+    auto agent_fd = m_btl_ctx.get_agent_fd();
+    if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "socket to Agent not found";
+        return false;
+    }
+
+    auto action_header         = message_com::get_beerocks_header(m_cmdu_tx)->actionhdr();
+    action_header->radio_mac() = radio_mac;
+
+    return m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx);
 }
 
 bool ChannelSelectionTask::handle_eht_operation_tlv(wfa_map::tlvEHTOperations &eht_ops_tlv)
@@ -924,33 +932,23 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
     if (m_pending_preference.mid || m_pending_selection.mid) {
         LOG(DEBUG) << "Pending selection/preference exists, skip unsolicited CPR for CAC completed "
                    << "on radio " << tlvf::mac_to_string(radio_mac);
+        m_send_preference_report_after_cac_completion_event = !cac_success;
     } else if (!radio->front.zwdfs && cac_success) {
 
         /**
-         * If CAC succeeded, send an unsolicited Channel Preference Report (CPR) here.
-         * If CAC failed, a channel change event will follow (likely due to radar).
-         * In that case, CPR and OCR will be sent later during CSA_Finished handling.
+         * CAC cleared channels in the driver but AgentDB still has old DFS state. Arm deferred
+         * report and request fresh channels list so the report is sent with correct data.
          */
         m_pending_preference.preference_ready.clear();
-        m_pending_preference.preference_ready[radio_mac] = false;
-        m_pending_preference.mid                         = cmdu_rx.getMessageId();
+        m_pending_preference.preference_ready[radio_mac]    = false;
+        m_send_preference_report_after_cac_completion_event = true;
 
-        // Build and send CPR. No need to return on error
-        if (!build_channel_preference_report(radio_mac)) {
-            LOG(ERROR) << "Failed to build channel preference report for radio "
-                       << tlvf::mac_to_string(radio_mac);
-        } else if (channel_preference_report_ready()) {
-            if (!send_channel_preference_report()) {
-                LOG(ERROR) << "Failed to send CHANNEL_PREFERENCE_REPORT_MESSAGE "
-                           << "for radio " << tlvf::mac_to_string(radio_mac);
-            }
-        }
-
-        m_pending_preference.mid = 0;
-        m_pending_preference.preference_ready.clear();
+        LOG(DEBUG) << "Requesting channels list after successful CAC on radio "
+                   << tlvf::mac_to_string(radio_mac);
+        send_channels_list_request(radio_mac);
+    } else {
+        m_send_preference_report_after_cac_completion_event = !cac_success;
     }
-
-    m_send_preference_report_after_cac_completion_event = !cac_success;
 
     if (m_zwdfs_state == eZwdfsState::WAIT_FOR_ZWDFS_CAC_COMPLETED) {
         db->statuses.zwdfs_cac_remaining_time_sec = 0;
