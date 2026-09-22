@@ -114,6 +114,25 @@ private:
                                           const sMacAddr &src_mac);
 
     /**
+     * @brief Sends ACTION_BACKHAUL_CHANNELS_LIST_REQUEST for a single radio.
+     *
+     * @param[in] radio_mac MAC address of the radio to request the channels list for.
+     * @return true if the request was sent, false otherwise.
+     */
+    bool send_channels_list_request(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Adds the radio to the pending preference report and requests its channels list.
+     *
+     * Radios already pending are kept, so the report is sent once all of them have responded.
+     * If the request cannot be sent, the radio's previous pending state is restored.
+     *
+     * @param[in] radio_mac MAC address of the radio to refresh.
+     * @return true if the request was sent, false otherwise.
+     */
+    bool request_channel_preference_refresh(const sMacAddr &radio_mac);
+
+    /**
      * @brief Handles Vendor Specific messages.
      *
      * @param[in] cmdu_rx Received CMDU.
