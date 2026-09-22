@@ -1,3 +1,9 @@
+if (PRPLMESH_VENDOR_EXTENSIONS)
+    set(VENDOR_MESSAGE_PROCESS "beerocks_vendor_message")
+else()
+    set(VENDOR_MESSAGE_PROCESS "")
+endif()
+
 # Configure the prplMesh helper script
 configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/prplmesh_utils.sh.in"
