@@ -33,6 +33,10 @@ class NbapiStaticPuncturing(PrplMeshBaseTest):
         except AttributeError as ae:
             raise SkipTest(ae)
 
+        if not controller.beerocks_cli_available():
+            raise SkipTest("beerocks_cli is not installed; "
+                           "build prplMesh with PRPLMESH_BML to run this test")
+
         self.dev.DUT.wired_sniffer.start(self.__class__.__name__ + "-" + self.dev.DUT.name)
 
         # Add Access Point object and set up parameters for it

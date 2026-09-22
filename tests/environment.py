@@ -718,9 +718,22 @@ class ALEntityDocker(ALEntity):
     def prprlmesh_status_check(self):
         return self.device.prprlmesh_status_check()
 
+    def beerocks_cli_available(self) -> bool:
+        '''Whether beerocks_cli is present on the controller.'''
+        if not self.is_controller:
+            return False
+        path = os.path.join(self.installdir, "bin/beerocks_cli")
+        try:
+            self.command("test", "-x", path)
+        except Exception:
+            return False
+        return True
+
     def beerocks_cli_command(self, command) -> str:
         '''Execute `command` beerocks_cli command on the controller and return its output.
         Will return None if called from an object that is not a controller.
+
+        beerocks_cli ships only when prplMesh is built with PRPLMESH_BML.
         '''
         if self.is_controller:
             debug("Send CLI command " + command)
