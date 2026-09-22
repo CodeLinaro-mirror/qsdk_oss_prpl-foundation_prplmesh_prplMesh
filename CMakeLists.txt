@@ -66,6 +66,11 @@ process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_R
 
 ## Build options
 
+option (PRPLMESH_VENDOR_EXTENSIONS "Build vendor-specific TLV extensions (Airties)" OFF)
+if (PRPLMESH_VENDOR_EXTENSIONS)
+    add_definitions(-DPRPLMESH_VENDOR_EXTENSIONS)
+endif()
+
 option (BUILD_AGENT "Build EasyMesh agent" ON)
 option (BUILD_CONTROLLER "Build EasyMesh controller" ON)
 
@@ -310,7 +315,9 @@ add_subdirectory(framework)
 add_subdirectory(common)
 if (BUILD_AGENT)
     add_subdirectory(agent)
-    add_subdirectory(vendor_message)
+    if (PRPLMESH_VENDOR_EXTENSIONS)
+        add_subdirectory(vendor_message)
+    endif()
 endif()
 if (BUILD_CONTROLLER)
     add_subdirectory(controller)

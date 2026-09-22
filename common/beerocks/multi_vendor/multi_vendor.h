@@ -75,7 +75,15 @@ public:
      * @param msg_type IEEE 1905.1 message type
      * @return true on success, false if any handler failed
      */
+#ifdef PRPLMESH_VENDOR_EXTENSIONS
     static bool add_vs_tlv(ieee1905_1::CmduMessageTx &cmdu_tx, ieee1905_1::eMessageType msg_type);
+#else
+    static inline bool add_vs_tlv(ieee1905_1::CmduMessageTx &cmdu_tx,
+                                  ieee1905_1::eMessageType msg_type)
+    {
+        return true;
+    }
+#endif
 
     // Handler signature for parsing vendor-specific TLVs: parse from CMDU and return parsed TLV.
     typedef std::shared_ptr<BaseClass> (*tlv_parser_function_t)(ieee1905_1::CmduMessageRx &);
