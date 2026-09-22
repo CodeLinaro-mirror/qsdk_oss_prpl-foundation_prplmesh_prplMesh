@@ -12,6 +12,12 @@ file(GLOB controller_tasks_sources ${MODULE_PATH}/tasks/*.cpp)
 file(GLOB controller_operations_sources ${MODULE_PATH}/periodic/*.cpp)
 file(GLOB controller_db_sources ${MODULE_PATH}/db/*.cpp)
 
+if (NOT PRPLMESH_BML)
+    list(REMOVE_ITEM controller_sources ${MODULE_PATH}/son_management.cpp)
+    list(REMOVE_ITEM controller_tasks_sources ${MODULE_PATH}/tasks/bml_task.cpp)
+    list(REMOVE_ITEM controller_db_sources ${MODULE_PATH}/db/network_map.cpp)
+endif()
+
 file(GLOB controller_vbss ${VBSS_PATH}/*.cpp)
 
 if (ENABLE_NBAPI)

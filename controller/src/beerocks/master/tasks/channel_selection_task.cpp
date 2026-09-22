@@ -8,7 +8,9 @@
 
 #include "channel_selection_task.h"
 #include "../son_actions.h"
+#ifdef PRPLMESH_BML
 #include "bml_task.h"
+#endif // PRPLMESH_BML
 #include "ire_network_optimization_task.h"
 #include "optimal_path_task.h"
 
@@ -353,11 +355,13 @@ void channel_selection_task::work()
         if (!database.set_radio_wifi_channel(radio_mac, wifi_channel, "slave_joined")) {
             TASK_LOG(ERROR) << "set radio wifi channel failed, mac=" << radio_mac;
         } else {
+#ifdef PRPLMESH_BML
             // update bml listeners
             bml_task::connection_change_event new_event;
             new_event.mac = tlvf::mac_to_string(database.get_radio_parent_agent(radio_mac));
             tasks.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &new_event);
             TASK_LOG(DEBUG) << "BML, sending CONNECTION_CHANGE for mac " << new_event.mac;
+#endif // PRPLMESH_BML
         }
         TASK_LOG(DEBUG) << "vht_center_frequency = " << uint16_t(vht_center_frequency);
 
@@ -623,11 +627,13 @@ void channel_selection_task::work()
         set_events_timeout(ACS_RESPONSE_WAIT_TIME);
         cs_wait_for_event(eEvent::ACS_RESPONSE_EVENT);
 
+#ifdef PRPLMESH_BML
         // update bml listeners
         bml_task::acs_start_event acs_start_event;
         acs_start_event.hostap_mac = tlvf::mac_to_string(radio_mac);
         tasks.push_event(database.get_bml_task_id(), bml_task::ACS_START_EVENT_AVAILABLE,
                          &acs_start_event);
+#endif // PRPLMESH_BML
 
         FSM_MOVE_STATE(WAIT_FOR_ACS_RESPONSE);
         break;
@@ -689,6 +695,7 @@ void channel_selection_task::work()
             TASK_LOG(ERROR) << "set radio wifi channel failed, mac=" << radio_mac;
         }
 
+#ifdef PRPLMESH_BML
         // update bml listeners
         bml_task::csa_notification_event csa_notification_event;
         csa_notification_event.hostap_mac = tlvf::mac_to_string(radio_mac);
@@ -700,6 +707,7 @@ void channel_selection_task::work()
             uint16_t(csa_event->cs_params.vht_center_frequency);
         tasks.push_event(database.get_bml_task_id(), bml_task::CSA_NOTIFICATION_EVENT_AVAILABLE,
                          &csa_notification_event);
+#endif // PRPLMESH_BML
         FSM_MOVE_STATE(ACTIVATE_SLAVE);
         break;
     }
@@ -787,6 +795,7 @@ void channel_selection_task::work()
             TASK_LOG(DEBUG) << "radio_mac - " << radio_mac
                             << " cac completed - found in pending cac - erasing, update DB";
 
+#ifdef PRPLMESH_BML
             // update bml listeners
             bml_task::cac_status_changed_notification_event cac_status_changed_event;
             cac_status_changed_event.hostap_mac    = tlvf::mac_to_string(radio_mac);
@@ -794,6 +803,8 @@ void channel_selection_task::work()
             tasks.push_event(database.get_bml_task_id(),
                              bml_task::CAC_STATUS_CHANGED_NOTIFICATION_EVENT_AVAILABLE,
                              &cac_status_changed_event);
+#endif // PRPLMESH_BML
+
             //optimal path for all non dfs reentry clients
             run_optimal_path_for_connected_clients();
 
@@ -856,6 +867,7 @@ void channel_selection_task::work()
             TASK_LOG(ERROR) << "set radio wifi channel failed, mac=" << radio_mac;
         }
 
+#ifdef PRPLMESH_BML
         // update bml listeners
         bml_task::csa_notification_event csa_notification_event;
         csa_notification_event.hostap_mac = tlvf::mac_to_string(radio_mac);
@@ -867,6 +879,7 @@ void channel_selection_task::work()
             uint16_t(csa_event->cs_params.vht_center_frequency);
         tasks.push_event(database.get_bml_task_id(), bml_task::CSA_NOTIFICATION_EVENT_AVAILABLE,
                          &csa_notification_event);
+#endif // PRPLMESH_BML
 
         auto radio = database.get_radio_by_uid(radio_mac);
         if (!radio) {
@@ -1716,6 +1729,7 @@ void channel_selection_task::wait_for_cac_completed(uint8_t channel, uint8_t ban
     hostaps_cac_pending.insert({tlvf::mac_to_string(radio_mac), std::chrono::steady_clock::now()});
     database.set_radio_cac_completed(radio_mac, false);
 
+#ifdef PRPLMESH_BML
     // update bml listeners
     bml_task::cac_status_changed_notification_event cac_status_changed_event;
     cac_status_changed_event.hostap_mac    = tlvf::mac_to_string(radio_mac);
@@ -1723,6 +1737,7 @@ void channel_selection_task::wait_for_cac_completed(uint8_t channel, uint8_t ban
     tasks.push_event(database.get_bml_task_id(),
                      bml_task::CAC_STATUS_CHANGED_NOTIFICATION_EVENT_AVAILABLE,
                      &cac_status_changed_event);
+#endif // PRPLMESH_BML
 
     //inject event to check for cac completed.
     TASK_LOG(DEBUG) << "radio_mac - " << radio_mac << " inject cac sample event";

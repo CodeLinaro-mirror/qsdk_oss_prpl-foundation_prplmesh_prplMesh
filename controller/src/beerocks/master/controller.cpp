@@ -10,9 +10,13 @@
 #include "periodic/persistent_data_commit_operation.h"
 #include "periodic/persistent_database_aging.h"
 #include "son_actions.h"
+#ifdef PRPLMESH_BML
 #include "son_management.h"
+#endif // PRPLMESH_BML
 #include "tasks/agent_monitoring_task.h"
+#ifdef PRPLMESH_BML
 #include "tasks/bml_task.h"
+#endif // PRPLMESH_BML
 #include "tasks/btm_request_task.h"
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
@@ -27,7 +31,9 @@
 #include "tasks/pre_association_steering/pre_association_steering_task.h"
 #endif
 #include "db/db_algo.h"
+#ifdef PRPLMESH_BML
 #include "db/network_map.h"
+#endif // PRPLMESH_BML
 #include "tasks/client_locating_task.h"
 #include "tasks/dynamic_channel_selection_task.h"
 
@@ -387,8 +393,10 @@ void Controller::start_mandatory_tasks()
 {
     LOG(DEBUG) << "Start mandatory periodic tasks";
 
+#ifdef PRPLMESH_BML
     m_task_pool.add_task_check_mode<bml_task>("BML task", database.config.management_mode, database,
                                               cmdu_tx, m_task_pool);
+#endif // PRPLMESH_BML
     m_task_pool.add_task_check_mode<ieee1905_task>(
         "ieee1905 task", database.config.management_mode, database, cmdu_tx,
         std::make_unique<RealIEEE1905QuerySender>(database));
@@ -509,8 +517,10 @@ void Controller::handle_disconnected(int fd)
 
     // Removing the socket only from the vector of socket in the database if exists,
     // not from socket thread.
+#ifdef PRPLMESH_BML
     database.remove_cli_socket(fd);
     database.remove_bml_socket(fd);
+#endif // PRPLMESH_BML
 
 #ifdef FEATURE_PRE_ASSOCIATION_STEERING
     pre_association_steering_task::sListenerGeneralRegisterUnregisterEvent new_event;
@@ -537,12 +547,14 @@ bool Controller::handle_cmdu(int fd, uint32_t iface_index, const sMacAddr &dst_m
             return false;
         }
         switch (beerocks_header->action()) {
+#ifdef PRPLMESH_BML
         case beerocks_message::ACTION_CLI: {
             son_management::handle_cli_message(fd, beerocks_header, cmdu_tx, database, m_task_pool);
         } break;
         case beerocks_message::ACTION_BML: {
             son_management::handle_bml_message(fd, beerocks_header, cmdu_tx, database, m_task_pool);
         } break;
+#endif // PRPLMESH_BML
         case beerocks_message::ACTION_CONTROL: {
             handle_cmdu_control_message(src_mac, beerocks_header);
         } break;
@@ -3172,6 +3184,7 @@ bool Controller::handle_intel_slave_join(
             }
         }
 
+#ifdef PRPLMESH_BML
         // sending to BML listeners, client disconnect notification on ire backhaul before changing it type from TYPE_CLIENT to bSTA
         std::shared_ptr<Station> bh_sta = database.get_station(tlvf::mac_from_string(backhaul_mac));
         if (bh_sta && !bh_sta->is_bSta() && bh_sta->state == beerocks::STATE_CONNECTED) {
@@ -3183,6 +3196,7 @@ bool Controller::handle_intel_slave_join(
             m_task_pool.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE,
                                    &new_event);
         }
+#endif // PRPLMESH_BML
 
         //TODO might need to handle bssids of VAP nodes as well in this case
         if (parent_bssid_mac != beerocks::net::network_utils::ZERO_MAC) {
@@ -3444,11 +3458,13 @@ bool Controller::handle_intel_slave_join(
         son_actions::handle_completed_connection(database, cmdu_tx, m_task_pool, backhaul_mac);
     }
 
+#ifdef PRPLMESH_BML
     // update bml listeners
     bml_task::connection_change_event bml_new_event;
     bml_new_event.mac = bridge_mac_str;
     m_task_pool.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &bml_new_event);
     LOG(DEBUG) << "BML, sending IRE connect CONNECTION_CHANGE for mac " << bml_new_event.mac;
+#endif // PRPLMESH_BML
 
     // sending event to CS task
     LOG(DEBUG) << "CS_task,sending SLAVE_JOINED_EVENT for mac " << radio_mac;
@@ -3667,11 +3683,13 @@ bool Controller::handle_non_intel_slave_join(
     database.set_radio_band_capability(radio_mac, beerocks::SUBBAND_CAPABILITY_UNKNOWN);
     //        }
 
+#ifdef PRPLMESH_BML
     // update bml listeners
     bml_task::connection_change_event bml_new_event;
     bml_new_event.mac = bridge_mac_str;
     m_task_pool.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &bml_new_event);
     LOG(DEBUG) << "BML, sending IRE connect CONNECTION_CHANGE for mac " << bml_new_event.mac;
+#endif // PRPLMESH_BML
 
     LOG(DEBUG) << "send AP_AUTOCONFIG_WSC M2";
     return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
@@ -3808,11 +3826,13 @@ bool Controller::handle_cmdu_control_message(
         bss->fronthaul = notification->vap_info().fronthaul_vap;
         bss->backhaul  = notification->vap_info().backhaul_vap;
 
+#ifdef PRPLMESH_BML
         // update bml listeners
         bml_task::connection_change_event new_event;
         new_event.mac = tlvf::mac_to_string(database.get_radio_parent_agent(radio_mac));
         m_task_pool.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &new_event);
         LOG(DEBUG) << "BML, sending IRE connect CONNECTION_CHANGE for mac " << new_event.mac;
+#endif // PRPLMESH_BML
 
         break;
     }
@@ -3933,11 +3953,13 @@ bool Controller::handle_cmdu_control_message(
             database.disable_bss(*radio, *bss);
         }
 
+#ifdef PRPLMESH_BML
         // update bml listeners
         bml_task::connection_change_event new_event;
         new_event.mac = tlvf::mac_to_string(database.get_radio_parent_agent(radio_mac));
         m_task_pool.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &new_event);
         LOG(DEBUG) << "BML, sending IRE connect CONNECTION_CHANGE for mac " << new_event.mac;
+#endif // PRPLMESH_BML
 
         break;
     }
