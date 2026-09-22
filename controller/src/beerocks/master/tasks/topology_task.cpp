@@ -10,7 +10,9 @@
 #include "topology_task.h"
 #include "../db/db_algo.h"
 #include "../son_actions.h"
+#ifdef PRPLMESH_BML
 #include "bml_task.h"
+#endif // PRPLMESH_BML
 #include "btm_request_task.h"
 #include "client_steering_task.h"
 #include "dhcp_task.h"
@@ -264,6 +266,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     // Update active mac list of the device node
     database.dm_update_interface_elements(al_mac, interface_macs);
 
+#ifdef PRPLMESH_BML
     // create topology response update event for bml listeners
     bml_task::topology_response_update_event new_bml_event;
     new_bml_event.al_mac = al_mac;
@@ -273,6 +276,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     }
     tasks.push_event(database.get_bml_task_id(), bml_task::TOPOLOGY_RESPONSE_UPDATE,
                      &new_bml_event);
+#endif // PRPLMESH_BML
 
     //Parse BssidIfaceMapping vsTLV
     std::unordered_map<sMacAddr, int8_t> bssid_vap_map;

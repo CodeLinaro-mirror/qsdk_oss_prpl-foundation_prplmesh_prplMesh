@@ -2401,16 +2401,19 @@ public:
     //
     // CLI
     //
+#ifdef PRPLMESH_BML
     void add_cli_socket(int sd);
     void remove_cli_socket(int sd);
     bool get_cli_debug_enable(int sd);
     int get_cli_socket_at(int idx);
+#endif // PRPLMESH_BML
     void set_slave_stop_on_failure_attempts(int attempts);
     int get_slave_stop_on_failure_attempts();
 
     //
     // BML
     //
+#ifdef PRPLMESH_BML
     void add_bml_socket(int sd);
     void remove_bml_socket(int sd);
     bool get_bml_nw_map_update_enable(int sd);
@@ -2423,6 +2426,7 @@ public:
     bool set_bml_topology_update_enable(int sd, bool update_enable);
     int get_bml_socket_at(int idx);
     bool is_bml_listener_exist();
+#endif // PRPLMESH_BML
 
     void set_vap_list(std::shared_ptr<vaps_list_t> vaps_list);
     const std::shared_ptr<vaps_list_t> get_vap_list();
@@ -3851,8 +3855,10 @@ private:
 
     int slaves_stop_on_failure_attempts = 0;
 
+#ifdef PRPLMESH_BML
     std::vector<int> cli_debug_sockets;
     std::vector<sBmlListener> bml_listeners_sockets;
+#endif // PRPLMESH_BML
 
     beerocks::logging &logger;
 

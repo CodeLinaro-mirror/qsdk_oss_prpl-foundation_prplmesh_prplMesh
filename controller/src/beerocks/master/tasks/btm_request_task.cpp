@@ -9,7 +9,9 @@
 #include "btm_request_task.h"
 #include "../db/db_algo.h"
 #include "../son_actions.h"
+#ifdef PRPLMESH_BML
 #include "bml_task.h"
+#endif // PRPLMESH_BML
 
 #include <bcl/beerocks_wifi_channel.h>
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
@@ -208,6 +210,7 @@ void btm_request_task::steer_sta()
         m_database, m_cmdu_tx, target_agent->al_mac, tlvf::mac_from_string(m_target_bssid),
         unblock_list, 0, wfa_map::tlvClientAssociationControlRequest::UNBLOCK);
 
+#ifdef PRPLMESH_BML
     // update bml listeners
     bml_task::client_allow_req_available_event client_allow_event;
     client_allow_event.sta_mac    = m_sta_mac;
@@ -215,6 +218,7 @@ void btm_request_task::steer_sta()
     client_allow_event.ip         = m_database.get_sta_ipv4(m_sta_mac);
     m_tasks.push_event(m_database.get_bml_task_id(), bml_task::CLIENT_ALLOW_REQ_EVENT_AVAILABLE,
                        &client_allow_event);
+#endif // PRPLMESH_BML
 
     // Send STEERING request
     if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE)) {
@@ -272,12 +276,14 @@ void btm_request_task::steer_sta()
                     << " disassoc_timer=" << m_disassoc_timer_ms
                     << " disassoc_imminent=" << m_disassoc_imminent << " id=" << int(id);
 
+#ifdef PRPLMESH_BML
     // update bml listeners
     bml_task::bss_tm_req_available_event bss_tm_event;
     bss_tm_event.target_bssid      = m_target_bssid;
     bss_tm_event.disassoc_imminent = m_disassoc_imminent;
     m_tasks.push_event(m_database.get_bml_task_id(), bml_task::BSS_TM_REQ_EVENT_AVAILABLE,
                        &bss_tm_event);
+#endif // PRPLMESH_BML
 }
 
 void btm_request_task::print_steering_info()

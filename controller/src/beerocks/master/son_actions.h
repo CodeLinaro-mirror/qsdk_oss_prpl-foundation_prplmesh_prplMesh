@@ -17,11 +17,17 @@
 
 #define CLI_LOG(a) LOG(a)
 
+#ifdef PRPLMESH_BML
+#define SEND_CLI_DEBUG_MESSAGE(db, tx, ss) son_actions::send_cli_debug_message(db, tx, ss)
+#else
+#define SEND_CLI_DEBUG_MESSAGE(db, tx, ss)
+#endif // PRPLMESH_BML
+
 #define LOG_CLI(LEVEL, msg)                                                                        \
     {                                                                                              \
         std::stringstream ss;                                                                      \
         ss << msg;                                                                                 \
-        son_actions::send_cli_debug_message(database, cmdu_tx, ss);                                \
+        SEND_CLI_DEBUG_MESSAGE(database, cmdu_tx, ss);                                             \
         CLI_LOG(LEVEL) << ss.rdbuf();                                                              \
     }
 
@@ -44,8 +50,10 @@ public:
                                   eClientDisconnectSource src = eClient_Disconnect_Source_Ignore);
     static bool set_radio_active(db &database, task_pool &tasks, std::string hostap_mac,
                                  const bool active);
+#ifdef PRPLMESH_BML
     static void send_cli_debug_message(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                        std::stringstream &ss);
+#endif // PRPLMESH_BML
 
     static void handle_dead_radio(const sMacAddr &mac, bool reported_by_parent, db &database,
                                   task_pool &tasks);

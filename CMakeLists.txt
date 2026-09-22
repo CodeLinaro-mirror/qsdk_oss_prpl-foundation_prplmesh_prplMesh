@@ -66,6 +66,11 @@ process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_R
 
 ## Build options
 
+option (PRPLMESH_BML "Build the BML management interface, beerocks_cli and pre-association steering" OFF)
+if (PRPLMESH_BML)
+    add_definitions(-DPRPLMESH_BML)
+endif()
+
 option (PRPLMESH_VENDOR_EXTENSIONS "Build vendor-specific TLV extensions (Airties)" OFF)
 if (PRPLMESH_VENDOR_EXTENSIONS)
     add_definitions(-DPRPLMESH_VENDOR_EXTENSIONS)
@@ -212,8 +217,10 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
 
     if (TARGET_PLATFORM_TYPE STREQUAL "ugw")
         add_definitions(-DBEEROCKS_UGW)
-        list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")
-        add_definitions(-DFEATURE_PRE_ASSOCIATION_STEERING)
+        if (PRPLMESH_BML)
+            list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")
+            add_definitions(-DFEATURE_PRE_ASSOCIATION_STEERING)
+        endif()
         set(BEEROCKS_BH_WIRE_IFACE "eth0_1" CACHE STRING "Backhaul wire iface")
         set(BEEROCKS_REPEATER_MODE 1)
         set(BEEROCKS_MONITOR_POLLING_RATE_MSEC 1000)
@@ -228,8 +235,10 @@ if (TARGET_PLATFORM STREQUAL "openwrt")
     endif()
 elseif (TARGET_PLATFORM STREQUAL "rdkb")
     add_definitions(-DBEEROCKS_RDKB)
-    list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")
-    add_definitions(-DFEATURE_PRE_ASSOCIATION_STEERING)
+    if (PRPLMESH_BML)
+        list(APPEND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING")
+        add_definitions(-DFEATURE_PRE_ASSOCIATION_STEERING)
+    endif()
     set(BEEROCKS_BRIDGE_IFACE  "brlan0" CACHE STRING "LAN bridge")
     set(BEEROCKS_BH_WIRE_IFACE "nsgmii0" CACHE STRING "Backhaul wire iface")
     # Disable fronthaul wired ports

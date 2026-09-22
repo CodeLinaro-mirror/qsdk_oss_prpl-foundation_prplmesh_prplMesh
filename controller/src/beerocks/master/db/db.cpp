@@ -5007,6 +5007,14 @@ std::deque<sMacAddr> db::get_clients_with_persistent_data_configured()
     return configured_clients;
 }
 
+void db::set_slave_stop_on_failure_attempts(int attempts)
+{
+    slaves_stop_on_failure_attempts = attempts;
+}
+
+int db::get_slave_stop_on_failure_attempts() { return slaves_stop_on_failure_attempts; }
+
+#ifdef PRPLMESH_BML
 //
 // CLI
 //
@@ -5040,13 +5048,6 @@ bool db::get_cli_debug_enable(int sd)
     }
     return false;
 }
-
-void db::set_slave_stop_on_failure_attempts(int attempts)
-{
-    slaves_stop_on_failure_attempts = attempts;
-}
-
-int db::get_slave_stop_on_failure_attempts() { return slaves_stop_on_failure_attempts; }
 
 int db::get_cli_socket_at(int idx)
 {
@@ -5208,6 +5209,7 @@ bool db::is_bml_listener_exist()
     }
     return false;
 }
+#endif // PRPLMESH_BML
 
 //
 // Measurements

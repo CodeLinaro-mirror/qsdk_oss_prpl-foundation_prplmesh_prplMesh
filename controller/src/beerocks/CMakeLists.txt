@@ -1,6 +1,8 @@
 # Build Beerocks Modules
-add_subdirectory("bml")
-add_subdirectory("cli")
+if (PRPLMESH_BML)
+    add_subdirectory("bml")
+    add_subdirectory("cli")
+endif()
 add_subdirectory("master")
 
 if (ENABLE_NBAPI)
