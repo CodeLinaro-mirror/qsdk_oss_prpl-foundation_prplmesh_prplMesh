@@ -11,7 +11,9 @@
 #include "db/db_algo.h"
 #include "tasks/agent_monitoring_task.h"
 #include "tasks/association_handling_task.h"
+#ifdef PRPLMESH_BML
 #include "tasks/bml_task.h"
+#endif // PRPLMESH_BML
 #include "tasks/btm_request_task.h"
 #include "tasks/client_steering_task.h"
 
@@ -21,7 +23,9 @@
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
 
+#ifdef PRPLMESH_BML
 #include <beerocks/tlvf/beerocks_message_cli.h>
+#endif // PRPLMESH_BML
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvSupportedFreqBand.h>
 #include <tlvf/ieee_1905_1/tlvSupportedRole.h>
@@ -47,11 +51,13 @@ void son_actions::handle_completed_connection(db &database, ieee1905_1::CmduMess
     if (!database.set_sta_state(client_mac, beerocks::STATE_CONNECTED)) {
         LOG(ERROR) << "set sta state failed";
     }
+#ifdef PRPLMESH_BML
     // update bml listeners
     LOG(DEBUG) << "BML, sending connect CONNECTION_CHANGE for mac " << client_mac;
     bml_task::connection_change_event new_event;
     new_event.mac = client_mac;
     tasks.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &new_event);
+#endif // PRPLMESH_BML
 
     auto new_hostap_mac      = database.get_sta_parent(client_mac);
     auto previous_hostap_mac = client->get_previous_bss()
@@ -191,6 +197,7 @@ bool son_actions::set_radio_active(db &database, task_pool &tasks, std::string h
     bool result = database.set_radio_active(tlvf::mac_from_string(hostap_mac), active);
 
     if (result) {
+#ifdef PRPLMESH_BML
         bml_task::connection_change_event new_event;
         new_event.mac =
             tlvf::mac_to_string(database.get_radio_parent_agent(tlvf::mac_from_string(hostap_mac)));
@@ -198,6 +205,7 @@ bool son_actions::set_radio_active(db &database, task_pool &tasks, std::string h
         tasks.push_event(bml_task_id, bml_task::CONNECTION_CHANGE, &new_event);
         LOG(TRACE) << "BML, sending hostap (" << hostap_mac
                    << ") active CONNECTION_CHANGE for IRE mac " << new_event.mac;
+#endif // PRPLMESH_BML
     }
 
     return result;
@@ -230,6 +238,7 @@ void son_actions::disconnect_client(db &database, ieee1905_1::CmduMessageTx &cmd
     LOG(DEBUG) << "sending DISASSOCIATE request, client " << client_mac << " bssid " << bssid;
 }
 
+#ifdef PRPLMESH_BML
 void son_actions::send_cli_debug_message(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                          std::stringstream &ss)
 {
@@ -275,6 +284,7 @@ void son_actions::send_cli_debug_message(db &database, ieee1905_1::CmduMessageTx
         }
     }
 }
+#endif // PRPLMESH_BML
 
 void son_actions::handle_dead_radio(const sMacAddr &mac, bool reported_by_parent, db &database,
                                     task_pool &tasks)
@@ -305,12 +315,14 @@ void son_actions::handle_dead_radio(const sMacAddr &mac, bool reported_by_parent
                 }
 
                 tasks.push_event(agent_monitoring_task_id, STATE_DISCONNECTED, &mac_str);
+#ifdef PRPLMESH_BML
                 bml_task::connection_change_event new_event;
                 new_event.mac = tlvf::mac_to_string(client.first);
                 tasks.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE,
                                  &new_event);
                 LOG(DEBUG) << "BML, sending client disconnect CONNECTION_CHANGE for mac "
                            << new_event.mac;
+#endif // PRPLMESH_BML
             }
         }
     }
@@ -373,21 +385,26 @@ void son_actions::handle_dead_station(std::string mac, bool reported_by_parent, 
         }
     }
 
-    // update bml listeners
     if (!station->is_bSta()) {
+#ifdef PRPLMESH_BML
+        // update bml listeners
         bml_task::connection_change_event new_event;
         new_event.mac = mac;
         tasks.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &new_event);
         LOG(DEBUG) << "BML, sending client disconnect CONNECTION_CHANGE for mac " << new_event.mac;
+#endif // PRPLMESH_BML
     } else {
         auto backhaul_bridge = database.m_agents.get(station->al_mac);
         if (!backhaul_bridge) {
             LOG(ERROR) << "Station: " << mac << "does not have a bridge under it!";
         } else {
+#ifdef PRPLMESH_BML
+            // update bml listeners
             bml_task::connection_change_event new_event;
             new_event.mac = tlvf::mac_to_string(backhaul_bridge->al_mac);
             LOG(DEBUG) << "BML, sending IRE disconnect CONNECTION_CHANGE for mac " << new_event.mac;
             tasks.push_event(database.get_bml_task_id(), bml_task::CONNECTION_CHANGE, &new_event);
+#endif // PRPLMESH_BML
         }
     }
 

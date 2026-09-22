@@ -1,7 +1,9 @@
 # Build Beerocks Modules
-add_subdirectory("bml")
-if (ENABLE_BEEROCKS_CLI)
-    add_subdirectory("cli")
+if (PRPLMESH_BML)
+    add_subdirectory("bml")
+    if (ENABLE_BEEROCKS_CLI)
+        add_subdirectory("cli")
+    endif()
 endif()
 add_subdirectory("master")
 

@@ -9,7 +9,9 @@
 #include "client_locating_task.h"
 #include "../db/db_algo.h"
 #include "../son_actions.h"
+#ifdef PRPLMESH_BML
 #include "bml_task.h"
+#endif // PRPLMESH_BML
 
 #include <easylogging++.h>
 
@@ -161,6 +163,7 @@ void client_locating_task::work()
                             database.set_sta_state(client_mac, beerocks::STATE_CONNECTED);
                         }
 
+#ifdef PRPLMESH_BML
                         // update bml listeners
                         bml_task::connection_change_event new_event;
                         new_event.mac = client_mac;
@@ -169,6 +172,7 @@ void client_locating_task::work()
                         TASK_LOG(DEBUG)
                             << "BML, sending client eth connect CONNECTION_CHANGE for mac "
                             << new_event.mac;
+#endif // PRPLMESH_BML
                     }
                 }
             } else {

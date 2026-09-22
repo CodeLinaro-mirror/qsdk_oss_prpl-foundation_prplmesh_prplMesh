@@ -66,6 +66,11 @@ process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_R
 
 ## Build options
 
+option (PRPLMESH_BML "Build the BML management interface, beerocks_cli and the Controller pre-association steering task" OFF)
+if (PRPLMESH_BML)
+    add_definitions(-DPRPLMESH_BML)
+endif()
+
 option (PRPLMESH_VENDOR_EXTENSIONS "Build vendor-specific TLV extensions (Airties)" OFF)
 if (PRPLMESH_VENDOR_EXTENSIONS)
     add_definitions(-DPRPLMESH_VENDOR_EXTENSIONS)

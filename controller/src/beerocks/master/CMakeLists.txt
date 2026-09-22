@@ -12,6 +12,12 @@ file(GLOB controller_tasks_sources ${MODULE_PATH}/tasks/*.cpp)
 file(GLOB controller_operations_sources ${MODULE_PATH}/periodic/*.cpp)
 file(GLOB controller_db_sources ${MODULE_PATH}/db/*.cpp)
 
+if (NOT PRPLMESH_BML)
+    list(REMOVE_ITEM controller_sources ${MODULE_PATH}/son_management.cpp)
+    list(REMOVE_ITEM controller_tasks_sources ${MODULE_PATH}/tasks/bml_task.cpp)
+    list(REMOVE_ITEM controller_db_sources ${MODULE_PATH}/db/network_map.cpp)
+endif()
+
 file(GLOB controller_vbss ${VBSS_PATH}/*.cpp)
 
 if (ENABLE_NBAPI)
@@ -28,8 +34,9 @@ endif()
 
 
 #FEATURE_PRE_ASSOCIATION_STEERING
+# The pre-association steering task is built only with PRPLMESH_BML.
 list(FIND FEATURES "FEATURE_PRE_ASSOCIATION_STEERING" _feature_pre_association_steering_index)
-if(${_feature_pre_association_steering_index} GREATER -1)
+if(${_feature_pre_association_steering_index} GREATER -1 AND PRPLMESH_BML)
     file(GLOB RDKB_SOURCES ${MODULE_PATH}/tasks/pre_association_steering/*.cpp)
     list(APPEND controller_tasks_sources  ${RDKB_SOURCES})
 endif()

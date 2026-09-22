@@ -10,7 +10,9 @@
 #include "topology_task.h"
 #include "../db/db_algo.h"
 #include "../son_actions.h"
+#ifdef PRPLMESH_BML
 #include "bml_task.h"
+#endif // PRPLMESH_BML
 #include "btm_request_task.h"
 #include "client_steering_task.h"
 #include "dhcp_task.h"
@@ -31,7 +33,7 @@
 
 #include <beerocks/tlvf/beerocks_message_1905_vs.h>
 
-#ifdef FEATURE_PRE_ASSOCIATION_STEERING
+#if defined(FEATURE_PRE_ASSOCIATION_STEERING) && defined(PRPLMESH_BML)
 #include "pre_association_steering/pre_association_steering_task.h"
 #endif
 
@@ -265,6 +267,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     // Update active mac list of the device node
     database.dm_update_interface_elements(al_mac, interface_macs);
 
+#ifdef PRPLMESH_BML
     // create topology response update event for bml listeners
     bml_task::topology_response_update_event new_bml_event;
     new_bml_event.al_mac = al_mac;
@@ -274,6 +277,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     }
     tasks.push_event(database.get_bml_task_id(), bml_task::TOPOLOGY_RESPONSE_UPDATE,
                      &new_bml_event);
+#endif // PRPLMESH_BML
 
     //Parse BssidIfaceMapping vsTLV
     std::unordered_map<sMacAddr, int8_t> bssid_vap_map;
@@ -1113,7 +1117,7 @@ bool topology_task::handle_topology_notification(const sMacAddr &src_mac,
         int dhcp_task = database.get_dhcp_task_id();
         tasks.push_event(dhcp_task, DhcpTask::STA_CONNECTED);
 
-#ifdef FEATURE_PRE_ASSOCIATION_STEERING
+#if defined(FEATURE_PRE_ASSOCIATION_STEERING) && defined(PRPLMESH_BML)
         //push event to pre_association_steering_task task
         if (database.get_pre_association_steering_task_id() != -1 && vs_tlv) {
             bwl::sClientAssociationParams new_event = {};
@@ -1134,7 +1138,7 @@ bool topology_task::handle_topology_notification(const sMacAddr &src_mac,
 
     } else {
         // client disconnected
-#ifdef FEATURE_PRE_ASSOCIATION_STEERING
+#if defined(FEATURE_PRE_ASSOCIATION_STEERING) && defined(PRPLMESH_BML)
         // Push event to pre_association_steering_task task
         if (database.get_pre_association_steering_task_id() != -1 && vs_tlv) {
             beerocks_message::sSteeringEvDisconnect new_event = {};

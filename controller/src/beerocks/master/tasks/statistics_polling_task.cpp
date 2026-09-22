@@ -10,7 +10,9 @@
 
 #include "../db/db_algo.h"
 #include "../son_actions.h"
+#ifdef PRPLMESH_BML
 #include "bml_task.h"
+#endif // PRPLMESH_BML
 
 #include <beerocks/tlvf/beerocks_message.h>
 
@@ -62,12 +64,14 @@ void statistics_polling_task::work()
     case SEND_UPDATES: {
         //TASK_LOG(DEBUG) << "updating bml task";
         if (!valid_hostaps.empty()) {
+#ifdef PRPLMESH_BML
             int bml_task_id = database.get_bml_task_id();
 
             bml_task::stats_info_available_event new_event;
             new_event.valid_hostaps = valid_hostaps;
 
             tasks.push_event(bml_task_id, bml_task::STATS_INFO_AVAILABLE, &new_event);
+#endif // PRPLMESH_BML
 
             valid_hostaps.clear();
         } else {
