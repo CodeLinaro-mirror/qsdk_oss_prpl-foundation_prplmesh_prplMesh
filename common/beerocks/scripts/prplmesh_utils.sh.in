@@ -9,6 +9,7 @@
 SCRIPTDIR="$(dirname "$(readlink -f "${0}")")"
 PRPLMESH_DIR="$(cd "${SCRIPTDIR}/.." && pwd)"
 TARGET_PLATFORM=@TARGET_PLATFORM@
+VENDOR_MESSAGE_PROCESS="@VENDOR_MESSAGE_PROCESS@"
 
 # Explicitely ignore SIGPIPE to make sure the processes we start in
 # the background do not stop in case stdout/stderr gets closed early
@@ -75,7 +76,7 @@ roll_logs_function() {
     send_signal_to_prplmesh_process beerocks_controller USR1
     send_signal_to_prplmesh_process beerocks_agent USR1
     send_signal_to_prplmesh_process beerocks_fronthaul USR1
-    send_signal_to_prplmesh_process beerocks_vendor_message USR1
+    [ -n "$VENDOR_MESSAGE_PROCESS" ] && send_signal_to_prplmesh_process "$VENDOR_MESSAGE_PROCESS" USR1
 
     # Cleanup
     rm -r "$ROLL_PROGRESS_DIR"
@@ -147,13 +148,13 @@ start_func() {
         start_prplmesh_process beerocks_controller
     fi
     start_prplmesh_process beerocks_agent
-    start_prplmesh_process beerocks_vendor_message
+    [ -n "$VENDOR_MESSAGE_PROCESS" ] && start_prplmesh_process "$VENDOR_MESSAGE_PROCESS"
     return 0
 }
 
 stop_func() {
     echo "Stopping prplMesh"
-    stop_prplmesh_process beerocks_vendor_message
+    [ -n "$VENDOR_MESSAGE_PROCESS" ] && stop_prplmesh_process "$VENDOR_MESSAGE_PROCESS"
     stop_prplmesh_process beerocks_agent
     stop_prplmesh_process beerocks_fronthaul
     stop_prplmesh_process beerocks_controller
