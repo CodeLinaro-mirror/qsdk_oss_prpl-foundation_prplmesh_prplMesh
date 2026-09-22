@@ -924,33 +924,20 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
     if (m_pending_preference.mid || m_pending_selection.mid) {
         LOG(DEBUG) << "Pending selection/preference exists, skip unsolicited CPR for CAC completed "
                    << "on radio " << tlvf::mac_to_string(radio_mac);
+        m_send_preference_report_after_cac_completion_event = !cac_success;
     } else if (!radio->front.zwdfs && cac_success) {
 
         /**
-         * If CAC succeeded, send an unsolicited Channel Preference Report (CPR) here.
-         * If CAC failed, a channel change event will follow (likely due to radar).
-         * In that case, CPR and OCR will be sent later during CSA_Finished handling.
+         * The CAC moved the cleared channels to AVAILABLE in the driver, but the AgentDB
+         * channels list still holds the state read before the CAC ran. Only arm the report:
+         * handle_vs_channels_list_response() sends it once the refreshed state is stored.
          */
         m_pending_preference.preference_ready.clear();
-        m_pending_preference.preference_ready[radio_mac] = false;
-        m_pending_preference.mid                         = cmdu_rx.getMessageId();
-
-        // Build and send CPR. No need to return on error
-        if (!build_channel_preference_report(radio_mac)) {
-            LOG(ERROR) << "Failed to build channel preference report for radio "
-                       << tlvf::mac_to_string(radio_mac);
-        } else if (channel_preference_report_ready()) {
-            if (!send_channel_preference_report()) {
-                LOG(ERROR) << "Failed to send CHANNEL_PREFERENCE_REPORT_MESSAGE "
-                           << "for radio " << tlvf::mac_to_string(radio_mac);
-            }
-        }
-
-        m_pending_preference.mid = 0;
-        m_pending_preference.preference_ready.clear();
+        m_pending_preference.preference_ready[radio_mac]    = false;
+        m_send_preference_report_after_cac_completion_event = true;
+    } else {
+        m_send_preference_report_after_cac_completion_event = !cac_success;
     }
-
-    m_send_preference_report_after_cac_completion_event = !cac_success;
 
     if (m_zwdfs_state == eZwdfsState::WAIT_FOR_ZWDFS_CAC_COMPLETED) {
         db->statuses.zwdfs_cac_remaining_time_sec = 0;
