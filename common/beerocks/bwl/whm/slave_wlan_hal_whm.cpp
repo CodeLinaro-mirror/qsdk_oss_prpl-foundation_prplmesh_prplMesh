@@ -58,6 +58,12 @@ void slave_wlan_hal_whm::stop_dpp_relay()
         m_ambiorix_cl.unsubscribe_from_object_event(m_dpp_event_handler);
     }
     m_dpp_event_handler.reset();
+
+    if (m_dpp_state_event_handler && !m_dpp_path.empty()) {
+        m_ambiorix_cl.unsubscribe_from_object_event(m_dpp_state_event_handler);
+    }
+    m_dpp_state_event_handler.reset();
+
     m_dpp_client_connected = false;
 
     if (!m_dpp_path.empty()) {
@@ -71,14 +77,22 @@ void slave_wlan_hal_whm::stop_dpp_relay()
 
 void slave_wlan_hal_whm::subscribe_to_dpp_events()
 {
+    auto callback = [this](AmbiorixVariant &event_data) { on_dpp_ambiorix_event(event_data); };
+
+    // Ambiorix matches event_type exactly — need one handler per notification name.
     m_dpp_event_handler              = std::make_shared<sAmbiorixEventHandler>();
     m_dpp_event_handler->event_type  = "DppFrameReceived";
-    m_dpp_event_handler->callback_fn = [this](AmbiorixVariant &event_data) {
-        on_dpp_ambiorix_event(event_data);
-    };
-    std::string filter =
-        "(path matches '" + m_dpp_path + "$') && (notification == 'DppFrameReceived')";
-    m_ambiorix_cl.subscribe_to_object_event(m_dpp_path, m_dpp_event_handler, filter);
+    m_dpp_event_handler->callback_fn = callback;
+    m_ambiorix_cl.subscribe_to_object_event(
+        m_dpp_path, m_dpp_event_handler,
+        "(path matches '" + m_dpp_path + "$') && (notification == 'DppFrameReceived')");
+
+    m_dpp_state_event_handler              = std::make_shared<sAmbiorixEventHandler>();
+    m_dpp_state_event_handler->event_type  = "DppRelayClientStateChanged";
+    m_dpp_state_event_handler->callback_fn = callback;
+    m_ambiorix_cl.subscribe_to_object_event(
+        m_dpp_path, m_dpp_state_event_handler,
+        "(path matches '" + m_dpp_path + "$') && (notification == 'DppRelayClientStateChanged')");
 }
 
 void slave_wlan_hal_whm::on_dpp_ambiorix_event(AmbiorixVariant &event_data)

@@ -35,6 +35,7 @@ private:
     void on_dpp_ambiorix_event(beerocks::wbapi::AmbiorixVariant &event_data);
 
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_dpp_event_handler;
+    std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_dpp_state_event_handler;
     std::string m_dpp_path;
     bool m_dpp_client_connected = false;
 };

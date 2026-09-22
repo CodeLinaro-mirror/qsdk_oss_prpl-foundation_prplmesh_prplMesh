@@ -269,7 +269,6 @@ private:
     bool register_event_handlers();
     bool register_ext_events_handlers(int fd);
     void clear_event_handlers();
-    void slave_wlan_hal_fsm();
     void start_dpp_tcp_relay_server();
 
 public:

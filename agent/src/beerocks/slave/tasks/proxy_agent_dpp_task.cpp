@@ -1,8 +1,6 @@
 #include "proxy_agent_dpp_task.h"
 #include "../son_slave_thread.h"
-#include <tlvf/wfa_map/tlv1905EncapDpp.h>
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
-#include <tlvf/wfa_map/tlvDppChirpValue.h>
 
 namespace beerocks {
 
@@ -20,14 +18,16 @@ bool ProxyAgentDppTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
         handle_dpp_cce_indication(cmdu_rx);
         return true;
     }
-    case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE: {
-        handle_chirp_notification(cmdu_rx);
-        return true;
-    }
-    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE: {
-        handle_proxied_encap_dpp(fd, src_mac, cmdu_rx);
-        return true;
-    }
+    case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
+        // TCP FEAT-68: chirp uplink is owned by DppAgentTask (Presence Announcement
+        // over WiFi.DPPRelay). Ap_manager OTA chirps still reach the Controller via
+        // son_slave_thread backhaul forward (default path), not this task.
+        // Legacy handle_chirp_notification() retained under #if 0 in this file.
+        return false;
+    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
+        // TCP FEAT-68: owned by DppAgentTask (SendDppFrame / DPPRelay).
+        // Legacy handle_proxied_encap_dpp() retained under #if 0 in this file.
+        return false;
     default: {
         // Message was not handled, therefore return false.
         return false;
@@ -47,6 +47,9 @@ void ProxyAgentDppTask::handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmd
     }
 }
 
+#if 0
+// Legacy OTA Proxy Agent: chirp from task pool → Controller.
+// Replaced for TCP by DppAgentTask::handle_presence_announcement().
 void ProxyAgentDppTask::handle_chirp_notification(ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     // cmdu message received from ap_manager
@@ -62,6 +65,8 @@ void ProxyAgentDppTask::handle_chirp_notification(ieee1905_1::CmduMessageRx &cmd
     m_btl_ctx.forward_cmdu_to_controller(cmdu_rx);
 }
 
+// Legacy OTA Proxy Agent: Controller ↔ ap_manager PROXIED_ENCAP over the air.
+// Replaced for TCP by DppAgentTask + slave_wlan_hal_whm::dpp_send_frame().
 void ProxyAgentDppTask::handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac,
                                                  ieee1905_1::CmduMessageRx &cmdu_rx)
 {
@@ -110,5 +115,6 @@ void ProxyAgentDppTask::handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac
     // To DO: To invalidate active_onboarding_ap_manager_fd file descriptor.
     return;
 }
+#endif
 
 } // namespace beerocks

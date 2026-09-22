@@ -2,7 +2,6 @@
 #define _PROXY_AGENT_DPP_TASK_H_
 
 #include "task.h"
-#include <bcl/network/sockets_impl.h>
 #include <tlvf/CmduMessageTx.h>
 
 namespace beerocks {
@@ -22,32 +21,26 @@ public:
 private:
     slave_thread &m_btl_ctx;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
-    int active_onboarding_ap_manager_fd = beerocks::net::FileDescriptor::invalid_descriptor;
 
     /**
-     * @brief Parse DPP CCE Indication message.
+     * @brief Forward DPP CCE Indication to all local AP managers.
      *
-     * @param cmdu_rx Received CMDU.
-     * @return true on success, otherwise false.
+     * Still required for FEAT-68: Controller decides CCE advertise/withdraw;
+     * Agent applies it on fronthaul beacons via ap_manager / HAL.
      */
     void handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmdu_rx);
 
-    /**
-     * @brief Parse Chirp Notification Message.
-     *
-     * @param cmdu_rx Received CMDU.
-     * @return true on success, otherwise false.
-     */
+#if 0
+    // --- Legacy OTA Proxy Agent path (disabled; FEAT-68 TCP relay) -----------------
+    // Chirp uplink: DppAgentTask::handle_presence_announcement() builds
+    // CHIRP_NOTIFICATION from hostapd frames on WiFi.DPPRelay (TCP).
+    // Encap: DppAgentTask owns PROXIED_ENCAP via slave_wlan_hal::dpp_send_frame().
+    // See .documentation/DPP-over-tcp.md and feat68-dpp-doc.md "DPP Relay Service".
+    int active_onboarding_ap_manager_fd = beerocks::net::FileDescriptor::invalid_descriptor;
     void handle_chirp_notification(ieee1905_1::CmduMessageRx &cmdu_rx);
-
-    /**
-     * @brief Parse Proxied Encap DPP Message.
-     *
-     * @param cmdu_rx Received CMDU.
-     * @return true on success, otherwise false.
-     */
     void handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac,
                                   ieee1905_1::CmduMessageRx &cmdu_rx);
+#endif
 };
 } // namespace beerocks
 
