@@ -63,75 +63,60 @@
 		/* Security Templates     */
 		/* ---------------------- */
 		object SecurityTemplate {
-			/* WPA3-Personal only (SAE) */
-			instance add ("cpe-wpa3-personal") {
-				parameter 'Alias' = "cpe-wpa3-personal";
-				parameter 'SecurityTemplateID' = "sec-template-wpa3-personal";
+			instance add ("cpe-SecurityTemplate-wpa3") {
+				parameter 'SecurityTemplateID' = "sec-template-wpa3";
 				parameter 'Enable' = true;
 				parameter 'Priority' = 220;
 				parameter 'RSNOSupportFlag' = "null";
 				object RSNE {
-					parameter 'GroupDataCipherSuite' = "ccmp";
-					parameter 'PairwiseCipherSuite' = "ccmp";
-					parameter 'GroupManagementCipherSuite' = "";
+					parameter 'GroupDataCipherSuite' = "ccmp-128";
+					parameter 'PairwiseCipherSuite' = "ccmp-128";
 					parameter 'AKMSuite' = "sae";
 					parameter 'AKMSuiteSelector' = "";
 					parameter 'MFP' = "Required";
 				}
 			}
-			/* WPA3-Personal Transition (PSK+SAE in base RSNE) */
-			instance add ("cpe-wpa3-personal-transition") {
-				parameter 'Alias' = "cpe-wpa3-personal-transition";
-				parameter 'SecurityTemplateID' = "sec-template-wpa3-personal-transition";
+			instance add ("cpe-SecurityTemplate-transition") {
+				parameter 'SecurityTemplateID' = "sec-template-wpa3-transition";
 				parameter 'Enable' = true;
 				parameter 'Priority' = 210;
 				parameter 'RSNOSupportFlag' = "null";
 				object RSNE {
-					parameter 'GroupDataCipherSuite' = "ccmp";
-					parameter 'PairwiseCipherSuite' = "ccmp";
-					parameter 'GroupManagementCipherSuite' = "";
+					parameter 'GroupDataCipherSuite' = "ccmp-128";
+					parameter 'PairwiseCipherSuite' = "ccmp-128";
 					parameter 'AKMSuite' = "psk,sae";
 					parameter 'AKMSuiteSelector' = "";
 					parameter 'MFP' = "Capable";
 				}
 			}
-			/*
-			 * WPA3-Personal Compatibility Mode (PCM / RSN Overriding).
-			 * DM pattern: RSNOSupportFlag=true + RSNE.AKMSuite="psk,sae".
-			 * Code then splits on-air IEs:
-			 *   2.4/5 GHz: RSNE=PSK, RSNOE=SAE, RSNO2E=SAE-EXT-KEY
-			 *   6 GHz:     RSNE=SAE,  no RSNOE,  RSNO2E=SAE-EXT-KEY
-			 */
-			instance add ("cpe-wpa3-personal-compatibility") {
-				parameter 'Alias' = "cpe-wpa3-personal-compatibility";
-				parameter 'SecurityTemplateID' = "sec-template-wpa3-personal-compatibility";
+			instance add ("cpe-SecurityTemplate-personal") {
+				parameter 'SecurityTemplateID' = "sec-template-wpa3-personal";
 				parameter 'Enable' = true;
 				parameter 'Priority' = 210;
 				parameter 'RSNOSupportFlag' = "true";
-				parameter 'SupportedAKMSuiteFlag' = "";
-				parameter 'SupportedAKMSuiteSelectorFlag' = "";
-				parameter 'OperatingGenerationFlag' = "";
-				parameter 'SecurityIEs' = "";
 				object RSNE {
-					parameter 'GroupDataCipherSuite' = "ccmp";
-					parameter 'PairwiseCipherSuite' = "ccmp";
-					parameter 'GroupManagementCipherSuite' = "";
-					parameter 'AKMSuite' = "psk,sae";
+					parameter 'GroupDataCipherSuite' = "ccmp-128";
+					parameter 'PairwiseCipherSuite' = "ccmp-128";
+					parameter 'AKMSuite' = "psk";
+					parameter 'AKMSuiteSelector' = "";
+					parameter 'MFP' = "Capable";
+				}
+				object RSNOE {
+					parameter 'GroupDataCipherSuite' = "ccmp-128";
+					parameter 'PairwiseCipherSuite' = "ccmp-128";
+					parameter 'AKMSuite' = "sae";
 					parameter 'AKMSuiteSelector' = "";
 					parameter 'MFP' = "Required";
 				}
 			}
-			/* WPA2-Personal only (PSK) */
-			instance add ("cpe-wpa2-personal") {
-				parameter 'Alias' = "cpe-wpa2-personal";
-				parameter 'SecurityTemplateID' = "sec-template-wpa2-personal";
+			instance add ("cpe-SecurityTemplate-wpa2") {
+				parameter 'SecurityTemplateID' = "security-template-wpa2";
 				parameter 'Enable' = true;
 				parameter 'Priority' = 200;
 				parameter 'RSNOSupportFlag' = "null";
 				object RSNE {
-					parameter 'GroupDataCipherSuite' = "ccmp";
-					parameter 'PairwiseCipherSuite' = "ccmp";
-					parameter 'GroupManagementCipherSuite' = "";
+					parameter 'GroupDataCipherSuite' = "ccmp-128";
+					parameter 'PairwiseCipherSuite' = "ccmp-128";
 					parameter 'AKMSuite' = "psk";
 					parameter 'AKMSuiteSelector' = "";
 					parameter 'MFP' = "Capable";
@@ -143,20 +128,20 @@
 		/* Security Groups        */
 		/* ---------------------- */
 		object SecurityGroup {
-			instance add ("cpe-sec-group-wpa3-personal") {
-				parameter 'SecurityGroupID' = "sec-group-wpa3-personal";
+			instance add ("cpe-SecurityGroup-wpa3") {
+				parameter 'SecurityGroupID' = "sec-group-wpa3";
 				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.1";
 			}
-			instance add ("cpe-sec-group-wpa3-personal-transition") {
-				parameter 'SecurityGroupID' = "sec-group-wpa3-personal-transition";
+			instance add ("cpe-SecurityGroup-transition") {
+				parameter 'SecurityGroupID' = "sec-group-wpa3-transition";
 				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.2";
 			}
-			instance add ("cpe-sec-group-wpa3-personal-compatibility") {
-				parameter 'SecurityGroupID' = "sec-group-wpa3-personal-compatibility";
+			instance add ("cpe-SecurityGroup-pcm") {
+				parameter 'SecurityGroupID' = "sec-group-wpa3-personal";
 				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.3";
 			}
-			instance add ("cpe-sec-group-wpa2-personal") {
-				parameter 'SecurityGroupID' = "sec-group-wpa2-personal";
+			instance add ("cpe-SecurityGroup-wpa2") {
+				parameter 'SecurityGroupID' = "sec-group-wpa2";
 				parameter 'SecurityTemplateReferences' = "@TEMPLATES_ROOT_DM@.SecurityTemplate.4";
 			}
 		}
@@ -179,7 +164,6 @@
 
 		/* ---------------------- */
 		/* BSS Templates          */
-		/* bSTA-MLD: add affiliates separately */
 		/* ---------------------- */
 		object BSSTemplate {
 			instance add ("cpe-BSSTemplate-priv-5") {
