@@ -16,7 +16,7 @@ import time
 from collections import namedtuple
 from enum import Enum
 from subprocess import PIPE, Popen
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 # Third-party imports:
@@ -729,6 +729,17 @@ class ALEntityDocker(ALEntity):
             return False
         return True
 
+    def prplmesh_cli_command(self, command: str) -> Optional[str]:
+        '''Execute `command` prplmesh_cli command on the controller and return its output.
+        Returns None when called on an object that is not a controller.
+        '''
+        if self.is_controller:
+            debug("Send prplmesh_cli command " + command)
+            res = self.prplmesh_command("bin/prplmesh_cli", "-c", command)
+            debug("  Response: " + res.strip())
+            return res
+        return None
+
     def beerocks_cli_command(self, command) -> str:
         '''Execute `command` beerocks_cli command on the controller and return its output.
         Will return None if called from an object that is not a controller.
@@ -749,23 +760,40 @@ class ALEntityDocker(ALEntity):
         RE_MAC = r"(?P<mac>([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})"
 
         conn_map = {}
-        for line in self.beerocks_cli_command("bml_conn_map").split('\n'):
+        cur_agent = None
+        cur_radio = None
+        cur_vap = None
+
+        # The controller is printed first, as "Device[1]" without LinkType; agents
+        # are indented and carry LinkType, so those select the repeaters.
+        for line in self.prplmesh_cli_command("conn_map").split('\n'):
             debug("Parsing line " + line)
-            # TODO we need to parse indentation to get the exact topology.
-            # For the time being, just parse the repeaters.
-            bridge = re.search(r' {8}IRE_BRIDGE: .* AL-MAC: ' + RE_MAC, line)
-            radio = re.match(r' {16}RADIO: .* mac: ' + RE_MAC, line)
-            vap = re.match(r' {20}fVAP.* bssid: ' + RE_MAC + r', ssid: (?P<ssid>.*)$', line)
-            client = re.match(r' {24}CLIENT: mac: ' + RE_MAC, line)
+            # The indentation, and so the parent of each agent, is not parsed.
+            bridge = re.match(r' +Device\[\d+\]: name: .*, mac: ' + RE_MAC + r' LinkType: ', line)
+            radio = re.match(r' +RADIO(?:\[\d+\]|: \S+) mac: ' + RE_MAC, line)
+            # Every BSS row, with its role if it has one. A torn-down BSS has no role and an
+            # empty SSID.
+            bss = re.match(r' +\S+(?: \((?P<role>[^)]*)\))?: bssid: ' + RE_MAC
+                           + r', ssid: (?P<ssid>.*)$', line)
+            client = re.match(r' +CLIENT\[\d+\]: name: .* mac: ' + RE_MAC + r' ipv4: ', line)
             if bridge:
                 cur_agent = MapDevice(bridge.group('mac'))
+                cur_radio = None
+                cur_vap = None
                 conn_map[cur_agent.mac] = cur_agent
                 debug("Adding agent " + cur_agent.mac)
+            elif cur_agent is None:
+                # the controller's own radios and BSSs, printed before any agent
+                continue
             elif radio:
                 cur_radio = cur_agent.add_radio(radio.group('mac'))
-            elif vap:
-                cur_vap = cur_radio.add_vap(vap.group('mac'), vap.group('ssid'))
-            elif client:
+                cur_vap = None
+            elif bss and cur_radio is not None:
+                # Backhaul-only BSSs are skipped, and so are their clients.
+                cur_vap = None
+                if bss.group('role') != 'bVAP':
+                    cur_vap = cur_radio.add_vap(bss.group('mac'), bss.group('ssid'))
+            elif client and cur_vap is not None:
                 cur_vap.add_client(client.group('mac'))
         return conn_map
 
