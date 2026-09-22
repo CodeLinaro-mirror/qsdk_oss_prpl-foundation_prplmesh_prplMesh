@@ -166,8 +166,9 @@ bool BrokerClientImpl::configure_primary_vlan_id(const uint16_t vlan_id, bool ad
     return send_message(message);
 }
 
-bool BrokerClientImpl::send_cmdu(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac,
-                                 const sMacAddr &src_mac, uint32_t iface_index)
+bool BrokerClientImpl::send_cmdu(
+    ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac, const sMacAddr &src_mac,
+    uint32_t iface_index, beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type)
 {
     if (!cmdu_tx.is_finalized()) {
         size_t cmdu_length = cmdu_tx.getMessageLength();
@@ -180,7 +181,7 @@ bool BrokerClientImpl::send_cmdu(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacA
         }
     }
 
-    return send_cmdu_message(cmdu_tx, dst_mac, src_mac, iface_index);
+    return send_cmdu_message(cmdu_tx, dst_mac, src_mac, iface_index, iface_type);
 }
 
 bool BrokerClientImpl::forward_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, const sMacAddr &dst_mac,
@@ -196,7 +197,8 @@ bool BrokerClientImpl::forward_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, const sM
         cmdu_rx.swap();
     });
 
-    return send_cmdu_message(cmdu_rx, dst_mac, src_mac, iface_index);
+    return send_cmdu_message(cmdu_rx, dst_mac, src_mac, iface_index,
+                             beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE);
 }
 
 void BrokerClientImpl::handle_read(int fd)
@@ -324,8 +326,9 @@ void BrokerClientImpl::close_connection(bool remove_handlers)
     }
 }
 
-bool BrokerClientImpl::send_cmdu_message(ieee1905_1::CmduMessage &cmdu, const sMacAddr &dst_mac,
-                                         const sMacAddr &src_mac, uint32_t iface_index)
+bool BrokerClientImpl::send_cmdu_message(
+    ieee1905_1::CmduMessage &cmdu, const sMacAddr &dst_mac, const sMacAddr &src_mac,
+    uint32_t iface_index, beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type)
 {
     if (beerocks::net::network_utils::ZERO_MAC == dst_mac) {
         LOG(ERROR) << "Destination MAC address is empty!";
@@ -346,10 +349,8 @@ bool BrokerClientImpl::send_cmdu_message(ieee1905_1::CmduMessage &cmdu, const sM
     message.metadata()->length            = cmdu.getMessageLength();
     message.metadata()->msg_type          = static_cast<uint16_t>(cmdu.getMessageType());
     message.metadata()->preset_message_id = cmdu.getMessageId() ? 1 : 0;
-    if (iface_index != 0) {
-        message.metadata()->if_type = beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET;
-    }
-    message.metadata()->if_index = iface_index;
+    message.metadata()->if_type           = iface_type;
+    message.metadata()->if_index          = iface_index;
 
     std::copy_n(cmdu.getMessageBuff(), message.metadata()->length, message.data());
 

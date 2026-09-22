@@ -215,12 +215,16 @@ public:
      * @param cmdu_tx CMDU message to send.
      * @param dst_mac Destination MAC address (must not be empty).
      * @param src_mac Source MAC address (must not be empty).
-     * @param iface_index Index of the network interface to use (set to 0 to send on all available
-     * interfaces).
+     * @param iface_index Index of the interface to use (set to 0 to let transport decide).
+     * @param iface_type Type of the interface identified by iface_index. IF_TYPE_NONE keeps the
+     * transport-selected routing behavior, while IF_TYPE_NET sends directly on a network
+     * interface.
      * @return true on success and false otherwise.
      */
     virtual bool send_cmdu(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac,
-                           const sMacAddr &src_mac, uint32_t iface_index = 0) = 0;
+                           const sMacAddr &src_mac, uint32_t iface_index = 0,
+                           beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type =
+                               beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE) = 0;
 
     /**
      * @brief Forwards a CMDU message to the transport process for dispatching.

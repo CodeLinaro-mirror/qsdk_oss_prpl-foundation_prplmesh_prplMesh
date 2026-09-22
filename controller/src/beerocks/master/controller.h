@@ -86,10 +86,14 @@ public:
      * @param src_mac Source MAC address (must not be empty).
      * @param iface_name Name of the network interface to use (set to empty string to send on all
      * available interfaces).
+     * @param iface_type Type of the interface identified by iface_name.
      * @return true on success and false otherwise.
      */
-    bool send_cmdu_to_broker(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac,
-                             const sMacAddr &src_mac, const std::string &iface_name = "");
+    bool
+    send_cmdu_to_broker(ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &dst_mac,
+                        const sMacAddr &src_mac, const std::string &iface_name = "",
+                        beerocks::transport::messages::CmduTxMessage::InterfaceType iface_type =
+                            beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE);
 
     /**
      * @brief Start client steering initiated by NBAPI.
