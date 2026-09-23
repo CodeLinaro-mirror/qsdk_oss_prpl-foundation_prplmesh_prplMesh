@@ -744,7 +744,7 @@ class ALEntityDocker(ALEntity):
         '''Execute `command` beerocks_cli command on the controller and return its output.
         Will return None if called from an object that is not a controller.
 
-        beerocks_cli ships only when prplMesh is built with PRPLMESH_BML.
+        beerocks_cli ships only when prplMesh is built with PRPLMESH_BML and PRPLMESH_BEEROCKS_CLI.
         '''
         if self.is_controller:
             debug("Send CLI command " + command)

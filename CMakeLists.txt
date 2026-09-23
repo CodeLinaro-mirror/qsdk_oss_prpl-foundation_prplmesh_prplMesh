@@ -66,9 +66,15 @@ process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_R
 
 ## Build options
 
-option (PRPLMESH_BML "Build the BML management interface, beerocks_cli and pre-association steering" OFF)
+option (PRPLMESH_BML "Build the BML management interface and pre-association steering" OFF)
 if (PRPLMESH_BML)
     add_definitions(-DPRPLMESH_BML)
+endif()
+
+option (PRPLMESH_BEEROCKS_CLI "Build the beerocks_cli diagnostic tool (requires PRPLMESH_BML)" OFF)
+if (PRPLMESH_BEEROCKS_CLI AND NOT PRPLMESH_BML)
+    message(FATAL_ERROR
+        "PRPLMESH_BEEROCKS_CLI requires PRPLMESH_BML: beerocks_cli links libbml.")
 endif()
 
 option (PRPLMESH_VENDOR_EXTENSIONS "Build vendor-specific TLV extensions (Airties)" OFF)

@@ -31,4 +31,6 @@ Run the agent `sudo ./build/install/bin/beerocks_agent`
 
 Run the cli to see network map `sudo ./build/install/bin/beerocks_cli -c bml_conn_map`
 
+Note that `beerocks_cli` is built only with `-DPRPLMESH_BML=ON -DPRPLMESH_BEEROCKS_CLI=ON`.
+
 >Note - Logs are available in /tmp/beerocks/logs

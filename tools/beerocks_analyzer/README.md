@@ -88,6 +88,9 @@ GW_IP=192.168.1.1
 
 Note that currently, the binary path is hard-coded to `/opt/beerocks/bin/beerocks_cli`.
 
+`beerocks_cli` is built only with `-DPRPLMESH_BML=ON -DPRPLMESH_BEEROCKS_CLI=ON`; without
+those options the binary is absent and the analyzer cannot run.
+
 
 ## Troubleshooting
 
