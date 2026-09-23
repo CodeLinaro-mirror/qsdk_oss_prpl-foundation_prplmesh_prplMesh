@@ -300,6 +300,16 @@ sNodeHostap:
   chipset_vendor:
     _type: char
     _length: ["beerocks::message::CHIPSET_VENDOR_LENGTH"]
+  supported_data_types:
+     _type: char
+     _length: ["beerocks::message::SUPPORTED_DATA_TYPES_LENGTH"]
+  supported_ap_exchange_types:
+     _type: char
+     _length: ["beerocks::message::SUPPORTED_EXCHANGE_TYPES_LENGTH"]
+  supported_ep_exchange_types:
+     _type: char
+     _length: ["beerocks::message::SUPPORTED_EXCHANGE_TYPES_LENGTH"]
+
 
 sNodeHostapVendorSpec:
   _type: struct

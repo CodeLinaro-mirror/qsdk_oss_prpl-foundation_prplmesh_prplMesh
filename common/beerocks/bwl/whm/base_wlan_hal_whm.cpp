@@ -888,6 +888,17 @@ bool base_wlan_hal_whm::refresh_radio_info()
         LOG(ERROR) << " cannot refresh radio info, radio object missing ";
         return false;
     }
+    //Sensing Capabilities
+    std::string supported_data_types;
+    std::string supported_ap_exchange_types;
+    std::string supported_ep_exchange_types;
+
+    radio->read_child(supported_data_types,"SupportedSensingDataTypes");
+    m_radio_info.supported_data_types = supported_data_types;
+    radio->read_child(supported_ap_exchange_types,"SupportedAccessPointSensingExchangeTypes");
+    m_radio_info.supported_ap_exchange_types = supported_ap_exchange_types;
+    radio->read_child(supported_ep_exchange_types,"SupportedEndPointSensingExchangeTypes");
+    m_radio_info.supported_ep_exchange_types = supported_ep_exchange_types;
 
     std::string s_val;
     if (radio->read_child(s_val, "OperatingFrequencyBand")) {

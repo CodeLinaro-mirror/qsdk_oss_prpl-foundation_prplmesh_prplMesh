@@ -52,6 +52,10 @@
 #include <tlvf/wfa_map/tlvProfile2MetricCollectionInterval.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
+#include <tlvf/wfa_map/tlvSensingCapabilities.h>
+
+#include <cctype>
+#include <cstdlib>
 
 using namespace multi_vendor;
 
@@ -518,6 +522,125 @@ bool CapabilityReportingTask::add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduM
     return true;
 }
 
+/**
+ * Input is already a hex string (e.g. "01", "1a2b"). Return at most 4 octets
+ * (8 hex characters), no separators. Skips leading "0x"/"0X"; only hex digits
+ * are collected.
+ */
+static uint32_t data_type_to_hex(const char *str, size_t len)
+{
+    constexpr size_t max_hex_chars = 8; // 4 octets
+    std::string hex_string;
+    hex_string.reserve(max_hex_chars);
+    for (size_t i = 0; i < len && hex_string.size() < max_hex_chars; ++i) {
+        char c = str[i];
+        if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+            hex_string += (char)std::tolower((unsigned char)c);
+        }
+    }
+    return hex_string.empty() ? 0U : (uint32_t)std::strtoul(hex_string.c_str(), nullptr, 16);
+}
+
+bool CapabilityReportingTask::add_sensing_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+{  
+    auto db = AgentDB::get();
+    auto sensing_capabilities_tlv = cmdu_tx.addClass<wfa_map::tlvSensingCapabilities>();
+    if (!sensing_capabilities_tlv) {
+        LOG(ERROR) << "Error creating TLV_SENSING_CAPABILITIES";
+        return false;
+    }
+
+    int num_of_radios = db->get_radios_list().size();
+    sensing_capabilities_tlv->num_radio() = num_of_radios;
+    //create a new radio capability entry in TLV  
+    for (auto radio : db->get_radios_list()) {
+        if (!radio) {
+            LOG(ERROR) << "radio does not exist in the db";
+            continue;
+	}    
+
+        auto radio_entry = sensing_capabilities_tlv->create_sensing_caps();	
+        //RUID
+        radio_entry->ruid() = radio->front.iface_mac;
+      
+        //Radio 802.11bf support
+        radio_entry->radio_80211_bf().p11bf_supported = 0;
+
+        // SupportedSensingDataTypes: comma-separated hex tokens; TLV stores 4 octets per entry (big-endian)
+        const std::string &sensing_data_types_str = radio->supported_data_types;
+        uint8_t num_entries = 0;
+        size_t i = 0;
+        const size_t n = sensing_data_types_str.size();
+
+        while (i < n && num_entries < 255) {
+            while (i < n && (sensing_data_types_str[i] == ',' ||
+                             sensing_data_types_str[i] == ' ' ||
+                             sensing_data_types_str[i] == '\t'))
+                ++i;
+            if (i >= n)
+                break;
+            size_t start = i;
+            while (i < n && sensing_data_types_str[i] != ',')
+                ++i;
+            size_t end = i;
+            while (end > start && (sensing_data_types_str[end - 1] == ' ' ||
+                                  sensing_data_types_str[end - 1] == '\t'))
+                --end;
+            if (start >= end)
+                continue;
+            size_t token_len = end - start;
+            const uint32_t dtype_val = data_type_to_hex(&sensing_data_types_str[start], token_len);
+            auto sensing_data = radio_entry->create_sensing_data_types();
+            if (!sensing_data) {
+                LOG(ERROR) << "create_sensing_data_types failed";
+                return false;
+            }
+            uint8_t dtype_octets[4];
+            dtype_octets[0] = static_cast<uint8_t>((dtype_val >> 24) & 0xFF);
+            dtype_octets[1] = static_cast<uint8_t>((dtype_val >> 16) & 0xFF);
+            dtype_octets[2] = static_cast<uint8_t>((dtype_val >> 8) & 0xFF);
+            dtype_octets[3] = static_cast<uint8_t>(dtype_val & 0xFF);
+
+            if (!sensing_data->set_supported_sensing_dtypes(
+                    reinterpret_cast<const char *>(dtype_octets), sizeof(dtype_octets))) {
+                LOG(ERROR) << "set_supported_sensing_dtypes failed";
+                return false;
+            }
+            if (!radio_entry->add_sensing_data_types(sensing_data)) {
+                LOG(ERROR) << "add_sensing_data_types failed";
+                return false;
+            }
+            ++num_entries;
+        }
+        radio_entry->num_of_data_types() = num_entries;
+       //BSS EXCHANGE TYPE
+       std::string bss_exchange_types_str;
+       bss_exchange_types_str = radio->supported_ap_exchange_types;
+       if(bss_exchange_types_str == "qosnull")
+       {
+           radio_entry->bss_exchange_types().bss_qos_null = 1; 
+       }	       
+       //BSS 80211bf sensing caps
+       uint8_t bss_caps[9] = {0};
+       radio_entry->set_bss_80211bf_sensing_cap(bss_caps,sizeof(bss_caps));
+
+       //STA EXCHANGE TYPE
+       std::string sta_exchange_types_str;
+       sta_exchange_types_str = radio->supported_ep_exchange_types;
+       if(sta_exchange_types_str == "qosnull")
+       {	       
+          radio_entry->sta_exchange_types().sta_qos_null = 1; 
+       }	       
+       //STA 80211bf sensing caps
+       uint8_t sta_caps[9] = {0};
+       radio_entry->set_sta_80211bf_sensing_cap(sta_caps,sizeof(sta_caps));
+       sensing_capabilities_tlv->add_sensing_caps(radio_entry);
+
+    }	    
+
+     return true;
+}
+
 void CapabilityReportingTask::handle_ap_capability_query(ieee1905_1::CmduMessageRx &cmdu_rx,
                                                          const sMacAddr &src_mac)
 {
@@ -666,6 +789,11 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
         LOG(ERROR) << "error filling device inventory tlv";
         return false;
     }
+
+    if (!add_sensing_capabilities_tlv(m_cmdu_tx)) {
+	LOG(ERROR) << "error filling sensing capabilities tlv";
+        return false;
+    }	
 
     return true;
 }

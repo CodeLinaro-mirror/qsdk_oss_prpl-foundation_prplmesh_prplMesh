@@ -1,0 +1,10 @@
+#
+---
+_namespace: wfa_map
+
+eExchangeTypeAvailable:
+ _type: enum
+ _enum_storage: uint8_t
+ NOTPRESENT: 0
+ PRESENT: 1 
+ 

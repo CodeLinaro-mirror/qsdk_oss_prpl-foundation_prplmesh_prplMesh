@@ -139,6 +139,8 @@ enum eStructsConsts {
     DEV_MAX_RADIOS                       = 3,
     DSCP_MAPPING_LIST_LENGTH             = 64,
     CHIPSET_VENDOR_LENGTH                = 64,
+    SUPPORTED_DATA_TYPES_LENGTH          = 64,
+    SUPPORTED_EXCHANGE_TYPES_LENGTH      = 128,
 };
 
 enum eMessageConsts {

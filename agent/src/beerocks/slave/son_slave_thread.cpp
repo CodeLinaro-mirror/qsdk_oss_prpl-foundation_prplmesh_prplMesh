@@ -3249,6 +3249,10 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                     radio->he_mcs_set.begin());
 
         radio->eht_supported = notification->params().eht_supported;
+        
+	radio->supported_data_types = notification->params().supported_data_types;
+	radio->supported_ap_exchange_types = notification->params().supported_ap_exchange_types;
+	radio->supported_ep_exchange_types = notification->params().supported_ep_exchange_types;
 
         const bool radio_capabilities_changed = (prev_ht_supported != radio->ht_supported) ||
                                                 (prev_vht_supported != radio->vht_supported) ||

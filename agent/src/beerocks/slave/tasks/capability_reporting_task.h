@@ -143,6 +143,15 @@ private:
      */
     bool add_wifi7_agent_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
 
+    /**
+    * @brief Adds Sensing Capabilities TLV to given message.
+     *
+     * @param[in,out] cmdu_tx CDMU message.
+     *
+     * @return True on success and false otherwise.
+     */
+    bool add_sensing_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
 public:
     /* Note:
      * Profile-2 AP Capability TLV is being added by to the AutoConfiguration Message with M1, and

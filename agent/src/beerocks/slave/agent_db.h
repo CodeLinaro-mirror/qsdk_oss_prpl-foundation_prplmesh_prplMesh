@@ -442,8 +442,12 @@ public:
         // Information on the last channel switch request which containing the requested channel
         // and bandwidth.
         std::shared_ptr<sSwitchChannelRequest> last_switch_channel_request;
-
+        
         std::string chipset_vendor;
+
+	std::string supported_data_types;
+	std::string supported_ap_exchange_types;
+	std::string supported_ep_exchange_types;
     };
     struct {
         uint16_t max_number_of_vlans_ids;

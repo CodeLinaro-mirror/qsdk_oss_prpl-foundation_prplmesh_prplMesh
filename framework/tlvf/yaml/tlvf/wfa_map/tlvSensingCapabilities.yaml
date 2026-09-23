@@ -1,0 +1,99 @@
+#
+---
+
+_include: {
+    tlvf/wfa_map/eSensingExchangeType.h,
+    tlvf/wfa_map/tlvSensingeExchangeTypeAvailable.h,
+    tlvf/common/sMacAddr.h,
+    tlvf/wfa_map/eTlvTypeMap.h,
+}
+
+_namespace: wfa_map
+
+tlvSensingCapabilities:
+  _type: class
+  _is_tlv_class : True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_SENSING_CAPABILITIES
+  length: uint16_t
+  num_radio:
+    _type: uint8_t
+    _length_var: True
+  sensing_caps:
+    _type: cSensingCaps
+    _length: [ num_radio ]
+
+cSensingCaps:
+  _type: class
+  ruid:
+    _type: sMacAddr
+  num_of_data_types:
+    _type: uint8_t
+    _length_var: True   
+  sensing_data_types:
+    _type: cSensingdatatypes 
+    _length: [ num_of_data_types ]
+  radio_80211_bf:
+    _type: sRadio_80211_bf
+  bss_exchange_types: sBssExchangeTypes
+  bss_80211bf_sensing_cap:
+    _type: uint8_t
+    _length: [10]
+  sta_exchange_types: sStaExchangeTypes
+  sta_80211bf_sensing_cap:
+    _type: uint8_t
+    _length: [10]
+
+sRadio_80211_bf:
+  _type: struct
+  _bit_field: uint8_t
+  p11bf_supported:
+    _bit_range: [7, 7]
+  preserved:
+    _bit_range: [6, 0]
+sBssExchangeTypes:
+  _type: struct
+  _bit_field: uint8_t
+  bss_qos_null:
+    _bit_range: [7, 7]
+  bss_opportunistic:
+    _bit_range: [6, 6]
+  bss_probe:
+    _bit_range: [5, 5]
+  bss_tb:
+    _bit_range: [4, 4]
+  bss_nontb:
+    _bit_range: [3, 3]
+  bss_cts2self:
+    _bit_range: [2, 2]
+  bss_sbp:
+    _bit_range: [1, 1]
+  reserved:
+    _bit_range: [0, 0]
+sStaExchangeTypes:
+  _type: struct
+  _bit_field: uint8_t
+  sta_qos_null:
+    _bit_range: [7, 7]
+  sta_opportunistic:
+    _bit_range: [6, 6]
+  sta_probe:
+    _bit_range: [5, 5]
+  sta_tb:
+    _bit_range: [4, 4]
+  sta_nontb:
+    _bit_range: [3, 3]
+  sta_cts2self:
+    _bit_range: [2, 2]
+  sta_sbp:
+    _bit_range: [1, 1]
+  reserved:
+    _bit_range: [0, 0]
+
+
+cSensingdatatypes:
+  _type: class
+  supported_sensing_dtypes:
+    _type: char
+    _length: [4]      

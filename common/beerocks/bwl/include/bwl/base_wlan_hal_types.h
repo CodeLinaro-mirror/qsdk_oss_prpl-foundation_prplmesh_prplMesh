@@ -236,6 +236,9 @@ struct RadioInfo {
     bool mscs_supported             = false;
     bool scs_supported              = false;
     std::string chipset_vendor;
+    std::string supported_data_types;
+    std::string supported_ap_exchange_types;
+    std::string supported_ep_exchange_types;
     typedef struct {
         bool str_support   = false;
         bool nstr_support  = false;
