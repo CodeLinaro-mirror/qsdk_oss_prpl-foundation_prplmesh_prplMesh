@@ -47,6 +47,9 @@
         %read-only uint32 ReceiveOther = 0 {
             on action validate call check_range [0, 255];
         }
+         %read-only csv_string SupportedSensingDataTypes;
+         %read-only csv_string SupportedAccessPointSensingExchangeTypes;
+         %read-only csv_string SupportedEndPointSensingExchangeTypes;
 
         %read-only bool TrafficSeparationCombinedFronthaul;
         %read-only bool TrafficSeparationCombinedBackhaul;

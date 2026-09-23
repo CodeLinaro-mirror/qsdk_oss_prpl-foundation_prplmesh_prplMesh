@@ -47,6 +47,7 @@
 #include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
 #include <tlvf/wfa_map/tlvSpatialReuseReport.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
+#include <tlvf/wfa_map/tlvSensingCapabilities.h>
 
 #include <bitset>
 #include <memory>
@@ -3620,6 +3621,8 @@ public:
                                            const std::string &radio_dm_path);
 
     std::shared_ptr<Agent::sEthSwitch> get_eth_switch(const sMacAddr &mac);
+
+    bool set_sensing_capabilities(wfa_map::tlvSensingCapabilities &sensing_caps_tlv);
 
 private:
     /**
