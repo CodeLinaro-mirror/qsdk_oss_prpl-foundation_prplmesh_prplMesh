@@ -2713,6 +2713,18 @@ bool Controller::handle_tlv_agent_ap_mld_configuration(ieee1905_1::CmduMessageRx
     return true;
 }
 
+bool Controller::handle_tlv_sensing_capabilities(ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    bool ret_val = true;
+    for (const auto &sensing_caps_tlv : cmdu_rx.getClassList<wfa_map::tlvSensingCapabilities>()) {
+        if (!database.set_sensing_capabilities(*sensing_caps_tlv)) {
+            LOG(ERROR) << "Couldn't set values for Sensing capabilities data model";
+            ret_val = false;
+        }
+    }
+    return ret_val;
+}
+
 bool Controller::handle_cmdu_1905_ap_capability_report(const sMacAddr &src_mac,
                                                        ieee1905_1::CmduMessageRx &cmdu_rx)
 {
@@ -5846,6 +5858,9 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
                    << src_mac << " with profile enum " << agent->profile;
     }
 
+    if (!handle_tlv_sensing_capabilities(cmdu_rx)) {
+        LOG(ERROR) << "Couldn't handle TLV Sensing Capabilities";
+    }
     return all_radio_capabilities_saved_successfully;
 }
 

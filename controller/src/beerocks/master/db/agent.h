@@ -213,6 +213,7 @@ public:
         std::string chipset_vendor;
         /* Frequency type of the radio is obtained from WSC M1*/
         beerocks::eFreqType band = beerocks::FREQ_UNKNOWN;
+        std::string sensing_data_types;
 
         int ant_gain = 0;
         int tx_power = 0;

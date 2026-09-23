@@ -9530,6 +9530,134 @@ bool db::dm_set_device_ap_capabilities(const Agent &agent)
     return ret_val;
 }
 
+/** Build comma-separated BSS (Access Point) exchange types from TLV flags1 and flags2. */
+static std::string bss_exchange_types_from_tlv(const wfa_map::cSensingCaps::sBssExchangeTypes &bss)
+{
+    std::string s;
+    if (bss.bss_qos_null) {
+        if (!s.empty()) s += ",";
+        s += "qosnull";
+    }
+    if (bss.bss_opportunistic) {
+        if (!s.empty()) s += ",";
+        s += "opportunistic";
+    }
+    if (bss.bss_probe) {
+        if (!s.empty()) s += ",";
+        s += "probe";
+    }
+    if (bss.bss_tb) {
+        if (!s.empty()) s += ",";
+        s += "tb";
+    }
+    if (bss.bss_nontb) {
+        if (!s.empty()) s += ",";
+        s += "nontb";
+    }
+    if (bss.bss_cts2self) {
+        if (!s.empty()) s += ",";
+        s += "cts2self";
+    }
+    if (bss.bss_sbp) {
+        if (!s.empty()) s += ",";
+        s += "sbp";
+    }
+    return s;
+}
+
+/** Build comma-separated STA (End Point) exchange types from TLV */
+static std::string sta_exchange_types_from_tlv(const wfa_map::cSensingCaps::sStaExchangeTypes &sta)
+{
+    std::string s;
+    if (sta.sta_qos_null) {
+        if (!s.empty()) s += ",";
+        s += "qosnull";
+    }
+    if (sta.sta_opportunistic) {
+        if (!s.empty()) s += ",";
+        s += "opportunistic";
+    }
+    if (sta.sta_probe) {
+        if (!s.empty()) s += ",";
+        s += "probe";
+    }
+    if (sta.sta_tb) {
+        if (!s.empty()) s += ",";
+        s += "tb";
+    }
+    if (sta.sta_nontb) {
+        if (!s.empty()) s += ",";
+        s += "nontb";
+    }
+    if (sta.sta_cts2self) {
+        if (!s.empty()) s += ",";
+        s += "cts2self";
+    }
+    if (sta.sta_sbp) {
+        if (!s.empty()) s += ",";
+        s += "sbp";
+    }
+    return s;
+}
+
+bool db::set_sensing_capabilities(wfa_map::tlvSensingCapabilities &sensing_caps_tlv)
+{
+        bool ret_val = true;
+	for (auto radio_idx = 0; radio_idx < sensing_caps_tlv.num_radio(); ++radio_idx) {
+        auto radio_sensing_capability =
+            std::get<1>(sensing_caps_tlv.sensing_caps(radio_idx));
+        auto radio = get_radio_by_uid(radio_sensing_capability.ruid());
+        if (!radio) {
+            LOG(ERROR) << "Failed to get radio with RUID: " << radio_sensing_capability.ruid();
+            return false;
+        }
+	if (radio->dm_path.empty()) {
+            return true;
+	 }
+	 // Parse all sensing_data_types entries (4 octets each in the TLV);
+	 // build comma-separated list for SupportedSensingDataTypes as 8 hex digits per entry.
+	 std::string sensing_data_types_str;
+	 const uint8_t num = radio_sensing_capability.num_of_data_types();
+	 for (uint8_t idx = 0; idx < num; ++idx) {
+	     auto sensing_data_result = radio_sensing_capability.sensing_data_types(idx);
+	     if (!std::get<0>(sensing_data_result)) {
+	         continue;
+	     }
+	     // TLV stores raw bytes (char[4]); do not treat as a printable string.
+	     auto &sensing_data = std::get<1>(sensing_data_result);
+	     const char *dtype_buf = sensing_data.supported_sensing_dtypes(4);
+	     if (!dtype_buf) {
+	         continue;
+	     }
+	     const auto b0 = static_cast<unsigned>(static_cast<uint8_t>(dtype_buf[0]));
+	     const auto b1 = static_cast<unsigned>(static_cast<uint8_t>(dtype_buf[1]));
+	     const auto b2 = static_cast<unsigned>(static_cast<uint8_t>(dtype_buf[2]));
+	     const auto b3 = static_cast<unsigned>(static_cast<uint8_t>(dtype_buf[3]));
+	     char hex_buf[9];
+	     std::snprintf(hex_buf, sizeof(hex_buf), "%02X%02X%02X%02X", b0, b1, b2, b3);
+
+	     if (!sensing_data_types_str.empty()) {
+	         sensing_data_types_str += ",";
+	     }
+	     sensing_data_types_str += hex_buf;
+	 }
+
+	 ret_val &= m_ambiorix_datamodel->set(radio->dm_path, "SupportedSensingDataTypes",
+                                          sensing_data_types_str);
+	 std::string bss_exchange_str =
+	     bss_exchange_types_from_tlv(radio_sensing_capability.bss_exchange_types());
+	 ret_val &= m_ambiorix_datamodel->set(radio->dm_path,
+	                                      "SupportedAccessPointSensingExchangeTypes",
+	                                      bss_exchange_str);
+	 std::string sta_exchange_str =
+	     sta_exchange_types_from_tlv(radio_sensing_capability.sta_exchange_types());
+	 ret_val &= m_ambiorix_datamodel->set(radio->dm_path,
+	                                      "SupportedEndPointSensingExchangeTypes",
+	                                      sta_exchange_str);
+	}
+	return ret_val;
+}
+
 bool db::dm_set_isbsta(const sMacAddr &sta_mld_mac)
 {
     std::shared_ptr<Agent::sAPMLD::sStaMLD> sta_mld = nullptr;

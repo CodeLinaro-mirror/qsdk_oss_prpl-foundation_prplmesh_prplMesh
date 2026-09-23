@@ -866,6 +866,9 @@ private:
     */
     bool send_unassociated_sta_link_metrics_query_message(ieee1905_1::CmduMessageTx &cmdu_tx,
                                                           db &database);
+
+    bool handle_tlv_sensing_capabilities(ieee1905_1::CmduMessageRx &cmdu_rx
+                                                     );
 };
 
 } // namespace son
