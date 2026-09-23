@@ -94,8 +94,8 @@ bool WifiManager::send_ap_config_renew_msg()
                 if (!beerocks::bpl::bpl_cfg_get_mld_info_config(
                         bss_config.ssid, std::stoi(bss_config.mld_id), mld_config)) {
                     LOG(ERROR) << "Failed to read MLD configuartion from APMLD for mld id="
-                               << bss_config.mld_id;
-                    continue;
+                               << bss_config.mld_id << ", using default settings instead";
+                    beerocks::bpl::bpl_cfg_get_default_mld_info_config(bss_config.ssid, mld_config);
                 }
 
                 m_ctx_wifi_db->add_mld_info_configuration(mld_config, bss_config.mld_id);

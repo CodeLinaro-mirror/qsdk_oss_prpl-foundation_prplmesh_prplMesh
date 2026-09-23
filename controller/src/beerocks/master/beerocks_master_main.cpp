@@ -806,8 +806,9 @@ int main(int argc, char *argv[])
                 if (!beerocks::bpl::bpl_cfg_get_mld_info_config(
                         configuration.ssid, std::stoi(configuration.mld_id), mld_config)) {
                     LOG(ERROR) << "Failed to read MLD configuration for mld_id: "
-                               << configuration.mld_id;
-                    continue;
+                               << configuration.mld_id << ", using default settings instead";
+                    beerocks::bpl::bpl_cfg_get_default_mld_info_config(configuration.ssid,
+                                                                       mld_config);
                 }
                 master_db.add_mld_info_configuration(mld_config, configuration.mld_id);
             }

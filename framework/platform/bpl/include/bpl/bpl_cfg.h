@@ -971,6 +971,22 @@ bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
                                  son::wireless_utils::sMldInfoConf &mld_info_config);
 
 /**
+ * @brief Fill MLD configuration with default values 
+ *
+ * @param [in] ssid SSID of an access point 
+ * @param [out] mld_info_config default MLD configuration
+ */
+inline void bpl_cfg_get_default_mld_info_config(const std::string &ssid,
+                                                son::wireless_utils::sMldInfoConf &mld_info_config)
+{
+    mld_info_config.ssid  = ssid;
+    mld_info_config.str   = true;
+    mld_info_config.nstr  = false;
+    mld_info_config.emlsr = true;
+    mld_info_config.emlmr = false;
+}
+
+/**
  * @brief Reads link metrics request interval configuration for periodic requests from agents.
  *
  * @param [out] link_metrics_request_interval_sec Interval for periodic link metrics request.
