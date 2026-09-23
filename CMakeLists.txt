@@ -66,10 +66,15 @@ process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_R
 
 ## Build options
 
-option (PRPLMESH_BML "Build the BML management interface, beerocks_cli and pre-association steering" OFF)
+option (PRPLMESH_BML "Build the BML management interface and pre-association steering" OFF)
 if (PRPLMESH_BML)
     add_definitions(-DPRPLMESH_BML)
 endif()
+
+# beerocks_cli links libbml, so it is available only with PRPLMESH_BML.
+include(CMakeDependentOption)
+cmake_dependent_option (ENABLE_BEEROCKS_CLI
+    "Build the beerocks_cli diagnostic tool (requires PRPLMESH_BML)" ON "PRPLMESH_BML" OFF)
 
 option (PRPLMESH_VENDOR_EXTENSIONS "Build vendor-specific TLV extensions (Airties)" OFF)
 if (PRPLMESH_VENDOR_EXTENSIONS)
@@ -85,7 +90,6 @@ option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
 option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
-option (ENABLE_BEEROCKS_CLI "Build beerocks CLI" ON)
 option (ENABLE_PRPLMESH_CLI "Build prplMesh CLI" ON)
 
 # Reduces logging call sites to one call per argument (ELPP_OUT_OF_LINE_STREAM_OPS
