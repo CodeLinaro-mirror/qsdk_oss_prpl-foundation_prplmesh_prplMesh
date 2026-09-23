@@ -1459,8 +1459,26 @@ bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
 
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
-    LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce;
-    return true;
+    // 1905 CCE ENABLE/DISABLE maps to pWHM AccessPoint.DPP.CCEAdvertisementEnabled.
+    // That writes hostapd dpp_configurator_connectivity without clearing dpp_controller.
+    const bool enable = (advertise_cce != 0);
+    LOG(INFO) << "ap_wlan_hal_whm: set_cce_indication advertise_cce=" << advertise_cce
+              << " CCEAdvertisementEnabled=" << enable;
+
+    bool ok = true;
+    for (const auto &vap : m_vapsExtInfo) {
+        AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+        new_obj.add_child<bool>("CCEAdvertisementEnabled", enable);
+        const std::string dpp_path = vap.second.path + "DPP.";
+        if (!m_ambiorix_cl.update_object(dpp_path, new_obj)) {
+            LOG(ERROR) << "Failed to set CCEAdvertisementEnabled on " << dpp_path;
+            ok = false;
+        }
+    }
+    if (m_vapsExtInfo.empty()) {
+        LOG(WARNING) << "set_cce_indication: no VAPs mapped yet";
+    }
+    return ok;
 }
 
 AmbiorixVariantSmartPtr ap_wlan_hal_whm::get_last_assoc_frame(const std::string &vap_iface,

@@ -819,6 +819,7 @@ void ApManager::handle_direct_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_
     }
 
     // forwarding of dpp authentication response message to BWL layer to be implemented.
+    // Ethernet Direct Encap is not the TCP last-hop (hostapd↔pWHM :8908).
 }
 
 void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)

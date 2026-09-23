@@ -1263,6 +1263,9 @@ void slave_thread::start_dpp_tcp_relay_server()
         return;
     }
 
+    LOG(INFO) << "DPP: TCP relay listener started (RelayEnable); "
+                 "expect hostapd dpp_controller=127.0.0.1 and ClientConnected on :8908";
+
     m_dpp_agent_task->on_relay_status(m_slave_wlan_hal->is_dpp_client_connected());
 }
 
@@ -1420,6 +1423,14 @@ bool slave_thread::handle_cmdu_ap_manager_ieee1905_1_message(const std::string &
             return false;
         }
         return true;
+    case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
+        // TCP FEAT-68: DppAgentTask already wraps Presence Announcement from WiFi.DPPRelay.
+        // Drop the superseded ap_manager OTA chirp so the Controller does not see duplicates.
+        if (m_dpp_agent_task && m_dpp_agent_task->is_relay_active()) {
+            LOG(DEBUG) << "Dropping ap_manager OTA CHIRP_NOTIFICATION; TCP DppAgentTask owns chirp";
+            return true;
+        }
+        [[fallthrough]];
     default:
         const auto mid = cmdu_rx.getMessageId();
         LOG(DEBUG) << "Forwarding ieee1905 message " << int(cmdu_message_type)

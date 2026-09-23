@@ -20,8 +20,8 @@ bool ProxyAgentDppTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
     }
     case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
         // TCP FEAT-68: chirp uplink is owned by DppAgentTask (Presence Announcement
-        // over WiFi.DPPRelay). Ap_manager OTA chirps still reach the Controller via
-        // son_slave_thread backhaul forward (default path), not this task.
+        // over WiFi.DPPRelay). This task does not forward chirp. When the TCP relay
+        // listener is active, son_slave_thread also drops ap_manager OTA chirp.
         // Legacy handle_chirp_notification() retained under #if 0 in this file.
         return false;
     case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
