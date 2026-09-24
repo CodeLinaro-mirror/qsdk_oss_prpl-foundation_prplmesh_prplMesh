@@ -7,6 +7,6 @@ if (PRPLMESH_BEEROCKS_CLI)
 endif()
 add_subdirectory("master")
 
-if (ENABLE_NBAPI)
+if (ENABLE_NBAPI AND PRPLMESH_CLI)
     add_subdirectory("prplmesh-cli")
 endif()

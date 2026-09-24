@@ -27,6 +27,10 @@ class ApConfigBSSTeardown(PrplMeshBaseTest):
         except AttributeError as ae:
             raise SkipTest(ae)
 
+        if not controller.prplmesh_cli_available():
+            raise SkipTest("prplmesh_cli is not installed; "
+                           "build prplMesh with PRPLMESH_CLI to run this test")
+
         self.dev.DUT.wired_sniffer.start(self.__class__.__name__ + "-" + self.dev.DUT.name)
         # Configure the controller and send renew
         self.device_reset_default()

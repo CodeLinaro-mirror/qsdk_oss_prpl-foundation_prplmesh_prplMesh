@@ -44,6 +44,10 @@ class ClientAssociationDummy(PrplMeshBaseTest):
         except AttributeError as ae:
             raise SkipTest(ae)
 
+        if not controller.prplmesh_cli_available():
+            raise SkipTest("prplmesh_cli is not installed; "
+                           "build prplMesh with PRPLMESH_CLI to run this test")
+
         if not controller.beerocks_cli_available():
             raise SkipTest("beerocks_cli is not installed; build prplMesh with "
                            "PRPLMESH_BML and PRPLMESH_BEEROCKS_CLI to run this test")

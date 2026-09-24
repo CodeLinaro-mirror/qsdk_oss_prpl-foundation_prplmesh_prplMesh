@@ -205,6 +205,9 @@ main() {
             stop_func
             ;;
         "status")
+            if [ ! -x "${PRPLMESH_DIR}/bin/prplmesh_cli" ]; then
+                echo "prplmesh_cli is not installed (build with PRPLMESH_CLI)"; exit 1
+            fi
             "${PRPLMESH_DIR}/bin/prplmesh_cli" -c status -o pretty
             ;;
         "roll_logs")

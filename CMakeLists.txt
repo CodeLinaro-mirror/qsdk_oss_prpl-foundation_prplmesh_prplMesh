@@ -71,6 +71,8 @@ if (PRPLMESH_BML)
     add_definitions(-DPRPLMESH_BML)
 endif()
 
+option (PRPLMESH_CLI "Build the prplmesh_cli diagnostic tool (requires ENABLE_NBAPI)" ON)
+
 option (PRPLMESH_BEEROCKS_CLI "Build the beerocks_cli diagnostic tool (requires PRPLMESH_BML)" OFF)
 if (PRPLMESH_BEEROCKS_CLI AND NOT PRPLMESH_BML)
     message(FATAL_ERROR
