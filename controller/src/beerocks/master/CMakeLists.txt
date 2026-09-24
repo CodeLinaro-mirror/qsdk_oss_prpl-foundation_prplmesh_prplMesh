@@ -11,6 +11,7 @@ file(GLOB controller_sources ${MODULE_PATH}/*.cpp)
 file(GLOB controller_tasks_sources ${MODULE_PATH}/tasks/*.cpp)
 file(GLOB controller_operations_sources ${MODULE_PATH}/periodic/*.cpp)
 file(GLOB controller_db_sources ${MODULE_PATH}/db/*.cpp)
+file(GLOB controller_dpp_sources ${MODULE_PATH}/dpp/*.cpp)
 
 file(GLOB controller_vbss ${VBSS_PATH}/*.cpp)
 
@@ -35,11 +36,11 @@ if(${_feature_pre_association_steering_index} GREATER -1)
 endif()
 
 add_executable(${PROJECT_NAME} ${controller_sources} ${controller_tasks_sources}
-${controller_operations_sources} ${controller_db_sources} ${controller_actions} ${controller_whm} ${controller_vbss}) 
+${controller_operations_sources} ${controller_db_sources} ${controller_dpp_sources} ${controller_actions} ${controller_whm} ${controller_vbss}) 
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
-list(APPEND LINKED_LIBS bpl bcl btl tlvf elpp btlvf nbapi ieee1905_transport_lib multi_vendor)
+list(APPEND LINKED_LIBS bpl bcl btl tlvf elpp btlvf nbapi ieee1905_transport_lib multi_vendor mapfcommon json-c ${OPENSSL_LIBRARIES})
 if (ENABLE_NBAPI)
     # Include AMBIORIX in the build
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_NBAPI ${UBUS_SOCK}")
@@ -72,6 +73,8 @@ target_link_libraries(${PROJECT_NAME} ${LINKED_LIBS})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../..
+    ${OPENSSL_INCLUDE_DIR}
     ${MODULE_PATH}/../bml
     if (ENABLE_NBAPI)
         ${ACTION_PATH}

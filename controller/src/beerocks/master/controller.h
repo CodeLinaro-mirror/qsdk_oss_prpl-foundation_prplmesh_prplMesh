@@ -43,6 +43,7 @@
 #include <stdint.h>
 
 namespace son {
+class dpp_protocol_task;
 class Controller {
 
 public:
@@ -758,6 +759,7 @@ private:
     // It is used only in handle_cmdu_1905_ap_metric_response() to call construct_combined_infra_metric().
     // TODO It can be removed after cert_cmdu_tx usage is removed (PPM-1130).
     std::shared_ptr<LinkMetricsTask> m_link_metrics_task;
+    std::shared_ptr<dpp_protocol_task> m_dpp_protocol_task;
 
     /**
      * Task_id used to stop/start the channel_selection_task without restarting the controller
