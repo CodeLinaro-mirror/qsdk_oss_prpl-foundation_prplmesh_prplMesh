@@ -11,6 +11,7 @@
 #include <bcl/network/socket.h>
 
 #include <algorithm>
+#include <atomic>
 #include <iostream>
 #include <linux/limits.h>
 #include <unistd.h>
@@ -22,14 +23,7 @@
 
 class RollMonitor : public el::LogDispatchCallback {
 public:
-    void enable(bool enable)
-    {
-        m_enabled = enable;
-        if (!m_enabled) {
-            m_fsLogFileStream   = nullptr;
-            m_szRollLogFileSize = 0;
-        }
-    }
+    void enable(bool enable) { m_enabled.store(enable); }
 
     void handle(const el::LogDispatchData *logData)
     {
@@ -38,32 +32,35 @@ public:
         // DO NOT USE LOGGING HERE! //
         //////////////////////////////
 
-        if (!m_enabled) {
+        if (!m_enabled.load()) {
             return;
         }
 
-        if (!m_fsLogFileStream) {
-            if (!(m_fsLogFileStream =
-                      logData->logMessage()->logger()->typedConfigurations()->fileStream(
-                          el::Level::Info))) {
-                return;
-            }
+        auto logger = logData->logMessage()->logger();
+        if (!logger) {
+            return;
         }
 
-        if (!m_szRollLogFileSize) {
-            if (!(m_szRollLogFileSize =
-                      (logData->logMessage()->logger()->typedConfigurations()->maxLogFileSize(
-                           el::Level::Info) /
-                       2))) {
-                return;
-            }
+        auto typedConfigurations = logger->typedConfigurations();
+        if (!typedConfigurations) {
+            return;
+        }
+
+        auto fsLogFileStream = typedConfigurations->fileStream(el::Level::Info);
+        if (!fsLogFileStream) {
+            return;
+        }
+
+        auto szRollLogFileSize = typedConfigurations->maxLogFileSize(el::Level::Info) / 2;
+        if (!szRollLogFileSize) {
+            return;
         }
 
         // Get current file size
-        auto logFileSize = el::base::utils::File::getSizeOfFile(m_fsLogFileStream);
+        auto logFileSize = el::base::utils::File::getSizeOfFile(fsLogFileStream);
 
         // Check if rolling should be triggered
-        if (logFileSize >= m_szRollLogFileSize) {
+        if (logFileSize >= szRollLogFileSize) {
             // get process path
             std::stringstream exe_path;
             exe_path << "/proc/" << getpid() << "/exe";
@@ -91,9 +88,7 @@ public:
     }
 
 private:
-    el::base::type::fstream_t *m_fsLogFileStream = nullptr;
-    std::size_t m_szRollLogFileSize              = 0;
-    bool m_enabled                               = true;
+    std::atomic_bool m_enabled{true};
 };
 
 class NetLogger : public el::LogDispatchCallback {
