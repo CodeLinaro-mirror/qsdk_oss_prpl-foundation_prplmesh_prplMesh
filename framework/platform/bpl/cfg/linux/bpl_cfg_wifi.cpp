@@ -136,6 +136,13 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
     return true;
 }
 
+bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
+                                 son::wireless_utils::sMldInfoConf &mld_info_config)
+{
+    LOG(WARNING) << "bpl_cfg_get_mld_info_config is not implemented";
+    return false;
+}
+
 bool bpl_cfg_get_wpa_supplicant_ctrl_path(const std::string &iface, std::string &wpa_ctrl_path)
 {
     const std::string param = "wpa_supplicant_ctrl_path_" + iface;

@@ -366,6 +366,13 @@ bool bpl_cfg_get_wifi_credentials(const std::string &iface,
     return true;
 }
 
+bool bpl_cfg_get_mld_info_config(const std::string &ssid, int8_t mld_id,
+                                 son::wireless_utils::sMldInfoConf &mld_info_config)
+{
+    LOG(WARNING) << "bpl_cfg_get_mld_info_config is not implemented";
+    return false;
+}
+
 bool bpl_cfg_get_mandatory_interfaces(std::string &mandatory_interfaces)
 {
     mandatory_interfaces.clear();
