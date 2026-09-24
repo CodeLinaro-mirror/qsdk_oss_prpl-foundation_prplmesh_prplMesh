@@ -361,6 +361,9 @@ public:
         std::string host;
         std::string public_key;
         std::array<uint8_t, 32> pkhash = {};
+        std::string pkhash_hex;
+        bool pkhash_valid  = false;
+        bool chirp_matched = false;
         sMacAddr ruid{};
         sMacAddr bssid{};
     };
@@ -375,6 +378,18 @@ public:
     get_dpp_bootstrap_info_by_pkhash(const std::array<uint8_t, 32> &pkhash) const;
     const sDppBootstrappingInfo *get_dpp_bootstrap_info_by_mac(const sMacAddr &mac) const;
     void print_dpp_bootstrap_info() const;
+
+    /**
+     * @brief Standard PROXIED_ENCAP_DPP transport payload from controller to agent.
+     */
+    struct sProxiedEncapDppMessage {
+        std::vector<uint8_t> frame;
+        uint8_t frame_type       = 0;
+        bool dpp_frame_indicator = false;
+        sMacAddr dest_sta_mac    = beerocks::net::network_utils::ZERO_MAC;
+        std::vector<uint8_t> chirp_hash;
+        bool chirp_hash_valid    = false;
+    };
 
     typedef struct {
         int channel;
@@ -2849,6 +2864,17 @@ public:
      * @return Calculated string if dpp_bootstrapping_info is filled, empty string otherwise
      */
     std::string calculate_dpp_bootstrapping_str(const sDppBootstrappingInfo &info);
+
+    /**
+     * @brief Compare a received chirp hash against stored bootstrap URI pkhash entries.
+     *
+     * @param hash Pointer to hash bytes (raw 32-byte or hex-encoded ASCII).
+     * @param hash_len Length of the provided hash buffer.
+     * @param received_hex Normalized hex string for logging.
+     * @return Pointer to the matching bootstrap entry, or nullptr.
+     */
+    const sDppBootstrappingInfo *dpp_chirp_hash_matches(const uint8_t *hash, size_t hash_len,
+                                                        std::string &received_hex) const;
 
     /**
      * @brief Gets or Allocates ApMld from Agent Database.
