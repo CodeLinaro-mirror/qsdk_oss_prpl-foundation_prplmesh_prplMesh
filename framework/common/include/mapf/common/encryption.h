@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <memory>
@@ -216,6 +217,20 @@ bool aes_encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *plaintext, int 
  */
 bool aes_decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *ciphertext, int clen,
                  uint8_t *plaintext, int &plen);
+
+/**
+ * @brief AES-SIV authenticated encryption (RFC 5297).
+ */
+bool aes_siv_encrypt(const uint8_t *key, size_t key_len, const uint8_t *plain, size_t plain_len,
+                     const uint8_t **ad, const size_t *ad_len, size_t ad_count,
+                     std::vector<uint8_t> &out);
+
+/**
+ * @brief AES-SIV authenticated decryption (RFC 5297).
+ */
+bool aes_siv_decrypt(const uint8_t *key, size_t key_len, const uint8_t *wrapped, size_t wrapped_len,
+                     const uint8_t **ad, const size_t *ad_len, size_t ad_count,
+                     std::vector<uint8_t> &plain);
 
 /**
  * @brief Copy the public key of @a dh to @a dest
