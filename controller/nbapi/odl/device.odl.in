@@ -708,5 +708,12 @@
                 }
             }
         }
+         %read-only string DataPathTransportProtocol {
+          default "UDPoverIPv6";
+            on action validate call check_enum [
+                "UDPoverIPv6",
+                "TCPoverIPv6"
+            ];
+        }
     }
 }

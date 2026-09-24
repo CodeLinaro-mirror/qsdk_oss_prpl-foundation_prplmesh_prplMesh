@@ -1,0 +1,24 @@
+---
+_namespace: wfa_map
+
+tlvTransportCapabilities:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_TRANSPORT_CAPABILITIES
+  length: uint16_t
+  transport_capabilities: sTransportCapabilities
+
+sTransportCapabilities:
+  _type: struct
+  _bit_field: uint8_t
+  udp_over_ipv6_support:
+    _bit_range: [7,7]
+    _comment: 0=not supported, 1=supported
+  tcp_over_ipv6_support:
+    _bit_range: [6,6]
+    _comment: 0=not supported, 1=supported
+  reserved:
+    _bit_range: [5,0]
+

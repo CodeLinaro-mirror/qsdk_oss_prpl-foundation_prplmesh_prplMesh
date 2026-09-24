@@ -53,6 +53,7 @@
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
 #include <tlvf/wfa_map/tlvSensingCapabilities.h>
+#include <tlvf/wfa_map/tlvTransportCapabilities.h>
 
 #include <cctype>
 #include <cstdlib>
@@ -793,8 +794,13 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     if (!add_sensing_capabilities_tlv(m_cmdu_tx)) {
 	LOG(ERROR) << "error filling sensing capabilities tlv";
         return false;
-    }	
-
+    }
+    
+    if (!add_transport_capabilities_tlv(m_cmdu_tx)) {
+       LOG(ERROR) << "error filling transport capabilities tlv";
+       return false;
+    }
+    
     return true;
 }
 
@@ -1320,6 +1326,21 @@ bool CapabilityReportingTask::add_device_inventory_tlv()
         device_inventory_tlv->add_radios_vendor_info(radio_vendor);
     }
 
+    return true;
+}
+
+bool CapabilityReportingTask::add_transport_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto transport_capabilities_tlv = cmdu_tx.addClass<wfa_map::tlvTransportCapabilities>();
+    if (!transport_capabilities_tlv) {
+        LOG(ERROR) << "Error creating TLV_TRANSPORT_CAPABILITIES";
+        return false;
+    }
+
+    transport_capabilities_tlv->transport_capabilities().udp_over_ipv6_support = true;
+    transport_capabilities_tlv->transport_capabilities().tcp_over_ipv6_support = false;
+
+    LOG(DEBUG) << "Added Transport Capabilities TLV: UDP_IPv6=1, TCP_IPv6=0";
     return true;
 }
 

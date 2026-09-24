@@ -14,6 +14,7 @@
 #include "task.h"
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/wfa_map/tlvChannelScanCapabilities.h>
+#include <tlvf/wfa_map/tlvTransportCapabilities.h>
 
 namespace beerocks {
 
@@ -124,6 +125,15 @@ private:
      * @return true on success, otherwise false.
      */
     bool add_device_inventory_tlv();
+
+    /**
+     * @brief Adds Transport Capabilities TLV to AP Capability Report message.
+     * Indicates agent support for UDP/TCP over IPv6 transport.
+     *
+     * @return true on success, otherwise false.
+     */
+    bool add_transport_capabilities_tlv(ieee1905_1::CmduMessageTx &cmdu_tx);
+
 
     /**
      * @brief Adds a new AKM Suites Capabilities TLV to given message.

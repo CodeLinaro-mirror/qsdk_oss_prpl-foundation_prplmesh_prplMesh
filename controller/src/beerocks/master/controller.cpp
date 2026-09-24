@@ -111,6 +111,7 @@
 #include <tlvf/wfa_map/tlvTunnelledSourceInfo.h>
 #include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsQuery.h>
 #include <tlvf/wfa_map/tlvWifi7AgentCapabilities.h>
+#include <tlvf/wfa_map/tlvTransportCapabilities.h>
 
 #include <net/if.h> // if_nametoindex
 
@@ -5753,6 +5754,21 @@ bool Controller::handle_tlv_device_inventory(Agent &agent, ieee1905_1::CmduMessa
     return true;
 }
 
+bool Controller::handle_tlv_transport_capabilities(Agent &agent,
+                                                   ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto tlv = cmdu_rx.getClass<wfa_map::tlvTransportCapabilities>();
+    if (!tlv) {
+        return true;  // TLV is optional, absence is not an error
+    }
+    agent.udp_over_ipv6_supported = tlv->transport_capabilities().udp_over_ipv6_support;
+    agent.tcp_over_ipv6_supported = tlv->transport_capabilities().tcp_over_ipv6_support;
+    LOG(DEBUG) << "Agent " << agent.al_mac << " Transport: UDP_IPv6="
+               << agent.udp_over_ipv6_supported << " TCP_IPv6=" << agent.tcp_over_ipv6_supported;
+    return true;
+}
+
+
 bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
                                              ieee1905_1::CmduMessageRx &cmdu_rx, const bool early)
 {
@@ -5845,7 +5861,11 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         LOG(ERROR) << "Device Inventory is not supplied for Agent " << src_mac
                    << " with profile enum " << agent->profile;
     }
-
+    
+    if (!handle_tlv_transport_capabilities(*agent, cmdu_rx)) {
+        LOG(WARNING) << "Failed to parse Transport Capabilities TLV for Agent " << src_mac;
+    }
+     
     if (agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile2_cac_capabilities(*agent, cmdu_rx)) {
         LOG(ERROR) << "Profile2 CAC Capabilities are not supplied for Agent " << src_mac

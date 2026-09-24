@@ -93,6 +93,11 @@ public:
 
     // RSN Overriding support
     bool rsn_overriding_supported = false;
+    
+    //Transport Capabilities TLV (UDP/TCP over IPv6 support)
+    bool udp_over_ipv6_supported = false;
+    bool tcp_over_ipv6_supported = false;
+
     /**
      * @brief Max Total Number of unique VLAN identifiers the Multi-AP Agent supports.
      *

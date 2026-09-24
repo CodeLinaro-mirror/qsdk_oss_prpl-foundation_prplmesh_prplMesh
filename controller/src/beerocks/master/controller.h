@@ -716,6 +716,9 @@ private:
     */
     bool handle_tlv_device_inventory(Agent &agent, ieee1905_1::CmduMessageRx &cmdu_rx);
 
+    bool handle_tlv_transport_capabilities(Agent &agent,
+                                       ieee1905_1::CmduMessageRx &cmdu_rx);
+
     void set_esp(const std::string &param_name, const sMacAddr &reporting_agent_bssid,
                  uint8_t *est_service_info_field);
 
