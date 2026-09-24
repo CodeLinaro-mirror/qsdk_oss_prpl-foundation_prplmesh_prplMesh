@@ -730,7 +730,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     }
 
 #ifdef ENABLE_NBAPI
-    prplmesh::controller::actions::templates_restage_only();
+    prplmesh::controller::actions::templates_on_topology_updated();
 #endif
     return true;
 }

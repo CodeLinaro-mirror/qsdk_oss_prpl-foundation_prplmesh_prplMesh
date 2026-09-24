@@ -15,9 +15,11 @@
 #include <bcl/beerocks_string_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <cctype>
+#include <chrono>
 #include <list>
 #include <set>
 #include <sstream>
+#include <string>
 #include <tlvf/ieee_1905_1/eMessageType.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 #include <tuple>
@@ -39,12 +41,23 @@ bool g_templates_commit_pending         = false;
 bool g_templates_topology_restage_armed = false;
 bool g_templates_apply_in_progress      = false;
 bool g_templates_always_renew           = false;
+enum class eTemplatesApplyReason { DmChange, TopologyRestage };
+eTemplatesApplyReason g_templates_apply_reason = eTemplatesApplyReason::TopologyRestage;
+std::string g_last_applied_topology_fingerprint;
+std::string g_last_applied_restage_fingerprint;
+std::chrono::steady_clock::time_point g_templates_restage_not_before{};
+constexpr auto g_templates_restage_debounce = std::chrono::seconds(1);
 std::unordered_map<std::string, int8_t> g_template_applied_tx_power_limit_dbm;
 } // namespace
 
 static void template_sync_all_linked_ids(amxd_object_t *templates_root);
 static bool template_rebuild_staged_configuration(amxd_object_t *templates_root);
 static void templates_commit(void);
+static std::string templates_compute_topology_fingerprint();
+static std::string templates_compute_restage_fingerprint();
+static void templates_invalidate_fingerprints();
+static void templates_store_applied_fingerprints();
+static bool templates_network_enable_is_false();
 
 /**
  * @brief Parse comma-separated topology flags string
@@ -2828,10 +2841,6 @@ static bool template_stage_bss_on_radio(
                 LOG(DEBUG) << "BSSTemplate[" << bss_instance_index << "] APMLD " << mld_key;
             }
         } else if (apmld_inst && !get_param_bool(apmld_inst, "MLOEnable")) {
-            // TR-181: MLOEnable=false disables multi-link affiliation; each related
-            // BSSTemplate deployment becomes its own AP MLD with a single affiliated AP.
-            // BSSs remain enabled. Use a per-BSSTemplate mld_id so deployments are not
-            // multi-affiliated under the shared APMLDTemplateID.
             std::string mld_key = get_param_string(bss_template_obj, "BSSTemplateID");
             if (mld_key.empty()) {
                 mld_key = get_param_string(apmld_inst, "APMLDTemplateID");
@@ -3238,6 +3247,129 @@ static bool template_rebuild_staged_configuration(amxd_object_t *templates_root)
     return true;
 }
 
+static bool templates_network_enable_is_false()
+{
+    amxd_object_t *templates_root =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", TEMPLATES_ROOT_DM);
+    if (!templates_root) {
+        return false;
+    }
+    amxd_object_t *network_obj = amxd_object_get_child(templates_root, "Network");
+    return network_obj && !get_param_bool(network_obj, "Enable");
+}
+
+static void templates_invalidate_fingerprints()
+{
+    g_last_applied_topology_fingerprint.clear();
+    g_last_applied_restage_fingerprint.clear();
+}
+
+static std::string templates_compute_topology_fingerprint()
+{
+    if (!g_database) {
+        return {};
+    }
+
+    auto connected_agents = g_database->get_all_connected_agents();
+    std::sort(connected_agents.begin(), connected_agents.end(),
+              [](const std::shared_ptr<Agent> &a, const std::shared_ptr<Agent> &b) {
+                  if (!a) {
+                      return bool(b);
+                  }
+                  if (!b) {
+                      return false;
+                  }
+                  return tlvf::mac_to_string(a->al_mac) < tlvf::mac_to_string(b->al_mac);
+              });
+
+    std::ostringstream oss;
+    for (const auto &agent : connected_agents) {
+        if (!agent) {
+            continue;
+        }
+        oss << tlvf::mac_to_string(agent->al_mac) << '|'
+            << (agent->is_gateway ? '1' : '0') << '|'
+            << static_cast<int>(agent->backhaul.backhaul_iface_type) << '|'
+            << (template_agent_is_wireless_repeater(*agent) ? '1' : '0') << '|'
+            << (template_agent_is_wired_repeater(*agent) ? '1' : '0') << '|';
+
+        std::vector<std::string> radio_uids;
+        radio_uids.reserve(agent->radios.size());
+        for (const auto &radio_kv : agent->radios) {
+            radio_uids.push_back(tlvf::mac_to_string(radio_kv.first));
+        }
+        std::sort(radio_uids.begin(), radio_uids.end());
+        for (const auto &ruid : radio_uids) {
+            oss << ruid << ',';
+        }
+        oss << ';';
+    }
+    return oss.str();
+}
+
+static std::string templates_compute_restage_fingerprint()
+{
+    std::ostringstream oss;
+    oss << templates_compute_topology_fingerprint();
+    oss << "#net=" << (templates_network_enable_is_false() ? '0' : '1');
+
+    amxd_object_t *templates_root =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", TEMPLATES_ROOT_DM);
+    if (templates_root) {
+        amxd_object_t *bss_table = amxd_object_get_child(templates_root, "BSSTemplate");
+        if (bss_table) {
+            std::vector<std::string> enabled_bss;
+            amxd_object_for_each(instance, it, bss_table)
+            {
+                amxd_object_t *inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+                if (!inst || !get_param_bool(inst, "Enable")) {
+                    continue;
+                }
+                std::string id = get_param_string(inst, "BSSTemplateID");
+                if (id.empty()) {
+                    id = std::to_string(amxd_object_get_index(inst));
+                }
+                enabled_bss.push_back(std::move(id));
+            }
+            std::sort(enabled_bss.begin(), enabled_bss.end());
+            oss << "#bss=";
+            for (const auto &id : enabled_bss) {
+                oss << id << ',';
+            }
+        }
+    }
+
+    if (g_database) {
+        auto connected_agents = g_database->get_all_connected_agents();
+        std::sort(connected_agents.begin(), connected_agents.end(),
+                  [](const std::shared_ptr<Agent> &a, const std::shared_ptr<Agent> &b) {
+                      if (!a) {
+                          return bool(b);
+                      }
+                      if (!b) {
+                          return false;
+                      }
+                      return tlvf::mac_to_string(a->al_mac) < tlvf::mac_to_string(b->al_mac);
+                  });
+        oss << "#caps=";
+        for (const auto &agent : connected_agents) {
+            if (!agent) {
+                continue;
+            }
+            oss << tlvf::mac_to_string(agent->al_mac) << ':'
+                << (agent->security_capabilities.valid_cipher_suites ? '1' : '0')
+                << (agent->security_capabilities.valid_akm_suites ? '1' : '0') << ',';
+        }
+    }
+    return oss.str();
+}
+
+static void templates_store_applied_fingerprints()
+{
+    g_last_applied_topology_fingerprint = templates_compute_topology_fingerprint();
+    g_last_applied_restage_fingerprint  = templates_compute_restage_fingerprint();
+}
+
 static void templates_commit(void)
 {
     if (!g_database) {
@@ -3254,8 +3386,11 @@ static void templates_commit(void)
         LOG(WARNING) << "wifi templates: DM root not found (" << TEMPLATES_ROOT_DM << ")";
         return;
     }
-    template_sync_all_linked_ids(templates_root);
+    if (g_templates_apply_reason == eTemplatesApplyReason::DmChange) {
+        template_sync_all_linked_ids(templates_root);
+    }
     template_rebuild_staged_configuration(templates_root);
+    templates_store_applied_fingerprints();
 }
 
 static void templates_schedule_apply(void)
@@ -3284,9 +3419,19 @@ static void templates_schedule_apply(void)
 
 void templates_request_apply(void)
 {
-    g_templates_always_renew = true;
+    templates_invalidate_fingerprints();
+    g_templates_always_renew   = true;
+    g_templates_apply_reason   = eTemplatesApplyReason::DmChange;
+    g_templates_restage_not_before = std::chrono::steady_clock::now();
     if (g_templates_apply_in_progress) {
         g_templates_commit_pending = true;
+        return;
+    }
+    if (g_templates_commit_pending || g_templates_topology_restage_armed) {
+        // Already queued; reason/not_before updated for immediate DM apply.
+        g_templates_commit_pending         = true;
+        g_templates_topology_restage_armed = true;
+        return;
     }
     templates_schedule_apply();
 }
@@ -3299,6 +3444,10 @@ void templates_commit_apply_pending(void)
         return;
     }
     if (!(g_templates_commit_pending || g_templates_topology_restage_armed)) {
+        return;
+    }
+    if (std::chrono::steady_clock::now() < g_templates_restage_not_before) {
+        LOG(DEBUG) << "wifi templates: debounce wait before apply";
         return;
     }
 
@@ -3328,22 +3477,58 @@ void templates_restage_only(void)
         return;
     }
 
-    amxd_object_t *templates_root =
-        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", TEMPLATES_ROOT_DM);
-    if (templates_root) {
-        amxd_object_t *network_obj = amxd_object_get_child(templates_root, "Network");
-        if (network_obj && !get_param_bool(network_obj, "Enable")) {
-            LOG(DEBUG) << "wifi templates: restage skipped (Network.Enable=false)";
-            return;
-        }
-    }
-
-    if (g_templates_topology_restage_armed) {
-        LOG(ERROR) << "wifi templates: topology restage armed already, coalescing";
+    if (templates_network_enable_is_false()) {
+        LOG(DEBUG) << "wifi templates: restage skipped (Network.Enable=false)";
         return;
     }
+
+    const std::string restage_fp = templates_compute_restage_fingerprint();
+    if (!g_last_applied_restage_fingerprint.empty() &&
+        restage_fp == g_last_applied_restage_fingerprint) {
+        LOG(DEBUG) << "wifi templates: restage fingerprint unchanged, skip";
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+
+    if (g_templates_topology_restage_armed || g_templates_commit_pending) {
+        // Coalesce; keep DM apply immediate if already upgraded to DmChange.
+        if (g_templates_apply_reason != eTemplatesApplyReason::DmChange) {
+            g_templates_restage_not_before = now + g_templates_restage_debounce;
+        }
+        g_templates_topology_restage_armed = true;
+        g_templates_commit_pending         = true;
+        LOG(DEBUG) << "wifi templates: topology restage armed already, coalescing";
+        return;
+    }
+
+    g_templates_apply_reason           = eTemplatesApplyReason::TopologyRestage;
+    g_templates_restage_not_before     = now + g_templates_restage_debounce;
     g_templates_topology_restage_armed = true;
     templates_request_apply_skip_if_unchanged();
+}
+
+void templates_on_topology_updated(void)
+{
+    if (!g_database) {
+        return;
+    }
+    if (!g_database->config.use_dataelements_vap_configs) {
+        return;
+    }
+    if (templates_network_enable_is_false()) {
+        LOG(DEBUG) << "wifi templates: topology update skipped (Network.Enable=false)";
+        return;
+    }
+
+    const std::string topo_fp = templates_compute_topology_fingerprint();
+    if (!g_last_applied_topology_fingerprint.empty() &&
+        topo_fp == g_last_applied_topology_fingerprint) {
+        LOG(DEBUG) << "wifi templates: topology fingerprint unchanged, skip restage";
+        return;
+    }
+
+    templates_restage_only();
 }
 
 bool is_templates_dm_initialized() { return g_templates_dm_initialized; }

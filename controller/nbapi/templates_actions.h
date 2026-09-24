@@ -31,6 +31,12 @@ void templates_commit_apply_pending(void);
 
 void templates_restage_only(void);
 
+/**
+ * Topology-response entry point: restage only when the mesh-wide topology
+ * fingerprint (agents, roles, radios) differs from the last applied state.
+ */
+void templates_on_topology_updated(void);
+
 bool is_templates_dm_initialized();
 
 void set_templates_dm_initialized(bool val);
