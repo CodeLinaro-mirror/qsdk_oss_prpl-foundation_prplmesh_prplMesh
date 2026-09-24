@@ -8,15 +8,7 @@
 
 SCRIPTDIR="$(dirname "$(readlink -f "${0}")")"
 PRPLMESH_DIR="$(cd "${SCRIPTDIR}/.." && pwd)"
-TARGET_PLATFORM=@TARGET_PLATFORM@
-
-# Explicitely ignore SIGPIPE to make sure the processes we start in
-# the background do not stop in case stdout/stderr gets closed early
-# (because the SSH connection calling the script is closed as soon as
-# the utils script exits for example). Similarly, ignore SIGHUP to
-# make sure the processes do not stop when the session leader
-# terminates:
-trap '' HUP PIPE
+PROCESS_MANAGER_DM_PATH="X_PRPLWARE-COM_ProcessManager"
 
 send_signal_to_prplmesh_process() {
     PROGRAM_NAME=$1
@@ -30,7 +22,11 @@ start_prplmesh_process() {
     PROGRAM_NAME=$1
 
     echo "starting ${PROGRAM_NAME}"
-    start-stop-daemon -S -b -x "${PRPLMESH_DIR}/bin/${PROGRAM_NAME}" > /dev/null 2>&1
+    if [ "$PRPLMESH_FOREGROUND" -eq 1 ]; then
+        "${PRPLMESH_DIR}/bin/${PROGRAM_NAME}" &
+    else
+        start-stop-daemon -S -b -x "${PRPLMESH_DIR}/bin/${PROGRAM_NAME}" > /dev/null 2>&1
+    fi
 }
 
 stop_prplmesh_process() {
@@ -82,7 +78,7 @@ roll_logs_function() {
 }
 
 usage() {
-    echo "usage: $(basename "$0") {start|stop|restart|status|roll_logs} [-h] [-m MODE] [-c CERT_MODE]"
+    echo "usage: $(basename "$0") {start|stop|restart|status|roll_logs} [-h] [-f|--foreground] [-m MODE] [-c CERT_MODE]"
 }
 
 ensure_platform_db() {
@@ -119,14 +115,22 @@ set_management_and_certification_mode() {
 
         echo "Set prplMesh management_mode to ${management_mode}"
 
-        sed -i "s/management_mode=.*/management_mode=${management_mode}/g" @TMP_PATH@/prplmesh_platform_db
+        if [ "$PROCESS_MANAGER_DETECTED" -eq 1 ]; then
+            ba-cli "${PROCESS_MANAGER_DM_PATH}.PrplMesh.ManagementMode=\"${management_mode}\"" >/dev/null 2>&1
+        else
+            sed -i "s/management_mode=.*/management_mode=${management_mode}/g" @TMP_PATH@/prplmesh_platform_db
+        fi
     fi
 
     if [ -n "${certification_mode}" ]; then
         certification_mode_num=$(certification_mode_to_num "${certification_mode}") || return 1
         echo "Set prplMesh certification_mode to ${certification_mode_num}"
 
-        sed -i "s/certification_mode=.*/certification_mode=${certification_mode_num}/g" @TMP_PATH@/prplmesh_platform_db
+        if [ "$PROCESS_MANAGER_DETECTED" -eq 1 ]; then
+            ba-cli "${PROCESS_MANAGER_DM_PATH}.PrplMesh.CertificationMode=${certification_mode_num}" >/dev/null 2>&1
+        else
+            sed -i "s/certification_mode=.*/certification_mode=${certification_mode_num}/g" @TMP_PATH@/prplmesh_platform_db
+        fi
     fi
 
     return 0
@@ -137,8 +141,12 @@ start_func() {
     # For more information see: https://github.com/prplfoundation/prplMesh/pull/1029#issuecomment-608353274
     ebtables -A FORWARD -d 01:80:c2:00:00:13 -j DROP
 
-    mode=$(sed -n 's/^management_mode=\(.*\)$/\1/p' @TMP_PATH@/prplmesh_platform_db)
-    [ -z "$mode" ] && mode="@BEEROCKS_MANAGEMENT_MODE@"
+    if [ "$PRPLMESH_FOREGROUND" -eq 1 ]; then
+        trap 'trap "" TERM INT HUP; stop_func' EXIT
+        trap 'exit 0' TERM INT HUP
+    fi
+
+    mode=$(get_management_mode)
 
     echo "Starting prplMesh (mode=${mode})"
 
@@ -148,6 +156,10 @@ start_func() {
     fi
     start_prplmesh_process beerocks_agent
     start_prplmesh_process beerocks_vendor_message
+    if [ "$PRPLMESH_FOREGROUND" -eq 1 ]; then
+        wait -n
+        exit $?
+    fi
     return 0
 }
 
@@ -158,22 +170,23 @@ stop_func() {
     stop_prplmesh_process beerocks_fronthaul
     stop_prplmesh_process beerocks_controller
     stop_prplmesh_process ieee1905_transport
+    wait
 
     ebtables -D FORWARD -d 01:80:c2:00:00:13 -j DROP
     return 0
 }
 
-main() {
-    case "${TARGET_PLATFORM}" in
-        linux|rdkb)
-            ;;
-        *)
-            echo "Unsupported platform: ${TARGET_PLATFORM}" >&2
-            exit 1
-            ;;
-    esac
+get_management_mode() {
+    mode=$(ba-cli -l "${PROCESS_MANAGER_DM_PATH}.PrplMesh.ManagementMode?" 2>/dev/null) || mode=""
+    mode=$(printf '%s' "$mode" | grep -v '^ERROR:' | tr -d '\n')
+    if [ -z "$mode" ]; then
+        mode=$(sed -n 's/^management_mode=\(.*\)$/\1/p' "@TMP_PATH@/prplmesh_platform_db" 2>/dev/null)
+    fi
+    echo "${mode:-@BEEROCKS_MANAGEMENT_MODE@}"
+}
 
-    if ! OPTS=$(getopt -o 'hm:c:' -l 'help,mode:,cert:' -n 'parse-options' -- "$@"); then
+main() {
+    if ! OPTS=$(getopt -o 'hfm:c:' -l 'help,foreground,mode:,cert:' -n 'parse-options' -- "$@"); then
         echo "Failed parsing options." >&2
         usage
         exit 1
@@ -184,6 +197,7 @@ main() {
 
     while true; do
         case "${1}" in
+            -f | --foreground)   PRPLMESH_FOREGROUND=1; shift ;;
             -h | --help)          usage; exit 0 ;;
             -m | --mode)          PRPLMESH_MODE="${2}"; shift; shift ;;
             -c | --cert)          CERTIFICATION_MODE="${2}"; shift; shift ;;
@@ -192,11 +206,32 @@ main() {
         esac
     done
 
+    if [ "$PRPLMESH_FOREGROUND" -eq 0 ]; then
+        # Detached processes must survive a closed terminal or output pipe.
+        trap '' HUP PIPE
+    fi
+
+    if pm_reply=$(ba-cli -l "${PROCESS_MANAGER_DM_PATH}.?0" 2>&1) &&
+    ! printf '%s\n' "$pm_reply" | grep -q '^ERROR:'; then
+        echo "Process Manager detected"
+        PROCESS_MANAGER_DETECTED=1
+    fi
+
+    if [ "$PROCESS_MANAGER_DETECTED" -eq 1 ] && [ "$PRPLMESH_FOREGROUND" -eq 0 ]; then
+        case "$1" in
+            "start" | "stop" | "restart")
+                echo "prplMesh is managed by Process Manager; use its datamodel." >&2
+                return 1
+                ;;
+        esac
+    fi
+
     case "${1}" in
         "start" | "restart")
-            ensure_platform_db
-            stop_func # Need to stop first for correctly apply modes
-            sleep 3 # Wait some time for completely stop
+            if [ "$PROCESS_MANAGER_DETECTED" -eq 0 ]; then
+                ensure_platform_db
+                stop_func # Need to stop first for correctly apply modes
+            fi
             set_management_and_certification_mode "${PRPLMESH_MODE}" "${CERTIFICATION_MODE}" || echo "Warning: failed to set mode, starting with existing configuration"
             start_func
             ;;
@@ -221,6 +256,8 @@ main() {
     return 0
 }
 
+PRPLMESH_FOREGROUND=0
+PROCESS_MANAGER_DETECTED=0
 PRPLMESH_MODE=""
 CERTIFICATION_MODE=""
 
