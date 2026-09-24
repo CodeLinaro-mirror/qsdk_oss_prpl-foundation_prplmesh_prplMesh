@@ -729,6 +729,17 @@ class ALEntityDocker(ALEntity):
             return False
         return True
 
+    def prplmesh_cli_available(self) -> bool:
+        '''Whether prplmesh_cli is present on the controller.'''
+        if not self.is_controller:
+            return False
+        path = os.path.join(self.installdir, "bin/prplmesh_cli")
+        try:
+            self.command("test", "-x", path)
+        except Exception:
+            return False
+        return True
+
     def prplmesh_cli_command(self, command: str) -> Optional[str]:
         '''Execute `command` prplmesh_cli command on the controller and return its output.
         Returns None when called on an object that is not a controller.

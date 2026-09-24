@@ -90,7 +90,7 @@ option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
 option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
-option (ENABLE_PRPLMESH_CLI "Build prplMesh CLI" ON)
+option (ENABLE_PRPLMESH_CLI "Build the prplmesh_cli diagnostic tool (requires ENABLE_NBAPI)" ON)
 
 # Reduces logging call sites to one call per argument (ELPP_OUT_OF_LINE_STREAM_OPS
 # in easylogging++, TLVF_FLASH_OPTIMIZATION in the generated codecs), replaces
