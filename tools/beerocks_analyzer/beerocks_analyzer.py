@@ -780,7 +780,10 @@ class BeerocksCliThread(threading.Thread):
             self.beerocks_cli_path = script_folder.parent.parent.parent \
                 / "build" / "install" / "bin" / "beerocks_cli"
         if not self.beerocks_cli_path.is_file():
-            raise ValueError("Path to beerocks_cli not found: {}".format(self.beerocks_cli_path))
+            raise ValueError(
+                "Path to beerocks_cli not found: {}. beerocks_cli is built only with "
+                "-DPRPLMESH_BML=ON -DPRPLMESH_BEEROCKS_CLI=ON; without those options the "
+                "binary is not produced.".format(self.beerocks_cli_path))
         if not self.target_ip:
             if self.docker_container_name:
                 try:
