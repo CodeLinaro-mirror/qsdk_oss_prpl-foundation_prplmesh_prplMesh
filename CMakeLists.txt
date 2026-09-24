@@ -91,6 +91,12 @@ option(BUILD_SHARED_LIBS "Build shared libraries (.so) instead of static ones (.
 option (ENABLE_NBAPI "Build the northbound (high-level) API" ON)
 option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
+if (BUILD_CONTROLLER AND NOT ENABLE_NBAPI AND NOT PRPLMESH_BML)
+    message(FATAL_ERROR
+        "The controller would have no management interface: enable ENABLE_NBAPI "
+        "for the TR-181 data model, or PRPLMESH_BML for the BML interface.")
+endif()
+
 option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
 # Reduces logging call sites to one call per argument (ELPP_OUT_OF_LINE_STREAM_OPS
