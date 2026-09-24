@@ -18,6 +18,7 @@
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
 #include "tasks/dpp_chirp_notification_task.h"
+#include "tasks/dpp_protocol_task.h"
 #include "tasks/ieee1905_query_sender_impl.h"
 #include "tasks/ieee1905_task.h"
 #include "tasks/load_balancer_task.h"
@@ -411,6 +412,9 @@ void Controller::start_mandatory_tasks()
                                               database, m_timer_manager);
     m_task_pool.add_task_check_mode<service_prioritization_task>(
         "service_prioritization_task", database.config.management_mode, database, cmdu_tx);
+
+    m_dpp_protocol_task = std::make_shared<dpp_protocol_task>(database, cmdu_tx);
+    LOG_IF(!m_task_pool.add_task(m_dpp_protocol_task), FATAL) << "Failed adding dpp_protocol_task!";
 }
 
 void Controller::start_optional_tasks()
