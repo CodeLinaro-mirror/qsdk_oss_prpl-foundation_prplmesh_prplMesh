@@ -133,6 +133,11 @@ public:
      */
     static std::string bytes_string_to_string(const std::string &bytes_string);
 
+    /**
+     * @brief Decode a base64url string (RFC 4648 with URL-safe alphabet).
+     */
+    static bool base64_url_decode(const std::string &input, std::string &output);
+
     static void copy_string(char *dst, const char *src, size_t dst_len);
 };
 } // namespace beerocks

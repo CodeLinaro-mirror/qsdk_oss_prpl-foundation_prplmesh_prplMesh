@@ -10507,6 +10507,10 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 error = "failed to hash public key";
                 return false;
             }
+            info.pkhash_valid = true;
+            info.pkhash_hex = beerocks::string_utils::bytes_to_hex_string(
+                info.pkhash.data(), info.pkhash.size());
+            info.chirp_matched = false;
             break;
         }
         default:
@@ -10645,4 +10649,68 @@ void db::print_dpp_bootstrap_info() const
     }
 
     LOG(INFO) << "=== End DPP Bootstrap Info ===";
+}
+
+namespace {
+bool is_hex_string(const std::string &value)
+{
+    return !value.empty() &&
+           std::all_of(value.begin(), value.end(),
+                       [](unsigned char ch) { return std::isxdigit(ch) != 0; });
+}
+
+bool dpp_hash_buffer_matches_pkhash(const uint8_t *hash, size_t hash_len,
+                                    const std::array<uint8_t, 32> &pkhash, std::string &received_hex)
+{
+    received_hex.clear();
+    if (!hash || hash_len == 0) {
+        return false;
+    }
+
+    std::string raw;
+    std::string hex_candidate(reinterpret_cast<const char *>(hash), hash_len);
+    if (!hex_candidate.empty() && hex_candidate.back() == '\0') {
+        hex_candidate.pop_back();
+    }
+
+    if (hex_candidate.size() == pkhash.size() * 2 && is_hex_string(hex_candidate)) {
+        raw = beerocks::string_utils::hex_to_bytes<std::string>(hex_candidate);
+    } else if (hash_len == pkhash.size() ||
+               (hash_len == pkhash.size() + 1 && hash[hash_len - 1] == 0)) {
+        size_t raw_len = hash_len;
+        if (raw_len == pkhash.size() + 1 && hash[hash_len - 1] == 0) {
+            raw_len -= 1;
+        }
+        raw.assign(reinterpret_cast<const char *>(hash), raw_len);
+    } else {
+        return false;
+    }
+
+    if (raw.size() != pkhash.size()) {
+        return false;
+    }
+
+    received_hex = beerocks::string_utils::bytes_to_hex_string(
+        reinterpret_cast<const uint8_t *>(raw.data()), raw.size());
+
+    return std::equal(raw.begin(), raw.end(), pkhash.begin());
+}
+} // namespace
+
+const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash, size_t hash_len,
+                                                            std::string &received_hex) const
+{
+    for (const auto &entry : dpp_bootstrap_info_map) {
+        if (!entry.second.pkhash_valid) {
+            continue;
+        }
+        std::string candidate_hex;
+        if (dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.pkhash, candidate_hex)) {
+            received_hex = candidate_hex;
+            return &entry.second;
+        }
+    }
+
+    received_hex.clear();
+    return nullptr;
 }
