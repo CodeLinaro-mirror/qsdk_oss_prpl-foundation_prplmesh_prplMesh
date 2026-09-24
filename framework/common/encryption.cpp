@@ -72,6 +72,17 @@
 #include <mapf/common/err.h>
 #include <mapf/common/logger.h>
 
+#include <cstring>
+#include <memory>
+#include <vector>
+
+#include <openssl/crypto.h>
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#include <openssl/cmac.h>
+#else
+#include <openssl/params.h>
+#endif
+
 #include "hmac_wrapper.h"
 
 namespace mapf {
@@ -526,6 +537,331 @@ bool aes_decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *ciphertext, int
     plen += len;
 
     EVP_CIPHER_CTX_free(ctx);
+    return true;
+}
+
+namespace {
+
+constexpr size_t k_aes_block_size = 16;
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+const EVP_CIPHER *aes_cmac_cipher_for_key_len(size_t key_len)
+{
+    switch (key_len) {
+    case 16:
+        return EVP_aes_128_cbc();
+    case 24:
+        return EVP_aes_192_cbc();
+    case 32:
+        return EVP_aes_256_cbc();
+    default:
+        return nullptr;
+    }
+}
+#endif
+
+const EVP_CIPHER *aes_ctr_cipher_for_key_len(size_t key_len)
+{
+    switch (key_len) {
+    case 16:
+        return EVP_aes_128_ctr();
+    case 24:
+        return EVP_aes_192_ctr();
+    case 32:
+        return EVP_aes_256_ctr();
+    default:
+        return nullptr;
+    }
+}
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+bool aes_cmac(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len,
+              uint8_t *mac)
+{
+    const EVP_CIPHER *cipher = aes_cmac_cipher_for_key_len(key_len);
+    if (!cipher || !key || !mac) {
+        return false;
+    }
+
+    CMAC_CTX *ctx = CMAC_CTX_new();
+    if (!ctx) {
+        return false;
+    }
+
+    size_t mac_len = k_aes_block_size;
+    const bool ok = CMAC_Init(ctx, key, key_len, cipher, nullptr) == 1 &&
+                    (data_len == 0 || CMAC_Update(ctx, data, data_len) == 1) &&
+                    CMAC_Final(ctx, mac, &mac_len) == 1 && mac_len == k_aes_block_size;
+    CMAC_CTX_free(ctx);
+    return ok;
+}
+#else
+bool aes_cmac(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len,
+              uint8_t *mac)
+{
+    const char *cipher_name = nullptr;
+    switch (key_len) {
+    case 16:
+        cipher_name = "AES-128-CBC";
+        break;
+    case 24:
+        cipher_name = "AES-192-CBC";
+        break;
+    case 32:
+        cipher_name = "AES-256-CBC";
+        break;
+    default:
+        return false;
+    }
+
+    std::unique_ptr<EVP_MAC, decltype(&EVP_MAC_free)> mac_impl(EVP_MAC_fetch(nullptr, "CMAC", nullptr),
+                                                               EVP_MAC_free);
+    std::unique_ptr<EVP_MAC_CTX, decltype(&EVP_MAC_CTX_free)> ctx(EVP_MAC_CTX_new(mac_impl.get()),
+                                                                  EVP_MAC_CTX_free);
+    if (!mac_impl || !ctx || !key || !mac) {
+        return false;
+    }
+
+    OSSL_PARAM params[3];
+    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_CIPHER, (char *)cipher_name, 0);
+    params[1] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_KEY, (void *)key, key_len);
+    params[2] = OSSL_PARAM_construct_end();
+
+    size_t mac_len = k_aes_block_size;
+    const bool ok = EVP_MAC_init(ctx.get(), nullptr, 0, params) == 1 &&
+                    (data_len == 0 || EVP_MAC_update(ctx.get(), data, data_len) == 1) &&
+                    EVP_MAC_final(ctx.get(), mac, &mac_len, k_aes_block_size) == 1 &&
+                    mac_len == k_aes_block_size;
+    return ok;
+}
+#endif
+
+void aes_siv_dbl(uint8_t *block)
+{
+    const uint8_t carry = block[0] & 0x80;
+    for (size_t i = 0; i < k_aes_block_size - 1; ++i) {
+        block[i] = static_cast<uint8_t>((block[i] << 1) | (block[i + 1] >> 7));
+    }
+    block[k_aes_block_size - 1] <<= 1;
+    if (carry) {
+        block[k_aes_block_size - 1] ^= 0x87;
+    }
+}
+
+void aes_siv_xor_block(uint8_t *dst, const uint8_t *src)
+{
+    for (size_t i = 0; i < k_aes_block_size; ++i) {
+        dst[i] ^= src[i];
+    }
+}
+
+void aes_siv_xor_end(uint8_t *data, size_t data_len, const uint8_t *src, size_t src_len)
+{
+    if (data_len < src_len) {
+        return;
+    }
+    for (size_t i = 0; i < src_len; ++i) {
+        data[data_len - src_len + i] ^= src[i];
+    }
+}
+
+void aes_siv_pad_block(uint8_t *pad, const uint8_t *data, size_t data_len)
+{
+    std::memset(pad, 0, k_aes_block_size);
+    if (data_len > 0 && data) {
+        std::memcpy(pad, data, data_len);
+    }
+    if (data_len < k_aes_block_size) {
+        pad[data_len] = 0x80;
+    }
+}
+
+void clear_siv_ctr_iv_bits(uint8_t iv[k_aes_block_size])
+{
+    iv[8] &= 0x7f;
+    iv[12] &= 0x7f;
+}
+
+bool aes_siv_s2v(const uint8_t *key, size_t key_len, size_t num_elem, const uint8_t *const *addr,
+                 const size_t *len, uint8_t *mac)
+{
+    static const uint8_t zero[k_aes_block_size] = {};
+    uint8_t tmp[k_aes_block_size];
+    uint8_t tmp2[k_aes_block_size];
+
+    if (!key || !mac) {
+        return false;
+    }
+
+    if (num_elem == 0) {
+        std::memcpy(tmp, zero, k_aes_block_size);
+        tmp[k_aes_block_size - 1] = 1;
+        return aes_cmac(key, key_len, tmp, sizeof(tmp), mac);
+    }
+
+    if (!aes_cmac(key, key_len, zero, sizeof(zero), tmp)) {
+        return false;
+    }
+
+    for (size_t i = 0; i < num_elem - 1; ++i) {
+        if (!aes_cmac(key, key_len, addr[i], len[i], tmp2)) {
+            return false;
+        }
+        aes_siv_dbl(tmp);
+        aes_siv_xor_block(tmp, tmp2);
+    }
+
+    const size_t last_idx = num_elem - 1;
+    if (len[last_idx] >= k_aes_block_size) {
+        std::vector<uint8_t> buf(addr[last_idx], addr[last_idx] + len[last_idx]);
+        aes_siv_xor_end(buf.data(), buf.size(), tmp, k_aes_block_size);
+        return aes_cmac(key, key_len, buf.data(), buf.size(), mac);
+    }
+
+    aes_siv_dbl(tmp);
+    aes_siv_pad_block(tmp2, addr[last_idx], len[last_idx]);
+    aes_siv_xor_block(tmp, tmp2);
+    return aes_cmac(key, key_len, tmp, k_aes_block_size, mac);
+}
+
+bool aes_siv_ctr_crypt(const uint8_t *key, size_t key_len, uint8_t iv[k_aes_block_size],
+                       uint8_t *data, size_t data_len)
+{
+    const EVP_CIPHER *cipher = aes_ctr_cipher_for_key_len(key_len);
+    if (!cipher || !key || !iv) {
+        return false;
+    }
+    if (data_len > 0 && !data) {
+        return false;
+    }
+
+    std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)> ctx(EVP_CIPHER_CTX_new(),
+                                                                      EVP_CIPHER_CTX_free);
+    if (!ctx) {
+        return false;
+    }
+
+    int out_len = 0;
+    if (EVP_EncryptInit_ex(ctx.get(), cipher, nullptr, key, iv) != 1) {
+        return false;
+    }
+
+    if (data_len == 0) {
+        return true;
+    }
+
+    if (EVP_EncryptUpdate(ctx.get(), data, &out_len, data, static_cast<int>(data_len)) != 1) {
+        return false;
+    }
+
+    int final_len = 0;
+    return EVP_EncryptFinal_ex(ctx.get(), data + out_len, &final_len) == 1;
+}
+
+} // namespace
+
+bool aes_siv_encrypt(const uint8_t *key, size_t key_len, const uint8_t *plain, size_t plain_len,
+                     const uint8_t **ad, const size_t *ad_len, size_t ad_count,
+                     std::vector<uint8_t> &out)
+{
+    if (!key || (key_len != 32 && key_len != 48 && key_len != 64)) {
+        return false;
+    }
+    if (plain_len > 0 && !plain) {
+        return false;
+    }
+
+    const size_t half_len = key_len / 2;
+    const uint8_t *k1     = key;
+    const uint8_t *k2     = key + half_len;
+
+    std::vector<const uint8_t *> s2v_addr;
+    std::vector<size_t> s2v_len;
+    s2v_addr.reserve(ad_count + 1);
+    s2v_len.reserve(ad_count + 1);
+    for (size_t i = 0; i < ad_count; ++i) {
+        s2v_addr.push_back(ad ? ad[i] : nullptr);
+        s2v_len.push_back(ad_len ? ad_len[i] : 0);
+    }
+    s2v_addr.push_back(plain);
+    s2v_len.push_back(plain_len);
+
+    uint8_t iv[k_aes_block_size];
+    if (!aes_siv_s2v(k1, half_len, s2v_addr.size(), s2v_addr.data(), s2v_len.data(), iv)) {
+        MAPF_ERR("AES-SIV S2V failed during encryption");
+        return false;
+    }
+
+    out.assign(k_aes_block_size + plain_len, 0);
+    std::memcpy(out.data(), iv, k_aes_block_size);
+    if (plain_len > 0) {
+        std::memcpy(out.data() + k_aes_block_size, plain, plain_len);
+    }
+
+    uint8_t ctr_iv[k_aes_block_size];
+    std::memcpy(ctr_iv, iv, k_aes_block_size);
+    clear_siv_ctr_iv_bits(ctr_iv);
+    if (!aes_siv_ctr_crypt(k2, half_len, ctr_iv, out.data() + k_aes_block_size, plain_len)) {
+        out.clear();
+        MAPF_ERR("AES-SIV CTR encryption failed");
+        return false;
+    }
+
+    return true;
+}
+
+bool aes_siv_decrypt(const uint8_t *key, size_t key_len, const uint8_t *wrapped, size_t wrapped_len,
+                     const uint8_t **ad, const size_t *ad_len, size_t ad_count,
+                     std::vector<uint8_t> &plain)
+{
+    if (!key || !wrapped || wrapped_len <= k_aes_block_size ||
+        (key_len != 32 && key_len != 48 && key_len != 64)) {
+        return false;
+    }
+
+    const size_t half_len = key_len / 2;
+    const uint8_t *k1     = key;
+    const uint8_t *k2     = key + half_len;
+
+    const size_t crypt_len = wrapped_len - k_aes_block_size;
+    plain.assign(crypt_len, 0);
+    if (crypt_len > 0) {
+        std::memcpy(plain.data(), wrapped + k_aes_block_size, crypt_len);
+    }
+
+    uint8_t ctr_iv[k_aes_block_size];
+    std::memcpy(ctr_iv, wrapped, k_aes_block_size);
+    clear_siv_ctr_iv_bits(ctr_iv);
+    if (!aes_siv_ctr_crypt(k2, half_len, ctr_iv, plain.data(), crypt_len)) {
+        plain.clear();
+        MAPF_ERR("AES-SIV CTR decryption failed");
+        return false;
+    }
+
+    std::vector<const uint8_t *> s2v_addr;
+    std::vector<size_t> s2v_len;
+    s2v_addr.reserve(ad_count + 1);
+    s2v_len.reserve(ad_count + 1);
+    for (size_t i = 0; i < ad_count; ++i) {
+        s2v_addr.push_back(ad ? ad[i] : nullptr);
+        s2v_len.push_back(ad_len ? ad_len[i] : 0);
+    }
+    s2v_addr.push_back(plain.data());
+    s2v_len.push_back(crypt_len);
+
+    uint8_t check[k_aes_block_size];
+    if (!aes_siv_s2v(k1, half_len, s2v_addr.size(), s2v_addr.data(), s2v_len.data(), check)) {
+        plain.clear();
+        MAPF_ERR("AES-SIV S2V failed during decryption");
+        return false;
+    }
+
+    if (CRYPTO_memcmp(check, wrapped, k_aes_block_size) != 0) {
+        plain.clear();
+        MAPF_ERR("AES-SIV authentication tag mismatch");
+        return false;
+    }
+
     return true;
 }
 
