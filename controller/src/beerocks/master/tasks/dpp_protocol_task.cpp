@@ -20,6 +20,10 @@ namespace son {
 
 namespace {
 constexpr uint8_t k_dpp_protocol_version = 2;
+// DPP Public Action Connection Status Result. Same value as 0004 dpp_internal
+// k_dpp_connection_status_result. Not present in 0001 eFrameType, so dispatch
+// uses uint8_t (see switch below) to avoid -Wswitch on the TLV enum.
+constexpr uint8_t k_dpp_connection_status_result = 12;
 } // namespace
 
 dpp_protocol_task::dpp_protocol_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_)
@@ -33,7 +37,164 @@ bool dpp_protocol_task::handle_ieee1905_1_msg(const sMacAddr &src_mac,
     switch (cmdu_rx.getMessageType()) {
     case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
         return handle_cmdu_1905_chirp_notification(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
+        return handle_cmdu_1905_proxied_encap_dpp(src_mac, cmdu_rx);
     default:
+        return false;
+    }
+}
+
+bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(
+    const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto agent = m_database.m_agents.get(src_mac);
+    if (!agent || !agent->dpp_onboarding_support) {
+        LOG(WARNING) << "PROXIED_ENCAP_DPP_MESSAGE from unknown or non-DPP Agent " << src_mac;
+        return false;
+    }
+
+    if (m_session.proxy_agent == beerocks::net::network_utils::ZERO_MAC ||
+        src_mac != m_session.proxy_agent) {
+        LOG(WARNING) << "PROXIED_ENCAP_DPP_MESSAGE from Agent " << src_mac
+                     << " does not match active Proxy Agent " << m_session.proxy_agent;
+        return false;
+    }
+
+    auto encap = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
+    if (!encap) {
+        LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE missing 1905 Encap DPP TLV";
+        return false;
+    }
+
+    const auto frame_len = encap->encapsulated_frame_length();
+    const auto frame_data = encap->encapsulated_frame();
+    if (!frame_data || frame_len == 0) {
+        LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE contains an empty DPP frame";
+        return false;
+    }
+    std::vector<uint8_t> frame(frame_data, frame_data + frame_len);
+
+    sMacAddr enrollee_mac = m_session.last_chirp_enrollee;
+    if (encap->frame_flags().enrollee_mac_address_present) {
+        auto received_enrollee = encap->dest_sta_mac();
+        if (!received_enrollee) {
+            LOG(ERROR) << "1905 Encap DPP TLV sets Enrollee MAC present without a MAC";
+            return false;
+        }
+        if (m_session.last_chirp_enrollee_valid &&
+            *received_enrollee != m_session.last_chirp_enrollee) {
+            LOG(WARNING) << "PROXIED_ENCAP_DPP_MESSAGE Enrollee "
+                         << tlvf::mac_to_string(*received_enrollee)
+                         << " does not match active Enrollee "
+                         << tlvf::mac_to_string(m_session.last_chirp_enrollee);
+            return false;
+        }
+        enrollee_mac = *received_enrollee;
+    } else if (!m_session.last_chirp_enrollee_valid) {
+        LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE has no Enrollee MAC for the active session";
+        return false;
+    }
+
+    // Cast to uint8_t: Connection Status Result (12) is a DPP Public Action
+    // type used by 0004 unwrap APIs but is not a named 0001 eFrameType value.
+    const auto frame_type = static_cast<uint8_t>(encap->frame_type());
+    const bool is_gas     = encap->frame_flags().dpp_frame_indicator != 0;
+    std::string error;
+
+    switch (frame_type) {
+    case static_cast<uint8_t>(
+        wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_RESPONSE): {
+        if (is_gas) {
+            LOG(ERROR) << "DPP Authentication Response marked as GAS";
+            return false;
+        }
+
+        std::vector<uint8_t> auth_confirm;
+        if (!m_configurator.handle_authentication_response(frame, auth_confirm, error)) {
+            LOG(WARNING) << "Failed processing DPP Authentication Response: " << error;
+            return false;
+        }
+
+        if (!send_dpp_authentication_confirm(enrollee_mac, std::move(auth_confirm))) {
+             LOG(ERROR) << "Failed sending DPP Authentication Confirm through Proxy Agent "
+                       << src_mac;
+            return false;
+        }
+
+        m_session.authentication_confirm_sent = true;
+        LOG(INFO) << "DPP Authentication Response validated and Authentication Confirm sent";
+        return true;
+    }
+    case static_cast<uint8_t>(wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME): {
+        if (!is_gas) {
+            LOG(ERROR) << "DPP GAS frame missing GAS frame indicator";
+            return false;
+        }
+
+        std::string request_json;
+        std::string net_role;
+        if (!m_configurator.unwrap_gas_configuration_request(frame, request_json, net_role,
+                                                              error)) {
+            LOG(WARNING) << "Failed processing DPP GAS Configuration Request: " << error;
+            return false;
+        }
+
+        m_session.configuration_request_json = std::move(request_json);
+        m_session.requested_net_role = std::move(net_role);
+        m_session.configuration_request_received = true;
+        LOG(INFO) << "DPP Configuration Request received for netRole="
+                  << m_session.requested_net_role;
+
+	if (!m_session.pending_configuration_objects.empty()) {
+            if (!send_dpp_configuration_response(m_session.pending_configuration_objects,
+                                                 m_session.pending_send_conn_status)) {
+                LOG(WARNING) << "Failed sending staged DPP Configuration Response";
+                return false;
+            }
+        } else {
+            LOG(INFO) << "No staged Configuration Objects; waiting for set_pending_configuration_objects()";
+        }
+
+        return true;
+    }
+    case static_cast<uint8_t>(
+        wfa_map::tlv1905EncapDpp::eFrameType::DPP_CONFIGURATION_RESULT): {
+        if (is_gas) {
+            LOG(ERROR) << "DPP Configuration Result marked as GAS";
+            return false;
+        }
+
+        uint8_t status = 0;
+        if (!m_configurator.unwrap_configuration_result(frame, status, error)) {
+            LOG(WARNING) << "Failed processing DPP Configuration Result: " << error;
+            return false;
+        }
+
+        m_session.configuration_result_status = status;
+
+        m_session.configuration_result_received = true;
+        LOG(INFO) << "DPP Configuration Result received with status=" << int(status);
+        return true;
+    }
+    case k_dpp_connection_status_result: {
+        if (is_gas) {
+            LOG(ERROR) << "DPP Connection Status Result marked as GAS";
+            return false;
+        }
+
+        uint8_t result = 0;
+        if (!m_configurator.unwrap_connection_status_result(frame, result, error)) {
+            LOG(WARNING) << "Failed processing DPP Connection Status Result: " << error;
+            return false;
+        }
+
+        m_session.connection_status_result = result;
+        m_session.connection_status_result_received = true;
+        LOG(INFO) << "DPP Connection Status Result received with result=" << int(result);
+        return true;
+    }
+    default:
+        LOG(WARNING) << "Unsupported proxied DPP frame type " << int(frame_type);
         return false;
     }
 }
@@ -118,6 +279,18 @@ bool dpp_protocol_task::send_dpp_authentication_request()
         enrollee_mac = m_matched_bootstrap->mac;
     }
 
+    m_session.authentication_confirm_sent = false;
+    m_session.configuration_request_received = false;
+    m_session.configuration_request_json.clear();
+    m_session.requested_net_role.clear();
+    m_session.configuration_result_received = false;
+    m_session.configuration_result_status = 0;
+    m_session.connection_status_result_received = false;
+    m_session.connection_status_result = 0;
+    m_session.pending_configuration_objects.clear();
+    m_session.pending_send_conn_status = false;
+    m_session.configuration_response_sent = false;
+
     db::sProxiedEncapDppMessage message;
     message.frame      = std::move(auth_request_frame);
     message.frame_type = static_cast<uint8_t>(
@@ -131,23 +304,106 @@ bool dpp_protocol_task::send_dpp_authentication_request()
         message.chirp_hash_valid = true;
     }
 
-    bool any_sent = false;
-    for (const auto &entry : m_database.m_agents) {
-        if (!entry.second || !entry.second->dpp_onboarding_support) {
-            continue;
-        }
-        if (send_proxied_encap_dpp_to_agent(entry.first, message)) {
-            any_sent = true;
-        }
+    auto proxy_agent = m_database.m_agents.get(m_session.proxy_agent);
+    if (!proxy_agent || !proxy_agent->dpp_onboarding_support) {
+        LOG(WARNING) << "Chirp-selected Proxy Agent is unavailable or does not support DPP";
+        m_configurator.reset();
+        return false;
     }
-
-    if (!any_sent) {
-        LOG(WARNING) << "No DPP-capable agents accepted the DPP Authentication Request";
+    if (!send_proxied_encap_dpp_to_agent(m_session.proxy_agent, message)) {
+        LOG(WARNING) << "Chirp-selected Proxy Agent rejected the DPP Authentication Request";
         m_configurator.reset();
         return false;
     }
 
-    LOG(INFO) << "Controller DPP Authentication Request sent to DPP-capable agents";
+    LOG(INFO) << "Controller DPP Authentication Request sent through Proxy Agent "
+             << m_session.proxy_agent;
+    return true;
+}
+void dpp_protocol_task::set_pending_configuration_objects(
+    std::vector<std::string> config_object_jsons, bool send_conn_status)
+{
+    m_session.pending_configuration_objects = std::move(config_object_jsons);
+    m_session.pending_send_conn_status = send_conn_status;
+    m_session.configuration_response_sent = false;
+    LOG(INFO) << "Staged " << m_session.pending_configuration_objects.size()
+              << " DPP Configuration Object(s) for Proxied Encap TX"
+              << " send_conn_status=" << send_conn_status;
+}
+
+bool dpp_protocol_task::send_dpp_authentication_confirm(
+    const sMacAddr &enrollee_mac, std::vector<uint8_t> auth_confirm_frame)
+{
+    if (m_session.proxy_agent == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Cannot send DPP Authentication Confirm without an active Proxy Agent";
+        return false;
+    }
+    if (auth_confirm_frame.empty()) {
+        LOG(WARNING) << "Refusing to send empty DPP Authentication Confirm";
+        return false;
+    }
+
+    db::sProxiedEncapDppMessage response;
+    response.frame = std::move(auth_confirm_frame);
+    response.frame_type = static_cast<uint8_t>(
+        wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_CONFIRM);
+    response.dpp_frame_indicator = false;
+    response.dest_sta_mac = enrollee_mac;
+
+    if (!send_proxied_encap_dpp_to_agent(m_session.proxy_agent, response)) {
+        return false;
+    }
+
+    m_session.authentication_confirm_sent = true;
+    return true;
+}
+
+bool dpp_protocol_task::send_dpp_configuration_response(
+    const std::vector<std::string> &config_object_jsons, bool send_conn_status)
+{
+    if (m_session.proxy_agent == beerocks::net::network_utils::ZERO_MAC) {
+        LOG(WARNING) << "Cannot send DPP Configuration Response without an active Proxy Agent";
+        return false;
+    }
+    if (config_object_jsons.empty()) {
+        LOG(WARNING) << "Cannot send DPP Configuration Response without Config Objects";
+        return false;
+    }
+
+    sMacAddr enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
+    if (m_session.last_chirp_enrollee_valid) {
+        enrollee_mac = m_session.last_chirp_enrollee;
+    } else if (m_matched_bootstrap &&
+               m_matched_bootstrap->mac != beerocks::net::network_utils::ZERO_MAC) {
+        enrollee_mac = m_matched_bootstrap->mac;
+    }
+
+    std::vector<uint8_t> gas_frame;
+    std::string error;
+    if (!m_configurator.build_gas_configuration_response(config_object_jsons, gas_frame, error,
+                                                         send_conn_status)) {
+        LOG(WARNING) << "Failed building DPP GAS Configuration Response: " << error;
+        return false;
+    }
+
+    db::sProxiedEncapDppMessage message;
+    message.frame = std::move(gas_frame);
+    message.frame_type =
+        static_cast<uint8_t>(wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME);
+    message.dpp_frame_indicator = true;
+    message.dest_sta_mac = enrollee_mac;
+
+    if (!send_proxied_encap_dpp_to_agent(m_session.proxy_agent, message)) {
+        LOG(ERROR) << "Failed sending DPP Configuration Response through Proxy Agent "
+                   << m_session.proxy_agent;
+        return false;
+    }
+
+    m_session.configuration_response_sent = true;
+    m_session.pending_configuration_objects.clear();
+    m_session.pending_send_conn_status = false;
+    LOG(INFO) << "DPP Configuration Response sent through Proxy Agent " << m_session.proxy_agent
+              << " netRole=" << m_session.requested_net_role;
     return true;
 }
 
