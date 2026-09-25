@@ -13,8 +13,11 @@
 #include "../controller_dpp_session.h"
 #include "../db/db.h"
 #include "task.h"
+#include <string>
 
 namespace son {
+
+class task_pool;
 
 class dpp_protocol_task : public task {
 public:
@@ -35,6 +38,12 @@ public:
      * @brief Current protocol state retained for dpp_onboarding_task.
      */
     const controller_dpp::SessionState &session_state() const { return m_session; }
+
+    /**
+     * @brief Clear session + Configurator crypto state (URI replace / success / fail cleanup).
+     */
+    void reset_session();
+
     /**
      * @brief Stage Config Object JSON blobs for the next GAS Configuration Request.
      *
@@ -60,11 +69,15 @@ private:
     bool send_proxied_encap_dpp_to_agent(const sMacAddr &agent_mac,
                                          const db::sProxiedEncapDppMessage &message);
 
+    void push_dpp_onboarding_task_event(int event_type, const std::string &reason = {});
     db &m_database;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
     controller_dpp::DppConfiguratorSession m_configurator;
     controller_dpp::SessionState m_session;
     const db::sDppBootstrappingInfo *m_matched_bootstrap = nullptr;
+    task_pool *m_task_pool                               = nullptr;
+    int m_dpp_onboarding_task_id                         = -1;
+    bool m_active_request_conn_status                    = false;
 };
 
 } // namespace son

@@ -10727,3 +10727,20 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
     received_hex.clear();
     return nullptr;
 }
+
+bool db::has_dpp_bootstrap_info() const
+{
+    return !dpp_bootstrap_info_map.empty();
+}
+
+std::string db::calculate_dpp_bootstrap_map_fingerprint() const
+{
+    std::string fingerprint;
+    for (const auto &entry : dpp_bootstrap_info_map) {
+        fingerprint += entry.first;
+        fingerprint += '|';
+        fingerprint += entry.second.public_key;
+        fingerprint += ';';
+    }
+    return fingerprint;
+}
