@@ -96,6 +96,20 @@ public:
                                      std::string &error);
     bool unwrap_connection_status_result(const std::vector<uint8_t> &frame, uint8_t &result,
                                          std::string &error);
+    /**
+     * @brief C-3 helper for Proxied Encap GAS frames.
+     * Strips GAS Initial Request framing, then calls unwrap_configuration_request().
+     */
+    bool unwrap_gas_configuration_request(const std::vector<uint8_t> &gas_encap,
+                                          std::string &request_object_json, std::string &net_role,
+                                          std::string &error);
+    /**
+     * @brief C-4 helper for Proxied Encap GAS frames.
+     * Calls build_configuration_response(), then wraps result as GAS Initial Response.
+     */
+    bool build_gas_configuration_response(const std::vector<std::string> &config_object_jsons,
+                                          std::vector<uint8_t> &gas_encap, std::string &error,
+                                          bool send_conn_status = false);
 
     bool authentication_started() const { return m_authentication_started; }
     bool authentication_success() const { return m_authentication_success; }
