@@ -3001,7 +3001,7 @@ bool BackhaulManager::handle_1905_1_message(ieee1905_1::CmduMessageRx &cmdu_rx,
         return false;
     }
     case ieee1905_1::eMessageType::BACKHAUL_STEERING_REQUEST_MESSAGE: {
-        return handle_backhaul_steering_request(cmdu_rx, src_mac);
+        return handle_backhaul_steering_request(cmdu_rx, src_mac, iface_index);
     }
     case ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE: {
         // We should not handle vendor specific messages here, return false so the message will
@@ -3937,7 +3937,8 @@ bool BackhaulManager::handle_slave_failed_connection_message(ieee1905_1::CmduMes
 }
 
 bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                                       const sMacAddr &src_mac)
+                                                       const sMacAddr &src_mac,
+                                                       uint32_t iface_index)
 {
     const auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "Received BACKHAUL_STA_STEERING message, mid=" << std::hex << mid;
@@ -3956,10 +3957,33 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
         return false;
     }
 
-    auto db = AgentDB::get();
+    auto db                       = AgentDB::get();
+    const auto ingress_iface      = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+    const auto ingress_iface_type = ingress_iface.empty()
+                                        ? beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE
+                                        : beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET;
 
-    LOG(DEBUG) << "Sending ACK message to the originator, mid=" << std::hex << mid;
-    send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+    if (iface_index != 0 && ingress_iface.empty()) {
+        LOG(WARNING) << "Unable to resolve Backhaul Steering Request ingress iface_index="
+                     << iface_index << "; using transport-selected response path";
+    }
+
+    auto send_to_originator = [&](const char *message_name) {
+        LOG(DEBUG) << "Sending " << message_name
+                   << (ingress_iface.empty() ? " using transport-selected path"
+                                             : " on ingress iface " + ingress_iface);
+        if (send_cmdu_to_broker(cmdu_tx, src_mac, db->bridge.mac, ingress_iface,
+                                ingress_iface_type)) {
+            return true;
+        }
+
+        LOG(ERROR) << "Failed to send " << message_name;
+        return false;
+    };
+
+    if (!send_to_originator("ACK message to the Backhaul Steering Request originator")) {
+        return false;
+    }
 
     auto channel    = bh_sta_steering_req->target_channel_number();
     auto oper_class = bh_sta_steering_req->operating_class();
@@ -3982,7 +4006,9 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
             return false;
         }
 
-        send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+        if (!send_to_originator("Backhaul Steering Response")) {
+            return false;
+        }
 
         return false;
     }
@@ -4010,7 +4036,9 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
             return false;
         }
 
-        send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+        if (!send_to_originator("Backhaul Steering Response")) {
+            return false;
+        }
 
         return true;
     }
