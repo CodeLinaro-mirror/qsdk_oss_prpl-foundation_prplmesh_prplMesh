@@ -31,9 +31,32 @@ public:
      */
     bool send_dpp_authentication_request();
 
+    /**
+     * @brief Current protocol state retained for dpp_onboarding_task.
+     */
+    const controller_dpp::SessionState &session_state() const { return m_session; }
+    /**
+     * @brief Stage Config Object JSON blobs for the next GAS Configuration Request.
+     *
+     * Objects must already be built (signed Connector / C-sign) by the Configurator
+     * policy path (C-4/C-6). On Config Request RX, dpp_protocol_task sends them via
+     * PROXIED_ENCAP_DPP_MESSAGE (DPP_GAS_FRAME).
+     */
+    void set_pending_configuration_objects(std::vector<std::string> config_object_jsons,
+                                           bool send_conn_status = false);
+
+    /**
+     * @brief Build GAS Configuration Response and send PROXIED_ENCAP_DPP_MESSAGE.
+     */
+    bool send_dpp_configuration_response(const std::vector<std::string> &config_object_jsons,
+                                         bool send_conn_status = false);
 private:
     bool handle_cmdu_1905_chirp_notification(const sMacAddr &src_mac,
                                              ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_mac,
+                                            ieee1905_1::CmduMessageRx &cmdu_rx);
+    bool send_dpp_authentication_confirm(const sMacAddr &enrollee_mac,
+                                         std::vector<uint8_t> auth_confirm_frame);
     bool send_proxied_encap_dpp_to_agent(const sMacAddr &agent_mac,
                                          const db::sProxiedEncapDppMessage &message);
 
