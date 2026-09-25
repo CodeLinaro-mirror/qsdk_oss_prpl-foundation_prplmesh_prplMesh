@@ -555,7 +555,7 @@ def redirect_stdout_to_file():
     sys.stdout = Configuration.output_file
 
 
-def read_configuration() -> Tuple[str, str]:
+def read_configuration(root=None) -> Tuple[str, str]:
     with open(os.path.join(sys.path[0], "./enum_auto_print_conf.json"), "r") as conf_file:
         configuration = json.load(conf_file)
 
@@ -598,7 +598,10 @@ def read_configuration() -> Tuple[str, str]:
     if workspace_root_key not in configuration.keys():
         raise Exception('Bad configuration: Missing field "{}" on configuration file'.format(
                         workspace_root_key))
-    workspace_root = os.path.abspath(sys.path[0] + "/" + configuration[workspace_root_key])
+    if root:
+        workspace_root = os.path.abspath(root)
+    else:
+        workspace_root = os.path.abspath(sys.path[0] + "/" + configuration[workspace_root_key])
     print("Workspace Root:", workspace_root, end="\n\n")
 
     test_workspace_root_key = 'testWorkspaceRoot'
@@ -642,13 +645,15 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("-t", "--test", action='store_true', default=False, help="Test script")
+    parser.add_argument("-r", "--root", default=None,
+                        help="Directory to scan instead of the configured workspace root")
 
     args = parser.parse_args()
 
     Configuration.test_mode = args.test
 
     # Read configuration file. Get the workspace root folder and an excluded files list
-    workspace_root, exclude_files_paths = read_configuration()
+    workspace_root, exclude_files_paths = read_configuration(args.root)
 
     # Get files list.
     files_list = get_files_list(workspace_root, exclude_files_paths)
