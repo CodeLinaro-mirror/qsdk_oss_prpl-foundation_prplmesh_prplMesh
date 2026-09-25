@@ -668,6 +668,8 @@ bool Controller::handle_cmdu_1905_1_message(uint32_t iface_index, const sMacAddr
     case ieee1905_1::eMessageType::CLIENT_CAPABILITY_REPORT_MESSAGE:
     case ieee1905_1::eMessageType::CHANNEL_PREFERENCE_REPORT_MESSAGE:
     case ieee1905_1::eMessageType::CHANNEL_SELECTION_RESPONSE_MESSAGE:
+    case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
+    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
 
         return true;
     default:
