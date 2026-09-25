@@ -1934,7 +1934,16 @@ static void event_provisioned_dpp_changed(const char *const sig_name, const amxc
 
     if(!g_database->add_dpp_bootstrap_info(std::move(info), error)) {
         LOG(ERROR) << "Failed storing DPPURI alias=" << alias << " error=" << error;
+        return;
     }
+    // Diagram 5.3.1 steps 6-7: enable CCE advertisement on agents when DPP URI is received.
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context for DPP CCE Indication";
+        return;
+    }
+    LOG(DEBUG) << "DPPURI stored for alias=" << alias << "; sending DPP CCE Indication enable";
+    controller_ctx->send_dpp_cce_indication(true);
 }
 
 static void event_provisioned_dpp_removed(const char *const sig_name, const amxc_var_t *const data,
