@@ -3206,10 +3206,21 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             m_backhaul_steering_bssid = beerocks::net::network_utils::ZERO_MAC;
             m_timer_manager->remove_timer(m_backhaul_steering_timer);
 
-            create_backhaul_steering_response(wfa_map::tlvErrorCode::eReasonCode::RESERVED, bssid);
+            if (!create_backhaul_steering_response(wfa_map::tlvErrorCode::eReasonCode::RESERVED,
+                                                   bssid)) {
+                LOG(ERROR) << "Failed to build Backhaul Steering Response message";
+                return false;
+            }
 
-            LOG(DEBUG) << "Sending BACKHAUL_STA_STEERING_RESPONSE_MESSAGE";
-            send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+            // During a roam, transport may still be rebuilding its bridge interface socket. Send
+            // the response directly through the newly connected backhaul interface instead of
+            // relying on the transport-selected bridge path.
+            LOG(DEBUG) << "Sending BACKHAUL_STA_STEERING_RESPONSE_MESSAGE on iface " << iface;
+            if (!send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac, iface,
+                                     beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET)) {
+                LOG(ERROR) << "Failed to send Backhaul Steering Response on iface " << iface;
+                return false;
+            }
         }
 
         // TODO: Need to unite WAIT_WPS and WIRELESS_ASSOCIATE_4ADDR_WAIT handling
