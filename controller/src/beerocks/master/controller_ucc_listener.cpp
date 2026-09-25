@@ -228,6 +228,16 @@ bool controller_ucc_listener::handle_dev_exec_action(
                                                err_string)) {
             return false;
         }
+
+        // Diagram 5.3.1 steps 6-7: enable CCE advertisement on agents when DPP URI is received.
+        auto controller_ctx = m_database.get_controller_ctx();
+        if (!controller_ctx) {
+            LOG(ERROR) << "Failed to get controller context for DPP CCE Indication";
+            return false;
+        }
+        LOG(DEBUG) << "DPP URI stored via UCC; sending DPP CCE Indication enable";
+        controller_ctx->send_dpp_cce_indication(true);
+
         return true;
     }
     err_string = "command is not supported on the Controller";
