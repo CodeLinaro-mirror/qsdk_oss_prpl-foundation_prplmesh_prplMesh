@@ -2534,6 +2534,11 @@ bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(
         LOG(ERROR) << "Failed to add DPP Bootstrap info: " << error;
         return false;
     }
+
+    // Diagram 5.3.1 steps 6-7: enable CCE advertisement on agents when DPP URI is received.
+    LOG(DEBUG) << "DPP Bootstrapping URI stored; sending DPP CCE Indication enable";
+    send_dpp_cce_indication(true);
+
     return true;
 }
 
