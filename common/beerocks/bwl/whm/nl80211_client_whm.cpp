@@ -75,7 +75,10 @@ bool nl80211_client_whm::get_sta_info(const std::string &interface_name,
     std::string assoc_device_search_path =
         wbapi_utils::search_path_assocDev_by_mac(interface_name, sta_mac_str);
     std::vector<std::string> assoc_device_path_list;
-    m_connection->resolve_path(assoc_device_search_path, assoc_device_path_list);
+    int amxb_status = AMXB_STATUS_OK;
+    m_connection->resolve_path(assoc_device_search_path, assoc_device_path_list, amxb_status);
+    LOG_IF(amxb_status != AMXB_STATUS_OK, ERROR)
+        << "amxb_resolve [" << assoc_device_search_path << "] failed, ret=" << amxb_status;
     if (assoc_device_path_list.size() == 1) {
         AmbiorixVariantSmartPtr assoc_device_obj =
             m_connection->get_object(assoc_device_path_list.front(), 0, true);
@@ -90,7 +93,9 @@ bool nl80211_client_whm::get_sta_info(const std::string &interface_name,
 
     std::string end_point_search_path = wbapi_utils::search_path_ep_by_iface(interface_name);
     std::vector<std::string> end_point_path_list;
-    m_connection->resolve_path(end_point_search_path, end_point_path_list);
+    m_connection->resolve_path(end_point_search_path, end_point_path_list, amxb_status);
+    LOG_IF(amxb_status != AMXB_STATUS_OK, ERROR)
+        << "amxb_resolve [" << end_point_search_path << "] failed, ret=" << amxb_status;
     if (end_point_path_list.size() == 1) {
         AmbiorixVariantSmartPtr end_point_obj =
             m_connection->get_object(end_point_path_list.front(), 0, true);
