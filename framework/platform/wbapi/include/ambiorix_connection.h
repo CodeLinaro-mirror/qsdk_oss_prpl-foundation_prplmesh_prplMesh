@@ -112,9 +112,11 @@ public:
      *
      * @param[in] search_path: search path to object/parameter.
      * @param[out] absolute_path_list: all resolved path strings, cleared when failing.
+     * @param[out] amxb_status: raw amxb_resolve() return value, 0 when the bus answered.
      * @return true when search path is resolved, false otherwise.
     */
-    bool resolve_path(const std::string &search_path, std::vector<std::string> &absolute_path_list);
+    bool resolve_path(const std::string &search_path, std::vector<std::string> &absolute_path_list,
+                      int &amxb_status);
 
     /**
      * @brief Update a given object.
