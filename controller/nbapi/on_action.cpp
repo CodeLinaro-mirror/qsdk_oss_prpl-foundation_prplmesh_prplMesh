@@ -1944,6 +1944,8 @@ static void event_provisioned_dpp_changed(const char *const sig_name, const amxc
     }
     LOG(DEBUG) << "DPPURI stored for alias=" << alias << "; sending DPP CCE Indication enable";
     controller_ctx->send_dpp_cce_indication(true);
+    controller_ctx->notify_dpp_bootstrapping_trigger(std::string("ProvisionedDPP changed alias=") +
+                                                     alias);
 }
 
 static void event_provisioned_dpp_removed(const char *const sig_name, const amxc_var_t *const data,
@@ -1957,6 +1959,15 @@ static void event_provisioned_dpp_removed(const char *const sig_name, const amxc
     }
 
     g_database->remove_dpp_bootstrap_info(std::string(alias));
+
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context after ProvisionedDPP remove";
+        return;
+    }
+    // CCE DISABLE is applied by dpp_onboarding_task on URI CLEARED (M-3).
+    controller_ctx->notify_dpp_bootstrapping_trigger(std::string("ProvisionedDPP removed alias=") +
+                                                     alias);
 }
 
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)

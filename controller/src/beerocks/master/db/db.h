@@ -380,6 +380,16 @@ public:
     void print_dpp_bootstrap_info() const;
 
     /**
+     * @brief True when at least one ProvisionedDPP / bootstrap URI entry is stored.
+     */
+    bool has_dpp_bootstrap_info() const;
+
+    /**
+     * @brief Stable fingerprint of alias|public_key entries for URI sync in dpp_onboarding_task.
+     */
+    std::string calculate_dpp_bootstrap_map_fingerprint() const;
+
+    /**
      * @brief Standard PROXIED_ENCAP_DPP transport payload from controller to agent.
      */
     struct sProxiedEncapDppMessage {
