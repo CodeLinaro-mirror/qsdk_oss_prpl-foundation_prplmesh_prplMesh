@@ -165,6 +165,10 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE,
     ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
     ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
+    // DPP / EasyConnect (FEAT-68 Path B): Agent → Controller chirp and encap frames
+    ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE,
+    ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
+    ieee1905_1::eMessageType::DIRECT_ENCAP_DPP_MESSAGE,
 };
 
 } // namespace
