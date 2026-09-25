@@ -118,7 +118,8 @@ void dpp_onboarding_task::finish_success()
     failure_count              = 0;
     last_failure_reason.clear();
     clear_pending_events();
-    // Keep CCE while URI remains provisioned; DISABLE is driven by URI clear (M-3/M-15).
+    // C-8 / M-5: withdraw CCE advertisement when onboarding completes.
+    disable_cce();
     wait_for(k_poll_interval_ms);
 }
 
@@ -131,7 +132,8 @@ void dpp_onboarding_task::finish_failure(const std::string &reason, bool retry)
     reset_active_session();
     state = State::IDLE;
     clear_pending_events();
-    // Keep CCE while URI remains so Enrollee can retry / re-chirp.
+    // C-8: withdraw CCE on abort; IDLE re-ENABLE if URI is still provisioned for retry.
+    disable_cce();
     if (retry) {
         schedule_retry(std::chrono::steady_clock::now());
     } else {
