@@ -17,6 +17,7 @@
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
+#include "tasks/dpp_onboarding_task.h"
 #include "tasks/dpp_chirp_notification_task.h"
 #include "tasks/dpp_protocol_task.h"
 #include "tasks/ieee1905_query_sender_impl.h"
@@ -415,6 +416,11 @@ void Controller::start_mandatory_tasks()
 
     m_dpp_protocol_task = std::make_shared<dpp_protocol_task>(database, cmdu_tx);
     LOG_IF(!m_task_pool.add_task(m_dpp_protocol_task), FATAL) << "Failed adding dpp_protocol_task!";
+
+    auto dpp_onboarding = std::make_shared<dpp_onboarding_task>(database, m_dpp_protocol_task);
+    LOG_IF(!m_task_pool.add_task(dpp_onboarding), FATAL) << "Failed adding dpp_onboarding_task!";
+    m_dpp_onboarding_task_id = dpp_onboarding->id;
+    m_dpp_protocol_task->configure_onboarding_notifier(m_task_pool, m_dpp_onboarding_task_id);
 }
 
 void Controller::start_optional_tasks()
@@ -5135,6 +5141,20 @@ void Controller::send_dpp_cce_indication(bool advertise_cce)
 {
     LOG(DEBUG) << "Queue DPP CCE Indication task, advertise_cce=" << advertise_cce;
     son_actions::start_dpp_cce_indication_task(database, cmdu_tx, m_task_pool, advertise_cce);
+}
+
+void Controller::notify_dpp_bootstrapping_trigger(const std::string &reason)
+{
+    if (m_dpp_onboarding_task_id < 0) {
+        return;
+    }
+    if (reason.empty()) {
+        m_task_pool.push_event(m_dpp_onboarding_task_id,
+                               dpp_onboarding_task::BOOTSTRAP_TRIGGERED);
+        return;
+    }
+    m_task_pool.push_event(m_dpp_onboarding_task_id, dpp_onboarding_task::BOOTSTRAP_TRIGGERED,
+                           new std::string(reason));
 }
 
 bool Controller::trigger_scan(

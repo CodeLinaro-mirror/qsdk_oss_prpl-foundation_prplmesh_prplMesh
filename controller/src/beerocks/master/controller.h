@@ -130,6 +130,12 @@ public:
     void send_dpp_cce_indication(bool advertise_cce);
 
     /**
+     * @brief Notify dpp_onboarding_task that bootstrap URI store changed (add/update/remove).
+     * Used for mid-session URI replace reset (M-13) and CLEARED cleanup (M-3).
+     */
+    void notify_dpp_bootstrapping_trigger(const std::string &reason = {});
+
+    /**
      * @brief Trigger channel scan initiated by NBAPI.
      *
      * @param ruid ruid of radio for wich scan requested.
@@ -760,6 +766,7 @@ private:
     // TODO It can be removed after cert_cmdu_tx usage is removed (PPM-1130).
     std::shared_ptr<LinkMetricsTask> m_link_metrics_task;
     std::shared_ptr<dpp_protocol_task> m_dpp_protocol_task;
+    int m_dpp_onboarding_task_id = -1;
 
     /**
      * Task_id used to stop/start the channel_selection_task without restarting the controller
