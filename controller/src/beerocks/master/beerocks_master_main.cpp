@@ -783,6 +783,11 @@ int main(int argc, char *argv[])
     }
 
     son::db master_db(master_conf, logger, tlvf::mac_from_string(bridge_info.mac), amb_dm_obj);
+    // FEAT-68 C-6: load Controller C-sign from DPP keystore
+    // ({install_path}/share/prplmesh_dpp_keystore, fallback /tmp/prplmesh_dpp_keystore).
+    if (!master_db.load_dpp_controller_csign_key_from_store()) {
+        LOG(DEBUG) << "No DPP Controller C-sign key loaded from keystore";
+    }
 
 #ifdef ENABLE_NBAPI
     prplmesh::controller::actions::g_database = &master_db;
