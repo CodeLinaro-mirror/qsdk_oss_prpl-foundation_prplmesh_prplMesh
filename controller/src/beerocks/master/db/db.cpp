@@ -21,12 +21,14 @@
 #include <cmath>
 #include <easylogging++.h>
 #include <mapf/common/encryption.h>
+#include <mapf/common/utils.h>
 #include <tlvf/tlvftypes.h>
 
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <cstdlib>
+#include <fstream>
 #include <openssl/evp.h>
 #include <utility>
 
@@ -43,6 +45,69 @@ const std::string db::SELECTED_BANDS_STR       = "selected_bands";
 const std::string db::IS_UNFRIENDLY_STR        = "is_unfriendly";
 
 constexpr std::chrono::minutes CHANNEL_PREFERENCE_EXPIRATION(5);
+
+namespace {
+constexpr char k_dpp_store_file[]          = "share/prplmesh_dpp_keystore";
+constexpr char k_dpp_store_fallback_file[] = "/tmp/prplmesh_dpp_keystore";
+constexpr char k_dpp_section_controller[]  = "dpp_controller_keys";
+
+std::string dpp_store_path()
+{
+    auto install_path = mapf::utils::get_install_path();
+    if (install_path.empty()) {
+        return std::string(k_dpp_store_fallback_file);
+    }
+    return install_path + k_dpp_store_file;
+}
+
+bool is_dpp_keystore_hex_string(const std::string &value)
+{
+    if (value.empty() || (value.size() % 2) != 0) {
+        return false;
+    }
+    for (const auto ch : value) {
+        if (!std::isxdigit(static_cast<unsigned char>(ch))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool parse_dpp_store_file(const std::string &path, db::DppStoreSections &sections)
+{
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    std::string line;
+    std::string section;
+    while (std::getline(file, line)) {
+        beerocks::string_utils::trim(line);
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+
+        if (line.front() == '[' && line.back() == ']') {
+            section = line.substr(1, line.size() - 2);
+            continue;
+        }
+
+        auto pos = line.find('=');
+        if (pos == std::string::npos || section.empty()) {
+            continue;
+        }
+
+        std::string key   = line.substr(0, pos);
+        std::string value = line.substr(pos + 1);
+        beerocks::string_utils::trim(key);
+        beerocks::string_utils::trim(value);
+        sections[section][key] = value;
+    }
+
+    return !sections.empty();
+}
+} // namespace
 
 constexpr std::chrono::seconds RADIO_CHANNEL_DEFERRED_UPDATE_GUARD(60);
 
@@ -8579,6 +8644,61 @@ std::string db::calculate_dpp_bootstrapping_str(const sDppBootstrappingInfo &dpp
 
     dpp_conn_string += "K:" + dpp_bootstrapping_info.public_key + ";;";
     return dpp_conn_string;
+}
+
+bool db::get_dpp_store_sections(DppStoreSections &sections) const
+{
+    sections.clear();
+    return parse_dpp_store_file(dpp_store_path(), sections);
+}
+
+bool db::load_dpp_controller_csign_key_from_store()
+{
+    m_dpp_controller_csign_key_hex.clear();
+
+    DppStoreSections sections;
+    const auto store_path = dpp_store_path();
+    if (!parse_dpp_store_file(store_path, sections)) {
+        LOG(DEBUG) << "DPP keystore not available at " << store_path;
+        return false;
+    }
+
+    auto sec_it = sections.find(k_dpp_section_controller);
+    if (sec_it == sections.end()) {
+        LOG(DEBUG) << "DPP keystore missing [" << k_dpp_section_controller << "] at " << store_path;
+        return false;
+    }
+
+    auto key_it = sec_it->second.find("csign_key");
+    if (key_it == sec_it->second.end() || key_it->second.empty()) {
+        LOG(DEBUG) << "DPP keystore missing csign_key at " << store_path;
+        return false;
+    }
+
+    if (!is_dpp_keystore_hex_string(key_it->second)) {
+        LOG(ERROR) << "DPP keystore csign_key is not valid hex at " << store_path;
+        return false;
+    }
+
+    m_dpp_controller_csign_key_hex = key_it->second;
+    LOG(INFO) << "Loaded Controller C-sign key material from " << store_path
+              << " ([" << k_dpp_section_controller << "]/csign_key)";
+    return true;
+}
+
+bool db::has_dpp_controller_csign_key() const
+{
+    return !m_dpp_controller_csign_key_hex.empty();
+}
+
+bool db::get_dpp_controller_csign_key_hex(std::string &out) const
+{
+    out.clear();
+    if (m_dpp_controller_csign_key_hex.empty()) {
+        return false;
+    }
+    out = m_dpp_controller_csign_key_hex;
+    return true;
 }
 
 bool db::dm_clear_cac_status_reports(std::shared_ptr<Agent> agent)

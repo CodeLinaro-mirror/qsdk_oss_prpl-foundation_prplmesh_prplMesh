@@ -4044,6 +4044,12 @@ private:
      * Value: DPP bootstrapping information.
      */
     std::unordered_map<std::string, sDppBootstrappingInfo> dpp_bootstrap_info_map;
+
+    /**
+     * Cached Controller C-sign private key (EC private key DER as hex) loaded from the
+     * DPP keystore file via load_dpp_controller_csign_key_from_store().
+     */
+    std::string m_dpp_controller_csign_key_hex;
 };
 
 } // namespace son
