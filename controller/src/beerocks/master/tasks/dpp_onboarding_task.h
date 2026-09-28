@@ -25,8 +25,10 @@ class dpp_protocol_task;
  *
  * Owns URI sync against the bootstrap store, CCE ENABLE/DISABLE, wait states
  * for Authentication / Configuration / Connection Status, and success/failure
- * cleanup. Does not drive Agent-side DPP_CONFIGURATOR_ADD; Auth/Config run in
- * dpp_protocol_task over Proxied Encap.
+ * cleanup. URI replace (M-13) resets the protocol session and re-enters Auth
+ * wait; cleanup after success/clear (M-15) allows a second onboarding.
+ * Does not drive Agent-side DPP_CONFIGURATOR_ADD; Auth/Config run in
+ * dpp_protocol_task over Proxied/Direct Encap.
  */
 class dpp_onboarding_task : public task {
 public:
@@ -68,9 +70,9 @@ private:
     State state = State::IDLE;
     std::string last_bootstrap_fingerprint;
     std::string last_completed_fingerprint;
-    bool cce_advertised = false;
+    bool cce_advertised     = false;
     bool expect_conn_status = false;
-    int failure_count = 0;
+    int failure_count       = 0;
     std::chrono::steady_clock::time_point next_retry_time;
     std::string last_failure_reason;
 };

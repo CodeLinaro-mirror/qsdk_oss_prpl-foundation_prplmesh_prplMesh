@@ -6,7 +6,6 @@
  * See LICENSE file for more details.
  */
 
-
 #include "controller_dpp_protocol.h"
 #include "dpp_internal.h"
 
@@ -42,8 +41,7 @@ void append_le16(std::vector<uint8_t> &out, uint16_t value)
     out.push_back(static_cast<uint8_t>((value >> 8) & 0xff));
 }
 
-void append_dpp_attr(std::vector<uint8_t> &out, uint16_t attr_id, const uint8_t *data,
-                     size_t len)
+void append_dpp_attr(std::vector<uint8_t> &out, uint16_t attr_id, const uint8_t *data, size_t len)
 {
     append_le16(out, attr_id);
     append_le16(out, static_cast<uint16_t>(len));
@@ -57,8 +55,7 @@ void append_dpp_attr_u8(std::vector<uint8_t> &out, uint16_t attr_id, uint8_t val
     append_dpp_attr(out, attr_id, &value, 1);
 }
 
-bool get_dpp_attr(const uint8_t *attrs, size_t len, uint16_t attr_id,
-                  DppAttributeView &attr)
+bool get_dpp_attr(const uint8_t *attrs, size_t len, uint16_t attr_id, DppAttributeView &attr)
 {
     attr = {};
     if (!attrs) {
@@ -67,8 +64,7 @@ bool get_dpp_attr(const uint8_t *attrs, size_t len, uint16_t attr_id,
 
     size_t offset = 0;
     while (offset + 4 <= len) {
-        const uint16_t id =
-            static_cast<uint16_t>(attrs[offset] | (attrs[offset + 1] << 8));
+        const uint16_t id = static_cast<uint16_t>(attrs[offset] | (attrs[offset + 1] << 8));
         const uint16_t attr_len =
             static_cast<uint16_t>(attrs[offset + 2] | (attrs[offset + 3] << 8));
         const auto *header = attrs + offset;
@@ -106,10 +102,9 @@ bool split_dpp_public_action_frame(const std::vector<uint8_t> &frame, uint8_t ex
         pos = 2;
     }
 
-    if (frame.size() < pos + 6 || frame[pos] != k_dpp_oui[0] ||
-        frame[pos + 1] != k_dpp_oui[1] || frame[pos + 2] != k_dpp_oui[2] ||
-        frame[pos + 3] != k_dpp_oui_type || frame[pos + 4] != k_dpp_crypto_suite ||
-        frame[pos + 5] != expected_type) {
+    if (frame.size() < pos + 6 || frame[pos] != k_dpp_oui[0] || frame[pos + 1] != k_dpp_oui[1] ||
+        frame[pos + 2] != k_dpp_oui[2] || frame[pos + 3] != k_dpp_oui_type ||
+        frame[pos + 4] != k_dpp_crypto_suite || frame[pos + 5] != expected_type) {
         return false;
     }
 

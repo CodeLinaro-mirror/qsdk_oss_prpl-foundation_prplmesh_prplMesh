@@ -8880,15 +8880,12 @@ bool db::load_dpp_controller_csign_key_from_store()
     }
 
     m_dpp_controller_csign_key_hex = key_it->second;
-    LOG(INFO) << "Loaded Controller C-sign key material from " << store_path
-              << " ([" << k_dpp_section_controller << "]/csign_key)";
+    LOG(INFO) << "Loaded Controller C-sign key material from " << store_path << " (["
+              << k_dpp_section_controller << "]/csign_key)";
     return true;
 }
 
-bool db::has_dpp_controller_csign_key() const
-{
-    return !m_dpp_controller_csign_key_hex.empty();
-}
+bool db::has_dpp_controller_csign_key() const { return !m_dpp_controller_csign_key_hex.empty(); }
 
 bool db::get_dpp_controller_csign_key_hex(std::string &out) const
 {
@@ -10841,8 +10838,8 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 return false;
             }
             info.pkhash_valid = true;
-            info.pkhash_hex = beerocks::string_utils::bytes_to_hex_string(
-                info.pkhash.data(), info.pkhash.size());
+            info.pkhash_hex =
+                beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
             info.chirp_matched = false;
             break;
         }
@@ -10987,13 +10984,13 @@ void db::print_dpp_bootstrap_info() const
 namespace {
 bool is_hex_string(const std::string &value)
 {
-    return !value.empty() &&
-           std::all_of(value.begin(), value.end(),
-                       [](unsigned char ch) { return std::isxdigit(ch) != 0; });
+    return !value.empty() && std::all_of(value.begin(), value.end(),
+                                         [](unsigned char ch) { return std::isxdigit(ch) != 0; });
 }
 
 bool dpp_hash_buffer_matches_pkhash(const uint8_t *hash, size_t hash_len,
-                                    const std::array<uint8_t, 32> &pkhash, std::string &received_hex)
+                                    const std::array<uint8_t, 32> &pkhash,
+                                    std::string &received_hex)
 {
     received_hex.clear();
     if (!hash || hash_len == 0) {
@@ -11048,19 +11045,42 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
     return nullptr;
 }
 
-bool db::has_dpp_bootstrap_info() const
+bool db::has_dpp_bootstrap_info() const { return !dpp_bootstrap_info_map.empty(); }
+
+const db::sDppBootstrappingInfo *db::get_sole_dpp_bootstrap_info() const
 {
-    return !dpp_bootstrap_info_map.empty();
+    if (dpp_bootstrap_info_map.size() != 1) {
+        return nullptr;
+    }
+    return &dpp_bootstrap_info_map.begin()->second;
 }
 
 std::string db::calculate_dpp_bootstrap_map_fingerprint() const
 {
+    // Append alias|key entries in ascending alias order so the fingerprint is
+    // stable regardless of unordered_map iteration order (no extra includes).
     std::string fingerprint;
-    for (const auto &entry : dpp_bootstrap_info_map) {
-        fingerprint += entry.first;
+    std::string last_alias;
+    for (;;) {
+        const std::string *best_alias          = nullptr;
+        const sDppBootstrappingInfo *best_info = nullptr;
+        for (const auto &entry : dpp_bootstrap_info_map) {
+            if (!last_alias.empty() && !(last_alias < entry.first)) {
+                continue;
+            }
+            if (!best_alias || entry.first < *best_alias) {
+                best_alias = &entry.first;
+                best_info  = &entry.second;
+            }
+        }
+        if (!best_alias || !best_info) {
+            break;
+        }
+        fingerprint += *best_alias;
         fingerprint += '|';
-        fingerprint += entry.second.public_key;
+        fingerprint += best_info->public_key;
         fingerprint += ';';
+        last_alias = *best_alias;
     }
     return fingerprint;
 }

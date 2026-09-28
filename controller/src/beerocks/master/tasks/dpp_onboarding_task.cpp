@@ -18,11 +18,11 @@
 
 namespace {
 
-constexpr int k_poll_interval_ms = 1000;
-constexpr int k_retry_delay_ms   = 5000;
-constexpr int k_retry_delay_max_ms = 60000;
+constexpr int k_poll_interval_ms      = 1000;
+constexpr int k_retry_delay_ms        = 5000;
+constexpr int k_retry_delay_max_ms    = 60000;
 constexpr int k_retry_backoff_max_exp = 4;
-constexpr int k_event_timeout_ms = 30000;
+constexpr int k_event_timeout_ms      = 30000;
 
 std::string take_reason(void *obj)
 {
@@ -97,9 +97,9 @@ void dpp_onboarding_task::restart_for_bootstrap_trigger(const std::string &reaso
         TASK_LOG(INFO) << reason;
     }
 
+    // M-13 / M-15: drop active Configurator state; force fingerprint resync on next work().
     reset_active_session();
-    state = State::IDLE;
-    // Force sync_bootstrap_uri() to observe UPDATED or CLEARED on next work().
+    state                      = State::IDLE;
     last_bootstrap_fingerprint = std::string(1, '\0');
     last_completed_fingerprint.clear();
     failure_count = 0;
@@ -117,6 +117,8 @@ void dpp_onboarding_task::finish_success()
     state                      = State::IDLE;
     failure_count              = 0;
     last_failure_reason.clear();
+    // Allow a later URI clear/replace (M-15) to start immediately without stale backoff.
+    next_retry_time = std::chrono::steady_clock::now();
     clear_pending_events();
     // C-8 / M-5: withdraw CCE advertisement when onboarding completes.
     disable_cce();
@@ -143,7 +145,7 @@ void dpp_onboarding_task::finish_failure(const std::string &reason, bool retry)
 
 void dpp_onboarding_task::enter_wait_auth()
 {
-    state = State::WAIT_AUTH;
+    state              = State::WAIT_AUTH;
     expect_conn_status = false;
     clear_pending_events();
     wait_for_event(AUTH_SUCCESS);
@@ -172,18 +174,22 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
         last_completed_fingerprint.clear();
         failure_count = 0;
         last_failure_reason.clear();
+        next_retry_time = std::chrono::steady_clock::now();
         clear_pending_events();
         disable_cce();
         state = State::IDLE;
         return true;
     }
 
-    TASK_LOG(INFO) << "DPP bootstrap URI store updated (fingerprint changed)";
+    // M-13: URI replace / update abandons the prior Configurator session and completed mark
+    // so a new Enrollee (or replaced URI) can onboard (M-15).
+    TASK_LOG(INFO) << "DPP bootstrap URI store updated (fingerprint changed); resetting session";
     reset_active_session();
     last_bootstrap_fingerprint = fingerprint;
     last_completed_fingerprint.clear();
     failure_count = 0;
     last_failure_reason.clear();
+    next_retry_time = std::chrono::steady_clock::now();
     clear_pending_events();
     enable_cce();
     state = State::IDLE;
@@ -194,12 +200,17 @@ void dpp_onboarding_task::work()
 {
     auto now = std::chrono::steady_clock::now();
 
-    // URI replace / clear must abort wait states (M-13).
+    // URI replace / clear must abort wait states (M-13) and reset protocol session.
     if (state != State::IDLE) {
         const std::string fingerprint = database.calculate_dpp_bootstrap_map_fingerprint();
         if (fingerprint != last_bootstrap_fingerprint) {
             sync_bootstrap_uri();
-            wait_for(0);
+            if (!fingerprint.empty()) {
+                // Immediately wait for Auth on the new URI (do not leave a gap in IDLE).
+                enter_wait_auth();
+                return;
+            }
+            wait_for(k_poll_interval_ms);
             return;
         }
     }
@@ -215,6 +226,7 @@ void dpp_onboarding_task::work()
             last_completed_fingerprint.clear();
             failure_count = 0;
             last_failure_reason.clear();
+            next_retry_time = std::chrono::steady_clock::now();
             wait_for(k_poll_interval_ms);
             return;
         }
@@ -277,7 +289,7 @@ void dpp_onboarding_task::handle_event(int event_type, void *obj)
         if (expect_conn_status || reason.find("wait_conn_status=1") != std::string::npos) {
             TASK_LOG(INFO) << "DPP configuration result OK; waiting for connection status result";
             expect_conn_status = true;
-            state = State::WAIT_CONN_STATUS;
+            state              = State::WAIT_CONN_STATUS;
             clear_pending_events();
             wait_for_event(CONN_STATUS_OK);
             wait_for_event(CONN_STATUS_FAILED);
