@@ -32,6 +32,8 @@ struct SessionState {
     std::vector<std::string> pending_configuration_objects;
     bool pending_send_conn_status = false;
     bool configuration_response_sent = false;
+    /** True when this session uses DIRECT_ENCAP_DPP_MESSAGE (logical Ethernet / M-8). */
+    bool use_direct_encap = false;
 
 };
 
