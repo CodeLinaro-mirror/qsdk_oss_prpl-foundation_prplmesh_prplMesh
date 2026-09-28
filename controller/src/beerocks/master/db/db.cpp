@@ -10853,14 +10853,40 @@ bool db::has_dpp_bootstrap_info() const
     return !dpp_bootstrap_info_map.empty();
 }
 
+const db::sDppBootstrappingInfo *db::get_sole_dpp_bootstrap_info() const
+{
+    if (dpp_bootstrap_info_map.size() != 1) {
+        return nullptr;
+    }
+    return &dpp_bootstrap_info_map.begin()->second;
+}
+
 std::string db::calculate_dpp_bootstrap_map_fingerprint() const
 {
+    // Append alias|key entries in ascending alias order so the fingerprint is
+    // stable regardless of unordered_map iteration order (no extra includes).
     std::string fingerprint;
-    for (const auto &entry : dpp_bootstrap_info_map) {
-        fingerprint += entry.first;
+    std::string last_alias;
+    for (;;) {
+        const std::string *best_alias                     = nullptr;
+        const sDppBootstrappingInfo *best_info            = nullptr;
+        for (const auto &entry : dpp_bootstrap_info_map) {
+            if (!last_alias.empty() && !(last_alias < entry.first)) {
+                continue;
+            }
+            if (!best_alias || entry.first < *best_alias) {
+                best_alias = &entry.first;
+                best_info  = &entry.second;
+            }
+        }
+        if (!best_alias || !best_info) {
+            break;
+        }
+        fingerprint += *best_alias;
         fingerprint += '|';
-        fingerprint += entry.second.public_key;
+        fingerprint += best_info->public_key;
         fingerprint += ';';
+        last_alias = *best_alias;
     }
     return fingerprint;
 }
