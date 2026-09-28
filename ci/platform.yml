@@ -204,9 +204,6 @@ cram-on-ospv2:
 
 .cram-WPS:
   extends: .cram-on-target
-  needs:
-    - job: build-for-freedom
-    - job: build-for-ospv2
   tags:
     - cram
     - freedom-SMD
@@ -214,21 +211,17 @@ cram-on-ospv2:
 
 cram-WPS-OSPv2-Freedom:
   extends: .cram-WPS
+  needs: []
   variables:
     TARGET_DEVICE_1: ospv2
     TARGET_DEVICE_3: freedom
-  before_script:
-    - tools/deploy_firmware.py --device "urx_ospv2" --target-name "urx_ospv2" --image "$URX_OSPV2_FULLIMAGE" --whm --full --configuration ci/configuration/cram/urx_ospv2.sh
-    - tools/deploy_firmware.py --device "freedom" --target-name "freedom" --image "$FREEDOM_FULLIMAGE" --rootfs "$FREEDOM_ROOTFS" --whm --full --configuration ci/configuration/cram/freedom.sh
 
 cram-WPS-Freedom-Freedom:
   extends: .cram-WPS
+  needs: []
   variables:
     TARGET_DEVICE_1: freedom
     TARGET_DEVICE_3: freedom2
-  before_script:
-    - tools/deploy_firmware.py --device "freedom" --target-name "freedom" --image "$FREEDOM_FULLIMAGE" --whm --full --configuration ci/configuration/cram/freedom.sh
-    - tools/deploy_firmware.py --device "freedom" --target-name "freedom2" --image "$FREEDOM_FULLIMAGE" --rootfs "$FREEDOM_ROOTFS" --whm --full --configuration ci/configuration/cram/freedom2.sh
 
 
 run-certification-tests-R1-platform-essensium:
