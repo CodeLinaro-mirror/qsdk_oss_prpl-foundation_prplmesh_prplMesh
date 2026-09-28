@@ -385,7 +385,16 @@ public:
     bool has_dpp_bootstrap_info() const;
 
     /**
+     * @brief Return the only bootstrap entry when the store has exactly one URI.
+     *
+     * Used for Direct Encap onboarding when Enrollee MAC is not available from chirp.
+     * Returns nullptr when the store is empty or has more than one entry.
+     */
+    const sDppBootstrappingInfo *get_sole_dpp_bootstrap_info() const;
+    /**
      * @brief Stable fingerprint of alias|public_key entries for URI sync in dpp_onboarding_task.
+     *
+     * Aliases are sorted so the value does not depend on unordered_map iteration order.
      */
     std::string calculate_dpp_bootstrap_map_fingerprint() const;
 
@@ -399,6 +408,13 @@ public:
         sMacAddr dest_sta_mac    = beerocks::net::network_utils::ZERO_MAC;
         std::vector<uint8_t> chirp_hash;
         bool chirp_hash_valid    = false;
+    };
+
+    /**
+     * @brief Standard DIRECT_ENCAP_DPP transport payload (tlvDppMessage only; no Chirp TLV).
+     */
+    struct sDirectEncapDppMessage {
+        std::vector<uint8_t> frame;
     };
 
     typedef struct {

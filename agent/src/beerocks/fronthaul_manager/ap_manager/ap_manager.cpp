@@ -30,6 +30,7 @@
 #include <tlvf/wfa_map/tlvClientCapabilityReport.h>
 #include <tlvf/wfa_map/tlvClientInfo.h>
 #include <tlvf/wfa_map/tlvClientSecurityContext.h>
+#include <tlvf/wfa_map/tlvDppMessage.h>
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
@@ -809,16 +810,25 @@ void ApManager::handle_dpp_cce_indication_message(ieee1905_1::CmduMessageRx &cmd
 
 void ApManager::handle_direct_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    const auto mid      = cmdu_rx.getMessageId();
-    auto encap_1905_tlv = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
+    const auto mid = cmdu_rx.getMessageId();
+    // EasyMesh Direct Encap DPP carries tlvDppMessage (not 1905 Encap DPP / chirp TLVs).
+    auto dpp_msg_tlv = cmdu_rx.getClass<wfa_map::tlvDppMessage>();
 
-    if (!encap_1905_tlv) {
-        LOG(ERROR) << "Direct encap dpp cmdu mid =" << mid
-                   << "message doesn't contain 1905 encap Dpp tlv";
+    if (!dpp_msg_tlv) {
+        LOG(ERROR) << "DIRECT_ENCAP_DPP_MESSAGE mid=" << mid
+                   << " missing DPP Message TLV";
         return;
     }
 
-    // forwarding of dpp authentication response message to BWL layer to be implemented.
+    const auto frame_len = dpp_msg_tlv->dpp_frame_length();
+    if (frame_len == 0 || !dpp_msg_tlv->dpp_frame()) {
+        LOG(ERROR) << "DIRECT_ENCAP_DPP_MESSAGE mid=" << mid << " has empty DPP frame";
+        return;
+    }
+
+    LOG(INFO) << "DIRECT_ENCAP_DPP_MESSAGE mid=" << mid << " dpp_frame_len=" << frame_len
+              << "; BWL/hostap inject path still pending (FEAT-68 A-5 / A-9)";
+    // Forwarding of DPP frame to BWL layer to be implemented when HAL TX/inject APIs exist.
 }
 
 void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
