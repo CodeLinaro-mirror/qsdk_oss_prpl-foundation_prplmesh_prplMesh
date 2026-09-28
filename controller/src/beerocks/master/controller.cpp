@@ -14,6 +14,7 @@
 #include "tasks/agent_monitoring_task.h"
 #include "tasks/bml_task.h"
 #include "tasks/btm_request_task.h"
+#include "tasks/datapath_setup_task.h"
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
@@ -5069,6 +5070,17 @@ bool Controller::send_btm_request(const bool &disassoc_imminent,
                                         disassoc_timer_ms, bss_term_duration, validity_interval_ms,
                                         steering_timer_ms, sta_mac, target_bssid, triggered_by);
 
+    return true;
+}
+
+bool Controller::send_datapath_setup_request(const std::string &dest_ip, uint16_t dest_port,
+                                            bool add_path,const sMacAddr &agent_mac)
+{
+    LOG(DEBUG) << "ash: starting send_datapath_setup_request";
+    LOG(DEBUG) << "ash:NBAPI SetupDataPath  agent_mac=" << agent_mac<<"dest ip:" << dest_ip << " port=" << dest_port
+               << " add=" << (add_path ? "yes" : "no");
+    son_actions::start_datapath_setup_task(database, cmdu_tx, m_task_pool, dest_ip, dest_port,
+                                           add_path,agent_mac);
     return true;
 }
 

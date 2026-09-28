@@ -12,6 +12,7 @@
 #include "tasks/agent_monitoring_task.h"
 #include "tasks/association_handling_task.h"
 #include "tasks/bml_task.h"
+#include "tasks/datapath_setup_task.h"
 #include "tasks/btm_request_task.h"
 #include "tasks/client_steering_task.h"
 
@@ -163,6 +164,17 @@ int son_actions::steer_sta(db &database, ieee1905_1::CmduMessageTx &cmdu_tx, tas
         database, cmdu_tx, tasks, sta_mac, chosen_hostap, triggered_by, steering_type,
         disassoc_imminent, disassoc_timer_ms, steer_restricted);
 
+    tasks.add_task(new_task);
+    return new_task->id;
+}
+
+int son_actions::start_datapath_setup_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                           task_pool &tasks, const std::string &dest_ip,
+                                           uint16_t dest_port, bool add_path,const sMacAddr &agent_mac)
+{
+    LOG(DEBUG) << "ash: starting start_datapath_setup_task";
+    auto new_task = std::make_shared<datapath_setup_task>(database, cmdu_tx, tasks, dest_ip,
+                                                         dest_port, add_path,agent_mac);
     tasks.add_task(new_task);
     return new_task->id;
 }

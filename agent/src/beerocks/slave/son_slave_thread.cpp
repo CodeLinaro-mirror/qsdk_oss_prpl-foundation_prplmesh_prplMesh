@@ -22,6 +22,7 @@
 #include "tasks/spectrum_inquiry_task.h"
 #include "tasks/traffic_separation_task.h"
 #include "tasks/vbss_task.h"
+#include "tasks/data_path_setup_task.h"
 
 #include <bcl/beerocks_cmdu_client_factory_factory.h>
 #include <bcl/beerocks_cmdu_server_factory.h>
@@ -139,6 +140,7 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::CLIENT_ASSOCIATION_CONTROL_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::CLIENT_STEERING_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::DATA_PATH_SETUP_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::AP_METRICS_QUERY_MESSAGE,
     ieee1905_1::eMessageType::ASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
     ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE,
@@ -436,6 +438,8 @@ bool slave_thread::thread_init()
                                                                *this, cmdu_tx, m_timer_manager);
     m_task_pool.add_task_check_mode<VbssTask>("VbssTask", db->device_conf.management_mode, *this,
                                               cmdu_tx);
+    m_task_pool.add_task_check_mode<DataPathSetupTask>(
+        "DataPathSetupTask", db->device_conf.management_mode, *this, cmdu_tx);
 
     m_agent_state = STATE_INIT;
     LOG(DEBUG) << "Agent Started";

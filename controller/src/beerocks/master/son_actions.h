@@ -63,7 +63,9 @@ public:
         const sMacAddr &dest_mac = beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR);
     static bool send_topology_query_msg(const sMacAddr &dest_mac,
                                         ieee1905_1::CmduMessageTx &cmdu_tx, db &database);
-
+    static int start_datapath_setup_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                         task_pool &tasks, const std::string &dest_ip,
+                                         uint16_t dest_port, bool add_path,const sMacAddr &agent_mac);
     static int start_btm_request_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                       task_pool &tasks, const bool &disassoc_imminent,
                                       const int &disassoc_timer_ms,

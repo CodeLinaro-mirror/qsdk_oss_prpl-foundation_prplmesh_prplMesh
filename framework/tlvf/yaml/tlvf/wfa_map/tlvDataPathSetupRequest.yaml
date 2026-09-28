@@ -1,0 +1,49 @@
+_include: {
+    tlvf/wfa_map/eTlvTypeMap.h,
+}
+_namespace: wfa_map
+
+tlvDataPathSetupRequest:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_DATAPATH_SETUP_REQUEST
+  length: uint16_t
+  DataPathSetup: sDataPathSetup
+  TransportProtocol: sTransportProtocol
+  DestinationAddress:
+    _type: uint8_t
+    _length: [16]
+    _comment: |
+      IPv6 address of the destination in binary format.
+      Applicable when TransportProtocol is 0 (UDP over IPv6) or 1 (TCP over IPv6).
+  DestinationPort:
+    _type: uint16_t
+    _comment: Destination port
+
+sTransportProtocol:
+  _type: struct
+  _bit_field: uint8_t
+  UDP_over_IPv6:
+    _bit_range: [7, 7]
+    _comment: 1 is UDP over IPv6
+  TCP_over_IPv6:
+    _bit_range: [6, 6]
+    _comment: 1 is TCP over IPv6
+    reserved:
+    _bit_range: [5, 0]
+    _comment: Reserved
+
+sDataPathSetup:
+  _type: struct
+  _bit_field: uint8_t
+  AddRemoveDataPath:
+    _bit_range: [7, 7]
+    _comment: |
+      1: AddDataPathSetup
+      0: RemoveDataPathSetup
+      Indicates whether the request is to add or remove a DataPathSetup.
+  reserved:
+    _bit_range: [6, 0]
+    _comment: Reserved

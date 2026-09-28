@@ -267,6 +267,13 @@ public:
         std::vector<sEthernetPort> wan_candidates;
     } ethernet;
 
+      struct sDataPathEntry {
+      std::string dest_ip;
+      uint16_t dest_port{0};
+      uint8_t add_path{1};   // 0 = Remove, 1 = Add
+    };
+    std::list<sDataPathEntry> data_path_entries;
+
     struct sChannelPreference;
 
     struct sRadio {

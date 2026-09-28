@@ -116,6 +116,17 @@ public:
                           const uint32_t &bss_termination_duration,
                           const uint32_t &validity_interval, const uint32_t &steering_timer,
                           const std::string &sta_mac, const std::string &target_bssid);
+      /**
+    * @brief Send DataPath Setup Request on NBAPI RPC.
+     *
+     * @param dest_ip Destination IP address.
+     * @param dest_port Destination port.
+     * @param add_path True for AddDataPathSetup, false for RemoveDataPathSetup.
+     * * @param agent_mac Agent AL-MAC to send to (Device.1/2); ZERO_MAC = multicast to all.
+     * @return True if request sent successfully, false otherwise.
+     */
+    bool send_datapath_setup_request(const std::string &dest_ip, uint16_t dest_port, bool add_path,const sMacAddr &agent_mac);
+
 
     /**
      * @brief Trigger channel scan initiated by NBAPI.
