@@ -6,7 +6,6 @@
  * See LICENSE file for more details.
  */
 
-
 #include "controller_dpp_protocol.h"
 #include "dpp_internal.h"
 

@@ -29,8 +29,7 @@ bool extract_dpp_query_from_gas_encap(const std::vector<uint8_t> &encap,
         return false;
     }
 
-    const uint16_t query_len =
-        static_cast<uint16_t>(encap[pos] | (encap[pos + 1] << 8));
+    const uint16_t query_len = static_cast<uint16_t>(encap[pos] | (encap[pos + 1] << 8));
     pos += 2;
 
     if (pos + query_len > encap.size()) {
