@@ -4081,7 +4081,7 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
     // Create a timer to check if this Backhaul Steering Request times out.
     m_backhaul_steering_timer = m_timer_manager->add_timer(
         "Backhaul Steering Timeout", backhaul_steering_timeout, std::chrono::milliseconds::zero(),
-        [&](int fd, beerocks::EventLoop &loop) {
+        [this, bssid](int fd, beerocks::EventLoop &loop) {
             cancel_backhaul_steering_operation();
 
             // We'll end up in this situation only if an attempt to scan and associate was made, but
