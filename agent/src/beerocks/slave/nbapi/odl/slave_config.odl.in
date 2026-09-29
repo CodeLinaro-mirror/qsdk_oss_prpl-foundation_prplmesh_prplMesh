@@ -52,5 +52,5 @@
 }
 
 include "$@@{definition_file}";
-#include "mod_pcm_svc.odl";
+//#include "mod_pcm_svc.odl";
 import "mod-dmext.so";
