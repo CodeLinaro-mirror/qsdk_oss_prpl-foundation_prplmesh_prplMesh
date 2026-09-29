@@ -50,7 +50,12 @@ bool AmbiorixClient::resolve_path_multi(const std::string &search_path,
         LOG(ERROR) << "Client is not connected to bus";
         return false;
     }
-    return m_connection->resolve_path(search_path, absolute_path_list);
+
+    int amxb_status = AMXB_STATUS_OK;
+    auto resolved   = m_connection->resolve_path(search_path, absolute_path_list, amxb_status);
+    LOG_IF(amxb_status != AMXB_STATUS_OK, ERROR)
+        << "amxb_resolve [" << search_path << "] failed, ret=" << amxb_status;
+    return resolved;
 }
 
 bool AmbiorixClient::resolve_path(const std::string &search_path, std::string &absolute_path)
@@ -62,13 +67,25 @@ bool AmbiorixClient::resolve_path(const std::string &search_path, std::string &a
         return false;
     }
 
+    if (!m_connection) {
+        LOG(ERROR) << "Client is not connected to bus";
+        absolute_path.clear();
+        return false;
+    }
+
     std::vector<std::string> absolute_path_list;
-    if (resolve_path_multi(search_path, absolute_path_list) && !absolute_path_list.empty()) {
+    int amxb_status = AMXB_STATUS_OK;
+    if (m_connection->resolve_path(search_path, absolute_path_list, amxb_status) &&
+        !absolute_path_list.empty()) {
         absolute_path = absolute_path_list[0];
         return true;
     }
 
-    LOG(ERROR) << "AmbiorixClient::resolve_path failed to resolve path: " << search_path;
+    // Non-zero amxb_resolve() errors are backend specific, so log them raw.
+    // Zero means the bus answered but nothing matched.
+    LOG(ERROR) << "AmbiorixClient::resolve_path failed to resolve path: " << search_path
+               << ", amxb_resolve ret=" << amxb_status
+               << ((amxb_status == AMXB_STATUS_OK) ? " (no match)" : " (bus error)");
     absolute_path.clear();
     return false;
 }

@@ -115,7 +115,8 @@ AmbiorixVariantSmartPtr AmbiorixConnection::get_param(const std::string &object_
 }
 
 bool AmbiorixConnection::resolve_path(const std::string &search_path,
-                                      std::vector<std::string> &absolute_path_list)
+                                      std::vector<std::string> &absolute_path_list,
+                                      int &amxb_status)
 {
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     absolute_path_list.clear();
@@ -124,6 +125,7 @@ bool AmbiorixConnection::resolve_path(const std::string &search_path,
     AmbiorixVariant result;
     auto ret = amxb_resolve(m_bus_ctx, &amxd_path, get_amxc_var_ptr(result));
     amxd_path_clean(&amxd_path);
+    amxb_status = ret;
     if ((ret == 0) && (!result.empty()) && (result.get_type() == AMXC_VAR_ID_LIST)) {
         auto path_list = result.read_children<AmbiorixVariantListSmartPtr>();
         if (!path_list) {
