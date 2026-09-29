@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -141,7 +142,7 @@ void print_conn_map_subtree(prplmesh_cli &cli,
                             const std::map<std::string, conn_map_device_t> &devices_by_id,
                             const std::multimap<std::string, std::string> &children_by_parent,
                             const std::string &parent_id, const std::string &indent,
-                            bool short_output)
+                            bool short_output, std::set<std::string> &printed_device_ids)
 {
     auto range = children_by_parent.equal_range(parent_id);
     for (auto child_it = range.first; child_it != range.second; ++child_it) {
@@ -151,6 +152,9 @@ void print_conn_map_subtree(prplmesh_cli &cli,
         }
 
         const auto &device = device_it->second;
+        if (!printed_device_ids.insert(device.id).second) {
+            continue;
+        }
 
         if (device.link_type == "Ethernet" && !device.backhaul_mac.empty()) {
             std::cout << indent << "Eth_BACKHAUL: mac: " << device.backhaul_mac << std::endl;
@@ -169,7 +173,7 @@ void print_conn_map_subtree(prplmesh_cli &cli,
         }
 
         print_conn_map_subtree(cli, devices_by_id, children_by_parent, device.id, indent + "  ",
-                               short_output);
+                               short_output, printed_device_ids);
     }
 }
 
@@ -467,8 +471,40 @@ bool prplmesh_cli::prpl_conn_map(bool short_output)
         print_radio(controller_it->second.dm_path);
     }
 
+    std::set<std::string> printed_device_ids{conn_map.controller_id};
     print_conn_map_subtree(*this, devices_by_id, children_by_parent, conn_map.controller_id, "  ",
-                           short_output);
+                           short_output, printed_device_ids);
+
+    size_t orphan_count = 0;
+    for (const auto &device_pair : devices_by_id) {
+        if (printed_device_ids.find(device_pair.first) == printed_device_ids.end()) {
+            orphan_count++;
+        }
+    }
+    if (orphan_count > 0) {
+        std::cout << std::endl
+                  << "WARN: " << orphan_count << " topology-orphaned device(s):" << std::endl;
+
+        for (const auto &device_pair : devices_by_id) {
+            const auto &device = device_pair.second;
+            if (!printed_device_ids.insert(device.id).second) {
+                continue;
+            }
+
+            conn_map.device_index++;
+            const std::string device_name = device.name.empty() ? "Agent" : device.name;
+            std::cout << "  Device[" << conn_map.device_index << "]: name: " << device_name
+                      << ", mac: " << device.id << " LinkType: " << device.link_type
+                      << " [TOPOLOGY ORPHAN, parent: "
+                      << (device.parent_id.empty() ? "not set" : device.parent_id) << "]"
+                      << std::endl;
+
+            if (!short_output) {
+                space = "  ";
+                print_radio(device.dm_path);
+            }
+        }
+    }
 
     return true;
 }
