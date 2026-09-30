@@ -11,7 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 
 # Default defaults
 set(BWL_TYPE "DUMMY" CACHE STRING "BWL type")
-set_property(CACHE BWL_TYPE PROPERTY STRINGS "DUMMY" "NL80211" "DWPAL" "DWPALD" "WHM")
+set_property(CACHE BWL_TYPE PROPERTY STRINGS "DUMMY" "NL80211" "DWPAL" "DWPALD" "WHM" "SENSING")
 add_definitions(-DBEEROCKS_TMP_PATH="${TMP_PATH}")
 
 if (TARGET_PLATFORM STREQUAL "rdkb")
@@ -32,8 +32,8 @@ endif()
 
 if (USE_PRPLMESH_WHM)
     set(BWL_TYPE "WHM")
+    set(BWL_TYPE "SENSING")
 endif()
-
 set(BWL_TYPE ${BWL_TYPE} CACHE STRING "Which BWL backend to use")
 
 ##########################################################################
@@ -178,7 +178,33 @@ elseif(BWL_TYPE STREQUAL "WHM")
         ${bwl_platform_sources}
         ${MODULE_PATH}/whm/*.c*
     )
-    
+    elseif(BWL_TYPE STREQUAL "SENSING")
+
+   find_package(amxb REQUIRED)
+   find_package(amxc REQUIRED)
+   find_package(amxd REQUIRED)
+   find_package(amxp REQUIRED)
+   list(APPEND BWL_LIBS amxb amxc amxd amxp)
+   list(APPEND BWL_LIBS wbapi)
+   list(APPEND BWL_LIBS ubox)
+   # btlvf and tlvf provide include path for beerocks/tlvf/beerocks_message_backhaul.h (task_messages.h -> agent_db.h)
+   list(APPEND BWL_LIBS btlvf tlvf)
+   # nbapi provides ambiorix_dummy.h / ambiorix_impl.h (agent_db.h)
+   list(APPEND BWL_LIBS nbapi)
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
+   set(bwl_platform_sources
+       ${bwl_platform_sources}
+       ${MODULE_PATH}/sensing/agent_sensing.cpp
+       # Provide nl80211_client_factory for agent link_metrics (no real nl80211 backend)
+       ${MODULE_PATH}/dummy/nl80211_client_dummy.cpp
+       ${MODULE_PATH}/dummy/nl80211_client_factory_dummy.cpp
+       # Provide sta_wlan_hal_create for agent BackhaulManager (no real STA hal in SENSING)
+       ${MODULE_PATH}/dummy/base_wlan_hal_dummy.cpp
+       ${MODULE_PATH}/dummy/sta_wlan_hal_dummy.cpp
+       # Provide ap_wlan_hal_create and mon_wlan_hal_create for fronthaul (ApManager, Monitor)
+       ${MODULE_PATH}/dummy/mon_wlan_hal_dummy.cpp
+       ${MODULE_PATH}/dummy/ap_wlan_hal_dummy.cpp
+   )
 else()
 
     string(TOLOWER ${BWL_TYPE} BWL_PATH)
@@ -206,7 +232,9 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${PLATFORM_INCLUDE_DIR}
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sensing>
+	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../agent/src/beerocks/slave>
 )
 
 install(
@@ -226,7 +254,9 @@ if (BUILD_TESTS)
         ${MODULE_PATH}/unit_tests/assoc_frame_body_extract_test.cpp
         ${MODULE_PATH}/unit_tests/csv_bitmask_filtering.cpp
     )
-    if(NOT BWL_TYPE STREQUAL "WHM")
+  
+     # nl80211 tests need nl80211_client_factory; only built for DUMMY/NL80211/DWPAL/DWPALD, not WHM or SENSING
+   if(NOT BWL_TYPE STREQUAL "WHM" AND NOT BWL_TYPE STREQUAL "SENSING")
         list(APPEND unit_tests_sources
              ${MODULE_PATH}/unit_tests/nl80211_client_impl_test.cpp
 	     ${MODULE_PATH}/unit_tests/nl80211_client_test.cpp

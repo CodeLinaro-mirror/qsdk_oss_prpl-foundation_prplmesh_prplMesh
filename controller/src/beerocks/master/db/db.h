@@ -50,6 +50,7 @@
 #include <tlvf/wfa_map/tlvSensingCapabilities.h>
 
 #include <bitset>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <queue>
@@ -690,6 +691,17 @@ public:
     // Map for the unassoc sta link metrics. Here key is mac address in
     // the form of string.
     std::unordered_map<std::string, sUnAssocStaInfo> m_unassoc_sta_map;
+
+    /** Data-path setup state (mirrors AgentDB::sDataPathEntry in agent_db.h). */
+    struct sDataPathEntry {
+        std::string dest_ip;
+        uint16_t dest_port{0};
+        uint8_t add_path{1}; // 0 = Remove, 1 = Add
+        std::string source_addr;
+        uint16_t source_port{0};
+        sMacAddr agent_mac = beerocks::net::network_utils::ZERO_MAC;
+    };
+    std::list<sDataPathEntry> data_path_entries;
 
     beerocks::mac_map<Agent> m_agents;
     beerocks::mac_map<Station> m_stations;

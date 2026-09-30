@@ -21,7 +21,7 @@ class datapath_setup_task : public task {
 public:
     datapath_setup_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx, task_pool &tasks,
                         const std::string &dest_ip, uint16_t dest_port, bool add_path,
-                        const sMacAddr &agent_mac,
+                        const sMacAddr &agent_mac,bool use_udp,
                         const std::string &task_name = std::string("datapath_setup_task"));
     virtual ~datapath_setup_task() {}
 
@@ -41,6 +41,7 @@ private:
     const std::string m_dest_ip;
     const uint16_t m_dest_port;
     const bool m_add_path;
+    const bool m_use_udp;
     const sMacAddr m_agent_mac;
 };
 

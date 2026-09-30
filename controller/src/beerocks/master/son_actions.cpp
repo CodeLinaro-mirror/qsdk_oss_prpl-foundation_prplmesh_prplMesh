@@ -170,11 +170,11 @@ int son_actions::steer_sta(db &database, ieee1905_1::CmduMessageTx &cmdu_tx, tas
 
 int son_actions::start_datapath_setup_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                            task_pool &tasks, const std::string &dest_ip,
-                                           uint16_t dest_port, bool add_path,const sMacAddr &agent_mac)
+                                           uint16_t dest_port, bool add_path,const sMacAddr &agent_mac,					   bool use_udp)
 {
     LOG(DEBUG) << "ash: starting start_datapath_setup_task";
     auto new_task = std::make_shared<datapath_setup_task>(database, cmdu_tx, tasks, dest_ip,
-                                                         dest_port, add_path,agent_mac);
+                                                         dest_port, add_path,agent_mac,use_udp);
     tasks.add_task(new_task);
     return new_task->id;
 }

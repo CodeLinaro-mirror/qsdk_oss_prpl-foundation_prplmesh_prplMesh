@@ -715,7 +715,10 @@
                 "TCPoverIPv6"
             ];
         }
-    %instance bool SetupDataPath(
+        %read-only string DatapathIPAddress;
+        %read-only uint32 DatapathPort;
+
+        %instance bool SetupDataPath(
         %in %mandatory string DestinationIPAddress,
         %in %mandatory uint16 DestinationPort
     );

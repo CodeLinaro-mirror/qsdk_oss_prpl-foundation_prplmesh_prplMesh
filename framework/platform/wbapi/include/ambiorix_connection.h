@@ -35,6 +35,10 @@
 #define AMBIORIX_PWHM_USP_BACKEND_URI "usp:/var/run/pwhm_usp.sock"
 #endif
 
+#ifndef AMBIORIX_SENSING_USP_BACKEND_URI
+#define AMBIORIX_SENSING_USP_BACKEND_URI "usp:/var/run/sensing_usp.sock"
+#endif
+
 namespace beerocks {
 namespace wbapi {
 

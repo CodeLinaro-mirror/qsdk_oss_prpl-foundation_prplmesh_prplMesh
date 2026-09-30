@@ -5077,13 +5077,13 @@ bool Controller::send_btm_request(const bool &disassoc_imminent,
 }
 
 bool Controller::send_datapath_setup_request(const std::string &dest_ip, uint16_t dest_port,
-                                            bool add_path,const sMacAddr &agent_mac)
+                                            bool add_path,const sMacAddr &agent_mac, bool use_udp)
 {
     LOG(DEBUG) << "ash: starting send_datapath_setup_request";
     LOG(DEBUG) << "ash:NBAPI SetupDataPath  agent_mac=" << agent_mac<<"dest ip:" << dest_ip << " port=" << dest_port
                << " add=" << (add_path ? "yes" : "no");
     son_actions::start_datapath_setup_task(database, cmdu_tx, m_task_pool, dest_ip, dest_port,
-                                           add_path,agent_mac);
+                                           add_path,agent_mac,use_udp);
     return true;
 }
 

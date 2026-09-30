@@ -53,6 +53,17 @@ bool DataPathSetupTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
         AgentDB::sDataPathEntry{std::string(dest_ip), port, add_path});
     LOG(INFO) << "DataPath Setup Request: saved dest=" << dest_ip << " port=" << port
               << " add_path=" << (int)add_path;
+     bool datapath_ok = false;
+   if (auto *sensing = m_btl_ctx.get_agent_sensing()) {
+	  datapath_ok = sensing->setup_datapath();
+	if (!datapath_ok) {
+	      LOG(ERROR) << "DataPath Setup: agent_sensing::setup_datapath failed";
+        } else {
+              LOG(DEBUG) << "DataPath Setup: agent_sensing::setup_datapath success";
+        }
+     } else {
+       LOG(ERROR) << "DataPath Setup: agent_sensing is null";
+     }
 
     // Send ACK for the Request
     if (!m_cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {
@@ -69,15 +80,28 @@ bool DataPathSetupTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
     // Call AgentWiFiSensing with (destAddr, destPort)
     // AgentWiFiSensing returns (sourceAddr, sourcePort)
     // Send Datapath Response message to Controller
-     bool success = false;
+    // setup_datapath() stores srcIp/srcPort on the last AgentDB::sDataPathEntry (agent_db.h)
+
+    bool success = datapath_ok;
     uint8_t source_addr[16] = {0};
     uint16_t source_port    = 0;
+    
+        if (success) {
+        if (db->data_path_entries.empty()) {
+            LOG(ERROR) << "DataPath Setup Response: no data_path_entries after setup_datapath";
+            success = false;
+        } else {
+            const auto &path_entry = db->data_path_entries.back();
+            source_port            = path_entry.source_port;
+            if (inet_pton(AF_INET6, path_entry.source_addr.c_str(), source_addr) != 1) {
+                LOG(ERROR) << "DataPath Setup Response: invalid source_addr from AgentDB: "
+                           << path_entry.source_addr;
+                success = false;
+            }
+        }
+    }
 
-    // TODO: Integrate with AgentWiFiSensing - call setup_datapath(dest_ip, port, add_path)
-    // and receive (source_addr, source_port) on success. For now placeholder:
-    success = true; // replace with actual WSN/AgentWiFiSensing result
-    // if (success) { get source_addr, source_port from AgentWiFiSensing response }
-    LOG(DEBUG) << "ash :DataPath Setup Response: enetered to  create DATA_PATH_SETUP_RESPONSE_MESSAGE";
+    LOG(DEBUG) << "DataPath Setup Response: create DATA_PATH_SETUP_RESPONSE_MESSAGE";
 
     if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::DATA_PATH_SETUP_RESPONSE_MESSAGE)) {
         LOG(ERROR) << "DataPath Setup: failed to create DATA_PATH_SETUP_RESPONSE_MESSAGE";

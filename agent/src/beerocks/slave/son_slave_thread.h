@@ -27,6 +27,7 @@
 
 #include <beerocks/tlvf/beerocks_header.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
+#include "agent_sensing.h"
 
 #include <set>
 
@@ -329,6 +330,14 @@ public:
 
     void fsm_stop();
 
+    bwl::agent_sensing *get_agent_sensing()
+    {
+        if (!m_agent_sensing) {
+            m_agent_sensing = std::make_unique<bwl::agent_sensing>();
+        }
+        return m_agent_sensing.get();
+    }
+
 private:
     /**
      * Buffer to hold CMDU to be transmitted.
@@ -405,6 +414,8 @@ private:
      * provided in class constructor.
      */
     std::unique_ptr<CmduClient> m_backhaul_manager_client;
+
+    std::unique_ptr<bwl::agent_sensing> m_agent_sensing;
 
     bool m_is_backhaul_disconnected = false;
     int m_agent_resets_counter      = 0;

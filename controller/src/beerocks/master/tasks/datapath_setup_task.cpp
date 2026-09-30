@@ -10,6 +10,7 @@
 #include "../son_actions.h"
 
 #include <arpa/inet.h>
+#include <algorithm>
 #include <bcl/network/network_utils.h>
 #include <easylogging++.h>
 #include <tlvf/ieee_1905_1/eMessageType.h>
@@ -23,10 +24,10 @@ using namespace son;
 datapath_setup_task::datapath_setup_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                          task_pool &tasks, const std::string &dest_ip,
                                          uint16_t dest_port, bool add_path,
-                                         const sMacAddr &agent_mac,
+                                         const sMacAddr &agent_mac,bool use_udp,
                                          const std::string &task_name)
     : task(task_name), m_database(database), m_cmdu_tx(cmdu_tx), m_tasks(tasks),
-      m_dest_ip(dest_ip), m_dest_port(dest_port), m_add_path(add_path), m_agent_mac(agent_mac)
+      m_dest_ip(dest_ip), m_dest_port(dest_port), m_add_path(add_path),  m_use_udp(use_udp),m_agent_mac(agent_mac)
 {
     TASK_LOG(DEBUG) << "datapath_setup_task constructed";
 }
@@ -57,11 +58,10 @@ void datapath_setup_task::work()
 
     datapath_request_tlv->DataPathSetup().AddRemoveDataPath = m_add_path;
     datapath_request_tlv->DataPathSetup().reserved          = 0;
-
-    datapath_request_tlv->TransportProtocol().UDP_over_IPv6 = 1;
-    datapath_request_tlv->TransportProtocol().TCP_over_IPv6 = 0;
-    datapath_request_tlv->TransportProtocol().reserved      = 0;
-
+  
+    datapath_request_tlv->TransportProtocol().UDP_over_IPv6 = m_use_udp ? 1 : 0;
+    datapath_request_tlv->TransportProtocol().TCP_over_IPv6 = m_use_udp ? 0 : 1;
+    
     if (!datapath_request_tlv->set_DestinationAddress(ipv6_bin, 16)) {
         TASK_LOG(ERROR) << "set_DestinationAddress failed";
         finish();
@@ -83,7 +83,18 @@ void datapath_setup_task::work()
 
     TASK_LOG(INFO) << "DataPath setup request sent, agent_mac=" << m_agent_mac
                    << " dest=" << m_dest_ip << " port=" << m_dest_port
-                   << " add_path=" << m_add_path;
+                   << " add_path=" << m_add_path
+		    << " protocol=" << (m_use_udp ? "UDP" : "TCP");
+    m_database.data_path_entries.emplace_back();
+    auto &entry       = m_database.data_path_entries.back();
+    entry.dest_ip     = m_dest_ip;
+    entry.dest_port   = m_dest_port;
+    entry.add_path    = m_add_path;
+    entry.agent_mac   = m_agent_mac;
+
+    TASK_LOG(INFO) << "DataPath setup request sent success: stored db entry for agent_mac="
+                   << entry.agent_mac << " dest=" << entry.dest_ip
+                   << " port=" << entry.dest_port;
     finish();
 }
 
@@ -104,8 +115,47 @@ bool datapath_setup_task::handle_data_path_setup_response(
     if (err == 0) {
         const uint8_t *src_addr = resp_tlv->SourceAddr(0);
         const uint16_t src_port = resp_tlv->SourcePort();
-        (void)src_addr;
-        LOG(INFO) << "ash :DataPath setup response success, source_port=" << src_port;
+	 char src_addr_str[INET6_ADDRSTRLEN] = {0};
+        if (!src_addr || !inet_ntop(AF_INET6, src_addr, src_addr_str, sizeof(src_addr_str))) {
+            LOG(ERROR) << "ash :DataPath setup response success but SourceAddr is invalid";
+        } else {
+            auto entry_it =
+                std::find_if(database.data_path_entries.rbegin(), database.data_path_entries.rend(),
+                             [&](const db::sDataPathEntry &entry) {
+                                 return entry.agent_mac == src_mac;
+                             });
+            if (entry_it == database.data_path_entries.rend()) {
+                LOG(ERROR) << "ash :DataPath setup response: no data_path_entries for agent "
+                           << src_mac;
+            } else {
+                auto &entry       = *entry_it;
+                entry.source_addr = src_addr_str;
+                entry.source_port = src_port;
+
+                LOG(INFO) << "ash :DataPath setup response success, source_addr="
+                          << entry.source_addr << " source_port=" << entry.source_port;
+
+                const std::string device_dm_path = database.get_agent_data_model_path(src_mac);
+                if (!device_dm_path.empty()) {
+                    auto ambiorix_dm = database.get_ambiorix_obj();
+                    if (ambiorix_dm) {
+                        if (!ambiorix_dm->set(device_dm_path, "DatapathIPAddress",
+                                              std::string(src_addr_str))) {
+                            LOG(ERROR) << "Failed to set " << device_dm_path
+                                       << ".DatapathIPAddress";
+                        }
+                        const uint32_t src_port_u32 = static_cast<uint32_t>(src_port);
+                        if (!ambiorix_dm->set(device_dm_path, "DatapathPort", src_port_u32)) {
+                            LOG(ERROR) << "Failed to set " << device_dm_path << ".DatapathPort";
+                       }
+                    }
+                } else {
+                    LOG(WARNING) << "DatapathIPAddress/DatapathPort not updated: no data model "
+                                    "path for agent "
+                                 << src_mac;
+                }
+            }
+        }
     } else {
         LOG(WARNING) << "ash :DataPath setup response failed, error_code=" << static_cast<int>(err);
     }

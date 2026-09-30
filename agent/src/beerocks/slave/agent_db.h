@@ -271,6 +271,8 @@ public:
       std::string dest_ip;
       uint16_t dest_port{0};
       uint8_t add_path{1};   // 0 = Remove, 1 = Add
+      std::string source_addr;
+      uint16_t source_port{0};
     };
     std::list<sDataPathEntry> data_path_entries;
 

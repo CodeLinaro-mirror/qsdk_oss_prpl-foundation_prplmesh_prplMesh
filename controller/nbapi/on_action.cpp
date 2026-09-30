@@ -1596,13 +1596,11 @@ amxd_status_t update_unassociatedStations_stats(amxd_object_t *object, amxd_func
     return result;
 }
 amxd_status_t setup_data_path(amxd_object_t *object,
-                                      amxd_function_t *func,
-                                      amxc_var_t *args,
-                                      amxc_var_t *ret)
+                              amxd_function_t *func,
+                              amxc_var_t *args,
+                              amxc_var_t *ret)
 {
-    //amxd_status_t result(amxd_status_ok);
     auto controller_ctx = g_database->get_controller_ctx();
-
     if (!controller_ctx) {
         LOG(ERROR) << "Failed to get controller context.";
         return amxd_status_unknown_error;
@@ -1617,9 +1615,18 @@ amxd_status_t setup_data_path(amxd_object_t *object,
 
     sMacAddr agent_mac = tlvf::mac_from_string(agent_mac_str);
     LOG(DEBUG) << "ash: got agent_mac_str=" << agent_mac_str;
-    auto dest_ip   = GET_CHAR(args, "DestinationIPAddress");
-    auto dest_port = GET_INT32(args,  "DestinationPort");
-    //bool add_path = GET_BOOL(args, "AddRemoveDataPath");
+    auto dest_ip            = GET_CHAR(args, "DestinationIPAddress");
+    auto dest_port          = GET_INT32(args, "DestinationPort");
+    auto transport_protocol = GET_CHAR(args, "TransportProtocol");
+
+    std::string protocol = transport_protocol ? transport_protocol : "IPv6overUDP";
+    if ((protocol != "IPv6overUDP") && (protocol != "IPv6overTCP")) {
+        LOG(ERROR) << "setup DataPath: Invalid TransportProtocol '" << protocol
+                   << "', expected IPv6overUDP or IPv6overTCP";
+        return amxd_status_invalid_arg;
+    }
+    bool use_udp = (protocol == "IPv6overUDP");
+
     bool add_path = 1;
     if (!dest_ip || dest_port == 0) {
         LOG(ERROR) << "setup DataPath: Invalid parameters";
@@ -1627,13 +1634,15 @@ amxd_status_t setup_data_path(amxd_object_t *object,
     }
 
     LOG(INFO) << "ash:setupDataPath called: agent_mac=" << agent_mac_str << " IP=" << dest_ip
-              << " Port=" << dest_port;
-    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path,agent_mac)) {
+              << " Port=" << dest_port << " protocol=" << protocol;
+    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path, agent_mac,
+                                                     use_udp)) {
         LOG(ERROR) << "Failed to send datapath setup request";
         return amxd_status_unknown_error;
     }
-      LOG(INFO) << "sucess on datapath setup request from nbapi";
-	return amxd_status_ok;
+
+    LOG(INFO) << "sucess on datapath setup request from nbapi";
+    return amxd_status_ok;
 }
 amxd_status_t remove_data_path(amxd_object_t *object,
                                       amxd_function_t *func,
@@ -1669,7 +1678,7 @@ amxd_status_t remove_data_path(amxd_object_t *object,
 
     LOG(INFO) << "ash:setupDataPath called: agent_mac=" << agent_mac_str << " IP=" << dest_ip
               << " Port=" << dest_port;
-    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path,agent_mac)) {
+    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path,agent_mac, true)) {
         LOG(ERROR) << "Failed to remove datapath setup request";
         return amxd_status_unknown_error;
     }

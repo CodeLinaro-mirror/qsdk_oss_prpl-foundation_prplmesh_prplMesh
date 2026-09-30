@@ -125,8 +125,9 @@ public:
      * * @param agent_mac Agent AL-MAC to send to (Device.1/2); ZERO_MAC = multicast to all.
      * @return True if request sent successfully, false otherwise.
      */
-    bool send_datapath_setup_request(const std::string &dest_ip, uint16_t dest_port, bool add_path,const sMacAddr &agent_mac);
-
+     bool send_datapath_setup_request(const std::string &dest_ip, uint16_t dest_port, bool add_path,const sMacAddr &agent_mac,
+		                       bool use_udp = true);
+ 
 
     /**
      * @brief Trigger channel scan initiated by NBAPI.
