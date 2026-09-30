@@ -53,6 +53,12 @@ bool AmbiorixConnection::init()
         LOG(ERROR) << "Failed to set amxb config";
     }
 
+    amxb_set_log_cb([](const char *bus_name, const char *dm_op, const char *path, int result) {
+        LOG(TRACE) << "AMXB: Bus = " << (bus_name ? bus_name : "<null>")
+                   << ", operator = " << (dm_op ? dm_op : "<null>")
+                   << ", path = " << (path ? path : "<null>") << ", result = " << result;
+    });
+
     int ret = 0;
     // Load the backend .so file
     ret = amxb_be_load(m_amxb_backend.c_str());
