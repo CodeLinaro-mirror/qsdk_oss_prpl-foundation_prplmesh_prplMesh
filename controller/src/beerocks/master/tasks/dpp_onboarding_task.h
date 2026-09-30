@@ -70,9 +70,9 @@ private:
     State state = State::IDLE;
     std::string last_bootstrap_fingerprint;
     std::string last_completed_fingerprint;
-    bool cce_advertised = false;
+    bool cce_advertised     = false;
     bool expect_conn_status = false;
-    int failure_count = 0;
+    int failure_count       = 0;
     std::chrono::steady_clock::time_point next_retry_time;
     std::string last_failure_reason;
 };

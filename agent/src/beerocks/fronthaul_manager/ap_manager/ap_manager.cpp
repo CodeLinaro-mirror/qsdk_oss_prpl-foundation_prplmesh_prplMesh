@@ -30,9 +30,9 @@
 #include <tlvf/wfa_map/tlvClientCapabilityReport.h>
 #include <tlvf/wfa_map/tlvClientInfo.h>
 #include <tlvf/wfa_map/tlvClientSecurityContext.h>
-#include <tlvf/wfa_map/tlvDppMessage.h>
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
+#include <tlvf/wfa_map/tlvDppMessage.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
@@ -815,8 +815,7 @@ void ApManager::handle_direct_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_
     auto dpp_msg_tlv = cmdu_rx.getClass<wfa_map::tlvDppMessage>();
 
     if (!dpp_msg_tlv) {
-        LOG(ERROR) << "DIRECT_ENCAP_DPP_MESSAGE mid=" << mid
-                   << " missing DPP Message TLV";
+        LOG(ERROR) << "DIRECT_ENCAP_DPP_MESSAGE mid=" << mid << " missing DPP Message TLV";
         return;
     }
 

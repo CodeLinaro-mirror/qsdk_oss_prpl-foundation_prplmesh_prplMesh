@@ -6,7 +6,6 @@
  * See LICENSE file for more details.
  */
 
-
 #ifndef _CONTROLLER_DPP_INTERNAL_H_
 #define _CONTROLLER_DPP_INTERNAL_H_
 
@@ -31,55 +30,53 @@ struct DppConnectorPayload {
     uint32_t expiry = 0;
 };
 
-constexpr uint8_t k_dpp_public_action_category = 0x04;
-constexpr uint8_t k_dpp_public_action_vendor   = 0x09;
-constexpr uint8_t k_dpp_oui[]                  = {0x50, 0x6f, 0x9a};
-constexpr uint8_t k_dpp_oui_type               = 0x1a;
-constexpr uint8_t k_dpp_crypto_suite           = 1;
-constexpr uint8_t k_dpp_authentication_request = 0;
-constexpr uint8_t k_dpp_authentication_response = 1;
-constexpr uint8_t k_dpp_authentication_confirm = 2;
-constexpr uint8_t k_dpp_status_ok              = 0;
-constexpr uint8_t k_dpp_capab_enrollee         = 0x01;
-constexpr uint8_t k_dpp_capab_configurator     = 0x02;
-constexpr uint8_t k_dpp_role_mask              = k_dpp_capab_enrollee | k_dpp_capab_configurator;
-constexpr uint8_t k_dpp_default_version        = 2;
-constexpr uint16_t k_dpp_attr_status           = 0x1000;
-constexpr uint16_t k_dpp_attr_i_bootstrap_hash = 0x1001;
-constexpr uint16_t k_dpp_attr_r_bootstrap_hash = 0x1002;
-constexpr uint16_t k_dpp_attr_i_protocol_key   = 0x1003;
-constexpr uint16_t k_dpp_attr_wrapped_data     = 0x1004;
-constexpr uint16_t k_dpp_attr_i_nonce          = 0x1005;
-constexpr uint16_t k_dpp_attr_i_capabilities   = 0x1006;
-constexpr uint16_t k_dpp_attr_r_nonce          = 0x1007;
-constexpr uint16_t k_dpp_attr_r_capabilities   = 0x1008;
-constexpr uint16_t k_dpp_attr_r_protocol_key   = 0x1009;
-constexpr uint16_t k_dpp_attr_i_auth_tag       = 0x100a;
-constexpr uint16_t k_dpp_attr_r_auth_tag       = 0x100b;
-constexpr uint16_t k_dpp_attr_config_obj       = 0x100c;
-constexpr uint16_t k_dpp_attr_config_attr_obj  = 0x100e;
-constexpr uint16_t k_dpp_attr_enrollee_nonce   = 0x1014;
-constexpr uint16_t k_dpp_attr_protocol_version = 0x1019;
-constexpr uint16_t k_dpp_attr_send_conn_status = 0x101b;
-constexpr uint16_t k_dpp_attr_conn_status      = 0x101c;
-constexpr uint8_t k_dpp_configuration_result   = 11;
+constexpr uint8_t k_dpp_public_action_category   = 0x04;
+constexpr uint8_t k_dpp_public_action_vendor     = 0x09;
+constexpr uint8_t k_dpp_oui[]                    = {0x50, 0x6f, 0x9a};
+constexpr uint8_t k_dpp_oui_type                 = 0x1a;
+constexpr uint8_t k_dpp_crypto_suite             = 1;
+constexpr uint8_t k_dpp_authentication_request   = 0;
+constexpr uint8_t k_dpp_authentication_response  = 1;
+constexpr uint8_t k_dpp_authentication_confirm   = 2;
+constexpr uint8_t k_dpp_status_ok                = 0;
+constexpr uint8_t k_dpp_capab_enrollee           = 0x01;
+constexpr uint8_t k_dpp_capab_configurator       = 0x02;
+constexpr uint8_t k_dpp_role_mask                = k_dpp_capab_enrollee | k_dpp_capab_configurator;
+constexpr uint8_t k_dpp_default_version          = 2;
+constexpr uint16_t k_dpp_attr_status             = 0x1000;
+constexpr uint16_t k_dpp_attr_i_bootstrap_hash   = 0x1001;
+constexpr uint16_t k_dpp_attr_r_bootstrap_hash   = 0x1002;
+constexpr uint16_t k_dpp_attr_i_protocol_key     = 0x1003;
+constexpr uint16_t k_dpp_attr_wrapped_data       = 0x1004;
+constexpr uint16_t k_dpp_attr_i_nonce            = 0x1005;
+constexpr uint16_t k_dpp_attr_i_capabilities     = 0x1006;
+constexpr uint16_t k_dpp_attr_r_nonce            = 0x1007;
+constexpr uint16_t k_dpp_attr_r_capabilities     = 0x1008;
+constexpr uint16_t k_dpp_attr_r_protocol_key     = 0x1009;
+constexpr uint16_t k_dpp_attr_i_auth_tag         = 0x100a;
+constexpr uint16_t k_dpp_attr_r_auth_tag         = 0x100b;
+constexpr uint16_t k_dpp_attr_config_obj         = 0x100c;
+constexpr uint16_t k_dpp_attr_config_attr_obj    = 0x100e;
+constexpr uint16_t k_dpp_attr_enrollee_nonce     = 0x1014;
+constexpr uint16_t k_dpp_attr_protocol_version   = 0x1019;
+constexpr uint16_t k_dpp_attr_send_conn_status   = 0x101b;
+constexpr uint16_t k_dpp_attr_conn_status        = 0x101c;
+constexpr uint8_t k_dpp_configuration_result     = 11;
 constexpr uint8_t k_dpp_connection_status_result = 12;
 
 struct DppAttributeView {
-    const uint8_t *data = nullptr;
-    size_t len          = 0;
+    const uint8_t *data   = nullptr;
+    size_t len            = 0;
     const uint8_t *header = nullptr;
 };
 
 void append_le16(std::vector<uint8_t> &out, uint16_t value);
 
-void append_dpp_attr(std::vector<uint8_t> &out, uint16_t attr_id, const uint8_t *data,
-                     size_t len);
+void append_dpp_attr(std::vector<uint8_t> &out, uint16_t attr_id, const uint8_t *data, size_t len);
 
 void append_dpp_attr_u8(std::vector<uint8_t> &out, uint16_t attr_id, uint8_t value);
 
-bool get_dpp_attr(const uint8_t *attrs, size_t len, uint16_t attr_id,
-                  DppAttributeView &attr);
+bool get_dpp_attr(const uint8_t *attrs, size_t len, uint16_t attr_id, DppAttributeView &attr);
 
 bool split_dpp_public_action_frame(const std::vector<uint8_t> &frame, uint8_t expected_type,
                                    const uint8_t *&dpp_header, const uint8_t *&attrs,
@@ -105,11 +102,11 @@ bool ecdh_secret(EVP_PKEY *own, EVP_PKEY *peer, size_t coord_len, std::vector<ui
 bool hmac_digest(const EVP_MD *md, const uint8_t *key, size_t key_len, const uint8_t *data,
                  size_t data_len, std::vector<uint8_t> &out);
 
-bool hkdf_expand_one_block(const EVP_MD *md, const std::vector<uint8_t> &prk,
-                           const char *info, size_t out_len, std::vector<uint8_t> &out);
+bool hkdf_expand_one_block(const EVP_MD *md, const std::vector<uint8_t> &prk, const char *info,
+                           size_t out_len, std::vector<uint8_t> &out);
 
-bool derive_intermediate_key(const EVP_MD *md, const std::vector<uint8_t> &secret,
-                             const char *info, size_t hash_len, std::vector<uint8_t> &out);
+bool derive_intermediate_key(const EVP_MD *md, const std::vector<uint8_t> &secret, const char *info,
+                             size_t hash_len, std::vector<uint8_t> &out);
 
 bool derive_bk_ke(const EVP_MD *md, const std::vector<uint8_t> &i_nonce,
                   const std::vector<uint8_t> &r_nonce, const std::vector<uint8_t> &mx,
@@ -120,8 +117,7 @@ bool hash_vector(const EVP_MD *md, const std::vector<std::vector<uint8_t>> &part
                  std::vector<uint8_t> &out);
 
 bool aes_siv_encrypt_vector(const std::vector<uint8_t> &key, const std::vector<uint8_t> &plain,
-                            const std::vector<std::vector<uint8_t>> &ad,
-                            std::vector<uint8_t> &out);
+                            const std::vector<std::vector<uint8_t>> &ad, std::vector<uint8_t> &out);
 
 bool aes_siv_decrypt_vector(const std::vector<uint8_t> &key, const uint8_t *wrapped,
                             size_t wrapped_len, const std::vector<std::vector<uint8_t>> &ad,
@@ -141,8 +137,8 @@ bool parse_rfc3339_utc(const std::string &value, uint32_t &epoch);
 bool split_jws(const std::string &jws, std::string &header_b64, std::string &payload_b64,
                std::string &sig_b64, std::string &error);
 
-bool parse_jws_header(const std::string &json, std::string &alg, std::string &typ,
-                      std::string &kid, std::string &error);
+bool parse_jws_header(const std::string &json, std::string &alg, std::string &typ, std::string &kid,
+                      std::string &error);
 
 bool jwk_pubkey_to_der_hex(json_object *jwk, std::string &out_hex);
 
@@ -176,7 +172,8 @@ bool build_signed_connector_from_payload(DppKey *csign_key, const std::string &p
 bool add_public_jwk(json_object *parent, const char *name, EVP_PKEY *key, const std::string &kid,
                     std::string &error);
 
-bool add_discovery_ssid(json_object *discovery_obj, const std::string &ssid_hex, std::string &error);
+bool add_discovery_ssid(json_object *discovery_obj, const std::string &ssid_hex,
+                        std::string &error);
 
 bool extract_dpp_netrole(const std::string &connector, std::string &net_role);
 

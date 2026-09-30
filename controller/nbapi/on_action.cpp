@@ -1925,14 +1925,14 @@ static void event_provisioned_dpp_changed(const char *const sig_name, const amxc
     son::db::sDppBootstrappingInfo info;
     std::string error;
 
-    if(!g_database->parse_dpp_bootstrap_info(dpp_uri, info, error)) {
+    if (!g_database->parse_dpp_bootstrap_info(dpp_uri, info, error)) {
         LOG(ERROR) << "Failed parsing DPPURI alias=" << alias << " error=" << error;
         return;
     }
 
     info.alias = alias;
 
-    if(!g_database->add_dpp_bootstrap_info(std::move(info), error)) {
+    if (!g_database->add_dpp_bootstrap_info(std::move(info), error)) {
         LOG(ERROR) << "Failed storing DPPURI alias=" << alias << " error=" << error;
         return;
     }
@@ -1990,7 +1990,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
         {"event_traffic_separation_override_changed", event_traffic_separation_override_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed},
-	{"event_provisioned_dpp_changed", event_provisioned_dpp_changed},
+        {"event_provisioned_dpp_changed", event_provisioned_dpp_changed},
         {"event_provisioned_dpp_removed", event_provisioned_dpp_removed}};
     return events_list;
 }
