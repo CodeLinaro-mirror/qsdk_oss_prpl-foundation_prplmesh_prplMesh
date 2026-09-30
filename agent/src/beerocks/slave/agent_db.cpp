@@ -270,7 +270,10 @@ std::string AgentDB::dm_create_fronthaul_object(const std::string &iface)
         LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
     }
 
-    m_ambiorix_datamodel->set(inst, "Iface", iface);
+    // set can fail due to a race condition, use retry wrapper here. Refer to PPM-4236
+    if (!m_ambiorix_datamodel->set_with_retry(inst, "Iface", iface, 3)) {
+        LOG(ERROR) << "Failed to set " << inst << ".Iface: " << iface;
+    }
     m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));
     m_ambiorix_datamodel->set(inst, "BestState", std::string("INIT (0)"));
 
