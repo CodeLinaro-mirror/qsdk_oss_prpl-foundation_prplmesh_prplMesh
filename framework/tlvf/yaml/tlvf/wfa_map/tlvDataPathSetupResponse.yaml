@@ -1,0 +1,23 @@
+_include: {
+
+    tlvf/wfa_map/eTlvTypeMap.h,
+}
+_namespace: wfa_map
+tlvDataPathSetupResponse:
+  _type: class
+  _is_tlv_class : True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_DATAPATH_SETUP_RESPONSE
+  length: uint16_t
+  ErrorCode:
+    _type: uint8_t
+    _comment: When ErrorCode SUCCESS(0),then SourceAddress and SourcePort is available in tlv
+
+  SourceAddr:
+    _type: uint8_t
+    _length: [16]
+    _comment: Present only ErrorCode is Success
+  SourcePort:
+    _type: uint16_t
+    _comment: Present only ErrorCode is Success
