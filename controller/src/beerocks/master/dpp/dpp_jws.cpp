@@ -6,7 +6,6 @@
  * See LICENSE file for more details.
  */
 
-
 #include "controller_dpp_protocol.h"
 #include "dpp_internal.h"
 
@@ -64,8 +63,8 @@ bool split_jws(const std::string &jws, std::string &header_b64, std::string &pay
     return true;
 }
 
-bool parse_jws_header(const std::string &json, std::string &alg, std::string &typ,
-                      std::string &kid, std::string &error)
+bool parse_jws_header(const std::string &json, std::string &alg, std::string &typ, std::string &kid,
+                      std::string &error)
 {
     alg.clear();
     typ.clear();

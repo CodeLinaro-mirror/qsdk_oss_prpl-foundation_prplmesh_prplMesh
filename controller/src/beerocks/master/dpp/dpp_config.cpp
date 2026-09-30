@@ -6,7 +6,6 @@
  * See LICENSE file for more details.
  */
 
-
 #include "controller_dpp_protocol.h"
 #include "dpp_internal.h"
 
@@ -53,9 +52,8 @@ bool add_discovery_ssid(json_object *discovery_obj, const std::string &ssid_hex,
         return false;
     }
 
-    const bool printable_ascii =
-        std::all_of(ssid_bytes.begin(), ssid_bytes.end(),
-                    [](uint8_t ch) { return ch >= 0x20 && ch <= 0x7e; });
+    const bool printable_ascii = std::all_of(ssid_bytes.begin(), ssid_bytes.end(),
+                                             [](uint8_t ch) { return ch >= 0x20 && ch <= 0x7e; });
 
     if (printable_ascii) {
         std::string ssid(ssid_bytes.begin(), ssid_bytes.end());
@@ -138,8 +136,7 @@ bool build_dpp_configuration_object(DppKey *csign_key, const std::string &pp_key
     const bool map_role = normalized_role.rfind("map", 0) == 0;
     json_object_object_add(root, "wi-fi_tech", json_object_new_string(map_role ? "map" : "infra"));
     if (options.include_net_role) {
-        const auto &role =
-            options.net_role.empty() ? normalized_role : options.net_role;
+        const auto &role = options.net_role.empty() ? normalized_role : options.net_role;
         json_object_object_add(root, "netRole", json_object_new_string(role.c_str()));
     }
     if (options.include_df_counter_threshold) {
@@ -291,8 +288,8 @@ bool parse_dpp_config_request_objects(const std::string &json_blob,
             json_object *radio_list = nullptr;
             if (bsta_ruids && json_object_object_get_ex(bsta_obj, "RadioList", &radio_list) &&
                 json_object_get_type(radio_list) == json_type_array) {
-                const auto len = json_object_array_length(radio_list);
-                for (size_t i = 0; i < len; ++i) {
+                const int len = json_object_array_length(radio_list);
+                for (int i = 0; i < len; ++i) {
                     auto *radio = json_object_array_get_idx(radio_list, i);
                     if (!radio || json_object_get_type(radio) != json_type_object) {
                         continue;
@@ -307,8 +304,8 @@ bool parse_dpp_config_request_objects(const std::string &json_blob,
         };
 
         if (json_object_get_type(bsta_list) == json_type_array) {
-            const auto len = json_object_array_length(bsta_list);
-            for (size_t i = 0; i < len; ++i) {
+            const int len = json_object_array_length(bsta_list);
+            for (int i = 0; i < len; ++i) {
                 parse_bsta(json_object_array_get_idx(bsta_list, i));
             }
         } else {
@@ -317,8 +314,8 @@ bool parse_dpp_config_request_objects(const std::string &json_blob,
     };
 
     if (json_object_get_type(root) == json_type_array) {
-        const auto len = json_object_array_length(root);
-        for (size_t i = 0; i < len; ++i) {
+        const int len = json_object_array_length(root);
+        for (int i = 0; i < len; ++i) {
             parse_obj(json_object_array_get_idx(root, i));
         }
     } else {

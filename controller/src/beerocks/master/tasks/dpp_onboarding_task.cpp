@@ -18,11 +18,11 @@
 
 namespace {
 
-constexpr int k_poll_interval_ms = 1000;
-constexpr int k_retry_delay_ms   = 5000;
-constexpr int k_retry_delay_max_ms = 60000;
+constexpr int k_poll_interval_ms      = 1000;
+constexpr int k_retry_delay_ms        = 5000;
+constexpr int k_retry_delay_max_ms    = 60000;
 constexpr int k_retry_backoff_max_exp = 4;
-constexpr int k_event_timeout_ms = 30000;
+constexpr int k_event_timeout_ms      = 30000;
 
 std::string take_reason(void *obj)
 {
@@ -99,7 +99,7 @@ void dpp_onboarding_task::restart_for_bootstrap_trigger(const std::string &reaso
 
     // M-13 / M-15: drop active Configurator state; force fingerprint resync on next work().
     reset_active_session();
-    state = State::IDLE;
+    state                      = State::IDLE;
     last_bootstrap_fingerprint = std::string(1, '\0');
     last_completed_fingerprint.clear();
     failure_count = 0;
@@ -145,7 +145,7 @@ void dpp_onboarding_task::finish_failure(const std::string &reason, bool retry)
 
 void dpp_onboarding_task::enter_wait_auth()
 {
-    state = State::WAIT_AUTH;
+    state              = State::WAIT_AUTH;
     expect_conn_status = false;
     clear_pending_events();
     wait_for_event(AUTH_SUCCESS);
@@ -289,7 +289,7 @@ void dpp_onboarding_task::handle_event(int event_type, void *obj)
         if (expect_conn_status || reason.find("wait_conn_status=1") != std::string::npos) {
             TASK_LOG(INFO) << "DPP configuration result OK; waiting for connection status result";
             expect_conn_status = true;
-            state = State::WAIT_CONN_STATUS;
+            state              = State::WAIT_CONN_STATUS;
             clear_pending_events();
             wait_for_event(CONN_STATUS_OK);
             wait_for_event(CONN_STATUS_FAILED);

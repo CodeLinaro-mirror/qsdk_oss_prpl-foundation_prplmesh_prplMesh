@@ -32,9 +32,9 @@ bool hex_string_to_plain_string(const std::string &hex, std::string &plain)
     if (hex.empty()) {
         return true;
     }
-    if ((hex.size() % 2) != 0 ||
-        !std::all_of(hex.begin(), hex.end(),
-                     [](unsigned char c) { return std::isxdigit(c) != 0; })) {
+    if ((hex.size() % 2) != 0 || !std::all_of(hex.begin(), hex.end(), [](unsigned char c) {
+            return std::isxdigit(c) != 0;
+        })) {
         return false;
     }
     plain = beerocks::string_utils::hex_to_bytes<std::string>(hex);
@@ -119,10 +119,9 @@ void fill_psk_or_passphrase(const wireless_utils::sBssInfoConf &selected, const 
     if (selected.network_key.empty()) {
         return;
     }
-    const bool is_hex_psk =
-        (selected.network_key.size() == 64) &&
-        std::all_of(selected.network_key.begin(), selected.network_key.end(),
-                    [](unsigned char c) { return std::isxdigit(c) != 0; });
+    const bool is_hex_psk = (selected.network_key.size() == 64) &&
+                            std::all_of(selected.network_key.begin(), selected.network_key.end(),
+                                        [](unsigned char c) { return std::isxdigit(c) != 0; });
     if (is_hex_psk && (akm.find("psk") != std::string::npos)) {
         psk_hex = selected.network_key;
     } else if (akm.find("psk") != std::string::npos || akm.find("sae") != std::string::npos) {
@@ -216,25 +215,30 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
             break;
         }
     }
-    if (!selected) {
-        select_from_list(database.get_bss_info_configuration(agent->al_mac));
-    }
-    if (!selected) {
-        select_from_list(database.get_bss_info_configuration());
-    }
 
     if (!selected) {
-        if (requested_ssid.empty() && requested_backhaul_akm.empty()) {
-            error = "No configured backhaul BSS available for DPP mapBackhaulSta object";
-            return false;
+        if (!select_from_list(database.get_bss_info_configuration(agent->al_mac)) &&
+            !select_from_list(database.get_bss_info_configuration())) {
+            if (requested_ssid.empty() && requested_backhaul_akm.empty()) {
+                error = "No configured backhaul BSS available for DPP mapBackhaulSta object";
+                return false;
+            }
+            configuration.ssid = requested_ssid;
+            configuration.akm  = requested_backhaul_akm;
+            return true;
         }
-        configuration.ssid = requested_ssid;
-        configuration.akm  = requested_backhaul_akm;
-        return true;
     }
 
-    configuration.ssid = !selected->ssid.empty() ? selected->ssid : requested_ssid;
-    configuration.akm  = dpp_akm_from_bss_info(*selected);
+    if(!selected) {
+	    error = "Failed to select backhaul BSS";
+	    return false;
+    }
+    if (!selected->ssid.empty()) {
+        configuration.ssid = selected->ssid;
+    } else {
+        configuration.ssid = requested_ssid;
+    }
+    configuration.akm = dpp_akm_from_bss_info(*selected);
     if (!dpp_akm_is_compatible(configuration.akm, requested_backhaul_akm)) {
         error = "Configured backhaul AKM is not compatible with DPP Configuration Request";
         return false;
@@ -302,17 +306,16 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
         }
     }
     if (!selected) {
-        select_from_list(database.get_bss_info_configuration(agent->al_mac));
+        if (!select_from_list(database.get_bss_info_configuration(agent->al_mac)) &&
+            !select_from_list(database.get_bss_info_configuration())) {
+            error = "No configured fronthaul BSS available for DPP sta object";
+            return false;
+        }
     }
     if (!selected) {
-        select_from_list(database.get_bss_info_configuration());
+	    error = "Failed to select fronthaul BSS";
+	    return false;
     }
-
-    if (!selected) {
-        error = "No configured fronthaul BSS available for DPP sta object";
-        return false;
-    }
-
     configuration.ssid = !selected->ssid.empty() ? selected->ssid : requested_ssid;
     if (configuration.ssid.empty()) {
         error = "Configured fronthaul BSS has empty SSID for DPP sta object";
@@ -391,9 +394,9 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
                                               error);
     };
 
-    const bool want_sta_only =
-        role_requested(requested_roles, "sta") && !role_requested(requested_roles, "mapAgent") &&
-        !role_requested(requested_roles, "mapBackhaulSta");
+    const bool want_sta_only = role_requested(requested_roles, "sta") &&
+                               !role_requested(requested_roles, "mapAgent") &&
+                               !role_requested(requested_roles, "mapBackhaulSta");
 
     if (want_sta_only) {
         if (!agent) {
@@ -406,15 +409,15 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         }
 
         DppConfigurationObjectOptions sta_options;
-        sta_options.include_discovery            = true;
-        sta_options.include_net_role             = true;
-        sta_options.net_role                     = "sta";
-        sta_options.akm                          = !sta_config.akm.empty() ? sta_config.akm : "dpp";
-        sta_options.passphrase                   = sta_config.passphrase;
-        sta_options.psk_hex                      = sta_config.psk_hex;
-        sta_options.security_ies_hex             = sta_config.security_ies_hex;
-        sta_options.ssid_advertisement_valid     = sta_config.ssid_advertisement_valid;
-        sta_options.ssid_advertisement           = sta_config.ssid_advertisement;
+        sta_options.include_discovery        = true;
+        sta_options.include_net_role         = true;
+        sta_options.net_role                 = "sta";
+        sta_options.akm                      = !sta_config.akm.empty() ? sta_config.akm : "dpp";
+        sta_options.passphrase               = sta_config.passphrase;
+        sta_options.psk_hex                  = sta_config.psk_hex;
+        sta_options.security_ies_hex         = sta_config.security_ies_hex;
+        sta_options.ssid_advertisement_valid = sta_config.ssid_advertisement_valid;
+        sta_options.ssid_advertisement       = sta_config.ssid_advertisement;
 
         std::string object_json;
         if (!build_object("sta", plain_string_to_hex(sta_config.ssid), sta_options, object_json)) {
@@ -449,8 +452,8 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         config_objects.push_back(std::move(map_agent_object));
     }
 
-    const bool want_backhaul_sta = role_requested(requested_roles, "mapBackhaulSta") ||
-                                   role_requested(requested_roles, "sta");
+    const bool want_backhaul_sta =
+        role_requested(requested_roles, "mapBackhaulSta") || role_requested(requested_roles, "sta");
     if (want_backhaul_sta) {
         if (!agent) {
             error = "Proxy/Enrollee Agent not found for DPP mapBackhaulSta configuration";
@@ -463,9 +466,9 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         }
 
         DppConfigurationObjectOptions bsta_options;
-        bsta_options.include_discovery        = true;
-        bsta_options.include_net_role         = true;
-        bsta_options.net_role                 = "mapBackhaulSta";
+        bsta_options.include_discovery = true;
+        bsta_options.include_net_role  = true;
+        bsta_options.net_role          = "mapBackhaulSta";
         bsta_options.akm =
             !backhaul_config.akm.empty() ? backhaul_config.akm : requested_backhaul_akm;
         bsta_options.passphrase               = backhaul_config.passphrase;
