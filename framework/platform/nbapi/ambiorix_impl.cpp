@@ -18,10 +18,17 @@
 #include <mapf/common/utils.h>
 #include <tlvf/tlvftypes.h>
 
+#include <atomic>
 #include <cstring>
+#include <thread>
 
 namespace beerocks {
 namespace nbapi {
+
+namespace {
+std::atomic<bool> g_amxb_read_in_progress{false};
+std::atomic<std::thread::id> g_amxb_read_thread_id{};
+} // namespace
 
 AmbiorixImpl::AmbiorixImpl(std::shared_ptr<EventLoop> event_loop,
                            const std::vector<sActionsCallback> &on_action,
@@ -178,7 +185,10 @@ bool AmbiorixImpl::init_event_loop()
             .name = "ambiorix_events" + std::to_string(i),
             .on_read =
                 [&, i](int fd, EventLoop &loop) {
+                    g_amxb_read_thread_id.store(std::this_thread::get_id());
+                    g_amxb_read_in_progress.store(true);
                     amxb_read(m_bus_ctx_vect.at(i));
+                    g_amxb_read_in_progress.store(false);
                     return true;
                 },
 
@@ -436,6 +446,13 @@ bool AmbiorixImpl::apply_transaction(amxd_trans_t &transaction)
     auto status = amxd_trans_apply(&transaction, Amxrt::getDatamodel());
     if (status != amxd_status_ok) {
         LOG(ERROR) << "Couldn't apply transaction object, status: " << amxd_status_string(status);
+        if (status == amxd_status_invalid_action) {
+            auto calling_thread_id     = std::this_thread::get_id();
+            bool amxb_read_in_progress  = g_amxb_read_in_progress.load();
+            LOG(ERROR) << "invalid_action on thread " << calling_thread_id
+                       << ", amxb_read_inprogress " << std::boolalpha
+                       << amxb_read_in_progress << " on thread " << g_amxb_read_thread_id.load();
+        }
         ret = false;
     }
 
