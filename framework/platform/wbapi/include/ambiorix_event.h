@@ -28,6 +28,7 @@ constexpr char AMX_CL_WPA_CTRL_EVT[]         = "wpaCtrlEvents";
 constexpr char AMX_CL_MGMT_ACT_FRAME_EVT[]   = "MgmtActionFrameReceived";
 constexpr char AMX_CL_DISASSOC_EVT[]         = "Disassociation";
 constexpr char AMX_CL_AFC_UPDATE_EVT[]       = "AFC update event";
+constexpr char AMX_CL_PROBE_REQ_EVT[]        = "ProbeRequest";
 
 namespace beerocks {
 namespace wbapi {

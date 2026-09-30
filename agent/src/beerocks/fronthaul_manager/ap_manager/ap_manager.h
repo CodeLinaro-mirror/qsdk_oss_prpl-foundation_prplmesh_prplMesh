@@ -385,6 +385,13 @@ private:
 
     /* Timer callback for scheduled Beacon Metrics Responses */
     void beacon_metrics_response_cb(int fd);
+
+    /**
+     * @brief handle a sProbeRequestEventInfo structure
+     *
+     * @param[in] msg : pointer to a sProbeRequestEventInfo structure, containing the latest ProbeRequest event received on the radio
+     */
+    void handle_probe_request_notification(bwl::sProbeRequestEventInfo *msg);
 };
 
 } // namespace son

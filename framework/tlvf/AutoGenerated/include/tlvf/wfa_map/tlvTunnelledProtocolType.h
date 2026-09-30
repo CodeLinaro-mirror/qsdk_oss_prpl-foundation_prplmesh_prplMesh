@@ -39,6 +39,7 @@ class tlvTunnelledProtocolType : public BaseClass
             BTM_QUERY = 0x2,
             WNM_REQUEST = 0x3,
             ANQP_REQUEST = 0x4,
+            PROBE_REQUEST = 0x60,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off
@@ -49,6 +50,7 @@ class tlvTunnelledProtocolType : public BaseClass
             case BTM_QUERY:             return "BTM_QUERY";
             case WNM_REQUEST:           return "WNM_REQUEST";
             case ANQP_REQUEST:          return "ANQP_REQUEST";
+            case PROBE_REQUEST:         return "PROBE_REQUEST";
             }
             static std::string out_str = std::to_string(int(enum_value));
             return out_str.c_str();

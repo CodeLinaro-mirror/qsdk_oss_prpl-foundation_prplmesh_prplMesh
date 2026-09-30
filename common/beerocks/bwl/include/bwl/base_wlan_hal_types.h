@@ -283,6 +283,17 @@ typedef struct {
 } sUnassociatedStationsStats;
 
 typedef struct {
+    sMacAddr mac_address;
+    int32_t signal_strength;
+    uint64_t time_stamp;
+    std::vector<uint8_t> raw_frame;
+} sProbeRequestStationInfo;
+
+typedef struct {
+    std::vector<sProbeRequestStationInfo> probe_requests;
+} sProbeRequestEventInfo;
+
+typedef struct {
     sMacAddr ap_mld_mac_addr;
     sMacAddr bsta_mld_mac_addr;
     uint8_t multi_ap_profile;

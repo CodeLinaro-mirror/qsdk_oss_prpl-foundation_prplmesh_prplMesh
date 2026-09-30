@@ -86,6 +86,7 @@ public:
         Interface_Disconnected,
         APS_update_list,
         AFCUpdate,
+        ProbeRequestNotification,
     };
 
     struct sBtmRequestParams {

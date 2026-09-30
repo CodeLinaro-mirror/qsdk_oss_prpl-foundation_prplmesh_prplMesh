@@ -25,3 +25,4 @@ eTunnelledProtocolType:
   BTM_QUERY: 0x02
   WNM_REQUEST: 0x03
   ANQP_REQUEST: 0x04
+  PROBE_REQUEST: 0x60
