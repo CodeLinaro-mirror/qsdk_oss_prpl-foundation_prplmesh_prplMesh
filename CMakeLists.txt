@@ -75,6 +75,9 @@ option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
 option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
+option (ENABLE_BEEROCKS_CLI "Build beerocks CLI" ON)
+option (ENABLE_PRPLMESH_CLI "Build prplMesh CLI" ON)
+
 ## Generic checks and defaults
 
 include(FindPkgConfig)
