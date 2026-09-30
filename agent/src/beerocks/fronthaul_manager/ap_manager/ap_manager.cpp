@@ -41,6 +41,7 @@
 #include <tlvf/wfa_map/tlvTunnelledData.h>
 #include <tlvf/wfa_map/tlvTunnelledProtocolType.h>
 #include <tlvf/wfa_map/tlvTunnelledSourceInfo.h>
+#include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
 #include <tlvf/wfa_map/tlvVirtualBssCreation.h>
 #include <tlvf/wfa_map/tlvVirtualBssDestruction.h>
 #include <tlvf/wfa_map/tlvVirtualBssEvent.h>
@@ -3816,6 +3817,10 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         encap_1905_dpp_tlv->set_dest_sta_mac(dpp_configuration_request->enrollee_mac);
         send_cmdu(cmdu_tx);
     } break;
+    case Event::ProbeRequestNotification: {
+        auto msg = static_cast<bwl::sProbeRequestEventInfo *>(data);
+        handle_probe_request_notification(msg);
+    } break;
     // Unhandled events
     default:
         LOG(ERROR) << "Unhandled event: " << int(event);
@@ -4441,4 +4446,83 @@ void ApManager::start_csa_notification_timer(
             m_timer_manager->remove_timer(timerId);
             return true;
         });
+}
+
+void ApManager::handle_probe_request_notification(bwl::sProbeRequestEventInfo *msg)
+{
+
+    LOG(ERROR) << "handle event ProbeRequestNotification";
+
+    auto probe_tunnel_msg = cmdu_tx.create(0, ieee1905_1::eMessageType::TUNNELLED_MESSAGE);
+    if (!probe_tunnel_msg) {
+        LOG(ERROR) << "cmdu creation of type TUNNELLED_MESSAGE failed!";
+        return;
+    }
+
+    auto type_tlv = cmdu_tx.addClass<wfa_map::tlvTunnelledProtocolType>();
+    if (!type_tlv) {
+        LOG(ERROR) << "addClass tlvTunnelledProtocolType failed!";
+        return;
+    }
+    type_tlv->protocol_type() =
+        wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType::PROBE_REQUEST;
+
+    for (const auto &p : msg->probe_requests) {
+        auto source_info_tlv = cmdu_tx.addClass<wfa_map::tlvTunnelledSourceInfo>();
+        if (!source_info_tlv) {
+            LOG(ERROR) << "addClass tlvTunnelledSourceInfo failed!";
+            return;
+        }
+        source_info_tlv->mac() = p.mac_address;
+
+        auto bssid_tlv = cmdu_tx.addClass<wfa_map::tlvBssid>();
+        if (!bssid_tlv) {
+            LOG(ERROR) << "addClass tlvBssid failed!";
+            return;
+        }
+        bssid_tlv->bssid() = tlvf::mac_from_string(ap_wlan_hal->get_radio_mac());
+
+        auto data_tlv = cmdu_tx.addClass<wfa_map::tlvTunnelledData>();
+        if (!data_tlv) {
+            LOG(ERROR) << "addClass tlvTunnelledData failed!";
+            return;
+        }
+        if (!data_tlv->set_data(p.raw_frame.data(), p.raw_frame.size())) {
+            LOG(ERROR) << "failed copy of " << p.raw_frame.size()
+                       << " bytes into the tunnelled message data tlv!";
+            return;
+        }
+    }
+
+    uint8_t channel = ap_wlan_hal->get_radio_info().channel;
+    auto freq_type  = ap_wlan_hal->get_radio_info().frequency_band;
+    auto bandwidth  = ap_wlan_hal->get_radio_info().bandwidth;
+    beerocks::WifiChannel wifi_ch(channel, freq_type, bandwidth);
+
+    auto oper_class = son::wireless_utils::get_operating_class_by_channel(wifi_ch);
+
+    auto unassoc_sta_tlv = cmdu_tx.addClass<wfa_map::tlvUnassociatedStaLinkMetricsResponse>();
+    if (!unassoc_sta_tlv) {
+        LOG(ERROR) << "addClass tlvUnassociatedStaLinkMetricsResponse failed!";
+    }
+    unassoc_sta_tlv->operating_class_of_channel_list() = oper_class;
+
+    if (!unassoc_sta_tlv->alloc_sta_list(msg->probe_requests.size())) {
+        LOG(ERROR) << "alloc_sta_list for tlvUnassociatedStaLinkMetricsResponse failed!";
+        return;
+    }
+
+    size_t sta_index(0);
+    for (const auto &p : msg->probe_requests) {
+        auto &unassoc_sta_entry          = std::get<1>(unassoc_sta_tlv->sta_list(sta_index++));
+        unassoc_sta_entry.channel_number = channel;
+        unassoc_sta_entry.measurement_to_report_delta_msec = 0;
+        unassoc_sta_entry.sta_mac                          = p.mac_address;
+
+        unassoc_sta_entry.uplink_rcpi_dbm_enc =
+            wireless_utils::convert_rcpi_from_rssi(p.signal_strength);
+        LOG(ERROR) << "debug sta_mac " << p.mac_address << " rssi " << p.signal_strength << " rcpi "
+                   << wireless_utils::convert_rcpi_from_rssi(p.signal_strength);
+    }
+    send_cmdu(cmdu_tx);
 }

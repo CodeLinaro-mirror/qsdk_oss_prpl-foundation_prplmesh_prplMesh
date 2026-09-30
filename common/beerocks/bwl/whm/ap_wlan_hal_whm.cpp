@@ -17,6 +17,7 @@
 #include <bcl/son/son_assoc_frame_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
+#include <iomanip>
 #include <math.h>
 #include <numeric>
 #include <sstream>
@@ -109,6 +110,7 @@ ap_wlan_hal_whm::ap_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t c
     m_fds_ext_events = {amx_fd, amxp_fd};
     subscribe_to_radio_events();
     subscribe_to_radio_channel_change_events();
+    subscribe_to_probe_request_event();
     subscribe_to_ap_events();
     subscribe_to_sta_events();
     subscribe_to_ap_bss_tm_events();
@@ -1545,6 +1547,93 @@ bool ap_wlan_hal_whm::process_radio_channel_change_event(const AmbiorixVariant *
         m_radio_info.last_csa_sw_reason = ChanSwReason::Unknown;
     }
     event_queue_push(Event::CSA_Finished);
+    return true;
+}
+
+bool ap_wlan_hal_whm::process_radio_probe_request_event(const AmbiorixVariant *value)
+{
+    auto updates = value->find_child("Updates");
+
+    if (!updates || updates->empty()) {
+        LOG(INFO) << "Event missing \"Updates\" section";
+        return true;
+    }
+
+    auto sta_list = updates->find_child("StaList");
+    //auto sta_list = updates->get("StaList");
+
+    if (!sta_list || sta_list->empty()) {
+        LOG(ERROR) << "Event missing \"StaList\" section";
+        return true;
+    }
+
+    auto sta_list_as_list = sta_list->read_children<AmbiorixVariantListSmartPtr>();
+
+    std::vector<sProbeRequestStationInfo> probe_requests;
+
+    for (auto &sta_obj : *sta_list_as_list) {
+        int32_t rssi;
+        if (!sta_obj.read_child(rssi, "RSSI")) {
+            LOG(ERROR) << "Failed reading RSSI from ProbeRequest Event";
+        }
+
+        std::string probe_req_frame;
+        if (!sta_obj.read_child(probe_req_frame, "Frame")) {
+            LOG(ERROR) << "Failed reading Probe Request Frame from ProbeRequest Event";
+        }
+
+        std::string sta_mac;
+        if (!sta_obj.read_child(sta_mac, "MacAddress")) {
+            LOG(ERROR) << "Failed reading Station MAC Addr from ProbeRequest Event";
+        }
+
+        std::string timestamp_str;
+        if (!sta_obj.read_child(timestamp_str, "TimeStamp")) {
+            LOG(ERROR) << "Failed reading Timestamp from ProbeRequest Event";
+        }
+
+        auto raw_frame =
+            beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(probe_req_frame);
+
+        std::ostringstream oss;
+        for (auto b : raw_frame) {
+            oss << "0x" << std::setw(2) << std::setfill('0') << std::hex << (int)(b & 0xff) << ' ';
+        }
+        LOG(ERROR) << "debug received " << sta_mac << " rssi " << rssi << " timestamp "
+                   << timestamp_str << " frame " << probe_req_frame << " framelen "
+                   << probe_req_frame.size() << " raw data " << raw_frame.size() << " hex "
+                   << oss.str();
+
+        sProbeRequestStationInfo new_probe_req = {
+            tlvf::mac_from_string(sta_mac),
+            rssi,
+            0,
+            std::move(raw_frame),
+        };
+
+        probe_requests.push_back(std::move(new_probe_req));
+    }
+
+    // no notification if vector is empty
+    if (probe_requests.empty()) {
+        return true;
+    }
+
+    sProbeRequestEventInfo probe_requests_out{std::move(probe_requests)};
+
+    auto msg_buff = ALLOC_SMART_BUFFER(sizeof(probe_requests_out));
+    if (!msg_buff) {
+        LOG(FATAL) << "Memory allocation failed for "
+                      "sProbeRequestEventInfo!";
+        return false;
+    }
+    auto msg = reinterpret_cast<sProbeRequestEventInfo *>(msg_buff.get());
+    memset(msg_buff.get(), 0, sizeof(probe_requests_out));
+    std::copy(probe_requests_out.probe_requests.begin(), probe_requests_out.probe_requests.end(),
+              back_inserter(msg->probe_requests));
+
+    event_queue_push(Event::ProbeRequestNotification, msg_buff);
+
     return true;
 }
 

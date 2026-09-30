@@ -638,6 +638,10 @@ bool Ieee1905Transport::forward_packet_single(Packet &packet)
             } else if (packet.src_if_type == CmduRxMessage::IF_TYPE_LOCAL_BUS) {
                 forward_to_bridge = true;
             }
+
+            if (debug_packet(packet)) {
+                forward_to_bridge = true;
+            }
         }
 
         //
@@ -701,6 +705,28 @@ bool Ieee1905Transport::forward_packet_single(Packet &packet)
     }
 
     return true;
+}
+
+bool Ieee1905Transport::debug_packet(Packet &packet)
+{
+    std::vector<uint16_t> debug_packets = {0x0008, 0x0007, 0x0009, 0x8026};
+    // Autoconf Response, Autoconf Search, Autoconf WSC, Tunneled
+
+    if (debug_packets.empty()) {
+        return false;
+    }
+    if (packet.ether_type == ETH_P_1905_1) {
+        Ieee1905CmduHeader *ch = (Ieee1905CmduHeader *)packet.payload.iov_base;
+
+        uint16_t type = (unsigned)ntohs(ch->messageType);
+
+        if (std::find(debug_packets.begin(), debug_packets.end(), type) != debug_packets.end()) {
+            MAPF_ERR("DEBUG packet type " << std::hex << std::setfill('0') << std::setw(4) << type);
+
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
