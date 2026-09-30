@@ -34,6 +34,10 @@ set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ${WBAPI_LIBS} elpp bcl tlvf PUBLIC mapfcommon)
 
+if (ENABLE_AMXB_LOGS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_AMXB_LOGS)
+endif()
+
 # Install
 target_include_directories(${PROJECT_NAME}
     PUBLIC
