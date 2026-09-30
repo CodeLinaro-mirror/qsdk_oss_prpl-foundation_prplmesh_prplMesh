@@ -518,8 +518,11 @@ bool sta_wlan_hal_whm::roam(const sMacAddr &bssid, ChannelFreqPair channel)
 
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("bssid", tlvf::mac_to_string(bssid));
-    args.add_child("tries", 2);        //arbitrary choice
-    args.add_child("timeoutInSec", 5); //arbitrary choice
+    // Use a single attempt to avoid starting a retry while the first association is still
+    // completing. Keep the timeout below the EasyMesh 10-second steering deadline to leave time
+    // for the preceding scan and Connected-event processing.
+    args.add_child("tries", 1);
+    args.add_child("timeoutInSec", 8);
     if (!m_ambiorix_cl.call_async(m_ep_path, "roamTo", args)) {
         LOG(ERROR) << "Failed to start asynchronous roamTo call";
         return false;
