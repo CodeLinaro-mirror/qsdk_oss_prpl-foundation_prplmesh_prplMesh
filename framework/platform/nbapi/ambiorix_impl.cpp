@@ -19,9 +19,6 @@
 #include <tlvf/tlvftypes.h>
 
 #include <cstring>
-#include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
 
 namespace beerocks {
 namespace nbapi {
@@ -446,7 +443,7 @@ bool AmbiorixImpl::apply_transaction(amxd_trans_t &transaction)
 
     return ret;
 }
-int dumpfd = -1;
+
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const std::string &value)
 {
@@ -461,14 +458,8 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 
     // LOG(DEBUG) << "Set " << relative_path << "." << parameter << ": " << value;
 
-    if (dumpfd == -1)
-        dumpfd = open("/tmp/trans_dump.txt", O_WRONLY | O_CREAT | O_APPEND, 0644);
-
     amxd_trans_set_value(cstring_t, &transaction, parameter.c_str(), value.c_str());
 
-    if (parameter == "Iface" && relative_path.find("X_PRPLWARE-COM_Agent.Info.Fronthaul") != std::string::npos) {
-        amxd_trans_dump(&transaction, dumpfd, false);
-    }
     if (!apply_transaction(transaction)) {
         LOG(ERROR) << "Couldn't apply transaction: " << relative_path << "." << parameter << "="
                    << value;
