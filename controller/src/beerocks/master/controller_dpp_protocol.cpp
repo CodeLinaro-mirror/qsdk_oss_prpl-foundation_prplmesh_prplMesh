@@ -6,10 +6,9 @@
  * See LICENSE file for more details.
  */
 
-
 #include "controller_dpp_protocol.h"
+#include "dpp/dpp_gas.h"
 #include "dpp/dpp_internal.h"
-
 #include <bcl/beerocks_string_utils.h>
 #include <mapf/common/encryption.h>
 
@@ -62,8 +61,7 @@ void DppConfiguratorSession::reset()
 }
 
 bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key, uint8_t version,
-                                   std::vector<uint8_t> &auth_request_frame,
-                                   std::string &error)
+                                   std::vector<uint8_t> &auth_request_frame, std::string &error)
 {
     reset();
     auth_request_frame.clear();
@@ -82,8 +80,8 @@ bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key,
         return false;
     }
 
-    if (!curve_info_from_key(m_peer_bootstrap_key.get(), m_curve_nid, m_md, m_hash_len,
-                             m_nonce_len, m_coord_len, error)) {
+    if (!curve_info_from_key(m_peer_bootstrap_key.get(), m_curve_nid, m_md, m_hash_len, m_nonce_len,
+                             m_coord_len, error)) {
         reset();
         return false;
     }
@@ -129,8 +127,8 @@ bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key,
     const auto attr_start = auth_request_frame.size();
     append_dpp_attr(auth_request_frame, k_dpp_attr_r_bootstrap_hash, m_peer_bootstrap_hash.data(),
                     m_peer_bootstrap_hash.size());
-    append_dpp_attr(auth_request_frame, k_dpp_attr_i_protocol_key,
-                    initiator_protocol_key.data(), initiator_protocol_key.size());
+    append_dpp_attr(auth_request_frame, k_dpp_attr_i_protocol_key, initiator_protocol_key.data(),
+                    initiator_protocol_key.size());
     if (m_version > 1) {
         append_dpp_attr_u8(auth_request_frame, k_dpp_attr_protocol_version, m_version);
     }
@@ -152,8 +150,7 @@ bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key,
 }
 
 bool DppConfiguratorSession::handle_authentication_response(
-    const std::vector<uint8_t> &frame, std::vector<uint8_t> &auth_confirm_frame,
-    std::string &error)
+    const std::vector<uint8_t> &frame, std::vector<uint8_t> &auth_confirm_frame, std::string &error)
 {
     auth_confirm_frame.clear();
     error.clear();
@@ -212,8 +209,8 @@ bool DppConfiguratorSession::handle_authentication_response(
     }
 
     DppAttributeView r_protocol_key;
-    if (!parse_required_attr(attrs, attrs_before_len, k_dpp_attr_r_protocol_key,
-                             2 * m_coord_len, r_protocol_key) ||
+    if (!parse_required_attr(attrs, attrs_before_len, k_dpp_attr_r_protocol_key, 2 * m_coord_len,
+                             r_protocol_key) ||
         !ec_public_from_xy(m_curve_nid, r_protocol_key.data, r_protocol_key.len,
                            m_peer_protocol_key)) {
         error = "Invalid DPP responder protocol key";
@@ -274,8 +271,8 @@ bool DppConfiguratorSession::handle_authentication_response(
     }
 
     DppAttributeView r_auth;
-    if (!parse_required_attr(secondary.data(), secondary.size(), k_dpp_attr_r_auth_tag,
-                             m_hash_len, r_auth)) {
+    if (!parse_required_attr(secondary.data(), secondary.size(), k_dpp_attr_r_auth_tag, m_hash_len,
+                             r_auth)) {
         error = "DPP Authentication Response missing R-auth";
         return false;
     }
@@ -291,8 +288,7 @@ bool DppConfiguratorSession::handle_authentication_response(
     }
 
     std::vector<uint8_t> expected_r_auth;
-    if (!hash_vector(m_md,
-                     {m_i_nonce, m_r_nonce, pi_x, pr_x, br_x, std::vector<uint8_t>{0}},
+    if (!hash_vector(m_md, {m_i_nonce, m_r_nonce, pi_x, pr_x, br_x, std::vector<uint8_t>{0}},
                      expected_r_auth) ||
         expected_r_auth.size() != r_auth.len ||
         !std::equal(expected_r_auth.begin(), expected_r_auth.end(), r_auth.data)) {
@@ -301,8 +297,7 @@ bool DppConfiguratorSession::handle_authentication_response(
     }
 
     std::vector<uint8_t> i_auth;
-    if (!hash_vector(m_md,
-                     {m_r_nonce, m_i_nonce, pr_x, pi_x, br_x, std::vector<uint8_t>{1}},
+    if (!hash_vector(m_md, {m_r_nonce, m_i_nonce, pr_x, pi_x, br_x, std::vector<uint8_t>{1}},
                      i_auth)) {
         error = "Failed computing DPP initiator authentication tag";
         return false;
@@ -335,8 +330,7 @@ bool DppConfiguratorSession::handle_authentication_response(
 
 bool DppConfiguratorSession::unwrap_configuration_request(const std::vector<uint8_t> &frame,
                                                           std::string &request_object_json,
-                                                          std::string &net_role,
-                                                          std::string &error)
+                                                          std::string &net_role, std::string &error)
 {
     request_object_json.clear();
     net_role.clear();
@@ -380,8 +374,7 @@ bool DppConfiguratorSession::unwrap_configuration_request(const std::vector<uint
     }
 
     m_e_nonce.assign(e_nonce.data, e_nonce.data + e_nonce.len);
-    request_object_json.assign(reinterpret_cast<const char *>(config_attrs.data),
-                               config_attrs.len);
+    request_object_json.assign(reinterpret_cast<const char *>(config_attrs.data), config_attrs.len);
 
     json_object *root = json_tokener_parse(request_object_json.c_str());
     if (!root) {
@@ -408,8 +401,7 @@ bool DppConfiguratorSession::unwrap_configuration_request(const std::vector<uint
 }
 
 bool DppConfiguratorSession::build_connector_payload(const std::string &net_role,
-                                                     const std::string &group_id,
-                                                     uint32_t expiry,
+                                                     const std::string &group_id, uint32_t expiry,
                                                      std::string &payload_json,
                                                      std::string &error) const
 {
@@ -458,9 +450,9 @@ bool DppConfiguratorSession::build_connector_payload(const std::string &net_role
     return true;
 }
 
-bool DppConfiguratorSession::build_configuration_response(
-    const std::string &config_object_json, std::vector<uint8_t> &response_frame,
-    std::string &error, bool send_conn_status)
+bool DppConfiguratorSession::build_configuration_response(const std::string &config_object_json,
+                                                          std::vector<uint8_t> &response_frame,
+                                                          std::string &error, bool send_conn_status)
 {
     std::vector<std::string> config_objects;
     if (!config_object_json.empty()) {
@@ -616,8 +608,7 @@ bool DppConfiguratorSession::unwrap_connection_status_result(const std::vector<u
         return false;
     }
 
-    std::string conn_status_json(reinterpret_cast<const char *>(conn_status.data),
-                                 conn_status.len);
+    std::string conn_status_json(reinterpret_cast<const char *>(conn_status.data), conn_status.len);
     json_object *root = json_tokener_parse(conn_status_json.c_str());
     if (!root) {
         error = "Invalid DPP Connection Status JSON";
@@ -640,6 +631,43 @@ bool DppConfiguratorSession::unwrap_connection_status_result(const std::vector<u
     }
 
     result = static_cast<uint8_t>(parsed_result);
+    return true;
+}
+
+bool DppConfiguratorSession::unwrap_gas_configuration_request(const std::vector<uint8_t> &gas_encap,
+                                                              std::string &request_object_json,
+                                                              std::string &net_role,
+                                                              std::string &error)
+{
+    request_object_json.clear();
+    net_role.clear();
+    error.clear();
+
+    std::vector<uint8_t> dpp_attrs;
+    if (!extract_dpp_query_from_gas_encap(gas_encap, dpp_attrs)) {
+        error = "Failed extracting DPP attributes from GAS Configuration Request";
+        return false;
+    }
+
+    // Reuse existing C-3 implementation from 0004.
+    return unwrap_configuration_request(dpp_attrs, request_object_json, net_role, error);
+}
+
+bool DppConfiguratorSession::build_gas_configuration_response(
+    const std::vector<std::string> &config_object_jsons, std::vector<uint8_t> &gas_encap,
+    std::string &error, bool send_conn_status)
+{
+    gas_encap.clear();
+    error.clear();
+
+    std::vector<uint8_t> response_frame;
+    if (!build_configuration_response(config_object_jsons, response_frame, error,
+                                      send_conn_status)) {
+        return false;
+    }
+
+    // Reuse existing C-4 DPP attribute blob, then add GAS Initial Response framing.
+    gas_encap = wrap_dpp_response_in_gas(response_frame);
     return true;
 }
 

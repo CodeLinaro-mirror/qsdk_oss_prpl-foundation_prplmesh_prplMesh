@@ -17,8 +17,8 @@
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
-#include "tasks/dpp_onboarding_task.h"
 #include "tasks/dpp_chirp_notification_task.h"
+#include "tasks/dpp_onboarding_task.h"
 #include "tasks/dpp_protocol_task.h"
 #include "tasks/ieee1905_query_sender_impl.h"
 #include "tasks/ieee1905_task.h"
@@ -5149,8 +5149,7 @@ void Controller::notify_dpp_bootstrapping_trigger(const std::string &reason)
         return;
     }
     if (reason.empty()) {
-        m_task_pool.push_event(m_dpp_onboarding_task_id,
-                               dpp_onboarding_task::BOOTSTRAP_TRIGGERED);
+        m_task_pool.push_event(m_dpp_onboarding_task_id, dpp_onboarding_task::BOOTSTRAP_TRIGGERED);
         return;
     }
     m_task_pool.push_event(m_dpp_onboarding_task_id, dpp_onboarding_task::BOOTSTRAP_TRIGGERED,

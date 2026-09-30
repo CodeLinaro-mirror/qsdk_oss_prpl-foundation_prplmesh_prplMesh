@@ -61,6 +61,10 @@ public:
      * @brief Clear session + Configurator crypto state (URI replace / success / fail cleanup).
      */
     void reset_session();
+    /**
+     * @brief Wire progress events into dpp_onboarding_task via task_pool::push_event.
+     */
+    void configure_onboarding_notifier(task_pool &pool, int onboarding_task_id);
 
     /**
      * @brief Optionally stage Config Object JSON blobs for the next GAS Configuration Request. 
@@ -77,13 +81,14 @@ public:
      */
     bool send_dpp_configuration_response(const std::vector<std::string> &config_object_jsons,
                                          bool send_conn_status = false);
+
 private:
     bool handle_cmdu_1905_chirp_notification(const sMacAddr &src_mac,
                                              ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_mac,
                                             ieee1905_1::CmduMessageRx &cmdu_rx);
     bool handle_cmdu_1905_direct_encap_dpp(const sMacAddr &src_mac,
-                                           ieee1905_1::CmduMessageRx &cmdu_rx)
+                                           ieee1905_1::CmduMessageRx &cmdu_rx);
     bool send_dpp_authentication_confirm(const sMacAddr &enrollee_mac,
                                          std::vector<uint8_t> auth_confirm_frame);
     bool send_proxied_encap_dpp_to_agent(const sMacAddr &agent_mac,

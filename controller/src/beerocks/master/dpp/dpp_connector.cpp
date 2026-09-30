@@ -6,7 +6,6 @@
  * See LICENSE file for more details.
  */
 
-
 #include "controller_dpp_protocol.h"
 #include "dpp_internal.h"
 
@@ -105,8 +104,8 @@ bool parse_dpp_connector_payload(const std::string &payload_json, DppConnectorPa
 
     bool group_found = false;
     if (json_object_get_type(groups_obj) == json_type_array) {
-        const auto len = json_object_array_length(groups_obj);
-        for (size_t i = 0; i < len; ++i) {
+        const int len = json_object_array_length(groups_obj);
+        for (int i = 0; i < len; ++i) {
             if (parse_group(json_object_array_get_idx(groups_obj, i))) {
                 group_found = true;
                 break;
@@ -206,8 +205,8 @@ bool build_signed_connector_from_payload(DppKey *csign_key, const std::string &p
     const char *header_str = json_object_to_json_string_ext(header, JSON_C_TO_STRING_PLAIN);
     std::string header_b64 =
         base64url_encode(reinterpret_cast<const uint8_t *>(header_str), std::strlen(header_str));
-    std::string payload_b64 =
-        base64url_encode(reinterpret_cast<const uint8_t *>(payload_json.data()), payload_json.size());
+    std::string payload_b64 = base64url_encode(
+        reinterpret_cast<const uint8_t *>(payload_json.data()), payload_json.size());
     json_object_put(header);
 
     if (header_b64.empty() || payload_b64.empty()) {
@@ -276,8 +275,8 @@ bool extract_dpp_netrole(const std::string &connector, std::string &net_role)
 
     bool found = false;
     if (json_object_get_type(groups_obj) == json_type_array) {
-        const auto len = json_object_array_length(groups_obj);
-        for (size_t i = 0; i < len; ++i) {
+        const int len = json_object_array_length(groups_obj);
+        for (int i = 0; i < len; ++i) {
             if (extract_role_from_group(json_object_array_get_idx(groups_obj, i))) {
                 found = true;
                 break;

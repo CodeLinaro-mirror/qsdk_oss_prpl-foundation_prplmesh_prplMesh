@@ -407,7 +407,7 @@ public:
         bool dpp_frame_indicator = false;
         sMacAddr dest_sta_mac    = beerocks::net::network_utils::ZERO_MAC;
         std::vector<uint8_t> chirp_hash;
-        bool chirp_hash_valid    = false;
+        bool chirp_hash_valid = false;
     };
 
     /**
@@ -2890,6 +2890,52 @@ public:
      * @return Calculated string if dpp_bootstrapping_info is filled, empty string otherwise
      */
     std::string calculate_dpp_bootstrapping_str(const sDppBootstrappingInfo &info);
+
+    /**
+     * @brief INI-like section map for the Controller DPP keystore file.
+     *
+     * Key = section name (e.g. "dpp_controller_keys"), value = key/value params.
+     */
+    using DppStoreSections =
+        std::unordered_map<std::string, std::unordered_map<std::string, std::string>>;
+
+    /**
+     * @brief Read the Controller DPP keystore file into section maps.
+     *
+     * Path (prplMesh DPP keystore convention; FEAT-68 Architecture names manufacturing /
+     * secure store but does not specify a concrete path in this series):
+     *   {install_path}/share/prplmesh_dpp_keystore
+     *   fallback: /tmp/prplmesh_dpp_keystore
+     *
+     * @param[out] sections Parsed sections on success
+     * @return true if the file was read and at least one section was parsed
+     */
+    bool get_dpp_store_sections(DppStoreSections &sections) const;
+
+    /**
+     * @brief Load Controller C-sign private key hex from the DPP keystore file.
+     *
+     * Expects section [dpp_controller_keys] with field:
+     *   csign_key=<EC private key DER encoded as hex>
+     *
+     * On success the hex is cached for get_dpp_controller_csign_key_hex().
+     *
+     * @return true if csign_key was found and accepted as non-empty hex
+     */
+    bool load_dpp_controller_csign_key_from_store();
+
+    /**
+     * @brief Whether a Controller C-sign private key hex is currently cached.
+     */
+    bool has_dpp_controller_csign_key() const;
+
+    /**
+     * @brief Copy cached Controller C-sign private key hex (DER as hex).
+     *
+     * @param[out] out Hex string on success
+     * @return true if a key was previously loaded
+     */
+    bool get_dpp_controller_csign_key_hex(std::string &out) const;
 
     /**
      * @brief Compare a received chirp hash against stored bootstrap URI pkhash entries.

@@ -589,7 +589,7 @@ bool aes_cmac(const uint8_t *key, size_t key_len, const uint8_t *data, size_t da
     }
 
     size_t mac_len = k_aes_block_size;
-    const bool ok = CMAC_Init(ctx, key, key_len, cipher, nullptr) == 1 &&
+    const bool ok  = CMAC_Init(ctx, key, key_len, cipher, nullptr) == 1 &&
                     (data_len == 0 || CMAC_Update(ctx, data, data_len) == 1) &&
                     CMAC_Final(ctx, mac, &mac_len) == 1 && mac_len == k_aes_block_size;
     CMAC_CTX_free(ctx);
@@ -614,8 +614,8 @@ bool aes_cmac(const uint8_t *key, size_t key_len, const uint8_t *data, size_t da
         return false;
     }
 
-    std::unique_ptr<EVP_MAC, decltype(&EVP_MAC_free)> mac_impl(EVP_MAC_fetch(nullptr, "CMAC", nullptr),
-                                                               EVP_MAC_free);
+    std::unique_ptr<EVP_MAC, decltype(&EVP_MAC_free)> mac_impl(
+        EVP_MAC_fetch(nullptr, "CMAC", nullptr), EVP_MAC_free);
     std::unique_ptr<EVP_MAC_CTX, decltype(&EVP_MAC_CTX_free)> ctx(EVP_MAC_CTX_new(mac_impl.get()),
                                                                   EVP_MAC_CTX_free);
     if (!mac_impl || !ctx || !key || !mac) {
@@ -628,7 +628,7 @@ bool aes_cmac(const uint8_t *key, size_t key_len, const uint8_t *data, size_t da
     params[2] = OSSL_PARAM_construct_end();
 
     size_t mac_len = k_aes_block_size;
-    const bool ok = EVP_MAC_init(ctx.get(), nullptr, 0, params) == 1 &&
+    const bool ok  = EVP_MAC_init(ctx.get(), nullptr, 0, params) == 1 &&
                     (data_len == 0 || EVP_MAC_update(ctx.get(), data, data_len) == 1) &&
                     EVP_MAC_final(ctx.get(), mac, &mac_len, k_aes_block_size) == 1 &&
                     mac_len == k_aes_block_size;
@@ -736,7 +736,7 @@ bool aes_siv_ctr_crypt(const uint8_t *key, size_t key_len, uint8_t iv[k_aes_bloc
     }
 
     std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)> ctx(EVP_CIPHER_CTX_new(),
-                                                                      EVP_CIPHER_CTX_free);
+                                                                        EVP_CIPHER_CTX_free);
     if (!ctx) {
         return false;
     }

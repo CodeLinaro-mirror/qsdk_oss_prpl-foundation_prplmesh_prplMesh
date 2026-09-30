@@ -20,7 +20,7 @@
 namespace son {
 namespace controller_dpp {
 
-using DppKey    = EVP_PKEY;
+using DppKey = EVP_PKEY;
 
 struct DppKeyDeleter {
     void operator()(DppKey *key) const { EVP_PKEY_free(key); }
@@ -29,12 +29,12 @@ struct DppKeyDeleter {
 using DppKeyPtr = std::unique_ptr<DppKey, DppKeyDeleter>;
 
 struct DppConfigurationObjectOptions {
-    std::string akm = "dpp";
+    std::string akm        = "dpp";
     bool include_discovery = true;
-    bool include_net_role = false;
+    bool include_net_role  = false;
     std::string net_role;
     bool include_df_counter_threshold = false;
-    uint16_t df_counter_threshold = 0;
+    uint16_t df_counter_threshold     = 0;
     std::string passphrase;
     std::string psk_hex;
     std::string security_ies_hex;
@@ -87,11 +87,11 @@ public:
                                  uint32_t expiry, std::string &payload_json,
                                  std::string &error) const;
     bool build_configuration_response(const std::string &config_object_json,
-                                      std::vector<uint8_t> &response_frame,
-                                      std::string &error, bool send_conn_status = false);
+                                      std::vector<uint8_t> &response_frame, std::string &error,
+                                      bool send_conn_status = false);
     bool build_configuration_response(const std::vector<std::string> &config_object_jsons,
-                                      std::vector<uint8_t> &response_frame,
-                                      std::string &error, bool send_conn_status = false);
+                                      std::vector<uint8_t> &response_frame, std::string &error,
+                                      bool send_conn_status = false);
     bool unwrap_configuration_result(const std::vector<uint8_t> &frame, uint8_t &status,
                                      std::string &error);
     bool unwrap_connection_status_result(const std::vector<uint8_t> &frame, uint8_t &result,
@@ -128,12 +128,12 @@ private:
     std::vector<uint8_t> m_k2;
     std::vector<uint8_t> m_bk;
     std::vector<uint8_t> m_ke;
-    const EVP_MD *m_md = nullptr;
-    int m_curve_nid    = 0;
-    size_t m_hash_len  = 0;
-    size_t m_nonce_len = 0;
-    size_t m_coord_len = 0;
-    uint8_t m_version  = 2;
+    const EVP_MD *m_md            = nullptr;
+    int m_curve_nid               = 0;
+    size_t m_hash_len             = 0;
+    size_t m_nonce_len            = 0;
+    size_t m_coord_len            = 0;
+    uint8_t m_version             = 2;
     bool m_authentication_started = false;
     bool m_authentication_success = false;
 };

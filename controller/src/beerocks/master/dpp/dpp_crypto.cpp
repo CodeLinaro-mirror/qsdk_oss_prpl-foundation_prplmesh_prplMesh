@@ -6,7 +6,6 @@
  * See LICENSE file for more details.
  */
 
-
 #include "controller_dpp_protocol.h"
 #include "dpp_internal.h"
 
@@ -249,7 +248,6 @@ bool ec_public_from_xy(int nid, const uint8_t *xy, size_t xy_len, DppKeyPtr &out
         return false;
     }
 
-    const size_t coord_len = xy_len / 2;
     std::vector<uint8_t> encoded(1 + xy_len);
     encoded[0] = 0x04;
     std::copy_n(xy, xy_len, encoded.data() + 1);
@@ -277,6 +275,7 @@ bool ec_public_from_xy(int nid, const uint8_t *xy, size_t xy_len, DppKeyPtr &out
     out.reset(key);
     return true;
 #else
+    const size_t coord_len = xy_len / 2;
     const char *group_name = OBJ_nid2sn(nid);
     if (!group_name || coord_len == 0) {
         return false;
@@ -361,8 +360,8 @@ bool hmac_digest(const EVP_MD *md, const uint8_t *key, size_t key_len, const uin
     return true;
 }
 
-bool hkdf_expand_one_block(const EVP_MD *md, const std::vector<uint8_t> &prk,
-                           const char *info, size_t out_len, std::vector<uint8_t> &out)
+bool hkdf_expand_one_block(const EVP_MD *md, const std::vector<uint8_t> &prk, const char *info,
+                           size_t out_len, std::vector<uint8_t> &out)
 {
     out.clear();
     if (!md || prk.empty() || !info || out_len == 0 || out_len > prk.size()) {
@@ -381,8 +380,8 @@ bool hkdf_expand_one_block(const EVP_MD *md, const std::vector<uint8_t> &prk,
     return true;
 }
 
-bool derive_intermediate_key(const EVP_MD *md, const std::vector<uint8_t> &secret,
-                             const char *info, size_t hash_len, std::vector<uint8_t> &out)
+bool derive_intermediate_key(const EVP_MD *md, const std::vector<uint8_t> &secret, const char *info,
+                             size_t hash_len, std::vector<uint8_t> &out)
 {
     out.clear();
     if (!md || secret.empty() || hash_len == 0) {
@@ -432,8 +431,7 @@ bool hash_vector(const EVP_MD *md, const std::vector<std::vector<uint8_t>> &part
         return false;
     }
 
-    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> ctx(EVP_MD_CTX_new(),
-                                                                EVP_MD_CTX_free);
+    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> ctx(EVP_MD_CTX_new(), EVP_MD_CTX_free);
     if (!ctx || EVP_DigestInit_ex(ctx.get(), md, nullptr) != 1) {
         return false;
     }
@@ -457,8 +455,7 @@ bool hash_vector(const EVP_MD *md, const std::vector<std::vector<uint8_t>> &part
 }
 
 bool aes_siv_encrypt_vector(const std::vector<uint8_t> &key, const std::vector<uint8_t> &plain,
-                            const std::vector<std::vector<uint8_t>> &ad,
-                            std::vector<uint8_t> &out)
+                            const std::vector<std::vector<uint8_t>> &ad, std::vector<uint8_t> &out)
 {
     std::vector<const uint8_t *> ad_ptrs;
     std::vector<size_t> ad_lens;
