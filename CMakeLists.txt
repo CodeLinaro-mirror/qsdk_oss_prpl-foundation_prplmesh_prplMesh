@@ -16,7 +16,7 @@ function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT
     set(${ROOT_DM_FOOTER_VAR} "")
 
     string(REPLACE "." ";" ROOT_DM_SPLIT ${${ROOT_DM_VAR}})
-    
+
     set(indent "")
     set(header "")
     set(footer "")
@@ -173,6 +173,13 @@ endif()
 # Default values
 set(BEEROCKS_REPEATER_MODE 0)
 set(BEEROCKS_MONITOR_POLLING_RATE_MSEC 250)
+
+option (ENABLE_AMXB_LOGS "Enable AMXB logs" OFF)
+
+## Enable AMXB logs
+if (ENABLE_NBAPI AND ENABLE_AMXB_LOGS)
+    add_definitions(-DENABLE_AMXB_LOGS)
+endif()
 
 # Platform specific flags
 if (TARGET_PLATFORM STREQUAL "openwrt")
