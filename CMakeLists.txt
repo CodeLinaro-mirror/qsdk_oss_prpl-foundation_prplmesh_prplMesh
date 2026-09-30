@@ -16,7 +16,7 @@ function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT
     set(${ROOT_DM_FOOTER_VAR} "")
 
     string(REPLACE "." ";" ROOT_DM_SPLIT ${${ROOT_DM_VAR}})
-    
+
     set(indent "")
     set(header "")
     set(footer "")
@@ -57,12 +57,10 @@ add_definitions(-DCONTROLLER_ROOT_DM="${CONTROLLER_ROOT_DM}")
 add_definitions(-DIEEE1905_ROOT_DM="${IEEE1905_ROOT_DM}")
 add_definitions(-DAGENT_ROOT_DM="${AGENT_ROOT_DM}")
 
-
 process_root_dm(DATAELEMENTS_ROOT_DM DATAELEMENTS_ROOT_DM_literal DATAELEMENTS_ROOT_DM_Header DATAELEMENTS_ROOT_DM_Footer)
 process_root_dm(CONTROLLER_ROOT_DM CONTROLLER_ROOT_DM_literal CONTROLLER_ROOT_DM_Header CONTROLLER_ROOT_DM_Footer)
 process_root_dm(IEEE1905_ROOT_DM IEEE1905_ROOT_DM_literal IEEE1905_ROOT_DM_Header IEEE1905_ROOT_DM_Footer)
 process_root_dm(AGENT_ROOT_DM AGENT_ROOT_DM_literal AGENT_ROOT_DM_Header AGENT_ROOT_DM_Footer)
-
 
 ## Build options
 
@@ -77,6 +75,13 @@ option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
 option (ENABLE_BEEROCKS_CLI "Build beerocks CLI" ON)
 option (ENABLE_PRPLMESH_CLI "Build prplMesh CLI" ON)
+
+option (ENABLE_AMXB_LOGS "Enable AMXB logs" OFF)
+
+## Enable AMXB logs
+if (ENABLE_AMXB_LOGS)
+    add_definitions(-DENABLE_AMXB_LOGS)
+endif()
 
 ## Generic checks and defaults
 
