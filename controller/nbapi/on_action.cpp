@@ -1595,6 +1595,87 @@ amxd_status_t update_unassociatedStations_stats(amxd_object_t *object, amxd_func
     }
     return result;
 }
+amxd_status_t setup_data_path(amxd_object_t *object,
+                                      amxd_function_t *func,
+                                      amxc_var_t *args,
+                                      amxc_var_t *ret)
+{
+    //amxd_status_t result(amxd_status_ok);
+    auto controller_ctx = g_database->get_controller_ctx();
+
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context.";
+        return amxd_status_unknown_error;
+    }
+
+    /* Get agent MAC from Device object (Device.1 or Device.2) - ID is the AL-MAC */
+    amxc_var_t value;
+    amxc_var_init(&value);
+    amxd_object_get_param(object, "ID", &value);
+    std::string agent_mac_str = amxc_var_constcast(cstring_t, &value);
+    amxc_var_clean(&value);
+
+    sMacAddr agent_mac = tlvf::mac_from_string(agent_mac_str);
+    LOG(DEBUG) << "ash: got agent_mac_str=" << agent_mac_str;
+    auto dest_ip   = GET_CHAR(args, "DestinationIPAddress");
+    auto dest_port = GET_INT32(args,  "DestinationPort");
+    //bool add_path = GET_BOOL(args, "AddRemoveDataPath");
+    bool add_path = 1;
+    if (!dest_ip || dest_port == 0) {
+        LOG(ERROR) << "setup DataPath: Invalid parameters";
+        return amxd_status_invalid_arg;
+    }
+
+    LOG(INFO) << "ash:setupDataPath called: agent_mac=" << agent_mac_str << " IP=" << dest_ip
+              << " Port=" << dest_port;
+    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path,agent_mac)) {
+        LOG(ERROR) << "Failed to send datapath setup request";
+        return amxd_status_unknown_error;
+    }
+      LOG(INFO) << "sucess on datapath setup request from nbapi";
+	return amxd_status_ok;
+}
+amxd_status_t remove_data_path(amxd_object_t *object,
+                                      amxd_function_t *func,
+                                      amxc_var_t *args,
+                                      amxc_var_t *ret)
+{
+
+    auto controller_ctx = g_database->get_controller_ctx();
+
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context.";
+        return amxd_status_unknown_error;
+    }
+
+    /* Get agent MAC from Device object (Device.1 or Device.2) - ID is the AL-MAC */
+    amxc_var_t value;
+    amxc_var_init(&value);
+    amxd_object_get_param(object, "ID", &value);
+    std::string agent_mac_str = amxc_var_constcast(cstring_t, &value);
+    amxc_var_clean(&value);
+
+    sMacAddr agent_mac = tlvf::mac_from_string(agent_mac_str);
+    LOG(DEBUG) << "ash: got agent_mac_str=" << agent_mac_str;
+    auto dest_ip   = GET_CHAR(args, "DestinationIPAddress");
+    auto dest_port = GET_INT32(args,  "DestinationPort");
+
+    bool add_path = 0;
+
+    if (!dest_ip || dest_port == 0) {
+        LOG(ERROR) << "setup DataPath: Invalid parameters";
+        return amxd_status_invalid_arg;
+    }
+
+    LOG(INFO) << "ash:setupDataPath called: agent_mac=" << agent_mac_str << " IP=" << dest_ip
+              << " Port=" << dest_port;
+    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path,agent_mac)) {
+        LOG(ERROR) << "Failed to remove datapath setup request";
+        return amxd_status_unknown_error;
+    }
+    LOG(INFO) << "sucess on datapath remove request from nbapi";
+    return amxd_status_ok;
+}
 
 // Events
 
@@ -1928,7 +2009,9 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
         {"access_point_commit", DATAELEMENTS_ROOT_DM ".Network.AccessPointCommit",
          access_point_commit},
         {"client_steering", DATAELEMENTS_ROOT_DM ".Network.ClientSteering", client_steering},
-        {"trigger_scan", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ScanTrigger", trigger_scan},
+        { "setup_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.SetupDataPath", setup_data_path },
+       { "remove_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.RemoveDataPath", remove_data_path },
+       	{"trigger_scan", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ScanTrigger", trigger_scan},
         {"BTMRequest", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.STA.MultiAPSTA.BTMRequest",
          btm_request},
         {"trigger_set_spatial_reuse", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.SetSpatialReuse",

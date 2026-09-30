@@ -715,5 +715,14 @@
                 "TCPoverIPv6"
             ];
         }
+    %instance bool SetupDataPath(
+        %in %mandatory string DestinationIPAddress,
+        %in %mandatory uint16 DestinationPort
+    );
+    %instance bool RemoveDataPath(
+        %in %mandatory string DestinationIPAddress,
+        %in %mandatory uint16 DestinationPort
+    );
+
     }
 }
