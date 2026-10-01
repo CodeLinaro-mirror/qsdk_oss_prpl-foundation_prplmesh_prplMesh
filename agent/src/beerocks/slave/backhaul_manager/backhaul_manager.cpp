@@ -3001,7 +3001,7 @@ bool BackhaulManager::handle_1905_1_message(ieee1905_1::CmduMessageRx &cmdu_rx,
         return false;
     }
     case ieee1905_1::eMessageType::BACKHAUL_STEERING_REQUEST_MESSAGE: {
-        return handle_backhaul_steering_request(cmdu_rx, src_mac);
+        return handle_backhaul_steering_request(cmdu_rx, src_mac, iface_index);
     }
     case ieee1905_1::eMessageType::VENDOR_SPECIFIC_MESSAGE: {
         // We should not handle vendor specific messages here, return false so the message will
@@ -3206,10 +3206,21 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             m_backhaul_steering_bssid = beerocks::net::network_utils::ZERO_MAC;
             m_timer_manager->remove_timer(m_backhaul_steering_timer);
 
-            create_backhaul_steering_response(wfa_map::tlvErrorCode::eReasonCode::RESERVED, bssid);
+            if (!create_backhaul_steering_response(wfa_map::tlvErrorCode::eReasonCode::RESERVED,
+                                                   bssid)) {
+                LOG(ERROR) << "Failed to build Backhaul Steering Response message";
+                return false;
+            }
 
-            LOG(DEBUG) << "Sending BACKHAUL_STA_STEERING_RESPONSE_MESSAGE";
-            send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+            // During a roam, transport may still be rebuilding its bridge interface socket. Send
+            // the response directly through the newly connected backhaul interface instead of
+            // relying on the transport-selected bridge path.
+            LOG(DEBUG) << "Sending BACKHAUL_STA_STEERING_RESPONSE_MESSAGE on iface " << iface;
+            if (!send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac, iface,
+                                     beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET)) {
+                LOG(ERROR) << "Failed to send Backhaul Steering Response on iface " << iface;
+                return false;
+            }
         }
 
         // TODO: Need to unite WAIT_WPS and WIRELESS_ASSOCIATE_4ADDR_WAIT handling
@@ -3926,7 +3937,8 @@ bool BackhaulManager::handle_slave_failed_connection_message(ieee1905_1::CmduMes
 }
 
 bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx &cmdu_rx,
-                                                       const sMacAddr &src_mac)
+                                                       const sMacAddr &src_mac,
+                                                       uint32_t iface_index)
 {
     const auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "Received BACKHAUL_STA_STEERING message, mid=" << std::hex << mid;
@@ -3945,10 +3957,33 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
         return false;
     }
 
-    auto db = AgentDB::get();
+    auto db                       = AgentDB::get();
+    const auto ingress_iface      = beerocks::net::network_utils::linux_get_iface_name(iface_index);
+    const auto ingress_iface_type = ingress_iface.empty()
+                                        ? beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE
+                                        : beerocks::transport::messages::CmduTxMessage::IF_TYPE_NET;
 
-    LOG(DEBUG) << "Sending ACK message to the originator, mid=" << std::hex << mid;
-    send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+    if (iface_index != 0 && ingress_iface.empty()) {
+        LOG(WARNING) << "Unable to resolve Backhaul Steering Request ingress iface_index="
+                     << iface_index << "; using transport-selected response path";
+    }
+
+    auto send_to_originator = [&](const char *message_name) {
+        LOG(DEBUG) << "Sending " << message_name
+                   << (ingress_iface.empty() ? " using transport-selected path"
+                                             : " on ingress iface " + ingress_iface);
+        if (send_cmdu_to_broker(cmdu_tx, src_mac, db->bridge.mac, ingress_iface,
+                                ingress_iface_type)) {
+            return true;
+        }
+
+        LOG(ERROR) << "Failed to send " << message_name;
+        return false;
+    };
+
+    if (!send_to_originator("ACK message to the Backhaul Steering Request originator")) {
+        return false;
+    }
 
     auto channel    = bh_sta_steering_req->target_channel_number();
     auto oper_class = bh_sta_steering_req->operating_class();
@@ -3971,7 +4006,9 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
             return false;
         }
 
-        send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+        if (!send_to_originator("Backhaul Steering Response")) {
+            return false;
+        }
 
         return false;
     }
@@ -3999,7 +4036,9 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
             return false;
         }
 
-        send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+        if (!send_to_originator("Backhaul Steering Response")) {
+            return false;
+        }
 
         return true;
     }
@@ -4042,7 +4081,7 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
     // Create a timer to check if this Backhaul Steering Request times out.
     m_backhaul_steering_timer = m_timer_manager->add_timer(
         "Backhaul Steering Timeout", backhaul_steering_timeout, std::chrono::milliseconds::zero(),
-        [&](int fd, beerocks::EventLoop &loop) {
+        [this, bssid](int fd, beerocks::EventLoop &loop) {
             cancel_backhaul_steering_operation();
 
             // We'll end up in this situation only if an attempt to scan and associate was made, but

@@ -19,6 +19,20 @@
 
 constexpr uint8_t AMX_CL_DEF_TIMEOUT = 3;
 
+namespace {
+
+void async_call_done(const amxb_bus_ctx_t *, amxb_request_t *request, int status, void *)
+{
+    LOG_IF(status != AMXB_STATUS_OK, ERROR)
+        << "Asynchronous Ambiorix call completed with status " << status;
+
+    if (request && amxb_close_request(&request) != AMXB_STATUS_OK) {
+        LOG(ERROR) << "Failed to close asynchronous Ambiorix request";
+    }
+}
+
+} // namespace
+
 namespace beerocks {
 namespace wbapi {
 
@@ -185,6 +199,17 @@ bool AmbiorixConnection::call(const std::string &object_path, const char *method
     LOG_IF(ret != AMXB_STATUS_OK, ERROR)
         << "calling [" << object_path << "." << method << "] failed";
     return (ret == AMXB_STATUS_OK);
+}
+
+bool AmbiorixConnection::call_async(const std::string &object_path, const char *method,
+                                    AmbiorixVariant &args)
+{
+    const std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    auto request = amxb_async_call(m_bus_ctx, object_path.c_str(), method, get_amxc_var_ptr(args),
+                                   async_call_done, nullptr);
+    LOG_IF(!request, ERROR) << "calling [" << object_path << "." << method
+                            << "] asynchronously failed";
+    return request != nullptr;
 }
 
 int AmbiorixConnection::read()

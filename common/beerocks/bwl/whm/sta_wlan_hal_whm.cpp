@@ -508,26 +508,28 @@ bool sta_wlan_hal_whm::disconnect()
 
 bool sta_wlan_hal_whm::roam(const sMacAddr &bssid, ChannelFreqPair channel)
 {
-
     if (!is_connected()) {
         LOG(ERROR) << get_iface_name() << " Not connected, can't roam";
         return false;
     }
 
-    AmbiorixVariant result;
+    LOG(DEBUG) << "Starting asynchronous roam to BSSID " << bssid << " on channel "
+               << channel.first;
+
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
     args.add_child("bssid", tlvf::mac_to_string(bssid));
-    args.add_child("tries", 2);        //arbitrary choice
-    args.add_child("timeoutInSec", 5); //arbitrary choice
-    if (!m_ambiorix_cl.call(m_ep_path, "roamTo", args, result)) {
-        LOG(ERROR) << " remote function call roamTo Failed!";
+    // Use a single attempt to avoid starting a retry while the first association is still
+    // completing. Keep the timeout below the EasyMesh 10-second steering deadline to leave time
+    // for the preceding scan and Connected-event processing.
+    args.add_child("tries", 1);
+    args.add_child("timeoutInSec", 8);
+    if (!m_ambiorix_cl.call_async(m_ep_path, "roamTo", args)) {
+        LOG(ERROR) << "Failed to start asynchronous roamTo call";
         return false;
     }
 
-    // Update the active channel and bssid
-    m_active_bssid   = tlvf::mac_to_string(bssid);
-    m_active_channel = channel.first;
-
+    // The endpoint Connected event updates the active BSSID and channel. Returning true here only
+    // means that pWHM accepted the asynchronous request.
     return true;
 }
 

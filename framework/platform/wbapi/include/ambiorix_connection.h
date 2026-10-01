@@ -160,6 +160,17 @@ public:
               AmbiorixVariant &result);
 
     /**
+     * @brief Invoke a data model function asynchronously.
+     *
+     * @param[in] object_path: object path to the object that contains the function.
+     * @param[in] method: name of the function being called.
+     * @param[in] args: the function arguments in an amxc variant htable type.
+     * @return True when the request was dispatched. This does not indicate that the remote
+     * function completed successfully.
+     */
+    bool call_async(const std::string &object_path, const char *method, AmbiorixVariant &args);
+
+    /**
      * @brief Read data from the file descriptor of the connection context.
      * Typically the backend parses the received data and dispatches to the correct
      * callbacks if needed.

@@ -112,6 +112,12 @@ bool AmbiorixClient::call(const std::string &object_path, const char *method, Am
     return (m_connection && m_connection->call(object_path, method, args, result));
 }
 
+bool AmbiorixClient::call_async(const std::string &object_path, const char *method,
+                                AmbiorixVariant &args)
+{
+    return (m_connection && m_connection->call_async(object_path, method, args));
+}
+
 int AmbiorixClient::get_fd() { return (m_connection ? m_connection->get_fd() : -1); }
 
 int AmbiorixClient::get_signal_fd() { return (m_connection ? m_connection->get_signal_fd() : -1); }

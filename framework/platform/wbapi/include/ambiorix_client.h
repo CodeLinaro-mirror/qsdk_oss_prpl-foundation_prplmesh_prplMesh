@@ -162,6 +162,17 @@ public:
               AmbiorixVariant &result);
 
     /**
+     * @brief Invoke a data model function asynchronously.
+     *
+     * @param[in] object_path: object path to the object that contains the function.
+     * @param[in] method: name of the function being called.
+     * @param[in] args: the function arguments in an amxc variant htable type.
+     * @return True when the request was dispatched. This does not indicate that the remote
+     * function completed successfully.
+     */
+    bool call_async(const std::string &object_path, const char *method, AmbiorixVariant &args);
+
+    /**
      * @brief get the amxb file descriptor.
      * Use this function to add the file descriptor to your event loop.
      *
