@@ -10830,6 +10830,12 @@ bool dpp_hash_buffer_matches_pkhash(const uint8_t *hash, size_t hash_len,
 const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash, size_t hash_len,
                                                             std::string &received_hex) const
 {
+    // Always surface the chirp hash for mismatch logs (do not only fill on match).
+    received_hex.clear();
+    if (hash && hash_len > 0) {
+        received_hex = beerocks::string_utils::bytes_to_hex_string(hash, hash_len);
+    }
+
     for (const auto &entry : dpp_bootstrap_info_map) {
         if (!entry.second.pkhash_valid) {
             continue;
@@ -10841,7 +10847,6 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
         }
     }
 
-    received_hex.clear();
     return nullptr;
 }
 
