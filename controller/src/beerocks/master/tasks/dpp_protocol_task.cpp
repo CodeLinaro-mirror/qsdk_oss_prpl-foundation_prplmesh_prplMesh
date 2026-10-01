@@ -497,7 +497,10 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
             m_database.dpp_chirp_hash_matches(chirp_tlv->hash(), hash_len, received_hex);
         if (!matched_info) {
             LOG(WARNING) << "DPP chirp hash mismatch from agent " << src_mac
-                         << " hash=" << received_hex;
+                         << " hash_len=" << static_cast<unsigned>(hash_len)
+                         << " hash=" << received_hex
+                         << " bootstrap_entries=" << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
+            m_database.print_dpp_bootstrap_info();
             continue;
         }
 
