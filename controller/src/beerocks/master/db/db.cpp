@@ -10262,3 +10262,47 @@ std::shared_ptr<Agent::sEthSwitch> db::get_eth_switch(const sMacAddr &mac)
 
     return eth_switch;
 }
+
+void db::update_probe_request_monitoring_station(const sMacAddr &mac_address,
+                                                 UnassociatedStation::Stats &stats,
+                                                 const std::string &probe_request_frame,
+                                                 const std::string &radio_dm_path)
+{
+    if (radio_dm_path.empty()) {
+        LOG(ERROR) << "son_actions Empty Radio DM Path";
+        return;
+    }
+
+    // update  controller DM
+    //Example of path : Device.WiFi.DataElements.Network.Device.1.Radio.2.UnassociatedSTA.
+    std::string publish_path;
+    std::string probe_request_path = radio_dm_path + ".X_PRPLWARE-COM_ProbeRequests";
+
+    auto index = m_ambiorix_datamodel->get_instance_index(
+        probe_request_path + ".[MACAddress == '%s'].", tlvf::mac_to_string(mac_address));
+
+    if (!index) {
+        publish_path = m_ambiorix_datamodel->add_instance(probe_request_path);
+        if (publish_path.empty()) {
+            LOG(ERROR) << "Failed to add new instance of " << probe_request_path;
+            return;
+        }
+        LOG(DEBUG) << "Publish new path " << publish_path << " MACAddress " << mac_address
+                   << "SignalStrength: " << stats.uplink_rcpi_dbm_enc << " TimeStamp"
+                   << stats.time_stamp;
+
+        // write MACAddress only on instance creation, in the if() branch
+        publish_path.append(".");
+        m_ambiorix_datamodel->set(publish_path, "MACAddress", mac_address);
+    } else {
+        publish_path = std::move(probe_request_path);
+        publish_path.append(".");
+        publish_path.append(std::to_string(index));
+    }
+
+    m_ambiorix_datamodel->set(publish_path, "SignalStrength", stats.uplink_rcpi_dbm_enc);
+    m_ambiorix_datamodel->set(publish_path, "X_PRPLWARE-COM_TimeStamp", stats.time_stamp);
+    m_ambiorix_datamodel->set(publish_path, "ProbeFrame", probe_request_frame);
+
+    return;
+}

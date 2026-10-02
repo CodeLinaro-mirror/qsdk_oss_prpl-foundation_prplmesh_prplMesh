@@ -2913,6 +2913,13 @@ bool Controller::handle_cmdu_1905_tunnelled_message(const sMacAddr &src_mac,
         return false;
     }
 
+    if (type_tlv->protocol_type() ==
+        wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType::PROBE_REQUEST) {
+
+        son_actions::handle_tunnelled_probe_request(database, src_mac, cmdu_rx);
+        return true;
+    }
+
     LOG(DEBUG) << "Tunnelled Message STA MAC: " << source_info_tlv->mac() << ", Type: " << std::hex
                << int(type_tlv->protocol_type()) << ", Data Length: " << std::dec
                << data_tlv->data_length() << ", Data: " << std::endl
