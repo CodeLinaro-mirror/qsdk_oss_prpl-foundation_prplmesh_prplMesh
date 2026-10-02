@@ -17,6 +17,7 @@
 
 #include <bpl/bpl_cfg.h>
 
+#include <bcl/beerocks_string_utils.h>
 #include <bcl/network/sockets.h>
 #include <bcl/son/son_wireless_utils.h>
 #include <easylogging++.h>
@@ -27,8 +28,13 @@
 #include <tlvf/ieee_1905_1/tlvSupportedRole.h>
 #include <tlvf/wfa_map/tlvAgentApMldConfiguration.h>
 #include <tlvf/wfa_map/tlvBackhaulStaMldConfiguration.h>
+#include <tlvf/wfa_map/tlvBssid.h>
 #include <tlvf/wfa_map/tlvClientAssociationControlRequest.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
+#include <tlvf/wfa_map/tlvTunnelledData.h>
+#include <tlvf/wfa_map/tlvTunnelledProtocolType.h>
+#include <tlvf/wfa_map/tlvTunnelledSourceInfo.h>
+#include <tlvf/wfa_map/tlvUnassociatedStaLinkMetricsResponse.h>
 
 #include "controller.h"
 
@@ -857,4 +863,93 @@ bool son_actions::handle_backhaul_sta_mld_configuration_tlv(db &database, const 
     agent->bsta_mld.ap_mld_mac        = backhaul_sta_mld_configuration_tlv->ap_mld_mac_addr();
 
     return true;
+}
+
+constexpr wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType PROBE_REQUEST =
+    wfa_map::tlvTunnelledProtocolType::eTunnelledProtocolType::PROBE_REQUEST;
+
+void son_actions::handle_tunnelled_probe_request(db &database, const sMacAddr &al_mac,
+                                                 const ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto agent = database.m_agents.get(al_mac);
+    if (!agent) {
+        LOG(ERROR) << "Agent " << al_mac << " not found in database";
+        return;
+    }
+
+    auto tunnelled_type = cmdu_rx.getClass<wfa_map::tlvTunnelledProtocolType>();
+
+    if (!tunnelled_type || tunnelled_type->protocol_type() != PROBE_REQUEST) {
+        LOG(ERROR) << "Invalid Tunnelled Message Type TLV";
+        return;
+    }
+
+    std::vector<sMacAddr> stations = {}, bssids = {};
+    std::vector<std::string> frames = {};
+
+    for (const auto &source_tlv : cmdu_rx.getClassList<wfa_map::tlvTunnelledSourceInfo>()) {
+        stations.push_back(source_tlv->mac());
+    }
+
+    for (const auto &bssid_tlv : cmdu_rx.getClassList<wfa_map::tlvBssid>()) {
+        bssids.push_back(bssid_tlv->bssid());
+    }
+
+    for (const auto &tunnelled_frame_tlv : cmdu_rx.getClassList<wfa_map::tlvTunnelledData>()) {
+        std::string frame_str = beerocks::string_utils::bytes_to_hex_string(
+            tunnelled_frame_tlv->data(), tunnelled_frame_tlv->data_length());
+        frames.push_back(std::move(frame_str));
+    }
+
+    auto unassoc_sta_link_metrics =
+        cmdu_rx.getClass<wfa_map::tlvUnassociatedStaLinkMetricsResponse>();
+
+    // Station MAC : {TimeDelta, RCPI}
+    std::unordered_map<sMacAddr, std::pair<uint32_t, uint8_t>> stats;
+    if (unassoc_sta_link_metrics) {
+        auto number_of_stations = unassoc_sta_link_metrics->sta_list_length();
+        for (int i = 0; i < number_of_stations; i++) {
+            const auto station_tuple = unassoc_sta_link_metrics->sta_list(i);
+            const auto sta_metrics   = std::get<1>(station_tuple);
+            auto time_delta          = sta_metrics.measurement_to_report_delta_msec;
+            auto rcpi                = sta_metrics.uplink_rcpi_dbm_enc;
+
+            stats[sta_metrics.sta_mac] = std::make_pair(time_delta, rcpi);
+        }
+    }
+
+    if (!((stations.size() == bssids.size()) && (stations.size() == frames.size()) &&
+          (stations.size() == stats.size()))) {
+
+        LOG(ERROR) << "ProbeRequest Monitoring Tunnelled Frame malformatted, mismatched numbers of "
+                      "elements";
+        return;
+    }
+
+    // for now, BSSID TLV contains the RadioMAC - Probe Request Destination Address is not parsed by the Agent
+    // since the Probe Request Tunnelled Frame Event is build per-Radio by the Agent
+    auto radio = database.get_radio(al_mac, bssids[0]);
+
+    auto elements = stations.size();
+
+    for (size_t i = 0; i < elements; i++) {
+        auto sta_mac = stations[i];
+
+        if (stats.find(sta_mac) == stats.end()) {
+            LOG(ERROR) << "UnassociatedStaLinkMetricsResponse TLV does not contain station "
+                       << sta_mac;
+            continue;
+        }
+
+        time_t now = time(0);
+        char timestamp[sizeof "2011-10-08T07:07:09Z"];
+        strftime(timestamp, sizeof timestamp, "%FT%TZ", gmtime(&now));
+
+        UnassociatedStation::Stats time_and_rcpi = {
+            .uplink_rcpi_dbm_enc = std::get<1>(stats.at(sta_mac)), .time_stamp = timestamp};
+
+        database.update_probe_request_monitoring_station(sta_mac, time_and_rcpi, frames[i],
+                                                         radio->dm_path);
+    }
+    return;
 }

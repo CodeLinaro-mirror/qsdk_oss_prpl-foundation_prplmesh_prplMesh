@@ -147,6 +147,10 @@
             %in %mandatory string un_station_mac
         );
 
+        %read-only object X_PRPLWARE-COM_ProbeRequests []{
+            counted with X_PRPLWARE-COM_ProbeRequestsNumberOfEntries;
+        }
+
         %read-only object ScanResult [] {
             counted with ScanResultNumberOfEntries;
         }

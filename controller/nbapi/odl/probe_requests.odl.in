@@ -1,0 +1,40 @@
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * SPDX-FileCopyrightText: 2026 the prplMesh contributors (see AUTHORS.md)
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
+ */
+
+%config {
+    define-behavior = {
+        existing-object = "update"
+    };
+}
+
+%define {
+    select @DATAELEMENTS_ROOT_DM@.Network.Device.Radio.X_PRPLWARE-COM_ProbeRequests {
+
+        /**
+        * [MACAddress] The MAC address of the Non-AP STA.
+        * @version 2.19.1
+        */
+        %read-only %unique string MACAddress = "00:00:00:00:00:00";
+
+        /**
+        * An indicator of radio signal strength (RCPI) of the uplink from the Non-AP STA - measured in dBm.
+        * RCPI is encoded per [Table 9-176/802.11-2020], and described in [Section 10.3.2/EasyMesh]. Reserved: 221 - 255.
+        * @version 2.19.1
+        */
+        %read-only uint32 SignalStrength = 0 {
+            on action validate call check_range [0, 255];
+        }
+
+        %read-only datetime X_PRPLWARE-COM_TimeStamp;
+
+        /**
+        * Hex string of the 802.11 Probe Request Frame
+        */
+        %read-only string ProbeFrame;
+    }
+}

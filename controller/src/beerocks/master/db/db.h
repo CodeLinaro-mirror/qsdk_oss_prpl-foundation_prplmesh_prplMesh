@@ -3612,12 +3612,25 @@ public:
      * @param new_stats new Stats
      * @param  radio_dm_path   radio data model:
      *          example:Device.WiFi.DataElements.Network.Device.1.Radio.1.
-     * 
+     *
      * @return unassociated stations 
      */
     void update_unassociated_station_stats(const sMacAddr &mac_address,
                                            UnassociatedStation::Stats &new_stats,
                                            const std::string &radio_dm_path);
+
+    /**
+     * @brief Publish latest ProbeRequest frame received drom @param mac_address
+     *
+     * @param mac_address : station that sent the ProbeRequest
+     * @param new_stats : UnassociatedStation Stats : RCPI of frame exchange and Timestamp
+     * @param probe_request_frame : hex string representation of the 802.11 frame
+     * @param radio_dm_path : Controller DataModel path of the Radio
+     */
+    void update_probe_request_monitoring_station(const sMacAddr &mac_address,
+                                                 UnassociatedStation::Stats &stats,
+                                                 const std::string &probe_request_frame,
+                                                 const std::string &radio_dm_path);
 
     std::shared_ptr<Agent::sEthSwitch> get_eth_switch(const sMacAddr &mac);
 
