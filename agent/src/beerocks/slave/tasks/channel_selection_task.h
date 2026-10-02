@@ -167,6 +167,10 @@ private:
     void handle_vs_dfs_cac_completed_notification(ieee1905_1::CmduMessageRx &cmdu_rx, int fd,
                                                   std::shared_ptr<beerocks_header> beerocks_header);
 
+    void
+    handle_vs_dfs_channel_available_notification(ieee1905_1::CmduMessageRx &cmdu_rx, int fd,
+                                                 std::shared_ptr<beerocks_header> beerocks_header);
+
     void handle_vs_channels_list_response(ieee1905_1::CmduMessageRx &cmdu_rx, int fd,
                                           std::shared_ptr<beerocks_header> beerocks_header);
 
@@ -310,6 +314,14 @@ private:
      * above request in handle_vs_channels_list_response()
      */
     bool m_send_preference_report_after_csa_finished_event = false;
+
+    /**
+     * DFS-NOP-FINISHED event (DFS channel became available) results in sending
+     * ACTION_BACKHAUL_CHANNELS_LIST_REQUEST from handle_vs_dfs_channel_available_notification().
+     * Set this flag to true to send preference report when handling the response for the
+     * above request in handle_vs_channels_list_response()
+     */
+    bool m_send_preference_report_after_dfs_nop_finished_event = false;
 
     /* Class members */
 

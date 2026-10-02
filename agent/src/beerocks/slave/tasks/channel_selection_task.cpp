@@ -638,6 +638,10 @@ bool ChannelSelectionTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmd
         handle_vs_dfs_cac_completed_notification(cmdu_rx, sd, beerocks_header);
         break;
     }
+    case beerocks_message::ACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION: {
+        handle_vs_dfs_channel_available_notification(cmdu_rx, sd, beerocks_header);
+        break;
+    }
     case beerocks_message::ACTION_BACKHAUL_CHANNELS_LIST_RESPONSE: {
         handle_vs_channels_list_response(cmdu_rx, sd, beerocks_header);
         break;
@@ -979,6 +983,45 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
     }
 }
 
+void ChannelSelectionTask::handle_vs_dfs_channel_available_notification(
+    ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
+{
+    auto notification = beerocks_header->addClass<
+        beerocks_message::cACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION>();
+    if (!notification) {
+        LOG(ERROR) << "addClass cACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION failed";
+        return;
+    }
+
+    auto db = AgentDB::get();
+    auto radio =
+        db->get_radio_by_mac(beerocks_header->actionhdr()->radio_mac(), AgentDB::eMacType::RADIO);
+    if (!radio) {
+        return;
+    }
+
+    const auto &sender_iface_name = radio->front.iface_name;
+    const auto radio_mac          = radio->front.iface_mac;
+
+    LOG(TRACE) << "received ACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION from "
+               << sender_iface_name << ", channel=" << int(notification->params().channel);
+
+    if (radio->front.zwdfs) {
+        return;
+    }
+
+    /**
+     * NOP finished in the driver but AgentDB still has old DFS state. Request fresh channels
+     * list so the report is sent with correct data. A pending preference query waits for this
+     * radio again, so its response carries the new state as well.
+     */
+    LOG(DEBUG) << "Requesting channels list after DFS NOP finished on radio "
+               << tlvf::mac_to_string(radio_mac);
+    if (request_channel_preference_refresh(radio_mac)) {
+        m_send_preference_report_after_dfs_nop_finished_event = true;
+    }
+}
+
 void ChannelSelectionTask::handle_vs_channels_list_response(
     ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
 {
@@ -996,7 +1039,8 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
         ZWDFS_FSM_MOVE_STATE(eZwdfsState::CHOOSE_NEXT_BEST_CHANNEL);
     } else if (is_there_a_pending_preference || m_send_preference_report_after_cac_started_event ||
                m_send_preference_report_after_cac_completion_event ||
-               m_send_preference_report_after_csa_finished_event) {
+               m_send_preference_report_after_csa_finished_event ||
+               m_send_preference_report_after_dfs_nop_finished_event) {
 
         // If there is a pending preference query, need to build a preference report
         build_channel_preference_report(radio_mac);
@@ -1016,10 +1060,11 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
 
             // Clear the pending preference state.
             m_pending_preference.preference_ready.clear();
-            m_pending_preference.mid                            = 0;
-            m_send_preference_report_after_cac_started_event    = false;
-            m_send_preference_report_after_cac_completion_event = false;
-            m_send_preference_report_after_csa_finished_event   = false;
+            m_pending_preference.mid                              = 0;
+            m_send_preference_report_after_cac_started_event      = false;
+            m_send_preference_report_after_cac_completion_event   = false;
+            m_send_preference_report_after_csa_finished_event     = false;
+            m_send_preference_report_after_dfs_nop_finished_event = false;
         }
     }
 }

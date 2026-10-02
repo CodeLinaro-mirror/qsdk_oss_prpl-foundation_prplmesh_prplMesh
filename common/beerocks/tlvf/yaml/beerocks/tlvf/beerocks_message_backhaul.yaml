@@ -129,6 +129,10 @@ cACTION_BACKHAUL_HOSTAP_DFS_CAC_COMPLETED_NOTIFICATION:
   _type: class
   params: sDfsCacCompleted
 
+cACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION:
+  _type: class
+  params: sDfsChannelAvailable
+
 cACTION_BACKHAUL_HOSTAP_ZWDFS_ANT_CHANNEL_SWITCH_REQUEST:
   _type: class
   ant_switch_on: uint8_t #bool
