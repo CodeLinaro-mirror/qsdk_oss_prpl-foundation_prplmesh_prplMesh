@@ -589,14 +589,28 @@ amxd_status_t add_exchange(amxd_object_t *object,
 
     auto threshold = GET_UINT32(args, "Threshold");
 
-    bool tx_mac_valid = 1;
+    /*bool tx_mac_valid = 1;
     bool rx_mac_valid = 1;
 
     auto transmitter = GET_CHAR(args, "Transmitter");
     sMacAddr transmitter_mac = tlvf::mac_from_string(transmitter);
 
     auto receiver = GET_CHAR(args, "Receiver");
-    sMacAddr receiver_mac = tlvf::mac_from_string(receiver);
+    sMacAddr receiver_mac = tlvf::mac_from_string(receiver);*/
+    const char *transmitter = GET_CHAR(args, "Transmitter");
+    const char *receiver    = GET_CHAR(args, "Receiver");
+
+    bool tx_mac_valid = (transmitter != nullptr && transmitter[0] != '\0');
+    bool rx_mac_valid = (receiver != nullptr && receiver[0] != '\0');
+
+    sMacAddr transmitter_mac{};
+    sMacAddr receiver_mac{};
+    if (tx_mac_valid) {
+       transmitter_mac = tlvf::mac_from_string(transmitter);
+    }
+    if (rx_mac_valid) {
+       receiver_mac = tlvf::mac_from_string(receiver);
+    }
 
     amxc_var_t value;
     amxc_var_init(&value);
