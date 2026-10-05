@@ -90,7 +90,7 @@ private:
     int8_t m_original_secondary_channel_offset = 0;
 
     // max time to wait for switch channel
-    static constexpr std::chrono::seconds DEFAULT_WAIT_FOR_SWITCH_CHANNEL_REPORT{5};
+    static constexpr std::chrono::seconds DEFAULT_WAIT_FOR_SWITCH_CHANNEL_REPORT{7};
     std::chrono::seconds m_wait_for_switch_channel_report = DEFAULT_WAIT_FOR_SWITCH_CHANNEL_REPORT;
 
     // the point in time we we started waiting for switch channel
