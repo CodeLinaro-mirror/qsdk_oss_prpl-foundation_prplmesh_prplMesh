@@ -12,7 +12,10 @@
 
 #include <arpa/inet.h>
 #include <easylogging++.h>
+#include <iomanip>
+#include <sstream>
 #include <tlvf/ieee_1905_1/eMessageType.h>
+#include <tlvf/ieee_1905_1/tlvUnknown.h>
 #include <tlvf/wfa_map/tlvDataPathSetupRequest.h>
 #include <tlvf/wfa_map/tlvDataPathSetupResponse.h>
 
@@ -33,9 +36,46 @@ bool DataPathSetupTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
 
     // ========== REQUEST TLV - Parse tlvDataPathSetupRequest ==========
     const auto mid = cmdu_rx.getMessageId();
+    LOG(ERROR) << "ash:DataPathReq mid=0x" << std::hex << mid << std::dec
+               << " src=" << src_mac << " dst=" << dst_mac
+               << " msg_len=" << cmdu_rx.getMessageLength()
+               << " buff_len=" << cmdu_rx.getMessageBuffLength()
+               << " expected_tlv=0x"
+               << std::hex << int(wfa_map::eTlvTypeMap::TLV_DATAPATH_SETUP_REQUEST) << std::dec;
+
+    /* Dump parsed TLVs — if request became tlvUnknown, type/len explain getClass failure. */
+    {
+        auto unknowns = cmdu_rx.getClassList<ieee1905_1::tlvUnknown>();
+        LOG(ERROR) << "ash:DataPathReq tlvUnknown count=" << unknowns.size();
+        for (const auto &u : unknowns) {
+            if (!u) {
+                continue;
+            }
+            LOG(ERROR) << "ash:DataPathReq unknown TLV type=0x" << std::hex << int(u->type())
+                       << " length=" << std::dec << u->length();
+        }
+    }
+    {
+        const uint8_t *buf = cmdu_rx.getMessageBuff();
+        const size_t len   = cmdu_rx.getMessageLength();
+        std::ostringstream oss;
+        oss << "ash:DataPathReq hex(";
+        oss << len << "):";
+        const size_t dump_n = len < 64 ? len : 64;
+        for (size_t i = 0; i < dump_n; i++) {
+            oss << " " << std::hex << std::setw(2) << std::setfill('0') << int(buf[i]);
+        }
+        if (len > dump_n) {
+            oss << " ...";
+        }
+        LOG(ERROR) << oss.str();
+    }
+
     auto tlv = cmdu_rx.getClass<wfa_map::tlvDataPathSetupRequest>();
     if (!tlv) {
-        LOG(ERROR) << "DataPath Setup Request: getClass<tlvDataPathSetupRequest> failed";
+        LOG(ERROR) << "DataPath Setup Request: getClass<tlvDataPathSetupRequest> failed"
+                   << " (CMDU type matched, but TLV class missing — see tlvUnknown/hex above;"
+                   << " also grep agent log for 'TLV type mismatch' / 'Not enough available space')";
         return true;
     }
 

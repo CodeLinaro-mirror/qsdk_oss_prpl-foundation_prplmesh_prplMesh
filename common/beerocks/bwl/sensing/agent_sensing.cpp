@@ -7,7 +7,7 @@
  */
 
 #include "agent_sensing.h"
-#include <../../../../agent/src/beerocks/slave/agent_db.h>
+#include "agent_db.h"
 #include <bcl/beerocks_utils.h>
 //#include <bcl/network/network_utils.h>
 
