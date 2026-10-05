@@ -1841,7 +1841,7 @@ amxd_status_t setup_data_path(amxd_object_t *object,
 
     sMacAddr agent_mac = tlvf::mac_from_string(agent_mac_str);
     LOG(DEBUG) << "ash: got agent_mac_str=" << agent_mac_str;
-    auto dest_ip            = GET_CHAR(args, "DestinationIPAddress");
+    auto dest_ip            = GET_CHAR(args, "DestinationAddress");
     auto dest_port          = GET_INT32(args, "DestinationPort");
     auto transport_protocol = GET_CHAR(args, "TransportProtocol");
 
@@ -1883,28 +1883,43 @@ amxd_status_t remove_data_path(amxd_object_t *object,
         return amxd_status_unknown_error;
     }
 
-    /* Get agent MAC from Device object (Device.1 or Device.2) - ID is the AL-MAC */
+    /* RemoveDataPath lives on Device.{i}.Layer3Path.{j} — climb to Device for AL-MAC (ID) */
+    amxd_object_t *layer3_template = amxd_object_get_parent(object);
+    amxd_object_t *device =
+        layer3_template ? amxd_object_get_parent(layer3_template) : nullptr;
+    if (!device) {
+        LOG(ERROR) << "Failed retrieving parent Device of Layer3Path";
+        return amxd_status_object_not_found;
+    }
+
     amxc_var_t value;
     amxc_var_init(&value);
-    amxd_object_get_param(object, "ID", &value);
-    std::string agent_mac_str = amxc_var_constcast(cstring_t, &value);
+    amxd_object_get_param(device, "ID", &value);
+    const char *id_str = amxc_var_constcast(cstring_t, &value);
+    if (!id_str) {
+        LOG(ERROR) << "Failed fetching Device.ID for RemoveDataPath";
+        amxc_var_clean(&value);
+        return amxd_status_object_not_found;
+    }
+    std::string agent_mac_str(id_str);
     amxc_var_clean(&value);
 
     sMacAddr agent_mac = tlvf::mac_from_string(agent_mac_str);
     LOG(DEBUG) << "ash: got agent_mac_str=" << agent_mac_str;
-    auto dest_ip   = GET_CHAR(args, "DestinationIPAddress");
-    auto dest_port = GET_INT32(args,  "DestinationPort");
+    auto dest_ip   = GET_CHAR(args, "DestinationAddress");
+    auto dest_port = GET_INT32(args, "DestinationPort");
 
     bool add_path = 0;
 
     if (!dest_ip || dest_port == 0) {
-        LOG(ERROR) << "setup DataPath: Invalid parameters";
+        LOG(ERROR) << "remove DataPath: Invalid parameters";
         return amxd_status_invalid_arg;
     }
 
-    LOG(INFO) << "ash:setupDataPath called: agent_mac=" << agent_mac_str << " IP=" << dest_ip
-              << " Port=" << dest_port;
-    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path,agent_mac, true)) {
+    LOG(INFO) << "ash:RemoveDataPath called: agent_mac=" << agent_mac_str << " IP=" << dest_ip
+              << " Port=" << dest_port << "add_path" << add_path;
+    if (!controller_ctx->send_datapath_setup_request(dest_ip, dest_port, add_path, agent_mac,
+                                                     true)) {
         LOG(ERROR) << "Failed to remove datapath setup request";
         return amxd_status_unknown_error;
     }
@@ -2245,7 +2260,8 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
          access_point_commit},
         {"client_steering", DATAELEMENTS_ROOT_DM ".Network.ClientSteering", client_steering},
         { "setup_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.SetupDataPath", setup_data_path },
-        { "remove_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.RemoveDataPath", remove_data_path },
+        { "remove_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.Layer3Path.RemoveDataPath",
+          remove_data_path },
         {"add_exchange", DATAELEMENTS_ROOT_DM ".Network.Device.AddExchange", add_exchange},
         {"remove_exchange", DATAELEMENTS_ROOT_DM ".Network.Device.RemoveExchange", remove_exchange},
        	{"trigger_scan", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ScanTrigger", trigger_scan},

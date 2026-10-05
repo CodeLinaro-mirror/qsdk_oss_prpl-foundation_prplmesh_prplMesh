@@ -5083,7 +5083,7 @@ bool Controller::send_btm_request(const bool &disassoc_imminent,
 bool Controller::send_datapath_setup_request(const std::string &dest_ip, uint16_t dest_port,
                                             bool add_path,const sMacAddr &agent_mac, bool use_udp)
 {
-    LOG(DEBUG) << "ash: starting send_datapath_setup_request";
+    LOG(DEBUG) << "ash: starting send_datapath_setup_request add_path =" << add_path;
     LOG(DEBUG) << "ash:NBAPI SetupDataPath  agent_mac=" << agent_mac<<"dest ip:" << dest_ip << " port=" << dest_port
                << " add=" << (add_path ? "yes" : "no");
     son_actions::start_datapath_setup_task(database, cmdu_tx, m_task_pool, dest_ip, dest_port,
@@ -5816,6 +5816,50 @@ bool Controller::handle_tlv_transport_capabilities(Agent &agent,
     agent.tcp_over_ipv6_supported = tlv->transport_capabilities().tcp_over_ipv6_support;
     LOG(DEBUG) << "Agent " << agent.al_mac << " Transport: UDP_IPv6="
                << agent.udp_over_ipv6_supported << " TCP_IPv6=" << agent.tcp_over_ipv6_supported;
+
+    // Create Device.{i}.Layer3Path.{i} when UDP over IPv6 is supported
+    if (agent.udp_over_ipv6_supported) {
+        if (agent.dm_path.empty()) {
+            LOG(WARNING) << "Cannot add Layer3Path: empty dm_path for agent " << agent.al_mac;
+            return true;
+        }
+
+        auto ambiorix_dm = database.get_ambiorix_obj();
+        if (!ambiorix_dm) {
+            LOG(ERROR) << "Ambiorix DM not available while adding Layer3Path";
+            return true;
+        }
+
+        const uint32_t existing_idx = ambiorix_dm->get_instance_index(
+            agent.dm_path + ".Layer3Path.[ServiceName == '%s'].", "Sensing");
+        if (existing_idx) {
+            LOG(DEBUG) << "Layer3Path Sensing already exists under " << agent.dm_path
+                       << ".Layer3Path." << existing_idx;
+            return true;
+        }
+
+        const std::string layer3_path =
+            ambiorix_dm->add_instance(agent.dm_path + ".Layer3Path");
+        if (layer3_path.empty()) {
+            LOG(ERROR) << "Failed to add Layer3Path under " << agent.dm_path;
+            return true;
+        }
+
+        if (!ambiorix_dm->set(layer3_path, "Alias",
+                              std::string("cpe_udp_over_ipv6"))) {
+            LOG(ERROR) << "Failed to set " << layer3_path << ".Alias";
+        }
+        if (!ambiorix_dm->set(layer3_path, "ServiceName", std::string("Sensing"))) {
+            LOG(ERROR) << "Failed to set " << layer3_path << ".ServiceName";
+        }
+        if (!ambiorix_dm->set(layer3_path, "TransportProtocol",
+                              std::string("UDPoverIPv6"))) {
+            LOG(ERROR) << "Failed to set " << layer3_path << ".TransportProtocol";
+        }
+
+        LOG(INFO) << "Added " << layer3_path << " for agent " << agent.al_mac;
+    }
+
     return true;
 }
 
@@ -5913,10 +5957,6 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
                    << " with profile enum " << agent->profile;
     }
     
-    if (!handle_tlv_transport_capabilities(*agent, cmdu_rx)) {
-        LOG(WARNING) << "Failed to parse Transport Capabilities TLV for Agent " << src_mac;
-    }
-     
     if (agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile2_cac_capabilities(*agent, cmdu_rx)) {
         LOG(ERROR) << "Profile2 CAC Capabilities are not supplied for Agent " << src_mac
@@ -5932,6 +5972,11 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
     if (!handle_tlv_sensing_capabilities(cmdu_rx)) {
         LOG(ERROR) << "Couldn't handle TLV Sensing Capabilities";
     }
+
+    if (!handle_tlv_transport_capabilities(*agent, cmdu_rx)) {
+        LOG(ERROR) << "Failed to parse Transport Capabilities TLV for Agent " << src_mac;
+    }
+
     return all_radio_capabilities_saved_successfully;
 }
 

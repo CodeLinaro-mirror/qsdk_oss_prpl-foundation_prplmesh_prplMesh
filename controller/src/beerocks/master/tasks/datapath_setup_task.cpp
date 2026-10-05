@@ -139,18 +139,81 @@ bool datapath_setup_task::handle_data_path_setup_response(
                 if (!device_dm_path.empty()) {
                     auto ambiorix_dm = database.get_ambiorix_obj();
                     if (ambiorix_dm) {
-                        if (!ambiorix_dm->set(device_dm_path, "DatapathIPAddress",
-                                              std::string(src_addr_str))) {
-                            LOG(ERROR) << "Failed to set " << device_dm_path
-                                       << ".DatapathIPAddress";
+                        // Layer3Path.{i} is created on Transport Capabilities parse
+                        const uint32_t layer3_idx = ambiorix_dm->get_instance_index(
+                            device_dm_path + ".Layer3Path.[ServiceName == '%s'].", "Sensing");
+                        if (!layer3_idx) {
+                            LOG(WARNING) << "No Layer3Path with ServiceName=Sensing under "
+                                         << device_dm_path;
+                        } else {
+                            const std::string layer3_path =
+                                device_dm_path + ".Layer3Path." + std::to_string(layer3_idx);
+
+                            /* Empty source (:: / port 0) → clear Destination* (teardown). */
+                            const bool empty_source =
+                                (src_port == 0) || (std::string(src_addr_str) == "::") ||
+                                (src_addr_str[0] == '\0');
+
+                            if (empty_source) {
+                                if (!ambiorix_dm->set(layer3_path, "DestinationAddress",
+                                                      std::string(""))) {
+                                    LOG(ERROR) << "Failed to clear " << layer3_path
+                                               << ".DestinationAddress";
+                                }
+                                if (!ambiorix_dm->set(layer3_path, "DestinationPort",
+                                                      static_cast<uint32_t>(0))) {
+                                    LOG(ERROR) << "Failed to clear " << layer3_path
+                                               << ".DestinationPort";
+                                }
+                                if (!ambiorix_dm->set(layer3_path, "SourceAddress",
+                                                      std::string("::"))) {
+                                    LOG(ERROR) << "Failed to set " << layer3_path
+                                               << ".SourceAddress";
+                                }
+                                if (!ambiorix_dm->set(layer3_path, "SourcePort",
+                                                      std::string("0"))) {
+                                    LOG(ERROR) << "Failed to set " << layer3_path
+                                               << ".SourcePort";
+                                }
+                                LOG(INFO) << "DPPROOF: cleared DestinationAddress/Port on "
+                                          << layer3_path
+                                          << " (empty source_addr=" << src_addr_str
+                                          << " source_port=" << src_port << ")"
+                                          << " on local_bridge="
+                                          << database.get_local_bridge_mac();
+                            } else {
+                                if (!ambiorix_dm->set(layer3_path, "DestinationAddress",
+                                                      entry.dest_ip)) {
+                                    LOG(ERROR) << "Failed to set " << layer3_path
+                                               << ".DestinationAddress";
+                                }
+                                if (!ambiorix_dm->set(layer3_path, "DestinationPort",
+                                                      static_cast<uint32_t>(entry.dest_port))) {
+                                    LOG(ERROR) << "Failed to set " << layer3_path
+                                               << ".DestinationPort";
+                                }
+                                if (!ambiorix_dm->set(layer3_path, "SourceAddress",
+                                                      std::string(src_addr_str))) {
+                                    LOG(ERROR) << "Failed to set " << layer3_path
+                                               << ".SourceAddress";
+                                }
+                                if (!ambiorix_dm->set(layer3_path, "SourcePort",
+                                                      std::to_string(src_port))) {
+                                    LOG(ERROR) << "Failed to set " << layer3_path << ".SourcePort";
+                                } else {
+                                    LOG(INFO) << "DPPROOF: HIT DM updated path=" << layer3_path
+                                              << " DestinationAddress=" << entry.dest_ip
+                                              << " DestinationPort=" << entry.dest_port
+                                              << " SourceAddress=" << src_addr_str
+                                              << " SourcePort=" << src_port
+                                              << " on local_bridge="
+                                              << database.get_local_bridge_mac();
+                                }
+                            }
                         }
-                        const uint32_t src_port_u32 = static_cast<uint32_t>(src_port);
-                        if (!ambiorix_dm->set(device_dm_path, "DatapathPort", src_port_u32)) {
-                            LOG(ERROR) << "Failed to set " << device_dm_path << ".DatapathPort";
-                       }
                     }
                 } else {
-                    LOG(WARNING) << "DatapathIPAddress/DatapathPort not updated: no data model "
+                    LOG(WARNING) << "SourceAddress/SourcePort not updated: no data model "
                                     "path for agent "
                                  << src_mac;
                 }

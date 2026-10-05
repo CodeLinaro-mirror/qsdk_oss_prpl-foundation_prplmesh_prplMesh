@@ -715,17 +715,40 @@
                 "TCPoverIPv6"
             ];
         }
-        %read-only string DatapathIPAddress;
-        %read-only uint32 DatapathPort;
+        %read-only object Layer3Path [] {
+            counted with Layer3PathNumberOfEntries;
 
+            %read-only string Alias;
+            %read-only string ServiceName {
+                default "Sensing";
+                on action validate call check_enum [
+                    "Sensing",
+                    "DAR"
+                ];
+            }
+            %read-only string TransportProtocol {
+                default "UDPoverIPv6";
+                on action validate call check_enum [
+                    "UDPoverIPv6",
+                    "TCPoverIPv6",
+                    "UDPoverIPv4",
+                    "TCPoverIPv4"
+                ];
+            }
+            %read-only string DestinationAddress;
+            %read-only uint32 DestinationPort;
+            %read-only string SourceAddress;
+            %read-only string SourcePort;
+            %instance bool RemoveDataPath(
+                %in %mandatory string DestinationAddress,
+                %in %mandatory uint16 DestinationPort
+            );
+        }
         %instance bool SetupDataPath(
-        %in %mandatory string DestinationIPAddress,
+            %in %mandatory string DestinationAddress,
         %in %mandatory uint16 DestinationPort
     );
-    %instance bool RemoveDataPath(
-        %in %mandatory string DestinationIPAddress,
-        %in %mandatory uint16 DestinationPort
-    );
+
     %instance bool AddExchange(
            %in %mandatory uint16 ExchangeID,
            %in %mandatory string ExchangeType,

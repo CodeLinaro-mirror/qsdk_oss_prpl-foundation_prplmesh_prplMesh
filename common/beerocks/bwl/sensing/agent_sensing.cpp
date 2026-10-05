@@ -123,6 +123,35 @@ bool agent_sensing::setup_datapath()
     return true;
 }
 
+bool agent_sensing::RemoveLayer3Path()
+{
+    if (m_sensing_path.empty()) {
+        LOG(ERROR) << "RemoveLayer3Path: no sensing path";
+        return false;
+    }
+    auto db = beerocks::AgentDB::get();
+    if (db->data_path_entries.empty()) {
+        LOG(ERROR) << "RemoveLayer3Path: no datapath entry in AgentDB";
+        return false;
+    }
+    const auto &entry = db->data_path_entries.back();
+    AmbiorixVariant result;
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    // Must match wifi-sensing ODL:
+    // void RemoveLayer3Path(string DestinationAddress, uint16 DestinationPort);
+    args.add_child("DestinationAddress", entry.dest_ip);
+    args.add_child("DestinationPort", entry.dest_port);
+    if (!m_ambiorix_sensing_cl.call(m_sensing_path, "RemoveLayer3Path", args, result)) {
+        LOG(ERROR) << "RemoveLayer3Path: call failed for dest=" << entry.dest_ip << ":"
+                   << entry.dest_port << " path=" << m_sensing_path;
+        return false;
+    }
+
+    LOG(DEBUG) << "RemoveLayer3Path: call success for dest=" << entry.dest_ip << ":"
+               << entry.dest_port << " path=" << m_sensing_path;
+    return true;
+}
+
 bool agent_sensing::AddExchange()
 {
     if (m_sensing_path.empty()) {

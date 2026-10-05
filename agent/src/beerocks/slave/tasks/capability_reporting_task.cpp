@@ -551,8 +551,9 @@ bool CapabilityReportingTask::add_sensing_capabilities_tlv(ieee1905_1::CmduMessa
         return false;
     }
 
-    int num_of_radios = db->get_radios_list().size();
-    sensing_capabilities_tlv->num_radio() = num_of_radios;
+    //int num_of_radios = db->get_radios_list().size();
+    //sensing_capabilities_tlv->num_radio() = num_of_radios;
+    LOG(INFO) << "sensing_caps: radios_in_db=" << db->get_radios_list().size();
     //create a new radio capability entry in TLV  
     for (auto radio : db->get_radios_list()) {
         if (!radio) {

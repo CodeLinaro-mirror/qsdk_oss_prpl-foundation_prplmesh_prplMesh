@@ -202,7 +202,7 @@ int son_actions::start_datapath_setup_task(db &database, ieee1905_1::CmduMessage
                                            task_pool &tasks, const std::string &dest_ip,
                                            uint16_t dest_port, bool add_path,const sMacAddr &agent_mac,					   bool use_udp)
 {
-    LOG(DEBUG) << "ash: starting start_datapath_setup_task";
+    LOG(DEBUG) << "ash: starting start_datapath_setup_task add_path=" << add_path ;
     auto new_task = std::make_shared<datapath_setup_task>(database, cmdu_tx, tasks, dest_ip,
                                                          dest_port, add_path,agent_mac,use_udp);
     tasks.add_task(new_task);

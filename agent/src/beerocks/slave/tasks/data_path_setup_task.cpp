@@ -93,17 +93,26 @@ bool DataPathSetupTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
         AgentDB::sDataPathEntry{std::string(dest_ip), port, add_path});
     LOG(INFO) << "DataPath Setup Request: saved dest=" << dest_ip << " port=" << port
               << " add_path=" << (int)add_path;
-     bool datapath_ok = false;
-   if (auto *sensing = m_btl_ctx.get_agent_sensing()) {
-	  datapath_ok = sensing->setup_datapath();
-	if (!datapath_ok) {
-	      LOG(ERROR) << "DataPath Setup: agent_sensing::setup_datapath failed";
+    bool datapath_ok = false;
+    if (auto *sensing = m_btl_ctx.get_agent_sensing()) {
+        if (add_path) {
+            datapath_ok = sensing->setup_datapath();
+            if (!datapath_ok) {
+                LOG(ERROR) << "DataPath Setup: agent_sensing::setup_datapath failed";
+            } else {
+                LOG(DEBUG) << "DataPath Setup: agent_sensing::setup_datapath success";
+            }
         } else {
-              LOG(DEBUG) << "DataPath Setup: agent_sensing::setup_datapath success";
+            datapath_ok = sensing->RemoveLayer3Path();
+            if (!datapath_ok) {
+                LOG(ERROR) << "DataPath Setup: agent_sensing::RemoveLayer3Path failed";
+            } else {
+                LOG(DEBUG) << "DataPath Setup: agent_sensing::RemoveLayer3Path success";
+            }
         }
-     } else {
-       LOG(ERROR) << "DataPath Setup: agent_sensing is null";
-     }
+    } else {
+        LOG(ERROR) << "DataPath Setup: agent_sensing is null";
+    }
 
     // Send ACK for the Request
     if (!m_cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {
@@ -125,8 +134,8 @@ bool DataPathSetupTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
     bool success = datapath_ok;
     uint8_t source_addr[16] = {0};
     uint16_t source_port    = 0;
-    
-        if (success) {
+
+    if (success && add_path) {
         if (db->data_path_entries.empty()) {
             LOG(ERROR) << "DataPath Setup Response: no data_path_entries after setup_datapath";
             success = false;

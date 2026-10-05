@@ -33,6 +33,7 @@ public:
      */
     agent_sensing();
     bool setup_datapath();
+    bool RemoveLayer3Path();
     bool AddExchange();
     bool RemoveExchange();
     bool subscribe_to_exchange_terminated();
