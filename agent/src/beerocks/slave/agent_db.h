@@ -291,6 +291,7 @@ public:
         uint8_t  rx_mac_valid{0};
         sMacAddr tx_mac{};
         sMacAddr rx_mac{};
+        std::string error_code{};
     };
     std::list<sSensingExchangeEntry> sensing_exchange_entries;
 

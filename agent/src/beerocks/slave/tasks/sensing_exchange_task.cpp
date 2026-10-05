@@ -9,6 +9,8 @@
 #include <tlvf/wfa_map/tlvSensingExchangeResponse.h>
 #include <easylogging++.h>
 #include <cstdint>
+#include <cstdlib>
+#include <string>
 
 namespace beerocks {
 namespace {
@@ -34,6 +36,26 @@ static const char *sensing_exchange_type_wire_to_name(uint8_t wire)
 namespace {
 constexpr uint16_t STATUS_SUCCESS                  = 0x0000;
 constexpr uint16_t STATUS_DATA_PATH_DOES_NOT_EXIST = 0x1001;
+
+/** Map wifi-sensing / AgentDB ErrorCode string to MAP TLV uint16 (decimal or 0x hex). */
+uint16_t sensing_exchange_error_code_from_db_string(const std::string &s)
+{
+    if (s.empty()) {
+        return STATUS_SUCCESS;
+    }
+    const char *p    = s.c_str();
+    char *endptr     = nullptr;
+    unsigned long v  = 0;
+    if (s.size() >= 2 && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+        v = std::strtoul(p, &endptr, 16);
+    } else {
+        v = std::strtoul(p, &endptr, 10);
+    }
+    if (endptr == p) {
+        return STATUS_SUCCESS;
+    }
+    return static_cast<uint16_t>(v & 0xffffUL);
+}
 }
 
 SensingExchangeTask::SensingExchangeTask(slave_thread &btl_ctx,
@@ -76,6 +98,17 @@ bool SensingExchangeTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32
 
     db->sensing_exchange_entries.push_back(entry); // Use push_back() to add elements
 
+    //invoking AddExchange rpc via sensing bwl layer
+    bool exchange_ok = false;
+    if (auto *sensing = m_btl_ctx.get_agent_sensing()) {
+        exchange_ok = sensing->AddExchange();
+        if (!exchange_ok) {
+            LOG(ERROR) << "Sensing Exchange: agent_sensing::AddExchange failed";
+        }
+    } else {
+        LOG(ERROR) << "Sensing Exchange: agent_sensing is null";
+    }
+
     // Send ACK back to controller
     if (!m_cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {
         LOG(ERROR) << "Sensing Exchange Request: failed to create ACK_MESSAGE";
@@ -88,9 +121,18 @@ bool SensingExchangeTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32
     }
     //return m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 
-    uint32_t exchange_id  = 0;
-    bool datapath_ok = false; // TODO
-    const uint16_t error_code = datapath_ok ? STATUS_SUCCESS : STATUS_DATA_PATH_DOES_NOT_EXIST;
+    const uint32_t req_exchange_id = entry.exchange_id;
+    uint16_t response_error_code     = STATUS_DATA_PATH_DOES_NOT_EXIST;
+    if (exchange_ok) {
+        std::string err_from_db;
+        for (const auto &e : db->sensing_exchange_entries) {
+            if (e.exchange_id == req_exchange_id) {
+                err_from_db = e.error_code;
+                break;
+            }
+        }
+        response_error_code = sensing_exchange_error_code_from_db_string(err_from_db);
+    }
 
     if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::SENSING_EXCHANGE_RESPONSE_MESSAGE)) {
         LOG(ERROR) << "SensingExchange Response: failed to create SENSING_EXCHANGE_RESPONSE_MESSAGE";
@@ -102,8 +144,8 @@ bool SensingExchangeTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32
         return true;
     }
 
-    resp_tlv->exchange_id() = exchange_id;
-    resp_tlv->error_code()  = error_code;
+    resp_tlv->exchange_id() = req_exchange_id;
+    resp_tlv->error_code()  = response_error_code;
 
     if (!resp_tlv->finalize()) {
         LOG(ERROR) << "SensingExchange Response: tlvSensingExchangeResponse finalize failed";
