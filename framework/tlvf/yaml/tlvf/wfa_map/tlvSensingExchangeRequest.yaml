@@ -1,0 +1,83 @@
+
+_include: {
+  tlvf/wfa_map/eTlvTypeMap.h,
+  tlvf/common/sMacAddr.h,
+}
+_namespace: wfa_map
+
+tlvSensingExchangeRequest:
+  _type: class
+  _is_tlv_class: True
+
+  # TLV header
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_SENSING_EXCHANGE_SETUP_REQUEST
+  length: uint16_t
+
+  # TLV value fields (as per spec table)
+  ExchangeID:
+    _type: uint32_t
+    _comment: Unique ExchangeID (4 octets)
+
+  AddRemoveFlags: sAddRemoveFlags
+
+  ExchangeType:
+    _type: uint8_t
+    _comment: Type of the requested Wi-Fi Sensing Exchange (1 octet)
+
+  Rate:
+    _type: uint16_t
+    _comment: Inter-measurement interval in multiples of 10 TUs (2 octets)
+
+  Bandwidth:
+    _type: uint16_t
+    _comment: Requested reporting bandwidth in MHz (2 octets)
+
+  NTx:
+    _type: uint16_t
+    _comment: Requested number of transmit chains; ignored for non-IEEE 802.11bf ExchangeTypes (2 octets)
+
+  NRx:
+    _type: uint16_t
+    _comment: Requested number of receiver chains; ignored for non-IEEE 802.11bf ExchangeTypes (2 octets)
+
+  DataType:
+    _type: uint32_t
+    _comment: Type of data that will be reported by the Wi-Fi Sensing Exchange (4 octets)
+
+  CSI_Threshold:
+    _type: uint8_t
+    _comment: CSI variation threshold; only applicable for 802.11bf trigger-based & proxy exchanges with remote Receiver (1 octet)
+
+  MacAddrValid: sMacAddrValid
+
+  Transmitter_MAC_Address:
+    _type: sMacAddr
+
+  Receiver_MAC_Address:
+    _type: sMacAddr
+
+# --- Supporting bitfield structs ---
+sAddRemoveFlags:
+  _type: struct
+  _bit_field: uint8_t
+  AddRemove:
+    _bit_range: [7, 7]
+    _comment: "1: AddExchange, 0: RemoveExchange"
+  reserved:
+    _bit_range: [6, 0]
+    _comment: Reserved
+
+sMacAddrValid:
+  _type: struct
+  _bit_field: uint8_t
+  Transmitter_MAC_Address_Valid:
+    _bit_range: [7, 7]
+    _comment: "0: not valid, 1: valid"
+  Receiver_MAC_Address_Valid:
+    _bit_range: [6, 6]
+    _comment: "0: not valid, 1: valid"
+  reserved:
+    _bit_range: [5, 0]
+    _comment: Reserved

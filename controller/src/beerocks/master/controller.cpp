@@ -15,6 +15,7 @@
 #include "tasks/bml_task.h"
 #include "tasks/btm_request_task.h"
 #include "tasks/datapath_setup_task.h"
+#include "tasks/sensing_exchange_task.h"
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
@@ -5084,6 +5085,38 @@ bool Controller::send_datapath_setup_request(const std::string &dest_ip, uint16_
                << " add=" << (add_path ? "yes" : "no");
     son_actions::start_datapath_setup_task(database, cmdu_tx, m_task_pool, dest_ip, dest_port,
                                            add_path,agent_mac,use_udp);
+    return true;
+}
+
+bool Controller::send_sensing_exchange_request(uint32_t exchange_id,
+                                               bool add_exchange,
+                                               uint8_t exchange_type,
+                                               uint16_t rate_tu10,
+                                               uint16_t bandwidth_mhz,
+                                               uint16_t ntx,
+                                               uint16_t nrx,
+                                               uint32_t data_type_mask,
+                                               uint8_t csi_threshold,
+                                               bool tx_mac_valid,
+                                               bool rx_mac_valid,
+                                               const sMacAddr &tx_mac,
+                                               const sMacAddr &rx_mac,
+                                               const sMacAddr &agent_mac)
+{
+    LOG(DEBUG) << "send_sensing_exchange_request: exId=" << exchange_id
+               << " add=" << (add_exchange ? 1 : 0)
+               << " type=" << int(exchange_type)
+               << " rate(10TU)=" << rate_tu10
+               << " bw(MHz)=" << bandwidth_mhz
+               << " ntx=" << ntx
+               << " nrx=" << nrx;
+
+    son_actions::start_sensing_exchange_task(database, cmdu_tx, m_task_pool,
+                                             exchange_id, add_exchange, exchange_type,
+                                             rate_tu10, bandwidth_mhz, ntx, nrx,
+                                             data_type_mask, csi_threshold,
+                                             tx_mac_valid, rx_mac_valid,
+                                             tx_mac, rx_mac, agent_mac);
     return true;
 }
 

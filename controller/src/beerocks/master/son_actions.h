@@ -66,6 +66,14 @@ public:
     static int start_datapath_setup_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                          task_pool &tasks, const std::string &dest_ip,
                                          uint16_t dest_port, bool add_path,const sMacAddr &agent_mac,bool use_udp = true);
+    static int start_sensing_exchange_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                           task_pool &tasks, uint32_t exchange_id,
+                                           bool add_exchange, uint8_t exchange_type,
+                                           uint16_t rate_tu10, uint16_t bandwidth_mhz,
+                                           uint16_t ntx, uint16_t nrx, uint32_t data_type_mask,
+                                           uint8_t csi_threshold, bool tx_mac_valid,
+                                           bool rx_mac_valid, const sMacAddr &tx_mac,
+                                           const sMacAddr &rx_mac, const sMacAddr &agent_mac);
     static int start_btm_request_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
                                       task_pool &tasks, const bool &disassoc_imminent,
                                       const int &disassoc_timer_ms,

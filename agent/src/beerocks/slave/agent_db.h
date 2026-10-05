@@ -276,6 +276,24 @@ public:
     };
     std::list<sDataPathEntry> data_path_entries;
 
+    struct sSensingExchangeEntry {
+        uint32_t exchange_id{0};
+        uint8_t  add_exchange{1};   // 0 = Remove, 1 = Add
+        uint8_t  exchange_type{0};
+	std::string exchange_type_str;
+        uint16_t rate_tu10{0};
+        uint16_t bandwidth_mhz{0};
+        uint16_t ntx{0};
+        uint16_t nrx{0};
+        uint32_t data_type{0};
+        uint8_t  csi_threshold{0};
+        uint8_t  tx_mac_valid{0};
+        uint8_t  rx_mac_valid{0};
+        sMacAddr tx_mac{};
+        sMacAddr rx_mac{};
+    };
+    std::list<sSensingExchangeEntry> sensing_exchange_entries;
+
     struct sChannelPreference;
 
     struct sRadio {

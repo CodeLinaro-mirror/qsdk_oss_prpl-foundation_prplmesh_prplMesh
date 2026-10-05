@@ -15,6 +15,7 @@
 #include "tasks/datapath_setup_task.h"
 #include "tasks/btm_request_task.h"
 #include "tasks/client_steering_task.h"
+#include "tasks/sensing_exchange_task.h"
 
 #include <bpl/bpl_cfg.h>
 
@@ -164,6 +165,35 @@ int son_actions::steer_sta(db &database, ieee1905_1::CmduMessageTx &cmdu_tx, tas
         database, cmdu_tx, tasks, sta_mac, chosen_hostap, triggered_by, steering_type,
         disassoc_imminent, disassoc_timer_ms, steer_restricted);
 
+    tasks.add_task(new_task);
+    return new_task->id;
+}
+
+int son_actions::start_sensing_exchange_task(db &database,
+                                             ieee1905_1::CmduMessageTx &cmdu_tx,
+                                             task_pool &tasks,
+                                             uint32_t exchange_id,
+                                             bool add_exchange,
+                                             uint8_t exchange_type,
+                                             uint16_t rate_tu10,
+                                             uint16_t bandwidth_mhz,
+                                             uint16_t ntx,
+                                             uint16_t nrx,
+                                             uint32_t data_type_mask,
+                                             uint8_t csi_threshold,
+                                             bool tx_mac_valid,
+                                             bool rx_mac_valid,
+                                             const sMacAddr &tx_mac,
+                                             const sMacAddr &rx_mac,
+                                             const sMacAddr &agent_mac)
+{
+    auto new_task = std::make_shared<sensing_exchange_task>(database, cmdu_tx, tasks,
+                                                            exchange_id, add_exchange,
+                                                            exchange_type, rate_tu10,
+                                                            bandwidth_mhz, ntx, nrx,
+                                                            data_type_mask, csi_threshold,
+                                                            tx_mac_valid, rx_mac_valid,
+                                                            tx_mac, rx_mac, agent_mac);
     tasks.add_task(new_task);
     return new_task->id;
 }

@@ -41,6 +41,7 @@ enum eTaskType : uint8_t {
     SPECTRUM_INQUIRY,
     HIGHER_LAYER_COLLECTION_TASK,
     DATA_PATH_SETUP,
+    SENSING_EXCHANGE,
 };
 
 class Task {

@@ -130,6 +130,45 @@ public:
  
 
     /**
+     * @brief Send Wi-Fi Sensing Exchange Request.
+     *
+     * @param exchange_id     Unique identifier of the sensing exchange.
+     * @param add_exchange    true  = AddExchange,
+     *                        false = RemoveExchange.
+     * @param exchange_type   Type of the requested Wi-Fi Sensing Exchange.
+     * @param rate_tu10       Inter-measurement interval in multiples of 10 TUs.
+     * @param bandwidth_mhz   Requested reporting bandwidth in MHz.
+     * @param ntx             Requested number of transmit chains.
+     * @param nrx             Requested number of receive chains.
+     * @param data_type_mask  Type of sensing data to be reported.
+     * @param csi_threshold   CSI variation threshold (applicable only for
+     *                        specific exchange types).
+     * @param tx_mac_valid    Indicates if the transmitter MAC address is valid.
+     * @param rx_mac_valid    Indicates if the receiver MAC address is valid.
+     * @param tx_mac          Transmitter MAC address (used only if valid).
+     * @param rx_mac          Receiver MAC address (used only if valid).
+     * @param agent_mac       Agent AL-MAC to send the request to.
+     *                        ZERO_MAC indicates multicast to all agents.
+     *
+     * @return true if the sensing exchange request task was successfully started,
+     *         false otherwise.
+     */
+    bool send_sensing_exchange_request(uint32_t exchange_id,
+                                       bool add_exchange,
+                                       uint8_t exchange_type,
+                                       uint16_t rate_tu10,
+                                       uint16_t bandwidth_mhz,
+                                       uint16_t ntx,
+                                       uint16_t nrx,
+                                       uint32_t data_type_mask,
+                                       uint8_t csi_threshold,
+                                       bool tx_mac_valid,
+                                       bool rx_mac_valid,
+                                       const sMacAddr &tx_mac,
+                                       const sMacAddr &rx_mac,
+                                       const sMacAddr &agent_mac);
+
+    /**
      * @brief Trigger channel scan initiated by NBAPI.
      *
      * @param ruid ruid of radio for wich scan requested.
