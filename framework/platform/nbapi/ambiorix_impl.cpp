@@ -1097,6 +1097,30 @@ bool AmbiorixImpl::set_time(const std::string &path_to_object, const std::string
     return true;
 }
 
+bool AmbiorixImpl::send_event(const std::string &object_path, const std::string &event_name,
+                              const std::map<std::string, std::string> &args)
+{
+    amxd_object_t *obj = find_object(object_path);
+    if (!obj) {
+        LOG(ERROR) << "send_event: object not found path=" << object_path;
+        return false;
+    }
+
+    amxc_var_t notif;
+    amxc_var_init(&notif);
+    amxc_var_set_type(&notif, AMXC_VAR_ID_HTABLE);
+    for (const auto &kv : args) {
+        amxc_var_add_key(cstring_t, &notif, kv.first.c_str(), kv.second.c_str());
+    }
+
+    // amxd_object_trigger_signal returns void
+    amxd_object_trigger_signal(obj, event_name.c_str(), &notif);
+    amxc_var_clean(&notif);
+
+    LOG(INFO) << "send_event: emitted " << event_name << " on " << object_path;
+    return true;
+}
+
 bool AmbiorixImpl::remove_all_instances(const std::string &relative_path)
 {
     amxd_trans_t transaction;

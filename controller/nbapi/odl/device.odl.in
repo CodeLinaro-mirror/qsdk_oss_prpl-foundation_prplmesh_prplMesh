@@ -742,5 +742,18 @@
           %in %mandatory uint16 ExchangeID
         );
 
+        /**
+         * Event from an unsolicited Sensing Exchange Response Message received
+         * from an EasyMesh Agent that signals a previously established exchange
+         * has been implicitly or explicitly terminated.
+         *
+         * ResultCode enumeration (R8/EasyMesh Sensing Exchange Response TLV):
+         *   Exchange_Terminated
+         */
+        event 'ExchangeTerminated!' {
+            string ResultCode;
+            string ExchangeID;
+        }
+
     }
 }

@@ -13,7 +13,11 @@
 // Ambiorix
 #include "ambiorix_connection.h"
 #include "ambiorix_client.h"
+#include "ambiorix_event.h"
+#include <bcl/beerocks_event_loop.h>
 
+#include <memory>
+#include <functional>
 #include <string>
 
 namespace bwl { 
@@ -31,6 +35,14 @@ public:
     bool setup_datapath();
     bool AddExchange();
     bool RemoveExchange();
+    bool subscribe_to_exchange_terminated();
+    bool init_ambiorix_event_loop(std::shared_ptr<beerocks::EventLoop> event_loop);
+    using exchange_terminated_cb =
+    std::function<void(uint32_t exchange_id, const std::string &cause)>;
+    void set_exchange_terminated_callback(exchange_terminated_cb cb)
+    {
+        m_exchange_terminated_cb = std::move(cb);
+    }
     /**
      * @brief Class destructor.
      */
@@ -42,6 +54,8 @@ private:
     beerocks::wbapi::AmbiorixConnectionSmartPtr m_connection;
    // beerocks::wbapi::AmbiorixClient m_ambiorix_sensing_cl;
     std::string m_sensing_path;  // Path for WiFi.Sensing (set in agent_sensing.cpp)
+    std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_exchange_term_handler; 
+    exchange_terminated_cb m_exchange_terminated_cb;
 };
 
 } // namespace bwl

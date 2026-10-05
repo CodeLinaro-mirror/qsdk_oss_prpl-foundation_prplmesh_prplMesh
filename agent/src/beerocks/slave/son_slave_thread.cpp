@@ -201,6 +201,39 @@ auto slave_thread::sSlaveState::operator=(eSlaveState state) -> eSlaveState
 }
 #undef EACH_SLAVESTATE
 
+bwl::agent_sensing *slave_thread::get_agent_sensing()
+{
+    if (!m_agent_sensing) {
+        LOG(INFO) << "get_agent_sensing: creating agent_sensing and registering"
+                  << " ExchangeTerminated! callback";
+        m_agent_sensing = std::make_unique<bwl::agent_sensing>();
+
+        if (!m_agent_sensing->init_ambiorix_event_loop(m_event_loop)) {
+            LOG(ERROR) << "get_agent_sensing: Ambiorix event loop init failed"
+                       << " — ExchangeTerminated! events may not be delivered";
+        } else {
+            LOG(INFO) << "get_agent_sensing: Ambiorix event loop initialized";
+        }
+
+        m_agent_sensing->set_exchange_terminated_callback(
+            [this](uint32_t exchange_id, const std::string &cause) {
+                LOG(INFO) << "ExchangeTerminated!: agent callback received"
+                          << " ExchangeID=" << exchange_id << " Cause=" << cause
+                          << " — posting EXCHANGE_TERMINATED to SensingExchangeTask";
+                SensingExchangeTask::sExchangeTerminatedEvent ev{exchange_id, cause};
+                m_task_pool.send_event(eTaskType::SENSING_EXCHANGE,
+                                       SensingExchangeTask::eEvent::EXCHANGE_TERMINATED, &ev);
+                LOG(INFO) << "ExchangeTerminated!: EXCHANGE_TERMINATED event posted"
+                          << " to task pool ExchangeID=" << exchange_id
+                          << " Cause=" << cause;
+            });
+        LOG(INFO) << "get_agent_sensing: ExchangeTerminated! callback registered";
+    } else {
+        LOG(DEBUG) << "get_agent_sensing: returning existing agent_sensing instance";
+    }
+    return m_agent_sensing.get();
+}
+
 slave_thread::slave_thread(sAgentConfig conf, beerocks::logging &logger_)
     : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), config(conf), logger(logger_)
 {

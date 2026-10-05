@@ -48,7 +48,12 @@ agent_sensing::agent_sensing()
         LOG(ERROR) << "agent_sensing: failed to connect AmbiorixClient to sensing USP";
     }
 
-    LOG(ERROR) << "GAYATHRI:agent_sensing:  connect AmbiorixClient to sensing USP";
+    LOG(INFO) << "agent_sensing: connected AmbiorixClient sensing_path=" << m_sensing_path;
+    if (!subscribe_to_exchange_terminated()) {
+        LOG(ERROR) << "agent_sensing: subscribe_to_exchange_terminated failed";
+    } else {
+        LOG(INFO) << "agent_sensing: ExchangeTerminated! subscription active";
+    }
 }
 
 bool agent_sensing::setup_datapath()
@@ -263,6 +268,114 @@ bool agent_sensing::RemoveExchange()
 
     LOG(DEBUG) << "RemoveExchange: call success for exchange_id=" << entry.exchange_id
                << " path=" << exchange_path;
+    return true;
+}
+
+bool agent_sensing::subscribe_to_exchange_terminated()
+{
+    LOG(INFO) << "subscribe_to_exchange_terminated: enter";
+
+    if (m_sensing_path.empty()) {
+        LOG(ERROR) << "subscribe_to_exchange_terminated: no sensing path";
+        LOG(INFO) << "subscribe_to_exchange_terminated: exit (false)";
+        return false;
+    }
+
+    m_exchange_term_handler             = std::make_shared<sAmbiorixEventHandler>();
+    m_exchange_term_handler->event_type = "ExchangeTerminated!";
+    m_exchange_term_handler->callback_fn =
+        [this](AmbiorixVariant &event_data) {
+            std::string notification;
+            std::string path;
+            event_data.read_child(notification, "notification");
+            event_data.read_child(path, "path");
+
+            LOG(INFO) << "ExchangeTerminated!: event received in bwl"
+                      << " notification=" << notification << " path=" << path;
+
+            std::string exchange_id_str;
+            std::string cause;
+            if (!event_data.read_child(exchange_id_str, "ExchangeID")) {
+                LOG(WARNING) << "ExchangeTerminated!: missing ExchangeID, drop event"
+                             << " path=" << path;
+                return;
+            }
+            if (!event_data.read_child(cause, "Cause")) {
+                LOG(WARNING) << "ExchangeTerminated!: Cause missing, using empty"
+                             << " ExchangeID=" << exchange_id_str;
+            }
+
+            const char *p   = exchange_id_str.c_str();
+            char *endptr    = nullptr;
+            unsigned long v = std::strtoul(p, &endptr, 10);
+            if (endptr == p || *endptr != '\0' || v > 0xffffffffUL) {
+                LOG(ERROR) << "ExchangeTerminated!: bad ExchangeID=" << exchange_id_str
+                           << " path=" << path;
+                return;
+            }
+            const uint32_t exchange_id = static_cast<uint32_t>(v);
+
+            LOG(INFO) << "ExchangeTerminated!: parsed ExchangeID=" << exchange_id
+                      << " Cause=" << cause << " path=" << path;
+
+            if (m_exchange_terminated_cb) {
+                LOG(INFO) << "ExchangeTerminated!: forwarding to agent callback"
+                          << " ExchangeID=" << exchange_id << " Cause=" << cause;
+                m_exchange_terminated_cb(exchange_id, cause);
+                LOG(INFO) << "ExchangeTerminated!: agent callback returned"
+                          << " ExchangeID=" << exchange_id;
+            } else {
+                LOG(WARNING) << "ExchangeTerminated!: no callback registered,"
+                             << " event not forwarded ExchangeID=" << exchange_id;
+            }
+        };
+
+    // Subscribe on Session.* — event is defined on Exchange objects
+    const std::string object_path = m_sensing_path + ".Session.";
+    const std::string filter =
+        "(path matches '" + m_sensing_path +
+        ".Session.[0-9]+.Exchange.[0-9]+.$')"
+        " && (notification == 'ExchangeTerminated!')";
+
+    LOG(INFO) << "subscribe_to_exchange_terminated: path=" << object_path
+              << " filter=" << filter;
+
+    if (!m_ambiorix_sensing_cl.subscribe_to_object_event(object_path,
+                                                         m_exchange_term_handler, filter)) {
+        LOG(ERROR) << "subscribe_to_exchange_terminated: subscribe failed on "
+                   << object_path;
+        LOG(INFO) << "subscribe_to_exchange_terminated: exit (false)";
+        return false;
+    }
+
+    LOG(INFO) << "subscribe_to_exchange_terminated: subscribed successfully";
+    LOG(INFO) << "subscribe_to_exchange_terminated: exit (true)";
+    return true;
+}
+
+bool agent_sensing::init_ambiorix_event_loop(std::shared_ptr<beerocks::EventLoop> event_loop)
+{
+    LOG(INFO) << "init_ambiorix_event_loop: enter";
+
+    if (!event_loop) {
+        LOG(ERROR) << "init_ambiorix_event_loop: null event_loop";
+        LOG(INFO) << "init_ambiorix_event_loop: exit (false)";
+        return false;
+    }
+    if (!m_ambiorix_sensing_cl.init_event_loop(event_loop)) {
+        LOG(ERROR) << "init_ambiorix_event_loop: init_event_loop failed";
+        LOG(INFO) << "init_ambiorix_event_loop: exit (false)";
+        return false;
+    }
+    LOG(INFO) << "init_ambiorix_event_loop: event loop attached";
+
+    if (!m_ambiorix_sensing_cl.init_signal_loop(event_loop)) {
+        LOG(ERROR) << "init_ambiorix_event_loop: init_signal_loop failed";
+        LOG(INFO) << "init_ambiorix_event_loop: exit (false)";
+        return false;
+    }
+    LOG(INFO) << "init_ambiorix_event_loop: signal loop attached";
+    LOG(INFO) << "init_ambiorix_event_loop: exit (true)";
     return true;
 }
 

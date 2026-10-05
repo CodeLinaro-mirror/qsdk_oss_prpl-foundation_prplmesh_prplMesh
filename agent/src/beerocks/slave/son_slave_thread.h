@@ -330,13 +330,7 @@ public:
 
     void fsm_stop();
 
-    bwl::agent_sensing *get_agent_sensing()
-    {
-        if (!m_agent_sensing) {
-            m_agent_sensing = std::make_unique<bwl::agent_sensing>();
-        }
-        return m_agent_sensing.get();
-    }
+    bwl::agent_sensing *get_agent_sensing();
 
 private:
     /**

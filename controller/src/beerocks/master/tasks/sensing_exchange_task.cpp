@@ -13,6 +13,9 @@
 #include <tlvf/ieee_1905_1/eMessageType.h>
 #include <tlvf/wfa_map/tlvSensingExchangeRequest.h>
 #include <tlvf/wfa_map/tlvSensingExchangeResponse.h>
+#include <algorithm>
+#include <map>
+#include <string>
 
 using namespace beerocks;
 using namespace son;
@@ -121,6 +124,12 @@ bool sensing_exchange_task::send_sensing_exchange_request()
         return false;
     }
 
+    m_database.sensing_exchange_entries.push_back(
+        db::sSensingExchangeEntry{m_agent_mac, m_exchange_id, m_add_exchange});
+    TASK_LOG(INFO) << "pending sensing exchange tracked agent=" << m_agent_mac
+                   << " exchange_id=" << m_exchange_id
+                   << " add=" << int(m_add_exchange);
+
     TASK_LOG(INFO) << "Sensing Exchange Request sent successfully: mid=" << std::hex
                    << m_cmdu_tx.getMessageId()
                    << " exchange_id=" << std::dec << m_exchange_id
@@ -151,14 +160,49 @@ bool sensing_exchange_task::handle_sensing_exchange_response(
     const uint32_t exchange_id = tlv->exchange_id();
     const uint16_t error_code  = tlv->error_code();
 
-    if (error_code == STATUS_SUCCESS) {
-        LOG(INFO) << "Sensing Exchange success, ExchangeID=" << exchange_id;
-    } else if (error_code == STATUS_DATA_PATH_DOES_NOT_EXIST) {
-        LOG(WARNING) << "Sensing Exchange failed: data path does not exist, ExchangeID="
-                     << exchange_id;
+    auto pending_it =
+        std::find_if(database.sensing_exchange_entries.begin(),
+                     database.sensing_exchange_entries.end(),
+                     [&](const db::sSensingExchangeEntry &e) {
+                         return e.agent_mac == src_mac && e.exchange_id == exchange_id;
+                     });
+
+    const bool unsolicited = (pending_it == database.sensing_exchange_entries.end());
+
+    if (unsolicited) {
+        // Unsolicited Sensing Exchange Response from agent ExchangeTerminated!
+        LOG(INFO) << "unsolicited SensingExchange Response from agent=" << src_mac
+                  << " ExchangeID=" << exchange_id << " error_code=0x" << std::hex << error_code
+                  << std::dec << " — raising DataElements ExchangeTerminated!";
+
+        const std::string device_path = database.get_agent_data_model_path(src_mac);
+        auto ambiorix                 = database.get_ambiorix_obj();
+        if (!ambiorix) {
+            LOG(ERROR) << "ExchangeTerminated!: no Ambiorix instance";
+        } else if (device_path.empty()) {
+            LOG(ERROR) << "ExchangeTerminated!: empty Device DM path for " << src_mac;
+        } else if (!ambiorix->send_event(device_path, "ExchangeTerminated!",
+                                         {{"ResultCode", "Exchange_Terminated"},
+                                          {"ExchangeID", std::to_string(exchange_id)}})) {
+            LOG(ERROR) << "ExchangeTerminated!: send_event failed path=" << device_path;
+        } else {
+            LOG(INFO) << "ExchangeTerminated! emitted on " << device_path
+                      << " ResultCode=Exchange_Terminated ExchangeID=" << exchange_id;
+        }
     } else {
-        LOG(WARNING) << "Sensing Exchange failed, ExchangeID=" << exchange_id
-                     << " error_code=0x" << std::hex << error_code << std::dec;
+        LOG(INFO) << "solicited SensingExchange Response agent=" << src_mac
+                  << " ExchangeID=" << exchange_id << " add=" << int(pending_it->add_exchange)
+                  << " error_code=0x" << std::hex << error_code << std::dec;
+        if (error_code == STATUS_SUCCESS) {
+            LOG(INFO) << "Sensing Exchange success, ExchangeID=" << exchange_id;
+        } else if (error_code == STATUS_DATA_PATH_DOES_NOT_EXIST) {
+            LOG(WARNING) << "Sensing Exchange failed: data path does not exist, ExchangeID="
+                         << exchange_id;
+        } else {
+            LOG(WARNING) << "Sensing Exchange failed, ExchangeID=" << exchange_id
+                         << " error_code=0x" << std::hex << error_code << std::dec;
+        }
+        database.sensing_exchange_entries.erase(pending_it);
     }
 
     if (!cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {

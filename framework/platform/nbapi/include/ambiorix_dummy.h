@@ -80,6 +80,8 @@ public:
     bool set_current_time(const std::string &path_to_object,
                           const std::string &param = "TimeStamp") override;
     bool set_time(const std::string &path_to_object, const std::string &time_stamp) final;
+    bool send_event(const std::string &object_path, const std::string &event_name,
+                    const std::map<std::string, std::string> &args) override;
 };
 
 } // namespace nbapi

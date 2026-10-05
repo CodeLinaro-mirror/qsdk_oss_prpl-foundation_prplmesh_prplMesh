@@ -703,6 +703,14 @@ public:
     };
     std::list<sDataPathEntry> data_path_entries;
 
+    /** Pending solicited Sensing Exchange requests (cleared on response). */
+    struct sSensingExchangeEntry {
+        sMacAddr agent_mac = beerocks::net::network_utils::ZERO_MAC;
+        uint32_t exchange_id{0};
+        bool add_exchange{true};
+    };
+    std::list<sSensingExchangeEntry> sensing_exchange_entries;
+
     beerocks::mac_map<Agent> m_agents;
     beerocks::mac_map<Station> m_stations;
     beerocks::mac_map<UnassociatedStation>

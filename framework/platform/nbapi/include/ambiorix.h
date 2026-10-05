@@ -11,6 +11,8 @@
 
 #include "tlvf/common/sMacAddr.h"
 #include <easylogging++.h>
+#include <map>
+#include <string>
 
 namespace beerocks {
 namespace nbapi {
@@ -176,6 +178,17 @@ public:
      * @return True if date and time successfully set, false otherwise.
      */
     virtual bool set_time(const std::string &path_to_object, const std::string &time_stamp) = 0;
+
+    /**
+     * @brief Trigger a custom Ambiorix/USP event on an object.
+     *
+     * @param object_path Path to NBAPI object (e.g. Device.WiFi.DataElements.Network.Device.{i}.).
+     * @param event_name Event name (e.g. "ExchangeTerminated!").
+     * @param args Event argument name/value pairs (e.g. ResultCode -> Exchange_Terminated).
+     * @return True if the event was triggered successfully, false otherwise.
+     */
+    virtual bool send_event(const std::string &object_path, const std::string &event_name,
+                            const std::map<std::string, std::string> &args) = 0;
 };
 
 inline Ambiorix::~Ambiorix() {}
