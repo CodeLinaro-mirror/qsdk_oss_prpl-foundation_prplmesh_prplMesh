@@ -98,12 +98,19 @@ bool SensingExchangeTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32
 
     db->sensing_exchange_entries.push_back(entry); // Use push_back() to add elements
 
-    //invoking AddExchange rpc via sensing bwl layer
+    // Invoke AddExchange / RemoveExchange via sensing BWL (AddRemove flag from TLV)
     bool exchange_ok = false;
     if (auto *sensing = m_btl_ctx.get_agent_sensing()) {
-        exchange_ok = sensing->AddExchange();
-        if (!exchange_ok) {
-            LOG(ERROR) << "Sensing Exchange: agent_sensing::AddExchange failed";
+        if (entry.add_exchange) {
+            exchange_ok = sensing->AddExchange();
+            if (!exchange_ok) {
+                LOG(ERROR) << "Sensing Exchange: agent_sensing::AddExchange failed";
+            }
+        } else {
+            exchange_ok = sensing->RemoveExchange();
+            if (!exchange_ok) {
+                LOG(ERROR) << "Sensing Exchange: agent_sensing::RemoveExchange failed";
+            }
         }
     } else {
         LOG(ERROR) << "Sensing Exchange: agent_sensing is null";

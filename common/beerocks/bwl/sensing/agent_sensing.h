@@ -30,6 +30,7 @@ public:
     agent_sensing();
     bool setup_datapath();
     bool AddExchange();
+    bool RemoveExchange();
     /**
      * @brief Class destructor.
      */

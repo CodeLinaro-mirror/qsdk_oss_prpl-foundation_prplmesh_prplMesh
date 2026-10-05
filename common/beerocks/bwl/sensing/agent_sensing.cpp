@@ -207,6 +207,63 @@ bool agent_sensing::AddExchange()
                << " path=" << m_sensing_path;
     return true;
 
- }
+}
+
+bool agent_sensing::RemoveExchange()
+{
+    if (m_sensing_path.empty()) {
+        LOG(ERROR) << "RemoveExchange: no sensing path";
+        return false;
+    }
+
+    auto db = beerocks::AgentDB::get();
+    if (db->sensing_exchange_entries.empty()) {
+        LOG(ERROR) << "RemoveExchange: no sensing exchange entry in AgentDB";
+        return false;
+    }
+
+    const auto &entry = db->sensing_exchange_entries.back();
+    if (entry.exchange_id == 0) {
+        LOG(ERROR) << "RemoveExchange: invalid ExchangeID=0";
+        return false;
+    }
+
+    /* wifi-sensing: RemoveExchange() is on Session.{i}.Exchange.{j} (no args). */
+    const std::string search_path = m_sensing_path + ".Session.1.Exchange.[ExchangeID == " +
+                                    std::to_string(entry.exchange_id) + "].";
+    std::string exchange_path;
+    if (!m_ambiorix_sensing_cl.resolve_path(search_path, exchange_path) || exchange_path.empty()) {
+        LOG(ERROR) << "RemoveExchange: no Exchange instance for exchange_id=" << entry.exchange_id
+                   << " search=" << search_path;
+        return false;
+    }
+
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    AmbiorixVariant result;
+    if (!m_ambiorix_sensing_cl.call(exchange_path, "RemoveExchange", args, result)) {
+        LOG(ERROR) << "RemoveExchange: call failed for exchange_id=" << entry.exchange_id
+                   << " path=" << exchange_path;
+        return false;
+    }
+
+    bool updated_db = false;
+    for (auto &list_entry : db->sensing_exchange_entries) {
+        if (list_entry.exchange_id == entry.exchange_id) {
+            /* Empty ErrorCode maps to STATUS_SUCCESS in sensing_exchange_task. */
+            list_entry.error_code.clear();
+            updated_db = true;
+            LOG(DEBUG) << "RemoveExchange: updated AgentDB exchange_id=" << entry.exchange_id;
+            break;
+        }
+    }
+    if (!updated_db) {
+        LOG(WARNING) << "RemoveExchange: no AgentDB sensing_exchange_entries match exchange_id="
+                     << entry.exchange_id;
+    }
+
+    LOG(DEBUG) << "RemoveExchange: call success for exchange_id=" << entry.exchange_id
+               << " path=" << exchange_path;
+    return true;
+}
 
 }

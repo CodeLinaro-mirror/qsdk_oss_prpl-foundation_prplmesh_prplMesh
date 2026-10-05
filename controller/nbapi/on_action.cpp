@@ -649,6 +649,58 @@ amxd_status_t add_exchange(amxd_object_t *object,
     return amxd_status_ok;
 }
 
+amxd_status_t remove_exchange(amxd_object_t *object,
+                              amxd_function_t *func,
+                              amxc_var_t *args,
+                              amxc_var_t *ret)
+{
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context.";
+        return amxd_status_unknown_error;
+    }
+
+    auto exchange_id      = GET_UINT32(args, "ExchangeID");
+    const bool exchange_add = 0;
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+    amxd_object_get_param(object, "ID", &value);
+    std::string agent_mac_str = amxc_var_constcast(cstring_t, &value);
+    amxc_var_clean(&value);
+
+    sMacAddr agent_mac = tlvf::mac_from_string(agent_mac_str);
+
+    if (exchange_id == 0) {
+        LOG(ERROR) << "RemoveExchange: Invalid ExchangeID";
+        return amxd_status_invalid_arg;
+    }
+
+    /* RemoveExchange only needs ExchangeID; remaining TLV fields are unused. */
+    if (!controller_ctx->send_sensing_exchange_request(
+            exchange_id,
+            exchange_add,
+            0, /* exchange_type */
+            0, /* rates */
+            0, /* bandwidth */
+            0, /* ntx */
+            0, /* nrx */
+            0, /* data_type */
+            0, /* threshold */
+            false,
+            false,
+            beerocks::net::network_utils::ZERO_MAC,
+            beerocks::net::network_utils::ZERO_MAC,
+            agent_mac)) {
+
+        LOG(ERROR) << "Failed to send RemoveExchange request";
+        return amxd_status_unknown_error;
+    }
+
+    LOG(INFO) << "Success on RemoveExchange request from nbapi, ExchangeID=" << exchange_id;
+    return amxd_status_ok;
+}
+
 /**
  * @brief Initiate channel scan from NBAPI for given radio and channels.
  *
@@ -2195,6 +2247,7 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
         { "setup_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.SetupDataPath", setup_data_path },
         { "remove_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.RemoveDataPath", remove_data_path },
         {"add_exchange", DATAELEMENTS_ROOT_DM ".Network.Device.AddExchange", add_exchange},
+        {"remove_exchange", DATAELEMENTS_ROOT_DM ".Network.Device.RemoveExchange", remove_exchange},
        	{"trigger_scan", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ScanTrigger", trigger_scan},
         {"BTMRequest", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.STA.MultiAPSTA.BTMRequest",
          btm_request},

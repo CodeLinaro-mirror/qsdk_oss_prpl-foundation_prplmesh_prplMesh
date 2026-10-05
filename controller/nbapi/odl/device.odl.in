@@ -738,6 +738,9 @@
            %in string Transmitter,
            %in string Receiver
         );
+    %instance bool RemoveExchange(
+          %in %mandatory uint16 ExchangeID
+        );
 
     }
 }
