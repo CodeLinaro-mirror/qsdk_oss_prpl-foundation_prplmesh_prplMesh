@@ -24,6 +24,9 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <cstdint>
+#include <cstring>
+#include <cstdlib>
 
 using namespace beerocks;
 using namespace net;
@@ -472,6 +475,163 @@ amxd_status_t client_steering(amxd_object_t *object, amxd_function_t *func, amxc
     } else {
         controller_ctx->start_client_steering(sta_mac, target_bssid);
     }
+    return amxd_status_ok;
+}
+
+static const struct {
+    const char *name;
+    uint8_t wire;
+} kExchangeTypeNameToWire[] = {
+    { "qosnull", 1 },
+    { "opportunistic", 2 },
+    { "probe", 3 },
+    { "tb-sr2si", 4 },
+    { "tb-sr2sr", 5 },
+    { "tb-si2sr", 6 },
+    { "cts2self", 7 },
+    { "nontb-si2sr", 8 },
+    { "nontb-sr2si", 9 },
+    { "sbp-si2si", 10 },
+    { "sbp-sr2si", 11 },
+    { "sbp-sr2sr", 12 },
+};
+
+static bool str_ascii_iequals(const char *a, const char *b)
+{
+    while (*a && *b) {
+        if (std::tolower(static_cast<unsigned char>(*a)) !=
+            std::tolower(static_cast<unsigned char>(*b))) {
+            return false;
+        }
+        ++a;
+        ++b;
+    }
+    return *a == *b;
+}
+
+uint8_t sensing_exchange_type_from_dm_string(const char *ex)
+{
+    if (!ex || !*ex) {
+        return 0;
+    }
+    /* Prefer explicit decimal / hex numeric string (whole string consumed). */
+    char *end         = nullptr;
+    unsigned long v = std::strtoul(ex, &end, 0);
+    if (end && *end == '\0' && v <= 255) {
+        return static_cast<uint8_t>(v);
+    }
+    for (const auto &e : kExchangeTypeNameToWire) {
+        if (str_ascii_iequals(ex, e.name)) {
+            return e.wire;
+        }
+    }
+    return 0;
+}
+
+uint32_t sensing_data_type_from_dm_string(const char *dt)
+{
+    if (!dt || !*dt) {
+        return 0;
+    }
+    const size_t len = std::strlen(dt);
+    /* SupportedSensingDataTypes: 8 hex digits -> uint32 (e.g. AC9A9680 -> 0xAC9A9680) */
+    if (len == 8) {
+        bool all_hex = true;
+        for (size_t i = 0; i < 8; i++) {
+            if (!std::isxdigit(static_cast<unsigned char>(dt[i]))) {
+                all_hex = false;
+                break;
+            }
+        }
+        if (all_hex) {
+            return static_cast<uint32_t>(std::strtoul(dt, nullptr, 16));
+        }
+    }
+    if (len > 2 && dt[0] == '0' && (dt[1] == 'x' || dt[1] == 'X')) {
+        return static_cast<uint32_t>(std::strtoul(dt, nullptr, 16));
+    }
+    char *end         = nullptr;
+    unsigned long v = std::strtoul(dt, &end, 10);
+    if (end && *end == '\0' && v <= static_cast<unsigned long>(UINT32_MAX)) {
+        return static_cast<uint32_t>(v);
+    }
+    return 0;
+}
+
+
+amxd_status_t add_exchange(amxd_object_t *object,
+                           amxd_function_t *func,
+                           amxc_var_t *args,
+                           amxc_var_t *ret)
+{
+    auto controller_ctx = g_database->get_controller_ctx();
+    if (!controller_ctx) {
+        LOG(ERROR) << "Failed to get controller context.";
+        return amxd_status_unknown_error;
+    }
+
+    auto exchange_id = GET_UINT32(args, "ExchangeID");
+    bool exchange_add = 1;
+    /*const char *ex = GET_CHAR(args, "ExchangeType");
+    uint8_t exchange_type = static_cast<uint8_t>(std::strtoul(ex && *ex ? ex : "0", nullptr, 0));*/
+
+    auto rates = GET_UINT32(args, "Rates");
+    auto bandwidth = GET_UINT32(args, "Bandwidth");
+    auto ntx = GET_UINT32(args, "NTx");
+    auto nrx = GET_UINT32(args, "NRx");
+
+    const char *ex = GET_CHAR(args, "ExchangeType");
+    const char *dt = GET_CHAR(args, "DataType");
+
+    uint8_t exchange_type = sensing_exchange_type_from_dm_string(ex && *ex ? ex : "");
+    uint32_t data_type    = sensing_data_type_from_dm_string(dt && *dt ? dt : "");
+
+
+    auto threshold = GET_UINT32(args, "Threshold");
+
+    bool tx_mac_valid = 1;
+    bool rx_mac_valid = 1;
+
+    auto transmitter = GET_CHAR(args, "Transmitter");
+    sMacAddr transmitter_mac = tlvf::mac_from_string(transmitter);
+
+    auto receiver = GET_CHAR(args, "Receiver");
+    sMacAddr receiver_mac = tlvf::mac_from_string(receiver);
+
+    amxc_var_t value;
+    amxc_var_init(&value);
+    amxd_object_get_param(object, "ID", &value);
+    std::string agent_mac_str = amxc_var_constcast(cstring_t, &value);
+    amxc_var_clean(&value);
+
+    sMacAddr agent_mac = tlvf::mac_from_string(agent_mac_str);
+
+    if (!exchange_type || !data_type || exchange_id == 0) {
+        LOG(ERROR) << "AddExchange: Invalid mandatory parameters";
+        return amxd_status_invalid_arg;
+    }
+
+    if (!controller_ctx->send_sensing_exchange_request(
+            exchange_id,
+            exchange_add,
+            exchange_type,
+            rates,
+            bandwidth,
+            ntx,
+            nrx,
+            data_type,
+            threshold,
+            tx_mac_valid,
+            rx_mac_valid,
+            transmitter_mac,
+            receiver_mac,
+            agent_mac)) {
+
+        LOG(ERROR) << "Failed to send AddExchange request";
+        return amxd_status_unknown_error;
+    }
+
+    LOG(INFO) << "Success on AddExchange request from nbapi";
     return amxd_status_ok;
 }
 
@@ -2019,7 +2179,8 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
          access_point_commit},
         {"client_steering", DATAELEMENTS_ROOT_DM ".Network.ClientSteering", client_steering},
         { "setup_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.SetupDataPath", setup_data_path },
-       { "remove_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.RemoveDataPath", remove_data_path },
+        { "remove_data_path", DATAELEMENTS_ROOT_DM ".Network.Device.RemoveDataPath", remove_data_path },
+        {"add_exchange", DATAELEMENTS_ROOT_DM ".Network.Device.AddExchange", add_exchange},
        	{"trigger_scan", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.ScanTrigger", trigger_scan},
         {"BTMRequest", DATAELEMENTS_ROOT_DM ".Network.Device.Radio.BSS.STA.MultiAPSTA.BTMRequest",
          btm_request},

@@ -726,6 +726,18 @@
         %in %mandatory string DestinationIPAddress,
         %in %mandatory uint16 DestinationPort
     );
+    %instance bool AddExchange(
+           %in %mandatory uint16 ExchangeID,
+           %in %mandatory string ExchangeType,
+           %in %mandatory uint16 Rates,
+           %in %mandatory uint16 Bandwidth,
+           %in %mandatory uint16 NTx,
+           %in %mandatory uint16 NRx,
+           %in %mandatory string DataType,
+           %in uint32 Threshold = 15,
+           %in string Transmitter,
+           %in string Receiver
+        );
 
     }
 }
