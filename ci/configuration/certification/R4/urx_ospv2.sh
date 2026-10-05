@@ -149,7 +149,7 @@ dropbear -F -T 10 -p192.168.250.160:22 &"
 sleep 2
 
 # Copy generated SSH host keys
-cp /etc/config/ssh_server/*_key /etc/dropbear/
+cp /etc/config/dropbear/*_host_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 bootscript="/etc/rc.local"
