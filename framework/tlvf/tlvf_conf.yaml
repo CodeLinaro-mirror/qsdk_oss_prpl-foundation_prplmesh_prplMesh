@@ -145,6 +145,8 @@ include_yaml_path: {
 "tlvf/wfa_map/tlvTransportCapabilities.yaml",
     "tlvf/wfa_map/tlvDataPathSetupRequest.yaml",
     "tlvf/wfa_map/tlvDataPathSetupResponse.yaml",
+    "tlvf/wfa_map/tlvSensingExchangeRequest.yaml",
+    "tlvf/wfa_map/tlvSensingExchangeResponse.yaml",
 
     #
     # "airties/",

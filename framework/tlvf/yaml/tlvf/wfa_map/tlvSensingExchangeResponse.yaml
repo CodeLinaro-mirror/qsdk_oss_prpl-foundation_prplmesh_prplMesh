@@ -1,0 +1,17 @@
+#
+---
+_include: {
+
+    tlvf/wfa_map/eTlvTypeMap.h,
+}
+_namespace: wfa_map
+
+tlvSensingExchangeResponse:
+  _type: class
+  _is_tlv_class : True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_SENSING_EXCHANGE_RESPONSE
+  length: uint16_t
+  exchange_id: uint32_t
+  error_code: uint16_t

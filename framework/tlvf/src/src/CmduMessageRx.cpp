@@ -157,6 +157,7 @@
 #include <tlvf/wfa_map/tlvDataPathSetupRequest.h>
 #include <tlvf/wfa_map/tlvDataPathSetupResponse.h>
 #include <tlvf/wfa_map/tlvSensingExchangeRequest.h>
+#include <tlvf/wfa_map/tlvSensingExchangeResponse.h>
 
 using namespace ieee1905_1;
 
@@ -676,6 +677,9 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     }
     case (wfa_map::eTlvTypeMap::TLV_SENSING_EXCHANGE_SETUP_REQUEST): {
         return msg.addClass<wfa_map::tlvSensingExchangeRequest>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_SENSING_EXCHANGE_RESPONSE): {
+       return msg.addClass<wfa_map::tlvSensingExchangeResponse>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);

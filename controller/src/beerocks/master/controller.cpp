@@ -166,6 +166,7 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
     ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
     ieee1905_1::eMessageType::DATA_PATH_SETUP_RESPONSE_MESSAGE,
+    ieee1905_1::eMessageType::SENSING_EXCHANGE_RESPONSE_MESSAGE,
 };
 
 } // namespace
@@ -655,6 +656,8 @@ bool Controller::handle_cmdu_1905_1_message(uint32_t iface_index, const sMacAddr
         return handle_cmdu_1905_available_spectrum_inquiry_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::DATA_PATH_SETUP_RESPONSE_MESSAGE:
         return datapath_setup_task::handle_data_path_setup_response(database, cmdu_tx, src_mac,cmdu_rx);	
+    case ieee1905_1::eMessageType::SENSING_EXCHANGE_RESPONSE_MESSAGE:
+        return sensing_exchange_task::handle_sensing_exchange_response(database, cmdu_tx, src_mac, cmdu_rx);	
 
     // Empty cases are used to prevent error logs. Below message types are processed within tasks.
     case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE:
