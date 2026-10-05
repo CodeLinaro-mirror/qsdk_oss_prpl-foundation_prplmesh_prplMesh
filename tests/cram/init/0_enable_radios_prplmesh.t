@@ -10,8 +10,8 @@ Create R alias:
   $ R ba-cli -j -l X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=0 | sed '/^$/d'
   [{"X_PRPLWARE-COM_ProcessManager.PrplMesh.":{"CertificationMode":0}}]
 
-  $ R ba-cli -j -l X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode="Multi-AP-Agent" | sed '/^$/d'
-  [{"X_PRPLWARE-COM_ProcessManager.PrplMesh.":{"ManagementMode":"Multi-AP-Agent"}}]
+  $ R ba-cli -j -l X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode="Multi-AP-Controller-and-Agent" | sed '/^$/d'
+  [{"X_PRPLWARE-COM_ProcessManager.PrplMesh.":{"ManagementMode":"Multi-AP-Controller-and-Agent"}}]
 
   $ R ba-cli -j -l X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1 | sed '/^$/d'
   [{"X_PRPLWARE-COM_ProcessManager.PrplMesh.":{"Enable":1}}]
