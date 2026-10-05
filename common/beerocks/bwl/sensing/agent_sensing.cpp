@@ -16,6 +16,7 @@
 #include "wbapi_utils.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <tlvf/tlvftypes.h>
 
@@ -139,26 +140,25 @@ bool agent_sensing::AddExchange()
 
     AmbiorixVariant result;
     AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
-    AmbiorixVariant sensing_exchange_entries(AMXC_VAR_ID_HTABLE);
     const auto tx_mac = entry.tx_mac_valid ? tlvf::mac_to_string(entry.tx_mac) : std::string{};
     const auto rx_mac = entry.rx_mac_valid ? tlvf::mac_to_string(entry.rx_mac) : std::string{};
 
-    sensing_exchange_entries.add_child("exchange_id", entry.exchange_id);
-    sensing_exchange_entries.add_child("add_exchange", entry.add_exchange);
-    sensing_exchange_entries.add_child("exchange_type", entry.exchange_type);
-    sensing_exchange_entries.add_child("exchange_type_str", entry.exchange_type_str);
-    sensing_exchange_entries.add_child("rate_tu10", entry.rate_tu10);
-    sensing_exchange_entries.add_child("bandwidth_mhz", entry.bandwidth_mhz);
-    sensing_exchange_entries.add_child("ntx", entry.ntx);
-    sensing_exchange_entries.add_child("nrx", entry.nrx);
-    sensing_exchange_entries.add_child("data_type", entry.data_type);
-    sensing_exchange_entries.add_child("csi_threshold", entry.csi_threshold);
-    sensing_exchange_entries.add_child("tx_mac_valid", entry.tx_mac_valid);
-    sensing_exchange_entries.add_child("rx_mac_valid", entry.rx_mac_valid);
-    sensing_exchange_entries.add_child("tx_mac", tx_mac);
-    sensing_exchange_entries.add_child("rx_mac", rx_mac);
+    char data_type_str[16];
+    snprintf(data_type_str, sizeof(data_type_str), "%08X", entry.data_type);
 
-    args.add_child<AmbiorixVariant &>("sensing_exchange_entries", sensing_exchange_entries);
+    // Must match wifi-sensing ODL: AddExchange(uint8 Rate, uint16 Bandwidth, uint16 NTx, uint16 NRx,
+  // string ExchangeType, string DataType, string Transmitter, string Receiver, uint32 ExchangeID)
+    args.add_child("Rate", static_cast<uint8_t>(entry.rate_tu10));
+    args.add_child("Bandwidth", entry.bandwidth_mhz);
+    args.add_child("NTx", entry.ntx);
+    args.add_child("NRx", entry.nrx);
+    args.add_child("ExchangeType", entry.exchange_type_str);
+    args.add_child("DataType", std::string(data_type_str));
+    args.add_child("Transmitter", tx_mac);
+    if (entry.rx_mac_valid && !rx_mac.empty()) {
+        args.add_child("Receiver", rx_mac);
+    }
+    args.add_child("ExchangeID", entry.exchange_id);
     const std::string add_exchange_path = m_sensing_path + ".Session.1";
     if (!m_ambiorix_sensing_cl.call(add_exchange_path, "AddExchange", args, result)) {
         LOG(ERROR) << "AddExchange: call failed for exchange_id=" << entry.exchange_id
