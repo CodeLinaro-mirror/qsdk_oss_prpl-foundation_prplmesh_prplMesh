@@ -51,8 +51,11 @@
 #include <bpl/bpl_err.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <set>
+#include <sys/eventfd.h>
 #include <tuple>
+#include <unistd.h>
 #include <utility>
 
 #include <net/if.h> // if_nametoindex
@@ -130,19 +133,29 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     configuration_stop_on_failure_attempts = stop_on_failure_attempts_;
     stop_on_failure_attempts               = stop_on_failure_attempts_;
     LOG(DEBUG) << "stop_on_failure_attempts=" << stop_on_failure_attempts;
-    auto db                           = AgentDB::get();
-    db->device_conf.ucc_listener_port = string_utils::stoi(config.ucc_listener_port);
-    db->device_conf.vendor            = config.vendor;
-    db->device_conf.model             = config.model;
-
-    m_eFSMState = EState::INIT;
+    m_wps_request_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    LOG_IF(m_wps_request_fd < 0, FATAL) << "Failed creating WPS request eventfd";
 
     std::string bridge_mac;
     if (!beerocks::net::network_utils::linux_iface_get_mac(config.bridge_iface, bridge_mac)) {
         LOG(ERROR) << "Failed getting MAC address for interface: " << config.bridge_iface;
     } else {
-        db->dm_set_agent_mac(bridge_mac);
+        AgentDataModel::get().dm_set_agent_mac(bridge_mac);
     }
+
+    bool is_dummy;
+    bool on_boot_scan;
+    int dwell_time;
+    {
+        auto db                           = AgentDB::get();
+        db->device_conf.ucc_listener_port = string_utils::stoi(config.ucc_listener_port);
+        db->device_conf.vendor            = config.vendor;
+        db->device_conf.model             = config.model;
+        is_dummy                          = db->agent_is_dummy();
+        on_boot_scan                      = db->device_conf.on_boot_scan > 0;
+        dwell_time                        = db->device_conf.dwell_time;
+    }
+    m_eFSMState = EState::INIT;
 
     // Need add TopologyTask to the dummy Agent workflow, for the
     // handling TOPOLOGY_QUERY messages from the easyMesh Agents
@@ -165,18 +178,17 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
         [] { return AgentDB::get()->bridge.mac; }, std::move(interface_provider), cmdu_tx,
         std::move(get_friendly_name)));
 
-    if (db->agent_is_dummy()) {
+    if (is_dummy) {
 
         // TODO: DHCP management is handled in ApAutoConfigurationTask for MaxLinear platforms (PPM-1777)
-        LOG(INFO) << "Agent is dummy (management_mode=" << db->device_conf.management_mode
-                  << "). Do not run any tasks!";
+        LOG(INFO) << "Agent is dummy. Do not run any tasks!";
         return;
     }
 
     // Agent tasks
     m_task_pool.add_task(std::make_shared<ChannelSelectionTask>(*this, cmdu_tx));
-    m_task_pool.add_task(std::make_shared<ChannelScanTask>(
-        *this, cmdu_tx, db->device_conf.on_boot_scan > 0, db->device_conf.dwell_time));
+    m_task_pool.add_task(
+        std::make_shared<ChannelScanTask>(*this, cmdu_tx, on_boot_scan, dwell_time));
     m_task_pool.add_task(
         std::make_shared<switch_channel::SwitchChannelTask>(m_task_pool, *this, cmdu_tx));
     m_task_pool.add_task(
@@ -185,6 +197,10 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
 
 BackhaulManager::~BackhaulManager()
 {
+    stop();
+    if (m_wps_request_fd >= 0) {
+        close(m_wps_request_fd);
+    }
     if (m_cmdu_server) {
         m_cmdu_server->clear_handlers();
     }
@@ -368,6 +384,46 @@ bool BackhaulManager::thread_init()
         return false;
     }
 
+    EventLoop::EventHandlers wps_handlers{
+        .name = "WPS requests",
+        .on_read =
+            [this](int fd, EventLoop &loop) {
+                uint64_t requests = 0;
+                bool accepted;
+                {
+                    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+                    if (read(fd, &requests, sizeof(requests)) != sizeof(requests)) {
+                        return errno == EAGAIN || errno == EINTR;
+                    }
+                    accepted               = m_accept_wps_requests;
+                    m_pending_wps_requests = 0;
+                }
+                // The queue lock is released before worker code can acquire AMX or AgentDB.
+                while (accepted && requests-- > 0) {
+                    if (!initiate_wps_pbc_auto()) {
+                        LOG(ERROR) << "Accepted WPS request failed during execution";
+                    }
+                    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+                    accepted = m_accept_wps_requests;
+                }
+                return true;
+            },
+        .on_write      = nullptr,
+        .on_disconnect = nullptr,
+        .on_error      = nullptr,
+    };
+    if (!m_event_loop->register_handlers(m_wps_request_fd, wps_handlers)) {
+        LOG(ERROR) << "Failed registering WPS request handler";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+        uint64_t stale_requests;
+        while (read(m_wps_request_fd, &stale_requests, sizeof(stale_requests)) > 0) {
+        }
+        m_pending_wps_requests = 0;
+        m_accept_wps_requests  = true;
+    }
     transaction.commit();
 
     LOG(DEBUG) << "started";
@@ -375,8 +431,44 @@ bool BackhaulManager::thread_init()
     return true;
 }
 
+bool BackhaulManager::enqueue_wps_request()
+{
+    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+    if (!m_accept_wps_requests || m_pending_wps_requests >= 16) {
+        return false;
+    }
+    uint64_t request = 1;
+    ssize_t result;
+    do {
+        result = write(m_wps_request_fd, &request, sizeof(request));
+    } while (result < 0 && errno == EINTR);
+    if (result != sizeof(request)) {
+        LOG(ERROR) << "Failed queuing WPS request: " << strerror(errno);
+        return false;
+    }
+    ++m_pending_wps_requests;
+    return true;
+}
+
+void BackhaulManager::before_stop()
+{
+    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+    const bool was_accepting = m_accept_wps_requests;
+    m_accept_wps_requests    = false;
+    // Wake the event loop without waiting for the worker while holding AMX.
+    uint64_t wakeup = 1;
+    if (was_accepting && m_wps_request_fd >= 0) {
+        ssize_t result;
+        do {
+            result = write(m_wps_request_fd, &wakeup, sizeof(wakeup));
+        } while (result < 0 && errno == EINTR);
+    }
+}
+
 void BackhaulManager::on_thread_stop()
 {
+    before_stop();
+    m_event_loop->remove_handlers(m_wps_request_fd);
     m_topology_task_initialized = false;
     stop_fdb_monitor();
 
@@ -1288,8 +1380,6 @@ void BackhaulManager::handle_disconnected(int fd)
 
     LOG(INFO) << "Agent socket disconnected";
 
-    auto db = AgentDB::get();
-
     for (auto radio_info : m_radios_info) {
 
         if (!(FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED))) {
@@ -1336,13 +1426,12 @@ bool BackhaulManager::handle_cmdu_from_broker(uint32_t iface_index, const sMacAd
                                               const sMacAddr &src_mac,
                                               ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    auto db = AgentDB::get();
+    const auto bridge_mac = AgentDB::get()->bridge.mac;
 
     // Filter messages which are not destined to this agent
-    if (dst_mac != beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR &&
-        dst_mac != db->bridge.mac) {
+    if (dst_mac != beerocks::net::network_utils::MULTICAST_1905_MAC_ADDR && dst_mac != bridge_mac) {
         LOG(DEBUG) << "handle_cmdu() - dropping msg, dst_mac=" << dst_mac
-                   << ", local_bridge_mac=" << db->bridge.mac;
+                   << ", local_bridge_mac=" << bridge_mac;
         return true;
     }
 
@@ -1907,15 +1996,16 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             m_platform_manager_client.reset();
             m_remove_platform_manager_client = false;
         }
-        auto db = AgentDB::get();
-
         for (auto &radio_info : m_radios_info) {
-            auto radio = db->radio(radio_info->sta_iface);
-            if (!radio) {
-                continue;
+            {
+                auto db    = AgentDB::get();
+                auto radio = db->radio(radio_info->sta_iface);
+                if (!radio) {
+                    continue;
+                }
+                // Clear the backhaul interface MAC before tearing down HAL outside the lock.
+                radio->back.iface_mac = beerocks::net::network_utils::ZERO_MAC;
             }
-            // Clear the backhaul interface mac.
-            radio->back.iface_mac = beerocks::net::network_utils::ZERO_MAC;
 
             clear_radio_handlers(radio_info);
 
@@ -1976,7 +2066,7 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
 
         bool success = true;
 
-        auto db = AgentDB::get();
+        const auto multi_ap_profile = AgentDB::get()->device_conf.multi_ap_profile;
 
         for (auto &radio_info : m_radios_info) {
             std::string iface = radio_info->sta_iface;
@@ -2000,7 +2090,7 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                     hal_conf.is_repeater = true;
                 }
 
-                hal_conf.multi_ap_profile = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
+                hal_conf.multi_ap_profile = static_cast<uint8_t>(multi_ap_profile);
                 LOG(DEBUG) << "Set MultiAPProfile=" << hal_conf.multi_ap_profile;
 
                 using namespace std::placeholders; // for `_1`
@@ -2139,6 +2229,9 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                 //     break;
                 // }
 
+                const auto backhaul_mac =
+                    tlvf::mac_from_string(radio_info->sta_wlan_hal->get_wireless_backhaul_mac());
+                auto db    = AgentDB::get();
                 auto radio = db->radio(radio_info->sta_iface);
                 if (!radio) {
                     LOG(DEBUG) << "Radio of iface " << radio_info->sta_iface
@@ -2146,8 +2239,7 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                     continue;
                 }
                 // Update the backhaul interface mac.
-                radio->back.iface_mac =
-                    tlvf::mac_from_string(radio_info->sta_wlan_hal->get_wireless_backhaul_mac());
+                radio->back.iface_mac = backhaul_mac;
 
             } else if (attach_state == bwl::HALState::Failed) {
                 // Delete the HAL instance
@@ -2179,9 +2271,8 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
     }
     // Wait for WPS command
     case EState::WAIT_WPS: {
-        auto db = AgentDB::get();
-        if (!db->device_conf.local_gw &&
-            std::chrono::steady_clock::now() > state_time_stamp_timeout) {
+        const bool local_gw = AgentDB::get()->device_conf.local_gw;
+        if (!local_gw && std::chrono::steady_clock::now() > state_time_stamp_timeout) {
             LOG(ERROR) << STATE_WAIT_WPS_TIMEOUT_SECONDS
                        << " seconds has passed on state WAIT_WPS, move state to RESTART!";
             FSM_MOVE_STATE(RESTART);
@@ -2242,13 +2333,23 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
             FSM_MOVE_STATE(RESTART);
             break;
         }
-        auto db = AgentDB::get();
+        eFreqType preferred_band;
+        std::map<std::string, eFreqType> radio_bands;
+        {
+            auto db        = AgentDB::get();
+            preferred_band = db->device_conf.back_radio.backhaul_preferred_radio_band;
+            for (const auto &info : m_radios_info) {
+                auto radio = db->radio(info->hostap_iface);
+                if (radio) {
+                    radio_bands.emplace(info->hostap_iface, radio->wifi_channel.get_freq_type());
+                }
+            }
+        }
 
         bool preferred_band_is_available = false;
 
         // Check if backhaul preferred band is supported (supporting radio is available)
-        if (db->device_conf.back_radio.backhaul_preferred_radio_band ==
-            beerocks::eFreqType::FREQ_AUTO) {
+        if (preferred_band == beerocks::eFreqType::FREQ_AUTO) {
             preferred_band_is_available = true;
         } else {
             for (const auto &radios_info : m_radios_info) {
@@ -2258,12 +2359,11 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                     LOG(WARNING) << "Sta_hal of " << radios_info->sta_iface << " is null";
                     continue;
                 }
-                auto radio = db->radio(radios_info->hostap_iface);
-                if (!radio) {
+                auto radio = radio_bands.find(radios_info->hostap_iface);
+                if (radio == radio_bands.end()) {
                     continue;
                 }
-                if (db->device_conf.back_radio.backhaul_preferred_radio_band ==
-                    radio->wifi_channel.get_freq_type()) {
+                if (preferred_band == radio->second) {
                     preferred_band_is_available = true;
                 }
             }
@@ -2283,16 +2383,13 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                 continue;
             }
 
-            auto radio = db->radio(radios_info->hostap_iface);
-            if (!radio) {
+            auto radio = radio_bands.find(radios_info->hostap_iface);
+            if (radio == radio_bands.end()) {
                 continue;
             }
 
-            if (preferred_band_is_available &&
-                db->device_conf.back_radio.backhaul_preferred_radio_band !=
-                    beerocks::eFreqType::FREQ_AUTO &&
-                db->device_conf.back_radio.backhaul_preferred_radio_band !=
-                    radio->wifi_channel.get_freq_type()) {
+            if (preferred_band_is_available && preferred_band != beerocks::eFreqType::FREQ_AUTO &&
+                preferred_band != radio->second) {
                 LOG(DEBUG) << "slave iface=" << radios_info->sta_iface
                            << " is not of the preferred backhaul band";
                 continue;
@@ -2374,8 +2471,6 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
             }
         }
 
-        auto db = AgentDB::get();
-
         if (hidden_ssid) {
             std::string iface;
 
@@ -2404,20 +2499,29 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
                 break;
             }
 
-            db->backhaul.selected_iface_name = iface;
-            active_hal                       = get_wireless_hal();
+            {
+                auto db                          = AgentDB::get();
+                db->backhaul.selected_iface_name = iface;
+            }
+            active_hal = get_wireless_hal();
         }
 
-        if (active_hal->connect(db->device_conf.back_radio.ssid, db->device_conf.back_radio.pass,
-                                db->device_conf.back_radio.security_type,
-                                db->device_conf.back_radio.mem_only_psk, selected_bssid,
-                                selected_bssid_channel, hidden_ssid)) {
+        AgentDB::sDeviceConf::sBackRadio credentials;
+        std::string selected_iface;
+        {
+            auto db        = AgentDB::get();
+            credentials    = db->device_conf.back_radio;
+            selected_iface = db->backhaul.selected_iface_name;
+        }
+        if (active_hal->connect(credentials.ssid, credentials.pass, credentials.security_type,
+                                credentials.mem_only_psk, selected_bssid, selected_bssid_channel,
+                                hidden_ssid)) {
             LOG(DEBUG) << "successful call to active_hal->connect(), bssid=" << selected_bssid
                        << ", channel=" << selected_bssid_channel.first
                        << ", freq type=" << selected_bssid_channel.second
-                       << ", iface=" << db->backhaul.selected_iface_name;
+                       << ", iface=" << selected_iface;
         } else {
-            LOG(ERROR) << "connect command failed for iface " << db->backhaul.selected_iface_name;
+            LOG(ERROR) << "connect command failed for iface " << selected_iface;
             FSM_MOVE_STATE(INITIATE_SCAN);
             break;
         }
@@ -3174,14 +3278,30 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         LOG(DEBUG) << "successfully connected to bssid=" << bssid
                    << " on channel=" << (iface_hal->get_channel()) << " on iface=" << iface;
 
-        auto db = AgentDB::get();
-        if (db->device_conf.certification_mode) {
+        const bool certification_mode = AgentDB::get()->device_conf.certification_mode;
+        if (certification_mode) {
             /* When the station is connected we wanted to enable
                3addr multicast packets entering the system.
             */
             iface_hal->set_3addr_mcast(true);
         }
 
+        int sta_iface_count_5ghz = 0;
+        if (FSM_IS_IN_STATE(WIRELESS_ASSOCIATE_4ADDR_WAIT) && hidden_ssid) {
+            iface_hal->refresh_radio_info();
+            for (const auto &sta_iface : slave_sta_ifaces) {
+                auto hal = get_wireless_hal(sta_iface);
+                if (!hal) {
+                    break;
+                }
+                hal->refresh_radio_info();
+                if (son::wireless_utils::which_freq_type(hal->get_radio_info().frequency_band) ==
+                    beerocks::FREQ_5G) {
+                    ++sta_iface_count_5ghz;
+                }
+            }
+        }
+        auto db = AgentDB::get();
         if (iface == db->backhaul.selected_iface_name && !hidden_ssid) {
             //this is generally not supposed to happen
             LOG(WARNING) << "event iface=" << iface
@@ -3273,7 +3393,6 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         if (FSM_IS_IN_STATE(WIRELESS_ASSOCIATE_4ADDR_WAIT)) {
             LOG(DEBUG) << "successful connect on iface=" << iface;
             if (hidden_ssid) {
-                iface_hal->refresh_radio_info();
                 const auto &bwl_radio_info = iface_hal->get_radio_info();
                 for (const auto &radio_info : m_radios_info) {
                     if (radio_info->sta_iface == iface) {
@@ -3292,19 +3411,6 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
                             return true;
                         }
                         /* prevent unfiltered ("high") radio from connecting to low band, unless we have only 2 radios */
-                        int sta_iface_count_5ghz = 0;
-                        for (const auto &sta_iface : slave_sta_ifaces) {
-                            auto sta_iface_hal = get_wireless_hal(sta_iface);
-                            if (!sta_iface_hal)
-                                break;
-
-                            sta_iface_hal->refresh_radio_info();
-                            if (son::wireless_utils::which_freq_type(
-                                    sta_iface_hal->get_radio_info().frequency_band) ==
-                                beerocks::FREQ_5G) {
-                                sta_iface_count_5ghz++;
-                            }
-                        }
                         if (son::wireless_utils::which_freq_type(bwl_radio_info.frequency_band) ==
                                 beerocks::FREQ_5G &&
                             !radio->sta_iface_filter_low &&
@@ -3590,9 +3696,26 @@ bool BackhaulManager::select_bssid()
     // Support up to 256 scan results
     std::vector<bwl::sScanResult> scan_results;
 
-    auto db = AgentDB::get();
+    std::string ssid;
+    sMacAddr preferred_bssid;
+    std::map<std::string, bool> low_band_filters;
+    {
+        auto db         = AgentDB::get();
+        ssid            = db->device_conf.back_radio.ssid;
+        preferred_bssid = db->backhaul.preferred_bssid;
+        for (const auto &info : m_radios_info) {
+            auto radio = db->radio(info->sta_iface);
+            if (radio) {
+                low_band_filters.emplace(info->sta_iface, radio->sta_iface_filter_low);
+            }
+        }
+    }
+    const auto select_iface = [](const std::string &iface) {
+        auto db                          = AgentDB::get();
+        db->backhaul.selected_iface_name = iface;
+    };
 
-    LOG(DEBUG) << "select_bssid: SSID = " << db->device_conf.back_radio.ssid;
+    LOG(DEBUG) << "select_bssid: SSID = " << ssid;
 
     for (const auto &radio_info : m_radios_info) {
 
@@ -3604,8 +3727,7 @@ bool BackhaulManager::select_bssid()
         std::string &iface = radio_info->sta_iface;
 
         LOG(DEBUG) << "select_bssid: iface  = " << iface;
-        int num_of_results = radio_info->sta_wlan_hal->get_scan_results(
-            db->device_conf.back_radio.ssid, scan_results);
+        int num_of_results = radio_info->sta_wlan_hal->get_scan_results(ssid, scan_results);
         LOG(DEBUG) << "Scan Results: " << num_of_results;
 
         for (auto &scan_result : scan_results) {
@@ -3636,24 +3758,23 @@ bool BackhaulManager::select_bssid()
                                << " roam_selected_bssid_channel = "
                                << int(roam_selected_bssid_channel.first)
                                << " freq type = " << roam_selected_bssid_channel.second;
-                    db->backhaul.selected_iface_name = iface;
+                    select_iface(iface);
                     return true;
                 }
-            } else if ((db->backhaul.preferred_bssid != beerocks::net::network_utils::ZERO_MAC) &&
-                       (tlvf::mac_from_string(bssid) == db->backhaul.preferred_bssid)) {
+            } else if ((preferred_bssid != beerocks::net::network_utils::ZERO_MAC) &&
+                       (tlvf::mac_from_string(bssid) == preferred_bssid)) {
                 LOG(DEBUG) << "preferred bssid - found bssid match = " << bssid;
-                selected_bssid_channel           = {scan_result.channel, scan_result.freq_type};
-                selected_bssid                   = bssid;
-                db->backhaul.selected_iface_name = iface;
+                selected_bssid_channel = {scan_result.channel, scan_result.freq_type};
+                selected_bssid         = bssid;
+                select_iface(iface);
                 return true;
             } else if (scan_result.freq_type == eFreqType::FREQ_5G) {
-                auto radio = db->radio(radio_info->sta_iface);
-                if (!radio) {
+                auto radio = low_band_filters.find(radio_info->sta_iface);
+                if (radio == low_band_filters.end()) {
                     return false;
                 }
-                if (radio->sta_iface_filter_low &&
-                    son::wireless_utils::which_subband(scan_result.channel) ==
-                        beerocks::LOW_SUBBAND) {
+                if (radio->second && son::wireless_utils::which_subband(scan_result.channel) ==
+                                         beerocks::LOW_SUBBAND) {
                     // iface with low filter - best low
                     if (scan_result.rssi > max_rssi_5_low) {
                         max_rssi_5_low           = scan_result.rssi;
@@ -3662,9 +3783,8 @@ bool BackhaulManager::select_bssid()
                         best_5_low_sta_iface     = iface;
                     }
 
-                } else if (!radio->sta_iface_filter_low &&
-                           son::wireless_utils::which_subband(scan_result.channel) ==
-                               beerocks::HIGH_SUBBAND) {
+                } else if (!radio->second && son::wireless_utils::which_subband(
+                                                 scan_result.channel) == beerocks::HIGH_SUBBAND) {
                     // iface without low filter (high filter or bypass) - best high
                     if (scan_result.rssi > max_rssi_5_high) {
                         max_rssi_5_high           = scan_result.rssi;
@@ -3763,29 +3883,30 @@ bool BackhaulManager::select_bssid()
         // TODO: ???
         return false;
     } else if (max_rssi_24 == beerocks::RSSI_INVALID) {
-        selected_bssid                   = best_bssid_5;
-        selected_bssid_channel           = {best_bssid_channel_5, eFreqType::FREQ_5G};
-        db->backhaul.selected_iface_name = best_5_sta_iface;
+        selected_bssid         = best_bssid_5;
+        selected_bssid_channel = {best_bssid_channel_5, eFreqType::FREQ_5G};
+        select_iface(best_5_sta_iface);
     } else if (max_rssi_5_best == beerocks::RSSI_INVALID) {
-        selected_bssid                   = best_bssid_24;
-        selected_bssid_channel           = {best_bssid_channel_24, eFreqType::FREQ_24G};
-        db->backhaul.selected_iface_name = best_24_sta_iface;
+        selected_bssid         = best_bssid_24;
+        selected_bssid_channel = {best_bssid_channel_24, eFreqType::FREQ_24G};
+        select_iface(best_24_sta_iface);
     } else if ((max_rssi_5_best > RSSI_THRESHOLD_5GHZ)) {
-        selected_bssid                   = best_bssid_5;
-        selected_bssid_channel           = {best_bssid_channel_5, eFreqType::FREQ_5G};
-        db->backhaul.selected_iface_name = best_5_sta_iface;
+        selected_bssid         = best_bssid_5;
+        selected_bssid_channel = {best_bssid_channel_5, eFreqType::FREQ_5G};
+        select_iface(best_5_sta_iface);
     } else if (max_rssi_24 < max_rssi_5_best + RSSI_BAND_DELTA_THRESHOLD) {
-        selected_bssid                   = best_bssid_5;
-        selected_bssid_channel           = {best_bssid_channel_5, eFreqType::FREQ_5G};
-        db->backhaul.selected_iface_name = best_5_sta_iface;
+        selected_bssid         = best_bssid_5;
+        selected_bssid_channel = {best_bssid_channel_5, eFreqType::FREQ_5G};
+        select_iface(best_5_sta_iface);
     } else {
-        selected_bssid                   = best_bssid_24;
-        selected_bssid_channel           = {best_bssid_channel_24, eFreqType::FREQ_24G};
-        db->backhaul.selected_iface_name = best_24_sta_iface;
+        selected_bssid         = best_bssid_24;
+        selected_bssid_channel = {best_bssid_channel_24, eFreqType::FREQ_24G};
+        select_iface(best_24_sta_iface);
     }
 
     if (!get_wireless_hal()) {
-        LOG(ERROR) << "Slave for interface " << db->backhaul.selected_iface_name << " NOT found!";
+        LOG(ERROR) << "Slave for interface " << AgentDB::get()->backhaul.selected_iface_name
+                   << " NOT found!";
         return false;
     }
 
@@ -3796,9 +3917,9 @@ void BackhaulManager::get_scan_measurement()
 {
     // Support up to 256 scan results
     std::vector<bwl::sScanResult> scan_results;
-    auto db = AgentDB::get();
+    const auto ssid = AgentDB::get()->device_conf.back_radio.ssid;
 
-    LOG(DEBUG) << "get_scan_measurement: SSID = " << db->device_conf.back_radio.ssid;
+    LOG(DEBUG) << "get_scan_measurement: SSID = " << ssid;
     scan_measurement_list.clear();
     for (auto &radio_info : m_radios_info) {
 
@@ -3812,8 +3933,7 @@ void BackhaulManager::get_scan_measurement()
 
         std::string &iface = radio_info->sta_iface;
         LOG(DEBUG) << "get_scan_measurement: iface  = " << iface;
-        int num_of_results = radio_info->sta_wlan_hal->get_scan_results(
-            db->device_conf.back_radio.ssid, scan_results);
+        int num_of_results = radio_info->sta_wlan_hal->get_scan_results(ssid, scan_results);
         LOG(DEBUG) << "Scan Results: " << int(num_of_results);
         if (num_of_results < 0) {
             LOG(ERROR) << "get_scan_results failed!";
@@ -3957,7 +4077,7 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
         return false;
     }
 
-    auto db                       = AgentDB::get();
+    const auto bridge_mac         = AgentDB::get()->bridge.mac;
     const auto ingress_iface      = beerocks::net::network_utils::linux_get_iface_name(iface_index);
     const auto ingress_iface_type = ingress_iface.empty()
                                         ? beerocks::transport::messages::CmduTxMessage::IF_TYPE_NONE
@@ -3972,8 +4092,7 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
         LOG(DEBUG) << "Sending " << message_name
                    << (ingress_iface.empty() ? " using transport-selected path"
                                              : " on ingress iface " + ingress_iface);
-        if (send_cmdu_to_broker(cmdu_tx, src_mac, db->bridge.mac, ingress_iface,
-                                ingress_iface_type)) {
+        if (send_cmdu_to_broker(cmdu_tx, src_mac, bridge_mac, ingress_iface, ingress_iface_type)) {
             return true;
         }
 
@@ -4096,8 +4215,13 @@ bool BackhaulManager::handle_backhaul_steering_request(ieee1905_1::CmduMessageRx
 
             LOG(DEBUG)
                 << "Steering request timed out. Sending BACKHAUL_STA_STEERING_RESPONSE_MESSAGE";
-            auto db = AgentDB::get();
-            send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac);
+            sMacAddr controller_mac, local_mac;
+            {
+                auto db        = AgentDB::get();
+                controller_mac = db->controller_info.bridge_mac;
+                local_mac      = db->bridge.mac;
+            }
+            send_cmdu_to_broker(cmdu_tx, controller_mac, local_mac);
             return true;
         });
     if (m_backhaul_steering_timer == beerocks::net::FileDescriptor::invalid_descriptor) {
@@ -4281,24 +4405,28 @@ bool BackhaulManager::start_wps_pbc_ep_freq(eFreqType freq)
 
 bool BackhaulManager::initiate_wps_pbc_auto()
 {
-    auto db = AgentDB::get();
-
+    bool ap_configured;
+    std::vector<sMacAddr> ap_radios;
+    {
+        auto db       = AgentDB::get();
+        ap_configured = db->statuses.ap_autoconfiguration_completed;
+        for (const auto radio : db->get_radios_list()) {
+            if (radio && radio->wifi_channel.get_freq_type() != eFreqType::FREQ_6G) {
+                ap_radios.push_back(radio->front.iface_mac);
+            }
+        }
+    }
     const bool backhaul_operational = (m_eFSMState == EState::OPERATIONAL);
-    const bool ap_configured        = db->statuses.ap_autoconfiguration_completed;
 
     // ap_autoconfiguration_completed is a configuration status and can stay true after the
     // backhaul link is lost. Use the live BackhaulManager FSM as the connectivity gate so WPS
     // auto falls back to bSTA onboarding while the backhaul is reconnecting.
     if (backhaul_operational && ap_configured) {
         bool result = false;
-        for (const auto radio : db->get_radios_list()) {
-            //Skip 6GHz since WPS is not allowed on 6GHz per Wi-Fi 6E standard
-            if (!radio || radio->wifi_channel.get_freq_type() == eFreqType::FREQ_6G) {
-                continue;
-            }
-            if (start_wps_pbc_ap(radio->front.iface_mac)) {
+        for (const auto &radio_mac : ap_radios) {
+            if (start_wps_pbc_ap(radio_mac)) {
                 LOG(INFO) << "WPS PBC AP/fronthaul path (agent is operational) on radio: "
-                          << radio->front.iface_mac;
+                          << radio_mac;
                 result = true;
             }
         }
@@ -4412,12 +4540,12 @@ std::shared_ptr<bwl::sta_wlan_hal> BackhaulManager::get_selected_backhaul_sta_wl
 void BackhaulManager::handle_dev_reset_default(
     int fd, const std::unordered_map<std::string, std::string> &params)
 {
-    auto db      = AgentDB::get();
-    auto program = params.at("program");
+    const auto previous_program = AgentDB::get()->device_conf.certification_program;
+    auto program                = params.at("program");
 
     // Certification tests will do "dev_reset_default" multiple times without "dev_set_config" in
     // between. In that case, do nothing but reply.
-    if (program == db->device_conf.certification_program && m_is_in_reset_state) {
+    if (program == previous_program && m_is_in_reset_state) {
         // Send back second reply to UCC client.
         m_agent_ucc_listener->send_reply(fd);
         return;
@@ -4456,39 +4584,43 @@ void BackhaulManager::handle_dev_reset_default(
         radio_info->sta_wlan_hal->clear_non_associated_devices();
     }
 
-    for (const auto &radio : db->get_radios_list()) {
-        LOG(DEBUG) << "Clearing Channel Scan results of " << radio->front.iface_mac;
-        radio->channel_scan_results.clear();
-    }
+    std::string bridge, eth_iface;
+    {
+        auto db = AgentDB::get();
+        for (const auto &radio : db->get_radios_list()) {
+            LOG(DEBUG) << "Clearing Channel Scan results of " << radio->front.iface_mac;
+            radio->channel_scan_results.clear();
+        }
 
-    // Add wired interface to the bridge
-    // It will be removed later on (dev_set_config) in case of wireless backhaul connection is needed.
-    auto bridge        = db->bridge.iface_name;
+        // Add wired interface to the bridge
+        // It will be removed later on (dev_set_config) in case of wireless backhaul connection is needed.
+        bridge    = db->bridge.iface_name;
+        eth_iface = db->ethernet.wan.iface_name;
+
+        if (program == supported_programs[0]) {
+            // If certification program is map, set the multi_ap_profile to Profile 1.
+            db->device_conf.multi_ap_profile =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
+        } else if (program == supported_programs[1]) {
+            // If certification program is mapr2, set the multi_ap_profile to Profile 2.
+            db->device_conf.multi_ap_profile =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
+        } else if (program == supported_programs[2]) {
+            // If certification program is mapr3, set the multi_ap_profile to Profile 3.
+            db->device_conf.multi_ap_profile =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3;
+        } else if (program == supported_programs[3] || program == supported_programs[4] ||
+                   program == supported_programs[5]) {
+            // If certification program is mapr4/5/6, set the multi_ap_profile to Profile 4.
+            db->device_conf.multi_ap_profile =
+                wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
+        }
+
+        db->device_conf.certification_program               = program;
+        db->controller_info.early_ap_capability_report_sent = false;
+        db->steering_policy.btm_steering_disallowed.clear();
+    }
     auto bridge_ifaces = beerocks::net::network_utils::linux_get_iface_list_from_bridge(bridge);
-    auto eth_iface     = db->ethernet.wan.iface_name;
-
-    if (program == supported_programs[0]) {
-        // If certification program is map, set the multi_ap_profile to Profile 1.
-        db->device_conf.multi_ap_profile =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1;
-    } else if (program == supported_programs[1]) {
-        // If certification program is mapr2, set the multi_ap_profile to Profile 2.
-        db->device_conf.multi_ap_profile =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
-    } else if (program == supported_programs[2]) {
-        // If certification program is mapr3, set the multi_ap_profile to Profile 3.
-        db->device_conf.multi_ap_profile =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_3;
-    } else if (program == supported_programs[3] || program == supported_programs[4] ||
-               program == supported_programs[5]) {
-        // If certification program is mapr4/5/6, set the multi_ap_profile to Profile 4.
-        db->device_conf.multi_ap_profile =
-            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1_AS_OF_R4;
-    }
-
-    db->device_conf.certification_program               = program;
-    db->controller_info.early_ap_capability_report_sent = false;
-    db->steering_policy.btm_steering_disallowed.clear();
 
     //check if wired interface is enabled or try to enable it.
     if (!beerocks::net::network_utils::linux_iface_is_up_and_running(eth_iface)) {

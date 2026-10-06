@@ -191,7 +191,7 @@ auto slave_thread::sSlaveState::operator=(eSlaveState state) -> eSlaveState
         return arr[e] + (sizeof("STATE_") - 1) + std::to_string(e) + ')';
     };
 
-    AgentDB::get()->dm_set_agent_state(to_string(cur), to_string(max));
+    AgentDataModel::get().dm_set_agent_state(to_string(cur), to_string(max));
 
     return state;
 }
@@ -233,7 +233,7 @@ slave_thread::slave_thread(sAgentConfig conf, beerocks::logging &logger_)
         interfaces.pop_back();
     }
 
-    db->dm_set_fronthaul_interfaces(interfaces);
+    AgentDataModel::get().dm_set_fronthaul_interfaces(interfaces);
 }
 
 slave_thread::~slave_thread()
@@ -668,11 +668,18 @@ bool slave_thread::send_fronthaul_bss_teardown(bool report_completion,
 
 bool slave_thread::read_platform_configuration()
 {
-    auto db = AgentDB::get();
+    // BPL reads may use WBAPI. Read into owned values so AMX is never entered
+    // while AgentDB is locked, then publish only the fields loaded here.
+    AgentDB::sDeviceConf device_conf;
+    {
+        auto db     = AgentDB::get();
+        device_conf = db->device_conf;
+    }
+    std::vector<AgentDB::sEthernetPort> lan_ports;
 
     char security_type[beerocks::message::WIFI_SECURITY_TYPE_MAX_LENGTH];
-    if (bpl::cfg_get_beerocks_credentials(BPL_RADIO_FRONT, db->device_conf.front_radio.ssid,
-                                          db->device_conf.front_radio.pass, security_type) < 0) {
+    if (bpl::cfg_get_beerocks_credentials(BPL_RADIO_FRONT, device_conf.front_radio.ssid,
+                                          device_conf.front_radio.pass, security_type) < 0) {
         LOG(ERROR) << "Failed reading front Wi-Fi credentials!";
         return false;
     }
@@ -705,11 +712,11 @@ bool slave_thread::read_platform_configuration()
         }
     };
 
-    db->device_conf.front_radio.security_type = platform_to_bwl_security(security_type);
+    device_conf.front_radio.security_type = platform_to_bwl_security(security_type);
 
     LOG(DEBUG) << "Front Credentials:"
-               << " ssid=" << db->device_conf.front_radio.ssid
-               << " sec=" << db->device_conf.front_radio.security_type << " pass=***";
+               << " ssid=" << device_conf.front_radio.ssid
+               << " sec=" << device_conf.front_radio.security_type << " pass=***";
 
     char ssid[beerocks::message::WIFI_SSID_MAX_LENGTH];
     char pass[beerocks::message::WIFI_PASS_MAX_LENGTH];
@@ -717,9 +724,9 @@ bool slave_thread::read_platform_configuration()
         LOG(ERROR) << "Failed reading Wi-Fi back credentials!";
         return false;
     }
-    db->device_conf.back_radio.ssid = std::string(ssid, beerocks::message::WIFI_SSID_MAX_LENGTH);
-    db->device_conf.back_radio.pass = std::string(pass, beerocks::message::WIFI_PASS_MAX_LENGTH);
-    db->device_conf.back_radio.security_type = platform_to_bwl_security(security_type);
+    device_conf.back_radio.ssid = std::string(ssid, beerocks::message::WIFI_SSID_MAX_LENGTH);
+    device_conf.back_radio.pass = std::string(pass, beerocks::message::WIFI_PASS_MAX_LENGTH);
+    device_conf.back_radio.security_type = platform_to_bwl_security(security_type);
 
     int mem_only_psk = bpl::cfg_get_security_policy();
     if (mem_only_psk < 0) {
@@ -727,12 +734,12 @@ bool slave_thread::read_platform_configuration()
         return false;
     }
 
-    db->device_conf.back_radio.mem_only_psk = bool(mem_only_psk);
+    device_conf.back_radio.mem_only_psk = bool(mem_only_psk);
 
     LOG(DEBUG) << "Back Credentials:"
-               << " ssid=" << db->device_conf.back_radio.ssid
-               << " sec=" << db->device_conf.back_radio.security_type
-               << " mem_only_psk=" << db->device_conf.back_radio.mem_only_psk << " pass=***";
+               << " ssid=" << device_conf.back_radio.ssid
+               << " sec=" << device_conf.back_radio.security_type
+               << " mem_only_psk=" << device_conf.back_radio.mem_only_psk << " pass=***";
 
     for (const auto &radio_manager : m_radio_managers.get()) {
         const auto &fronthaul_iface = radio_manager.first;
@@ -742,31 +749,31 @@ bool slave_thread::read_platform_configuration()
             return false;
         }
 
-        db->device_conf.front_radio.config[fronthaul_iface].band_enabled       = params.enabled;
-        db->device_conf.front_radio.config[fronthaul_iface].configured_channel = params.channel;
-        db->device_conf.front_radio.config[fronthaul_iface].sub_band_dfs = params.sub_band_dfs;
+        device_conf.front_radio.config[fronthaul_iface].band_enabled       = params.enabled;
+        device_conf.front_radio.config[fronthaul_iface].configured_channel = params.channel;
+        device_conf.front_radio.config[fronthaul_iface].sub_band_dfs       = params.sub_band_dfs;
 
         CountryCode current_country;
         current_country[0] = params.country_code[0];
         current_country[1] = params.country_code[1];
 
         bool db_country_code_empty =
-            (db->device_conf.country_code[0] == 0) && (db->device_conf.country_code[1] == 0);
+            (device_conf.country_code[0] == 0) && (device_conf.country_code[1] == 0);
 
-        if (current_country != db->device_conf.country_code && !db_country_code_empty) {
+        if (current_country != device_conf.country_code && !db_country_code_empty) {
             LOG(ERROR) << "strangely enough this agent exists in more than one country: "
                        << current_country[0] << current_country[1] << " and "
-                       << db->device_conf.country_code[0] << db->device_conf.country_code[1];
+                       << device_conf.country_code[0] << device_conf.country_code[1];
         }
         // take the latest
-        db->device_conf.country_code = current_country;
+        device_conf.country_code = current_country;
 
         LOG(DEBUG) << "wlan settings " << fronthaul_iface << ":";
         LOG(DEBUG) << "band_enabled=" << params.enabled;
         LOG(DEBUG) << "channel=" << params.channel;
         LOG(DEBUG) << "sub_band_dfs=" << params.sub_band_dfs;
         LOG(DEBUG) << "country-code="
-                   << (!db_country_code_empty ? std::string(&db->device_conf.country_code[0], 2)
+                   << (!db_country_code_empty ? std::string(&device_conf.country_code[0], 2)
                                               : "(not set)");
 
         LOG(DEBUG) << "iface=" << fronthaul_iface << " added to wlan params change check";
@@ -782,29 +789,29 @@ bool slave_thread::read_platform_configuration()
         LOG(ERROR) << "Failed reading 'local_controller'";
         return false;
     }
-    db->device_conf.local_controller = temp_int;
+    device_conf.local_controller = temp_int;
 
     if ((temp_int = bpl::cfg_is_non_prplmesh_controller()) < 0) {
         LOG(ERROR) << "Failed reading 'local_non_prplmesh_controller'";
         return false;
     }
-    db->device_conf.local_non_prplmesh_controller = temp_int;
+    device_conf.local_non_prplmesh_controller = temp_int;
 
     std::string mgmt_mode;
     bpl::cfg_get_management_mode(mgmt_mode);
-    db->dm_set_management_mode(mgmt_mode);
+    AgentDataModel::get().dm_set_management_mode(mgmt_mode);
 
     if ((temp_int = bpl::cfg_get_certification_mode()) < 0) {
         LOG(ERROR) << "Failed reading 'certification_mode'";
         return false;
     }
-    db->device_conf.certification_mode = temp_int;
+    device_conf.certification_mode = temp_int;
 
     if ((temp_int = bpl::cfg_get_stop_on_failure_attempts()) < 0) {
         LOG(ERROR) << "Failed reading 'stop_on_failure_attempts'";
         return false;
     }
-    db->device_conf.stop_on_failure_attempts = temp_int;
+    device_conf.stop_on_failure_attempts = temp_int;
 
     int backhaul_preferred_radio_band = BPL_RADIO_BAND_AUTO;
     if (bpl::cfg_get_preferred_radio_band(&backhaul_preferred_radio_band) < 0) {
@@ -824,7 +831,7 @@ bool slave_thread::read_platform_configuration()
             return beerocks::eFreqType::FREQ_UNKNOWN;
         }
     };
-    db->device_conf.back_radio.backhaul_preferred_radio_band =
+    device_conf.back_radio.backhaul_preferred_radio_band =
         bpl_band_to_freq_type(backhaul_preferred_radio_band);
 
     if (bpl::cfg_get_backhaul_vaps(back_vaps, back_vaps_buff_len) < 0) {
@@ -832,83 +839,116 @@ bool slave_thread::read_platform_configuration()
         return false;
     }
 
-    if (!bpl::cfg_get_zwdfs_flag(db->device_conf.zwdfs_flag)) {
+    if (!bpl::cfg_get_zwdfs_flag(device_conf.zwdfs_flag)) {
         LOG(WARNING) << "cfg_get_zwdfs_flag() failed!, using default configuration: "
-                     << beerocks::utils::get_zwdfs_string(db->device_conf.zwdfs_flag);
+                     << beerocks::utils::get_zwdfs_string(device_conf.zwdfs_flag);
     }
 
-    if (!bpl::cfg_get_best_channel_rank_threshold(db->device_conf.best_channel_rank_threshold)) {
+    if (!bpl::cfg_get_best_channel_rank_threshold(device_conf.best_channel_rank_threshold)) {
         LOG(WARNING) << "cfg_get_best_channel_rank_threshold() failed!"
                      << " using default configuration ";
     }
 
-    if (!bpl::cfg_get_multi_chan_bcn_req_duration(db->device_conf.multi_chan_bcn_req_duration)) {
+    if (!bpl::cfg_get_multi_chan_bcn_req_duration(device_conf.multi_chan_bcn_req_duration)) {
         LOG(WARNING) << "cfg_get_multi_chan_bcn_req_duration() failed!"
                      << " using default configuration ";
     }
 
-    if (!bpl::get_max_prioritization_rules(db->device_conf.max_prioritization_rules)) {
+    if (!bpl::get_max_prioritization_rules(device_conf.max_prioritization_rules)) {
         LOG(WARNING) << "get_max_prioritization_rules() failed!"
                      << " using default configuration ";
     }
 
     // Check controller connectivity settings
     if (!bpl::get_check_connectivity_to_controller_enable(
-            db->device_conf.check_connectivity_to_controller_enable)) {
+            device_conf.check_connectivity_to_controller_enable)) {
         LOG(WARNING) << "get_check_connectivity_to_controller_enable() failed!"
                      << " using default configuration ";
     }
     if (!bpl::get_check_indirect_connectivity_to_controller_enable(
-            db->device_conf.check_indirect_connectivity_to_controller_enable)) {
+            device_conf.check_indirect_connectivity_to_controller_enable)) {
         LOG(WARNING) << "check_indirect_connectivity_to_controller_enable() failed!"
                      << " using default configuration ";
     }
     if (!bpl::get_controller_discovery_timeout_seconds(
-            db->device_conf.controller_discovery_timeout_seconds)) {
+            device_conf.controller_discovery_timeout_seconds)) {
         LOG(WARNING) << "controller_discovery_timeout_seconds() failed!"
                      << " using default configuration ";
     }
     if (!bpl::get_controller_message_timeout_seconds(
-            db->device_conf.controller_message_timeout_seconds)) {
+            device_conf.controller_message_timeout_seconds)) {
         LOG(WARNING) << "get_controller_message_timeout_seconds() failed!"
                      << " using default configuration ";
     }
     if (!bpl::get_controller_heartbeat_state_timeout_seconds(
-            db->device_conf.controller_heartbeat_state_timeout_seconds)) {
+            device_conf.controller_heartbeat_state_timeout_seconds)) {
         LOG(WARNING) << "get_controller_heartbeat_state_timeout_seconds() failed!"
                      << " using default configuration ";
     }
 
     // Set local_gw flag
-    db->device_conf.local_gw =
-        (db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT ||
-         db->device_conf.management_mode == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT ||
-         db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
-         db->device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP);
+    device_conf.local_gw = (device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER_AGENT ||
+                            device_conf.management_mode == BPL_MGMT_MODE_NONPRPL_CONTROLLER_AGENT ||
+                            device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER ||
+                            device_conf.management_mode == BPL_MGMT_MODE_NOT_MULTIAP);
 
-    db->ethernet.lan.clear();
     auto lan_ifaces = beerocks::net::network_utils::linux_get_lan_interfaces();
     for (const auto &lan_iface : lan_ifaces) {
         std::string iface_mac;
 
         if (beerocks::net::network_utils::linux_iface_get_mac(lan_iface, iface_mac)) {
-            db->ethernet.lan.emplace_back(lan_iface, tlvf::mac_from_string(iface_mac));
+            lan_ports.emplace_back(lan_iface, tlvf::mac_from_string(iface_mac));
             LOG(DEBUG) << "LAN interface added: " << lan_iface << " - " << iface_mac;
         }
     }
 
-    LOG(DEBUG) << "local_gw: " << db->device_conf.local_gw;
-    LOG(DEBUG) << "local_controller: " << db->device_conf.local_controller;
+    LOG(DEBUG) << "local_gw: " << device_conf.local_gw;
+    LOG(DEBUG) << "local_controller: " << device_conf.local_controller;
     LOG(DEBUG) << "backhaul_preferred_radio_band: "
-               << db->device_conf.back_radio.backhaul_preferred_radio_band;
-    LOG(DEBUG) << beerocks::utils::get_zwdfs_string(db->device_conf.zwdfs_flag);
-    LOG(DEBUG) << "best_channel_rank_threshold: " << db->device_conf.best_channel_rank_threshold;
-    LOG(DEBUG) << "multi_chan_bcn_req_duration: " << db->device_conf.multi_chan_bcn_req_duration;
-    LOG(DEBUG) << "max_prioritization_rules: " << db->device_conf.max_prioritization_rules;
+               << device_conf.back_radio.backhaul_preferred_radio_band;
+    LOG(DEBUG) << beerocks::utils::get_zwdfs_string(device_conf.zwdfs_flag);
+    LOG(DEBUG) << "best_channel_rank_threshold: " << device_conf.best_channel_rank_threshold;
+    LOG(DEBUG) << "multi_chan_bcn_req_duration: " << device_conf.multi_chan_bcn_req_duration;
+    LOG(DEBUG) << "max_prioritization_rules: " << device_conf.max_prioritization_rules;
     LOG(DEBUG) << "check_connectivity_to_controller_enable: "
-               << db->device_conf.check_connectivity_to_controller_enable;
+               << device_conf.check_connectivity_to_controller_enable;
     LOG(DEBUG) << "check_indirect_connectivity_to_controller: "
-               << db->device_conf.check_indirect_connectivity_to_controller_enable;
+               << device_conf.check_indirect_connectivity_to_controller_enable;
+
+    {
+        auto db                                  = AgentDB::get();
+        db->device_conf.front_radio              = std::move(device_conf.front_radio);
+        db->device_conf.back_radio.ssid          = std::move(device_conf.back_radio.ssid);
+        db->device_conf.back_radio.pass          = std::move(device_conf.back_radio.pass);
+        db->device_conf.back_radio.security_type = std::move(device_conf.back_radio.security_type);
+        db->device_conf.back_radio.mem_only_psk  = std::move(device_conf.back_radio.mem_only_psk);
+        db->device_conf.back_radio.backhaul_preferred_radio_band =
+            std::move(device_conf.back_radio.backhaul_preferred_radio_band);
+        db->device_conf.country_code     = std::move(device_conf.country_code);
+        db->device_conf.local_controller = std::move(device_conf.local_controller);
+        db->device_conf.local_non_prplmesh_controller =
+            std::move(device_conf.local_non_prplmesh_controller);
+        db->device_conf.certification_mode       = std::move(device_conf.certification_mode);
+        db->device_conf.stop_on_failure_attempts = std::move(device_conf.stop_on_failure_attempts);
+        db->device_conf.zwdfs_flag               = std::move(device_conf.zwdfs_flag);
+        db->device_conf.best_channel_rank_threshold =
+            std::move(device_conf.best_channel_rank_threshold);
+        db->device_conf.multi_chan_bcn_req_duration =
+            std::move(device_conf.multi_chan_bcn_req_duration);
+        db->device_conf.max_prioritization_rules = std::move(device_conf.max_prioritization_rules);
+        db->device_conf.check_connectivity_to_controller_enable =
+            std::move(device_conf.check_connectivity_to_controller_enable);
+        db->device_conf.check_indirect_connectivity_to_controller_enable =
+            std::move(device_conf.check_indirect_connectivity_to_controller_enable);
+        db->device_conf.controller_discovery_timeout_seconds =
+            std::move(device_conf.controller_discovery_timeout_seconds);
+        db->device_conf.controller_message_timeout_seconds =
+            std::move(device_conf.controller_message_timeout_seconds);
+        db->device_conf.controller_heartbeat_state_timeout_seconds =
+            std::move(device_conf.controller_heartbeat_state_timeout_seconds);
+        db->device_conf.local_gw = std::move(device_conf.local_gw);
+        db->ethernet.lan         = std::move(lan_ports);
+    }
 
     return true;
 }
@@ -967,7 +1007,7 @@ void slave_thread::handle_client_disconnected(int fd)
         } else if (fd == radio_manager.monitor_fd) {
             LOG(DEBUG) << "Monitor " << fronthaul_iface << " disconnected";
             radio_manager.monitor_fd = net::FileDescriptor::invalid_descriptor;
-            AgentDB::get()->dm_fronthaul_disconnected(radio_manager.dm_instance);
+            AgentDataModel::get().dm_fronthaul_disconnected(radio_manager.dm_instance);
             if (radio_manager.ap_manager_fd != net::FileDescriptor::invalid_descriptor) {
                 fronthaul_reset(radio_manager);
             }
@@ -3105,10 +3145,14 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
-        auto db               = AgentDB::get();
-        config_msg->channel() = db->device_conf.front_radio.config.at(iface).configured_channel;
-        config_msg->certification_mode() = db->device_conf.certification_mode;
-        config_msg->multi_ap_profile()   = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
+        std::string bridge_iface;
+        {
+            auto db               = AgentDB::get();
+            config_msg->channel() = db->device_conf.front_radio.config.at(iface).configured_channel;
+            config_msg->certification_mode() = db->device_conf.certification_mode;
+            config_msg->multi_ap_profile() = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
+            bridge_iface                   = db->bridge.iface_name;
+        }
 
         std::string hostapd_ctrl_path;
         if (!bpl::bpl_cfg_get_hostapd_ctrl_path(iface, hostapd_ctrl_path)) {
@@ -3133,8 +3177,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         LOG(DEBUG) << "Client measurement mode for " << iface << ": " << clients_measurement_mode;
         config_msg->clients_measurement_mode() = static_cast<uint8_t>(clients_measurement_mode);
 
-        string_utils::copy_string(config_msg->bridge_iface().iface_name,
-                                  db->bridge.iface_name.c_str(),
+        string_utils::copy_string(config_msg->bridge_iface().iface_name, bridge_iface.c_str(),
                                   beerocks::message::IFACE_NAME_LENGTH);
 
         if (!config_msg->set_hostapd_ctrl_path(hostapd_ctrl_path)) {
@@ -3168,7 +3211,13 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                                       beerocks::message::IFACE_NAME_LENGTH);
         }
 
-        radio_manager.dm_instance = db->dm_create_fronthaul_object(iface);
+        radio_manager.dm_instance = AgentDataModel::get().dm_create_fronthaul_object(iface);
+#ifdef ENABLE_NBAPI
+        if (radio_manager.dm_instance.empty()) {
+            LOG(ERROR) << "Failed to initialize Fronthaul datamodel for " << iface;
+            return false;
+        }
+#endif
 
         if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
             return false;
@@ -3192,7 +3241,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
-        AgentDB::get()->dm_set_fronthaul_state(
+        AgentDataModel::get().dm_set_fronthaul_state(
             radio_manager.dm_instance, notification->curstate_str(), notification->maxstate_str());
 
         return true;
@@ -3212,6 +3261,10 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         if (notification == nullptr) {
             LOG(ERROR) << "addClass cACTION_APMANAGER_JOINED_NOTIFICATION failed";
             return false;
+        }
+        std::string chipset_vendor = notification->params().chipset_vendor;
+        if (chipset_vendor.empty()) {
+            bpl::get_ruid_chipset_vendor(notification->params().iface_mac, chipset_vendor);
         }
         auto db    = AgentDB::get();
         auto radio = db->radio(fronthaul_iface);
@@ -3347,14 +3400,10 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                                    CapabilityReportingTask::eEvent::AP_CAPABILITY);
         }
 
-        radio->chipset_vendor = notification->params().chipset_vendor;
+        radio->chipset_vendor = std::move(chipset_vendor);
 
         // cac
         save_cac_capabilities_params_to_db(fronthaul_iface);
-
-        if (radio->chipset_vendor.empty()) {
-            beerocks::bpl::get_ruid_chipset_vendor(radio->front.iface_mac, radio->chipset_vendor);
-        }
 
         if (radio->front.zwdfs) {
             auto request = message_com::create_vs_message<
@@ -5484,17 +5533,26 @@ bool slave_thread::agent_fsm()
     case STATE_JOIN_INIT: {
 
         bool all_radios_disabled = true;
-        auto db                  = AgentDB::get();
+        bool agent_is_dummy;
+        uint8_t management_mode;
+        std::unordered_map<std::string, AgentDB::sDeviceConf::sFrontRadio::sWlanSettings>
+            radio_config;
+        {
+            auto db         = AgentDB::get();
+            agent_is_dummy  = db->agent_is_dummy();
+            management_mode = db->device_conf.management_mode;
+            radio_config    = db->device_conf.front_radio.config;
+        }
 
         // Dummy agent skips fronthaul management
-        if (db->agent_is_dummy()) {
-            LOG(TRACE) << "management_mode=" << db->device_conf.management_mode
+        if (agent_is_dummy) {
+            LOG(TRACE) << "management_mode=" << management_mode
                        << " skips fronthaul management, goto STATE_BACKHAUL_ENABLE";
             m_agent_state = STATE_BACKHAUL_ENABLE;
             break;
         }
 
-        for (const auto &radio_conf_element : db->device_conf.front_radio.config) {
+        for (const auto &radio_conf_element : radio_config) {
             auto &radio_iface = radio_conf_element.first;
             auto &radio_conf  = radio_conf_element.second;
             LOG_IF(!radio_conf.band_enabled, DEBUG) << "radio " << radio_iface << " is disabled";
@@ -5509,14 +5567,16 @@ bool slave_thread::agent_fsm()
 
         m_radio_managers.do_on_each_radio_manager(
             [&](const sManagedRadio &radio_manager, const std::string &fronthaul_iface) {
-                auto db = AgentDB::get();
-                if (!db->device_conf.front_radio.config.at(fronthaul_iface).band_enabled) {
+                if (!radio_config.at(fronthaul_iface).band_enabled) {
                     return true;
                 }
-                auto radio = db->radio(fronthaul_iface);
-                if (radio) {
-                    // Set zwdfs to initial value.
-                    radio->front.zwdfs = false;
+                {
+                    auto db    = AgentDB::get();
+                    auto radio = db->radio(fronthaul_iface);
+                    if (radio) {
+                        // Set zwdfs to initial value.
+                        radio->front.zwdfs = false;
+                    }
                 }
                 if (!radio_manager.fronthaul_started) {
                     // Start the fronthaul process. Before starting, kill the existing one.

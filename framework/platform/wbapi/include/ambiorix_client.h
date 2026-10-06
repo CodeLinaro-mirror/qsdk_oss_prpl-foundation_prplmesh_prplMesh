@@ -12,6 +12,7 @@
 // prplmesh
 #include <bcl/beerocks_event_loop.h>
 #include <easylogging++.h>
+#include <mapf/common/amx_mutex.h>
 
 // Ambiorix
 #include "ambiorix_connection.h"
@@ -75,10 +76,14 @@ public:
     template <typename T>
     T get_object_multi(const std::string &object_path, const int32_t depth = 0)
     {
-        if (!m_connection) {
-            return T{};
+        AmbiorixVariantSmartPtr objs;
+        {
+            AmxGuard guard;
+            if (!m_connection) {
+                return T{};
+            }
+            objs = m_connection->get_object(object_path, depth, false);
         }
-        auto objs = m_connection->get_object(object_path, depth, false);
         if (!objs) {
             return T{};
         }

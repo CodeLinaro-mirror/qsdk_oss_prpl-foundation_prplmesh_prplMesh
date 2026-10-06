@@ -13,6 +13,36 @@
 
 namespace beerocks {
 
+thread_local unsigned AgentDB::s_lock_depth = 0;
+thread_local std::shared_ptr<std::atomic<bool>> AgentDB::s_publication_ready;
+
+AgentDB::SafeDB AgentDB::get()
+{
+    // Own the singleton in agentdb so shared-library consumers use the same DB.
+    static AgentDB instance;
+    return SafeDB(instance);
+}
+
+void AgentDB::db_lock()
+{
+    m_db_mutex.lock();
+    ++s_lock_depth;
+}
+
+void AgentDB::db_unlock()
+{
+    const bool outermost = --s_lock_depth == 0;
+    auto ready           = outermost ? std::move(s_publication_ready) : nullptr;
+    m_db_mutex.unlock();
+    if (ready) {
+        // Publish only after ALL enclosing recursive DB scopes have released.
+        // Readiness preserves FIFO order even if another publisher runs before
+        // this thread reaches drain(). No queued command borrows database data.
+        ready->store(true);
+        AgentDataModel::get().drain();
+    }
+}
+
 AgentDB::sRadio *AgentDB::radio(const std::string &iface_name)
 {
     if (iface_name.empty()) {
@@ -186,118 +216,6 @@ bool AgentDB::get_bsta_mld_mac_by_ssid(const std::string &ssid, sMacAddr &ruid, 
         }
     }
     return false;
-}
-
-bool AgentDB::init_data_model(std::shared_ptr<beerocks::nbapi::Ambiorix> dm)
-{
-    LOG_IF(!dm, FATAL) << "Ambiorix datamodel not specified";
-    LOG_IF(m_ambiorix_datamodel, FATAL) << "Ambiorix datamodel already set";
-
-    m_ambiorix_datamodel = dm;
-    return true;
-}
-
-bool AgentDB::dm_set_agent_mac(const std::string &mac)
-{
-    LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
-
-    // Set MACAddress, Data model path: AGENT_ROOT_DM.Info.MACAddress
-    if (!m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "MACAddress", mac)) {
-        LOG(ERROR) << "Failed to set Agent with mac: " << mac;
-        return false;
-    }
-    return true;
-}
-
-void AgentDB::dm_set_fronthaul_interfaces(const std::string &interfaces)
-{
-    LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
-
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "FronthaulIfaces", interfaces);
-}
-
-void AgentDB::dm_set_agent_state(const std::string &cur, const std::string &max)
-{
-    LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
-
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "CurrentState", cur);
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "BestState", max);
-}
-
-void AgentDB::dm_set_controller_connected(bool connected)
-{
-    LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
-
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "ControllerConnected", connected);
-}
-
-void AgentDB::dm_set_management_mode(const std::string &mode)
-{
-    LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
-
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "ManagementMode", mode);
-}
-
-std::string AgentDB::dm_create_fronthaul_object(const std::string &iface)
-{
-    auto idx = m_ambiorix_datamodel->get_instance_index(
-        AGENT_ROOT_DM ".Info.Fronthaul.[Iface == '%s']", iface);
-
-    if (idx) {
-        if (!m_ambiorix_datamodel->remove_instance(AGENT_ROOT_DM ".Info.Fronthaul", idx)) {
-            LOG(ERROR) << "Failed to remove fronthaul instance for " << iface;
-            return "";
-        }
-    }
-#ifndef ENABLE_NBAPI
-    return "";
-#else
-    auto inst = m_ambiorix_datamodel->add_instance(AGENT_ROOT_DM ".Info.Fronthaul");
-    // If this fails due to a race condition, schedule one retry. See PPM-3286.
-    if (!inst.size()) {
-        LOG(ERROR) << "Could not create " AGENT_ROOT_DM ".Info.Fronthaul instance for '" << iface
-                   << "', scheduling one retry in 100 ms";
-
-        // wait some time before second try
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        inst = m_ambiorix_datamodel->add_instance(AGENT_ROOT_DM ".Info.Fronthaul");
-        if (!inst.size()) {
-            LOG(ERROR) << "Could not create " AGENT_ROOT_DM ".Info.Fronthaul instance for '"
-                       << iface << " on retry";
-            return "";
-        }
-        LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
-    }
-
-    m_ambiorix_datamodel->set(inst, "Iface", iface);
-    m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));
-    m_ambiorix_datamodel->set(inst, "BestState", std::string("INIT (0)"));
-
-    return inst;
-#endif
-}
-
-void AgentDB::dm_set_fronthaul_state(const std::string &path, const std::string &cur,
-                                     const std::string &max)
-{
-    if (path.empty()) {
-        LOG(ERROR) << "dm_set_fronthaul_state called with empty path, skipping update";
-        return;
-    }
-    m_ambiorix_datamodel->set(path, "CurrentState", cur);
-    m_ambiorix_datamodel->set(path, "BestState", max);
-}
-
-void AgentDB::dm_fronthaul_disconnected(const std::string &path)
-{
-    auto dot_pos = path.find_last_of('.');
-    if (dot_pos == std::string::npos) {
-        return;
-    }
-
-    auto idx = atoi(path.c_str() + dot_pos + 1);
-    m_ambiorix_datamodel->remove_instance(path.substr(0, dot_pos), idx);
 }
 
 bool AgentDB::agent_is_dummy() const

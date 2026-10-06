@@ -15,7 +15,7 @@
 #include <amxd/amxd_transaction.h>
 
 #include <bcl/network/network_utils.h>
-#include <mapf/common/utils.h>
+#include <mapf/common/amx_mutex.h>
 #include <tlvf/tlvftypes.h>
 
 #include <cstring>
@@ -36,6 +36,7 @@ AmbiorixImpl::AmbiorixImpl(std::shared_ptr<EventLoop> event_loop,
 
 bool AmbiorixImpl::init(const std::string &datamodel_path)
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Initializing the bus connection.";
 
     if (!load_datamodel(datamodel_path)) {
@@ -75,6 +76,7 @@ bool AmbiorixImpl::init(const std::string &datamodel_path)
 
 bool AmbiorixImpl::load_datamodel(const std::string &datamodel_path)
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Loading the data model.";
     auto *root_obj = amxd_dm_get_root(Amxrt::getDatamodel());
     if (!root_obj) {
@@ -134,6 +136,7 @@ bool AmbiorixImpl::load_datamodel(const std::string &datamodel_path)
 
 bool AmbiorixImpl::connect_and_register()
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Connect and register.";
 
     const amxc_llist_t *uris =
@@ -167,6 +170,7 @@ bool AmbiorixImpl::connect_and_register()
 
 bool AmbiorixImpl::init_event_loop()
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Register event handlers for the Ambiorix fd in the event loop.";
     for (size_t i = 0; i < m_bus_ctx_vect.size(); i++) {
         auto ambiorix_fd = amxb_get_fd(m_bus_ctx_vect.at(i));
@@ -178,6 +182,7 @@ bool AmbiorixImpl::init_event_loop()
             .name = "ambiorix_events" + std::to_string(i),
             .on_read =
                 [&, i](int fd, EventLoop &loop) {
+                    AmxGuard guard;
                     amxb_read(m_bus_ctx_vect.at(i));
                     return true;
                 },
@@ -207,6 +212,7 @@ bool AmbiorixImpl::init_event_loop()
 
 bool AmbiorixImpl::init_signal_loop()
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Register event handlers for the Ambiorix signals fd in the event loop.";
 
     auto ambiorix_fd = amxp_signal_fd();
@@ -219,7 +225,7 @@ bool AmbiorixImpl::init_signal_loop()
         .name = "ambiorix_signal",
         .on_read =
             [&](int fd, EventLoop &loop) {
-                std::lock_guard<std::mutex> guard(amxp_signal_read_mutex);
+                AmxGuard guard;
                 amxp_signal_read();
                 return true;
             },
@@ -249,6 +255,7 @@ bool AmbiorixImpl::init_signal_loop()
 
 bool AmbiorixImpl::remove_event_loop()
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Remove event handlers for Ambiorix fd from the event loop.";
 
     for (size_t i = 0; i < m_bus_ctx_vect.size(); i++) {
@@ -270,6 +277,7 @@ bool AmbiorixImpl::remove_event_loop()
 
 bool AmbiorixImpl::remove_signal_loop()
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Remove event handlers for the Ambiorix signals fd from the event loop.";
 
     auto ambiorix_fd = amxp_signal_fd();
@@ -292,6 +300,7 @@ bool AmbiorixImpl::remove_signal_loop()
 
 bool AmbiorixImpl::remove_easymesh_datamodel()
 {
+    AmxGuard guard;
     auto *dm   = Amxrt::getDatamodel();
     auto *root = amxd_dm_get_root(dm);
     if (!root) {
@@ -351,6 +360,7 @@ amxd_object_t *AmbiorixImpl::find_object(const std::string &relative_path)
 bool AmbiorixImpl::add_optional_subobject(const std::string &path_to_obj,
                                           const std::string &subobject_name)
 {
+    AmxGuard guard;
     amxd_object_t *object = find_object(path_to_obj);
 
     if (!object) {
@@ -377,6 +387,7 @@ bool AmbiorixImpl::add_optional_subobject(const std::string &path_to_obj,
 bool AmbiorixImpl::remove_optional_subobject(const std::string &path_to_obj,
                                              const std::string &subobject_name)
 {
+    AmxGuard guard;
     amxd_object_t *object = find_object(path_to_obj);
 
     if (!object) {
@@ -418,12 +429,14 @@ amxd_object_t *AmbiorixImpl::prepare_transaction(const std::string &relative_pat
     status = amxd_trans_set_attr(&transaction, amxd_tattr_change_ro, true);
     if (status != amxd_status_ok) {
         LOG(ERROR) << "Couldn't set transaction attributes, status: " << amxd_status_string(status);
+        amxd_trans_clean(&transaction);
         return nullptr;
     }
 
     status = amxd_trans_select_object(&transaction, object);
     if (status != amxd_status_ok) {
         LOG(ERROR) << "Couldn't select transaction object, status: " << amxd_status_string(status);
+        amxd_trans_clean(&transaction);
         return nullptr;
     }
 
@@ -447,6 +460,7 @@ bool AmbiorixImpl::apply_transaction(amxd_trans_t &transaction)
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const std::string &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -469,9 +483,37 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
     return true;
 }
 
+bool AmbiorixImpl::set_strings(const std::string &relative_path,
+                               const std::map<std::string, std::string> &values)
+{
+    AmxGuard guard;
+    if (values.empty()) {
+        return true;
+    }
+
+    amxd_trans_t transaction;
+    if (!prepare_transaction(relative_path, transaction)) {
+        return false;
+    }
+
+    for (const auto &value : values) {
+        auto status = amxd_trans_set_value(cstring_t, &transaction, value.first.c_str(),
+                                           value.second.c_str());
+        if (status != amxd_status_ok) {
+            LOG(ERROR) << "Failed to set transaction value: " << relative_path << "." << value.first
+                       << ", status: " << amxd_status_string(status);
+            amxd_trans_clean(&transaction);
+            return false;
+        }
+    }
+
+    return apply_transaction(transaction);
+}
+
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const int8_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -494,6 +536,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const int16_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -516,6 +559,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const int32_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -540,6 +584,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const int64_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -564,6 +609,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const uint8_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -586,6 +632,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const uint16_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -608,6 +655,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const uint32_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -632,6 +680,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const uint64_t &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -656,6 +705,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const double &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -680,6 +730,7 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const bool &value)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
 
@@ -704,12 +755,14 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,
                        const sMacAddr &value)
 {
+    AmxGuard guard;
     return set(relative_path, parameter, tlvf::mac_to_string(value));
 }
 
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               int8_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -732,6 +785,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               int16_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -754,6 +808,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               int32_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -776,6 +831,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               int64_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -798,6 +854,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               uint8_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -819,6 +876,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               uint16_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -841,6 +899,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               uint32_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -863,6 +922,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               uint64_t *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -885,6 +945,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               double *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -907,6 +968,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               bool *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -929,6 +991,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               std::string *param_val)
 {
+    AmxGuard guard;
     amxc_var_t ret_val;
     amxc_var_init(&ret_val);
     amxd_object_t *obj = find_object(obj_path);
@@ -951,6 +1014,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               sMacAddr *param_val)
 {
+    AmxGuard guard;
     std::string mac_string;
     bool str_ret_val = read_param(obj_path, param_name, &mac_string);
     if (!str_ret_val) {
@@ -969,6 +1033,7 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
 
 std::string AmbiorixImpl::add_instance(const std::string &relative_path)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     uint32_t index;
 
@@ -1000,6 +1065,7 @@ std::string AmbiorixImpl::add_instance(const std::string &relative_path)
 
 bool AmbiorixImpl::remove_instance(const std::string &relative_path, uint32_t index)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
     if (!object) {
@@ -1028,6 +1094,7 @@ bool AmbiorixImpl::remove_instance(const std::string &relative_path, uint32_t in
 
 uint32_t AmbiorixImpl::get_instance_index(const std::string &specific_path, const std::string &key)
 {
+    AmxGuard guard;
     uint32_t index = 0;
 
     auto object = amxd_dm_findf(Amxrt::getDatamodel(), specific_path.c_str(), key.c_str());
@@ -1099,6 +1166,7 @@ bool AmbiorixImpl::set_time(const std::string &path_to_object, const std::string
 
 bool AmbiorixImpl::remove_all_instances(const std::string &relative_path)
 {
+    AmxGuard guard;
     amxd_trans_t transaction;
     auto object = prepare_transaction(relative_path, transaction);
     if (!object) {
@@ -1123,6 +1191,7 @@ bool AmbiorixImpl::remove_all_instances(const std::string &relative_path)
 
 AmbiorixImpl::~AmbiorixImpl()
 {
+    AmxGuard guard;
     remove_event_loop();
     remove_signal_loop();
     for (size_t i = 0; i < m_bus_ctx_vect.size(); i++) {

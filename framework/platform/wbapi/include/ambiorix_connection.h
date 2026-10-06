@@ -231,6 +231,7 @@ public:
     const std::string &uri() const;
 
 private:
+    // Acquire AmxGuard before this connection lock.
     std::recursive_mutex m_mutex;
     std::string m_amxb_backend;
     amxc_var_t *m_config = nullptr;

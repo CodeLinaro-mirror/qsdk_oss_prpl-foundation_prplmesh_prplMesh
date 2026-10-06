@@ -18,6 +18,10 @@ file(GLOB beerocks_agent_sources
     ${MODULE_PATH}/nbapi/*.c*
     ${MODULE_PATH}/*.c*
 )
+list(REMOVE_ITEM beerocks_agent_sources
+    ${MODULE_PATH}/agent_db.cpp
+    ${MODULE_PATH}/agent_datamodel.cpp
+)
 
 if (ENABLE_NBAPI)
     add_subdirectory("nbapi")
@@ -45,7 +49,7 @@ endif()
 add_executable(${PROJECT_NAME} ${beerocks_agent_sources})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
-target_link_libraries(${PROJECT_NAME} rt dl bcl btl tlvf elpp btlvf bwl bpl nbapi multi_vendor ${LIBS})
+target_link_libraries(${PROJECT_NAME} rt dl agentdb bcl btl tlvf elpp btlvf bwl bpl nbapi multi_vendor ${LIBS})
 
 if (ENABLE_NBAPI)
     # Include AMBIORIX in the build

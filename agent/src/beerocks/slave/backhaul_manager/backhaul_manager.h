@@ -37,6 +37,7 @@
 
 #include <future>
 #include <list>
+#include <mutex>
 
 namespace beerocks {
 
@@ -157,6 +158,9 @@ public:
      * @return true on success, false on failure.
      */
     bool initiate_wps_pbc_auto();
+
+    /** Queue WPS work for this thread; true means accepted, not completed. */
+    bool enqueue_wps_request();
 
     /**
      * @brief Triggers WPS PBC (backhaul STA) on provided frequency
@@ -661,6 +665,13 @@ private:
      * File descriptor of the timer to run internal tasks periodically.
      */
     int m_tasks_timer = beerocks::net::FileDescriptor::invalid_descriptor;
+
+    // Never hold this mutex while executing WPS, accessing AgentDB or entering AMX.
+    std::mutex m_wps_request_mutex;
+    int m_wps_request_fd            = beerocks::net::FileDescriptor::invalid_descriptor;
+    bool m_accept_wps_requests      = false;
+    unsigned m_pending_wps_requests = 0;
+    void before_stop() override;
 
     /**
      * File descriptor of the timer to run the Finite State Machine.

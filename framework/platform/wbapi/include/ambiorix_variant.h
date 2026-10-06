@@ -50,6 +50,9 @@ protected:
 
 /**
  * @class AmbiorixVariant: wrapper class for amxc_var_t struct
+ *
+ * Detached variants are private values. When wrapping shared AMX data, callers
+ * must hold AmxGuard for the complete lifetime and use of the borrowed variant.
  */
 class AmbiorixVariant {
 public:

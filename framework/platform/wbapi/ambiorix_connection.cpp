@@ -9,7 +9,7 @@
 #include <easylogging++.h>
 
 #include <bcl/beerocks_backport.h>
-#include <mapf/common/utils.h>
+#include <mapf/common/amx_mutex.h>
 
 #include "include/ambiorix_connection.h"
 
@@ -23,6 +23,7 @@ namespace {
 
 void async_call_done(const amxb_bus_ctx_t *, amxb_request_t *request, int status, void *)
 {
+    beerocks::AmxGuard guard;
     LOG_IF(status != AMXB_STATUS_OK, ERROR)
         << "Asynchronous Ambiorix call completed with status " << status;
 
@@ -43,6 +44,8 @@ AmbiorixConnection::AmbiorixConnection(const std::string &amxb_backend, const st
 
 AmbiorixConnection::~AmbiorixConnection()
 {
+    AmxGuard guard;
+    const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     amxc_var_delete(&m_config);
     amxb_free(&m_bus_ctx);
 }
@@ -51,6 +54,8 @@ const std::string &AmbiorixConnection::uri() const { return m_bus_uri; }
 
 bool AmbiorixConnection::init()
 {
+    AmxGuard guard;
+    const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (m_bus_ctx) {
         return true;
     }
@@ -94,6 +99,7 @@ AmbiorixVariantSmartPtr AmbiorixConnection::get_object(const std::string &object
     if ((m_bus_uri.rfind("usp:", 0) == 0) && (path.rfind(prefix, 0) != 0)) {
         path.insert(0, prefix);
     }
+    AmxGuard guard;
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     AmbiorixVariant result;
     int ret =
@@ -132,6 +138,7 @@ bool AmbiorixConnection::resolve_path(const std::string &search_path,
                                       std::vector<std::string> &absolute_path_list,
                                       int &amxb_status)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     absolute_path_list.clear();
     amxd_path_t amxd_path;
@@ -154,6 +161,7 @@ bool AmbiorixConnection::resolve_path(const std::string &search_path,
 
 bool AmbiorixConnection::update_object(const std::string &object_path, AmbiorixVariant &object_data)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     AmbiorixVariant result;
     int ret = amxb_set(m_bus_ctx, object_path.c_str(), get_amxc_var_ptr(object_data),
@@ -165,6 +173,7 @@ bool AmbiorixConnection::update_object(const std::string &object_path, AmbiorixV
 bool AmbiorixConnection::add_instance(const std::string &object_path, AmbiorixVariant &object_data,
                                       int &instance_id)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     AmbiorixVariant result;
     bool success = false;
@@ -181,6 +190,7 @@ bool AmbiorixConnection::add_instance(const std::string &object_path, AmbiorixVa
 
 bool AmbiorixConnection::remove_instance(const std::string &object_path, int instance_id)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     AmbiorixVariant result;
     int ret = amxb_del(m_bus_ctx, object_path.c_str(), instance_id, NULL, get_amxc_var_ptr(result),
@@ -193,6 +203,7 @@ bool AmbiorixConnection::remove_instance(const std::string &object_path, int ins
 bool AmbiorixConnection::call(const std::string &object_path, const char *method,
                               AmbiorixVariant &args, AmbiorixVariant &result)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     int ret = amxb_call(m_bus_ctx, object_path.c_str(), method, get_amxc_var_ptr(args),
                         get_amxc_var_ptr(result), AMX_CL_DEF_TIMEOUT);
@@ -204,6 +215,7 @@ bool AmbiorixConnection::call(const std::string &object_path, const char *method
 bool AmbiorixConnection::call_async(const std::string &object_path, const char *method,
                                     AmbiorixVariant &args)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     auto request = amxb_async_call(m_bus_ctx, object_path.c_str(), method, get_amxc_var_ptr(args),
                                    async_call_done, nullptr);
@@ -214,16 +226,14 @@ bool AmbiorixConnection::call_async(const std::string &object_path, const char *
 
 int AmbiorixConnection::read()
 {
-    // We had issues when just reading amxb_read one time, This solution was intensively tested  and proved to be fiable and stable.
-    m_mutex.lock();
+    AmxGuard guard;
+    const std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    // Drain the backend: one read may leave queued events undispatched.
     int ret = amxb_read(m_bus_ctx);
-    m_mutex.unlock();
     if (ret > 0) {
-        int ret2 = 0;
+        int ret2;
         do {
-            m_mutex.lock();
             ret2 = amxb_read(m_bus_ctx);
-            m_mutex.unlock();
         } while (ret2 > 0);
     }
     return ret;
@@ -231,10 +241,10 @@ int AmbiorixConnection::read()
 
 int AmbiorixConnection::read_signal()
 {
+    AmxGuard guard;
+    const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     int ret;
     do {
-        std::lock_guard<std::mutex> guard(amxp_signal_read_mutex);
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
         ret = amxp_signal_read();
     } while (ret == 0);
     return ret;
@@ -242,12 +252,14 @@ int AmbiorixConnection::read_signal()
 
 int AmbiorixConnection::get_fd()
 {
+    AmxGuard guard;
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_fd;
 }
 
 int AmbiorixConnection::get_signal_fd()
 {
+    AmxGuard guard;
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_signal_fd;
 }
@@ -255,6 +267,7 @@ int AmbiorixConnection::get_signal_fd()
 static void event_callback(const char *const sig_name, const amxc_var_t *const data,
                            void *const priv)
 {
+    beerocks::AmxGuard guard;
     sAmbiorixEventHandler *handler = static_cast<sAmbiorixEventHandler *>(priv);
     if (!handler || !data) {
         return;
@@ -274,6 +287,7 @@ static void event_callback(const char *const sig_name, const amxc_var_t *const d
 bool AmbiorixConnection::subscribe(const std::string &object_path, const std::string &filter,
                                    sAmbiorixSubscriptionInfo &subscriptionInfo)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     int ret =
         amxb_subscription_new(&subscriptionInfo.subscription_ctx, m_bus_ctx, object_path.c_str(),
@@ -284,6 +298,7 @@ bool AmbiorixConnection::subscribe(const std::string &object_path, const std::st
 
 bool AmbiorixConnection::unsubscribe(sAmbiorixSubscriptionInfo &subscriptionInfo)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_mutex);
     int ret = amxb_subscription_delete(&subscriptionInfo.subscription_ctx);
     LOG_IF(ret != AMXB_STATUS_OK, ERROR) << "unsubscribe failed";

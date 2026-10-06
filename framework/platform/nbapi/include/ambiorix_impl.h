@@ -103,6 +103,9 @@ public:
     bool set(const std::string &relative_path, const std::string &parameter,
              const sMacAddr &value) override;
 
+    bool set_strings(const std::string &relative_path,
+                     const std::map<std::string, std::string> &values) override;
+
     bool read_param(const std::string &obj_path, const std::string &param_name,
                     int8_t *param_val) override;
     bool read_param(const std::string &obj_path, const std::string &param_name,
@@ -193,6 +196,8 @@ private:
     /**
      * @brief Prepare transaction to the ubus
      *
+     * The caller must hold AmxGuard until the transaction is cleaned.
+     *
      * @param relative_path Path to the object in datamodel (ex: "Device.WiFi.DataElements.Network.ID").
      * @param transaction Variable for transaction structure which contains fields
      *                    needed for transaction.
@@ -202,6 +207,8 @@ private:
 
     /**
      * @brief Apply transaction
+     *
+     * The caller must hold AmxGuard for the complete transaction.
      *
      * @param transaction Variable for transaction structure which contains fields
      *                    needed for transaction.
@@ -246,6 +253,8 @@ private:
 
     /**
      * @brief Find object by relative path.
+     *
+     * The caller must hold AmxGuard while obtaining and using the borrowed object.
      *
      * @param relative_path Path to the object in datamodel (ex: "Device.WiFi.DataElements.Network.ID").
      * @return Pointer on the object on success and nullptr otherwise.

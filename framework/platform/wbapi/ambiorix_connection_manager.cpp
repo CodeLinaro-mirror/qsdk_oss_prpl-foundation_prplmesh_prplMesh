@@ -11,13 +11,22 @@
 #include "include/ambiorix_connection_manager.h"
 
 #include <algorithm>
+#include <mapf/common/amx_mutex.h>
 
 namespace beerocks {
 namespace wbapi {
 
+AmbiorixConnectionManager::~AmbiorixConnectionManager()
+{
+    AmxGuard guard;
+    const std::lock_guard<std::recursive_mutex> lock(m_connections_mutex);
+    m_connections.clear();
+}
+
 AmbiorixConnectionSmartPtr
 AmbiorixConnectionManager::get_connection(const std::string &amxb_backend, const std::string &uri)
 {
+    AmxGuard guard;
     std::string new_backend(amxb_backend);
     std::string new_uri(uri);
 
@@ -81,6 +90,7 @@ AmbiorixConnectionSmartPtr AmbiorixConnectionManager::create(const std::string &
 
 const AmbiorixConnectionSmartPtr AmbiorixConnectionManager::fetch_connection(int fd)
 {
+    AmxGuard guard;
     const std::lock_guard<std::recursive_mutex> lock(m_connections_mutex);
     auto it = std::find_if(m_connections.begin(), m_connections.end(),
                            [&](const AmbiorixConnectionSmartPtr &cnx) {

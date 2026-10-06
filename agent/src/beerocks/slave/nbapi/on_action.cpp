@@ -7,6 +7,7 @@
  */
 
 #include "on_action.h"
+#include <mapf/common/amx_mutex.h>
 
 using namespace beerocks;
 namespace prplmesh {
@@ -15,7 +16,11 @@ namespace actions {
 
 static WpsAutoCb g_wps_auto_cb = nullptr;
 
-void set_wps_callback(WpsAutoCb auto_cb) { g_wps_auto_cb = std::move(auto_cb); }
+void set_wps_callback(WpsAutoCb auto_cb)
+{
+    AmxGuard guard;
+    g_wps_auto_cb = std::move(auto_cb);
+}
 
 // Actions
 
@@ -28,6 +33,7 @@ void set_wps_callback(WpsAutoCb auto_cb) { g_wps_auto_cb = std::move(auto_cb); }
 amxd_status_t initiate_wps_pbc(amxd_object_t *object, amxd_function_t *func, amxc_var_t *args,
                                amxc_var_t *ret)
 {
+    AmxGuard guard;
     if (!g_wps_auto_cb) {
         LOG(ERROR) << "WPS PBC: callback not set";
         return amxd_status_not_supported;

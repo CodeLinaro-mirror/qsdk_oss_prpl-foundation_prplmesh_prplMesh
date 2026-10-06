@@ -28,6 +28,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <bcl/network/network_utils.h>
 #include <bcl/network/sockets_impl.h>
 #include <btl/broker_client_factory_factory.h>
+#include <mapf/common/amx_mutex.h>
 #include <mapf/common/utils.h>
 
 #include <bpl/bpl_cfg.h>
@@ -98,11 +99,13 @@ static void handle_signal()
     }
 #ifdef ENABLE_NBAPI
     // Handle SIGALRM signal indicating that one of amxp's timers is expired.
-    case SIGALRM:
+    case SIGALRM: {
+        beerocks::AmxGuard guard;
         LOG(INFO) << "LOG amxp Tik tak!";
         amxp_timers_calculate();
         amxp_timers_check();
         break;
+    }
 #endif //ENABLE_NBAPI
     default:
         LOG(WARNING) << "Unhandled Signal: '" << strsignal(s_signal) << "' Ignoring...";

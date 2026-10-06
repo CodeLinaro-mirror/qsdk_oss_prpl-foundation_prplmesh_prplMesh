@@ -474,7 +474,7 @@ void ApAutoConfigurationTask::work()
     if (configured_aps_count > 0 && configured_aps_count == m_radios_conf_params.size()) {
         db->statuses.ap_autoconfiguration_completed = true;
         db->statuses.controller_connected           = true;
-        db->dm_set_controller_connected(true);
+        AgentDataModel::get().dm_set_controller_connected(true);
         m_task_is_active = false;
         LOG(DEBUG) << "Link to the controller is established";
 
@@ -512,7 +512,7 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         db->statuses.ap_autoconfiguration_completed = false;
         db->statuses.controller_connected           = false;
         db->statuses.first_m2_received              = false;
-        db->dm_set_controller_connected(false);
+        AgentDataModel::get().dm_set_controller_connected(false);
 
         // Reset the discovery statuses.
         for (auto &discovery_status : m_discovery_status) {
@@ -1004,6 +1004,10 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
         return false;
     }
 
+    // Platform board metadata can enter WBAPI; fetch it before locking AgentDB.
+    bpl::sBoardInfo board_info;
+    bpl::get_board_info(board_info);
+
     auto db    = AgentDB::get();
     auto radio = db->radio(radio_iface);
     if (!radio) {
@@ -1015,7 +1019,7 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
         return false;
     }
 
-    if (!add_wsc_m1_tlv(radio_iface)) {
+    if (!add_wsc_m1_tlv(radio_iface, board_info)) {
         LOG(ERROR) << "Failed adding WSC M1 TLV";
         return false;
     }
@@ -1212,7 +1216,8 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     return true;
 }
 
-bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
+bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface,
+                                             const bpl::sBoardInfo &board_info)
 {
     auto tlv = m_cmdu_tx.addClass<ieee1905_1::tlvWsc>();
     if (tlv == nullptr) {
@@ -1252,9 +1257,6 @@ bool ApAutoConfigurationTask::add_wsc_m1_tlv(const std::string &radio_iface)
     cfg.encr_type_flags = uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
                           uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP) |
                           uint16_t(WSC::eWscEncr::WSC_ENCR_NONE);
-
-    bpl::sBoardInfo board_info;
-    bpl::get_board_info(board_info);
 
     cfg.manufacturer        = board_info.manufacturer;
     cfg.model_name          = board_info.manufacturer_model;

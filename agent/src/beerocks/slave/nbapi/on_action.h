@@ -9,7 +9,10 @@
 #ifndef ON_ACTION_H
 #define ON_ACTION_H
 
-#include "agent_db.h"
+#include "ambiorix_impl.h"
+
+#include <functional>
+#include <vector>
 
 namespace prplmesh {
 namespace agent {
@@ -17,9 +20,9 @@ namespace actions {
 
 /**
  * @brief Callback type used by the WPS action handler.
- * Should run WPS PBC automatically (AP vs bSTA decided internally).
+ * Queues WPS PBC on the BackhaulManager thread (AP vs bSTA decided there).
  *
- * @return true on success, false on failure.
+ * @return true when accepted, false if the worker is unavailable or its queue is full.
  */
 using WpsAutoCb = std::function<bool()>;
 

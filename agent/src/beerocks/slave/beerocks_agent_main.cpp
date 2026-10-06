@@ -52,6 +52,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif
 
 #include "ambiorix_dummy.h"
+#include <mapf/common/amx_mutex.h>
 
 // Do not use this macro anywhere else in ire process
 // It should only be there in one place in each executable module
@@ -89,11 +90,13 @@ static void handle_signal()
     }
 #ifdef ENABLE_NBAPI
     // Handle SIGALRM signal indicating that one of amxp's timers is expired.
-    case SIGALRM:
+    case SIGALRM: {
+        beerocks::AmxGuard guard;
         LOG(INFO) << "LOG amxp Tik tak!";
         amxp_timers_calculate();
         amxp_timers_check();
         break;
+    }
 #endif //ENABLE_NBAPI
     default:
         LOG(WARNING) << "Unhandled Signal: '" << strsignal(s_signal) << "' Ignoring...";
@@ -446,6 +449,30 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 #endif //ENABLE_NBAPI
 
     beerocks::bpl::set_nbapi_dm(amb_dm_obj);
+    beerocks::AgentDataModel::get().init_data_model(amb_dm_obj);
+
+    // Resolve WBAPI-backed configuration before taking the application DB lock.
+    const auto management_mode = beerocks::bpl::cfg_get_management_mode();
+    if (management_mode < 0) {
+        LOG(ERROR) << "Failed reading 'management_mode'";
+        return 1;
+    }
+    uint32_t m_ap_profile;
+    if (!beerocks::bpl::bpl_cfg_get_agent_multi_ap_profile(m_ap_profile)) {
+        LOG(ERROR) << "Failed reading 'multi_ap_profile'";
+        m_ap_profile = beerocks::bpl::DEFAULT_MULTI_AP_PROFILE;
+    }
+    std::string backhaul_wire_discovery_mode;
+    if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_discovery_mode(backhaul_wire_discovery_mode)) {
+        LOG(WARNING) << "Failed reading 'backhaul_wire_discovery_mode'";
+        backhaul_wire_discovery_mode = "StaticList";
+    }
+    std::string backhaul_wire_iface_list;
+    if (backhaul_wire_discovery_mode == "StaticList" &&
+        !beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(backhaul_wire_iface_list)) {
+        LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
+        return 1;
+    }
 
     {
         auto db = beerocks::AgentDB::get();
@@ -484,22 +511,8 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 
         db->device_conf.enable_auto_chansel_handling =
             beerocks_slave_conf.enable_auto_chansel_handling == "1";
-        db->init_data_model(amb_dm_obj);
 
-        auto management_mode = beerocks::bpl::cfg_get_management_mode();
-
-        if (management_mode >= 0) {
-            db->device_conf.management_mode = management_mode;
-        } else {
-            LOG(ERROR) << "Failed reading 'management_mode'";
-            return false;
-        }
-
-        uint32_t m_ap_profile;
-        if (!beerocks::bpl::bpl_cfg_get_agent_multi_ap_profile(m_ap_profile)) {
-            LOG(ERROR) << "Failed reading 'multi_ap_profile'";
-            m_ap_profile = beerocks::bpl::DEFAULT_MULTI_AP_PROFILE;
-        }
+        db->device_conf.management_mode = management_mode;
 
         // MULTIAP_PROFILE_1_AS_OF_R4 enum value is not in standard, but it is acted as Profile1
         if (static_cast<wfa_map::tlvProfile2MultiApProfile::eMultiApProfile>(m_ap_profile) ==
@@ -518,24 +531,9 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
          * StaticList: use ifaces from BackhaulWireInterface parameter.
          * Auto: automatic wired candidate discovery. BackhaulWireInterface will be ignored
          */
-        std::string backhaul_wire_discovery_mode;
-        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_discovery_mode(
-                backhaul_wire_discovery_mode)) {
-            // Probably we don't need it with current getter implementation.
-            // This is mostly a defensive check.
-            LOG(WARNING) << "Failed reading 'backhaul_wire_discovery_mode'";
-            backhaul_wire_discovery_mode = "StaticList";
-        }
-
         if (backhaul_wire_discovery_mode == "StaticList") {
             db->device_conf.backhaul_wire_discovery_mode =
                 beerocks::AgentDB::sDeviceConf::eBackhaulWireDiscoveryMode::StaticList;
-            std::string backhaul_wire_iface_list;
-            if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(backhaul_wire_iface_list)) {
-                LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
-                return false;
-            }
-
             auto wan_iface_names = beerocks::string_utils::str_split(backhaul_wire_iface_list, ',');
 
             db->ethernet.wan_candidates.clear();
@@ -614,12 +612,16 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 #ifdef ENABLE_NBAPI
     // Provide the auto WPS callback (decides AP vs bSTA internally)
     prplmesh::agent::actions::set_wps_callback(
-        [&backhaul_manager]() -> bool { return backhaul_manager.initiate_wps_pbc_auto(); });
+        [&backhaul_manager]() -> bool { return backhaul_manager.enqueue_wps_request(); });
 #endif //ENABLE_NBAPI
 
     auto agent = start_agent_thread(interfaces_map, beerocks_slave_conf, argc, argv);
     if (!agent) {
         LOG(ERROR) << "Failed to start Agent thread";
+#ifdef ENABLE_NBAPI
+        prplmesh::agent::actions::set_wps_callback(nullptr);
+#endif
+        backhaul_manager.stop();
         return 1;
     }
 
@@ -649,6 +651,9 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             break;
         }
     }
+#ifdef ENABLE_NBAPI
+    prplmesh::agent::actions::set_wps_callback(nullptr);
+#endif
     agent->stop();
 
     LOG(DEBUG) << "backhaul_manager.stop()";
