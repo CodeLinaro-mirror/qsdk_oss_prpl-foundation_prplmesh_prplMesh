@@ -60,6 +60,7 @@ void DppConfiguratorSession::reset()
     m_version                = k_dpp_default_version;
     m_authentication_started = false;
     m_authentication_success = false;
+    m_gas_dialog_token       = 0;
 }
 
 bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key, uint8_t version,
@@ -184,6 +185,11 @@ bool DppConfiguratorSession::handle_authentication_response(
     error.clear();
     if (!m_authentication_started || !m_peer_bootstrap_key || !m_own_protocol_key) {
         error = "DPP authentication response without active controller session";
+        return false;
+    }
+    // hostapd may deliver Auth Response twice over TCP; Enrollee rejects a second Confirm.
+    if (m_authentication_success) {
+        error = "DPP Authentication Response ignored; authentication already complete";
         return false;
     }
 
@@ -537,6 +543,45 @@ bool DppConfiguratorSession::build_configuration_response(
     return true;
 }
 
+bool DppConfiguratorSession::unwrap_gas_configuration_request(const std::vector<uint8_t> &gas_encap,
+                                                              std::string &request_object_json,
+                                                              std::string &net_role,
+                                                              std::string &error)
+{
+    request_object_json.clear();
+    net_role.clear();
+    error.clear();
+
+    std::vector<uint8_t> dpp_attrs;
+    uint8_t dialog_token = 0;
+    if (!extract_dpp_query_from_gas_encap(gas_encap, dpp_attrs, &dialog_token)) {
+        error = "Failed extracting DPP attributes from GAS Configuration Request";
+        return false;
+    }
+    m_gas_dialog_token = dialog_token;
+
+    // Reuse existing C-3 implementation from 0004.
+    return unwrap_configuration_request(dpp_attrs, request_object_json, net_role, error);
+}
+
+bool DppConfiguratorSession::build_gas_configuration_response(
+    const std::vector<std::string> &config_object_jsons, std::vector<uint8_t> &gas_encap,
+    std::string &error, bool send_conn_status)
+{
+    gas_encap.clear();
+    error.clear();
+
+    std::vector<uint8_t> response_frame;
+    if (!build_configuration_response(config_object_jsons, response_frame, error,
+                                      send_conn_status)) {
+        return false;
+    }
+
+    // Reuse existing C-4 DPP attribute blob, then add GAS Initial Response framing.
+    gas_encap = wrap_dpp_response_in_gas(response_frame, m_gas_dialog_token);
+    return true;
+}
+
 bool DppConfiguratorSession::unwrap_configuration_result(const std::vector<uint8_t> &frame,
                                                          uint8_t &status, std::string &error)
 {
@@ -664,43 +709,6 @@ bool DppConfiguratorSession::unwrap_connection_status_result(const std::vector<u
     }
 
     result = static_cast<uint8_t>(parsed_result);
-    return true;
-}
-
-bool DppConfiguratorSession::unwrap_gas_configuration_request(const std::vector<uint8_t> &gas_encap,
-                                                              std::string &request_object_json,
-                                                              std::string &net_role,
-                                                              std::string &error)
-{
-    request_object_json.clear();
-    net_role.clear();
-    error.clear();
-
-    std::vector<uint8_t> dpp_attrs;
-    if (!extract_dpp_query_from_gas_encap(gas_encap, dpp_attrs)) {
-        error = "Failed extracting DPP attributes from GAS Configuration Request";
-        return false;
-    }
-
-    // Reuse existing C-3 implementation from 0004.
-    return unwrap_configuration_request(dpp_attrs, request_object_json, net_role, error);
-}
-
-bool DppConfiguratorSession::build_gas_configuration_response(
-    const std::vector<std::string> &config_object_jsons, std::vector<uint8_t> &gas_encap,
-    std::string &error, bool send_conn_status)
-{
-    gas_encap.clear();
-    error.clear();
-
-    std::vector<uint8_t> response_frame;
-    if (!build_configuration_response(config_object_jsons, response_frame, error,
-                                      send_conn_status)) {
-        return false;
-    }
-
-    // Reuse existing C-4 DPP attribute blob, then add GAS Initial Response framing.
-    gas_encap = wrap_dpp_response_in_gas(response_frame);
     return true;
 }
 
