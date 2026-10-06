@@ -20,6 +20,7 @@
 #include <tlvf/wfa_map/tlvSpatialReuseRequest.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <beerocks/tlvf/enums/eDfsState.h>
 
@@ -108,6 +109,8 @@ private:
     struct sPendingChannelPreferenceReport {
         uint16_t mid = 0;
         std::unordered_map<sMacAddr, bool> preference_ready{};
+        // Radios to request the channels list again for, once the response in flight arrives.
+        std::unordered_set<sMacAddr> refresh_again{};
     };
 
     struct sPendingChannelSelection {
@@ -134,6 +137,8 @@ private:
      * @brief Adds the radio to the pending preference report and requests its channels list.
      *
      * Radios already pending are kept, so the report is sent once all of them have responded.
+     * If a request is already in flight for this radio, the new request is sent once its
+     * response arrives, since responses can only be matched by radio MAC.
      * If the request cannot be sent, the radio's previous pending state is restored.
      *
      * @param[in] radio_mac MAC address of the radio to refresh.

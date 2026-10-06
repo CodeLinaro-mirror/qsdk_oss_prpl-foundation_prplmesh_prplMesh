@@ -286,9 +286,13 @@ bool ChannelSelectionTask::request_channel_preference_refresh(const sMacAddr &ra
 {
     auto &preference_ready = m_pending_preference.preference_ready;
 
-    auto it                = preference_ready.find(radio_mac);
-    const bool was_pending = (it != preference_ready.end());
-    const bool was_ready   = was_pending && it->second;
+    auto it = preference_ready.find(radio_mac);
+    if (it != preference_ready.end() && !it->second) {
+        // The response in flight may predate this event, request again once it arrives.
+        m_pending_preference.refresh_again.insert(radio_mac);
+        return true;
+    }
+    const bool was_ready = (it != preference_ready.end());
 
     preference_ready[radio_mac] = false;
 
@@ -297,8 +301,8 @@ bool ChannelSelectionTask::request_channel_preference_refresh(const sMacAddr &ra
     }
 
     LOG(ERROR) << "Failed to request channels list for radio " << radio_mac;
-    if (was_pending) {
-        preference_ready[radio_mac] = was_ready;
+    if (was_ready) {
+        preference_ready[radio_mac] = true;
     } else {
         preference_ready.erase(radio_mac);
     }
@@ -1042,6 +1046,14 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
                m_send_preference_report_after_csa_finished_event ||
                m_send_preference_report_after_dfs_nop_finished_event) {
 
+        if (m_pending_preference.refresh_again.erase(radio_mac)) {
+            LOG(DEBUG) << "Channels list of radio " << radio_mac
+                       << " may predate the last refresh, requesting it again";
+            if (send_channels_list_request(radio_mac)) {
+                return;
+            }
+        }
+
         // If there is a pending preference query, need to build a preference report
         build_channel_preference_report(radio_mac);
 
@@ -1060,6 +1072,7 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
 
             // Clear the pending preference state.
             m_pending_preference.preference_ready.clear();
+            m_pending_preference.refresh_again.clear();
             m_pending_preference.mid                              = 0;
             m_send_preference_report_after_cac_started_event      = false;
             m_send_preference_report_after_cac_completion_event   = false;
