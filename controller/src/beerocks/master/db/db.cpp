@@ -10268,19 +10268,21 @@ std::shared_ptr<Agent::sEthSwitch> db::get_eth_switch(const sMacAddr &mac)
 }
 
 void db::update_probe_request_monitoring_station(const sMacAddr &mac_address,
+                                                 std::shared_ptr<Agent::sRadio> radio,
                                                  UnassociatedStation::Stats &stats,
-                                                 const std::string &probe_request_frame,
-                                                 const std::string &radio_dm_path)
+                                                 const std::string &probe_request_frame)
 {
+    const auto &radio_dm_path = radio->dm_path;
     if (radio_dm_path.empty()) {
         LOG(ERROR) << "son_actions Empty Radio DM Path";
         return;
     }
 
+    const std::string dm_template = "X_PRPLWARE-COM_ProbeRequests";
     // update  controller DM
     //Example of path : Device.WiFi.DataElements.Network.Device.1.Radio.2.UnassociatedSTA.
     std::string publish_path;
-    std::string probe_request_path = radio_dm_path + ".X_PRPLWARE-COM_ProbeRequests";
+    std::string probe_request_path = radio_dm_path + "." + dm_template;
 
     auto index = m_ambiorix_datamodel->get_instance_index(
         probe_request_path + ".[MACAddress == '%s'].", tlvf::mac_to_string(mac_address));
@@ -10295,8 +10297,11 @@ void db::update_probe_request_monitoring_station(const sMacAddr &mac_address,
                    << "SignalStrength: " << stats.uplink_rcpi_dbm_enc << " TimeStamp"
                    << stats.time_stamp;
 
-        // write MACAddress only on instance creation, in the if() branch
+        auto index_tmp = publish_path.find(dm_template);
+        index          = string_utils::stoi(publish_path.substr(++index_tmp + dm_template.size()));
         publish_path.append(".");
+
+        // write MACAddress only on instance creation, in the if() branch
         m_ambiorix_datamodel->set(publish_path, "MACAddress", mac_address);
     } else {
         publish_path = std::move(probe_request_path);
@@ -10308,5 +10313,73 @@ void db::update_probe_request_monitoring_station(const sMacAddr &mac_address,
     m_ambiorix_datamodel->set(publish_path, "X_PRPLWARE-COM_TimeStamp", stats.time_stamp);
     m_ambiorix_datamodel->set(publish_path, "ProbeFrame", probe_request_frame);
 
+    // (re)set age for datamodel index
+    radio->m_probe_request_age_map[index] = 0;
+
     return;
+}
+
+void db::tick_probe_request_entries_age(std::shared_ptr<Agent::sRadio> radio)
+{
+    // increment ages for all indexes of X_PRPLWARE-COM_ProbeRequests.index. currently published by the radio
+    for (auto &kv : radio->m_probe_request_age_map) {
+        std::get<1>(kv)++;
+    }
+}
+
+void db::trim_probe_request_datamodel_entries(std::shared_ptr<Agent::sRadio> radio)
+{
+    // step 1 : sort radio->m_probe_request_age_map by value (age - in ticks)
+    std::map<uint32_t, std::set<uint32_t>> age_to_index_map_of_sets;
+
+    for (auto &kv : radio->m_probe_request_age_map) {
+        age_to_index_map_of_sets[std::get<1>(kv)].insert(std::get<0>(kv));
+    }
+
+    std::string template_path = radio->dm_path + ".X_PRPLWARE-COM_ProbeRequests.";
+
+    // step 2 : identify and remove indexes that are too old
+    for (auto &kv : age_to_index_map_of_sets) {
+        auto age = std::get<0>(kv);
+        if (age < config.probe_request_max_age_ticks) {
+            continue;
+        }
+
+        for (auto index : std::get<1>(kv)) {
+            if (!m_ambiorix_datamodel->remove_instance(template_path, index)) {
+                LOG(INFO) << "could not remove instance" << index;
+                continue;
+            }
+
+            // remove instance from radio database
+            radio->m_probe_request_age_map.erase(index);
+        }
+        age_to_index_map_of_sets.erase(age);
+    }
+
+    if (radio->m_probe_request_age_map.size() <= config.probe_request_buffer_size) {
+        return;
+    }
+
+    // step 3 : remove until we go back to configured buffer size
+    // flatten all indexes in a vector; start removing from the back() of the vector
+    // age_to_index_map_of_sets is sorted : to_trim_vector will be ordered in incrementing age;
+    // for equal age, trim lowest index first, hence reverse-iterator on the set of indexes for a given age
+
+    std::vector<uint32_t> to_trim_vector;
+    for (auto &kv : age_to_index_map_of_sets) {
+        to_trim_vector.insert(to_trim_vector.end(), std::get<1>(kv).rbegin(),
+                              std::get<1>(kv).rend());
+    }
+
+    while (to_trim_vector.size() > config.probe_request_buffer_size) {
+        auto index = to_trim_vector.back();
+
+        if (!m_ambiorix_datamodel->remove_instance(template_path, index)) {
+            LOG(INFO) << "could not remove instance " << index;
+        }
+        radio->m_probe_request_age_map.erase(index);
+
+        to_trim_vector.pop_back();
+    }
 }

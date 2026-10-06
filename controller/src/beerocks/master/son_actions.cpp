@@ -930,6 +930,8 @@ void son_actions::handle_tunnelled_probe_request(db &database, const sMacAddr &a
     // since the Probe Request Tunnelled Frame Event is build per-Radio by the Agent
     auto radio = database.get_radio(al_mac, bssids[0]);
 
+    database.tick_probe_request_entries_age(radio);
+
     auto elements = stations.size();
 
     for (size_t i = 0; i < elements; i++) {
@@ -948,8 +950,9 @@ void son_actions::handle_tunnelled_probe_request(db &database, const sMacAddr &a
         UnassociatedStation::Stats time_and_rcpi = {
             .uplink_rcpi_dbm_enc = std::get<1>(stats.at(sta_mac)), .time_stamp = timestamp};
 
-        database.update_probe_request_monitoring_station(sta_mac, time_and_rcpi, frames[i],
-                                                         radio->dm_path);
+        database.update_probe_request_monitoring_station(sta_mac, radio, time_and_rcpi, frames[i]);
     }
+
+    database.trim_probe_request_datamodel_entries(std::move(radio));
     return;
 }
