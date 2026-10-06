@@ -38,9 +38,11 @@ namespace controller_dpp {
 void DppConfiguratorSession::reset()
 {
     m_peer_bootstrap_key.reset(nullptr);
+    m_own_bootstrap_key.reset(nullptr);
     m_own_protocol_key.reset(nullptr);
     m_peer_protocol_key.reset(nullptr);
     m_peer_bootstrap_hash.clear();
+    m_own_bootstrap_hash.clear();
     m_i_nonce.clear();
     m_r_nonce.clear();
     m_e_nonce.clear();
@@ -90,6 +92,30 @@ bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key,
     SHA256(reinterpret_cast<const uint8_t *>(bootstrap_der.data()), bootstrap_der.size(),
            m_peer_bootstrap_hash.data());
 
+    // Enrollee wpa_supplicant requires Initiator Bootstrap Key Hash (0x1001) on
+    // Auth Request ("DPP-FAIL Missing or invalid required Initiator Bootstrapping
+    // Key Hash"). Session bootstrap key; k1 still uses I-protocol × R-bootstrap.
+    if (!generate_ec_key(m_curve_nid, m_own_bootstrap_key)) {
+        error = "Failed generating DPP initiator bootstrap key";
+        reset();
+        return false;
+    }
+    int own_der_len = i2d_PUBKEY(m_own_bootstrap_key.get(), nullptr);
+    if (own_der_len <= 0) {
+        error = "Failed encoding DPP initiator bootstrap key";
+        reset();
+        return false;
+    }
+    std::vector<uint8_t> own_bootstrap_der(static_cast<size_t>(own_der_len));
+    unsigned char *own_der_ptr = own_bootstrap_der.data();
+    if (i2d_PUBKEY(m_own_bootstrap_key.get(), &own_der_ptr) != own_der_len) {
+        error = "Failed encoding DPP initiator bootstrap key";
+        reset();
+        return false;
+    }
+    m_own_bootstrap_hash.resize(SHA256_DIGEST_LENGTH);
+    SHA256(own_bootstrap_der.data(), own_bootstrap_der.size(), m_own_bootstrap_hash.data());
+
     if (!generate_ec_key(m_curve_nid, m_own_protocol_key)) {
         error = "Failed generating DPP initiator protocol key";
         reset();
@@ -127,6 +153,8 @@ bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key,
     const auto attr_start = auth_request_frame.size();
     append_dpp_attr(auth_request_frame, k_dpp_attr_r_bootstrap_hash, m_peer_bootstrap_hash.data(),
                     m_peer_bootstrap_hash.size());
+    append_dpp_attr(auth_request_frame, k_dpp_attr_i_bootstrap_hash, m_own_bootstrap_hash.data(),
+                    m_own_bootstrap_hash.size());
     append_dpp_attr(auth_request_frame, k_dpp_attr_i_protocol_key, initiator_protocol_key.data(),
                     initiator_protocol_key.size());
     if (m_version > 1) {
@@ -198,8 +226,13 @@ bool DppConfiguratorSession::handle_authentication_response(
 
     DppAttributeView i_bootstrap_hash;
     if (get_dpp_attr(attrs, attrs_before_len, k_dpp_attr_i_bootstrap_hash, i_bootstrap_hash)) {
-        error = "DPP mutual authentication is not configured on the controller";
-        return false;
+        if (m_own_bootstrap_hash.empty() ||
+            i_bootstrap_hash.len != m_own_bootstrap_hash.size() || !i_bootstrap_hash.data ||
+            !std::equal(m_own_bootstrap_hash.begin(), m_own_bootstrap_hash.end(),
+                        i_bootstrap_hash.data)) {
+            error = "DPP Authentication Response initiator bootstrap hash mismatch";
+            return false;
+        }
     }
 
     DppAttributeView version;
