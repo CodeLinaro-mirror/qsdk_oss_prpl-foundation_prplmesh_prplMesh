@@ -349,6 +349,26 @@ bool cfg_get_steering_policy(unsigned int &steering_policy)
     return read_controller_config_param("SteeringPolicy", steering_policy);
 }
 
+bool cfg_get_probe_request_buff_size(uint32_t &buffer_size)
+{
+    return read_controller_config_param("ProbeRequestMonitoringBufferSize", buffer_size);
+}
+
+bool cfg_set_probe_request_buff_size(uint32_t buffer_size)
+{
+    return set_controller_config_param("ProbeRequestMonitoringBufferSize", buffer_size);
+}
+
+bool cfg_get_probe_request_max_age(uint32_t &max_age)
+{
+    return read_controller_config_param("ProbeRequestMonitoringMaximumAge", max_age);
+}
+
+bool cfg_set_probe_request_max_age(uint32_t max_age)
+{
+    return set_controller_config_param("ProbeRequestMonitoringMaximumAge", max_age);
+}
+
 int cfg_get_dcs_channel_pool(const BPL_WLAN_IFACE &iface,
                              char channel_pool[BPL_DCS_CHANNEL_POOL_LEN])
 {

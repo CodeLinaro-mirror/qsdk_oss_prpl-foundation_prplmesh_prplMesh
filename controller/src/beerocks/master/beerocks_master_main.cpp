@@ -563,6 +563,19 @@ static void fill_master_config(son::db::sDbMasterConfig &master_conf,
                    << beerocks::bpl::DEFAULT_DAISY_CHAINING_DISABLED;
         master_conf.daisy_chaining_disabled = beerocks::bpl::DEFAULT_DAISY_CHAINING_DISABLED;
     }
+
+    if (!beerocks::bpl::cfg_get_probe_request_buff_size(master_conf.probe_request_buffer_size)) {
+        LOG(DEBUG) << "Failed to read probe_request_buffer_size, setting to default value: "
+                   << beerocks::bpl::DEFAULT_PROBE_REQUEST_BUFFER_SIZE;
+        master_conf.probe_request_buffer_size = beerocks::bpl::DEFAULT_PROBE_REQUEST_BUFFER_SIZE;
+    }
+
+    if (!beerocks::bpl::cfg_get_probe_request_max_age(master_conf.probe_request_max_age_ticks)) {
+        LOG(DEBUG) << "Failed to read probe_request_max_age_ticks, setting to default value: "
+                   << beerocks::bpl::DEFAULT_PROBE_REQUEST_MAX_AGE_TICKS;
+        master_conf.probe_request_max_age_ticks =
+            beerocks::bpl::DEFAULT_PROBE_REQUEST_MAX_AGE_TICKS;
+    }
 }
 
 #ifdef ENABLE_NBAPI

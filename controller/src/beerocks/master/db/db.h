@@ -252,6 +252,8 @@ public:
         unsigned int steering_policy;
         unsigned int channel_utilization_threshold;
         unsigned int rcpi_steering_threshold;
+        uint32_t probe_request_buffer_size;
+        uint32_t probe_request_max_age_ticks;
     } sDbMasterConfig;
 
     typedef struct {
@@ -309,6 +311,8 @@ public:
         std::chrono::seconds link_metrics_request_interval_seconds;
         /** Interval between periodic IEEE1905 Higher Layer Queries; zero disables periodic queries. */
         std::chrono::seconds higher_layer_request_interval_seconds;
+        uint32_t probe_request_buffer_size;
+        uint32_t probe_request_max_age_ticks;
     } sDbNbapiConfig;
 
     typedef struct {

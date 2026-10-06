@@ -245,6 +245,10 @@ constexpr bool DEFAULT_IS_TRAFFIC_SEPARATION_ENABLED = false;
 constexpr int DEFAULT_PRIVATE_VLAN_ID = 10;
 // Default guest network VLAN id
 constexpr int DEFAULT_GUEST_VLAN_ID = 20;
+// Default Maximum Number of ProbeRequests to be displayed, per Radio
+constexpr uint32_t DEFAULT_PROBE_REQUEST_BUFFER_SIZE = 40;
+// Default Maximum Age of ProbeRequests displayed in Datamodel
+constexpr uint32_t DEFAULT_PROBE_REQUEST_MAX_AGE_TICKS = 300;
 
 /****************************************************************************/
 /******************************* Structures *********************************/
@@ -677,6 +681,40 @@ bool cfg_get_diagnostics_measurements_polling_rate_sec(
  */
 bool cfg_set_diagnostics_measurements_polling_rate_sec(
     const int &diagnostics_measurements_polling_rate_sec);
+
+/**
+ * @brief Sets the ProbeRequestMonitoring BufferSize, in units
+ *
+ * @param[out] buffer_size max instances of ProbeRequest to be displayed in the DataModel
+ * @return true if success, false otherwise
+ */
+bool cfg_get_probe_request_buff_size(uint32_t &buffer_size);
+
+/**
+ * @brief Sets the ProbeRequestMonitoring BufferSize, in units
+ *
+ * @param[in] buffer_size max instances of ProbeRequest to be displayed in the DataModel
+ * @return true if success, false otherwise
+ */
+bool cfg_set_probe_request_buff_size(uint32_t buffer_size);
+
+/**
+ * @brief Gets the ProbeRequestMonitoring Max Age, in ticks of 2 seconds
+ *
+ * @param[out] max_age max age of ProbeRequest to be displayed in the DataModel, in ticks
+ * of Tunnelled ProbeRequest Message reception (interval of 2 seconds)
+ * @return true if success, false otherwise
+ */
+bool cfg_get_probe_request_max_age(uint32_t &max_age);
+
+/**
+ * @brief Sets the ProbeRequestMonitoring BufferSize, in units
+ *
+ * @param[in] max_age max age of ProbeRequest to be displayed in the DataModel, in ticks
+ * of Tunnelled ProbeRequest Message reception (interval of 2 seconds)
+ * @return true if success, false otherwise
+ */
+bool cfg_set_probe_request_max_age(uint32_t max_age);
 
 /**
  * Returns miscellaneous Wi-Fi parameters.
