@@ -14,6 +14,8 @@
 #include "../db/db.h"
 #include "../son_actions.h"
 
+#include <algorithm>
+#include <bcl/beerocks_string_utils.h>
 #include <bcl/network/network_utils.h>
 #include <easylogging++.h>
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
@@ -29,6 +31,15 @@ constexpr uint8_t k_dpp_status_ok        = 0;
 // k_dpp_connection_status_result. Not present in 0001 eFrameType, so dispatch
 // uses uint8_t (see switch below) to avoid -Wswitch on the TLV enum.
 constexpr uint8_t k_dpp_connection_status_result = 12;
+
+std::string dpp_prefix_hex(const uint8_t *p, size_t len)
+{
+    if (!p || len == 0) {
+        return "<empty>";
+    }
+    constexpr size_t k_prefix = 12;
+    return beerocks::string_utils::bytes_to_hex_string(p, std::min(k_prefix, len));
+}
 } // namespace
 
 dpp_protocol_task::dpp_protocol_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_)
@@ -139,6 +150,10 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
     // type used by 0004 unwrap APIs but is not a named 0001 eFrameType value.
     const auto frame_type = static_cast<uint8_t>(encap->frame_type());
     const bool is_gas     = encap->frame_flags().dpp_frame_indicator != 0;
+    LOG(INFO) << "DPP: uplink PROXIED_ENCAP from " << src_mac
+              << " tlv_frame_type=" << static_cast<unsigned>(frame_type) << " gas=" << is_gas
+              << " len=" << frame_len << " prefix=" << dpp_prefix_hex(frame_data, frame_len)
+              << " enrollee=" << tlvf::mac_to_string(enrollee_mac);
     std::string error;
 
     switch (frame_type) {
@@ -508,16 +523,19 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         m_matched_bootstrap        = matched_info;
         m_session.proxy_agent      = src_mac;
         m_session.use_direct_encap = false;
-        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex
-                  << ") alias=" << matched_info->alias;
+        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex << ") alias="
+                  << matched_info->alias << " proxy=" << src_mac
+                  << " pkhash=" << matched_info->pkhash_hex
+                  << " chirp_hash=" << matched_info->chirp_hash_hex;
 
         if (chirp_tlv->flags().enrollee_mac_address_present && chirp_tlv->dest_sta_mac()) {
             m_session.last_chirp_enrollee       = *chirp_tlv->dest_sta_mac();
             m_session.last_chirp_enrollee_valid = true;
-            LOG(DEBUG) << "DPP chirp dest STA "
-                       << tlvf::mac_to_string(m_session.last_chirp_enrollee);
+            LOG(INFO) << "DPP chirp dest STA "
+                      << tlvf::mac_to_string(m_session.last_chirp_enrollee);
         } else {
             m_session.last_chirp_enrollee_valid = false;
+            LOG(INFO) << "DPP chirp has no Enrollee MAC in TLV";
         }
     }
 
@@ -656,6 +674,13 @@ bool dpp_protocol_task::send_dpp_authentication_request()
         message.chirp_hash_valid = true;
     }
 
+    LOG(INFO) << "DPP: sending Auth Request PROXIED_ENCAP to proxy " << m_session.proxy_agent
+              << " dest_sta=" << tlvf::mac_to_string(enrollee_mac)
+              << " tlv_frame_type=" << static_cast<unsigned>(message.frame_type)
+              << " frame_len=" << message.frame.size()
+              << " prefix=" << dpp_prefix_hex(message.frame.data(), message.frame.size())
+              << " chirp_tlv=" << (message.chirp_hash_valid ? "yes" : "no");
+
     if (!send_proxied_encap_dpp_to_agent(m_session.proxy_agent, message)) {
         LOG(WARNING) << "Chirp-selected Proxy Agent rejected the DPP Authentication Request";
         m_configurator.reset();
@@ -665,7 +690,7 @@ bool dpp_protocol_task::send_dpp_authentication_request()
     }
 
     LOG(INFO) << "Controller DPP Authentication Request sent through Proxy Agent "
-              << m_session.proxy_agent;
+              << m_session.proxy_agent << " dest_sta=" << tlvf::mac_to_string(enrollee_mac);
     return true;
 }
 void dpp_protocol_task::set_pending_configuration_objects(
