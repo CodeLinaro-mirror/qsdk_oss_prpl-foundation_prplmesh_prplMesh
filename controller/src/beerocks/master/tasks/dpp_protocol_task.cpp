@@ -180,6 +180,12 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
 
         std::vector<uint8_t> auth_confirm;
         if (!m_configurator.handle_authentication_response(frame, auth_confirm, error)) {
+            // Duplicate Auth Response after success is expected on TCP relay; do not fail session.
+            if (m_configurator.authentication_success() &&
+                error.find("already complete") != std::string::npos) {
+                LOG(INFO) << "Ignoring duplicate DPP Authentication Response after success";
+                return true;
+            }
             LOG(WARNING) << "Failed processing DPP Authentication Response: " << error;
             push_dpp_onboarding_task_event(dpp_onboarding_task::AUTH_INIT_FAILED, error);
             return false;
@@ -358,6 +364,11 @@ bool dpp_protocol_task::handle_cmdu_1905_direct_encap_dpp(const sMacAddr &src_ma
 
         std::vector<uint8_t> auth_confirm;
         if (!m_configurator.handle_authentication_response(frame, auth_confirm, error)) {
+            if (m_configurator.authentication_success() &&
+                error.find("already complete") != std::string::npos) {
+                LOG(INFO) << "Ignoring duplicate direct DPP Authentication Response after success";
+                return true;
+            }
             LOG(WARNING) << "Failed processing direct DPP Authentication Response: " << error;
             push_dpp_onboarding_task_event(dpp_onboarding_task::AUTH_INIT_FAILED, error);
             return false;

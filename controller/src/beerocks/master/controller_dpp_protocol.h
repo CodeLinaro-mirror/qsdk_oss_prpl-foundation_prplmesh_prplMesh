@@ -138,6 +138,7 @@ private:
     uint8_t m_version             = 2;
     bool m_authentication_started = false;
     bool m_authentication_success = false;
+    uint8_t m_gas_dialog_token    = 0;
 };
 
 bool validate_signed_connector(const std::string &connector, DppKey *csign_key,
