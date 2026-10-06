@@ -97,9 +97,13 @@ bool split_dpp_public_action_frame(const std::vector<uint8_t> &frame, uint8_t ex
     }
 
     size_t pos = 0;
+    // Accept Category+Action (0x04 0x09), Action-only (0x09, EasyMesh/Proxy uplink),
+    // or OUI at byte 0 (hostapd TCP payload).
     if (frame.size() >= 8 && frame[0] == k_dpp_public_action_category &&
         frame[1] == k_dpp_public_action_vendor) {
         pos = 2;
+    } else if (frame.size() >= 7 && frame[0] == k_dpp_public_action_vendor) {
+        pos = 1;
     }
 
     if (frame.size() < pos + 6 || frame[pos] != k_dpp_oui[0] || frame[pos + 1] != k_dpp_oui[1] ||
@@ -169,6 +173,8 @@ bool find_dpp_public_action_attributes(const uint8_t *frame, size_t len, uint8_t
     size_t pos = 0;
     if (len >= 8 && frame[0] == 0x04 && frame[1] == 0x09) {
         pos = 2;
+    } else if (len >= 7 && frame[0] == 0x09) {
+        pos = 1;
     }
 
     if (len < pos + 6) {

@@ -141,9 +141,24 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
             return false;
         }
         enrollee_mac = *received_enrollee;
+        if (!m_session.last_chirp_enrollee_valid) {
+            m_session.last_chirp_enrollee       = enrollee_mac;
+            m_session.last_chirp_enrollee_valid = true;
+        }
     } else if (!m_session.last_chirp_enrollee_valid) {
-        LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE has no Enrollee MAC for the active session";
-        return false;
+        // Chirp TLV and uplink often omit STA MAC (TCP Presence has no SA).
+        // Fall back to URI M: from the matched bootstrap, same as Auth Request TX.
+        if (m_matched_bootstrap &&
+            m_matched_bootstrap->mac != beerocks::net::network_utils::ZERO_MAC) {
+            enrollee_mac                        = m_matched_bootstrap->mac;
+            m_session.last_chirp_enrollee       = enrollee_mac;
+            m_session.last_chirp_enrollee_valid = true;
+            LOG(INFO) << "DPP: uplink PROXIED_ENCAP has no Enrollee MAC; using URI M: "
+                      << tlvf::mac_to_string(enrollee_mac);
+        } else {
+            LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE has no Enrollee MAC for the active session";
+            return false;
+        }
     }
 
     // Cast to uint8_t: Connection Status Result (12) is a DPP Public Action
@@ -656,7 +671,9 @@ bool dpp_protocol_task::send_dpp_authentication_request()
     if (m_session.last_chirp_enrollee_valid) {
         enrollee_mac = m_session.last_chirp_enrollee;
     } else if (m_matched_bootstrap->mac != beerocks::net::network_utils::ZERO_MAC) {
-        enrollee_mac = m_matched_bootstrap->mac;
+        enrollee_mac                        = m_matched_bootstrap->mac;
+        m_session.last_chirp_enrollee       = enrollee_mac;
+        m_session.last_chirp_enrollee_valid = true;
     }
 
     db::sProxiedEncapDppMessage message;
