@@ -25,8 +25,8 @@
 namespace son {
 
 namespace {
-constexpr uint8_t k_dpp_protocol_version = 2;
-constexpr uint8_t k_dpp_status_ok        = 0;
+// Wi-Fi Alliance EasyConnect DPP STATUS_OK.
+constexpr uint8_t k_dpp_status_ok = 0;
 // DPP Public Action Connection Status Result. Same value as 0004 dpp_internal
 // k_dpp_connection_status_result. Not present in 0001 eFrameType, so dispatch
 // uses uint8_t (see switch below) to avoid -Wswitch on the TLV enum.
@@ -605,8 +605,10 @@ bool dpp_protocol_task::send_dpp_authentication_request()
 
     std::vector<uint8_t> auth_request_frame;
     std::string error;
-    if (!m_configurator.start(m_matched_bootstrap->public_key, k_dpp_protocol_version,
-                              auth_request_frame, error)) {
+    // URI V: when present; start() falls back to DPP default (2) if V is missing/0.
+    const uint8_t uri_version = m_matched_bootstrap->version;
+    if (!m_configurator.start(m_matched_bootstrap->public_key, uri_version, auth_request_frame,
+                              error)) {
         LOG(WARNING) << "Failed building DPP Authentication Request: " << error;
         push_dpp_onboarding_task_event(dpp_onboarding_task::AUTH_INIT_FAILED, error);
         return false;
@@ -679,7 +681,8 @@ bool dpp_protocol_task::send_dpp_authentication_request()
               << " tlv_frame_type=" << static_cast<unsigned>(message.frame_type)
               << " frame_len=" << message.frame.size()
               << " prefix=" << dpp_prefix_hex(message.frame.data(), message.frame.size())
-              << " chirp_tlv=" << (message.chirp_hash_valid ? "yes" : "no");
+              << " chirp_tlv=" << (message.chirp_hash_valid ? "yes" : "no")
+              << " uri_version=" << static_cast<unsigned>(uri_version);
 
     if (!send_proxied_encap_dpp_to_agent(m_session.proxy_agent, message)) {
         LOG(WARNING) << "Chirp-selected Proxy Agent rejected the DPP Authentication Request";
