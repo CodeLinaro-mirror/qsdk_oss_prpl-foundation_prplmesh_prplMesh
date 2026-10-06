@@ -1006,6 +1006,22 @@ bool cfg_get_traffic_separation_guest_vid(int &guest_vid)
     return true;
 }
 
+bool cfg_get_probe_request_buff_size(uint32_t &buffer_size)
+{
+    buffer_size = DEFAULT_PROBE_REQUEST_BUFFER_SIZE;
+    return true;
+}
+
+bool cfg_set_probe_request_buff_size(uint32_t buffer_size) { return true; }
+
+bool cfg_get_probe_request_max_age(uint32_t &max_age)
+{
+    max_age = DEFAULT_PROBE_REQUEST_MAX_AGE_TICKS;
+    return true;
+}
+
+bool cfg_set_probe_request_max_age(uint32_t max_age) { return true; }
+
 bool cfg_commit_changes() { return true; };
 
 } // namespace bpl

@@ -78,6 +78,8 @@ All Controller config options are located in path:
 | `AssocSTALinkMetricsInclusionPolicy`          | bool   | false         | Include Associated STA Link Metrics TLV in reports.                         |
 | `AssocSTATrafficStatsInclusionPolicy`         | bool   | false         | Include Associated STA Traffic Stats TLV in reports.                        |
 | `AssocWiFi6STAStatusReportInclusionPolicy`    | bool   | false         | Include Wi-Fi 6 STA Status Report TLV in reports.                           |
+| 'ProbeRequestMonitoringBufferSize'            | uint32 |      10       | Maximum number of ProbeRequests displayed per Device.Radio                  |
+| 'ProbeRequestMonitoringMaximumAge'            | uint32 |      20       | Maximum age of ProbeRequests displayed per Device.Radio, in arbitrary ticks |
 
 ---
 

@@ -395,6 +395,21 @@
                             on action validate call check_range [0, 64];
                         }
                     }
+
+                    /*
+                        * Maximum number of instances displayed per Radio
+                        */
+                    %persistent uint32 ProbeRequestMonitoringBufferSize {
+                        default 10;
+                    }
+
+                    /*
+                        * Maximum age of displayed instances of X_PRPLWARE-COM_ProbeRequests
+                        * in ProbeRequest Monitoring Interval ticks
+                        */
+                    %persistent uint32 ProbeRequestMonitoringMaximumAge {
+                        default 20;
+                    }
                 }
                 %persistent %read-only object SteerEvent[] {
                     counted with SteerEventNumberOfEntries;

@@ -1681,6 +1681,12 @@ static void event_configuration_changed(const char *const sig_name, const amxc_v
     nbapi_config.daisy_chaining_disabled =
         amxd_object_get_bool(configuration, "DaisyChainingDisabled", nullptr);
 
+    nbapi_config.probe_request_buffer_size =
+        amxd_object_get_uint32_t(configuration, "ProbeRequestMonitoringBufferSize", nullptr);
+
+    nbapi_config.probe_request_max_age_ticks =
+        amxd_object_get_uint32_t(configuration, "ProbeRequestMonitoringMaximumAge", nullptr);
+
     // Send config renew if setting is changed
     if (nbapi_config.daisy_chaining_disabled != g_database->settings_daisy_chaining_disabled()) {
         send_ap_config_renew();
