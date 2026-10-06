@@ -116,9 +116,11 @@ public:
 
 private:
     DppKeyPtr m_peer_bootstrap_key;
+    DppKeyPtr m_own_bootstrap_key;
     DppKeyPtr m_own_protocol_key;
     DppKeyPtr m_peer_protocol_key;
     std::vector<uint8_t> m_peer_bootstrap_hash;
+    std::vector<uint8_t> m_own_bootstrap_hash;
     std::vector<uint8_t> m_i_nonce;
     std::vector<uint8_t> m_r_nonce;
     std::vector<uint8_t> m_e_nonce;
