@@ -537,6 +537,9 @@ public:
         /** BSSes configured/reported on this radio. */
         beerocks::mac_map<sBss> bsses;
         beerocks::eWiFiAntNum ant_num = beerocks::ANT_NONE;
+
+        // key : datamodel index; value: age in ticks
+        std::unordered_map<uint32_t, uint32_t> m_probe_request_age_map;
     };
 
     struct sBackhaul {

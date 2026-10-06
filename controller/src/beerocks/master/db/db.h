@@ -3626,15 +3626,32 @@ public:
     /**
      * @brief Publish latest ProbeRequest frame received drom @param mac_address
      *
-     * @param mac_address : station that sent the ProbeRequest
-     * @param new_stats : UnassociatedStation Stats : RCPI of frame exchange and Timestamp
-     * @param probe_request_frame : hex string representation of the 802.11 frame
-     * @param radio_dm_path : Controller DataModel path of the Radio
+     * @param mac_address station that sent the ProbeRequest
+     * @param radio shared_ptr to Agent::sRadio structure
+     * @param new_stats UnassociatedStation Stats : RCPI of frame exchange and Timestamp
+     * @param probe_request_frame hex string representation of the 802.11 frame
      */
     void update_probe_request_monitoring_station(const sMacAddr &mac_address,
+                                                 std::shared_ptr<Agent::sRadio> radio,
                                                  UnassociatedStation::Stats &stats,
-                                                 const std::string &probe_request_frame,
-                                                 const std::string &radio_dm_path);
+                                                 const std::string &probe_request_frame);
+
+    /**
+     * @brief Trim datamodel entries exposing ProbeRequests as received on the radio instance
+     * Two passes : trim by age and trim by buffer size
+     * both age and buffer size are global config options, that apply to all Agents and Radios
+     *
+     * @param radio shared_ptr to Agent::sRadio in the controller database
+     */
+    void trim_probe_request_datamodel_entries(std::shared_ptr<Agent::sRadio> radio);
+
+    /**
+     * @brief Increment ages of all Probe Request instances that are exposed by a radio
+     * in the datamodel
+     *
+     * @param radio shared_ptr to Agent::sRadio in the controller database
+     */
+    void tick_probe_request_entries_age(std::shared_ptr<Agent::sRadio> radio);
 
     std::shared_ptr<Agent::sEthSwitch> get_eth_switch(const sMacAddr &mac);
 
