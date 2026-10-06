@@ -646,7 +646,11 @@ bool dpp_protocol_task::send_dpp_authentication_request()
     message.dpp_frame_indicator = false;
     message.dest_sta_mac        = enrollee_mac;
 
-    if (m_matched_bootstrap->pkhash_valid) {
+    if (m_matched_bootstrap->chirp_hash_valid) {
+        message.chirp_hash.assign(m_matched_bootstrap->chirp_hash.begin(),
+                                  m_matched_bootstrap->chirp_hash.end());
+        message.chirp_hash_valid = true;
+    } else if (m_matched_bootstrap->pkhash_valid) {
         message.chirp_hash.assign(m_matched_bootstrap->pkhash.begin(),
                                   m_matched_bootstrap->pkhash.end());
         message.chirp_hash_valid = true;

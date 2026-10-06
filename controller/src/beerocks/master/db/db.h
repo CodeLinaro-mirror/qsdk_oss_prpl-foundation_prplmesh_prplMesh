@@ -363,6 +363,10 @@ public:
         std::array<uint8_t, 32> pkhash = {};
         std::string pkhash_hex;
         bool pkhash_valid  = false;
+        // Presence / EasyMesh Chirp TLV: SHA-256("chirp" || bootstrap DER), not SHA-256(DER).
+        std::array<uint8_t, 32> chirp_hash = {};
+        std::string chirp_hash_hex;
+        bool chirp_hash_valid = false;
         bool chirp_matched = false;
         sMacAddr ruid{};
         sMacAddr bssid{};
@@ -2938,7 +2942,8 @@ public:
     bool get_dpp_controller_csign_key_hex(std::string &out) const;
 
     /**
-     * @brief Compare a received chirp hash against stored bootstrap URI pkhash entries.
+     * @brief Compare a received Presence/Chirp hash against stored chirp hashes
+     *        (SHA-256("chirp" || K DER); falls back to SHA-256(K) pkhash).
      *
      * @param hash Pointer to hash bytes (raw 32-byte or hex-encoded ASCII).
      * @param hash_len Length of the provided hash buffer.

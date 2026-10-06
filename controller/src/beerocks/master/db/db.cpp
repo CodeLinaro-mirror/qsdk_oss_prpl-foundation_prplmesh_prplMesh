@@ -10638,8 +10638,21 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 return false;
             }
             info.pkhash_valid = true;
-            info.pkhash_hex =
-                beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
+            info.pkhash_hex = beerocks::string_utils::bytes_to_hex_string(
+                info.pkhash.data(), info.pkhash.size());
+
+            // wpa_supplicant Presence Announcement uses SHA-256("chirp" || SubjectPublicKeyInfo).
+            static constexpr uint8_t k_dpp_chirp_prefix[] = {'c', 'h', 'i', 'r', 'p'};
+            mapf::encryption::sha256 chirp_sha;
+            if (!chirp_sha.update(k_dpp_chirp_prefix, sizeof(k_dpp_chirp_prefix)) ||
+                !chirp_sha.update(decoded.data(), decoded_len) ||
+                !chirp_sha.digest(info.chirp_hash.data())) {
+                error = "failed to hash chirp public key";
+                return false;
+            }
+            info.chirp_hash_valid = true;
+            info.chirp_hash_hex   = beerocks::string_utils::bytes_to_hex_string(
+                info.chirp_hash.data(), info.chirp_hash.size());
             info.chirp_matched = false;
             break;
         }
@@ -10774,6 +10787,11 @@ void db::print_dpp_bootstrap_info() const
         std::string pkhash_hex =
             beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
         LOG(INFO) << "      PKHash   : " << pkhash_hex;
+        LOG(INFO) << "      ChirpHash: "
+                  << (info.chirp_hash_hex.empty()
+                          ? beerocks::string_utils::bytes_to_hex_string(info.chirp_hash.data(),
+                                                                         info.chirp_hash.size())
+                          : info.chirp_hash_hex);
 
         idx++;
     }
@@ -10837,11 +10855,14 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
     }
 
     for (const auto &entry : dpp_bootstrap_info_map) {
-        if (!entry.second.pkhash_valid) {
-            continue;
-        }
         std::string candidate_hex;
-        if (dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.pkhash, candidate_hex)) {
+        if (entry.second.chirp_hash_valid &&
+            dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.chirp_hash, candidate_hex)) {
+            received_hex = candidate_hex;
+            return &entry.second;
+        }
+        if (entry.second.pkhash_valid &&
+            dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.pkhash, candidate_hex)) {
             received_hex = candidate_hex;
             return &entry.second;
         }
