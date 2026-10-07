@@ -165,7 +165,7 @@ main() {
     else
         dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-10-03"
         OPENWRT_TOOLCHAIN_VERSION='1c910112a4648eca25d19a2b73b0d80e1d4de55b'
-        OPENWRT_VERSION='1c910112a4648eca25d19a2b73b0d80e1d4de55b'
+        OPENWRT_VERSION='c2c050dd99d5b3cd2701543c5687de3ab186c9d6'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
