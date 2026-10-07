@@ -119,8 +119,8 @@ private:
     void SetUp() override
     {
         // init amxrt struct used by AmbiorixImpl
-        amxrt        = std::make_shared<beerocks::nbapi::Amxrt>();
         m_event_loop = std::make_shared<StrictMock<beerocks::EventLoopMock>>();
+        amxrt        = std::make_shared<beerocks::nbapi::Amxrt>(m_event_loop);
         m_ambiorix   = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
             m_event_loop, std::vector<beerocks::nbapi::sActionsCallback>(),
             std::vector<beerocks::nbapi::sEvents>(), std::vector<beerocks::nbapi::sFunctions>());
@@ -149,6 +149,8 @@ private:
         // Calling reset() in turn calls the object's destructor so previous expectations are satisfied.
         m_ambiorix.reset();
         amxrt.reset();
+        // Clear the process-global mock connection before creating the next runtime.
+        amxp_connection_remove(42);
     }
 };
 

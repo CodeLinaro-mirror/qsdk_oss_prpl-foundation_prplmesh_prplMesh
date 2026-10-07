@@ -8,7 +8,11 @@
 
 #ifndef AMBIORIX_RT_H
 #define AMBIORIX_RT_H
+#include <bcl/beerocks_event_loop.h>
+#include <easylogging++.h>
 #include <map>
+#include <memory>
+#include <set>
 #include <string>
 
 // Ambiorix
@@ -22,10 +26,27 @@ static int index = 0;
 class Amxrt {
 
 public:
-    Amxrt() { amxrt_new(); }
+    explicit Amxrt(std::shared_ptr<EventLoop> event_loop) : m_event_loop(event_loop)
+    {
+        amxrt_new();
+        for (const auto *signal : {"connection-added", "listen-added"}) {
+            LOG_IF(amxp_slot_connect(nullptr, signal, nullptr, connection_added, this) != 0, FATAL)
+                << "Failed to connect " << signal;
+        }
+        for (const auto *signal : {"connection-deleted", "listen-deleted"}) {
+            LOG_IF(amxp_slot_connect(nullptr, signal, nullptr, connection_deleted, this) != 0, FATAL)
+                << "Failed to connect " << signal;
+        }
+    }
+
     ~Amxrt()
     {
         amxrt_stop();
+        amxp_slot_disconnect_with_priv(nullptr, connection_added, this);
+        amxp_slot_disconnect_with_priv(nullptr, connection_deleted, this);
+        for (auto fd : m_registered_fds) {
+            m_event_loop->remove_handlers(fd);
+        }
         amxrt_delete();
     }
 
@@ -223,6 +244,59 @@ public:
     * @return The htable variant containing the configuration options.
     */
     static amxc_var_t *getConfig() { return amxrt_get_config(); }
+
+private:
+    static void connection_added(const char *, const amxc_var_t *data, void *priv)
+    {
+        auto *connection = amxp_connection_get(amxc_var_constcast(fd_t, data));
+        if (connection) {
+            static_cast<Amxrt *>(priv)->add_connection(connection->fd);
+        }
+    }
+
+    static void connection_deleted(const char *, const amxc_var_t *data, void *priv)
+    {
+        auto *runtime = static_cast<Amxrt *>(priv);
+        const auto fd = amxc_var_constcast(fd_t, data);
+        if (runtime->m_registered_fds.erase(fd)) {
+            runtime->m_event_loop->remove_handlers(fd);
+        }
+    }
+
+    void add_connection(int fd)
+    {
+        EventLoop::EventHandlers handlers = {
+            .name = "amxrt_connection",
+            .on_read = [this](int fd, EventLoop &) { return read_connection(fd, false); },
+            .on_write = nullptr,
+            .on_disconnect = [this](int fd, EventLoop &) { return read_connection(fd, true); },
+            .on_error = [this](int fd, EventLoop &) { return read_connection(fd, true); },
+        };
+        LOG_IF(!m_event_loop->register_handlers(fd, handlers), FATAL)
+            << "Failed to register Ambiorix connection " << fd;
+        m_registered_fds.insert(fd);
+    }
+
+    bool read_connection(int fd, bool disconnected)
+    {
+        // EventLoopImpl removes HUP/ERR handlers before calling us.
+        if (disconnected) {
+            m_registered_fds.erase(fd);
+        }
+        if (auto *connection = amxp_connection_get(fd)) {
+            // The runtime reader owns disconnect handling and configured retries.
+            connection->reader(fd, connection->priv);
+        }
+        amxp_timers_calculate();
+        amxp_timers_check();
+        if (disconnected && amxp_connection_get(fd) && !m_registered_fds.count(fd)) {
+            add_connection(fd);
+        }
+        return true;
+    }
+
+    std::shared_ptr<EventLoop> m_event_loop;
+    std::set<int> m_registered_fds;
 };
 } // namespace nbapi
 } // namespace beerocks

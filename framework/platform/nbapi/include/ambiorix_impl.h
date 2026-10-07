@@ -64,8 +64,7 @@ public:
                           const std::vector<sFunctions> &funcs_list);
 
     /**
-     * @brief AmbiorixImpl destructor removes: bus connection, data model, parser and all data
-     *        from the backend (UBus, PCB, etc.).
+     * @brief Remove the Ambiorix signal handler. Amxrt owns the runtime and bus connections.
      */
     ~AmbiorixImpl() override;
 
@@ -210,13 +209,6 @@ private:
     bool apply_transaction(amxd_trans_t &transaction);
 
     /**
-     * @brief Initialize event handlers for Ambiorix fd in the event loop.
-     *
-     * @return True on success and false otherwise.
-     */
-    bool init_event_loop();
-
-    /**
      * @brief Initialize event handlers for the ambiorix signals fd in the event loop.
      *
      * @return True on success and false otherwise.
@@ -224,25 +216,11 @@ private:
     bool init_signal_loop();
 
     /**
-     * @brief Remove event handlers for Ambiorix fd from the event loop.
-     *
-     * @return True on success and false otherwise.
-     */
-    bool remove_event_loop();
-
-    /**
      * @brief Remove event handlers for the ambiorix signals fd from the event loop.
      *
      * @return True on success and false otherwise.
      */
     bool remove_signal_loop();
-
-    /**
-     * @brief Connect to the bus and register datamodel.
-     *
-     * @return True on success and false otherwise.
-     */
-    bool connect_and_register();
 
     /**
      * @brief Find object by relative path.
@@ -253,7 +231,6 @@ private:
     amxd_object_t *find_object(const std::string &relative_path);
 
     // Variables
-    std::vector<amxb_bus_ctx_t *> m_bus_ctx_vect;
     std::shared_ptr<EventLoop> m_event_loop;
     //std::unordered_map<std::string, actions_callback> m_on_action_handlers;
     std::vector<sActionsCallback> m_on_action_handlers;
