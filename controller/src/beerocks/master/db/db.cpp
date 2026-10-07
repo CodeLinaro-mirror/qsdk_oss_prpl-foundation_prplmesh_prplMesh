@@ -715,7 +715,11 @@ std::shared_ptr<Station> db::add_station(const sMacAddr &al_mac, const sMacAddr 
         return {};
     }
     auto station = m_stations.add(mac);
-    auto bss     = get_bss(parent_mac, al_mac);
+    // A backhaul STA retains the AL MAC of its own Agent.
+    if (!station->is_bSta() && al_mac != network_utils::ZERO_MAC) {
+        station->al_mac = al_mac;
+    }
+    auto bss = get_bss(parent_mac, al_mac);
     LOG(DEBUG) << "Adding Station node "
                << " for AL-MAC " << al_mac << " station mac " << mac
                << " parent mac: " << parent_mac;
@@ -8502,12 +8506,27 @@ bool db::dm_clear_sta_stats(const sMacAddr &sta_mac)
 {
     dm_set_sta_link_metrics(sta_mac, 0, 0, 0);
 
-    wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics metrics;
-    metrics.last_data_down_link_rate = 0;
-    metrics.last_data_up_link_rate   = 0;
-    metrics.utilization_receive      = 0;
-    metrics.utilization_transmit     = 0;
+    wfa_map::tlvAssociatedStaExtendedLinkMetrics::sMetrics metrics{};
     dm_set_sta_extended_link_metrics(sta_mac, metrics);
+
+    auto station = get_station(sta_mac);
+    auto bss     = station ? station->get_bss() : nullptr;
+    // Affiliated metrics belong to the hosting Agent, not a bSTA's own Agent.
+    auto agent   = bss ? get_agent_by_bssid(bss->bssid) : nullptr;
+    auto sta_mld = agent ? get_sta_mld(agent->al_mac, sta_mac) : nullptr;
+    if (sta_mld) {
+        for (const auto &affiliated_sta_entry : sta_mld->affiliated_stas) {
+            const auto &affiliated_sta = affiliated_sta_entry.second;
+            if (!affiliated_sta) {
+                continue;
+            }
+
+            dm_set_sta_link_metrics(agent->al_mac, affiliated_sta->mac, affiliated_sta->bssid, 0, 0,
+                                    0);
+            metrics.bssid = affiliated_sta->bssid;
+            dm_set_sta_extended_link_metrics(agent->al_mac, affiliated_sta->mac, metrics);
+        }
+    }
 
     sAssociatedStaTrafficStats stats;
     dm_set_sta_traffic_stats(sta_mac, stats);

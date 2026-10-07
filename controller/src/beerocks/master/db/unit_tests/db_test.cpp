@@ -1526,6 +1526,60 @@ TEST_F(DbTestRadio1StaMld, test_set_mld_aggregate_and_affiliated_traffic_metrics
                                                tlvf::mac_from_string(g_client_mac), stats));
 }
 
+TEST_F(DbTestRadio1StaMld, test_clear_mld_stats)
+{
+    const auto expect_link_metrics_cleared = [&](const std::string &path) {
+        EXPECT_CALL(*m_ambiorix,
+                    set(path, "EstMACDataRateDownlink", Matcher<const uint32_t &>(uint32_t{0})))
+            .WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix,
+                    set(path, "EstMACDataRateUplink", Matcher<const uint32_t &>(uint32_t{0})))
+            .WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix, set(path, "SignalStrength", Matcher<const uint8_t &>(uint8_t{0})))
+            .WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix,
+                    set(path, "LastDataDownlinkRate", Matcher<const uint32_t &>(uint32_t{0})))
+            .WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix,
+                    set(path, "LastDataUplinkRate", Matcher<const uint32_t &>(uint32_t{0})))
+            .WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix,
+                    set(path, "UtilizationReceive", Matcher<const uint32_t &>(uint32_t{0})))
+            .WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix,
+                    set(path, "UtilizationTransmit", Matcher<const uint32_t &>(uint32_t{0})))
+            .WillOnce(Return(true));
+    };
+
+    expect_link_metrics_cleared(g_sta_path_1);
+    expect_link_metrics_cleared(g_affiliated_sta_path);
+    expect_link_metrics_cleared(g_affiliated_sta_path_2);
+
+    EXPECT_CALL(*m_ambiorix,
+                set(g_sta_mld_path, "BytesSent", Matcher<const uint64_t &>(uint64_t{0})))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_sta_mld_path, "BytesReceived", Matcher<const uint64_t &>(uint64_t{0})))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_sta_mld_path, "PacketsSent", Matcher<const uint64_t &>(uint64_t{0})))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_sta_mld_path, "PacketsReceived", Matcher<const uint64_t &>(uint64_t{0})))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_sta_mld_path, "RetransCount", Matcher<const uint32_t &>(uint32_t{0})))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_sta_mld_path, "ErrorsSent", Matcher<const uint32_t &>(uint32_t{0})))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_sta_mld_path, "ErrorsReceived", Matcher<const uint32_t &>(uint32_t{0})))
+        .WillOnce(Return(true));
+
+    EXPECT_TRUE(m_db->dm_clear_sta_stats(tlvf::mac_from_string(g_client_mac)));
+}
+
 TEST_F(DbTestRadio1Sta1, test_add_sta_twice_with_same_mac)
 {
 
