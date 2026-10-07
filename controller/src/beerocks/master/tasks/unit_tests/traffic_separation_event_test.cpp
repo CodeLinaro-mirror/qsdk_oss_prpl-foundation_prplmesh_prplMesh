@@ -39,13 +39,13 @@ class TrafficSeparationEventTest : public ::testing::Test {
 protected:
     void SetUp() override
     {
-        m_amxrt                  = std::make_shared<beerocks::nbapi::Amxrt>();
+        m_event_loop             = std::make_shared<beerocks::EventLoopImpl>();
+        m_amxrt                  = std::make_shared<beerocks::nbapi::Amxrt>(m_event_loop);
         char app_name[]          = "traffic_separation_event_test";
         std::vector<char *> argv = {app_name, nullptr};
 
         ASSERT_EQ(0, m_amxrt->Initialize(argv.size() - 1, argv.data(), nullptr));
 
-        m_event_loop = std::make_shared<beerocks::EventLoopImpl>();
         ASSERT_TRUE(m_event_loop->register_handlers(amxp_signal_fd(), {}));
 
         const std::vector<beerocks::nbapi::sActionsCallback> actions = {

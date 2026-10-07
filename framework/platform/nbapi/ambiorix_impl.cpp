@@ -43,20 +43,10 @@ bool AmbiorixImpl::init(const std::string &datamodel_path)
         return false;
     }
 
-    amxc_var_t *config = Amxrt::getConfig();
-    amxc_var_set(bool, GET_ARG(config, AMXRT_COPT_AUTO_CONNECT), false);
-
     Amxrt::ConfigScanBackendDirs();
 
-    Amxrt::Connect();
-
-    if (!connect_and_register()) {
-        LOG(ERROR) << "Failed to connect and register to the bus.";
-        return false;
-    }
-
-    if (!init_event_loop()) {
-        LOG(ERROR) << "Failed to initialize event loop.";
+    if (Amxrt::Connect() != 0) {
+        LOG(ERROR) << "Failed to connect to the bus.";
         return false;
     }
 
@@ -66,7 +56,10 @@ bool AmbiorixImpl::init(const std::string &datamodel_path)
         return false;
     }
 
-    Amxrt::RegisterOrWait();
+    if (Amxrt::RegisterOrWait() != 0) {
+        LOG(ERROR) << "Failed to register the data model.";
+        return false;
+    }
 
     LOG(DEBUG) << "The bus connection initialized successfully.";
 
@@ -132,79 +125,6 @@ bool AmbiorixImpl::load_datamodel(const std::string &datamodel_path)
     return true;
 }
 
-bool AmbiorixImpl::connect_and_register()
-{
-    LOG(DEBUG) << "Connect and register.";
-
-    const amxc_llist_t *uris =
-        amxc_var_constcast(amxc_llist_t, GET_ARG(Amxrt::getConfig(), AMXRT_COPT_URIS));
-    amxc_llist_for_each(it, uris)
-    {
-        int status                = 0;
-        amxb_bus_ctx_t *m_bus_ctx = nullptr;
-        const char *uri           = amxc_var_constcast(cstring_t, amxc_var_from_llist_it(it));
-
-        status = amxb_connect(&m_bus_ctx, uri);
-        if (status != 0) {
-            LOG(ERROR) << "Failed to connect to the uri: " << uri << ", status: " << status;
-            return false;
-        }
-
-        status = amxb_register(m_bus_ctx, Amxrt::getDatamodel());
-        if (status != 0) {
-            LOG(ERROR) << "Failed to register the data model on: " << uri;
-            return false;
-        }
-
-        m_bus_ctx_vect.push_back(m_bus_ctx);
-
-        LOG(DEBUG) << "Register succesfuly uri: " << uri;
-    }
-
-    LOG(DEBUG) << "Connection and registration succesful";
-    return true;
-}
-
-bool AmbiorixImpl::init_event_loop()
-{
-    LOG(DEBUG) << "Register event handlers for the Ambiorix fd in the event loop.";
-    for (size_t i = 0; i < m_bus_ctx_vect.size(); i++) {
-        auto ambiorix_fd = amxb_get_fd(m_bus_ctx_vect.at(i));
-        if (ambiorix_fd < 0) {
-            LOG(ERROR) << "Failed to get ambiorix file descriptor.";
-            return false;
-        }
-        EventLoop::EventHandlers handlers = {
-            .name = "ambiorix_events" + std::to_string(i),
-            .on_read =
-                [&, i](int fd, EventLoop &loop) {
-                    amxb_read(m_bus_ctx_vect.at(i));
-                    return true;
-                },
-
-            // Not implemented
-            .on_write      = nullptr,
-            .on_disconnect = nullptr,
-
-            // Handle interface errors
-            .on_error =
-                [&](int fd, EventLoop &loop) {
-                    LOG(ERROR) << "Error on ambiorix fd.";
-                    return true;
-                },
-        };
-
-        if (!m_event_loop->register_handlers(ambiorix_fd, handlers)) {
-            LOG(ERROR) << "Couldn't register event handlers for the Ambiorix fd in the event loop.";
-            return false;
-        }
-
-        LOG(DEBUG) << "Event handlers for the Ambiorix fd: " << ambiorix_fd
-                   << " successfully registered in the event loop.";
-    }
-    return true;
-}
-
 bool AmbiorixImpl::init_signal_loop()
 {
     LOG(DEBUG) << "Register event handlers for the Ambiorix signals fd in the event loop.";
@@ -243,27 +163,6 @@ bool AmbiorixImpl::init_signal_loop()
 
     LOG(DEBUG) << "Event handlers for the Ambiorix signals fd: " << ambiorix_fd
                << " successfully registered in the event loop.";
-
-    return true;
-}
-
-bool AmbiorixImpl::remove_event_loop()
-{
-    LOG(DEBUG) << "Remove event handlers for Ambiorix fd from the event loop.";
-
-    for (size_t i = 0; i < m_bus_ctx_vect.size(); i++) {
-        auto ambiorix_fd = amxb_get_fd(m_bus_ctx_vect.at(i));
-        if (ambiorix_fd < 0) {
-            LOG(ERROR) << "Failed to get ambiorix file descriptor.";
-            return false;
-        }
-
-        if (!m_event_loop->remove_handlers(ambiorix_fd)) {
-            LOG(ERROR) << "Couldn't remove event handlers for the Ambiorix fd from the event loop.";
-            return false;
-        }
-    }
-    LOG(DEBUG) << "Event handlers for the Ambiorix fd successfully removed from the event loop.";
 
     return true;
 }
@@ -1123,11 +1022,7 @@ bool AmbiorixImpl::remove_all_instances(const std::string &relative_path)
 
 AmbiorixImpl::~AmbiorixImpl()
 {
-    remove_event_loop();
     remove_signal_loop();
-    for (size_t i = 0; i < m_bus_ctx_vect.size(); i++) {
-        amxb_free(&m_bus_ctx_vect.at(i));
-    }
 }
 
 } // namespace nbapi
