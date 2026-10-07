@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+# SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
+#
+# This code is subject to the terms of the BSD+Patent license.
+# See LICENSE file for more details.
+
+project(prpl_amx_common VERSION ${prplmesh_VERSION})
+
+message("${BoldWhite}Preparing ${BoldGreen}${PROJECT_NAME}${BoldWhite} for the ${BoldGreen}${TARGET_PLATFORM}${BoldWhite} platform${ColourReset}")
+
+# Set the base path for the current module
+set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
+
+file(GLOB_RECURSE amx_sources
+     ${MODULE_PATH}/*cpp)
+
+find_package(amxc REQUIRED)
+
+add_library(${PROJECT_NAME} ${amx_sources})
+
+set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
+set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
+
+target_link_libraries(${PROJECT_NAME} PUBLIC amxc bcl)
+
+# Install
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    )
+
+install(TARGETS ${PROJECT_NAME}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )

@@ -28,7 +28,6 @@
     }
 
 namespace beerocks {
-namespace wbapi {
 
 amxc_var_t *AmbiorixVariantBaseAccess::get_amxc_var_ptr(AmbiorixVariant &obj)
 {
@@ -329,5 +328,4 @@ bool AmbiorixVariant::add(uint8_t opclass, uint8_t exclude_channels_length,
     return true;
 }
 
-} // namespace wbapi
 } // namespace beerocks

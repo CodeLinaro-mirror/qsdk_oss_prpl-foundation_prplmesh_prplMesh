@@ -42,6 +42,7 @@ if (BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/common/beerocks/bwl/include
 
             ${CMAKE_SOURCE_DIR}/framework/platform/nbapi/include
+            ${CMAKE_SOURCE_DIR}/framework/platform/prpl_amx_common/include
 
             ${CMAKE_BINARY_DIR}/common/beerocks/tlvf/include
     )

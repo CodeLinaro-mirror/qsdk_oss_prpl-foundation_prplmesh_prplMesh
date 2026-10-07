@@ -948,8 +948,8 @@ bool mon_wlan_hal_whm::queue_sta_disconnected_event(const std::string &interface
     return event_queue_push(Event::STA_Disconnected, msg_buff);
 }
 
-bool mon_wlan_hal_whm::process_sta_disassoc_event(
-    const std::string &interface, const beerocks::wbapi::AmbiorixVariant *event_data)
+bool mon_wlan_hal_whm::process_sta_disassoc_event(const std::string &interface,
+                                                  const beerocks::AmbiorixVariant *event_data)
 {
     if (event_data == nullptr) {
         LOG(ERROR) << "event_data null";
@@ -986,7 +986,7 @@ bool mon_wlan_hal_whm::process_sta_disassoc_event(
     return queue_sta_disconnected_event(interface, sta_mac);
 }
 
-bool mon_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data)
+bool mon_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::AmbiorixVariant &event_data)
 {
     std::string event_str;
     if (!event_data.read_child<>(event_str, "eventData") || event_str.empty()) {

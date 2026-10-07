@@ -160,12 +160,6 @@ else()
 
 endif()
 
-find_package(amxb REQUIRED)
-find_package(amxc REQUIRED)
-find_package(amxd REQUIRED)
-find_package(amxp REQUIRED)
-list(APPEND BPL_LIBS amxb amxc amxd amxp)
-
 # BPL pwhm DM via wbapi
 if (USE_PRPLMESH_WHM)
     include_directories(${MODULE_PATH}/cfg/dm)
@@ -208,7 +202,14 @@ if (USE_PRPLMESH_WHM)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
 
-    list(APPEND BPL_LIBS wbapi)
+
+    find_package(amxb REQUIRED)
+    find_package(amxc REQUIRED)
+    find_package(amxd REQUIRED)
+    find_package(amxp REQUIRED)
+    list(APPEND BPL_LIBS amxb amxc amxd amxp wbapi)
+    set(BPL_INCLUDE_DIRS ${AMXB_INCLUDE_DIRS} ${AMXC_INCLUDE_DIRS}
+        ${AMXD_INCLUDE_DIRS} ${AMXP_INCLUDE_DIRS})
 else ()
     file(GLOB_RECURSE bpl_platform_sources
         ${MODULE_PATH}/*/linux/*.c*
@@ -239,10 +240,7 @@ target_include_directories(${PROJECT_NAME}
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     PRIVATE
         ${MODULE_PATH}/cfg
-        ${AMXB_INCLUDE_DIRS}
-        ${AMXC_INCLUDE_DIRS}
-        ${AMXD_INCLUDE_DIRS}
-        ${AMXP_INCLUDE_DIRS}
+        ${BPL_INCLUDE_DIRS}
     )
 
 install(TARGETS ${PROJECT_NAME}

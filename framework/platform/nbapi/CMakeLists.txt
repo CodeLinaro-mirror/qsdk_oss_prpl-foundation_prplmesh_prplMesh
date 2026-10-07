@@ -46,6 +46,8 @@ else ()
     target_link_libraries(${PROJECT_NAME} PRIVATE mapfcommon elpp bcl)
 endif()
 
+target_link_libraries(${PROJECT_NAME} PUBLIC prpl_amx_common)
+
 # Install
 target_include_directories(${PROJECT_NAME}
     PUBLIC
@@ -80,7 +82,7 @@ if (ENABLE_NBAPI AND BUILD_TESTS)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
     list(REMOVE_ITEM NBAPI_LIBS amxb)
-    target_link_libraries(${TEST_PROJECT_NAME} ${NBAPI_LIBS} mapfcommon elpp bcl)
+    target_link_libraries(${TEST_PROJECT_NAME} ${NBAPI_LIBS} mapfcommon elpp bcl prpl_amx_common)
     target_link_libraries(${TEST_PROJECT_NAME} gtest_main gmock)
 
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)

@@ -224,21 +224,20 @@ private:
         sMloClientInfo() : mlo_modes(0) {}
     };
 
-    beerocks::wbapi::AmbiorixVariantSmartPtr get_last_assoc_frame(const std::string &vap_iface,
-                                                                  const std::string &sta_mac);
+    beerocks::AmbiorixVariantSmartPtr get_last_assoc_frame(const std::string &vap_iface,
+                                                           const std::string &sta_mac);
     bool process_radio_event(const std::string &interface, const std::string &key,
-                             const beerocks::wbapi::AmbiorixVariant *value) override;
-    bool process_radio_channel_change_event(const beerocks::wbapi::AmbiorixVariant *value) override;
+                             const beerocks::AmbiorixVariant *value) override;
+    bool process_radio_channel_change_event(const beerocks::AmbiorixVariant *value) override;
     bool process_ap_event(const std::string &interface, const std::string &key,
-                          const beerocks::wbapi::AmbiorixVariant *value) override;
+                          const beerocks::AmbiorixVariant *value) override;
     bool process_sta_connected_event(const std::string &interface, const std::string &sta_mac,
-                                     const std::string &key,
-                                     const beerocks::wbapi::AmbiorixVariant *value,
+                                     const std::string &key, const beerocks::AmbiorixVariant *value,
                                      const std::string &sta_path,
                                      const std::string &vap_path) override;
     bool process_sta_disassoc_event(const std::string &interface,
-                                    const beerocks::wbapi::AmbiorixVariant *event_data) override;
-    bool process_afc_update_event(const beerocks::wbapi::AmbiorixVariant *value) override;
+                                    const beerocks::AmbiorixVariant *event_data) override;
+    bool process_afc_update_event(const beerocks::AmbiorixVariant *value) override;
     bool process_affiliated_link_changed_event(const std::string &interface,
                                                std::shared_ptr<void> event_data) override;
 
@@ -255,21 +254,20 @@ private:
     /**
      * @brief Process event "BSS-TM-RESP"
      */
-    bool process_ap_bss_event(const std::string &interface,
-                              const beerocks::wbapi::AmbiorixVariant *value);
+    bool process_ap_bss_event(const std::string &interface, const beerocks::AmbiorixVariant *value);
 
     /**
     * @brief Process event "RssiUpdate"
     */
     void process_rssi_eventing_event(const std::string &interface,
-                                     beerocks::wbapi::AmbiorixVariant *value) override;
+                                     beerocks::AmbiorixVariant *value) override;
 
     std::unordered_set<std::string> m_unassociated_stations;
 
     /**
      * @brief Process event "wpaCtrlEvents"
      */
-    bool process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data) override;
+    bool process_wpa_ctrl_event(const beerocks::AmbiorixVariant &event_data) override;
 
     /**
      * @brief Collect MLO client association information from data model

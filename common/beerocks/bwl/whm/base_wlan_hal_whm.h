@@ -111,13 +111,13 @@ protected:
     int whm_get_vap_id(const std::string &iface);
     bool whm_get_radio_ref(const std::string &iface, std::string &ref);
     bool whm_get_radio_path(const std::string &iface, std::string &path);
-    bool refresh_vap_info(int id, const beerocks::wbapi::AmbiorixVariant &ap_obj);
+    bool refresh_vap_info(int id, const beerocks::AmbiorixVariant &ap_obj);
     void remove_vap_info(int id);
-    bool get_radio_vaps(beerocks::wbapi::AmbiorixVariantMap &aps);
+    bool get_radio_vaps(beerocks::AmbiorixVariantMap &aps);
     bool get_accesspoint_by_ssid(std::string &ssid_path, std::string &ap_path);
     bool has_enabled_vap() const;
     bool check_enabled_vap(const std::string &bss) const;
-    bool refresh_possible_channels_info(const beerocks::wbapi::AmbiorixVariantSmartPtr &radio);
+    bool refresh_possible_channels_info(const beerocks::AmbiorixVariantSmartPtr &radio);
 
     /**
      * @brief try to read MRSNO support for m_radio and fill
@@ -139,22 +139,22 @@ protected:
     std::unordered_map<std::string, std::string> m_station_paths; // key = mac, value = path
     void subscribe_to_radio_events();
     virtual bool process_radio_event(const std::string &interface, const std::string &key,
-                                     const beerocks::wbapi::AmbiorixVariant *value);
+                                     const beerocks::AmbiorixVariant *value);
     void subscribe_to_radio_channel_change_events();
-    virtual bool process_radio_channel_change_event(const beerocks::wbapi::AmbiorixVariant *value);
+    virtual bool process_radio_channel_change_event(const beerocks::AmbiorixVariant *value);
 
     void subscribe_to_ap_events();
     virtual bool process_ap_event(const std::string &interface, const std::string &key,
-                                  const beerocks::wbapi::AmbiorixVariant *value);
+                                  const beerocks::AmbiorixVariant *value);
 
     void subscribe_to_sta_events();
     virtual bool process_sta_connected_event(const std::string &interface,
                                              const std::string &sta_mac, const std::string &key,
-                                             const beerocks::wbapi::AmbiorixVariant *value,
+                                             const beerocks::AmbiorixVariant *value,
                                              const std::string &sta_path,
                                              const std::string &vap_path);
     virtual bool process_sta_disassoc_event(const std::string &interface,
-                                            const beerocks::wbapi::AmbiorixVariant *event_data);
+                                            const beerocks::AmbiorixVariant *event_data);
 
     /**
     * @brief Queue AffiliatedSta link ADD/REMOVE for AP manager processing.
@@ -168,7 +168,7 @@ protected:
     */
     void subscribe_to_affiliated_sta_events();
     void subscribe_to_afc_update_events();
-    virtual bool process_afc_update_event(const beerocks::wbapi::AmbiorixVariant *value);
+    virtual bool process_afc_update_event(const beerocks::AmbiorixVariant *value);
 
     /**
      * @brief subscribe to WiFi.Radio. ScanComplete dm notification
@@ -182,7 +182,7 @@ protected:
     /**
      * @brief Process event "wpaCtrlEvents"
      */
-    virtual bool process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data);
+    virtual bool process_wpa_ctrl_event(const beerocks::AmbiorixVariant &event_data);
 
     /**
      * @brief subscribe to WiFi.Radio.XXXXX.NaStaMonitor.RssiEventing RssiUpdate dm notification
@@ -193,7 +193,7 @@ protected:
      * @brief Process the event "RssiUpdate" when received from the dm
      */
     virtual void process_rssi_eventing_event(const std::string &interface,
-                                             beerocks::wbapi::AmbiorixVariant *value);
+                                             beerocks::AmbiorixVariant *value);
 
     /**
      * @brief Store datamodel path of a Station in m_station_paths
@@ -257,7 +257,7 @@ private:
      * @return None
      */
     void populate_mlo_fields(VAPElement &vap_element,
-                             const std::unique_ptr<beerocks::wbapi::AmbiorixVariant> &ssid_obj,
+                             const std::unique_ptr<beerocks::AmbiorixVariant> &ssid_obj,
                              const std::string &ifname);
 
 protected:

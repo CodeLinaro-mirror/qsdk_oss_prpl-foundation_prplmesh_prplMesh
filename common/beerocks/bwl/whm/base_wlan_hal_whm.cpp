@@ -725,8 +725,8 @@ bool base_wlan_hal_whm::process_sta_connected_event(
     return true;
 }
 
-bool base_wlan_hal_whm::process_sta_disassoc_event(
-    const std::string &interface, const beerocks::wbapi::AmbiorixVariant *event_data)
+bool base_wlan_hal_whm::process_sta_disassoc_event(const std::string &interface,
+                                                   const beerocks::AmbiorixVariant *event_data)
 {
     return true;
 }
@@ -739,14 +739,14 @@ bool base_wlan_hal_whm::process_affiliated_link_changed_event(const std::string 
 bool base_wlan_hal_whm::process_afc_update_event(const AmbiorixVariant *value) { return true; }
 
 void base_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
-                                                    beerocks::wbapi::AmbiorixVariant *updates)
+                                                    beerocks::AmbiorixVariant *updates)
 {
     LOG(TRACE) << __func__ << " - NOT IMPLEMENTED";
 }
 
 bool base_wlan_hal_whm::process_scan_complete_event(const std::string &result) { return true; }
 
-bool base_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data)
+bool base_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::AmbiorixVariant &event_data)
 {
     return true;
 }
@@ -1139,7 +1139,7 @@ void base_wlan_hal_whm::read_qos_management_support()
 }
 
 bool base_wlan_hal_whm::refresh_possible_channels_info(
-    const beerocks::wbapi::AmbiorixVariantSmartPtr &radio)
+    const beerocks::AmbiorixVariantSmartPtr &radio)
 {
     std::string s_val;
     std::unordered_set<uint8_t> cleared_channels_set;
@@ -1465,7 +1465,7 @@ bool base_wlan_hal_whm::update_vap_mlo_fields(VAPElement &vap_element)
 }
 
 void base_wlan_hal_whm::populate_mlo_fields(
-    VAPElement &vap_element, const std::unique_ptr<beerocks::wbapi::AmbiorixVariant> &ssid_obj,
+    VAPElement &vap_element, const std::unique_ptr<beerocks::AmbiorixVariant> &ssid_obj,
     const std::string &ifname)
 {
     LOG(DEBUG) << "Populate MLO fields for ifname: " << ifname << " ssid: " << vap_element.ssid;
