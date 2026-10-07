@@ -226,12 +226,12 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
             configuration.akm  = requested_backhaul_akm;
             return true;
         }
+        if (!selected) {
+            error = "Failed to select backhaul BSS";
+            return false;
+        }
     }
 
-    if(!selected) {
-	    error = "Failed to select backhaul BSS";
-	    return false;
-    }
     if (!selected->ssid.empty()) {
         configuration.ssid = selected->ssid;
     } else {
@@ -310,10 +310,10 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
             error = "No configured fronthaul BSS available for DPP sta object";
             return false;
         }
-    }
-    if (!selected) {
-        error = "Failed to select fronthaul BSS";
-        return false;
+        if (!selected) {
+            error = "Failed to select fronthaul BSS";
+            return false;
+        }
     }
     configuration.ssid = !selected->ssid.empty() ? selected->ssid : requested_ssid;
     if (configuration.ssid.empty()) {
