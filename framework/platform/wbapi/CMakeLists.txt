@@ -12,7 +12,6 @@ message("${BoldWhite}Preparing ${BoldGreen}${PROJECT_NAME}${BoldWhite} for the $
 # Set the base path for the current module
 set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
-list(APPEND wbapi_sources ${MODULE_PATH}/ambiorix_variant.cpp)
 list(APPEND wbapi_sources ${MODULE_PATH}/ambiorix_connection.cpp)
 list(APPEND wbapi_sources ${MODULE_PATH}/ambiorix_connection_manager.cpp)
 list(APPEND wbapi_sources ${MODULE_PATH}/ambiorix_client.cpp)
@@ -32,7 +31,9 @@ add_library(${PROJECT_NAME} ${wbapi_sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
-target_link_libraries(${PROJECT_NAME} PRIVATE ${WBAPI_LIBS} mapfcommon elpp bcl tlvf)
+target_link_libraries(${PROJECT_NAME}
+                      PRIVATE ${WBAPI_LIBS} mapfcommon elpp bcl tlvf
+                      PUBLIC prpl_amx_common)
 
 # Install
 target_include_directories(${PROJECT_NAME}

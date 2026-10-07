@@ -30,7 +30,7 @@ std::vector<std::shared_ptr<ieee1905_1::tlvVendorSpecific>> AirtiesUtils::airtie
 bool AirtiesUtils::handle_reboot_and_factory_reset(uint8_t action_value)
 {
     bool ret_val = false;
-    beerocks::wbapi::AmbiorixVariant args, result;
+    beerocks::AmbiorixVariant args, result;
 
     //Check for Reboot Value.
     if (action_value == REBOOT_ACTION_VALUE) {

@@ -13,12 +13,6 @@
 
 #include <amxc/amxc.h>
 
-#include <amxp/amxp.h>
-
-#include <amxd/amxd_dm.h>
-
-#include <amxb/amxb.h>
-
 #include <memory>
 
 #include <vector>
@@ -26,7 +20,6 @@
 #include <easylogging++.h>
 
 namespace beerocks {
-namespace wbapi {
 
 class AmbiorixVariant;
 using AmbiorixVariantSmartPtr     = std::unique_ptr<AmbiorixVariant>;
@@ -376,7 +369,6 @@ private:
     bool bound;
 };
 
-} // namespace wbapi
 } // namespace beerocks
 
 #endif /* AMBIORIX_VARIANT_H_ */

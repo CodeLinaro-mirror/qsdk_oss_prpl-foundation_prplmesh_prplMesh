@@ -99,19 +99,18 @@ protected:
 
 private:
     bool process_ap_event(const std::string &interface, const std::string &key,
-                          const beerocks::wbapi::AmbiorixVariant *value) override;
+                          const beerocks::AmbiorixVariant *value) override;
     bool process_sta_connected_event(const std::string &interface, const std::string &sta_mac,
-                                     const std::string &key,
-                                     const beerocks::wbapi::AmbiorixVariant *value,
+                                     const std::string &key, const beerocks::AmbiorixVariant *value,
                                      const std::string &sta_path,
                                      const std::string &vap_path) override;
     bool process_sta_disassoc_event(const std::string &interface,
-                                    const beerocks::wbapi::AmbiorixVariant *event_data) override;
+                                    const beerocks::AmbiorixVariant *event_data) override;
     bool queue_sta_disconnected_event(const std::string &interface, const std::string &sta_mac);
 
     virtual bool process_scan_complete_event(const std::string &result) override;
 
-    bool process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data) override;
+    bool process_wpa_ctrl_event(const beerocks::AmbiorixVariant &event_data) override;
 
     bool get_scan_results_from_pwhm();
 
