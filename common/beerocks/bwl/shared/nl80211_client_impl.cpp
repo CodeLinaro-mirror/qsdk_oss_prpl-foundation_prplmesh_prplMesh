@@ -517,7 +517,6 @@ bool nl80211_client_impl::get_radio_info(const std::string &interface_name, radi
                             }
 
                             band.he_capability = band.he_capability | ((7 & (he_rx_nss - 1)) << 10);
-                            band.wifi6_capability = band.wifi6_capability | (he_rx_nss << 24);
 
                             uint16_t he_tx_mcs_map = band.he_mcs_set[2] | (band.he_mcs_set[3] << 8);
                             for (he_tx_nss = 8; he_tx_nss > 0; he_tx_nss--) {
@@ -528,7 +527,10 @@ bool nl80211_client_impl::get_radio_info(const std::string &interface_name, radi
                             }
 
                             band.he_capability = band.he_capability | ((7 & (he_tx_nss - 1)) << 13);
-                            band.wifi6_capability = band.wifi6_capability | (he_rx_nss << 28);
+                            band.wifi6_capability =
+                                band.wifi6_capability | (static_cast<uint64_t>(he_tx_nss) << 24);
+                            band.wifi6_capability =
+                                band.wifi6_capability | (static_cast<uint64_t>(he_rx_nss) << 28);
                         }
 
                         if (tb_iftype[NL80211_BAND_IFTYPE_ATTR_HE_CAP_PPE]) {
