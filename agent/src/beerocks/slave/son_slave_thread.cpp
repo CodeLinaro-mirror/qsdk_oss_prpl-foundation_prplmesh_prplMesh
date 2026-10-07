@@ -4165,6 +4165,12 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         }
         LOG(TRACE) << "received ACTION_APMANAGER_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION";
 
+        auto db    = AgentDB::get();
+        auto radio = db->radio(fronthaul_iface);
+        if (!radio) {
+            return false;
+        }
+
         auto notification_out = message_com::create_vs_message<
             beerocks_message::cACTION_CONTROL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION>(cmdu_tx);
         if (notification_out == nullptr) {
@@ -4172,7 +4178,28 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
         notification_out->params() = notification_in->params();
-        send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
+
+        /**
+         * The Controller is not familiar with ZWDFS radio interface, so
+         * avoid sending CMDU to the controller when the radio
+         * interface is a ZWDFS radio interface.
+         */
+        if (!radio->front.zwdfs) {
+            send_cmdu_to_controller(fronthaul_iface, cmdu_tx);
+        }
+
+        auto notification_out_bhm = message_com::create_vs_message<
+            beerocks_message::cACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION>(cmdu_tx);
+        if (!notification_out_bhm) {
+            LOG(ERROR) << "Failed building message!";
+            return false;
+        }
+        notification_out_bhm->params() = notification_in->params();
+
+        auto action_header         = message_com::get_beerocks_header(cmdu_tx)->actionhdr();
+        action_header->radio_mac() = radio->front.iface_mac;
+
+        m_backhaul_manager_client->send_cmdu(cmdu_tx);
         break;
     }
     case beerocks_message::ACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION: {

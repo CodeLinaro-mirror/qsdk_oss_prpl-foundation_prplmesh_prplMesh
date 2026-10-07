@@ -254,24 +254,59 @@ void ChannelSelectionTask::handle_channel_preference_query(ieee1905_1::CmduMessa
 
         m_pending_preference.preference_ready[radio->front.iface_mac] = false;
 
-        auto request = message_com::create_vs_message<
-            beerocks_message::cACTION_BACKHAUL_CHANNELS_LIST_REQUEST>(m_cmdu_tx);
-        if (!request) {
-            LOG(ERROR) << "Failed to build message";
+        if (!send_channels_list_request(radio->front.iface_mac)) {
             break;
         }
-
-        auto agent_fd = m_btl_ctx.get_agent_fd();
-        if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
-            LOG(ERROR) << "socket to Agent not found";
-            break;
-        }
-
-        auto action_header         = message_com::get_beerocks_header(m_cmdu_tx)->actionhdr();
-        action_header->radio_mac() = radio->front.iface_mac;
-
-        m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx);
     }
+}
+
+bool ChannelSelectionTask::send_channels_list_request(const sMacAddr &radio_mac)
+{
+    auto request =
+        message_com::create_vs_message<beerocks_message::cACTION_BACKHAUL_CHANNELS_LIST_REQUEST>(
+            m_cmdu_tx);
+    if (!request) {
+        LOG(ERROR) << "Failed to build CHANNELS_LIST_REQUEST message";
+        return false;
+    }
+
+    auto agent_fd = m_btl_ctx.get_agent_fd();
+    if (agent_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(ERROR) << "socket to Agent not found";
+        return false;
+    }
+
+    auto action_header         = message_com::get_beerocks_header(m_cmdu_tx)->actionhdr();
+    action_header->radio_mac() = radio_mac;
+
+    return m_btl_ctx.send_cmdu(agent_fd, m_cmdu_tx);
+}
+
+bool ChannelSelectionTask::request_channel_preference_refresh(const sMacAddr &radio_mac)
+{
+    auto &preference_ready = m_pending_preference.preference_ready;
+
+    auto it = preference_ready.find(radio_mac);
+    if (it != preference_ready.end() && !it->second) {
+        // The response in flight may predate this event, request again once it arrives.
+        m_pending_preference.refresh_again.insert(radio_mac);
+        return true;
+    }
+    const bool was_ready = (it != preference_ready.end());
+
+    preference_ready[radio_mac] = false;
+
+    if (send_channels_list_request(radio_mac)) {
+        return true;
+    }
+
+    LOG(ERROR) << "Failed to request channels list for radio " << radio_mac;
+    if (was_ready) {
+        preference_ready[radio_mac] = true;
+    } else {
+        preference_ready.erase(radio_mac);
+    }
+    return false;
 }
 
 bool ChannelSelectionTask::handle_eht_operation_tlv(wfa_map::tlvEHTOperations &eht_ops_tlv)
@@ -607,6 +642,10 @@ bool ChannelSelectionTask::handle_vendor_specific(ieee1905_1::CmduMessageRx &cmd
         handle_vs_dfs_cac_completed_notification(cmdu_rx, sd, beerocks_header);
         break;
     }
+    case beerocks_message::ACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION: {
+        handle_vs_dfs_channel_available_notification(cmdu_rx, sd, beerocks_header);
+        break;
+    }
     case beerocks_message::ACTION_BACKHAUL_CHANNELS_LIST_RESPONSE: {
         handle_vs_channels_list_response(cmdu_rx, sd, beerocks_header);
         break;
@@ -921,36 +960,21 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
     m_btl_ctx.m_task_pool.send_event(eTaskEvent::CAC_COMPLETED_NOTIFICATION,
                                      cac_completed_notification);
 
-    if (m_pending_preference.mid || m_pending_selection.mid) {
-        LOG(DEBUG) << "Pending selection/preference exists, skip unsolicited CPR for CAC completed "
-                   << "on radio " << tlvf::mac_to_string(radio_mac);
-    } else if (!radio->front.zwdfs && cac_success) {
+    if (!radio->front.zwdfs && cac_success) {
 
         /**
-         * If CAC succeeded, send an unsolicited Channel Preference Report (CPR) here.
-         * If CAC failed, a channel change event will follow (likely due to radar).
-         * In that case, CPR and OCR will be sent later during CSA_Finished handling.
+         * CAC cleared channels in the driver but AgentDB still has old DFS state. Request fresh
+         * channels list so the report is sent with correct data. A pending preference query
+         * waits for this radio again, so its response carries the new state as well.
          */
-        m_pending_preference.preference_ready.clear();
-        m_pending_preference.preference_ready[radio_mac] = false;
-        m_pending_preference.mid                         = cmdu_rx.getMessageId();
-
-        // Build and send CPR. No need to return on error
-        if (!build_channel_preference_report(radio_mac)) {
-            LOG(ERROR) << "Failed to build channel preference report for radio "
-                       << tlvf::mac_to_string(radio_mac);
-        } else if (channel_preference_report_ready()) {
-            if (!send_channel_preference_report()) {
-                LOG(ERROR) << "Failed to send CHANNEL_PREFERENCE_REPORT_MESSAGE "
-                           << "for radio " << tlvf::mac_to_string(radio_mac);
-            }
+        LOG(DEBUG) << "Requesting channels list after successful CAC on radio "
+                   << tlvf::mac_to_string(radio_mac);
+        if (request_channel_preference_refresh(radio_mac)) {
+            m_send_preference_report_after_cac_completion_event = true;
         }
-
-        m_pending_preference.mid = 0;
-        m_pending_preference.preference_ready.clear();
+    } else if (!cac_success) {
+        m_send_preference_report_after_cac_completion_event = true;
     }
-
-    m_send_preference_report_after_cac_completion_event = !cac_success;
 
     if (m_zwdfs_state == eZwdfsState::WAIT_FOR_ZWDFS_CAC_COMPLETED) {
         db->statuses.zwdfs_cac_remaining_time_sec = 0;
@@ -960,6 +984,45 @@ void ChannelSelectionTask::handle_vs_dfs_cac_completed_notification(
             return;
         }
         ZWDFS_FSM_MOVE_STATE(eZwdfsState::SWITCH_CHANNEL_PRIMARY_RADIO);
+    }
+}
+
+void ChannelSelectionTask::handle_vs_dfs_channel_available_notification(
+    ieee1905_1::CmduMessageRx &cmdu_rx, int fd, std::shared_ptr<beerocks_header> beerocks_header)
+{
+    auto notification = beerocks_header->addClass<
+        beerocks_message::cACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION>();
+    if (!notification) {
+        LOG(ERROR) << "addClass cACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION failed";
+        return;
+    }
+
+    auto db = AgentDB::get();
+    auto radio =
+        db->get_radio_by_mac(beerocks_header->actionhdr()->radio_mac(), AgentDB::eMacType::RADIO);
+    if (!radio) {
+        return;
+    }
+
+    const auto &sender_iface_name = radio->front.iface_name;
+    const auto radio_mac          = radio->front.iface_mac;
+
+    LOG(TRACE) << "received ACTION_BACKHAUL_HOSTAP_DFS_CHANNEL_AVAILABLE_NOTIFICATION from "
+               << sender_iface_name << ", channel=" << int(notification->params().channel);
+
+    if (radio->front.zwdfs) {
+        return;
+    }
+
+    /**
+     * NOP finished in the driver but AgentDB still has old DFS state. Request fresh channels
+     * list so the report is sent with correct data. A pending preference query waits for this
+     * radio again, so its response carries the new state as well.
+     */
+    LOG(DEBUG) << "Requesting channels list after DFS NOP finished on radio "
+               << tlvf::mac_to_string(radio_mac);
+    if (request_channel_preference_refresh(radio_mac)) {
+        m_send_preference_report_after_dfs_nop_finished_event = true;
     }
 }
 
@@ -980,7 +1043,16 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
         ZWDFS_FSM_MOVE_STATE(eZwdfsState::CHOOSE_NEXT_BEST_CHANNEL);
     } else if (is_there_a_pending_preference || m_send_preference_report_after_cac_started_event ||
                m_send_preference_report_after_cac_completion_event ||
-               m_send_preference_report_after_csa_finished_event) {
+               m_send_preference_report_after_csa_finished_event ||
+               m_send_preference_report_after_dfs_nop_finished_event) {
+
+        if (m_pending_preference.refresh_again.erase(radio_mac)) {
+            LOG(DEBUG) << "Channels list of radio " << radio_mac
+                       << " may predate the last refresh, requesting it again";
+            if (send_channels_list_request(radio_mac)) {
+                return;
+            }
+        }
 
         // If there is a pending preference query, need to build a preference report
         build_channel_preference_report(radio_mac);
@@ -998,11 +1070,14 @@ void ChannelSelectionTask::handle_vs_channels_list_response(
                 send_operating_channel_report(radio_mac);
             }
 
-            // Clear the pending preference MID.
-            m_pending_preference.mid                            = 0;
-            m_send_preference_report_after_cac_started_event    = false;
-            m_send_preference_report_after_cac_completion_event = false;
-            m_send_preference_report_after_csa_finished_event   = false;
+            // Clear the pending preference state.
+            m_pending_preference.preference_ready.clear();
+            m_pending_preference.refresh_again.clear();
+            m_pending_preference.mid                              = 0;
+            m_send_preference_report_after_cac_started_event      = false;
+            m_send_preference_report_after_cac_completion_event   = false;
+            m_send_preference_report_after_csa_finished_event     = false;
+            m_send_preference_report_after_dfs_nop_finished_event = false;
         }
     }
 }

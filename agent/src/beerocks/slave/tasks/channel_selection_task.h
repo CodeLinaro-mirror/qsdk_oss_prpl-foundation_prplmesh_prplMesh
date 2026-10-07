@@ -20,6 +20,7 @@
 #include <tlvf/wfa_map/tlvSpatialReuseRequest.h>
 #include <tlvf/wfa_map/tlvTransmitPowerLimit.h>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <beerocks/tlvf/enums/eDfsState.h>
 
@@ -108,6 +109,8 @@ private:
     struct sPendingChannelPreferenceReport {
         uint16_t mid = 0;
         std::unordered_map<sMacAddr, bool> preference_ready{};
+        // Radios to request the channels list again for, once the response in flight arrives.
+        std::unordered_set<sMacAddr> refresh_again{};
     };
 
     struct sPendingChannelSelection {
@@ -121,6 +124,27 @@ private:
 
     void handle_channel_selection_request(ieee1905_1::CmduMessageRx &cmdu_rx,
                                           const sMacAddr &src_mac);
+
+    /**
+     * @brief Sends ACTION_BACKHAUL_CHANNELS_LIST_REQUEST for a single radio.
+     *
+     * @param[in] radio_mac MAC address of the radio to request the channels list for.
+     * @return true if the request was sent, false otherwise.
+     */
+    bool send_channels_list_request(const sMacAddr &radio_mac);
+
+    /**
+     * @brief Adds the radio to the pending preference report and requests its channels list.
+     *
+     * Radios already pending are kept, so the report is sent once all of them have responded.
+     * If a request is already in flight for this radio, the new request is sent once its
+     * response arrives, since responses can only be matched by radio MAC.
+     * If the request cannot be sent, the radio's previous pending state is restored.
+     *
+     * @param[in] radio_mac MAC address of the radio to refresh.
+     * @return true if the request was sent, false otherwise.
+     */
+    bool request_channel_preference_refresh(const sMacAddr &radio_mac);
 
     /**
      * @brief Handles Vendor Specific messages.
@@ -147,6 +171,10 @@ private:
 
     void handle_vs_dfs_cac_completed_notification(ieee1905_1::CmduMessageRx &cmdu_rx, int fd,
                                                   std::shared_ptr<beerocks_header> beerocks_header);
+
+    void
+    handle_vs_dfs_channel_available_notification(ieee1905_1::CmduMessageRx &cmdu_rx, int fd,
+                                                 std::shared_ptr<beerocks_header> beerocks_header);
 
     void handle_vs_channels_list_response(ieee1905_1::CmduMessageRx &cmdu_rx, int fd,
                                           std::shared_ptr<beerocks_header> beerocks_header);
@@ -291,6 +319,14 @@ private:
      * above request in handle_vs_channels_list_response()
      */
     bool m_send_preference_report_after_csa_finished_event = false;
+
+    /**
+     * DFS-NOP-FINISHED event (DFS channel became available) results in sending
+     * ACTION_BACKHAUL_CHANNELS_LIST_REQUEST from handle_vs_dfs_channel_available_notification().
+     * Set this flag to true to send preference report when handling the response for the
+     * above request in handle_vs_channels_list_response()
+     */
+    bool m_send_preference_report_after_dfs_nop_finished_event = false;
 
     /* Class members */
 
