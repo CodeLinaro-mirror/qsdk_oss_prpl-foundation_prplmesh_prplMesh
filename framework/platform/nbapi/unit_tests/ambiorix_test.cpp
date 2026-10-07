@@ -7,6 +7,7 @@
  */
 
 #include <ambiorix_impl.h>
+#include <bcl/beerocks_event_loop_impl.h>
 #include <bcl/beerocks_event_loop_mock.h>
 
 #include <amxb/amxb.h>
@@ -15,9 +16,13 @@
 #include <amxd/amxd_object_parameter.h>
 
 #include "amxb_mock.h"
+#include <cerrno>
+#include <chrono>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <memory>
+#include <sys/socket.h>
+#include <unistd.h>
 
 using ::testing::_;
 using ::testing::DoAll;
@@ -120,8 +125,8 @@ private:
     void SetUp() override
     {
         // init amxrt struct used by AmbiorixImpl
-        amxrt        = std::make_shared<beerocks::nbapi::Amxrt>();
         m_event_loop = std::make_shared<StrictMock<beerocks::EventLoopMock>>();
+        amxrt        = std::make_shared<beerocks::nbapi::Amxrt>(m_event_loop);
         m_ambiorix   = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
             m_event_loop, std::vector<beerocks::nbapi::sActionsCallback>(),
             std::vector<beerocks::nbapi::sEvents>(), std::vector<beerocks::nbapi::sFunctions>());
@@ -150,6 +155,8 @@ private:
         // Calling reset() in turn calls the object's destructor so previous expectations are satisfied.
         m_ambiorix.reset();
         amxrt.reset();
+        // Clear the process-global mock connection before creating the next runtime.
+        amxp_connection_remove(42);
     }
 };
 
@@ -337,6 +344,117 @@ TEST_F(AmbiorixTestSetterDouble, set_uint32_should_succeed)
 TEST_F(AmbiorixTestSetterDouble, set_uint32_should_fail)
 {
     set_should_fail(g_param_name_unknown, new_value);
+}
+
+// Exercise the runtime adapter with real readiness events, without a bus daemon.
+class AmxrtConnectionTest : public ::testing::Test {
+protected:
+    std::shared_ptr<beerocks::EventLoopImpl> m_event_loop;
+    std::unique_ptr<beerocks::nbapi::Amxrt> m_runtime;
+    int m_sockets[2]  = {-1, -1};
+    int m_write_calls = 0;
+    StrictMock<AmbxMock> m_amxb_mock;
+
+    void SetUp() override
+    {
+        ASSERT_EQ(0, socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, m_sockets));
+        m_event_loop = std::make_shared<beerocks::EventLoopImpl>(std::chrono::milliseconds(10));
+        m_runtime    = std::make_unique<beerocks::nbapi::Amxrt>(m_event_loop);
+        EXPECT_CALL(m_amxb_mock, amxb_be_remove_all());
+
+        ASSERT_EQ(0, amxp_connection_add(
+                         m_sockets[0], [](int, void *) {}, nullptr, AMXP_CONNECTION_CUSTOM,
+                         &m_write_calls));
+    }
+
+    void TearDown() override
+    {
+        if (m_sockets[0] >= 0) {
+            amxp_connection_remove(m_sockets[0]);
+        }
+        m_runtime.reset();
+        m_event_loop.reset();
+        for (auto fd : m_sockets) {
+            if (fd >= 0) {
+                EXPECT_EQ(0, close(fd));
+            }
+        }
+    }
+};
+
+TEST_F(AmxrtConnectionTest, wait_write_dispatches_once_when_socket_becomes_writable)
+{
+    // Reproduce the backpressure that makes the USP backend request a write callback.
+    char buffer[4096] = {};
+    ssize_t result;
+    do {
+        result = send(m_sockets[0], buffer, sizeof(buffer), MSG_NOSIGNAL);
+    } while (result > 0);
+    ASSERT_EQ(-1, result);
+    ASSERT_EQ(EAGAIN, errno);
+
+    ASSERT_EQ(0, amxp_connection_wait_write(m_sockets[0],
+                                            [](int, void *priv) { ++*static_cast<int *>(priv); }));
+    EXPECT_EQ(0, m_event_loop->run());
+    EXPECT_EQ(0, m_write_calls);
+
+    // Drain the peer: the registered socket is now writable, with no incoming data.
+    do {
+        result = recv(m_sockets[1], buffer, sizeof(buffer), 0);
+    } while (result > 0);
+    ASSERT_EQ(-1, result);
+    ASSERT_EQ(EAGAIN, errno);
+
+    EXPECT_GT(m_event_loop->run(), 0);
+    EXPECT_EQ(1, m_write_calls);
+    EXPECT_EQ(nullptr, amxp_connection_get(m_sockets[0])->can_write);
+
+    // Write notifications are one-shot; leaving EPOLLOUT armed causes a busy loop.
+    EXPECT_EQ(0, m_event_loop->run());
+    EXPECT_EQ(1, m_write_calls);
+}
+
+TEST_F(AmxrtConnectionTest, write_callback_can_rearm_itself)
+{
+    ASSERT_EQ(0, amxp_connection_wait_write(m_sockets[0], [](int fd, void *priv) {
+                  ++*static_cast<int *>(priv);
+                  EXPECT_EQ(0, amxp_connection_wait_write(fd, [](int, void *next_priv) {
+                                ++*static_cast<int *>(next_priv);
+                            }));
+              }));
+
+    EXPECT_GT(m_event_loop->run(), 0);
+    EXPECT_EQ(1, m_write_calls);
+    EXPECT_GT(m_event_loop->run(), 0);
+    EXPECT_EQ(2, m_write_calls);
+    EXPECT_EQ(nullptr, amxp_connection_get(m_sockets[0])->can_write);
+    EXPECT_EQ(0, m_event_loop->run());
+    EXPECT_EQ(2, m_write_calls);
+}
+
+TEST_F(AmxrtConnectionTest, removing_connection_cancels_pending_write)
+{
+    ASSERT_EQ(0, amxp_connection_wait_write(m_sockets[0],
+                                            [](int, void *priv) { ++*static_cast<int *>(priv); }));
+    ASSERT_EQ(0, amxp_connection_remove(m_sockets[0]));
+
+    EXPECT_EQ(0, m_event_loop->run());
+    EXPECT_EQ(0, m_write_calls);
+    EXPECT_EQ(nullptr, amxp_connection_get(m_sockets[0]));
+}
+
+TEST_F(AmxrtConnectionTest, write_callback_can_remove_connection)
+{
+    ASSERT_EQ(0, amxp_connection_wait_write(m_sockets[0], [](int fd, void *priv) {
+                  ++*static_cast<int *>(priv);
+                  EXPECT_EQ(0, amxp_connection_remove(fd));
+              }));
+
+    EXPECT_GT(m_event_loop->run(), 0);
+    EXPECT_EQ(1, m_write_calls);
+    EXPECT_EQ(nullptr, amxp_connection_get(m_sockets[0]));
+    EXPECT_EQ(0, m_event_loop->run());
+    EXPECT_EQ(1, m_write_calls);
 }
 
 } // namespace
