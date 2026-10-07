@@ -1,39 +1,28 @@
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 #
-# SPDX-FileCopyrightText: 2022 the prplMesh contributors (see AUTHORS.md)
+# SPDX-FileCopyrightText: 2020 the prplMesh contributors (see AUTHORS.md)
 #
 # This code is subject to the terms of the BSD+Patent license.
 # See LICENSE file for more details.
 
-project(wbapi VERSION ${prplmesh_VERSION})
+project(prpl_amx_common VERSION ${prplmesh_VERSION})
 
 message("${BoldWhite}Preparing ${BoldGreen}${PROJECT_NAME}${BoldWhite} for the ${BoldGreen}${TARGET_PLATFORM}${BoldWhite} platform${ColourReset}")
 
 # Set the base path for the current module
 set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
-list(APPEND wbapi_sources ${MODULE_PATH}/ambiorix_connection.cpp)
-list(APPEND wbapi_sources ${MODULE_PATH}/ambiorix_connection_manager.cpp)
-list(APPEND wbapi_sources ${MODULE_PATH}/ambiorix_client.cpp)
-list(APPEND wbapi_sources ${MODULE_PATH}/wbapi_utils.cpp)
+file(GLOB_RECURSE amx_sources
+     ${MODULE_PATH}/*cpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
-
-find_package(amxb REQUIRED)
 find_package(amxc REQUIRED)
-find_package(amxd REQUIRED)
-find_package(amxp REQUIRED)
-list(APPEND WBAPI_LIBS amxb amxc amxd amxp)
 
-# Build the library
-add_library(${PROJECT_NAME} ${wbapi_sources})
+add_library(${PROJECT_NAME} ${amx_sources})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOVERSION ${prplmesh_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
-target_link_libraries(${PROJECT_NAME}
-                      PRIVATE ${WBAPI_LIBS} mapfcommon elpp bcl tlvf
-                      PUBLIC prpl_amx_common)
+target_link_libraries(${PROJECT_NAME} PUBLIC amxc bcl)
 
 # Install
 target_include_directories(${PROJECT_NAME}

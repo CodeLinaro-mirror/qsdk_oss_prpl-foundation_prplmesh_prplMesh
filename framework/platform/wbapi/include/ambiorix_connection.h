@@ -11,6 +11,12 @@
 
 #include <ambiorix_variant.h>
 
+#include <amxp/amxp.h>
+
+#include <amxd/amxd_dm.h>
+
+#include <amxb/amxb.h>
+
 #include <ambiorix_event.h>
 
 #include <functional>

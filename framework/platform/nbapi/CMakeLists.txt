@@ -41,7 +41,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOV
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
 if (ENABLE_NBAPI)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${NBAPI_LIBS} mapfcommon elpp bcl event)
+    target_link_libraries(${PROJECT_NAME}
+                          PRIVATE ${NBAPI_LIBS} mapfcommon elpp bcl event
+                          PUBLIC prpl_amx_common)
 else ()
     target_link_libraries(${PROJECT_NAME} PRIVATE mapfcommon elpp bcl)
 endif()
@@ -80,7 +82,7 @@ if (ENABLE_NBAPI AND BUILD_TESTS)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
     list(REMOVE_ITEM NBAPI_LIBS amxb)
-    target_link_libraries(${TEST_PROJECT_NAME} ${NBAPI_LIBS} mapfcommon elpp bcl)
+    target_link_libraries(${TEST_PROJECT_NAME} ${NBAPI_LIBS} mapfcommon elpp bcl prpl_amx_common)
     target_link_libraries(${TEST_PROJECT_NAME} gtest_main gmock)
 
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)

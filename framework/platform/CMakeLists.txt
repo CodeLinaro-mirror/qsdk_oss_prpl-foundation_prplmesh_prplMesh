@@ -1,4 +1,5 @@
 add_subdirectory(bpl)
+add_subdirectory(prpl_amx_common)
 add_subdirectory(nbapi)
 if (USE_PRPLMESH_WHM)
 	add_subdirectory(wbapi)

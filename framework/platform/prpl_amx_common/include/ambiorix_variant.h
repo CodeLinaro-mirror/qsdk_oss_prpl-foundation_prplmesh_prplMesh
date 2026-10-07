@@ -13,12 +13,6 @@
 
 #include <amxc/amxc.h>
 
-#include <amxp/amxp.h>
-
-#include <amxd/amxd_dm.h>
-
-#include <amxb/amxb.h>
-
 #include <memory>
 
 #include <vector>
