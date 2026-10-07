@@ -605,8 +605,12 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // Create application event loop to wait for blocking I/O operations.
+    auto event_loop = std::make_shared<beerocks::EventLoopImpl>();
+    LOG_IF(!event_loop, FATAL) << "Unable to create event loop!";
+
 #ifdef ENABLE_NBAPI
-    auto amxrt = std::make_shared<beerocks::nbapi::Amxrt>();
+    auto amxrt = std::make_shared<beerocks::nbapi::Amxrt>(event_loop);
     //init amxrt and parse command line options
     amxrt_cmd_line_add_option(0, 'k', "kill", no_argument, "kill the process", nullptr);
     if (auto init = (amxrt->Initialize(argc, argv, handle_cmd_line_arg) != 0)) {
@@ -706,10 +710,6 @@ int main(int argc, char *argv[])
     beerocks::os_utils::write_pid_file(beerocks_master_conf.temp_path, base_master_name);
     std::string pid_file_path =
         beerocks_master_conf.temp_path + "pid/" + base_master_name; // for file touching
-
-    // Create application event loop to wait for blocking I/O operations.
-    auto event_loop = std::make_shared<beerocks::EventLoopImpl>();
-    LOG_IF(!event_loop, FATAL) << "Unable to create event loop!";
 
     // Create timer factory to create instances of timers.
     auto timer_factory = std::make_shared<beerocks::TimerFactoryImpl>();

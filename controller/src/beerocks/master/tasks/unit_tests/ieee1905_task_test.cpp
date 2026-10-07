@@ -138,13 +138,12 @@ protected:
         m_logger = std::make_unique<beerocks::logging>("ieee1905_task_test", m_log_conf);
         m_logger->set_log_level_state(beerocks::LOG_LEVEL_ALL, true);
 
-        m_amxrt                  = std::make_shared<beerocks::nbapi::Amxrt>();
+        m_event_loop             = std::make_shared<beerocks::EventLoopImpl>();
+        m_amxrt                  = std::make_shared<beerocks::nbapi::Amxrt>(m_event_loop);
         char app_name[]          = "ieee1905_task_test";
         std::vector<char *> argv = {app_name, nullptr};
 
         ASSERT_EQ(0, m_amxrt->Initialize(argv.size() - 1, argv.data(), nullptr));
-
-        m_event_loop = std::make_shared<beerocks::EventLoopImpl>();
 
         ASSERT_TRUE(m_event_loop->register_handlers(amxp_signal_fd(), {}));
 
