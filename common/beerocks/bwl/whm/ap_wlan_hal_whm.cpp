@@ -1856,7 +1856,7 @@ bool ap_wlan_hal_whm::process_sta_connected_event(
 }
 
 bool ap_wlan_hal_whm::process_sta_disassoc_event(const std::string &interface,
-                                                 const beerocks::wbapi::AmbiorixVariant *event_data)
+                                                 const beerocks::AmbiorixVariant *event_data)
 {
     if (event_data == nullptr) {
         LOG(ERROR) << "event_data null";
@@ -1931,7 +1931,7 @@ bool ap_wlan_hal_whm::process_affiliated_link_changed_event(const std::string &i
 }
 
 bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
-                                           const beerocks::wbapi::AmbiorixVariant *event_data)
+                                           const beerocks::AmbiorixVariant *event_data)
 {
     if (event_data == nullptr) {
         LOG(WARNING) << "event_data null";
@@ -1997,7 +1997,7 @@ bool ap_wlan_hal_whm::process_ap_bss_event(const std::string &interface,
     return true;
 }
 
-bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::wbapi::AmbiorixVariant &event_data)
+bool ap_wlan_hal_whm::process_wpa_ctrl_event(const beerocks::AmbiorixVariant &event_data)
 {
     std::string event_str;
     if (!event_data.read_child<>(event_str, "eventData") || event_str.empty()) {
@@ -2777,7 +2777,7 @@ bool ap_wlan_hal_whm::update_mld_unit(std::string ssid, int8_t mld_unit, bool re
 }
 
 void ap_wlan_hal_whm::process_rssi_eventing_event(const std::string &interface,
-                                                  beerocks::wbapi::AmbiorixVariant *updates)
+                                                  beerocks::AmbiorixVariant *updates)
 {
     auto vap_id = get_vap_id_with_bss(interface);
 

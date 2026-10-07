@@ -117,7 +117,7 @@ private:
      * @return true on success, false otherwise.
      */
     bool process_ep_event(const std::string &interface, const std::string &key,
-                          const beerocks::wbapi::AmbiorixVariant *new_value);
+                          const beerocks::AmbiorixVariant *new_value);
 
     /**
      * *@brief Update internal WPS connection status
@@ -137,8 +137,7 @@ private:
     /**
      * *@brief Process the event "pairingDone" when received from the dm
      */
-    bool process_ep_wps_event(const std::string &interface,
-                              const beerocks::wbapi::AmbiorixVariant *data);
+    bool process_ep_wps_event(const std::string &interface, const beerocks::AmbiorixVariant *data);
 
     /**
      * @brief Process the event "ScanComplete" when received from the dm

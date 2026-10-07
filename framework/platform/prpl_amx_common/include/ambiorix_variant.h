@@ -13,12 +13,6 @@
 
 #include <amxc/amxc.h>
 
-#include <amxp/amxp.h>
-
-#include <amxd/amxd_dm.h>
-
-#include <amxb/amxb.h>
-
 #include <memory>
 
 #include <vector>
@@ -26,7 +20,6 @@
 #include <easylogging++.h>
 
 namespace beerocks {
-namespace wbapi {
 
 class AmbiorixVariant;
 using AmbiorixVariantSmartPtr     = std::unique_ptr<AmbiorixVariant>;
@@ -203,9 +196,9 @@ public:
      * @param[in] value: Typed variant value
      * @return bool True when child is added successfully
      */
-    template <typename T> bool add_child(const std::string &key, const T &value)
+    template <typename T> bool add_child(const char *key, const T &value)
     {
-        auto sub_var = amxc_var_add_new_key(m_var_ctx, key.c_str());
+        auto sub_var = amxc_var_add_new_key(m_var_ctx, key);
         if (!sub_var) {
             LOG(ERROR) << "fail to add param " << key << " to variant type "
                        << std::to_string(get_type());
@@ -216,6 +209,18 @@ public:
         }
         amxc_var_delete(&sub_var);
         return false;
+    }
+
+    /**
+     * brief Adds a typed variant child, with key name, to a composite variant.
+     *
+     * @param[in] key: child key name
+     * @param[in] value: Typed variant value
+     * @return bool True when child is added successfully
+     */
+    template <typename T> bool add_child(const std::string &key, const T &value)
+    {
+        return add_child(key.c_str(), value);
     }
 
     /**
@@ -376,7 +381,6 @@ private:
     bool bound;
 };
 
-} // namespace wbapi
 } // namespace beerocks
 
 #endif /* AMBIORIX_VARIANT_H_ */

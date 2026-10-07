@@ -38,22 +38,20 @@ bool read_param_via_common_socket(const std::string &object_path, const std::str
     return client && client->get_param(value, normalize_path(object_path), name);
 }
 
-inline wbapi::AmbiorixVariantSmartPtr get_object_via_common_socket(const std::string &object_path)
+inline AmbiorixVariantSmartPtr get_object_via_common_socket(const std::string &object_path)
 {
     auto *client = BplConfigService::instance().common_client();
     LOG_IF(!client, ERROR) << "BPL common Ambiorix client is not initialized";
-    return client ? client->get_object(normalize_path(object_path))
-                  : wbapi::AmbiorixVariantSmartPtr{};
+    return client ? client->get_object(normalize_path(object_path)) : AmbiorixVariantSmartPtr{};
 }
 
-inline wbapi::AmbiorixVariantMapSmartPtr
-get_object_multi_via_common_socket(const std::string &object_path)
+inline AmbiorixVariantMapSmartPtr get_object_multi_via_common_socket(const std::string &object_path)
 {
     auto *client = BplConfigService::instance().common_client();
     LOG_IF(!client, ERROR) << "BPL common Ambiorix client is not initialized";
-    return client ? client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>(
-                        normalize_path(object_path))
-                  : wbapi::AmbiorixVariantMapSmartPtr{};
+    return client
+               ? client->get_object_multi<AmbiorixVariantMapSmartPtr>(normalize_path(object_path))
+               : AmbiorixVariantMapSmartPtr{};
 }
 
 inline bool resolve_path_via_common_socket(const std::string &search_path,

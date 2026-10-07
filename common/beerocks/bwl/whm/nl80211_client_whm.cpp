@@ -153,7 +153,7 @@ bool nl80211_client_whm::send_delba(const std::string &interface_name, const sMa
 }
 
 void nl80211_client_whm::get_sta_info_from_assoc_device(
-    beerocks::wbapi::AmbiorixVariantSmartPtr &assoc_device, sta_info &sta_info)
+    beerocks::AmbiorixVariantSmartPtr &assoc_device, sta_info &sta_info)
 {
     assoc_device->read_child(sta_info.tx_bytes, "TxBytes");
     assoc_device->read_child(sta_info.rx_bytes, "RxBytes");
@@ -177,8 +177,8 @@ void nl80211_client_whm::get_sta_info_from_assoc_device(
     sta_info.dl_bandwidth = wbapi_utils::bandwith_from_string(std::to_string(dl_bandwidth) + "MHz");
 }
 
-void nl80211_client_whm::get_sta_info_from_end_point(
-    beerocks::wbapi::AmbiorixVariantSmartPtr &end_point, sta_info &sta_info)
+void nl80211_client_whm::get_sta_info_from_end_point(beerocks::AmbiorixVariantSmartPtr &end_point,
+                                                     sta_info &sta_info)
 {
     end_point->read_child(sta_info.tx_bytes, "TxBytes");
     end_point->read_child(sta_info.rx_bytes, "RxBytes");

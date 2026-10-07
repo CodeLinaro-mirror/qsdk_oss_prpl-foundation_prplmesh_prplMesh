@@ -175,7 +175,7 @@ uint16_t set_supp_stats_val()
  * Check if its WAN or LAN interface.
  * If its WAN, then dont add it to the TLV.
  */
-bool check_wan_interface(wbapi::AmbiorixVariantSmartPtr &eth_interface)
+bool check_wan_interface(AmbiorixVariantSmartPtr &eth_interface)
 {
     uint8_t upstream_val = 0;
     if (!eth_interface->read_child(upstream_val, "Upstream")) {
@@ -188,8 +188,7 @@ bool check_wan_interface(wbapi::AmbiorixVariantSmartPtr &eth_interface)
  * Utility function to read any data type from DM.
  */
 template <typename T>
-bool get_data_from_dm(wbapi::AmbiorixVariantSmartPtr &eth_interface, const std::string &param,
-                      T &data)
+bool get_data_from_dm(AmbiorixVariantSmartPtr &eth_interface, const std::string &param, T &data)
 {
     if (!eth_interface->read_child(data, param.c_str())) {
         return false;
