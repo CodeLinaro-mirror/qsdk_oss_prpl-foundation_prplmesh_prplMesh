@@ -539,8 +539,8 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         if (!matched_info) {
             LOG(WARNING) << "DPP chirp hash mismatch from agent " << src_mac
                          << " hash_len=" << static_cast<unsigned>(hash_len)
-                         << " hash=" << received_hex
-                         << " bootstrap_entries=" << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
+                         << " hash=" << received_hex << " bootstrap_entries="
+                         << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
             m_database.print_dpp_bootstrap_info();
             continue;
         }
@@ -549,8 +549,8 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         m_matched_bootstrap        = matched_info;
         m_session.proxy_agent      = src_mac;
         m_session.use_direct_encap = false;
-        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex << ") alias="
-                  << matched_info->alias << " proxy=" << src_mac
+        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex
+                  << ") alias=" << matched_info->alias << " proxy=" << src_mac
                   << " pkhash=" << matched_info->pkhash_hex
                   << " chirp_hash=" << matched_info->chirp_hash_hex;
 

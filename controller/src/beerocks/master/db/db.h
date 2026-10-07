@@ -362,12 +362,12 @@ public:
         std::string public_key;
         std::array<uint8_t, 32> pkhash = {};
         std::string pkhash_hex;
-        bool pkhash_valid  = false;
+        bool pkhash_valid = false;
         // Presence / EasyMesh Chirp TLV: SHA-256("chirp" || bootstrap DER), not SHA-256(DER).
         std::array<uint8_t, 32> chirp_hash = {};
         std::string chirp_hash_hex;
         bool chirp_hash_valid = false;
-        bool chirp_matched = false;
+        bool chirp_matched    = false;
         sMacAddr ruid{};
         sMacAddr bssid{};
     };

@@ -232,8 +232,8 @@ bool DppConfiguratorSession::handle_authentication_response(
 
     DppAttributeView i_bootstrap_hash;
     if (get_dpp_attr(attrs, attrs_before_len, k_dpp_attr_i_bootstrap_hash, i_bootstrap_hash)) {
-        if (m_own_bootstrap_hash.empty() ||
-            i_bootstrap_hash.len != m_own_bootstrap_hash.size() || !i_bootstrap_hash.data ||
+        if (m_own_bootstrap_hash.empty() || i_bootstrap_hash.len != m_own_bootstrap_hash.size() ||
+            !i_bootstrap_hash.data ||
             !std::equal(m_own_bootstrap_hash.begin(), m_own_bootstrap_hash.end(),
                         i_bootstrap_hash.data)) {
             error = "DPP Authentication Response initiator bootstrap hash mismatch";

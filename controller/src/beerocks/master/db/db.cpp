@@ -10638,8 +10638,8 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 return false;
             }
             info.pkhash_valid = true;
-            info.pkhash_hex = beerocks::string_utils::bytes_to_hex_string(
-                info.pkhash.data(), info.pkhash.size());
+            info.pkhash_hex =
+                beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
 
             // wpa_supplicant Presence Announcement uses SHA-256("chirp" || SubjectPublicKeyInfo).
             static constexpr uint8_t k_dpp_chirp_prefix[] = {'c', 'h', 'i', 'r', 'p'};
@@ -10790,7 +10790,7 @@ void db::print_dpp_bootstrap_info() const
         LOG(INFO) << "      ChirpHash: "
                   << (info.chirp_hash_hex.empty()
                           ? beerocks::string_utils::bytes_to_hex_string(info.chirp_hash.data(),
-                                                                         info.chirp_hash.size())
+                                                                        info.chirp_hash.size())
                           : info.chirp_hash_hex);
 
         idx++;
@@ -10857,7 +10857,8 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
     for (const auto &entry : dpp_bootstrap_info_map) {
         std::string candidate_hex;
         if (entry.second.chirp_hash_valid &&
-            dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.chirp_hash, candidate_hex)) {
+            dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.chirp_hash,
+                                           candidate_hex)) {
             received_hex = candidate_hex;
             return &entry.second;
         }
