@@ -9568,6 +9568,14 @@ bool db::dm_update_bsta_mld(const Agent &agent, const sMacAddr &bsta_mld_mac,
         LOG(ERROR) << "Failed to set AffiliatedbSTAList " << affiliated_bsta_list;
         ret_val &= false;
     }
+    const auto primary_bssid =
+        beerocks::utils::is_device_wireless(agent.backhaul.backhaul_iface_type)
+            ? agent.backhaul.parent_interface
+            : beerocks::net::network_utils::ZERO_MAC;
+    if (!m_ambiorix_datamodel->set(bsta_mld_path, "X_PRPLWARE-COM_PrimaryBSSID", primary_bssid)) {
+        LOG(ERROR) << "Failed to set primary bSTA MLD BSSID " << primary_bssid;
+        ret_val &= false;
+    }
     std::string bsta_mld_config = bsta_mld_path + ".bSTAMLDConfig";
     if (!m_ambiorix_datamodel->set(bsta_mld_config, "STREnabled",
                                    (mld_mode & beerocks::MLO_MODE_STR) != 0)) {

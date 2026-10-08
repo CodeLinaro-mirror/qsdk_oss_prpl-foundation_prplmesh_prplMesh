@@ -442,6 +442,8 @@
             %read-only string BSSID = "";
             /* Comma-separated list of affiliated bSTA MACs (Backhaul STA MLD Configuration TLV). */
             %read-only string AffiliatedbSTAList = "";
+            /* Physical BSSID of the primary connection-management link. */
+            %read-only string X_PRPLWARE-COM_PrimaryBSSID = "";
 
             object bSTAMLDConfig {
                 /* Enhanced Multi-Link Multi-Radio (EMLMR) operation enabled. */
