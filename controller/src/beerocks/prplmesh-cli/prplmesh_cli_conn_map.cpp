@@ -9,6 +9,7 @@
 #include "prplmesh_cli.h"
 
 #include <bcl/beerocks_utils.h>
+#include <bcl/network/network_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 
 #include <arpa/inet.h>
@@ -21,8 +22,10 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace beerocks {
 namespace prplmesh_api {
@@ -45,6 +48,18 @@ struct selected_radio_profile_t {
     uint32_t primary_channel           = 0;
     beerocks::eWiFiBandwidth bandwidth = beerocks::BANDWIDTH_UNKNOWN;
     beerocks::eFreqType freq_type      = beerocks::FREQ_UNKNOWN;
+};
+
+struct mlo_ap_link_t {
+    std::string bssid;
+    std::string ruid;
+    uint32_t link_id = 0;
+};
+
+struct mlo_radio_t {
+    std::string name;
+    uint32_t channel         = 0;
+    beerocks::eFreqType band = beerocks::FREQ_UNKNOWN;
 };
 
 int bandwidth_rank(beerocks::eWiFiBandwidth bandwidth)
@@ -138,11 +153,286 @@ selected_radio_profile_t select_radio_profile(beerocks::prplmesh_amx::AmxClient 
     return selected_profile;
 }
 
+bool is_valid_mlo_mac(const std::string &mac)
+{
+    return !mac.empty() && mac != beerocks::net::network_utils::ZERO_MAC_STRING;
+}
+
+std::string get_optional_string(amxc_var_t *object, const char *name)
+{
+    if (!object) {
+        return {};
+    }
+    auto *value = GET_ARG(object, name);
+    if (!value) {
+        return {};
+    }
+    const auto *text = GET_CHAR(value, nullptr);
+    return text ? text : "";
+}
+
+std::vector<std::string> split_csv(const std::string &value)
+{
+    std::vector<std::string> values;
+    std::stringstream stream(value);
+    std::string item;
+    while (std::getline(stream, item, ',')) {
+        if (!item.empty()) {
+            values.push_back(item);
+        }
+    }
+    return values;
+}
+
+std::string mlo_mode_string(amxc_var_t *config)
+{
+    if (!config) {
+        return "unspecified";
+    }
+
+    std::vector<std::string> modes;
+    if (GET_BOOL(config, "STREnabled")) {
+        modes.emplace_back("STR");
+    }
+    if (GET_BOOL(config, "NSTREnabled")) {
+        modes.emplace_back("NSTR");
+    }
+    if (GET_BOOL(config, "EMLSREnabled")) {
+        modes.emplace_back("EMLSR");
+    }
+    if (GET_BOOL(config, "EMLMREnabled")) {
+        modes.emplace_back("EMLMR");
+    }
+
+    std::string result;
+    for (const auto &mode : modes) {
+        if (!result.empty()) {
+            result += ",";
+        }
+        result += mode;
+    }
+    return result.empty() ? "unspecified" : result;
+}
+
+std::map<std::string, mlo_radio_t> get_bssid_radio_map(prplmesh_cli &cli,
+                                                       const std::string &device_path)
+{
+    std::map<std::string, mlo_radio_t> radios_by_bssid;
+    beerocks::prplmesh_amx::AmxResult radios_result;
+    if (!cli.m_amx_client->get_htable_object(device_path + "Radio.*.", radios_result) ||
+        !radios_result.htable()) {
+        return radios_by_bssid;
+    }
+
+    amxc_htable_iterate(radio_it, radios_result.htable())
+    {
+        const auto *key        = amxc_htable_it_get_key(radio_it);
+        const std::string path = key ? key : "";
+        auto *radio_obj        = amxc_var_from_htable_it(radio_it);
+        const auto profile     = select_radio_profile(*cli.m_amx_client, path);
+        const mlo_radio_t radio{GET_CHAR(radio_obj, "X_PRPLWARE-COM_Name"), profile.primary_channel,
+                                profile.freq_type};
+
+        beerocks::prplmesh_amx::AmxResult bsses_result;
+        if (!cli.m_amx_client->get_htable_object(path + "BSS.*.", bsses_result) ||
+            !bsses_result.htable()) {
+            continue;
+        }
+        amxc_htable_iterate(bss_it, bsses_result.htable())
+        {
+            auto *bss_obj           = amxc_var_from_htable_it(bss_it);
+            const std::string bssid = GET_CHAR(bss_obj, "BSSID");
+            if (!bssid.empty()) {
+                radios_by_bssid[bssid] = radio;
+            }
+        }
+    }
+    return radios_by_bssid;
+}
+
+std::map<std::string, std::pair<std::string, mlo_ap_link_t>>
+get_ap_mld_links_by_bssid(prplmesh_cli &cli, const std::string &device_path)
+{
+    std::map<std::string, std::pair<std::string, mlo_ap_link_t>> links;
+    beerocks::prplmesh_amx::AmxResult ap_mlds_result;
+    if (!cli.m_amx_client->get_htable_object(device_path + "APMLD.*.", ap_mlds_result) ||
+        !ap_mlds_result.htable()) {
+        return links;
+    }
+
+    amxc_htable_iterate(ap_mld_it, ap_mlds_result.htable())
+    {
+        const auto *key           = amxc_htable_it_get_key(ap_mld_it);
+        const std::string path    = key ? key : "";
+        auto *ap_mld_obj          = amxc_var_from_htable_it(ap_mld_it);
+        const std::string mld_mac = GET_CHAR(ap_mld_obj, "MLDMACAddress");
+        beerocks::prplmesh_amx::AmxResult affiliated_aps_result;
+        if (!cli.m_amx_client->get_htable_object(path + "AffiliatedAP.*.", affiliated_aps_result) ||
+            !affiliated_aps_result.htable()) {
+            continue;
+        }
+        amxc_htable_iterate(link_it, affiliated_aps_result.htable())
+        {
+            auto *link_obj          = amxc_var_from_htable_it(link_it);
+            const std::string bssid = GET_CHAR(link_obj, "BSSID");
+            if (bssid.empty()) {
+                continue;
+            }
+            links[bssid] = {mld_mac,
+                            {bssid, GET_CHAR(link_obj, "RUID"), GET_UINT32(link_obj, "LinkID")}};
+        }
+    }
+    return links;
+}
+
+bool print_mlo_backhaul(prplmesh_cli &cli, const conn_map_device_t &child,
+                        const conn_map_device_t &parent, const std::string &indent,
+                        uint32_t child_index, uint32_t parent_index, bool short_output)
+{
+    beerocks::prplmesh_amx::AmxResult bsta_result;
+    if (!cli.m_amx_client->get_object(child.dm_path + "bSTAMLD.", bsta_result) ||
+        !bsta_result.object()) {
+        return false;
+    }
+
+    auto *bsta_obj                  = bsta_result.object();
+    const std::string bsta_mld_mac  = GET_CHAR(bsta_obj, "MLDMACAddress");
+    std::string ap_mld_mac          = GET_CHAR(bsta_obj, "BSSID");
+    const std::string primary_bssid = get_optional_string(bsta_obj, "X_PRPLWARE-COM_PrimaryBSSID");
+    const auto affiliated_bstas     = split_csv(GET_CHAR(bsta_obj, "AffiliatedbSTAList"));
+    // A configured bSTA MLD can remain in the data model while MLO is inactive. Only replace the
+    // regular Wi-Fi backhaul display when the current backhaul is wireless and has affiliated
+    // links.
+    if (child.link_type != "Wi-Fi" || !is_valid_mlo_mac(bsta_mld_mac) || affiliated_bstas.empty()) {
+        return false;
+    }
+
+    beerocks::prplmesh_amx::AmxResult config_result;
+    amxc_var_t *config = nullptr;
+    if (cli.m_amx_client->get_object(child.dm_path + "bSTAMLD.bSTAMLDConfig.", config_result)) {
+        config = config_result.object();
+    }
+    const auto mode = mlo_mode_string(config);
+
+    auto ap_links  = get_ap_mld_links_by_bssid(cli, parent.dm_path);
+    auto radio_map = get_bssid_radio_map(cli, parent.dm_path);
+    std::map<std::string, std::string> bssid_by_bsta;
+
+    beerocks::prplmesh_amx::AmxResult ap_mlds_result;
+    if (cli.m_amx_client->get_htable_object(parent.dm_path + "APMLD.*.", ap_mlds_result) &&
+        ap_mlds_result.htable()) {
+        amxc_htable_iterate(ap_mld_it, ap_mlds_result.htable())
+        {
+            const auto *key                    = amxc_htable_it_get_key(ap_mld_it);
+            const std::string path             = key ? key : "";
+            auto *ap_mld_obj                   = amxc_var_from_htable_it(ap_mld_it);
+            const std::string candidate_ap_mld = GET_CHAR(ap_mld_obj, "MLDMACAddress");
+
+            beerocks::prplmesh_amx::AmxResult sta_mlds_result;
+            if (!cli.m_amx_client->get_htable_object(path + "STAMLD.*.", sta_mlds_result) ||
+                !sta_mlds_result.htable()) {
+                continue;
+            }
+            amxc_htable_iterate(sta_mld_it, sta_mlds_result.htable())
+            {
+                const auto *sta_key        = amxc_htable_it_get_key(sta_mld_it);
+                const std::string sta_path = sta_key ? sta_key : "";
+                auto *sta_mld_obj          = amxc_var_from_htable_it(sta_mld_it);
+                if (GET_CHAR(sta_mld_obj, "MLDMACAddress") != bsta_mld_mac) {
+                    continue;
+                }
+                if (is_valid_mlo_mac(candidate_ap_mld)) {
+                    ap_mld_mac = candidate_ap_mld;
+                }
+
+                beerocks::prplmesh_amx::AmxResult affiliated_stas_result;
+                if (!cli.m_amx_client->get_htable_object(sta_path + "AffiliatedSTA.*.",
+                                                         affiliated_stas_result) ||
+                    !affiliated_stas_result.htable()) {
+                    continue;
+                }
+                amxc_htable_iterate(affiliated_sta_it, affiliated_stas_result.htable())
+                {
+                    auto *affiliated_sta_obj = amxc_var_from_htable_it(affiliated_sta_it);
+                    bssid_by_bsta[GET_CHAR(affiliated_sta_obj, "MACAddress")] =
+                        GET_CHAR(affiliated_sta_obj, "BSSID");
+                }
+            }
+        }
+    }
+
+    // AffiliatedbSTAList describes configured local links and may survive a disconnect. The
+    // parent's associated STA data is the proof that a link is currently connected through this
+    // parent.
+    std::vector<std::string> associated_bstas;
+    for (const auto &bsta_mac : affiliated_bstas) {
+        if (bssid_by_bsta.count(bsta_mac) != 0) {
+            associated_bstas.push_back(bsta_mac);
+        }
+    }
+    if (associated_bstas.empty()) {
+        return false;
+    }
+
+    std::cout << indent << "MLO_BACKHAUL: connects Device[" << child_index << "] to Device["
+              << parent_index << "]" << std::endl;
+    std::cout << indent << "bSTA MLD: " << bsta_mld_mac
+              << " -> AP MLD: " << (is_valid_mlo_mac(ap_mld_mac) ? ap_mld_mac : "unknown")
+              << ", mode: " << mode << ", links: " << associated_bstas.size();
+    if (is_valid_mlo_mac(primary_bssid)) {
+        std::cout << ", primary BSSID: " << primary_bssid;
+    }
+    std::cout << std::endl;
+
+    if (short_output) {
+        return true;
+    }
+
+    for (size_t index = 0; index < associated_bstas.size(); ++index) {
+        const auto &bsta_mac       = associated_bstas[index];
+        const auto bssid_it        = bssid_by_bsta.find(bsta_mac);
+        const std::string bssid    = bssid_it == bssid_by_bsta.end() ? "" : bssid_it->second;
+        const bool primary         = is_valid_mlo_mac(primary_bssid) && bssid == primary_bssid;
+        const auto ap_link_it      = ap_links.find(bssid);
+        const auto display_link_id = ap_link_it == ap_links.end()
+                                         ? static_cast<uint32_t>(index)
+                                         : ap_link_it->second.second.link_id;
+
+        std::cout << indent << "  " << (primary ? "* " : "  ") << "LINK[" << display_link_id << "]";
+        if (primary) {
+            std::cout << " PRIMARY";
+        }
+        std::cout << ": bSTA: " << bsta_mac
+                  << " -> BSSID: " << (is_valid_mlo_mac(bssid) ? bssid : "unresolved");
+
+        if (ap_link_it != ap_links.end()) {
+            std::cout << ", link-id: " << ap_link_it->second.second.link_id;
+        }
+        auto radio_it = radio_map.find(bssid);
+        if (radio_it != radio_map.end()) {
+            if (!radio_it->second.name.empty() && radio_it->second.name != "N/A") {
+                std::cout << ", radio: " << radio_it->second.name;
+            }
+            if (radio_it->second.channel != 0) {
+                std::cout << ", ch: " << radio_it->second.channel;
+            }
+            if (radio_it->second.band != beerocks::FREQ_UNKNOWN) {
+                std::cout << ", band: "
+                          << beerocks::utils::convert_frequency_type_to_string(
+                                 radio_it->second.band);
+            }
+        }
+        std::cout << std::endl;
+    }
+    return true;
+}
+
 void print_conn_map_subtree(prplmesh_cli &cli,
                             const std::map<std::string, conn_map_device_t> &devices_by_id,
                             const std::multimap<std::string, std::string> &children_by_parent,
                             const std::string &parent_id, const std::string &indent,
-                            bool short_output, std::set<std::string> &printed_device_ids)
+                            uint32_t parent_index, bool short_output,
+                            std::set<std::string> &printed_device_ids)
 {
     auto range = children_by_parent.equal_range(parent_id);
     for (auto child_it = range.first; child_it != range.second; ++child_it) {
@@ -156,13 +446,19 @@ void print_conn_map_subtree(prplmesh_cli &cli,
             continue;
         }
 
-        if (device.link_type == "Ethernet" && !device.backhaul_mac.empty()) {
+        const auto child_index  = conn_map.device_index + 1;
+        const auto parent_it    = devices_by_id.find(parent_id);
+        const bool mlo_backhaul = parent_it != devices_by_id.end() &&
+                                  print_mlo_backhaul(cli, device, parent_it->second, indent,
+                                                     child_index, parent_index, short_output);
+
+        if (!mlo_backhaul && device.link_type == "Ethernet" && !device.backhaul_mac.empty()) {
             std::cout << indent << "Eth_BACKHAUL: mac: " << device.backhaul_mac << std::endl;
-        } else if (device.link_type == "Wi-Fi" && !device.backhaul_mac.empty()) {
+        } else if (!mlo_backhaul && device.link_type == "Wi-Fi" && !device.backhaul_mac.empty()) {
             std::cout << indent << "WiFi_BACKHAUL: mac: " << device.backhaul_mac << std::endl;
         }
 
-        conn_map.device_index++;
+        conn_map.device_index         = child_index;
         const std::string device_name = device.name.empty() ? "Agent" : device.name;
         std::cout << indent << "Device[" << conn_map.device_index << "]: name: " << device_name
                   << ", mac: " << device.id << " LinkType: " << device.link_type << std::endl;
@@ -173,7 +469,7 @@ void print_conn_map_subtree(prplmesh_cli &cli,
         }
 
         print_conn_map_subtree(cli, devices_by_id, children_by_parent, device.id, indent + "  ",
-                               short_output, printed_device_ids);
+                               child_index, short_output, printed_device_ids);
     }
 }
 
@@ -206,6 +502,7 @@ bool prplmesh_cli::get_ip_from_iface(const std::string &iface, std::string &ip)
 
 bool prplmesh_cli::print_radio(const std::string &device_path)
 {
+    const auto ap_mld_links       = get_ap_mld_links_by_bssid(*this, device_path);
     std::string radio_ht_path     = device_path + "Radio.*.";
     const amxc_htable_t *ht_radio = nullptr;
     beerocks::prplmesh_amx::AmxResult radio_result;
@@ -292,6 +589,13 @@ bool prplmesh_cli::print_radio(const std::string &device_path)
                     }
                     std::cout << ": bssid: " << conn_map.bss_id << ", ssid: " << conn_map.ssid
                               << std::endl;
+
+                    auto ap_mld_link = ap_mld_links.find(conn_map.bss_id);
+                    if (ap_mld_link != ap_mld_links.end()) {
+                        std::cout << client_indent << "AP_MLD: mac: " << ap_mld_link->second.first
+                                  << ", LINK[" << ap_mld_link->second.second.link_id
+                                  << "]: bssid: " << conn_map.bss_id << std::endl;
+                    }
 
                     std::string sta_ht_path     = bss_path_i + "STA.*.";
                     const amxc_htable_t *ht_sta = nullptr;
@@ -473,7 +777,7 @@ bool prplmesh_cli::prpl_conn_map(bool short_output)
 
     std::set<std::string> printed_device_ids{conn_map.controller_id};
     print_conn_map_subtree(*this, devices_by_id, children_by_parent, conn_map.controller_id, "  ",
-                           short_output, printed_device_ids);
+                           1, short_output, printed_device_ids);
 
     size_t orphan_count = 0;
     for (const auto &device_pair : devices_by_id) {
