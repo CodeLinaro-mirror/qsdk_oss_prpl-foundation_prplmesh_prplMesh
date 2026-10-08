@@ -29,18 +29,6 @@ private:
      * Agent applies it on fronthaul beacons via ap_manager / HAL.
      */
     void handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmdu_rx);
-
-#if 0
-    // --- Legacy OTA Proxy Agent path (disabled; FEAT-68 TCP relay) -----------------
-    // Chirp uplink: DppAgentTask::handle_presence_announcement() builds
-    // CHIRP_NOTIFICATION from hostapd frames on WiFi.DPPRelay (TCP).
-    // Encap: DppAgentTask owns PROXIED_ENCAP via slave_wlan_hal::dpp_send_frame().
-    // See .documentation/DPP-over-tcp.md and feat68-dpp-doc.md "DPP Relay Service".
-    int active_onboarding_ap_manager_fd = beerocks::net::FileDescriptor::invalid_descriptor;
-    void handle_chirp_notification(ieee1905_1::CmduMessageRx &cmdu_rx);
-    void handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac,
-                                  ieee1905_1::CmduMessageRx &cmdu_rx);
-#endif
 };
 } // namespace beerocks
 

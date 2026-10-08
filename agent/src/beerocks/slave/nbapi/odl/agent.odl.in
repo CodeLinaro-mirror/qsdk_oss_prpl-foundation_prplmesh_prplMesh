@@ -122,6 +122,12 @@
             %persistent string GuestBridgeIface {
                 default "br-guest";
             }
+
+            /* When true, Agent starts the DPP-over-TCP relay (WiFi.DPPRelay) at
+             * STATE_OPERATIONAL for Proxied Encap enrollee onboarding. */
+            %persistent bool EnableDPPOnboarding {
+                default true;
+            }
         }
 
         /* Read-only information about the agent's state and interfaces */

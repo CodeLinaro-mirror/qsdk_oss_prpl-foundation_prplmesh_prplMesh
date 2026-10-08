@@ -10,8 +10,8 @@
 #define _SON_SLAVE_THREAD_H
 
 #include "agent_db.h"
-#include "tasks/dpp_agent_task.h"
 #include "helpers/fronthaul_bss_teardown.h"
+#include "tasks/dpp_agent_task.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
 

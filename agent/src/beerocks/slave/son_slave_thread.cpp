@@ -477,6 +477,9 @@ void slave_thread::stop_slave_thread()
         m_slave_wlan_hal->stop_dpp_relay();
         m_slave_wlan_hal.reset();
     }
+    if (m_dpp_agent_task) {
+        m_dpp_agent_task->on_relay_stopped();
+    }
     agent_reset();
     should_stop = true;
 }
@@ -869,6 +872,11 @@ bool slave_thread::read_platform_configuration()
                      << " using default configuration ";
     }
 
+    if (!bpl::cfg_get_enable_dpp_onboarding(db->device_conf.enable_dpp_onboarding)) {
+        LOG(WARNING) << "cfg_get_enable_dpp_onboarding() failed!"
+                     << " using default configuration ";
+    }
+
     if (!bpl::cfg_get_multi_chan_bcn_req_duration(db->device_conf.multi_chan_bcn_req_duration)) {
         LOG(WARNING) << "cfg_get_multi_chan_bcn_req_duration() failed!"
                      << " using default configuration ";
@@ -1254,6 +1262,13 @@ void slave_thread::start_dpp_tcp_relay_server()
     if (!m_dpp_agent_task) {
         return;
     }
+
+    auto db = AgentDB::get();
+    if (!db->device_conf.enable_dpp_onboarding) {
+        LOG(INFO) << "DPP: TCP relay disabled (Configuration.EnableDPPOnboarding=false)";
+        return;
+    }
+
     if (m_dpp_agent_task->is_relay_active()) {
         LOG(DEBUG) << "DPP: TCP relay server already active";
         return;

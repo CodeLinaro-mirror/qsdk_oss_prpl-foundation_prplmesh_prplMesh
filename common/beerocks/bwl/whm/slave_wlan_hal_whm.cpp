@@ -1,5 +1,9 @@
-/* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
- * SPDX-License-Identifier: ISC
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * SPDX-FileCopyrightText: 2026 the prplMesh contributors (see AUTHORS.md)
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
  */
 
 #include "slave_wlan_hal_whm.h"
@@ -8,6 +12,8 @@
 #include <bcl/beerocks_utils.h>
 #include <bcl/network/network_utils.h>
 #include <easylogging++.h>
+
+#include <utility>
 
 using namespace beerocks;
 using namespace beerocks::wbapi;
@@ -20,7 +26,7 @@ namespace whm {
 slave_wlan_hal_whm::slave_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t callback,
                                        const bwl::hal_conf_t &hal_conf)
     : base_wlan_hal(bwl::HALType::Slave, iface_name, IfaceType::Intel, callback, hal_conf),
-      base_wlan_hal_whm(bwl::HALType::Slave, iface_name, callback, hal_conf)
+      base_wlan_hal_whm(bwl::HALType::Slave, iface_name, std::move(callback), hal_conf)
 {
     int amx_fd = m_ambiorix_cl.get_fd();
     LOG_IF((amx_fd == -1), FATAL) << "Failed to get amx  fd";
@@ -34,8 +40,10 @@ slave_wlan_hal_whm::~slave_wlan_hal_whm() { stop_dpp_relay(); }
 
 bool slave_wlan_hal_whm::init_dpp_relay()
 {
-    if (m_dpp_path.empty() &&
-        !m_ambiorix_cl.resolve_path(wbapi_utils::search_path_wifi() + "DPPRelay.", m_dpp_path)) {
+    // Drop stale subscriptions/path so a pWHM restart can re-arm cleanly.
+    stop_dpp_relay();
+
+    if (!m_ambiorix_cl.resolve_path(wbapi_utils::search_path_wifi() + "DPPRelay.", m_dpp_path)) {
         LOG(ERROR) << "DPP: failed to resolve WiFi.DPPRelay. object path";
         return false;
     }
@@ -44,6 +52,7 @@ bool slave_wlan_hal_whm::init_dpp_relay()
     enable_map.add_child("RelayEnable", true);
     if (!m_ambiorix_cl.update_object(m_dpp_path, enable_map)) {
         LOG(ERROR) << "DPP: failed to enable relay listener at " << m_dpp_path;
+        m_dpp_path.clear();
         return false;
     }
 
@@ -73,6 +82,7 @@ void slave_wlan_hal_whm::stop_dpp_relay()
             LOG(WARNING) << "DPP: failed to disable relay listener at " << m_dpp_path;
         }
     }
+    m_dpp_path.clear();
 }
 
 void slave_wlan_hal_whm::subscribe_to_dpp_events()
@@ -83,9 +93,9 @@ void slave_wlan_hal_whm::subscribe_to_dpp_events()
     m_dpp_event_handler              = std::make_shared<sAmbiorixEventHandler>();
     m_dpp_event_handler->event_type  = "DppFrameReceived";
     m_dpp_event_handler->callback_fn = callback;
-    m_ambiorix_cl.subscribe_to_object_event(
-        m_dpp_path, m_dpp_event_handler,
-        "(path matches '" + m_dpp_path + "$') && (notification == 'DppFrameReceived')");
+    m_ambiorix_cl.subscribe_to_object_event(m_dpp_path, m_dpp_event_handler,
+                                            "(path matches '" + m_dpp_path +
+                                                "$') && (notification == 'DppFrameReceived')");
 
     m_dpp_state_event_handler              = std::make_shared<sAmbiorixEventHandler>();
     m_dpp_state_event_handler->event_type  = "DppRelayClientStateChanged";
@@ -117,26 +127,33 @@ void slave_wlan_hal_whm::on_dpp_ambiorix_event(AmbiorixVariant &event_data)
 
     auto frame = string_utils::hex_to_bytes<std::vector<uint8_t>>(frame_hex);
     event_queue_push(Event::Dpp_Frame_Received,
-                     std::make_shared<sDppFrameEvent>(sDppFrameEvent{tcp_type, frame}));
+                     std::make_shared<sDppFrameEvent>(sDppFrameEvent{tcp_type, std::move(frame)}));
 }
 
 bool slave_wlan_hal_whm::dpp_send_frame(uint8_t tcp_type, const uint8_t *frame, size_t frame_len)
 {
-    LOG(DEBUG) << "DPP: dpp_send_frame diag: m_dpp_path='" << m_dpp_path
-               << "' amxb_fd=" << m_ambiorix_cl.get_fd()
-               << " amxp_fd=" << m_ambiorix_cl.get_signal_fd();
+    auto try_send = [&]() -> bool {
+        if (m_dpp_path.empty()) {
+            return false;
+        }
+        AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
+        args.add_child("tcpType", tcp_type);
+        args.add_child("frame", string_utils::bytes_to_hex_string(frame, frame_len));
+        return m_ambiorix_cl.call(m_dpp_path, "SendDppFrame", args, result);
+    };
 
-    if (m_dpp_path.empty()) {
-        LOG(ERROR) << "DPP: SendDppFrame failed - m_dpp_path is empty";
-        return false;
+    if (try_send()) {
+        return true;
     }
 
-    AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
-    args.add_child("tcpType", tcp_type);
-    args.add_child("frame", string_utils::bytes_to_hex_string(frame, frame_len));
-
-    if (!m_ambiorix_cl.call(m_dpp_path, "SendDppFrame", args, result)) {
-        LOG(ERROR) << "DPP: SendDppFrame failed - amxb_fd=" << m_ambiorix_cl.get_fd()
+    // pWHM may have restarted; refresh path/subscriptions once and retry.
+    LOG(WARNING) << "DPP: SendDppFrame failed; re-arming relay and retrying";
+    if (!init_dpp_relay()) {
+        LOG(ERROR) << "DPP: SendDppFrame failed - re-arm unsuccessful, path='" << m_dpp_path << "'";
+        return false;
+    }
+    if (!try_send()) {
+        LOG(ERROR) << "DPP: SendDppFrame failed after re-arm - amxb_fd=" << m_ambiorix_cl.get_fd()
                    << " amxp_fd=" << m_ambiorix_cl.get_signal_fd() << " path=" << m_dpp_path;
         return false;
     }

@@ -16,8 +16,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iomanip>
-#include <sstream>
 
 namespace beerocks {
 
@@ -31,14 +29,14 @@ static constexpr uint8_t WLAN_PA_VENDOR_SPECIFIC = 0x09;
 /** GAS Initial Request type byte */
 static constexpr uint8_t WLAN_PA_GAS_INITIAL_REQ = 0x0A;
 
-/** GAS Initial Response type byte */
+/** GAS Initial Response type byte (IEEE 802.11 / Easy Connect Table 61) */
 static constexpr uint8_t WLAN_PA_GAS_INITIAL_RESP = 0x0B;
 
-/** GAS Comeback Response type byte */
-static constexpr uint8_t WLAN_PA_GAS_COMEBACK_RESP = 0x0C;
+/** GAS Comeback Request type byte (Easy Connect Table 60) */
+static constexpr uint8_t WLAN_PA_GAS_COMEBACK_REQ = 0x0C;
 
-/** GAS Comeback Request type byte */
-static constexpr uint8_t WLAN_PA_GAS_COMEBACK_REQ = 0x0D;
+/** GAS Comeback Response type byte (Easy Connect Table 63) */
+static constexpr uint8_t WLAN_PA_GAS_COMEBACK_RESP = 0x0D;
 
 // ---------------------------------------------------------------------------
 // DPP Public Action frame layout (after TCP header strip)
@@ -120,7 +118,7 @@ bool DppAgentTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t /*if
         // PROXIED_ENCAP_DPP_MESSAGE from the Controller.
         //
         // Auth Response (DPP subtype 0x01), Configuration Result (subtype 0x0B),
-        // GAS Initial Request (0x0A), and GAS Comeback Request (0x0D) are all sent
+        // GAS Initial Request (0x0A), and GAS Comeback Request (0x0C) are all sent
         // FROM the Enrollee TO the Controller.  If the Controller has no active
         // session it may echo one of these frames back; discard it here before
         // any further processing.
@@ -132,7 +130,7 @@ bool DppAgentTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t /*if
                 if (enc_frame && enc_frame_len > 0) {
                     uint8_t type_byte = enc_frame[0];
 
-                    // GAS Initial Request (0x0A) and GAS Comeback Request (0x0D)
+                    // GAS Initial Request (0x0A) and GAS Comeback Request (0x0C)
                     // are uplink-only — drop them.
                     if (type_byte == WLAN_PA_GAS_INITIAL_REQ ||
                         type_byte == WLAN_PA_GAS_COMEBACK_REQ) {
@@ -144,11 +142,17 @@ bool DppAgentTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t /*if
                         return true;
                     }
 
-                    // Auth Response (DPP Public Action subtype 0x01) and Configuration
-                    // Result (subtype 0x0B) are uplink-only — drop them.
-                    if (type_byte == WLAN_PA_VENDOR_SPECIFIC &&
-                        enc_frame_len > 1 + DPP_SUBTYPE_OFFSET) {
-                        uint8_t subtype = enc_frame[1 + DPP_SUBTYPE_OFFSET];
+                    // Auth Response (subtype 0x01) and Configuration Result (0x0B)
+                    // are uplink-only. Controller frames may start at 0x09 or at 04 09.
+                    size_t pa_off = 0;
+                    if (type_byte == 0x04 && enc_frame_len > 1 &&
+                        enc_frame[1] == WLAN_PA_VENDOR_SPECIFIC) {
+                        pa_off = 2;
+                    } else if (type_byte == WLAN_PA_VENDOR_SPECIFIC) {
+                        pa_off = 1;
+                    }
+                    if (pa_off != 0 && enc_frame_len > pa_off + DPP_SUBTYPE_OFFSET) {
+                        uint8_t subtype = enc_frame[pa_off + DPP_SUBTYPE_OFFSET];
                         if (subtype == DPP_PA_AUTHENTICATION_RESP) {
                             LOG(WARNING) << "DPP: handle_cmdu: dropping downlink Auth Response"
                                          << " (subtype=0x01) — Auth Response is uplink-only"
@@ -200,6 +204,14 @@ void DppAgentTask::on_relay_status(bool client_connected)
     }
 }
 
+void DppAgentTask::on_relay_stopped()
+{
+    m_relay_active            = false;
+    m_hostapd_connected       = false;
+    m_last_enrollee_mac_valid = false;
+    LOG(INFO) << "DPP: TCP relay stopped; relay can be re-armed";
+}
+
 bool DppAgentTask::send_dpp_frame(uint8_t tcp_type, const uint8_t *frame, size_t frame_len)
 {
     if (!m_hostapd_connected) {
@@ -220,8 +232,8 @@ bool DppAgentTask::send_dpp_frame(uint8_t tcp_type, const uint8_t *frame, size_t
 
     LOG(INFO) << "DPP: sent " << frame_len << " bytes to hostapd via DPP relay"
               << " (type=0x" << std::hex << static_cast<int>(tcp_type) << std::dec
-              << ", frame_len=" << frame_len
-              << ", prefix=" << dpp_prefix_hex(frame, frame_len) << ")";
+              << ", frame_len=" << frame_len << ", prefix=" << dpp_prefix_hex(frame, frame_len)
+              << ")";
     return true;
 }
 
@@ -232,8 +244,7 @@ bool DppAgentTask::send_dpp_frame(uint8_t tcp_type, const uint8_t *frame, size_t
 void DppAgentTask::dispatch_dpp_frame(uint8_t tcp_type, const uint8_t *frame, size_t frame_len)
 {
     LOG(INFO) << "DPP: received TCP frame type=0x" << std::hex << static_cast<int>(tcp_type)
-              << std::dec << " len=" << frame_len
-              << " prefix=" << dpp_prefix_hex(frame, frame_len);
+              << std::dec << " len=" << frame_len << " prefix=" << dpp_prefix_hex(frame, frame_len);
 
     if (tcp_type == WLAN_PA_VENDOR_SPECIFIC) {
         // DPP Public Action frame
@@ -275,8 +286,8 @@ void DppAgentTask::dispatch_dpp_frame(uint8_t tcp_type, const uint8_t *frame, si
         }
 
     } else if (tcp_type == WLAN_PA_GAS_INITIAL_REQ || tcp_type == WLAN_PA_GAS_COMEBACK_REQ) {
-        // GAS frame (DPP Configuration Request)
-        handle_gas_request(frame, frame_len);
+        // GAS frame (DPP Configuration Request) — keep Action byte for EasyMesh encap.
+        handle_gas_request(frame, frame_len, tcp_type);
 
     } else {
         LOG(WARNING) << "DPP: unknown TCP frame type=0x" << std::hex << static_cast<int>(tcp_type)
@@ -368,14 +379,16 @@ void DppAgentTask::handle_config_result(const uint8_t *frame, size_t frame_len)
     send_proxied_encap_dpp(frame, frame_len, false /* Public Action */);
 }
 
-void DppAgentTask::handle_gas_request(const uint8_t *frame, size_t frame_len)
+void DppAgentTask::handle_gas_request(const uint8_t *frame, size_t frame_len, uint8_t gas_action)
 {
-    LOG(INFO) << "DPP: GAS Configuration Request received len=" << frame_len
+    LOG(INFO) << "DPP: GAS Configuration Request received len=" << frame_len << " action=0x"
+              << std::hex << static_cast<int>(gas_action) << std::dec
               << " prefix=" << dpp_prefix_hex(frame, frame_len);
-    send_proxied_encap_dpp(frame, frame_len, true /* GAS */);
+    send_proxied_encap_dpp(frame, frame_len, true /* GAS */, gas_action);
 }
 
-void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len, bool is_gas)
+void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len, bool is_gas,
+                                          uint8_t gas_action)
 {
     if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE)) {
         LOG(ERROR) << "DPP: failed to create PROXIED_ENCAP_DPP_MESSAGE CMDU";
@@ -412,12 +425,9 @@ void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len
         encap_tlv->frame_flags().enrollee_mac_address_present = false;
     }
 
-    // Per EasyMesh spec and hostapd TCP protocol:
-    // - hostapd sends GAS frames over TCP with the Action byte (0x0A) already stripped
-    // - The TCP frame from hostapd starts directly with the dialog token
-    // - For 1905 encapsulation, we need to prepend the Action byte back
-    // - The 1905 frame should be: Action(0x0A) + dialog_token + rest_of_frame
-    const uint8_t tcp_prefix = is_gas ? WLAN_PA_GAS_INITIAL_REQ : WLAN_PA_VENDOR_SPECIFIC;
+    // Per EasyMesh / hostapd TCP: GAS body has Action stripped; restore it for 1905.
+    // Use the real GAS Action (Initial 0x0A or Comeback 0x0C), not always Initial.
+    const uint8_t tcp_prefix = is_gas ? gas_action : WLAN_PA_VENDOR_SPECIFIC;
     if (!encap_tlv->alloc_encapsulated_frame(1 + frame_len)) {
         LOG(ERROR) << "DPP: failed to allocate encapsulated frame in TLV";
         return;
@@ -425,19 +435,6 @@ void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len
     encap_tlv->encapsulated_frame()[0] = tcp_prefix;
     std::copy(frame, frame + frame_len, encap_tlv->encapsulated_frame() + 1);
     encap_tlv->encapsulated_frame_length() = static_cast<uint16_t>(1 + frame_len);
-
-    // Debug: Print first 16 bytes of encapsulated frame
-    {
-        std::ostringstream hex_dump;
-        const uint8_t *enc_frame = encap_tlv->encapsulated_frame();
-        size_t dump_len = std::min(static_cast<size_t>(16), static_cast<size_t>(1 + frame_len));
-        for (size_t i = 0; i < dump_len; ++i) {
-            hex_dump << std::hex << std::setw(2) << std::setfill('0')
-                     << static_cast<int>(enc_frame[i]) << " ";
-        }
-        LOG(DEBUG) << "DPP: agent sending to controller, first " << dump_len
-                   << " bytes: " << hex_dump.str();
-    }
 
     if (!m_btl_ctx.send_cmdu_to_controller("", m_cmdu_tx)) {
         LOG(ERROR) << "DPP: failed to send PROXIED_ENCAP_DPP_MESSAGE to controller";
@@ -468,14 +465,6 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
         return;
     }
 
-    uint8_t tcp_type;
-    if (encap_tlv->frame_type() == wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME ||
-        encap_tlv->frame_flags().dpp_frame_indicator) {
-        tcp_type = WLAN_PA_GAS_INITIAL_RESP;
-    } else {
-        tcp_type = WLAN_PA_VENDOR_SPECIFIC;
-    }
-
     const uint8_t *frame = encap_tlv->encapsulated_frame();
     size_t frame_len     = encap_tlv->encapsulated_frame_length();
 
@@ -485,13 +474,24 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
         return;
     }
 
+    uint8_t tcp_type = WLAN_PA_VENDOR_SPECIFIC;
+    if (encap_tlv->frame_type() == wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME ||
+        encap_tlv->frame_flags().dpp_frame_indicator) {
+        // Prefer Action from encap payload; Controller Phase 1 sends Initial (0x0B).
+        if (frame[0] == WLAN_PA_GAS_INITIAL_RESP || frame[0] == WLAN_PA_GAS_COMEBACK_RESP) {
+            tcp_type = frame[0];
+        } else {
+            tcp_type = WLAN_PA_GAS_INITIAL_RESP;
+        }
+    }
+
     std::string dest_sta = "<none>";
     if (encap_tlv->frame_flags().enrollee_mac_address_present) {
         auto dest = encap_tlv->dest_sta_mac();
         if (dest) {
-            dest_sta                    = tlvf::mac_to_string(*dest);
-            m_last_enrollee_mac         = *dest;
-            m_last_enrollee_mac_valid   = true;
+            dest_sta                  = tlvf::mac_to_string(*dest);
+            m_last_enrollee_mac       = *dest;
+            m_last_enrollee_mac_valid = true;
         }
     }
     LOG(INFO) << "DPP: downlink PROXIED_ENCAP mid=0x" << std::hex << mid << std::dec
@@ -505,8 +505,8 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
     // Category (0x04) + Action (0x09); EasyMesh "from the Action field" is 0x09
     // only. Strip either prefix. Leaving 0x04 in place makes hostapd close TCP
     // with no DPP-TX.
-    const uint8_t *send_frame = frame;
-    size_t send_frame_len     = frame_len;
+    const uint8_t *send_frame                   = frame;
+    size_t send_frame_len                       = frame_len;
     static constexpr uint8_t WLAN_ACTION_PUBLIC = 0x04;
     if (tcp_type == WLAN_PA_VENDOR_SPECIFIC && send_frame_len >= 2 &&
         send_frame[0] == WLAN_ACTION_PUBLIC && send_frame[1] == WLAN_PA_VENDOR_SPECIFIC) {
@@ -522,23 +522,8 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
         send_frame_len -= 1;
     }
 
-    // Log the specific DPP frame subtype being sent to hostapd for easier tracing.
-    // IMPORTANT: Auth Response (0x01) is an UPLINK-only frame — it is sent FROM the Enrollee
-    // TO the Controller. The Controller must never send an Auth Response back downlink to the
-    // Enrollee. If we receive an Auth Response in a downlink PROXIED_ENCAP_DPP_MESSAGE, it
-    // means the Controller has no active session and is echoing the frame back. Discard it.
     if (tcp_type == WLAN_PA_VENDOR_SPECIFIC && send_frame_len > DPP_HDR_LEN) {
         uint8_t subtype = send_frame[DPP_SUBTYPE_OFFSET];
-
-        // Auth Response (0x01) must never be sent downlink to the Enrollee.
-        // This can happen when the Controller has no active session and the message
-        // is routed to a secondary handler that echoes it back. Discard it.
-        if (subtype == DPP_PA_AUTHENTICATION_RESP) {
-            LOG(WARNING) << "DPP: discarding downlink Auth Response (subtype=0x01) — "
-                         << "Auth Response is uplink-only; Controller has no active session "
-                         << "(mid=0x" << std::hex << mid << std::dec << ")";
-            return;
-        }
 
         LOG(INFO) << "DPP: sending " << dpp_pa_subtype_name(subtype) << " (subtype=0x" << std::hex
                   << static_cast<int>(subtype) << std::dec << ") to hostapd"

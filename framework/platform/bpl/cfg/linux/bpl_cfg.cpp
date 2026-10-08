@@ -530,6 +530,17 @@ bool cfg_get_best_channel_rank_threshold(uint32_t &threshold)
     return true;
 }
 
+bool cfg_get_enable_dpp_onboarding(bool &enable)
+{
+    int value = 1;
+    if (cfg_get_param_int("enable_dpp_onboarding", value) < 0) {
+        enable = true;
+        return true;
+    }
+    enable = (value != 0);
+    return true;
+}
+
 bool cfg_get_multi_chan_bcn_req_duration(uint16_t &duration)
 {
     int retVal = -1;

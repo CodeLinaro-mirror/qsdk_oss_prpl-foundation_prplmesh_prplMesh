@@ -81,6 +81,11 @@ public:
     void on_relay_status(bool client_connected);
 
     /**
+     * @brief Clear relay-active state after stop_dpp_relay() so OPERATIONAL/re-init can re-arm.
+     */
+    void on_relay_stopped();
+
+    /**
      * @brief Returns true if slave_thread has started the relay HAL's TCP listener.
      * Used by slave_thread to decide whether to suppress the ap_manager's
      * CHIRP_NOTIFICATION_MESSAGE (which would be a duplicate), and as the
@@ -133,8 +138,10 @@ private:
     /**
      * @brief Handle a GAS Initial/Comeback Request frame.
      * Sends a Proxied Encap DPP CMDU (GAS frame) to the Controller.
+     *
+     * @param gas_action 802.11 GAS Action (0x0A Initial Req / 0x0C Comeback Req).
      */
-    void handle_gas_request(const uint8_t *frame, size_t frame_len);
+    void handle_gas_request(const uint8_t *frame, size_t frame_len, uint8_t gas_action);
 
     /**
      * @brief Send a Proxied Encap DPP CMDU to the Controller.
@@ -142,8 +149,10 @@ private:
      * @param frame      Raw DPP frame body (OUI at byte 0 for Public Action).
      * @param frame_len  Length of the frame body.
      * @param is_gas     true for GAS frames, false for Public Action frames.
+     * @param gas_action When is_gas, Action byte prepended to the encap payload.
      */
-    void send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len, bool is_gas);
+    void send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len, bool is_gas,
+                                uint8_t gas_action = 0x0A);
 
     // -------------------------------------------------------------------------
     // Downlink frame dispatch (Controller → hostapd)

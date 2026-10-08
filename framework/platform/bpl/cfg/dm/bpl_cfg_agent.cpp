@@ -90,6 +90,14 @@ bool cfg_get_best_channel_rank_threshold(uint32_t &threshold)
     return read_agent_config_param("BestChannelRankThreshold", threshold);
 }
 
+bool cfg_get_enable_dpp_onboarding(bool &enable)
+{
+    if (!read_agent_config_param("EnableDPPOnboarding", enable)) {
+        enable = true;
+    }
+    return true;
+}
+
 bool cfg_get_multi_chan_bcn_req_duration(uint16_t &duration)
 {
     return read_agent_config_param("MultiChanBcnReqDuration", duration);
