@@ -133,6 +133,9 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::DPP_CCE_INDICATION_MESSAGE,
+    // DPP / EasyConnect (FEAT-68 Path B): Controller → Agent Auth/Conf Proxied Encap
+    ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
+    ieee1905_1::eMessageType::DIRECT_ENCAP_DPP_MESSAGE,
     ieee1905_1::eMessageType::VIRTUAL_BSS_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE,
