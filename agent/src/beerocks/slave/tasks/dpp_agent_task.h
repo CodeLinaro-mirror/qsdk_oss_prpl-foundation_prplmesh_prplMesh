@@ -139,7 +139,7 @@ private:
     /**
      * @brief Send a Proxied Encap DPP CMDU to the Controller.
      *
-     * @param frame      Raw DPP frame body.
+     * @param frame      Raw DPP frame body (OUI at byte 0 for Public Action).
      * @param frame_len  Length of the frame body.
      * @param is_gas     true for GAS frames, false for Public Action frames.
      */
@@ -167,6 +167,13 @@ private:
 
     /** True if hostapd is currently connected to the relay. */
     bool m_hostapd_connected = false;
+
+    /**
+     * Last Enrollee STA MAC from downlink Proxied Encap (Controller dest_sta).
+     * TCP Presence/Auth Response from hostapd carry no STA MAC; reuse this on uplink.
+     */
+    sMacAddr m_last_enrollee_mac{};
+    bool m_last_enrollee_mac_valid = false;
 };
 
 } // namespace beerocks

@@ -196,6 +196,7 @@ void DppAgentTask::on_relay_status(bool client_connected)
         LOG(INFO) << "DPP: hostapd connected to relay";
     } else if (!client_connected && was_connected) {
         LOG(INFO) << "DPP: hostapd disconnected from relay";
+        m_last_enrollee_mac_valid = false;
     }
 }
 
@@ -387,15 +388,27 @@ void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len
         return;
     }
 
+    // Master's tlv1905EncapDpp eFrameType is Public Action (0) vs GAS (1).
+    // PPM-4079 later splits subtype into eFrameType and PA/GAS into
+    // eDppFrameIndicatorType; rebase there updates these assignments.
     if (is_gas) {
-        encap_tlv->frame_type() = static_cast<wfa_map::tlv1905EncapDpp::eFrameType>(0xFF);
+        encap_tlv->frame_type() = wfa_map::tlv1905EncapDpp::eFrameType::GAS_FRAME;
         encap_tlv->frame_flags().dpp_frame_indicator = true;
     } else {
-        encap_tlv->frame_type() = static_cast<wfa_map::tlv1905EncapDpp::eFrameType>(0x01);
+        encap_tlv->frame_type() =
+            wfa_map::tlv1905EncapDpp::eFrameType::DPP_PUBLIC_ACTION_FRAME;
         encap_tlv->frame_flags().dpp_frame_indicator = false;
     }
 
-    encap_tlv->frame_flags().enrollee_mac_address_present = false;
+    if (m_last_enrollee_mac_valid) {
+        encap_tlv->frame_flags().enrollee_mac_address_present = true;
+        if (!encap_tlv->set_dest_sta_mac(m_last_enrollee_mac)) {
+            LOG(WARNING) << "DPP: failed to set uplink Enrollee MAC; sending without STA MAC";
+            encap_tlv->frame_flags().enrollee_mac_address_present = false;
+        }
+    } else {
+        encap_tlv->frame_flags().enrollee_mac_address_present = false;
+    }
 
     // Per EasyMesh spec and hostapd TCP protocol:
     // - hostapd sends GAS frames over TCP with the Action byte (0x0A) already stripped
@@ -430,8 +443,12 @@ void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len
     }
 
     LOG(INFO) << "DPP: sent PROXIED_ENCAP_DPP_MESSAGE to controller"
-              << " (is_gas=" << is_gas << ", encap_frame_len=" << (1 + frame_len)
+              << " (is_gas=" << is_gas
+              << ", tlv_frame_type=" << static_cast<unsigned>(encap_tlv->frame_type())
+              << ", encap_frame_len=" << (1 + frame_len)
               << ", prefix=" << dpp_prefix_hex(encap_tlv->encapsulated_frame(), 1 + frame_len)
+              << ", enrollee_mac="
+              << (m_last_enrollee_mac_valid ? tlvf::mac_to_string(m_last_enrollee_mac) : "<none>")
               << ", mid=0x" << std::hex << m_cmdu_tx.getMessageId() << std::dec << ")";
 }
 
@@ -450,7 +467,8 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
     }
 
     uint8_t tcp_type;
-    if (encap_tlv->frame_type() == static_cast<wfa_map::tlv1905EncapDpp::eFrameType>(0xFF)) {
+    if (encap_tlv->frame_type() == wfa_map::tlv1905EncapDpp::eFrameType::GAS_FRAME ||
+        encap_tlv->frame_flags().dpp_frame_indicator) {
         tcp_type = WLAN_PA_GAS_INITIAL_RESP;
     } else {
         tcp_type = WLAN_PA_VENDOR_SPECIFIC;
@@ -469,7 +487,9 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
     if (encap_tlv->frame_flags().enrollee_mac_address_present) {
         auto dest = encap_tlv->dest_sta_mac();
         if (dest) {
-            dest_sta = tlvf::mac_to_string(*dest);
+            dest_sta                    = tlvf::mac_to_string(*dest);
+            m_last_enrollee_mac         = *dest;
+            m_last_enrollee_mac_valid   = true;
         }
     }
     LOG(INFO) << "DPP: downlink PROXIED_ENCAP mid=0x" << std::hex << mid << std::dec
