@@ -388,15 +388,17 @@ void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len
         return;
     }
 
-    // Master's tlv1905EncapDpp eFrameType is Public Action (0) vs GAS (1).
-    // PPM-4079 later splits subtype into eFrameType and PA/GAS into
-    // eDppFrameIndicatorType; rebase there updates these assignments.
+    // EasyMesh tlv1905EncapDpp (!4390 / Table 102): eFrameType is the DPP
+    // Public Action subtype (or DPP_GAS_FRAME); PA vs GAS is dpp_frame_indicator.
     if (is_gas) {
-        encap_tlv->frame_type() = wfa_map::tlv1905EncapDpp::eFrameType::GAS_FRAME;
+        encap_tlv->frame_type() = wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME;
         encap_tlv->frame_flags().dpp_frame_indicator = true;
     } else {
-        encap_tlv->frame_type() =
-            wfa_map::tlv1905EncapDpp::eFrameType::DPP_PUBLIC_ACTION_FRAME;
+        uint8_t pa_subtype = DPP_PA_AUTHENTICATION_RESP;
+        if (frame_len > DPP_SUBTYPE_OFFSET) {
+            pa_subtype = frame[DPP_SUBTYPE_OFFSET];
+        }
+        encap_tlv->frame_type() = static_cast<wfa_map::tlv1905EncapDpp::eFrameType>(pa_subtype);
         encap_tlv->frame_flags().dpp_frame_indicator = false;
     }
 
@@ -467,7 +469,7 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
     }
 
     uint8_t tcp_type;
-    if (encap_tlv->frame_type() == wfa_map::tlv1905EncapDpp::eFrameType::GAS_FRAME ||
+    if (encap_tlv->frame_type() == wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME ||
         encap_tlv->frame_flags().dpp_frame_indicator) {
         tcp_type = WLAN_PA_GAS_INITIAL_RESP;
     } else {
