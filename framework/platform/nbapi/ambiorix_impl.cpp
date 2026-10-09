@@ -707,6 +707,97 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
     return set(relative_path, parameter, tlvf::mac_to_string(value));
 }
 
+bool AmbiorixImpl::set_multi(const std::string &relative_path, AmbiorixVariant &values)
+{
+    amxd_trans_t transaction;
+    auto object = prepare_transaction(relative_path, transaction);
+    if (!object) {
+        LOG(ERROR) << "Failed to prepare multi transaction for " << relative_path;
+        return false;
+    }
+
+    AmbiorixVariantMapSmartPtr children;
+    bool status = values.get_children(children, false);
+    if (!status) {
+        LOG(ERROR) << "Failed to read children from values";
+        return false;
+    }
+
+    auto should_apply  = false;
+    bool failed_to_set = false;
+    for (const auto &i : *children) {
+        const std::string &key       = i.first;
+        const AmbiorixVariant &value = i.second;
+        auto type                    = value.get_type();
+
+        amxd_status_t amxd_status;
+        switch (type) {
+        case AMXC_VAR_ID_INT8:
+            amxd_status = amxd_trans_set_int8_t(&transaction, key.c_str(), value.get<int8_t>());
+            break;
+        case AMXC_VAR_ID_INT16:
+            amxd_status = amxd_trans_set_int16_t(&transaction, key.c_str(), value.get<int16_t>());
+            break;
+        case AMXC_VAR_ID_INT32:
+            amxd_status = amxd_trans_set_int32_t(&transaction, key.c_str(), value.get<int>());
+            break;
+        case AMXC_VAR_ID_INT64:
+            amxd_status = amxd_trans_set_int64_t(&transaction, key.c_str(), value.get<int64_t>());
+            break;
+        case AMXC_VAR_ID_UINT8:
+            amxd_status = amxd_trans_set_uint8_t(&transaction, key.c_str(), value.get<uint8_t>());
+            break;
+        case AMXC_VAR_ID_UINT16:
+            amxd_status = amxd_trans_set_uint16_t(&transaction, key.c_str(), value.get<uint16_t>());
+            break;
+        case AMXC_VAR_ID_UINT32:
+            amxd_status = amxd_trans_set_uint32_t(&transaction, key.c_str(), value.get<uint32_t>());
+            break;
+        case AMXC_VAR_ID_UINT64:
+            amxd_status = amxd_trans_set_uint64_t(&transaction, key.c_str(), value.get<uint64_t>());
+            break;
+        case AMXC_VAR_ID_BOOL:
+            amxd_status = amxd_trans_set_bool(&transaction, key.c_str(), value.get<bool>());
+            break;
+        case AMXC_VAR_ID_DOUBLE:
+            amxd_status = amxd_trans_set_double(&transaction, key.c_str(), value.get<double>());
+            break;
+        case AMXC_VAR_ID_FLOAT:
+            amxd_status = amxd_trans_set_double(&transaction, key.c_str(), value.get<float>());
+            break;
+        case AMXC_VAR_ID_CSTRING: {
+            std::string str = value.get<std::string>();
+            amxd_status     = amxd_trans_set_cstring_t(&transaction, key.c_str(), str.c_str());
+        } break;
+        default:
+            LOG(ERROR) << "Unsupported value of type: " << type;
+            failed_to_set = true;
+            continue;
+        }
+
+        if (amxd_status != amxd_status_ok) {
+            LOG(ERROR) << "Failed to set transaction param " << key << "="
+                       << value.get<std::string>();
+            failed_to_set = true;
+            continue;
+        }
+
+        should_apply = true;
+    }
+
+    if (!should_apply) {
+        amxd_trans_clean(&transaction);
+        return true;
+    }
+
+    if (!apply_transaction(transaction)) {
+        LOG(ERROR) << "Couldn't apply transaction for " << relative_path;
+        return false;
+    }
+
+    return !failed_to_set;
+}
+
 bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &param_name,
                               int8_t *param_val)
 {

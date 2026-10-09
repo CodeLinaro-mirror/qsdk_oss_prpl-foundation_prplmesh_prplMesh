@@ -71,6 +71,10 @@ bool AmbiorixDummy::set(const std::string &relative_path, const std::string &par
 {
     return true;
 }
+bool AmbiorixDummy::set_multi(const std::string &relative_path, AmbiorixVariant &values)
+{
+    return true;
+}
 bool AmbiorixDummy::read_param(const std::string &obj_path, const std::string &param_name,
                                int8_t *param_val)
 {
