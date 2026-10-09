@@ -1016,6 +1016,20 @@ void topology_task::handle_dead_neighbors(const sMacAddr &src_mac, const sMacAdd
             LOG(ERROR) << "Failed to get neighbor instance";
             continue;
         }
+
+        // A reconnecting Agent can exchange CMDUs with the Controller before its parent has
+        // relearned it through Topology Discovery. Do not delete an Agent that is demonstrably
+        // alive merely because it is temporarily absent from one neighbor report.
+        const auto dead_neighbor_grace = std::chrono::seconds(
+            beerocks::ieee1905_1_consts::DISCOVERY_NOTIFICATION_TIMEOUT_SEC + 5);
+        if (database.get_agent_last_contact_time(neighbor->al_mac) + dead_neighbor_grace >=
+            std::chrono::system_clock::now()) {
+            LOG(DEBUG) << "Neighbor " << neighbor->al_mac
+                       << " is missing from the 1905 Neighbor Device TLV but contacted the "
+                          "Controller recently; preserving it during topology convergence";
+            continue;
+        }
+
         std::shared_ptr<Station> neighbor_bh_sta = database.get_station(neighbor->parent_mac);
         if (!neighbor_bh_sta) {
             LOG(ERROR) << "Failed to get neighbor station instance";

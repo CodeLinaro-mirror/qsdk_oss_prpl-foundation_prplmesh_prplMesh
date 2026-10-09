@@ -2654,10 +2654,11 @@ bool ApAutoConfigurationTask::handle_bsta_mld_configuration_tlv(ieee1905_1::Cmdu
     auto db(AgentDB::get());
     auto bsta_mld_configuration(cmdu_rx.getClass<wfa_map::tlvBackhaulStaMldConfiguration>());
     if (!bsta_mld_configuration) {
-        db->bsta_mld_configuration.reset();
-        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, Setting MLDUNit to -1";
-        send_bsta_mld_configuration(ruid, DISABLED_MLDUNIT,
-                                    static_cast<uint8_t>(beerocks::MLO_MODE_NONE));
+        // The TLV is optional in an autoconfiguration WSC M2. Its absence means that the
+        // Controller did not provide an update; it must not tear down an existing bSTA MLD.
+        // An explicit disable is represented by a present TLV with all MLO modes cleared.
+        LOG(DEBUG) << "No tlvBackhaulStaMldConfiguration TLV received, keeping the current "
+                      "bSTA MLD configuration";
         return true;
     }
 

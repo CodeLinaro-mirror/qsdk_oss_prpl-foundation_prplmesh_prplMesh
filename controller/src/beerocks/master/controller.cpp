@@ -1484,6 +1484,24 @@ static bool add_backhaul_sta_mld_configuration_tlv(db &database, ieee1905_1::Cmd
     return true;
 }
 
+static bool send_backhaul_sta_mld_configuration(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                                const Agent &agent)
+{
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::BSTA_MLD_CONFIGURATION_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "Failed to create BSTA MLD Configuration Request for " << agent.al_mac;
+        return false;
+    }
+
+    if (!add_backhaul_sta_mld_configuration_tlv(database, cmdu_tx, agent)) {
+        LOG(ERROR) << "Failed to add Backhaul STA MLD Configuration TLV for " << agent.al_mac;
+        return false;
+    }
+
+    LOG(DEBUG) << "Sending bSTA MLD configuration after learning Wi-Fi 7 capabilities from "
+               << agent.al_mac;
+    return son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
+}
+
 /**
  * @brief add Agent AP MLD Configuration TLV to the current CMDU
  *
@@ -1619,6 +1637,24 @@ static bool add_agent_ap_mld_configuration_tlv(db &database, ieee1905_1::CmduMes
     }
 
     return true;
+}
+
+static bool send_agent_ap_mld_configuration(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
+                                            const Agent &agent)
+{
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::AP_MLD_CONFIGURATION_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "Failed to create AP MLD Configuration Request for " << agent.al_mac;
+        return false;
+    }
+
+    if (!add_agent_ap_mld_configuration_tlv(database, cmdu_tx, agent)) {
+        LOG(ERROR) << "Failed to add Agent AP MLD Configuration TLV for " << agent.al_mac;
+        return false;
+    }
+
+    LOG(DEBUG) << "Sending AP MLD configuration after learning Wi-Fi 7 capabilities from "
+               << agent.al_mac;
+    return son_actions::send_cmdu_to_agent(agent.al_mac, cmdu_tx, database);
 }
 
 constexpr WSC::eWscAuth rsn_fallback_security_mode_24_5_g = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
@@ -5819,9 +5855,22 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
         return false;
     }
 
+    const bool had_mld_capability = (agent->max_num_mlds > 0);
     if (!handle_tlv_wifi7_agent_capabilities(cmdu_rx, agent)) {
         LOG(DEBUG) << "Couldn't handle TLV WIFI7AgentCapabilities";
         return false;
+    }
+
+    // A newly recreated Agent has no cached Wi-Fi 7 capabilities when its WSC M2 is built, so
+    // that M2 cannot carry the bSTA MLD configuration. Recover once the capability report makes
+    // the Agent's MLD support known. Limit this to the transition to avoid periodic reconfiguration.
+    if (!early && !had_mld_capability && agent->max_num_mlds > 0 &&
+        !send_backhaul_sta_mld_configuration(database, cmdu_tx, *agent)) {
+        LOG(ERROR) << "Couldn't send bSTA MLD configuration to Agent " << agent->al_mac;
+    }
+    if (!early && !had_mld_capability && agent->max_num_mlds > 0 &&
+        !send_agent_ap_mld_configuration(database, cmdu_tx, *agent)) {
+        LOG(ERROR) << "Couldn't send AP MLD configuration to Agent " << agent->al_mac;
     }
 
     // Profile-2 Multi AP profile is added for higher than Profile-1 agents.
