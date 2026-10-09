@@ -103,6 +103,15 @@ public:
     bool set(const std::string &relative_path, const std::string &parameter,
              const sMacAddr &value) override;
 
+    /**
+     * @brief Set several parameters of one object in a single transaction.
+     *
+     * @param relative_path Path to the object in the datamodel.
+     * @param values Hashtable of parameter names and values.
+     * @return true on success and false otherwise.
+     */
+    bool set_multi(const std::string &relative_path, AmbiorixVariant &values) override;
+
     bool read_param(const std::string &obj_path, const std::string &param_name,
                     int8_t *param_val) override;
     bool read_param(const std::string &obj_path, const std::string &param_name,
