@@ -51,13 +51,11 @@ std::string dpp_akm_from_bss_info(const wireless_utils::sBssInfoConf &bss_info)
 {
     // WSC auth is a bitmask (e.g. WPA3-Personal-Transition = WPA2PSK|SAE). Do not
     // switch on the combined value — that misses transition and falls through empty.
-    const auto auth = static_cast<uint16_t>(bss_info.authentication_type);
-    constexpr uint16_t k_psk =
-        static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_WPA2PSK) |
-        static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_WPAPSK);
-    constexpr uint16_t k_sae =
-        static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_SAE) |
-        static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+    const auto auth          = static_cast<uint16_t>(bss_info.authentication_type);
+    constexpr uint16_t k_psk = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_WPA2PSK) |
+                               static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_WPAPSK);
+    constexpr uint16_t k_sae = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_SAE) |
+                               static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
     constexpr uint16_t k_open = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_OPEN);
     constexpr uint16_t k_rsn  = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_RSN);
 
@@ -195,8 +193,7 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
 
     // Return a pointer (no out-parameter side effects) so static analysis can see
     // that selected is non-null after the failure returns below.
-    auto pick_backhaul_bss =
-        [&](const std::list<wireless_utils::sBssInfoConf> &candidates)
+    auto pick_backhaul_bss = [&](const std::list<wireless_utils::sBssInfoConf> &candidates)
         -> const wireless_utils::sBssInfoConf * {
         const wireless_utils::sBssInfoConf *fallback = nullptr;
         for (const auto &candidate : candidates) {
@@ -222,7 +219,8 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
         if (!radio_entry.second) {
             continue;
         }
-        selected = pick_backhaul_bss(database.get_configured_bss_info(radio_entry.second->radio_uid));
+        selected =
+            pick_backhaul_bss(database.get_configured_bss_info(radio_entry.second->radio_uid));
         if (selected) {
             break;
         }
@@ -293,8 +291,7 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
 
     // M-9: netRole=sta must use fronthaul BSS only (never backhaul credentials).
     // Return a pointer so selected is clearly non-null after the failure return below.
-    auto pick_fronthaul_bss =
-        [&](const std::list<wireless_utils::sBssInfoConf> &candidates)
+    auto pick_fronthaul_bss = [&](const std::list<wireless_utils::sBssInfoConf> &candidates)
         -> const wireless_utils::sBssInfoConf * {
         const wireless_utils::sBssInfoConf *fallback = nullptr;
         for (const auto &candidate : candidates) {

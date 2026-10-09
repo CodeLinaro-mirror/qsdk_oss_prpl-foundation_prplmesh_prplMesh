@@ -3785,8 +3785,10 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             return false;
         }
 
+        // After tlv1905EncapDpp YAML split: eFrameType is Auth/Confirm/GAS opcode;
+        // public-action vs GAS is the dpp_frame_indicator bit (eDppFrameIndicatorType).
         encap_1905_dpp_tlv->frame_type() =
-            wfa_map::tlv1905EncapDpp::eFrameType::DPP_PUBLIC_ACTION_FRAME;
+            wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_RESPONSE;
         encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = false;
         encap_1905_dpp_tlv->frame_flags().enrollee_mac_address_present = true;
         encap_1905_dpp_tlv->set_dest_sta_mac(dpp_authentication_response->enrollee_mac);
@@ -3810,7 +3812,7 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             return false;
         }
 
-        encap_1905_dpp_tlv->frame_type() = wfa_map::tlv1905EncapDpp::eFrameType::GAS_FRAME;
+        encap_1905_dpp_tlv->frame_type() = wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME;
         encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = true;
         encap_1905_dpp_tlv->frame_flags().enrollee_mac_address_present = true;
         encap_1905_dpp_tlv->set_dest_sta_mac(dpp_configuration_request->enrollee_mac);
