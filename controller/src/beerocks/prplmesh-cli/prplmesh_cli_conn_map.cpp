@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <set>
@@ -60,6 +61,13 @@ struct mlo_radio_t {
     std::string name;
     uint32_t channel         = 0;
     beerocks::eFreqType band = beerocks::FREQ_UNKNOWN;
+};
+
+struct mlo_bss_display_t {
+    std::string label;
+    std::string role;
+    std::string ssid;
+    uint16_t frequency = 0;
 };
 
 int bandwidth_rank(beerocks::eWiFiBandwidth bandwidth)
@@ -285,6 +293,96 @@ get_ap_mld_links_by_bssid(prplmesh_cli &cli, const std::string &device_path)
     return links;
 }
 
+void print_ap_mlds(prplmesh_cli &cli, const std::string &device_path,
+                   const std::map<std::string, mlo_bss_display_t> &bsses_by_bssid,
+                   const std::string &indent)
+{
+    beerocks::prplmesh_amx::AmxResult ap_mlds_result;
+    if (!cli.m_amx_client->get_htable_object(device_path + "APMLD.*.", ap_mlds_result) ||
+        !ap_mlds_result.htable()) {
+        return;
+    }
+
+    amxc_htable_iterate(ap_mld_it, ap_mlds_result.htable())
+    {
+        const auto *key           = amxc_htable_it_get_key(ap_mld_it);
+        const std::string path    = key ? key : "";
+        auto *ap_mld_obj          = amxc_var_from_htable_it(ap_mld_it);
+        const std::string mld_mac = GET_CHAR(ap_mld_obj, "MLDMACAddress");
+        if (!is_valid_mlo_mac(mld_mac)) {
+            continue;
+        }
+
+        std::vector<mlo_ap_link_t> links;
+        beerocks::prplmesh_amx::AmxResult affiliated_aps_result;
+        if (cli.m_amx_client->get_htable_object(path + "AffiliatedAP.*.", affiliated_aps_result) &&
+            affiliated_aps_result.htable()) {
+            amxc_htable_iterate(link_it, affiliated_aps_result.htable())
+            {
+                auto *link_obj          = amxc_var_from_htable_it(link_it);
+                const std::string bssid = GET_CHAR(link_obj, "BSSID");
+                if (is_valid_mlo_mac(bssid)) {
+                    links.push_back(
+                        {bssid, GET_CHAR(link_obj, "RUID"), GET_UINT32(link_obj, "LinkID")});
+                }
+            }
+        }
+        if (links.empty()) {
+            continue;
+        }
+        std::sort(links.begin(), links.end(),
+                  [](const auto &left, const auto &right) { return left.link_id < right.link_id; });
+
+        std::string common_ssid;
+        std::string common_role;
+        bool first_bss  = true;
+        bool mixed_ssid = false;
+        bool mixed_role = false;
+        for (const auto &link : links) {
+            const auto bss_it = bsses_by_bssid.find(link.bssid);
+            if (bss_it == bsses_by_bssid.end()) {
+                continue;
+            }
+            if (first_bss) {
+                common_ssid = bss_it->second.ssid;
+                common_role = bss_it->second.role;
+                first_bss   = false;
+            } else {
+                mixed_ssid |= common_ssid != bss_it->second.ssid;
+                mixed_role |= common_role != bss_it->second.role;
+            }
+        }
+
+        std::cout << indent << "AP_MLD: mac: " << mld_mac;
+        if (!first_bss) {
+            std::cout << ", ssid: " << (mixed_ssid ? "mixed" : common_ssid)
+                      << ", role: " << (mixed_role ? "mixed" : common_role);
+        }
+        std::cout << ", links: " << links.size() << std::endl;
+
+        for (const auto &link : links) {
+            std::cout << indent << "  LINK[" << link.link_id << "]: ";
+            const auto bss_it = bsses_by_bssid.find(link.bssid);
+            if (bss_it != bsses_by_bssid.end()) {
+                std::cout << bss_it->second.label;
+                if (mixed_role && !bss_it->second.role.empty()) {
+                    std::cout << " (" << bss_it->second.role << ")";
+                }
+                std::cout << ", bssid: " << link.bssid;
+                if (mixed_ssid) {
+                    std::cout << ", ssid: " << bss_it->second.ssid;
+                }
+                if (bss_it->second.frequency != 0) {
+                    std::cout << ", freq: " << bss_it->second.frequency << "MHz";
+                }
+            } else {
+                std::cout << "bssid: " << link.bssid;
+            }
+            std::cout << std::endl;
+        }
+    }
+}
+
 bool print_mlo_backhaul(prplmesh_cli &cli, const conn_map_device_t &child,
                         const conn_map_device_t &parent, const std::string &indent,
                         uint32_t child_index, uint32_t parent_index, bool short_output)
@@ -378,7 +476,7 @@ bool print_mlo_backhaul(prplmesh_cli &cli, const conn_map_device_t &child,
               << parent_index << "]" << std::endl;
     std::cout << indent << "bSTA MLD: " << bsta_mld_mac
               << " -> AP MLD: " << (is_valid_mlo_mac(ap_mld_mac) ? ap_mld_mac : "unknown")
-              << ", mode: " << mode << ", links: " << associated_bstas.size();
+              << ", modes: " << mode << ", links: " << associated_bstas.size();
     if (is_valid_mlo_mac(primary_bssid)) {
         std::cout << ", primary BSSID: " << primary_bssid;
     }
@@ -399,15 +497,9 @@ bool print_mlo_backhaul(prplmesh_cli &cli, const conn_map_device_t &child,
                                          : ap_link_it->second.second.link_id;
 
         std::cout << indent << "  " << (primary ? "* " : "  ") << "LINK[" << display_link_id << "]";
-        if (primary) {
-            std::cout << " PRIMARY";
-        }
         std::cout << ": bSTA: " << bsta_mac
                   << " -> BSSID: " << (is_valid_mlo_mac(bssid) ? bssid : "unresolved");
 
-        if (ap_link_it != ap_links.end()) {
-            std::cout << ", link-id: " << ap_link_it->second.second.link_id;
-        }
         auto radio_it = radio_map.find(bssid);
         if (radio_it != radio_map.end()) {
             if (!radio_it->second.name.empty() && radio_it->second.name != "N/A") {
@@ -421,6 +513,9 @@ bool print_mlo_backhaul(prplmesh_cli &cli, const conn_map_device_t &child,
                           << beerocks::utils::convert_frequency_type_to_string(
                                  radio_it->second.band);
             }
+        }
+        if (primary) {
+            std::cout << ", PRIMARY";
         }
         std::cout << std::endl;
     }
@@ -502,7 +597,7 @@ bool prplmesh_cli::get_ip_from_iface(const std::string &iface, std::string &ip)
 
 bool prplmesh_cli::print_radio(const std::string &device_path)
 {
-    const auto ap_mld_links       = get_ap_mld_links_by_bssid(*this, device_path);
+    std::map<std::string, mlo_bss_display_t> bsses_by_bssid;
     std::string radio_ht_path     = device_path + "Radio.*.";
     const amxc_htable_t *ht_radio = nullptr;
     beerocks::prplmesh_amx::AmxResult radio_result;
@@ -539,7 +634,7 @@ bool prplmesh_cli::print_radio(const std::string &device_path)
             const std::string vap_indent    = space + "    ";
             const std::string client_indent = space + "      ";
 
-            std::cout << radio_indent << radio_label << " mac: " << conn_map.radio_id
+            std::cout << radio_indent << radio_label << ", mac: " << conn_map.radio_id
                       << ", ch: " << conn_map.channel;
             if (selected_profile.bandwidth != beerocks::BANDWIDTH_UNKNOWN) {
                 std::cout << ", bw: "
@@ -589,13 +684,7 @@ bool prplmesh_cli::print_radio(const std::string &device_path)
                     }
                     std::cout << ": bssid: " << conn_map.bss_id << ", ssid: " << conn_map.ssid
                               << std::endl;
-
-                    auto ap_mld_link = ap_mld_links.find(conn_map.bss_id);
-                    if (ap_mld_link != ap_mld_links.end()) {
-                        std::cout << client_indent << "AP_MLD: mac: " << ap_mld_link->second.first
-                                  << ", LINK[" << ap_mld_link->second.second.link_id
-                                  << "]: bssid: " << conn_map.bss_id << std::endl;
-                    }
+                    bsses_by_bssid[conn_map.bss_id] = {vap_label, vap_role, conn_map.ssid, freq};
 
                     std::string sta_ht_path     = bss_path_i + "STA.*.";
                     const amxc_htable_t *ht_sta = nullptr;
@@ -626,6 +715,7 @@ bool prplmesh_cli::print_radio(const std::string &device_path)
             radio_index++;
         }
     }
+    print_ap_mlds(*this, device_path, bsses_by_bssid, space + "  ");
     return true;
 }
 
