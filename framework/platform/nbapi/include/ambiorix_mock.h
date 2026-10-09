@@ -68,6 +68,8 @@ public:
                 (const std::string &relative_path, const std::string &parameter,
                  const sMacAddr &value),
                 (override));
+    MOCK_METHOD(bool, set_multi, (const std::string &relative_path, AmbiorixVariant &values),
+                (override));
     MOCK_METHOD(bool, read_param,
                 (const std::string &path_to_object, const std::string &object, int8_t *param_val),
                 (override));

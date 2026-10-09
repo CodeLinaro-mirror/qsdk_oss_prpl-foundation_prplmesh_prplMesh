@@ -10,6 +10,7 @@
 #define AMBIORIX_H
 
 #include "tlvf/common/sMacAddr.h"
+#include <ambiorix_variant.h>
 #include <easylogging++.h>
 
 namespace beerocks {
@@ -58,6 +59,15 @@ public:
                      const double &value)      = 0;
     virtual bool set(const std::string &relative_path, const std::string &parameter,
                      const sMacAddr &value)    = 0;
+
+    /**
+     * @brief Set several parameters of one object in a single transaction.
+     *
+     * @param relative_path Path to the object in the datamodel.
+     * @param values Hashtable of parameter names and values.
+     * @return true on success and false otherwise.
+     */
+    virtual bool set_multi(const std::string &relative_path, AmbiorixVariant &values) = 0;
 
     /**
      * @brief Reads and returns the value of the paramater from the given object.

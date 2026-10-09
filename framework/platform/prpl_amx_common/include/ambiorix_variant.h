@@ -14,7 +14,7 @@
 #include <amxc/amxc.h>
 
 #include <memory>
-
+#include <utility>
 #include <vector>
 
 #include <easylogging++.h>
@@ -155,9 +155,13 @@ public:
     /**
      * @brief template method to get Ambiorix variant value
      *
+     * Enabled only for types that have a matching get(T&) overload (SFINAE).
+     *
      * @return return local (or converted) typed value
      */
-    template <typename T> T get() const
+    template <typename T,
+              typename = decltype(std::declval<const AmbiorixVariant &>().get(std::declval<T &>()))>
+    T get() const
     {
         T value = T();
         get(value);
@@ -167,9 +171,16 @@ public:
     /**
      * @brief Templated conversion function
      *
-     * @return typed variant value when supported, otherwise default type empty value
+     * Enabled only for types that have a matching get(T&) overload (SFINAE).
+     *
+     * @return typed variant value when supported
      */
-    template <typename T> operator T() const { return get<T>(); }
+    template <typename T,
+              typename = decltype(std::declval<const AmbiorixVariant &>().get(std::declval<T &>()))>
+    operator T() const
+    {
+        return get<T>();
+    }
 
     explicit operator bool() const { return (m_var_ctx != nullptr); }
 
