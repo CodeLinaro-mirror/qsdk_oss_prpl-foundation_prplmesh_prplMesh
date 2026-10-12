@@ -12,6 +12,9 @@
 #include <sys/timerfd.h>
 #include <unistd.h>
 
+#include <chrono>
+#include <cstdio>
+
 #include <easylogging++.h>
 
 static std::string get_fd_name_print(std::string name)
@@ -21,6 +24,45 @@ static std::string get_fd_name_print(std::string name)
         return {};
     }
     return name.insert(0, " of '").append("'");
+}
+
+// Debug aid: log only slow EventLoop handlers to /tmp (avoids flood).
+// Enable with: touch /tmp/beerocks_eloop_trace_enable
+// Log file: /tmp/beerocks_event_loop_slow.log
+static constexpr int64_t SLOW_HANDLER_MS           = 50;
+static constexpr const char *ELOOP_TRACE_ENABLE    = "/tmp/beerocks_eloop_trace_enable";
+static constexpr const char *ELOOP_TRACE_LOG       = "/tmp/beerocks_event_loop_slow.log";
+
+static bool eloop_trace_enabled()
+{
+    return access(ELOOP_TRACE_ENABLE, F_OK) == 0;
+}
+
+static void eloop_trace_slow(const char *op, int fd, const std::string &name, uint32_t events,
+                             int64_t duration_ms, int batch_n)
+{
+    if (duration_ms < SLOW_HANDLER_MS) {
+        return;
+    }
+    if (!eloop_trace_enabled()) {
+        return;
+    }
+
+    FILE *fp = fopen(ELOOP_TRACE_LOG, "a");
+    if (!fp) {
+        return;
+    }
+
+    using clock = std::chrono::system_clock;
+    const auto now_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(clock::now().time_since_epoch())
+            .count();
+
+    std::fprintf(fp,
+                 "%lld SLOW op=%s fd=%d name=%s events=0x%x duration_ms=%lld batch=%d\n",
+                 static_cast<long long>(now_ms), op, fd, name.empty() ? "-" : name.c_str(), events,
+                 static_cast<long long>(duration_ms), batch_n);
+    std::fclose(fp);
 }
 
 namespace beerocks {
@@ -229,18 +271,34 @@ int EventLoopImpl::run()
 
             // Handle incoming data
         } else if (events[i].events & EPOLLIN) {
-            if (handlers.on_read && (!handlers.on_read(fd, *this))) {
-                LOG(ERROR) << "Read handler on FD (" << fd << ")"
-                           << get_fd_name_print(handlers.name) << " failed";
-                return -1;
+            if (handlers.on_read) {
+                const auto t0 = std::chrono::steady_clock::now();
+                const bool ok = handlers.on_read(fd, *this);
+                const auto t1 = std::chrono::steady_clock::now();
+                const auto ms =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+                eloop_trace_slow("read", fd, handlers.name, events[i].events, ms, num_events);
+                if (!ok) {
+                    LOG(ERROR) << "Read handler on FD (" << fd << ")"
+                               << get_fd_name_print(handlers.name) << " failed";
+                    return -1;
+                }
             }
 
             // Handle write operations
         } else if (events[i].events & EPOLLOUT) {
-            if (handlers.on_write && (!handlers.on_write(fd, *this))) {
-                LOG(ERROR) << "Write handler on FD (" << fd << ")"
-                           << get_fd_name_print(handlers.name) << " failed";
-                return -1;
+            if (handlers.on_write) {
+                const auto t0 = std::chrono::steady_clock::now();
+                const bool ok = handlers.on_write(fd, *this);
+                const auto t1 = std::chrono::steady_clock::now();
+                const auto ms =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+                eloop_trace_slow("write", fd, handlers.name, events[i].events, ms, num_events);
+                if (!ok) {
+                    LOG(ERROR) << "Write handler on FD (" << fd << ")"
+                               << get_fd_name_print(handlers.name) << " failed";
+                    return -1;
+                }
             }
 
         } else {
