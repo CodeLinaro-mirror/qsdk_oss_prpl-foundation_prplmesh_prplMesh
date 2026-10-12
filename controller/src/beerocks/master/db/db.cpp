@@ -493,10 +493,10 @@ std::shared_ptr<Agent> db::add_gateway(const sMacAddr &mac)
     where a GW is running both the controller and agent.
     */
 
-    m_ambiorix_datamodel->set(agent->dm_path + ".MultiAPDevice", "EasyMeshControllerOperationMode",
-                              std::string{"Running"});
-    m_ambiorix_datamodel->set(agent->dm_path + ".MultiAPDevice", "EasyMeshAgentOperationMode",
-                              std::string{"Running"});
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("EasyMeshControllerOperationMode", std::string{"Running"});
+    values.add_child("EasyMeshAgentOperationMode", std::string{"Running"});
+    m_ambiorix_datamodel->set_multi(agent->dm_path + ".MultiAPDevice", values);
 
     return agent;
 }
@@ -621,8 +621,10 @@ bool db::dm_add_radio_element(Agent::sRadio &radio, Agent &agent)
         }
     }
 
-    bool ret = m_ambiorix_datamodel->set(radio.dm_path, "ID", radio.radio_uid);
-    ret &= m_ambiorix_datamodel->set(radio.dm_path, "X_PRPLWARE-COM_Name", radio.iface_name);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("ID", tlvf::mac_to_string(radio.radio_uid));
+    values.add_child("X_PRPLWARE-COM_Name", radio.iface_name);
+    bool ret = m_ambiorix_datamodel->set_multi(radio.dm_path, values);
     return ret;
 }
 
@@ -678,19 +680,20 @@ bool db::dm_add_sta_beacon_measurement(const beerocks_message::sBeaconResponse11
 
     ret_val &= dm_set_multi_ap_sta_noise_param(*sta, beacon.rcpi, beacon.rsni);
 
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "BSSID", beacon.bssid);
-    ret_val &=
-        m_ambiorix_datamodel->set(measurement_inst, "MeasurementToken", beacon.measurement_token);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "RCPI", beacon.rcpi);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "RSNI", beacon.rsni);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "Channel", beacon.channel);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "OpClass", beacon.op_class);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "DialogToken", beacon.dialog_token);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "RepMode", beacon.rep_mode);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "PhyType", beacon.phy_type);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "AntId", beacon.ant_id);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "Duration", beacon.duration);
-    ret_val &= m_ambiorix_datamodel->set(measurement_inst, "StartTime", beacon.start_time);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BSSID", tlvf::mac_to_string(beacon.bssid));
+    values.add_child("MeasurementToken", beacon.measurement_token);
+    values.add_child("RCPI", beacon.rcpi);
+    values.add_child("RSNI", beacon.rsni);
+    values.add_child("Channel", beacon.channel);
+    values.add_child("OpClass", beacon.op_class);
+    values.add_child("DialogToken", beacon.dialog_token);
+    values.add_child("RepMode", beacon.rep_mode);
+    values.add_child("PhyType", beacon.phy_type);
+    values.add_child("AntId", beacon.ant_id);
+    values.add_child("Duration", beacon.duration);
+    values.add_child("StartTime", beacon.start_time);
+    ret_val &= m_ambiorix_datamodel->set_multi(measurement_inst, values);
     return ret_val;
 }
 
@@ -1480,28 +1483,21 @@ bool db::set_ap_vht_capabilities(wfa_map::tlvApVhtCapabilities &vht_caps_tlv)
     auto flags1 = vht_caps_tlv.flags1();
     auto flags2 = vht_caps_tlv.flags2();
 
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "MCSNSSTxSet", vht_caps_tlv.supported_vht_tx_mcs());
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "MCSNSSRxSet", vht_caps_tlv.supported_vht_rx_mcs());
-
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams",
-                                         flags1.max_num_of_supported_tx_spatial_streams + 1);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams",
-                                         flags1.max_num_of_supported_rx_spatial_streams + 1);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHTShortGI80",
-                                         static_cast<bool>(flags1.short_gi_support_80mhz));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "VHTShortGI160",
-                                  static_cast<bool>(flags1.short_gi_support_160mhz_and_80_80mhz));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHT8080",
-                                         static_cast<bool>(flags2.vht_support_80_80mhz));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHT160",
-                                         static_cast<bool>(flags2.vht_support_160mhz));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(flags2.su_beamformer_capable));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(flags2.mu_beamformer_capable));
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MCSNSSTxSet", vht_caps_tlv.supported_vht_tx_mcs());
+    values.add_child("MCSNSSRxSet", vht_caps_tlv.supported_vht_rx_mcs());
+    values.add_child("MaxNumberOfTxSpatialStreams",
+                     flags1.max_num_of_supported_tx_spatial_streams + 1);
+    values.add_child("MaxNumberOfRxSpatialStreams",
+                     flags1.max_num_of_supported_rx_spatial_streams + 1);
+    values.add_child("VHTShortGI80", static_cast<bool>(flags1.short_gi_support_80mhz));
+    values.add_child("VHTShortGI160",
+                     static_cast<bool>(flags1.short_gi_support_160mhz_and_80_80mhz));
+    values.add_child("VHT8080", static_cast<bool>(flags2.vht_support_80_80mhz));
+    values.add_child("VHT160", static_cast<bool>(flags2.vht_support_160mhz));
+    values.add_child("SUBeamformer", static_cast<bool>(flags2.su_beamformer_capable));
+    values.add_child("MUBeamformer", static_cast<bool>(flags2.mu_beamformer_capable));
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
 
     return ret_val;
 }
@@ -1599,48 +1595,37 @@ bool db::dm_set_sta_he_capabilities(const std::string &path_to_sta,
     bool ret_val            = true;
     std::string path_to_obj = path_to_sta + "WiFi6Capabilities.";
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE8080",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_80_80));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_160));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.he_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformee",
-                                         static_cast<bool>(sta_cap.he_su_beamformee));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.he_mu_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "Beamformee80orLess",
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MaxNumberOfTxSpatialStreams", sta_cap.he_ss);
+    values.add_child("MaxNumberOfRxSpatialStreams", sta_cap.he_ss);
+    values.add_child("HE8080", static_cast<bool>(sta_cap.he_bw == BANDWIDTH_80_80));
+    values.add_child("HE160", static_cast<bool>(sta_cap.he_bw == BANDWIDTH_160));
+    values.add_child("SUBeamformer", static_cast<bool>(sta_cap.he_su_beamformer));
+    values.add_child("SUBeamformee", static_cast<bool>(sta_cap.he_su_beamformee));
+    values.add_child("MUBeamformer", static_cast<bool>(sta_cap.he_mu_beamformer));
+    values.add_child(
+        "Beamformee80orLess",
         static_cast<bool>(sta_cap.he_su_beamformee ? sta_cap.he_beamformee_sts_less_80mhz : false));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "BeamformeeAbove80",
-        static_cast<bool>(sta_cap.he_su_beamformee && (sta_cap.he_bw > BANDWIDTH_80)
-                              ? sta_cap.he_beamformee_sts_great_80mhz
-                              : false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULMUMIMO", static_cast<bool>(sta_cap.ul_mu_mimo));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULOFDMA", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "DLOFDMA", static_cast<bool>(sta_cap.dl_ofdma));
-    // TODO: find the values for the unfilled parameters, PPM-2112
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLMUMIMO", sta_cap.dl_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULMUMIMO", sta_cap.ul_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLOFDMA", sta_cap.dl_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULOFDMA", sta_cap.ul_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "RTS", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MURTS", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MultiBSSID", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUEDCA", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTRequestor",
-                                         static_cast<bool>(sta_cap.twt_requester));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTResponder",
-                                         static_cast<bool>(sta_cap.twt_responder));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SpatialReuse", static_cast<bool>(false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "AnticipatedChannelUsage", static_cast<bool>(false));
+    values.add_child("BeamformeeAbove80",
+                     static_cast<bool>(sta_cap.he_su_beamformee && (sta_cap.he_bw > BANDWIDTH_80)
+                                           ? sta_cap.he_beamformee_sts_great_80mhz
+                                           : false));
+    values.add_child("ULMUMIMO", static_cast<bool>(sta_cap.ul_mu_mimo));
+    values.add_child("ULOFDMA", static_cast<bool>(sta_cap.ul_ofdma));
+    values.add_child("DLOFDMA", static_cast<bool>(sta_cap.dl_ofdma));
+    values.add_child("MaxDLMUMIMO", sta_cap.dl_mu_mimo_max_users);
+    values.add_child("MaxULMUMIMO", sta_cap.ul_mu_mimo_max_users);
+    values.add_child("MaxDLOFDMA", sta_cap.dl_ofdma_max_users);
+    values.add_child("MaxULOFDMA", sta_cap.ul_ofdma_max_users);
+    values.add_child("RTS", static_cast<bool>(false));
+    values.add_child("MURTS", static_cast<bool>(sta_cap.ul_ofdma));
+    values.add_child("MultiBSSID", static_cast<bool>(false));
+    values.add_child("MUEDCA", static_cast<bool>(false));
+    values.add_child("TWTRequestor", static_cast<bool>(sta_cap.twt_requester));
+    values.add_child("TWTResponder", static_cast<bool>(sta_cap.twt_responder));
+    values.add_child("SpatialReuse", static_cast<bool>(false));
+    values.add_child("AnticipatedChannelUsage", static_cast<bool>(false));
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
 
     return ret_val;
 }
@@ -1679,46 +1664,32 @@ bool db::set_ap_wifi6_capabilities(wfa_map::tlvApWifi6Capabilities &wifi6_caps_t
             (agent_role_first_bit == 0x0 ? "WiFi6APRole" : "WiFi6bSTARole");
 
         //TODO: Need to set the value for MCS_NSS and OFDMA (PPM-2288)
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
-                                             static_cast<bool>(flags1.he_support_160mhz));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE8080",
-                                             static_cast<bool>(flags1.he_support_80_80mhz));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                             static_cast<bool>(flags2.su_beamformer));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformee",
-                                             static_cast<bool>(flags2.su_beamformee));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                             static_cast<bool>(flags2.mu_Beamformer_status));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "Beamformee80orLess",
-                                             static_cast<bool>(flags2.beamformee_sts_less_80mhz));
-        ret_val &=
-            m_ambiorix_datamodel->set(path_to_obj, "BeamformeeAbove80",
-                                      static_cast<bool>(flags2.beamformee_sts_greater_80mhz));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "ULMUMIMO",
-                                             static_cast<bool>(flags2.ul_mu_mimo));
-        ret_val &=
-            m_ambiorix_datamodel->set(path_to_obj, "ULOFDMA", static_cast<bool>(flags2.ul_ofdma));
-        ret_val &=
-            m_ambiorix_datamodel->set(path_to_obj, "DLOFDMA", static_cast<bool>(flags2.dl_ofdma));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLMUMIMO", flags3.max_dl_mu_mimo_tx);
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULMUMIMO", flags3.max_ul_mu_mimo_rx);
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLOFDMA", role.max_dl_ofdma_tx());
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULOFDMA", role.max_ul_ofdma_rx());
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "RTS", static_cast<bool>(flags4.rts));
-        ret_val &=
-            m_ambiorix_datamodel->set(path_to_obj, "MURTS", static_cast<bool>(flags4.mu_rts));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MultiBSSID",
-                                             static_cast<bool>(flags4.multi_bssid));
-        ret_val &=
-            m_ambiorix_datamodel->set(path_to_obj, "MUEDCA", static_cast<bool>(flags4.mu_edca));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTRequestor",
-                                             static_cast<bool>(flags4.twt_requester));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTResponder",
-                                             static_cast<bool>(flags4.twt_responder));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SpatialReuse",
-                                             static_cast<bool>(flags4.spatial_reuse));
-        ret_val &= m_ambiorix_datamodel->set(path_to_obj, "AnticipatedChannelUsage",
-                                             static_cast<bool>(flags4.anticipated_channel_usage));
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("HE160", static_cast<bool>(flags1.he_support_160mhz));
+        values.add_child("HE8080", static_cast<bool>(flags1.he_support_80_80mhz));
+        values.add_child("SUBeamformer", static_cast<bool>(flags2.su_beamformer));
+        values.add_child("SUBeamformee", static_cast<bool>(flags2.su_beamformee));
+        values.add_child("MUBeamformer", static_cast<bool>(flags2.mu_Beamformer_status));
+        values.add_child("Beamformee80orLess", static_cast<bool>(flags2.beamformee_sts_less_80mhz));
+        values.add_child("BeamformeeAbove80",
+                         static_cast<bool>(flags2.beamformee_sts_greater_80mhz));
+        values.add_child("ULMUMIMO", static_cast<bool>(flags2.ul_mu_mimo));
+        values.add_child("ULOFDMA", static_cast<bool>(flags2.ul_ofdma));
+        values.add_child("DLOFDMA", static_cast<bool>(flags2.dl_ofdma));
+        values.add_child("MaxDLMUMIMO", flags3.max_dl_mu_mimo_tx);
+        values.add_child("MaxULMUMIMO", flags3.max_ul_mu_mimo_rx);
+        values.add_child("MaxDLOFDMA", role.max_dl_ofdma_tx());
+        values.add_child("MaxULOFDMA", role.max_ul_ofdma_rx());
+        values.add_child("RTS", static_cast<bool>(flags4.rts));
+        values.add_child("MURTS", static_cast<bool>(flags4.mu_rts));
+        values.add_child("MultiBSSID", static_cast<bool>(flags4.multi_bssid));
+        values.add_child("MUEDCA", static_cast<bool>(flags4.mu_edca));
+        values.add_child("TWTRequestor", static_cast<bool>(flags4.twt_requester));
+        values.add_child("TWTResponder", static_cast<bool>(flags4.twt_responder));
+        values.add_child("SpatialReuse", static_cast<bool>(flags4.spatial_reuse));
+        values.add_child("AnticipatedChannelUsage",
+                         static_cast<bool>(flags4.anticipated_channel_usage));
+        ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
     }
     return ret_val;
 }
@@ -1825,10 +1796,12 @@ bool db::set_wifi7_support(const Agent::sRadio &radio, bool is_bsta)
     std::string path_to_obj = radio.dm_path + ".Capabilities.";
     path_to_obj += (is_bsta ? "WiFi7bSTARole." : "WiFi7APRole.");
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "STRSupport", wifi7_role.str_support);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "NSTRSupport", wifi7_role.nstr_support);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "EMLSRSupport", wifi7_role.emlsr_support);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "EMLMRSupport", wifi7_role.emlmr_support);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("STRSupport", wifi7_role.str_support);
+    values.add_child("NSTRSupport", wifi7_role.nstr_support);
+    values.add_child("EMLSRSupport", wifi7_role.emlsr_support);
+    values.add_child("EMLMRSupport", wifi7_role.emlmr_support);
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
 
     return ret_val;
 }
@@ -1856,9 +1829,10 @@ bool db::set_wifi7_capabilities(const Agent::sRadio &radio, bool is_bsta)
                 return false;
             }
 
-            ret_val &= m_ambiorix_datamodel->set(path_to_obj_str, "RUID", str_freq_separation.ruid);
-            ret_val &= m_ambiorix_datamodel->set(path_to_obj_str, "FreqSeparation",
-                                                 str_freq_separation.freq_separation);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("RUID", tlvf::mac_to_string(str_freq_separation.ruid));
+            values.add_child("FreqSeparation", str_freq_separation.freq_separation);
+            ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj_str, values);
         }
     }
 
@@ -1874,10 +1848,10 @@ bool db::set_wifi7_capabilities(const Agent::sRadio &radio, bool is_bsta)
                 return false;
             }
 
-            ret_val &=
-                m_ambiorix_datamodel->set(path_to_obj_nstr, "RUID", nstr_freq_separation.ruid);
-            ret_val &= m_ambiorix_datamodel->set(path_to_obj_nstr, "FreqSeparation",
-                                                 nstr_freq_separation.freq_separation);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("RUID", tlvf::mac_to_string(nstr_freq_separation.ruid));
+            values.add_child("FreqSeparation", nstr_freq_separation.freq_separation);
+            ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj_nstr, values);
         }
     }
 
@@ -1893,10 +1867,10 @@ bool db::set_wifi7_capabilities(const Agent::sRadio &radio, bool is_bsta)
                 return false;
             }
 
-            ret_val &=
-                m_ambiorix_datamodel->set(path_to_obj_emlsr, "RUID", emlsr_freq_separation.ruid);
-            ret_val &= m_ambiorix_datamodel->set(path_to_obj_emlsr, "FreqSeparation",
-                                                 emlsr_freq_separation.freq_separation);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("RUID", tlvf::mac_to_string(emlsr_freq_separation.ruid));
+            values.add_child("FreqSeparation", emlsr_freq_separation.freq_separation);
+            ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj_emlsr, values);
         }
     }
 
@@ -1912,10 +1886,10 @@ bool db::set_wifi7_capabilities(const Agent::sRadio &radio, bool is_bsta)
                 return false;
             }
 
-            ret_val &=
-                m_ambiorix_datamodel->set(path_to_obj_emlmr, "RUID", emlmr_freq_separation.ruid);
-            ret_val &= m_ambiorix_datamodel->set(path_to_obj_emlmr, "FreqSeparation",
-                                                 emlmr_freq_separation.freq_separation);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("RUID", tlvf::mac_to_string(emlmr_freq_separation.ruid));
+            values.add_child("FreqSeparation", emlmr_freq_separation.freq_separation);
+            ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj_emlmr, values);
         }
     }
 
@@ -1941,19 +1915,16 @@ bool db::set_wifi7_agent_capabilities(wfa_map::tlvWifi7AgentCapabilities &wifi7_
     if (!agent->dm_path.empty()) {
         // Device.x
         auto path_to_obj_agent = agent->dm_path + ".";
-        ret_val &=
-            m_ambiorix_datamodel->set(path_to_obj_agent, "MaxNumMLDs",
-                                      static_cast<uint8_t>(wifi7_agt_caps_tlv.max_num_mlds()));
-        ret_val &= m_ambiorix_datamodel->set(
-            path_to_obj_agent, "APMLDMaxLinks",
-            static_cast<uint8_t>(wifi7_agt_caps_tlv.flags1().ap_maximum_links));
-        ret_val &= m_ambiorix_datamodel->set(
-            path_to_obj_agent, "bSTAMLDMaxLinks",
-            static_cast<uint8_t>(wifi7_agt_caps_tlv.flags1().bsta_maximum_links));
-        ret_val &= m_ambiorix_datamodel->set(
-            path_to_obj_agent, "TIDLinkMapCapability",
-            std::to_string(
-                static_cast<uint8_t>(wifi7_agt_caps_tlv.flags2().tid_to_link_mapping_capability)));
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("MaxNumMLDs", static_cast<uint8_t>(wifi7_agt_caps_tlv.max_num_mlds()));
+        values.add_child("APMLDMaxLinks",
+                         static_cast<uint8_t>(wifi7_agt_caps_tlv.flags1().ap_maximum_links));
+        values.add_child("bSTAMLDMaxLinks",
+                         static_cast<uint8_t>(wifi7_agt_caps_tlv.flags1().bsta_maximum_links));
+        values.add_child("TIDLinkMapCapability",
+                         std::to_string(static_cast<uint8_t>(
+                             wifi7_agt_caps_tlv.flags2().tid_to_link_mapping_capability)));
+        ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj_agent, values);
     }
 
     for (auto radio_idx = 0; radio_idx < wifi7_agt_caps_tlv.num_radio(); ++radio_idx) {
@@ -2135,14 +2106,12 @@ bool db::dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &ap_mld)
 
     // APMLD Config - str, nstr, emlsr, emlmr
     auto ap_mld_config_dm_path = ap_mld.dm_path + ".APMLDConfig";
-    m_ambiorix_datamodel->set(ap_mld_config_dm_path, "STREnabled",
-                              (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_STR) != 0);
-    m_ambiorix_datamodel->set(ap_mld_config_dm_path, "NSTREnabled",
-                              (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_NSTR) != 0);
-    m_ambiorix_datamodel->set(ap_mld_config_dm_path, "EMLSREnabled",
-                              (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLSR) != 0);
-    m_ambiorix_datamodel->set(ap_mld_config_dm_path, "EMLMREnabled",
-                              (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLMR) != 0);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("STREnabled", (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_STR) != 0);
+    values.add_child("NSTREnabled", (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_NSTR) != 0);
+    values.add_child("EMLSREnabled", (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLSR) != 0);
+    values.add_child("EMLMREnabled", (ap_mld.mld_info.mld_mode & beerocks::MLO_MODE_EMLMR) != 0);
+    m_ambiorix_datamodel->set_multi(ap_mld_config_dm_path, values);
 
     for (auto &affl_ap_it : ap_mld.affiliated_aps) {
 
@@ -2162,9 +2131,11 @@ bool db::dm_add_ap_mld(const sMacAddr &al_mac, Agent::sAPMLD &ap_mld)
 
         // Update Data Model
         // RUID, BSSID, LinkID
-        m_ambiorix_datamodel->set(affiliated_ap.dm_path, "RUID", affiliated_ap.ruid);
-        m_ambiorix_datamodel->set(affiliated_ap.dm_path, "BSSID", affiliated_ap.bssid);
-        m_ambiorix_datamodel->set(affiliated_ap.dm_path, "LinkID", affiliated_ap.link_id);
+        values = AmbiorixVariant(AMXC_VAR_ID_HTABLE);
+        values.add_child("RUID", tlvf::mac_to_string(affiliated_ap.ruid));
+        values.add_child("BSSID", tlvf::mac_to_string(affiliated_ap.bssid));
+        values.add_child("LinkID", affiliated_ap.link_id);
+        m_ambiorix_datamodel->set_multi(affiliated_ap.dm_path, values);
     }
     return true;
 }
@@ -2241,16 +2212,13 @@ bool db::dm_set_sta_ht_capabilities(const std::string &path_to_sta,
     bool ret_val            = true;
     std::string path_to_obj = path_to_sta + "HTCapabilities.";
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HTShortGI20",
-                                         static_cast<bool>(sta_cap.ht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HTShortGI40",
-                                         static_cast<bool>(sta_cap.ht_high_bw_short_gi));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "HT40", (sta_cap.ht_bw == beerocks::BANDWIDTH_40));
-    // TODO: find value for tx_spatial_streams PPM-792.
-    // Parse the (Re)Association Request frame.
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.ht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.ht_ss);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("HTShortGI20", static_cast<bool>(sta_cap.ht_low_bw_short_gi));
+    values.add_child("HTShortGI40", static_cast<bool>(sta_cap.ht_high_bw_short_gi));
+    values.add_child("HT40", (sta_cap.ht_bw == beerocks::BANDWIDTH_40));
+    values.add_child("MaxNumberOfTxSpatialStreams", sta_cap.ht_ss);
+    values.add_child("MaxNumberOfRxSpatialStreams", sta_cap.ht_ss);
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
 
     return ret_val;
 }
@@ -2268,25 +2236,18 @@ bool db::dm_set_sta_vht_capabilities(const std::string &path_to_sta,
 
     auto vht_mcs_set = son::wireless_utils::get_vht_mcs_set(sta_cap.vht_mcs, sta_cap.vht_ss);
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MCSNSSTxSet", vht_mcs_set);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MCSNSSRxSet", vht_mcs_set);
-    // TODO: find value for tx_spatial_streams PPM-792.
-    // Parse the (Re)Association Request frame.
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.vht_ss);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.vht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHTShortGI80",
-                                         static_cast<bool>(sta_cap.vht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHTShortGI160",
-                                         static_cast<bool>(sta_cap.vht_high_bw_short_gi));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "VHT8080", (BANDWIDTH_80_80 <= sta_cap.vht_bw));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "VHT160", (BANDWIDTH_160 <= sta_cap.vht_bw));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_mu_beamformer));
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MCSNSSTxSet", vht_mcs_set);
+    values.add_child("MCSNSSRxSet", vht_mcs_set);
+    values.add_child("MaxNumberOfTxSpatialStreams", sta_cap.vht_ss);
+    values.add_child("MaxNumberOfRxSpatialStreams", sta_cap.vht_ss);
+    values.add_child("VHTShortGI80", static_cast<bool>(sta_cap.vht_low_bw_short_gi));
+    values.add_child("VHTShortGI160", static_cast<bool>(sta_cap.vht_high_bw_short_gi));
+    values.add_child("VHT8080", (BANDWIDTH_80_80 <= sta_cap.vht_bw));
+    values.add_child("VHT160", (BANDWIDTH_160 <= sta_cap.vht_bw));
+    values.add_child("SUBeamformer", static_cast<bool>(sta_cap.vht_su_beamformer));
+    values.add_child("MUBeamformer", static_cast<bool>(sta_cap.vht_mu_beamformer));
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
 
     return ret_val;
 }
@@ -2328,17 +2289,13 @@ bool db::dm_set_assoc_event_sta_ht_cap(const std::string &path_to_event,
     bool ret_val               = true;
     std::string path_to_ht_cap = path_to_event + "HTCapabilities.";
 
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfTxSpatialStreams", sta_cap.ht_ss);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfRxSpatialStreams", sta_cap.ht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "HTShortGI20",
-                                         static_cast<bool>(sta_cap.ht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "HTShortGI40",
-                                         static_cast<bool>(sta_cap.ht_high_bw_short_gi));
-    // Set to 1 if both 20 MHz and 40 MHz operation is supported
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "HT40",
-                                         (sta_cap.ht_bw == beerocks::BANDWIDTH_40));
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MaxNumberOfTxSpatialStreams", sta_cap.ht_ss);
+    values.add_child("MaxNumberOfRxSpatialStreams", sta_cap.ht_ss);
+    values.add_child("HTShortGI20", static_cast<bool>(sta_cap.ht_low_bw_short_gi));
+    values.add_child("HTShortGI40", static_cast<bool>(sta_cap.ht_high_bw_short_gi));
+    values.add_child("HT40", (sta_cap.ht_bw == beerocks::BANDWIDTH_40));
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_ht_cap, values);
 
     return ret_val;
 }
@@ -2356,24 +2313,18 @@ bool db::dm_set_assoc_event_sta_vht_cap(const std::string &path_to_event,
 
     auto vht_mcs_set = son::wireless_utils::get_vht_mcs_set(sta_cap.vht_mcs, sta_cap.vht_ss);
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "MCSNSSTxSet", vht_mcs_set);
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "MCSNSSRxSet", vht_mcs_set);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfTxSpatialStreams", sta_cap.vht_ss);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "MaxNumberOfRxSpatialStreams", sta_cap.vht_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "VHTShortGI80",
-                                         static_cast<bool>(sta_cap.vht_low_bw_short_gi));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "VHTShortGI160",
-                                         static_cast<bool>(sta_cap.vht_high_bw_short_gi));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "VHT8080", (BANDWIDTH_80_80 <= sta_cap.vht_bw));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_ht_cap, "VHT160", (BANDWIDTH_160 <= sta_cap.vht_bw));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_ht_cap, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.vht_mu_beamformer));
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MCSNSSTxSet", vht_mcs_set);
+    values.add_child("MCSNSSRxSet", vht_mcs_set);
+    values.add_child("MaxNumberOfTxSpatialStreams", sta_cap.vht_ss);
+    values.add_child("MaxNumberOfRxSpatialStreams", sta_cap.vht_ss);
+    values.add_child("VHTShortGI80", static_cast<bool>(sta_cap.vht_low_bw_short_gi));
+    values.add_child("VHTShortGI160", static_cast<bool>(sta_cap.vht_high_bw_short_gi));
+    values.add_child("VHT8080", (BANDWIDTH_80_80 <= sta_cap.vht_bw));
+    values.add_child("VHT160", (BANDWIDTH_160 <= sta_cap.vht_bw));
+    values.add_child("SUBeamformer", static_cast<bool>(sta_cap.vht_su_beamformer));
+    values.add_child("MUBeamformer", static_cast<bool>(sta_cap.vht_mu_beamformer));
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_ht_cap, values);
 
     return ret_val;
 }
@@ -2389,48 +2340,37 @@ bool db::dm_set_assoc_event_sta_he_cap(const std::string &path_to_event,
     bool ret_val            = true;
     std::string path_to_obj = path_to_event + "WiFi6Capabilities.";
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams", sta_cap.he_ss);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE8080",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_80_80));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HE160",
-                                         static_cast<bool>(sta_cap.he_bw == BANDWIDTH_160));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformer",
-                                         static_cast<bool>(sta_cap.he_su_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SUBeamformee",
-                                         static_cast<bool>(sta_cap.he_su_beamformee));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUBeamformer",
-                                         static_cast<bool>(sta_cap.he_mu_beamformer));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "Beamformee80orLess",
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MaxNumberOfTxSpatialStreams", sta_cap.he_ss);
+    values.add_child("MaxNumberOfRxSpatialStreams", sta_cap.he_ss);
+    values.add_child("HE8080", static_cast<bool>(sta_cap.he_bw == BANDWIDTH_80_80));
+    values.add_child("HE160", static_cast<bool>(sta_cap.he_bw == BANDWIDTH_160));
+    values.add_child("SUBeamformer", static_cast<bool>(sta_cap.he_su_beamformer));
+    values.add_child("SUBeamformee", static_cast<bool>(sta_cap.he_su_beamformee));
+    values.add_child("MUBeamformer", static_cast<bool>(sta_cap.he_mu_beamformer));
+    values.add_child(
+        "Beamformee80orLess",
         static_cast<bool>(sta_cap.he_su_beamformee ? sta_cap.he_beamformee_sts_less_80mhz : false));
-    ret_val &= m_ambiorix_datamodel->set(
-        path_to_obj, "BeamformeeAbove80",
-        static_cast<bool>(sta_cap.he_su_beamformee && (sta_cap.he_bw > BANDWIDTH_80)
-                              ? sta_cap.he_beamformee_sts_great_80mhz
-                              : false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULMUMIMO", static_cast<bool>(sta_cap.ul_mu_mimo));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "ULOFDMA", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "DLOFDMA", static_cast<bool>(sta_cap.dl_ofdma));
-    // TODO: find the values for the unfilled parameters, PPM-2112
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLMUMIMO", sta_cap.dl_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULMUMIMO", sta_cap.ul_mu_mimo_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxDLOFDMA", sta_cap.dl_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxULOFDMA", sta_cap.ul_ofdma_max_users);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "RTS", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MURTS", static_cast<bool>(sta_cap.ul_ofdma));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MultiBSSID", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MUEDCA", static_cast<bool>(false));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTRequestor",
-                                         static_cast<bool>(sta_cap.twt_requester));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "TWTResponder",
-                                         static_cast<bool>(sta_cap.twt_responder));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "SpatialReuse", static_cast<bool>(false));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "AnticipatedChannelUsage", static_cast<bool>(false));
+    values.add_child("BeamformeeAbove80",
+                     static_cast<bool>(sta_cap.he_su_beamformee && (sta_cap.he_bw > BANDWIDTH_80)
+                                           ? sta_cap.he_beamformee_sts_great_80mhz
+                                           : false));
+    values.add_child("ULMUMIMO", static_cast<bool>(sta_cap.ul_mu_mimo));
+    values.add_child("ULOFDMA", static_cast<bool>(sta_cap.ul_ofdma));
+    values.add_child("DLOFDMA", static_cast<bool>(sta_cap.dl_ofdma));
+    values.add_child("MaxDLMUMIMO", sta_cap.dl_mu_mimo_max_users);
+    values.add_child("MaxULMUMIMO", sta_cap.ul_mu_mimo_max_users);
+    values.add_child("MaxDLOFDMA", sta_cap.dl_ofdma_max_users);
+    values.add_child("MaxULOFDMA", sta_cap.ul_ofdma_max_users);
+    values.add_child("RTS", static_cast<bool>(false));
+    values.add_child("MURTS", static_cast<bool>(sta_cap.ul_ofdma));
+    values.add_child("MultiBSSID", static_cast<bool>(false));
+    values.add_child("MUEDCA", static_cast<bool>(false));
+    values.add_child("TWTRequestor", static_cast<bool>(sta_cap.twt_requester));
+    values.add_child("TWTResponder", static_cast<bool>(sta_cap.twt_responder));
+    values.add_child("SpatialReuse", static_cast<bool>(false));
+    values.add_child("AnticipatedChannelUsage", static_cast<bool>(false));
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
 
     return ret_val;
 }
@@ -4326,15 +4266,17 @@ static void dm_add_bss_neighbors(std::shared_ptr<beerocks::nbapi::Ambiorix> m_am
             LOG(ERROR) << "Failed to add NeighborBSS to " << channel_path;
             return;
         }
-        m_ambiorix_datamodel->set(neighbor_path, "BSSID", neighbor.bssid());
-        m_ambiorix_datamodel->set(neighbor_path, "SSID", neighbor.ssid_str());
-        m_ambiorix_datamodel->set(neighbor_path, "SignalStrength", neighbor.signal_strength());
-        m_ambiorix_datamodel->set(neighbor_path, "ChannelBandwidth",
-                                  neighbor.channels_bw_list_str());
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("BSSID", tlvf::mac_to_string(neighbor.bssid()));
+        values.add_child("SSID", neighbor.ssid_str());
+        values.add_child("SignalStrength", neighbor.signal_strength());
+        values.add_child("ChannelBandwidth", neighbor.channels_bw_list_str());
+        m_ambiorix_datamodel->set_multi(neighbor_path, values);
         if (neighbor.bss_load_element_present()) {
-            m_ambiorix_datamodel->set(neighbor_path, "ChannelUtilization",
-                                      neighbor.channel_utilization());
-            m_ambiorix_datamodel->set(neighbor_path, "StationCount", neighbor.station_count());
+            values = AmbiorixVariant(AMXC_VAR_ID_HTABLE);
+            values.add_child("ChannelUtilization", neighbor.channel_utilization());
+            values.add_child("StationCount", neighbor.station_count());
+            m_ambiorix_datamodel->set_multi(neighbor_path, values);
         }
     }
 }
@@ -4358,10 +4300,12 @@ dm_add_channel_scan(std::shared_ptr<beerocks::nbapi::Ambiorix> m_ambiorix_datamo
             return {};
         }
     }
-    m_ambiorix_datamodel->set(channel_path, "TimeStamp", ISO_8601_timestamp);
-    m_ambiorix_datamodel->set(channel_path, "Channel", channel);
-    m_ambiorix_datamodel->set(channel_path, "Utilization", utilization);
-    m_ambiorix_datamodel->set(channel_path, "Noise", noise);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("TimeStamp", ISO_8601_timestamp);
+    values.add_child("Channel", channel);
+    values.add_child("Utilization", utilization);
+    values.add_child("Noise", noise);
+    m_ambiorix_datamodel->set_multi(channel_path, values);
     return channel_path;
 }
 
@@ -4501,16 +4445,16 @@ bool db::restore_steer_history()
             return false;
         }
         m_steer_history.push(entry.first);
-        ret &= m_ambiorix_datamodel->set(obj_path, "DeviceId", entry.second["device_id"]);
-        ret &= m_ambiorix_datamodel->set(obj_path, "SteeredFrom", entry.second["steered_from"]);
-        ret &= m_ambiorix_datamodel->set(obj_path, "SteeredTo", entry.second["steered_to"]);
-        ret &= m_ambiorix_datamodel->set(obj_path, "Result", entry.second["result"]);
-        ret &= m_ambiorix_datamodel->set(obj_path, "TimeStamp", entry.second["time_stamp"]);
-        ret &= m_ambiorix_datamodel->set(obj_path, "SteeringType", entry.second["steering_type"]);
-        ret &=
-            m_ambiorix_datamodel->set(obj_path, "SteeringOrigin", entry.second["steering_origin"]);
-        ret &=
-            m_ambiorix_datamodel->set(obj_path, "TimeTaken", std::stoi(entry.second["time_taken"]));
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("DeviceId", entry.second["device_id"]);
+        values.add_child("SteeredFrom", entry.second["steered_from"]);
+        values.add_child("SteeredTo", entry.second["steered_to"]);
+        values.add_child("Result", entry.second["result"]);
+        values.add_child("TimeStamp", entry.second["time_stamp"]);
+        values.add_child("SteeringType", entry.second["steering_type"]);
+        values.add_child("SteeringOrigin", entry.second["steering_origin"]);
+        values.add_child("TimeTaken", std::stoi(entry.second["time_taken"]));
+        ret &= m_ambiorix_datamodel->set_multi(obj_path, values);
     }
     return ret;
 }
@@ -5418,24 +5362,18 @@ bool db::notify_sta_disconnection(const std::string &client_mac, const uint16_t 
 
     bool ret_val = true;
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "BSSID", bssid);
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "MACAddress", client_mac);
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "ReasonCode", reason_code);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "BytesSent", pSta->stats_info->tx_bytes);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "BytesReceived", pSta->stats_info->rx_bytes);
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "PacketsSent", pSta->stats_info->tx_packets);
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "PacketsReceived",
-                                         pSta->stats_info->rx_packets);
-
-    // ErrorsSent and ErrorsReceived are not available yet on stats_info
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "ErrorsSent", static_cast<uint32_t>(0));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_eventdata, "ErrorsReceived", static_cast<uint32_t>(0));
-    ret_val &= m_ambiorix_datamodel->set(path_to_eventdata, "RetransCount",
-                                         pSta->stats_info->retrans_count);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BSSID", bssid);
+    values.add_child("MACAddress", client_mac);
+    values.add_child("ReasonCode", reason_code);
+    values.add_child("BytesSent", pSta->stats_info->tx_bytes);
+    values.add_child("BytesReceived", pSta->stats_info->rx_bytes);
+    values.add_child("PacketsSent", pSta->stats_info->tx_packets);
+    values.add_child("PacketsReceived", pSta->stats_info->rx_packets);
+    values.add_child("ErrorsSent", static_cast<uint32_t>(0));
+    values.add_child("ErrorsReceived", static_cast<uint32_t>(0));
+    values.add_child("RetransCount", pSta->stats_info->retrans_count);
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_eventdata, values);
     ret_val &= m_ambiorix_datamodel->set_current_time(path_to_eventdata);
 
     return ret_val;
@@ -5489,12 +5427,14 @@ bool db::set_vap_stats_info(const sMacAddr &bssid, uint64_t uc_tx_bytes, uint64_
 
     bool ret_val = true;
 
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "UnicastBytesSent", uc_tx_bytes);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "UnicastBytesReceived", uc_rx_bytes);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "MulticastBytesSent", mc_tx_bytes);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "MulticastBytesReceived", mc_rx_bytes);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "BroadcastBytesSent", bc_tx_bytes);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "BroadcastBytesReceived", bc_rx_bytes);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("UnicastBytesSent", uc_tx_bytes);
+    values.add_child("UnicastBytesReceived", uc_rx_bytes);
+    values.add_child("MulticastBytesSent", mc_tx_bytes);
+    values.add_child("MulticastBytesReceived", mc_rx_bytes);
+    values.add_child("BroadcastBytesSent", bc_tx_bytes);
+    values.add_child("BroadcastBytesReceived", bc_rx_bytes);
+    ret_val &= m_ambiorix_datamodel->set_multi(bss->dm_path, values);
 
     m_ambiorix_datamodel->set_current_time(bss->dm_path);
 
@@ -5502,7 +5442,7 @@ bool db::set_vap_stats_info(const sMacAddr &bssid, uint64_t uc_tx_bytes, uint64_
 }
 
 bool db::dm_set_affiliated_ap_metrics(const sMacAddr &src_mac,
-                                      sAffiliatedApMetrics &affl_ap_metrics)
+                                      const sAffiliatedApMetrics &affl_ap_metrics)
 {
     bool ret_val = true;
 
@@ -5528,22 +5468,17 @@ bool db::dm_set_affiliated_ap_metrics(const sMacAddr &src_mac,
         return false;
     }
 
-    ret_val &= m_ambiorix_datamodel->set(dm_path, "PacketsSent", affl_ap_metrics.packets_sent);
-    ret_val &=
-        m_ambiorix_datamodel->set(dm_path, "PacketsReceived", affl_ap_metrics.packets_received);
-    ret_val &= m_ambiorix_datamodel->set(dm_path, "ErrorsSent", affl_ap_metrics.packet_sent_errors);
-    ret_val &=
-        m_ambiorix_datamodel->set(dm_path, "UnicastBytesSent", affl_ap_metrics.unicast_bytes_sent);
-    ret_val &= m_ambiorix_datamodel->set(dm_path, "UnicastBytesReceived",
-                                         affl_ap_metrics.unicast_bytes_received);
-    ret_val &= m_ambiorix_datamodel->set(dm_path, "MulticastBytesSent",
-                                         affl_ap_metrics.multicast_bytes_sent);
-    ret_val &= m_ambiorix_datamodel->set(dm_path, "MulticastBytesReceived",
-                                         affl_ap_metrics.multicast_bytes_received);
-    ret_val &= m_ambiorix_datamodel->set(dm_path, "BroadcastBytesSent",
-                                         affl_ap_metrics.broadcast_bytes_sent);
-    ret_val &= m_ambiorix_datamodel->set(dm_path, "BroadcastBytesReceived",
-                                         affl_ap_metrics.broadcast_bytes_received);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("PacketsSent", affl_ap_metrics.packets_sent);
+    values.add_child("PacketsReceived", affl_ap_metrics.packets_received);
+    values.add_child("ErrorsSent", affl_ap_metrics.packet_sent_errors);
+    values.add_child("UnicastBytesSent", affl_ap_metrics.unicast_bytes_sent);
+    values.add_child("UnicastBytesReceived", affl_ap_metrics.unicast_bytes_received);
+    values.add_child("MulticastBytesSent", affl_ap_metrics.multicast_bytes_sent);
+    values.add_child("MulticastBytesReceived", affl_ap_metrics.multicast_bytes_received);
+    values.add_child("BroadcastBytesSent", affl_ap_metrics.broadcast_bytes_sent);
+    values.add_child("BroadcastBytesReceived", affl_ap_metrics.broadcast_bytes_received);
+    ret_val &= m_ambiorix_datamodel->set_multi(dm_path, values);
 
     return ret_val;
 }
@@ -6315,11 +6250,11 @@ bool db::dm_set_sta_link_metrics(const sMacAddr &sta_mac, uint32_t downlink_est_
     station->last_assoc_sta_link_metrics_timestamp   = std::chrono::steady_clock::now();
     station->last_assoc_sta_link_metrics_uplink_rcpi = signal_strength;
 
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "EstMACDataRateDownlink",
-                                         downlink_est_mac_data_rate);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "EstMACDataRateUplink",
-                                         uplink_est_mac_data_rate);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "SignalStrength", signal_strength);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("EstMACDataRateDownlink", downlink_est_mac_data_rate);
+    values.add_child("EstMACDataRateUplink", uplink_est_mac_data_rate);
+    values.add_child("SignalStrength", signal_strength);
+    ret_val &= m_ambiorix_datamodel->set_multi(station->dm_path, values);
 
     return ret_val;
 }
@@ -6827,16 +6762,15 @@ bool db::set_ap_ht_capabilities(const sMacAddr &radio_mac,
     bool ret_val = true;
     path_to_obj += "HTCapabilities.";
 
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HTShortGI20",
-                                         static_cast<bool>(flags.short_gi_support_20mhz));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "HTShortGI40",
-                                         static_cast<bool>(flags.short_gi_support_40mhz));
-    ret_val &=
-        m_ambiorix_datamodel->set(path_to_obj, "HT40", static_cast<bool>(flags.ht_support_40mhz));
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfTxSpatialStreams",
-                                         flags.max_num_of_supported_tx_spatial_streams + 1);
-    ret_val &= m_ambiorix_datamodel->set(path_to_obj, "MaxNumberOfRxSpatialStreams",
-                                         flags.max_num_of_supported_rx_spatial_streams + 1);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("HTShortGI20", static_cast<bool>(flags.short_gi_support_20mhz));
+    values.add_child("HTShortGI40", static_cast<bool>(flags.short_gi_support_40mhz));
+    values.add_child("HT40", static_cast<bool>(flags.ht_support_40mhz));
+    values.add_child("MaxNumberOfTxSpatialStreams",
+                     flags.max_num_of_supported_tx_spatial_streams + 1);
+    values.add_child("MaxNumberOfRxSpatialStreams",
+                     flags.max_num_of_supported_rx_spatial_streams + 1);
+    ret_val &= m_ambiorix_datamodel->set_multi(path_to_obj, values);
 
     return ret_val;
 }
@@ -6992,18 +6926,16 @@ bool db::dm_restore_steering_summary_stats(Station &station)
     auto steer_summary = station.steering_summary_stats;
     auto obj_path      = station.dm_path + ".MultiAPSTA.SteeringSummaryStats";
 
-    ret_val &=
-        m_ambiorix_datamodel->set(obj_path, "BlacklistAttempts", steer_summary.blacklist_attempts);
-    ret_val &= m_ambiorix_datamodel->set(obj_path, "BlacklistSuccesses",
-                                         steer_summary.blacklist_successes);
-    ret_val &=
-        m_ambiorix_datamodel->set(obj_path, "BlacklistFailures", steer_summary.blacklist_failures);
-    ret_val &= m_ambiorix_datamodel->set(obj_path, "BTMAttempts", steer_summary.btm_attempts);
-    ret_val &= m_ambiorix_datamodel->set(obj_path, "BTMSuccesses", steer_summary.btm_successes);
-    ret_val &= m_ambiorix_datamodel->set(obj_path, "BTMFailures", steer_summary.btm_failures);
-    ret_val &=
-        m_ambiorix_datamodel->set(obj_path, "BTMQueryResponses", steer_summary.btm_query_responses);
-    ret_val &= m_ambiorix_datamodel->set(obj_path, "LastSteerTime", steer_summary.last_steer_time);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BlacklistAttempts", steer_summary.blacklist_attempts);
+    values.add_child("BlacklistSuccesses", steer_summary.blacklist_successes);
+    values.add_child("BlacklistFailures", steer_summary.blacklist_failures);
+    values.add_child("BTMAttempts", steer_summary.btm_attempts);
+    values.add_child("BTMSuccesses", steer_summary.btm_successes);
+    values.add_child("BTMFailures", steer_summary.btm_failures);
+    values.add_child("BTMQueryResponses", steer_summary.btm_query_responses);
+    values.add_child("LastSteerTime", steer_summary.last_steer_time);
+    ret_val &= m_ambiorix_datamodel->set_multi(obj_path, values);
 
     return ret_val;
 }
@@ -7028,10 +6960,12 @@ bool db::dm_add_failed_connection_event(const sMacAddr &bssid, const sMacAddr &s
     bool ret_val = true;
 
     ret_val &= m_ambiorix_datamodel->set_current_time(event_path);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "BSSID", bssid);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "MACAddress", sta_mac);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "StatusCode", status_code);
-    ret_val &= m_ambiorix_datamodel->set(event_path, "ReasonCode", reason_code);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BSSID", tlvf::mac_to_string(bssid));
+    values.add_child("MACAddress", tlvf::mac_to_string(sta_mac));
+    values.add_child("StatusCode", status_code);
+    values.add_child("ReasonCode", reason_code);
+    ret_val &= m_ambiorix_datamodel->set_multi(event_path, values);
     return ret_val;
 }
 
@@ -7584,13 +7518,15 @@ bool db::dm_set_radio_bss(const sMacAddr &al_mac, const sMacAddr &radio_mac, con
 
     auto ret_val = true;
 
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "BSSID", bssid);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "SSID", bss->ssid);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "Enabled", bss->enabled);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "FronthaulUse", bss->fronthaul);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "BackhaulUse", bss->backhaul);
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "X_PRPLWARE-COM_VAPID", bss->get_vap_id());
-    ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "IsVBSS", is_vbss);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BSSID", tlvf::mac_to_string(bssid));
+    values.add_child("SSID", bss->ssid);
+    values.add_child("Enabled", bss->enabled);
+    values.add_child("FronthaulUse", bss->fronthaul);
+    values.add_child("BackhaulUse", bss->backhaul);
+    values.add_child("X_PRPLWARE-COM_VAPID", bss->get_vap_id());
+    values.add_child("IsVBSS", is_vbss);
+    ret_val &= m_ambiorix_datamodel->set_multi(bss->dm_path, values);
     LOG(DEBUG) << "Setting byte counter unit to " << agent->byte_counter_units;
     ret_val &= m_ambiorix_datamodel->set(bss->dm_path, "ByteCounterUnits",
                                          static_cast<uint32_t>(agent->byte_counter_units));
@@ -7715,10 +7651,11 @@ bool db::set_qm_descriptor(const sMacAddr &bssid, const sMacAddr &client_mac,
     }
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(qm_descriptor_instance_path, "BSSID", bssid);
-    ret_val &= m_ambiorix_datamodel->set(qm_descriptor_instance_path, "ClientMAC", client_mac);
-    ret_val &= m_ambiorix_datamodel->set(qm_descriptor_instance_path, "DescriptorElement",
-                                         descriptor_element);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BSSID", tlvf::mac_to_string(bssid));
+    values.add_child("ClientMAC", tlvf::mac_to_string(client_mac));
+    values.add_child("DescriptorElement", descriptor_element);
+    ret_val &= m_ambiorix_datamodel->set_multi(qm_descriptor_instance_path, values);
     return ret_val;
 }
 
@@ -8249,10 +8186,10 @@ bool db::dm_set_sta_extended_link_metrics(
         } else {
             std::string multiap_backhaul_path = agent->dm_path + ".MultiAPDevice.Backhaul.Stats";
             //Device.WiFi.DataElements.Network.Device.{i}.MultiAPDevice.Backhaul.Stats.
-            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "LastDataDownlinkRate",
-                                                 metrics.last_data_down_link_rate);
-            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "LastDataUplinkRate",
-                                                 metrics.last_data_up_link_rate);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("LastDataDownlinkRate", metrics.last_data_down_link_rate);
+            values.add_child("LastDataUplinkRate", metrics.last_data_up_link_rate);
+            ret_val &= m_ambiorix_datamodel->set_multi(multiap_backhaul_path, values);
             ret_val &= m_ambiorix_datamodel->set_current_time(multiap_backhaul_path);
             LOG(DEBUG) << multiap_backhaul_path << " updated";
         }
@@ -8263,14 +8200,12 @@ bool db::dm_set_sta_extended_link_metrics(
         return true;
     }
 
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "LastDataDownlinkRate",
-                                         metrics.last_data_down_link_rate);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "LastDataUplinkRate",
-                                         metrics.last_data_up_link_rate);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "UtilizationReceive",
-                                         metrics.utilization_receive);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "UtilizationTransmit",
-                                         metrics.utilization_transmit);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("LastDataDownlinkRate", metrics.last_data_down_link_rate);
+    values.add_child("LastDataUplinkRate", metrics.last_data_up_link_rate);
+    values.add_child("UtilizationReceive", metrics.utilization_receive);
+    values.add_child("UtilizationTransmit", metrics.utilization_transmit);
+    ret_val &= m_ambiorix_datamodel->set_multi(station->dm_path, values);
 
     return ret_val;
 }
@@ -8291,18 +8226,14 @@ bool db::dm_set_sta_traffic_stats(const sMacAddr &sta_mac, sAssociatedStaTraffic
             LOG(ERROR) << "Cannot get agent from sta_mac: " << sta_mac;
         } else {
             std::string multiap_backhaul_path = agent->dm_path + ".MultiAPDevice.Backhaul.Stats";
-            ret_val &=
-                m_ambiorix_datamodel->set(multiap_backhaul_path, "BytesSent", stats.m_byte_sent);
-            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "BytesReceived",
-                                                 stats.m_byte_received);
-            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "PacketsSent",
-                                                 stats.m_packets_sent);
-            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "PacketsReceived",
-                                                 stats.m_packets_received);
-            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "ErrorsSent",
-                                                 stats.m_tx_packets_error);
-            ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "ErrorsReceived",
-                                                 stats.m_rx_packets_error);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("BytesSent", stats.m_byte_sent);
+            values.add_child("BytesReceived", stats.m_byte_received);
+            values.add_child("PacketsSent", stats.m_packets_sent);
+            values.add_child("PacketsReceived", stats.m_packets_received);
+            values.add_child("ErrorsSent", stats.m_tx_packets_error);
+            values.add_child("ErrorsReceived", stats.m_rx_packets_error);
+            ret_val &= m_ambiorix_datamodel->set_multi(multiap_backhaul_path, values);
             ret_val &= m_ambiorix_datamodel->set_current_time(multiap_backhaul_path);
 
             LOG(DEBUG) << multiap_backhaul_path << " updated";
@@ -8314,23 +8245,22 @@ bool db::dm_set_sta_traffic_stats(const sMacAddr &sta_mac, sAssociatedStaTraffic
         return true;
     }
 
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "BytesSent", stats.m_byte_sent);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "BytesReceived", stats.m_byte_received);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "PacketsSent", stats.m_packets_sent);
-    ret_val &=
-        m_ambiorix_datamodel->set(station->dm_path, "PacketsReceived", stats.m_packets_received);
-    ret_val &=
-        m_ambiorix_datamodel->set(station->dm_path, "RetransCount", stats.m_retransmission_count);
-    ret_val &= m_ambiorix_datamodel->set(station->dm_path, "ErrorsSent", stats.m_tx_packets_error);
-    ret_val &=
-        m_ambiorix_datamodel->set(station->dm_path, "ErrorsReceived", stats.m_rx_packets_error);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BytesSent", stats.m_byte_sent);
+    values.add_child("BytesReceived", stats.m_byte_received);
+    values.add_child("PacketsSent", stats.m_packets_sent);
+    values.add_child("PacketsReceived", stats.m_packets_received);
+    values.add_child("RetransCount", stats.m_retransmission_count);
+    values.add_child("ErrorsSent", stats.m_tx_packets_error);
+    values.add_child("ErrorsReceived", stats.m_rx_packets_error);
+    ret_val &= m_ambiorix_datamodel->set_multi(station->dm_path, values);
     ret_val &= m_ambiorix_datamodel->set_current_time(station->dm_path);
 
     return ret_val;
 }
 
 bool db::dm_set_affiliated_sta_metrics(const sMacAddr &sta_mac,
-                                       sAffiliatedStaMetrics &affl_sta_metrics)
+                                       const sAffiliatedStaMetrics &affl_sta_metrics)
 {
     bool ret_val = true;
     auto station = get_station(sta_mac);
@@ -8354,16 +8284,13 @@ bool db::dm_set_affiliated_sta_metrics(const sMacAddr &sta_mac,
         return false;
     }
 
-    ret_val &=
-        m_ambiorix_datamodel->set(affiliated_sta_dm_path, "BytesSent", affl_sta_metrics.bytes_sent);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "BytesReceived",
-                                         affl_sta_metrics.bytes_received);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "PacketsSent",
-                                         affl_sta_metrics.packets_sent);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "PacketsReceived",
-                                         affl_sta_metrics.packets_received);
-    ret_val &= m_ambiorix_datamodel->set(affiliated_sta_dm_path, "ErrorsSent",
-                                         affl_sta_metrics.packets_sent_errors);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("BytesSent", affl_sta_metrics.bytes_sent);
+    values.add_child("BytesReceived", affl_sta_metrics.bytes_received);
+    values.add_child("PacketsSent", affl_sta_metrics.packets_sent);
+    values.add_child("PacketsReceived", affl_sta_metrics.packets_received);
+    values.add_child("ErrorsSent", affl_sta_metrics.packets_sent_errors);
+    ret_val &= m_ambiorix_datamodel->set_multi(affiliated_sta_dm_path, values);
 
     return ret_val;
 }
@@ -8390,8 +8317,10 @@ bool db::dm_add_tid_queue_sizes(
             return false;
         }
 
-        ret_val &= m_ambiorix_datamodel->set(tid_queue_size_path, "TID", tid_queue.tid);
-        ret_val &= m_ambiorix_datamodel->set(tid_queue_size_path, "Size", tid_queue.queue_size);
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("TID", tid_queue.tid);
+        values.add_child("Size", tid_queue.queue_size);
+        ret_val &= m_ambiorix_datamodel->set_multi(tid_queue_size_path, values);
     }
 
     return ret_val;
@@ -8444,8 +8373,10 @@ bool db::set_sta_dhcp_v4_lease(const sMacAddr &sta_mac, const std::string &host_
     }
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(pSta->dm_path, "Hostname", host_name);
-    ret_val &= m_ambiorix_datamodel->set(pSta->dm_path, "IPV4Address", ipv4_address);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("Hostname", host_name);
+    values.add_child("IPV4Address", ipv4_address);
+    ret_val &= m_ambiorix_datamodel->set_multi(pSta->dm_path, values);
 
     return ret_val;
 }
@@ -8469,8 +8400,10 @@ bool db::set_sta_dhcp_v6_lease(const sMacAddr &sta_mac, const std::string &host_
     }
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(pSta->dm_path, "Hostname", host_name);
-    ret_val &= m_ambiorix_datamodel->set(pSta->dm_path, "IPV6Address", ipv6_address);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("Hostname", host_name);
+    values.add_child("IPV6Address", ipv6_address);
+    ret_val &= m_ambiorix_datamodel->set_multi(pSta->dm_path, values);
 
     return ret_val;
 }
@@ -8655,12 +8588,11 @@ bool db::dm_add_cac_status_report(
                 return false;
             }
 
-            ret_val &= m_ambiorix_datamodel->set(available_channel_path, "OpClass",
-                                                 available_channel.operating_class);
-            ret_val &= m_ambiorix_datamodel->set(available_channel_path, "Channel",
-                                                 available_channel.channel);
-            ret_val &= m_ambiorix_datamodel->set(available_channel_path, "Minutes",
-                                                 available_channel.minutes_since_cac_completion);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("OpClass", available_channel.operating_class);
+            values.add_child("Channel", available_channel.channel);
+            values.add_child("Minutes", available_channel.minutes_since_cac_completion);
+            ret_val &= m_ambiorix_datamodel->set_multi(available_channel_path, values);
         }
     }
 
@@ -8675,12 +8607,11 @@ bool db::dm_add_cac_status_report(
                 return false;
             }
 
-            ret_val &= m_ambiorix_datamodel->set(non_occupancy_channel_path, "OpClass",
-                                                 non_occupancy_channel.operating_class_detected);
-            ret_val &= m_ambiorix_datamodel->set(non_occupancy_channel_path, "Channel",
-                                                 non_occupancy_channel.channel_detected);
-            ret_val &= m_ambiorix_datamodel->set(non_occupancy_channel_path, "Seconds",
-                                                 non_occupancy_channel.duration);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("OpClass", non_occupancy_channel.operating_class_detected);
+            values.add_child("Channel", non_occupancy_channel.channel_detected);
+            values.add_child("Seconds", non_occupancy_channel.duration);
+            ret_val &= m_ambiorix_datamodel->set_multi(non_occupancy_channel_path, values);
         }
     }
 
@@ -8695,10 +8626,10 @@ bool db::dm_add_cac_status_report(
                 return false;
             }
 
-            ret_val &= m_ambiorix_datamodel->set(active_channel_path, "OpClass",
-                                                 active_channel.operating_class_active_cac);
-            ret_val &= m_ambiorix_datamodel->set(active_channel_path, "Channel",
-                                                 active_channel.channel_active_cac);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("OpClass", active_channel.operating_class_active_cac);
+            values.add_child("Channel", active_channel.channel_active_cac);
+            ret_val &= m_ambiorix_datamodel->set_multi(active_channel_path, values);
             uint32_t countdown;
             memcpy(&countdown, active_channel.countdown, sizeof(active_channel.countdown));
             ret_val &= m_ambiorix_datamodel->set(active_channel_path, "Countdown", countdown);
@@ -8805,14 +8736,14 @@ bool db::add_sta_steering_event(const sMacAddr &sta_mac, sStaSteeringEvent &even
     // Update steering event data model path
     sta_events.back().dm_path = steering_event_path;
 
-    ret_val &= m_ambiorix_datamodel->set(steering_event_path, "APOrigin", event.original_bssid);
-    ret_val &= m_ambiorix_datamodel->set(steering_event_path, "APDestination", event.target_bssid);
-    ret_val &=
-        m_ambiorix_datamodel->set(steering_event_path, "SteeringDuration", event.duration.count());
-    ret_val &=
-        m_ambiorix_datamodel->set(steering_event_path, "SteeringApproach", event.steering_approach);
-    ret_val &= m_ambiorix_datamodel->set(steering_event_path, "TriggerEvent", event.trigger_event);
-    ret_val &= m_ambiorix_datamodel->set(steering_event_path, "Time", event.timestamp);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("APOrigin", tlvf::mac_to_string(event.original_bssid));
+    values.add_child("APDestination", tlvf::mac_to_string(event.target_bssid));
+    values.add_child("SteeringDuration", event.duration.count());
+    values.add_child("SteeringApproach", event.steering_approach);
+    values.add_child("TriggerEvent", event.trigger_event);
+    values.add_child("Time", event.timestamp);
+    ret_val &= m_ambiorix_datamodel->set_multi(steering_event_path, values);
 
     return ret_val;
 }
@@ -8838,17 +8769,14 @@ bool db::dm_restore_sta_steering_event(const Station &station)
         // Set steering event data model path
         event.dm_path = steering_event_path;
 
-        ret_val &= m_ambiorix_datamodel->set(steering_event_path, "APOrigin",
-                                             tlvf::mac_to_string(event.original_bssid));
-        ret_val &= m_ambiorix_datamodel->set(steering_event_path, "APDestination",
-                                             tlvf::mac_to_string(event.target_bssid));
-        ret_val &= m_ambiorix_datamodel->set(steering_event_path, "SteeringDuration",
-                                             event.duration.count());
-        ret_val &= m_ambiorix_datamodel->set(steering_event_path, "SteeringApproach",
-                                             event.steering_approach);
-        ret_val &=
-            m_ambiorix_datamodel->set(steering_event_path, "TriggerEvent", event.trigger_event);
-        ret_val &= m_ambiorix_datamodel->set(steering_event_path, "Time", event.timestamp);
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("APOrigin", tlvf::mac_to_string(event.original_bssid));
+        values.add_child("APDestination", tlvf::mac_to_string(event.target_bssid));
+        values.add_child("SteeringDuration", event.duration.count());
+        values.add_child("SteeringApproach", event.steering_approach);
+        values.add_child("TriggerEvent", event.trigger_event);
+        values.add_child("Time", event.timestamp);
+        ret_val &= m_ambiorix_datamodel->set_multi(steering_event_path, values);
     }
 
     return ret_val;
@@ -8866,13 +8794,12 @@ bool db::dm_set_device_multi_ap_backhaul(const Agent &agent)
 
     // Controller does not have any Backhaul, so leave it as TR-181 states it.
     if (agent.is_gateway) {
-        ret_val &=
-            m_ambiorix_datamodel->set(multiap_backhaul_path, "LinkType", std::string{"None"});
-        ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "MACAddress", std::string{});
-        ret_val &=
-            m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulMACAddress", std::string{});
-        ret_val &=
-            m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulDeviceID", std::string{});
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("LinkType", std::string{"None"});
+        values.add_child("MACAddress", std::string{});
+        values.add_child("BackhaulMACAddress", std::string{});
+        values.add_child("BackhaulDeviceID", std::string{});
+        ret_val &= m_ambiorix_datamodel->set_multi(multiap_backhaul_path, values);
         return ret_val;
     }
 
@@ -8893,11 +8820,11 @@ bool db::dm_set_device_multi_ap_backhaul(const Agent &agent)
         break;
     }
 
-    ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "LinkType", iface_link_str);
-    ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "MACAddress",
-                                         agent.backhaul.backhaul_interface);
-    ret_val &= m_ambiorix_datamodel->set(multiap_backhaul_path, "BackhaulMACAddress",
-                                         agent.backhaul.parent_interface);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("LinkType", iface_link_str);
+    values.add_child("MACAddress", tlvf::mac_to_string(agent.backhaul.backhaul_interface));
+    values.add_child("BackhaulMACAddress", tlvf::mac_to_string(agent.backhaul.parent_interface));
+    ret_val &= m_ambiorix_datamodel->set_multi(multiap_backhaul_path, values);
 
     auto parent_agent = agent.backhaul.parent_agent.lock();
     if (!parent_agent) {
@@ -8927,8 +8854,10 @@ bool db::dm_set_device_ssid_to_vid_map(const Agent &agent,
         LOG(ERROR) << "Failed to add: " << agent.dm_path << ".SSIDtoVIDMapping";
         return false;
     }
-    ret_val &= m_ambiorix_datamodel->set(ssidtovidmapping_path, "SSID", config.ssid);
-    ret_val &= m_ambiorix_datamodel->set(ssidtovidmapping_path, "VID", config.vlan_id);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("SSID", config.ssid);
+    values.add_child("VID", config.vlan_id);
+    ret_val &= m_ambiorix_datamodel->set_multi(ssidtovidmapping_path, values);
 
     return ret_val;
 }
@@ -8959,10 +8888,11 @@ bool db::dm_set_default_8021q(const Agent &agent, const uint16_t primary_vlan_id
     if (default_8021q_path.empty()) {
         return false;
     }
-    ret_val &= m_ambiorix_datamodel->set(default_8021q_path, "Enable",
-                                         bool(primary_vlan_id > net::UNCONFIGURED_VLAN_ID));
-    ret_val &= m_ambiorix_datamodel->set(default_8021q_path, "PrimaryVID", primary_vlan_id);
-    ret_val &= m_ambiorix_datamodel->set(default_8021q_path, "DefaultPCP", default_pcp);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("Enable", bool(primary_vlan_id > net::UNCONFIGURED_VLAN_ID));
+    values.add_child("PrimaryVID", primary_vlan_id);
+    values.add_child("DefaultPCP", default_pcp);
+    ret_val &= m_ambiorix_datamodel->set_multi(default_8021q_path, values);
 
     return ret_val;
 }
@@ -8974,12 +8904,11 @@ bool db::dm_set_profile1_device_info(const Agent &agent)
     }
 
     bool ret_val = true;
-    ret_val &=
-        m_ambiorix_datamodel->set(agent.dm_path, "Manufacturer", agent.device_info.manufacturer);
-    ret_val &=
-        m_ambiorix_datamodel->set(agent.dm_path, "SerialNumber", agent.device_info.serial_number);
-    ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "ManufacturerModel",
-                                         agent.device_info.manufacturer_model);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("Manufacturer", agent.device_info.manufacturer);
+    values.add_child("SerialNumber", agent.device_info.serial_number);
+    values.add_child("ManufacturerModel", agent.device_info.manufacturer_model);
+    ret_val &= m_ambiorix_datamodel->set_multi(agent.dm_path, values);
     return ret_val;
 }
 
@@ -8990,14 +8919,12 @@ bool db::dm_set_profile3_device_info(const Agent &agent)
     }
 
     bool ret_val = true;
-    ret_val &=
-        m_ambiorix_datamodel->set(agent.dm_path, "SerialNumber", agent.device_info.serial_number);
-    ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "SoftwareVersion",
-                                         agent.device_info.software_version);
-    ret_val &=
-        m_ambiorix_datamodel->set(agent.dm_path, "ExecutionEnv", agent.device_info.execution_env);
-    ret_val &=
-        m_ambiorix_datamodel->set(agent.dm_path, "CountryCode", agent.device_info.country_code);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("SerialNumber", agent.device_info.serial_number);
+    values.add_child("SoftwareVersion", agent.device_info.software_version);
+    values.add_child("ExecutionEnv", agent.device_info.execution_env);
+    values.add_child("CountryCode", agent.device_info.country_code);
+    ret_val &= m_ambiorix_datamodel->set_multi(agent.dm_path, values);
 
     for (const auto &radio : agent.radios) {
         if (radio.second->dm_path.empty()) {
@@ -9079,8 +9006,10 @@ bool db::dm_add_radio_cac_capabilities(
     }
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(cac_method_path, "Method", method);
-    ret_val &= m_ambiorix_datamodel->set(cac_method_path, "NumberOfSeconds", duration);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("Method", method);
+    values.add_child("NumberOfSeconds", duration);
+    ret_val &= m_ambiorix_datamodel->set_multi(cac_method_path, values);
 
     for (auto &oc_ch : oc_channels) {
         auto oc_channels_path =
@@ -9124,11 +9053,11 @@ bool db::dm_save_radio_cac_completion_report(wfa_map::cCacCompletionReportRadio 
         return false;
     }
 
-    ret_val &= m_ambiorix_datamodel->set(CAC_completion_path, "OperatingClass",
-                                         radioReport.operating_class());
-    ret_val &= m_ambiorix_datamodel->set(CAC_completion_path, "Channel", radioReport.channel());
-    ret_val &= m_ambiorix_datamodel->set(CAC_completion_path, "Status",
-                                         static_cast<uint8_t>(radioReport.cac_completion_status()));
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("OperatingClass", radioReport.operating_class());
+    values.add_child("Channel", radioReport.channel());
+    values.add_child("Status", static_cast<uint8_t>(radioReport.cac_completion_status()));
+    ret_val &= m_ambiorix_datamodel->set_multi(CAC_completion_path, values);
 
     for (size_t i = 0; i < radioReport.number_of_detected_pairs(); i++) {
         if (!std::get<0>(radioReport.detected_pairs(i))) {
@@ -9141,10 +9070,10 @@ bool db::dm_save_radio_cac_completion_report(wfa_map::cCacCompletionReportRadio 
         }
 
         auto &detected_pair = std::get<1>(radioReport.detected_pairs(i));
-        ret_val &= m_ambiorix_datamodel->set(pair_path, "OperatingClassDetected",
-                                             detected_pair.operating_class_detected);
-        ret_val &=
-            m_ambiorix_datamodel->set(pair_path, "ChannelDetected", detected_pair.channel_detected);
+        values              = AmbiorixVariant(AMXC_VAR_ID_HTABLE);
+        values.add_child("OperatingClassDetected", detected_pair.operating_class_detected);
+        values.add_child("ChannelDetected", detected_pair.channel_detected);
+        ret_val &= m_ambiorix_datamodel->set_multi(pair_path, values);
     }
 
     return ret_val;
@@ -9161,12 +9090,11 @@ bool db::dm_add_radio_scan_capabilities(const Agent::sRadio &radio)
     bool ret_val              = true;
 
     // Update the ScanCapability data model parameters.
-    ret_val &= m_ambiorix_datamodel->set(scan_capability_path, "OnBootOnly",
-                                         scan_capabilities.on_boot_only);
-    ret_val &=
-        m_ambiorix_datamodel->set(scan_capability_path, "Impact", scan_capabilities.scan_impact);
-    ret_val &= m_ambiorix_datamodel->set(scan_capability_path, "MinimumInterval",
-                                         scan_capabilities.minimum_scan_interval);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("OnBootOnly", scan_capabilities.on_boot_only);
+    values.add_child("Impact", scan_capabilities.scan_impact);
+    values.add_child("MinimumInterval", scan_capabilities.minimum_scan_interval);
+    ret_val &= m_ambiorix_datamodel->set_multi(scan_capability_path, values);
 
     if (scan_capabilities.operating_classes.empty()) {
         LOG(ERROR) << "Invalid number of operating classes for radio " << radio.radio_uid;
@@ -9225,8 +9153,10 @@ bool db::dm_add_radio_akm_suite_capabilities(
             return false;
         }
 
-        ret_val &= m_ambiorix_datamodel->set(akm_fronthaul_path, "OUI", selector.oui);
-        ret_val &= m_ambiorix_datamodel->set(akm_fronthaul_path, "Type", selector.akm_suite_type);
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("OUI", selector.oui);
+        values.add_child("Type", selector.akm_suite_type);
+        ret_val &= m_ambiorix_datamodel->set_multi(akm_fronthaul_path, values);
     }
 
     if (!m_ambiorix_datamodel->remove_all_instances(radio.dm_path + ".Capabilities.AKMBackhaul")) {
@@ -9240,8 +9170,10 @@ bool db::dm_add_radio_akm_suite_capabilities(
             return false;
         }
 
-        ret_val &= m_ambiorix_datamodel->set(akm_backhaul_path, "OUI", selector.oui);
-        ret_val &= m_ambiorix_datamodel->set(akm_backhaul_path, "Type", selector.akm_suite_type);
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("OUI", selector.oui);
+        values.add_child("Type", selector.akm_suite_type);
+        ret_val &= m_ambiorix_datamodel->set_multi(akm_backhaul_path, values);
     }
 
     return ret_val;
@@ -9254,12 +9186,12 @@ bool db::dm_set_radio_advanced_capabilities(const Agent::sRadio &radio)
     }
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(
-        radio.dm_path, "TrafficSeparationCombinedFronthaul",
-        radio.advanced_capabilities.traffic_separation_combined_fronthaul);
-    ret_val &=
-        m_ambiorix_datamodel->set(radio.dm_path, "TrafficSeparationCombinedBackhaul",
-                                  radio.advanced_capabilities.traffic_separation_combined_backhaul);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("TrafficSeparationCombinedFronthaul",
+                     radio.advanced_capabilities.traffic_separation_combined_fronthaul);
+    values.add_child("TrafficSeparationCombinedBackhaul",
+                     radio.advanced_capabilities.traffic_separation_combined_backhaul);
+    ret_val &= m_ambiorix_datamodel->set_multi(radio.dm_path, values);
     return ret_val;
 }
 
@@ -9285,17 +9217,15 @@ bool db::dm_set_radio_vbss_capabilities(const sMacAddr &radio_uid, uint8_t max_v
 
     bool ret_val = true;
 
-    ret_val &= m_ambiorix_datamodel->set(vbss_caps_dm_path, "MaxVBSS", max_vbss);
-    ret_val &= m_ambiorix_datamodel->set(vbss_caps_dm_path, "VBSSsSubtract", vbsses_subtract);
-    ret_val &= m_ambiorix_datamodel->set(vbss_caps_dm_path, "ApplyVBSSIDRestrictions",
-                                         apply_vbssid_restrictions);
-    ret_val &= m_ambiorix_datamodel->set(vbss_caps_dm_path, "ApplyVBSSIDMatchMaskRestrictions",
-                                         apply_vbssid_match_mask_restrictions);
-    ret_val &= m_ambiorix_datamodel->set(vbss_caps_dm_path, "ApplyVBSSIDFixedBitsRestrictions",
-                                         apply_fixed_bits_restrictions);
-    ret_val &= m_ambiorix_datamodel->set(vbss_caps_dm_path, "VBSSIDFixedBitsMask", fixed_bits_mask);
-    ret_val &=
-        m_ambiorix_datamodel->set(vbss_caps_dm_path, "VBSSIDFixedBitsValue", fixed_bits_value);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MaxVBSS", max_vbss);
+    values.add_child("VBSSsSubtract", vbsses_subtract);
+    values.add_child("ApplyVBSSIDRestrictions", apply_vbssid_restrictions);
+    values.add_child("ApplyVBSSIDMatchMaskRestrictions", apply_vbssid_match_mask_restrictions);
+    values.add_child("ApplyVBSSIDFixedBitsRestrictions", apply_fixed_bits_restrictions);
+    values.add_child("VBSSIDFixedBitsMask", tlvf::mac_to_string(fixed_bits_mask));
+    values.add_child("VBSSIDFixedBitsValue", tlvf::mac_to_string(fixed_bits_value));
+    ret_val &= m_ambiorix_datamodel->set_multi(vbss_caps_dm_path, values);
 
     return ret_val;
 }
@@ -9315,12 +9245,11 @@ bool db::dm_add_agent_1905_layer_security_capabilities(
     }
 
     bool ret_val = true;
-    ret_val &=
-        m_ambiorix_datamodel->set(ieee_1905_sec_path, "OnboardingProtocol", onboard_protocol);
-    ret_val &=
-        m_ambiorix_datamodel->set(ieee_1905_sec_path, "IntegrityAlgorithm", integrity_algorithm);
-    ret_val &=
-        m_ambiorix_datamodel->set(ieee_1905_sec_path, "EncryptionAlgorithm", encryption_algorithm);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("OnboardingProtocol", onboard_protocol);
+    values.add_child("IntegrityAlgorithm", integrity_algorithm);
+    values.add_child("EncryptionAlgorithm", encryption_algorithm);
+    ret_val &= m_ambiorix_datamodel->set_multi(ieee_1905_sec_path, values);
 
     return ret_val;
 }
@@ -9340,25 +9269,25 @@ bool db::dm_set_metric_reporting_policies(const Agent &agent)
             continue;
         }
 
-        ret_val &= m_ambiorix_datamodel->set(
-            radio.second->dm_path, "STAReportingRCPIThreshold",
-            radio.second->metric_reporting_policies.sta_reporting_rcpi_threshold);
-        ret_val &= m_ambiorix_datamodel->set(
-            radio.second->dm_path, "STAReportingRCPIHysteresisMarginOverride",
-            radio.second->metric_reporting_policies
-                .sta_reporting_rcpi_hyst_margin_override_threshold);
-        ret_val &= m_ambiorix_datamodel->set(
-            radio.second->dm_path, "ChannelUtilizationReportingThreshold",
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("STAReportingRCPIThreshold",
+                         radio.second->metric_reporting_policies.sta_reporting_rcpi_threshold);
+        values.add_child("STAReportingRCPIHysteresisMarginOverride",
+                         radio.second->metric_reporting_policies
+                             .sta_reporting_rcpi_hyst_margin_override_threshold);
+        values.add_child(
+            "ChannelUtilizationReportingThreshold",
             radio.second->metric_reporting_policies.ap_reporting_channel_utilization_threshold);
-        ret_val &= m_ambiorix_datamodel->set(
-            radio.second->dm_path, "AssociatedSTATrafficStatsInclusionPolicy",
+        values.add_child(
+            "AssociatedSTATrafficStatsInclusionPolicy",
             radio.second->metric_reporting_policies.assoc_sta_traffic_stats_inclusion_policy);
-        ret_val &= m_ambiorix_datamodel->set(
-            radio.second->dm_path, "AssociatedSTALinkMetricsInclusionPolicy",
+        values.add_child(
+            "AssociatedSTALinkMetricsInclusionPolicy",
             radio.second->metric_reporting_policies.assoc_sta_link_metrics_inclusion_policy);
-        ret_val &= m_ambiorix_datamodel->set(
-            radio.second->dm_path, "APMetricsWiFi6",
+        values.add_child(
+            "APMetricsWiFi6",
             radio.second->metric_reporting_policies.assoc_wifi6_sta_status_report_inclusion_policy);
+        ret_val &= m_ambiorix_datamodel->set_multi(radio.second->dm_path, values);
     }
     return ret_val;
 }
@@ -9408,14 +9337,13 @@ bool db::dm_set_steering_policies(const Agent &agent)
             continue;
         }
 
-        ret_val &= m_ambiorix_datamodel->set(radio.second->dm_path, "SteeringPolicy",
-                                             int(radio.second->steering_policies.steering_policy));
-        ret_val &= m_ambiorix_datamodel->set(
-            radio.second->dm_path, "ChannelUtilizationThreshold",
-            radio.second->steering_policies.channel_utilization_threshold);
-        ret_val &=
-            m_ambiorix_datamodel->set(radio.second->dm_path, "RCPISteeringThreshold",
-                                      radio.second->steering_policies.rcpi_steering_threshold);
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("SteeringPolicy", int(radio.second->steering_policies.steering_policy));
+        values.add_child("ChannelUtilizationThreshold",
+                         radio.second->steering_policies.channel_utilization_threshold);
+        values.add_child("RCPISteeringThreshold",
+                         radio.second->steering_policies.rcpi_steering_threshold);
+        ret_val &= m_ambiorix_datamodel->set_multi(radio.second->dm_path, values);
     }
     return ret_val;
 }
@@ -9436,10 +9364,10 @@ bool db::dm_set_device_unsuccessful_association_policy(const Agent &agent)
     }
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "ReportUnsuccessfulAssociations",
-                                         agent.unsuccessful_assoc_report_policy);
-    ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "MaxReportingRate",
-                                         agent.unsuccessful_assoc_max_reporting_rate);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("ReportUnsuccessfulAssociations", agent.unsuccessful_assoc_report_policy);
+    values.add_child("MaxReportingRate", agent.unsuccessful_assoc_max_reporting_rate);
+    ret_val &= m_ambiorix_datamodel->set_multi(agent.dm_path, values);
 
     return ret_val;
 }
@@ -9469,11 +9397,12 @@ bool db::dm_set_service_prioritization_rules(const Agent &agent)
             return false;
         }
 
-        ret_val &= m_ambiorix_datamodel->set(sp_rule_path, "ID", rule.first);
-        ret_val &= m_ambiorix_datamodel->set(sp_rule_path, "Precedence", rule.second.precedence);
-        ret_val &= m_ambiorix_datamodel->set(sp_rule_path, "Output", rule.second.output);
-        ret_val &= m_ambiorix_datamodel->set(sp_rule_path, "AlwaysMatch",
-                                             rule.second.bits_field2.always_match);
+        AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+        values.add_child("ID", rule.first);
+        values.add_child("Precedence", rule.second.precedence);
+        values.add_child("Output", rule.second.output);
+        values.add_child("AlwaysMatch", rule.second.bits_field2.always_match);
+        ret_val &= m_ambiorix_datamodel->set_multi(sp_rule_path, values);
     }
 
     return ret_val;
@@ -9524,10 +9453,12 @@ bool db::dm_set_qos_management_disallowed_sta_lists()
     const std::string network_path = DATAELEMENTS_ROOT_DM ".Network";
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(network_path, "MSCSDisallowedStaList",
-                                         tlvf::mac_list_to_csv_string(m_mscs_disallowed_sta_list));
-    ret_val &= m_ambiorix_datamodel->set(network_path, "SCSDisallowedStaList",
-                                         tlvf::mac_list_to_csv_string(m_scs_disallowed_sta_list));
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MSCSDisallowedStaList",
+                     tlvf::mac_list_to_csv_string(m_mscs_disallowed_sta_list));
+    values.add_child("SCSDisallowedStaList",
+                     tlvf::mac_list_to_csv_string(m_scs_disallowed_sta_list));
+    ret_val &= m_ambiorix_datamodel->set_multi(network_path, values);
 
     return ret_val;
 }
@@ -9548,8 +9479,10 @@ bool db::dm_set_bss_qos_management_settings(const sMacAddr &bssid,
     const auto settings_path = bss->dm_path + ".SetQoSManagementInput";
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(settings_path, "MSCSEnable", settings.mscs_enable);
-    ret_val &= m_ambiorix_datamodel->set(settings_path, "SCSEnable", settings.scs_enable);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MSCSEnable", settings.mscs_enable);
+    values.add_child("SCSEnable", settings.scs_enable);
+    ret_val &= m_ambiorix_datamodel->set_multi(settings_path, values);
 
     return ret_val;
 }
@@ -9561,11 +9494,11 @@ bool db::dm_set_device_ap_capabilities(const Agent &agent)
     }
 
     bool ret_val = true;
-    ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "MaxPrioritizationRules",
-                                         agent.max_prioritization_rules);
-    ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "PrioritizationSupport",
-                                         agent.prioritization_support);
-    ret_val &= m_ambiorix_datamodel->set(agent.dm_path, "MaxVIDs", agent.max_total_number_of_vids);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("MaxPrioritizationRules", agent.max_prioritization_rules);
+    values.add_child("PrioritizationSupport", agent.prioritization_support);
+    values.add_child("MaxVIDs", agent.max_total_number_of_vids);
+    ret_val &= m_ambiorix_datamodel->set_multi(agent.dm_path, values);
     return ret_val;
 }
 
@@ -10185,19 +10118,19 @@ void db::update_unassociated_station_stats(const sMacAddr &mac_address,
                     new_station_path.append(".");
                     LOG(DEBUG) << "Successfully added object with path : " << new_station_path;
                 }
-                m_ambiorix_datamodel->set(new_station_path, "MACAddress", mac_address);
-                m_ambiorix_datamodel->set(new_station_path, "SignalStrength",
-                                          new_stats.uplink_rcpi_dbm_enc);
-                m_ambiorix_datamodel->set(new_station_path, "X_PRPLWARE-COM_TimeStamp",
-                                          new_stats.time_stamp);
+                AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+                values.add_child("MACAddress", tlvf::mac_to_string(mac_address));
+                values.add_child("SignalStrength", new_stats.uplink_rcpi_dbm_enc);
+                values.add_child("X_PRPLWARE-COM_TimeStamp", new_stats.time_stamp);
+                m_ambiorix_datamodel->set_multi(new_station_path, values);
             } else {
                 unassociated_sta_path.append(".");
                 unassociated_sta_path.append(std::to_string(index));
-                m_ambiorix_datamodel->set(unassociated_sta_path, "MACAddress", mac_address);
-                m_ambiorix_datamodel->set(unassociated_sta_path, "SignalStrength",
-                                          new_stats.uplink_rcpi_dbm_enc);
-                m_ambiorix_datamodel->set(unassociated_sta_path, "X_PRPLWARE-COM_TimeStamp",
-                                          new_stats.time_stamp);
+                AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+                values.add_child("MACAddress", tlvf::mac_to_string(mac_address));
+                values.add_child("SignalStrength", new_stats.uplink_rcpi_dbm_enc);
+                values.add_child("X_PRPLWARE-COM_TimeStamp", new_stats.time_stamp);
+                m_ambiorix_datamodel->set_multi(unassociated_sta_path, values);
             }
             LOG(DEBUG) << "Setting MACAddress " << mac_address
                        << "SignalStrength: " << new_stats.uplink_rcpi_dbm_enc << " TimeStamp"
