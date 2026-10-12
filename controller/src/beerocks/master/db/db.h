@@ -1446,7 +1446,7 @@ public:
      * @return true on success, false otherwise.
      */
     bool dm_set_affiliated_sta_metrics(const sMacAddr &sta_mac,
-                                       db::sAffiliatedStaMetrics &affl_sta_metrics);
+                                       const db::sAffiliatedStaMetrics &affl_sta_metrics);
 
     /**
      * @brief Clears all stats for corresponding STA.
@@ -2437,7 +2437,7 @@ public:
      * @return true on success, otherwise false.
      */
     bool dm_set_affiliated_ap_metrics(const sMacAddr &src_mac,
-                                      sAffiliatedApMetrics &affl_ap_metrics);
+                                      const sAffiliatedApMetrics &affl_ap_metrics);
 
     bool commit_persistent_db_changes();
     bool is_commit_to_persistent_db_required();

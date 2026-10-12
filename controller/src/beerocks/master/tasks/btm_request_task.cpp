@@ -369,17 +369,21 @@ bool btm_request_task::dm_set_steer_event_params(const std::string &event_path)
 
     m_dm_timestamp = ambiorix_dm->get_datamodel_time_format();
 
-    ambiorix_dm->set(event_path, "DeviceId", m_sta_mac);
-    ambiorix_dm->set(event_path, "SteeredFrom", m_original_bssid);
-    ambiorix_dm->set(event_path, "SteeredTo", m_target_bssid);
-    ambiorix_dm->set(event_path, "StatusCode", m_status_code);
-    ambiorix_dm->set(event_path, "TimeStamp", m_dm_timestamp);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("DeviceId", m_sta_mac);
+    values.add_child("SteeredFrom", m_original_bssid);
+    values.add_child("SteeredTo", m_target_bssid);
+    values.add_child("StatusCode", m_status_code);
+    values.add_child("TimeStamp", m_dm_timestamp);
+    ambiorix_dm->set_multi(event_path, values);
 
     m_database.dm_set_status(event_path, m_status_code);
 
     if (m_steering_success) {
-        ambiorix_dm->set(event_path, "Result", std::string("Success"));
-        ambiorix_dm->set(event_path, "TimeTaken", m_duration.count());
+        AmbiorixVariant values2(AMXC_VAR_ID_HTABLE);
+        values2.add_child("Result", std::string("Success"));
+        values2.add_child("TimeTaken", m_duration.count());
+        ambiorix_dm->set_multi(event_path, values2);
 
         int8_t rx_rssi = 0, rx_packets = 0;
 
@@ -422,8 +426,10 @@ bool btm_request_task::dm_set_steer_event_params(const std::string &event_path)
         ambiorix_dm->set(event_path, "SteeringType", std::string("BTM"));
         steer_type = "BTM";
     }
-    ambiorix_dm->set(event_path, "SteeringOrigin", steer_origin);
-    ambiorix_dm->set(event_path, "SteeringType", steer_type);
+    AmbiorixVariant values3(AMXC_VAR_ID_HTABLE);
+    values3.add_child("SteeringOrigin", steer_origin);
+    values3.add_child("SteeringType", steer_type);
+    ambiorix_dm->set_multi(event_path, values3);
     if (m_database.config.persistent_db) {
         add_steer_history_to_persistent_db(steer_origin, steer_type);
     }
