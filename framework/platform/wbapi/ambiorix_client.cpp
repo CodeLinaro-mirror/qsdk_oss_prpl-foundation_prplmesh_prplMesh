@@ -130,8 +130,13 @@ bool AmbiorixClient::init_event_loop(std::shared_ptr<EventLoop> event_loop)
         return false;
     }
 
+    std::string amx_name = "ambiorix_amxb_read";
+    if (m_connection) {
+        amx_name += "[" + m_connection->uri() + "]";
+    }
+
     EventLoop::EventHandlers handlers = {
-        .name = "ambiorix_events",
+        .name = amx_name,
         .on_read =
             [&](int fd, EventLoop &loop) {
                 auto &cnx = AmbiorixConnectionManager::get_instance()->fetch_connection(fd);
@@ -178,7 +183,7 @@ bool AmbiorixClient::init_signal_loop(std::shared_ptr<EventLoop> event_loop)
     }
 
     EventLoop::EventHandlers handlers = {
-        .name = "ambiorix_signal",
+        .name = "ambiorix_amxp_signal_read",
         .on_read =
             [&](int fd, EventLoop &loop) {
                 auto &cnx = AmbiorixConnectionManager::get_instance()->fetch_connection(fd);

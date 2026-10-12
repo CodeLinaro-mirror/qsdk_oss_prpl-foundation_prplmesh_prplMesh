@@ -157,6 +157,7 @@ bool AmbiorixImpl::connect_and_register()
         }
 
         m_bus_ctx_vect.push_back(m_bus_ctx);
+        m_bus_uri_vect.push_back(uri ? uri : "");
 
         LOG(DEBUG) << "Register succesfuly uri: " << uri;
     }
@@ -174,8 +175,10 @@ bool AmbiorixImpl::init_event_loop()
             LOG(ERROR) << "Failed to get ambiorix file descriptor.";
             return false;
         }
+        const std::string uri = (i < m_bus_uri_vect.size()) ? m_bus_uri_vect.at(i) : "";
         EventLoop::EventHandlers handlers = {
-            .name = "ambiorix_events" + std::to_string(i),
+            // e.g. ambiorix_amxb_read[ubus:] or ambiorix_amxb_read[usp:/var/run/...]
+            .name = "ambiorix_amxb_read[" + (uri.empty() ? ("idx" + std::to_string(i)) : uri) + "]",
             .on_read =
                 [&, i](int fd, EventLoop &loop) {
                     amxb_read(m_bus_ctx_vect.at(i));
@@ -199,7 +202,7 @@ bool AmbiorixImpl::init_event_loop()
             return false;
         }
 
-        LOG(DEBUG) << "Event handlers for the Ambiorix fd: " << ambiorix_fd
+        LOG(DEBUG) << "Event handlers for the Ambiorix fd: " << ambiorix_fd << " uri=" << uri
                    << " successfully registered in the event loop.";
     }
     return true;
@@ -216,7 +219,7 @@ bool AmbiorixImpl::init_signal_loop()
     }
 
     EventLoop::EventHandlers handlers = {
-        .name = "ambiorix_signal",
+        .name = "ambiorix_amxp_signal_read",
         .on_read =
             [&](int fd, EventLoop &loop) {
                 std::lock_guard<std::mutex> guard(amxp_signal_read_mutex);

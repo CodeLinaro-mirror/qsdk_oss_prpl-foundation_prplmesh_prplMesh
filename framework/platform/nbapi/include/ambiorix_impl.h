@@ -254,6 +254,7 @@ private:
 
     // Variables
     std::vector<amxb_bus_ctx_t *> m_bus_ctx_vect;
+    std::vector<std::string> m_bus_uri_vect; // parallel to m_bus_ctx_vect (for EventLoop FD names)
     std::shared_ptr<EventLoop> m_event_loop;
     //std::unordered_map<std::string, actions_callback> m_on_action_handlers;
     std::vector<sActionsCallback> m_on_action_handlers;
