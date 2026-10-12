@@ -220,8 +220,10 @@ void AgentDB::dm_set_agent_state(const std::string &cur, const std::string &max)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
 
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "CurrentState", cur);
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "BestState", max);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("CurrentState", cur);
+    values.add_child("BestState", max);
+    m_ambiorix_datamodel->set_multi(AGENT_ROOT_DM ".Info", values);
 }
 
 void AgentDB::dm_set_controller_connected(bool connected)
@@ -270,9 +272,11 @@ std::string AgentDB::dm_create_fronthaul_object(const std::string &iface)
         LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
     }
 
-    m_ambiorix_datamodel->set(inst, "Iface", iface);
-    m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));
-    m_ambiorix_datamodel->set(inst, "BestState", std::string("INIT (0)"));
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("Iface", iface);
+    values.add_child("CurrentState", std::string("INIT (0)"));
+    values.add_child("BestState", std::string("INIT (0)"));
+    m_ambiorix_datamodel->set_multi(inst, values);
 
     return inst;
 #endif
@@ -285,8 +289,10 @@ void AgentDB::dm_set_fronthaul_state(const std::string &path, const std::string 
         LOG(ERROR) << "dm_set_fronthaul_state called with empty path, skipping update";
         return;
     }
-    m_ambiorix_datamodel->set(path, "CurrentState", cur);
-    m_ambiorix_datamodel->set(path, "BestState", max);
+    AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    values.add_child("CurrentState", cur);
+    values.add_child("BestState", max);
+    m_ambiorix_datamodel->set_multi(path, values);
 }
 
 void AgentDB::dm_fronthaul_disconnected(const std::string &path)

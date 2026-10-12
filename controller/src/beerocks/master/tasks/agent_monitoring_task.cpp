@@ -1054,9 +1054,10 @@ void agent_monitoring_task::dm_add_sta_to_agent_connected_event(
                     return;
                 }
                 ambiorix_dm->set_current_time(sta_path);
-                ambiorix_dm->set(sta_path, "MACAddress", sta.mac());
-                ambiorix_dm->set(sta_path, "LastConnectTime",
-                                 sta.time_since_last_association_sec());
+                AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+                values.add_child("MACAddress", tlvf::mac_to_string(sta.mac()));
+                values.add_child("LastConnectTime", sta.time_since_last_association_sec());
+                ambiorix_dm->set_multi(sta_path, values);
             }
             return;
         }
@@ -1109,8 +1110,10 @@ std::string agent_monitoring_task::dm_add_agent_connected_event(
                 LOG(ERROR) << "Failed to add " << radio_path << ".BSS BSSID: " << bss.radio_bssid();
                 return agent_connected_path;
             }
-            ambiorix_dm->set(bss_path, "BSSID", bss.radio_bssid());
-            ambiorix_dm->set(bss_path, "SSID", bss.ssid_str());
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("BSSID", tlvf::mac_to_string(bss.radio_bssid()));
+            values.add_child("SSID", bss.ssid_str());
+            ambiorix_dm->set_multi(bss_path, values);
             if (tlv_assoc_client) {
                 dm_add_sta_to_agent_connected_event(bss_path, bss.radio_bssid(), tlv_assoc_client);
             }
@@ -1268,11 +1271,13 @@ bool agent_monitoring_task::dm_set_agent_disconnected_event_params(
         auto radio_stats = m_radio_stats.get(radio.first);
 
         if (radio_stats) {
-            ok &= ambiorix_dm->set(radio_path, "Utilization", radio_stats->utilization);
-            ok &= ambiorix_dm->set(radio_path, "Transmit", radio_stats->transmit);
-            ok &= ambiorix_dm->set(radio_path, "ReceiveSelf", radio_stats->receive_self);
-            ok &= ambiorix_dm->set(radio_path, "ReceiveOther", radio_stats->receive_other);
-            ok &= ambiorix_dm->set(radio_path, "Noise", radio_stats->noise);
+            AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+            values.add_child("Utilization", radio_stats->utilization);
+            values.add_child("Transmit", radio_stats->transmit);
+            values.add_child("ReceiveSelf", radio_stats->receive_self);
+            values.add_child("ReceiveOther", radio_stats->receive_other);
+            values.add_child("Noise", radio_stats->noise);
+            ok &= ambiorix_dm->set_multi(radio_path, values);
             if (!ok) {
                 LOG(ERROR) << "Failed to set parameter for " << radio_path;
                 return false;
@@ -1291,17 +1296,14 @@ bool agent_monitoring_task::dm_set_agent_disconnected_event_params(
             auto bss_stats = m_bss_stats.get(bss.first);
 
             if (bss_stats) {
-                ok &= ambiorix_dm->set(bss_path, "UnicastBytesSent", bss_stats->unicast_bytes_sent);
-                ok &= ambiorix_dm->set(bss_path, "UnicastBytesReceived",
-                                       bss_stats->unicast_bytes_received);
-                ok &= ambiorix_dm->set(bss_path, "MulticastBytesSent",
-                                       bss_stats->multicast_bytes_sent);
-                ok &= ambiorix_dm->set(bss_path, "MulticastBytesReceived",
-                                       bss_stats->multicast_bytes_received);
-                ok &= ambiorix_dm->set(bss_path, "BroadcastBytesSent",
-                                       bss_stats->broadcast_bytes_sent);
-                ok &= ambiorix_dm->set(bss_path, "BroadcastBytesReceived",
-                                       bss_stats->broadcast_bytes_received);
+                AmbiorixVariant values2(AMXC_VAR_ID_HTABLE);
+                values2.add_child("UnicastBytesSent", bss_stats->unicast_bytes_sent);
+                values2.add_child("UnicastBytesReceived", bss_stats->unicast_bytes_received);
+                values2.add_child("MulticastBytesSent", bss_stats->multicast_bytes_sent);
+                values2.add_child("MulticastBytesReceived", bss_stats->multicast_bytes_received);
+                values2.add_child("BroadcastBytesSent", bss_stats->broadcast_bytes_sent);
+                values2.add_child("BroadcastBytesReceived", bss_stats->broadcast_bytes_received);
+                ok &= ambiorix_dm->set_multi(bss_path, values2);
                 if (!ok) {
                     LOG(ERROR) << "Failed to set parameter for " << bss_path;
                     return false;
