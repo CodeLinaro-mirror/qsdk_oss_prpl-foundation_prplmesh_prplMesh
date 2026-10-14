@@ -175,6 +175,9 @@ elseif(BWL_TYPE STREQUAL "WHM")
     list(APPEND BWL_LIBS btlvf)
     list(APPEND BWL_LIBS tlvf)
     list(APPEND BWL_LIBS nbapi)
+    # agent_sensing.cpp includes agent_db.h, which needs bpl/bpl_cfg.h
+    list(APPEND BWL_LIBS bpl)
+    include_directories(${CMAKE_CURRENT_LIST_DIR}/../../../framework/platform/bpl/include)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WBAPI_SOCK}")
 
@@ -210,6 +213,7 @@ target_link_libraries(${PROJECT_NAME} bcl elpp ${BWL_LIBS})
 target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${PLATFORM_INCLUDE_DIR}
+	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../framework/platform/bpl/include>
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sensing>
@@ -251,6 +255,7 @@ if (BUILD_TESTS)
     target_include_directories(${TEST_PROJECT_NAME}
         PRIVATE
             ${PLATFORM_INCLUDE_DIR}
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../framework/platform/bpl/include>
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             # agent_sensing.cpp needs AgentDB (agent_db.h)
