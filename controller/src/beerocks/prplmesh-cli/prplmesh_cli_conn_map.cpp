@@ -219,7 +219,10 @@ std::string mlo_mode_string(amxc_var_t *config)
         }
         result += mode;
     }
-    return result.empty() ? "unspecified" : result;
+    if (result.empty()) {
+        return "unspecified";
+    }
+    return result;
 }
 
 std::map<std::string, mlo_radio_t> get_bssid_radio_map(prplmesh_cli &cli,
@@ -355,8 +358,18 @@ void print_ap_mlds(prplmesh_cli &cli, const std::string &device_path,
 
         std::cout << indent << "AP_MLD: mac: " << mld_mac;
         if (!first_bss) {
-            std::cout << ", ssid: " << (mixed_ssid ? "mixed" : common_ssid)
-                      << ", role: " << (mixed_role ? "mixed" : common_role);
+            std::cout << ", ssid: ";
+            if (mixed_ssid) {
+                std::cout << "mixed";
+            } else {
+                std::cout << common_ssid;
+            }
+            std::cout << ", role: ";
+            if (mixed_role) {
+                std::cout << "mixed";
+            } else {
+                std::cout << common_role;
+            }
         }
         std::cout << ", links: " << links.size() << std::endl;
 
@@ -684,7 +697,8 @@ bool prplmesh_cli::print_radio(const std::string &device_path)
                     }
                     std::cout << ": bssid: " << conn_map.bss_id << ", ssid: " << conn_map.ssid
                               << std::endl;
-                    bsses_by_bssid[conn_map.bss_id] = {vap_label, vap_role, conn_map.ssid, freq};
+                    bsses_by_bssid[conn_map.bss_id] = {std::move(vap_label), std::move(vap_role),
+                                                       conn_map.ssid, freq};
 
                     std::string sta_ht_path     = bss_path_i + "STA.*.";
                     const amxc_htable_t *ht_sta = nullptr;

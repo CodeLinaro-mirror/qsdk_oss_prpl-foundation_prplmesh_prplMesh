@@ -113,7 +113,8 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
     // Keep the last complete relationship until this response provides enough topology
     // information to replace it. A reconnecting Agent may send a Topology Response before its
     // state, bSTA objects, or Ethernet neighbor lists have been fully refreshed.
-    const auto previous_backhaul = agent->backhaul;
+    // This must be a value snapshot: agent->backhaul is updated while processing the response.
+    const Agent::sBackhaul previous_backhaul(agent->backhaul);
 
     // Update Profile Information in Agent.
     auto tlvProfile2MultiApProfile = cmdu_rx.getClass<wfa_map::tlvProfile2MultiApProfile>();
