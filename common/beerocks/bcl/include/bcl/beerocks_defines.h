@@ -144,7 +144,7 @@ enum eStructsConsts {
 enum eMessageConsts {
     MESSAGE_VERSION       = 6,
     MESSAGE_MAGIC         = 0x55CDABEF,
-    MESSAGE_BUFFER_LENGTH = 8192,
+    MESSAGE_BUFFER_LENGTH = 32768,
 };
 } //namespace message
 
