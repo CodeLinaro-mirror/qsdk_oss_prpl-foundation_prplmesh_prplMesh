@@ -1990,9 +1990,23 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
                 // Found preference is lower then best, skip.
                 continue;
             } else if (primary_preference == best_channel.preference_score) {
-                // On a same preference, prefer a higher bandwidth.
-                if (bandwidth <= best_channel.bw) {
-                    // Found bandwidth is lower or equal to the best, skip.
+                // fix to push
+                // Keep the current operating channel/bandwidth when preferences tie.
+                // This avoids an unnecessary channel switch (e.g. 20 MHz -> 40 MHz)
+                // when the wider configuration has no better preference score.
+                const bool candidate_is_current =
+                    (channel == radio->wifi_channel.get_channel()) &&
+                    (bandwidth == radio->wifi_channel.get_bandwidth());
+                const bool best_is_current =
+                    (best_channel.channel == radio->wifi_channel.get_channel()) &&
+                    (best_channel.bw == radio->wifi_channel.get_bandwidth());
+
+                if (candidate_is_current != best_is_current) {
+                    if (!candidate_is_current) {
+                        continue;
+                    }
+                } else if (bandwidth <= best_channel.bw) {
+                    // Neither candidate is the current configuration: prefer wider BW.
                     continue;
                 }
             }
