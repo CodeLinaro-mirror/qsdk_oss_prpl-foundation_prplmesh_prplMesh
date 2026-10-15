@@ -128,9 +128,21 @@ deploy_pair() {
 # Input: $1 is a pair scenario name; pair and CI variables come from the environment.
 # Output: stores Cram artifacts and returns the test process status.
 run_pair_cram() {
-    local scenario="$1" test_file timeout_sec run_dir
+    local scenario="$1" timeout_sec run_dir
+    local -a test_files
 
     case "$scenario" in
+        ieee1905-eth)
+            # IEEE1905.t continues on the pair that IEEE1905_ETH.t brought up.
+            test_files=(IEEE1905_ETH.t IEEE1905.t)
+            export PAIR_IEEE1905_BACKHAUL=eth
+            timeout_sec=1800s
+            ;;
+        ieee1905-wifi)
+            test_files=(IEEE1905_WIFI.t IEEE1905.t)
+            export PAIR_IEEE1905_BACKHAUL=wifi
+            timeout_sec=1800s
+            ;;
         *)
             echo "Unknown CRAM pair scenario: $scenario" >&2
             return 2
@@ -155,9 +167,9 @@ run_pair_cram() {
         -e PAIR_AGENT_PLATFORM -e PAIR_AGENT_ENDPOINT \
         -e PAIR_FH_SSID_NAME -e PAIR_GUEST_SSID_NAME -e PAIR_BH_SSID_NAME \
         -e TS_CONTROLLER_GUEST_IP -e TS_AGENT_GUEST_IP \
-        -e TS_CONTROLLER_WIRED -e TS_AGENT_WIRED \
+        -e TS_CONTROLLER_WIRED -e TS_AGENT_WIRED -e PAIR_IEEE1905_BACKHAUL \
         "$CI_REGISTRY_IMAGE/prplmesh-cram:$PARENT_PIPELINE_ID" \
-        python3 -m cram --shell=/bin/bash --verbose "$test_file"
+        python3 -m cram --shell=/bin/bash --verbose "${test_files[@]}"
 }
 
 # Isolate the pair, redeploy it for each scenario, and retain the first failure.
@@ -167,7 +179,7 @@ main() {
     local scenario scenario_status status=0
 
     [[ "$#" -gt 0 ]] || {
-        echo "Usage: $0 scenario..." >&2
+        echo "Usage: $0 {ieee1905-eth|ieee1905-wifi}..." >&2
         return 2
     }
     load_pair
