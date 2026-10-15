@@ -1896,6 +1896,10 @@ ChannelSelectionTask::sSelectedChannel ChannelSelectionTask::select_next_channel
         const auto op_class_bw  = son::wireless_utils::get_bandwidth_from_op_class(op_class_num);
         const auto op_class_freq_type = son::wireless_utils::which_freq_op_cls(op_class_num);
         if (op_class_freq_type == freq_type) {
+            if (op_class_bw == beerocks::eWiFiBandwidth::BANDWIDTH_UNKNOWN) {
+                LOG(WARNING) << "Ignoring operating class";
+                continue;
+            }
             if (freq_type == beerocks::FREQ_6G &&
                 op_class_bw == beerocks::eWiFiBandwidth::BANDWIDTH_320) {
                 constexpr auto bw1 = beerocks::eWiFiBandwidth::BANDWIDTH_320_1;
