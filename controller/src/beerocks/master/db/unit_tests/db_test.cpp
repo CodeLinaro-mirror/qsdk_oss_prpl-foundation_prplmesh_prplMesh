@@ -17,6 +17,7 @@
 #include "../db.h"
 
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::DoAll;
 using ::testing::InSequence;
 using ::testing::InvokeWithoutArgs;
@@ -58,6 +59,25 @@ const std::string g_sta_path_1         = std::string(g_radio_1_bss_path_1) + ".S
 const std::string g_assoc_event_path_1 = std::string(g_assoc_event_path) + ".1";
 const std::string g_interface_path_1   = std::string(g_device_path) + ".1.Interface.1";
 const std::string g_interface_path_2   = std::string(g_device_path) + ".1.Interface.2";
+
+/**
+ * Matches AmbiorixVariant htable child `key` against `expected`.
+ * Prefer typed values (std::string{"Running"}, false, 1U, ...) over untyped string literals.
+ */
+MATCHER_P2(HasAmxChild, key, expected, "")
+{
+    using T = typename std::decay<decltype(expected)>::type;
+    T actual{};
+    if (!arg.read_child(actual, std::string(key))) {
+        *result_listener << "missing child '" << key << "'";
+        return false;
+    }
+    if (actual != expected) {
+        *result_listener << "child '" << key << "' has unexpected value";
+        return false;
+    }
+    return true;
+}
 
 TEST(DbSingleShotCounter, callback_triggered_when_decrement_reaches_zero)
 {
@@ -225,7 +245,11 @@ protected:
                                      "ManufacturerOUI", Matcher<const std::string &>(g_bridge_oui)))
             .WillOnce(Return(true));
 
-        EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_device_path) + ".1.MultiAPDevice", _))
+        EXPECT_CALL(
+            *m_ambiorix,
+            set_multi(std::string(g_device_path) + ".1.MultiAPDevice",
+                      AllOf(HasAmxChild("EasyMeshControllerOperationMode", std::string{"Running"}),
+                            HasAmxChild("EasyMeshAgentOperationMode", std::string{"Running"}))))
             .WillOnce(Return(true));
 
         EXPECT_CALL(*m_ambiorix, set(std::string(g_device_path) + ".1", "X_PRPLWARE-COM_AgentType",
@@ -259,7 +283,11 @@ protected:
         EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_1)).WillRepeatedly(Return(1));
         EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
             .WillOnce(Return(g_radio_path_1));
-        EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_1), _)).WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix,
+                    set_multi(std::string(g_radio_path_1),
+                              AllOf(HasAmxChild("ID", std::string{g_radio_mac_1}),
+                                    HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+            .WillOnce(Return(true));
 
         //prepare scenario
         EXPECT_TRUE(m_db->add_radio(tlvf::mac_from_string(g_radio_mac_1),
@@ -315,7 +343,15 @@ protected:
 
         //expectations for add_bss
         EXPECT_CALL(*m_ambiorix, add_instance(bss_path)).WillOnce(Return(bss_path + ".1"));
-        EXPECT_CALL(*m_ambiorix, set_multi(bss_path + ".1", _)).WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix, set_multi(bss_path + ".1",
+                                           AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                                                 HasAmxChild("SSID", std::string{g_ssid_1}),
+                                                 HasAmxChild("Enabled", false),
+                                                 HasAmxChild("FronthaulUse", false),
+                                                 HasAmxChild("BackhaulUse", false),
+                                                 HasAmxChild("X_PRPLWARE-COM_VAPID", g_vap_id_1),
+                                                 HasAmxChild("IsVBSS", false))))
+            .WillOnce(Return(true));
         EXPECT_CALL(*m_ambiorix,
                     set(bss_path + ".1", "ByteCounterUnits", Matcher<const uint32_t &>(0U)))
             .WillOnce(Return(true));
@@ -354,7 +390,15 @@ protected:
         EXPECT_CALL(*m_ambiorix, set_current_time(std::string(g_sta_path_1 + ".MultiAPSTA"), _))
             .WillOnce(Return(true));
         EXPECT_CALL(*m_ambiorix,
-                    set_multi(std::string(g_sta_path_1 + ".MultiAPSTA.SteeringSummaryStats"), _))
+                    set_multi(std::string(g_sta_path_1 + ".MultiAPSTA.SteeringSummaryStats"),
+                              AllOf(HasAmxChild("BlacklistAttempts", uint64_t{0}),
+                                    HasAmxChild("BlacklistSuccesses", uint64_t{0}),
+                                    HasAmxChild("BlacklistFailures", uint64_t{0}),
+                                    HasAmxChild("BTMAttempts", uint64_t{0}),
+                                    HasAmxChild("BTMSuccesses", uint64_t{0}),
+                                    HasAmxChild("BTMFailures", uint64_t{0}),
+                                    HasAmxChild("BTMQueryResponses", uint64_t{0}),
+                                    HasAmxChild("LastSteerTime", uint32_t{0}))))
             .WillRepeatedly(Return(true));
         EXPECT_CALL(*m_ambiorix,
                     set(std::string(g_sta_path_1), "LastConnectTime", Matcher<const uint64_t &>(_)))
@@ -599,7 +643,9 @@ TEST_F(DbTest, dm_should_replace_device_ssid_to_vid_mapping)
 
     EXPECT_CALL(*m_ambiorix, remove_all_instances(mapping_path)).WillOnce(Return(true));
     EXPECT_CALL(*m_ambiorix, add_instance(mapping_path)).WillOnce(Return(instance_path));
-    EXPECT_CALL(*m_ambiorix, set_multi(instance_path, _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(instance_path, AllOf(HasAmxChild("SSID", mapping.ssid),
+                                                            HasAmxChild("VID", mapping.vlan_id))))
+        .WillOnce(Return(true));
 
     EXPECT_TRUE(m_db->dm_clear_device_ssid_to_vid_map(*agent));
     EXPECT_TRUE(m_db->dm_set_device_ssid_to_vid_map(*agent, mapping));
@@ -711,7 +757,10 @@ TEST_F(DbTest, test_add_node_radio)
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac)).WillRepeatedly(Return(1));
     EXPECT_CALL(*m_ambiorix, add_instance(std::string(radio_path)))
         .WillOnce(Return(std::string(radio_path) + ".1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(radio_path) + ".1", _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(radio_path) + ".1",
+                                       AllOf(HasAmxChild("ID", std::string{g_radio_mac_1}),
+                                             HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+        .WillOnce(Return(true));
 
     //add radio node
     EXPECT_TRUE(
@@ -738,7 +787,10 @@ TEST_F(DbTest, test_add_vap)
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_1)).WillRepeatedly(Return(1));
     EXPECT_CALL(*m_ambiorix, add_instance(std::string(radio_path)))
         .WillOnce(Return(std::string(radio_path) + ".1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(radio_path) + ".1", _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(radio_path) + ".1",
+                                       AllOf(HasAmxChild("ID", std::string{g_radio_mac_1}),
+                                             HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+        .WillOnce(Return(true));
 
     //prepare scenario
     EXPECT_TRUE(
@@ -749,7 +801,15 @@ TEST_F(DbTest, test_add_vap)
 
     //expectations for add_bss
     EXPECT_CALL(*m_ambiorix, add_instance(bss_path)).WillOnce(Return(bss_path + ".1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(bss_path) + ".1", _)).WillOnce(Return(true));
+    EXPECT_CALL(
+        *m_ambiorix,
+        set_multi(std::string(bss_path) + ".1",
+                  AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                        HasAmxChild("SSID", std::string{g_ssid_1}), HasAmxChild("Enabled", false),
+                        HasAmxChild("FronthaulUse", false), HasAmxChild("BackhaulUse", false),
+                        HasAmxChild("X_PRPLWARE-COM_VAPID", g_vap_id_1),
+                        HasAmxChild("IsVBSS", false))))
+        .WillOnce(Return(true));
     EXPECT_CALL(*m_ambiorix, set(std::string(bss_path) + ".1", "ByteCounterUnits",
                                  Matcher<const uint32_t &>(0U)))
         .WillOnce(Return(true));
@@ -778,7 +838,11 @@ TEST_F(DbTestRadio1Bss1, set_qm_descriptor_adds_new_instance)
         .WillOnce(Return(0));
     EXPECT_CALL(*m_ambiorix, add_instance(g_radio_1_qm_descriptor_path))
         .WillOnce(Return(g_radio_1_qm_descriptor_path + ".1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(g_radio_1_qm_descriptor_path + ".1", _))
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(g_radio_1_qm_descriptor_path + ".1",
+                          AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                                HasAmxChild("ClientMAC", std::string{g_client_mac}),
+                                HasAmxChild("DescriptorElement", std::string{descriptor_element}))))
         .WillOnce(Return(true));
 
     EXPECT_TRUE(m_db->set_qm_descriptor(tlvf::mac_from_string(g_bssid_1),
@@ -793,7 +857,11 @@ TEST_F(DbTestRadio1Bss1, set_qm_descriptor_updates_existing_instance)
         *m_ambiorix,
         get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
         .WillOnce(Return(1));
-    EXPECT_CALL(*m_ambiorix, set_multi(g_radio_1_qm_descriptor_path + ".1", _))
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(g_radio_1_qm_descriptor_path + ".1",
+                          AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                                HasAmxChild("ClientMAC", std::string{g_client_mac}),
+                                HasAmxChild("DescriptorElement", std::string{descriptor_element}))))
         .WillOnce(Return(true));
 
     EXPECT_TRUE(m_db->set_qm_descriptor(tlvf::mac_from_string(g_bssid_1),
@@ -817,7 +885,11 @@ TEST_F(DbTestRadio1Bss1, controller_qm_descriptor_reuses_qmid_and_clears_remove)
         .WillOnce(Return(0));
     EXPECT_CALL(*m_ambiorix, add_instance(g_radio_1_qm_descriptor_path))
         .WillOnce(Return(g_radio_1_qm_descriptor_path + ".1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(g_radio_1_qm_descriptor_path + ".1", _))
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(g_radio_1_qm_descriptor_path + ".1",
+                          AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                                HasAmxChild("ClientMAC", std::string{g_client_mac}),
+                                HasAmxChild("DescriptorElement", std::string{add_descriptor}))))
         .WillOnce(Return(true));
 
     EXPECT_TRUE(m_db->set_controller_qm_descriptor(bssid, client_mac, add_descriptor));
@@ -831,7 +903,11 @@ TEST_F(DbTestRadio1Bss1, controller_qm_descriptor_reuses_qmid_and_clears_remove)
         *m_ambiorix,
         get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
         .WillOnce(Return(1));
-    EXPECT_CALL(*m_ambiorix, set_multi(g_radio_1_qm_descriptor_path + ".1", _))
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(g_radio_1_qm_descriptor_path + ".1",
+                          AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                                HasAmxChild("ClientMAC", std::string{g_client_mac}),
+                                HasAmxChild("DescriptorElement", std::string{change_descriptor}))))
         .WillOnce(Return(true));
 
     EXPECT_TRUE(m_db->set_controller_qm_descriptor(bssid, client_mac, change_descriptor));
@@ -845,7 +921,11 @@ TEST_F(DbTestRadio1Bss1, controller_qm_descriptor_reuses_qmid_and_clears_remove)
         *m_ambiorix,
         get_instance_index(g_radio_1_qm_descriptor_path + ".[ClientMAC == '%s'].", g_client_mac))
         .WillOnce(Return(1));
-    EXPECT_CALL(*m_ambiorix, set_multi(g_radio_1_qm_descriptor_path + ".1", _))
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(g_radio_1_qm_descriptor_path + ".1",
+                          AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                                HasAmxChild("ClientMAC", std::string{g_client_mac}),
+                                HasAmxChild("DescriptorElement", std::string{remove_descriptor}))))
         .WillOnce(Return(true));
 
     EXPECT_TRUE(m_db->set_controller_qm_descriptor(bssid, client_mac, remove_descriptor));
@@ -912,8 +992,14 @@ TEST_F(DbTest, test_set_ap_ht_capabilities)
     EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
         .WillOnce(Return(std::string(g_device_path) + ".1.Radio.1"))
         .WillOnce(Return(std::string(g_device_path) + ".1.Radio.2"));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_1), _)).WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_2), _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_1),
+                                       AllOf(HasAmxChild("ID", std::string{g_radio_mac_1}),
+                                             HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_2),
+                                       AllOf(HasAmxChild("ID", std::string{g_radio_mac_2}),
+                                             HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+        .WillOnce(Return(true));
 
     //prepare scenario
     EXPECT_TRUE(
@@ -934,9 +1020,25 @@ TEST_F(DbTest, test_set_ap_ht_capabilities)
     EXPECT_CALL(*m_ambiorix, add_optional_subobject(capabilities2, "HTCapabilities"))
         .WillOnce(Return(true));
 
-    EXPECT_CALL(*m_ambiorix, set_multi(ht_capabilities1, _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(ht_capabilities1,
+                          AllOf(HasAmxChild("HTShortGI20", true), HasAmxChild("HTShortGI40", false),
+                                HasAmxChild("HT40", true),
+                                HasAmxChild("MaxNumberOfTxSpatialStreams",
+                                            flags1.max_num_of_supported_tx_spatial_streams + 1),
+                                HasAmxChild("MaxNumberOfRxSpatialStreams",
+                                            flags1.max_num_of_supported_rx_spatial_streams + 1))))
+        .WillOnce(Return(true));
 
-    EXPECT_CALL(*m_ambiorix, set_multi(ht_capabilities2, _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(ht_capabilities2,
+                          AllOf(HasAmxChild("HTShortGI20", false), HasAmxChild("HTShortGI40", true),
+                                HasAmxChild("HT40", false),
+                                HasAmxChild("MaxNumberOfTxSpatialStreams",
+                                            flags2.max_num_of_supported_tx_spatial_streams + 1),
+                                HasAmxChild("MaxNumberOfRxSpatialStreams",
+                                            flags2.max_num_of_supported_rx_spatial_streams + 1))))
+        .WillOnce(Return(true));
 
     //execute test
     EXPECT_TRUE(m_db->set_ap_ht_capabilities(tlvf::mac_from_string(g_radio_mac_1), flags1));
@@ -959,7 +1061,10 @@ TEST_F(DbTest, test_add_hostap_supported_operating_class)
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_1)).WillRepeatedly(Return(1));
     EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
         .WillOnce(Return(std::string(g_device_path) + ".1.Radio.1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_1), _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_1),
+                                       AllOf(HasAmxChild("ID", std::string{g_radio_mac_1}),
+                                             HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+        .WillOnce(Return(true));
 
     //prepare scenario
     EXPECT_TRUE(
@@ -1011,7 +1116,10 @@ TEST_F(DbTest, test_add_current_op_class)
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_1)).WillRepeatedly(Return(1));
     EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
         .WillOnce(Return(g_radio_path_1));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_1), _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_path_1),
+                                       AllOf(HasAmxChild("ID", std::string{g_radio_mac_1}),
+                                             HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+        .WillOnce(Return(true));
 
     //prepare scenario
     EXPECT_TRUE(
@@ -1109,8 +1217,23 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_stats_info)
     stats.m_rx_packets_error     = 10;
     stats.m_tx_packets_error     = 11;
 
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_sta_path_1), _))
-        .WillOnce(Return(true))
+    EXPECT_CALL(
+        *m_ambiorix,
+        set_multi(std::string(g_sta_path_1),
+                  AllOf(HasAmxChild("LastDataDownlinkRate", metrics.last_data_down_link_rate),
+                        HasAmxChild("LastDataUplinkRate", metrics.last_data_up_link_rate),
+                        HasAmxChild("UtilizationReceive", metrics.utilization_receive),
+                        HasAmxChild("UtilizationTransmit", metrics.utilization_transmit))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(std::string(g_sta_path_1),
+                          AllOf(HasAmxChild("BytesSent", stats.m_byte_sent),
+                                HasAmxChild("BytesReceived", stats.m_byte_received),
+                                HasAmxChild("PacketsSent", stats.m_packets_sent),
+                                HasAmxChild("PacketsReceived", stats.m_packets_received),
+                                HasAmxChild("RetransCount", stats.m_retransmission_count),
+                                HasAmxChild("ErrorsSent", stats.m_tx_packets_error),
+                                HasAmxChild("ErrorsReceived", stats.m_rx_packets_error))))
         .WillOnce(Return(true));
 
     EXPECT_CALL(*m_ambiorix, set_current_time(g_sta_path_1, _)).WillOnce(Return(true));
@@ -1135,7 +1258,10 @@ TEST_F(DbTest, test_set_vap_stats_info)
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_radio_mac_1)).WillRepeatedly(Return(1));
     EXPECT_CALL(*m_ambiorix, add_instance(std::string(radio_path)))
         .WillOnce(Return(std::string(radio_path) + ".1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(radio_path) + ".1", _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(radio_path) + ".1",
+                                       AllOf(HasAmxChild("ID", std::string{g_radio_mac_1}),
+                                             HasAmxChild("X_PRPLWARE-COM_Name", std::string{}))))
+        .WillOnce(Return(true));
 
     //prepare scenario
     EXPECT_TRUE(
@@ -1146,7 +1272,15 @@ TEST_F(DbTest, test_set_vap_stats_info)
 
     //expectations for add_bss
     EXPECT_CALL(*m_ambiorix, add_instance(bss_path)).WillOnce(Return(bss_path + ".1"));
-    EXPECT_CALL(*m_ambiorix, set_multi(bss_path + ".1", _)).WillOnce(Return(true));
+    EXPECT_CALL(
+        *m_ambiorix,
+        set_multi(bss_path + ".1",
+                  AllOf(HasAmxChild("BSSID", std::string{g_bssid_1}),
+                        HasAmxChild("SSID", std::string{g_ssid_1}), HasAmxChild("Enabled", false),
+                        HasAmxChild("FronthaulUse", false), HasAmxChild("BackhaulUse", false),
+                        HasAmxChild("X_PRPLWARE-COM_VAPID", g_vap_id_1),
+                        HasAmxChild("IsVBSS", false))))
+        .WillOnce(Return(true));
     EXPECT_CALL(*m_ambiorix, set(_, _, Matcher<const uint32_t &>(_))).WillRepeatedly(Return(true));
     EXPECT_CALL(*m_ambiorix, set_current_time(_, _)).WillOnce(Return(true));
 
@@ -1160,7 +1294,13 @@ TEST_F(DbTest, test_set_vap_stats_info)
 
     //expectations for set_vap_stats_info
     EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bssid_1)).WillRepeatedly(Return(1));
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_1_bss_path_1), _))
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_radio_1_bss_path_1),
+                                       AllOf(HasAmxChild("UnicastBytesSent", uint64_t{1}),
+                                             HasAmxChild("UnicastBytesReceived", uint64_t{2}),
+                                             HasAmxChild("MulticastBytesSent", uint64_t{3}),
+                                             HasAmxChild("MulticastBytesReceived", uint64_t{4}),
+                                             HasAmxChild("BroadcastBytesSent", uint64_t{5}),
+                                             HasAmxChild("BroadcastBytesReceived", uint64_t{6}))))
         .WillOnce(Return(true));
 
     EXPECT_CALL(*m_ambiorix, set_current_time(_, _)).WillOnce(Return(true));
@@ -1199,9 +1339,31 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_capabilities)
     EXPECT_CALL(*m_ambiorix, add_optional_subobject(g_sta_path_1 + '.', "WiFi6Capabilities"))
         .WillOnce(Return(true));
 
-    EXPECT_CALL(*m_ambiorix, set_multi(ht_capabilities1, _)).WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set_multi(vht_capabilities1, _)).WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set_multi(he_capabilities1, _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(ht_capabilities1,
+                          AllOf(HasAmxChild("HTShortGI20", false),
+                                HasAmxChild("HTShortGI40", false), HasAmxChild("HT40", false),
+                                HasAmxChild("MaxNumberOfTxSpatialStreams", sta_cap.ht_ss),
+                                HasAmxChild("MaxNumberOfRxSpatialStreams", sta_cap.ht_ss))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(
+        *m_ambiorix,
+        set_multi(vht_capabilities1,
+                  AllOf(HasAmxChild("MaxNumberOfTxSpatialStreams", sta_cap.vht_ss),
+                        HasAmxChild("MaxNumberOfRxSpatialStreams", sta_cap.vht_ss),
+                        HasAmxChild("VHTShortGI80", false), HasAmxChild("VHTShortGI160", false),
+                        HasAmxChild("VHT8080", false), HasAmxChild("VHT160", false),
+                        HasAmxChild("SUBeamformer", false), HasAmxChild("MUBeamformer", false))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(
+        *m_ambiorix,
+        set_multi(he_capabilities1,
+                  AllOf(HasAmxChild("MaxNumberOfTxSpatialStreams", sta_cap.he_ss),
+                        HasAmxChild("MaxNumberOfRxSpatialStreams", sta_cap.he_ss),
+                        HasAmxChild("HE160", true), HasAmxChild("HE8080", false),
+                        HasAmxChild("SUBeamformer", false), HasAmxChild("SUBeamformee", false),
+                        HasAmxChild("MUBeamformer", false))))
+        .WillOnce(Return(true));
 
     EXPECT_CALL(*m_ambiorix,
                 remove_optional_subobject(g_assoc_event_path_1 + '.', "HTCapabilities"))
@@ -1221,10 +1383,32 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_capabilities)
                 add_optional_subobject(g_assoc_event_path_1 + '.', "WiFi6Capabilities"))
         .WillRepeatedly(Return(true));
 
-    EXPECT_CALL(*m_ambiorix, set_multi(ht_capabilities2, _)).WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set_multi(vht_capabilities2, _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set_multi(ht_capabilities2,
+                          AllOf(HasAmxChild("HTShortGI20", false),
+                                HasAmxChild("HTShortGI40", false), HasAmxChild("HT40", false),
+                                HasAmxChild("MaxNumberOfTxSpatialStreams", sta_cap.ht_ss),
+                                HasAmxChild("MaxNumberOfRxSpatialStreams", sta_cap.ht_ss))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(
+        *m_ambiorix,
+        set_multi(vht_capabilities2,
+                  AllOf(HasAmxChild("MaxNumberOfTxSpatialStreams", sta_cap.vht_ss),
+                        HasAmxChild("MaxNumberOfRxSpatialStreams", sta_cap.vht_ss),
+                        HasAmxChild("VHTShortGI80", false), HasAmxChild("VHTShortGI160", false),
+                        HasAmxChild("VHT8080", false), HasAmxChild("VHT160", false),
+                        HasAmxChild("SUBeamformer", false), HasAmxChild("MUBeamformer", false))))
+        .WillOnce(Return(true));
     EXPECT_CALL(*m_ambiorix, set_current_time(g_assoc_event_path_1, _)).WillOnce(Return(true));
-    EXPECT_CALL(*m_ambiorix, set_multi(he_capabilities2, _)).WillOnce(Return(true));
+    EXPECT_CALL(
+        *m_ambiorix,
+        set_multi(he_capabilities2,
+                  AllOf(HasAmxChild("MaxNumberOfTxSpatialStreams", sta_cap.he_ss),
+                        HasAmxChild("MaxNumberOfRxSpatialStreams", sta_cap.he_ss),
+                        HasAmxChild("HE160", true), HasAmxChild("HE8080", false),
+                        HasAmxChild("SUBeamformer", false), HasAmxChild("SUBeamformee", false),
+                        HasAmxChild("MUBeamformer", false))))
+        .WillOnce(Return(true));
 
     //execute test
     EXPECT_TRUE(m_db->set_sta_capabilities(g_client_mac, sta_cap));
@@ -1242,7 +1426,11 @@ TEST_F(DbTestRadio1Sta1, test_set_sta_link_metrics)
     const std::string vht_capabilities1 = std::string(g_sta_path_1) + ".VHTCapabilities";
 
     //expectations for set_sta_link_metrics
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_sta_path_1), _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_sta_path_1),
+                                       AllOf(HasAmxChild("EstMACDataRateDownlink", uint32_t{1}),
+                                             HasAmxChild("EstMACDataRateUplink", uint32_t{2}),
+                                             HasAmxChild("SignalStrength", uint8_t{3}))))
+        .WillOnce(Return(true));
 
     //execute test
     EXPECT_TRUE(m_db->dm_set_sta_link_metrics(tlvf::mac_from_string(g_client_mac), 1, 2, 3));
@@ -1291,7 +1479,10 @@ TEST_F(DbTestRadio1Sta1, test_dhcp_v4_lease_sta)
     constexpr char host_name[] = "IPv4_HOST";
     constexpr char ip_addr[]   = "192.168.1.100";
 
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_sta_path_1), _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_sta_path_1),
+                                       AllOf(HasAmxChild("Hostname", std::string{host_name}),
+                                             HasAmxChild("IPV4Address", std::string{ip_addr}))))
+        .WillOnce(Return(true));
 
     //execute test
     EXPECT_TRUE(
@@ -1305,7 +1496,10 @@ TEST_F(DbTestRadio1Sta1, test_dhcp_v6_lease_sta)
     constexpr char host_name[] = "IPv6_HOST";
     constexpr char ip_addr[]   = "fe80::b6a9:cccc:aaaa:bbbb";
 
-    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_sta_path_1), _)).WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_multi(std::string(g_sta_path_1),
+                                       AllOf(HasAmxChild("Hostname", std::string{host_name}),
+                                             HasAmxChild("IPV6Address", std::string{ip_addr}))))
+        .WillOnce(Return(true));
 
     //execute test
     EXPECT_TRUE(
