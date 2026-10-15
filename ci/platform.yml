@@ -287,6 +287,25 @@ cram-traffic-separation-on-pair-ospv2-ospv2:
     - .cram-on-pair-ospv2-ospv2
     - .cram-traffic-separation-on-pair
 
+.cram-ieee1905-on-pair:
+  script:
+    - ci/run-pair-cram.sh ieee1905-eth ieee1905-wifi
+
+cram-ieee1905-on-pair-freedom-freedom:
+  extends:
+    - .cram-on-pair-freedom-freedom
+    - .cram-ieee1905-on-pair
+
+cram-ieee1905-on-pair-ospv2-freedom:
+  extends:
+    - .cram-on-pair-ospv2-freedom
+    - .cram-ieee1905-on-pair
+
+cram-ieee1905-on-pair-ospv2-ospv2:
+  extends:
+    - .cram-on-pair-ospv2-ospv2
+    - .cram-ieee1905-on-pair
+
 run-certification-tests-R1-platform-essensium:
   extends: .run-certification-tests-R1
   before_script:

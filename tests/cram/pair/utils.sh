@@ -97,6 +97,23 @@ pair_wait_role_ready() {
         pair_role_ready "$1" "$2"
 }
 
+# Restart prplMesh on one pair device in the requested management mode.
+# Inputs: $1 is controller or agent; $2 is the management mode.
+# Output: returns success once the device is active in the requested mode.
+pair_restart_prplmesh() {
+    local role="$1" mode="$2"
+
+    pair_remote_script "$role" "$mode" <<'RESTART_PRPLMESH' >/dev/null || return
+set -eu
+ba-cli 'X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0'
+sleep 5
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"$1\""
+ba-cli 'X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1'
+ba-cli 'X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1'
+RESTART_PRPLMESH
+    pair_wait_role_ready "$role" "$mode"
+}
+
 pair_ping_once() {
     local role="$1" source="$2" destination="$3"
 
@@ -241,13 +258,13 @@ pair_exit() {
 }
 
 # Initialize shared pair-test state, validation, artifacts, and EXIT cleanup.
-# Input: $1 is wps, eth, or wifi plus the required PAIR_* environment variables.
+# Input: $1 is a pair scenario name plus the required PAIR_* environment variables.
 # Output: sets runtime globals, creates the artifact directory, and installs a trap.
 pair_init() {
     local scenario="$1" artifact_root
 
     case "$scenario" in
-        eth | wifi | wps) ;;
+        eth | wifi | wps | ieee1905-eth | ieee1905-wifi) ;;
         *) printf 'Unknown pair scenario: %s\n' "$scenario" >&2; return 2 ;;
     esac
     pair_require_variables CRAM_CONTROLLER_COMMAND CRAM_AGENT_COMMAND \
