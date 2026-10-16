@@ -1,0 +1,101 @@
+.orbit-on-target:
+  script:
+    - echo "Start Orbit testing in 30 seconds"
+    - sleep 30
+    - python3 -u tests/orbit/orbit.py $(echo "$CI_ORBIT_CASES_LIST" | tr ';' ' ')
+  after_script:
+    - timeout 10 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${TARGET_DEVICE} "rm -f /tmp/logs.tar; tar -chf /tmp/logs.tar -C /var log"
+    - timeout 10 scp -O -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${TARGET_DEVICE}:/tmp/logs.tar logs.tar
+    - python3 -u tests/orbit/orbit.py --cleanup
+  artifacts:
+    paths:
+      - "*.zip"
+      - "logs.tar"
+    expire_in: 4 weeks
+    when: always
+  rules:
+    - when: manual
+      allow_failure: true
+
+.orbit-on-ospv2:
+  extends: .orbit-on-target
+  stage: Orbit-OSPv2
+  variables:
+    TARGET_DEVICE: urx_ospv2
+  before_script:
+    - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE" --image "$URX_OSPV2_B_FULLIMAGE" --ipaddr "192.168.1.99" --serverip "192.168.1.178" --whm --configuration ci/configuration/orbit/urx_ospv2.sh
+  needs:
+    - job: build-for-ospv2
+  tags:
+    - orbit
+    - ospv2
+
+Orbit:OSPv2:5.1.4_connect_station_2g:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "5_1_4_connect_one_station_in_2g"
+
+Orbit:OSPv2:5.2.4_connect_station_5g:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "5_2_4_connect_one_station_in_5g"
+
+Orbit:OSPv2:5.3.4_connect_station_6g:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "5_3_4_connect_one_station_in_6g"
+
+Orbit:OSPv2:5.1.24_interface_types_2g:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "5_1_24_interface_types_in_2g"
+
+Orbit:OSPv2:5.2.24_interface_types_5g:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "5_2_24_interface_types_in_5g"
+
+Orbit:OSPv2:5.3.24_interface_types_6g:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "5_3_24_interface_types_in_6g"
+
+Orbit:OSPv2:7.1.1_enable_mlo:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_1_1_mlo_enabled"
+
+Orbit:OSPv2:7.1.2_connect_mld_station:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_1_2_connect_one_mld_station"
+
+Orbit:OSPv2:7.1.3_connect_two_mld_stations:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_1_3_connect_two_mld_stations"
+
+Orbit:OSPv2:7.3.1_acl_deny_for_mld_station:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_3_1_trigger_acl_deny_del_for_mld_station"
+
+Orbit:OSPv2:7.3.2_acl_flush_for_mld_station:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_3_2_trigger_acl_flush_for_mld_station"
+
+Orbit:OSPv2:7.3.3_deauth_for_mld_station:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_3_3_trigger_deauth_for_mld_station"
+
+Orbit:OSPv2:7.3.4_11v_for_mld_station:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_3_4_trigger_11v_for_mld_station"
+
+Orbit:OSPv2:7.3.5_11k_for_mld_station:
+  extends: .orbit-on-ospv2
+  variables:
+    CI_ORBIT_CASES_LIST: "7_3_5_trigger_11k_for_mld_station"

@@ -13,6 +13,7 @@ variables:
   MOZART_FULLIMAGE: "openwrt-mediatek-filogic-arcadyan_mozart-squashfs-sysupgrade.itb"
   URX_OSP_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_TB341-osp_tb341_fullimage.img"
   URX_OSPV2_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_v2-tb341_wav700-ext4.img"
+  URX_OSPV2_B_FULLIMAGE: "openwrt-intel_x86-lgm-PRPL_OSP_v2-wgrtd159be_b_wav700-ext4.img"
   CRAM_REMOTE_COMMAND_BASE: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@"
 
 workflow:
@@ -32,12 +33,14 @@ stages:
   - R4-cert-freedom-controller
   - R4-cert-OSPv2-controller
   - R4-cert-mozart-controller
+  - Orbit-OSPv2
   - upload
   - release
 
 include:
   - local: "/ci/templates.yml"
   - local: "/ci/certification/templates.yml"
+  - local: "/ci/orbit/orbit.yml"
 
 .rules-for-releases: &onrelease
   - if: '$CI_COMMIT_TAG =~ /\A\d+\.\d+\.\d+\z/'
