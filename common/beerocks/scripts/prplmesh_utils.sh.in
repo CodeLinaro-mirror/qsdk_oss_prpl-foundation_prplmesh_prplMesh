@@ -22,12 +22,22 @@ send_signal_to_prplmesh_process() {
     PROGRAM_NAME=$1
     SIG=${2:-TERM}
 
+    EXE="${PRPLMESH_DIR}/bin/${PROGRAM_NAME}"
+    if [ ! -f "${EXE}" ]; then
+	return
+    fi
+
     echo "sending signal to ${PROGRAM_NAME} (${SIG})"
     start-stop-daemon -K -s "${SIG}" -x "${PRPLMESH_DIR}/bin/${PROGRAM_NAME}" > /dev/null 2>&1
 }
 
 start_prplmesh_process() {
     PROGRAM_NAME=$1
+
+    EXE="${PRPLMESH_DIR}/bin/${PROGRAM_NAME}"
+    if [ ! -f "${EXE}" ]; then
+	return
+    fi
 
     echo "starting ${PROGRAM_NAME}"
     start-stop-daemon -S -b -x "${PRPLMESH_DIR}/bin/${PROGRAM_NAME}" > /dev/null 2>&1
@@ -36,6 +46,11 @@ start_prplmesh_process() {
 stop_prplmesh_process() {
     PROGRAM_NAME=$1
     TIMEOUT=10
+
+    EXE="${PRPLMESH_DIR}/bin/${PROGRAM_NAME}"
+    if [ ! -f "${EXE}" ]; then
+	return
+    fi
 
     echo "stop ${PROGRAM_NAME} via signals"
     send_signal_to_prplmesh_process "${PROGRAM_NAME}"

@@ -75,8 +75,10 @@ option (ENABLE_VBSS "Build with Virtual BSS support" ON)
 
 option(USE_PRPLMESH_WHM "Use prplMesh Wireless Hardware Manager" ON)
 
-option (ENABLE_BEEROCKS_CLI "Build beerocks CLI" ON)
+option (ENABLE_BEEROCKS_CLI "Build beerocks CLI" OFF)
 option (ENABLE_PRPLMESH_CLI "Build prplMesh CLI" ON)
+
+option (ENABLE_VENDOR_MESSAGE "Build vendor message" OFF)
 
 ## Generic checks and defaults
 
@@ -286,8 +288,11 @@ add_subdirectory(framework)
 add_subdirectory(common)
 if (BUILD_AGENT)
     add_subdirectory(agent)
-    add_subdirectory(vendor_message)
+    if (ENABLE_VENDOR_MESSAGE)
+        add_subdirectory(vendor_message)
+    endif()
 endif()
+
 if (BUILD_CONTROLLER)
     add_subdirectory(controller)
 endif()
