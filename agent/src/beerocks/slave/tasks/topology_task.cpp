@@ -802,7 +802,13 @@ bool TopologyTask::add_device_information_and_bridging_capability_tlv(
                          << ", is_wlan=" << iface.second.is_wlan;
         }
 
-        if (iface.second.is_wlan) {
+        // 1905.1 defines 802.11 media specific information only for 802.11 media types.
+        const bool has_802_11_media_info =
+            iface.second.is_wlan &&
+            static_cast<ieee1905_1::eMediaTypeGroup>(iface.second.media_type >> 8) ==
+                ieee1905_1::eMediaTypeGroup::IEEE_802_11;
+
+        if (has_802_11_media_info) {
             ieee1905_1::s802_11SpecificInformation media_info = {};
             localInterfaceInfo->alloc_media_info(sizeof(media_info));
 
