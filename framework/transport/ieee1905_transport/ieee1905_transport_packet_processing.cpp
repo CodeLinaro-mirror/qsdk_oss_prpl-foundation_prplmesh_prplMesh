@@ -476,7 +476,20 @@ bool Ieee1905Transport::fragment_and_send_packet_to_network_interface(unsigned i
             }
             if (nextTlv->size() > kIeee1905FragmentationThreashold) {
                 // this TLV is too large to fit in any fragment
-                MAPF_WARN("bad packet format - oversized TLV found.");
+                const auto *cmdu_header =
+                    reinterpret_cast<const Ieee1905CmduHeader *>(packet.payload.iov_base);
+                const auto tlv_offset = reinterpret_cast<const uint8_t *>(nextTlv) -
+                                        reinterpret_cast<const uint8_t *>(packet.payload.iov_base);
+                const auto tlv_size = nextTlv->size();
+                MAPF_WARN("bad packet format - oversized TLV found: CMDU type=0x"
+                          << std::hex << ntohs(cmdu_header->messageType) << ", MID=0x"
+                          << ntohs(cmdu_header->messageId) << std::dec
+                          << ", TLV type=" << int(nextTlv->type())
+                          << ", TLV payload length=" << tlv_size - sizeof(Tlv)
+                          << ", TLV total size=" << tlv_size << ", TLV offset=" << tlv_offset
+                          << ", remaining CMDU bytes=" << remainingPacketLength
+                          << ", current fragment bytes=" << fragmentTlvsLength
+                          << ", fragmentation threshold=" << kIeee1905FragmentationThreashold);
                 return false;
             }
             if (int(nextTlv->size()) > remainingPacketLength) {
