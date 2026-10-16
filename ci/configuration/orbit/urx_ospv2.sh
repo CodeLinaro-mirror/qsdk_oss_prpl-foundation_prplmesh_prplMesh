@@ -9,10 +9,6 @@ set -e
 # Start with a new log file:
 rm -f /var/log/messages && syslog-ng-ctl reload
 
-# Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop || true
-rm -f /etc/rc.d/S*tr181-firewall
-
 ubus wait_for IP.Interface
 
 sleep 5
@@ -29,15 +25,12 @@ sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=info, warning, e
 sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=info, warning, error, fatal/' /opt/prplmesh/config/beerocks_controller.conf
 sed -i 's/\("level"[[:space:]]*:[[:space:]]*\)"ERROR"/\1"INFO"/' /opt/prplmesh/config/framework_logging.conf
 
+# set the acs enable
+sed -i 's/^\(enable_auto_chansel_handling=\)[01]/\11/' /opt/prplmesh/config/beerocks_agent.conf
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
-ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.CertificationMode=1"
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
 sleep 5
-
-ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=0"
-ba-cli "Device.Ethernet.Interface.[Alias == \"cpe-eth0_2\"].Enable=0"
-ba-cli "Device.Ethernet.Interface.[Alias == \"cpe-eth0_2\"].Enable=1"
-ba-cli "Bridging.Bridge.[Alias == \"lan\"].Port.[Name == \"eth0_2\"].Enable=1"
 
 # Set the wired backhaul interface:
 if ba-cli "X_PRPLWARE-COM_Agent.Configuration.?" | grep -Eq "No data found|ERROR"; then
@@ -50,6 +43,10 @@ else
 fi
 
 sleep 5
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0"
+sleep 3
+ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
+sleep 3
 
 # enable STA-mode on 2.4 and 5GHz
 ba-cli "WiFi.Radio.[OperatingFrequencyBand == \"2.4GHz\"].STA_Mode=1"
@@ -80,9 +77,5 @@ sleep 3
 BOOTSCRIPT="/etc/rc.local"
 SERVER_CMD="sleep 20 && iptables -P INPUT ACCEPT"
 if ! grep -q "$SERVER_CMD" "$BOOTSCRIPT"; then { head -n -2 "$BOOTSCRIPT"; echo "$SERVER_CMD"; tail -2 "$BOOTSCRIPT"; } >> btscript.tmp; mv btscript.tmp "$BOOTSCRIPT"; fi
-
-# Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop
-rm -f /etc/rc.d/S22tr181-firewall
 
 iptables -P INPUT ACCEPT
