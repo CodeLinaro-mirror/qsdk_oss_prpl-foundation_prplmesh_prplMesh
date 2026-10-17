@@ -3623,6 +3623,14 @@ public:
 
 private:
     /**
+     * @brief Removes history references owned by a data model object.
+     *
+     * @param paths Queue containing indexed data model paths.
+     * @param owner_path Indexed path of the object whose subtree was removed.
+     */
+    void dm_prune_history_references(std::queue<std::string> &paths, const std::string &owner_path);
+
+    /**
      * @brief Updates the client values in the persistent db.
      *
      * @param mac MAC address of a client.

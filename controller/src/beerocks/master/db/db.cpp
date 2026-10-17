@@ -5358,6 +5358,30 @@ bool db::dm_check_objects_limit(std::queue<std::string> &paths, uint8_t limit)
     return true;
 }
 
+void db::dm_prune_history_references(std::queue<std::string> &paths, const std::string &owner_path)
+{
+    const auto owner_prefix = owner_path + ".";
+    std::queue<std::string> retained_paths;
+    size_t pruned_references = 0;
+
+    while (!paths.empty()) {
+        auto path = std::move(paths.front());
+        paths.pop();
+
+        if (path.compare(0, owner_prefix.size(), owner_prefix) != 0) {
+            retained_paths.push(std::move(path));
+        } else {
+            ++pruned_references;
+        }
+    }
+
+    paths.swap(retained_paths);
+    if (pruned_references > 0) {
+        LOG(DEBUG) << "Pruned " << pruned_references << " history reference(s) under "
+                   << owner_path;
+    }
+}
+
 bool db::notify_sta_disconnection(const std::string &client_mac, const uint16_t reason_code,
                                   const std::string &bssid)
 {
@@ -7081,6 +7105,10 @@ bool db::dm_remove_device_element(const sMacAddr &mac)
         LOG(ERROR) << "Failed to remove Network.Device." << index << " instance.";
         return false;
     }
+
+    const auto device_path =
+        std::string(DATAELEMENTS_ROOT_DM ".Network.Device.") + std::to_string(index);
+    dm_prune_history_references(m_scan_results, device_path);
 
     return true;
 }
@@ -8986,6 +9014,7 @@ bool db::dm_remove_radio(Agent::sRadio &radio)
     if (!m_ambiorix_datamodel->remove_instance(instance.first, instance.second)) {
         return false;
     }
+    dm_prune_history_references(m_scan_results, radio.dm_path);
     radio.dm_path.clear();
     return true;
 }
