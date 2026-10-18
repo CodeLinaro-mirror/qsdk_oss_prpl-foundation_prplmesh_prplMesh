@@ -73,16 +73,15 @@ sleep 3
 #sleep 1
 #iw dev wlan2 iwlwav sCoCPower 0 1 1
 
-# Copy generated host keys
-# cp /etc/config/ssh_server/*_key /etc/dropbear/
+# Commands to start a new SSH server on the control port
+start_ssh_commands="iptables -P INPUT ACCEPT
+killall -9 dropbear
+cp /etc/config/ssh_server/*_key /etc/dropbear/
+dropbear -F -T 10 -p192.168.1.99:22 &"
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 BOOTSCRIPT="/etc/rc.local"
-SERVER_CMD="sleep 20 && iptables -P INPUT ACCEPT"
+SERVER_CMD="sleep 20 && $start_ssh_commands"
 if ! grep -q "$SERVER_CMD" "$BOOTSCRIPT"; then { head -n -2 "$BOOTSCRIPT"; echo "$SERVER_CMD"; tail -2 "$BOOTSCRIPT"; } >> btscript.tmp; mv btscript.tmp "$BOOTSCRIPT"; fi
 
-# Stop and disable the firewall:
-sh /etc/init.d/tr181-firewall stop
-rm -f /etc/rc.d/S22tr181-firewall
-
-iptables -P INPUT ACCEPT
+set +e && eval "$start_ssh_commands"
