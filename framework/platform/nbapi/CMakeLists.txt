@@ -41,10 +41,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${prplmesh_VERSION} SOV
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
 
 if (ENABLE_NBAPI)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${NBAPI_LIBS} mapfcommon elpp bcl event)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${NBAPI_LIBS} elpp bcl event)
 else ()
-    target_link_libraries(${PROJECT_NAME} PRIVATE mapfcommon elpp bcl)
+    target_link_libraries(${PROJECT_NAME} PRIVATE elpp bcl)
 endif()
+target_link_libraries(${PROJECT_NAME} PUBLIC mapfcommon)
 
 # Install
 target_include_directories(${PROJECT_NAME}
