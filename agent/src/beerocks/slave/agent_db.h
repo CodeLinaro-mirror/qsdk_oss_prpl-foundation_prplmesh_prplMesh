@@ -89,13 +89,7 @@ public:
     private:
         AgentDB &m_db;
     };
-    static SafeDB get()
-    {
-        // Guaranteed to be destroyed.
-        // Instantiated on first use.
-        static AgentDB instance;
-        return SafeDB(instance);
-    }
+    static SafeDB get();
     AgentDB(const AgentDB &) = delete;
     void operator=(const AgentDB &) = delete;
 

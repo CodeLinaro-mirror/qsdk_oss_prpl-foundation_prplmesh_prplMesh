@@ -7,7 +7,6 @@ set(MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 if (USE_PRPLMESH_WHM)
     file(GLOB beerocks_vendor_message_sources
         ${MODULE_PATH}/src/*.c*
-        ${MODULE_PATH}/../agent/src/beerocks/slave/agent_db.c*
     )
     list(APPEND beerocks_vendor_message_sources
         ${MODULE_PATH}/airties/airties_utils.cpp
@@ -18,7 +17,6 @@ if (USE_PRPLMESH_WHM)
 else()
     file(GLOB beerocks_vendor_message_sources
         ${MODULE_PATH}/dummy/*.c*
-        ${MODULE_PATH}/../agent/src/beerocks/slave/agent_db.c*
     )
     list(APPEND beerocks_vendor_message_sources
         ${MODULE_PATH}/airties/dummy/airties_utils_dummy.cpp
@@ -27,7 +25,7 @@ endif()
 
 add_executable(${PROJECT_NAME} ${beerocks_vendor_message_sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-z,defs")
-target_link_libraries(${PROJECT_NAME} bcl btl tlvf btlvf bwl bpl nbapi ${LIBS})
+target_link_libraries(${PROJECT_NAME} agentdb bcl btl tlvf btlvf bwl bpl nbapi ${LIBS})
 
 if (USE_PRPLMESH_WHM)
     set(INCLUDE_DIR

@@ -283,6 +283,7 @@ add_subdirectory(documentation)
 ## Components
 
 add_subdirectory(framework)
+add_subdirectory(agent/src/beerocks/slave/agentdb)
 add_subdirectory(common)
 if (BUILD_AGENT)
     add_subdirectory(agent)
