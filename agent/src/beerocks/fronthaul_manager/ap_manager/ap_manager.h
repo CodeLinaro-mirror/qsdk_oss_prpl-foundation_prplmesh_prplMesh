@@ -318,8 +318,9 @@ private:
      */
     std::unique_ptr<beerocks::CmduClient> m_slave_client;
 
-    bool certification_mode = false;
-    bool radio_state_lock   = false;
+    bool certification_mode        = false;
+    bool radio_state_lock          = false;
+    bool radio_disabled_by_service = false;
     uint8_t multi_ap_profile =
         wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2;
 
