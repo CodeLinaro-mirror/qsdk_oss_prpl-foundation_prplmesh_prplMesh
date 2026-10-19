@@ -26,9 +26,11 @@ if (BUILD_TESTS)
 
     target_link_libraries(${PROJECT_NAME}
         PRIVATE
+        agentdb
         bcl
         bpl
         btlvf
+        nbapi
         gtest_main
         gmock
     )

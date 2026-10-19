@@ -13,6 +13,13 @@
 
 namespace beerocks {
 
+AgentDB::SafeDB AgentDB::get()
+{
+    // Own the singleton in agentdb so shared-library consumers use the same DB.
+    static AgentDB instance;
+    return SafeDB(instance);
+}
+
 AgentDB::sRadio *AgentDB::radio(const std::string &iface_name)
 {
     if (iface_name.empty()) {
