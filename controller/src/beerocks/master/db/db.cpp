@@ -2541,11 +2541,11 @@ const beerocks::message::sRadioCapabilities *db::get_sta_capabilities(const std:
     }
 
     if ((freq_type == eFreqType::FREQ_5G) && (pSta->m_sta_5ghz_capabilities.valid == true)) {
-        return &pSta->m_sta_24ghz_capabilities;
+        return &pSta->m_sta_5ghz_capabilities;
     }
 
     if ((freq_type == eFreqType::FREQ_6G) && (pSta->m_sta_6ghz_capabilities.valid == true)) {
-        return &pSta->m_sta_24ghz_capabilities;
+        return &pSta->m_sta_6ghz_capabilities;
     }
 
     LOG(ERROR) << "Failed to find valid sta capabilities for freq type "
