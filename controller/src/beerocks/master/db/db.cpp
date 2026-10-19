@@ -4392,10 +4392,6 @@ bool db::dm_add_scan_result(const sMacAddr &ruid, const uint8_t &operating_class
                             const std::vector<wfa_map::cNeighbors> &neighbors,
                             const std::string &ISO_8601_timestamp)
 {
-    if (!dm_check_objects_limit(m_scan_results, MAX_SCAN_RESULT_HISTORY_SIZE)) {
-        return false;
-    }
-
     const std::string &radio_path = get_radio_data_model_path(ruid);
 
     if (radio_path.empty()) {
@@ -4411,6 +4407,10 @@ bool db::dm_add_scan_result(const sMacAddr &ruid, const uint8_t &operating_class
     if (scan_result_index) {
         scan_result_path = radio_path + ".ScanResult." + std::to_string(scan_result_index);
     } else {
+        if (!dm_check_objects_limit(m_scan_results, MAX_SCAN_RESULT_HISTORY_SIZE)) {
+            return false;
+        }
+
         scan_result_path = m_ambiorix_datamodel->add_instance(radio_path + ".ScanResult");
         if (scan_result_path.empty()) {
             LOG(ERROR) << "Failed to add ScanResult ";
