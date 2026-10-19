@@ -22,6 +22,7 @@ using namespace beerocks::transport::messages;
 
 static const uint8_t ieee1905_max_message_version = 0x00;
 constexpr sMacAddr Ieee1905Transport::ieee1905_multicast_addr;
+const int Ieee1905Transport::kIeee1905FragmentationThreashold;
 const std::set<uint16_t> Ieee1905Transport::Packet::reliable_multicast_msg_types = {
     static_cast<uint16_t>(ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE),
     static_cast<uint16_t>(ieee1905_1::eMessageType::ASSOCIATION_STATUS_NOTIFICATION_MESSAGE)};
