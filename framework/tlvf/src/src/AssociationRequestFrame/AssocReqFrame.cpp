@@ -141,7 +141,33 @@ bool AssocReqFrame::init()
     fields_present = {};
     // Parse optional fields.
     while (getRemainingBytes() > 0) {
-        switch (getNextAttrType()) {
+        const auto remaining_bytes      = getRemainingBytes();
+        constexpr size_t ie_header_size = sizeof(uint8_t) + sizeof(uint8_t);
+
+        if (remaining_bytes < ie_header_size) {
+            const auto trailing_byte = getNextAttrType();
+            if (trailing_byte == ID_SSID) {
+                TLVF_LOG(DEBUG) << "Ignoring a trailing zero padding byte in the association frame";
+                return true;
+            }
+
+            TLVF_LOG(WARNING) << "Truncated information element header at the end of the "
+                                 "association frame: remaining bytes="
+                              << remaining_bytes << ", first byte=" << int(trailing_byte);
+            return false;
+        }
+
+        const auto next_attr_type   = getNextAttrType();
+        const auto next_attr_length = getNextAttrLength();
+        if (next_attr_length > remaining_bytes - ie_header_size) {
+            TLVF_LOG(WARNING) << "Truncated information element in the association frame: ID="
+                              << int(next_attr_type)
+                              << ", declared length=" << int(next_attr_length)
+                              << ", available payload bytes=" << remaining_bytes - ie_header_size;
+            return false;
+        }
+
+        switch (next_attr_type) {
         case ID_SUPPORT_RATES:
             if (!addAttr<cSupportRates>()) {
                 TLVF_LOG(ERROR) << "Failed to add cSupportRates";

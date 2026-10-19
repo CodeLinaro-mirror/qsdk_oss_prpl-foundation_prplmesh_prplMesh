@@ -14,6 +14,51 @@
 
 namespace {
 
+TEST(parse_station_capabilities, accepts_trailing_zero_padding_byte)
+{
+    std::vector<uint8_t> assoc_req_frame_body_buffer = {
+        0x11, 0x11, 0x0a, 0x00, // Capability information and listen interval
+        0x00, 0x00,             // Empty SSID information element
+        0x00,                   // Trailing padding
+    };
+
+    auto assoc_frame = assoc_frame::AssocReqFrame::parse(
+        assoc_req_frame_body_buffer.data(), assoc_req_frame_body_buffer.size(),
+        assoc_frame::AssocReqFrame::ASSOCIATION_REQUEST);
+
+    EXPECT_NE(nullptr, assoc_frame);
+}
+
+TEST(parse_station_capabilities, rejects_truncated_information_element_header)
+{
+    std::vector<uint8_t> assoc_req_frame_body_buffer = {
+        0x11, 0x11, 0x0a, 0x00, // Capability information and listen interval
+        0x00, 0x00,             // Empty SSID information element
+        0x01,                   // IE ID without the required length byte
+    };
+
+    auto assoc_frame = assoc_frame::AssocReqFrame::parse(
+        assoc_req_frame_body_buffer.data(), assoc_req_frame_body_buffer.size(),
+        assoc_frame::AssocReqFrame::ASSOCIATION_REQUEST);
+
+    EXPECT_EQ(nullptr, assoc_frame);
+}
+
+TEST(parse_station_capabilities, rejects_truncated_information_element_payload)
+{
+    std::vector<uint8_t> assoc_req_frame_body_buffer = {
+        0x11, 0x11, 0x0a, 0x00, // Capability information and listen interval
+        0x00, 0x00,             // Empty SSID information element
+        0x01, 0x02, 0x82,       // Two rate bytes declared, only one available
+    };
+
+    auto assoc_frame = assoc_frame::AssocReqFrame::parse(
+        assoc_req_frame_body_buffer.data(), assoc_req_frame_body_buffer.size(),
+        assoc_frame::AssocReqFrame::ASSOCIATION_REQUEST);
+
+    EXPECT_EQ(nullptr, assoc_frame);
+}
+
 TEST(parse_station_capabilities, sta_caps_from_rcvd_raw_data)
 {
     /*
