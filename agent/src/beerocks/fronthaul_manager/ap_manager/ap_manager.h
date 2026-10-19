@@ -368,7 +368,7 @@ private:
      */
     std::unique_ptr<beerocks::CmduClient> m_slave_client;
 
-    bool radio_state_lock = false;
+    bool radio_disabled_by_service = false;
 
     struct sBeaconMetricsResponse {
         sMacAddr sta_mac;

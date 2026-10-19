@@ -2021,7 +2021,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         auto timeout = std::chrono::steady_clock::now() +
                        std::chrono::seconds(WAIT_FOR_RADIO_ENABLE_TIMEOUT_SEC);
         auto perform_update = false;
-        while ((std::chrono::steady_clock::now() < timeout) && !radio_state_lock) {
+        while ((std::chrono::steady_clock::now() < timeout) && !radio_disabled_by_service) {
             if (!ap_wlan_hal->refresh_radio_info()) {
                 break;
             }
@@ -2128,6 +2128,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
     }
     case beerocks_message::ACTION_APMANAGER_RADIO_DISABLE_REQUEST: {
         LOG(DEBUG) << "Got ACTION_APMANAGER_RADIO_DISABLE_REQUEST";
+        // Already disabled by the user or another component not owned by the service status
         if (ap_wlan_hal->get_radio_info().radio_state == bwl::eRadioState::DISABLED) {
             return;
         }
@@ -2137,12 +2138,18 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(ERROR) << "Failed disabling radio on iface: " << ap_wlan_hal->get_iface_name();
             return;
         }
-        radio_state_lock = true;
+        radio_disabled_by_service = true;
         break;
     }
     case beerocks_message::ACTION_APMANAGER_RADIO_ENABLE_REQUEST: {
         LOG(DEBUG) << "Got ACTION_APMANAGER_RADIO_ENABLE_REQUEST";
+        // Only lift a disable applied by the service status
+        if (!radio_disabled_by_service) {
+            LOG(DEBUG) << "Radio was not disabled by service status, ignoring enable request";
+            return;
+        }
         if (ap_wlan_hal->get_radio_info().radio_state == bwl::eRadioState::ENABLED) {
+            radio_disabled_by_service = false;
             return;
         }
 
@@ -2151,8 +2158,8 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(ERROR) << "Failed enabling radio on iface: " << ap_wlan_hal->get_iface_name();
             return;
         }
-        radio_state_lock = false;
-        auto timeout     = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        radio_disabled_by_service = false;
+        auto timeout              = std::chrono::steady_clock::now() + std::chrono::seconds(10);
         while (std::chrono::steady_clock::now() < timeout) {
             UTILS_SLEEP_MSEC(500);
         }
