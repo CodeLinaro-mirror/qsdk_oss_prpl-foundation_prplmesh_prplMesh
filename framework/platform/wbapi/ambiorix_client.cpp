@@ -9,11 +9,14 @@
 
 #include "ambiorix_connection_manager.h"
 
+#include <mapf/common/amx_mutex.h>
+
 namespace beerocks {
 namespace wbapi {
 
 bool AmbiorixClient::connect(const std::string &amxb_backend, const std::string &bus_uri)
 {
+    AmxGuard guard;
     m_connection = AmbiorixConnectionManager::get_instance()->get_connection(amxb_backend, bus_uri);
     if (!m_connection) {
         LOG(ERROR) << "Failed to connect to the " << bus_uri.c_str() << " bus";
@@ -26,6 +29,7 @@ bool AmbiorixClient::connect(const std::string &amxb_backend, const std::string 
 AmbiorixVariantSmartPtr AmbiorixClient::get_object(const std::string &object_path,
                                                    const int32_t depth)
 {
+    AmxGuard guard;
     if (!m_connection) {
         LOG(ERROR) << "Client is not connected to bus";
         return AmbiorixVariantSmartPtr{};
@@ -36,6 +40,7 @@ AmbiorixVariantSmartPtr AmbiorixClient::get_object(const std::string &object_pat
 AmbiorixVariantSmartPtr AmbiorixClient::get_param(const std::string &obj_path,
                                                   const std::string &param_name)
 {
+    AmxGuard guard;
     if (!m_connection) {
         LOG(ERROR) << "Client is not connected to bus";
         return AmbiorixVariantSmartPtr{};
@@ -46,6 +51,7 @@ AmbiorixVariantSmartPtr AmbiorixClient::get_param(const std::string &obj_path,
 bool AmbiorixClient::resolve_path_multi(const std::string &search_path,
                                         std::vector<std::string> &absolute_path_list)
 {
+    AmxGuard guard;
     if (!m_connection) {
         LOG(ERROR) << "Client is not connected to bus";
         return false;
@@ -60,6 +66,7 @@ bool AmbiorixClient::resolve_path_multi(const std::string &search_path,
 
 bool AmbiorixClient::resolve_path(const std::string &search_path, std::string &absolute_path)
 {
+    AmxGuard guard;
     if (search_path.empty() || search_path == ".") {
         LOG(WARNING) << "resolve_path called with empty/dot search_path, absolute_path = "
                      << absolute_path;
@@ -92,42 +99,64 @@ bool AmbiorixClient::resolve_path(const std::string &search_path, std::string &a
 
 bool AmbiorixClient::update_object(const std::string &object_path, AmbiorixVariant &object_data)
 {
+    AmxGuard guard;
     return (m_connection && m_connection->update_object(object_path, object_data));
 }
 
 bool AmbiorixClient::add_instance(const std::string &object_path, AmbiorixVariant &object_data,
                                   int &instance_id)
 {
+    AmxGuard guard;
     return (m_connection && m_connection->add_instance(object_path, object_data, instance_id));
 }
 
 bool AmbiorixClient::remove_instance(const std::string &object_path, int instance_id)
 {
+    AmxGuard guard;
     return (m_connection && m_connection->remove_instance(object_path, instance_id));
 }
 
 bool AmbiorixClient::call(const std::string &object_path, const char *method, AmbiorixVariant &args,
                           AmbiorixVariant &result)
 {
+    AmxGuard guard;
     return (m_connection && m_connection->call(object_path, method, args, result));
 }
 
 bool AmbiorixClient::call_async(const std::string &object_path, const char *method,
                                 AmbiorixVariant &args)
 {
+    AmxGuard guard;
     return (m_connection && m_connection->call_async(object_path, method, args));
 }
 
-int AmbiorixClient::get_fd() { return (m_connection ? m_connection->get_fd() : -1); }
+int AmbiorixClient::get_fd()
+{
+    AmxGuard guard;
+    return (m_connection ? m_connection->get_fd() : -1);
+}
 
-int AmbiorixClient::get_signal_fd() { return (m_connection ? m_connection->get_signal_fd() : -1); }
+int AmbiorixClient::get_signal_fd()
+{
+    AmxGuard guard;
+    return (m_connection ? m_connection->get_signal_fd() : -1);
+}
 
-int AmbiorixClient::read() { return (m_connection ? m_connection->read() : -1); }
+int AmbiorixClient::read()
+{
+    AmxGuard guard;
+    return (m_connection ? m_connection->read() : -1);
+}
 
-int AmbiorixClient::read_signal() { return (m_connection ? m_connection->read_signal() : -1); }
+int AmbiorixClient::read_signal()
+{
+    AmxGuard guard;
+    return (m_connection ? m_connection->read_signal() : -1);
+}
 
 bool AmbiorixClient::init_event_loop(std::shared_ptr<EventLoop> event_loop)
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Register event handlers for the Ambiorix fd in the event loop.";
 
     auto ambiorix_fd = get_fd();
@@ -175,6 +204,7 @@ bool AmbiorixClient::init_event_loop(std::shared_ptr<EventLoop> event_loop)
 
 bool AmbiorixClient::init_signal_loop(std::shared_ptr<EventLoop> event_loop)
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Register event handlers for the Ambiorix signals fd in the event loop.";
 
     auto ambiorix_fd = get_signal_fd();
@@ -222,6 +252,7 @@ bool AmbiorixClient::init_signal_loop(std::shared_ptr<EventLoop> event_loop)
 
 bool AmbiorixClient::remove_event_loop(std::shared_ptr<EventLoop> event_loop)
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Remove event handlers for Ambiorix fd from the event loop.";
 
     auto ambiorix_fd = get_fd();
@@ -242,6 +273,7 @@ bool AmbiorixClient::remove_event_loop(std::shared_ptr<EventLoop> event_loop)
 
 bool AmbiorixClient::remove_signal_loop(std::shared_ptr<EventLoop> event_loop)
 {
+    AmxGuard guard;
     LOG(DEBUG) << "Remove event handlers for the Ambiorix signals fd from the event loop.";
 
     auto ambiorix_fd = get_signal_fd();
@@ -266,6 +298,7 @@ bool AmbiorixClient::subscribe_to_object_event(
     const std::string &object_path, std::shared_ptr<sAmbiorixEventHandler> &event_handler,
     const std::string &filter)
 {
+    AmxGuard guard;
     if (!m_connection) {
         return false;
     }
@@ -282,6 +315,7 @@ bool AmbiorixClient::subscribe_to_object_event(
 bool AmbiorixClient::unsubscribe_from_object_event(
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> &event_handler)
 {
+    AmxGuard guard;
     auto it = std::find_if(m_subscriptions.begin(), m_subscriptions.end(),
                            [&event_handler](const sAmbiorixSubscriptionInfo &subscription) {
                                return event_handler == subscription.handler;
@@ -298,10 +332,13 @@ bool AmbiorixClient::unsubscribe_from_object_event(
 
 AmbiorixClient::~AmbiorixClient()
 {
+    AmxGuard guard;
     while (!m_subscriptions.empty()) {
         m_connection->unsubscribe(m_subscriptions.back());
         m_subscriptions.pop_back();
     }
+    // Release the connection while the guard still protects AMX teardown.
+    m_connection.reset();
 }
 
 } // namespace wbapi

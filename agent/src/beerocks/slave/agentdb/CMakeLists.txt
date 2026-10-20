@@ -9,6 +9,7 @@
 # library independently of the Agent executable and keep one owner per process.
 add_library(agentdb
     ${CMAKE_CURRENT_SOURCE_DIR}/../agent_db.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../agent_datamodel.cpp
 )
 
 set_target_properties(agentdb PROPERTIES

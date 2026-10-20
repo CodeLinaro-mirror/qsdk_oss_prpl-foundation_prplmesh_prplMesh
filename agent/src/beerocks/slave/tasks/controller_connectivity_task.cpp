@@ -150,7 +150,7 @@ void ControllerConnectivityTask::work()
         {
             auto db                           = AgentDB::get();
             db->statuses.controller_connected = false;
-            db->dm_set_controller_connected(false);
+            AgentDataModel::get().dm_set_controller_connected(false);
 
             auto it = find_if(
                 db->backhaul.backhaul_links.begin(), db->backhaul.backhaul_links.end(),
@@ -234,7 +234,7 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
         init_task_configuration();
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = false;
-        db->dm_set_controller_connected(false);
+        AgentDataModel::get().dm_set_controller_connected(false);
         // INIT_TASK is also sent during routine Agent resets. A default-constructed task already
         // has no deadline on cold startup, so preserve any active Controller recovery window here.
         if (reconnect_timeout != std::chrono::steady_clock::time_point{}) {
@@ -250,7 +250,7 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
         // It will be updated after, we start listening to Discovery messages.
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = false;
-        db->dm_set_controller_connected(false);
+        AgentDataModel::get().dm_set_controller_connected(false);
 
         // BACKHAUL_LINK_DISCONNECTED with an active deadline means that the terminal disconnect
         // command was already sent and is waiting for a teardown-confirming notification. Do not
@@ -279,7 +279,7 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
 
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = false;
-        db->dm_set_controller_connected(false);
+        AgentDataModel::get().dm_set_controller_connected(false);
 
         if (teardown_fronthaul) {
             // The outstanding Controller outage is now owned by the asynchronous fronthaul
@@ -308,7 +308,7 @@ void ControllerConnectivityTask::handle_event(uint8_t event_enum_value, const vo
         }
         auto db                           = AgentDB::get();
         db->statuses.controller_connected = true;
-        db->dm_set_controller_connected(true);
+        AgentDataModel::get().dm_set_controller_connected(true);
         if (reconnect_timeout != std::chrono::steady_clock::time_point{}) {
             LOG(INFO) << "Controller connectivity restored; clearing recovery deadline";
             reconnect_timeout = {};

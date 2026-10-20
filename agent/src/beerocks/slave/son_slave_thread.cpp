@@ -192,7 +192,7 @@ auto slave_thread::sSlaveState::operator=(eSlaveState state) -> eSlaveState
         return arr[e] + (sizeof("STATE_") - 1) + std::to_string(e) + ')';
     };
 
-    AgentDB::get()->dm_set_agent_state(to_string(cur), to_string(max));
+    AgentDataModel::get().dm_set_agent_state(to_string(cur), to_string(max));
 
     return state;
 }
@@ -234,7 +234,7 @@ slave_thread::slave_thread(sAgentConfig conf, beerocks::logging &logger_)
         interfaces.pop_back();
     }
 
-    AgentDB::get()->dm_set_fronthaul_interfaces(interfaces);
+    AgentDataModel::get().dm_set_fronthaul_interfaces(interfaces);
 }
 
 slave_thread::~slave_thread()
@@ -800,7 +800,7 @@ bool slave_thread::read_platform_configuration()
 
     std::string mgmt_mode;
     bpl::cfg_get_management_mode(mgmt_mode);
-    AgentDB::get()->dm_set_management_mode(mgmt_mode);
+    AgentDataModel::get().dm_set_management_mode(mgmt_mode);
 
     if ((temp_int = bpl::cfg_get_certification_mode()) < 0) {
         LOG(ERROR) << "Failed reading 'certification_mode'";
@@ -1008,7 +1008,7 @@ void slave_thread::handle_client_disconnected(int fd)
         } else if (fd == radio_manager.monitor_fd) {
             LOG(DEBUG) << "Monitor " << fronthaul_iface << " disconnected";
             radio_manager.monitor_fd = net::FileDescriptor::invalid_descriptor;
-            AgentDB::get()->dm_fronthaul_disconnected(radio_manager.dm_instance);
+            AgentDataModel::get().dm_fronthaul_disconnected(radio_manager.dm_instance);
             if (radio_manager.ap_manager_fd != net::FileDescriptor::invalid_descriptor) {
                 fronthaul_reset(radio_manager);
             }
@@ -3518,7 +3518,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                                       beerocks::message::IFACE_NAME_LENGTH);
         }
 
-        radio_manager.dm_instance = AgentDB::get()->dm_create_fronthaul_object(iface);
+        radio_manager.dm_instance = AgentDataModel::get().dm_create_fronthaul_object(iface);
 
         if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
             return false;
@@ -3542,7 +3542,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
-        AgentDB::get()->dm_set_fronthaul_state(
+        AgentDataModel::get().dm_set_fronthaul_state(
             radio_manager.dm_instance, notification->curstate_str(), notification->maxstate_str());
 
         return true;

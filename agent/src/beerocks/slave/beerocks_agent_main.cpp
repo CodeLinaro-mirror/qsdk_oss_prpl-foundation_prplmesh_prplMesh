@@ -52,6 +52,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif
 
 #include "ambiorix_dummy.h"
+#include <mapf/common/amx_mutex.h>
 
 // Do not use this macro anywhere else in ire process
 // It should only be there in one place in each executable module
@@ -89,11 +90,13 @@ static void handle_signal()
     }
 #ifdef ENABLE_NBAPI
     // Handle SIGALRM signal indicating that one of amxp's timers is expired.
-    case SIGALRM:
+    case SIGALRM: {
+        beerocks::AmxGuard guard;
         LOG(INFO) << "LOG amxp Tik tak!";
         amxp_timers_calculate();
         amxp_timers_check();
         break;
+    }
 #endif //ENABLE_NBAPI
     default:
         LOG(WARNING) << "Unhandled Signal: '" << strsignal(s_signal) << "' Ignoring...";
@@ -446,7 +449,7 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 #endif //ENABLE_NBAPI
 
     beerocks::bpl::set_nbapi_dm(amb_dm_obj);
-    beerocks::AgentDB::get()->init_data_model(amb_dm_obj);
+    beerocks::AgentDataModel::get().init_data_model(amb_dm_obj);
 
     // Resolve WBAPI-backed configuration before taking the application DB lock.
     const auto management_mode = beerocks::bpl::cfg_get_management_mode();
