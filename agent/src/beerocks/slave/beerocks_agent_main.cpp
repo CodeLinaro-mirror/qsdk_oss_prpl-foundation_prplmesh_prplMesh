@@ -614,12 +614,16 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 #ifdef ENABLE_NBAPI
     // Provide the auto WPS callback (decides AP vs bSTA internally)
     prplmesh::agent::actions::set_wps_callback(
-        [&backhaul_manager]() -> bool { return backhaul_manager.initiate_wps_pbc_auto(); });
+        [&backhaul_manager]() -> bool { return backhaul_manager.enqueue_wps_request(); });
 #endif //ENABLE_NBAPI
 
     auto agent = start_agent_thread(interfaces_map, beerocks_slave_conf, argc, argv);
     if (!agent) {
         LOG(ERROR) << "Failed to start Agent thread";
+#ifdef ENABLE_NBAPI
+        prplmesh::agent::actions::set_wps_callback(nullptr);
+#endif
+        backhaul_manager.stop();
         return 1;
     }
 
@@ -649,6 +653,9 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             break;
         }
     }
+#ifdef ENABLE_NBAPI
+    prplmesh::agent::actions::set_wps_callback(nullptr);
+#endif
     agent->stop();
 
     LOG(DEBUG) << "backhaul_manager.stop()";

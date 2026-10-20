@@ -51,8 +51,11 @@
 #include <bpl/bpl_err.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <set>
+#include <sys/eventfd.h>
 #include <tuple>
+#include <unistd.h>
 #include <utility>
 
 #include <net/if.h> // if_nametoindex
@@ -130,6 +133,9 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     configuration_stop_on_failure_attempts = stop_on_failure_attempts_;
     stop_on_failure_attempts               = stop_on_failure_attempts_;
     LOG(DEBUG) << "stop_on_failure_attempts=" << stop_on_failure_attempts;
+    m_wps_request_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    LOG_IF(m_wps_request_fd < 0, FATAL) << "Failed creating WPS request eventfd";
+
     auto db                           = AgentDB::get();
     db->device_conf.ucc_listener_port = string_utils::stoi(config.ucc_listener_port);
     db->device_conf.vendor            = config.vendor;
@@ -185,6 +191,10 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
 
 BackhaulManager::~BackhaulManager()
 {
+    stop();
+    if (m_wps_request_fd >= 0) {
+        close(m_wps_request_fd);
+    }
     if (m_cmdu_server) {
         m_cmdu_server->clear_handlers();
     }
@@ -368,6 +378,46 @@ bool BackhaulManager::thread_init()
         return false;
     }
 
+    EventLoop::EventHandlers wps_handlers{
+        .name = "WPS requests",
+        .on_read =
+            [this](int fd, EventLoop &loop) {
+                uint64_t requests = 0;
+                bool accepted;
+                {
+                    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+                    if (read(fd, &requests, sizeof(requests)) != sizeof(requests)) {
+                        return errno == EAGAIN || errno == EINTR;
+                    }
+                    accepted               = m_accept_wps_requests;
+                    m_pending_wps_requests = 0;
+                }
+                // The queue lock is released before worker code can acquire AMX or AgentDB.
+                while (accepted && requests-- > 0) {
+                    if (!initiate_wps_pbc_auto()) {
+                        LOG(ERROR) << "Accepted WPS request failed during execution";
+                    }
+                    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+                    accepted = m_accept_wps_requests;
+                }
+                return true;
+            },
+        .on_write      = nullptr,
+        .on_disconnect = nullptr,
+        .on_error      = nullptr,
+    };
+    if (!m_event_loop->register_handlers(m_wps_request_fd, wps_handlers)) {
+        LOG(ERROR) << "Failed registering WPS request handler";
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+        uint64_t stale_requests;
+        while (read(m_wps_request_fd, &stale_requests, sizeof(stale_requests)) > 0) {
+        }
+        m_pending_wps_requests = 0;
+        m_accept_wps_requests  = true;
+    }
     transaction.commit();
 
     LOG(DEBUG) << "started";
@@ -375,8 +425,44 @@ bool BackhaulManager::thread_init()
     return true;
 }
 
+bool BackhaulManager::enqueue_wps_request()
+{
+    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+    if (!m_accept_wps_requests || m_pending_wps_requests >= 16) {
+        return false;
+    }
+    uint64_t request = 1;
+    ssize_t result;
+    do {
+        result = write(m_wps_request_fd, &request, sizeof(request));
+    } while (result < 0 && errno == EINTR);
+    if (result != sizeof(request)) {
+        LOG(ERROR) << "Failed queuing WPS request: " << strerror(errno);
+        return false;
+    }
+    ++m_pending_wps_requests;
+    return true;
+}
+
+void BackhaulManager::before_stop()
+{
+    std::lock_guard<std::mutex> lock(m_wps_request_mutex);
+    const bool was_accepting = m_accept_wps_requests;
+    m_accept_wps_requests    = false;
+    // Wake the event loop without waiting for the worker while holding AMX.
+    uint64_t wakeup = 1;
+    if (was_accepting && m_wps_request_fd >= 0) {
+        ssize_t result;
+        do {
+            result = write(m_wps_request_fd, &wakeup, sizeof(wakeup));
+        } while (result < 0 && errno == EINTR);
+    }
+}
+
 void BackhaulManager::on_thread_stop()
 {
+    before_stop();
+    m_event_loop->remove_handlers(m_wps_request_fd);
     m_topology_task_initialized = false;
     stop_fdb_monitor();
 
@@ -4281,24 +4367,28 @@ bool BackhaulManager::start_wps_pbc_ep_freq(eFreqType freq)
 
 bool BackhaulManager::initiate_wps_pbc_auto()
 {
-    auto db = AgentDB::get();
-
+    bool ap_configured;
+    std::vector<sMacAddr> ap_radios;
+    {
+        auto db       = AgentDB::get();
+        ap_configured = db->statuses.ap_autoconfiguration_completed;
+        for (const auto radio : db->get_radios_list()) {
+            if (radio && radio->wifi_channel.get_freq_type() != eFreqType::FREQ_6G) {
+                ap_radios.push_back(radio->front.iface_mac);
+            }
+        }
+    }
     const bool backhaul_operational = (m_eFSMState == EState::OPERATIONAL);
-    const bool ap_configured        = db->statuses.ap_autoconfiguration_completed;
 
     // ap_autoconfiguration_completed is a configuration status and can stay true after the
     // backhaul link is lost. Use the live BackhaulManager FSM as the connectivity gate so WPS
     // auto falls back to bSTA onboarding while the backhaul is reconnecting.
     if (backhaul_operational && ap_configured) {
         bool result = false;
-        for (const auto radio : db->get_radios_list()) {
-            //Skip 6GHz since WPS is not allowed on 6GHz per Wi-Fi 6E standard
-            if (!radio || radio->wifi_channel.get_freq_type() == eFreqType::FREQ_6G) {
-                continue;
-            }
-            if (start_wps_pbc_ap(radio->front.iface_mac)) {
+        for (const auto &radio_mac : ap_radios) {
+            if (start_wps_pbc_ap(radio_mac)) {
                 LOG(INFO) << "WPS PBC AP/fronthaul path (agent is operational) on radio: "
-                          << radio->front.iface_mac;
+                          << radio_mac;
                 result = true;
             }
         }
