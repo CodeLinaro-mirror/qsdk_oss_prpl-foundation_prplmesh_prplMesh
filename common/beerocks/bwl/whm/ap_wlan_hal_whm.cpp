@@ -1316,6 +1316,9 @@ bool ap_wlan_hal_whm::process_radio_event(const std::string &interface, const st
             return true;
         }
         LOG(WARNING) << "radio " << interface << " status " << status;
+    } else if (key == "Enable") {
+        refresh_radio_info();
+        return true;
     } else if (key == "Channel") {
 
         refresh_radio_info();
