@@ -85,9 +85,8 @@ bool AgentDM::dm_set_management_mode(const std::string &mode)
 bool AgentDM::dm_set_agent_state(const std::string &cur, const std::string &max)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "Ambiorix datamodel not set";
-    const bool current_set = m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "CurrentState", cur);
-    const bool best_set    = m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "BestState", max);
-    if (!current_set || !best_set) {
+    if (!m_ambiorix_datamodel->set_strings(AGENT_ROOT_DM ".Info",
+                                           {{"CurrentState", cur}, {"BestState", max}})) {
         LOG(ERROR) << "Failed to set Agent state: " << cur << ", best state: " << max;
         return false;
     }
@@ -132,10 +131,19 @@ std::string AgentDM::dm_create_fronthaul_object(const std::string &iface)
         LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
     }
 
-    m_ambiorix_datamodel->set(inst, "Iface", iface);
-    m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));
-    m_ambiorix_datamodel->set(inst, "BestState", std::string("INIT (0)"));
-
+    // Initialize all three parameters atomically. Never return a path to an
+    // instance whose initialization failed; remove it while AMX remains guarded.
+    if (!m_ambiorix_datamodel->set_strings(
+            inst, {{"Iface", iface}, {"CurrentState", "INIT (0)"}, {"BestState", "INIT (0)"}})) {
+        LOG(ERROR) << "Failed to initialize Fronthaul instance for " << iface;
+        const auto dot_pos = inst.find_last_of('.');
+        if (dot_pos == std::string::npos ||
+            !m_ambiorix_datamodel->remove_instance(inst.substr(0, dot_pos),
+                                                   atoi(inst.c_str() + dot_pos + 1))) {
+            LOG(ERROR) << "Failed to remove uninitialized Fronthaul instance " << inst;
+        }
+        return "";
+    }
     return inst;
 #endif
 }
@@ -148,9 +156,7 @@ bool AgentDM::dm_set_fronthaul_state(const std::string &path, const std::string 
         return false;
     }
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "Ambiorix datamodel not set";
-    const bool current_set = m_ambiorix_datamodel->set(path, "CurrentState", cur);
-    const bool best_set    = m_ambiorix_datamodel->set(path, "BestState", max);
-    if (!current_set || !best_set) {
+    if (!m_ambiorix_datamodel->set_strings(path, {{"CurrentState", cur}, {"BestState", max}})) {
         LOG(ERROR) << "Failed to set Fronthaul state at " << path << ": " << cur
                    << ", best state: " << max;
         return false;
