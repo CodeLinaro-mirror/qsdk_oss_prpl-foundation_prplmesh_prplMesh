@@ -17,6 +17,9 @@
     silent = false;
     import-dbg = true;
     dm-eventing-enabled = true;
+    // auto-detect only sees ubus if its socket exists at start-up.
+    %global uris += ["ubus:/var/run/ubus/ubus.sock"];
+    %global ubus.connect-retry = true;
     storage-path = "/opt/prplmesh/share/$@@{name}";
     storage-type = "odl";
     odl = {

@@ -87,6 +87,7 @@ fi
 # After new change for ubus, socket creates in /var/run/ubus
 mkdir /var/run/ubus
 ubusd &
+for _ in $(seq 50); do [ -S /var/run/ubus/ubus.sock ] && break; sleep 0.1; done
 
 "${INSTALL_DIR}/scripts/prplmesh_utils.sh" start "${start_arg[@]}" "$@"
 
