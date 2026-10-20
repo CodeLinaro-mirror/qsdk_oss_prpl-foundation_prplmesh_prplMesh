@@ -1,0 +1,65 @@
+# a separate stage i.e. coding-style would be better
+
+variables:
+  CODING_STYLE_DIR: ci/coding-style
+
+coding-style-images:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - |
+      set -e
+      true > images.env
+      for dockerfile in "$CODING_STYLE_DIR"/*.dockerfile; do
+        [ -e "$dockerfile" ] || { echo "No dockerfiles found in $CODING_STYLE_DIR"; exit 1; }
+
+        name=$(basename "$dockerfile" .dockerfile)
+        hash=$(sha256sum "$dockerfile" | cut -c1-8)
+        image="$CI_REGISTRY_IMAGE/$name:$hash"
+        canonical="$(echo "$name" | tr 'a-z-.' 'A-Z__')_IMAGE"
+
+        if docker manifest inspect "$image" > /dev/null 2>&1; then
+          echo "[$name] $image already exists, skipping build"
+        else
+          echo "[$name] building $image"
+          docker build -f "$dockerfile" -t "$image" "$CODING_STYLE_DIR"
+          docker push "$image"
+        fi
+
+        echo "$canonical=$image" >> coding-style.env
+      done
+    - cat coding-style.env
+  artifacts:
+    reports:
+      dotenv: coding-style.env
+  tags:
+    - dind
+
+clang-format:
+  stage: build
+  image: $CLANG_FORMAT_IMAGE
+  needs:
+    - coding-style-images
+  script:
+    - clang-format --version
+    - |
+      git ls-files -- '*.c' '*.cpp' '*.h' '*.hpp' '*.cc' \
+        | grep -v -E -f ci/coding-style/.clang-ignore \
+        | xargs clang-format -i -style=file
+    - git update-index -q --refresh
+    - |
+      git diff-index --exit-code HEAD || {
+        ret=$?
+        echo "Inconsistent formatting, please apply patch from artifacts"
+        git diff > correct-formatting.patch
+        exit $ret
+      }
+  artifacts:
+    paths:
+      - correct-formatting.patch
+    when: on_failure

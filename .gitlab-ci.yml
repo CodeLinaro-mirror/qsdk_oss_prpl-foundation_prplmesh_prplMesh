@@ -27,6 +27,7 @@ stages:
 include:
   - local: "/ci/templates.yml"
   - local: "/ci/quality/coverity.yml"
+  - local: "/ci/coding-style/coding-style.yml"
 
 .rules-for-expensive-job: &expensive-job
   rules:
@@ -183,27 +184,6 @@ shellcheck:
   script:
     - git ls-files -z '*.sh' '*.sh.in'  | xargs -0 shellcheck -x -P tools
   needs: []
-
-clang-format:
-  extends: .in-prplmesh-builder
-  stage: build
-  script:
-    # Run clang-format and check there are no modified files
-    - ./clang-format.sh
-    # `diff-index` doesn't update the index so doesn't actually see changes. Need to manually update index.
-    - git update-index -q --refresh
-    # Use `diff-index` instead of `status` or `diff` because it gives more predictable output and exit code.
-    - |
-      git diff-index --exit-code HEAD || {
-        ret=$?
-        echo "Inconsistent formatting, please apply patch from artifacts"
-        git diff > correct-formatting.patch
-        exit $ret
-      }
-  artifacts:
-    paths:
-      - correct-formatting.patch
-    when: on_failure
 
 .build-in-docker:
   extends: .in-prplmesh-builder
