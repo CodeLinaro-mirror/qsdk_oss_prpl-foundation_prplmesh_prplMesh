@@ -3519,6 +3519,12 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         }
 
         radio_manager.dm_instance = AgentDataModel::get().dm_create_fronthaul_object(iface);
+#ifdef ENABLE_NBAPI
+        if (radio_manager.dm_instance.empty()) {
+            LOG(ERROR) << "Failed to initialize Fronthaul datamodel for " << iface;
+            return false;
+        }
+#endif
 
         if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
             return false;

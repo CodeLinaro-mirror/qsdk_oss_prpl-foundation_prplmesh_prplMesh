@@ -429,12 +429,14 @@ amxd_object_t *AmbiorixImpl::prepare_transaction(const std::string &relative_pat
     status = amxd_trans_set_attr(&transaction, amxd_tattr_change_ro, true);
     if (status != amxd_status_ok) {
         LOG(ERROR) << "Couldn't set transaction attributes, status: " << amxd_status_string(status);
+        amxd_trans_clean(&transaction);
         return nullptr;
     }
 
     status = amxd_trans_select_object(&transaction, object);
     if (status != amxd_status_ok) {
         LOG(ERROR) << "Couldn't select transaction object, status: " << amxd_status_string(status);
+        amxd_trans_clean(&transaction);
         return nullptr;
     }
 
@@ -479,6 +481,33 @@ bool AmbiorixImpl::set(const std::string &relative_path, const std::string &para
     }
 
     return true;
+}
+
+bool AmbiorixImpl::set_strings(const std::string &relative_path,
+                               const std::map<std::string, std::string> &values)
+{
+    AmxGuard guard;
+    if (values.empty()) {
+        return true;
+    }
+
+    amxd_trans_t transaction;
+    if (!prepare_transaction(relative_path, transaction)) {
+        return false;
+    }
+
+    for (const auto &value : values) {
+        auto status = amxd_trans_set_value(cstring_t, &transaction, value.first.c_str(),
+                                           value.second.c_str());
+        if (status != amxd_status_ok) {
+            LOG(ERROR) << "Failed to set transaction value: " << relative_path << "." << value.first
+                       << ", status: " << amxd_status_string(status);
+            amxd_trans_clean(&transaction);
+            return false;
+        }
+    }
+
+    return apply_transaction(transaction);
 }
 
 bool AmbiorixImpl::set(const std::string &relative_path, const std::string &parameter,

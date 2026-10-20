@@ -123,9 +123,7 @@ void AgentDataModel::dm_set_fronthaul_interfaces(const std::string &interfaces)
 void AgentDataModel::dm_set_agent_state(const std::string &cur, const std::string &max)
 {
     enqueue([cur, max](const std::shared_ptr<nbapi::Ambiorix> &dm) {
-        const bool current_set = dm->set(AGENT_ROOT_DM ".Info", "CurrentState", cur);
-        const bool best_set    = dm->set(AGENT_ROOT_DM ".Info", "BestState", max);
-        if (!current_set || !best_set) {
+        if (!dm->set_strings(AGENT_ROOT_DM ".Info", {{"CurrentState", cur}, {"BestState", max}})) {
             LOG(ERROR) << "Failed to publish Agent state: " << cur << ", best state: " << max;
         }
     });
@@ -179,10 +177,18 @@ std::string AgentDataModel::dm_create_fronthaul_object(const std::string &iface)
         LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
     }
 
-    dm->set(inst, "Iface", iface);
-    dm->set(inst, "CurrentState", std::string("INIT (0)"));
-    dm->set(inst, "BestState", std::string("INIT (0)"));
-
+    // Initialize all three parameters atomically. Never return a path to an
+    // instance whose initialization failed; remove it while AMX remains guarded.
+    if (!dm->set_strings(
+            inst, {{"Iface", iface}, {"CurrentState", "INIT (0)"}, {"BestState", "INIT (0)"}})) {
+        LOG(ERROR) << "Failed to initialize Fronthaul instance for " << iface;
+        const auto dot_pos = inst.find_last_of('.');
+        if (dot_pos == std::string::npos ||
+            !dm->remove_instance(inst.substr(0, dot_pos), atoi(inst.c_str() + dot_pos + 1))) {
+            LOG(ERROR) << "Failed to remove uninitialized Fronthaul instance " << inst;
+        }
+        return "";
+    }
     return inst;
 #endif
 }
@@ -195,9 +201,7 @@ void AgentDataModel::dm_set_fronthaul_state(const std::string &path, const std::
         return;
     }
     enqueue([path, cur, max](const std::shared_ptr<nbapi::Ambiorix> &dm) {
-        const bool current_set = dm->set(path, "CurrentState", cur);
-        const bool best_set    = dm->set(path, "BestState", max);
-        if (!current_set || !best_set) {
+        if (!dm->set_strings(path, {{"CurrentState", cur}, {"BestState", max}})) {
             LOG(ERROR) << "Failed to publish Fronthaul state at " << path << ": " << cur
                        << ", best state: " << max;
         }
