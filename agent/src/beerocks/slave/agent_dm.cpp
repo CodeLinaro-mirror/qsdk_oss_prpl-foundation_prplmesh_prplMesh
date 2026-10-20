@@ -151,10 +151,19 @@ std::string AgentDM::dm_create_fronthaul_object(const std::string &iface)
         LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
     }
 
-    m_ambiorix_datamodel->set(inst, "Iface", iface);
-    m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));
-    m_ambiorix_datamodel->set(inst, "BestState", std::string("INIT (0)"));
-
+    // Initialize all three parameters atomically. Never return a path to an
+    // instance whose initialization failed; remove it while AMX remains guarded.
+    if (!m_ambiorix_datamodel->set_strings(
+            inst, {{"Iface", iface}, {"CurrentState", "INIT (0)"}, {"BestState", "INIT (0)"}})) {
+        LOG(ERROR) << "Failed to initialize Fronthaul instance for " << iface;
+        const auto dot_pos = inst.find_last_of('.');
+        if (dot_pos == std::string::npos ||
+            !m_ambiorix_datamodel->remove_instance(inst.substr(0, dot_pos),
+                                                   atoi(inst.c_str() + dot_pos + 1))) {
+            LOG(ERROR) << "Failed to remove uninitialized Fronthaul instance " << inst;
+        }
+        return "";
+    }
     return inst;
 #endif
 }
