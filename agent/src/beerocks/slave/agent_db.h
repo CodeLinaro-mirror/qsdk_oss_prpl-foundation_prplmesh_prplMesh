@@ -76,6 +76,13 @@ namespace beerocks {
  *     auto db = AgentDB::get();        // on a wrapper function is unsafe because the database will
  *     return db->foo;                  // be unlocked when the function ends, and the caller will
  * }                                    // hold a refernce to it.
+ *
+ * {
+ *     auto db = AgentDB::get();        // Unsafe! Don't do it! NBAPI, WBAPI and HAL
+ *     hal->refresh_radio_info();       // calls that use WBAPI take AMX. The lock order is
+ * }                                    // AMX -> AgentDB, so taking AMX while holding the
+ *                                      // database can deadlock. Copy the values, release
+ *                                      // the database, then make the call.
  * @endcode
  */
 class AgentDB {
