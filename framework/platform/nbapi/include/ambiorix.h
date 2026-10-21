@@ -28,6 +28,13 @@ public:
     virtual ~Ambiorix()                   = 0;
 
     /**
+     * @brief Check whether the local data model contains an object, without logging absence.
+     *
+     * Implementations without a local data model return false.
+     */
+    virtual bool has_object(const std::string &) { return false; }
+
+    /**
      * @brief Set the value to the object variable.
      *
      * @param relative_path Path to the object in datamodel (example: "Device.WiFi.DataElements.Network").
