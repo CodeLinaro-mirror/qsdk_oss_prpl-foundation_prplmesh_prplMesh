@@ -345,6 +345,12 @@ bool AmbiorixImpl::remove_easymesh_datamodel()
     return true;
 }
 
+bool AmbiorixImpl::has_object(const std::string &relative_path)
+{
+    AmxGuard guard;
+    return amxd_dm_findf(Amxrt::getDatamodel(), "%s", relative_path.c_str()) != nullptr;
+}
+
 amxd_object_t *AmbiorixImpl::find_object(const std::string &relative_path)
 {
 
