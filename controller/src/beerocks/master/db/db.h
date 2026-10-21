@@ -3626,7 +3626,8 @@ private:
      * @brief Removes history references owned by a data model object.
      *
      * @param paths Queue containing indexed data model paths.
-     * @param owner_path Indexed path of the object whose subtree was removed.
+     * @param owner_path Indexed path of the object whose subtree was removed, with or without
+     *                   a trailing dot. An empty path leaves the queue unchanged.
      */
     void dm_prune_history_references(std::queue<std::string> &paths, const std::string &owner_path);
 

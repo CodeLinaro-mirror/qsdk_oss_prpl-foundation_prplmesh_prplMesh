@@ -23,6 +23,7 @@
 #include <tlvf/tlvftypes.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <utility>
 
 using namespace beerocks;
@@ -5360,22 +5361,31 @@ bool db::dm_check_objects_limit(std::queue<std::string> &paths, uint8_t limit)
 
 void db::dm_prune_history_references(std::queue<std::string> &paths, const std::string &owner_path)
 {
-    const auto owner_prefix = owner_path + ".";
+    if (owner_path.empty()) {
+        return;
+    }
+
+    auto owner_prefix = owner_path;
+    if (owner_prefix.back() != '.') {
+        owner_prefix += '.';
+    }
+
+    const std::size_t original_size = paths.size();
     std::queue<std::string> retained_paths;
-    size_t pruned_references = 0;
 
     while (!paths.empty()) {
         auto path = std::move(paths.front());
         paths.pop();
 
-        if (path.compare(0, owner_prefix.size(), owner_prefix) != 0) {
-            retained_paths.push(std::move(path));
-        } else {
-            ++pruned_references;
+        if (path.compare(0, owner_prefix.size(), owner_prefix) == 0) {
+            continue; // starts with owner prefix -> discard
         }
+        retained_paths.push(std::move(path));
     }
 
     paths.swap(retained_paths);
+
+    const std::size_t pruned_references = original_size - paths.size();
     if (pruned_references > 0) {
         LOG(DEBUG) << "Pruned " << pruned_references << " history reference(s) under "
                    << owner_path;
