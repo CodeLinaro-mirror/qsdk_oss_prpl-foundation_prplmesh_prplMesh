@@ -34,12 +34,17 @@ constexpr auto g_param_path_unknown    = "Test_Unknown";
 constexpr auto g_param_path            = "Test.Container";
 constexpr auto g_param_strings_path    = "Test.Strings";
 constexpr auto g_param_strings_search  = ".[String == '%s'].";
+constexpr auto g_param_name_int8       = "Int8";
+constexpr auto g_param_name_int16      = "Int16";
 constexpr auto g_param_name_int32      = "Int32";
-constexpr auto g_param_name_uint32     = "Uint32";
 constexpr auto g_param_name_int64      = "Int64";
+constexpr auto g_param_name_uint8      = "Uint8";
+constexpr auto g_param_name_uint16     = "Uint16";
+constexpr auto g_param_name_uint32     = "Uint32";
 constexpr auto g_param_name_uint64     = "Uint64";
 constexpr auto g_param_name_bool       = "Bool";
 constexpr auto g_param_name_double     = "Double";
+constexpr auto g_param_name_float      = "Float";
 constexpr auto g_param_name_string     = "String";
 constexpr auto g_param_name_unknown    = "Unknown";
 constexpr auto g_object_optional       = "Optional";
@@ -60,12 +65,17 @@ constexpr auto g_odl_contents          = "%config {\n"
                                 "        object Container {\n"
                                 "            %read-only string String = \"\";\n"
                                 "            %read-only datetime Datetime;\n"
+                                "            %read-only int8 Int8 = -1;\n"
+                                "            %read-only int16 Int16 = -1;\n"
                                 "            %read-only int32 Int32 = -1;\n"
-                                "            %read-only uint32 Uint32 = 1;\n"
                                 "            %read-only int64 Int64 = -1;\n"
+                                "            %read-only uint8 Uint8 = 1;\n"
+                                "            %read-only uint16 Uint16 = 1;\n"
+                                "            %read-only uint32 Uint32 = 1;\n"
                                 "            %read-only uint64 Uint64 = 1;\n"
                                 "            %read-only bool Bool = false;\n"
                                 "            %read-only double Double = \"99.9\";\n"
+                                "            %read-only double Float = \"1.0\";\n"
                                 "        }\n"
                                 "        mib Optional {\n"
                                 "            %read-only string String = \"\";\n"
@@ -336,6 +346,83 @@ TEST_F(AmbiorixTestSetterDouble, set_uint32_should_succeed)
 TEST_F(AmbiorixTestSetterDouble, set_uint32_should_fail)
 {
     set_should_fail(g_param_name_unknown, new_value);
+}
+
+TEST_F(AmbiorixTest, set_multi_all_supported_scalar_types_should_succeed)
+{
+    constexpr int8_t int8_value     = -8;
+    constexpr int16_t int16_value   = -16;
+    constexpr int32_t int32_value   = -32;
+    constexpr int64_t int64_value   = -64;
+    constexpr uint8_t uint8_value   = 8;
+    constexpr uint16_t uint16_value = 16;
+    constexpr uint32_t uint32_value = 32;
+    constexpr uint64_t uint64_value = 64;
+    constexpr bool bool_value       = true;
+    constexpr double double_value   = 12.5;
+    constexpr float float_value     = 3.5f;
+
+    beerocks::AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    EXPECT_TRUE(values.add_child(g_param_name_int8, int8_value));
+    EXPECT_TRUE(values.add_child(g_param_name_int16, int16_value));
+    EXPECT_TRUE(values.add_child(g_param_name_int32, int32_value));
+    EXPECT_TRUE(values.add_child(g_param_name_int64, int64_value));
+    EXPECT_TRUE(values.add_child(g_param_name_uint8, uint8_value));
+    EXPECT_TRUE(values.add_child(g_param_name_uint16, uint16_value));
+    EXPECT_TRUE(values.add_child(g_param_name_uint32, uint32_value));
+    EXPECT_TRUE(values.add_child(g_param_name_uint64, uint64_value));
+    EXPECT_TRUE(values.add_child(g_param_name_bool, bool_value));
+    EXPECT_TRUE(values.add_child(g_param_name_double, double_value));
+    EXPECT_TRUE(values.add_child(g_param_name_float, float_value));
+    EXPECT_TRUE(values.add_child(g_param_name_string, std::string(g_param_value_foo)));
+
+    EXPECT_TRUE(m_ambiorix->set_multi(g_param_path, values));
+
+    amxd_object_t *obj = find_object(g_param_path);
+    ASSERT_TRUE(obj);
+    amxd_status_t status;
+
+    EXPECT_EQ(amxd_object_get_int8_t(obj, g_param_name_int8, &status), int8_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_int16_t(obj, g_param_name_int16, &status), int16_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_int32_t(obj, g_param_name_int32, &status), int32_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_int64_t(obj, g_param_name_int64, &status), int64_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_uint8_t(obj, g_param_name_uint8, &status), uint8_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_uint16_t(obj, g_param_name_uint16, &status), uint16_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_uint32_t(obj, g_param_name_uint32, &status), uint32_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_uint64_t(obj, g_param_name_uint64, &status), uint64_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_bool(obj, g_param_name_bool, &status), bool_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_DOUBLE_EQ(amxd_object_get_double(obj, g_param_name_double, &status), double_value);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_FLOAT_EQ(static_cast<float>(amxd_object_get_double(obj, g_param_name_float, &status)),
+                    float_value);
+    EXPECT_EQ(status, amxd_status_ok);
+
+    char *string_value = amxd_object_get_cstring_t(obj, g_param_name_string, &status);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_STREQ(string_value, g_param_value_foo);
+    free(string_value);
+}
+
+TEST_F(AmbiorixTest, set_multi_empty_map_should_succeed)
+{
+    beerocks::AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    EXPECT_TRUE(m_ambiorix->set_multi(g_param_path, values));
+}
+
+TEST_F(AmbiorixTest, set_multi_amxd_trans_apply_failure_should_fail)
+{
+    beerocks::AmbiorixVariant values(AMXC_VAR_ID_HTABLE);
+    EXPECT_TRUE(values.add_child(g_param_name_unknown, std::string(g_param_value_foo)));
+    EXPECT_FALSE(m_ambiorix->set_multi(g_param_path, values));
 }
 
 } // namespace
