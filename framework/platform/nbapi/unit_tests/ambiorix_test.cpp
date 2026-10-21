@@ -6,6 +6,7 @@
  * See LICENSE file for more details.
  */
 
+#include <ambiorix_dummy.h>
 #include <ambiorix_impl.h>
 #include <bcl/beerocks_event_loop_mock.h>
 
@@ -151,6 +152,34 @@ private:
         amxrt.reset();
     }
 };
+
+TEST(AmbiorixDummyTest, test_has_no_local_objects)
+{
+    beerocks::nbapi::AmbiorixDummy ambiorix;
+    EXPECT_FALSE(ambiorix.has_object(g_param_path_test));
+}
+
+TEST_F(AmbiorixTest, test_has_object)
+{
+    EXPECT_TRUE(m_ambiorix->has_object(g_param_path_test));
+    EXPECT_TRUE(m_ambiorix->has_object(g_param_path));
+    EXPECT_FALSE(m_ambiorix->has_object(g_param_path_unknown));
+    EXPECT_FALSE(m_ambiorix->has_object(std::string(g_param_path) + ".Unknown"));
+}
+
+TEST_F(AmbiorixTest, test_root_exists_when_child_or_parameter_read_fails)
+{
+    const auto missing_child = std::string(g_param_path_test) + ".Info";
+    std::string value;
+
+    ASSERT_FALSE(m_ambiorix->has_object(missing_child));
+    EXPECT_FALSE(m_ambiorix->read_param(missing_child, g_param_name_string, &value));
+    EXPECT_TRUE(m_ambiorix->has_object(g_param_path_test));
+
+    EXPECT_FALSE(m_ambiorix->read_param(g_param_path, g_param_name_unknown, &value));
+    EXPECT_TRUE(m_ambiorix->has_object(g_param_path_test));
+    EXPECT_TRUE(m_ambiorix->has_object(g_param_path));
+}
 
 TEST_F(AmbiorixTest, test_instance)
 {
