@@ -78,6 +78,8 @@ public:
      */
     bool init(const std::string &datamodel_path);
 
+    bool has_object(const std::string &relative_path) override;
+
     bool set(const std::string &relative_path, const std::string &parameter,
              const std::string &value) override;
     bool set(const std::string &relative_path, const std::string &parameter,
