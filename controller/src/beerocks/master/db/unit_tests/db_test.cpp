@@ -491,6 +491,140 @@ protected:
     }
 };
 
+void expect_scan_result(const std::shared_ptr<StrictMock<beerocks::nbapi::AmbiorixMock>> &ambiorix,
+                        const std::string &radio_path, uint32_t scan_result_index,
+                        const std::string &timestamp, bool existing = false)
+{
+    constexpr uint8_t operating_class = 115;
+    constexpr uint8_t channel         = 36;
+    constexpr uint8_t noise           = 90;
+    constexpr uint8_t utilization     = 50;
+
+    const auto scan_result_path = radio_path + ".ScanResult." + std::to_string(scan_result_index);
+    const auto op_class_path    = scan_result_path + ".OpClassScan.1";
+    const auto channel_path     = op_class_path + ".ChannelScan.1";
+
+    EXPECT_CALL(*ambiorix,
+                get_instance_index(radio_path + ".ScanResult.[TimeStamp == '%s'].", timestamp))
+        .WillOnce(Return(existing ? scan_result_index : 0));
+    if (!existing) {
+        EXPECT_CALL(*ambiorix, add_instance(radio_path + ".ScanResult"))
+            .WillOnce(Return(scan_result_path));
+        EXPECT_CALL(*ambiorix,
+                    set(scan_result_path, "TimeStamp", Matcher<const std::string &>(timestamp)))
+            .WillOnce(Return(true));
+    }
+
+    EXPECT_CALL(*ambiorix,
+                get_instance_index(scan_result_path + ".OpClassScan.[OperatingClass == '%s'].",
+                                   std::to_string(operating_class)))
+        .WillOnce(Return(existing ? 1 : 0));
+    if (!existing) {
+        EXPECT_CALL(*ambiorix, add_instance(scan_result_path + ".OpClassScan"))
+            .WillOnce(Return(op_class_path));
+    }
+    EXPECT_CALL(*ambiorix,
+                set(op_class_path, "OperatingClass", Matcher<const uint8_t &>(operating_class)))
+        .WillOnce(Return(true));
+
+    EXPECT_CALL(*ambiorix, get_instance_index(op_class_path + ".ChannelScan.[Channel == '%s'].",
+                                              std::to_string(channel)))
+        .WillOnce(Return(existing ? 1 : 0));
+    if (!existing) {
+        EXPECT_CALL(*ambiorix, add_instance(op_class_path + ".ChannelScan"))
+            .WillOnce(Return(channel_path));
+    }
+    EXPECT_CALL(*ambiorix, set(channel_path, "TimeStamp", Matcher<const std::string &>(timestamp)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*ambiorix, set(channel_path, "Channel", Matcher<const uint8_t &>(channel)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*ambiorix, set(channel_path, "Utilization", Matcher<const uint8_t &>(utilization)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*ambiorix, set(channel_path, "Noise", Matcher<const uint8_t &>(noise)))
+        .WillOnce(Return(true));
+}
+
+bool add_scan_result(const std::shared_ptr<son::db> &database, const std::string &timestamp)
+{
+    return database->dm_add_scan_result(tlvf::mac_from_string(g_radio_mac_1), 115, 36, 90, 50, {},
+                                        timestamp);
+}
+
+class DbTestFullScanHistory : public DbTestRadio1 {
+protected:
+    static std::string timestamp(uint32_t index)
+    {
+        return "2026-07-11T12:0" + std::to_string(index) + ":00Z";
+    }
+
+    void SetUp() override
+    {
+        DbTestRadio1::SetUp();
+        for (uint32_t index = 1; index <= 5; ++index) {
+            expect_scan_result(m_ambiorix, g_radio_path_1, index, timestamp(index));
+            ASSERT_TRUE(add_scan_result(m_db, timestamp(index)));
+        }
+    }
+
+    void add_sixth_scan_result()
+    {
+        EXPECT_CALL(*m_ambiorix, remove_instance(g_radio_path_1 + ".ScanResult", 1))
+            .WillOnce(Return(true));
+        expect_scan_result(m_ambiorix, g_radio_path_1, 6, timestamp(6));
+        EXPECT_TRUE(add_scan_result(m_db, timestamp(6)));
+    }
+};
+
+TEST_F(DbTestFullScanHistory, dm_scan_result_for_unknown_radio_preserves_history)
+{
+    EXPECT_TRUE(m_db->dm_add_scan_result(tlvf::mac_from_string(g_radio_mac_2), 115, 36, 90, 50, {},
+                                         timestamp(6)));
+
+    add_sixth_scan_result();
+}
+
+TEST_F(DbTestFullScanHistory, dm_scan_result_without_radio_path_preserves_history)
+{
+    const auto radio_mac = tlvf::mac_from_string(g_radio_mac_2);
+    EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
+        .WillOnce(Return(std::string{}));
+    ASSERT_FALSE(m_db->add_radio(radio_mac, tlvf::mac_from_string(g_bridge_mac)));
+    ASSERT_NE(m_db->get_radio_by_uid(radio_mac), nullptr);
+    ASSERT_TRUE(m_db->get_radio_data_model_path(radio_mac).empty());
+
+    EXPECT_TRUE(m_db->dm_add_scan_result(radio_mac, 115, 36, 90, 50, {}, timestamp(6)));
+
+    add_sixth_scan_result();
+}
+
+TEST_F(DbTestFullScanHistory, dm_scan_result_updates_preserve_history_and_fifo)
+{
+    // Updating either the oldest or another result must not evict or recreate it.
+    for (uint32_t index : {1U, 3U}) {
+        expect_scan_result(m_ambiorix, g_radio_path_1, index, timestamp(index), true);
+        ASSERT_TRUE(add_scan_result(m_db, timestamp(index)));
+    }
+
+    add_sixth_scan_result();
+}
+
+TEST_F(DbTestFullScanHistory, dm_new_scan_result_evicts_only_oldest_history)
+{
+    add_sixth_scan_result();
+}
+
+TEST_F(DbTestFullScanHistory, dm_scan_result_eviction_failure_preserves_history)
+{
+    EXPECT_CALL(*m_ambiorix, get_instance_index(g_radio_path_1 + ".ScanResult.[TimeStamp == '%s'].",
+                                                timestamp(6)))
+        .WillOnce(Return(0));
+    EXPECT_CALL(*m_ambiorix, remove_instance(g_radio_path_1 + ".ScanResult", 1))
+        .WillOnce(Return(false));
+    EXPECT_FALSE(add_scan_result(m_db, timestamp(6)));
+
+    add_sixth_scan_result();
+}
+
 TEST_F(DbTest, dm_should_have_controller_bridge)
 {
     EXPECT_TRUE(m_db->get_agent(tlvf::mac_from_string(g_bridge_mac)));
@@ -527,6 +661,91 @@ TEST_F(DbTest, dm_should_report_failure_clearing_device_ssid_to_vid_mapping)
     EXPECT_CALL(*m_ambiorix, remove_all_instances(mapping_path)).WillOnce(Return(false));
 
     EXPECT_FALSE(m_db->dm_clear_device_ssid_to_vid_map(*agent));
+}
+
+TEST_F(DbTestRadio1, dm_remove_radio_prunes_scan_result_history_before_index_reuse)
+{
+    for (uint32_t index = 1; index <= 5; ++index) {
+        const auto timestamp = "2026-07-11T10:0" + std::to_string(index) + ":00Z";
+        expect_scan_result(m_ambiorix, g_radio_path_1, index, timestamp);
+        EXPECT_TRUE(add_scan_result(m_db, timestamp));
+    }
+
+    auto radio = m_db->get_radio_by_uid(tlvf::mac_from_string(g_radio_mac_1));
+    ASSERT_NE(radio, nullptr);
+    EXPECT_CALL(*m_ambiorix, remove_instance(std::string(g_device_path) + ".1.Radio", 1))
+        .WillOnce(Return(true));
+    EXPECT_TRUE(m_db->dm_remove_radio(*radio));
+
+    EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
+        .WillOnce(Return(g_radio_path_1));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_path_1, "ID",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_radio_mac_1))))
+        .WillOnce(Return(true));
+    EXPECT_TRUE(
+        m_db->add_radio(tlvf::mac_from_string(g_radio_mac_1), tlvf::mac_from_string(g_bridge_mac)));
+
+    const std::string timestamp = "2026-07-11T10:06:00Z";
+    expect_scan_result(m_ambiorix, g_radio_path_1, 1, timestamp);
+    EXPECT_TRUE(add_scan_result(m_db, timestamp));
+}
+
+TEST_F(DbTestRadio1, dm_remove_device_prunes_scan_result_history_before_index_reuse)
+{
+    for (uint32_t index = 1; index <= 5; ++index) {
+        const auto timestamp = "2026-07-11T11:0" + std::to_string(index) + ":00Z";
+        expect_scan_result(m_ambiorix, g_radio_path_1, index, timestamp);
+        EXPECT_TRUE(add_scan_result(m_db, timestamp));
+    }
+
+    EXPECT_CALL(*m_ambiorix, remove_instance(g_device_path, 1)).WillOnce(Return(true));
+    EXPECT_TRUE(m_db->remove_agent(tlvf::mac_from_string(g_bridge_mac)));
+
+    EXPECT_CALL(*m_ambiorix, get_instance_index(_, g_bridge_mac))
+        .WillOnce(Return(0))
+        .RetiresOnSaturation();
+    EXPECT_CALL(*m_ambiorix, add_instance(g_device_path))
+        .WillOnce(Return(std::string(g_device_path) + ".1"));
+    EXPECT_CALL(*m_ambiorix, set(std::string(g_device_path) + ".1", "ID",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_bridge_mac))))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_device_path_multiapcaps, "AgentInitiatedRCPIBasedSteering",
+                                 Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(g_device_path_multiapcaps, "UnassociatedSTALinkMetricsCurrentlyOn",
+                                 Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(g_device_path_multiapcaps, "UnassociatedSTALinkMetricsCurrentlyOff",
+                    Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(std::string(g_device_path) + ".1", "CollectionInterval",
+                                 Matcher<const uint32_t &>(_)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(std::string(g_device_path) + ".1.MultiAPDevice", "ManufacturerOUI",
+                                 Matcher<const std::string &>(g_bridge_oui)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(std::string(g_device_path) + ".1.MultiAPDevice",
+                    "EasyMeshControllerOperationMode", Matcher<const std::string &>("Running")))
+        .WillOnce(Return(true));
+    EXPECT_CALL(*m_ambiorix,
+                set(std::string(g_device_path) + ".1.MultiAPDevice", "EasyMeshAgentOperationMode",
+                    Matcher<const std::string &>("Running")))
+        .WillOnce(Return(true));
+    ASSERT_NE(m_db->add_gateway(tlvf::mac_from_string(g_bridge_mac)), nullptr);
+
+    EXPECT_CALL(*m_ambiorix, add_instance(std::string(g_device_path) + ".1.Radio"))
+        .WillOnce(Return(g_radio_path_1));
+    EXPECT_CALL(*m_ambiorix, set(g_radio_path_1, "ID",
+                                 Matcher<const sMacAddr &>(tlvf::mac_from_string(g_radio_mac_1))))
+        .WillOnce(Return(true));
+    EXPECT_TRUE(
+        m_db->add_radio(tlvf::mac_from_string(g_radio_mac_1), tlvf::mac_from_string(g_bridge_mac)));
+
+    const std::string timestamp = "2026-07-11T11:06:00Z";
+    expect_scan_result(m_ambiorix, g_radio_path_1, 1, timestamp);
+    EXPECT_TRUE(add_scan_result(m_db, timestamp));
 }
 
 TEST_F(DbTest, test_add_node_radio)

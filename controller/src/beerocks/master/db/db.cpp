@@ -23,6 +23,7 @@
 #include <tlvf/tlvftypes.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <utility>
 
 using namespace beerocks;
@@ -4392,10 +4393,6 @@ bool db::dm_add_scan_result(const sMacAddr &ruid, const uint8_t &operating_class
                             const std::vector<wfa_map::cNeighbors> &neighbors,
                             const std::string &ISO_8601_timestamp)
 {
-    if (!dm_check_objects_limit(m_scan_results, MAX_SCAN_RESULT_HISTORY_SIZE)) {
-        return false;
-    }
-
     const std::string &radio_path = get_radio_data_model_path(ruid);
 
     if (radio_path.empty()) {
@@ -4411,6 +4408,10 @@ bool db::dm_add_scan_result(const sMacAddr &ruid, const uint8_t &operating_class
     if (scan_result_index) {
         scan_result_path = radio_path + ".ScanResult." + std::to_string(scan_result_index);
     } else {
+        if (!dm_check_objects_limit(m_scan_results, MAX_SCAN_RESULT_HISTORY_SIZE)) {
+            return false;
+        }
+
         scan_result_path = m_ambiorix_datamodel->add_instance(radio_path + ".ScanResult");
         if (scan_result_path.empty()) {
             LOG(ERROR) << "Failed to add ScanResult ";
@@ -5356,6 +5357,39 @@ bool db::dm_check_objects_limit(std::queue<std::string> &paths, uint8_t limit)
         paths.pop();
     }
     return true;
+}
+
+void db::dm_prune_history_references(std::queue<std::string> &paths, const std::string &owner_path)
+{
+    if (owner_path.empty()) {
+        return;
+    }
+
+    auto owner_prefix = owner_path;
+    if (owner_prefix.back() != '.') {
+        owner_prefix += '.';
+    }
+
+    const std::size_t original_size = paths.size();
+    std::queue<std::string> retained_paths;
+
+    while (!paths.empty()) {
+        auto path = std::move(paths.front());
+        paths.pop();
+
+        if (path.compare(0, owner_prefix.size(), owner_prefix) == 0) {
+            continue; // starts with owner prefix -> discard
+        }
+        retained_paths.push(std::move(path));
+    }
+
+    paths.swap(retained_paths);
+
+    const std::size_t pruned_references = original_size - paths.size();
+    if (pruned_references > 0) {
+        LOG(DEBUG) << "Pruned " << pruned_references << " history reference(s) under "
+                   << owner_path;
+    }
 }
 
 bool db::notify_sta_disconnection(const std::string &client_mac, const uint16_t reason_code,
@@ -7081,6 +7115,10 @@ bool db::dm_remove_device_element(const sMacAddr &mac)
         LOG(ERROR) << "Failed to remove Network.Device." << index << " instance.";
         return false;
     }
+
+    const auto device_path =
+        std::string(DATAELEMENTS_ROOT_DM ".Network.Device.") + std::to_string(index);
+    dm_prune_history_references(m_scan_results, device_path);
 
     return true;
 }
@@ -8986,6 +9024,7 @@ bool db::dm_remove_radio(Agent::sRadio &radio)
     if (!m_ambiorix_datamodel->remove_instance(instance.first, instance.second)) {
         return false;
     }
+    dm_prune_history_references(m_scan_results, radio.dm_path);
     radio.dm_path.clear();
     return true;
 }
