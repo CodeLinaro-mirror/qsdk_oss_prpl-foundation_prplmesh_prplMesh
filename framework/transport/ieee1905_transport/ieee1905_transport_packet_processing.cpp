@@ -638,6 +638,10 @@ bool Ieee1905Transport::forward_packet_single(Packet &packet)
             } else if (packet.src_if_type == CmduRxMessage::IF_TYPE_LOCAL_BUS) {
                 forward_to_bridge = true;
             }
+
+            if (debug_packet(packet)) {
+                forward_to_bridge = true;
+            }
         }
 
         //
@@ -703,6 +707,20 @@ bool Ieee1905Transport::forward_packet_single(Packet &packet)
     return true;
 }
 
+bool Ieee1905Transport::debug_packet(Packet &packet)
+{
+
+    // Autoconf Response, Autoconf Search, Autoconf WSC, ChannelSelection {Req, Resp, Report}
+    std::vector<uint16_t> debug_packets = {0x0008, 0x0007, 0x0009, 0x8006, 0x8007, 0x8008};
+
+    if (debug_packets.empty()) {
+        return false;
+    }
+    if (packet.ether_type == ETH_P_1905_1) {
+        return true;
+    }
+    return false;
+}
 /**
  * @brief forward a 1905.1 packet.
  *
