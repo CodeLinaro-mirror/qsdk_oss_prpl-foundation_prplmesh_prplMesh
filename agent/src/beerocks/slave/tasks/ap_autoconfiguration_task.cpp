@@ -522,22 +522,27 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         break;
     }
     case START_AP_AUTOCONFIGURATION: {
-        auto db = AgentDB::get();
-        for (const auto radio : db->get_radios_list()) {
-            if (!radio) {
-                continue;
-            }
-
-            if (event_obj) {
-                auto specific_iface_ptr = reinterpret_cast<const std::string *>(event_obj);
-                if (*specific_iface_ptr != radio->front.iface_name) {
+        std::string bridge_iface_name;
+        {
+            auto db = AgentDB::get();
+            for (const auto radio : db->get_radios_list()) {
+                if (!radio) {
                     continue;
                 }
-            }
 
-            LOG(DEBUG) << "starting discovery sequence on radio_iface=" << radio->front.iface_name;
-            FSM_MOVE_STATE(radio->front.iface_name, eState::CONTROLLER_DISCOVERY);
-            m_task_is_active = true;
+                if (event_obj) {
+                    auto specific_iface_ptr = reinterpret_cast<const std::string *>(event_obj);
+                    if (*specific_iface_ptr != radio->front.iface_name) {
+                        continue;
+                    }
+                }
+
+                LOG(DEBUG) << "starting discovery sequence on radio_iface="
+                           << radio->front.iface_name;
+                FSM_MOVE_STATE(radio->front.iface_name, eState::CONTROLLER_DISCOVERY);
+                m_task_is_active = true;
+            }
+            bridge_iface_name = db->bridge.iface_name;
         }
 
         /* Workaround: Send Gratuitous ARP to get autoconfig response
@@ -545,10 +550,9 @@ void ApAutoConfigurationTask::handle_event(uint8_t event_enum_value, const void 
         */
         std::string str_iface_ip;
         std::string str_iface_mac;
-        int arp_socket                = -1;
-        int count                     = 5;
-        sMacAddr dst_mac              = {.oct = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
-        std::string bridge_iface_name = db->bridge.iface_name;
+        int arp_socket   = -1;
+        int count        = 5;
+        sMacAddr dst_mac = {.oct = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
 
         /* Get the IP address and MAC Address of the bridge */
         if (!network_utils::linux_iface_get_ip(bridge_iface_name, str_iface_ip)) {
@@ -1008,208 +1012,213 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
     bpl::sBoardInfo board_info;
     bpl::get_board_info(board_info);
 
-    auto db    = AgentDB::get();
-    auto radio = db->radio(radio_iface);
-    if (!radio) {
-        return false;
-    }
-
-    if (!tlvf_utils::add_ap_radio_basic_capabilities(m_cmdu_tx, radio->front.iface_mac)) {
-        LOG(ERROR) << "Failed adding AP Radio Basic Capabilities TLV";
-        return false;
-    }
-
-    if (!add_wsc_m1_tlv(radio_iface, board_info)) {
-        LOG(ERROR) << "Failed adding WSC M1 TLV";
-        return false;
-    }
-
-    // If the Multi-AP Agent onboards to a Multi-AP Controller that implements Profile-1, the
-    // Multi-AP Agent shall set the Byte Counter Units field to 0x00 (bytes) and report the
-    // values of the BytesSent and BytesReceived fields in the Associated STA Traffic Stats TLV
-    // in bytes. Section 9.1 of the spec.
-    db->device_conf.byte_counter_units = wfa_map::tlvProfile2ApCapability::eByteCounterUnits::BYTES;
-
-    if (db->controller_info.profile_support >=
-        wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2) {
-        /* One Profile-2 AP Capability TLV */
-        auto profile2_ap_capability_tlv = m_cmdu_tx.addClass<wfa_map::tlvProfile2ApCapability>();
-        if (!profile2_ap_capability_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvProfile2ApCapability failed";
+    bool prplmesh_controller;
+    {
+        auto db    = AgentDB::get();
+        auto radio = db->radio(radio_iface);
+        if (!radio) {
             return false;
         }
 
-        // If a Multi-AP Agent that implements Profile-2 sends a Profile-2 AP Capability TLV
-        // shall set the Byte Counter Units field to 0x01 (KiB (kibibytes)). Section 9.1 of
-        // the spec.
+        if (!tlvf_utils::add_ap_radio_basic_capabilities(m_cmdu_tx, radio->front.iface_mac)) {
+            LOG(ERROR) << "Failed adding AP Radio Basic Capabilities TLV";
+            return false;
+        }
+
+        if (!add_wsc_m1_tlv(radio_iface, board_info)) {
+            LOG(ERROR) << "Failed adding WSC M1 TLV";
+            return false;
+        }
+
+        // If the Multi-AP Agent onboards to a Multi-AP Controller that implements Profile-1, the
+        // Multi-AP Agent shall set the Byte Counter Units field to 0x00 (bytes) and report the
+        // values of the BytesSent and BytesReceived fields in the Associated STA Traffic Stats TLV
+        // in bytes. Section 9.1 of the spec.
         db->device_conf.byte_counter_units =
-            wfa_map::tlvProfile2ApCapability::eByteCounterUnits::KIBIBYTES;
-        profile2_ap_capability_tlv->capabilities_bit_field().byte_counter_units =
-            db->device_conf.byte_counter_units;
+            wfa_map::tlvProfile2ApCapability::eByteCounterUnits::BYTES;
 
-        // Calculate max total number of VLANs which can be configured on the Agent, and
-        // save it on on the AgentDB.
-        db->traffic_separation.max_number_of_vlans_ids =
-            db->get_radios_list().size() * eBeeRocksIfaceIds::IFACE_TOTAL_VAPS;
+        if (db->controller_info.profile_support >=
+            wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_2) {
+            /* One Profile-2 AP Capability TLV */
+            auto profile2_ap_capability_tlv =
+                m_cmdu_tx.addClass<wfa_map::tlvProfile2ApCapability>();
+            if (!profile2_ap_capability_tlv) {
+                LOG(ERROR) << "addClass wfa_map::tlvProfile2ApCapability failed";
+                return false;
+            }
 
-        profile2_ap_capability_tlv->max_total_number_of_vids() =
-            db->traffic_separation.max_number_of_vlans_ids;
+            // If a Multi-AP Agent that implements Profile-2 sends a Profile-2 AP Capability TLV
+            // shall set the Byte Counter Units field to 0x01 (KiB (kibibytes)). Section 9.1 of
+            // the spec.
+            db->device_conf.byte_counter_units =
+                wfa_map::tlvProfile2ApCapability::eByteCounterUnits::KIBIBYTES;
+            profile2_ap_capability_tlv->capabilities_bit_field().byte_counter_units =
+                db->device_conf.byte_counter_units;
 
-        /* One AP Radio Advanced Capabilities TLV */
-        auto ap_radio_advanced_capabilities_tlv =
-            m_cmdu_tx.addClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
-        if (!ap_radio_advanced_capabilities_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities failed";
-            return false;
+            // Calculate max total number of VLANs which can be configured on the Agent, and
+            // save it on on the AgentDB.
+            db->traffic_separation.max_number_of_vlans_ids =
+                db->get_radios_list().size() * eBeeRocksIfaceIds::IFACE_TOTAL_VAPS;
+
+            profile2_ap_capability_tlv->max_total_number_of_vids() =
+                db->traffic_separation.max_number_of_vlans_ids;
+
+            /* One AP Radio Advanced Capabilities TLV */
+            auto ap_radio_advanced_capabilities_tlv =
+                m_cmdu_tx.addClass<wfa_map::tlvProfile2ApRadioAdvancedCapabilities>();
+            if (!ap_radio_advanced_capabilities_tlv) {
+                LOG(ERROR) << "addClass wfa_map::tlvProfile2ApRadioAdvancedCapabilities failed";
+                return false;
+            }
+
+            ap_radio_advanced_capabilities_tlv->radio_uid() = radio->front.iface_mac;
+
+            // Currently Set the flag as we don't support traffic separation.
+            ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().combined_front_back =
+                radio->front.hybrid_mode_supported;
+            ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities()
+                .combined_profile1_and_profile2 = 0;
+            ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().mscs =
+                radio->mscs_supported;
+            ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().scs =
+                radio->scs_supported;
+
+            // TODO: Fill in the missing fields (related to R4 specification, PPM-2327).
         }
 
-        ap_radio_advanced_capabilities_tlv->radio_uid() = radio->front.iface_mac;
+        prplmesh_controller = db->controller_info.prplmesh_controller;
+        if (prplmesh_controller) {
+            auto notification = message_com::add_vs_tlv<
+                beerocks_message::cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION>(m_cmdu_tx);
 
-        // Currently Set the flag as we don't support traffic separation.
-        ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().combined_front_back =
-            radio->front.hybrid_mode_supported;
-        ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities()
-            .combined_profile1_and_profile2 = 0;
-        ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().mscs =
-            radio->mscs_supported;
-        ap_radio_advanced_capabilities_tlv->advanced_radio_capabilities().scs =
-            radio->scs_supported;
+            if (!notification) {
+                LOG(ERROR) << "Failed building cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION!";
+                return false;
+            }
 
-        // TODO: Fill in the missing fields (related to R4 specification, PPM-2327).
-    }
+            // Version
+            string_utils::copy_string(notification->slave_version(message::VERSION_LENGTH),
+                                      BEEROCKS_VERSION, message::VERSION_LENGTH);
 
-    // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
-    // AP_AUTOCONFIGURATION_WSC_MESSAGE.
-    if (!db->controller_info.prplmesh_controller) {
-        if (!multi_vendor::tlvf_handler::add_vs_tlv(
-                m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE)) {
-            LOG(ERROR) << "Failed adding few TLVs in AP_AUTOCONFIGURATION_WSC_MESSAGE";
+            // Platform Configuration
+            auto &config = m_btl_ctx.get_agent_conf();
+            notification->low_pass_filter_on() =
+                config.radios.at(radio_iface).backhaul_wireless_iface_filter_low;
+            notification->enable_repeater_mode() =
+                config.radios.at(radio_iface).enable_repeater_mode;
+
+            // Backhaul Params
+            bool wireless_bh_manager =
+                db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
+                radio->back.iface_name == db->backhaul.selected_iface_name;
+
+            std::string first_radio_iface;
+            auto first_radio_it = db->get_radios_list().begin();
+            if (first_radio_it != db->get_radios_list().end()) {
+                first_radio_iface = (*first_radio_it)->front.iface_name;
+            }
+            bool wired_bh_manager =
+                db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired &&
+                first_radio_iface == radio_iface;
+
+            if (db->device_conf.local_gw) {
+                if (radio_iface == first_radio_iface) {
+                    notification->backhaul_params().is_backhaul_manager = true;
+                }
+            } else {
+                notification->backhaul_params().is_backhaul_manager =
+                    wireless_bh_manager || wired_bh_manager;
+            }
+
+            if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
+                auto wireless_bh_radio = db->radio(db->backhaul.selected_iface_name);
+                notification->backhaul_params().backhaul_mac = wireless_bh_radio->back.iface_mac;
+                notification->backhaul_params().backhaul_channel =
+                    wireless_bh_radio->wifi_channel.get_channel();
+                notification->backhaul_params().backhaul_iface_type =
+                    eIfaceType::IFACE_TYPE_WIFI_INTEL;
+            } else if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
+                notification->backhaul_params().backhaul_mac     = db->ethernet.wan.mac;
+                notification->backhaul_params().backhaul_channel = 0;
+                notification->backhaul_params().backhaul_iface_type =
+                    eIfaceType::IFACE_TYPE_ETHERNET;
+            } else { // Local GW
+                notification->backhaul_params().backhaul_mac     = {};
+                notification->backhaul_params().backhaul_channel = 0;
+                notification->backhaul_params().backhaul_iface_type =
+                    eIfaceType::IFACE_TYPE_GW_BRIDGE;
+            }
+
+            notification->backhaul_params().backhaul_bssid = db->backhaul.backhaul_bssid;
+            notification->backhaul_params().backhaul_is_wireless =
+                db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless;
+
+            // Read the IP addresses of the bridge interface
+            network_utils::iface_info bridge_info;
+            if (beerocks::net::network_utils::get_iface_info(bridge_info, db->bridge.iface_name) !=
+                0) {
+                LOG(ERROR) << "Failed reading addresses for: " << db->bridge.iface_name;
+                return false;
+            }
+            notification->backhaul_params().bridge_ipv4 =
+                network_utils::ipv4_from_string(bridge_info.ip);
+            notification->backhaul_params().backhaul_ipv4 =
+                notification->backhaul_params().bridge_ipv4;
+
+            // Platform Settings
+            notification->platform_settings().local_master = db->device_conf.local_controller;
+
+            // Wlan Settings
+            notification->wlan_settings().band_enabled =
+                db->device_conf.front_radio.config.at(radio_iface).band_enabled;
+            notification->wlan_settings().channel =
+                db->device_conf.front_radio.config.at(radio_iface).configured_channel;
+            // Hostap Params
+            string_utils::copy_string(notification->hostap().iface_name,
+                                      radio->front.iface_name.c_str(),
+                                      beerocks::message::IFACE_NAME_LENGTH);
+            notification->hostap().iface_mac      = radio->front.iface_mac;
+            notification->hostap().ant_num        = radio->number_of_antennas;
+            notification->hostap().tx_power       = radio->tx_power_dB;
+            notification->hostap().frequency_band = radio->wifi_channel.get_freq_type();
+            notification->hostap().max_bandwidth  = radio->max_supported_bw;
+            notification->hostap().ht_supported   = radio->ht_supported;
+            notification->hostap().ht_capability  = radio->ht_capability;
+            std::copy_n(radio->ht_mcs_set.begin(), beerocks::message::HT_MCS_SET_SIZE,
+                        notification->hostap().ht_mcs_set);
+            notification->hostap().vht_supported    = radio->vht_supported;
+            notification->hostap().vht_capability   = radio->vht_capability;
+            notification->hostap().he_supported     = radio->he_supported;
+            notification->hostap().he_capability    = radio->he_capability;
+            notification->hostap().wifi6_capability = radio->wifi6_capability;
+
+            notification->hostap().ant_gain = config.radios.at(radio_iface).hostap_ant_gain;
+
+            // Channel Selection Params
+            notification->cs_params().channel   = radio->wifi_channel.get_channel();
+            notification->cs_params().bandwidth = radio->wifi_channel.get_bandwidth();
+            notification->cs_params().channel_ext_above_primary =
+                radio->wifi_channel.get_ext_above_primary();
+            if (radio->wifi_channel.get_freq_type() == eFreqType::FREQ_6G &&
+                radio->wifi_channel.get_bandwidth() == eWiFiBandwidth::BANDWIDTH_160) {
+                notification->cs_params().vht_center_frequency =
+                    radio->wifi_channel.get_center_frequency_2();
+            } else {
+                notification->cs_params().vht_center_frequency =
+                    radio->wifi_channel.get_center_frequency();
+            }
+            notification->cs_params().tx_power = radio->tx_power_dB;
         }
-
-        LOG(INFO) << "Configured as non-prplMesh, not sending SLAVE_JOINED_NOTIFICATION";
-        m_btl_ctx.send_cmdu_to_controller(radio_iface, m_cmdu_tx);
-        LOG(DEBUG) << "sending WSC M1 Size=" << m_cmdu_tx.getMessageLength();
-        return true;
-    }
-
-    auto notification =
-        message_com::add_vs_tlv<beerocks_message::cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION>(
-            m_cmdu_tx);
-
-    if (!notification) {
-        LOG(ERROR) << "Failed building cACTION_CONTROL_SLAVE_JOINED_NOTIFICATION!";
-        return false;
-    }
-
-    // Version
-    string_utils::copy_string(notification->slave_version(message::VERSION_LENGTH),
-                              BEEROCKS_VERSION, message::VERSION_LENGTH);
-
-    // Platform Configuration
-    auto &config = m_btl_ctx.get_agent_conf();
-    notification->low_pass_filter_on() =
-        config.radios.at(radio_iface).backhaul_wireless_iface_filter_low;
-    notification->enable_repeater_mode() = config.radios.at(radio_iface).enable_repeater_mode;
-
-    // Backhaul Params
-    bool wireless_bh_manager =
-        db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless &&
-        radio->back.iface_name == db->backhaul.selected_iface_name;
-
-    std::string first_radio_iface;
-    auto first_radio_it = db->get_radios_list().begin();
-    if (first_radio_it != db->get_radios_list().end()) {
-        first_radio_iface = (*first_radio_it)->front.iface_name;
-    }
-    bool wired_bh_manager =
-        db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired &&
-        first_radio_iface == radio_iface;
-
-    if (db->device_conf.local_gw) {
-        if (radio_iface == first_radio_iface) {
-            notification->backhaul_params().is_backhaul_manager = true;
-        }
-    } else {
-        notification->backhaul_params().is_backhaul_manager =
-            wireless_bh_manager || wired_bh_manager;
-    }
-
-    if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless) {
-        auto wireless_bh_radio                       = db->radio(db->backhaul.selected_iface_name);
-        notification->backhaul_params().backhaul_mac = wireless_bh_radio->back.iface_mac;
-        notification->backhaul_params().backhaul_channel =
-            wireless_bh_radio->wifi_channel.get_channel();
-        notification->backhaul_params().backhaul_iface_type = eIfaceType::IFACE_TYPE_WIFI_INTEL;
-    } else if (db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wired) {
-        notification->backhaul_params().backhaul_mac        = db->ethernet.wan.mac;
-        notification->backhaul_params().backhaul_channel    = 0;
-        notification->backhaul_params().backhaul_iface_type = eIfaceType::IFACE_TYPE_ETHERNET;
-    } else { // Local GW
-        notification->backhaul_params().backhaul_mac        = {};
-        notification->backhaul_params().backhaul_channel    = 0;
-        notification->backhaul_params().backhaul_iface_type = eIfaceType::IFACE_TYPE_GW_BRIDGE;
-    }
-
-    notification->backhaul_params().backhaul_bssid = db->backhaul.backhaul_bssid;
-    notification->backhaul_params().backhaul_is_wireless =
-        db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless;
-
-    // Read the IP addresses of the bridge interface
-    network_utils::iface_info bridge_info;
-    if (beerocks::net::network_utils::get_iface_info(bridge_info, db->bridge.iface_name) != 0) {
-        LOG(ERROR) << "Failed reading addresses for: " << db->bridge.iface_name;
-        return false;
-    }
-    notification->backhaul_params().bridge_ipv4   = network_utils::ipv4_from_string(bridge_info.ip);
-    notification->backhaul_params().backhaul_ipv4 = notification->backhaul_params().bridge_ipv4;
-
-    // Platform Settings
-    notification->platform_settings().local_master = db->device_conf.local_controller;
-
-    // Wlan Settings
-    notification->wlan_settings().band_enabled =
-        db->device_conf.front_radio.config.at(radio_iface).band_enabled;
-    notification->wlan_settings().channel =
-        db->device_conf.front_radio.config.at(radio_iface).configured_channel;
-    // Hostap Params
-    string_utils::copy_string(notification->hostap().iface_name, radio->front.iface_name.c_str(),
-                              beerocks::message::IFACE_NAME_LENGTH);
-    notification->hostap().iface_mac      = radio->front.iface_mac;
-    notification->hostap().ant_num        = radio->number_of_antennas;
-    notification->hostap().tx_power       = radio->tx_power_dB;
-    notification->hostap().frequency_band = radio->wifi_channel.get_freq_type();
-    notification->hostap().max_bandwidth  = radio->max_supported_bw;
-    notification->hostap().ht_supported   = radio->ht_supported;
-    notification->hostap().ht_capability  = radio->ht_capability;
-    std::copy_n(radio->ht_mcs_set.begin(), beerocks::message::HT_MCS_SET_SIZE,
-                notification->hostap().ht_mcs_set);
-    notification->hostap().vht_supported    = radio->vht_supported;
-    notification->hostap().vht_capability   = radio->vht_capability;
-    notification->hostap().he_supported     = radio->he_supported;
-    notification->hostap().he_capability    = radio->he_capability;
-    notification->hostap().wifi6_capability = radio->wifi6_capability;
-
-    notification->hostap().ant_gain = config.radios.at(radio_iface).hostap_ant_gain;
-
-    // Channel Selection Params
-    notification->cs_params().channel   = radio->wifi_channel.get_channel();
-    notification->cs_params().bandwidth = radio->wifi_channel.get_bandwidth();
-    notification->cs_params().channel_ext_above_primary =
-        radio->wifi_channel.get_ext_above_primary();
-    if (radio->wifi_channel.get_freq_type() == eFreqType::FREQ_6G &&
-        radio->wifi_channel.get_bandwidth() == eWiFiBandwidth::BANDWIDTH_160) {
-        notification->cs_params().vht_center_frequency =
-            radio->wifi_channel.get_center_frequency_2();
-    } else {
-        notification->cs_params().vht_center_frequency = radio->wifi_channel.get_center_frequency();
-    }
-    notification->cs_params().tx_power = radio->tx_power_dB;
+    } // Vendor handlers can enter WBAPI; release AgentDB first.
 
     // The add_vs_tlv method invokes the handler to add Vendor specific TLVs to the
     // AP_AUTOCONFIGURATION_WSC_MESSAGE.
     if (!multi_vendor::tlvf_handler::add_vs_tlv(
             m_cmdu_tx, ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE)) {
         LOG(ERROR) << "Failed adding few TLVs in AP_AUTOCONFIGURATION_WSC_MESSAGE";
+    }
+    if (!prplmesh_controller) {
+        LOG(INFO) << "Configured as non-prplMesh, not sending SLAVE_JOINED_NOTIFICATION";
     }
     m_btl_ctx.send_cmdu_to_controller(radio_iface, m_cmdu_tx);
     LOG(DEBUG) << "sending WSC M1 Size=" << m_cmdu_tx.getMessageLength();

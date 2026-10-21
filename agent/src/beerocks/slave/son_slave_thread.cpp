@@ -5989,26 +5989,30 @@ bool slave_thread::agent_fsm()
         }
         m_platform_manager_client->send_cmdu(cmdu_tx);
 
-        auto db = AgentDB::get();
+        bool controller_only;
+        {
+            auto db = AgentDB::get();
 
-        // Configure the transport process to bind the al_mac address
-        if (!m_broker_client->configure_al_mac(db->bridge.mac)) {
-            LOG(FATAL) << "Failed configuring transport process!";
-        }
-
-        // In certification mode, if prplMesh is configured with local controller, do not enable
-        // the transport process until agent has connected to controller. This way we prevent
-        // the agent from connecting to another controller in the testbed, which might still be
-        // running from a previous test.
-        if (!(db->device_conf.certification_mode && db->device_conf.local_controller)) {
-            // Configure the transport process to use the network bridge
-            if (!m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true, true)) {
+            // Configure the transport process to bind the al_mac address
+            if (!m_broker_client->configure_al_mac(db->bridge.mac)) {
                 LOG(FATAL) << "Failed configuring transport process!";
             }
-        }
+
+            // In certification mode, if prplMesh is configured with local controller, do not enable
+            // the transport process until agent has connected to controller. This way we prevent
+            // the agent from connecting to another controller in the testbed, which might still be
+            // running from a previous test.
+            if (!(db->device_conf.certification_mode && db->device_conf.local_controller)) {
+                // Configure the transport process to use the network bridge
+                if (!m_broker_client->configure_interfaces(db->bridge.iface_name, {}, true, true)) {
+                    LOG(FATAL) << "Failed configuring transport process!";
+                }
+            }
+            controller_only = db->device_conf.management_mode == BPL_MGMT_MODE_MULTIAP_CONTROLLER;
+        } // Task dispatch can run work synchronously; release AgentDB first.
         LOG(TRACE) << "goto STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE";
         m_agent_state = STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE;
-        if (db->device_conf.management_mode != BPL_MGMT_MODE_MULTIAP_CONTROLLER) {
+        if (!controller_only) {
             m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
                                    ApAutoConfigurationTask::eEvent::START_AP_AUTOCONFIGURATION);
         } else {

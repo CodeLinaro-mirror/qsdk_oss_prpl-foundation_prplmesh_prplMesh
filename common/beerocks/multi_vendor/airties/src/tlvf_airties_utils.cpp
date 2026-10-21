@@ -35,6 +35,8 @@
 #include <cctype>
 #include <cstring>
 #include <fstream>
+#include <string>
+#include <vector>
 
 using namespace airties;
 using namespace beerocks;
@@ -798,33 +800,42 @@ bool devicemetrics_get_uptime(struct timespec &ts)
 
 bool devicemetrics_get_radio_info(std::shared_ptr<airties::tlvAirtiesDeviceMetrics> &tlvDevMetrics)
 {
-    const auto &radios = AgentDB::get()->get_radios_list();
+    struct sRadioInfo {
+        sMacAddr mac;
+        std::string iface_name;
+    };
+    std::vector<sRadioInfo> radios;
+    {
+        auto db = AgentDB::get();
+        for (const auto &radio : db->get_radios_list()) {
+            radios.push_back({radio->front.iface_mac, radio->front.iface_name});
+        }
+    }
 
     LOG(INFO) << "Device Metrics TLV: Number of radios  " << radios.size();
 
     for (const auto &radio : radios) {
-        if (radio->front.iface_mac == beerocks::net::network_utils::ZERO_MAC) {
+        if (radio.mac == beerocks::net::network_utils::ZERO_MAC) {
             continue;
         }
 
         auto rad_list = tlvDevMetrics->create_radio_list();
         if (!rad_list) {
-            LOG(ERROR) << "Failed to create radio list entry for " << radio->front.iface_name;
+            LOG(ERROR) << "Failed to create radio list entry for " << radio.iface_name;
             return false;
         }
 
-        rad_list->radio_id() = radio->front.iface_mac;
+        rad_list->radio_id() = radio.mac;
 
         uint8_t radio_temp = 0;
-        if (!beerocks::bpl::bpl_cfg_get_wifi_radio_temperature(radio->front.iface_name,
-                                                               radio_temp)) {
-            LOG(ERROR) << "Failed to read radio temperature for " << radio->front.iface_name;
+        if (!beerocks::bpl::bpl_cfg_get_wifi_radio_temperature(radio.iface_name, radio_temp)) {
+            LOG(ERROR) << "Failed to read radio temperature for " << radio.iface_name;
             return false;
         }
         rad_list->radio_temperature() = radio_temp;
 
         if (!tlvDevMetrics->add_radio_list(std::move(rad_list))) {
-            LOG(ERROR) << "Failed to add radio list entry for " << radio->front.iface_name;
+            LOG(ERROR) << "Failed to add radio list entry for " << radio.iface_name;
             return false;
         }
     }

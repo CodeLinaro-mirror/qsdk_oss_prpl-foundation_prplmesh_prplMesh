@@ -253,25 +253,29 @@ static void fill_son_slave_config(const beerocks::config_file::sConfigSlave &bee
                 : 0;
     }
 
-    auto db = beerocks::AgentDB::get();
-
-    db->device_conf.operating_system = beerocks::os_utils::get_os_name();
-    db->em_handle_third_party        = beerocks_slave_conf.em_handle_third_party;
-
-    if (!beerocks::bpl::get_friendly_name(db->device_conf.device_friendly_name)) {
-        db->device_conf.device_friendly_name.clear();
+    // DeviceInfo getters enter WBAPI; collect their results before taking AgentDB.
+    std::string friendly_name, manufacturer, model_name, software_version, serial_number;
+    if (!beerocks::bpl::get_friendly_name(friendly_name)) {
+        friendly_name.clear();
     }
-    if (!beerocks::bpl::get_manufacturer(db->device_conf.device_manufacturer)) {
-        db->device_conf.device_manufacturer.clear();
+    if (!beerocks::bpl::get_manufacturer(manufacturer)) {
+        manufacturer.clear();
     }
-    if (!beerocks::bpl::get_model_name(db->device_conf.device_model_name)) {
-        db->device_conf.device_model_name.clear();
+    if (!beerocks::bpl::get_model_name(model_name)) {
+        model_name.clear();
     }
+    beerocks::bpl::get_software_version(software_version);
+    beerocks::bpl::get_serial_number(serial_number);
+    auto operating_system = beerocks::os_utils::get_os_name();
 
-    //Get the Serial number of the device and current running software version
-    //using Ambiorix dm.
-    beerocks::bpl::get_software_version(db->device_conf.software_version);
-    beerocks::bpl::get_serial_number(db->device_conf.device_serial_number);
+    auto db                              = beerocks::AgentDB::get();
+    db->device_conf.operating_system     = std::move(operating_system);
+    db->em_handle_third_party            = beerocks_slave_conf.em_handle_third_party;
+    db->device_conf.device_friendly_name = std::move(friendly_name);
+    db->device_conf.device_manufacturer  = std::move(manufacturer);
+    db->device_conf.device_model_name    = std::move(model_name);
+    db->device_conf.software_version     = std::move(software_version);
+    db->device_conf.device_serial_number = std::move(serial_number);
 }
 
 static std::shared_ptr<beerocks::logging>
