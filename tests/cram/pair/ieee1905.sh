@@ -13,6 +13,8 @@ PAIR_IEEE1905_AGENT_DOWN_SEC=${PAIR_IEEE1905_AGENT_DOWN_SEC:-300}
 # Output: sets PAIR_IEEE1905_MEDIA to the MediaType pattern of the neighbor
 # interfaces, or prints the reason and returns failure.
 pair_ieee1905_use_backhaul() {
+    # Read by IEEE1905.t.
+    # shellcheck disable=SC2034
     case "$1" in
         eth) PAIR_IEEE1905_MEDIA='^IEEE_802_3' ;;
         wifi) PAIR_IEEE1905_MEDIA='^IEEE_802_11' ;;
@@ -182,10 +184,13 @@ pair_ieee1905_link() {
 # Output: sets PAIR_{CONTROLLER,AGENT}_{AL,IFACE,NEIGHBOR}; prints the
 # missing part and returns failure when the topology is incomplete.
 pair_ieee1905_resolve() {
+    # PAIR_CONTROLLER_MAC and PAIR_AGENT_MAC are set by the .t files.
+    # shellcheck disable=SC2153
     PAIR_CONTROLLER_AL=$(pair_ieee1905_find_al "$PAIR_CONTROLLER_MAC") || {
         printf 'No IEEE1905 AL for controller %s\n' "$PAIR_CONTROLLER_MAC" >&2
         return 1
     }
+    # shellcheck disable=SC2153
     PAIR_AGENT_AL=$(pair_ieee1905_find_al "$PAIR_AGENT_MAC") || {
         printf 'No IEEE1905 AL for agent %s\n' "$PAIR_AGENT_MAC" >&2
         return 1
@@ -261,12 +266,15 @@ pair_wait_ieee1905() {
 # missing direction and returns failure.
 pair_ieee1905_links_ready() {
     pair_ieee1905_ready "$@" || return
+    # Read by IEEE1905.t and IEEE1905_WIFI.t.
+    # shellcheck disable=SC2034
     PAIR_CONTROLLER_LINK=$(pair_ieee1905_link "$PAIR_CONTROLLER_IFACE" \
         "$PAIR_AGENT_MAC") || {
         printf 'No Link to %s under %s\n' "$PAIR_AGENT_MAC" \
             "$PAIR_CONTROLLER_IFACE" >&2
         return 1
     }
+    # shellcheck disable=SC2034
     PAIR_AGENT_LINK=$(pair_ieee1905_link "$PAIR_AGENT_IFACE" \
         "$PAIR_CONTROLLER_MAC") || {
         printf 'No Link to %s under %s\n' "$PAIR_CONTROLLER_MAC" \
