@@ -759,6 +759,18 @@ void db::set_station_bss(std::shared_ptr<Station> station, std::shared_ptr<Agent
 
 bool db::remove_sta(const sMacAddr &mac)
 {
+    // Detach the Station from its BSS as well. Associated Clients
+    // reconciliation builds "previously connected" from BSS membership, so a
+    // removed Station left there is killed again on every Topology Response
+    // of that Agent, and blocks re-adding it under the BSS it roamed to.
+    auto station = m_stations.get(mac);
+    if (station) {
+        auto bss = station->get_bss();
+        if (bss) {
+            bss->connected_stations.erase(mac);
+        }
+        station->set_bss(nullptr);
+    }
     m_stations.erase(mac);
     return true;
 }
