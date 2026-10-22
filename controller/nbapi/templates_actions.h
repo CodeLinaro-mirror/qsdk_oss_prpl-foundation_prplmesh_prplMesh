@@ -47,8 +47,10 @@ enum class eTemplateRsnMode { PSK, SAE, SAE_EXT, TRANSITION, PCM };
 
 bool template_operating_classes_include_6ghz(const std::list<uint8_t> &operating_class);
 
+// mlo_active=true forces GCMP-256; false uses the configured cipher.
 void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool is_6ghz_band,
-                                    eTemplateRsnMode mode, std::vector<uint8_t> &out);
+                                    eTemplateRsnMode mode, std::vector<uint8_t> &out,
+                                    bool mlo_active = false);
 
 } // namespace actions
 } // namespace controller

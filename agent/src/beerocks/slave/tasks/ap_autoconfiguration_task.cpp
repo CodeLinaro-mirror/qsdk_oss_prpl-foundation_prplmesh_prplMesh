@@ -484,7 +484,9 @@ static bool resolve_auth_from_rsn_security_ies(
 
     const bool has_sae_any      = has_sae || has_sae_h2e;
     const bool has_any_rsno_ie  = parsed.has_rsnoe_ie || parsed.has_rsno2e_ie;
-    bool is_wpa3_pcm_compatible = has_any_rsno_ie && has_sae_any && has_ccmp && has_bip;
+    // MLO: accept GCMP-256 as well as CCMP.
+    bool is_wpa3_pcm_compatible =
+        has_any_rsno_ie && has_sae_any && (has_ccmp || has_gcmp256) && has_bip;
     is_wpa3_pcm_compatible &= (freq_type == beerocks::eFreqType::FREQ_6G) ? true : has_psk;
     is_wpa3_pcm_compatible &= parsed.has_rsno2e_ie ? has_gcmp256 : true;
 

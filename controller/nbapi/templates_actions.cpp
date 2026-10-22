@@ -1806,7 +1806,8 @@ static uint16_t template_mfp_to_rsn_cap_le(const std::string &mfp, bool vendor_e
  * - RSNXE / RSNXOE encode their corresponding SAEH2E value (always set for PCM)
  */
 void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool is_6ghz_band,
-                                    eTemplateRsnMode mode, std::vector<uint8_t> &out)
+                                    eTemplateRsnMode mode, std::vector<uint8_t> &out,
+                                    bool mlo_active)
 {
     out.clear();
 
@@ -1829,6 +1830,11 @@ void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool i
         template_read_one_suite(obj, "GroupDataCipherSuite", RSN_CIPHER_CCMP_128, group);
         template_read_cipher_list(obj, "PairwiseCipherSuite", pairwise, RSN_CIPHER_CCMP_128);
         template_read_one_suite(obj, "GroupManagementCipherSuite", RSN_CIPHER_BIP_CMAC_128, gm);
+        if (mlo_active) {
+            // MLO: force GCMP-256.
+            group    = RSN_CIPHER_GCMP_256;
+            pairwise = {RSN_CIPHER_GCMP_256};
+        }
         if (akm_from_dm) {
             template_read_akm_list(obj, akm, akm_defaults);
         } else {
@@ -1854,6 +1860,10 @@ void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool i
         template_read_one_suite(obj, "GroupDataCipherSuite", RSN_CIPHER_CCMP_128, group);
         template_read_cipher_list(obj, "PairwiseCipherSuite", pairwise, pw_default);
         template_read_one_suite(obj, "GroupManagementCipherSuite", RSN_CIPHER_BIP_CMAC_128, gm);
+        if (mlo_active) {
+            group    = RSN_CIPHER_GCMP_256;
+            pairwise = {RSN_CIPHER_GCMP_256};
+        }
         template_read_akm_list(obj, akm, akm_defaults);
         const std::string mfp = obj ? get_param_string(obj, "MFP") : std::string("Capable");
         const uint16_t cap    = template_mfp_to_rsn_cap_le(mfp.empty() ? "Capable" : mfp, true);
@@ -1911,8 +1921,9 @@ void template_fill_rsn_security_ies(amxd_object_t *security_template_obj, bool i
     out.insert(out.end(), {0xDD, 0x05, 0x50, 0x6F, 0x9A, RSNXOE_WFA_VENDOR_TYPE,
                            static_cast<uint8_t>(rsnxoe_h2e ? 0x20 : 0x00)});
 
-    LOG(DEBUG) << "RSN IE filled: mode=" << int(mode) << " len=" << out.size()
-               << " rsnoe=" << emit_rsnoe << " rsno2e=" << emit_rsno2e << " rsnxe_h2e=" << rsnxe_h2e
+    LOG(DEBUG) << "RSN IE filled: mode=" << int(mode) << " mlo=" << mlo_active
+               << " len=" << out.size() << " rsnoe=" << emit_rsnoe << " rsno2e=" << emit_rsno2e
+               << " rsnxe_h2e=" << rsnxe_h2e
                << " rsnxoe_h2e=" << rsnxoe_h2e
                << " hex=" << beerocks::string_utils::bytes_to_hex_string(out.data(), out.size());
 }
@@ -2048,8 +2059,17 @@ static bool template_akm_token_in_lists(const std::vector<std::string> &a,
 static bool template_apply_security_to_bss_info(amxd_object_t *security_template_obj,
                                                 const Agent *agent_for_match,
                                                 son::wireless_utils::sBssInfoConf &bss_info,
-                                                const std::list<uint8_t> &operating_classes)
+                                                const std::list<uint8_t> &operating_classes,
+                                                bool mlo_active = false)
 {
+    // MLO needs GCMP-256 (0x09); skip agents without it.
+    if (mlo_active && agent_for_match &&
+        agent_for_match->security_capabilities.valid_cipher_suites &&
+        !agent_for_match->security_capabilities.cipher_suite_types.test(0x09)) {
+        LOG(DEBUG) << "SecurityTemplate: MLO requires GCMP-256, not supported by agent "
+                   << agent_for_match->al_mac;
+        return false;
+    }
     bss_info.rsn_security_ies.clear();
 
     std::string security_ies = get_param_string(security_template_obj, "SecurityIEs");
@@ -2221,7 +2241,7 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
                 }
                 const bool is_6g = template_operating_classes_include_6ghz(operating_classes);
                 template_fill_rsn_security_ies(security_template_obj, is_6g, rsn_mode,
-                                               bss_info.rsn_security_ies);
+                                               bss_info.rsn_security_ies, mlo_active);
                 LOG(DEBUG) << "SecurityTemplate: IEEE AKM selector " << sel;
                 return true;
             }
@@ -2239,7 +2259,7 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
             bss_info.additional_auth =
                 son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
             template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::PCM,
-                                           bss_info.rsn_security_ies);
+                                           bss_info.rsn_security_ies, mlo_active);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Compatibility (RSNO)";
         } else if (has_psk) {
             bss_info.authentication_type =
@@ -2247,14 +2267,15 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
             bss_info.encryption_type = WSC::eWscEncr::WSC_ENCR_AES;
             bss_info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
             template_fill_rsn_security_ies(security_template_obj, is_6g,
-                                           eTemplateRsnMode::TRANSITION, bss_info.rsn_security_ies);
+                                           eTemplateRsnMode::TRANSITION, bss_info.rsn_security_ies,
+                                           mlo_active);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal-Transition (PSK+SAE, no RSNO)";
         } else {
             bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_SAE;
             bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
             bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
             template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::SAE,
-                                           bss_info.rsn_security_ies);
+                                           bss_info.rsn_security_ies, mlo_active);
             LOG(DEBUG) << "SecurityTemplate: WPA3-Personal (SAE)";
         }
         return true;
@@ -2265,7 +2286,7 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
         bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
         template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::SAE_EXT,
-                                       bss_info.rsn_security_ies);
+                                       bss_info.rsn_security_ies, mlo_active);
         LOG(DEBUG) << "SecurityTemplate: WPA3-Personal (SAE-EXT-KEY / AKM24)";
         return true;
     }
@@ -2275,7 +2296,7 @@ static bool template_apply_security_to_bss_info(amxd_object_t *security_template
         bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
         bss_info.additional_auth     = son::wireless_utils::eAdditionalAuth::NONE;
         template_fill_rsn_security_ies(security_template_obj, is_6g, eTemplateRsnMode::PSK,
-                                       bss_info.rsn_security_ies);
+                                       bss_info.rsn_security_ies, mlo_active);
         LOG(DEBUG) << "SecurityTemplate: WPA2-Personal";
         return true;
     }
@@ -2784,8 +2805,16 @@ static bool template_stage_bss_on_radio(
         }
     }
 
+    // MLO active only if APMLDTemplate.MLOEnable=true.
+    bool bss_mlo_active = false;
+    if (!bss_apmld_ref.empty()) {
+        amxd_object_t *apmld_inst =
+            amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s", bss_apmld_ref.c_str());
+        bss_mlo_active = apmld_inst && get_param_bool(apmld_inst, "MLOEnable");
+    }
+
     if (!template_apply_security_to_bss_info(security_inst, agent.get(), bss_info,
-                                             radio_operating_classes)) {
+                                             radio_operating_classes, bss_mlo_active)) {
         LOG(WARNING) << "SecurityTemplate not applicable for BSSTemplate[" << bss_instance_index
                      << "] SSID \"" << bss_ssid << "\"";
         return false;
