@@ -209,6 +209,15 @@ private:
     bool store_controller_preference(
         const std::shared_ptr<wfa_map::tlvChannelPreference> channel_preference_tlv);
 
+    /**
+     * @brief Return true if radio with @param in radio_mac is used for a backhaul link
+     *
+     * @param in radio_mac : radio mac address
+     *
+     * if radio is used for a backhaul link, use status code 0x03 for Channel Selection Response TLV
+     */
+    bool check_if_radio_used_as_backhaul(const sMacAddr &radio_mac);
+
     bool check_received_preferences_contain_violation(const sMacAddr &radio_mac);
 
     bool check_is_there_better_channel_than_current(const sMacAddr &radio_mac);

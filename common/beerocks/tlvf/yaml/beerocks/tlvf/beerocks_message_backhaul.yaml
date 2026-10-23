@@ -94,6 +94,7 @@ cACTION_BACKHAUL_CHANNELS_LIST_RESPONSE:
 cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START:
   _type: class
   cs_params: sApChannelSwitch
+  cs_params_valid: uint8_t #bool
   tx_limit: int8_t
   tx_limit_valid: uint8_t #bool
   sr_params: sSpatialReuseParams

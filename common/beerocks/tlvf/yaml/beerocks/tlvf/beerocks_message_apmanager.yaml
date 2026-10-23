@@ -114,6 +114,7 @@ cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START:
   sr_params: sSpatialReuseParams
   eo_params: sEhtOperationParams
   tx_limit: int8_t
+  cs_params_valid: uint8_t #bool
   tx_limit_valid: uint8_t #bool
   spatial_reuse_valid: uint8_t #bool
   eht_operation_valid: uint8_t #bool
