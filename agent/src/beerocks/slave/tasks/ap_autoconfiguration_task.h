@@ -464,16 +464,6 @@ private:
         const std::string &radio_iface, const WSC::m2 &m2);
 
     bool add_wsc_m1_tlv(const std::string &radio_iface);
-
-    /**
-     * @brief Find an available MLD unit ID for AP MLD.
-     *
-     * Searches for an unused MLD unit by checking which units are already assigned
-     * to AP MLD configurations.
-     *
-     * @return Available MLD unit ID (0 to max_mlds-1), or DISABLED_MLDUNIT if none available.
-     */
-    int8_t find_available_ap_mld_unit();
 };
 
 } // namespace beerocks

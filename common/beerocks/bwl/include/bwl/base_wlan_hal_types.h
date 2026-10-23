@@ -60,6 +60,11 @@ struct VAPElement {
      */
     std::string bss;
     std::string ssid;
+    /**
+     * SSID configured in pWHM (WiFi.SSID.{i}.SSID). Unlike ssid, it is kept for a disabled VAP,
+     * so the Agent can tell which SSID owns the VAP's MLD unit. Empty if not reported.
+     */
+    std::string configured_ssid;
     std::string mac;
     bool fronthaul;
     bool backhaul;
