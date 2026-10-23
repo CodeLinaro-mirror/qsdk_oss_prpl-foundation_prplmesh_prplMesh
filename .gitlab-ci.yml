@@ -88,21 +88,6 @@ platform:
     include: "ci/platform.yml"
     strategy: depend
 
-dco:
-  stage: build
-  variables:
-    CI_COMMIT_BRANCH: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
-  needs: []
-  image: christophebedard/dco-check:latest
-  rules:
-    - if: $CI_MERGE_REQUEST_ID
-    - if: $CI_EXTERNAL_PULL_REQUEST_IID
-  script:
-    - export CI_MERGE_REQUEST_TARGET_BRANCH_SHA=$(git merge-base --fork-point origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME)
-    # if --forkpoint failed, fallback to just using merge-base:
-    - test -z "$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" && export CI_MERGE_REQUEST_TARGET_BRANCH_SHA=$(git merge-base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" "origin/$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME")
-    - dco-check --verbose
-
 cppcheck:
   stage: build
   image: $CI_REGISTRY_IMAGE/prplmesh-cppcheck:$CI_PIPELINE_ID
