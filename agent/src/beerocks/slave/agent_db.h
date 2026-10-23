@@ -292,6 +292,8 @@ public:
                 std::string iface_name;
                 sMacAddr mac;
                 std::string ssid;
+                // MLD unit owner, including when the VAP is disabled.
+                std::string configured_ssid;
                 bool fronthaul_bss;
                 bool backhaul_bss;
                 bool backhaul_bss_disallow_profile1_agent_association;

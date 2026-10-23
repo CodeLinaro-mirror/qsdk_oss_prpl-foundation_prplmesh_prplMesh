@@ -254,9 +254,9 @@ private:
      * @param[in] ssid_obj ssid datamodel object
      * @param[in] ifname interface name
      *
-     * @return None
+     * @return True when MLDUnit was read and false otherwise.
      */
-    void populate_mlo_fields(VAPElement &vap_element,
+    bool populate_mlo_fields(VAPElement &vap_element,
                              const std::unique_ptr<beerocks::wbapi::AmbiorixVariant> &ssid_obj,
                              const std::string &ifname);
 
