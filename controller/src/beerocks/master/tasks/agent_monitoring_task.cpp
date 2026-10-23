@@ -236,7 +236,10 @@ void agent_monitoring_task::handle_event(int event_type, void *obj)
                            << agent.second->al_mac;
             }
 
-            if (!send_multi_ap_policy_config_request(agent.second->al_mac, cmdu_tx)) {
+            if (!cmdu_tx.create(0,
+                                ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE) ||
+                !add_qos_management_policy_tlv(database, cmdu_tx) ||
+                !son_actions::send_cmdu_to_agent(agent.second->al_mac, cmdu_tx, database)) {
                 LOG(ERROR) << "Failed to send QoS management policy to agent "
                            << agent.second->al_mac;
             }
