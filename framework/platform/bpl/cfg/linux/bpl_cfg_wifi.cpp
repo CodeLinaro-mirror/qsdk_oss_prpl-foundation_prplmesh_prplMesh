@@ -18,6 +18,8 @@
 #include <tlvf/WSC/eWscAuth.h>
 #include <tlvf/WSC/eWscEncr.h>
 
+#include <cstdint>
+
 using namespace mapf;
 
 namespace beerocks {

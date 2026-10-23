@@ -26,7 +26,7 @@ function hostrun() {
 }
 
 function dockerrun() {
-  git ls-files -- '*.c' '*.cpp' '*.h' '*.hpp' '*.cc' | grep -v -E -f "${scriptdir}/.clang-ignore" | xargs clang-format -i -style=file
+  git ls-files -- '*.c' '*.cpp' '*.h' '*.hpp' '*.cc' '*cpp.in' | grep -v -E -f "${scriptdir}/.clang-ignore" | xargs clang-format -i -style=file
   exit 0
 }
 

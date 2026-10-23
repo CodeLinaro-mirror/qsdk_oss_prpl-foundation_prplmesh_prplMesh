@@ -48,7 +48,7 @@ clang-format:
   script:
     - clang-format --version
     - |
-      git ls-files -- '*.c' '*.cpp' '*.h' '*.hpp' '*.cc' \
+      git ls-files -- '*.c' '*.cpp' '*.h' '*.hpp' '*.cc' '*.cpp.in' \
         | grep -v -E -f ci/coding-style/.clang-ignore \
         | xargs clang-format -i -style=file
     - git update-index -q --refresh
