@@ -982,7 +982,12 @@ TEST_F(IEEE1905TaskTest, topology_response_materializes_added_bridging_tuple_in_
 
 TEST_F(IEEE1905TaskTest, higher_layer_response_materializes_identification_and_ip_addresses)
 {
-    const auto remote_al_mac = tlvf::mac_from_string("aa:bb:cc:dd:ee:26");
+    const auto remote_al_mac           = tlvf::mac_from_string("aa:bb:cc:dd:ee:26");
+    const std::string ipv4_address     = "192.168.10.2";
+    const std::string ipv4_dhcp_server = "192.168.10.1";
+    const std::string ipv6_address     = "2001:db8::2";
+    const std::string ipv6_origin      = "2001:db8::1";
+    const std::string ipv6_link_local  = "fe80::1234";
 
     sTopologyResponsePacket local_packet;
     local_packet.ieee1905_neighbors[m_local_al_mac] = {remote_al_mac};
@@ -1002,11 +1007,11 @@ TEST_F(IEEE1905TaskTest, higher_layer_response_materializes_identification_and_i
     higher_layer_packet.manufacturer_model  = u8"Модель-1";
     higher_layer_packet.control_url         = "https://example.com/control";
     higher_layer_packet.ipv4_addresses.push_back(
-        {remote_al_mac, net_utils::ipv4_from_string("192.168.10.2"),
-         ieee1905_1::eIpv4AddressType::DHCP, net_utils::ipv4_from_string("192.168.10.1")});
-    higher_layer_packet.ipv6_addresses.push_back({remote_al_mac, "2001:db8::2",
-                                                  ieee1905_1::eIpv6AddressType::SLAAC,
-                                                  "2001:db8::1", "fe80::1234"});
+        {remote_al_mac, net_utils::ipv4_from_string(ipv4_address),
+         ieee1905_1::eIpv4AddressType::DHCP, net_utils::ipv4_from_string(ipv4_dhcp_server)});
+    higher_layer_packet.ipv6_addresses.push_back({remote_al_mac, ipv6_address,
+                                                  ieee1905_1::eIpv6AddressType::SLAAC, ipv6_origin,
+                                                  ipv6_link_local});
 
     ieee1905_1::CmduMessageRx higher_layer_rx(m_rx_buffer, sizeof(m_rx_buffer));
     ASSERT_TRUE(
@@ -1024,24 +1029,24 @@ TEST_F(IEEE1905TaskTest, higher_layer_response_materializes_identification_and_i
               read_al_param(remote_al_mac, "ManufacturerModel"));
     EXPECT_EQ(higher_layer_packet.control_url, read_al_param(remote_al_mac, "ControlURL"));
 
-    auto ipv4_addr = net_utils::ipv4_from_string("192.168.10.2");
-    auto ipv4_it   = db_al.ipv4_addresses.find({remote_al_mac, ipv4_addr});
+    const auto ipv4_addr = net_utils::ipv4_from_string(ipv4_address);
+    auto ipv4_it         = db_al.ipv4_addresses.find({remote_al_mac, ipv4_addr});
     ASSERT_NE(ipv4_it, db_al.ipv4_addresses.end());
     EXPECT_EQ(ieee1905_1::eIpv4AddressType::DHCP, ipv4_it->second.type);
-    EXPECT_EQ(net_utils::ipv4_from_string("192.168.10.1"), ipv4_it->second.dhcp_server);
+    EXPECT_EQ(net_utils::ipv4_from_string(ipv4_dhcp_server), ipv4_it->second.dhcp_server);
     std::string ipv4_value;
     EXPECT_TRUE(m_ambiorix->read_param(ipv4_it->second.dm_path.path, "IPv4Address", &ipv4_value));
-    EXPECT_EQ("192.168.10.2", ipv4_value);
+    EXPECT_EQ(ipv4_address, ipv4_value);
 
-    auto ipv6_it = db_al.ipv6_addresses.find({remote_al_mac, "2001:db8::2"});
+    auto ipv6_it = db_al.ipv6_addresses.find({remote_al_mac, ipv6_address});
     ASSERT_NE(ipv6_it, db_al.ipv6_addresses.end());
     EXPECT_EQ(ieee1905_1::eIpv6AddressType::SLAAC, ipv6_it->second.type);
-    EXPECT_EQ("2001:db8::1", ipv6_it->second.origin);
+    EXPECT_EQ(ipv6_origin, ipv6_it->second.origin);
     std::string ipv6_value;
     EXPECT_TRUE(m_ambiorix->read_param(ipv6_it->second.dm_path.path, "IPv6Address", &ipv6_value));
-    EXPECT_EQ("2001:db8::2", ipv6_value);
+    EXPECT_EQ(ipv6_address, ipv6_value);
 
-    auto link_local_it = db_al.ipv6_addresses.find({remote_al_mac, "fe80::1234"});
+    auto link_local_it = db_al.ipv6_addresses.find({remote_al_mac, ipv6_link_local});
     ASSERT_NE(link_local_it, db_al.ipv6_addresses.end());
     EXPECT_EQ("::", link_local_it->second.origin);
     std::string link_local_type;
