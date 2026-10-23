@@ -25,6 +25,9 @@ sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=info, warning, e
 sed -i 's/^log_global_syslog_levels=.*/log_global_syslog_levels=info, warning, error, fatal/' /opt/prplmesh/config/beerocks_controller.conf
 sed -i 's/\("level"[[:space:]]*:[[:space:]]*\)"ERROR"/\1"INFO"/' /opt/prplmesh/config/framework_logging.conf
 
+# set the acs enable
+sed -i 's/^\(enable_auto_chansel_handling=\)[01]/\11/' /opt/prplmesh/config/beerocks_agent.conf
+
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.ManagementMode=\"Multi-AP-Agent\""
 ba-cli "X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1"
 sleep 5
