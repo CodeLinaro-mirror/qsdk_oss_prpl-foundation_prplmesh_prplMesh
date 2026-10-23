@@ -192,6 +192,7 @@ void base_wlan_hal_whm::subscribe_to_radio_events()
                          AMX_CL_OBJECT_CHANGED_EVT +
                          "')"
                          " && (contains('parameters.Status')"
+                         " || contains('parameters.Enable')"
                          " || contains('parameters.OperatingStandards')"
                          " || contains('parameters.OperatingStandardsFormat'))";
 
