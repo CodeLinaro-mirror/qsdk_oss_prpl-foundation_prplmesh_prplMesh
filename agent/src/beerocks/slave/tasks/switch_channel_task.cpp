@@ -502,6 +502,7 @@ bool load_switch_channel_request_to_cmdu_tx(ieee1905_1::CmduMessageTx &cmdu_tx,
         return false;
     }
 
+    request->cs_params_valid()     = true;
     request->cs_params().channel   = switch_channel_request.channel;
     request->cs_params().bandwidth = switch_channel_request.bandwidth;
 

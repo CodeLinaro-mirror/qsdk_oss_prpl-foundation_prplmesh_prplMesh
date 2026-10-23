@@ -367,6 +367,7 @@ class cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START : public BaseClass
         sSpatialReuseParams& sr_params();
         sEhtOperationParams& eo_params();
         int8_t& tx_limit();
+        uint8_t& cs_params_valid();
         uint8_t& tx_limit_valid();
         uint8_t& spatial_reuse_valid();
         uint8_t& eht_operation_valid();
@@ -381,6 +382,7 @@ class cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START : public BaseClass
         sSpatialReuseParams* m_sr_params = nullptr;
         sEhtOperationParams* m_eo_params = nullptr;
         int8_t* m_tx_limit = nullptr;
+        uint8_t* m_cs_params_valid = nullptr;
         uint8_t* m_tx_limit_valid = nullptr;
         uint8_t* m_spatial_reuse_valid = nullptr;
         uint8_t* m_eht_operation_valid = nullptr;
