@@ -413,6 +413,7 @@ class cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START : public BaseClass
             return (eActionOp_BACKHAUL)(ACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START);
         }
         sApChannelSwitch& cs_params();
+        uint8_t& cs_params_valid();
         int8_t& tx_limit();
         uint8_t& tx_limit_valid();
         sSpatialReuseParams& sr_params();
@@ -427,6 +428,7 @@ class cACTION_BACKHAUL_HOSTAP_CHANNEL_SWITCH_ACS_START : public BaseClass
         bool init();
         eActionOp_BACKHAUL* m_action_op = nullptr;
         sApChannelSwitch* m_cs_params = nullptr;
+        uint8_t* m_cs_params_valid = nullptr;
         int8_t* m_tx_limit = nullptr;
         uint8_t* m_tx_limit_valid = nullptr;
         sSpatialReuseParams* m_sr_params = nullptr;

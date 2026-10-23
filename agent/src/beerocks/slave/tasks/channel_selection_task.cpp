@@ -415,6 +415,13 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
                 DECLINE_VIOLATES_MOST_RECENTLY_REPORTED_PREFERENCES;
             continue;
         }
+
+        if (check_if_radio_used_as_backhaul(radio_mac)) {
+            radio_request.response_code = wfa_map::tlvChannelSelectionResponse::eResponseCode::
+                DECLINE_PREVENT_OPERATION_OF_BACKHAUL_LINK;
+            continue;
+        }
+
         if (!check_received_preferences_contain_violation(radio_mac)) {
             LOG(ERROR) << "Failed checking if received preferences contain violation!";
             radio_request.response_code = wfa_map::tlvChannelSelectionResponse::eResponseCode::
@@ -497,8 +504,14 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
             LOG(ERROR) << "addClass ieee1905_1::tlvChannelSelectionResponse has failed";
             return;
         }
-        channel_selection_response_tlv->radio_uid()     = radio_mac;
-        channel_selection_response_tlv->response_code() = response_code;
+        channel_selection_response_tlv->radio_uid() = radio_mac;
+
+        if (check_if_radio_used_as_backhaul(radio_mac)) {
+            channel_selection_response_tlv->response_code() = wfa_map::tlvChannelSelectionResponse::
+                eResponseCode::DECLINE_PREVENT_OPERATION_OF_BACKHAUL_LINK;
+        } else {
+            channel_selection_response_tlv->response_code() = response_code;
+        }
 
         LOG(DEBUG) << "Radio " << radio_mac << " is returning " << response_code
                    << " as a response!";
@@ -1617,6 +1630,25 @@ bool ChannelSelectionTask::store_controller_preference(
     return true;
 }
 
+bool ChannelSelectionTask::check_if_radio_used_as_backhaul(const sMacAddr &radio_mac)
+{
+    auto db = AgentDB::get();
+    if (!(db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless)) {
+        return false;
+    }
+    auto bh_radio = db->radio(db->backhaul.selected_iface_name);
+    if (bh_radio == nullptr) {
+        LOG(INFO) << "database reports wireless backhaul but backhaul radio not found";
+        return false;
+    }
+    auto bh_ruid = bh_radio->front.iface_mac;
+    if (bh_ruid != radio_mac) {
+        return false;
+    }
+    LOG(DEBUG) << "chansel for radio " << bh_ruid << " status 0x03 - used by Backhaul STA";
+    return true;
+}
+
 bool ChannelSelectionTask::check_received_preferences_contain_violation(const sMacAddr &radio_mac)
 {
     auto radio = AgentDB::get()->get_radio_by_mac(radio_mac);
@@ -2067,28 +2099,33 @@ bool ChannelSelectionTask::send_channel_switch_request(
         return false;
     }
 
-    request_msg->cs_params().channel   = request.outgoing_request.channel;
-    request_msg->cs_params().bandwidth = request.outgoing_request.bandwidth;
-    request_msg->cs_params().csa_count = request.outgoing_request.CSA_count;
+    request_msg->cs_params_valid() = request.channel_switch_needed;
+    if (request.channel_switch_needed) {
+        request_msg->cs_params().channel   = request.outgoing_request.channel;
+        request_msg->cs_params().bandwidth = request.outgoing_request.bandwidth;
+        request_msg->cs_params().csa_count = request.outgoing_request.CSA_count;
 
-    if (request.outgoing_request.bandwidth >= beerocks::eWiFiBandwidth::BANDWIDTH_40) {
+        if (request.outgoing_request.bandwidth >= beerocks::eWiFiBandwidth::BANDWIDTH_40) {
 
-        // Because we want to switch to a bandwidth that is greater then 20Mhz,
-        // We need to find the central frequancy and set it to the VHT param.
-        const auto beacon_channel = request.outgoing_request.channel;
-        const auto bandwidth      = request.outgoing_request.bandwidth;
-        const auto freq_type      = request.outgoing_request.freq_type;
-        request_msg->cs_params().vht_center_frequency =
-            son::wireless_utils::get_vht_central_frequency(beacon_channel, bandwidth, freq_type);
+            // Because we want to switch to a bandwidth that is greater then 20Mhz,
+            // We need to find the central frequancy and set it to the VHT param.
+            const auto beacon_channel = request.outgoing_request.channel;
+            const auto bandwidth      = request.outgoing_request.bandwidth;
+            const auto freq_type      = request.outgoing_request.freq_type;
+            request_msg->cs_params().vht_center_frequency =
+                son::wireless_utils::get_vht_central_frequency(beacon_channel, bandwidth,
+                                                               freq_type);
 
-        if (request.outgoing_request.bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_40 &&
-            request.outgoing_request.center != 0) {
+            if (request.outgoing_request.bandwidth == beerocks::eWiFiBandwidth::BANDWIDTH_40 &&
+                request.outgoing_request.center != 0) {
+                request_msg->cs_params().vht_center_frequency =
+                    son::wireless_utils::channel_to_freq(request.outgoing_request.center,
+                                                         request.outgoing_request.freq_type);
+            }
+        } else {
             request_msg->cs_params().vht_center_frequency = son::wireless_utils::channel_to_freq(
-                request.outgoing_request.center, request.outgoing_request.freq_type);
+                request.outgoing_request.channel, request.outgoing_request.freq_type);
         }
-    } else {
-        request_msg->cs_params().vht_center_frequency = son::wireless_utils::channel_to_freq(
-            request.outgoing_request.channel, request.outgoing_request.freq_type);
     }
 
     request_msg->tx_limit()       = request.outgoing_request.tx_limit;

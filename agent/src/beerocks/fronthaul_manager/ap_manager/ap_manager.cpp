@@ -1382,12 +1382,14 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             LOG(ERROR) << "addClass cACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START failed";
             return;
         }
-        LOG(DEBUG) << "ACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START: requested channel="
-                   << int(request->cs_params().channel) << " bandwidth="
-                   << beerocks::utils::convert_bandwidth_to_string(
-                          (beerocks::eWiFiBandwidth)request->cs_params().bandwidth);
 
-        LOG_IF(request->cs_params().channel == 0, DEBUG) << "Start ACS";
+        if (request->cs_params_valid()) {
+            LOG(DEBUG) << "ACTION_APMANAGER_HOSTAP_CHANNEL_SWITCH_ACS_START: requested channel="
+                       << int(request->cs_params().channel) << " bandwidth="
+                       << beerocks::utils::convert_bandwidth_to_string(
+                              (beerocks::eWiFiBandwidth)request->cs_params().bandwidth);
+            LOG_IF(request->cs_params().channel == 0, DEBUG) << "Start ACS";
+        }
 
         if (request->spatial_reuse_valid()) {
 
@@ -1446,8 +1448,9 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             ap_wlan_hal->set_tx_power_limit(request->tx_limit());
             LOG(INFO) << "Current channel: " << ap_wlan_hal->get_radio_info().channel
                       << " Current BW: " << ap_wlan_hal->get_radio_info().bandwidth;
-            if (ap_wlan_hal->get_radio_info().channel == request->cs_params().channel &&
-                ap_wlan_hal->get_radio_info().bandwidth == request->cs_params().bandwidth) {
+            if (!request->cs_params_valid() ||
+                (ap_wlan_hal->get_radio_info().channel == request->cs_params().channel &&
+                 ap_wlan_hal->get_radio_info().bandwidth == request->cs_params().bandwidth)) {
                 LOG(DEBUG) << "Setting tx power without channel switch";
                 if (!csa_notification_timer_on()) {
                     // If csa_notification_timer is enabled, a color switch event (BSS Color) is going on
@@ -1469,7 +1472,7 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
 
         const auto &radio            = ap_wlan_hal->get_radio_info();
         const auto &csa              = request->cs_params();
-        const bool channel_invalid   = !csa.channel;
+        const bool channel_invalid   = request->cs_params_valid();
         const bool control_changed   = (radio.channel != csa.channel);
         const bool center_changed    = (radio.vht_center_freq != csa.vht_center_frequency);
         const bool bandwidth_changed = (radio.bandwidth != csa.bandwidth);
