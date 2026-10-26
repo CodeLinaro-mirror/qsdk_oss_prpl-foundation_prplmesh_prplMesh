@@ -16,6 +16,15 @@ public:
     UnassociatedStaLinkMetricsTask(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_);
     virtual ~UnassociatedStaLinkMetricsTask() {}
 
+    /**
+     * @brief Send Unassociated STA Link Metrics Query messages for the monitored stations.
+     *
+     * @note Message might not be sent in case of no unassoc STAs present in the db.
+     *
+     * @return true on success and false otherwise.
+     */
+    bool send_unassociated_sta_link_metrics_queries();
+
     bool handle_ieee1905_1_msg(const sMacAddr &src_mac,
                                ieee1905_1::CmduMessageRx &cmdu_rx) override;
 
