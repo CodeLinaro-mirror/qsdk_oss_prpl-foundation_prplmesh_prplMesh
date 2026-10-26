@@ -864,15 +864,11 @@ private:
     std::shared_ptr<beerocks::btl::BrokerClient> m_broker_client;
 
     /**
-     * @brief sends a message of type UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE, it contains list/ddata of unassociated stations 
+     * @brief Ask UnassociatedStaLinkMetricsTask to send queries for the monitored unassoc STAs.
      *
-     * @param cmdu_tx CMDU message to send.
-     * @param database 
-     *
-     *  @return true on success and false otherwise.
-    */
-    bool send_unassociated_sta_link_metrics_query_message(ieee1905_1::CmduMessageTx &cmdu_tx,
-                                                          db &database);
+     * @return true on success and false otherwise.
+     */
+    bool trigger_unassociated_sta_link_metrics_queries();
 };
 
 } // namespace son
