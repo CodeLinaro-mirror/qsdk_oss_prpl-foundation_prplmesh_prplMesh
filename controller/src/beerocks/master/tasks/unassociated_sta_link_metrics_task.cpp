@@ -31,7 +31,12 @@ void UnassociatedStaLinkMetricsTask::work()
         return;
     }
 
-    last_query_request = now;
+    send_unassociated_sta_link_metrics_queries();
+}
+
+bool UnassociatedStaLinkMetricsTask::send_unassociated_sta_link_metrics_queries()
+{
+    last_query_request = std::chrono::steady_clock::now();
 
     using StationsPerChannel = std::unordered_map<uint8_t, std::vector<sMacAddr>>;
     using OpClassesPerAgent  = std::unordered_map<uint8_t, StationsPerChannel>;
@@ -51,7 +56,9 @@ void UnassociatedStaLinkMetricsTask::work()
     }
 
     if (queries_by_agent.empty()) {
-        return;
+        LOG(DEBUG) << "No monitored unassociated stations, skipping "
+                      "UNASSOCIATED_STA_LINK_METRICS_QUERY";
+        return true;
     }
 
     for (const auto &agent_entry : queries_by_agent) {
@@ -64,13 +71,13 @@ void UnassociatedStaLinkMetricsTask::work()
             if (!cmdu_tx.create(
                     0, ieee1905_1::eMessageType::UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE)) {
                 LOG(ERROR) << "Failed building UNASSOCIATED_STA_LINK_METRICS_QUERY_MESSAGE!";
-                return;
+                return false;
             }
 
             auto query_tlv = cmdu_tx.addClass<wfa_map::tlvUnassociatedStaLinkMetricsQuery>();
             if (!query_tlv) {
                 LOG(ERROR) << "addClass tlvUnassociatedStaLinkMetricsQuery failed!";
-                return;
+                return false;
             }
 
             query_tlv->operating_class_of_channel_list() = operating_class;
@@ -79,14 +86,14 @@ void UnassociatedStaLinkMetricsTask::work()
                 auto channel_params = query_tlv->create_channel_list();
                 if (!channel_params) {
                     LOG(ERROR) << "create_channel_list() failed";
-                    return;
+                    return false;
                 }
 
                 channel_params->channel_number() = channel_entry.first;
                 if (!channel_params->alloc_sta_list(channel_entry.second.size())) {
                     LOG(ERROR) << "alloc_sta_list() failed for channel "
                                << (int)channel_entry.first;
-                    return;
+                    return false;
                 }
 
                 size_t sta_idx = 0;
@@ -96,7 +103,7 @@ void UnassociatedStaLinkMetricsTask::work()
 
                 if (!query_tlv->add_channel_list(std::move(channel_params))) {
                     LOG(ERROR) << "add_channel_list() failed";
-                    return;
+                    return false;
                 }
             }
 
@@ -106,6 +113,7 @@ void UnassociatedStaLinkMetricsTask::work()
             son_actions::send_cmdu_to_agent(agent_mac, cmdu_tx, database);
         }
     }
+    return true;
 }
 
 bool UnassociatedStaLinkMetricsTask::handle_ieee1905_1_msg(const sMacAddr &src_mac,
