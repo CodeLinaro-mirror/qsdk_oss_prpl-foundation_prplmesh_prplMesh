@@ -23,6 +23,104 @@
 namespace beerocks {
 namespace nbapi {
 
+AmbiorixTransImpl::AmbiorixTransImpl() {}
+
+AmbiorixTransImpl::~AmbiorixTransImpl() { clean(); }
+
+bool AmbiorixTransImpl::apply()
+{
+    if (!is_initialied) {
+        return false;
+    }
+
+    bool ret             = true;
+    amxd_status_t status = amxd_trans_apply(&transaction, Amxrt::getDatamodel());
+    if (status != amxd_status_ok) {
+        LOG(ERROR) << "Couldn't apply transaction object, status: " << amxd_status_string(status);
+        ret = false;
+    }
+
+    clean();
+
+    return ret;
+}
+
+bool AmbiorixTransImpl::set(const char *name, int8_t value)
+{
+    return amxd_trans_set_int8_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, int16_t value)
+{
+    return amxd_trans_set_int16_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, int32_t value)
+{
+    return amxd_trans_set_int32_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, int64_t value)
+{
+    return amxd_trans_set_int64_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, uint8_t value)
+{
+    return amxd_trans_set_uint8_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, uint16_t value)
+{
+    return amxd_trans_set_uint16_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, uint32_t value)
+{
+    return amxd_trans_set_uint32_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, uint64_t value)
+{
+    return amxd_trans_set_uint64_t(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, float value)
+{
+    return amxd_trans_set_double(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, double value)
+{
+    return amxd_trans_set_double(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, bool value)
+{
+    return amxd_trans_set_bool(&transaction, name, value) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, const std::string &value)
+{
+    return amxd_trans_set_cstring_t(&transaction, name, value.c_str()) == amxd_status_ok;
+}
+
+bool AmbiorixTransImpl::set(const char *name, sMacAddr value)
+{
+    std::string str = tlvf::mac_to_string(value);
+    return amxd_trans_set_cstring_t(&transaction, name, str.c_str()) == amxd_status_ok;
+}
+
+void AmbiorixTransImpl::clean()
+{
+    if (!is_initialied) {
+        return;
+    }
+
+    amxd_trans_clean(&transaction);
+    is_initialied = false;
+}
+
 AmbiorixImpl::AmbiorixImpl(std::shared_ptr<EventLoop> event_loop,
                            const std::vector<sActionsCallback> &on_action,
                            const std::vector<sEvents> &events,
@@ -965,6 +1063,23 @@ bool AmbiorixImpl::read_param(const std::string &obj_path, const std::string &pa
         return false;
     }
     return true;
+}
+
+std::unique_ptr<AmbiorixTrans> AmbiorixImpl::create_transaction(const std::string &path)
+{
+    // The way we create and initialize AmbiorixTransImpl is awful,
+    // but we dont have much choise as it should meet the following requirmnets:
+    // 1. Use existing prepare_transaction method of AmbiorixImpl to avoid code duplication.
+    // 2. Do not move amxd_trans_t object(changing its address causes segfault).
+    // 2. Support the possibility of fail to create.
+    // If you have any ideas on how to make it better, you are welcome to share them.
+    std::unique_ptr<AmbiorixTransImpl> trans(new AmbiorixTransImpl());
+    if (!prepare_transaction(path, trans->transaction)) {
+        return nullptr;
+    }
+    trans->is_initialied = true;
+
+    return trans;
 }
 
 std::string AmbiorixImpl::add_instance(const std::string &relative_path)

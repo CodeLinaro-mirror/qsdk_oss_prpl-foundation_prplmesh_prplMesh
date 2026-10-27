@@ -14,6 +14,28 @@
 namespace beerocks {
 namespace nbapi {
 
+class AmbiorixTransDummy : public AmbiorixTrans {
+public:
+    AmbiorixTransDummy()          = default;
+    virtual ~AmbiorixTransDummy() = default;
+
+    bool apply() override;
+
+    bool set(const char *name, int8_t value) override;
+    bool set(const char *name, int16_t value) override;
+    bool set(const char *name, int32_t value) override;
+    bool set(const char *name, int64_t value) override;
+    bool set(const char *name, uint8_t value) override;
+    bool set(const char *name, uint16_t value) override;
+    bool set(const char *name, uint32_t value) override;
+    bool set(const char *name, uint64_t value) override;
+    bool set(const char *name, float value) override;
+    bool set(const char *name, double value) override;
+    bool set(const char *name, bool value) override;
+    bool set(const char *name, const std::string &value) override;
+    bool set(const char *name, sMacAddr value) override;
+};
+
 /**
  * @class Ambiorix
  * @brief Dummy version of Ambiorix class
@@ -68,6 +90,7 @@ public:
                     std::string *param_val) override;
     bool read_param(const std::string &obj_path, const std::string &param_name,
                     sMacAddr *param_val) override;
+    std::unique_ptr<AmbiorixTrans> create_transaction(const std::string &path) override;
     std::string add_instance(const std::string &relative_path) override;
     bool remove_instance(const std::string &relative_path, uint32_t index) override;
     uint32_t get_instance_index(const std::string &specific_path, const std::string &key) override;
