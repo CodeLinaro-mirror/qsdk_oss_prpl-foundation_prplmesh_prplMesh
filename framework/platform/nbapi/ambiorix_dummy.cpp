@@ -11,6 +11,34 @@
 namespace beerocks {
 namespace nbapi {
 
+bool AmbiorixTransDummy::apply() { return true; };
+
+bool AmbiorixTransDummy::set(const char *name, int8_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, int16_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, int32_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, int64_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, uint8_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, uint16_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, uint32_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, uint64_t value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, float value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, double value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, bool value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, const std::string &value) { return true; }
+
+bool AmbiorixTransDummy::set(const char *name, sMacAddr value) { return true; }
+
 bool AmbiorixDummy::set(const std::string &relative_path, const std::string &parameter,
                         const std::string &value)
 {
@@ -131,6 +159,12 @@ bool AmbiorixDummy::read_param(const std::string &obj_path, const std::string &p
 {
     return true;
 }
+
+std::unique_ptr<AmbiorixTrans> AmbiorixDummy::create_transaction(const std::string &path)
+{
+    return std::make_unique<AmbiorixTransDummy>();
+};
+
 std::string AmbiorixDummy::add_instance(const std::string &relative_path) { return {}; }
 bool AmbiorixDummy::remove_instance(const std::string &relative_path, uint32_t index)
 {

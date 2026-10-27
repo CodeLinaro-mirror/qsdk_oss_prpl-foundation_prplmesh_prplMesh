@@ -16,14 +16,55 @@
 namespace beerocks {
 namespace nbapi {
 
+class AmbiorixTrans {
+public:
+    AmbiorixTrans()                                 = default;
+    AmbiorixTrans(const AmbiorixTrans &)            = delete;
+    AmbiorixTrans &operator=(const AmbiorixTrans &) = delete;
+    virtual ~AmbiorixTrans()                        = default;
+
+    virtual bool apply() = 0;
+
+    virtual bool set(const char *name, int8_t value)             = 0;
+    virtual bool set(const char *name, int16_t value)            = 0;
+    virtual bool set(const char *name, int32_t value)            = 0;
+    virtual bool set(const char *name, int64_t value)            = 0;
+    virtual bool set(const char *name, uint8_t value)            = 0;
+    virtual bool set(const char *name, uint16_t value)           = 0;
+    virtual bool set(const char *name, uint32_t value)           = 0;
+    virtual bool set(const char *name, uint64_t value)           = 0;
+    virtual bool set(const char *name, float value)              = 0;
+    virtual bool set(const char *name, double value)             = 0;
+    virtual bool set(const char *name, bool value)               = 0;
+    virtual bool set(const char *name, const std::string &value) = 0;
+    virtual bool set(const char *name, sMacAddr value)           = 0;
+
+    bool set(const std::string &name, int8_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, int16_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, int32_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, int64_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, uint8_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, uint16_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, uint32_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, uint64_t value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, float value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, double value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, bool value) { return set(name.c_str(), value); };
+    bool set(const std::string &name, const std::string &value)
+    {
+        return set(name.c_str(), value);
+    };
+    bool set(const std::string &name, sMacAddr value) { return set(name.c_str(), value); };
+};
+
 /**
  * @class Ambiorix
  * @brief Interface for AmbiorixImpl and AmbiorixDummy classes
  */
 class Ambiorix {
 public:
-    Ambiorix(){};
-    Ambiorix(const Ambiorix &) = delete;
+    Ambiorix() {};
+    Ambiorix(const Ambiorix &)            = delete;
     Ambiorix &operator=(const Ambiorix &) = delete;
     virtual ~Ambiorix()                   = 0;
 
@@ -66,7 +107,6 @@ public:
                      const double &value)      = 0;
     virtual bool set(const std::string &relative_path, const std::string &parameter,
                      const sMacAddr &value)    = 0;
-
     /**
      * @brief Set multiple string parameters in one data model operation.
      *
@@ -116,6 +156,13 @@ public:
                             std::string *param_val) = 0;
     virtual bool read_param(const std::string &obj_path, const std::string &param_name,
                             sMacAddr *param_val)    = 0;
+    /**
+     * @brief Create a AmbiorixTrans object for a dm path.
+     *
+     * @param path path to the object in datamodel
+     * @return valid AmbiorixTrans or nullptr if the path isn't found.
+     */
+    virtual std::unique_ptr<AmbiorixTrans> create_transaction(const std::string &path) = 0;
 
     /* @brief Add instance to the data model object with type list
      *
