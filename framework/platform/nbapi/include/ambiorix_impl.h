@@ -51,6 +51,37 @@ typedef struct sFunctions {
     ambiorix_func_ptr callback;
 } sFunctions;
 
+class AmbiorixTransImpl : public AmbiorixTrans {
+public:
+    virtual ~AmbiorixTransImpl();
+
+    bool apply() override;
+
+    bool set(const char *name, int8_t value) override;
+    bool set(const char *name, int16_t value) override;
+    bool set(const char *name, int32_t value) override;
+    bool set(const char *name, int64_t value) override;
+    bool set(const char *name, uint8_t value) override;
+    bool set(const char *name, uint16_t value) override;
+    bool set(const char *name, uint32_t value) override;
+    bool set(const char *name, uint64_t value) override;
+    bool set(const char *name, float value) override;
+    bool set(const char *name, double value) override;
+    bool set(const char *name, bool value) override;
+    bool set(const char *name, const std::string &value) override;
+    bool set(const char *name, sMacAddr value) override;
+
+private:
+    AmbiorixTransImpl();
+    void clean();
+
+private:
+    amxd_trans_t transaction;
+    bool is_initialied = false;
+
+    friend class AmbiorixImpl;
+};
+
 /**
  * @class AmbiorixImpl
  * @brief This class manages the ambiorixImpl instance.
@@ -127,6 +158,8 @@ public:
                     std::string *param_val) override;
     bool read_param(const std::string &obj_path, const std::string &param_name,
                     sMacAddr *param_val) override;
+
+    std::unique_ptr<AmbiorixTrans> create_transaction(const std::string &path) override;
 
     std::string add_instance(const std::string &relative_path) override;
 
