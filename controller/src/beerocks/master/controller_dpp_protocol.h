@@ -33,6 +33,8 @@ struct DppConfigurationObjectOptions {
     bool include_discovery = true;
     bool include_net_role  = false;
     std::string net_role;
+    // Empty = derive from netRole prefix (map* → "map", else "infra").
+    std::string wifi_tech;
     bool include_df_counter_threshold = false;
     uint16_t df_counter_threshold     = 0;
     std::string passphrase;

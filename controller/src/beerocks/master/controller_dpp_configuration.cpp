@@ -457,8 +457,8 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         return false;
     }
 
-    if (role_requested(requested_roles, "mapAgent") ||
-        role_requested(requested_roles, "mapBackhaulSta")) {
+    // Emit mapAgent only when the Enrollee requested it (not for bSTAList-only).
+    if (role_requested(requested_roles, "mapAgent")) {
         DppConfigurationObjectOptions map_agent_options;
         map_agent_options.include_discovery            = false;
         map_agent_options.include_net_role             = true;
@@ -490,6 +490,10 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         bsta_options.include_discovery = true;
         bsta_options.include_net_role  = true;
         bsta_options.net_role          = "mapBackhaulSta";
+        // Wi-Fi bSTA enrollee (no mapAgent): wpa_supplicant expects wi-fi_tech=infra.
+        if (!role_requested(requested_roles, "mapAgent")) {
+            bsta_options.wifi_tech = "infra";
+        }
         bsta_options.akm =
             !backhaul_config.akm.empty() ? backhaul_config.akm : requested_backhaul_akm;
         bsta_options.passphrase               = backhaul_config.passphrase;
