@@ -35,6 +35,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include <easylogging++.h>
 
 #include "controller.h"
+#include "controller_dpp_csign.h"
 #include "db/db.h"
 
 #ifdef INCLUDE_BREAKPAD
@@ -783,10 +784,23 @@ int main(int argc, char *argv[])
     }
 
     son::db master_db(master_conf, logger, tlvf::mac_from_string(bridge_info.mac), amb_dm_obj);
-    // FEAT-68 C-6: load Controller C-sign from DPP keystore
+    // FEAT-68 C-6: load DPP Configurator C-sign from DPP keystore
     // ({install_path}/share/prplmesh_dpp_keystore, fallback /tmp/prplmesh_dpp_keystore).
-    if (!master_db.load_dpp_controller_csign_key_from_store()) {
-        LOG(DEBUG) << "No DPP Controller C-sign key loaded from keystore";
+    // Generate a P-256 key first if none is stored; never into the non-persistent /tmp
+    // fallback, where it would change on every reboot.
+    if (!son::db::is_dpp_store_fallback_path(son::db::get_dpp_store_path())) {
+        bool csign_generated = false;
+        std::string csign_error;
+        if (!son::controller_dpp::generate_dpp_configurator_csign_key(
+                master_db, csign_generated, csign_error)) {
+            LOG(ERROR) << "DPP Configurator C-sign key generation failed: " << csign_error;
+        } else if (csign_generated) {
+            LOG(INFO) << "Generated DPP Configurator C-sign key (P-256) in "
+                      << son::db::get_dpp_store_path();
+        }
+    }
+    if (!master_db.load_dpp_configurator_csign_key_from_store()) {
+        LOG(DEBUG) << "No DPP Configurator C-sign key loaded from keystore";
     }
 
 #ifdef ENABLE_NBAPI

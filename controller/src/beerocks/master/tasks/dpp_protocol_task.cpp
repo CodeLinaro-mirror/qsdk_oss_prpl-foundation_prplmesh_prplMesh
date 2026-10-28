@@ -562,6 +562,10 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         } else {
             m_session.last_chirp_enrollee_valid = false;
             LOG(INFO) << "DPP chirp has no Enrollee MAC in TLV";
+            if (!m_matched_bootstrap ||
+                m_matched_bootstrap->mac == beerocks::net::network_utils::ZERO_MAC) {
+                LOG(INFO) << "DPP URI has no M: Enrollee MAC";
+            }
         }
     }
 

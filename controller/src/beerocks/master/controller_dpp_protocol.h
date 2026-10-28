@@ -46,6 +46,9 @@ struct DppConfigurationObjectOptions {
 
 bool parse_ec_private_key_hex(const std::string &hex, DppKeyPtr &out);
 
+// Inverse of parse_ec_private_key_hex(): EC private key DER (SEC1) as hex.
+bool encode_ec_private_key_hex(DppKey *key, std::string &out_hex);
+
 bool build_signed_connector(DppKey *csign_key, const std::string &netaccess_key_hex,
                             const std::string &net_role, const std::string &group_id,
                             uint32_t expiry, std::string &connector, std::string &csign_pub_hex,

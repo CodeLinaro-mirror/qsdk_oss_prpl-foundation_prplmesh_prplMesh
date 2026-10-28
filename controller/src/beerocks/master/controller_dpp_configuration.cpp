@@ -382,6 +382,16 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
     (void)bsta_max_links;
     (void)bsta_ruids;
 
+    std::ostringstream parsed_roles;
+    for (size_t i = 0; i < requested_roles.size(); ++i) {
+        if (i != 0) {
+            parsed_roles << ',';
+        }
+        parsed_roles << requested_roles[i];
+    }
+    LOG(INFO) << "DPP Configuration Request parsed roles=" << parsed_roles.str()
+              << " bSTAList akm=" << requested_backhaul_akm;
+
     if (requested_roles.empty()) {
         // Fallback when the request JSON is a single object already unwrapped to netRole.
         if (!configuration_request_json.empty()) {
@@ -393,7 +403,7 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
     }
 
     DppKeyPtr csign_key;
-    if (!load_controller_csign_key(database, csign_key, error)) {
+    if (!load_dpp_configurator_csign_key(database, csign_key, error)) {
         return false;
     }
 
