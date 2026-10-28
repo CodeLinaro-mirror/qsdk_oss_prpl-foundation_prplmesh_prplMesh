@@ -78,7 +78,7 @@ private:
 
 private:
     amxd_trans_t transaction = {};
-    bool is_initialized = false;
+    bool is_initialized      = false;
 
     friend class AmbiorixImpl;
 };

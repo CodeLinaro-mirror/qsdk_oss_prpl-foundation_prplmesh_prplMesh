@@ -18,8 +18,8 @@ namespace nbapi {
 
 class AmbiorixTrans {
 public:
-    AmbiorixTrans()                                 = default;
-    AmbiorixTrans(const AmbiorixTrans &)            = delete;
+    AmbiorixTrans()                      = default;
+    AmbiorixTrans(const AmbiorixTrans &) = delete;
     AmbiorixTrans &operator=(const AmbiorixTrans &) = delete;
     virtual ~AmbiorixTrans()                        = default;
 
@@ -38,6 +38,7 @@ public:
     virtual bool set(const char *name, bool value)               = 0;
     virtual bool set(const char *name, const std::string &value) = 0;
     virtual bool set(const char *name, sMacAddr value)           = 0;
+    template <typename T> bool set(const char *name, T value)    = delete;
 
     bool set(const std::string &name, int8_t value) { return set(name.c_str(), value); };
     bool set(const std::string &name, int16_t value) { return set(name.c_str(), value); };
@@ -55,6 +56,7 @@ public:
         return set(name.c_str(), value);
     };
     bool set(const std::string &name, sMacAddr value) { return set(name.c_str(), value); };
+    template <typename T> bool set(const std::string &name, T value) = delete;
 };
 
 /**
@@ -63,8 +65,8 @@ public:
  */
 class Ambiorix {
 public:
-    Ambiorix() {};
-    Ambiorix(const Ambiorix &)            = delete;
+    Ambiorix(){};
+    Ambiorix(const Ambiorix &) = delete;
     Ambiorix &operator=(const Ambiorix &) = delete;
     virtual ~Ambiorix()                   = 0;
 
