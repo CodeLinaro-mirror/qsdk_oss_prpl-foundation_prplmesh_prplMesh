@@ -275,6 +275,12 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
                                                std::to_string(status));
             return true;
         }
+        // Remember this URI is onboarded so late duplicate chirps are ignored.
+        if (m_matched_bootstrap) {
+            if (auto *info = m_database.get_dpp_bootstrap_info(m_matched_bootstrap->alias)) {
+                info->onboarded = true;
+            }
+        }
         if (m_active_request_conn_status) {
             push_dpp_onboarding_task_event(dpp_onboarding_task::CONF_RECEIVED,
                                            "wait_conn_status=1");
@@ -416,6 +422,12 @@ bool dpp_protocol_task::handle_cmdu_1905_direct_encap_dpp(const sMacAddr &src_ma
             return true;
         }
 
+        // Remember this URI is onboarded so late duplicate chirps are ignored.
+        if (m_matched_bootstrap) {
+            if (auto *info = m_database.get_dpp_bootstrap_info(m_matched_bootstrap->alias)) {
+                info->onboarded = true;
+            }
+        }
         if (m_active_request_conn_status) {
             push_dpp_onboarding_task_event(dpp_onboarding_task::CONF_RECEIVED,
                                            "wait_conn_status=1");
@@ -542,6 +554,13 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
                          << " hash=" << received_hex << " bootstrap_entries="
                          << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
             m_database.print_dpp_bootstrap_info();
+            continue;
+        }
+
+        if (matched_info->onboarded) {
+            LOG(INFO) << "Ignoring DPP chirp from agent " << src_mac
+                      << ": bootstrapping URI alias=" << matched_info->alias
+                      << " already onboarded";
             continue;
         }
 
@@ -863,14 +882,10 @@ bool dpp_protocol_task::send_dpp_configuration_response(
     m_session.configuration_response_sent = true;
     m_session.pending_configuration_objects.clear();
     m_session.pending_send_conn_status = false;
-    m_active_request_conn_status       = send_conn_status;
+    m_active_request_conn_status       = false; // never requested on proxied sessions (see above)
     LOG(INFO) << "DPP Configuration Response sent through Proxy Agent " << m_session.proxy_agent
               << " netRole=" << m_session.requested_net_role;
-    if (send_conn_status) {
-        push_dpp_onboarding_task_event(dpp_onboarding_task::CONF_SENT, "wait_conn_status=1");
-    } else {
-        push_dpp_onboarding_task_event(dpp_onboarding_task::CONF_SENT);
-    }
+    push_dpp_onboarding_task_event(dpp_onboarding_task::CONF_SENT);
     return true;
 }
 

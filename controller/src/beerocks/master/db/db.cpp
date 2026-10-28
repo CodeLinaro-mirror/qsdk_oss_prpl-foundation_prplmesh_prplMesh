@@ -49,7 +49,9 @@ constexpr std::chrono::minutes CHANNEL_PREFERENCE_EXPIRATION(5);
 namespace {
 constexpr char k_dpp_store_file[]          = "share/prplmesh_dpp_keystore";
 constexpr char k_dpp_store_fallback_file[] = "/tmp/prplmesh_dpp_keystore";
-constexpr char k_dpp_section_controller[]  = "dpp_controller_keys";
+// std::string (not char[]) so map lookups do not build a temporary key on every call.
+const std::string k_dpp_section_controller = "dpp_controller_keys";
+const std::string k_dpp_csign_key          = "csign_key";
 
 std::string dpp_store_path()
 {
@@ -102,7 +104,7 @@ bool parse_dpp_store_file(const std::string &path, db::DppStoreSections &section
         std::string value = line.substr(pos + 1);
         beerocks::string_utils::trim(key);
         beerocks::string_utils::trim(value);
-        sections[section][key] = value;
+        sections[section][key] = std::move(value);
     }
 
     return !sections.empty();
@@ -8713,7 +8715,7 @@ bool db::load_dpp_configurator_csign_key_from_store()
         return false;
     }
 
-    auto key_it = sec_it->second.find("csign_key");
+    auto key_it = sec_it->second.find(k_dpp_csign_key);
     if (key_it == sec_it->second.end() || key_it->second.empty()) {
         LOG(DEBUG) << "DPP keystore missing csign_key at " << store_path;
         return false;
@@ -10573,7 +10575,7 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 return false;
             }
             seen_i    = true;
-            info.info = value;
+            info.info = std::move(value);
             break;
         }
         case 'V': {
@@ -10606,7 +10608,7 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 error = "Host field too long";
                 return false;
             }
-            info.host = value;
+            info.host = std::move(value);
             break;
         }
         case 'K': {
@@ -10637,7 +10639,7 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 error = "invalid character in public key";
                 return false;
             }
-            std::string b64_std = value;
+            std::string b64_std = std::move(value);
             std::replace(b64_std.begin(), b64_std.end(), '-', '+');
             std::replace(b64_std.begin(), b64_std.end(), '_', '/');
             while (!b64_std.empty() && b64_std.back() == '=') {
@@ -10907,12 +10909,12 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
         if (entry.second.chirp_hash_valid &&
             dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.chirp_hash,
                                            candidate_hex)) {
-            received_hex = candidate_hex;
+            received_hex = std::move(candidate_hex);
             return &entry.second;
         }
         if (entry.second.pkhash_valid &&
             dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.pkhash, candidate_hex)) {
-            received_hex = candidate_hex;
+            received_hex = std::move(candidate_hex);
             return &entry.second;
         }
     }

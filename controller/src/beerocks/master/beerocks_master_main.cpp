@@ -791,8 +791,8 @@ int main(int argc, char *argv[])
     if (!son::db::is_dpp_store_fallback_path(son::db::get_dpp_store_path())) {
         bool csign_generated = false;
         std::string csign_error;
-        if (!son::controller_dpp::generate_dpp_configurator_csign_key(
-                master_db, csign_generated, csign_error)) {
+        if (!son::controller_dpp::generate_dpp_configurator_csign_key(master_db, csign_generated,
+                                                                      csign_error)) {
             LOG(ERROR) << "DPP Configurator C-sign key generation failed: " << csign_error;
         } else if (csign_generated) {
             LOG(INFO) << "Generated DPP Configurator C-sign key (P-256) in "

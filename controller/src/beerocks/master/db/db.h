@@ -368,6 +368,8 @@ public:
         std::string chirp_hash_hex;
         bool chirp_hash_valid = false;
         bool chirp_matched    = false;
+        // Set on DPP Configuration Result STATUS_OK; later chirps for this URI are ignored.
+        bool onboarded = false;
         sMacAddr ruid{};
         sMacAddr bssid{};
     };

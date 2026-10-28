@@ -16,6 +16,11 @@
 
 using namespace beerocks;
 
+namespace {
+// std::string so the params map lookup does not build a temporary key on every call.
+const std::string k_ucc_param_alias = "alias";
+} // namespace
+
 controller_ucc_listener::controller_ucc_listener(db &database, ieee1905_1::CmduMessageTx &cmdu,
                                                  std::unique_ptr<beerocks::UccServer> ucc_server)
     : beerocks_ucc_listener(cmdu, std::move(ucc_server)), m_database(database)
@@ -199,7 +204,7 @@ bool controller_ucc_listener::handle_dev_exec_action(
         }
 
         std::string alias;
-        auto alias_it = params.find("alias");
+        auto alias_it = params.find(k_ucc_param_alias);
         if ((alias_it != params.end()) && !alias_it->second.empty()) {
             alias = alias_it->second;
         } else {
