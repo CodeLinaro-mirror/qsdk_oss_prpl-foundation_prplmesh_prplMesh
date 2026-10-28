@@ -117,7 +117,7 @@ void slave_wlan_hal_whm::subscribe_to_dpp_events()
     m_ap_wpa_ctrl_handler              = std::make_shared<sAmbiorixEventHandler>();
     m_ap_wpa_ctrl_handler->event_type  = AMX_CL_WPA_CTRL_EVT;
     m_ap_wpa_ctrl_handler->callback_fn = wpa_callback;
-    const std::string wpa_filter = "(path matches '" + wifi_ap_path +
+    const std::string wpa_filter       = "(path matches '" + wifi_ap_path +
                                    "[0-9]+.$') && (notification == '" + AMX_CL_WPA_CTRL_EVT + "')";
     if (!m_ambiorix_cl.subscribe_to_object_event(wifi_ap_path, m_ap_wpa_ctrl_handler, wpa_filter)) {
         LOG(ERROR) << "DPP: failed to subscribe to AccessPoint " << AMX_CL_WPA_CTRL_EVT;

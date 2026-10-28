@@ -342,7 +342,7 @@ bool slave_thread::thread_init()
     beerocks::CmduServer::EventHandlers cmdu_server_handlers{
         .on_client_connected    = nullptr,
         .on_client_disconnected = [&](int fd) { handle_client_disconnected(fd); },
-        .on_cmdu_received = [&](int fd, uint32_t iface_index, const sMacAddr &dst_mac,
+        .on_cmdu_received       = [&](int fd, uint32_t iface_index, const sMacAddr &dst_mac,
                                 const sMacAddr &src_mac,
                                 ieee1905_1::CmduMessageRx &cmdu_rx) { handle_cmdu(fd, cmdu_rx); },
     };
@@ -3820,15 +3820,15 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         if (radio->eht_supported) {
             radio->ap_modes_support.str_support    = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_str);
+                                                   beerocks_message::eMLOModes::eMLOModes_str);
             radio->ap_modes_support.nstr_support   = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_nstr);
+                                                    beerocks_message::eMLOModes::eMLOModes_nstr);
             radio->ap_modes_support.emlsr_support  = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_emlsr);
+                                                     beerocks_message::eMLOModes::eMLOModes_emlsr);
             radio->ap_modes_support.emlmr_support  = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_emlmr);
+                                                     beerocks_message::eMLOModes::eMLOModes_emlmr);
             radio->bsta_modes_support.str_support  = (notification->params().bsta_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_str);
+                                                     beerocks_message::eMLOModes::eMLOModes_str);
             radio->bsta_modes_support.nstr_support = (notification->params().bsta_modes_support &
                                                       beerocks_message::eMLOModes::eMLOModes_nstr);
             radio->bsta_modes_support.emlsr_support =
@@ -7161,7 +7161,7 @@ bool slave_thread::update_vaps_info(const std::string &iface,
         const bool disallow_profile2_was = bss.backhaul_bss_disallow_profile2_agent_association;
         const auto previous_bssid        = bss.mac;
         const std::string previous_iface_name = bss.iface_name;
-        const bool is_enabled = has_bssid && !iface_name.empty() &&
+        const bool is_enabled                 = has_bssid && !iface_name.empty() &&
                                 network_utils::linux_iface_is_up_and_running(iface_name);
 
         const auto clear_previous_fh_iface = [&]() {

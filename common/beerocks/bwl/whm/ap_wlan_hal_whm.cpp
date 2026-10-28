@@ -1472,18 +1472,34 @@ bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
     LOG(INFO) << "ap_wlan_hal_whm: set_cce_indication advertise_cce=" << advertise_cce
               << " CCEAdvertisementEnabled=" << enable;
 
-    bool ok = true;
-    for (const auto &vap : m_vapsExtInfo) {
+    bool ok          = true;
+    int written_vaps = 0;
+    for (const auto &vap_it : m_radio_info.available_vaps) {
+        const auto &vap = vap_it.second;
+        // EasyMesh 5.3.4: CCE is advertised on fronthaul BSSs only. Skip backhaul-only
+        // BSSs (writing there triggers a pWHM AP sync that kicks WDS backhaul STAs).
+        if (vap.backhaul && !vap.fronthaul) {
+            LOG(DEBUG) << "set_cce_indication: skipping backhaul-only vap " << vap.bss;
+            continue;
+        }
+        auto vap_ext = m_vapsExtInfo.find(vap.bss);
+        if (vap_ext == m_vapsExtInfo.end()) {
+            continue;
+        }
         AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
         new_obj.add_child<bool>("CCEAdvertisementEnabled", enable);
-        const std::string dpp_path = vap.second.path + "DPP.";
+        const std::string dpp_path = vap_ext->second.path + "DPP.";
         if (!m_ambiorix_cl.update_object(dpp_path, new_obj)) {
             LOG(ERROR) << "Failed to set CCEAdvertisementEnabled on " << dpp_path;
             ok = false;
+        } else {
+            written_vaps++;
         }
     }
     if (m_vapsExtInfo.empty()) {
         LOG(WARNING) << "set_cce_indication: no VAPs mapped yet";
+    } else if (enable && written_vaps == 0) {
+        LOG(WARNING) << "set_cce_indication: CCE ENABLE not applied to any fronthaul vap";
     }
     return ok;
 }
