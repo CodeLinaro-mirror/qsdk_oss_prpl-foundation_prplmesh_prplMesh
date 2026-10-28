@@ -1054,9 +1054,18 @@ void agent_monitoring_task::dm_add_sta_to_agent_connected_event(
                     return;
                 }
                 ambiorix_dm->set_current_time(sta_path);
-                ambiorix_dm->set(sta_path, "MACAddress", sta.mac());
-                ambiorix_dm->set(sta_path, "LastConnectTime",
-                                 sta.time_since_last_association_sec());
+                auto trans = ambiorix_dm->create_transaction(sta_path);
+                if (!trans) {
+                    continue;
+                }
+
+                bool ret = true;
+                ret &= trans->set("MACAddress", sta.mac());
+                ret &= trans->set("LastConnectTime", sta.time_since_last_association_sec());
+                ret &= trans->apply();
+                if (!ret) {
+                    LOG(ERROR) << "Failed to set values of " << sta_path;
+                }
             }
             return;
         }
@@ -1109,8 +1118,16 @@ std::string agent_monitoring_task::dm_add_agent_connected_event(
                 LOG(ERROR) << "Failed to add " << radio_path << ".BSS BSSID: " << bss.radio_bssid();
                 return agent_connected_path;
             }
-            ambiorix_dm->set(bss_path, "BSSID", bss.radio_bssid());
-            ambiorix_dm->set(bss_path, "SSID", bss.ssid_str());
+            auto trans = ambiorix_dm->create_transaction(bss_path);
+            if (trans) {
+                bool ret = true;
+                ret &= trans->set("BSSID", bss.radio_bssid());
+                ret &= trans->set("SSID", bss.ssid_str());
+                ret &= trans->apply();
+                if (!ret) {
+                    LOG(ERROR) << "Failed to set values of " << bss_path;
+                }
+            }
             if (tlv_assoc_client) {
                 dm_add_sta_to_agent_connected_event(bss_path, bss.radio_bssid(), tlv_assoc_client);
             }
@@ -1264,19 +1281,24 @@ bool agent_monitoring_task::dm_set_agent_disconnected_event_params(
                        << ". MAC: " << radio.first;
             return false;
         }
-        ok &= ambiorix_dm->set(radio_path, "ID", radio.first);
         auto radio_stats = m_radio_stats.get(radio.first);
+        auto trans       = ambiorix_dm->create_transaction(radio_path);
+        if (!trans) {
+            return false;
+        }
 
+        ok &= trans->set("ID", radio.first);
         if (radio_stats) {
-            ok &= ambiorix_dm->set(radio_path, "Utilization", radio_stats->utilization);
-            ok &= ambiorix_dm->set(radio_path, "Transmit", radio_stats->transmit);
-            ok &= ambiorix_dm->set(radio_path, "ReceiveSelf", radio_stats->receive_self);
-            ok &= ambiorix_dm->set(radio_path, "ReceiveOther", radio_stats->receive_other);
-            ok &= ambiorix_dm->set(radio_path, "Noise", radio_stats->noise);
-            if (!ok) {
-                LOG(ERROR) << "Failed to set parameter for " << radio_path;
-                return false;
-            }
+            ok &= trans->set("Utilization", radio_stats->utilization);
+            ok &= trans->set("Transmit", radio_stats->transmit);
+            ok &= trans->set("ReceiveSelf", radio_stats->receive_self);
+            ok &= trans->set("ReceiveOther", radio_stats->receive_other);
+            ok &= trans->set("Noise", radio_stats->noise);
+        }
+        ok &= trans->apply();
+        if (!ok) {
+            LOG(ERROR) << "Failed to set parameter for " << radio_path;
+            return false;
         }
         for (const auto &bss : radio.second->bsses) {
 
@@ -1287,25 +1309,25 @@ bool agent_monitoring_task::dm_set_agent_disconnected_event_params(
                            << ". BSSID: " << bss.first;
                 return false;
             }
-            ok &= ambiorix_dm->set(bss_path, "BSSID", bss.first);
             auto bss_stats = m_bss_stats.get(bss.first);
+            trans          = ambiorix_dm->create_transaction(bss_path);
+            if (!trans) {
+                return false;
+            }
 
+            ok &= trans->set("BSSID", bss.first);
             if (bss_stats) {
-                ok &= ambiorix_dm->set(bss_path, "UnicastBytesSent", bss_stats->unicast_bytes_sent);
-                ok &= ambiorix_dm->set(bss_path, "UnicastBytesReceived",
-                                       bss_stats->unicast_bytes_received);
-                ok &= ambiorix_dm->set(bss_path, "MulticastBytesSent",
-                                       bss_stats->multicast_bytes_sent);
-                ok &= ambiorix_dm->set(bss_path, "MulticastBytesReceived",
-                                       bss_stats->multicast_bytes_received);
-                ok &= ambiorix_dm->set(bss_path, "BroadcastBytesSent",
-                                       bss_stats->broadcast_bytes_sent);
-                ok &= ambiorix_dm->set(bss_path, "BroadcastBytesReceived",
-                                       bss_stats->broadcast_bytes_received);
-                if (!ok) {
-                    LOG(ERROR) << "Failed to set parameter for " << bss_path;
-                    return false;
-                }
+                ok &= trans->set("UnicastBytesSent", bss_stats->unicast_bytes_sent);
+                ok &= trans->set("UnicastBytesReceived", bss_stats->unicast_bytes_received);
+                ok &= trans->set("MulticastBytesSent", bss_stats->multicast_bytes_sent);
+                ok &= trans->set("MulticastBytesReceived", bss_stats->multicast_bytes_received);
+                ok &= trans->set("BroadcastBytesSent", bss_stats->broadcast_bytes_sent);
+                ok &= trans->set("BroadcastBytesReceived", bss_stats->broadcast_bytes_received);
+            }
+            ok &= trans->apply();
+            if (!ok) {
+                LOG(ERROR) << "Failed to set parameter for " << bss_path;
+                return false;
             }
             for (const auto &sta : bss.second->connected_stations) {
 
