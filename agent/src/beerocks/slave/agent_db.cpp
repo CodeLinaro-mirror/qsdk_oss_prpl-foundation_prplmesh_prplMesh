@@ -220,8 +220,18 @@ void AgentDB::dm_set_agent_state(const std::string &cur, const std::string &max)
 {
     LOG_IF(!m_ambiorix_datamodel, FATAL) << "m_ambiorix_datamodel not set";
 
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "CurrentState", cur);
-    m_ambiorix_datamodel->set(AGENT_ROOT_DM ".Info", "BestState", max);
+    auto trans = m_ambiorix_datamodel->create_transaction(AGENT_ROOT_DM ".Info");
+    if (trans) {
+        bool ret = true;
+        ret &= trans->set("CurrentState", cur);
+        ret &= trans->set("BestState", max);
+        ret &= trans->apply();
+        if (!ret) {
+            LOG(ERROR) << "Failed to set values of " << AGENT_ROOT_DM ".Info";
+        }
+    } else {
+        LOG(ERROR) << "Failed to create transaction";
+    }
 }
 
 void AgentDB::dm_set_controller_connected(bool connected)
@@ -270,9 +280,19 @@ std::string AgentDB::dm_create_fronthaul_object(const std::string &iface)
         LOG(INFO) << "Successfully created Fronthaul instance for '" << iface << "' on retry";
     }
 
-    m_ambiorix_datamodel->set(inst, "Iface", iface);
-    m_ambiorix_datamodel->set(inst, "CurrentState", std::string("INIT (0)"));
-    m_ambiorix_datamodel->set(inst, "BestState", std::string("INIT (0)"));
+    auto trans = m_ambiorix_datamodel->create_transaction(inst);
+    if (trans) {
+        bool ret = true;
+        ret &= trans->set("Iface", iface);
+        ret &= trans->set("CurrentState", std::string("INIT (0)"));
+        ret &= trans->set("BestState", std::string("INIT (0)"));
+        ret &= trans->apply();
+        if (!ret) {
+            LOG(ERROR) << "Failed to set values of " << inst;
+        }
+    } else {
+        LOG(ERROR) << "Failed to create transaction";
+    }
 
     return inst;
 #endif
@@ -285,8 +305,18 @@ void AgentDB::dm_set_fronthaul_state(const std::string &path, const std::string 
         LOG(ERROR) << "dm_set_fronthaul_state called with empty path, skipping update";
         return;
     }
-    m_ambiorix_datamodel->set(path, "CurrentState", cur);
-    m_ambiorix_datamodel->set(path, "BestState", max);
+    auto trans = m_ambiorix_datamodel->create_transaction(path);
+    if (trans) {
+        bool ret = true;
+        ret &= trans->set("CurrentState", cur);
+        ret &= trans->set("BestState", max);
+        ret &= trans->apply();
+        if (!ret) {
+            LOG(ERROR) << "Failed to set values of " << path;
+        }
+    } else {
+        LOG(ERROR) << "Failed to create transaction";
+    }
 }
 
 void AgentDB::dm_fronthaul_disconnected(const std::string &path)

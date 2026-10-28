@@ -527,20 +527,27 @@ bool client_steering_task::dm_set_steer_event_params(const std::string &event_pa
 
     m_dm_timestamp = ambiorix_dm->get_datamodel_time_format();
 
-    ambiorix_dm->set(event_path, "DeviceId", m_sta_mac);
-    ambiorix_dm->set(event_path, "SteeredFrom", m_original_bssid);
-    ambiorix_dm->set(event_path, "SteeredTo", m_target_bssid);
-    ambiorix_dm->set(event_path, "StatusCode", m_status_code);
-    ambiorix_dm->set(event_path, "TimeStamp", m_dm_timestamp);
+    bool ret   = true;
+    auto trans = ambiorix_dm->create_transaction(event_path);
+    if (trans) {
+        ret &= trans->set("DeviceId", m_sta_mac);
+        ret &= trans->set("SteeredFrom", m_original_bssid);
+        ret &= trans->set("SteeredTo", m_target_bssid);
+        ret &= trans->set("StatusCode", m_status_code);
+        ret &= trans->set("TimeStamp", m_dm_timestamp);
+        ret &= trans->apply();
+        if (!ret) {
+            LOG(ERROR) << "Failed to set values of " << event_path;
+        }
+    } else {
+        LOG(ERROR) << "Failed to create transaction";
+        ret = false;
+    }
 
     m_database.dm_set_status(event_path, m_status_code);
 
+    int8_t rx_rssi = 0, rx_packets = 0;
     if (m_steering_success) {
-        ambiorix_dm->set(event_path, "Result", std::string("Success"));
-        ambiorix_dm->set(event_path, "TimeTaken", m_duration.count());
-
-        int8_t rx_rssi = 0, rx_packets = 0;
-
         auto station = m_database.get_station(tlvf::mac_from_string(m_sta_mac));
         if (!station) {
             LOG(ERROR) << "Station " << m_sta_mac << " not found";
@@ -550,9 +557,6 @@ bool client_steering_task::dm_set_steer_event_params(const std::string &event_pa
         if (!station->get_cross_rx_rssi(m_target_bssid, rx_rssi, rx_packets)) {
             TASK_LOG(ERROR) << "can't get cross_rx_rssi for bssid =" << m_target_bssid;
         }
-        ambiorix_dm->set(event_path, "NewLinkRate", rx_rssi);
-    } else {
-        ambiorix_dm->set(event_path, "Result", std::string("Fail"));
     }
 
     std::string steer_origin = "Unknown";
@@ -576,10 +580,31 @@ bool client_steering_task::dm_set_steer_event_params(const std::string &event_pa
 
         // Steering type is always BTM if the controller initiated
         // the steering, and unknown otherwise.
-        ambiorix_dm->set(event_path, "SteeringType", std::string("BTM"));
         steer_type = "BTM";
     }
-    ambiorix_dm->set(event_path, "SteeringOrigin", steer_origin);
+
+    ret   = true;
+    trans = ambiorix_dm->create_transaction(event_path);
+    if (trans) {
+        if (m_steering_success) {
+            ret &= trans->set("Result", std::string("Success"));
+            ret &= trans->set("TimeTaken", m_duration.count());
+            ret &= trans->set("NewLinkRate", rx_rssi);
+        } else {
+            ret &= trans->set("Result", std::string("Fail"));
+        }
+        ret &= trans->set("SteeringOrigin", steer_origin);
+        if (steer_type != "Unknown") {
+            ret &= trans->set("SteeringType", steer_type);
+        }
+        ret &= trans->apply();
+        if (!ret) {
+            LOG(ERROR) << "Failed to set values of " << event_path;
+        }
+    } else {
+        LOG(ERROR) << "Failed to create transaction";
+        ret = false;
+    }
     if (m_database.config.persistent_db) {
         add_steer_history_to_persistent_db(steer_origin, steer_type);
     }
