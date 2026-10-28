@@ -821,6 +821,14 @@ bool dpp_protocol_task::send_dpp_configuration_response(
         return true;
     }
 
+    // Proxied (hostapd relay) sessions: do not request a Connection Status Result. hostapd
+    // closes the relay right after the Configuration Result, so the Connection Status Result
+    // cannot reach the Controller. sendConnStatus is optional and Config Result OK = success.
+    if (send_conn_status) {
+        LOG(INFO) << "Not requesting DPP Connection Status Result on proxied session";
+        send_conn_status = false;
+    }
+
     sMacAddr enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
     if (m_session.last_chirp_enrollee_valid) {
         enrollee_mac = m_session.last_chirp_enrollee;

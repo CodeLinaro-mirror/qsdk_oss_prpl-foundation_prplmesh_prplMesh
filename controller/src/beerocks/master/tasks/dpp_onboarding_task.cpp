@@ -286,17 +286,13 @@ void dpp_onboarding_task::handle_event(int event_type, void *obj)
         }
         break;
     case CONF_RECEIVED:
+        // EasyMesh 5.3.4: Configuration Result with STATUS_OK means the Enrollee was
+        // successfully onboarded. A requested Connection Status Result is optional; it is only
+        // requested on Direct Encap sessions (it cannot be delivered through the hostapd DPP
+        // relay on proxied sessions), so do not wait for it.
         if (expect_conn_status || reason.find("wait_conn_status=1") != std::string::npos) {
-            TASK_LOG(INFO) << "DPP configuration result OK; waiting for connection status result";
-            expect_conn_status = true;
-            state              = State::WAIT_CONN_STATUS;
-            clear_pending_events();
-            wait_for_event(CONN_STATUS_OK);
-            wait_for_event(CONN_STATUS_FAILED);
-            wait_for_event(FAIL);
-            wait_for_event(BOOTSTRAP_TRIGGERED);
-            set_events_timeout(k_event_timeout_ms);
-            break;
+            TASK_LOG(INFO)
+                << "DPP configuration result OK; not waiting for connection status result";
         }
         finish_success();
         break;
