@@ -233,6 +233,9 @@ build-in-docker-flash:
     - cmake -DBUILD_TESTS=ON $EXTRA_CMAKE_FLAGS -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
       -DCMAKE_INSTALL_PREFIX=build/install -H. -Bbuild -G Ninja
     - ninja -C build install
+    # The option drops sections and unwind tables. Run the unit tests on this build too, so a
+    # test passes only if the linker kept the code the test needs.
+    - (cd build && ctest --output-on-failure)
     - git update-index -q --refresh
     - git diff-index --exit-code HEAD
 
