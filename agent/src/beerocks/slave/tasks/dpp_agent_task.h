@@ -14,7 +14,9 @@
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/common/sMacAddr.h>
 
+#include <chrono>
 #include <cstdint>
+#include <vector>
 
 namespace beerocks {
 
@@ -61,6 +63,12 @@ public:
                      std::shared_ptr<beerocks_header> beerocks_header) override;
 
     /**
+     * @brief Send a held Chirp Notification once DPP-CHIRP-RX arrives, or without a MAC
+     * after a short deadline.
+     */
+    void work() override;
+
+    /**
      * @brief Notify the task that a DPP frame was received from hostapd via the relay HAL.
      *
      * @param tcp_type  TCP type byte (first byte of payload after length header).
@@ -68,6 +76,12 @@ public:
      * @param frame_len Length of the frame body in bytes.
      */
     void on_dpp_frame_received(uint8_t tcp_type, const uint8_t *frame, size_t frame_len);
+
+    /**
+     * @brief Cache the Enrollee MAC from hostapd DPP-CHIRP-RX, keyed by the chirp hash.
+     * The TCP Presence Announcement carries the hash only.
+     */
+    void on_chirp_received(const sMacAddr &enrollee_mac, const uint8_t hash[32]);
 
     /**
      * @brief Notify the task that hostapd's connection state to the relay changed, as
@@ -122,6 +136,12 @@ private:
      * Extracts the bootstrapping key hash and sends a Chirp Notification CMDU.
      */
     void handle_presence_announcement(const uint8_t *frame, size_t frame_len);
+
+    /** Send a Chirp Notification. mac == nullptr leaves Enrollee MAC Address present clear. */
+    void send_chirp_notification(const uint8_t hash[32], const sMacAddr *enrollee_mac);
+
+    /** @return cached Enrollee MAC for this hash, or nullptr. */
+    const sMacAddr *find_chirp_mac(const uint8_t hash[32]) const;
 
     /**
      * @brief Handle a DPP Authentication Response frame (subtype 0x01).
@@ -183,6 +203,17 @@ private:
      */
     sMacAddr m_last_enrollee_mac{};
     bool m_last_enrollee_mac_valid = false;
+
+    struct ChirpMac {
+        uint8_t hash[32];
+        sMacAddr mac;
+        std::chrono::steady_clock::time_point seen;
+    };
+    std::vector<ChirpMac> m_chirp_macs;
+
+    bool m_pending_chirp = false;
+    uint8_t m_pending_hash[32]{};
+    std::chrono::steady_clock::time_point m_pending_deadline{};
 };
 
 } // namespace beerocks

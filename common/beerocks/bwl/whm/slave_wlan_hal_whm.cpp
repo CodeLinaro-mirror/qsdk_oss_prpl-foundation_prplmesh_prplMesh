@@ -12,7 +12,9 @@
 #include <bcl/beerocks_utils.h>
 #include <bcl/network/network_utils.h>
 #include <easylogging++.h>
+#include <tlvf/tlvftypes.h>
 
+#include <cstring>
 #include <utility>
 
 using namespace beerocks;
@@ -73,6 +75,11 @@ void slave_wlan_hal_whm::stop_dpp_relay()
     }
     m_dpp_state_event_handler.reset();
 
+    if (m_ap_wpa_ctrl_handler) {
+        m_ambiorix_cl.unsubscribe_from_object_event(m_ap_wpa_ctrl_handler);
+    }
+    m_ap_wpa_ctrl_handler.reset();
+
     m_dpp_client_connected = false;
 
     if (!m_dpp_path.empty()) {
@@ -103,6 +110,19 @@ void slave_wlan_hal_whm::subscribe_to_dpp_events()
     m_ambiorix_cl.subscribe_to_object_event(
         m_dpp_path, m_dpp_state_event_handler,
         "(path matches '" + m_dpp_path + "$') && (notification == 'DppRelayClientStateChanged')");
+
+    // DPP-CHIRP-RX carries the 802.11 source. The TCP frame does not.
+    const std::string wifi_ap_path = wbapi_utils::search_path_ap();
+    auto wpa_callback = [this](AmbiorixVariant &event_data) { on_ap_wpa_ctrl_event(event_data); };
+    m_ap_wpa_ctrl_handler              = std::make_shared<sAmbiorixEventHandler>();
+    m_ap_wpa_ctrl_handler->event_type  = AMX_CL_WPA_CTRL_EVT;
+    m_ap_wpa_ctrl_handler->callback_fn = wpa_callback;
+    const std::string wpa_filter = "(path matches '" + wifi_ap_path +
+                                   "[0-9]+.$') && (notification == '" + AMX_CL_WPA_CTRL_EVT + "')";
+    if (!m_ambiorix_cl.subscribe_to_object_event(wifi_ap_path, m_ap_wpa_ctrl_handler, wpa_filter)) {
+        LOG(ERROR) << "DPP: failed to subscribe to AccessPoint " << AMX_CL_WPA_CTRL_EVT;
+        m_ap_wpa_ctrl_handler.reset();
+    }
 }
 
 void slave_wlan_hal_whm::on_dpp_ambiorix_event(AmbiorixVariant &event_data)
@@ -128,6 +148,48 @@ void slave_wlan_hal_whm::on_dpp_ambiorix_event(AmbiorixVariant &event_data)
     auto frame = string_utils::hex_to_bytes<std::vector<uint8_t>>(frame_hex);
     event_queue_push(Event::Dpp_Frame_Received,
                      std::make_shared<sDppFrameEvent>(sDppFrameEvent{tcp_type, std::move(frame)}));
+}
+
+void slave_wlan_hal_whm::on_ap_wpa_ctrl_event(AmbiorixVariant &event_data)
+{
+    std::string event_str;
+    if (!event_data.read_child(event_str, "eventData") || event_str.empty()) {
+        return;
+    }
+
+    parsed_line_t parsed;
+    parse_event(event_str, parsed);
+    const auto opcode = parsed.find(EVENT_KEYLESS_PARAM_OPCODE);
+    if (opcode == parsed.end() || opcode->second != "DPP-CHIRP-RX") {
+        return;
+    }
+
+    const auto src  = parsed.find("src");
+    const auto hash = parsed.find("hash");
+    if (src == parsed.end() || hash == parsed.end()) {
+        LOG(WARNING) << "DPP-CHIRP-RX missing src or hash: " << event_str;
+        return;
+    }
+
+    sDppChirpEvent chirp{};
+    chirp.enrollee_mac = tlvf::mac_from_string(src->second);
+    if (std::memcmp(chirp.enrollee_mac.oct, beerocks::net::network_utils::ZERO_MAC.oct,
+                    sizeof(chirp.enrollee_mac.oct)) == 0) {
+        LOG(WARNING) << "DPP-CHIRP-RX has no usable src: " << src->second;
+        return;
+    }
+
+    auto hash_bytes = string_utils::hex_to_bytes<std::vector<uint8_t>>(hash->second);
+    if (hash_bytes.size() != sizeof(chirp.hash)) {
+        LOG(WARNING) << "DPP-CHIRP-RX hash length " << hash_bytes.size() << " from "
+                     << hash->second;
+        return;
+    }
+    std::memcpy(chirp.hash, hash_bytes.data(), sizeof(chirp.hash));
+
+    LOG(INFO) << "DPP-CHIRP-RX src=" << tlvf::mac_to_string(chirp.enrollee_mac)
+              << " hash=" << hash->second;
+    event_queue_push(Event::Dpp_Chirp_Received, std::make_shared<sDppChirpEvent>(chirp));
 }
 
 bool slave_wlan_hal_whm::dpp_send_frame(uint8_t tcp_type, const uint8_t *frame, size_t frame_len)

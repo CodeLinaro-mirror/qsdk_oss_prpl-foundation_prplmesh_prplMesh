@@ -209,7 +209,69 @@ void DppAgentTask::on_relay_stopped()
     m_relay_active            = false;
     m_hostapd_connected       = false;
     m_last_enrollee_mac_valid = false;
+    m_chirp_macs.clear();
+    m_pending_chirp = false;
     LOG(INFO) << "DPP: TCP relay stopped; relay can be re-armed";
+}
+
+void DppAgentTask::on_chirp_received(const sMacAddr &enrollee_mac, const uint8_t hash[32])
+{
+    const auto now = std::chrono::steady_clock::now();
+    m_chirp_macs.erase(std::remove_if(m_chirp_macs.begin(), m_chirp_macs.end(),
+                                      [&](const ChirpMac &entry) {
+                                          return now - entry.seen > std::chrono::seconds(5) ||
+                                                 std::memcmp(entry.hash, hash, 32) == 0;
+                                      }),
+                       m_chirp_macs.end());
+    if (m_chirp_macs.size() >= 8) {
+        m_chirp_macs.erase(m_chirp_macs.begin());
+    }
+    ChirpMac entry{};
+    std::memcpy(entry.hash, hash, 32);
+    entry.mac  = enrollee_mac;
+    entry.seen = now;
+    m_chirp_macs.push_back(entry);
+
+    if (m_pending_chirp && std::memcmp(m_pending_hash, hash, 32) == 0) {
+        m_pending_chirp = false;
+        send_chirp_notification(hash, &enrollee_mac);
+    }
+}
+
+void DppAgentTask::work()
+{
+    if (!m_pending_chirp) {
+        return;
+    }
+    if (const auto *mac = find_chirp_mac(m_pending_hash)) {
+        uint8_t hash[32];
+        std::memcpy(hash, m_pending_hash, 32);
+        m_pending_chirp = false;
+        send_chirp_notification(hash, mac);
+        return;
+    }
+    if (std::chrono::steady_clock::now() >= m_pending_deadline) {
+        uint8_t hash[32];
+        std::memcpy(hash, m_pending_hash, 32);
+        m_pending_chirp = false;
+        LOG(INFO)
+            << "DPP: Chirp Notification sent without Enrollee MAC; DPP-CHIRP-RX did not arrive";
+        send_chirp_notification(hash, nullptr);
+    }
+}
+
+const sMacAddr *DppAgentTask::find_chirp_mac(const uint8_t hash[32]) const
+{
+    const auto now = std::chrono::steady_clock::now();
+    for (auto it = m_chirp_macs.rbegin(); it != m_chirp_macs.rend(); ++it) {
+        if (now - it->seen > std::chrono::seconds(5)) {
+            continue;
+        }
+        if (std::memcmp(it->hash, hash, 32) == 0) {
+            return &it->mac;
+        }
+    }
+    return nullptr;
 }
 
 bool DppAgentTask::send_dpp_frame(uint8_t tcp_type, const uint8_t *frame, size_t frame_len)
@@ -338,6 +400,22 @@ void DppAgentTask::handle_presence_announcement(const uint8_t *frame, size_t fra
         return;
     }
 
+    if (const auto *mac = find_chirp_mac(hash)) {
+        m_pending_chirp = false;
+        send_chirp_notification(hash, mac);
+        return;
+    }
+
+    std::memcpy(m_pending_hash, hash, HASH_LEN);
+    m_pending_chirp    = true;
+    m_pending_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    LOG(INFO) << "DPP: holding Chirp Notification until DPP-CHIRP-RX supplies the Enrollee MAC";
+}
+
+void DppAgentTask::send_chirp_notification(const uint8_t hash[32], const sMacAddr *enrollee_mac)
+{
+    constexpr size_t HASH_LEN = 32;
+
     if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE)) {
         LOG(ERROR) << "DPP: failed to create CHIRP_NOTIFICATION_MESSAGE CMDU";
         return;
@@ -358,12 +436,24 @@ void DppAgentTask::handle_presence_announcement(const uint8_t *frame, size_t fra
     }
     chirp_tlv->hash_length() = HASH_LEN;
 
+    if (enrollee_mac) {
+        chirp_tlv->flags().enrollee_mac_address_present = true;
+        if (!chirp_tlv->set_dest_sta_mac(*enrollee_mac)) {
+            LOG(WARNING) << "DPP: failed to set Chirp Notification Enrollee MAC";
+            chirp_tlv->flags().enrollee_mac_address_present = false;
+        }
+    }
+
     if (!m_btl_ctx.send_cmdu_to_controller("", m_cmdu_tx)) {
         LOG(ERROR) << "DPP: failed to send CHIRP_NOTIFICATION_MESSAGE to controller";
         return;
     }
 
-    LOG(INFO) << "DPP: sent CHIRP_NOTIFICATION_MESSAGE to controller";
+    LOG(INFO) << "DPP: sent CHIRP_NOTIFICATION_MESSAGE to controller"
+              << " enrollee_mac="
+              << ((enrollee_mac && chirp_tlv->flags().enrollee_mac_address_present)
+                      ? tlvf::mac_to_string(*enrollee_mac)
+                      : "<none>");
 }
 
 void DppAgentTask::handle_auth_response(const uint8_t *frame, size_t frame_len)

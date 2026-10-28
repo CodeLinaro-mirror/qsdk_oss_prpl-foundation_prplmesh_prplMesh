@@ -33,12 +33,20 @@ public:
         Dpp_Client_Connected,
         Dpp_Client_Disconnected,
         Dpp_Frame_Received,
+        /** hostapd DPP-CHIRP-RX: 802.11 source of a Presence Announcement. */
+        Dpp_Chirp_Received,
     };
 
     /** Payload pushed via event_queue_push() for Event::Dpp_Frame_Received. */
     struct sDppFrameEvent {
         uint8_t tcp_type;
         std::vector<uint8_t> frame;
+    };
+
+    /** Payload pushed via event_queue_push() for Event::Dpp_Chirp_Received. */
+    struct sDppChirpEvent {
+        sMacAddr enrollee_mac;
+        uint8_t hash[32];
     };
 
     // Public methods:
