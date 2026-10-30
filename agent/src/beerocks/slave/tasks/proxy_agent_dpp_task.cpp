@@ -1,5 +1,6 @@
 #include "proxy_agent_dpp_task.h"
 #include "../son_slave_thread.h"
+#include <tlvf/wfa_map/tlv1905EncapDpp.h>
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
 
 namespace beerocks {
@@ -19,11 +20,11 @@ bool ProxyAgentDppTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
         return true;
     }
     case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
-        // Chirp uplink is owned by DppAgentTask.
+        // OTA chirps from an ap_manager are forwarded by slave_thread; chirps received
+        // through the TCP relay are sent by DppAgentTask.
         return false;
     case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
-        // Proxied Encap is owned by DppAgentTask.
-        return false;
+        return handle_proxied_encap_dpp(fd, src_mac, cmdu_rx);
     default: {
         // Message was not handled, therefore return false.
         return false;
@@ -41,6 +42,73 @@ void ProxyAgentDppTask::handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmd
             return;
         }
     }
+}
+
+bool ProxyAgentDppTask::handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac,
+                                                 ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    const bool from_ap_manager = (fd != beerocks::net::FileDescriptor::invalid_descriptor);
+    const bool relay_active    = m_btl_ctx.is_dpp_relay_active();
+
+    // Controller downlink is owned by DppAgentTask while the TCP relay is active.
+    if (!from_ap_manager && relay_active) {
+        return false;
+    }
+
+    auto encap_1905_dpp_tlv = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
+    if (!encap_1905_dpp_tlv) {
+        LOG(ERROR) << "Proxied encap dpp message doesn't contain 1905 encap dpp tlv";
+        return true;
+    }
+    const auto frame_type = encap_1905_dpp_tlv->frame_type();
+
+    if (from_ap_manager) {
+        // Uplink from a local ap_manager (OTA path).
+        if (relay_active) {
+            // hostapd also hands the frame to the TCP relay, DppAgentTask forwards that copy.
+            LOG(DEBUG) << "DPP: dropping ap_manager OTA Proxied Encap DPP (frame_type="
+                       << int(frame_type) << "): TCP relay is active";
+            return true;
+        }
+        // Remember the ap_manager serving the Enrollee, for the downlink of this session.
+        if (frame_type == wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_RESPONSE) {
+            m_active_onboarding_ap_manager_fd = fd;
+        }
+        if (!m_btl_ctx.forward_cmdu_to_controller(cmdu_rx)) {
+            LOG(ERROR) << "DPP: failed to forward ap_manager Proxied Encap DPP to the Controller";
+        }
+        return true;
+    }
+
+    // Downlink while the TCP relay is not active: OTA path through the ap_manager.
+    auto db = AgentDB::get();
+    if (src_mac != db->controller_info.bridge_mac) {
+        LOG(DEBUG) << "DPP: ignoring Proxied Encap DPP from " << tlvf::mac_to_string(src_mac)
+                   << ": not the Controller";
+        return true;
+    }
+
+    if (frame_type == wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_REQUEST) {
+        // The Enrollee location is not known yet: send it to every ap_manager.
+        for (auto radio : db->get_radios_list()) {
+            auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio->front.iface_name);
+            if (!m_btl_ctx.forward_cmdu_to_uds(ap_manager_fd, cmdu_rx)) {
+                LOG(ERROR) << "Failed to forward message to ap_manager";
+                return true;
+            }
+        }
+        return true;
+    }
+
+    if (m_active_onboarding_ap_manager_fd == beerocks::net::FileDescriptor::invalid_descriptor) {
+        LOG(WARNING) << "DPP: no ap_manager serves an onboarding Enrollee, dropping Proxied Encap"
+                     << " DPP (frame_type=" << int(frame_type) << ")";
+        return true;
+    }
+    if (!m_btl_ctx.forward_cmdu_to_uds(m_active_onboarding_ap_manager_fd, cmdu_rx)) {
+        LOG(ERROR) << "Failed to forward message to ap_manager";
+    }
+    return true;
 }
 
 } // namespace beerocks

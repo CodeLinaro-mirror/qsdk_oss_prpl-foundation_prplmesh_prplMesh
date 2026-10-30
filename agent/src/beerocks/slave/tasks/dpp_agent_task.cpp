@@ -103,13 +103,18 @@ DppAgentTask::DppAgentTask(slave_thread &btl_ctx, ieee1905_1::CmduMessageTx &cmd
 // ---------------------------------------------------------------------------
 
 bool DppAgentTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t /*iface_index*/,
-                               const sMacAddr & /*dst_mac*/, const sMacAddr &src_mac, int /*fd*/,
+                               const sMacAddr & /*dst_mac*/, const sMacAddr &src_mac, int fd,
                                std::shared_ptr<beerocks_header> /*beerocks_header*/)
 {
     auto message_type = cmdu_rx.getMessageType();
 
     switch (message_type) {
     case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE: {
+        // A message from a local ap_manager is OTA uplink, and Controller downlink without
+        // an active TCP relay goes to the OTA path: both are routed by ProxyAgentDppTask.
+        if (fd != beerocks::net::FileDescriptor::invalid_descriptor || !m_relay_active) {
+            return false;
+        }
         LOG(INFO) << "DPP: PROXIED_ENCAP_DPP_MESSAGE received by DppAgentTask"
                   << ", src_mac=" << tlvf::mac_to_string(src_mac)
                   << ", hostapd_connected=" << m_hostapd_connected;
