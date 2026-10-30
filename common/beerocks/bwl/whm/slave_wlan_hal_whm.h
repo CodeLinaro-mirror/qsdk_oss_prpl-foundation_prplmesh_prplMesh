@@ -36,7 +36,7 @@ protected:
     }
 
 private:
-    void subscribe_to_dpp_events();
+    bool subscribe_to_dpp_events();
     void on_dpp_ambiorix_event(beerocks::wbapi::AmbiorixVariant &event_data);
     void on_ap_wpa_ctrl_event(beerocks::wbapi::AmbiorixVariant &event_data);
 

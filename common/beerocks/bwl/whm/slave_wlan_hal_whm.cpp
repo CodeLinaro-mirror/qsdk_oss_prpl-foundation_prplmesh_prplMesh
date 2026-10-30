@@ -50,15 +50,23 @@ bool slave_wlan_hal_whm::init_dpp_relay()
         return false;
     }
 
+    // Subscribe before enabling the listener, so an early DppRelayClientStateChanged (hostapd
+    // connecting right away) is not missed. Without the relay events no uplink DPP frame
+    // reaches the Agent, so a failed subscription fails the relay start.
+    if (!subscribe_to_dpp_events()) {
+        LOG(ERROR) << "DPP: failed to subscribe to relay events at " << m_dpp_path;
+        stop_dpp_relay();
+        return false;
+    }
+
     AmbiorixVariant enable_map(AMXC_VAR_ID_HTABLE);
     enable_map.add_child("RelayEnable", true);
     if (!m_ambiorix_cl.update_object(m_dpp_path, enable_map)) {
         LOG(ERROR) << "DPP: failed to enable relay listener at " << m_dpp_path;
-        m_dpp_path.clear();
+        stop_dpp_relay();
         return false;
     }
 
-    subscribe_to_dpp_events();
     return true;
 }
 
@@ -92,26 +100,36 @@ void slave_wlan_hal_whm::stop_dpp_relay()
     m_dpp_path.clear();
 }
 
-void slave_wlan_hal_whm::subscribe_to_dpp_events()
+bool slave_wlan_hal_whm::subscribe_to_dpp_events()
 {
     auto callback = [this](AmbiorixVariant &event_data) { on_dpp_ambiorix_event(event_data); };
 
-    // Ambiorix matches event_type exactly — need one handler per notification name.
+    // Ambiorix matches event_type exactly: one handler per notification name.
     m_dpp_event_handler              = std::make_shared<sAmbiorixEventHandler>();
     m_dpp_event_handler->event_type  = "DppFrameReceived";
     m_dpp_event_handler->callback_fn = callback;
-    m_ambiorix_cl.subscribe_to_object_event(m_dpp_path, m_dpp_event_handler,
-                                            "(path matches '" + m_dpp_path +
-                                                "$') && (notification == 'DppFrameReceived')");
+    if (!m_ambiorix_cl.subscribe_to_object_event(
+            m_dpp_path, m_dpp_event_handler,
+            "(path matches '" + m_dpp_path + "$') && (notification == 'DppFrameReceived')")) {
+        LOG(ERROR) << "DPP: failed to subscribe to DppFrameReceived";
+        m_dpp_event_handler.reset();
+        return false;
+    }
 
     m_dpp_state_event_handler              = std::make_shared<sAmbiorixEventHandler>();
     m_dpp_state_event_handler->event_type  = "DppRelayClientStateChanged";
     m_dpp_state_event_handler->callback_fn = callback;
-    m_ambiorix_cl.subscribe_to_object_event(
-        m_dpp_path, m_dpp_state_event_handler,
-        "(path matches '" + m_dpp_path + "$') && (notification == 'DppRelayClientStateChanged')");
+    if (!m_ambiorix_cl.subscribe_to_object_event(
+            m_dpp_path, m_dpp_state_event_handler,
+            "(path matches '" + m_dpp_path +
+                "$') && (notification == 'DppRelayClientStateChanged')")) {
+        LOG(ERROR) << "DPP: failed to subscribe to DppRelayClientStateChanged";
+        m_dpp_state_event_handler.reset();
+        return false;
+    }
 
     // DPP-CHIRP-RX carries the 802.11 source. The TCP frame does not.
+    // Optional: without it the Chirp Notification only lacks the Enrollee MAC.
     const std::string wifi_ap_path = wbapi_utils::search_path_ap();
     auto wpa_callback = [this](AmbiorixVariant &event_data) { on_ap_wpa_ctrl_event(event_data); };
     m_ap_wpa_ctrl_handler              = std::make_shared<sAmbiorixEventHandler>();
@@ -123,6 +141,8 @@ void slave_wlan_hal_whm::subscribe_to_dpp_events()
         LOG(ERROR) << "DPP: failed to subscribe to AccessPoint " << AMX_CL_WPA_CTRL_EVT;
         m_ap_wpa_ctrl_handler.reset();
     }
+
+    return true;
 }
 
 void slave_wlan_hal_whm::on_dpp_ambiorix_event(AmbiorixVariant &event_data)
