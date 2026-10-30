@@ -207,6 +207,10 @@ bool is_bss_config_similar(const AgentDB::sRadio::sFront::sBssid &local_bss,
         if (local_exclusive && requested_exclusive && (local_bss.backhaul_bss != is_backhaul_bss)) {
             return false;
         }
+
+        if (local_bss.vap_type == eVapType::GUEST) {
+            return false;
+        }
     }
 
     if (local_bss.active && !is_teardown) {
