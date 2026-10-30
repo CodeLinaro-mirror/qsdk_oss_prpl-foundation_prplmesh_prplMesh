@@ -35,6 +35,36 @@ void strip_ipv6_zone_id(std::string &ip)
     }
 }
 
+/**
+ * First Session.{i} under Device.WiFi.X_PRPLWARE-COM_WiFiSensing.Session.
+ * Skips the template path itself.
+ */
+bool resolve_available_session(wbapi::AmbiorixClient &client, const std::string &sensing_path,
+                               std::string &session_path)
+{
+    session_path.clear();
+    const std::string session_root = sensing_path + ".Session.";
+    std::vector<std::string> sessions;
+    if (!client.resolve_path_multi(session_root, sessions) || sessions.empty()) {
+        client.resolve_path_multi(session_root + "*", sessions);
+    }
+    for (const auto &path : sessions) {
+        if (path.empty()) {
+            continue;
+        }
+        std::string normalized = path;
+        if (normalized.back() != '.') {
+            normalized.push_back('.');
+        }
+        if (normalized == session_root) {
+            continue;
+        }
+        session_path = std::move(normalized);
+        return true;
+    }
+    return false;
+}
+
 } // namespace
 
 agent_sensing::agent_sensing()
@@ -164,12 +194,22 @@ bool agent_sensing::AddExchange()
         return false;
     }
     const auto &entry = db->sensing_exchange_entries.back();
-    AmbiorixVariant create_session_args(AMXC_VAR_ID_HTABLE);
-    AmbiorixVariant create_session_result;
-    if (!m_ambiorix_sensing_cl.call(m_sensing_path, "CreateSession", create_session_args,
-                                    create_session_result)) {
-        LOG(ERROR) << "AddExchange: CreateSession failed path=" << m_sensing_path;
-        return false;
+    std::string session_path;
+    if (!resolve_available_session(m_ambiorix_sensing_cl, m_sensing_path, session_path)) {
+        AmbiorixVariant create_session_args(AMXC_VAR_ID_HTABLE);
+        AmbiorixVariant create_session_result;
+        if (!m_ambiorix_sensing_cl.call(m_sensing_path, "CreateSession", create_session_args,
+                                        create_session_result)) {
+            LOG(ERROR) << "AddExchange: CreateSession failed path=" << m_sensing_path;
+            return false;
+        }
+        if (!resolve_available_session(m_ambiorix_sensing_cl, m_sensing_path, session_path)) {
+            LOG(ERROR) << "AddExchange: no Session instance after CreateSession under "
+                       << m_sensing_path << ".Session.";
+            return false;
+        }
+    } else {
+        LOG(DEBUG) << "AddExchange: session already present path=" << session_path;
     }
 
     AmbiorixVariant result;
@@ -193,10 +233,9 @@ bool agent_sensing::AddExchange()
         args.add_child("Receiver", rx_mac);
     }
     args.add_child("ExchangeID", entry.exchange_id);
-    const std::string add_exchange_path = m_sensing_path + ".Session.1";
-    if (!m_ambiorix_sensing_cl.call(add_exchange_path, "AddExchange", args, result)) {
+    if (!m_ambiorix_sensing_cl.call(session_path, "AddExchange", args, result)) {
         LOG(ERROR) << "AddExchange: call failed for exchange_id=" << entry.exchange_id
-                   << " path=" << m_sensing_path;
+                   << " path=" << session_path;
         return false;
     }
 
@@ -263,7 +302,13 @@ bool agent_sensing::RemoveExchange()
     }
 
     /* wifi-sensing: RemoveExchange() is on Session.{i}.Exchange.{j} (no args). */
-    const std::string search_path = m_sensing_path + ".Session.1.Exchange.[ExchangeID == " +
+    std::string session_path;
+    if (!resolve_available_session(m_ambiorix_sensing_cl, m_sensing_path, session_path)) {
+        LOG(ERROR) << "RemoveExchange: no Session instance under " << m_sensing_path
+                   << ".Session.";
+        return false;
+    }
+    const std::string search_path = session_path + "Exchange.[ExchangeID == " +
                                     std::to_string(entry.exchange_id) + "].";
     std::string exchange_path;
     if (!m_ambiorix_sensing_cl.resolve_path(search_path, exchange_path) || exchange_path.empty()) {
@@ -297,6 +342,23 @@ bool agent_sensing::RemoveExchange()
 
     LOG(DEBUG) << "RemoveExchange: call success for exchange_id=" << entry.exchange_id
                << " path=" << exchange_path;
+
+    /* Last exchange under this session: drop the session as well. */
+    std::vector<std::string> exchange_paths;
+    m_ambiorix_sensing_cl.resolve_path_multi(session_path + "Exchange.*", exchange_paths);
+    if (exchange_paths.empty()) {
+        AmbiorixVariant delete_args(AMXC_VAR_ID_HTABLE);
+        AmbiorixVariant delete_result;
+        if (!m_ambiorix_sensing_cl.call(session_path, "DeleteSession", delete_args,
+                                        delete_result)) {
+            LOG(ERROR) << "RemoveExchange: no Exchange instances, DeleteSession failed path="
+                       << session_path;
+            return false;
+        }
+        LOG(DEBUG) << "RemoveExchange: no Exchange instances, DeleteSession called path="
+                   << session_path;
+    }
+
     return true;
 }
 
