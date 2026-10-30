@@ -413,21 +413,6 @@ bool slave_thread::thread_init()
         return false;
     }
 
-    // Create and attach the slave_wlan_hal HAL, used for the DPP-over-TCP relay to hostapd.
-    if (!m_slave_wlan_hal) {
-        using namespace std::placeholders; // for `_1`
-        bwl::hal_conf_t hal_conf;
-        m_slave_wlan_hal = bwl::slave_wlan_hal_create(
-            "slave", std::bind(&slave_thread::hal_event_handler, this, _1), hal_conf);
-
-        LOG_IF(!m_slave_wlan_hal, FATAL) << "Failed creating HAL instance!";
-    }
-
-    if (!register_event_handlers()) {
-        LOG(ERROR) << "Failed to register slave_wlan_hal event handlers";
-        return false;
-    }
-
     auto db = AgentDB::get();
     m_task_pool.add_task_check_mode<ApAutoConfigurationTask>(
         "ApAutoConfigurationTask", db->device_conf.management_mode, *this, cmdu_tx);
@@ -1184,34 +1169,28 @@ bool slave_thread::register_ext_events_handlers(int fd)
 
 bool slave_thread::register_event_handlers()
 {
-    // External events
-    int ext_event_fd_max = -1;
-    slave_hal_ext_events = m_slave_wlan_hal->get_ext_events_fds();
-    if (slave_hal_ext_events.empty()) {
-        ext_event_fd_max = 0;
-    } else {
-        for (auto &ext_event_fd : slave_hal_ext_events) {
-            if (ext_event_fd < 0) {
-                ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
-                continue;
-            }
-            if (!register_ext_events_handlers(ext_event_fd)) {
-                return false;
-            }
-            LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
-            ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
+    // External events are optional: a backend without event sockets (e.g. the NL80211 or
+    // DWPAL stubs) only uses the internal event queue.
+    bool ext_event_registered = false;
+    slave_hal_ext_events      = m_slave_wlan_hal->get_ext_events_fds();
+    for (auto &ext_event_fd : slave_hal_ext_events) {
+        if (ext_event_fd < 0) {
+            ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+            continue;
         }
+        if (!register_ext_events_handlers(ext_event_fd)) {
+            return false;
+        }
+        LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
+        ext_event_registered = true;
     }
-    if (ext_event_fd_max == 0) {
-        LOG(DEBUG) << "No external event FD is available, periodic polling will be done instead.";
-    } else if (ext_event_fd_max < 0) {
-        LOG(ERROR) << "Invalid external event file descriptors: " << ext_event_fd_max;
-        return false;
+    if (!ext_event_registered) {
+        LOG(DEBUG) << "No slave_wlan_hal external event fd to register";
     }
 
     slave_hal_int_events = m_slave_wlan_hal->get_int_events_fd();
     if (slave_hal_int_events == beerocks::net::FileDescriptor::invalid_descriptor) {
-        LOG(DEBUG) << "No slave_wlan_hal internal events fd to register";
+        LOG(ERROR) << "No slave_wlan_hal internal events fd to register";
         return false;
     }
 
@@ -1265,6 +1244,31 @@ void slave_thread::clear_event_handlers()
     }
 }
 
+bool slave_thread::create_slave_wlan_hal()
+{
+    if (m_slave_wlan_hal) {
+        return true;
+    }
+
+    using namespace std::placeholders; // for `_1`
+    bwl::hal_conf_t hal_conf;
+    m_slave_wlan_hal = bwl::slave_wlan_hal_create(
+        "slave", std::bind(&slave_thread::hal_event_handler, this, _1), hal_conf);
+    if (!m_slave_wlan_hal) {
+        LOG(ERROR) << "DPP: failed creating slave_wlan_hal instance";
+        return false;
+    }
+
+    if (!register_event_handlers()) {
+        LOG(ERROR) << "DPP: failed to register slave_wlan_hal event handlers";
+        clear_event_handlers();
+        m_slave_wlan_hal.reset();
+        return false;
+    }
+
+    return true;
+}
+
 void slave_thread::start_dpp_tcp_relay_server()
 {
     if (!m_dpp_agent_task) {
@@ -1274,6 +1278,13 @@ void slave_thread::start_dpp_tcp_relay_server()
     auto db = AgentDB::get();
     if (!db->device_conf.enable_dpp_onboarding) {
         LOG(INFO) << "DPP: TCP relay disabled (Configuration.EnableDPPOnboarding=false)";
+        return;
+    }
+
+    // The slave HAL only serves the relay, so it is created once the platform configuration
+    // is read and onboarding is enabled. A failure only disables the relay.
+    if (!create_slave_wlan_hal()) {
+        LOG(ERROR) << "DPP: slave_wlan_hal not available, TCP relay not started";
         return;
     }
 

@@ -279,6 +279,15 @@ private:
     bool register_event_handlers();
     bool register_ext_events_handlers(int fd);
     void clear_event_handlers();
+
+    /**
+     * @brief Create the slave_wlan_hal (DPP-over-TCP relay HAL) and register its events.
+     *
+     * Does nothing if it already exists. On failure no slave_wlan_hal is left behind.
+     *
+     * @return true if the slave_wlan_hal is available, otherwise false.
+     */
+    bool create_slave_wlan_hal();
     void start_dpp_tcp_relay_server();
 
 public:
