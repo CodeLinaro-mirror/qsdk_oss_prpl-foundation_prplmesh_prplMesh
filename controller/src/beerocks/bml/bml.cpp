@@ -11,6 +11,7 @@
 
 #include <bcl/beerocks_logging.h>
 #include <bcl/beerocks_string_utils.h>
+#include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
 #include <bcl/son/son_wireless_utils.h>
 
@@ -570,7 +571,7 @@ int bml_get_master_slave_versions(BML_CTX ctx, char *master_version, char *slave
 
 int bml_set_local_log_context(void *log_ctx) { return (bml_internal::set_log_context(log_ctx)); }
 
-const char *bml_get_bml_version() { return (BEEROCKS_VERSION); }
+const char *bml_get_bml_version() { return (beerocks::version::get_module_version()); }
 
 int bml_set_global_restricted_channels(BML_CTX ctx, const uint8_t *restricted_channels,
                                        uint8_t size)

@@ -9,6 +9,8 @@
 #include "prplmesh_cli.h"
 #include "prplmesh_amx_client.h"
 
+#include <bcl/beerocks_version.h>
+
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
@@ -307,7 +309,7 @@ conn_map        : dump the latest network map
 
 void prplmesh_cli::print_version()
 {
-    std::cerr << "prplMesh version: " << BEEROCKS_VERSION << std::endl;
+    std::cerr << "prplMesh version: " << beerocks::version::get_module_version() << std::endl;
 }
 
 std::string prplmesh_cli::get_ap_path(std::string ap)

@@ -23,10 +23,6 @@
 
 #include <easylogging++.h>
 
-// Do not use this macro anywhere else in ire process
-// It should only be there in one place in each executable module
-BEEROCKS_INIT_BEEROCKS_VERSION
-
 static bool g_running = true;
 static int s_signal   = 0;
 static std::string fronthaul_iface;
@@ -166,8 +162,8 @@ init_logger(const std::string &file_name, const beerocks::config_file::SConfigLo
     logger->apply_settings();
     CLOG(INFO, logger->get_logger_id())
         << std::endl
-        << "Running " << file_name << " Version " << BEEROCKS_VERSION << " Build date "
-        << BEEROCKS_BUILD_DATE << std::endl
+        << "Running " << file_name << " Version " << beerocks::version::get_module_version()
+        << " Build date " << beerocks::version::get_module_timestamp() << std::endl
         << std::endl;
     beerocks::version::log_version(argc, argv, logger->get_logger_id());
 

@@ -280,10 +280,6 @@ else()
     message(STATUS "Coverage support is not enabled")
 endif()
 
-add_definitions(-DBEEROCKS_VERSION="${prplmesh_VERSION}")
-add_definitions(-DBEEROCKS_BUILD_DATE="${BUILD_DATE}")
-add_definitions(-DBEEROCKS_REVISION="${PRPLMESH_REVISION}")
-
 ## Documentation
 
 add_subdirectory(documentation)
