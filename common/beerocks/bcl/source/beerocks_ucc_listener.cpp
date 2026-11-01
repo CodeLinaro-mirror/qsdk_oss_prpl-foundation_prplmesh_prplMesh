@@ -16,6 +16,7 @@
 #include <bcl/beerocks_ucc_listener.h>
 
 #include <bcl/beerocks_string_utils.h>
+#include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
 
 #include <algorithm>
@@ -465,7 +466,7 @@ void beerocks_ucc_listener::handle_wfa_ca_command(int fd, const std::string &com
     switch (command_type) {
     case eWfaCaCommand::CA_GET_VERSION: {
         // Send back second reply
-        reply_ucc(fd, eWfaCaStatus::COMPLETE, std::string("version,") + BEEROCKS_VERSION);
+        reply_ucc(fd, eWfaCaStatus::COMPLETE, std::string("version,") + beerocks::version::get_module_version());
         break;
     }
     case eWfaCaCommand::DEVICE_GET_INFO: {

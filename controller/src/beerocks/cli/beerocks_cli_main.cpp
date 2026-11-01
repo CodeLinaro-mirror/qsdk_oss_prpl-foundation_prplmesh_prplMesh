@@ -22,10 +22,6 @@
 
 #include <chrono>
 
-// Do not use this macro anywhere else in ire process
-// It should only be there in one place in each executable module
-BEEROCKS_INIT_BEEROCKS_VERSION
-
 static bool g_running       = true;
 static bool g_loop_cmd_exec = false;
 
@@ -182,8 +178,8 @@ static bool getline_interactive(std::string &strBuf)
 
 static void cli_interactive(std::string path, std::string tmp_path, std::string ip)
 {
-    std::cout << "Welcome to BeeRocks CLI " << BEEROCKS_VERSION << " Build date "
-              << BEEROCKS_BUILD_DATE << std::endl;
+    std::cout << "Welcome to BeeRocks CLI " << beerocks::version::get_module_version() << " Build date "
+              << beerocks::version::get_module_timestamp() << std::endl;
     std::cout << "Enter 'help' for help, 'exit' to exit" << std::endl;
 
     beerocks::cli_bml cli_bml(path);

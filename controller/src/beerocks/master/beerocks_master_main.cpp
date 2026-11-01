@@ -59,10 +59,6 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #include "wifi_manager.h"
 #endif //USE_PRPLMESH_WHM
 
-// Do not use this macro anywhere else in ire process
-// It should only be there in one place in each executable module
-BEEROCKS_INIT_BEEROCKS_VERSION
-
 static bool g_running     = true;
 static bool s_kill_master = false;
 static int s_signal       = 0;
@@ -686,14 +682,14 @@ int main(int argc, char *argv[])
     logger.apply_settings();
 
     LOG(INFO) << std::endl
-              << "Running " << base_master_name << " Version " << BEEROCKS_VERSION << " Build date "
-              << BEEROCKS_BUILD_DATE << std::endl
+              << "Running " << base_master_name << " Version " << beerocks::version::get_module_version() << " Build date "
+              << beerocks::version::get_module_timestamp() << std::endl
               << std::endl;
 
     beerocks::version::log_version(argc, argv);
     versionfile.open(beerocks_master_conf.temp_path + "beerocks_master_version");
 
-    versionfile << BEEROCKS_VERSION << std::endl << BEEROCKS_REVISION;
+    versionfile << beerocks::version::get_module_version() << std::endl << beerocks::version::get_module_revision();
     versionfile.close();
 
     // Redirect stdout / stderr
