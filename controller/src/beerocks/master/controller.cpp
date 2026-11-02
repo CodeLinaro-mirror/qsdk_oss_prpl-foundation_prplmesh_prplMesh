@@ -88,7 +88,6 @@
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvErrorCode.h>
-#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvHigherLayerData.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
@@ -96,6 +95,7 @@
 #include <tlvf/wfa_map/tlvProfile2CacCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2CacStatusReport.h>
 #include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
+#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvProfile2RadioMetrics.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
@@ -428,7 +428,7 @@ void Controller::start_mandatory_tasks()
     auto dpp_onboarding = std::make_shared<dpp_onboarding_task>(database, m_dpp_protocol_task);
     LOG_IF(!m_task_pool.add_task(dpp_onboarding), FATAL) << "Failed adding dpp_onboarding_task!";
     m_dpp_onboarding_task_id = dpp_onboarding->id;
-    m_dpp_onboarding_task    = dpp_onboarding;
+    m_dpp_onboarding_task    = std::move(dpp_onboarding);
     m_dpp_protocol_task->configure_onboarding_notifier(m_task_pool, m_dpp_onboarding_task_id);
 }
 

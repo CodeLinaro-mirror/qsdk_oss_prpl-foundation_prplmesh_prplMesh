@@ -1957,8 +1957,7 @@ std::string make_dpp_uri(const std::string &channel_list)
     return "DPP:C:" + channel_list + ";V:3;" + g_dpp_uri_k_field;
 }
 
-bool has_dpp_channel(const son::db::sDppBootstrappingInfo &info, uint8_t op_class,
-                     uint8_t channel)
+bool has_dpp_channel(const son::db::sDppBootstrappingInfo &info, uint8_t op_class, uint8_t channel)
 {
     auto range = info.operating_class_channel.equal_range(op_class);
     for (auto it = range.first; it != range.second; ++it) {
@@ -1987,8 +1986,7 @@ TEST_F(DbTest, parse_dpp_uri_multi_class_channel_list)
     EXPECT_FALSE(has_dpp_channel(info, 115, 149));
     EXPECT_EQ(info.version, 3);
     EXPECT_TRUE(info.pkhash_valid);
-    EXPECT_EQ(info.pkhash_hex,
-              "c58181788f2fd5017a29edbcc1cd6284ebdf8cf11428f953065e210cb9b2efe3");
+    EXPECT_EQ(info.pkhash_hex, "c58181788f2fd5017a29edbcc1cd6284ebdf8cf11428f953065e210cb9b2efe3");
     EXPECT_TRUE(info.chirp_hash_valid);
     EXPECT_EQ(info.chirp_hash_hex,
               "f7299e2bef60d5b1b4b802d4ef52667ca9511bb34a4375da4c9c0600c0bb91f0");
@@ -2014,18 +2012,12 @@ TEST_F(DbTest, parse_dpp_uri_channel_list_variants)
 TEST_F(DbTest, parse_dpp_uri_rejects_invalid_channel_list)
 {
     const std::vector<std::pair<std::string, std::string>> invalid = {
-        {"6,81/1", "invalid channel list"},
-        {"81/1,,6", "invalid channel list"},
-        {"81/1,", "invalid channel list"},
-        {",81/1", "invalid channel list"},
-        {"81/1/2", "invalid channel list"},
-        {"x/1", "invalid operating class"},
-        {"0/1", "invalid operating class"},
-        {"1155/36", "invalid operating class"},
-        {"81/x", "invalid channel"},
-        {"81/0", "invalid channel"},
-        {"115/1000", "invalid channel"},
-        {"81/6,6", "duplicate operating class/channel pair"},
+        {"6,81/1", "invalid channel list"}, {"81/1,,6", "invalid channel list"},
+        {"81/1,", "invalid channel list"},  {",81/1", "invalid channel list"},
+        {"81/1/2", "invalid channel list"}, {"x/1", "invalid operating class"},
+        {"0/1", "invalid operating class"}, {"1155/36", "invalid operating class"},
+        {"81/x", "invalid channel"},        {"81/0", "invalid channel"},
+        {"115/1000", "invalid channel"},    {"81/6,6", "duplicate operating class/channel pair"},
     };
     for (const auto &entry : invalid) {
         son::db::sDppBootstrappingInfo info;

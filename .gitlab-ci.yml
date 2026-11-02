@@ -265,6 +265,9 @@ db_unit_tests:
 higher_layer_collection_task_test:
   extends: .run-test-in-docker
 
+dpp_unit_tests:
+  extends: .run-test-in-docker
+
 ieee1905_task_test:
   extends: .run-test-in-docker
 
