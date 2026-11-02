@@ -256,6 +256,8 @@ struct hal_conf_t {
     bool is_repeater         = false;
     bool certification_mode  = false;
     uint8_t multi_ap_profile = MULTIAP_PROFILE_2;
+    // Agent EnableDPPOnboarding: fronthaul VAPs may be set to DPP Role=Relay.
+    bool enable_dpp_onboarding = false;
 };
 
 //sta_wlan_hal

@@ -793,8 +793,10 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         }
 
         // Fronthaul VAPs only: point hostapd at WiFi.DPPRelay (dpp_controller=).
-        // Backhaul/bSTA must not be Role=Relay.
-        if (bss_info_conf.fronthaul) {
+        // Backhaul/bSTA must not be Role=Relay. Skipped when DPP onboarding is
+        // disabled: the relay is never started then, and the VAP DPP settings
+        // are left as they are.
+        if (bss_info_conf.fronthaul && get_hal_conf().enable_dpp_onboarding) {
             std::string wifi_ap_dpp_path = wifi_vap_path + "DPP.";
             new_obj.set_type(AMXC_VAR_ID_HTABLE);
             new_obj.add_child<bool>(dpp_enable_key, true);
@@ -1466,42 +1468,12 @@ bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
 
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
-    // 1905 CCE ENABLE/DISABLE maps to pWHM AccessPoint.DPP.CCEAdvertisementEnabled.
-    // That writes hostapd dpp_configurator_connectivity without clearing dpp_controller.
-    const bool enable = (advertise_cce != 0);
-    LOG(INFO) << "ap_wlan_hal_whm: set_cce_indication advertise_cce=" << advertise_cce
-              << " CCEAdvertisementEnabled=" << enable;
-
-    bool ok          = true;
-    int written_vaps = 0;
-    for (const auto &vap_it : m_radio_info.available_vaps) {
-        const auto &vap = vap_it.second;
-        // EasyMesh 5.3.4: CCE is advertised on fronthaul BSSs only. Skip backhaul-only
-        // BSSs (writing there triggers a pWHM AP sync that kicks WDS backhaul STAs).
-        if (vap.backhaul && !vap.fronthaul) {
-            LOG(DEBUG) << "set_cce_indication: skipping backhaul-only vap " << vap.bss;
-            continue;
-        }
-        auto vap_ext = m_vapsExtInfo.find(vap.bss);
-        if (vap_ext == m_vapsExtInfo.end()) {
-            continue;
-        }
-        AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
-        new_obj.add_child<bool>("CCEAdvertisementEnabled", enable);
-        const std::string dpp_path = vap_ext->second.path + "DPP.";
-        if (!m_ambiorix_cl.update_object(dpp_path, new_obj)) {
-            LOG(ERROR) << "Failed to set CCEAdvertisementEnabled on " << dpp_path;
-            ok = false;
-        } else {
-            written_vaps++;
-        }
-    }
-    if (m_vapsExtInfo.empty()) {
-        LOG(WARNING) << "set_cce_indication: no VAPs mapped yet";
-    } else if (enable && written_vaps == 0) {
-        LOG(WARNING) << "set_cce_indication: CCE ENABLE not applied to any fronthaul vap";
-    }
-    return ok;
+    // Fronthaul VAPs run DPP Role=Relay, which configures dpp_controller in
+    //  hostapd and then advertises the CCE on every BSS of its process by
+    //  itself. A per-BSS CCE switch would have no effect on air.
+    LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce
+               << " (CCE follows the DPP relay role, nothing to set)";
+    return true;
 }
 
 AmbiorixVariantSmartPtr ap_wlan_hal_whm::get_last_assoc_frame(const std::string &vap_iface,

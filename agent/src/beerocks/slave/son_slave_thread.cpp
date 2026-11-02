@@ -3683,6 +3683,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
         config_msg->channel() = db->device_conf.front_radio.config.at(iface).configured_channel;
         config_msg->certification_mode() = db->device_conf.certification_mode;
         config_msg->multi_ap_profile()   = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
+        config_msg->enable_dpp_onboarding() = db->device_conf.enable_dpp_onboarding;
 
         std::string hostapd_ctrl_path;
         if (!bpl::bpl_cfg_get_hostapd_ctrl_path(iface, hostapd_ctrl_path)) {

@@ -2,6 +2,7 @@
 #include "../son_slave_thread.h"
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
+#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 
 namespace beerocks {
 
@@ -35,6 +36,17 @@ bool ProxyAgentDppTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t
 void ProxyAgentDppTask::handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmdu_rx)
 {
     auto db = AgentDB::get();
+    if (!db->device_conf.enable_dpp_onboarding) {
+        // Without DPP onboarding no CCE is advertised. EasyMesh: an Agent that cannot
+        // advertise the CCE on ENABLE answers with an Error Response, reason 0x0D.
+        auto cce_tlv = cmdu_rx.getClass<wfa_map::tlvDppCceIndication>();
+        if (cce_tlv && cce_tlv->advertise_cee()) {
+            LOG(INFO) << "DPP CCE Indication ENABLE while DPP onboarding is disabled";
+            send_dpp_onboarding_not_supported_error();
+        }
+        return;
+    }
+
     for (auto radio : db->get_radios_list()) {
         auto ap_manager_fd = m_btl_ctx.get_ap_manager_fd(radio->front.iface_name);
         if (!m_btl_ctx.forward_cmdu_to_uds(ap_manager_fd, cmdu_rx)) {
@@ -42,6 +54,24 @@ void ProxyAgentDppTask::handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmd
             return;
         }
     }
+}
+
+void ProxyAgentDppTask::send_dpp_onboarding_not_supported_error()
+{
+    if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type ERROR_RESPONSE_MESSAGE failed";
+        return;
+    }
+    auto error_code_tlv = m_cmdu_tx.addClass<wfa_map::tlvProfile2ErrorCode>();
+    if (!error_code_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvProfile2ErrorCode failed";
+        return;
+    }
+    error_code_tlv->reason_code() =
+        wfa_map::tlvProfile2ErrorCode::eReasonCode::DPP_ONBOARDING_NOT_SUPPORTED;
+
+    LOG(INFO) << "Sending Error Response (DPP onboarding not supported) to the Controller";
+    m_btl_ctx.send_cmdu_to_controller({}, m_cmdu_tx);
 }
 
 bool ProxyAgentDppTask::handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac,

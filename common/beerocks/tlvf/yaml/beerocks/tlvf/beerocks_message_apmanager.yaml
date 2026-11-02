@@ -43,6 +43,7 @@ cACTION_APMANAGER_CONFIGURE:
   channel: uint8_t
   certification_mode: uint8_t #bool
   multi_ap_profile: uint8_t
+  enable_dpp_onboarding: uint8_t #bool
   clients_measurement_mode: uint8_t # 0: disabled, 1: all, 2: steering-selected
   bridge_iface: sFronthaulIface
   hostapd_ctrl_path_length:

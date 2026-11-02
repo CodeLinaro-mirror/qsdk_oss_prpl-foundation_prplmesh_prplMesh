@@ -1221,12 +1221,13 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
 
         bwl::hal_conf_t hal_conf;
-        hal_conf.ap_acs_enabled     = config->channel() == 0;
-        hal_conf.certification_mode = config->certification_mode();
-        hal_conf.multi_ap_profile   = config->multi_ap_profile();
-        hal_conf.wpa_ctrl_path      = config->hostapd_ctrl_path_str();
-        m_clients_measurement_mode  = config->clients_measurement_mode();
-        m_bridge_iface              = config->bridge_iface().iface_name;
+        hal_conf.ap_acs_enabled        = config->channel() == 0;
+        hal_conf.certification_mode    = config->certification_mode();
+        hal_conf.multi_ap_profile      = config->multi_ap_profile();
+        hal_conf.enable_dpp_onboarding = config->enable_dpp_onboarding();
+        hal_conf.wpa_ctrl_path         = config->hostapd_ctrl_path_str();
+        m_clients_measurement_mode     = config->clients_measurement_mode();
+        m_bridge_iface                 = config->bridge_iface().iface_name;
 
         for (size_t index = 0; index < config->monitored_vap_ifaces_size(); ++index) {
             auto monitored_vap = config->monitored_vap_ifaces(index);

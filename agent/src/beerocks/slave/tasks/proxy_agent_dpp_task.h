@@ -29,10 +29,16 @@ private:
     /**
      * @brief Forward DPP CCE Indication to all local AP managers.
      *
-     * Still required for FEAT-68: Controller decides CCE advertise/withdraw;
-     * Agent applies it on fronthaul beacons via ap_manager / HAL.
+     * When DPP onboarding is disabled the message is not forwarded, and an ENABLE
+     * is answered with an Error Response (reason 0x0D, EasyMesh 6.1 section 5.3.4).
      */
     void handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    /**
+     * @brief Send an Error Response with a Profile-2 Error Code TLV, reason
+     * DPP_ONBOARDING_NOT_SUPPORTED (0x0D), to the Controller.
+     */
+    void send_dpp_onboarding_not_supported_error();
 
     /**
      * @brief Route a Proxied Encap DPP message on the OTA (ap_manager) path.
