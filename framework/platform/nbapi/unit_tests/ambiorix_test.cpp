@@ -8,6 +8,7 @@
 
 #include <ambiorix_impl.h>
 #include <bcl/beerocks_event_loop_mock.h>
+#include <tlvf/tlvftypes.h>
 
 #include <amxb/amxb.h>
 #include <amxb/amxb_be.h>
@@ -15,6 +16,7 @@
 #include <amxd/amxd_object_parameter.h>
 
 #include "amxb_mock.h"
+#include <functional>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <memory>
@@ -34,7 +36,11 @@ constexpr auto g_param_path_unknown    = "Test_Unknown";
 constexpr auto g_param_path            = "Test.Container";
 constexpr auto g_param_strings_path    = "Test.Strings";
 constexpr auto g_param_strings_search  = ".[String == '%s'].";
+constexpr auto g_param_name_int8       = "Int8";
+constexpr auto g_param_name_int16      = "Int16";
 constexpr auto g_param_name_int32      = "Int32";
+constexpr auto g_param_name_uint8      = "Uint8";
+constexpr auto g_param_name_uint16     = "Uint16";
 constexpr auto g_param_name_uint32     = "Uint32";
 constexpr auto g_param_name_int64      = "Int64";
 constexpr auto g_param_name_uint64     = "Uint64";
@@ -60,7 +66,11 @@ constexpr auto g_odl_contents          = "%config {\n"
                                 "        object Container {\n"
                                 "            %read-only string String = \"\";\n"
                                 "            %read-only datetime Datetime;\n"
+                                "            %read-only int8 Int8 = -1;\n"
+                                "            %read-only int16 Int16 = -1;\n"
                                 "            %read-only int32 Int32 = -1;\n"
+                                "            %read-only uint8 Uint8 = 1;\n"
+                                "            %read-only uint16 Uint16 = 1;\n"
                                 "            %read-only uint32 Uint32 = 1;\n"
                                 "            %read-only int64 Int64 = -1;\n"
                                 "            %read-only uint64 Uint64 = 1;\n"
@@ -336,6 +346,228 @@ TEST_F(AmbiorixTestSetterDouble, set_uint32_should_succeed)
 TEST_F(AmbiorixTestSetterDouble, set_uint32_should_fail)
 {
     set_should_fail(g_param_name_unknown, new_value);
+}
+
+/*
+ * AmbiorixTransImpl tests
+ * The constructor is private; transactions are obtained via AmbiorixImpl::create_transaction().
+ */
+TEST_F(AmbiorixTest, create_transaction_should_succeed)
+{
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+}
+
+TEST_F(AmbiorixTest, create_transaction_should_fail)
+{
+    auto trans = m_ambiorix->create_transaction(g_param_path_unknown);
+    EXPECT_EQ(trans, nullptr);
+}
+
+TEST_F(AmbiorixTest, transaction_apply_without_changes_should_succeed)
+{
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+    EXPECT_TRUE(trans->apply());
+}
+
+TEST_F(AmbiorixTest, transaction_apply_twice_should_fail)
+{
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+    EXPECT_TRUE(trans->apply());
+    // apply() cleans the transaction; a second apply must fail
+    EXPECT_FALSE(trans->apply());
+}
+
+TEST_F(AmbiorixTest, transaction_set_string_should_succeed)
+{
+    amxd_object_t *obj = find_object(g_param_path);
+    ASSERT_TRUE(obj);
+    EXPECT_EQ(amxd_object_set_cstring_t(obj, g_param_name_string, g_param_value_bar),
+              amxd_status_ok);
+
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+    EXPECT_TRUE(trans->set(g_param_name_string, std::string(g_param_value_foo)));
+    EXPECT_TRUE(trans->apply());
+
+    amxd_status_t status;
+    char *value = amxd_object_get_cstring_t(obj, g_param_name_string, &status);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_STREQ(value, g_param_value_foo);
+    free(value);
+}
+
+TEST_F(AmbiorixTest, transaction_set_mac_should_succeed)
+{
+    constexpr auto mac_str = "aa:bb:cc:dd:ee:ff";
+    const sMacAddr mac     = tlvf::mac_from_string(mac_str);
+
+    amxd_object_t *obj = find_object(g_param_path);
+    ASSERT_TRUE(obj);
+
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+    EXPECT_TRUE(trans->set(g_param_name_string, mac));
+    EXPECT_TRUE(trans->apply());
+
+    amxd_status_t status;
+    char *value = amxd_object_get_cstring_t(obj, g_param_name_string, &status);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_STREQ(value, mac_str);
+    free(value);
+}
+
+TEST_F(AmbiorixTest, transaction_set_multiple_params_should_succeed)
+{
+    amxd_object_t *obj = find_object(g_param_path);
+    ASSERT_TRUE(obj);
+
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+    EXPECT_TRUE(trans->set(g_param_name_string, std::string(g_param_value_baz)));
+    EXPECT_TRUE(trans->set(g_param_name_int32, static_cast<int32_t>(new_value)));
+    EXPECT_TRUE(trans->set(g_param_name_uint32, static_cast<uint32_t>(new_value)));
+    EXPECT_TRUE(trans->set(g_param_name_bool, true));
+    EXPECT_TRUE(trans->set(g_param_name_double, 12.5));
+    EXPECT_TRUE(trans->apply());
+
+    amxd_status_t status;
+    char *str_value = amxd_object_get_cstring_t(obj, g_param_name_string, &status);
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_STREQ(str_value, g_param_value_baz);
+    free(str_value);
+
+    EXPECT_EQ(amxd_object_get_int32_t(obj, g_param_name_int32, &status),
+              static_cast<int32_t>(new_value));
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_EQ(amxd_object_get_uint32_t(obj, g_param_name_uint32, &status),
+              static_cast<uint32_t>(new_value));
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_TRUE(amxd_object_get_bool(obj, g_param_name_bool, &status));
+    EXPECT_EQ(status, amxd_status_ok);
+    EXPECT_DOUBLE_EQ(amxd_object_get_double(obj, g_param_name_double, &status), 12.5);
+    EXPECT_EQ(status, amxd_status_ok);
+}
+
+TEST_F(AmbiorixTest, transaction_set_unknown_param_apply_should_fail)
+{
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+    // Queuing an unknown parameter typically succeeds; applying the transaction must fail.
+    EXPECT_TRUE(trans->set(g_param_name_unknown, std::string(g_param_value_foo)));
+    EXPECT_FALSE(trans->apply());
+}
+
+template <class T> class AmbiorixTransTestSetter : public AmbiorixTest {
+protected:
+    using getter_t = std::function<T(amxd_object_t *, const char *name, amxd_status_t *)>;
+    void set_should_succeed(const std::string &parameter_name, T new_value, getter_t getter)
+    {
+        amxd_object_t *obj = find_object(g_param_path);
+        ASSERT_TRUE(obj);
+
+        auto trans = m_ambiorix->create_transaction(g_param_path);
+        ASSERT_NE(trans, nullptr);
+        EXPECT_TRUE(trans->set(parameter_name, new_value));
+        EXPECT_TRUE(trans->apply());
+
+        amxd_status_t status;
+        T value = getter(obj, parameter_name.c_str(), &status);
+        EXPECT_EQ(status, amxd_status_ok);
+        EXPECT_EQ(value, new_value);
+    }
+};
+
+class AmbiorixTransTestSetterInt32 : public AmbiorixTransTestSetter<int32_t> {
+};
+TEST_F(AmbiorixTransTestSetterInt32, set_int32_should_succeed)
+{
+    set_should_succeed(g_param_name_int32, static_cast<int32_t>(new_value),
+                       amxd_object_get_int32_t);
+}
+
+class AmbiorixTransTestSetterUint32 : public AmbiorixTransTestSetter<uint32_t> {
+};
+TEST_F(AmbiorixTransTestSetterUint32, set_uint32_should_succeed)
+{
+    set_should_succeed(g_param_name_uint32, static_cast<uint32_t>(new_value),
+                       amxd_object_get_uint32_t);
+}
+
+class AmbiorixTransTestSetterInt64 : public AmbiorixTransTestSetter<int64_t> {
+};
+TEST_F(AmbiorixTransTestSetterInt64, set_int64_should_succeed)
+{
+    set_should_succeed(g_param_name_int64, static_cast<int64_t>(new_value),
+                       amxd_object_get_int64_t);
+}
+
+class AmbiorixTransTestSetterUint64 : public AmbiorixTransTestSetter<uint64_t> {
+};
+TEST_F(AmbiorixTransTestSetterUint64, set_uint64_should_succeed)
+{
+    set_should_succeed(g_param_name_uint64, static_cast<uint64_t>(new_value),
+                       amxd_object_get_uint64_t);
+}
+
+class AmbiorixTransTestSetterBool : public AmbiorixTransTestSetter<bool> {
+};
+TEST_F(AmbiorixTransTestSetterBool, set_bool_should_succeed)
+{
+    set_should_succeed(g_param_name_bool, true, amxd_object_get_bool);
+}
+
+class AmbiorixTransTestSetterDouble : public AmbiorixTransTestSetter<double> {
+};
+TEST_F(AmbiorixTransTestSetterDouble, set_double_should_succeed)
+{
+    set_should_succeed(g_param_name_double, 42.5, amxd_object_get_double);
+}
+
+TEST_F(AmbiorixTest, transaction_set_float_should_succeed)
+{
+    amxd_object_t *obj = find_object(g_param_path);
+    ASSERT_TRUE(obj);
+
+    auto trans = m_ambiorix->create_transaction(g_param_path);
+    ASSERT_NE(trans, nullptr);
+    EXPECT_TRUE(trans->set(g_param_name_double, 3.5f));
+    EXPECT_TRUE(trans->apply());
+
+    amxd_status_t status;
+    EXPECT_FLOAT_EQ(static_cast<float>(amxd_object_get_double(obj, g_param_name_double, &status)),
+                    3.5f);
+    EXPECT_EQ(status, amxd_status_ok);
+}
+
+class AmbiorixTransTestSetterInt8 : public AmbiorixTransTestSetter<int8_t> {
+};
+TEST_F(AmbiorixTransTestSetterInt8, set_int8_should_succeed)
+{
+    set_should_succeed(g_param_name_int8, static_cast<int8_t>(-7), amxd_object_get_int8_t);
+}
+
+class AmbiorixTransTestSetterInt16 : public AmbiorixTransTestSetter<int16_t> {
+};
+TEST_F(AmbiorixTransTestSetterInt16, set_int16_should_succeed)
+{
+    set_should_succeed(g_param_name_int16, static_cast<int16_t>(-1234), amxd_object_get_int16_t);
+}
+
+class AmbiorixTransTestSetterUint8 : public AmbiorixTransTestSetter<uint8_t> {
+};
+TEST_F(AmbiorixTransTestSetterUint8, set_uint8_should_succeed)
+{
+    set_should_succeed(g_param_name_uint8, static_cast<uint8_t>(200), amxd_object_get_uint8_t);
+}
+
+class AmbiorixTransTestSetterUint16 : public AmbiorixTransTestSetter<uint16_t> {
+};
+TEST_F(AmbiorixTransTestSetterUint16, set_uint16_should_succeed)
+{
+    set_should_succeed(g_param_name_uint16, static_cast<uint16_t>(40000), amxd_object_get_uint16_t);
 }
 
 } // namespace
