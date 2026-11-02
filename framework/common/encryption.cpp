@@ -810,11 +810,17 @@ bool aes_siv_encrypt(const uint8_t *key, size_t key_len, const uint8_t *plain, s
     return true;
 }
 
+/**
+ * Authenticate and decrypt SIV-tag-prefixed ciphertext using a 32-, 48-, or 64-byte key
+ * and the supplied associated-data elements. Return true only after tag verification;
+ * a valid tag-only input produces empty plaintext.
+ */
 bool aes_siv_decrypt(const uint8_t *key, size_t key_len, const uint8_t *wrapped, size_t wrapped_len,
                      const uint8_t **ad, const size_t *ad_len, size_t ad_count,
                      std::vector<uint8_t> &plain)
 {
-    if (!key || !wrapped || wrapped_len <= k_aes_block_size ||
+    // Empty plaintext still carries a full SIV tag and must be authenticated below.
+    if (!key || !wrapped || wrapped_len < k_aes_block_size ||
         (key_len != 32 && key_len != 48 && key_len != 64)) {
         return false;
     }

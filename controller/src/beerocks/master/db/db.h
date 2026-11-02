@@ -2977,7 +2977,9 @@ public:
      *
      * @param hash Pointer to hash bytes (raw 32-byte or hex-encoded ASCII).
      * @param hash_len Length of the provided hash buffer.
-     * @param received_hex Normalized hex string for logging.
+     * @param[out] received_hex Decoded digest hex on match; otherwise hex of the
+     * supplied buffer for mismatch logging (including ASCII or terminator bytes).
+     * Cleared for null or zero-length input.
      * @return Pointer to the matching bootstrap entry, or nullptr.
      */
     const sDppBootstrappingInfo *dpp_chirp_hash_matches(const uint8_t *hash, size_t hash_len,

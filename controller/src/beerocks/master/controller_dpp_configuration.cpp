@@ -52,6 +52,10 @@ std::string plain_string_to_hex(const std::string &plain)
 
 std::string dpp_akm_from_bss_info(const wireless_utils::sBssInfoConf &bss_info)
 {
+    // INVALID is 0xffff, not a supported combination of PSK and SAE bits.
+    if (bss_info.authentication_type == WSC::eWscAuth::WSC_AUTH_INVALID) {
+        return {};
+    }
     // WSC auth is a bitmask (e.g. WPA3-Personal-Transition = WPA2PSK|SAE). Do not
     // switch on the combined value — that misses transition and falls through empty.
     const auto auth          = static_cast<uint16_t>(bss_info.authentication_type);
