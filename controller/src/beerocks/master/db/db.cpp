@@ -10865,21 +10865,22 @@ bool dpp_hash_buffer_matches_pkhash(const uint8_t *hash, size_t hash_len,
         return false;
     }
 
-    std::string raw;
+    // Hash octets must remain unsigned, including SHA-256 bytes above 0x7f.
+    std::vector<uint8_t> raw;
     std::string hex_candidate(reinterpret_cast<const char *>(hash), hash_len);
     if (!hex_candidate.empty() && hex_candidate.back() == '\0') {
         hex_candidate.pop_back();
     }
 
     if (hex_candidate.size() == pkhash.size() * 2 && is_hex_string(hex_candidate)) {
-        raw = beerocks::string_utils::hex_to_bytes<std::string>(hex_candidate);
+        raw = beerocks::string_utils::hex_to_bytes<std::vector<uint8_t>>(hex_candidate);
     } else if (hash_len == pkhash.size() ||
                (hash_len == pkhash.size() + 1 && hash[hash_len - 1] == 0)) {
         size_t raw_len = hash_len;
         if (raw_len == pkhash.size() + 1 && hash[hash_len - 1] == 0) {
             raw_len -= 1;
         }
-        raw.assign(reinterpret_cast<const char *>(hash), raw_len);
+        raw.assign(hash, hash + raw_len);
     } else {
         return false;
     }
@@ -10888,8 +10889,7 @@ bool dpp_hash_buffer_matches_pkhash(const uint8_t *hash, size_t hash_len,
         return false;
     }
 
-    received_hex = beerocks::string_utils::bytes_to_hex_string(
-        reinterpret_cast<const uint8_t *>(raw.data()), raw.size());
+    received_hex = beerocks::string_utils::bytes_to_hex_string(raw.data(), raw.size());
 
     return std::equal(raw.begin(), raw.end(), pkhash.begin());
 }

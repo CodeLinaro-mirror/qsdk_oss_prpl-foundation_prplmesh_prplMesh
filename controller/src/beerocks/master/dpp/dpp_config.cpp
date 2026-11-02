@@ -220,6 +220,12 @@ bool build_dpp_configuration_object(DppKey *csign_key, const std::string &pp_key
                                           config_object_json, error);
 }
 
+// PUBLIC_INTERFACE
+/**
+ * Parse roles and optional backhaul metadata from direct objects or nested bSTAList entries.
+ * Outputs are reset before parsing; null optional outputs are ignored. Empty input succeeds,
+ * malformed JSON fails, and only positive integer link counts set the maximum-links flag.
+ */
 bool parse_dpp_config_request_objects(const std::string &json_blob,
                                       std::vector<std::string> &net_roles,
                                       std::string *backhaul_akm, bool *bsta_max_links,
@@ -254,11 +260,6 @@ bool parse_dpp_config_request_objects(const std::string &json_blob,
         if (json_object_object_get_ex(obj, "netRole", &net_role_obj) &&
             json_object_get_type(net_role_obj) == json_type_string) {
             net_roles.emplace_back(json_object_get_string(net_role_obj));
-        }
-
-        json_object *bsta_list = nullptr;
-        if (!json_object_object_get_ex(obj, "bSTAList", &bsta_list)) {
-            return;
         }
 
         auto parse_bsta = [&](json_object *bsta_obj) {
@@ -304,6 +305,17 @@ bool parse_dpp_config_request_objects(const std::string &json_blob,
                 }
             }
         };
+
+        // A request may carry the backhaul STA object directly, without bSTAList.
+        if (net_role_obj && json_object_get_type(net_role_obj) == json_type_string &&
+            std::string(json_object_get_string(net_role_obj)) == "mapBackhaulSta") {
+            parse_bsta(obj);
+        }
+
+        json_object *bsta_list = nullptr;
+        if (!json_object_object_get_ex(obj, "bSTAList", &bsta_list)) {
+            return;
+        }
 
         if (json_object_get_type(bsta_list) == json_type_array) {
             const int len = json_object_array_length(bsta_list);
