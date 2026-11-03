@@ -424,6 +424,7 @@ void Controller::start_mandatory_tasks()
     auto dpp_onboarding = std::make_shared<dpp_onboarding_task>(database, m_dpp_protocol_task);
     LOG_IF(!m_task_pool.add_task(dpp_onboarding), FATAL) << "Failed adding dpp_onboarding_task!";
     m_dpp_onboarding_task_id = dpp_onboarding->id;
+    m_dpp_onboarding_task    = dpp_onboarding;
     m_dpp_protocol_task->configure_onboarding_notifier(m_task_pool, m_dpp_onboarding_task_id);
 }
 
@@ -5147,6 +5148,14 @@ void Controller::send_dpp_cce_indication(bool advertise_cce)
     son_actions::start_dpp_cce_indication_task(database, cmdu_tx, m_task_pool, advertise_cce);
 }
 
+void Controller::send_dpp_cce_indication_to_agent(const sMacAddr &al_mac, bool advertise_cce)
+{
+    LOG(DEBUG) << "Queue DPP CCE Indication task, advertise_cce=" << advertise_cce
+               << " agent=" << al_mac;
+    son_actions::start_dpp_cce_indication_task(database, cmdu_tx, m_task_pool, advertise_cce,
+                                               al_mac);
+}
+
 void Controller::notify_dpp_bootstrapping_trigger(const std::string &reason)
 {
     if (m_dpp_onboarding_task_id < 0) {
@@ -5923,6 +5932,16 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
     if (!handle_tlv_profile2_ap_capability(agent, cmdu_rx)) {
         LOG(ERROR) << "Profile2 AP Capability is not supplied for Agent " << src_mac
                    << " with profile enum " << agent->profile;
+    }
+
+    // AC-07 / EM 5.3.4: while the Controller wants the CCE advertised (un-onboarded URI pending),
+    // every AP Capability Report with the DPP Onboarding bit re-sends ENABLE to that agent. This
+    // covers new joins, rejoins, agent restarts and runtime EnableDPPOnboarding changes.
+    if (agent->dpp_onboarding_support && m_dpp_onboarding_task &&
+        m_dpp_onboarding_task->is_cce_desired()) {
+        LOG(INFO) << "CCE desired; AP Capability Report from " << src_mac
+                  << " has DPP Onboarding bit, sending DPP CCE Indication ENABLE";
+        m_dpp_onboarding_task->send_cce_to_agent(agent->al_mac);
     }
 
     if (!handle_tlv_profile2_ap_radio_advanced_capabilities(*agent, cmdu_rx)) {

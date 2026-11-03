@@ -10924,6 +10924,8 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
 
 bool db::has_dpp_bootstrap_info() const { return !dpp_bootstrap_info_map.empty(); }
 
+size_t db::get_dpp_bootstrap_info_count() const { return dpp_bootstrap_info_map.size(); }
+
 const db::sDppBootstrappingInfo *db::get_sole_dpp_bootstrap_info() const
 {
     if (dpp_bootstrap_info_map.size() != 1) {

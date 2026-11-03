@@ -391,6 +391,11 @@ public:
     bool has_dpp_bootstrap_info() const;
 
     /**
+     * @brief Number of ProvisionedDPP / bootstrap URI entries currently stored.
+     */
+    size_t get_dpp_bootstrap_info_count() const;
+
+    /**
      * @brief Return the only bootstrap entry when the store has exactly one URI.
      *
      * Used for Direct Encap onboarding when Enrollee MAC is not available from chirp.

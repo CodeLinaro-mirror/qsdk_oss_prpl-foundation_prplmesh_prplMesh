@@ -44,6 +44,7 @@
 
 namespace son {
 class dpp_protocol_task;
+class dpp_onboarding_task;
 class Controller {
 
 public:
@@ -128,6 +129,14 @@ public:
      * @param advertise_cce true to enable CCE advertisement in beacons and probe responses, false to disable.
      */
     void send_dpp_cce_indication(bool advertise_cce);
+
+    /**
+     * @brief Send DPP CCE Indication to a single agent (AC-07: (re)join, restart, capability change).
+     *
+     * @param al_mac AL MAC of the target agent.
+     * @param advertise_cce true for ENABLE, false for DISABLE.
+     */
+    void send_dpp_cce_indication_to_agent(const sMacAddr &al_mac, bool advertise_cce);
 
     /**
      * @brief Notify dpp_onboarding_task that bootstrap URI store changed (add/update/remove).
@@ -766,6 +775,7 @@ private:
     // TODO It can be removed after cert_cmdu_tx usage is removed (PPM-1130).
     std::shared_ptr<LinkMetricsTask> m_link_metrics_task;
     std::shared_ptr<dpp_protocol_task> m_dpp_protocol_task;
+    std::shared_ptr<dpp_onboarding_task> m_dpp_onboarding_task;
     int m_dpp_onboarding_task_id = -1;
 
     /**

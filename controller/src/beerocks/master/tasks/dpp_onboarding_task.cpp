@@ -51,6 +51,9 @@ std::string dpp_onboarding_task::consume_reason(void *obj) { return take_reason(
 
 void dpp_onboarding_task::enable_cce()
 {
+    // Desired state is tracked even if the indication cannot be sent now; agents get it from
+    // their next AP Capability Report (send_cce_to_agent).
+    cce_advertised       = true;
     auto *controller_ctx = database.get_controller_ctx();
     if (!controller_ctx) {
         TASK_LOG(ERROR) << "No controller context for DPP CCE Indication enable";
@@ -59,11 +62,11 @@ void dpp_onboarding_task::enable_cce()
 
     TASK_LOG(INFO) << "Sending DPP CCE Indication ENABLE";
     controller_ctx->send_dpp_cce_indication(true);
-    cce_advertised = true;
 }
 
 void dpp_onboarding_task::disable_cce()
 {
+    cce_advertised       = false;
     auto *controller_ctx = database.get_controller_ctx();
     if (!controller_ctx) {
         TASK_LOG(ERROR) << "No controller context for DPP CCE Indication disable";
@@ -72,7 +75,20 @@ void dpp_onboarding_task::disable_cce()
 
     TASK_LOG(INFO) << "Sending DPP CCE Indication DISABLE";
     controller_ctx->send_dpp_cce_indication(false);
-    cce_advertised = false;
+}
+
+void dpp_onboarding_task::send_cce_to_agent(const sMacAddr &al_mac)
+{
+    if (!cce_advertised) {
+        return;
+    }
+    auto *controller_ctx = database.get_controller_ctx();
+    if (!controller_ctx) {
+        TASK_LOG(ERROR) << "No controller context for DPP CCE Indication to agent " << al_mac;
+        return;
+    }
+    TASK_LOG(INFO) << "Sending DPP CCE Indication ENABLE to agent " << al_mac;
+    controller_ctx->send_dpp_cce_indication_to_agent(al_mac, true);
 }
 
 void dpp_onboarding_task::reset_active_session()
@@ -134,8 +150,9 @@ void dpp_onboarding_task::finish_failure(const std::string &reason, bool retry)
     reset_active_session();
     state = State::IDLE;
     clear_pending_events();
-    // C-8: withdraw CCE on abort; IDLE re-ENABLE if URI is still provisioned for retry.
-    disable_cce();
+    // STEP-06: CCE stays desired while the URI is still un-onboarded; only success or URI
+    // removal sends DISABLE. Agents that rejoin meanwhile get ENABLE from their AP Capability
+    // Report (controller.cpp).
     if (retry) {
         schedule_retry(std::chrono::steady_clock::now());
     } else {
@@ -179,6 +196,17 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
         disable_cce();
         state = State::IDLE;
         return true;
+    }
+
+    // G3-19: Phase 2 runs one onboarding session at a time; log when a further URI is added
+    // while one is still pending.
+    const bool was_pending = !last_bootstrap_fingerprint.empty() &&
+                             last_bootstrap_fingerprint != last_completed_fingerprint;
+    const size_t uri_count = database.get_dpp_bootstrap_info_count();
+    if (uri_count > 1) {
+        TASK_LOG(WARNING) << "DPP bootstrap store holds " << uri_count << " URIs"
+                          << (was_pending ? " while one is still pending" : "")
+                          << "; Phase 2 onboards one Enrollee at a time (G3-19)";
     }
 
     // M-13: URI replace / update abandons the prior Configurator session and completed mark
