@@ -137,6 +137,14 @@ endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${CMAKE_C_FLAGS_RELEASE}")
 
+# Probe each stack page when a large frame spans multiple guard pages. This does not increase the
+# available stack, but prevents a large allocation from skipping over the guard region.
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-fstack-clash-protection" CXX_COMPILER_SUPPORTS_STACK_CLASH_PROTECTION)
+if(CXX_COMPILER_SUPPORTS_STACK_CLASH_PROTECTION)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-clash-protection")
+endif()
+
 # Linker Options
 # - Setting the "rpath-link" linker variable to help the linker resolve secondery dependecies
 #   (Libraries that are not directly referenced by the executable, but a linked library)

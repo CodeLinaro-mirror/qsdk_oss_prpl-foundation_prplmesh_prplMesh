@@ -22,6 +22,7 @@ using namespace beerocks::transport::messages;
 
 static const uint8_t ieee1905_max_message_version = 0x00;
 constexpr sMacAddr Ieee1905Transport::ieee1905_multicast_addr;
+const int Ieee1905Transport::kIeee1905FragmentationThreashold;
 const std::set<uint16_t> Ieee1905Transport::Packet::reliable_multicast_msg_types = {
     static_cast<uint16_t>(ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE),
     static_cast<uint16_t>(ieee1905_1::eMessageType::ASSOCIATION_STATUS_NOTIFICATION_MESSAGE)};
@@ -476,7 +477,20 @@ bool Ieee1905Transport::fragment_and_send_packet_to_network_interface(unsigned i
             }
             if (nextTlv->size() > kIeee1905FragmentationThreashold) {
                 // this TLV is too large to fit in any fragment
-                MAPF_WARN("bad packet format - oversized TLV found.");
+                const auto *cmdu_header =
+                    reinterpret_cast<const Ieee1905CmduHeader *>(packet.payload.iov_base);
+                const auto tlv_offset = reinterpret_cast<const uint8_t *>(nextTlv) -
+                                        reinterpret_cast<const uint8_t *>(packet.payload.iov_base);
+                const auto tlv_size = nextTlv->size();
+                MAPF_WARN("bad packet format - oversized TLV found: CMDU type=0x"
+                          << std::hex << ntohs(cmdu_header->messageType) << ", MID=0x"
+                          << ntohs(cmdu_header->messageId) << std::dec
+                          << ", TLV type=" << int(nextTlv->type())
+                          << ", TLV payload length=" << tlv_size - sizeof(Tlv)
+                          << ", TLV total size=" << tlv_size << ", TLV offset=" << tlv_offset
+                          << ", remaining CMDU bytes=" << remainingPacketLength
+                          << ", current fragment bytes=" << fragmentTlvsLength
+                          << ", fragmentation threshold=" << kIeee1905FragmentationThreashold);
                 return false;
             }
             if (int(nextTlv->size()) > remainingPacketLength) {

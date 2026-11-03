@@ -9,6 +9,7 @@
 #ifndef MAP_IEEE1905_TRANSPORT_MESSAGES_H_
 #define MAP_IEEE1905_TRANSPORT_MESSAGES_H_
 
+#include <bcl/beerocks_defines.h>
 #include <bcl/network/socket.h>
 #include <mapf/common/err.h>
 #include <tlvf/common/sMacAddr.h>
@@ -87,7 +88,7 @@ public:
     // Enum AutoPrint generated code snippet end
 
     static constexpr uint32_t kMessageMagic  = 0xB8C16F47;
-    static constexpr uint32_t kMaxCmduLength = 8192;
+    static constexpr uint32_t kMaxCmduLength = beerocks::message::MESSAGE_BUFFER_LENGTH;
 
     // A transport frame carries both the CMDU and transport-specific metadata. Keep enough room
     // for the metadata without reducing the maximum CMDU size. The static assertion following
