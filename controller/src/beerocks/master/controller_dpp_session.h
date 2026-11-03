@@ -10,6 +10,7 @@
 #define _CONTROLLER_DPP_SESSION_H_
 
 #include <bcl/network/network_utils.h>
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -34,6 +35,8 @@ struct SessionState {
     bool configuration_response_sent = false;
     /** True when this session uses DIRECT_ENCAP_DPP_MESSAGE (logical Ethernet / M-8). */
     bool use_direct_encap = false;
+    /** When this session's Authentication Request was sent (chirp guard stale check). */
+    std::chrono::steady_clock::time_point auth_request_sent_at{};
 };
 
 } // namespace controller_dpp

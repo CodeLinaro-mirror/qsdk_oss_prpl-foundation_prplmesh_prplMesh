@@ -95,6 +95,26 @@ private:
                                          const db::sProxiedEncapDppMessage &message);
     bool send_direct_encap_dpp_to_agent(const sMacAddr &agent_mac,
                                         const db::sDirectEncapDppMessage &message);
+    /**
+     * @brief Send a 1905 ACK_MESSAGE (EasyMesh v6.1 section 17.1.32) with @a mid to @a dest_mac.
+     */
+    bool send_1905_ack(const sMacAddr &dest_mac, uint16_t mid);
+
+    /**
+     * @brief Chirp guard: one DPP session at a time, first Proxy Agent wins.
+     *
+     * An Enrollee chirp is usually heard by several Agents (for example the Controller's
+     * co-located Agent and a daisy-chained Agent), so the same URI arrives in several
+     * Chirp Notifications within milliseconds. Restarting the session for each of them
+     * sends a second Authentication Request with a new nonce through another Proxy Agent;
+     * the Enrollee answers only the first one and the exchange fails.
+     *
+     * @return true if the chirp must be ignored because a session is in progress. A
+     * session that got no Authentication Response within a few seconds is stale and
+     * may be taken over (returns false).
+     */
+    bool chirp_blocked_by_active_session(const sMacAddr &src_mac,
+                                         const db::sDppBootstrappingInfo &info) const;
     void push_dpp_onboarding_task_event(int event_type, const std::string &reason = {});
     db &m_database;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <bcl/beerocks_string_utils.h>
 #include <bcl/network/network_utils.h>
+#include <chrono>
 #include <easylogging++.h>
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
@@ -32,6 +33,11 @@ constexpr uint8_t k_dpp_status_ok = 0;
 // uses uint8_t (see switch below) to avoid -Wswitch on the TLV enum.
 constexpr uint8_t k_dpp_connection_status_result = 12;
 
+// Chirp guard: an Authentication Response normally returns well within one second over
+// a 1905 relay. If none arrived after this long, the Proxy Agent or the Enrollee lost the
+// exchange and a new chirp may restart the session (through any Proxy Agent).
+constexpr auto k_auth_response_wait = std::chrono::seconds(5);
+
 std::string dpp_prefix_hex(const uint8_t *p, size_t len)
 {
     if (!p || len == 0) {
@@ -39,6 +45,30 @@ std::string dpp_prefix_hex(const uint8_t *p, size_t len)
     }
     constexpr size_t k_prefix = 12;
     return beerocks::string_utils::bytes_to_hex_string(p, std::min(k_prefix, len));
+}
+
+// GAS Action codes (IEEE 802.11 Table 9-307) from Easy Connect v3.0 Tables 61 and 63.
+constexpr uint8_t k_gas_initial_response  = 0x0B;
+constexpr uint8_t k_gas_comeback_response = 0x0D;
+
+// Controller+Agent on one device (shared AL MAC): the 1905 local bus delivers our own
+// downlink PROXIED_ENCAP back to us. A Proxy Agent never sends these uplink: Auth
+// Request/Confirm (Easy Connect Table 35 types 0/2) are Controller->Enrollee only, and a
+// GAS Initial/Comeback Response is the Configurator's own Configuration Response.
+bool is_own_downlink_echo(wfa_map::tlv1905EncapDpp &encap)
+{
+    using eFrameType      = wfa_map::tlv1905EncapDpp::eFrameType;
+    const auto frame_type = static_cast<uint8_t>(encap.frame_type());
+    if (frame_type == static_cast<uint8_t>(eFrameType::DPP_AUTHENTICATION_REQUEST) ||
+        frame_type == static_cast<uint8_t>(eFrameType::DPP_AUTHENTICATION_CONFIRM)) {
+        return true;
+    }
+    if (frame_type != static_cast<uint8_t>(eFrameType::DPP_GAS_FRAME) ||
+        !encap.frame_flags().dpp_frame_indicator || encap.encapsulated_frame_length() == 0) {
+        return false;
+    }
+    const uint8_t *frame = encap.encapsulated_frame();
+    return frame && (frame[0] == k_gas_initial_response || frame[0] == k_gas_comeback_response);
 }
 } // namespace
 
@@ -65,6 +95,40 @@ void dpp_protocol_task::push_dpp_onboarding_task_event(int event_type, const std
     }
 
     m_task_pool->push_event(m_dpp_onboarding_task_id, event_type, new std::string(reason));
+}
+
+bool dpp_protocol_task::chirp_blocked_by_active_session(const sMacAddr &src_mac,
+                                                        const db::sDppBootstrappingInfo &info) const
+{
+    // No exchange in flight: the first acceptable chirp starts one. reset_session() (success,
+    // failure, timeout, URI change) clears m_configurator and m_matched_bootstrap.
+    if (!m_configurator.authentication_started() || !m_matched_bootstrap) {
+        return false;
+    }
+
+    // Before the Authentication Response a lost exchange may be taken over after a while.
+    // Once authenticated the session is kept until the onboarding task ends it.
+    if (!m_configurator.authentication_success() && !m_session.use_direct_encap) {
+        const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - m_session.auth_request_sent_at);
+        if (waited >= k_auth_response_wait) {
+            LOG(WARNING) << "DPP: no Authentication Response through Proxy Agent "
+                         << m_session.proxy_agent << " after " << waited.count()
+                         << " ms; restarting for alias=" << info.alias << " through " << src_mac;
+            return false;
+        }
+    }
+
+    if (m_matched_bootstrap->alias == info.alias) {
+        LOG(INFO) << "Ignoring DPP chirp from agent " << src_mac
+                  << ": bootstrapping URI alias=" << info.alias
+                  << " already in progress through Proxy Agent " << m_session.proxy_agent;
+    } else {
+        LOG(INFO) << "Deferring DPP chirp from agent " << src_mac << " for alias=" << info.alias
+                  << ": session for alias=" << m_matched_bootstrap->alias
+                  << " in progress through Proxy Agent " << m_session.proxy_agent;
+    }
+    return true;
 }
 
 void dpp_protocol_task::reset_session()
@@ -100,6 +164,18 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
         return false;
     }
 
+    // Drop our own echo first, so it is neither acked nor processed as an uplink frame.
+    auto encap = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
+    if (encap && is_own_downlink_echo(*encap)) {
+        LOG(DEBUG) << "DPP: ignoring own downlink echo, tlv_frame_type="
+                   << int(static_cast<uint8_t>(encap->frame_type()));
+        return true;
+    }
+
+    // EasyMesh v6.1 section 5.3.4: ack every received Proxied Encap DPP message within one
+    // second, before processing it (also when it is rejected below).
+    send_1905_ack(src_mac, cmdu_rx.getMessageId());
+
     if (m_session.proxy_agent == beerocks::net::network_utils::ZERO_MAC ||
         src_mac != m_session.proxy_agent) {
         LOG(WARNING) << "PROXIED_ENCAP_DPP_MESSAGE from Agent " << src_mac
@@ -111,7 +187,6 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
         LOG(WARNING) << "Ignoring PROXIED_ENCAP_DPP_MESSAGE while Direct Encap session is active";
         return false;
     }
-    auto encap = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
     if (!encap) {
         LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE missing 1905 Encap DPP TLV";
         return false;
@@ -564,6 +639,10 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
             continue;
         }
 
+        if (chirp_blocked_by_active_session(src_mac, *matched_info)) {
+            continue;
+        }
+
         any_match                  = true;
         m_matched_bootstrap        = matched_info;
         m_session.proxy_agent      = src_mac;
@@ -586,6 +665,8 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
                 LOG(INFO) << "DPP URI has no M: Enrollee MAC";
             }
         }
+        // One Authentication Request per Chirp Notification: the first acceptable match wins.
+        break;
     }
 
     if (!any_match) {
@@ -696,6 +777,7 @@ bool dpp_protocol_task::send_dpp_authentication_request()
                                            "Failed sending DPP Authentication Request");
             return false;
         }
+        m_session.auth_request_sent_at = std::chrono::steady_clock::now();
         LOG(INFO) << "Controller DPP Authentication Request sent via Direct Encap to Agent "
                   << m_session.proxy_agent;
         return true;
@@ -743,6 +825,7 @@ bool dpp_protocol_task::send_dpp_authentication_request()
         return false;
     }
 
+    m_session.auth_request_sent_at = std::chrono::steady_clock::now();
     LOG(INFO) << "Controller DPP Authentication Request sent through Proxy Agent "
               << m_session.proxy_agent << " dest_sta=" << tlvf::mac_to_string(enrollee_mac);
     return true;
@@ -889,6 +972,22 @@ bool dpp_protocol_task::send_dpp_configuration_response(
     return true;
 }
 
+bool dpp_protocol_task::send_1905_ack(const sMacAddr &dest_mac, uint16_t mid)
+{
+    // 1905 Ack (EasyMesh v6.1 section 17.1.32) carries the MID of the acknowledged message.
+    if (!m_cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type ACK_MESSAGE failed";
+        return false;
+    }
+    if (!son_actions::send_cmdu_to_agent(dest_mac, m_cmdu_tx, m_database)) {
+        LOG(WARNING) << "Failed sending ACK_MESSAGE to " << dest_mac << " mid=" << std::hex << mid
+                     << std::dec;
+        return false;
+    }
+    LOG(DEBUG) << "DPP: sent ACK_MESSAGE to " << dest_mac << " mid=" << std::hex << mid << std::dec;
+    return true;
+}
+
 bool dpp_protocol_task::send_proxied_encap_dpp_to_agent(const sMacAddr &agent_mac,
                                                         const db::sProxiedEncapDppMessage &message)
 {
@@ -975,7 +1074,7 @@ bool dpp_protocol_task::send_direct_encap_dpp_to_agent(const sMacAddr &agent_mac
         return false;
     }
 
-    // EasyMesh Direct Encap: tlvDppMessage only — do not append Chirp Value TLV.
+    // EasyMesh Direct Encap: tlvDppMessage only - do not append Chirp Value TLV.
     return son_actions::send_cmdu_to_agent(agent_mac, m_cmdu_tx, m_database);
 }
 

@@ -21,6 +21,10 @@ namespace controller_dpp {
  * Expected layout (EasyMesh Proxied Encap / hostapd TCP):
  *   [Action 0x0A] Dialog Token | Adv Proto IE (0x6C...) | Query Len (LE16) | DPP attrs
  *
+ * Fallback (no Adv Proto layout): accepted as raw DPP attributes only if the data starts
+ * with a DPP attribute header (LE16 ID 0x10xx). GAS Response / Comeback frames
+ * (0x0B / 0x0C / 0x0D) are always rejected - they are never an uplink Configuration Request.
+ *
  * @param dialog_token Optional out; set when the Adv Proto layout parses cleanly.
  */
 bool extract_dpp_query_from_gas_encap(const std::vector<uint8_t> &encap,
