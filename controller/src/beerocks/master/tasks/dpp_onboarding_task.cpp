@@ -113,15 +113,10 @@ void dpp_onboarding_task::restart_for_bootstrap_trigger(const std::string &reaso
         TASK_LOG(INFO) << reason;
     }
 
-    // M-13 / M-15: drop active Configurator state; force fingerprint resync on next work().
-    reset_active_session();
-    state                      = State::IDLE;
+    // M-13 / M-15: drop active Configurator state and sync the URI store now. A resync deferred
+    // to the next work() would reset again a session started by a chirp received in between.
     last_bootstrap_fingerprint = std::string(1, '\0');
-    last_completed_fingerprint.clear();
-    failure_count = 0;
-    last_failure_reason.clear();
-    clear_pending_events();
-    next_retry_time = std::chrono::steady_clock::now();
+    sync_bootstrap_uri();
     wait_for(0);
 }
 
@@ -129,15 +124,19 @@ void dpp_onboarding_task::finish_success()
 {
     TASK_LOG(INFO) << "DPP onboarding completed successfully";
     reset_active_session();
-    last_completed_fingerprint = last_bootstrap_fingerprint;
-    state                      = State::IDLE;
-    failure_count              = 0;
+    state         = State::IDLE;
+    failure_count = 0;
     last_failure_reason.clear();
-    // Allow a later URI clear/replace (M-15) to start immediately without stale backoff.
+    // Allow the next pending URI or a later URI clear/replace (M-15) to start immediately.
     next_retry_time = std::chrono::steady_clock::now();
     clear_pending_events();
-    // C-8 / M-5: withdraw CCE advertisement when onboarding completes.
-    disable_cce();
+    // C-8 / M-5: withdraw CCE advertisement once no stored URI waits for onboarding.
+    // dpp_protocol_task marks the onboarded entry before CONF_RECEIVED.
+    if (database.has_pending_dpp_bootstrap_info()) {
+        TASK_LOG(INFO) << "Another stored DPP URI is not onboarded yet; CCE stays enabled";
+    } else {
+        disable_cce();
+    }
     wait_for(k_poll_interval_ms);
 }
 
@@ -188,7 +187,6 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
         TASK_LOG(INFO) << "DPP bootstrap URI store cleared";
         reset_active_session();
         last_bootstrap_fingerprint.clear();
-        last_completed_fingerprint.clear();
         failure_count = 0;
         last_failure_reason.clear();
         next_retry_time = std::chrono::steady_clock::now();
@@ -198,28 +196,28 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
         return true;
     }
 
-    // G3-19: Phase 2 runs one onboarding session at a time; log when a further URI is added
-    // while one is still pending.
-    const bool was_pending = !last_bootstrap_fingerprint.empty() &&
-                             last_bootstrap_fingerprint != last_completed_fingerprint;
+    // G3-19: one onboarding session at a time; stored URIs are onboarded one after another.
     const size_t uri_count = database.get_dpp_bootstrap_info_count();
     if (uri_count > 1) {
-        TASK_LOG(WARNING) << "DPP bootstrap store holds " << uri_count << " URIs"
-                          << (was_pending ? " while one is still pending" : "")
-                          << "; Phase 2 onboards one Enrollee at a time (G3-19)";
+        TASK_LOG(INFO) << "DPP bootstrap store holds " << uri_count
+                       << " URIs; onboarding one Enrollee at a time (G3-19)";
     }
 
-    // M-13: URI replace / update abandons the prior Configurator session and completed mark
-    // so a new Enrollee (or replaced URI) can onboard (M-15).
+    // M-13: URI replace / update abandons the prior Configurator session so a new Enrollee
+    // (or replaced URI, stored as not onboarded) can onboard (M-15).
     TASK_LOG(INFO) << "DPP bootstrap URI store updated (fingerprint changed); resetting session";
     reset_active_session();
     last_bootstrap_fingerprint = fingerprint;
-    last_completed_fingerprint.clear();
-    failure_count = 0;
+    failure_count              = 0;
     last_failure_reason.clear();
     next_retry_time = std::chrono::steady_clock::now();
     clear_pending_events();
-    enable_cce();
+    // STEP-06: CCE is desired while a stored URI is not onboarded yet.
+    if (database.has_pending_dpp_bootstrap_info()) {
+        enable_cce();
+    } else {
+        disable_cce();
+    }
     state = State::IDLE;
     return true;
 }
@@ -233,8 +231,8 @@ void dpp_onboarding_task::work()
         const std::string fingerprint = database.calculate_dpp_bootstrap_map_fingerprint();
         if (fingerprint != last_bootstrap_fingerprint) {
             sync_bootstrap_uri();
-            if (!fingerprint.empty()) {
-                // Immediately wait for Auth on the new URI (do not leave a gap in IDLE).
+            if (database.has_pending_dpp_bootstrap_info()) {
+                // Immediately wait for Auth on a pending URI (do not leave a gap in IDLE).
                 enter_wait_auth();
                 return;
             }
@@ -251,7 +249,6 @@ void dpp_onboarding_task::work()
         if (fingerprint.empty()) {
             reset_active_session();
             last_bootstrap_fingerprint.clear();
-            last_completed_fingerprint.clear();
             failure_count = 0;
             last_failure_reason.clear();
             next_retry_time = std::chrono::steady_clock::now();
@@ -261,7 +258,9 @@ void dpp_onboarding_task::work()
 
         last_bootstrap_fingerprint = fingerprint;
 
-        if (fingerprint == last_completed_fingerprint) {
+        // Per entry: idle while every stored URI is onboarded. dpp_protocol_task sets the flag
+        // on Configuration Result OK and clears it when an absent Enrollee chirps again (D-15).
+        if (!database.has_pending_dpp_bootstrap_info()) {
             wait_for(k_poll_interval_ms);
             return;
         }
@@ -339,6 +338,13 @@ void dpp_onboarding_task::handle_event(int event_type, void *obj)
     case BOOTSTRAP_TRIGGERED:
         restart_for_bootstrap_trigger(reason.empty() ? "DPP bootstrapping trigger updated"
                                                      : reason);
+        break;
+    case AUTH_STARTED:
+        // Time the Authentication wait from this request: a request restarted by a later chirp
+        // must not inherit the deadline armed when WAIT_AUTH was first entered.
+        if (state == State::IDLE || state == State::WAIT_AUTH) {
+            enter_wait_auth();
+        }
         break;
     default:
         break;

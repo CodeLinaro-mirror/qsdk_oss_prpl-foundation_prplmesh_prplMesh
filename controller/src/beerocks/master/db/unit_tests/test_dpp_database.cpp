@@ -759,7 +759,7 @@ TEST_F(DppDatabaseTest, PolicyCredentialFormatsAndHiddenSsid)
                 bss.authentication_type      = auth;
                 bss.network_key              = key;
                 bss.hidden_ssid              = hidden ? WSC::eWscVendorExtHiddenSsid::ENABLED
-                                                      : WSC::eWscVendorExtHiddenSsid::DISABLED;
+                                         : WSC::eWscVendorExtHiddenSsid::DISABLED;
                 database->add_configured_bss_info(ruid, bss);
                 dpp::DppStaConfiguration sta;
                 dpp::DppBackhaulStaConfiguration backhaul;

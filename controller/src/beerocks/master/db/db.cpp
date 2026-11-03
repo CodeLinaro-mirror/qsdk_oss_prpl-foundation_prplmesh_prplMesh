@@ -10926,6 +10926,16 @@ bool db::has_dpp_bootstrap_info() const { return !dpp_bootstrap_info_map.empty()
 
 size_t db::get_dpp_bootstrap_info_count() const { return dpp_bootstrap_info_map.size(); }
 
+bool db::has_pending_dpp_bootstrap_info() const
+{
+    for (const auto &entry : dpp_bootstrap_info_map) {
+        if (!entry.second.onboarded) {
+            return true;
+        }
+    }
+    return false;
+}
+
 const db::sDppBootstrappingInfo *db::get_sole_dpp_bootstrap_info() const
 {
     if (dpp_bootstrap_info_map.size() != 1) {

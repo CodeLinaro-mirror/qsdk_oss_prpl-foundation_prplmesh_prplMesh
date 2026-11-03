@@ -195,7 +195,7 @@ void son_actions::start_dpp_cce_indication_task(db &database, ieee1905_1::CmduMe
     const auto advertise_cee = advertise_cce_enable
                                    ? wfa_map::tlvDppCceIndication::eAdvertiseCee::ENABLE
                                    : wfa_map::tlvDppCceIndication::eAdvertiseCee::DISABLE;
-    auto new_task            = std::make_shared<dpp_cce_indication_task>(
+    auto new_task = std::make_shared<dpp_cce_indication_task>(
         database, cmdu_tx, advertise_cee, std::string("dpp_cce_indication_task"), target_al_mac);
     tasks.add_task(new_task);
 }

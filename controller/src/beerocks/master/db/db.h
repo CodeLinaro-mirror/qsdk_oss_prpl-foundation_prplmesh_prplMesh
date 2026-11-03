@@ -370,6 +370,8 @@ public:
         bool chirp_matched    = false;
         // Set on DPP Configuration Result STATUS_OK; later chirps for this URI are ignored.
         bool onboarded = false;
+        // Enrollee (backhaul STA) MAC of the onboarding session that set `onboarded`.
+        sMacAddr onboarded_enrollee{};
         sMacAddr ruid{};
         sMacAddr bssid{};
     };
@@ -394,6 +396,11 @@ public:
      * @brief Number of ProvisionedDPP / bootstrap URI entries currently stored.
      */
     size_t get_dpp_bootstrap_info_count() const;
+
+    /**
+     * @brief True when at least one stored bootstrap URI is not onboarded yet.
+     */
+    bool has_pending_dpp_bootstrap_info() const;
 
     /**
      * @brief Return the only bootstrap entry when the store has exactly one URI.

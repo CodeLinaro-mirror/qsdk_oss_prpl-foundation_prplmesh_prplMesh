@@ -79,6 +79,15 @@ protected:
         ASSERT_TRUE(m_database->add_dpp_bootstrap_info(std::move(info), error)) << error;
     }
 
+    // dpp_protocol_task marks the matched entry onboarded before it pushes CONF_RECEIVED.
+    void onboard(const std::string &alias)
+    {
+        auto *info = m_database->get_dpp_bootstrap_info(alias);
+        ASSERT_NE(nullptr, info);
+        info->onboarded = true;
+        m_task->handle_event(son::dpp_onboarding_task::CONF_RECEIVED, nullptr);
+    }
+
     beerocks::config_file::SConfigLog m_log_conf{};
     std::unique_ptr<beerocks::logging> m_logger;
     std::shared_ptr<beerocks::nbapi::Amxrt> m_amxrt;
@@ -125,7 +134,7 @@ TEST_F(DppOnboardingTaskTest, success_clears_cce_desired)
 {
     add_uri("enrollee1", "KEY1");
     m_task->work();
-    m_task->handle_event(son::dpp_onboarding_task::CONF_RECEIVED, nullptr);
+    onboard("enrollee1");
     EXPECT_FALSE(m_task->is_cce_desired());
     // Same (onboarded) URI still stored: no re-enable.
     m_task->work();
@@ -145,12 +154,67 @@ TEST_F(DppOnboardingTaskTest, new_uri_after_success_reenables_cce)
 {
     add_uri("enrollee1", "KEY1");
     m_task->work();
-    m_task->handle_event(son::dpp_onboarding_task::CONF_RECEIVED, nullptr);
+    onboard("enrollee1");
     ASSERT_FALSE(m_task->is_cce_desired());
     add_uri("enrollee2", "KEY2");
     m_task->work();
     EXPECT_TRUE(m_task->is_cce_desired());
     EXPECT_EQ(2U, m_database->get_dpp_bootstrap_info_count());
+}
+
+// Review point 5: completion is tracked per URI, not for the whole store.
+TEST_F(DppOnboardingTaskTest, second_uri_keeps_cce_until_onboarded)
+{
+    add_uri("enrollee1", "KEY1");
+    add_uri("enrollee2", "KEY2");
+    m_task->work();
+    ASSERT_TRUE(m_task->is_cce_desired());
+    onboard("enrollee1");
+    EXPECT_TRUE(m_task->is_cce_desired());
+    // URI store unchanged: the task must still wait for enrollee2.
+    m_task->work();
+    EXPECT_TRUE(m_task->is_cce_desired());
+    onboard("enrollee2");
+    EXPECT_FALSE(m_task->is_cce_desired());
+    m_task->work();
+    EXPECT_FALSE(m_task->is_cce_desired());
+}
+
+TEST_F(DppOnboardingTaskTest, removing_pending_uri_clears_cce_when_rest_onboarded)
+{
+    add_uri("enrollee1", "KEY1");
+    m_task->work();
+    onboard("enrollee1");
+    add_uri("enrollee2", "KEY2");
+    m_task->work();
+    ASSERT_TRUE(m_task->is_cce_desired());
+    ASSERT_TRUE(m_database->remove_dpp_bootstrap_info("enrollee2"));
+    m_task->work();
+    EXPECT_FALSE(m_task->is_cce_desired());
+}
+
+// A URI change is synced when it is notified, not deferred to a later work() that would reset
+// a session started by a chirp in between.
+TEST_F(DppOnboardingTaskTest, bootstrap_trigger_syncs_store_immediately)
+{
+    add_uri("enrollee1", "KEY1");
+    m_task->handle_event(son::dpp_onboarding_task::BOOTSTRAP_TRIGGERED, nullptr);
+    EXPECT_TRUE(m_task->is_cce_desired());
+    ASSERT_TRUE(m_database->remove_dpp_bootstrap_info("enrollee1"));
+    m_task->handle_event(son::dpp_onboarding_task::BOOTSTRAP_TRIGGERED, nullptr);
+    EXPECT_FALSE(m_task->is_cce_desired());
+}
+
+// A (restarted) Authentication Request re-arms the wait; the URI stays pending.
+TEST_F(DppOnboardingTaskTest, auth_started_keeps_onboarding_pending)
+{
+    add_uri("enrollee1", "KEY1");
+    m_task->work();
+    m_task->handle_event(son::dpp_onboarding_task::AUTH_STARTED, nullptr);
+    m_task->handle_event(son::dpp_onboarding_task::AUTH_STARTED, nullptr);
+    EXPECT_TRUE(m_task->is_cce_desired());
+    onboard("enrollee1");
+    EXPECT_FALSE(m_task->is_cce_desired());
 }
 
 TEST_F(DppOnboardingTaskTest, send_cce_to_agent_without_controller_is_safe)

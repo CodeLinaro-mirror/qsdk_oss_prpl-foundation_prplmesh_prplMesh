@@ -82,9 +82,7 @@ TEST_F(DppConfigurationTest, SignedConnectorSupportedCurvesAndWrongKey)
         ASSERT_TRUE(dpp::split_jws(connector, header, encoded_payload, signature, error));
         std::string raw_signature;
         ASSERT_TRUE(beerocks::string_utils::base64_url_decode(signature, raw_signature));
-        EXPECT_EQ(nid == NID_X9_62_prime256v1 ? 64U
-                  : nid == NID_secp384r1      ? 96U
-                                              : 132U,
+        EXPECT_EQ(nid == NID_X9_62_prime256v1 ? 64U : nid == NID_secp384r1 ? 96U : 132U,
                   raw_signature.size());
         dpp::DppKeyPtr wrong;
         ASSERT_TRUE(dpp::generate_ec_key(nid, wrong));

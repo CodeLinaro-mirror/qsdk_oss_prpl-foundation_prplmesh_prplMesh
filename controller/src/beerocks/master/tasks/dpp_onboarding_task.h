@@ -45,7 +45,9 @@ public:
         CONN_STATUS_OK,
         CONN_STATUS_FAILED,
         FAIL,
-        BOOTSTRAP_TRIGGERED
+        BOOTSTRAP_TRIGGERED,
+        // dpp_protocol_task sent a (first or restarted) DPP Authentication Request.
+        AUTH_STARTED
     };
 
     /**
@@ -85,7 +87,6 @@ private:
     std::shared_ptr<dpp_protocol_task> m_protocol_task;
     State state = State::IDLE;
     std::string last_bootstrap_fingerprint;
-    std::string last_completed_fingerprint;
     // Desired CCE state; true from URI provisioning until success or URI removal.
     bool cce_advertised     = false;
     bool expect_conn_status = false;

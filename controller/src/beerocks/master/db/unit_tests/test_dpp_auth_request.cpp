@@ -605,9 +605,9 @@ TEST_F(DppExchangeTest, RejectsIncompleteEncryptedAuthenticationAttributes)
         response_with_clear(clear, response);
         ASSERT_FALSE(HasFatalFailure());
         EXPECT_FALSE(session.handle_authentication_response(response, confirm, error));
-        EXPECT_EQ(variant <= 4   ? "DPP Authentication Response has incomplete wrapped attributes"
-                  : variant == 5 ? "Failed unwrapping DPP responder authentication tag"
-                                 : "DPP Authentication Response missing R-auth",
+        EXPECT_EQ(variant <= 4 ? "DPP Authentication Response has incomplete wrapped attributes"
+                               : variant == 5 ? "Failed unwrapping DPP responder authentication tag"
+                                              : "DPP Authentication Response missing R-auth",
                   error);
         EXPECT_TRUE(confirm.empty());
         EXPECT_FALSE(session.authentication_success());
@@ -661,9 +661,10 @@ TEST_F(DppExchangeTest, ConfigurationRequestAttributeGuardsAndPublicActionLayout
             std::vector<uint8_t> response;
             ASSERT_TRUE(session.build_configuration_response(std::string("{}"), response, error));
         } else {
-            EXPECT_EQ(variant <= 1   ? "DPP Configuration Request missing Wrapped Data"
-                      : variant == 2 ? "Failed unwrapping DPP Configuration Request"
-                                     : "DPP Configuration Request has incomplete attributes",
+            EXPECT_EQ(variant <= 1
+                          ? "DPP Configuration Request missing Wrapped Data"
+                          : variant == 2 ? "Failed unwrapping DPP Configuration Request"
+                                         : "DPP Configuration Request has incomplete attributes",
                       error);
             EXPECT_TRUE(json.empty());
             EXPECT_TRUE(role.empty());
@@ -730,9 +731,12 @@ TEST_F(DppExchangeTest, ResultFrameValidationStages)
                            : session.unwrap_configuration_result(frame, status, error);
             EXPECT_FALSE(accepted);
             EXPECT_EQ(0, status);
-            const std::string expected = variant == 0   ? "Invalid " + label + " frame"
-                                         : variant <= 2 ? label + " missing Wrapped Data"
-                                         : variant == 3 ? "Failed unwrapping " + label
+            const std::string expected =
+                variant == 0
+                    ? "Invalid " + label + " frame"
+                    : variant <= 2
+                          ? label + " missing Wrapped Data"
+                          : variant == 3 ? "Failed unwrapping " + label
                                          : variant <= 6 ? label + " has incomplete attributes"
                                                         : label + " nonce mismatch";
             EXPECT_EQ(expected, error);

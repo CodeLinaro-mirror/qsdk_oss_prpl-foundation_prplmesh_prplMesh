@@ -37,6 +37,16 @@ struct SessionState {
     bool use_direct_encap = false;
     /** When this session's Authentication Request was sent (chirp guard stale check). */
     std::chrono::steady_clock::time_point auth_request_sent_at{};
+    /**
+     * Proxied Configuration Response replay cache. Key: Enrollee MAC + exact GAS
+     * Configuration Request bytes (includes the GAS dialog token). Cleared with the session
+     * (end, abort, URI change, new Authentication).
+     */
+    bool config_response_cached      = false;
+    sMacAddr config_request_enrollee = beerocks::net::network_utils::ZERO_MAC;
+    std::vector<uint8_t> config_request_frame;
+    sMacAddr config_response_dest = beerocks::net::network_utils::ZERO_MAC;
+    std::vector<uint8_t> config_response_frame;
 };
 
 } // namespace controller_dpp

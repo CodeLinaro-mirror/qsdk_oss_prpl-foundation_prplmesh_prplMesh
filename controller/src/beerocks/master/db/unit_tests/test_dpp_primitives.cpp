@@ -561,13 +561,9 @@ TEST(DppCrypto, DigestAndDerivationParameterGuards)
     for (size_t variant = 0; variant < 5; ++variant) {
         SCOPED_TRACE(variant);
         out = {0xff};
-        EXPECT_FALSE(dpp::hkdf_expand_one_block(variant == 0 ? nullptr : EVP_sha256(),
-                                                variant == 1 ? std::vector<uint8_t>{} : bytes,
-                                                variant == 2 ? nullptr : "info",
-                                                variant == 3   ? 0
-                                                : variant == 4 ? 33
-                                                               : 32,
-                                                out));
+        EXPECT_FALSE(dpp::hkdf_expand_one_block(
+            variant == 0 ? nullptr : EVP_sha256(), variant == 1 ? std::vector<uint8_t>{} : bytes,
+            variant == 2 ? nullptr : "info", variant == 3 ? 0 : variant == 4 ? 33 : 32, out));
         EXPECT_TRUE(out.empty());
     }
     for (size_t variant = 0; variant < 3; ++variant) {

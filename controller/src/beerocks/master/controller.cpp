@@ -169,6 +169,8 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE,
     ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
     ieee1905_1::eMessageType::DIRECT_ENCAP_DPP_MESSAGE,
+    // EasyMesh 5.3.6 / 17.1.50: Proxy Agent forwards an Enrollee DPP URI received in PBC M7
+    ieee1905_1::eMessageType::DPP_BOOTSTRAPPING_URI_NOTIFICATION_MESSAGE,
 };
 
 } // namespace
@@ -424,7 +426,7 @@ void Controller::start_mandatory_tasks()
     auto dpp_onboarding = std::make_shared<dpp_onboarding_task>(database, m_dpp_protocol_task);
     LOG_IF(!m_task_pool.add_task(dpp_onboarding), FATAL) << "Failed adding dpp_onboarding_task!";
     m_dpp_onboarding_task_id = dpp_onboarding->id;
-    m_dpp_onboarding_task    = dpp_onboarding;
+    m_dpp_onboarding_task    = std::move(dpp_onboarding);
     m_dpp_protocol_task->configure_onboarding_notifier(m_task_pool, m_dpp_onboarding_task_id);
 }
 
@@ -2543,6 +2545,8 @@ bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(
         beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
     info.alias = "auto-" + mac_str + "-" + hash_hex.substr(0, 12);
 
+    const std::string alias            = info.alias;
+    const std::string prev_fingerprint = database.calculate_dpp_bootstrap_map_fingerprint();
     if (!database.add_dpp_bootstrap_info(std::move(info), error)) {
         LOG(ERROR) << "Failed to add DPP Bootstrap info: " << error;
         return false;
@@ -2551,6 +2555,13 @@ bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(
     // Diagram 5.3.1 steps 6-7: enable CCE advertisement on agents when DPP URI is received.
     LOG(DEBUG) << "DPP Bootstrapping URI stored; sending DPP CCE Indication enable";
     send_dpp_cce_indication(true);
+
+    // Sync dpp_onboarding_task now, as for ProvisionedDPP: work() does not run while it waits
+    // for events. A retransmitted notification of the same URI does not abort the session.
+    if (database.calculate_dpp_bootstrap_map_fingerprint() != prev_fingerprint) {
+        notify_dpp_bootstrapping_trigger("DPP Bootstrapping URI Notification alias=" + alias +
+                                         " from agent " + tlvf::mac_to_string(src_mac));
+    }
 
     return true;
 }

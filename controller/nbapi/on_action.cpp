@@ -1918,7 +1918,20 @@ static void event_provisioned_dpp_changed(const char *const sig_name, const amxc
 
     const char *dpp_uri = amxd_object_get_cstring_t(dpp_obj, "DPPURI", nullptr);
     if (!dpp_uri || dpp_uri[0] == '\0') {
-        LOG(ERROR) << "DPPURI is empty for alias: " << alias;
+        // Clearing DPPURI withdraws the URI, same as removing the ProvisionedDPP instance.
+        if (!g_database->remove_dpp_bootstrap_info(std::string(alias))) {
+            LOG(DEBUG) << "DPPURI is empty for alias=" << alias << "; no stored URI";
+            return;
+        }
+        LOG(INFO) << "DPPURI cleared for alias=" << alias << "; stored URI removed";
+        auto controller_ctx = g_database->get_controller_ctx();
+        if (!controller_ctx) {
+            LOG(ERROR) << "Failed to get controller context after DPPURI clear";
+            return;
+        }
+        // Resets the active session; CCE DISABLE is applied by dpp_onboarding_task (M-3).
+        controller_ctx->notify_dpp_bootstrapping_trigger(
+            std::string("ProvisionedDPP DPPURI cleared alias=") + alias);
         return;
     }
 
