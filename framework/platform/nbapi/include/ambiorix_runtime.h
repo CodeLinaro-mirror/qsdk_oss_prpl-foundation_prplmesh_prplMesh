@@ -9,6 +9,7 @@
 #ifndef AMBIORIX_RT_H
 #define AMBIORIX_RT_H
 #include <map>
+#include <mapf/common/amx_mutex.h>
 #include <string>
 
 // Ambiorix
@@ -22,9 +23,14 @@ static int index = 0;
 class Amxrt {
 
 public:
-    Amxrt() { amxrt_new(); }
+    Amxrt()
+    {
+        AmxGuard guard;
+        amxrt_new();
+    }
     ~Amxrt()
     {
+        AmxGuard guard;
         amxrt_stop();
         amxrt_delete();
     }
@@ -40,6 +46,7 @@ public:
     */
     int Initialize(int argc, char *argv[], amxrt_arg_fn_t handler)
     {
+        AmxGuard guard;
         return amxrt_config_init(argc, argv, &index, handler);
         // Add error handling if needed
     }
@@ -66,6 +73,7 @@ public:
     */
     static int LoadOdlFiles(int argc, char *argv[])
     {
+        AmxGuard guard;
         return amxrt_load_odl_files(argc, argv, index);
         // Add error handling if needed
     }
@@ -92,6 +100,7 @@ public:
     */
     static int AddAutoSave(amxo_entry_point_t callback)
     {
+        AmxGuard guard;
         return amxo_parser_add_entry_point(amxrt_get_parser(), callback);
     }
 
@@ -114,6 +123,7 @@ public:
     */
     static int Connect()
     {
+        AmxGuard guard;
         return amxrt_connect();
         // Add error handling if needed
     }
@@ -128,7 +138,11 @@ public:
     *
     * When auto-detection is disabled this function will do nothing.
     */
-    static void ConfigScanBackendDirs() { amxrt_config_scan_backend_dirs(); }
+    static void ConfigScanBackendDirs()
+    {
+        AmxGuard guard;
+        amxrt_config_scan_backend_dirs();
+    }
 
     /**
     * @brief Enables system signals that should be monitored by the eventloop.
@@ -145,6 +159,7 @@ public:
     */
     static void EnableSyssigs()
     {
+        AmxGuard guard;
         amxc_var_t *config  = amxrt_get_config();
         amxc_var_t *syssigs = GET_ARG(config, "system-signals");
         if (syssigs != NULL) {
@@ -171,30 +186,15 @@ public:
     */
     static int RegisterOrWait()
     {
+        AmxGuard guard;
         return amxrt_register_or_wait();
         // Add error handling if needed
     }
 
-    /** 
-    * @brief Starts the event loop.
-    * 
-    * This function will start the event loop. The event loop will be "waiting" for
-    * events and if one is received, it will be dispatched (correct callback functions
-    * are called).
-    * 
-    * The event loop will keep running until @ref amxrt_el_stop is called, that is:
-    * this function will not return until the event loop is stopped.
-    * 
-    * IF the event loop fails to start the function returns immediately.
-    * 
-    * @return Non 0 will indicate that starting the event loop failed.
-    * 0 will indicate that the event loop was stopped.
-    */
-    int RunEventLoop() { return amxrt_el_start(); }
-
     /**
     * @brief Gets the runtime data model storage.
     * 
+    * The caller must hold AmxGuard while obtaining and using the borrowed pointer.
     * @return The amxd_dm_t pointer where the data model is stored.
     */
     static amxd_dm_t *getDatamodel() { return amxrt_get_dm(); }
@@ -213,6 +213,7 @@ public:
     * amxo_parser_parse_file(parser, "/tmp/my_definition.odl", root);
     * @endcode
     * 
+    * The caller must hold AmxGuard while obtaining and using the borrowed pointer.
     * @return The runtime odl parser.
     */
     static amxo_parser_t *getParser() { return amxrt_get_parser(); }
@@ -220,6 +221,7 @@ public:
     /**
     * @brief Gets the htable variant containing the configuration options
     * 
+    * The caller must hold AmxGuard while obtaining and using the borrowed pointer.
     * @return The htable variant containing the configuration options.
     */
     static amxc_var_t *getConfig() { return amxrt_get_config(); }

@@ -11,6 +11,8 @@
 
 #include "ambiorix_connection.h"
 
+#include <mapf/common/amx_mutex.h>
+
 namespace beerocks {
 namespace wbapi {
 
@@ -25,13 +27,15 @@ public:
      */
     static AmbiorixConnectionManager *get_instance()
     {
+        // Construct the guard first so its mutex also outlives singleton teardown.
+        AmxGuard guard;
         static AmbiorixConnectionManager instance{};
         return &instance;
     }
 
     AmbiorixConnectionManager(const AmbiorixConnectionManager &obj) = delete;
     AmbiorixConnectionManager &operator=(AmbiorixConnectionManager const &) = delete;
-    ~AmbiorixConnectionManager() {}
+    ~AmbiorixConnectionManager();
     /**
      * @brief: get a connection to the uri
      * @return new connection if no connection has already been created using the passed uri
@@ -51,6 +55,8 @@ private:
 
     /**
      * @brief: create  a  new connection to the uri bus_uri
+     *
+     * The caller must hold AmxGuard followed by m_connections_mutex.
      */
     AmbiorixConnectionSmartPtr create(const std::string &amxb_backend, const std::string &bus_uri);
 
