@@ -67,9 +67,3 @@ void copy_string(char *dst, const char *src, size_t dst_len)
 
 } // namespace utils
 } // namespace mapf
-
-namespace beerocks {
-
-std::mutex amxp_signal_read_mutex;
-
-} // namespace beerocks
