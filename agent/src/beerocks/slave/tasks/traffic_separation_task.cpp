@@ -260,9 +260,18 @@ bool TrafficSeparationTask::reset_transport_monitoring_on_bridge()
 
 bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) const
 {
-    auto db = AgentDB::get();
+    uint16_t primary_vid;
+    uint16_t secondary_vid = 0;
+    size_t secondary_vid_count;
+    {
+        auto db             = AgentDB::get();
+        primary_vid         = db->traffic_separation.primary_vlan_id;
+        secondary_vid_count = db->traffic_separation.secondary_vlans_ids.size();
+        if (secondary_vid_count) {
+            secondary_vid = *db->traffic_separation.secondary_vlans_ids.begin();
+        }
+    }
 
-    const auto primary_vid = db->traffic_separation.primary_vlan_id;
     if (primary_vid > net::MAX_VLAN_ID) {
         LOG(ERROR) << "TS config: primary vlan id is out of range [" << net::MIN_VLAN_ID << "-"
                    << net::MAX_VLAN_ID << "], got=" << primary_vid;
@@ -278,7 +287,7 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
 
     cfg.private_vid = primary_vid;
 
-    if (db->traffic_separation.secondary_vlans_ids.empty()) {
+    if (!secondary_vid_count) {
         LOG(DEBUG) << "TS config: no secondary vlan id, applying primary VLAN only";
         return true;
     }
@@ -288,12 +297,12 @@ bool TrafficSeparationTask::build_ts_config(net::sTrafficSeparationConfig &cfg) 
     }
 
     const auto default_guest_vid = static_cast<uint32_t>(bpl::DEFAULT_GUEST_VLAN_ID);
-    cfg.guest_vid                = *db->traffic_separation.secondary_vlans_ids.begin();
+    cfg.guest_vid                = secondary_vid;
 
-    if (db->traffic_separation.secondary_vlans_ids.size() > 1) {
+    if (secondary_vid_count > 1) {
         LOG(WARNING) << "TS config: multiple secondary VLAN IDs received; using guest_vid="
                      << cfg.guest_vid << " and rejecting all other secondary VLAN IDs, count="
-                     << (db->traffic_separation.secondary_vlans_ids.size() - 1);
+                     << (secondary_vid_count - 1);
     }
 
     if (cfg.guest_vid < net::MIN_VLAN_ID || cfg.guest_vid > net::MAX_VLAN_ID) {
