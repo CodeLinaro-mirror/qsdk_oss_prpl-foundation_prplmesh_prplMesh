@@ -55,6 +55,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif
 
 #include "ambiorix_dummy.h"
+#include <mapf/common/amx_mutex.h>
 
 constexpr std::chrono::seconds INTERFACE_RETRY_INTERVAL = std::chrono::seconds(3);
 constexpr std::chrono::seconds INTERFACE_RETRY_TIMEOUT  = std::chrono::seconds(150);
@@ -91,11 +92,13 @@ static void handle_signal()
     }
 #ifdef ENABLE_NBAPI
     // Handle SIGALRM signal indicating that one of amxp's timers is expired.
-    case SIGALRM:
+    case SIGALRM: {
+        beerocks::AmxGuard guard;
         LOG(INFO) << "LOG amxp Tik tak!";
         amxp_timers_calculate();
         amxp_timers_check();
         break;
+    }
 #endif //ENABLE_NBAPI
     default:
         LOG(WARNING) << "Unhandled Signal: '" << strsignal(s_signal) << "' Ignoring...";
