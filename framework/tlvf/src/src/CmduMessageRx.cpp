@@ -127,6 +127,7 @@
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
+#include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
 #include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
 #include <tlvf/wfa_map/tlvServicePrioritizationRule.h>
@@ -137,6 +138,7 @@
 #include <tlvf/wfa_map/tlvSteeringBTMReport.h>
 #include <tlvf/wfa_map/tlvSteeringPolicy.h>
 #include <tlvf/wfa_map/tlvSteeringRequest.h>
+#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 #include <tlvf/wfa_map/tlvSupportedService.h>
 #include <tlvf/wfa_map/tlvTidToLinkMappingPolicy.h>
 #include <tlvf/wfa_map/tlvTimestamp.h>
@@ -656,6 +658,12 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     }
     case (wfa_map::eTlvTypeMap::TLV_BSS_ADVANCED_CONFIGURATION): {
         return msg.addClass<wfa_map::tlvBssAdvancedConfiguration>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_RSN_DIAGNOSTIC_REPORT): {
+        return msg.addClass<wfa_map::tlvRsnDiagnosticReport>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_SUPPORTED_CIPHER_SUITES): {
+        return msg.addClass<wfa_map::tlvSupportedCipherSuites>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);
