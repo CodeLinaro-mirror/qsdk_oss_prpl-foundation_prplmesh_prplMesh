@@ -424,11 +424,31 @@ private:
     class sSlaveState {
         eSlaveState cur = {};
         eSlaveState max = {};
+        bool changed    = false;
 
     public:
         eSlaveState operator=(eSlaveState state);
         operator eSlaveState() const { return cur; }
+
+        /**
+         * @brief Publish the current and best states to AgentDM if they changed.
+         *
+         * Must be called outside AgentDB scopes.
+         */
+        void publish();
     } m_agent_state;
+
+    /**
+     * @brief Publish the Agent.Info state from the FSM timer.
+     *
+     * The FSM and the tasks change the Agent state and the Controller connectivity while holding
+     * AgentDB, where AgentDM must not be used. Publish the latest values once these scopes have
+     * been released. Values changed within one FSM period are published once.
+     */
+    void publish_agent_info();
+
+    // ControllerConnected value last published to AgentDM, -1 before the first publication.
+    int m_published_controller_connected = -1;
 
     std::chrono::steady_clock::time_point m_agent_state_timer_sec =
         std::chrono::steady_clock::time_point::min();

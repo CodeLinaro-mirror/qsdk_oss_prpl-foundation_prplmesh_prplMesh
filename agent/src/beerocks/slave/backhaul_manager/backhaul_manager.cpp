@@ -8,6 +8,7 @@
 
 #include "backhaul_manager.h"
 #include "../agent_db.h"
+#include "../agent_dm.h"
 
 #include "../tasks/capability_reporting_task.h"
 #include "../tasks/channel_scan_task.h"
@@ -140,7 +141,7 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
     if (!beerocks::net::network_utils::linux_iface_get_mac(config.bridge_iface, bridge_mac)) {
         LOG(ERROR) << "Failed getting MAC address for interface: " << config.bridge_iface;
     } else {
-        AgentDB::get()->dm_set_agent_mac(bridge_mac);
+        AgentDM::get()->dm_set_agent_mac(bridge_mac);
     }
 
     bool is_dummy;

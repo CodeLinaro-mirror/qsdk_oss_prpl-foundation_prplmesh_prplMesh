@@ -34,15 +34,9 @@
 #include <string>
 #include <thread>
 #include <unordered_set>
+#include <utility>
 
 #include <unordered_map>
-#ifdef ENABLE_NBAPI
-#include "ambiorix_impl.h"
-
-#else
-#include "ambiorix_dummy.h"
-
-#endif // ENABLE_NBAPI
 
 namespace beerocks {
 
@@ -82,14 +76,32 @@ class AgentDB {
 public:
     class SafeDB {
     public:
-        explicit SafeDB(AgentDB &db) : m_db(db) { m_db.db_lock(); }
-        ~SafeDB() { m_db.db_unlock(); }
-        AgentDB *operator->() { return &m_db; }
+        explicit SafeDB(AgentDB &db) : m_db(&db) { m_db->db_lock(); }
+        SafeDB(const SafeDB &) = delete;
+        SafeDB &operator=(const SafeDB &) = delete;
+        SafeDB(SafeDB &&other) : m_db(std::exchange(other.m_db, nullptr)) {}
+        SafeDB &operator=(SafeDB &&) = delete;
+        ~SafeDB()
+        {
+            if (m_db) {
+                m_db->db_unlock();
+            }
+        }
+        AgentDB *operator->() { return m_db; }
 
     private:
-        AgentDB &m_db;
+        AgentDB *m_db;
     };
     static SafeDB get();
+
+    /**
+     * @brief Check whether the calling thread holds any AgentDB scope.
+     *
+     * Used to enforce the lock order: code must not enter AMX (for example
+     * through AgentDM) while it holds AgentDB.
+     */
+    static bool locked_by_current_thread();
+
     AgentDB(const AgentDB &) = delete;
     void operator=(const AgentDB &) = delete;
 
@@ -97,9 +109,11 @@ private:
     // Private constructor so that no objects can be created.
     AgentDB() = default;
     std::recursive_mutex m_db_mutex;
-    void db_lock() { m_db_mutex.lock(); }
-    void db_unlock() { m_db_mutex.unlock(); }
-    std::shared_ptr<beerocks::nbapi::Ambiorix> m_ambiorix_datamodel{};
+    void db_lock();
+    void db_unlock();
+
+    // Number of AgentDB scopes held by the current thread.
+    static thread_local unsigned s_lock_depth;
 
     /* Put down from here database members and functions used by the Agent modules */
 
@@ -609,47 +623,12 @@ public:
     bool get_bsta_mld_mac_by_ssid(const std::string &ssid, sMacAddr &ruid, sMacAddr &value);
 
     /**
-     * @brief Initialize Agent Data model.
-     *
-     * This method should be called in initialization state, otherwise data-model methods fail.
-     *
-     * @param dm Ambiorix shared ptr to access data model.
-     * @return True if success otherwise false.
-     */
-    bool init_data_model(std::shared_ptr<beerocks::nbapi::Ambiorix> dm);
-
-    /**
-     * @brief Sets MACAddress to the Agent Data model.
-     *
-     * Path is: "Agent.MACAddress".
-     *
-     * @param mac MAC address for Bridge Interface.
-     * @return True if success otherwise false.
-     */
-    bool dm_set_agent_mac(const std::string &mac);
-
-    void dm_set_fronthaul_interfaces(const std::string &interfaces);
-
-    void dm_set_management_mode(const std::string &mode);
-
-    /**
      * @brief Returns true if the agent is a dummy (controller-only or non-MultiAP) agent
      * that should not run regular agent tasks.
      *
      * @return whether agent must be dummy in the current management mode
      */
     bool agent_is_dummy() const;
-
-    void dm_set_agent_state(const std::string &cur, const std::string &max);
-
-    void dm_set_controller_connected(bool connected);
-
-    std::string dm_create_fronthaul_object(const std::string &iface);
-
-    void dm_set_fronthaul_state(const std::string &path, const std::string &cur,
-                                const std::string &max);
-
-    void dm_fronthaul_disconnected(const std::string &path);
 
     /**
      * @brief 1905.1 Neighbor device information

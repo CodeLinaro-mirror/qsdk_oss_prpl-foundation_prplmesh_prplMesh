@@ -20,6 +20,7 @@ file(GLOB beerocks_agent_sources
 )
 list(REMOVE_ITEM beerocks_agent_sources
     ${MODULE_PATH}/agent_db.cpp
+    ${MODULE_PATH}/agent_dm.cpp
 )
 
 if (ENABLE_NBAPI)
