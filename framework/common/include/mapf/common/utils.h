@@ -9,7 +9,6 @@
 #ifndef MAPFUTILS_H_
 #define MAPFUTILS_H_
 
-#include <mutex>
 #include <string>
 
 namespace mapf {
@@ -50,8 +49,4 @@ std::string get_install_path();
 } // namespace utils
 } // namespace mapf
 
-namespace beerocks {
-
-extern std::mutex amxp_signal_read_mutex;
-} // namespace beerocks
 #endif // MAPFUTILS_H_
