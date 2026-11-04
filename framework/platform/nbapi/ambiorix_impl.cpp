@@ -58,7 +58,8 @@ bool AmbiorixImpl::init(const std::string &datamodel_path)
 
     int rc = Amxrt::RegisterOrWait();
     if (rc != 0) {
-        LOG(WARNING) << "amxrt_register_or_wait() failed, rc=" << rc;
+        LOG(ERROR) << "Failed to register the data model, amxrt_register_or_wait() returned " << rc;
+        return false;
     }
 
     LOG(DEBUG) << "The bus connection initialized successfully.";
