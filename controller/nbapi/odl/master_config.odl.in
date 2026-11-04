@@ -17,8 +17,8 @@
     silent = false;
     import-dbg = true;
     dm-eventing-enabled = true;
-    %global uris += ["ubus:/var/run/ubus/ubus.sock"];
-    %global ubus.connect-retry = true;
+    %global uris += ["@AMBIORIX_BUS_URI@"];
+    %global @AMBIORIX_BUS_BACKEND@.connect-retry = true;
     storage-path = "/opt/prplmesh/share/$@@{name}";
     storage-type = "odl";
     odl = {

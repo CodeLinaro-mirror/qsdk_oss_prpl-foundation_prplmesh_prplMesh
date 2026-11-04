@@ -16,7 +16,7 @@ function(process_root_dm ROOT_DM_VAR ROOT_DM_LITERAL_VAR ROOT_DM_HEADER_VAR ROOT
     set(${ROOT_DM_FOOTER_VAR} "")
 
     string(REPLACE "." ";" ROOT_DM_SPLIT ${${ROOT_DM_VAR}})
-    
+
     set(indent "")
     set(header "")
     set(footer "")
@@ -217,6 +217,16 @@ elseif (TARGET_PLATFORM STREQUAL "linux")
     add_definitions(-DBEEROCKS_LINUX)
     set(BEEROCKS_BH_WIRE_IFACE "eth1" CACHE STRING "Backhaul wire iface")
 endif()
+
+# The recipes pass the NBAPI bus URI only as a compiler define: inside UBUS_SOCK
+# (prplOS) or in CXXFLAGS (RDK-B). Take it from there for the odl configuration.
+set(AMBIORIX_BUS_URI "ubus:/var/run/ubus/ubus.sock")
+foreach(flags IN ITEMS "${UBUS_SOCK}" "${CMAKE_CXX_FLAGS}")
+    if (flags MATCHES "-DAMBIORIX_BUS_URI=[\\\\'\"]*([a-z]+:[^\\\\'\" ]*)")
+        set(AMBIORIX_BUS_URI "${CMAKE_MATCH_1}")
+    endif()
+endforeach()
+string(REGEX REPLACE ":.*" "" AMBIORIX_BUS_BACKEND "${AMBIORIX_BUS_URI}")
 
 if (TARGET_PLATFORM_TYPE STREQUAL "turris-omnia")
     add_compile_definitions(MISALIGNED_DWORD_ACCESS_NEEDS_SPECIAL_HANDLING)
