@@ -1,0 +1,52 @@
+#
+---
+_namespace: wfa_map
+_include:
+  {
+    tlvf/ieee_1905_1/sVendorOUI.h,
+    tlvf/wfa_map/eTlvTypeMap.h
+  }
+
+tlvSupportedCipherSuites:
+  _type: class
+  _is_tlv_class : True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_SUPPORTED_CIPHER_SUITES
+  length: uint16_t
+  num_cipher_suites:
+    _type: uint8_t
+    _length_var: True
+  cipher_suite_selectors:
+    _type: sCipherSuiteSelector
+    _length: [ num_cipher_suites ]
+
+sCipherSuiteSelector:
+  _type: struct
+  oui:
+    _type: sVendorOUI
+    _comment: |
+      Any OUI value specified in Table 9-188 of "IEEE Std. 802.11-2020".
+  cipher_suite_type:
+    _type: uint8_t
+    _comment: |
+      Any cipher suite type value specified in Table 9-188 of "IEEE Std. 802.11-2020".
+
+eCipherSuiteType:
+  _type: enum
+  _enum_storage: uint8_t
+  _comment: |
+    IEEE 802.11-2020 Table 9-188 cipher suite selector types (OUI 00-0F-AC).
+  USE_GROUP_CIPHER: 0x00
+  WEP_40: 0x01
+  TKIP: 0x02
+  CCMP_128: 0x04
+  WEP_104: 0x05
+  BIP_CMAC_128: 0x06
+  GROUP_ADDRESSED_NOT_ALLOWED: 0x07
+  GCMP_128: 0x08
+  GCMP_256: 0x09
+  CCMP_256: 0x0A
+  BIP_GMAC_128: 0x0B
+  BIP_GMAC_256: 0x0C
+  BIP_CMAC_256: 0x0D
