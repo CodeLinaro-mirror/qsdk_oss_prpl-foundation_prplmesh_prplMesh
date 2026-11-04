@@ -5,7 +5,10 @@
 # See LICENSE file for more details.
 ###############################################################
 
+import json
 import re
+import subprocess
+import threading
 import time
 
 import yaml
@@ -17,6 +20,7 @@ import environment as env
 
 TEMPLATES = "X_PRPLWARE-COM_Templates"
 MESH_UUID_E = "X_PRPLWARE-COM_MeshPBCUUID_E"
+PRIMARY_REFERENCE = "X_PRPLWARE-COM_PrimaryMeshPBCTemplateReference"
 FRONTHAUL_SSID = "Mesh-PBC-Fronthaul"
 OTHER_SSID = "Mesh-PBC-Other"
 LISTEN_DURATION = 10
@@ -62,6 +66,13 @@ class MeshPbcOnboarding(PrplMeshBaseTest):
           simulates, and ends a started session at the Listen Duration.
         - The mesh-wide push-button entry point of the repeater sends a Multi-AP Push-Button
           Request, because the Controller sets its push-button support bit.
+        - With two repeaters, a template InitiatePBC() on the Controller arms the push-button
+          BSS of each repeater, a Success on one repeater stops the other one and gives the
+          Success reply, and the Agent-level InitiatePBC() and TerminatePBC() of the second
+          repeater reach only that repeater and end the session with Canceled.
+        - A button press on the second repeater, with the template as the Primary template:
+          ButtonPressScope "RequestingDevice" arms only the second repeater, "MeshWide" arms
+          both repeaters. The PBC Session ID is the one of the Request.
 
     The test checks the Agent logs, the data model and the captured CMDUs.
     """
@@ -82,15 +93,28 @@ class MeshPbcOnboarding(PrplMeshBaseTest):
         self.added_templates = []
         self.network_enable = self.controller.nbapi_get_parameter(
             "{}.Network".format(TEMPLATES), "Enable")
+        self.primary_reference = self.controller.nbapi_get_parameter(
+            "{}.Network".format(TEMPLATES), PRIMARY_REFERENCE)
+        try:
+            self.agent2 = self.dev.lan2.agent_entity
+        except AttributeError as ae:
+            raise SkipTest(ae)
+        self.radio2 = self.agent2.radios[1]
 
         self.dev.DUT.wired_sniffer.start(self.__class__.__name__ + "-" + self.dev.DUT.name)
         self.check_capability_and_uuid_e()
         try:
+            self.refresh_ap_capability()
+            self.agent2.checkpoint()
             self.stage_templates()
+            self.check_second_repeater_staged()
             self.check_renew_with_unchanged_values()
             self.check_trigger_flows()
             self.check_not_started_flows()
             self.check_mesh_wide_entry_point()
+            self.check_template_session_on_two_repeaters()
+            self.check_agent_session_on_second_repeater()
+            self.check_button_press_scope()
         finally:
             self.restore_configuration()
 
@@ -205,12 +229,13 @@ class MeshPbcOnboarding(PrplMeshBaseTest):
     def restore_configuration(self):
         """Restore the configuration of the start of the test.
 
-        Removes the Templates instances of the test, sets Templates.Network.Enable back, and
-        applies the SSID configuration of the start of every test again (no SSID), so that the
-        Agents get it in an AP-Autoconfiguration Renew.
+        Removes the Templates instances of the test, sets Templates.Network.Enable and the
+        Primary template reference back, and applies the SSID configuration of the start of
+        every test again (no SSID), so that the Agents get it in an AP-Autoconfiguration Renew.
         """
-        self.controller.nbapi_set_parameters_no_exception("{}.Network".format(TEMPLATES),
-                                                          {"Enable": self.network_enable})
+        self.controller.nbapi_set_parameters_no_exception(
+            "{}.Network".format(TEMPLATES),
+            {"Enable": self.network_enable, PRIMARY_REFERENCE: self.primary_reference})
         for table, index in reversed(self.added_templates):
             self.controller.nbapi_command_not_fail(
                 "{}.{}.{}".format(TEMPLATES, table, index), "_del")
@@ -255,9 +280,12 @@ class MeshPbcOnboarding(PrplMeshBaseTest):
         self.check_log(self.radio, r"Sending ACK message for the Multi-AP Push-Button Trigger "
                        r"mid=0x{:x} ".format(mid), timeout=10)
 
-    def status_regex(self, bssid, session_mid, result, failure_reason=None, enrollee=ZERO_MAC):
+    def status_regex(self, bssid, session_mid, result, failure_reason=None, enrollee=ZERO_MAC,
+                     session_al_mac=None):
+        """session_al_mac is the AL MAC of the PBC Session ID, the Controller AL MAC if None."""
         regex = r"Multi-AP Push-Button Status: BSSID {}, PBC Session ID {}/0x{:04x}, " \
-                r"Result 0x0{} \([A-Z_]+\)".format(bssid, self.controller.mac, session_mid, result)
+                r"Result 0x0{} \([A-Z_]+\)".format(bssid, session_al_mac or self.controller.mac,
+                                                   session_mid, result)
         if failure_reason is not None:
             regex += r", Failure Reason {}".format(failure_reason)
         return regex + r", Enrollee MAC " + enrollee
@@ -383,3 +411,245 @@ class MeshPbcOnboarding(PrplMeshBaseTest):
         for radio in self.agent.radios:
             if self.check_log(radio, r"Start WPS PBC$", timeout=1, fail_on_mismatch=False)[0]:
                 self.fail("Local WPS PBC start on the Request path")
+
+    def refresh_ap_capability(self):
+        """Make the Controller read the AP Capability TLV of each repeater again.
+
+        The Controller gives a Push-Button Config TLV only to an Agent with RSN Overriding
+        support, and reads that support only from an AP Capability TLV. A repeater sends its
+        Early AP Capability Report once per connection, so an Agent object that the Controller
+        creates again in an earlier test has no RSN Overriding support.
+        """
+        for agent in (self.agent, self.agent2):
+            mid = self.controller.dev_send_1905(
+                agent.mac, self.ieee1905['eMessageType']['AP_CAPABILITY_QUERY_MESSAGE'])
+            self.check_log(self.controller,
+                           r"Received AP_CAPABILITY_REPORT_MESSAGE, mid={}$".format(mid),
+                           timeout=10)
+
+    def check_second_repeater_staged(self):
+        """The second repeater gets the push-button BSS on its 5 GHz radio too.
+
+        Then waits until both repeaters end the configuration that follows the M2: the Agent
+        ignores a Renew that arrives before that, and the next check needs a new Renew.
+        """
+        attached = r"Push-Button Config TLV \(radio {}, BSS_Index [1-9][0-9]*\) attached to " \
+                   r"the M2 of SSID '" + FRONTHAUL_SSID + "'"
+        _, line2, _ = self.check_log(self.radio2, attached.format(self.radio2.iface_name),
+                                     timeout=90)
+        _, _, match = self.check_log(
+            self.radio2, r"WPS push button armed on bssid ([0-9a-f:]{17}): UUID-E " + self.uuid_e,
+            timeout=30)
+        self.bssid2 = match[0].decode()
+        _, line, _ = self.check_log(self.radio, attached.format(self.radio.iface_name))
+        self.check_log(self.radio, r"Finished configuration on " + self.radio.iface_name,
+                       start_line=line, timeout=30)
+        self.check_log(self.radio2, r"Finished configuration on " + self.radio2.iface_name,
+                       start_line=line2, timeout=30)
+
+    def device_path(self, al_mac):
+        """Get the path of the Controller Device object of an Agent."""
+        for device in self.controller.nbapi_get_list_instances(
+                "Device.WiFi.DataElements.Network.Device"):
+            if self.controller.nbapi_get_parameter(device, "ID").lower() == al_mac:
+                return device
+        self.fail("No Device of {} in the data model".format(al_mac))
+
+    def bss_path(self, bssid):
+        """Get the path of the Controller BSS object of a BSSID."""
+        for device in self.controller.nbapi_get_list_instances(
+                "Device.WiFi.DataElements.Network.Device"):
+            for radio in self.controller.nbapi_get_list_instances(device + ".Radio"):
+                for bss in self.controller.nbapi_get_list_instances(radio + ".BSS"):
+                    if self.controller.nbapi_get_parameter(bss, "BSSID").lower() == bssid:
+                        return bss
+        self.fail("No BSS {} in the data model".format(bssid))
+
+    def check_bss_result(self, bssid, result, timeout=15):
+        """Wait until X_PRPLWARE-COM_MeshPBC.Result of a BSS is result; fail after timeout s."""
+        path = self.bss_path(bssid) + ".X_PRPLWARE-COM_MeshPBC"
+        deadline = time.time() + timeout
+        while True:
+            value = self.controller.nbapi_get_parameter(path, "Result")
+            if value == result:
+                return
+            if time.time() > deadline:
+                self.fail("{}.Result is '{}', expected '{}'".format(path, value, result))
+            time.sleep(1)
+
+    def start_call(self, path, method, args=None):
+        """Start a Controller method whose reply comes at the session end.
+
+        The ubus call runs in a thread. Returns the thread and a dict that gets the output of
+        the call in "output", or the error in "error".
+        """
+        call = {}
+        command = ["ubus", "-t", str(LISTEN_DURATION + 20), "call", path, method,
+                   json.dumps(args or {})]
+
+        def run():
+            try:
+                call["output"] = self.controller.command(*command)
+            except subprocess.CalledProcessError as error:
+                call["error"] = error
+
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        return thread, call
+
+    def call_reply(self, thread, call):
+        """Wait for the reply of a call of start_call(). Returns its out arguments."""
+        thread.join(LISTEN_DURATION + 30)
+        if thread.is_alive() or "error" in call:
+            self.fail("No reply of the call: {}".format(call.get("error", "timeout")))
+        decoder = json.JSONDecoder()
+        text = call["output"].strip()
+        values = []
+        while text:
+            value, end = decoder.raw_decode(text)
+            values.append(value)
+            text = text[end:].strip()
+        while values:
+            value = values.pop(0)
+            if isinstance(value, dict):
+                if "Status" in value:
+                    return value
+                values.extend(value.values())
+            elif isinstance(value, list):
+                values.extend(value)
+        self.fail("No Status in the reply: {}".format(call["output"]))
+
+    def check_trigger_start(self, radio, bssid, session_al_mac=None):
+        """The repeater Acks one Trigger with START for its own BSSID, then sends Started.
+
+        session_al_mac is the AL MAC of the PBC Session ID, the Controller AL MAC if None.
+        Returns the PBC Session ID MID.
+        """
+        _, _, match = self.check_log(
+            radio, r"Multi-AP Push-Button Trigger mid=0x([0-9a-f]+) from " + self.controller.mac
+            + r": PBC Session ID " + (session_al_mac or self.controller.mac)
+            + r"/0x([0-9a-f]{4}), method DPP=0 WPS=1, "
+            + "State={}, Num_BSSID=1".format(TRIGGER_STATE_START), timeout=10)
+        mid = int(match[0].decode(), 16)
+        session = int(match[1].decode(), 16)
+        self.check_log(radio, r"Sending ACK message for the Multi-AP Push-Button Trigger "
+                       r"mid=0x{:x} ".format(mid), timeout=10)
+        self.check_log(radio, self.status_regex(bssid, session, 3, session_al_mac=session_al_mac),
+                       timeout=10)
+        return session
+
+    def check_no_trigger(self, radio, session, state, session_al_mac=None):
+        """Fail if radio logs a Trigger with this State for the PBC Session ID MID within 3 s.
+
+        session_al_mac is the AL MAC of the PBC Session ID, the Controller AL MAC if None.
+        """
+        result, _, _ = self.check_log(
+            radio, r"Multi-AP Push-Button Trigger mid=0x[0-9a-f]+ from .*: PBC Session ID {}/0x"
+            r"{:04x}, .*State={},".format(session_al_mac or self.controller.mac, session, state),
+            timeout=3, fail_on_mismatch=False)
+        if result:
+            self.fail("Unexpected Trigger with State={} for PBC Session ID MID 0x{:04x}"
+                      .format(state, session))
+
+    def check_template_session_on_two_repeaters(self):
+        """A template InitiatePBC() arms both repeaters; a Success stops the other one."""
+        self.agent.checkpoint()
+        self.agent2.checkpoint()
+        thread, call = self.start_call(self.mesh_pbc_template, "InitiatePBC")
+        session = self.check_trigger_start(self.radio, self.bssid)
+        if self.check_trigger_start(self.radio2, self.bssid2) != session:
+            self.fail("The repeaters got Triggers with different PBC Session IDs")
+
+        self.inject("WPS-PAIRING-DONE", "Success", ENROLLEE_MAC)
+        self.check_status(self.bssid, session, 0, enrollee=ENROLLEE_MAC)
+        self.check_log(self.radio2, r"Cancel WPS PBC on " + self.bssid2, timeout=10)
+        self.check_log(self.radio2, self.status_regex(self.bssid2, session, 1, 0), timeout=10)
+        self.check_no_trigger(self.radio, session, TRIGGER_STATE_STOP)
+
+        reply = self.call_reply(thread, call)
+        expected = {"Status": "Success", "EnrolleeMACAddress": ENROLLEE_MAC,
+                    "BSSID": self.bssid}
+        for name, value in expected.items():
+            if str(reply.get(name, "")).lower() != value.lower():
+                self.fail("InitiatePBC() reply {} is '{}', expected '{}' (reply {})"
+                          .format(name, reply.get(name), value, reply))
+        result = self.controller.nbapi_get_parameter(self.mesh_pbc_template + ".Status",
+                                                     "Result")
+        if result != "Success":
+            self.fail("{}.Status.Result is '{}'".format(self.mesh_pbc_template, result))
+        self.check_bss_result(self.bssid, "Success")
+        self.check_bss_result(self.bssid2, "Error_Other")
+
+    def check_agent_session_on_second_repeater(self):
+        """The Agent-level methods of the second repeater reach only that repeater."""
+        device = self.device_path(self.agent2.mac)
+        self.agent.checkpoint()
+        self.agent2.checkpoint()
+        thread, call = self.start_call(device, "X_PRPLWARE-COM_InitiatePBC",
+                                       {"PBCTemplateID": "mesh-pbc-t1"})
+        session = self.check_trigger_start(self.radio2, self.bssid2)
+        session_id = self.controller.nbapi_get_parameter(self.mesh_pbc_template + ".Status",
+                                                         "PBCSessionID")
+        if session_id != "{}-{:04x}".format(self.controller.mac, session):
+            self.fail("{}.Status.PBCSessionID is '{}', the Trigger has MID 0x{:04x}"
+                      .format(self.mesh_pbc_template, session_id, session))
+        self.check_no_trigger(self.radio, session, TRIGGER_STATE_START)
+
+        self.controller.command("ubus", "call", device, "X_PRPLWARE-COM_TerminatePBC",
+                                json.dumps({"PBCSessionID": session_id}))
+        stop = r"Multi-AP Push-Button Trigger mid=0x[0-9a-f]+ from .*: PBC Session ID {}/0x" \
+               r"{:04x}, .*State={},".format(self.controller.mac, session, TRIGGER_STATE_STOP)
+        self.check_log(self.radio2, stop, timeout=10)
+        self.check_log(self.radio2, r"Cancel WPS PBC on " + self.bssid2, timeout=10)
+        self.check_log(self.radio2, self.status_regex(self.bssid2, session, 1, 0), timeout=10)
+        self.check_no_trigger(self.radio, session, TRIGGER_STATE_STOP)
+
+        reply = self.call_reply(thread, call)
+        if reply.get("Status") != "Canceled":
+            self.fail("X_PRPLWARE-COM_InitiatePBC() reply: {}".format(reply))
+        self.check_bss_result(self.bssid2, "Canceled")
+
+    def press_button_on_second_repeater(self):
+        """Press the button of the second repeater. Returns the MID of its Request."""
+        self.agent.checkpoint()
+        self.agent2.checkpoint()
+        self.agent2.nbapi_command("X_PRPLWARE-COM_Agent.MeshWidePBCOnboarding", "InitiatePBC")
+        self.check_log(self.agent2, r"Mesh-wide PBC: path=Request, "
+                       r"controller_push_button_support=true", timeout=10)
+        session = self.check_trigger_start(self.radio2, self.bssid2, self.agent2.mac)
+        session_id = self.controller.nbapi_get_parameter(self.mesh_pbc_template + ".Status",
+                                                         "PBCSessionID")
+        if session_id != "{}-{:04x}".format(self.agent2.mac, session):
+            self.fail("{}.Status.PBCSessionID is '{}', the Trigger has {}/0x{:04x}"
+                      .format(self.mesh_pbc_template, session_id, self.agent2.mac, session))
+        return session
+
+    def end_button_session(self, session, radios):
+        """TerminatePBC() on the template: each radio gets State=STOP and reports Canceled."""
+        self.controller.nbapi_command(self.mesh_pbc_template, "TerminatePBC")
+        stop = r"Multi-AP Push-Button Trigger mid=0x[0-9a-f]+ from .*: PBC Session ID {}/0x" \
+               r"{:04x}, .*State={},".format(self.agent2.mac, session, TRIGGER_STATE_STOP)
+        for radio, bssid in radios:
+            self.check_log(radio, stop, timeout=10)
+            self.check_log(radio, self.status_regex(bssid, session, 1, 0,
+                                                    session_al_mac=self.agent2.mac), timeout=10)
+        result = self.controller.nbapi_get_parameter(self.mesh_pbc_template + ".Status",
+                                                     "Result")
+        if result != "Canceled":
+            self.fail("{}.Status.Result is '{}'".format(self.mesh_pbc_template, result))
+
+    def check_button_press_scope(self):
+        """ButtonPressScope of the Primary template selects the repeaters of a button press."""
+        self.controller.nbapi_set_parameters("{}.Network".format(TEMPLATES),
+                                             {PRIMARY_REFERENCE: self.mesh_pbc_template})
+        self.controller.nbapi_set_parameters(self.mesh_pbc_template,
+                                             {"ButtonPressScope": "RequestingDevice"})
+        session = self.press_button_on_second_repeater()
+        self.check_no_trigger(self.radio, session, TRIGGER_STATE_START, self.agent2.mac)
+        self.end_button_session(session, [(self.radio2, self.bssid2)])
+
+        self.controller.nbapi_set_parameters(self.mesh_pbc_template,
+                                             {"ButtonPressScope": "MeshWide"})
+        session = self.press_button_on_second_repeater()
+        self.check_trigger_start(self.radio, self.bssid, self.agent2.mac)
+        self.end_button_session(session, [(self.radio, self.bssid), (self.radio2, self.bssid2)])
