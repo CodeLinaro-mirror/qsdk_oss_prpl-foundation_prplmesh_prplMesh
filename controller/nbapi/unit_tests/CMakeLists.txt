@@ -17,6 +17,8 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     set(unit_tests_sources
         ${CMAKE_CURRENT_LIST_DIR}/mesh_pbc_template_actions_test.cpp
         ${CMAKE_CURRENT_LIST_DIR}/mesh_pbc_test_fixture.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/pbc_onboarding_session_test.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/son_actions_stub.cpp
         ${CMAKE_CURRENT_LIST_DIR}/templates_actions_stub.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../mesh_pbc_template_actions.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../on_action.cpp

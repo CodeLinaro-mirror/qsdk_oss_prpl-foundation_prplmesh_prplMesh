@@ -11,6 +11,7 @@
 
 #include "mesh_pbc_template_actions.h"
 #include "on_action.h"
+#include "son_actions_stub.h"
 #include "templates_actions_stub.h"
 
 #include "db.h"
@@ -34,8 +35,10 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <memory>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -428,6 +431,222 @@ protected:
     std::unique_ptr<PBCOnboardingTask> m_task;
     std::shared_ptr<prplmesh::controller::db::Agent> m_agent;
     std::shared_ptr<prplmesh::controller::db::Agent::sRadio::sBss> m_bss;
+};
+
+using son::g_stub_refused_destination;
+using son::g_stub_sent_cmdus;
+using son::sStubSentCmdu;
+using eSessionResult = PBCOnboardingTask::eResult;
+
+const sMacAddr g_ruid_2     = tlvf::mac_from_string("02:00:00:00:20:00");
+const sMacAddr g_ruid_3     = tlvf::mac_from_string("02:00:00:00:30:00");
+const sMacAddr g_bssid_3    = tlvf::mac_from_string("02:00:00:00:2a:01");
+const sMacAddr g_bssid_4    = tlvf::mac_from_string("02:00:00:00:3b:01");
+const sMacAddr g_enrollee   = tlvf::mac_from_string("11:22:33:44:55:66");
+const sMacAddr g_controller = tlvf::mac_from_string(g_controller_al_mac);
+
+/**
+ * Session engine with the clock of the test and two connected Agents: the first Agent has the
+ * push-button BSS g_bssid_1, the second Agent has g_bssid_3 and g_bssid_4 on two radios.
+ */
+class MeshPbcSessionTest : public MeshPbcSessionEngineTest {
+protected:
+    void SetUp() override
+    {
+        MeshPbcSessionEngineTest::SetUp();
+        if (HasFatalFailure()) {
+            return;
+        }
+        m_task = std::make_unique<PBCOnboardingTask>(*m_db, m_cmdu_tx, [this] { return m_now; });
+
+        m_agent_2 = m_db->get_agent(g_other_agent);
+        ASSERT_TRUE(m_agent_2);
+        m_agent_2->state                            = beerocks::STATE_CONNECTED;
+        m_agent_2->mesh_wide_pbc_onboarding_support = true;
+        m_bss_3                                     = add_linked_bss(g_ruid_2, g_bssid_3);
+        m_bss_4                                     = add_linked_bss(g_ruid_3, g_bssid_4);
+        ASSERT_TRUE(m_bss_3);
+        ASSERT_TRUE(m_bss_4);
+
+        g_stub_sent_cmdus.clear();
+        g_stub_refused_destination = beerocks::net::network_utils::ZERO_MAC;
+        LogRecorder::lines.clear();
+    }
+
+    void TearDown() override
+    {
+        g_stub_sent_cmdus.clear();
+        g_stub_refused_destination = beerocks::net::network_utils::ZERO_MAC;
+        MeshPbcSessionEngineTest::TearDown();
+    }
+
+    /** Adds a radio of the second Agent with one BSS that has a push-button link. */
+    std::shared_ptr<prplmesh::controller::db::Agent::sRadio::sBss>
+    add_linked_bss(const sMacAddr &ruid, const sMacAddr &bssid)
+    {
+        if (!m_db->add_radio(ruid, g_other_agent)) {
+            return nullptr;
+        }
+        auto radio = m_db->get_radio(g_other_agent, ruid);
+        if (!radio) {
+            return nullptr;
+        }
+        auto bss = m_db->add_bss(*radio, bssid, g_link_ssid, 1);
+        if (!bss) {
+            return nullptr;
+        }
+        bss->fronthaul = true;
+        son::wireless_utils::sBssInfoConf link{};
+        link.bss_index             = 1;
+        link.ssid                  = g_link_ssid;
+        link.fronthaul             = true;
+        link.mesh_pbc_template_ref = mesh_pbc_path(1);
+        m_db->add_configured_bss_info(ruid, link);
+        return bss;
+    }
+
+    /**
+     * @brief Starts a Controller session that records each completion.
+     *
+     * @return The result of start().
+     */
+    PBCOnboardingTask::sStartResult start_session(const sMacAddr &agent_al_mac        = {},
+                                                  const std::vector<sMacAddr> &bssids = {})
+    {
+        PBCOnboardingTask::sStartRequest request;
+        request.template_reference = mesh_pbc_path(1);
+        request.agent_al_mac       = agent_al_mac;
+        request.bssids             = bssids;
+        request.on_completion      = [this](const PBCOnboardingTask::sCompletion &completion) {
+            m_completions.push_back(completion);
+        };
+        auto result = m_task->start(request);
+        if (result.accepted) {
+            for (const auto &sent : g_stub_sent_cmdus) {
+                if (sent.trigger && sent.start) {
+                    m_session_id = sent.session_id;
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * @brief Gives the engine a Multi-AP Push-Button Status message with one Status TLV.
+     *
+     * The Failure Reason field is present for FAILURE_ABORTED and NOT_STARTED.
+     */
+    void report(const sMacAddr &src_mac, const wfa_map::sPbcSessionId &session_id,
+                const sMacAddr &bssid, eStatusResult result, uint16_t failure_reason = 0,
+                const sMacAddr &enrollee = beerocks::net::network_utils::ZERO_MAC)
+    {
+        uint8_t buffer[256] = {};
+        ieee1905_1::CmduMessageTx cmdu_tx(buffer, sizeof(buffer));
+        ASSERT_TRUE(
+            cmdu_tx.create(0x2345, ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE));
+        auto tlv = cmdu_tx.addClass<wfa_map::tlvMultiApPushButtonStatus>();
+        ASSERT_TRUE(tlv);
+        tlv->pbc_session_id() = session_id;
+        tlv->bssid()          = bssid;
+        tlv->result()         = result;
+        if (result == eStatusResult::FAILURE_ABORTED || result == eStatusResult::NOT_STARTED) {
+            ASSERT_TRUE(tlv->set_failure_reason(failure_reason));
+        }
+        tlv->enrollee_mac() = enrollee;
+        ASSERT_TRUE(cmdu_tx.finalize());
+        ieee1905_1::CmduMessageRx cmdu_rx(buffer, cmdu_tx.getMessageLength());
+        ASSERT_TRUE(cmdu_rx.parse());
+        EXPECT_TRUE(m_task->handle_ieee1905_1_msg(src_mac, cmdu_rx));
+    }
+
+    /** Gives the engine a report for the active session. */
+    void report(const sMacAddr &src_mac, const sMacAddr &bssid, eStatusResult result,
+                uint16_t failure_reason  = 0,
+                const sMacAddr &enrollee = beerocks::net::network_utils::ZERO_MAC)
+    {
+        report(src_mac, m_session_id, bssid, result, failure_reason, enrollee);
+    }
+
+    /** Moves the clock of the engine and runs the engine once. */
+    void advance(std::chrono::milliseconds time)
+    {
+        m_now += time;
+        m_task->execute();
+    }
+
+    /** @return The Triggers sent to al_mac with that State. */
+    static std::vector<sStubSentCmdu> triggers(const sMacAddr &al_mac, bool start)
+    {
+        std::vector<sStubSentCmdu> result;
+        for (const auto &sent : g_stub_sent_cmdus) {
+            if (sent.trigger && sent.destination == al_mac && sent.start == start) {
+                result.push_back(sent);
+            }
+        }
+        return result;
+    }
+
+    /** @return The number of Triggers with this State that the stub recorded. */
+    static size_t trigger_count(bool start)
+    {
+        return std::count_if(
+            g_stub_sent_cmdus.begin(), g_stub_sent_cmdus.end(),
+            [&](const sStubSentCmdu &sent) { return sent.trigger && sent.start == start; });
+    }
+
+    /** @return The BSSIDs as a set of text MAC addresses. */
+    static std::set<std::string> bssid_set(const std::vector<sMacAddr> &bssids)
+    {
+        std::set<std::string> result;
+        for (const auto &bssid : bssids) {
+            result.insert(tlvf::mac_to_string(bssid));
+        }
+        return result;
+    }
+
+    /** Checks that exactly one STOP went to al_mac, with these BSSIDs. */
+    static void expect_one_stop(const sMacAddr &al_mac, const std::vector<sMacAddr> &bssids)
+    {
+        auto stops = triggers(al_mac, false);
+        ASSERT_EQ(stops.size(), 1U) << al_mac;
+        EXPECT_EQ(bssid_set(stops[0].bssids), bssid_set(bssids)) << al_mac;
+        EXPECT_EQ(stops[0].bssids.size(), bssids.size()) << al_mac;
+    }
+
+    /** @return A parameter of the X_PRPLWARE-COM_MeshPBC object of a BSS. */
+    static std::string bss_param(const prplmesh::controller::db::Agent::sRadio::sBss &bss,
+                                 const std::string &param)
+    {
+        return get(bss.dm_path + ".X_PRPLWARE-COM_MeshPBC", param);
+    }
+
+    /** @return A parameter of the Status object of the template of the fixture. */
+    std::string status(const std::string &param) const
+    {
+        return get(mesh_pbc_path(1) + ".Status", param);
+    }
+
+    /** Checks the one completion of the session and the template Status.Result. */
+    void expect_completion(eSessionResult status, uint16_t failure_reason,
+                           const sMacAddr &enrollee = beerocks::net::network_utils::ZERO_MAC,
+                           const sMacAddr &bssid    = beerocks::net::network_utils::ZERO_MAC)
+    {
+        ASSERT_EQ(m_completions.size(), 1U);
+        const auto &completion = m_completions[0];
+        EXPECT_EQ(completion.session_id, PBCOnboardingTask::session_id_to_string(m_session_id));
+        EXPECT_EQ(int(completion.status), int(status));
+        EXPECT_EQ(completion.failure_reason, failure_reason);
+        EXPECT_EQ(completion.enrollee_mac, enrollee);
+        EXPECT_EQ(completion.bssid, bssid);
+        EXPECT_EQ(template_result(), PBCOnboardingTask::result_to_string(status));
+    }
+
+    std::chrono::steady_clock::time_point m_now = std::chrono::steady_clock::now();
+    std::shared_ptr<prplmesh::controller::db::Agent> m_agent_2;
+    std::shared_ptr<prplmesh::controller::db::Agent::sRadio::sBss> m_bss_3;
+    std::shared_ptr<prplmesh::controller::db::Agent::sRadio::sBss> m_bss_4;
+    wfa_map::sPbcSessionId m_session_id{};
+    std::vector<PBCOnboardingTask::sCompletion> m_completions;
 };
 
 } // namespace mesh_pbc_test
