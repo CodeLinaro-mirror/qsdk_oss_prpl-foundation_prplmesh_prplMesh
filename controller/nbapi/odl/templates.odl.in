@@ -340,6 +340,172 @@
                  */
                 %persistent string DevicePassword = "";
             }
+
+            /**
+             * Status of the current or latest push-button session of this template.
+             * The next session of this template overwrites it. A rejected request writes only
+             * Result and FailureReason; PBCSessionID and TimeStamp keep the values of the
+             * previous session. When the Controller creates a session, it first moves the
+             * session that Status holds to History, if Status holds a session (PBCSessionID is
+             * not "") and MaxHistoryEntries is not 0. Then it writes the new session.
+             * MaxHistoryEntries is saved. All other values are runtime state: they are not
+             * saved, and after a Controller restart State is "Idle", Result is "" and History
+             * is empty.
+             */
+            %persistent %read-only object Status {
+                /**
+                 * Maximum number of History entries. 0: no history; Status holds only the
+                 * current or latest session. When the number of entries is more than this
+                 * value, the Controller deletes the entries that it added first. A decrease
+                 * deletes them after the write.
+                 */
+                %persistent uint32 MaxHistoryEntries = 10;
+                /**
+                 * "InProgress" while a session of this template is active, else "Idle".
+                 */
+                %read-only string State {
+                    default "Idle";
+                    on action validate call check_enum [
+                        "Idle",
+                        "InProgress"
+                    ];
+                }
+                /**
+                 * Result of the latest session, or of the latest request that the
+                 * Controller rejected before it created a session. The value is "" while
+                 * the session is active.
+                 * Enumeration of:
+                 * - "Success": a device onboarded through a BSS of the session.
+                 * - "Error_Timeout": the session timer expired, or all BSSs ended without an
+                 *   Enrollee and without a Failure Reason.
+                 * - "Error_Not_Ready": no BSS could be armed, or a session was active.
+                 * - "Error_Invalid_Input": the template, or a BSSIDList entry, is not valid.
+                 * - "Error_Other": the session failed: a non-zero Failure Reason, a
+                 *   Templates.Network.Enable change to false, no Trigger sent, or an internal
+                 *   failure.
+                 * - "Canceled": a TerminatePBC() call (template or Agent level) ended the
+                 *   session.
+                 */
+                %read-only string Result {
+                    default "";
+                    on action validate call check_enum [
+                        "",
+                        "Success",
+                        "Error_Timeout",
+                        "Error_Not_Ready",
+                        "Error_Invalid_Input",
+                        "Error_Other",
+                        "Canceled"
+                    ];
+                }
+                /**
+                 * Native failure code of the Result: WSC Configuration Error for WPS,
+                 * DPP Status for DPP. The value is 0 if not applicable.
+                 */
+                %read-only uint16 FailureReason = 0;
+                /**
+                 * MAC address of the device that onboarded in the latest session. Set only
+                 * when Result is "Success", else "".
+                 */
+                %read-only string EnrolleeMACAddress = "";
+                /**
+                 * BSSID of the BSS through which the device onboarded in the latest
+                 * session. Set only when Result is "Success", else "".
+                 */
+                %read-only string BSSID = "";
+                /**
+                 * Time when the latest session was created.
+                 */
+                %read-only datetime TimeStamp = "0001-01-01T00:00:00Z";
+                /**
+                 * PBC Session ID of the current or latest session, in the form
+                 * "<AL MAC>-<4 lowercase hexadecimal digits>".
+                 */
+                %read-only string PBCSessionID = "";
+                /**
+                 * Previous sessions of this template, in the order in which the Controller
+                 * added them. The session that Status holds is not in this table. A rejected
+                 * request adds no entry. Each entry has the values that its session wrote at
+                 * its end, also if a rejected request wrote Status.Result after that end.
+                 */
+                %read-only object History[] {
+                    counted with HistoryNumberOfEntries;
+
+                    /**
+                     * PBC Session ID of the session. It cannot change after the entry is added.
+                     */
+                    %unique %key string PBCSessionID;
+                    /**
+                     * Result of the session. Same values as Status.Result.
+                     */
+                    %read-only string Result {
+                        default "";
+                        on action validate call check_enum [
+                            "",
+                            "Success",
+                            "Error_Timeout",
+                            "Error_Not_Ready",
+                            "Error_Invalid_Input",
+                            "Error_Other",
+                            "Canceled"
+                        ];
+                    }
+                    /**
+                     * Native failure code of the Result, 0 if not applicable.
+                     */
+                    %read-only uint16 FailureReason = 0;
+                    /**
+                     * MAC address of the device that onboarded. Set only when Result is
+                     * "Success", else "".
+                     */
+                    %read-only string EnrolleeMACAddress = "";
+                    /**
+                     * BSSID of the BSS through which the device onboarded. Set only when
+                     * Result is "Success", else "".
+                     */
+                    %read-only string BSSID = "";
+                    /**
+                     * Time when the session was created. The Controller does not use it to
+                     * select the entries that it deletes.
+                     */
+                    %read-only datetime TimeStamp = "0001-01-01T00:00:00Z";
+                }
+            }
+
+            /**
+             * Statistics of the push-button sessions of this template. Not saved: the counters
+             * are reset to 0 when the Controller starts.
+             */
+            %read-only object Stats {
+                /**
+                 * Number of sessions of this template that the Controller created.
+                 */
+                %read-only uint64 Sessions = 0;
+                /**
+                 * Number of times that Status.Result was set to "Success".
+                 */
+                %read-only uint64 Successes = 0;
+                /**
+                 * Number of times that Status.Result was set to "Error_Timeout".
+                 */
+                %read-only uint64 Timeouts = 0;
+                /**
+                 * Number of times that Status.Result was set to "Error_Not_Ready".
+                 */
+                %read-only uint64 NotReady = 0;
+                /**
+                 * Number of times that Status.Result was set to "Error_Invalid_Input".
+                 */
+                %read-only uint64 InvalidInput = 0;
+                /**
+                 * Number of times that Status.Result was set to "Error_Other".
+                 */
+                %read-only uint64 OtherFailures = 0;
+                /**
+                 * Number of times that Status.Result was set to "Canceled".
+                 */
+                %read-only uint64 Canceled = 0;
+            }
         }
     @TEMPLATES_ROOT_DM_Footer@
 }
@@ -385,8 +551,14 @@
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
 
     on event "dm:object-changed" call event_mesh_pbc_template_configuration_changed
-        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\." && !(object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\.[^.]+\.(Status|Stats)\.") &&
+                !(contains("parameters.ButtonPressScope") &&
+                  !contains("parameters.PBCTemplateID", "parameters.Enable",
+                            "parameters.PushButtonMethod", "parameters.ListenDuration"))';
 
     on event regexp("^dm:instance-(added|removed)$") call event_mesh_pbc_template_instance_changed
-        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\." && !(object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\.[^.]+\.Status\.History\.")';
+
+    on event "dm:object-changed" call event_mesh_pbc_max_history_entries_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\.[^.]+\.Status\.$" && contains("parameters.MaxHistoryEntries")';
 }
