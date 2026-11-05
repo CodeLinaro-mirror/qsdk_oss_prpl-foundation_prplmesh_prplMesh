@@ -23,6 +23,8 @@
 namespace beerocks {
 
 constexpr int TrafficSeparationTask::WDS_RETRY_TIMEOUT_MS;
+constexpr int TrafficSeparationTask::RECONCILE_RETRY_DELAY_MS;
+constexpr int TrafficSeparationTask::RECONCILE_RETRY_MAX_DELAY_MS;
 
 TrafficSeparationTask::TrafficSeparationTask(slave_thread &btl_ctx)
     : Task(eTaskType::TRAFFIC_SEPARATION), m_btl_ctx(btl_ctx),
@@ -180,7 +182,8 @@ void TrafficSeparationTask::request_wds_retry(const std::string &iface_name,
 
 void TrafficSeparationTask::clear_pending_apply()
 {
-    m_apply_pending = false;
+    m_apply_pending           = false;
+    m_reconcile_retry_counter = 0;
     if (m_pending_wds_ifaces.empty()) {
         clear_scheduled_work();
     }
@@ -211,8 +214,31 @@ void TrafficSeparationTask::work()
     const auto apply_pending = m_apply_pending;
     m_apply_pending          = false;
 
-    if (apply_pending && !reconcile()) {
-        LOG(WARNING) << "TS reconciliation failed";
+    // Retry a failed reconcile with backoff. A wakeup for deferred WDS work
+    // does not run the retry before its time.
+    const bool retry_due = m_reconcile_retry_counter > 0 &&
+                           std::chrono::steady_clock::now() >= m_next_reconcile_retry_time;
+    if (apply_pending || retry_due) {
+        if (reconcile()) {
+            if (m_reconcile_retry_counter > 0) {
+                LOG(INFO) << "TS reconciliation succeeded after " << m_reconcile_retry_counter
+                          << " failed attempt(s)";
+            }
+            m_reconcile_retry_counter = 0;
+        } else {
+            ++m_reconcile_retry_counter;
+            const int delay_ms =
+                std::min(RECONCILE_RETRY_MAX_DELAY_MS,
+                         RECONCILE_RETRY_DELAY_MS << std::min(m_reconcile_retry_counter - 1, 6));
+            LOG(WARNING) << "TS reconciliation failed, retry " << m_reconcile_retry_counter
+                         << " in " << delay_ms << " ms";
+            m_next_reconcile_retry_time =
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(delay_ms);
+        }
+    }
+
+    if (m_reconcile_retry_counter > 0) {
+        run_at(m_next_reconcile_retry_time);
     }
 
     if (!retry_pending_wds_ifaces()) {
@@ -726,7 +752,7 @@ bool TrafficSeparationTask::handle_clear_wds_iface(const std::string &iface_name
     }
 
     m_pending_wds_ifaces.erase(iface_name);
-    if (!m_apply_pending && m_pending_wds_ifaces.empty()) {
+    if (!m_apply_pending && m_reconcile_retry_counter == 0 && m_pending_wds_ifaces.empty()) {
         clear_scheduled_work();
     }
 
