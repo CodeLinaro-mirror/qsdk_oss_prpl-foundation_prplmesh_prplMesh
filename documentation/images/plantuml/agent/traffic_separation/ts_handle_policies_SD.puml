@@ -72,6 +72,21 @@ opt task exists
       end
     end
   end
+
+  alt reconcile() succeeded
+    TST -> TST : reset retry counter
+  else reconcile() failed
+    TST -> TST : retry counter++
+    TST -> TST : run_at(now + 1 s, doubling up to 60 s)
+  end
+end
+
+== Reconcile retry ==
+TP -> TST : work()
+alt retry due
+  TST -> TST : reconcile() as in TS apply
+else retry not due yet (woken by deferred WDS work)
+  TST -> TST : run_at(retry time)
 end
 
 == Handle pure FH AP enable ==
@@ -210,18 +225,5 @@ else associated client disconnects with active WDS iface
   ST -> ST : erase cached WDS notification for client and bssid
   ST -> DB : erase_client(client_mac, bssid)
 end
-
-note over ACT,TST
-FH and WDS runtime lifecycles are event-driven.
-No debounce is used for incremental add and remove events.
-
-work() runs reconcile() for a pending TS_APPLY.
-WDS readiness retry also runs from work() after the
-settle delay, so handle_event() does not sleep.
-
-reconcile() only refreshes config and persistent
-DB-owned trunks. Event-managed FH and WDS ports stay
-owned by their runtime events.
-end note
 
 @enduml

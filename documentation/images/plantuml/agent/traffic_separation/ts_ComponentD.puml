@@ -49,24 +49,4 @@ PortPlumbing <|-- AccessPortPlumbing8021q
 TrunkPortPlumbing8021q --> network_utils : create_vlan_interface()\nlinux_add_iface_to_bridge()\nset_interface_state()
 AccessPortPlumbing8021q --> network_utils : linux_iface_exists()\nset_vlan_packet_filter()
 
-note bottom of TrafficSeparationTask
-  TS_APPLY requests unconditional reconciliation.
-  TS_POLICY_UPDATE skips unchanged configuration.
-  work() runs reconcile() for policy refresh and
-  bounded WDS retries after the settle delay.
-
-  reconcile() refreshes config plus persistent DB-owned
-  trunks and preserves event-managed FH and WDS
-  ownership.
-
-  Pure-FH and exact-WDS add/remove are event-driven.
-  WDS add does not sleep inside handle_event();
-  readiness retry stays on the deferred work path.
-
-  Policy disable currently reaches cleanup through
-  TS_POLICY_UPDATE plus primary_vlan_id=0. TS_CLEAR exists for
-  explicit runtime cleanup but is not the normal policy
-  disable producer in the current tree.
-end note
-
 @enduml
