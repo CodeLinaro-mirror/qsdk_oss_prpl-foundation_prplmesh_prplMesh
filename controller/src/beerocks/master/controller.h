@@ -43,6 +43,10 @@
 #include <stdint.h>
 
 namespace son {
+#ifdef ENABLE_NBAPI
+class PBCOnboardingTask;
+#endif
+
 class Controller {
 
 public:
@@ -236,6 +240,15 @@ public:
      */
     void trigger_traffic_separation_override();
 
+#ifdef ENABLE_NBAPI
+    /**
+     * @brief Get the task that runs the mesh-wide push-button onboarding sessions.
+     *
+     * @return The task, or nullptr if it does not run (Non-Multi-AP mode).
+     */
+    std::shared_ptr<PBCOnboardingTask> get_pbc_onboarding_task() { return m_pbc_onboarding_task; }
+#endif
+
     /**
      * @brief Function that starts all mandatory periodic tasks on controller start-up
      * Mandatory task list is
@@ -385,6 +398,18 @@ private:
 
     bool handle_cmdu_1905_available_spectrum_inquiry_message(const sMacAddr &src_mac,
                                                              ieee1905_1::CmduMessageRx &cmdu_rx);
+
+    /**
+     * @brief Send the 1905 Ack for a Multi-AP Push-Button Request or Status message.
+     *
+     * The PBCOnboardingTask handles the content of the message.
+     *
+     * @param src_mac AL MAC address of the sender.
+     * @param cmdu_rx The received message.
+     * @return true on success, otherwise false.
+     */
+    bool handle_cmdu_1905_multi_ap_push_button_message(const sMacAddr &src_mac,
+                                                       ieee1905_1::CmduMessageRx &cmdu_rx);
 
     void handle_cmdu_control_ieee1905_1_message(const std::string &src_mac,
                                                 ieee1905_1::CmduMessageRx &cmdu_rx);
@@ -751,6 +776,11 @@ private:
     // It is used only in handle_cmdu_1905_ap_metric_response() to call construct_combined_infra_metric().
     // TODO It can be removed after cert_cmdu_tx usage is removed (PPM-1130).
     std::shared_ptr<LinkMetricsTask> m_link_metrics_task;
+
+#ifdef ENABLE_NBAPI
+    /** Mesh-wide push-button onboarding sessions. */
+    std::shared_ptr<PBCOnboardingTask> m_pbc_onboarding_task;
+#endif
 
     /**
      * Task_id used to stop/start the channel_selection_task without restarting the controller
