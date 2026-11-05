@@ -167,6 +167,8 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE,
     ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
     ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
+    ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE,
+    ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE,
 };
 
 } // namespace
