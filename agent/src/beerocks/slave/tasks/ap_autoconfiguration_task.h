@@ -93,6 +93,13 @@ private:
         int8_t mld_id = DISABLED_MLDUNIT;
         son::wireless_utils::eAdditionalAuth additional_auth =
             son::wireless_utils::eAdditionalAuth::NONE;
+        /**
+         * WPS push-button settings from the Push-Button Config TLV with the BSS_Index of the
+         * M2. Default: not armed.
+         */
+        son::wireless_utils::sWpsPushButtonConf wps_push_button;
+        /** Listen Duration of the Push-Button Config TLV, in seconds. 0 when not armed. */
+        uint16_t pbc_listen_duration = 0;
     };
 
     /**
@@ -378,6 +385,25 @@ private:
      * @return true on successful validation, false if the radio cannot be found.
      */
     bool handle_bss_reconfiguration(const std::string &radio_iface, std::vector<sBssConfig> &infos);
+
+    /**
+     * @brief Attaches the WPS push-button settings and the Listen Duration of each Push-Button
+     * Config TLV of an AP-Autoconfiguration WSC message to the M2 entry with the same
+     * BSS_Index, and keeps the Listen Durations of the radio in PBCOnboardingTask.
+     *
+     * Nothing is attached, with an error log, for a TLV whose BSS_Index selects no M2 or more
+     * than one, for the TLVs that have the same BSS_Index (also when PBCOnboardingTask cannot
+     * read one of them), and for a TLV whose M2 is a teardown or is not for a fronthaul-only
+     * BSS. The TLVs that PBCOnboardingTask cannot read are skipped too. No SSID and no BSSID
+     * select the BSS.
+     *
+     * @param[in] radio_iface Name of the radio interface named by the AP Radio Identifier TLV.
+     * @param[in] cmdu_rx The AP-Autoconfiguration WSC message.
+     * @param[in,out] bss_infos The M2 entries of the message.
+     */
+    void attach_push_button_configs(const std::string &radio_iface,
+                                    ieee1905_1::CmduMessageRx &cmdu_rx,
+                                    std::vector<sBssConfig> &bss_infos);
 
     bool send_ap_bss_info_update_request(const std::string &radio_iface);
 

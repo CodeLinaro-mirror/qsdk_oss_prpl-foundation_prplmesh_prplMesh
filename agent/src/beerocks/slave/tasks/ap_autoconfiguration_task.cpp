@@ -12,6 +12,7 @@
 #include "traffic_separation_task.h"
 
 #include "../agent_db.h"
+#include "../helpers/push_button_config_attach.h"
 #include "../son_slave_thread.h"
 #include "../tlvf_utils.h"
 #include "multi_vendor.h"
@@ -51,6 +52,7 @@
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvProfile2TrafficSeparationPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
+#include <tlvf/wfa_map/tlvPushButtonConfig.h>
 #include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvRsnParametersConfiguration.h>
 #include <tlvf/wfa_map/tlvSearchedService.h>
@@ -66,6 +68,7 @@
 #include <bitset>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <sstream>
 
 #include <easylogging++.h>
@@ -1855,6 +1858,8 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc(ieee1905_1::CmduMe
         LOG(ERROR) << "handle_bss_advanced_configuration_tlv has failed!";
         return;
     }
+
+    attach_push_button_configs(radio_iface_name, cmdu_rx, bss_infos);
 
     handle_bss_reconfiguration(radio_iface_name, bss_infos);
     if (!bss_infos.empty()) {
@@ -3660,6 +3665,27 @@ bool ApAutoConfigurationTask::send_error_response_message(
     return true;
 }
 
+void ApAutoConfigurationTask::attach_push_button_configs(const std::string &radio_iface,
+                                                         ieee1905_1::CmduMessageRx &cmdu_rx,
+                                                         std::vector<sBssConfig> &bss_infos)
+{
+    if (!m_btl_ctx.m_pbc_onboarding_task) {
+        return;
+    }
+
+    const auto configs = PBCOnboardingTask::read_push_button_configs(radio_iface, cmdu_rx);
+
+    std::map<uint8_t, size_t> tlvs_per_bss_index;
+    for (auto tlv : cmdu_rx.getClassList<wfa_map::tlvPushButtonConfig>()) {
+        tlvs_per_bss_index[tlv->bss_index()]++;
+    }
+
+    const auto listen_durations =
+        attach_push_button_configs_to_m2s(radio_iface, configs, tlvs_per_bss_index, bss_infos);
+
+    m_btl_ctx.m_pbc_onboarding_task->set_listen_durations(radio_iface, listen_durations);
+}
+
 bool ApAutoConfigurationTask::handle_bss_reconfiguration(
     const std::string &radio_iface, std::vector<sBssConfig> &requested_bss_list)
 {
@@ -3722,7 +3748,11 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
                 }
             }
 
-            if (is_bss_reconfiguration_required(local_bss, *it)) {
+            if (it->wps_push_button.armed) {
+                LOG(DEBUG) << "BSS " << local_bss.mac
+                           << " needs reconfiguration: WPS push-button settings.";
+                reconfig_bss_list.emplace_back(std::move(*it));
+            } else if (is_bss_reconfiguration_required(local_bss, *it)) {
                 LOG(DEBUG) << "BSS " << local_bss.mac << " needs reconfiguration.";
                 reconfig_bss_list.emplace_back(std::move(*it));
             } else {
@@ -3803,6 +3833,8 @@ bool ApAutoConfigurationTask::handle_bss_reconfiguration(
                 iter->m2_config.hidden_ssid      = remaining_bss.m2_config.hidden_ssid;
                 iter->additional_auth            = remaining_bss.additional_auth;
                 iter->mld_id                     = remaining_bss.mld_id;
+                iter->wps_push_button            = remaining_bss.wps_push_button;
+                iter->pbc_listen_duration        = remaining_bss.pbc_listen_duration;
 
                 continue;
             }
@@ -3905,6 +3937,25 @@ bool ApAutoConfigurationTask::send_ap_bss_configuration_message(
         c->vap_type() = info.m2_config.vap_type;
         c->set_vap_label(info.m2_config.vap_label);
         c->set_operating_generation(info.m2_config.operating_generation);
+        if (info.wps_push_button.armed) {
+            // tlvf needs the variable-length fields allocated in the order of the class.
+            c->pbc_armed() = 1;
+            if (!c->set_pbc_uuid_e(info.wps_push_button.uuid_e)) {
+                LOG(ERROR) << "Failed to set the UUID-E of BSS " << info.payload_config.bssid;
+                return false;
+            }
+            c->pbc_device_password_id() = info.wps_push_button.device_password_id;
+            if (!info.wps_push_button.device_password.empty() &&
+                !c->set_pbc_device_password(info.wps_push_button.device_password)) {
+                LOG(ERROR) << "Failed to set the Device Password of BSS "
+                           << info.payload_config.bssid;
+                return false;
+            }
+            ss << "- WPS push button: UUID-E " << info.wps_push_button.uuid_e
+               << ", Device Password "
+               << (info.wps_push_button.device_password.empty() ? "absent" : "present")
+               << std::endl;
+        }
         request->add_wifi_credentials(c);
     }
     LOG(INFO) << "Sending reconfiguration: " << std::endl << ss.str();

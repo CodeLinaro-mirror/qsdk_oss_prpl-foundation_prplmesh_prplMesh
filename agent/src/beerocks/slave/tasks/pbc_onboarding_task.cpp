@@ -15,6 +15,7 @@
 #include <beerocks/tlvf/beerocks_message_apmanager.h>
 #include <tlvf/wfa_map/tlvMultiApPushButtonStatus.h>
 #include <tlvf/wfa_map/tlvMultiApPushButtonTrigger.h>
+#include <tlvf/wfa_map/tlvPushButtonConfig.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -408,6 +409,87 @@ void PBCOnboardingTask::end_session_with_failure(const std::string &bssid,
                           session.started ? eResult::FAILURE_ABORTED : eResult::NOT_STARTED,
                           WSC_CONFIG_ERROR_NO_ERROR, net::network_utils::ZERO_MAC}});
     m_sessions.erase(session_it);
+}
+
+static std::string uuid_to_string(const uint8_t *uuid)
+{
+    std::ostringstream text;
+    text << std::hex << std::setfill('0');
+    for (int i = 0; i < 16; i++) {
+        if (i == 4 || i == 6 || i == 8 || i == 10) {
+            text << '-';
+        }
+        text << std::setw(2) << int(uuid[i]);
+    }
+    return text.str();
+}
+
+std::vector<PBCOnboardingTask::sPushButtonConfig>
+PBCOnboardingTask::read_push_button_configs(const std::string &radio_iface,
+                                            ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    constexpr size_t max_device_password_length = 63;
+
+    std::vector<sPushButtonConfig> configs;
+    for (auto tlv : cmdu_rx.getClassList<wfa_map::tlvPushButtonConfig>()) {
+        sPushButtonConfig config;
+        const auto bssid          = tlv->bssid();
+        config.bss_index          = tlv->bss_index();
+        config.device_password_id = tlv->device_password_id();
+        config.listen_duration    = tlv->listen_duration();
+
+        std::stringstream tlv_name;
+        tlv_name << "Push-Button Config TLV (radio " << radio_iface << ", BSSID " << bssid
+                 << ", BSS_Index " << int(config.bss_index) << ")";
+
+        if (bssid != net::network_utils::ZERO_MAC) {
+            LOG(ERROR) << tlv_name.str() << " skipped: the BSSID is not zero";
+            continue;
+        }
+        if (config.bss_index == 0) {
+            LOG(ERROR) << tlv_name.str() << " skipped: BSS_Index is 0";
+            continue;
+        }
+
+        auto uuid_e = tlv->uuid_e();
+        if (!uuid_e) {
+            LOG(ERROR) << tlv_name.str() << " skipped: UUID-E cannot be read";
+            continue;
+        }
+        config.uuid_e = uuid_to_string(uuid_e);
+
+        if (config.listen_duration == 0) {
+            LOG(ERROR) << tlv_name.str() << " skipped: Listen Duration is 0";
+            continue;
+        }
+
+        auto length = tlv->device_password_length();
+        if (length > max_device_password_length) {
+            LOG(ERROR) << tlv_name.str() << " skipped: Device Password of " << length
+                       << " octets, more than " << max_device_password_length;
+            continue;
+        }
+        if (length > 0) {
+            auto device_password = tlv->device_password();
+            if (!device_password) {
+                LOG(ERROR) << tlv_name.str() << " skipped: Device Password cannot be read";
+                continue;
+            }
+            if (!std::all_of(device_password, device_password + length,
+                             [](uint8_t c) { return c >= 0x20 && c <= 0x7e; })) {
+                LOG(ERROR) << tlv_name.str() << " skipped: Device Password is not printable text";
+                continue;
+            }
+            config.device_password.assign(reinterpret_cast<const char *>(device_password), length);
+        }
+
+        LOG(DEBUG) << tlv_name.str() << " read: UUID-E " << config.uuid_e << ", Listen Duration "
+                   << config.listen_duration << " s, Device Password ID " << std::hex
+                   << config.device_password_id << std::dec << ", Device Password "
+                   << (config.device_password.empty() ? "absent" : "present");
+        configs.push_back(std::move(config));
+    }
+    return configs;
 }
 
 void PBCOnboardingTask::set_listen_durations(

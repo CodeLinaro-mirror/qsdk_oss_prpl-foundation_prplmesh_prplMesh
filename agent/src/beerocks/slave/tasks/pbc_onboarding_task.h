@@ -31,6 +31,9 @@ namespace beerocks {
 /**
  * @brief Push-button onboarding task on the Agent.
  *
+ * Reads the Push-Button Config TLVs of the AP-Autoconfiguration WSC messages, and keeps the
+ * Listen Duration of each fronthaul BSS that got one. The WPS push-button parameters of the TLVs
+ * go to the ap_manager with the BSS settings of the message (ApAutoConfigurationTask).
  * Handles the Multi-AP Push-Button Trigger message of the Controller: starts and cancels WPS PBC
  * on each listed BSSID, through the ap_manager of the radio that owns the BSSID. Reports the
  * session status of each armed BSSID to the Controller in Multi-AP Push-Button Status messages.
@@ -95,6 +98,40 @@ public:
     bool handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t iface_index,
                      const sMacAddr &dst_mac, const sMacAddr &src_mac, int fd,
                      std::shared_ptr<beerocks_header> beerocks_header) override;
+
+    /**
+     * @brief WPS push-button configuration of one BSS, read from one Push-Button Config TLV.
+     */
+    struct sPushButtonConfig {
+        /** BSS_Index of the TLV: selects the M2 with the same BSS_Index. Never 0. */
+        uint8_t bss_index = 0;
+        /** UUID-E as text, for example "12345678-9abc-def0-1234-56789abcdef0". */
+        std::string uuid_e;
+        /** WPS Device Password ID. */
+        uint16_t device_password_id = 0;
+        /** WPS Device Password. Empty when the TLV has none. Never logged. */
+        std::string device_password;
+        /**
+         * Listen Duration of the TLV, in seconds. Time limit of a started push-button session
+         * of the BSS. Never 0.
+         */
+        uint16_t listen_duration = 0;
+    };
+
+    /**
+     * @brief Reads the Push-Button Config TLVs of an AP-Autoconfiguration WSC message.
+     *
+     * A TLV with a BSSID other than zero (the Controller selects a BSS by its BSS_Index), with
+     * BSS_Index 0, with Listen Duration 0, or with a Device Password of more than 63 octets or
+     * that is not printable text, is skipped with an error log.
+     *
+     * @param radio_iface Interface name of the radio named by the AP Radio Identifier TLV, for
+     * the log.
+     * @param cmdu_rx The AP-Autoconfiguration WSC message.
+     * @return The configs of the valid TLVs, in the order of the message.
+     */
+    static std::vector<sPushButtonConfig>
+    read_push_button_configs(const std::string &radio_iface, ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
      * @brief Keeps the Listen Durations of the fronthaul BSSs of a radio that got a Push-Button
