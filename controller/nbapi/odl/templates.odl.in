@@ -21,6 +21,31 @@
             %persistent csv_string IEEE1905ALID = "";
             %persistent string PrimarySSCTemplateReference = "";
             %read-only string PrimarySSCTemplateID = "";
+            /**
+             * Reference to the X_PRPLWARE-COM_MeshPBCTemplate instance that a session uses
+             * when the session request names no template, for example a session that a
+             * button press on an Agent starts.
+             * The value is "" or the path of an X_PRPLWARE-COM_MeshPBCTemplate instance, in
+             * the form "<prefix>X_PRPLWARE-COM_MeshPBCTemplate.<i>". The prefix is
+             * "X_PRPLWARE-COM_Templates." or "Device.WiFi.Templates.".
+             * If the value is "", a session that names no template fails.
+             * A write is not checked. A value that does not name an instance is rejected
+             * when a session uses it.
+             */
+            %persistent string X_PRPLWARE-COM_PrimaryMeshPBCTemplateReference = "";
+            /**
+             * UUID-E that every armed BSS announces in every push-button session, on every
+             * Agent and band. The Controller sends it in the UUID-E field of each Push-Button
+             * Config TLV. One value for the whole network, so that an Enrollee does not detect
+             * a PBC session overlap between the BSSs of one session.
+             * The value is a UUID in the form xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (hexadecimal
+             * digits). A write of any other value, also "", fails; a write of the current value
+             * is accepted. While the value is "", no BSS gets a Push-Button Config TLV, and a
+             * session that uses WPS fails.
+             */
+            %persistent string X_PRPLWARE-COM_MeshPBCUUID_E = "" {
+                on action validate call validate_mesh_pbc_uuid_e;
+            }
         }
 
         %persistent object BSSTemplate[] {
@@ -141,6 +166,20 @@
                 on action validate call check_range [0, 4095];
             }
             %persistent csv_string HaulType = "";
+            /**
+             * Reference to the X_PRPLWARE-COM_MeshPBCTemplate instance whose push-button
+             * settings apply to the BSSs built on this SSCTemplate. Several SSCTemplate
+             * instances can reference the same template.
+             * The value is "" or the path of an X_PRPLWARE-COM_MeshPBCTemplate instance, in
+             * the form "<prefix>X_PRPLWARE-COM_MeshPBCTemplate.<i>". The prefix is
+             * "X_PRPLWARE-COM_Templates." or "Device.WiFi.Templates.".
+             * If the value is "", the BSSs of this SSCTemplate get no push-button onboarding.
+             * The value is used only when HaulType is "Fronthaul". Push-button onboarding is
+             * not used on a backhaul BSS.
+             * A write is not checked. If the value does not name an instance, the BSSs of
+             * this SSCTemplate get no push-button configuration.
+             */
+            %persistent string X_PRPLWARE-COM_MeshPBCTemplateReference = "";
         }
 
         %persistent object SecurityGroup[] {
@@ -226,6 +265,67 @@
             }
             %persistent object RSNXOE {
                 %persistent bool SAEH2E = false;
+            }
+        }
+
+        /**
+         * Configuration of a mesh-wide push-button onboarding session profile.
+         * A session arms push-button listening on every fronthaul BSS of each
+         * SSCTemplate instance whose X_PRPLWARE-COM_MeshPBCTemplateReference references
+         * this template, on all Agents that support the Multi-AP Push-Button Trigger.
+         * All BSSs of one session use the same method, listen duration and WPS parameters.
+         */
+        %persistent object X_PRPLWARE-COM_MeshPBCTemplate[] {
+            counted with X_PRPLWARE-COM_MeshPBCTemplateNumberOfEntries;
+
+            /**
+             * Identifier of the template, set by the operator. A session request uses it to
+             * name the template. The value must be unique in the table. It cannot change after
+             * the instance is added. A write of "" over a non-empty value is rejected. An
+             * instance added with an empty value is accepted (the value equals the default, so
+             * the validator does not run); such a template cannot start a session and its BSSs
+             * get no push-button configuration.
+             */
+            %persistent %unique %key string PBCTemplateID {
+                on action validate call check_minimum_length 1;
+            }
+            /**
+             * Enables or disables the template.
+             */
+            %persistent bool Enable = true;
+            /**
+             * Comma-separated list of the push-button methods that a session of this
+             * template arms. Each entry is "DPP" or "WPS". The list must not be empty.
+             */
+            %persistent csv_string PushButtonMethod = "WPS" {
+                on action validate call check_enum [
+                    "DPP",
+                    "WPS"
+                ];
+                on action validate call check_minimum_length 1;
+            }
+            /**
+             * Time in seconds that a BSS listens for a push-button Enrollee after the
+             * Controller arms it. All methods in PushButtonMethod use this value.
+             * The value must be 1 or more.
+             */
+            %persistent uint16 ListenDuration = 120 {
+                on action validate call check_minimum 1;
+            }
+            /**
+             * WPS parameters of the template. A session uses them only when
+             * PushButtonMethod contains "WPS".
+             */
+            %persistent object WPS {
+                /**
+                 * WPS Device Password ID. The value 4 (0x0004) is PushButton.
+                 */
+                %persistent uint16 DevicePasswordID = 4;
+                /**
+                 * WPS Device Password. Use it only for a Device Password ID other than
+                 * PushButton. The value "" means that no Device Password is used.
+                 */
+                %persistent string DevicePassword = "";
             }
         }
     @TEMPLATES_ROOT_DM_Footer@
