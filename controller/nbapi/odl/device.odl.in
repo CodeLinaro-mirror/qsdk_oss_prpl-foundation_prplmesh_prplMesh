@@ -410,6 +410,37 @@
         /** Whether the Agent handles the Multi-AP Push-Button Trigger (Profile-2 AP Capability TLV). */
         %read-only bool X_PRPLWARE-COM_MeshWidePBCOnboardingSupport = false;
 
+        /**
+        * Wi-Fi Protected Setup (WPS) push-button status of this Agent, for the push-button
+        * sessions that the Controller runs. In EasyMesh this object applies to
+        * fronthaul only.
+        * @version 2.17
+        */
+        object WPS {
+            /**
+            * Push-button state of this Agent, from the sessions that the Controller runs:
+            * "InProgress": a BSS of this Agent is Requested or InProgress.
+            * "Error": the Agent does not report Multi-AP Push-Button Trigger support, or in its
+            * last session all of its armed BSSs reported Not started.
+            * "Configured": a fronthaul BSS of this Agent has a push-button configuration.
+            * "Unconfigured": no BSS of this Agent has a push-button configuration.
+            * The first matching value applies. The Controller sets no other value.
+            * "Disabled" and "SetupLocked" are never set, because WPS.Enable is not implemented.
+            * @version 2.17
+            */
+            %read-only string Status {
+                default "Unconfigured";
+                on action validate call check_enum [
+                    "Disabled",
+                    "Error",
+                    "Unconfigured",
+                    "Configured",
+                    "SetupLocked",
+                    "InProgress"
+                ];
+            }
+        }
+
         /* The maximum number of MLDs the EasyMesh Agent can support (from Wi‑Fi 7 Agent Capabilities TLV). */
         %read-only uint32 MaxNumMLDs = 0;
 

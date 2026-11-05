@@ -1971,6 +1971,9 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     }
 
     database.clear_configured_bss_info(ruid);
+#ifdef ENABLE_NBAPI
+    database.mark_mesh_pbc_wps_pending(al_mac);
+#endif
 
     for (auto &bss_info_conf : bss_info_confs) {
         if ((bss_info_conf.target_radio_uid != beerocks::net::network_utils::ZERO_MAC) &&
@@ -2188,6 +2191,7 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
                        << " template=" << bss_info_conf.mesh_pbc_template_ref;
         }
     }
+    database.mark_mesh_pbc_wps_pending(al_mac);
 #endif
 
     return true;

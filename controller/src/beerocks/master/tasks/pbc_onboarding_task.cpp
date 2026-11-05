@@ -514,6 +514,27 @@ void PBCOnboardingTask::update_bss(const sMacAddr &bssid, const sMacAddr &al_mac
     } else {
         mesh_pbc_set_bss_status(bss->dm_path, status);
     }
+    update_agent_armed(al_mac);
+}
+
+void PBCOnboardingTask::update_agent_armed(const sMacAddr &al_mac)
+{
+    bool armed = false;
+    if (m_session) {
+        for (const auto &entry : m_session->bsses) {
+            if (entry.second.al_mac == al_mac && !entry.second.ended) {
+                armed = true;
+                break;
+            }
+        }
+    }
+    for (const auto &entry : m_stopped_bsses) {
+        if (armed) {
+            break;
+        }
+        armed = (entry.second.bss.al_mac == al_mac && !entry.second.bss.ended);
+    }
+    m_database.set_mesh_pbc_wps_armed(al_mac, armed);
 }
 
 void PBCOnboardingTask::handle_templates_network_disabled()
@@ -774,6 +795,15 @@ void PBCOnboardingTask::end_session(eResult status, uint16_t failure_reason,
         return;
     }
 
+    std::unordered_map<sMacAddr, bool> agents_not_started;
+    for (const auto &entry : m_session->bsses) {
+        const auto &bss = entry.second;
+        auto it         = agents_not_started.emplace(bss.al_mac, true).first;
+        if (!bss.reported || bss.reported_result != eReportResult::NOT_STARTED) {
+            it->second = false;
+        }
+    }
+
     std::vector<sMacAddr> remaining;
     for (const auto &entry : m_session->bsses) {
         if (!entry.second.ended) {
@@ -797,6 +827,11 @@ void PBCOnboardingTask::end_session(eResult status, uint16_t failure_reason,
               << (success ? tlvf::mac_to_string(enrollee_mac) : "-") << ", BSSID "
               << (success ? tlvf::mac_to_string(bssid) : "-") << ", duration " << duration.count()
               << " s, " << session->armed_bss_count << " BSS(s)";
+
+    for (const auto &agent : agents_not_started) {
+        m_database.set_mesh_pbc_wps_last_session_not_started(agent.first, agent.second);
+        update_agent_armed(agent.first);
+    }
 
     if (session->on_completion) {
         sCompletion completion;
@@ -880,6 +915,8 @@ void PBCOnboardingTask::work()
         update_bss(bssid, stopped.bss.al_mac, stopped.session_id_text, eBssState::IDLE,
                    eBssResult::ERROR_TIMEOUT, 0, beerocks::net::network_utils::ZERO_MAC);
     }
+
+    m_database.dm_update_mesh_pbc_wps_pending();
 }
 
 } // namespace son

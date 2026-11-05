@@ -297,6 +297,9 @@ private:
     bool end_if_nothing_armed();
     void end_session(eResult status, uint16_t failure_reason, const sMacAddr &enrollee_mac,
                      const sMacAddr &bssid);
+
+    /** Store in the db whether a BSS of the Agent is Requested or InProgress. */
+    void update_agent_armed(const sMacAddr &al_mac);
 };
 
 } // namespace son
