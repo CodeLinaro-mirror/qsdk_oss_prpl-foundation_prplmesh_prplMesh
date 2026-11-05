@@ -1771,6 +1771,9 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
 
     database.set_agent_manufacturer(*agent, m1->manufacturer());
 
+    agent->mesh_wide_pbc_onboarding_support = false;
+    database.dm_set_device_mesh_wide_pbc_onboarding_support(*agent);
+
     // Profile-2 Multi AP profile is added for higher than Profile-1 agents.
     if (agent->profile > wfa_map::tlvProfile2MultiApProfile::eMultiApProfile::MULTIAP_PROFILE_1 &&
         !handle_tlv_profile2_ap_capability(agent, cmdu_rx)) {
@@ -5430,6 +5433,8 @@ bool Controller::handle_tlv_profile2_ap_capability(std::shared_ptr<Agent> agent,
     auto profile2_ap_capability_tlv = cmdu_rx.getClass<wfa_map::tlvProfile2ApCapability>();
     if (!profile2_ap_capability_tlv) {
         LOG(DEBUG) << "getClass wfa_map::tlvProfile2ApCapability has failed";
+        agent->mesh_wide_pbc_onboarding_support = false;
+        database.dm_set_device_mesh_wide_pbc_onboarding_support(*agent);
         return false;
     }
 
@@ -5443,6 +5448,8 @@ bool Controller::handle_tlv_profile2_ap_capability(std::shared_ptr<Agent> agent,
     agent->traffic_separation_support =
         profile2_ap_capability_tlv->capabilities_bit_field().traffic_separation;
     agent->max_total_number_of_vids = profile2_ap_capability_tlv->max_total_number_of_vids();
+    agent->mesh_wide_pbc_onboarding_support = profile2_ap_capability_tlv->capabilities_bit_field()
+                                                  .multi_ap_push_button_onboarding_remote_trigger;
 
     LOG(DEBUG) << "Profile-2 AP Capability TLV is received:" << std::endl
                << "The maximum total number of supported service priroritization rules: "
@@ -5454,10 +5461,18 @@ bool Controller::handle_tlv_profile2_ap_capability(std::shared_ptr<Agent> agent,
                << "DPP Onboarding procedure support: " << agent->dpp_onboarding_support << std::endl
                << "Traffic Separation support: " << agent->traffic_separation_support << std::endl
                << "The maximum total number of supported unique VLAN IDs: "
-               << agent->max_total_number_of_vids << std::endl;
+               << agent->max_total_number_of_vids << std::endl
+               << "Multi-AP Push-Button Trigger support: "
+               << agent->mesh_wide_pbc_onboarding_support << std::endl;
 
     if (!database.dm_set_device_ap_capabilities(*agent)) {
         LOG(ERROR) << "Failed to set AP capability parameters in DM for Agent" << agent->al_mac;
+        return false;
+    }
+
+    if (!database.dm_set_device_mesh_wide_pbc_onboarding_support(*agent)) {
+        LOG(ERROR) << "Failed to set mesh-wide push-button onboarding support in DM for Agent "
+                   << agent->al_mac;
         return false;
     }
 

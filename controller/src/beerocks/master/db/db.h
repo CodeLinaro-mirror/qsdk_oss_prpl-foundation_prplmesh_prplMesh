@@ -3282,6 +3282,15 @@ public:
      */
     bool dm_set_device_ap_capabilities(const Agent &agent);
 
+    /** @brief Sets the mesh-wide push-button onboarding support of the corresponding device.
+     *
+     * DM path: "Device.WiFi.DataElements.Network.Device.{i}.X_PRPLWARE-COM_MeshWidePBCOnboardingSupport"
+     *
+     * @param[in] agent Agent DB object.
+     * @return true on success, otherwise false.
+     */
+    bool dm_set_device_mesh_wide_pbc_onboarding_support(const Agent &agent);
+
     /**
      * @brief Add or update instance of "APMLD" data element, set values for its parameters.
      *
