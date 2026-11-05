@@ -56,7 +56,8 @@ class tlvProfile2ApCapability : public BaseClass
         
         typedef struct sCapabilitiesBitsField {
             #if defined(__LITTLE_ENDIAN_BITFIELD)
-            uint8_t reserved : 3;
+            uint8_t reserved : 2;
+            uint8_t multi_ap_push_button_onboarding_remote_trigger : 1;
             uint8_t traffic_separation : 1;
             uint8_t dpp_onboarding : 1;
             uint8_t prioritization : 1;
@@ -66,7 +67,8 @@ class tlvProfile2ApCapability : public BaseClass
             uint8_t prioritization : 1;
             uint8_t dpp_onboarding : 1;
             uint8_t traffic_separation : 1;
-            uint8_t reserved : 3;
+            uint8_t multi_ap_push_button_onboarding_remote_trigger : 1;
+            uint8_t reserved : 2;
             #else
             #error "Bitfield macros are not defined"
             #endif

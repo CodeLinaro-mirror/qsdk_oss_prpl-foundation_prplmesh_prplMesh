@@ -36,13 +36,15 @@ class tlvControllerCapability : public BaseClass
 
         typedef struct sFlags {
             #if defined(__LITTLE_ENDIAN_BITFIELD)
-            uint8_t reserved : 6;
+            uint8_t reserved : 5;
+            uint8_t multi_ap_push_button_onboarding_support : 1;
             uint8_t early_ap_capability : 1;
             uint8_t kibmib_counter_supported : 1;
             #elif defined(__BIG_ENDIAN_BITFIELD)
             uint8_t kibmib_counter_supported : 1;
             uint8_t early_ap_capability : 1;
-            uint8_t reserved : 6;
+            uint8_t multi_ap_push_button_onboarding_support : 1;
+            uint8_t reserved : 5;
             #else
             #error "Bitfield macros are not defined"
             #endif

@@ -46,5 +46,8 @@ sCapabilitiesBitsField:
   traffic_separation:
     _bit_range: [3, 3]
     _comment: 802.1Q C-TAG Traffic Separation
+  multi_ap_push_button_onboarding_remote_trigger:
+    _bit_range: [2, 2]
+    _comment: Multi-AP Push-Button Trigger TLV mechanism
   reserved:
-    _bit_range: [2, 0]
+    _bit_range: [1, 0]

@@ -22,5 +22,7 @@ sFlags:
     _bit_range: [7,7]
   early_ap_capability:
     _bit_range: [6,6]
+  multi_ap_push_button_onboarding_support:
+    _bit_range: [5,5]
   reserved:
-    _bit_range: [5,0]
+    _bit_range: [4,0]
