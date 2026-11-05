@@ -28,6 +28,8 @@ PrplOS post tests (`.gitlab/tests/cram/post/`) are always merged with prplMesh p
 3. Merge _platform specic_ tests from prplMesh (`./tests/cram/freedom`) and prplOS (`.gitlab/tests/cram/wnc-freedom`) and run them
 4. Merge _post_ tests from prplMesh (`./tests/cram/post`) and prplOS (`.gitlab/tests/cram/post`) and run them
 
+The `generic/20_mesh_pbc_*` tests switch the DUT to Controller-and-Agent mode with the Templates configuration. `20_mesh_pbc_99_teardown.t` restores the state that `20_mesh_pbc_00_setup.t` saved.
+
 ### CRAM folder structure:
 ```
   cram                                      <--- this folder
