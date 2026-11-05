@@ -89,6 +89,9 @@ public:
     // 802.1Q C-TAG Traffic Separation support
     bool traffic_separation_support = false;
 
+    // Multi-AP Push-Button Trigger handling support (mesh-wide push-button onboarding)
+    bool mesh_wide_pbc_onboarding_support = false;
+
     // WSC Backhaul STA Reconfiguration support
     bool bSTA_reconfiguration_supported = false;
 

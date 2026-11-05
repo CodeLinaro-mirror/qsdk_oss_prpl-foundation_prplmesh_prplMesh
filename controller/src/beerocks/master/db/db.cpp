@@ -9539,6 +9539,16 @@ bool db::dm_set_device_ap_capabilities(const Agent &agent)
     return ret_val;
 }
 
+bool db::dm_set_device_mesh_wide_pbc_onboarding_support(const Agent &agent)
+{
+    if (agent.dm_path.empty()) {
+        return true;
+    }
+
+    return m_ambiorix_datamodel->set(agent.dm_path, "X_PRPLWARE-COM_MeshWidePBCOnboardingSupport",
+                                     agent.mesh_wide_pbc_onboarding_support);
+}
+
 bool db::dm_set_isbsta(const sMacAddr &sta_mld_mac)
 {
     std::shared_ptr<Agent::sAPMLD::sStaMLD> sta_mld = nullptr;

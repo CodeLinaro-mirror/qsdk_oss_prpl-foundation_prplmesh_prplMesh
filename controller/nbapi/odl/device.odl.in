@@ -407,6 +407,9 @@
 
         %read-only bool X_PRPLWARE-COM_SupportsVBSS = false;
 
+        /** Whether the Agent handles the Multi-AP Push-Button Trigger (Profile-2 AP Capability TLV). */
+        %read-only bool X_PRPLWARE-COM_MeshWidePBCOnboardingSupport = false;
+
         /* The maximum number of MLDs the EasyMesh Agent can support (from Wi‑Fi 7 Agent Capabilities TLV). */
         %read-only uint32 MaxNumMLDs = 0;
 
