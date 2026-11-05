@@ -466,6 +466,58 @@
 
         %instance bool UpdateVBSSCapabilities();
 
+        /**
+        * Starts a push-button session that arms only the BSSs of this Agent.
+        * A rejected request returns at once, with Status and FailureReason (0):
+        * "Error_Invalid_Input" (no template resolves, the template is disabled or has a value
+        * that is not valid, or a BSSIDList entry is not valid or not a BSS of this Agent in the
+        * template), or "Error_Not_Ready" (a session is active, or no BSS of this Agent can be
+        * armed, for example when the Agent is not connected or does not report Multi-AP
+        * Push-Button Trigger support). An accepted request returns when the session ends, with
+        * the values that the session writes to the Status object of the template.
+        * The checks of PBCTemplateID, of the Primary reference and of BSSIDList come before the
+        * check for an active session, so such an error gives "Error_Invalid_Input" also while a
+        * session is active.
+        * @param PBCTemplateID PBCTemplateID of the X_PRPLWARE-COM_MeshPBCTemplate instance.
+        * "" or absent: the template that
+        * Templates.Network.X_PRPLWARE-COM_PrimaryMeshPBCTemplateReference names.
+        * @param BSSIDList Comma-separated list of BSSIDs of this Agent. Arm only these BSSs.
+        * Spaces around an entry are ignored, the case of the letters is ignored, and a repeated
+        * entry counts once. An empty entry (for example after a trailing comma) is not valid.
+        * "" or absent: arm all BSSs of this Agent in the template.
+        * @param Status Result of the session or of the rejected request: "Success",
+        * "Error_Timeout", "Error_Not_Ready", "Error_Invalid_Input" or "Error_Other".
+        * @param FailureReason Native failure code of Status (WSC Configuration Error for WPS),
+        * 0 if not applicable. Absent when Status is "Success".
+        * @param EnrolleeMACAddress MAC address of the device that onboarded. Present only when
+        * Status is "Success".
+        * @param BSSID BSSID of the BSS through which the device onboarded. Present only when
+        * Status is "Success".
+        * @param PBCSessionID ID of the session that the call started, in the form
+        * "<AL MAC>-<4 lowercase hexadecimal digits>". Present only if a session was created.
+        */
+        %instance void X_PRPLWARE-COM_InitiatePBC(
+            %in string PBCTemplateID,
+            %in csv_string BSSIDList,
+            %out string Status,
+            %out uint16 FailureReason,
+            %out string EnrolleeMACAddress,
+            %out string BSSID,
+            %out string PBCSessionID
+        );
+
+        /**
+        * Stops the armed BSSs of this Agent in the active push-button session (State = STOP to
+        * this Agent only). The session continues on the other Agents. When no BSS of the
+        * session is still armed, the session ends with "Error_Other". The call fails if
+        * PBCSessionID is not the active session, or if no BSS of this Agent is armed in it.
+        * @param PBCSessionID PBC Session ID of the active session, in the form
+        * "<AL MAC>-<4 hexadecimal digits>". The case of the letters is ignored.
+        */
+        %instance void X_PRPLWARE-COM_TerminatePBC(
+            %in %mandatory string PBCSessionID
+        );
+
         /*
         ** MLO-capable backhaul STA (only one per Agent).
         */

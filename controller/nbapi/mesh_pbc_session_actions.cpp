@@ -70,10 +70,66 @@ sCall make_call(amxd_object_t *object, amxd_function_t *func)
     return call;
 }
 
+std::string get_string_argument(const amxc_var_t *args, const char *name)
+{
+    auto arg = GET_ARG(args, name);
+    if (!arg || amxc_var_is_null(arg)) {
+        return "";
+    }
+    char *value = amxc_var_dyncast(cstring_t, arg);
+    std::string text(value ? value : "");
+    free(value);
+    return text;
+}
+
 std::string template_path(const amxd_object_t *mesh_pbc_template)
 {
     return std::string(TEMPLATES_ROOT_DM) + "." + MESH_PBC_TEMPLATE_TABLE + "." +
            std::to_string(amxd_object_get_index(mesh_pbc_template));
+}
+
+/**
+ * @return false if the ID of the Network.Device instance is not a MAC address.
+ */
+bool device_al_mac(amxd_object_t *device, sMacAddr &al_mac)
+{
+    const std::string id = device ? get_param_string(device, "ID") : "";
+    if (!beerocks::net::network_utils::is_valid_mac(id)) {
+        return false;
+    }
+    al_mac = tlvf::mac_from_string(id);
+    return true;
+}
+
+/**
+ * @return The path, or "" if no instance has that PBCTemplateID.
+ */
+std::string find_template_by_id(const std::string &template_id)
+{
+    amxd_object_t *table = amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s.%s",
+                                         TEMPLATES_ROOT_DM, MESH_PBC_TEMPLATE_TABLE);
+    if (!table) {
+        return "";
+    }
+    amxd_object_for_each(instance, it, table)
+    {
+        amxd_object_t *inst = amxc_llist_it_get_data(it, amxd_object_t, it);
+        if (inst && get_param_string(inst, "PBCTemplateID") == template_id) {
+            return template_path(inst);
+        }
+    }
+    return "";
+}
+
+/**
+ * @return The PBC Session ID argument in lowercase.
+ */
+std::string session_id_argument(const amxc_var_t *args)
+{
+    std::string session_id = get_string_argument(args, "PBCSessionID");
+    std::transform(session_id.begin(), session_id.end(), session_id.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    return session_id;
 }
 
 /**
@@ -351,6 +407,101 @@ amxd_status_t mesh_pbc_template_terminate_pbc(amxd_object_t *object, amxd_functi
     return terminate_result(call, task->terminate(template_path(object)));
 }
 
+/**
+ * @brief Agent-level X_PRPLWARE-COM_InitiatePBC(PBCTemplateID, BSSIDList).
+ *
+ * Arms only the BSSs of this Agent. Without PBCTemplateID, the template is the one that
+ * Templates.Network.X_PRPLWARE-COM_PrimaryMeshPBCTemplateReference names.
+ *
+ * Example of usage:
+ * ubus call Device.WiFi.DataElements.Network.Device.1 X_PRPLWARE-COM_InitiatePBC
+ * '{"PBCTemplateID": "t1"}'
+ */
+amxd_status_t mesh_pbc_device_initiate_pbc(amxd_object_t *object, amxd_function_t *func,
+                                           amxc_var_t *args, amxc_var_t *ret)
+{
+    sCall call                    = make_call(object, func);
+    const std::string template_id = get_string_argument(args, "PBCTemplateID");
+    std::vector<sMacAddr> bssids;
+    std::string bssid_list;
+    std::string error;
+    const bool valid_list = parse_bssid_list(args, bssids, bssid_list, error);
+    call.arguments = " (PBCTemplateID \"" + template_id + "\", BSSIDList \"" + bssid_list + "\")";
+
+    sMacAddr al_mac{};
+    if (!device_al_mac(object, al_mac)) {
+        return reject_call(call, args, "", PBCOnboardingTask::eResult::ERROR_INVALID_INPUT,
+                           "the ID of the Device is not a MAC address");
+    }
+
+    std::string reference;
+    if (!template_id.empty()) {
+        reference = find_template_by_id(template_id);
+        if (reference.empty()) {
+            return reject_call(call, args, "", PBCOnboardingTask::eResult::ERROR_INVALID_INPUT,
+                               "PBCTemplateID \"" + template_id + "\" names no " +
+                                   MESH_PBC_TEMPLATE_TABLE + " instance");
+        }
+    } else {
+        reference = mesh_pbc_get_primary_template_reference();
+        if (reference.empty()) {
+            return reject_call(call, args, "", PBCOnboardingTask::eResult::ERROR_INVALID_INPUT,
+                               "no PBCTemplateID, and "
+                               "X_PRPLWARE-COM_PrimaryMeshPBCTemplateReference is empty");
+        }
+    }
+    if (!valid_list) {
+        return reject_call(call, args, reference, PBCOnboardingTask::eResult::ERROR_INVALID_INPUT,
+                           error);
+    }
+
+    PBCOnboardingTask::sStartRequest request;
+    request.template_reference = std::move(reference);
+    request.agent_al_mac       = al_mac;
+    request.bssids             = std::move(bssids);
+    return start_session(call, request, func, args, ret);
+}
+
+/**
+ * @brief Stop the armed BSSs of the active session on one Agent (Agent-level terminate).
+ */
+amxd_status_t terminate_on_agent(const sCall &call, amxd_object_t *device,
+                                 const std::string &session_id)
+{
+    sMacAddr al_mac{};
+    if (!device_al_mac(device, al_mac)) {
+        LOG(WARNING) << "push-button call " << call.name
+                     << " failed: the ID of the Device is not a MAC address";
+        return terminate_result(call, false);
+    }
+    auto task = get_pbc_onboarding_task();
+    if (!task) {
+        LOG(WARNING) << "push-button call " << call.name
+                     << " failed: the push-button session engine does not run";
+        return terminate_result(call, false);
+    }
+    return terminate_result(call, task->terminate(session_id, al_mac));
+}
+
+/**
+ * @brief Agent-level X_PRPLWARE-COM_TerminatePBC(PBCSessionID).
+ *
+ * Stops the armed BSSs of this Agent in the active session. The session continues on the other
+ * Agents.
+ *
+ * Example of usage:
+ * ubus call Device.WiFi.DataElements.Network.Device.1 X_PRPLWARE-COM_TerminatePBC
+ * '{"PBCSessionID": "aa:bb:cc:dd:ee:ff-0001"}'
+ */
+amxd_status_t mesh_pbc_device_terminate_pbc(amxd_object_t *object, amxd_function_t *func,
+                                            amxc_var_t *args, amxc_var_t *ret)
+{
+    sCall call                   = make_call(object, func);
+    const std::string session_id = session_id_argument(args);
+    call.arguments               = " (PBCSessionID \"" + session_id + "\")";
+    return terminate_on_agent(call, object, session_id);
+}
+
 } // namespace
 
 void mesh_pbc_session_actions_cleanup(void)
@@ -383,6 +534,12 @@ std::vector<beerocks::nbapi::sFunctions> get_mesh_pbc_session_func_list(void)
         {"mesh_pbc_template_terminate_pbc",
          TEMPLATES_ROOT_DM ".X_PRPLWARE-COM_MeshPBCTemplate.TerminatePBC",
          mesh_pbc_template_terminate_pbc},
+        {"mesh_pbc_device_initiate_pbc",
+         DATAELEMENTS_ROOT_DM ".Network.Device.X_PRPLWARE-COM_InitiatePBC",
+         mesh_pbc_device_initiate_pbc},
+        {"mesh_pbc_device_terminate_pbc",
+         DATAELEMENTS_ROOT_DM ".Network.Device.X_PRPLWARE-COM_TerminatePBC",
+         mesh_pbc_device_terminate_pbc},
     };
 }
 
