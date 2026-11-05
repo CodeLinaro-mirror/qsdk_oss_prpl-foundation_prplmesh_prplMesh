@@ -39,6 +39,8 @@ void templates_on_topology_updated(void);
 
 bool is_templates_dm_initialized();
 
+bool templates_events_enabled(void);
+
 void set_templates_dm_initialized(bool val);
 
 std::vector<beerocks::nbapi::sEvents> get_templates_events_list(void);

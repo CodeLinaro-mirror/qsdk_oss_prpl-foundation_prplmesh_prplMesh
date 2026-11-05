@@ -1954,6 +1954,8 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
     };
     auto tmpl = get_templates_events_list();
     events_list.insert(events_list.end(), tmpl.begin(), tmpl.end());
+    auto mesh_pbc = get_mesh_pbc_template_events_list();
+    events_list.insert(events_list.end(), mesh_pbc.begin(), mesh_pbc.end());
     return events_list;
 }
 

@@ -333,7 +333,7 @@
 
 %populate {
     on event "dm:object-changed" call event_templates_network_configuration_changed
-        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\." && (contains("parameters.Enable") || contains("parameters.TopologyFlag") || contains("parameters.IEEE1905ALID") || contains("parameters.PrimarySSCTemplateReference"))';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.Network\." && (contains("parameters.Enable") || contains("parameters.TopologyFlag") || contains("parameters.IEEE1905ALID") || contains("parameters.PrimarySSCTemplateReference") || contains("parameters.X_PRPLWARE-COM_MeshPBCUUID_E"))';
 
     on event "dm:object-changed" call event_apmld_template_configuration_changed
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.APMLDTemplate\."';
@@ -370,4 +370,10 @@
 
     on event regexp("^dm:instance-(added|removed)$") call event_templates_security_group_instance_changed
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
+
+    on event "dm:object-changed" call event_mesh_pbc_template_configuration_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\."';
+
+    on event regexp("^dm:instance-(added|removed)$") call event_mesh_pbc_template_instance_changed
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\."';
 }

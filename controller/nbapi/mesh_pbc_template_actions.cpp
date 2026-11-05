@@ -315,6 +315,46 @@ eMeshPbcBssConfigResult mesh_pbc_get_bss_config(const std::string &template_ref,
     return eMeshPbcBssConfigResult::FOUND;
 }
 
+static void event_mesh_pbc_template_configuration_changed(const char *const sig_name,
+                                                          const amxc_var_t *const data,
+                                                          void *const priv)
+{
+    if (!templates_events_enabled()) {
+        return;
+    }
+    if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << "." << MESH_PBC_TEMPLATE_TABLE
+                     << " instance from signal";
+        return;
+    }
+    LOG(DEBUG) << "event_mesh_pbc_template_configuration_changed";
+    templates_request_apply();
+}
+
+static void event_mesh_pbc_template_instance_changed(const char *const sig_name,
+                                                     const amxc_var_t *const data, void *const priv)
+{
+    if (!templates_events_enabled()) {
+        return;
+    }
+    if (!amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data)) {
+        LOG(WARNING) << "Failed to get " << TEMPLATES_ROOT_DM << "." << MESH_PBC_TEMPLATE_TABLE
+                     << " from instance signal";
+        return;
+    }
+    LOG(DEBUG) << "event_mesh_pbc_template_instance_changed";
+    templates_request_apply();
+}
+
+std::vector<beerocks::nbapi::sEvents> get_mesh_pbc_template_events_list(void)
+{
+    return {
+        {"event_mesh_pbc_template_configuration_changed",
+         event_mesh_pbc_template_configuration_changed},
+        {"event_mesh_pbc_template_instance_changed", event_mesh_pbc_template_instance_changed},
+    };
+}
+
 std::vector<beerocks::nbapi::sActionsCallback> get_mesh_pbc_template_actions_list(void)
 {
     return {

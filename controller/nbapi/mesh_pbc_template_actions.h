@@ -89,6 +89,15 @@ eMeshPbcBssConfigResult mesh_pbc_get_bss_config(const std::string &template_ref,
 
 std::vector<beerocks::nbapi::sActionsCallback> get_mesh_pbc_template_actions_list(void);
 
+/**
+ * @brief Get the event handlers that restage the templates when a push-button template changes.
+ *
+ * Each change of an X_PRPLWARE-COM_MeshPBCTemplate instance or parameter, except a Status
+ * write, requests a templates apply, so that the Agents get an AP-Autoconfiguration Renew and
+ * the new values.
+ */
+std::vector<beerocks::nbapi::sEvents> get_mesh_pbc_template_events_list(void);
+
 } // namespace actions
 } // namespace controller
 } // namespace prplmesh
