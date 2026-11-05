@@ -476,6 +476,8 @@ bool ApManager::stop()
         ok = false;
     }
 
+    m_mesh_pbc_armed_bssids.clear();
+
     if (ap_wlan_hal) {
         for (auto &fd : m_ap_hal_ext_events) {
             if (fd > 0) {
@@ -1178,6 +1180,28 @@ void ApManager::handle_unassoc_sta_link_metrics_query_message(ieee1905_1::CmduMe
     }
     send_cmdu(cmdu_tx);
     ap_wlan_hal->send_unassoc_sta_link_metric_query(unassoc_sta_link_metric_query);
+}
+
+bool ApManager::send_mesh_pbc_status(const sMacAddr &bssid, beerocks_message::eMeshPbcStatus status,
+                                     const std::string &reason, const sMacAddr &enrollee_mac)
+{
+    auto notification = message_com::create_vs_message<
+        beerocks_message::cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION>(cmdu_tx);
+    if (!notification) {
+        LOG(ERROR) << "Failed building cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION";
+        return false;
+    }
+    notification->bssid()        = bssid;
+    notification->status()       = status;
+    notification->enrollee_mac() = enrollee_mac;
+    if (!notification->set_reason(reason)) {
+        LOG(ERROR) << "Mesh PBC status reason too long: '" << reason << "'";
+        return false;
+    }
+
+    LOG(INFO) << "Mesh PBC status of " << bssid << ": " << int(status) << " reason='" << reason
+              << "'";
+    return send_cmdu(cmdu_tx);
 }
 
 void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
@@ -2112,6 +2136,92 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
         break;
     }
+    case beerocks_message::ACTION_APMANAGER_MESHPBC_START_REQUEST: {
+        LOG(DEBUG) << "Got ACTION_APMANAGER_MESHPBC_START_REQUEST";
+
+        auto request =
+            beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_MESHPBC_START_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass ACTION_APMANAGER_MESHPBC_START_REQUEST failed";
+            return;
+        }
+
+        auto bssid     = request->bssid();
+        auto bssid_str = tlvf::mac_to_string(bssid);
+
+        if (ap_wlan_hal->get_vap_id_with_mac(bssid_str) == beerocks::IFACE_ID_INVALID) {
+            LOG(ERROR) << "Mesh PBC start: radio has no BSSID " << bssid_str;
+            send_mesh_pbc_status(bssid, beerocks_message::eMeshPbcStatus_NotStarted, "UnknownBSSID",
+                                 net::network_utils::ZERO_MAC);
+            break;
+        }
+
+        // Mark the BSSID before the call: pwhm sends the WPS events of this start after the
+        // InitiateWPSPBC() call returns.
+        m_mesh_pbc_armed_bssids[bssid_str].start_reported = false;
+
+        std::string status;
+        auto start_result = ap_wlan_hal->start_wps_pbc_bssid(bssid_str, status);
+
+        if (start_result == bwl::eWpsPbcStartResult::NotSent) {
+            LOG(ERROR) << "Mesh PBC start: InitiateWPSPBC() call not sent on " << bssid_str;
+            m_mesh_pbc_armed_bssids.erase(bssid_str);
+            send_mesh_pbc_status(bssid, beerocks_message::eMeshPbcStatus_NotStarted, "CallNotSent",
+                                 net::network_utils::ZERO_MAC);
+            break;
+        }
+
+        if (start_result == bwl::eWpsPbcStartResult::CallFailed) {
+            // The call can time out while pwhm defers the start: the first pairingReady or
+            // pairingError reports the start.
+            LOG(ERROR) << "Mesh PBC start: InitiateWPSPBC() call failed on " << bssid_str
+                       << ", wait for a WPS event";
+            break;
+        }
+
+        if (status.empty()) {
+            LOG(ERROR) << "Mesh PBC start: no InitiateWPSPBC() Status on " << bssid_str;
+            m_mesh_pbc_armed_bssids.erase(bssid_str);
+            send_mesh_pbc_status(bssid, beerocks_message::eMeshPbcStatus_NotStarted, "NoStatus",
+                                 net::network_utils::ZERO_MAC);
+            break;
+        }
+
+        if (status == "Success") {
+            m_mesh_pbc_armed_bssids[bssid_str].start_reported = true;
+            send_mesh_pbc_status(bssid, beerocks_message::eMeshPbcStatus_Started, status,
+                                 net::network_utils::ZERO_MAC);
+            break;
+        }
+
+        LOG(ERROR) << "Mesh PBC start refused on " << bssid_str << ", Status=" << status;
+        m_mesh_pbc_armed_bssids.erase(bssid_str);
+        send_mesh_pbc_status(bssid, beerocks_message::eMeshPbcStatus_NotStarted, status,
+                             net::network_utils::ZERO_MAC);
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_MESHPBC_CANCEL_REQUEST: {
+        LOG(DEBUG) << "Got ACTION_APMANAGER_MESHPBC_CANCEL_REQUEST";
+
+        auto request =
+            beerocks_header->addClass<beerocks_message::cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass ACTION_APMANAGER_MESHPBC_CANCEL_REQUEST failed";
+            return;
+        }
+
+        auto bssid_str = tlvf::mac_to_string(request->bssid());
+        if (m_mesh_pbc_armed_bssids.find(bssid_str) == m_mesh_pbc_armed_bssids.end()) {
+            LOG(INFO) << "Mesh PBC cancel: no session on " << bssid_str << ", nothing to cancel";
+            break;
+        }
+
+        // pwhm reports the end of the session with pairingDone, reason "Canceled".
+        if (!ap_wlan_hal->cancel_wps_pbc_bssid(bssid_str)) {
+            LOG(ERROR) << "Mesh PBC cancel: cancelWPSPairing() failed on " << bssid_str;
+        }
+        break;
+    }
     case beerocks_message::ACTION_APMANAGER_SET_ASSOC_DISALLOW_REQUEST: {
         LOG(DEBUG) << "Got ACTION_APMANAGER_SET_ASSOC_DISALLOW_REQUEST";
 
@@ -2739,6 +2849,43 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
 
     case Event::APS_update_list: {
         handle_aps_update_list();
+    } break;
+
+    case Event::WPS_Pairing_Event: {
+        if (!data) {
+            LOG(ERROR) << "WPS_Pairing_Event without data!";
+            return false;
+        }
+        auto msg       = static_cast<bwl::sWpsPairingEvent *>(data);
+        auto bssid_str = tlvf::mac_to_string(msg->bssid);
+
+        auto armed_it = m_mesh_pbc_armed_bssids.find(bssid_str);
+        if (armed_it == m_mesh_pbc_armed_bssids.end()) {
+            break;
+        }
+        bool start_reported = armed_it->second.start_reported;
+
+        switch (msg->notification) {
+        case bwl::eWpsPairingNotification::Ready:
+            armed_it->second.start_reported = true;
+            if (!start_reported) {
+                send_mesh_pbc_status(msg->bssid, beerocks_message::eMeshPbcStatus_Started,
+                                     msg->reason, net::network_utils::ZERO_MAC);
+            }
+            break;
+        case bwl::eWpsPairingNotification::Error:
+            m_mesh_pbc_armed_bssids.erase(armed_it);
+            send_mesh_pbc_status(msg->bssid,
+                                 start_reported ? beerocks_message::eMeshPbcStatus_Ended
+                                                : beerocks_message::eMeshPbcStatus_NotStarted,
+                                 msg->reason, net::network_utils::ZERO_MAC);
+            break;
+        case bwl::eWpsPairingNotification::Done:
+            m_mesh_pbc_armed_bssids.erase(armed_it);
+            send_mesh_pbc_status(msg->bssid, beerocks_message::eMeshPbcStatus_Ended, msg->reason,
+                                 msg->enrollee_mac);
+            break;
+        }
     } break;
 
     // ACS/CSA Completed

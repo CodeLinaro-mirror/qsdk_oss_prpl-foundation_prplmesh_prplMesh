@@ -99,6 +99,18 @@ private:
     void handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
+     * @brief Sends a push-button session status of one BSSID to the slave.
+     *
+     * @param bssid BSSID of the session.
+     * @param status Session status.
+     * @param reason Reason string, sent unchanged.
+     * @param enrollee_mac Enrollee MAC address, or ZERO_MAC.
+     * @return true on success and false otherwise.
+     */
+    bool send_mesh_pbc_status(const sMacAddr &bssid, beerocks_message::eMeshPbcStatus status,
+                              const std::string &reason, const sMacAddr &enrollee_mac);
+
+    /**
      * @brief Handles CMDU message received from dpp_onboarding_task.
      *
      * @param cmdu_rx Received CMDU to be handled.
@@ -299,6 +311,19 @@ private:
      * queue file descriptor.
      */
     std::unordered_map<std::string, int> m_dynamic_bss_ext_events_fds;
+
+    /**
+     * State of a BSSID armed with ACTION_APMANAGER_MESHPBC_START_REQUEST.
+     */
+    struct sMeshPbcArmedBss {
+        bool start_reported = false; /**< The start status was already reported */
+    };
+
+    /**
+     * BSSIDs armed with ACTION_APMANAGER_MESHPBC_START_REQUEST, until the end of their WPS
+     * session. WPS events of other BSSIDs are not reported.
+     */
+    std::unordered_map<std::string, sMeshPbcArmedBss> m_mesh_pbc_armed_bssids;
 
     /**
      * File descriptor to the internal events queue.
