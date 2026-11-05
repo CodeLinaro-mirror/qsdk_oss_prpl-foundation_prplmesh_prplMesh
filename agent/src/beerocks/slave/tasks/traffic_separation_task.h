@@ -42,7 +42,8 @@ public:
     /**
      * @brief Periodic task hook (executed by the task scheduler).
      *
-     * Runs pending recomputation actions after a short debounce period.
+     * Runs pending recomputation actions after a short debounce period and
+     * retries a failed reconcile with backoff.
      */
     void work() override;
 
@@ -99,7 +100,7 @@ private:
                            std::chrono::steady_clock::time_point deadline);
 
     /**
-   * @brief Reset pending apply state.
+   * @brief Reset pending apply and reconcile retry state.
    */
     void clear_pending_apply();
 
@@ -205,6 +206,8 @@ private:
     bool m_apply_pending = false;
     std::chrono::steady_clock::time_point m_next_run{std::chrono::steady_clock::time_point::min()};
     std::unordered_map<std::string, sPendingWdsIfaceState> m_pending_wds_ifaces;
+    int m_reconcile_retry_counter = 0;
+    std::chrono::steady_clock::time_point m_next_reconcile_retry_time;
 
     uint16_t m_last_primary_vid = net::UNCONFIGURED_VLAN_ID;
 
@@ -217,6 +220,11 @@ private:
     // Keep retrying for a bounded window so the same WDS iface is not lost if
     // it becomes ready shortly after the settle delay.
     static constexpr int WDS_RETRY_TIMEOUT_MS = 2000;
+    // Retry a failed reconcile after 1 s and double the delay for each further
+    // failure, up to 60 s. A fronthaul VAP that is still being rebuilt usually
+    // settles within seconds.
+    static constexpr int RECONCILE_RETRY_DELAY_MS     = 1000;
+    static constexpr int RECONCILE_RETRY_MAX_DELAY_MS = 60000;
 };
 
 } // namespace beerocks
