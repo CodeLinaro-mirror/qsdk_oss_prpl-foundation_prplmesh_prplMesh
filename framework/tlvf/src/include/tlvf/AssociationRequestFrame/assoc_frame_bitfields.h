@@ -4,6 +4,7 @@
 
 #include <asm/byteorder.h>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 namespace assoc_frame {

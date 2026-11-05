@@ -6,7 +6,8 @@
  * See LICENSE file for more details.
  */
 
- #include <string>
+#include <cstdint>
+#include <string>
 
 namespace beerocks {
 namespace bpl {
@@ -25,13 +26,17 @@ namespace bpl {
  * @return True on success and false if accepted radio number equal
  *         to non allowed value
  */
-bool radio_num_to_wlan_iface_name(const int32_t radio_num, std::string& iface_str)
+bool radio_num_to_wlan_iface_name(const int32_t radio_num, std::string &iface_str)
 {
     switch (radio_num) {
-        case 0: iface_str = "@BEEROCKS_WLAN1_IFACE@"; break;
-        case 1: iface_str = "@BEEROCKS_WLAN2_IFACE@"; break;
-        default:
-            return false;
+    case 0:
+        iface_str = "@BEEROCKS_WLAN1_IFACE@";
+        break;
+    case 1:
+        iface_str = "@BEEROCKS_WLAN2_IFACE@";
+        break;
+    default:
+        return false;
     }
     return true;
 }

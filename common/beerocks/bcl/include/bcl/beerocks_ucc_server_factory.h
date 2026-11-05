@@ -12,6 +12,7 @@
 #include <bcl/beerocks_event_loop.h>
 #include <bcl/beerocks_ucc_server.h>
 
+#include <cstdint>
 #include <memory>
 
 namespace beerocks {
