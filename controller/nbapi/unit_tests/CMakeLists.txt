@@ -22,6 +22,8 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
         ${CMAKE_CURRENT_LIST_DIR}/../on_action.cpp
         ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db/db.cpp
         ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db/station.cpp
+        ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/tasks/pbc_onboarding_task.cpp
+        ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/tasks/task.cpp
     )
 
     add_executable(${PROJECT_NAME}
@@ -43,7 +45,8 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     target_link_libraries(${PROJECT_NAME}
         mapfcommon bpl bcl btl btlvf nbapi amxc amxd amxo amxp libamxrt gtest_main)
     # Workaround: on_action.cpp, db.cpp and tasks/pbc_onboarding_task.cpp call son::Controller,
-    # son_actions and templates_actions functions that the tests never run. They stay unresolved.
+    # son_actions and templates_actions functions. The ones that no test runs stay unresolved;
+    # the ones that a test runs have a stub in this directory.
     target_link_options(${PROJECT_NAME}
         PRIVATE
             -Wl,--unresolved-symbols=ignore-all
@@ -53,6 +56,7 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
             ${PLATFORM_INCLUDE_DIR}
             ${CMAKE_SOURCE_DIR}/common/beerocks/btl/include
             ${CMAKE_SOURCE_DIR}/controller/nbapi
+            ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master
             ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db
     )
 

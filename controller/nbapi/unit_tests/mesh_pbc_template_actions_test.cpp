@@ -491,4 +491,165 @@ TEST_F(MeshPbcTemplateRestageTest, no_apply_without_data_elements_vap_configs)
     expect_applies(0);
 }
 
+TEST(MeshPbcSessionEngineText, result_and_session_id_text)
+{
+    EXPECT_STREQ(PBCOnboardingTask::result_to_string(PBCOnboardingTask::eResult::SUCCESS),
+                 "Success");
+    EXPECT_STREQ(PBCOnboardingTask::result_to_string(PBCOnboardingTask::eResult::ERROR_TIMEOUT),
+                 "Error_Timeout");
+    EXPECT_STREQ(PBCOnboardingTask::result_to_string(PBCOnboardingTask::eResult::ERROR_NOT_READY),
+                 "Error_Not_Ready");
+    EXPECT_STREQ(
+        PBCOnboardingTask::result_to_string(PBCOnboardingTask::eResult::ERROR_INVALID_INPUT),
+        "Error_Invalid_Input");
+    EXPECT_STREQ(PBCOnboardingTask::result_to_string(PBCOnboardingTask::eResult::ERROR_OTHER),
+                 "Error_Other");
+
+    wfa_map::sPbcSessionId session_id{};
+    session_id.al_mac = tlvf::mac_from_string("02:00:00:00:00:01");
+    session_id.mid    = 0x0a0b;
+    EXPECT_EQ(PBCOnboardingTask::session_id_to_string(session_id), "02:00:00:00:00:01-0a0b");
+}
+
+TEST_F(MeshPbcSessionEngineTest, start_rejects_a_template_that_is_not_valid)
+{
+    expect_rejected(start(mesh_pbc_path(9)), PBCOnboardingTask::eResult::ERROR_INVALID_INPUT);
+    EXPECT_EQ(template_result(), "");
+
+    ASSERT_TRUE(set(mesh_pbc_path(1), "Enable", "false"));
+    expect_rejected(start(mesh_pbc_path(1)), PBCOnboardingTask::eResult::ERROR_INVALID_INPUT);
+    EXPECT_EQ(template_result(), "Error_Invalid_Input");
+}
+
+TEST_F(MeshPbcSessionEngineTest, start_rejects_while_templates_are_disabled)
+{
+    ASSERT_TRUE(set(g_network, "Enable", "false"));
+    expect_rejected(start(mesh_pbc_path(1)), PBCOnboardingTask::eResult::ERROR_NOT_READY);
+    EXPECT_EQ(template_result(), "Error_Not_Ready");
+}
+
+TEST_F(MeshPbcSessionEngineTest, start_rejects_request_values_that_are_not_valid)
+{
+    PBCOnboardingTask::sStartRequest request;
+    request.template_reference = mesh_pbc_path(1);
+    request.origin             = PBCOnboardingTask::eOrigin::BUTTON;
+    expect_rejected(m_task->start(request), PBCOnboardingTask::eResult::ERROR_INVALID_INPUT);
+
+    expect_rejected(start(mesh_pbc_path(1), g_unknown_mac),
+                    PBCOnboardingTask::eResult::ERROR_INVALID_INPUT);
+
+    expect_rejected(start(mesh_pbc_path(1), {}, {g_bssid_2}),
+                    PBCOnboardingTask::eResult::ERROR_INVALID_INPUT);
+
+    expect_rejected(start(mesh_pbc_path(1), g_other_agent, {g_bssid_1}),
+                    PBCOnboardingTask::eResult::ERROR_INVALID_INPUT);
+    EXPECT_EQ(LogRecorder::count(el::Level::Error, "rejected (Error_Invalid_Input)"), 4U);
+    EXPECT_EQ(template_result(), "Error_Invalid_Input");
+}
+
+TEST_F(MeshPbcSessionEngineTest, start_without_target_gives_error_not_ready)
+{
+    auto radio = m_db->get_radio(g_agent_mac, g_ruid);
+    ASSERT_TRUE(radio);
+    auto backhaul = m_db->add_bss(*radio, g_bssid_backhaul, "backhaul", 3);
+    ASSERT_TRUE(backhaul);
+    backhaul->backhaul = true;
+    ASSERT_TRUE(m_db->add_bss(*radio, g_bssid_2, "other-ssid", 2));
+    ASSERT_TRUE(add(g_mesh_pbc_table, 2, {{"PBCTemplateID", "t2"}}));
+    son::wireless_utils::sBssInfoConf other_link{};
+    other_link.bss_index             = 2;
+    other_link.ssid                  = "other-ssid";
+    other_link.mesh_pbc_template_ref = mesh_pbc_path(2);
+    m_db->add_configured_bss_info(g_ruid, other_link);
+    son::wireless_utils::sBssInfoConf unresolved_link{};
+    unresolved_link.bss_index             = 4;
+    unresolved_link.ssid                  = "no-such-ssid";
+    unresolved_link.mesh_pbc_template_ref = mesh_pbc_path(1);
+    m_db->add_configured_bss_info(g_ruid, unresolved_link);
+
+    m_agent->mesh_wide_pbc_onboarding_support = false;
+    expect_rejected(start(mesh_pbc_path(1)), PBCOnboardingTask::eResult::ERROR_NOT_READY);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "does not report Multi-AP Push-Button Trigger"),
+              1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "its push-button link names " + mesh_pbc_path(2)),
+              1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "backhaul BSS, no push-button link"), 1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "ssid=no-such-ssid has no BSSID"), 1U);
+    EXPECT_EQ(template_result(), "Error_Not_Ready");
+
+    m_agent->mesh_wide_pbc_onboarding_support = true;
+    m_agent->state                            = beerocks::STATE_DISCONNECTED;
+    expect_rejected(start(mesh_pbc_path(1)), PBCOnboardingTask::eResult::ERROR_NOT_READY);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "the Agent is not connected"), 1U);
+
+    m_agent->state = beerocks::STATE_CONNECTED;
+    expect_rejected(start(mesh_pbc_path(1), g_other_agent),
+                    PBCOnboardingTask::eResult::ERROR_NOT_READY);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "not a BSS of the requested Agent"), 1U);
+
+    m_agent->mesh_wide_pbc_onboarding_support = false;
+    expect_rejected(start(mesh_pbc_path(2)), PBCOnboardingTask::eResult::ERROR_NOT_READY);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "its push-button link names " + mesh_pbc_path(1)),
+              1U);
+}
+
+TEST_F(MeshPbcSessionEngineTest, request_starts_a_session_with_the_primary_template)
+{
+    EXPECT_TRUE(
+        receive(ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE, g_unknown_mac));
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning, "the sender is not a connected Agent"), 1U);
+
+    EXPECT_TRUE(
+        receive(ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE, g_agent_mac));
+    EXPECT_EQ(LogRecorder::count(el::Level::Error, "nothing armed"), 1U);
+    EXPECT_EQ(template_result(), "");
+
+    m_agent->mesh_wide_pbc_onboarding_support = false;
+    ASSERT_TRUE(set(g_network, g_primary, mesh_pbc_path(1)));
+    EXPECT_TRUE(
+        receive(ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE, g_agent_mac));
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning, "(origin button"), 1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning, "rejected: Error_Not_Ready"), 1U);
+    EXPECT_EQ(template_result(), "Error_Not_Ready");
+
+    EXPECT_FALSE(receive(ieee1905_1::eMessageType::ACK_MESSAGE, g_agent_mac));
+}
+
+TEST_F(MeshPbcSessionEngineTest, status_without_session_changes_nothing)
+{
+    EXPECT_TRUE(
+        receive(ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE, g_agent_mac));
+    EXPECT_EQ(LogRecorder::count(el::Level::Error, "has no Status TLV"), 1U);
+
+    EXPECT_TRUE(receive(ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE, g_agent_mac,
+                        {std::make_tuple(g_bssid_2, uint8_t(eStatusResult::STARTED), 0),
+                         std::make_tuple(g_bssid_1, uint8_t(7), 0),
+                         std::make_tuple(g_bssid_1, uint8_t(eStatusResult::FAILURE_ABORTED), 12),
+                         std::make_tuple(g_bssid_1, uint8_t(eStatusResult::SUCCESS), 0)}));
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "(stale)"), 4U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "FailureReason=12"), 1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning, "it is not a BSS of"), 1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning, "reserved Result value 0x07"), 1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Info, "does not change the BSS"), 2U);
+    EXPECT_EQ(get(m_bss->dm_path + ".X_PRPLWARE-COM_MeshPBC", "State"), "Idle");
+}
+
+TEST_F(MeshPbcSessionEngineTest, terminate_without_session_fails)
+{
+    EXPECT_FALSE(m_task->terminate(mesh_pbc_path(1)));
+    EXPECT_FALSE(m_task->terminate("02:00:00:00:00:01-0101", g_agent_mac));
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning, "no session of that template is active"), 1U);
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning, "it is not the active session"), 1U);
+    m_task->handle_templates_network_disabled();
+    m_task->execute();
+    EXPECT_EQ(LogRecorder::count(el::Level::Warning), 2U);
+}
+
+TEST_F(MeshPbcSessionEngineTest, work_updates_the_marked_agents)
+{
+    m_db->mark_mesh_pbc_wps_pending(g_agent_mac);
+    m_task->execute();
+    EXPECT_EQ(get(m_agent->dm_path + ".WPS", "Status"), "Configured");
+}
+
 } // namespace

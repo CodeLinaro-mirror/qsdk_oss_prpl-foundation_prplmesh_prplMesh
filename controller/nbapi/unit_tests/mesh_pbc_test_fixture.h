@@ -14,6 +14,7 @@
 #include "templates_actions_stub.h"
 
 #include "db.h"
+#include "tasks/pbc_onboarding_task.h"
 
 #include <bcl/beerocks_config_file.h>
 #include <bcl/beerocks_event_loop_impl.h>
@@ -25,6 +26,10 @@
 #include <amxo/amxo.h>
 #include <amxp/amxp_signal.h>
 
+#include <tlvf/CmduMessageRx.h>
+#include <tlvf/CmduMessageTx.h>
+#include <tlvf/wfa_map/tlvMultiApPushButtonStatus.h>
+
 #include <easylogging++.h>
 #include <gtest/gtest.h>
 
@@ -32,6 +37,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -315,6 +321,113 @@ protected:
         m_set_uuid_e = false;
         MeshPbcTemplateTest::SetUp();
     }
+};
+
+using son::PBCOnboardingTask;
+using eStatusResult = wfa_map::tlvMultiApPushButtonStatus::eResult;
+
+const sMacAddr g_agent_mac      = tlvf::mac_from_string("02:00:00:00:00:02");
+const sMacAddr g_other_agent    = tlvf::mac_from_string("02:00:00:00:00:03");
+const sMacAddr g_unknown_mac    = tlvf::mac_from_string("02:00:00:00:00:99");
+const sMacAddr g_ruid           = tlvf::mac_from_string("02:00:00:00:10:00");
+const sMacAddr g_bssid_1        = tlvf::mac_from_string("02:00:00:00:10:01");
+const sMacAddr g_bssid_2        = tlvf::mac_from_string("02:00:00:00:10:02");
+const sMacAddr g_bssid_backhaul = tlvf::mac_from_string("02:00:00:00:10:03");
+const std::string g_link_ssid   = "pbc-ssid";
+
+class MeshPbcSessionEngineTest : public MeshPbcTemplateTest {
+protected:
+    void SetUp() override
+    {
+        MeshPbcTemplateTest::SetUp();
+        m_task = std::make_unique<PBCOnboardingTask>(*m_db, m_cmdu_tx);
+
+        m_agent = m_db->add_agent(g_agent_mac);
+        ASSERT_TRUE(m_agent);
+        m_agent->state                            = beerocks::STATE_CONNECTED;
+        m_agent->mesh_wide_pbc_onboarding_support = true;
+        ASSERT_TRUE(m_db->add_radio(g_ruid, g_agent_mac));
+        auto radio = m_db->get_radio(g_agent_mac, g_ruid);
+        ASSERT_TRUE(radio);
+        m_bss = m_db->add_bss(*radio, g_bssid_1, g_link_ssid, 1);
+        ASSERT_TRUE(m_bss);
+        m_bss->fronthaul = true;
+        ASSERT_TRUE(m_db->add_agent(g_other_agent));
+
+        son::wireless_utils::sBssInfoConf link{};
+        link.bss_index             = 1;
+        link.ssid                  = g_link_ssid;
+        link.fronthaul             = true;
+        link.mesh_pbc_template_ref = mesh_pbc_path(1);
+        m_db->add_configured_bss_info(g_ruid, link);
+        LogRecorder::lines.clear();
+    }
+
+    void TearDown() override
+    {
+        m_task.reset();
+        MeshPbcTemplateTest::TearDown();
+    }
+
+    PBCOnboardingTask::sStartResult start(const std::string &reference,
+                                          const sMacAddr &agent_al_mac        = {},
+                                          const std::vector<sMacAddr> &bssids = {})
+    {
+        PBCOnboardingTask::sStartRequest request;
+        request.template_reference = reference;
+        request.agent_al_mac       = agent_al_mac;
+        request.bssids             = bssids;
+        return m_task->start(request);
+    }
+
+    void expect_rejected(const PBCOnboardingTask::sStartResult &result,
+                         PBCOnboardingTask::eResult error)
+    {
+        EXPECT_FALSE(result.accepted);
+        EXPECT_EQ(int(result.error), int(error));
+        EXPECT_EQ(result.session_id, "");
+    }
+
+    /**
+     * @brief Gives a message to the engine, as received from src_mac.
+     *
+     * @param statuses Status TLVs: BSSID, Result, Failure Reason.
+     * @return The result of handle_ieee1905_1_msg().
+     */
+    bool receive(ieee1905_1::eMessageType type, const sMacAddr &src_mac,
+                 const std::vector<std::tuple<sMacAddr, uint8_t, uint16_t>> &statuses = {})
+    {
+        uint8_t buffer[1024] = {};
+        ieee1905_1::CmduMessageTx cmdu_tx(buffer, sizeof(buffer));
+        EXPECT_TRUE(cmdu_tx.create(0x1234, type));
+        for (const auto &status : statuses) {
+            auto tlv = cmdu_tx.addClass<wfa_map::tlvMultiApPushButtonStatus>();
+            EXPECT_TRUE(tlv);
+            if (!tlv) {
+                return false;
+            }
+            tlv->pbc_session_id().al_mac = g_agent_mac;
+            tlv->pbc_session_id().mid    = 0x0101;
+            tlv->bssid()                 = std::get<0>(status);
+            tlv->result()                = static_cast<eStatusResult>(std::get<1>(status));
+            if (std::get<1>(status) == uint8_t(eStatusResult::FAILURE_ABORTED) ||
+                std::get<1>(status) == uint8_t(eStatusResult::NOT_STARTED)) {
+                EXPECT_TRUE(tlv->set_failure_reason(std::get<2>(status)));
+            }
+        }
+        EXPECT_TRUE(cmdu_tx.finalize());
+        ieee1905_1::CmduMessageRx cmdu_rx(buffer, cmdu_tx.getMessageLength());
+        EXPECT_TRUE(cmdu_rx.parse());
+        return m_task->handle_ieee1905_1_msg(src_mac, cmdu_rx);
+    }
+
+    std::string template_result() const { return get(mesh_pbc_path(1) + ".Status", "Result"); }
+
+    uint8_t m_tx_buffer[4096] = {};
+    ieee1905_1::CmduMessageTx m_cmdu_tx{m_tx_buffer, sizeof(m_tx_buffer)};
+    std::unique_ptr<PBCOnboardingTask> m_task;
+    std::shared_ptr<prplmesh::controller::db::Agent> m_agent;
+    std::shared_ptr<prplmesh::controller::db::Agent::sRadio::sBss> m_bss;
 };
 
 } // namespace mesh_pbc_test
