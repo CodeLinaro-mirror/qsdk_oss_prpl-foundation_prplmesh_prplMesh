@@ -7,6 +7,8 @@ package "beerocks" {
     -m_apply_pending : bool
     -m_next_run : std::chrono::steady_clock::time_point
     -m_pending_wds_ifaces : std::unordered_map<std::string, sPendingWdsIfaceState>
+    -m_reconcile_retry_counter : int
+    -m_next_reconcile_retry_time : std::chrono::steady_clock::time_point
     -m_last_primary_vid : uint16_t
     +work() : void
     +handle_event(event_enum_value : uint8_t, event_obj : void*) : void
@@ -138,60 +140,5 @@ TrafficSeparationManager --> PortPlumbing
 TrafficSeparationManager --> sTrunkPort
 TrafficSeparationManager --> sAccessPort
 TrafficSeparationManager --> sTrafficSeparationConfig
-
-note right of TrafficSeparationTask
-  TS_APPLY requests an unconditional reconciliation.
-  TS_POLICY_UPDATE requests one only when the
-  effective config changed.
-
-  work() runs reconcile() for a pending apply and
-  retry_pending_wds_ifaces() for deferred WDS
-  readiness checks.
-
-  reconcile() clears active plumbing, refreshes the
-  config, re-adds persistent DB-owned trunks, and
-  reapplies policies on already managed ports.
-
-  Pure-FH and exact-WDS ownership is event-driven:
-  TS_NEW_* adds one iface, TS_CLEAR_* removes one.
-  reconcile() does not reconcile FH access ports from
-  DB anymore.
-
-  TS_CLEAR clears active policies plus deferred
-  task state. There is no TS_RESET event path in
-  the current branch.
-end note
-
-note right of TrunkPortPlumbing8021q
-  tagged wireless trunk:
-  remove parent iface from its bridge, create
-  private and guest VLAN subifaces, attach them
-  to the TS bridges
-
-  tagged ethernet trunk:
-  keep parent iface native and create guest VLAN
-  subiface only
-
-  untagged trunk:
-  no bridge re-plumbing
-end note
-
-note right of AccessPortPlumbing8021q
-  apply() warns and skips if the pure-FH iface is
-  missing.
-
-  clear() treats a vanished iface as already
-  cleaned so disable races do not fail remove.
-end note
-
-note bottom of TrafficSeparationManager
-  clear_policies() clears plumbing state but keeps
-  trunk and access ownership maps.
-
-  reset() calls clear_policies(), removes all
-  managed ports, clears config, and returns to
-  NO_CONFIG, but TrafficSeparationTask does not
-  emit a TS_RESET event in the current branch.
-end note
 
 @enduml
