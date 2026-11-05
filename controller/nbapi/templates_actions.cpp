@@ -7,6 +7,7 @@
  */
 
 #include "templates_actions.h"
+#include "mesh_pbc_session_actions.h"
 #include "on_action.h"
 
 #include <algorithm>
@@ -802,6 +803,7 @@ static void event_templates_network_configuration_changed(const char *const sig_
                << get_param_string(network_obj, "TopologyFlag") << "\"";
 
     if (!enable_now) {
+        mesh_pbc_templates_network_disabled();
         if (falling_edge && g_database) {
             // Operator explicitly disabled templates: tear down any staged BSS on agents.
             std::vector<sMacAddr> changed_agents;

@@ -43,6 +43,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 
 #ifdef ENABLE_NBAPI
 #include "ambiorix_impl.h"
+#include "mesh_pbc_session_actions.h"
 #include "on_action.h"
 
 #ifndef CONTROLLER_DATAMODEL_PATH
@@ -885,6 +886,9 @@ int main(int argc, char *argv[])
 
     s_pLogger = nullptr;
     controller.stop();
+#ifdef ENABLE_NBAPI
+    prplmesh::controller::actions::mesh_pbc_session_actions_cleanup();
+#endif
 
     beerocks::bpl::bpl_close();
 
