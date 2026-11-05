@@ -95,6 +95,7 @@
 #include <tlvf/wfa_map/tlvProfile2RadioMetrics.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
+#include <tlvf/wfa_map/tlvPushButtonConfig.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
 #include <tlvf/wfa_map/tlvRsnDiagnosticReport.h>
@@ -122,6 +123,7 @@
 #endif
 
 #ifdef ENABLE_NBAPI
+#include "mesh_pbc_template_actions.h"
 #include "on_action.h"
 #endif
 namespace son {
@@ -1438,6 +1440,124 @@ static bool add_bss_advanced_configuration_tlv(
     return true;
 }
 
+#ifdef ENABLE_NBAPI
+/**
+ * @brief Add the Push-Button Config TLVs of a radio to the current CMDU.
+ *
+ * Adds one Push-Button Config TLV for each configured BSS of the radio that is configured
+ * for push-button onboarding, in the order of the configured BSSs. The TLV names the BSS by
+ * its BSS index in the WSC M2, so the Agent must support RSN Overriding. A BSS that does not
+ * meet a condition gets no TLV, and the other BSSs are not affected. Each BSS without a TLV
+ * gets one log line with the reason.
+ *
+ * @param[in] database reference to the database
+ * @param[out] cmdu_tx the message containing the TLVs
+ * @param[in] agent the Agent that sent the AP-Autoconfiguration WSC message
+ * @param[in] ruid radio UID of the configured BSSs
+ * @param[in,out] configured_bss_infos the BSSs that get a WSC M2 in this message. For each BSS
+ * that gets a TLV, mesh_pbc_template_ref is set to the path of its template; for the others it
+ * is empty.
+ * @return false if a TLV was added but could not be filled; the message is then not valid.
+ */
+static bool
+add_push_button_config_tlvs(db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const Agent &agent,
+                            const sMacAddr &ruid,
+                            std::list<son::wireless_utils::sBssInfoConf> &configured_bss_infos)
+{
+    using prplmesh::controller::actions::eMeshPbcBssConfigResult;
+
+    for (auto &bss_info_conf : configured_bss_infos) {
+        bss_info_conf.mesh_pbc_template_ref.clear();
+
+        std::ostringstream bss_name;
+        bss_name << "al_mac=" << agent.al_mac << " ruid=" << ruid
+                 << " bss_index=" << int(bss_info_conf.bss_index) << " ssid=" << bss_info_conf.ssid;
+
+        std::string reason;
+        if (!agent.mesh_wide_pbc_onboarding_support) {
+            reason = "no capability: the Agent does not report Multi-AP Push-Button Trigger "
+                     "support";
+        } else if (!agent.rsn_overriding_supported) {
+            reason = "the Agent does not report RSN Overriding, so the WSC M2 has no BSS index";
+        } else if (!database.config.use_dataelements_vap_configs) {
+            reason = "UseDataElementsVapConfigs is false";
+        } else if (bss_info_conf.teardown) {
+            reason = "the BSS is torn down";
+        } else if (!bss_info_conf.fronthaul || bss_info_conf.backhaul) {
+            reason = "the BSS is not a fronthaul-only BSS";
+        } else if (bss_info_conf.bss_index == 0) {
+            reason = "the BSS has no BSS index";
+        }
+        if (!reason.empty()) {
+            LOG(INFO) << "No Push-Button Config TLV for " << bss_name.str() << ": " << reason;
+            continue;
+        }
+
+        prplmesh::controller::actions::sMeshPbcBssConfig config;
+        auto result = prplmesh::controller::actions::mesh_pbc_get_bss_config(
+            bss_info_conf.ssc_mesh_pbc_template_ref, config, reason);
+        if (result == eMeshPbcBssConfigResult::SKIP) {
+            LOG(INFO) << "No Push-Button Config TLV for " << bss_name.str() << ": " << reason;
+            continue;
+        } else if (result == eMeshPbcBssConfigResult::INVALID) {
+            LOG(WARNING) << "No Push-Button Config TLV for " << bss_name.str() << ": " << reason;
+            continue;
+        } else if (result != eMeshPbcBssConfigResult::FOUND) {
+            LOG(ERROR) << "No Push-Button Config TLV for " << bss_name.str() << ": " << reason;
+            continue;
+        }
+
+        if (config.device_password_missing) {
+            LOG(WARNING) << "Push-Button Config TLV for " << bss_name.str() << " has no Device "
+                         << "Password: " << config.template_path << ".WPS.DevicePasswordID is "
+                         << config.device_password_id << " and WPS.DevicePassword is empty";
+        }
+
+        const size_t needed_length = wfa_map::tlvPushButtonConfig::get_initial_size() +
+                                     config.device_password.size() +
+                                     ieee1905_1::tlvEndOfMessage::get_initial_size();
+        if (cmdu_tx.getMessageBuffLength() < cmdu_tx.getMessageLength() + needed_length) {
+            LOG(ERROR) << "No Push-Button Config TLV for " << bss_name.str()
+                       << ": no space left in the message";
+            continue;
+        }
+
+        auto tlv = cmdu_tx.addClass<wfa_map::tlvPushButtonConfig>();
+        if (!tlv) {
+            LOG(ERROR) << "No Push-Button Config TLV for " << bss_name.str()
+                       << ": failed creating tlvPushButtonConfig";
+            continue;
+        }
+        tlv->bssid()              = beerocks::net::network_utils::ZERO_MAC;
+        tlv->bss_index()          = bss_info_conf.bss_index;
+        tlv->listen_duration()    = config.listen_duration;
+        tlv->device_password_id() = config.device_password_id;
+        if (!tlv->set_uuid_e(config.uuid_e.data(), config.uuid_e.size())) {
+            LOG(ERROR) << "Push-Button Config TLV for " << bss_name.str()
+                       << ": failed setting UUID-E";
+            return false;
+        }
+        if (!config.device_password.empty() &&
+            !tlv->set_device_password(config.device_password.data(),
+                                      config.device_password.size())) {
+            LOG(ERROR) << "Push-Button Config TLV for " << bss_name.str()
+                       << ": failed setting Device Password";
+            return false;
+        }
+
+        LOG(INFO) << "Push-Button Config TLV added for " << bss_name.str()
+                  << " template=" << config.template_path
+                  << " listen_duration=" << config.listen_duration
+                  << " uuid_e=" << config.uuid_e_text
+                  << " device_password_id=" << config.device_password_id
+                  << " device_password_length=" << tlv->device_password_length();
+
+        bss_info_conf.mesh_pbc_template_ref = config.template_path;
+    }
+    return true;
+}
+#endif
+
 /**
  * @brief add Backhaul STA MLD Configuration TLV to the current CMDU
  *
@@ -1996,6 +2116,17 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     add_bss_advanced_configuration_tlv(database, cmdu_tx, m1->mac_addr(), ruid, bss_info_confs,
                                        radio->band);
 
+#ifdef ENABLE_NBAPI
+    if (has_configured_bss &&
+        !add_push_button_config_tlvs(database, cmdu_tx, *agent, ruid,
+                                     database.get_configured_bss_info(ruid))) {
+        LOG(ERROR) << "Failed adding the Push-Button Config TLVs, no reply for al_mac=" << al_mac
+                   << " ruid=" << ruid;
+        database.clear_configured_bss_info(ruid);
+        return false;
+    }
+#endif
+
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
     if (beerocks_header) {
         LOG(INFO) << "Intel radio agent join (al_mac=" << al_mac << " ruid=" << ruid << ")";
@@ -2032,6 +2163,17 @@ bool Controller::handle_cmdu_1905_autoconfiguration_WSC(const sMacAddr &src_mac,
     agent->device_info.manufacturer_model = m1->model_name();
     agent->device_info.serial_number      = m1->serial_number();
     database.dm_set_profile1_device_info(*agent);
+
+#ifdef ENABLE_NBAPI
+    for (const auto &bss_info_conf : database.get_configured_bss_info(ruid)) {
+        if (!bss_info_conf.mesh_pbc_template_ref.empty()) {
+            LOG(DEBUG) << "push-button link: al_mac=" << al_mac << " ruid=" << ruid
+                       << " bss_index=" << int(bss_info_conf.bss_index)
+                       << " ssid=" << bss_info_conf.ssid
+                       << " template=" << bss_info_conf.mesh_pbc_template_ref;
+        }
+    }
+#endif
 
     return true;
 }

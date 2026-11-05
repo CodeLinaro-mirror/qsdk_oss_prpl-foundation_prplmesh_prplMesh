@@ -6181,6 +6181,62 @@ void db::clear_configured_bss_info(const sMacAddr &ruid)
     configured_bss_infos[ruid].clear();
 }
 
+std::list<db::sMeshPbcBssLink> db::get_mesh_pbc_bss_links() const
+{
+    std::list<sMeshPbcBssLink> links;
+    for (const auto &agent_entry : m_agents) {
+        const auto &agent = agent_entry.second;
+        for (const auto &radio_entry : agent->radios) {
+            auto configured = configured_bss_infos.find(radio_entry.first);
+            if (configured == configured_bss_infos.end()) {
+                continue;
+            }
+            for (const auto &bss_info_conf : configured->second) {
+                if (bss_info_conf.mesh_pbc_template_ref.empty()) {
+                    continue;
+                }
+                sMeshPbcBssLink link;
+                link.al_mac            = agent->al_mac;
+                link.ruid              = radio_entry.first;
+                link.bss_index         = bss_info_conf.bss_index;
+                link.ssid              = bss_info_conf.ssid;
+                link.mesh_pbc_template = bss_info_conf.mesh_pbc_template_ref;
+                links.push_back(std::move(link));
+            }
+        }
+    }
+    for (auto &link : links) {
+        link.bssid = beerocks::net::network_utils::ZERO_MAC;
+
+        std::ostringstream name;
+        name << "push-button link al_mac=" << link.al_mac << " ruid=" << link.ruid
+             << " bss_index=" << int(link.bss_index) << " ssid=" << link.ssid;
+
+        auto agent = m_agents.get(link.al_mac);
+        auto radio = agent ? agent->radios.get(link.ruid) : nullptr;
+        if (!radio) {
+            LOG(INFO) << name.str() << ": no BSSID, the radio is not known";
+            continue;
+        }
+
+        int ssid_matches    = 0;
+        sMacAddr ssid_bssid = beerocks::net::network_utils::ZERO_MAC;
+        for (const auto &bss_entry : radio->bsses) {
+            if (!link.ssid.empty() && bss_entry.second->ssid == link.ssid) {
+                ssid_bssid = bss_entry.second->bssid;
+                ssid_matches++;
+            }
+        }
+        if (ssid_matches != 1) {
+            LOG(WARNING) << name.str() << ": no BSSID, " << ssid_matches
+                         << " BSSs of the radio have the SSID of the link";
+            continue;
+        }
+        link.bssid = ssid_bssid;
+    }
+    return links;
+}
+
 void db::add_traffic_separation_configuration(const sMacAddr &al_mac,
                                               const wireless_utils::sTrafficSeparationSsid &config)
 {
