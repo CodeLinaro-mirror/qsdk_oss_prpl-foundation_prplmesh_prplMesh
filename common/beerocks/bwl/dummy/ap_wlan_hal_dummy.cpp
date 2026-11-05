@@ -93,6 +93,9 @@ static ap_wlan_hal::Event dummy_to_bwl_event(const std::string &opcode)
         return ap_wlan_hal::Event::WPS_Event_Cancel;
     } else if (opcode == "AP-STA-POSSIBLE-PSK-MISMATCH") {
         return ap_wlan_hal::Event::AP_Sta_Possible_Psk_Mismatch;
+    } else if (opcode == "WPS-PAIRING-READY" || opcode == "WPS-PAIRING-ERROR" ||
+               opcode == "WPS-PAIRING-DONE") {
+        return ap_wlan_hal::Event::WPS_Pairing_Event;
     }
 
     return ap_wlan_hal::Event::Invalid;
@@ -293,6 +296,14 @@ bool ap_wlan_hal_dummy::update_vap_credentials(
                    << " fronthaul: " << beerocks::string_utils::bool_str(bss_info_conf.fronthaul)
                    << " backhaul: " << beerocks::string_utils::bool_str(bss_info_conf.backhaul);
 
+        if (bss_info_conf.wps_push_button.armed) {
+            LOG(INFO) << "WPS push button armed on bssid " << bss_info_conf.bssid << ": UUID-E "
+                      << bss_info_conf.wps_push_button.uuid_e << ", Device Password ID "
+                      << bss_info_conf.wps_push_button.device_password_id
+                      << ", Device Password length "
+                      << bss_info_conf.wps_push_button.device_password.size();
+        }
+
         vap_iter->second.fronthaul = bss_info_conf.fronthaul;
         vap_iter->second.backhaul  = bss_info_conf.backhaul;
         vap_iter->second.ssid      = bss_info_conf.ssid;
@@ -423,6 +434,35 @@ bool ap_wlan_hal_dummy::pre_generate_connected_clients_events() { return true; }
 bool ap_wlan_hal_dummy::start_wps_pbc()
 {
     LOG(DEBUG) << "Start WPS PBC";
+    return true;
+}
+
+bwl::eWpsPbcStartResult ap_wlan_hal_dummy::start_wps_pbc_bssid(const std::string &bssid,
+                                                               std::string &status)
+{
+    if (get_vap_id_with_mac(bssid) == beerocks::IFACE_ID_INVALID) {
+        LOG(ERROR) << "Start WPS PBC: radio has no BSSID " << bssid;
+        return bwl::eWpsPbcStartResult::NotSent;
+    }
+    LOG(DEBUG) << "Start WPS PBC on " << bssid;
+    status = "Success";
+    return bwl::eWpsPbcStartResult::Replied;
+}
+
+bool ap_wlan_hal_dummy::cancel_wps_pbc_bssid(const std::string &bssid)
+{
+    if (get_vap_id_with_mac(bssid) == beerocks::IFACE_ID_INVALID) {
+        LOG(ERROR) << "Cancel WPS PBC: radio has no BSSID " << bssid;
+        return false;
+    }
+    LOG(DEBUG) << "Cancel WPS PBC on " << bssid;
+
+    auto event          = std::make_shared<bwl::sWpsPairingEvent>();
+    event->bssid        = tlvf::mac_from_string(bssid);
+    event->notification = bwl::eWpsPairingNotification::Done;
+    event->enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
+    event->reason       = "Canceled";
+    event_queue_push(Event::WPS_Pairing_Event, event);
     return true;
 }
 
@@ -673,6 +713,46 @@ bool ap_wlan_hal_dummy::process_dummy_event(parsed_obj_map_t &parsed_obj)
                    << " reason=" << sta_conn_fail->reason;
 
         event_queue_push(event, sta_conn_fail);
+    } break;
+
+    case Event::WPS_Pairing_Event: {
+        std::string vap_name = parsed_obj[DUMMY_EVENT_KEYLESS_PARAM_IFACE];
+        auto vap_id          = get_vap_id_with_bss(vap_name);
+        if (!check_vap_id(vap_id)) {
+            LOG(ERROR) << "WPS pairing event: radio has no BSS '" << vap_name << "'";
+            return false;
+        }
+
+        auto pairing_event   = std::make_shared<bwl::sWpsPairingEvent>();
+        pairing_event->bssid = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
+        if (opcode == "WPS-PAIRING-READY") {
+            pairing_event->notification = bwl::eWpsPairingNotification::Ready;
+        } else if (opcode == "WPS-PAIRING-ERROR") {
+            pairing_event->notification = bwl::eWpsPairingNotification::Error;
+        } else {
+            pairing_event->notification = bwl::eWpsPairingNotification::Done;
+        }
+        // A pairing Done of pwhm always has a reason.
+        if (pairing_event->notification == bwl::eWpsPairingNotification::Done &&
+            parsed_obj["reason"].empty()) {
+            LOG(ERROR) << "WPS pairing event: " << opcode << " without reason";
+            return false;
+        }
+        pairing_event->reason          = parsed_obj["reason"];
+        pairing_event->enrollee_mac    = beerocks::net::network_utils::ZERO_MAC;
+        const std::string enrollee_mac = parsed_obj["macAddress"];
+        if (!enrollee_mac.empty()) {
+            if (!beerocks::net::network_utils::is_valid_mac(enrollee_mac)) {
+                LOG(ERROR) << "WPS pairing event: macAddress '" << enrollee_mac
+                           << "' is not a MAC address";
+                return false;
+            }
+            pairing_event->enrollee_mac = tlvf::mac_from_string(enrollee_mac);
+        }
+
+        LOG(DEBUG) << "WPS pairing event " << opcode << " on " << vap_name << " reason='"
+                   << pairing_event->reason << "' macAddress='" << enrollee_mac << "'";
+        event_queue_push(Event::WPS_Pairing_Event, pairing_event);
     } break;
 
     case Event::AP_Disabled: {

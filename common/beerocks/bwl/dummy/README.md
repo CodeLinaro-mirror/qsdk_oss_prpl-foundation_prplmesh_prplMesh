@@ -55,3 +55,31 @@ bml_disconnect: return value is: BML_RET_OK, Success status
 ```
 
 Using this new capability in DUMMY mode, development of flows involving stations such as steering can be tested more thoroughly. In addition, this provides the basis for Agent support in DUMMY mode.
+
+## Per-BSSID WPS push button
+
+The dummy AP implements the per-BSSID WPS push-button methods of `ap_wlan_hal`, and logs the push-button settings of the BSS configuration:
+
+- `update_vap_credentials()` logs the UUID-E, the Device Password ID and the length of the Device Password of each BSS with push-button settings.
+  It never logs the Device Password itself.
+- `start_wps_pbc_bssid()` replies with the status `Success` for a BSS of the radio, so the WPS session is reported as started.
+  It sends no `Ready` event.
+  For a BSSID that the radio does not have, it returns `NotSent`.
+- `cancel_wps_pbc_bssid()` sends a WPS pairing `Done` event with the reason `Canceled` for the BSS.
+
+The end of a session, or a start event, is simulated with the EVENT file of the AP part of the radio, `/tmp/beerocks/<radio>/EVENT_AP`.
+The event names the BSS by its interface name.
+The Enrollee MAC address is given with the key `macAddress`, because the event parser keeps only one MAC address without a key.
+A `WPS-PAIRING-DONE` event needs a `reason`:
+
+```bash
+echo "EVENT WPS-PAIRING-DONE wlan0.0 reason=Success macAddress=11:22:33:44:55:66" > /tmp/beerocks/wlan0/EVENT_AP
+echo "EVENT WPS-PAIRING-DONE wlan0.0 reason=Timeout" > /tmp/beerocks/wlan0/EVENT_AP
+echo "EVENT WPS-PAIRING-DONE wlan0.0 reason=Overlap" > /tmp/beerocks/wlan0/EVENT_AP
+echo "EVENT WPS-PAIRING-DONE wlan0.0 reason=Failure" > /tmp/beerocks/wlan0/EVENT_AP
+echo "EVENT WPS-PAIRING-READY wlan0.0" > /tmp/beerocks/wlan0/EVENT_AP
+echo "EVENT WPS-PAIRING-ERROR wlan0.0 reason=Failure" > /tmp/beerocks/wlan0/EVENT_AP
+```
+
+Each event reaches the AP manager as a `WPS_Pairing_Event` with the BSSID of the named BSS.
+The AP manager reports it only for a BSSID with a running push-button session.

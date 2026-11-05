@@ -98,6 +98,23 @@ public:
     virtual bool pre_generate_connected_clients_events() override;
 
     virtual bool start_wps_pbc() override;
+
+    /**
+     * @brief Starts WPS PBC on one BSS of the radio: replies with the status "Success".
+     *
+     * @see ap_wlan_hal::start_wps_pbc_bssid
+     */
+    virtual bwl::eWpsPbcStartResult start_wps_pbc_bssid(const std::string &bssid,
+                                                        std::string &status) override;
+
+    /**
+     * @brief Cancels WPS PBC on one BSS of the radio: sends a WPS pairing Done event with the
+     * reason "Canceled".
+     *
+     * @see ap_wlan_hal::cancel_wps_pbc_bssid
+     */
+    virtual bool cancel_wps_pbc_bssid(const std::string &bssid) override;
+
     virtual bool set_mbo_assoc_disallow(const std::string &bssid, bool enable) override;
     virtual bool set_radio_mbo_assoc_disallow(bool enable) override;
     virtual bool set_primary_vlan_id(uint16_t primary_vlan_id) override;
