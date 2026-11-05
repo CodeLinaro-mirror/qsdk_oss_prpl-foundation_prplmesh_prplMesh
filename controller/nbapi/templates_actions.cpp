@@ -658,7 +658,7 @@ static bool update_linked_template_id(const std::string &reference_path,
     return false;
 }
 
-static bool templates_events_enabled(void)
+bool templates_events_enabled(void)
 {
     if (!g_database) {
         LOG(ERROR) << "g_database is nullptr";
