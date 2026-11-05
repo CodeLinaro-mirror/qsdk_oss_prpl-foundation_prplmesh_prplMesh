@@ -615,6 +615,9 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     // Provide the auto WPS callback (decides AP vs bSTA internally)
     prplmesh::agent::actions::set_wps_callback(
         [&backhaul_manager]() -> bool { return backhaul_manager.initiate_wps_pbc_auto(); });
+
+    prplmesh::agent::actions::set_mesh_wide_pbc_callback(
+        [&backhaul_manager]() -> bool { return backhaul_manager.request_mesh_wide_pbc(); });
 #endif //ENABLE_NBAPI
 
     auto agent = start_agent_thread(interfaces_map, beerocks_slave_conf, argc, argv);

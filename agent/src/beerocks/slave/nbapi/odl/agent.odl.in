@@ -157,5 +157,26 @@
             %instance bool InitiateWPSPBC();
         }
 
+        /** Mesh-wide push-button onboarding of the Agent. */
+        object MeshWidePBCOnboarding {
+            /**
+            * InitiatePBC
+            *
+            * Handles a mesh-wide push-button onboarding press on the agent. Returns at once.
+            *
+            * Behavior:
+            *   - If not onboarded: triggers WPS on Endpoint interfaces (bSTA).
+            *   - If onboarded and the Controller does not support Multi-AP push-button
+            *     onboarding: triggers WPS on Access Point interfaces (Fronthauls).
+            *   - Otherwise: sends one Multi-AP Push-Button Request message to the Controller and
+            *     starts no local WPS. There is no local WPS fallback when the Request is not sent.
+            *
+            * Return: success means that the agent accepted the press. It does not mean that WPS
+            * started or that the Request was sent. The agent logs the chosen path and each
+            * failure. An error means that the agent could not accept the press.
+            */
+            %instance bool InitiatePBC();
+        }
+
     @AGENT_ROOT_DM_Footer@
 }

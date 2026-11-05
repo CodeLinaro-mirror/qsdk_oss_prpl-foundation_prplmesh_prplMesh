@@ -155,6 +155,17 @@ public:
     bool initiate_wps_pbc_auto();
 
     /**
+     * @brief Hands a mesh-wide push-button onboarding press to the BackhaulManager thread.
+     *
+     * Can be called from any thread. The press is queued on an eventfd that the BackhaulManager
+     * event loop reads, and initiate_mesh_wide_pbc() runs on the BackhaulManager thread. The
+     * result of that run is only logged.
+     *
+     * @return true when the press was queued, false when it was not queued.
+     */
+    bool request_mesh_wide_pbc();
+
+    /**
      * @brief Triggers WPS PBC (backhaul STA) on provided frequency
      *
      * @param freq frequency on which WPS PBC will be triggerd
@@ -667,6 +678,31 @@ private:
      * Broker client to exchange CMDU messages with broker server running in transport process.
      */
     std::shared_ptr<beerocks::btl::BrokerClient> m_broker_client;
+
+    /**
+     * Event file descriptor (semaphore mode) that queues mesh-wide push-button presses for the
+     * BackhaulManager thread. One read handles one press.
+     */
+    int m_mesh_wide_pbc_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+
+    /**
+     * @brief Handles one mesh-wide push-button onboarding press. Runs on the BackhaulManager
+     * thread only.
+     *
+     * The path depends on the onboarding state and on the Controller support:
+     *  - If the agent is not onboarded (same gate as initiate_wps_pbc_auto()), WPS PBC is
+     *    triggered on the Endpoint (bSTA) interface(s).
+     *  - If the agent is onboarded and the Controller does not support Multi-AP push-button
+     *    onboarding, WPS PBC is triggered on the fronthaul AP interfaces. 6 GHz radios are
+     *    skipped (no WPS on 6 GHz).
+     *  - Otherwise, one Multi-AP Push-Button Request message is sent to the Controller. No local
+     *    WPS is started, also when the send fails.
+     *
+     * The chosen path is logged. A failure is logged as an error.
+     *
+     * @return true when the WPS start or the Request was sent, false on failure.
+     */
+    bool initiate_mesh_wide_pbc();
 
 private:
     /**

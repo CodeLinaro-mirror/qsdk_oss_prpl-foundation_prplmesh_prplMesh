@@ -51,11 +51,14 @@
 #include <bpl/bpl_err.h>
 
 #include <algorithm>
+#include <cstring>
 #include <set>
 #include <tuple>
 #include <utility>
 
 #include <net/if.h> // if_nametoindex
+#include <sys/eventfd.h>
+#include <unistd.h>
 
 namespace beerocks {
 
@@ -137,6 +140,11 @@ BackhaulManager::BackhaulManager(const config_file::sConfigSlave &config,
 
     m_eFSMState = EState::INIT;
 
+    m_mesh_wide_pbc_event_fd = eventfd(0, EFD_SEMAPHORE | EFD_NONBLOCK | EFD_CLOEXEC);
+    if (m_mesh_wide_pbc_event_fd < 0) {
+        LOG(ERROR) << "Failed creating the mesh-wide PBC eventfd: " << strerror(errno);
+    }
+
     std::string bridge_mac;
     if (!beerocks::net::network_utils::linux_iface_get_mac(config.bridge_iface, bridge_mac)) {
         LOG(ERROR) << "Failed getting MAC address for interface: " << config.bridge_iface;
@@ -187,6 +195,11 @@ BackhaulManager::~BackhaulManager()
 {
     if (m_cmdu_server) {
         m_cmdu_server->clear_handlers();
+    }
+
+    if (m_mesh_wide_pbc_event_fd >= 0) {
+        close(m_mesh_wide_pbc_event_fd);
+        m_mesh_wide_pbc_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
     }
 }
 
@@ -296,6 +309,35 @@ bool BackhaulManager::thread_init()
     }
     LOG(DEBUG) << "FSM timer created with fd = " << m_fsm_timer;
     transaction.add_rollback_action([&]() { m_timer_manager->remove_timer(m_fsm_timer); });
+
+    if (m_mesh_wide_pbc_event_fd < 0) {
+        LOG(ERROR) << "No mesh-wide PBC eventfd";
+        return false;
+    }
+    beerocks::EventLoop::EventHandlers mesh_wide_pbc_handlers{
+        .name = "Mesh-wide PBC",
+        .on_read =
+            [&](int fd, beerocks::EventLoop &loop) {
+                uint64_t counter = 0;
+                ssize_t bytes    = read(fd, &counter, sizeof(counter));
+                if (bytes != static_cast<ssize_t>(sizeof(counter))) {
+                    LOG(ERROR) << "Failed reading the mesh-wide PBC eventfd: "
+                               << (bytes < 0 ? strerror(errno) : "short read");
+                    return true;
+                }
+                initiate_mesh_wide_pbc();
+                return true;
+            },
+        .on_write      = nullptr,
+        .on_disconnect = nullptr,
+        .on_error      = nullptr,
+    };
+    if (!m_event_loop->register_handlers(m_mesh_wide_pbc_event_fd, mesh_wide_pbc_handlers)) {
+        LOG(ERROR) << "Failed to register the mesh-wide PBC eventfd handlers";
+        return false;
+    }
+    transaction.add_rollback_action(
+        [&]() { m_event_loop->remove_handlers(m_mesh_wide_pbc_event_fd); });
 
     if (!init_fdb_monitor()) {
         LOG(ERROR) << "Failed to initialize FDB monitor";
@@ -414,6 +456,10 @@ void BackhaulManager::on_thread_stop()
 
     if (!m_timer_manager->remove_timer(m_tasks_timer)) {
         LOG(ERROR) << "Failed to remove tasks timer";
+    }
+
+    if (m_mesh_wide_pbc_event_fd >= 0) {
+        m_event_loop->remove_handlers(m_mesh_wide_pbc_event_fd);
     }
 
     LOG(DEBUG) << "stopped";
@@ -4280,6 +4326,58 @@ bool BackhaulManager::initiate_wps_pbc_auto()
     LOG(ERROR) << "WPS PBC: failed to trigger";
 
     return false;
+}
+
+bool BackhaulManager::request_mesh_wide_pbc()
+{
+    if (m_mesh_wide_pbc_event_fd < 0) {
+        LOG(ERROR) << "Mesh-wide PBC: no eventfd, press not queued";
+        return false;
+    }
+
+    uint64_t counter = 1;
+    if (write(m_mesh_wide_pbc_event_fd, &counter, sizeof(counter)) < 0) {
+        LOG(ERROR) << "Mesh-wide PBC: press not queued: " << strerror(errno);
+        return false;
+    }
+
+    return true;
+}
+
+bool BackhaulManager::initiate_mesh_wide_pbc()
+{
+    auto db = AgentDB::get();
+
+    const bool backhaul_operational = (m_eFSMState == EState::OPERATIONAL);
+    const bool ap_configured        = db->statuses.ap_autoconfiguration_completed;
+    const bool controller_support   = db->controller_info.multi_ap_push_button_onboarding_support;
+
+    if (!backhaul_operational || !ap_configured || !controller_support) {
+        const char *path = (backhaul_operational && ap_configured) ? "local WPS" : "bSTA";
+        LOG(INFO) << "Mesh-wide PBC: path=" << path
+                  << ", controller_push_button_support=" << controller_support;
+        if (!initiate_wps_pbc_auto()) {
+            LOG(ERROR) << "Mesh-wide PBC: " << path << " start failed";
+            return false;
+        }
+        return true;
+    }
+
+    LOG(INFO) << "Mesh-wide PBC: path=Request, controller_push_button_support="
+              << controller_support;
+
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE)) {
+        LOG(ERROR) << "Mesh-wide PBC: failed to create MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE";
+        return false;
+    }
+
+    if (!send_cmdu_to_broker(cmdu_tx, db->controller_info.bridge_mac, db->bridge.mac)) {
+        LOG(ERROR) << "Mesh-wide PBC: failed to send MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE to "
+                   << db->controller_info.bridge_mac;
+        return false;
+    }
+
+    return true;
 }
 
 bool BackhaulManager::set_mbo_assoc_disallow(const sMacAddr &radio_mac, const sMacAddr &bssid,

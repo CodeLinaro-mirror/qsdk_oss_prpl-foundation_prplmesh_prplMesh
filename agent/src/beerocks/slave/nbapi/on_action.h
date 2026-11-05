@@ -30,6 +30,21 @@ using WpsAutoCb = std::function<bool()>;
 void set_wps_callback(WpsAutoCb auto_cb);
 
 /**
+ * @brief Callback type used by the mesh-wide push-button onboarding action handler.
+ * Should hand the press to the thread that runs the bSTA path, local WPS PBC or the Multi-AP
+ * Push-Button Request (decided there), and return at once.
+ *
+ * @return true when the press was handed over, false when it was not.
+ */
+using MeshWidePbcCb = std::function<bool()>;
+
+/**
+ * @brief Install the mesh-wide push-button onboarding callback.
+ * Must be set during agent startup (after BackhaulManager is constructed).
+ */
+void set_mesh_wide_pbc_callback(MeshWidePbcCb cb);
+
+/**
  * @brief Register the NBAPI functions exposed by the Agent.
  */
 std::vector<beerocks::nbapi::sFunctions> get_func_list(void);
