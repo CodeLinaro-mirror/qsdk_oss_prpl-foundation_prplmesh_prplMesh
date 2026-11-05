@@ -872,6 +872,11 @@ bool Controller::handle_cmdu_1905_autoconfiguration_search(uint32_t iface_index,
             return false;
         }
         tlvControllerCapability->flags().early_ap_capability = 1;
+#ifdef ENABLE_NBAPI
+        if (m_pbc_onboarding_task) {
+            tlvControllerCapability->flags().multi_ap_push_button_onboarding_support = 1;
+        }
+#endif
     }
 
     auto beerocks_header = beerocks::message_com::parse_intel_vs_message(cmdu_rx);
