@@ -1,0 +1,41 @@
+#
+---
+_namespace: wfa_map
+
+tlvMultiApPushButtonTrigger:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_MULTI_AP_PUSH_BUTTON_TRIGGER
+  length: uint16_t
+  pbc_session_id:
+    _type: sPbcSessionId
+  push_button_method:
+    _type: sPushButtonMethod
+    _comment: Method(s) to start or stop listening for
+  state:
+    _type: eState
+    _comment: Whether to arm or disarm listening on the listed BSSIDs
+  bssid_list_length:
+    _type: uint8_t
+    _length_var: True
+  bssid_list:
+    _type: sMacAddr
+    _length: [ bssid_list_length ]
+
+sPushButtonMethod:
+  _type: struct
+  _bit_field: uint8_t
+  reserved:
+    _bit_range: [7, 2]
+  wps:
+    _bit_range: [1, 1]
+  dpp:
+    _bit_range: [0, 0]
+
+eState:
+  _type: enum
+  _enum_storage: uint8_t
+  STOP: 0x00
+  START: 0x01

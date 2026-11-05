@@ -103,6 +103,8 @@
 #include <tlvf/wfa_map/tlvMetricReportingPolicy.h>
 #include <tlvf/wfa_map/tlvMic.h>
 #include <tlvf/wfa_map/tlvMldStructure.h>
+#include <tlvf/wfa_map/tlvMultiApPushButtonStatus.h>
+#include <tlvf/wfa_map/tlvMultiApPushButtonTrigger.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
 #include <tlvf/wfa_map/tlvProfile2ApRadioAdvancedCapabilities.h>
@@ -124,6 +126,7 @@
 #include <tlvf/wfa_map/tlvProfile2SteeringRequest.h>
 #include <tlvf/wfa_map/tlvProfile2TrafficSeparationPolicy.h>
 #include <tlvf/wfa_map/tlvProfile2UnsuccessfulAssociationPolicy.h>
+#include <tlvf/wfa_map/tlvPushButtonConfig.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
 #include <tlvf/wfa_map/tlvQoSManagementPolicy.h>
 #include <tlvf/wfa_map/tlvRadioOperationRestriction.h>
@@ -664,6 +667,15 @@ std::shared_ptr<BaseClass> CmduMessageRx::parseNextTlv(wfa_map::eTlvTypeMap tlv_
     }
     case (wfa_map::eTlvTypeMap::TLV_BSS_ADVANCED_CONFIGURATION): {
         return msg.addClass<wfa_map::tlvBssAdvancedConfiguration>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_MULTI_AP_PUSH_BUTTON_TRIGGER): {
+        return msg.addClass<wfa_map::tlvMultiApPushButtonTrigger>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_MULTI_AP_PUSH_BUTTON_STATUS): {
+        return msg.addClass<wfa_map::tlvMultiApPushButtonStatus>();
+    }
+    case (wfa_map::eTlvTypeMap::TLV_PUSH_BUTTON_CONFIG): {
+        return msg.addClass<wfa_map::tlvPushButtonConfig>();
     }
     }
     LOG(FATAL) << "Unknown TLV type: " << unsigned(tlv_type);

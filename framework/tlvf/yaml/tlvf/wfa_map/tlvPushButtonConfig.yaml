@@ -1,0 +1,28 @@
+#
+---
+_namespace: wfa_map
+
+tlvPushButtonConfig:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_PUSH_BUTTON_CONFIG
+  length: uint16_t
+  bssid: sMacAddr
+  bss_index:
+    _type: uint8_t
+    _comment: Ignored if bssid is non-zero
+  listen_duration:
+    _type: uint16_t
+    _comment: WPS Walk Time in seconds
+  uuid_e:
+    _type: uint8_t
+    _length: [ 16 ]
+  device_password_id:
+    _type: uint16_t
+    _comment: WPS Device Password ID, 0x0004 for Pushbutton
+  device_password:
+    _type: uint8_t
+    _length: []
+    _comment: Present only if device_password_id indicates a PIN (length inferred from tlvLength field)

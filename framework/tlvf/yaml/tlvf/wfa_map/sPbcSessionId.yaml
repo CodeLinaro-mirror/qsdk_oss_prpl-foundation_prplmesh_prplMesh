@@ -1,0 +1,9 @@
+#
+---
+_namespace: wfa_map
+
+sPbcSessionId:
+  _type: struct
+  _comment: Originating AL MAC and MID of the Multi-AP Push-Button Request that started a push-button session
+  al_mac: sMacAddr
+  mid: uint16_t

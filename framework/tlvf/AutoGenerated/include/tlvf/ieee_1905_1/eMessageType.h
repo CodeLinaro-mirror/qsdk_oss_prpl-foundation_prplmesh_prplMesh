@@ -111,6 +111,9 @@ enum class eMessageType : uint16_t {
     BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE = 0x8047,
     VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE = 0x8048,
     AVAILABLE_SPECTRUM_INQUIRY_MESSAGE = 0x8049,
+    MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE = 0x804e,
+    MULTI_AP_PUSH_BUTTON_TRIGGER_MESSAGE = 0x804f,
+    MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE = 0x8050,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
 // clang-format off
@@ -206,6 +209,9 @@ static const char *eMessageType_str(eMessageType enum_value) {
     case eMessageType::BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE:              return "eMessageType::BSTA_MLD_CONFIGURATION_RESPONSE_MESSAGE";
     case eMessageType::VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE:             return "eMessageType::VIRTUAL_BSS_MOVE_CANCEL_RESPONSE_MESSAGE";
     case eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE:                   return "eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE";
+    case eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE:                 return "eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE";
+    case eMessageType::MULTI_AP_PUSH_BUTTON_TRIGGER_MESSAGE:                 return "eMessageType::MULTI_AP_PUSH_BUTTON_TRIGGER_MESSAGE";
+    case eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE:                  return "eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE";
     }
     static std::string out_str = std::to_string(int(enum_value));
     return out_str.c_str();
@@ -308,6 +314,9 @@ public:
         case 0x8047:
         case 0x8048:
         case 0x8049:
+        case 0x804e:
+        case 0x804f:
+        case 0x8050:
                 ret = true;
                 break;
             default:

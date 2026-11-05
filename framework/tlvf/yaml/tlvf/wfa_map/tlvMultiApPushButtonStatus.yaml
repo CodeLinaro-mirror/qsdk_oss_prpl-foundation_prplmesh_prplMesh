@@ -1,0 +1,37 @@
+#
+---
+_namespace: wfa_map
+
+tlvMultiApPushButtonStatus:
+  _type: class
+  _is_tlv_class: True
+  type:
+    _type: eTlvTypeMap
+    _value_const: TLV_MULTI_AP_PUSH_BUTTON_STATUS
+  length: uint16_t
+  pbc_session_id:
+    _type: sPbcSessionId
+    _comment: Same value as in the Multi-AP Push-Button Trigger TLV that armed the BSS
+  bssid: sMacAddr
+  result: eResult
+  failure_reason:
+    _type: uint16_t
+    _comment: |
+      Native status/error code of the push-button method:
+      Easy Connect DPP Status for DPP, WSC Configuration Error for WPS.
+      This field shall be included if the result field is set to 0x01 or 0x02.
+      For 0x02 without a native code, the value is 0x0000.
+    _condition:
+      _using_members: result
+      _phrase: result == eResult::FAILURE_ABORTED || result == eResult::NOT_STARTED
+  enrollee_mac:
+    _type: sMacAddr
+    _comment: MAC address of the new device, all zeros if result is not 0x00
+
+eResult:
+  _type: enum
+  _enum_storage: uint8_t
+  SUCCESS: 0x00
+  FAILURE_ABORTED: 0x01
+  NOT_STARTED: 0x02
+  STARTED: 0x03

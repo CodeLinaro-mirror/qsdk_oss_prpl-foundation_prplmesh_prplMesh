@@ -129,6 +129,9 @@ enum class eTlvTypeMap : uint8_t {
     TLV_RSN_PARAMETERS_CONFIGURATION = 0xeb,
     TLV_BSS_ADVANCED_CONFIGURATION = 0xec,
     TLV_SUPPORTED_CIPHER_SUITES = 0xed,
+    TLV_MULTI_AP_PUSH_BUTTON_TRIGGER = 0xef,
+    TLV_MULTI_AP_PUSH_BUTTON_STATUS = 0xf1,
+    TLV_PUSH_BUTTON_CONFIG = 0xf4,
     TLV_AP_WIFI_6_CAPABILITIES = 0xaa,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
@@ -243,6 +246,9 @@ static const char *eTlvTypeMap_str(eTlvTypeMap enum_value) {
     case eTlvTypeMap::TLV_RSN_PARAMETERS_CONFIGURATION:             return "eTlvTypeMap::TLV_RSN_PARAMETERS_CONFIGURATION";
     case eTlvTypeMap::TLV_BSS_ADVANCED_CONFIGURATION:               return "eTlvTypeMap::TLV_BSS_ADVANCED_CONFIGURATION";
     case eTlvTypeMap::TLV_SUPPORTED_CIPHER_SUITES:                  return "eTlvTypeMap::TLV_SUPPORTED_CIPHER_SUITES";
+    case eTlvTypeMap::TLV_MULTI_AP_PUSH_BUTTON_TRIGGER:             return "eTlvTypeMap::TLV_MULTI_AP_PUSH_BUTTON_TRIGGER";
+    case eTlvTypeMap::TLV_MULTI_AP_PUSH_BUTTON_STATUS:              return "eTlvTypeMap::TLV_MULTI_AP_PUSH_BUTTON_STATUS";
+    case eTlvTypeMap::TLV_PUSH_BUTTON_CONFIG:                       return "eTlvTypeMap::TLV_PUSH_BUTTON_CONFIG";
     case eTlvTypeMap::TLV_AP_WIFI_6_CAPABILITIES:                   return "eTlvTypeMap::TLV_AP_WIFI_6_CAPABILITIES";
     }
     static std::string out_str = std::to_string(int(enum_value));
@@ -364,6 +370,9 @@ public:
         case 0xeb:
         case 0xec:
         case 0xed:
+        case 0xef:
+        case 0xf1:
+        case 0xf4:
         case 0xaa:
                 ret = true;
                 break;
