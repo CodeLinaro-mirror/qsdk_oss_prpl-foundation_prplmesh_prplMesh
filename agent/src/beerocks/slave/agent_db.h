@@ -201,6 +201,11 @@ public:
         std::chrono::steady_clock::time_point last_controller_contact_time;
         bool early_ap_capability             = false;
         bool early_ap_capability_report_sent = false;
+        /**
+         * Multi-AP Push-Button Onboarding Support bit of the Controller Capability TLV, from the
+         * most recent AP-Autoconfiguration Response.
+         */
+        bool multi_ap_push_button_onboarding_support = false;
     } controller_info;
 
     struct sStatus {

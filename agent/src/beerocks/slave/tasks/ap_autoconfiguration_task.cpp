@@ -1626,6 +1626,13 @@ void ApAutoConfigurationTask::handle_ap_autoconfiguration_response(
         }
     }
 
+    db->controller_info.multi_ap_push_button_onboarding_support =
+        controller_capability_tlv &&
+        controller_capability_tlv->flags().multi_ap_push_button_onboarding_support;
+    LOG(INFO) << "Controller Multi-AP Push-Button Onboarding Support: "
+              << db->controller_info.multi_ap_push_button_onboarding_support << " (" << band_name
+              << " band Response from " << src_mac << ")";
+
     auto tlvSupportedService = cmdu_rx.getClass<wfa_map::tlvSupportedService>();
     if (!tlvSupportedService) {
         LOG(ERROR) << "getClass tlvSupportedService failed";
