@@ -7,6 +7,7 @@
  */
 
 #include "on_action.h"
+#include "mesh_pbc_template_actions.h"
 
 #include <algorithm>
 #include <array>
@@ -1920,11 +1921,13 @@ static void event_use_dataelements_vap_config_changed(const char *const sig_name
 
 std::vector<beerocks::nbapi::sActionsCallback> get_actions_callback_list(void)
 {
-    const std::vector<beerocks::nbapi::sActionsCallback> actions_list = {
+    std::vector<beerocks::nbapi::sActionsCallback> actions_list = {
         {"action_read_assoc_time", action_read_assoc_time},
         {"action_read_last_change", action_read_last_change},
         {"action_last_steer_time", action_last_steer_time},
     };
+    auto mesh_pbc = get_mesh_pbc_template_actions_list();
+    actions_list.insert(actions_list.end(), mesh_pbc.begin(), mesh_pbc.end());
     return actions_list;
 }
 
