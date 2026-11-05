@@ -44,6 +44,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #ifdef ENABLE_NBAPI
 #include "ambiorix_impl.h"
 #include "mesh_pbc_session_actions.h"
+#include "mesh_pbc_template_actions.h"
 #include "on_action.h"
 
 #ifndef CONTROLLER_DATAMODEL_PATH
@@ -800,6 +801,7 @@ int main(int argc, char *argv[])
 #ifdef ENABLE_NBAPI
     prplmesh::controller::actions::set_templates_dm_initialized(true);
     LOG(INFO) << "Templates DM initialization completed";
+    (void)prplmesh::controller::actions::mesh_pbc_init_uuid_e();
 #endif
 
     // The prplMesh controller needs to be configured with the SSIDs and credentials that have to
