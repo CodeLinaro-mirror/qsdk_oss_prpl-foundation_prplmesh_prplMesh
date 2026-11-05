@@ -147,6 +147,7 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::CLIENT_CAPABILITY_QUERY_MESSAGE,
     ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE,
     ieee1905_1::eMessageType::BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE,
+    ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_TRIGGER_MESSAGE,
 };
 
 } // namespace
