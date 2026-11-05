@@ -1108,6 +1108,12 @@ enum eClientDisconnectSource: uint8_t {
     eClient_Disconnect_Source_Pre_Association_Steering_Task = 0x2,
 };
 
+enum eMeshPbcStatus: uint8_t {
+    eMeshPbcStatus_Started = 0x0,
+    eMeshPbcStatus_NotStarted = 0x1,
+    eMeshPbcStatus_Ended = 0x2,
+};
+
 typedef struct sClientDisconnectResponse {
     int32_t error_code;
     eClientDisconnectSource src;

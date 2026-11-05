@@ -1322,6 +1322,80 @@ class cACTION_APMANAGER_SET_ASSOC_DISALLOW_REQUEST : public BaseClass
         sMacAddr* m_bssid = nullptr;
 };
 
+class cACTION_APMANAGER_MESHPBC_START_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_MESHPBC_START_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_MESHPBC_START_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_MESHPBC_START_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_MESHPBC_START_REQUEST);
+        }
+        sMacAddr& bssid();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_bssid = nullptr;
+};
+
+class cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_MESHPBC_CANCEL_REQUEST);
+        }
+        sMacAddr& bssid();
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_bssid = nullptr;
+};
+
+class cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION : public BaseClass
+{
+    public:
+        cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse = false);
+        explicit cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse = false);
+        ~cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION();
+
+        static eActionOp_APMANAGER get_action_op(){
+            return (eActionOp_APMANAGER)(ACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION);
+        }
+        sMacAddr& bssid();
+        eMeshPbcStatus& status();
+        sMacAddr& enrollee_mac();
+        std::string reason_str();
+        char* reason(size_t length = 0);
+        bool set_reason(const std::string& str);
+        bool set_reason(const char buffer[], size_t size);
+        void class_swap() override;
+        bool finalize() override;
+        static size_t get_initial_size();
+
+    private:
+        bool init();
+        eActionOp_APMANAGER* m_action_op = nullptr;
+        sMacAddr* m_bssid = nullptr;
+        eMeshPbcStatus* m_status = nullptr;
+        sMacAddr* m_enrollee_mac = nullptr;
+        char* m_reason = nullptr;
+        size_t m_reason_idx__ = 0;
+        int m_lock_order_counter__ = 0;
+};
+
 class cACTION_APMANAGER_RADIO_DISABLE_REQUEST : public BaseClass
 {
     public:

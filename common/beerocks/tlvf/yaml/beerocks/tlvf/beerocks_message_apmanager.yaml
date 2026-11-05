@@ -356,6 +356,25 @@ cACTION_APMANAGER_SET_ASSOC_DISALLOW_REQUEST:
   enable: uint8_t #bool
   bssid: sMacAddr
 
+cACTION_APMANAGER_MESHPBC_START_REQUEST:
+  _type: class
+  bssid: sMacAddr
+
+cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST:
+  _type: class
+  bssid: sMacAddr
+
+# reason: for NotStarted, the InitiateWPSPBC() output Status, the pwhm pairingError reason, or an
+# Agent reason; for Ended, the pwhm pairingDone reason, unchanged.
+cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION:
+  _type: class
+  bssid: sMacAddr
+  status: eMeshPbcStatus
+  enrollee_mac: sMacAddr
+  reason:
+    _type: char
+    _length: [64]
+
 cACTION_APMANAGER_RADIO_DISABLE_REQUEST:
   _type: class
 

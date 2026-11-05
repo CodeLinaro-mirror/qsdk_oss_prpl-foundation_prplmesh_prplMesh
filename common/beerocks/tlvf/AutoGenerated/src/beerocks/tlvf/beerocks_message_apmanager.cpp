@@ -4914,6 +4914,278 @@ bool cACTION_APMANAGER_SET_ASSOC_DISALLOW_REQUEST::init()
     return true;
 }
 
+cACTION_APMANAGER_MESHPBC_START_REQUEST::cACTION_APMANAGER_MESHPBC_START_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_MESHPBC_START_REQUEST::cACTION_APMANAGER_MESHPBC_START_REQUEST(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_MESHPBC_START_REQUEST::~cACTION_APMANAGER_MESHPBC_START_REQUEST() {
+}
+sMacAddr& cACTION_APMANAGER_MESHPBC_START_REQUEST::bssid() {
+    return (sMacAddr&)(*m_bssid);
+}
+
+void cACTION_APMANAGER_MESHPBC_START_REQUEST::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    m_bssid->struct_swap();
+}
+
+bool cACTION_APMANAGER_MESHPBC_START_REQUEST::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_MESHPBC_START_REQUEST::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(sMacAddr); // bssid
+    return class_size;
+}
+
+bool cACTION_APMANAGER_MESHPBC_START_REQUEST::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_bssid = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_bssid->struct_init(); }
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
+cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::~cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST() {
+}
+sMacAddr& cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::bssid() {
+    return (sMacAddr&)(*m_bssid);
+}
+
+void cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    m_bssid->struct_swap();
+}
+
+bool cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(sMacAddr); // bssid
+    return class_size;
+}
+
+bool cACTION_APMANAGER_MESHPBC_CANCEL_REQUEST::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_bssid = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_bssid->struct_init(); }
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
+cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION(uint8_t* buff, size_t buff_len, bool parse) :
+    BaseClass(buff, buff_len, parse) {
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION(std::shared_ptr<BaseClass> base, bool parse) :
+BaseClass(base->getBuffPtr(), base->getBuffRemainingBytes(), parse){
+    m_init_succeeded = init();
+}
+cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::~cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION() {
+}
+sMacAddr& cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::bssid() {
+    return (sMacAddr&)(*m_bssid);
+}
+
+eMeshPbcStatus& cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::status() {
+    return (eMeshPbcStatus&)(*m_status);
+}
+
+sMacAddr& cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::enrollee_mac() {
+    return (sMacAddr&)(*m_enrollee_mac);
+}
+
+std::string cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::reason_str() {
+    char *reason_ = reason();
+    if (!reason_) { return std::string(); }
+    auto str = std::string(reason_, m_reason_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::reason(size_t length) {
+    if( (m_reason_idx__ == 0) || (m_reason_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "reason length is smaller than requested length";
+        return nullptr;
+    }
+    return ((char*)m_reason);
+}
+
+bool cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::set_reason(const std::string& str) { return set_reason(str.c_str(), str.size()); }
+bool cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::set_reason(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_reason received a null pointer.";
+        return false;
+    }
+    if (size > 64) {
+        TLVF_LOG(ERROR) << "Received buffer size is smaller than string length";
+        return false;
+    }
+    std::copy(str, str + size, m_reason);
+    return true;
+}
+void cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::class_swap()
+{
+    tlvf_swap(8*sizeof(eActionOp_APMANAGER), reinterpret_cast<uint8_t*>(m_action_op));
+    m_bssid->struct_swap();
+    tlvf_swap(8*sizeof(eMeshPbcStatus), reinterpret_cast<uint8_t*>(m_status));
+    m_enrollee_mac->struct_swap();
+}
+
+bool cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::finalize()
+{
+    if (m_parse__) {
+        TLVF_LOG(DEBUG) << "finalize() called but m_parse__ is set";
+        return true;
+    }
+    if (m_finalized__) {
+        TLVF_LOG(DEBUG) << "finalize() called for already finalized class";
+        return true;
+    }
+    if (!isPostInitSucceeded()) {
+        TLVF_LOG(ERROR) << "post init check failed";
+        return false;
+    }
+    if (m_inner__) {
+        if (!m_inner__->finalize()) {
+            TLVF_LOG(ERROR) << "m_inner__->finalize() failed";
+            return false;
+        }
+        auto tailroom = m_inner__->getMessageBuffLength() - m_inner__->getMessageLength();
+        m_buff_ptr__ -= tailroom;
+    }
+    class_swap();
+    m_finalized__ = true;
+    return true;
+}
+
+size_t cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::get_initial_size()
+{
+    size_t class_size = 0;
+    class_size += sizeof(sMacAddr); // bssid
+    class_size += sizeof(eMeshPbcStatus); // status
+    class_size += sizeof(sMacAddr); // enrollee_mac
+    class_size += 64 * sizeof(char); // reason
+    return class_size;
+}
+
+bool cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION::init()
+{
+    if (getBuffRemainingBytes() < get_initial_size()) {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer. Class init failed";
+        return false;
+    }
+    m_bssid = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_bssid->struct_init(); }
+    m_status = reinterpret_cast<eMeshPbcStatus*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(eMeshPbcStatus))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(eMeshPbcStatus) << ") Failed!";
+        return false;
+    }
+    m_enrollee_mac = reinterpret_cast<sMacAddr*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(sMacAddr))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(sMacAddr) << ") Failed!";
+        return false;
+    }
+    if (!m_parse__) { m_enrollee_mac->struct_init(); }
+    m_reason = reinterpret_cast<char*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(char) * (64))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (64) << ") Failed!";
+        return false;
+    }
+    m_reason_idx__  = 64;
+    if (m_parse__) { class_swap(); }
+    return true;
+}
+
 cACTION_APMANAGER_RADIO_DISABLE_REQUEST::cACTION_APMANAGER_RADIO_DISABLE_REQUEST(uint8_t* buff, size_t buff_len, bool parse) :
     BaseClass(buff, buff_len, parse) {
     m_init_succeeded = init();

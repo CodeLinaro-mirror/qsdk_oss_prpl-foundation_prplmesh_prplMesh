@@ -799,6 +799,13 @@ eClientDisconnectSource:
   eClient_Disconnect_Source_Beerocks_cli: 1
   eClient_Disconnect_Source_Pre_Association_Steering_Task: 2
 
+eMeshPbcStatus:
+  _type: enum
+  _enum_storage: uint8_t
+  eMeshPbcStatus_Started: 0
+  eMeshPbcStatus_NotStarted: 1
+  eMeshPbcStatus_Ended: 2
+
 sClientDisconnectResponse:
   _type: struct
   error_code: int32_t
