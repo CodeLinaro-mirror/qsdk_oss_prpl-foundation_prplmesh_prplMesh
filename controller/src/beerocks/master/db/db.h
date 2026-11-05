@@ -2549,6 +2549,45 @@ public:
     void clear_configured_bss_info(const sMacAddr &ruid);
 
     /**
+     * @brief Link of a configured BSS to the X_PRPLWARE-COM_MeshPBCTemplate instance of its
+     * Push-Button Config TLV, built from the configured BSSs of the radios.
+     */
+    struct sMeshPbcBssLink {
+        sMacAddr al_mac{};
+        sMacAddr ruid{};
+        uint8_t bss_index = 0;
+        /** SSID of the BSS in its WSC M2. */
+        std::string ssid;
+        /**
+         * Path of the template instance:
+         * "X_PRPLWARE-COM_Templates.X_PRPLWARE-COM_MeshPBCTemplate.<i>".
+         */
+        std::string mesh_pbc_template;
+        /**
+         * BSSID of the BSS, from the BSSs that the Agent reports, or ZERO_MAC if it is not known.
+         * Resolved when the link is read.
+         */
+        sMacAddr bssid{};
+    };
+
+    /**
+     * @brief Get all push-button links, each with the BSSID resolved from the reported BSSs.
+     *
+     * A link is a configured BSS of a radio of a known Agent whose mesh_pbc_template_ref is not
+     * empty: it got a Push-Button Config TLV in the last AP-Autoconfiguration WSC reply for the
+     * radio. A radio that is not a radio of a known Agent gives no link. The links are kept at
+     * runtime only.
+     *
+     * The BSSID is the only BSS on the radio with the SSID of the link (the rule of the Agent for
+     * the Push-Button Config TLV). The VAP ID is not used: it is not the BSS index of the WSC M2.
+     * With no BSS or more than one BSS with the SSID, the BSSID is ZERO_MAC, and one line is
+     * logged for the link.
+     *
+     * @return The links.
+     */
+    std::list<sMeshPbcBssLink> get_mesh_pbc_bss_links() const;
+
+    /**
      * @brief Return mld_infos_global map with uid - MLD information.
      */
     std::unordered_map<std::string, wireless_utils::sMldInfoConf> &get_mld_info_configuration();

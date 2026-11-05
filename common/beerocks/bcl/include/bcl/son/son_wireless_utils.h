@@ -333,6 +333,18 @@ public:
         sMacAddr target_radio_uid{};
         std::string radio_template_ref;
         std::string bss_template_ref;
+        /**
+         * Path of the X_PRPLWARE-COM_MeshPBCTemplate instance whose Push-Button Config TLV the
+         * BSS got in the last WSC M2 for its radio, for example
+         * "X_PRPLWARE-COM_Templates.X_PRPLWARE-COM_MeshPBCTemplate.1". Empty: no TLV.
+         */
+        std::string mesh_pbc_template_ref;
+        /**
+         * X_PRPLWARE-COM_MeshPBCTemplateReference of the SSCTemplate of the BSS, set at
+         * staging only when the HaulType of that SSCTemplate is "Fronthaul". Empty: the BSS gets
+         * no Push-Button Config TLV.
+         */
+        std::string ssc_mesh_pbc_template_ref;
         /** WPS push-button settings that the Agent writes onto the BSS. Default: not armed. */
         sWpsPushButtonConf wps_push_button;
         eAdditionalAuth additional_auth = eAdditionalAuth::NONE;

@@ -2734,6 +2734,10 @@ static bool template_stage_bss_on_radio(
     if (!bss_info.backhaul && !bss_info.fronthaul) {
         bss_info.fronthaul = true; /* fail-safe default before AKM matching */
     }
+    if (haul_type == "Fronthaul") {
+        bss_info.ssc_mesh_pbc_template_ref =
+            get_param_string(ssc_inst, "X_PRPLWARE-COM_MeshPBCTemplateReference");
+    }
 
     {
         const std::string sec_gen_csv = get_param_string(security_inst, "OperatingGenerationFlag");

@@ -21,8 +21,39 @@ namespace controller {
 namespace actions {
 
 namespace {
-constexpr char MESH_PBC_UUID_E_PARAM[] = "X_PRPLWARE-COM_MeshPBCUUID_E";
+constexpr char TR181_TEMPLATES_PREFIX[]      = "Device.WiFi.Templates.";
+constexpr char MESH_PBC_TEMPLATE_TABLE[]     = "X_PRPLWARE-COM_MeshPBCTemplate";
+constexpr char MESH_PBC_UUID_E_PARAM[]       = "X_PRPLWARE-COM_MeshPBCUUID_E";
+constexpr char MESH_PBC_TEMPLATE_REF_PARAM[] = "X_PRPLWARE-COM_MeshPBCTemplateReference";
 } // namespace
+
+static std::string mesh_pbc_uuid_e_path(void)
+{
+    return std::string(TEMPLATES_ROOT_DM) + ".Network." + MESH_PBC_UUID_E_PARAM;
+}
+
+/**
+ * @return false if the list has an empty entry (for example "WPS,,DPP" or "WPS,") or an
+ * entry with leading or trailing whitespace.
+ */
+static bool mesh_pbc_split_csv(const std::string &csv, std::vector<std::string> &out)
+{
+    out.clear();
+    if (csv.empty()) {
+        return true;
+    }
+
+    std::istringstream iss(csv + ",");
+    std::string entry;
+    while (std::getline(iss, entry, ',')) {
+        if (entry.empty() || std::isspace(static_cast<unsigned char>(entry.front())) ||
+            std::isspace(static_cast<unsigned char>(entry.back()))) {
+            return false;
+        }
+        out.push_back(entry);
+    }
+    return true;
+}
 
 /**
  * @brief Runs the default type validation, then gets the new value from the arguments.
@@ -42,6 +73,42 @@ static amxd_status_t mesh_pbc_validate_get_string(amxd_object_t *object, amxd_pa
     value.assign(new_value ? new_value : "");
     free(new_value);
     return amxd_status_ok;
+}
+
+amxd_object_t *mesh_pbc_resolve_templates_reference(const std::string &reference,
+                                                    const std::string &table_name)
+{
+    const std::string native_prefix = std::string(TEMPLATES_ROOT_DM) + ".";
+    const std::string tr181_prefix  = TR181_TEMPLATES_PREFIX;
+    std::string relative_path;
+    if (reference.compare(0, native_prefix.size(), native_prefix) == 0) {
+        relative_path = reference.substr(native_prefix.size());
+    } else if (reference.compare(0, tr181_prefix.size(), tr181_prefix) == 0) {
+        relative_path = reference.substr(tr181_prefix.size());
+    } else {
+        return nullptr;
+    }
+
+    const std::string table_prefix = table_name + ".";
+    if (relative_path.compare(0, table_prefix.size(), table_prefix) != 0) {
+        return nullptr;
+    }
+    const std::string index = relative_path.substr(table_prefix.size());
+    if (index.empty() || index[0] == '0' || index.size() > 10 ||
+        !std::all_of(index.begin(), index.end(),
+                     [](unsigned char c) { return std::isdigit(c) != 0; })) {
+        return nullptr;
+    }
+    const std::string path = native_prefix + relative_path;
+
+    auto dm                 = beerocks::nbapi::Amxrt::getDatamodel();
+    amxd_object_t *table    = amxd_dm_findf(dm, "%s.%s", TEMPLATES_ROOT_DM, table_name.c_str());
+    amxd_object_t *instance = amxd_dm_findf(dm, "%s", path.c_str());
+    if (!table || !instance || amxd_object_get_type(instance) != amxd_object_instance ||
+        amxd_object_get_parent(instance) != table) {
+        return nullptr;
+    }
+    return instance;
 }
 
 /**
@@ -94,6 +161,158 @@ static amxd_status_t validate_mesh_pbc_uuid_e(amxd_object_t *object, amxd_param_
     }
     LOG(WARNING) << MESH_PBC_UUID_E_PARAM << " rejected: " << error;
     return amxd_status_invalid_value;
+}
+
+static std::string mesh_pbc_instance_path(const char *table_name, amxd_object_t *instance)
+{
+    return std::string(TEMPLATES_ROOT_DM) + "." + table_name + "." +
+           std::to_string(amxd_object_get_index(instance));
+}
+
+/**
+ * @return The value 0 to 15, or -1 if the character is not a hexadecimal digit.
+ */
+static int mesh_pbc_hex_digit_value(char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+/**
+ * @brief The octets are in the order of the hexadecimal digits. The dashes are ignored.
+ *
+ * @return false if the UUID does not have exactly 32 hexadecimal digits, otherwise true.
+ */
+static bool mesh_pbc_uuid_to_octets(const std::string &uuid, std::array<uint8_t, 16> &octets)
+{
+    std::string digits;
+    for (const char c : uuid) {
+        if (c != '-') {
+            digits.push_back(c);
+        }
+    }
+    if (digits.size() != 2 * octets.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < octets.size(); i++) {
+        const int high = mesh_pbc_hex_digit_value(digits[2 * i]);
+        const int low  = mesh_pbc_hex_digit_value(digits[2 * i + 1]);
+        if (high < 0 || low < 0) {
+            return false;
+        }
+        octets[i] = static_cast<uint8_t>((high << 4) | low);
+    }
+    return true;
+}
+
+/**
+ * @return true if the value is a canonical UUID; false if it is "" or not valid, with the cause
+ * in reason. The reason names the parameter.
+ */
+static bool mesh_pbc_get_mesh_uuid_e(amxd_object_t *network, std::string &uuid_e,
+                                     std::string &reason)
+{
+    const std::string path = mesh_pbc_uuid_e_path();
+    uuid_e                 = network ? get_param_string(network, MESH_PBC_UUID_E_PARAM) : "";
+    std::string error;
+    if (uuid_e.empty()) {
+        reason = path + " is empty";
+        return false;
+    }
+    if (!mesh_pbc_check_uuid_e(uuid_e, error)) {
+        reason = path + " is not valid: " + error;
+        return false;
+    }
+    return true;
+}
+
+eMeshPbcBssConfigResult mesh_pbc_get_bss_config(const std::string &template_ref,
+                                                sMeshPbcBssConfig &config, std::string &reason)
+{
+    if (template_ref.empty()) {
+        reason = std::string("the SSCTemplate of the BSS has no ") + MESH_PBC_TEMPLATE_REF_PARAM;
+        return eMeshPbcBssConfigResult::SKIP;
+    }
+
+    auto dm                = beerocks::nbapi::Amxrt::getDatamodel();
+    amxd_object_t *network = amxd_dm_findf(dm, "%s.Network", TEMPLATES_ROOT_DM);
+    if (!network || !get_param_bool(network, "Enable")) {
+        reason = "Templates.Network.Enable is false";
+        return eMeshPbcBssConfigResult::SKIP;
+    }
+
+    amxd_object_t *mesh_pbc_template =
+        mesh_pbc_resolve_templates_reference(template_ref, MESH_PBC_TEMPLATE_TABLE);
+    if (!mesh_pbc_template) {
+        reason = std::string(MESH_PBC_TEMPLATE_REF_PARAM) + " \"" + template_ref + "\" is not an " +
+                 MESH_PBC_TEMPLATE_TABLE + " instance";
+        return eMeshPbcBssConfigResult::INVALID;
+    }
+    const std::string path = mesh_pbc_instance_path(MESH_PBC_TEMPLATE_TABLE, mesh_pbc_template);
+    if (!get_param_bool(mesh_pbc_template, "Enable")) {
+        reason = path + " is disabled";
+        return eMeshPbcBssConfigResult::SKIP;
+    }
+
+    // libamxd does not run the validator of an instance add with PBCTemplateID "", because the
+    // value equals the default.
+    if (get_param_string(mesh_pbc_template, "PBCTemplateID").empty()) {
+        reason = path + ".PBCTemplateID is empty";
+        return eMeshPbcBssConfigResult::INVALID;
+    }
+    const std::string method = get_param_string(mesh_pbc_template, "PushButtonMethod");
+    std::vector<std::string> methods;
+    if (!mesh_pbc_split_csv(method, methods) ||
+        std::find(methods.begin(), methods.end(), "WPS") == methods.end()) {
+        reason = path + ".PushButtonMethod \"" + method + "\" does not contain \"WPS\"";
+        return eMeshPbcBssConfigResult::INVALID;
+    }
+
+    const uint32_t listen_duration = get_param_uint32(mesh_pbc_template, "ListenDuration");
+
+    amxd_object_t *wps = amxd_object_get_child(mesh_pbc_template, "WPS");
+    if (!wps) {
+        reason = path + ".WPS is not found";
+        return eMeshPbcBssConfigResult::INVALID;
+    }
+    std::string uuid_e;
+    if (!mesh_pbc_get_mesh_uuid_e(network, uuid_e, reason)) {
+        return eMeshPbcBssConfigResult::INVALID;
+    }
+
+    const uint32_t device_password_id = get_param_uint32(wps, "DevicePasswordID");
+
+    constexpr uint16_t device_password_id_push_button = 0x0004;
+    config                                            = {};
+    config.template_path                              = path;
+    config.listen_duration                            = static_cast<uint16_t>(listen_duration);
+    config.uuid_e_text                                = uuid_e;
+    config.device_password_id                         = static_cast<uint16_t>(device_password_id);
+    if (!mesh_pbc_uuid_to_octets(uuid_e, config.uuid_e)) {
+        reason =
+            mesh_pbc_uuid_e_path() + " is not valid: \"" + uuid_e + "\" is not a canonical UUID";
+        return eMeshPbcBssConfigResult::INVALID;
+    }
+    if (config.device_password_id != device_password_id_push_button) {
+        constexpr size_t device_password_max_length = 32;
+        const std::string device_password           = get_param_string(wps, "DevicePassword");
+        if (device_password.size() > device_password_max_length) {
+            reason = path + ".WPS.DevicePassword has " + std::to_string(device_password.size()) +
+                     " octets, more than " + std::to_string(device_password_max_length);
+            return eMeshPbcBssConfigResult::INVALID;
+        }
+        config.device_password         = device_password;
+        config.device_password_missing = config.device_password.empty();
+    }
+    return eMeshPbcBssConfigResult::FOUND;
 }
 
 std::vector<beerocks::nbapi::sActionsCallback> get_mesh_pbc_template_actions_list(void)
