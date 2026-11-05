@@ -8,6 +8,7 @@
 
 #include "mesh_pbc_template_actions.h"
 #include "nbapi_utils.h"
+#include "on_action.h"
 #include "templates_actions.h"
 
 #include <algorithm>
@@ -497,6 +498,80 @@ bool mesh_pbc_set_bss_status(const std::string &bss_dm_path, const sMeshPbcBssSt
             }
             amxd_trans_set_value(cstring_t, &transaction, "State", status.state.c_str());
         });
+}
+
+std::string mesh_pbc_make_uuid_e(const sMacAddr &al_mac)
+{
+    if (al_mac == beerocks::net::network_utils::ZERO_MAC) {
+        return "";
+    }
+
+    // Algorithm of the WPS UUID of pwhm (wld_radio.c, offset 0), which calls
+    // swl_uuid_fromMacAddress() of libswlc (swl_uuid.c): the octets of the UUID are the ASCII
+    // codes of the 12 hexadecimal digits of the MAC address text, repeated, with the version
+    // nibble and the variant bits set to 0xf. libswlc uses the characters of its input text as
+    // given; this code uses the lowercase text, so the value equals the pwhm value for a MAC
+    // address given in lowercase.
+    static const char hex_digits[] = "0123456789abcdef";
+    char mac_digits[2 * sizeof(al_mac.oct)];
+    for (size_t i = 0; i < sizeof(al_mac.oct); i++) {
+        mac_digits[2 * i]     = hex_digits[al_mac.oct[i] >> 4];
+        mac_digits[2 * i + 1] = hex_digits[al_mac.oct[i] & 0x0f];
+    }
+    std::array<uint8_t, 16> octets;
+    for (size_t i = 0; i < octets.size(); i++) {
+        octets[i] = static_cast<uint8_t>(mac_digits[i % sizeof(mac_digits)]);
+    }
+    octets[6] = (octets[6] & 0x0f) | 0xf0;
+    octets[8] = (octets[8] & 0x3f) | 0xf0;
+
+    std::string uuid_e;
+    for (size_t i = 0; i < octets.size(); i++) {
+        if (i == 4 || i == 6 || i == 8 || i == 10) {
+            uuid_e += '-';
+        }
+        uuid_e += hex_digits[octets[i] >> 4];
+        uuid_e += hex_digits[octets[i] & 0x0f];
+    }
+    return uuid_e;
+}
+
+bool mesh_pbc_init_uuid_e(void)
+{
+    const std::string path = mesh_pbc_uuid_e_path();
+    amxd_object_t *network =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s.Network", TEMPLATES_ROOT_DM);
+    if (!network) {
+        LOG(ERROR) << "Failed to generate " << path << ": " << TEMPLATES_ROOT_DM
+                   << ".Network is not found";
+        return false;
+    }
+    if (!get_param_string(network, MESH_PBC_UUID_E_PARAM).empty()) {
+        return true;
+    }
+    if (!g_database) {
+        LOG(ERROR) << "Failed to generate " << path << ": g_database is nullptr";
+        return false;
+    }
+
+    const sMacAddr &al_mac   = g_database->get_local_bridge_mac();
+    const std::string uuid_e = mesh_pbc_make_uuid_e(al_mac);
+    if (uuid_e.empty()) {
+        LOG(ERROR) << "Failed to generate " << path << ": the Controller AL MAC is " << al_mac
+                   << "; the value stays \"\"";
+        return false;
+    }
+    if (!mesh_pbc_write_object(std::string(TEMPLATES_ROOT_DM) + ".Network",
+                               [&](amxd_trans_t &transaction) {
+                                   amxd_trans_set_value(cstring_t, &transaction,
+                                                        MESH_PBC_UUID_E_PARAM, uuid_e.c_str());
+                               })) {
+        LOG(ERROR) << "Failed to write the generated " << path << "; the value stays \"\"";
+        return false;
+    }
+    LOG(INFO) << path << " set to " << uuid_e << ", generated from the Controller AL MAC "
+              << al_mac;
+    return true;
 }
 
 static void event_mesh_pbc_template_configuration_changed(const char *const sig_name,

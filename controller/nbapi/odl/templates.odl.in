@@ -40,8 +40,9 @@
              * a PBC session overlap between the BSSs of one session.
              * The value is a UUID in the form xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (hexadecimal
              * digits). A write of any other value, also "", fails; a write of the current value
-             * is accepted. While the value is "", no BSS gets a Push-Button Config TLV, and a
-             * session that uses WPS fails.
+             * is accepted. At start-up, if no value is set, the Controller sets a UUID that it
+             * makes from its AL MAC address. The value is "" only if this fails: then no BSS
+             * gets a Push-Button Config TLV, and a session that uses WPS fails.
              */
             %persistent string X_PRPLWARE-COM_MeshPBCUUID_E = "" {
                 on action validate call validate_mesh_pbc_uuid_e;

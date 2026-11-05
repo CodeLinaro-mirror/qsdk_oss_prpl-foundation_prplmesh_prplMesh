@@ -11,6 +11,8 @@
 
 #include "ambiorix_impl.h"
 
+#include <tlvf/common/sMacAddr.h>
+
 #include <array>
 #include <cstdint>
 #include <string>
@@ -212,6 +214,31 @@ struct sMeshPbcBssStatus {
  * @return false if the object is not found or the write failed.
  */
 bool mesh_pbc_set_bss_status(const std::string &bss_dm_path, const sMeshPbcBssStatus &status);
+
+/**
+ * @brief Make the mesh-wide UUID-E from the Controller AL MAC address.
+ *
+ * Uses the algorithm of the pwhm WPS UUID (offset 0), so that the value is the same at each
+ * start: each octet is the ASCII code of one hexadecimal digit of the MAC address in
+ * lowercase, the 12 digits repeated; then the version nibble (octet 6) and the variant bits
+ * (octet 8) are set.
+ *
+ * @param[in] al_mac The Controller AL MAC address.
+ * @return The UUID in the lowercase 8-4-4-4-12 form, or "" if al_mac is the zero MAC address.
+ */
+std::string mesh_pbc_make_uuid_e(const sMacAddr &al_mac);
+
+/**
+ * @brief Set Templates.Network.X_PRPLWARE-COM_MeshPBCUUID_E if it is "".
+ *
+ * Writes the value of mesh_pbc_make_uuid_e() for the Controller AL MAC address and logs it.
+ * A value that is not "" is never changed. Call this once at start-up, after the saved data
+ * model is loaded. The value is generated also while Templates.Network.Enable is false.
+ * On a failure the value stays "", and no BSS gets a Push-Button Config TLV.
+ *
+ * @return false if the value is "" after the call.
+ */
+bool mesh_pbc_init_uuid_e(void);
 
 std::vector<beerocks::nbapi::sActionsCallback> get_mesh_pbc_template_actions_list(void);
 
