@@ -125,6 +125,7 @@
 #ifdef ENABLE_NBAPI
 #include "mesh_pbc_template_actions.h"
 #include "on_action.h"
+#include "tasks/pbc_onboarding_task.h"
 #endif
 namespace son {
 
@@ -419,6 +420,17 @@ void Controller::start_mandatory_tasks()
                                               database, m_timer_manager);
     m_task_pool.add_task_check_mode<service_prioritization_task>(
         "service_prioritization_task", database.config.management_mode, database, cmdu_tx);
+
+#ifdef ENABLE_NBAPI
+    if (database.config.management_mode != BPL_MGMT_MODE_NOT_MULTIAP) {
+        m_pbc_onboarding_task = std::make_shared<PBCOnboardingTask>(database, cmdu_tx);
+        LOG_IF(!m_task_pool.add_task(m_pbc_onboarding_task), FATAL)
+            << "Failed adding 'PBC onboarding task' !";
+    } else {
+        LOG(DEBUG) << "EasyMesh task 'PBC onboarding task' was not added as Non-Multi-AP mode is "
+                      "used";
+    }
+#endif
 }
 
 void Controller::start_optional_tasks()
@@ -658,6 +670,9 @@ bool Controller::handle_cmdu_1905_1_message(uint32_t iface_index, const sMacAddr
         return handle_cmdu_1905_early_ap_capability_report_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE:
         return handle_cmdu_1905_available_spectrum_inquiry_message(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE:
+    case ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE:
+        return handle_cmdu_1905_multi_ap_push_button_message(src_mac, cmdu_rx);
 
     // Empty cases are used to prevent error logs. Below message types are processed within tasks.
     case ieee1905_1::eMessageType::TOPOLOGY_RESPONSE_MESSAGE:
@@ -2199,6 +2214,21 @@ bool Controller::handle_cmdu_1905_ack_message(const sMacAddr &src_mac,
 
     //TODO: the ACK should be sent to the correct task and will be done as part of agent certification
     return true;
+}
+
+bool Controller::handle_cmdu_1905_multi_ap_push_button_message(const sMacAddr &src_mac,
+                                                               ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    auto mid            = cmdu_rx.getMessageId();
+    auto cmdu_tx_header = cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE);
+    if (!cmdu_tx_header) {
+        LOG(ERROR) << "cmdu creation of type ACK_MESSAGE, has failed";
+        return false;
+    }
+    LOG(DEBUG) << "sending ACK message for message_type=" << std::hex
+               << int(cmdu_rx.getMessageType()) << " to " << src_mac << ", mid=" << int(mid)
+               << std::dec;
+    return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
 }
 
 bool Controller::handle_cmdu_1905_steering_completed_message(const sMacAddr &src_mac,
