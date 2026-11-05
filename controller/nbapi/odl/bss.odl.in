@@ -141,5 +141,59 @@
            %read-only uint64 BTMAttempts = 0;
            %read-only uint64 BTMQueryResponses = 0;
         }
+
+        /**
+        * Push-button state of this BSS: whether it listens for a push-button Enrollee now,
+        * and how its latest push-button window ended. The values are runtime state, and
+        * they start again with the BSS instance.
+        */
+        %read-only object X_PRPLWARE-COM_MeshPBC {
+            /**
+            * "Requested": the Controller sent a Multi-AP Push-Button Trigger to arm this BSS.
+            * "InProgress": the Agent reported that the BSS listens.
+            * "Idle": the BSS does not listen.
+            */
+            %read-only string State {
+                default "Idle";
+                on action validate call check_enum [
+                    "Idle",
+                    "Requested",
+                    "InProgress"
+                ];
+            }
+            /**
+            * How the latest window of this BSS ended, or "" while it is open or before the
+            * first window.
+            */
+            %read-only string Result {
+                default "";
+                on action validate call check_enum [
+                    "",
+                    "Success",
+                    "Error_Not_Ready",
+                    "Error_Timeout",
+                    "Error_Other"
+                ];
+            }
+            /**
+            * Native failure code that the Agent reported: WSC Configuration Error for WPS,
+            * DPP Status for DPP. The value is 0 if not applicable.
+            */
+            %read-only uint16 FailureReason = 0;
+            /**
+            * MAC address of the device that onboarded through this BSS. Set only when
+            * Result is "Success", else "".
+            */
+            %read-only string EnrolleeMACAddress = "";
+            /**
+            * PBC Session ID of the session that armed the latest window of this BSS, in the
+            * form "<AL MAC>-<4 lowercase hexadecimal digits>".
+            */
+            %read-only string PBCSessionID = "";
+            /**
+            * Time of the latest change of State.
+            */
+            %read-only datetime TimeStamp = "0001-01-01T00:00:00Z";
+        }
     }
 }

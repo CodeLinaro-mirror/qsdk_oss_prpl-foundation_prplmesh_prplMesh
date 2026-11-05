@@ -327,6 +327,67 @@
                  */
                 %persistent string DevicePassword = "";
             }
+
+            /**
+             * Status of the current or latest push-button session of this template.
+             * The next session of this template overwrites it. A rejected request writes only
+             * Result and FailureReason; PBCSessionID and TimeStamp keep the values of the
+             * previous session. The values are runtime state:
+             * they are not saved, and after a Controller restart State is "Idle" and
+             * Result is "".
+             */
+            %read-only object Status {
+                /**
+                 * "InProgress" while a session of this template is active, else "Idle".
+                 */
+                %read-only string State {
+                    default "Idle";
+                    on action validate call check_enum [
+                        "Idle",
+                        "InProgress"
+                    ];
+                }
+                /**
+                 * Result of the latest session, or of the latest request that the
+                 * Controller rejected before it created a session. The value is "" while
+                 * the session is active.
+                 */
+                %read-only string Result {
+                    default "";
+                    on action validate call check_enum [
+                        "",
+                        "Success",
+                        "Error_Timeout",
+                        "Error_Not_Ready",
+                        "Error_Invalid_Input",
+                        "Error_Other"
+                    ];
+                }
+                /**
+                 * Native failure code of the Result: WSC Configuration Error for WPS,
+                 * DPP Status for DPP. The value is 0 if not applicable.
+                 */
+                %read-only uint16 FailureReason = 0;
+                /**
+                 * MAC address of the device that onboarded in the latest session. Set only
+                 * when Result is "Success", else "".
+                 */
+                %read-only string EnrolleeMACAddress = "";
+                /**
+                 * BSSID of the BSS through which the device onboarded in the latest
+                 * session. Set only when Result is "Success", else "".
+                 */
+                %read-only string BSSID = "";
+                /**
+                 * Time when the latest session was created.
+                 */
+                %read-only datetime TimeStamp = "0001-01-01T00:00:00Z";
+                /**
+                 * PBC Session ID of the current or latest session, in the form
+                 * "<AL MAC>-<4 lowercase hexadecimal digits>".
+                 */
+                %read-only string PBCSessionID = "";
+            }
         }
     @TEMPLATES_ROOT_DM_Footer@
 }
@@ -372,7 +433,7 @@
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.SecurityGroup\."';
 
     on event "dm:object-changed" call event_mesh_pbc_template_configuration_changed
-        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\."';
+        filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\." && !(object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\.[^.]+\.Status\.$")';
 
     on event regexp("^dm:instance-(added|removed)$") call event_mesh_pbc_template_instance_changed
         filter 'object matches "@TEMPLATES_ROOT_DM_literal@\.X_PRPLWARE-COM_MeshPBCTemplate\."';

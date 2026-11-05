@@ -315,6 +315,190 @@ eMeshPbcBssConfigResult mesh_pbc_get_bss_config(const std::string &template_ref,
     return eMeshPbcBssConfigResult::FOUND;
 }
 
+eMeshPbcSessionTemplateResult
+mesh_pbc_get_session_template(const std::string &reference,
+                              sMeshPbcSessionTemplate &session_template, std::string &reason)
+{
+    session_template = {};
+    amxd_object_t *mesh_pbc_template =
+        mesh_pbc_resolve_templates_reference(reference, MESH_PBC_TEMPLATE_TABLE);
+    if (!mesh_pbc_template) {
+        reason = "\"" + reference + "\" is not an " + MESH_PBC_TEMPLATE_TABLE + " instance";
+        return eMeshPbcSessionTemplateResult::NOT_FOUND;
+    }
+    const std::string path = mesh_pbc_instance_path(MESH_PBC_TEMPLATE_TABLE, mesh_pbc_template);
+    session_template.template_path = path;
+
+    amxd_object_t *network =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s.Network", TEMPLATES_ROOT_DM);
+    if (!network || !get_param_bool(network, "Enable")) {
+        reason = "Templates.Network.Enable is false";
+        return eMeshPbcSessionTemplateResult::NOT_READY;
+    }
+
+    if (!get_param_bool(mesh_pbc_template, "Enable")) {
+        reason = path + ".Enable is false";
+        return eMeshPbcSessionTemplateResult::INVALID;
+    }
+    // libamxd does not run the validator of an instance add with PBCTemplateID "", because the
+    // value equals the default.
+    if (get_param_string(mesh_pbc_template, "PBCTemplateID").empty()) {
+        reason = path + ".PBCTemplateID is empty";
+        return eMeshPbcSessionTemplateResult::INVALID;
+    }
+
+    const std::string method = get_param_string(mesh_pbc_template, "PushButtonMethod");
+    std::vector<std::string> methods;
+    const bool split = mesh_pbc_split_csv(method, methods);
+    const bool wps   = split && std::find(methods.begin(), methods.end(), "WPS") != methods.end();
+    const bool dpp   = split && std::find(methods.begin(), methods.end(), "DPP") != methods.end();
+    if (!wps && !dpp) {
+        reason = path + ".PushButtonMethod \"" + method + "\" contains neither \"WPS\" nor \"DPP\"";
+        return eMeshPbcSessionTemplateResult::INVALID;
+    }
+
+    const uint32_t listen_duration = get_param_uint32(mesh_pbc_template, "ListenDuration");
+
+    if (wps) {
+        if (!amxd_object_get_child(mesh_pbc_template, "WPS")) {
+            reason = path + ".WPS is not found";
+            return eMeshPbcSessionTemplateResult::INVALID;
+        }
+        std::string uuid_e;
+        if (!mesh_pbc_get_mesh_uuid_e(network, uuid_e, reason)) {
+            return eMeshPbcSessionTemplateResult::INVALID;
+        }
+    }
+
+    session_template.wps             = wps;
+    session_template.dpp             = dpp;
+    session_template.listen_duration = static_cast<uint16_t>(listen_duration);
+    return eMeshPbcSessionTemplateResult::VALID;
+}
+
+std::string mesh_pbc_get_primary_template_reference(void)
+{
+    amxd_object_t *network =
+        amxd_dm_findf(beerocks::nbapi::Amxrt::getDatamodel(), "%s.Network", TEMPLATES_ROOT_DM);
+    if (!network) {
+        return "";
+    }
+    return get_param_string(network, "X_PRPLWARE-COM_PrimaryMeshPBCTemplateReference");
+}
+
+/**
+ * @return The current time in RFC 3339 format, or "" on a failure.
+ */
+static std::string mesh_pbc_current_time(void)
+{
+    amxc_ts_t now;
+    char buf[64] = {};
+    if (amxc_ts_now(&now) != 0 || amxc_ts_format(&now, buf, sizeof(buf)) == 0) {
+        LOG(ERROR) << "Failed to get the current time";
+        return "";
+    }
+    return buf;
+}
+
+/**
+ * @param[in] fill Adds the values to the transaction; the object is selected.
+ * @return false if the object is not found or the write failed.
+ */
+template <typename F> static bool mesh_pbc_write_object(const std::string &object_path, F fill)
+{
+    auto dm               = beerocks::nbapi::Amxrt::getDatamodel();
+    amxd_object_t *object = amxd_dm_findf(dm, "%s", object_path.c_str());
+    if (!object) {
+        LOG(WARNING) << object_path << " is not found, not written";
+        return false;
+    }
+
+    amxd_trans_t transaction;
+    if (amxd_trans_init(&transaction) != amxd_status_ok) {
+        LOG(ERROR) << "Failed to initialize the transaction for " << object_path;
+        return false;
+    }
+    amxd_trans_set_attr(&transaction, amxd_tattr_change_ro, true);
+    amxd_trans_select_object(&transaction, object);
+    fill(transaction);
+    amxd_status_t ret = amxd_trans_apply(&transaction, dm);
+    amxd_trans_clean(&transaction);
+    if (ret != amxd_status_ok) {
+        LOG(ERROR) << "Failed to write " << object_path << ": " << amxd_status_string(ret);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief A template deleted during a session has no Status object: the write is skipped with a
+ * warning.
+ */
+template <typename F>
+static bool mesh_pbc_write_template_status(const std::string &template_path, F fill)
+{
+    return mesh_pbc_write_object(template_path + ".Status", fill);
+}
+
+bool mesh_pbc_set_template_status_started(const std::string &template_path,
+                                          const std::string &session_id)
+{
+    const std::string time_stamp = mesh_pbc_current_time();
+    return mesh_pbc_write_template_status(template_path, [&](amxd_trans_t &transaction) {
+        amxd_trans_set_value(cstring_t, &transaction, "State", "InProgress");
+        amxd_trans_set_value(cstring_t, &transaction, "PBCSessionID", session_id.c_str());
+        if (!time_stamp.empty()) {
+            amxd_trans_set_value(cstring_t, &transaction, "TimeStamp", time_stamp.c_str());
+        }
+        amxd_trans_set_value(cstring_t, &transaction, "Result", "");
+        amxd_trans_set_value(uint16_t, &transaction, "FailureReason", 0);
+        amxd_trans_set_value(cstring_t, &transaction, "EnrolleeMACAddress", "");
+        amxd_trans_set_value(cstring_t, &transaction, "BSSID", "");
+    });
+}
+
+bool mesh_pbc_set_template_status_ended(const std::string &template_path, const std::string &result,
+                                        uint16_t failure_reason, const std::string &enrollee_mac,
+                                        const std::string &bssid)
+{
+    const bool success = (result == "Success");
+    return mesh_pbc_write_template_status(template_path, [&](amxd_trans_t &transaction) {
+        amxd_trans_set_value(cstring_t, &transaction, "State", "Idle");
+        amxd_trans_set_value(cstring_t, &transaction, "Result", result.c_str());
+        amxd_trans_set_value(uint16_t, &transaction, "FailureReason", failure_reason);
+        amxd_trans_set_value(cstring_t, &transaction, "EnrolleeMACAddress",
+                             success ? enrollee_mac.c_str() : "");
+        amxd_trans_set_value(cstring_t, &transaction, "BSSID", success ? bssid.c_str() : "");
+    });
+}
+
+bool mesh_pbc_set_template_status_rejected(const std::string &template_path,
+                                           const std::string &result, uint16_t failure_reason)
+{
+    return mesh_pbc_write_template_status(template_path, [&](amxd_trans_t &transaction) {
+        amxd_trans_set_value(cstring_t, &transaction, "Result", result.c_str());
+        amxd_trans_set_value(uint16_t, &transaction, "FailureReason", failure_reason);
+    });
+}
+
+bool mesh_pbc_set_bss_status(const std::string &bss_dm_path, const sMeshPbcBssStatus &status)
+{
+    const std::string time_stamp = mesh_pbc_current_time();
+    return mesh_pbc_write_object(
+        bss_dm_path + ".X_PRPLWARE-COM_MeshPBC", [&](amxd_trans_t &transaction) {
+            amxd_trans_set_value(cstring_t, &transaction, "PBCSessionID",
+                                 status.session_id.c_str());
+            amxd_trans_set_value(cstring_t, &transaction, "Result", status.result.c_str());
+            amxd_trans_set_value(uint16_t, &transaction, "FailureReason", status.failure_reason);
+            amxd_trans_set_value(cstring_t, &transaction, "EnrolleeMACAddress",
+                                 status.enrollee_mac.c_str());
+            if (!time_stamp.empty()) {
+                amxd_trans_set_value(cstring_t, &transaction, "TimeStamp", time_stamp.c_str());
+            }
+            amxd_trans_set_value(cstring_t, &transaction, "State", status.state.c_str());
+        });
+}
+
 static void event_mesh_pbc_template_configuration_changed(const char *const sig_name,
                                                           const amxc_var_t *const data,
                                                           void *const priv)
