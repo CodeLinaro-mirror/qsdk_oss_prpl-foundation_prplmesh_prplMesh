@@ -6181,6 +6181,87 @@ void db::clear_configured_bss_info(const sMacAddr &ruid)
     configured_bss_infos[ruid].clear();
 }
 
+void db::mark_mesh_pbc_wps_pending(const sMacAddr &al_mac) { mesh_pbc_wps_pending.insert(al_mac); }
+
+void db::set_mesh_pbc_wps_armed(const sMacAddr &al_mac, bool armed)
+{
+    auto &state = mesh_pbc_agent_wps[al_mac];
+    if (state.armed == armed) {
+        return;
+    }
+    state.armed = armed;
+    dm_update_mesh_pbc_wps(al_mac);
+}
+
+void db::set_mesh_pbc_wps_last_session_not_started(const sMacAddr &al_mac, bool not_started)
+{
+    auto &state = mesh_pbc_agent_wps[al_mac];
+    if (state.not_started == not_started) {
+        return;
+    }
+    state.not_started = not_started;
+    dm_update_mesh_pbc_wps(al_mac);
+}
+
+void db::dm_update_mesh_pbc_wps(const sMacAddr &al_mac)
+{
+    mesh_pbc_wps_pending.erase(al_mac);
+    auto agent = m_agents.get(al_mac);
+    if (!agent || agent->dm_path.empty()) {
+        return;
+    }
+    auto &state            = mesh_pbc_agent_wps[al_mac];
+    const std::string path = agent->dm_path + ".WPS";
+
+    if (state.dm_path != agent->dm_path) {
+        state.dm_path = agent->dm_path;
+        state.status.clear();
+    }
+
+    bool has_link = false;
+    for (const auto &radio_entry : agent->radios) {
+        auto configured = configured_bss_infos.find(radio_entry.first);
+        if (configured != configured_bss_infos.end() &&
+            std::any_of(configured->second.begin(), configured->second.end(),
+                        [](const wireless_utils::sBssInfoConf &bss_info_conf) {
+                            return !bss_info_conf.mesh_pbc_template_ref.empty();
+                        })) {
+            has_link = true;
+            break;
+        }
+    }
+    std::string status;
+    if (state.armed) {
+        status = "InProgress";
+    } else if (!agent->mesh_wide_pbc_onboarding_support || state.not_started) {
+        status = "Error";
+    } else if (has_link) {
+        status = "Configured";
+    } else {
+        status = "Unconfigured";
+    }
+    if (status == state.status) {
+        return;
+    }
+    LOG(INFO) << "Agent " << al_mac << ": " << path << ".Status=" << status
+              << " (armed=" << state.armed
+              << ", capability=" << agent->mesh_wide_pbc_onboarding_support
+              << ", last session all Not started=" << state.not_started
+              << ", push-button link=" << has_link << ")";
+    if (m_ambiorix_datamodel->set(path, "Status", status)) {
+        state.status = std::move(status);
+    }
+}
+
+void db::dm_update_mesh_pbc_wps_pending()
+{
+    std::unordered_set<sMacAddr> pending;
+    pending.swap(mesh_pbc_wps_pending);
+    for (const auto &al_mac : pending) {
+        dm_update_mesh_pbc_wps(al_mac);
+    }
+}
+
 std::list<db::sMeshPbcBssLink> db::get_mesh_pbc_bss_links() const
 {
     std::list<sMeshPbcBssLink> links;
@@ -9601,6 +9682,7 @@ bool db::dm_set_device_mesh_wide_pbc_onboarding_support(const Agent &agent)
         return true;
     }
 
+    mesh_pbc_wps_pending.insert(agent.al_mac);
     return m_ambiorix_datamodel->set(agent.dm_path, "X_PRPLWARE-COM_MeshWidePBCOnboardingSupport",
                                      agent.mesh_wide_pbc_onboarding_support);
 }

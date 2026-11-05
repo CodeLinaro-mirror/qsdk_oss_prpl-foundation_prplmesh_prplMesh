@@ -342,6 +342,9 @@ private:
 
     /** @return true if template_reference resolves to the template of the active session. */
     bool is_active_template(const std::string &template_reference) const;
+
+    /** Store in the db whether a BSS of the Agent is Requested or InProgress. */
+    void update_agent_armed(const sMacAddr &al_mac);
 };
 
 } // namespace son

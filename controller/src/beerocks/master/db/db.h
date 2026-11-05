@@ -2588,6 +2588,51 @@ public:
     std::list<sMeshPbcBssLink> get_mesh_pbc_bss_links() const;
 
     /**
+     * @brief Mark an Agent so that its Device.{i}.WPS.Status is evaluated again, at the next
+     * call of dm_update_mesh_pbc_wps_pending().
+     *
+     * Called when the push-button links of a radio of the Agent can change: at the start of an
+     * AP-Autoconfiguration WSC reply, and when the reply is sent.
+     *
+     * @param [in] al_mac AL MAC address of the Agent.
+     */
+    void mark_mesh_pbc_wps_pending(const sMacAddr &al_mac);
+
+    /**
+     * @brief Store whether a BSS of an Agent is Requested or InProgress, and update
+     * Device.{i}.WPS.Status.
+     */
+    void set_mesh_pbc_wps_armed(const sMacAddr &al_mac, bool armed);
+
+    /**
+     * @brief Store whether all armed BSSs of an Agent reported Not started in its last session,
+     * and update Device.{i}.WPS.Status.
+     */
+    void set_mesh_pbc_wps_last_session_not_started(const sMacAddr &al_mac, bool not_started);
+
+    /**
+     * @brief Update Device.{i}.WPS of an Agent now.
+     *
+     * Status is the first matching value of: "InProgress" (a BSS of the Agent is Requested or
+     * InProgress); "Error" (no Multi-AP Push-Button Trigger support, or in the last session all
+     * armed BSSs of the Agent reported Not started); "Configured" (a BSS of the Agent has a
+     * push-button link); "Unconfigured". Status is written and logged only when it changes,
+     * and again when the Device instance of the Agent is new.
+     *
+     * @param [in] al_mac AL MAC address of the Agent.
+     */
+    void dm_update_mesh_pbc_wps(const sMacAddr &al_mac);
+
+    /**
+     * @brief Update Device.{i}.WPS of each Agent whose push-button links or capability changed.
+     *
+     * A change of the links or of the capability only marks the Agent. The PBC onboarding task
+     * calls this function periodically, so that a link change in one AP-Autoconfiguration WSC
+     * reply (clear, then set) writes Status one time.
+     */
+    void dm_update_mesh_pbc_wps_pending();
+
+    /**
      * @brief Return mld_infos_global map with uid - MLD information.
      */
     std::unordered_map<std::string, wireless_utils::sMldInfoConf> &get_mld_info_configuration();
@@ -3951,6 +3996,24 @@ private:
      */
     std::unordered_map<sMacAddr, std::list<wireless_utils::sBssInfoConf>>
         configured_bss_infos; // key=ruid
+
+    /**
+     * @brief State behind Device.{i}.WPS of an Agent, key AL MAC. Kept at runtime only.
+     */
+    struct sMeshPbcAgentWps {
+        bool armed       = false;
+        bool not_started = false;
+        /** Device data model path to which the values below were written. */
+        std::string dm_path;
+        /** Last written Device.{i}.WPS.Status. */
+        std::string status;
+    };
+    std::unordered_map<sMacAddr, sMeshPbcAgentWps> mesh_pbc_agent_wps;
+
+    /**
+     * @brief Agents whose Device.{i}.WPS.Status must be evaluated again.
+     */
+    std::unordered_set<sMacAddr> mesh_pbc_wps_pending;
 
     /**
      * @brief This map holds traffic separation policy per Agent sMacAddr.
