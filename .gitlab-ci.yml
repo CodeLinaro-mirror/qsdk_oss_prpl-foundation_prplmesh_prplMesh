@@ -285,6 +285,9 @@ ieee1905_task_test:
 pbc_onboarding_task_test:
   extends: .run-test-in-docker
 
+mesh_pbc_template_actions_test:
+  extends: .run-test-in-docker
+
 test-gw-repeater:
   stage: test
   script:
