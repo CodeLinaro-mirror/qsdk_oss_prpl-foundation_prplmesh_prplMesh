@@ -175,6 +175,26 @@ cEncryptedSettingsPayload:
     _type: char
     _length: [operating_generation_length]
     _length_max: WSC_MAX_OPERATING_GENERATION_LENGTH
+  pbc_armed:
+    _type: uint8_t
+    _value: 0
+  pbc_uuid_e_length:
+    _type: uint16_t
+    _length_var: True
+  pbc_uuid_e:
+    _type: char
+    _length: [pbc_uuid_e_length]
+    _length_max: WSC_MAX_PBC_UUID_E_LENGTH
+  pbc_device_password_id:
+    _type: uint16_t
+    _value: 0
+  pbc_device_password_length:
+    _type: uint16_t
+    _length_var: True
+  pbc_device_password:
+    _type: char
+    _length: [pbc_device_password_length]
+    _length_max: WSC_MAX_PBC_DEVICE_PASSWORD_LENGTH
 
 cWscAttrEncryptedSettings:
   _type: class

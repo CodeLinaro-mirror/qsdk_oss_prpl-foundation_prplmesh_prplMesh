@@ -396,6 +396,12 @@ bool cEncryptedSettingsPayload::alloc_ssid(size_t count) {
     m_vap_label = (char *)((uint8_t *)(m_vap_label) + len);
     m_operating_generation_length = (uint16_t *)((uint8_t *)(m_operating_generation_length) + len);
     m_operating_generation = (char *)((uint8_t *)(m_operating_generation) + len);
+    m_pbc_armed = (uint8_t *)((uint8_t *)(m_pbc_armed) + len);
+    m_pbc_uuid_e_length = (uint16_t *)((uint8_t *)(m_pbc_uuid_e_length) + len);
+    m_pbc_uuid_e = (char *)((uint8_t *)(m_pbc_uuid_e) + len);
+    m_pbc_device_password_id = (uint16_t *)((uint8_t *)(m_pbc_device_password_id) + len);
+    m_pbc_device_password_length = (uint16_t *)((uint8_t *)(m_pbc_device_password_length) + len);
+    m_pbc_device_password = (char *)((uint8_t *)(m_pbc_device_password) + len);
     m_ssid_idx__ += count;
     *m_ssid_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -490,6 +496,12 @@ bool cEncryptedSettingsPayload::alloc_network_key(size_t count) {
     m_vap_label = (char *)((uint8_t *)(m_vap_label) + len);
     m_operating_generation_length = (uint16_t *)((uint8_t *)(m_operating_generation_length) + len);
     m_operating_generation = (char *)((uint8_t *)(m_operating_generation) + len);
+    m_pbc_armed = (uint8_t *)((uint8_t *)(m_pbc_armed) + len);
+    m_pbc_uuid_e_length = (uint16_t *)((uint8_t *)(m_pbc_uuid_e_length) + len);
+    m_pbc_uuid_e = (char *)((uint8_t *)(m_pbc_uuid_e) + len);
+    m_pbc_device_password_id = (uint16_t *)((uint8_t *)(m_pbc_device_password_id) + len);
+    m_pbc_device_password_length = (uint16_t *)((uint8_t *)(m_pbc_device_password_length) + len);
+    m_pbc_device_password = (char *)((uint8_t *)(m_pbc_device_password) + len);
     m_network_key_idx__ += count;
     *m_network_key_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -591,6 +603,12 @@ bool cEncryptedSettingsPayload::alloc_vap_label(size_t count) {
     }
     m_operating_generation_length = (uint16_t *)((uint8_t *)(m_operating_generation_length) + len);
     m_operating_generation = (char *)((uint8_t *)(m_operating_generation) + len);
+    m_pbc_armed = (uint8_t *)((uint8_t *)(m_pbc_armed) + len);
+    m_pbc_uuid_e_length = (uint16_t *)((uint8_t *)(m_pbc_uuid_e_length) + len);
+    m_pbc_uuid_e = (char *)((uint8_t *)(m_pbc_uuid_e) + len);
+    m_pbc_device_password_id = (uint16_t *)((uint8_t *)(m_pbc_device_password_id) + len);
+    m_pbc_device_password_length = (uint16_t *)((uint8_t *)(m_pbc_device_password_length) + len);
+    m_pbc_device_password = (char *)((uint8_t *)(m_pbc_device_password) + len);
     m_vap_label_idx__ += count;
     *m_vap_label_length += count;
     if (!buffPtrIncrementSafe(len)) {
@@ -662,8 +680,167 @@ bool cEncryptedSettingsPayload::alloc_operating_generation(size_t count) {
         size_t move_length = getBuffRemainingBytes(src) - len;
         std::copy_n(src, move_length, dst);
     }
+    m_pbc_armed = (uint8_t *)((uint8_t *)(m_pbc_armed) + len);
+    m_pbc_uuid_e_length = (uint16_t *)((uint8_t *)(m_pbc_uuid_e_length) + len);
+    m_pbc_uuid_e = (char *)((uint8_t *)(m_pbc_uuid_e) + len);
+    m_pbc_device_password_id = (uint16_t *)((uint8_t *)(m_pbc_device_password_id) + len);
+    m_pbc_device_password_length = (uint16_t *)((uint8_t *)(m_pbc_device_password_length) + len);
+    m_pbc_device_password = (char *)((uint8_t *)(m_pbc_device_password) + len);
     m_operating_generation_idx__ += count;
     *m_operating_generation_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
+uint8_t& cEncryptedSettingsPayload::pbc_armed() {
+    return (uint8_t&)(*m_pbc_armed);
+}
+
+uint16_t& cEncryptedSettingsPayload::pbc_uuid_e_length() {
+    return (uint16_t&)(*m_pbc_uuid_e_length);
+}
+
+std::string cEncryptedSettingsPayload::pbc_uuid_e_str() {
+    char *pbc_uuid_e_ = pbc_uuid_e();
+    if (!pbc_uuid_e_) { return std::string(); }
+    auto str = std::string(pbc_uuid_e_, m_pbc_uuid_e_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cEncryptedSettingsPayload::pbc_uuid_e(size_t length) {
+    if( (m_pbc_uuid_e_idx__ == 0) || (m_pbc_uuid_e_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "pbc_uuid_e length is smaller than requested length";
+        return nullptr;
+    }
+    if (m_pbc_uuid_e_idx__ > WSC_MAX_PBC_UUID_E_LENGTH )  {
+        TLVF_LOG(ERROR) << "Invalid length -  " << m_pbc_uuid_e_idx__ << " elements (max length is " << WSC_MAX_PBC_UUID_E_LENGTH << ")";
+        return nullptr;
+    }
+    return ((char*)m_pbc_uuid_e);
+}
+
+bool cEncryptedSettingsPayload::set_pbc_uuid_e(const std::string& str) { return set_pbc_uuid_e(str.c_str(), str.size()); }
+bool cEncryptedSettingsPayload::set_pbc_uuid_e(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_pbc_uuid_e received a null pointer.";
+        return false;
+    }
+    if (m_pbc_uuid_e_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_pbc_uuid_e was already allocated!";
+        return false;
+    }
+    if (!alloc_pbc_uuid_e(size)) { return false; }
+    std::copy(str, str + size, m_pbc_uuid_e);
+    return true;
+}
+bool cEncryptedSettingsPayload::alloc_pbc_uuid_e(size_t count) {
+    if (m_lock_order_counter__ > 4) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list pbc_uuid_e, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    if (m_pbc_uuid_e_idx__ + count > WSC_MAX_PBC_UUID_E_LENGTH )  {
+        TLVF_LOG(ERROR) << "Can't allocate " << count << " elements (max length is " << WSC_MAX_PBC_UUID_E_LENGTH << " current length is " << m_pbc_uuid_e_idx__ << ")";
+        return false;
+    }
+    m_lock_order_counter__ = 4;
+    uint8_t *src = (uint8_t *)&m_pbc_uuid_e[*m_pbc_uuid_e_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_pbc_device_password_id = (uint16_t *)((uint8_t *)(m_pbc_device_password_id) + len);
+    m_pbc_device_password_length = (uint16_t *)((uint8_t *)(m_pbc_device_password_length) + len);
+    m_pbc_device_password = (char *)((uint8_t *)(m_pbc_device_password) + len);
+    m_pbc_uuid_e_idx__ += count;
+    *m_pbc_uuid_e_length += count;
+    if (!buffPtrIncrementSafe(len)) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
+        return false;
+    }
+    return true;
+}
+
+uint16_t& cEncryptedSettingsPayload::pbc_device_password_id() {
+    return (uint16_t&)(*m_pbc_device_password_id);
+}
+
+uint16_t& cEncryptedSettingsPayload::pbc_device_password_length() {
+    return (uint16_t&)(*m_pbc_device_password_length);
+}
+
+std::string cEncryptedSettingsPayload::pbc_device_password_str() {
+    char *pbc_device_password_ = pbc_device_password();
+    if (!pbc_device_password_) { return std::string(); }
+    auto str = std::string(pbc_device_password_, m_pbc_device_password_idx__);
+    auto pos = str.find_first_of('\0');
+    if (pos != std::string::npos) {
+        str.erase(pos);
+    }
+    return str;
+}
+
+char* cEncryptedSettingsPayload::pbc_device_password(size_t length) {
+    if( (m_pbc_device_password_idx__ == 0) || (m_pbc_device_password_idx__ < length) ) {
+        TLVF_LOG(ERROR) << "pbc_device_password length is smaller than requested length";
+        return nullptr;
+    }
+    if (m_pbc_device_password_idx__ > WSC_MAX_PBC_DEVICE_PASSWORD_LENGTH )  {
+        TLVF_LOG(ERROR) << "Invalid length -  " << m_pbc_device_password_idx__ << " elements (max length is " << WSC_MAX_PBC_DEVICE_PASSWORD_LENGTH << ")";
+        return nullptr;
+    }
+    return ((char*)m_pbc_device_password);
+}
+
+bool cEncryptedSettingsPayload::set_pbc_device_password(const std::string& str) { return set_pbc_device_password(str.c_str(), str.size()); }
+bool cEncryptedSettingsPayload::set_pbc_device_password(const char str[], size_t size) {
+    if (str == nullptr) {
+        TLVF_LOG(WARNING) << "set_pbc_device_password received a null pointer.";
+        return false;
+    }
+    if (m_pbc_device_password_idx__ != 0) {
+        TLVF_LOG(ERROR) << "set_pbc_device_password was already allocated!";
+        return false;
+    }
+    if (!alloc_pbc_device_password(size)) { return false; }
+    std::copy(str, str + size, m_pbc_device_password);
+    return true;
+}
+bool cEncryptedSettingsPayload::alloc_pbc_device_password(size_t count) {
+    if (m_lock_order_counter__ > 5) {;
+        TLVF_LOG(ERROR) << "Out of order allocation for variable length list pbc_device_password, abort!";
+        return false;
+    }
+    size_t len = sizeof(char) * count;
+    if(getBuffRemainingBytes() < len )  {
+        TLVF_LOG(ERROR) << "Not enough available space on buffer - can't allocate";
+        return false;
+    }
+    if (m_pbc_device_password_idx__ + count > WSC_MAX_PBC_DEVICE_PASSWORD_LENGTH )  {
+        TLVF_LOG(ERROR) << "Can't allocate " << count << " elements (max length is " << WSC_MAX_PBC_DEVICE_PASSWORD_LENGTH << " current length is " << m_pbc_device_password_idx__ << ")";
+        return false;
+    }
+    m_lock_order_counter__ = 5;
+    uint8_t *src = (uint8_t *)&m_pbc_device_password[*m_pbc_device_password_length];
+    uint8_t *dst = src + len;
+    if (!m_parse__) {
+        size_t move_length = getBuffRemainingBytes(src) - len;
+        std::copy_n(src, move_length, dst);
+    }
+    m_pbc_device_password_idx__ += count;
+    *m_pbc_device_password_length += count;
     if (!buffPtrIncrementSafe(len)) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << len << ") Failed!";
         return false;
@@ -682,6 +859,9 @@ void cEncryptedSettingsPayload::class_swap()
     m_bssid_attr->struct_swap();
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_vap_label_length));
     tlvf_swap(16, reinterpret_cast<uint8_t*>(m_operating_generation_length));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_pbc_uuid_e_length));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_pbc_device_password_id));
+    tlvf_swap(16, reinterpret_cast<uint8_t*>(m_pbc_device_password_length));
 }
 
 bool cEncryptedSettingsPayload::finalize()
@@ -729,6 +909,10 @@ size_t cEncryptedSettingsPayload::get_initial_size()
     class_size += sizeof(eVapType); // vap_type
     class_size += sizeof(uint16_t); // vap_label_length
     class_size += sizeof(uint16_t); // operating_generation_length
+    class_size += sizeof(uint8_t); // pbc_armed
+    class_size += sizeof(uint16_t); // pbc_uuid_e_length
+    class_size += sizeof(uint16_t); // pbc_device_password_id
+    class_size += sizeof(uint16_t); // pbc_device_password_length
     return class_size;
 }
 
@@ -858,6 +1042,46 @@ bool cEncryptedSettingsPayload::init()
     m_operating_generation_idx__ = operating_generation_length;
     if (!buffPtrIncrementSafe(sizeof(char) * (operating_generation_length))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (operating_generation_length) << ") Failed!";
+        return false;
+    }
+    m_pbc_armed = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_pbc_armed = 0x0;
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_pbc_uuid_e_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_pbc_uuid_e_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_pbc_uuid_e = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t pbc_uuid_e_length = *m_pbc_uuid_e_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&pbc_uuid_e_length)); }
+    m_pbc_uuid_e_idx__ = pbc_uuid_e_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (pbc_uuid_e_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (pbc_uuid_e_length) << ") Failed!";
+        return false;
+    }
+    m_pbc_device_password_id = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_pbc_device_password_id = 0x0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_pbc_device_password_length = reinterpret_cast<uint16_t*>(m_buff_ptr__);
+    if (!m_parse__) *m_pbc_device_password_length = 0;
+    if (!buffPtrIncrementSafe(sizeof(uint16_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint16_t) << ") Failed!";
+        return false;
+    }
+    m_pbc_device_password = reinterpret_cast<char*>(m_buff_ptr__);
+    uint16_t pbc_device_password_length = *m_pbc_device_password_length;
+    if (m_parse__) {  tlvf_swap(16, reinterpret_cast<uint8_t*>(&pbc_device_password_length)); }
+    m_pbc_device_password_idx__ = pbc_device_password_length;
+    if (!buffPtrIncrementSafe(sizeof(char) * (pbc_device_password_length))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(char) * (pbc_device_password_length) << ") Failed!";
         return false;
     }
     if (m_parse__) { class_swap(); }

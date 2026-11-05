@@ -247,6 +247,20 @@ class cEncryptedSettingsPayload : public BaseClass
         bool set_operating_generation(const std::string& str);
         bool set_operating_generation(const char buffer[], size_t size);
         bool alloc_operating_generation(size_t count = 1);
+        uint8_t& pbc_armed();
+        uint16_t& pbc_uuid_e_length();
+        std::string pbc_uuid_e_str();
+        char* pbc_uuid_e(size_t length = 0);
+        bool set_pbc_uuid_e(const std::string& str);
+        bool set_pbc_uuid_e(const char buffer[], size_t size);
+        bool alloc_pbc_uuid_e(size_t count = 1);
+        uint16_t& pbc_device_password_id();
+        uint16_t& pbc_device_password_length();
+        std::string pbc_device_password_str();
+        char* pbc_device_password(size_t length = 0);
+        bool set_pbc_device_password(const std::string& str);
+        bool set_pbc_device_password(const char buffer[], size_t size);
+        bool alloc_pbc_device_password(size_t count = 1);
         void class_swap() override;
         bool finalize() override;
         static size_t get_initial_size();
@@ -277,6 +291,14 @@ class cEncryptedSettingsPayload : public BaseClass
         uint16_t* m_operating_generation_length = nullptr;
         char* m_operating_generation = nullptr;
         size_t m_operating_generation_idx__ = 0;
+        uint8_t* m_pbc_armed = nullptr;
+        uint16_t* m_pbc_uuid_e_length = nullptr;
+        char* m_pbc_uuid_e = nullptr;
+        size_t m_pbc_uuid_e_idx__ = 0;
+        uint16_t* m_pbc_device_password_id = nullptr;
+        uint16_t* m_pbc_device_password_length = nullptr;
+        char* m_pbc_device_password = nullptr;
+        size_t m_pbc_device_password_idx__ = 0;
 };
 
 class cWscAttrEncryptedSettings : public BaseClass
