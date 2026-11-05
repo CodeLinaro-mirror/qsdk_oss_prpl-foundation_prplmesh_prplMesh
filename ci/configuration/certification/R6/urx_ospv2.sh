@@ -78,6 +78,10 @@ fi
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
+# Sets the DTIMPeriod for R6 - 4.4.4 Test; also increase the ML reconfiguration count in case the sniffer misses beacons
+ba-cli WiFi.Radio.*.DTIMPeriod=2
+printf 'protected\nWiFi.Radio.[OperatingFrequencyBand=="6GHz"].IEEE80211be.MLReconfigurationCount=20\nexit\n' | ba-cli
+
 ba-cli "WiFi.set_trace_zone(zone=genHapd, level=500)"
 ba-cli "WiFi.set_trace_zone(zone=hapdAP, level=500)"
 ba-cli "WiFi.set_trace_zone(zone=chanMgt, level=500)"

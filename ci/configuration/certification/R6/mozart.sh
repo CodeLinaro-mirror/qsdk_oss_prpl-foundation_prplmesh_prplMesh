@@ -78,6 +78,10 @@ fi
 
 ba-cli WiFi.Radio.*.RegulatoryDomain="US"
 
+# Sets the DTIMPeriod for R6 - 4.4.4 Test; also increase the ML reconfiguration count in case the sniffer misses beacons
+ba-cli WiFi.Radio.*.DTIMPeriod=2
+printf 'protected\nWiFi.Radio.[OperatingFrequencyBand=="6GHz"].IEEE80211be.MLReconfigurationCount=20\nexit\n' | ba-cli
+
 # Commands to start a new SSH server on the control port
 start_ssh_commands="iptables -P INPUT ACCEPT
 killall -9 dropbear
