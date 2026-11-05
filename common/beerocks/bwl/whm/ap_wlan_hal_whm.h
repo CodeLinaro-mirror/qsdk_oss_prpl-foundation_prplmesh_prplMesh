@@ -130,6 +130,18 @@ public:
     virtual bool pre_generate_connected_clients_events() override;
 
     virtual bool start_wps_pbc() override;
+
+    /**
+     * @see ap_wlan_hal::start_wps_pbc_bssid
+     */
+    virtual eWpsPbcStartResult start_wps_pbc_bssid(const std::string &bssid,
+                                                   std::string &status) override;
+
+    /**
+     * @see ap_wlan_hal::cancel_wps_pbc_bssid
+     */
+    virtual bool cancel_wps_pbc_bssid(const std::string &bssid) override;
+
     virtual bool set_mbo_assoc_disallow(const std::string &bssid, bool enable) override;
     virtual bool set_radio_mbo_assoc_disallow(bool enable) override;
     virtual bool set_primary_vlan_id(uint16_t primary_vlan_id) override;
@@ -244,6 +256,29 @@ private:
      * @brief Subscribe to Ap event "MgmtActionFrameReceived" from pwhm
      */
     void subscribe_to_ap_mgmt_frame_events();
+
+    /**
+     * @brief Subscribe to the pwhm WPS events "pairingReady", "pairingError" and "pairingDone"
+     * of the APs.
+     */
+    void subscribe_to_ap_wps_events();
+
+    /**
+     * @brief Process one WPS pairing event of an AP on this radio and push
+     * Event::WPS_Pairing_Event.
+     */
+    void process_ap_wps_event(const std::string &interface,
+                              bwl::eWpsPairingNotification notification,
+                              const beerocks::wbapi::AmbiorixVariant *event_data);
+
+    /**
+     * @brief Get the concrete path of the WPS object of the AP with this BSSID.
+     *
+     * @param[in] bssid BSSID of the AP.
+     * @param[out] wps_path Concrete path of the WPS object, ending with "WPS.".
+     * @return true on success, false if the radio has no such BSSID or the path is not found.
+     */
+    bool get_wps_path_by_bssid(const std::string &bssid, std::string &wps_path);
 
     /**
      * @brief Process event "BSS-TM-RESP"

@@ -84,6 +84,8 @@ public:
         Interface_Disconnected,
         APS_update_list,
         AFCUpdate,
+
+        WPS_Pairing_Event,
     };
 
     struct sBtmRequestParams {
@@ -449,6 +451,29 @@ public:
      * @return true on success or false on error
      */
     virtual bool start_wps_pbc() = 0;
+
+    /**
+     * @brief Starts WPS PBC on one BSS, identified by BSSID. Does not write the WPS enable
+     * state or the configuration methods. The default implementation returns false.
+     *
+     * @param[in] bssid Target BSSID.
+     * @param[out] status The start status reported by the Wi-Fi stack ("Success" when WPS
+     * started), or empty if the Wi-Fi stack did not report one. Set only for Replied.
+     * @return The result of the request.
+     */
+    virtual eWpsPbcStartResult start_wps_pbc_bssid(const std::string &bssid, std::string &status)
+    {
+        return eWpsPbcStartResult::NotSent;
+    }
+
+    /**
+     * @brief Cancels the WPS session on one BSS, identified by BSSID.
+     * The default implementation returns false.
+     *
+     * @param bssid Target BSSID.
+     * @return true on success, false on error.
+     */
+    virtual bool cancel_wps_pbc_bssid(const std::string &bssid) { return false; }
 
     /**
      * @brief Set primary VLAN ID value on the Radio.

@@ -557,6 +557,34 @@ struct sStaConnectionFail {
 };
 
 /**
+ * @brief WPS pairing notification of one BSS, as sent by the Wi-Fi stack.
+ */
+enum class eWpsPairingNotification : uint8_t {
+    Ready, /**< The WPS session started */
+    Error, /**< The WPS session failed to start */
+    Done,  /**< The WPS session ended (success or failure, see reason) */
+};
+
+/**
+ * @brief Result of a request to start WPS PBC on one BSS.
+ */
+enum class eWpsPbcStartResult : uint8_t {
+    NotSent,    /**< The request did not reach the Wi-Fi stack (for example, unknown BSSID) */
+    CallFailed, /**< The call failed, but it can have reached the Wi-Fi stack */
+    Replied,    /**< The Wi-Fi stack replied to the request */
+};
+
+/**
+ * @brief WPS pairing event of one BSS.
+ */
+struct sWpsPairingEvent {
+    sMacAddr bssid;                       /**< The BSSID of the BSS */
+    eWpsPairingNotification notification; /**< The notification type */
+    sMacAddr enrollee_mac;                /**< The Enrollee MAC address, if reported */
+    std::string reason;                   /**< The reason string, unchanged from the Wi-Fi stack */
+};
+
+/**
  * @brief Station keys information.
  *
  * This structure contains the different parameters related to station

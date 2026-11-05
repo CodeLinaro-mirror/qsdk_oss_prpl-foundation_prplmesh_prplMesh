@@ -114,6 +114,7 @@ ap_wlan_hal_whm::ap_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t c
     subscribe_to_ap_bss_tm_events();
     subscribe_to_ap_mgmt_frame_events();
     subscribe_to_afc_update_events();
+    subscribe_to_ap_wps_events();
 }
 
 ap_wlan_hal_whm::~ap_wlan_hal_whm() {}
@@ -188,6 +189,92 @@ void ap_wlan_hal_whm::subscribe_to_ap_mgmt_frame_events()
                          AMX_CL_MGMT_ACT_FRAME_EVT + "')";
 
     m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler, filter);
+}
+
+void ap_wlan_hal_whm::subscribe_to_ap_wps_events()
+{
+    const std::vector<std::pair<std::string, bwl::eWpsPairingNotification>> notifications = {
+        {AMX_CL_WPS_PAIRING_READY, bwl::eWpsPairingNotification::Ready},
+        {AMX_CL_WPS_PAIRING_ERROR, bwl::eWpsPairingNotification::Error},
+        {AMX_CL_WPS_PAIRING_DONE, bwl::eWpsPairingNotification::Done},
+    };
+
+    for (const auto &notification : notifications) {
+        auto event_handler         = std::make_shared<sAmbiorixEventHandler>();
+        event_handler->event_type  = notification.first;
+        auto type                  = notification.second;
+        event_handler->callback_fn = [this, type](AmbiorixVariant &event_data) -> void {
+            std::string wps_path;
+            if (!event_data.read_child(wps_path, "path") || wps_path.empty()) {
+                return;
+            }
+            auto vap_it =
+                std::find_if(m_vapsExtInfo.begin(), m_vapsExtInfo.end(), [&](const auto &element) {
+                    return (element.second.path + "WPS.") == wps_path;
+                });
+            if (vap_it == m_vapsExtInfo.end()) {
+                return;
+            }
+            process_ap_wps_event(vap_it->first, type, &event_data);
+        };
+
+        std::string filter = "(path matches '" + wbapi_utils::search_path_ap() +
+                             "[0-9]+.WPS.$')"
+                             " && (notification == '" +
+                             notification.first + "')";
+
+        m_ambiorix_cl.subscribe_to_object_event(wbapi_utils::search_path_ap(), event_handler,
+                                                filter);
+    }
+}
+
+void ap_wlan_hal_whm::process_ap_wps_event(const std::string &interface,
+                                           bwl::eWpsPairingNotification notification,
+                                           const AmbiorixVariant *event_data)
+{
+    auto vap_id = get_vap_id_with_bss(interface);
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "No vap_id for WPS event of iface " << interface;
+        return;
+    }
+
+    auto event          = std::make_shared<bwl::sWpsPairingEvent>();
+    event->bssid        = tlvf::mac_from_string(m_radio_info.available_vaps[vap_id].mac);
+    event->notification = notification;
+    event->enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
+
+    event_data->read_child(event->reason, "reason");
+
+    // pwhm adds the key "macAddress" only when the peer MAC address is known.
+    std::string enrollee_mac;
+    if (event_data->read_child(enrollee_mac, "macAddress") && !enrollee_mac.empty()) {
+        event->enrollee_mac = tlvf::mac_from_string(enrollee_mac);
+    }
+
+    LOG(DEBUG) << "WPS pairing event " << int(notification) << " on " << interface << " reason='"
+               << event->reason << "' macAddress='" << enrollee_mac << "'";
+
+    event_queue_push(Event::WPS_Pairing_Event, event);
+}
+
+bool ap_wlan_hal_whm::get_wps_path_by_bssid(const std::string &bssid, std::string &wps_path)
+{
+    int vap_id = get_vap_id_with_mac(bssid);
+    if (!check_vap_id(vap_id)) {
+        LOG(ERROR) << "No vap_id for BSSID " << bssid;
+        return false;
+    }
+
+    // Ambiorix update_object() needs a concrete path: resolve the search path first.
+    std::string search_path =
+        wbapi_utils::search_path_ap_by_iface(m_radio_info.available_vaps[vap_id].bss);
+    std::string ap_path;
+    if (!m_ambiorix_cl.resolve_path(search_path, ap_path) || ap_path.empty()) {
+        LOG(ERROR) << "Can't resolve " << search_path;
+        return false;
+    }
+    wps_path = ap_path + "WPS.";
+    return true;
 }
 
 bool ap_wlan_hal_whm::enable()
@@ -1261,6 +1348,55 @@ bool ap_wlan_hal_whm::start_wps_pbc()
         LOG(ERROR) << "start_wps_pbc() failed!";
         return false;
     }
+    return true;
+}
+
+eWpsPbcStartResult ap_wlan_hal_whm::start_wps_pbc_bssid(const std::string &bssid,
+                                                        std::string &status)
+{
+    status.clear();
+
+    std::string wps_path;
+    if (!get_wps_path_by_bssid(bssid, wps_path)) {
+        return eWpsPbcStartResult::NotSent;
+    }
+
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    AmbiorixVariant result;
+    if (!m_ambiorix_cl.call(wps_path, "InitiateWPSPBC", args, result)) {
+        LOG(ERROR) << "Failed to call " << wps_path << "InitiateWPSPBC()";
+        return eWpsPbcStartResult::CallFailed;
+    }
+
+    // Ambiorix returns the output arguments in the first element of the result list.
+    auto result_list = result.read_children<AmbiorixVariantListSmartPtr>();
+    if (result_list) {
+        for (auto &entry : *result_list) {
+            if (entry.read_child(status, "Status")) {
+                break;
+            }
+        }
+    }
+
+    LOG(INFO) << wps_path << "InitiateWPSPBC() Status='" << status << "'";
+    return eWpsPbcStartResult::Replied;
+}
+
+bool ap_wlan_hal_whm::cancel_wps_pbc_bssid(const std::string &bssid)
+{
+    std::string wps_path;
+    if (!get_wps_path_by_bssid(bssid, wps_path)) {
+        return false;
+    }
+
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    AmbiorixVariant result;
+    if (!m_ambiorix_cl.call(wps_path, "cancelWPSPairing", args, result)) {
+        LOG(ERROR) << "Failed to call " << wps_path << "cancelWPSPairing()";
+        return false;
+    }
+
+    LOG(INFO) << wps_path << "cancelWPSPairing() done";
     return true;
 }
 
