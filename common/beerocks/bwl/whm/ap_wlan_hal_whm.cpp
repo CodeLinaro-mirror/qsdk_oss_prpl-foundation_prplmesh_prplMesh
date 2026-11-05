@@ -16,6 +16,7 @@
 #include <bcl/network/network_utils.h>
 #include <bcl/son/son_assoc_frame_utils.h>
 #include <bcl/son/son_wireless_utils.h>
+#include <cctype>
 #include <easylogging++.h>
 #include <math.h>
 #include <numeric>
@@ -582,6 +583,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
     bool teardown_success = true;
     int new_vap_index     = m_radio_info.available_vaps.size();
     const std::string enable_key("Enable");
+    std::vector<std::pair<std::string, std::string>> written_wps_uuids;
 
     for (const auto &bss_info_conf : bss_info_conf_list) {
         std::string wifi_vap_path, wifi_ssid_path;
@@ -806,6 +808,20 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             LOG(ERROR) << "Failed to enable vap " << wifi_vap_path;
         }
 
+        // Write the WPS push-button settings in the same pass as the BSS settings, with no
+        // blocking call between: pwhm then applies all of them in one radio reconfiguration.
+        // A WPS write after the BSS is up starts a second reconfiguration of the radio.
+        if (bss_info_conf.wps_push_button.armed) {
+            if (!bss_info_conf.fronthaul || bss_info_conf.backhaul) {
+                LOG(ERROR) << "WPS push-button settings of " << wifi_vap_path
+                           << " not written: not a fronthaul-only BSS";
+            } else if (write_wps_push_button(wifi_vap_path + "WPS.",
+                                             bss_info_conf.wps_push_button)) {
+                written_wps_uuids.emplace_back(wifi_vap_path + "WPS.",
+                                               bss_info_conf.wps_push_button.uuid_e);
+            }
+        }
+
         if (ifname == "new_interface") {
             // skip update of vap_info, new instance in vap_info will be added asynchronously on a pwhm event
             continue;
@@ -855,6 +871,25 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         auto status = m_ambiorix_cl.get_param(wifi_vap_path, "Status");
         if (status && !status->empty()) {
             process_ap_event(ifname, "Status", status.get());
+        }
+    }
+
+    // pwhm checks the UUID in the plugin, so a rejected value does not fail the write. Read it
+    // back once, after all writes of the pass, only for the log. pwhm can apply it later, and
+    // converts it to lowercase.
+    auto to_lower = [](std::string str) {
+        std::transform(str.begin(), str.end(), str.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        return str;
+    };
+    for (const auto &wps_uuid : written_wps_uuids) {
+        std::string uuid_readback;
+        if (m_ambiorix_cl.get_param(uuid_readback, wps_uuid.first, "UUID") &&
+            to_lower(uuid_readback) == to_lower(wps_uuid.second)) {
+            LOG(INFO) << "UUID applied on " << wps_uuid.first;
+        } else {
+            LOG(WARNING) << "UUID not applied yet on " << wps_uuid.first << ": wrote '"
+                         << wps_uuid.second << "', read back '" << uuid_readback << "'";
         }
     }
 
@@ -1346,6 +1381,29 @@ bool ap_wlan_hal_whm::start_wps_pbc()
 
     if (!ret) {
         LOG(ERROR) << "start_wps_pbc() failed!";
+        return false;
+    }
+    return true;
+}
+
+bool ap_wlan_hal_whm::write_wps_push_button(
+    const std::string &wps_path, const son::wireless_utils::sWpsPushButtonConf &wps_push_button)
+{
+    // pwhm has no Device Password ID parameter: an unknown key can make the whole write fail.
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE);
+    args.add_child("UUID", wps_push_button.uuid_e);
+    if (!wps_push_button.device_password.empty()) {
+        args.add_child("SelfPIN", wps_push_button.device_password);
+    }
+    args.add_child("ConfigMethodsEnabled", std::string("PushButton"));
+    // A write of an unchanged value emits no change event, so pwhm does not reload hostapd.
+    args.add_child("Enable", true);
+
+    LOG(INFO) << "Write Enable = true, UUID " << wps_push_button.uuid_e
+              << " and ConfigMethodsEnabled to " << wps_path;
+
+    if (!m_ambiorix_cl.update_object(wps_path, args)) {
+        LOG(ERROR) << "Failed to write the WPS push-button settings to " << wps_path;
         return false;
     }
     return true;

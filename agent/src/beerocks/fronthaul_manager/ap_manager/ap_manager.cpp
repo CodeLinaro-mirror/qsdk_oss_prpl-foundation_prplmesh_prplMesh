@@ -1993,6 +1993,20 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             bss_info_conf.vap_label            = config_data.vap_label_str();
             bss_info_conf.operating_generation = config_data.operating_generation_str();
 
+            if (config_data.pbc_armed()) {
+                auto &wps_push_button              = bss_info_conf.wps_push_button;
+                wps_push_button.armed              = true;
+                wps_push_button.uuid_e             = config_data.pbc_uuid_e_str();
+                wps_push_button.device_password_id = config_data.pbc_device_password_id();
+                if (config_data.pbc_device_password_length() > 0) {
+                    wps_push_button.device_password = config_data.pbc_device_password_str();
+                }
+                LOG(DEBUG) << "WPS push-button settings for BSS " << bss_info_conf.bssid
+                           << " (SSID '" << bss_info_conf.ssid << "'): UUID-E "
+                           << wps_push_button.uuid_e << ", Device Password "
+                           << (wps_push_button.device_password.empty() ? "absent" : "present");
+            }
+
             bss_info_conf_list.push_back(bss_info_conf);
         }
 

@@ -281,6 +281,20 @@ private:
     bool get_wps_path_by_bssid(const std::string &bssid, std::string &wps_path);
 
     /**
+     * @brief Writes the WPS push-button settings onto one AP, in one write of its WPS object:
+     * UUID, ConfigMethodsEnabled = PushButton, Enable = true, and SelfPIN only when the settings
+     * have a Device Password. The Device Password ID is not written: pwhm has no such parameter.
+     * Enable is always written, with no read first: pwhm does not reload hostapd for an
+     * unchanged value. The function does not block for anything else.
+     *
+     * @param wps_path Concrete path of the WPS object of the AP, ending with "WPS.".
+     * @param wps_push_button The WPS push-button settings.
+     * @return true if the write succeeded, false otherwise.
+     */
+    bool write_wps_push_button(const std::string &wps_path,
+                               const son::wireless_utils::sWpsPushButtonConf &wps_push_button);
+
+    /**
      * @brief Process event "BSS-TM-RESP"
      */
     bool process_ap_bss_event(const std::string &interface,

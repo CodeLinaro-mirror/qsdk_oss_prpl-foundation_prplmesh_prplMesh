@@ -296,6 +296,21 @@ public:
         uint8_t default_pcp;
     } s8021QSettings;
 
+    /**
+     * @brief WPS push-button settings of a fronthaul BSS, from the Push-Button Config TLV of
+     * the BSS in the AP-Autoconfiguration WSC message of its radio.
+     */
+    struct sWpsPushButtonConf {
+        /** The BSS has push-button settings. The other members are used only when true. */
+        bool armed = false;
+        /** UUID-E as 8-4-4-4-12 text, for example "12345678-9abc-def0-1234-56789abcdef0". */
+        std::string uuid_e;
+        /** WPS Device Password ID. */
+        uint16_t device_password_id = 0;
+        /** WPS Device Password. Empty when the TLV has none. Never logged. */
+        std::string device_password;
+    };
+
     typedef struct {
         std::list<uint8_t> operating_class;
         std::string ssid;
@@ -318,6 +333,8 @@ public:
         sMacAddr target_radio_uid{};
         std::string radio_template_ref;
         std::string bss_template_ref;
+        /** WPS push-button settings that the Agent writes onto the BSS. Default: not armed. */
+        sWpsPushButtonConf wps_push_button;
         eAdditionalAuth additional_auth = eAdditionalAuth::NONE;
         std::vector<uint8_t> rsn_security_ies;
     } sBssInfoConf;
