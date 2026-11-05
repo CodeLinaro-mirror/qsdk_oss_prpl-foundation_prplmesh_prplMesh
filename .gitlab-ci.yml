@@ -282,6 +282,9 @@ higher_layer_collection_task_test:
 ieee1905_task_test:
   extends: .run-test-in-docker
 
+pbc_onboarding_task_test:
+  extends: .run-test-in-docker
+
 test-gw-repeater:
   stage: test
   script:
