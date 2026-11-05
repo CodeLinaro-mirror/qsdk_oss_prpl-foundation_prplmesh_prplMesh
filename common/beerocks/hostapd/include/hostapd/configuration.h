@@ -6,6 +6,7 @@
  * See LICENSE file for more details.
  */
 
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <set>

@@ -20,6 +20,7 @@
 #include <memory>
 
 using ::testing::_;
+using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::StrEq;
