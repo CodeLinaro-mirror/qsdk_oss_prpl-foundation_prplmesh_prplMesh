@@ -7,6 +7,7 @@
  */
 
 #include "on_action.h"
+#include "mesh_pbc_session_actions.h"
 #include "mesh_pbc_template_actions.h"
 
 #include <algorithm>
@@ -1961,7 +1962,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
 
 std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
 {
-    const std::vector<beerocks::nbapi::sFunctions> functions_list = {
+    std::vector<beerocks::nbapi::sFunctions> functions_list = {
         {"access_point_commit", DATAELEMENTS_ROOT_DM ".Network.AccessPointCommit",
          access_point_commit},
         {"client_steering", DATAELEMENTS_ROOT_DM ".Network.ClientSteering", client_steering},
@@ -2000,6 +2001,8 @@ std::vector<beerocks::nbapi::sFunctions> get_func_list(void)
         {"update_unassociatedStations_stats",
          DATAELEMENTS_ROOT_DM ".Network.UpdateUnassociatedStationsStats",
          update_unassociatedStations_stats}};
+    auto mesh_pbc = get_mesh_pbc_session_func_list();
+    functions_list.insert(functions_list.end(), mesh_pbc.begin(), mesh_pbc.end());
     return functions_list;
 }
 

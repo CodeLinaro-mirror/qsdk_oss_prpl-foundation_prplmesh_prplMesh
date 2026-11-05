@@ -388,6 +388,53 @@
                  */
                 %read-only string PBCSessionID = "";
             }
+
+            /**
+             * Starts a push-button session of this template. The session arms the BSSs whose
+             * push-button configuration comes from this template, on the Agents that support
+             * the Multi-AP Push-Button Trigger.
+             * A rejected request returns at once, with Status and FailureReason (0):
+             * "Error_Invalid_Input" (the template is disabled or has a value that is not valid,
+             * or a BSSIDList entry is not valid), or "Error_Not_Ready" (a session is active,
+             * or no BSS can be armed). An accepted request returns when the session ends, with
+             * the values that the session writes to Status.
+             * The checks of BSSIDList come before the check for an active session, so a
+             * BSSIDList entry that is not valid gives "Error_Invalid_Input" also while a
+             * session is active.
+             * A caller that stops waiting before the session end can read the result in Status.
+             * @param BSSIDList Comma-separated list of BSSIDs. Arm only these BSSs. Each BSSID
+             * must be a BSS of this template. Spaces around an entry are ignored, the case of
+             * the letters is ignored, and a repeated entry counts once. An empty entry (for
+             * example after a trailing comma) is not valid. "" or absent: arm all BSSs of this
+             * template.
+             * @param Status Result of the session or of the rejected request: "Success",
+             * "Error_Timeout", "Error_Not_Ready", "Error_Invalid_Input" or "Error_Other".
+             * @param FailureReason Native failure code of Status (WSC Configuration Error for
+             * WPS), 0 if not applicable. Absent when Status is "Success".
+             * @param EnrolleeMACAddress MAC address of the device that onboarded. Present only
+             * when Status is "Success".
+             * @param BSSID BSSID of the BSS through which the device onboarded. Present only
+             * when Status is "Success".
+             * @param PBCSessionID ID of the session that the call started, in the form
+             * "<AL MAC>-<4 lowercase hexadecimal digits>". Present only if a session was
+             * created.
+             */
+            %instance void InitiatePBC(
+                %in csv_string BSSIDList,
+                %out string Status,
+                %out uint16 FailureReason,
+                %out string EnrolleeMACAddress,
+                %out string BSSID,
+                %out string PBCSessionID
+            );
+
+            /**
+             * Ends the active push-button session if it uses this template, also a session
+             * that a button press started. The session ends with Status.Result "Error_Other",
+             * and the Agents get State = STOP for their armed BSSs. The call fails if no
+             * session of this template is active.
+             */
+            %instance void TerminatePBC();
         }
     @TEMPLATES_ROOT_DM_Footer@
 }
