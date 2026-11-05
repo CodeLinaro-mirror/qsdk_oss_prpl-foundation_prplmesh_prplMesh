@@ -20,8 +20,13 @@
 #include "tlvf/ieee_1905_1/tlvWsc.h"
 #include "tlvf/wfa_map/tlvApCapability.h"
 #include "tlvf/wfa_map/tlvApRadioVbssCapabilities.h"
+#include "tlvf/wfa_map/tlvControllerCapability.h"
+#include "tlvf/wfa_map/tlvMultiApPushButtonStatus.h"
+#include "tlvf/wfa_map/tlvMultiApPushButtonTrigger.h"
+#include "tlvf/wfa_map/tlvProfile2ApCapability.h"
 #include "tlvf/wfa_map/tlvProfile2ChannelScanResult.h"
 #include "tlvf/wfa_map/tlvProfile2ErrorCode.h"
+#include "tlvf/wfa_map/tlvPushButtonConfig.h"
 #include "tlvf/wfa_map/tlvSpatialReuseRequest.h"
 #include "tlvf/wfa_map/tlvVbssConfigurationReport.h"
 #include "tlvf/wfa_map/tlvVirtualBssCreation.h"
@@ -2244,6 +2249,521 @@ int test_spatial_reuse_request_srg_bss_color_bitmap()
     return errors;
 }
 
+/**
+ * @brief Compare the octets of a message with the expected octets.
+ *
+ * @return 0 if they match, 1 otherwise.
+ */
+static int check_push_button_bytes(const std::string &name, const uint8_t *got,
+                                   const std::vector<uint8_t> &expected)
+{
+    if (memcmp(got, expected.data(), expected.size()) != 0) {
+        MAPF_ERR(name << " octets do not match!\n expected "
+                      << utils::dump_buffer(const_cast<uint8_t *>(expected.data()), expected.size())
+                      << "\n got "
+                      << utils::dump_buffer(const_cast<uint8_t *>(got), expected.size()));
+        return 1;
+    }
+    return 0;
+}
+
+/**
+ * @brief Check that the parser created no tlvUnknown, that is, logged no "Unknown TLV type".
+ */
+static int check_no_unknown_tlv(CmduMessageRx &cmdu_rx, const std::string &name)
+{
+    return check_field<bool>(!cmdu_rx.getClass<tlvUnknown>(), true, name + " has no unknown TLV");
+}
+
+static const sMacAddr g_pb_al_mac       = tlvf::mac_from_string("02:11:22:33:44:55");
+static const sMacAddr g_pb_bssid_1      = tlvf::mac_from_string("aa:bb:cc:00:00:01");
+static const sMacAddr g_pb_bssid_2      = tlvf::mac_from_string("aa:bb:cc:00:00:02");
+static const sMacAddr g_pb_enrollee_mac = tlvf::mac_from_string("11:22:33:44:55:66");
+static const sMacAddr g_pb_zero_mac     = tlvf::mac_from_string("00:00:00:00:00:00");
+static const std::vector<uint8_t> g_pb_session_id_octets  = {0x02, 0x11, 0x22, 0x33,
+                                                            0x44, 0x55, 0x12, 0x34};
+static const std::vector<uint8_t> g_end_of_message_octets = {0x00, 0x00, 0x00};
+
+int test_push_button_request()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    uint8_t buf[256] = {};
+    {
+        ieee1905_1::CmduMessageTx cmdu_tx(buf, sizeof(buf));
+        if (!cmdu_tx.create(0x0101, eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE) ||
+            !cmdu_tx.finalize()) {
+            MAPF_ERR("Multi-AP Push-Button Request creation failed");
+            return 1;
+        }
+        errors += check_field<size_t>(cmdu_tx.getMessageLength(), 11, "Request length");
+    }
+    errors += check_push_button_bytes(
+        "Request", buf, {0x00, 0x00, 0x80, 0x4E, 0x01, 0x01, 0x00, 0x80, 0x00, 0x00, 0x00});
+
+    CmduMessageRx cmdu_rx(buf, sizeof(buf));
+    if (!cmdu_rx.parse()) {
+        MAPF_ERR("Multi-AP Push-Button Request parsing failed");
+        return errors + 1;
+    }
+    errors += check_field<uint16_t>(uint16_t(cmdu_rx.getMessageType()),
+                                    uint16_t(eMessageType::MULTI_AP_PUSH_BUTTON_REQUEST_MESSAGE),
+                                    "Request message type");
+    errors += check_field<uint16_t>(cmdu_rx.getMessageId(), 0x0101, "Request MID");
+    errors += check_no_unknown_tlv(cmdu_rx, "Request");
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
+static int push_button_trigger_case(bool dpp, bool wps, tlvMultiApPushButtonTrigger::eState state)
+{
+    int errors       = 0;
+    uint8_t buf[256] = {};
+    {
+        ieee1905_1::CmduMessageTx cmdu_tx(buf, sizeof(buf));
+        if (!cmdu_tx.create(0x0102, eMessageType::MULTI_AP_PUSH_BUTTON_TRIGGER_MESSAGE)) {
+            MAPF_ERR("Multi-AP Push-Button Trigger creation failed");
+            return 1;
+        }
+        auto tlv = cmdu_tx.addClass<tlvMultiApPushButtonTrigger>();
+        if (!tlv || !tlv->alloc_bssid_list(2)) {
+            MAPF_ERR("addClass tlvMultiApPushButtonTrigger failed");
+            return 1;
+        }
+        tlv->pbc_session_id().al_mac    = g_pb_al_mac;
+        tlv->pbc_session_id().mid       = 0x1234;
+        tlv->push_button_method().dpp   = dpp;
+        tlv->push_button_method().wps   = wps;
+        tlv->state()                    = state;
+        std::get<1>(tlv->bssid_list(0)) = g_pb_bssid_1;
+        std::get<1>(tlv->bssid_list(1)) = g_pb_bssid_2;
+        if (!cmdu_tx.finalize()) {
+            MAPF_ERR("Multi-AP Push-Button Trigger finalize failed");
+            return 1;
+        }
+    }
+
+    std::vector<uint8_t> expected = {0xEF, 0x00, 0x17};
+    expected.insert(expected.end(), g_pb_session_id_octets.begin(), g_pb_session_id_octets.end());
+    expected.push_back(uint8_t((wps ? 0x02 : 0x00) | (dpp ? 0x01 : 0x00)));
+    expected.push_back(uint8_t(state));
+    expected.insert(expected.end(),
+                    {0x02, 0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x01, 0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x02});
+    expected.insert(expected.end(), g_end_of_message_octets.begin(), g_end_of_message_octets.end());
+    errors += check_push_button_bytes("Trigger TLV", buf + 8, expected);
+
+    CmduMessageRx cmdu_rx(buf, sizeof(buf));
+    if (!cmdu_rx.parse()) {
+        MAPF_ERR("Multi-AP Push-Button Trigger parsing failed");
+        return errors + 1;
+    }
+    errors += check_no_unknown_tlv(cmdu_rx, "Trigger");
+    auto tlv = cmdu_rx.getClass<tlvMultiApPushButtonTrigger>();
+    if (!tlv) {
+        MAPF_ERR("getClass tlvMultiApPushButtonTrigger failed");
+        return errors + 1;
+    }
+    errors += check_field<uint16_t>(tlv->length(), 23, "Trigger length");
+    errors += check_field<sMacAddr>(tlv->pbc_session_id().al_mac, g_pb_al_mac, "Trigger AL MAC");
+    errors += check_field<uint16_t>(tlv->pbc_session_id().mid, 0x1234, "Trigger MID");
+    errors += check_field<int>(tlv->push_button_method().dpp, dpp, "Trigger DPP bit");
+    errors += check_field<int>(tlv->push_button_method().wps, wps, "Trigger WPS bit");
+    errors += check_field<int>(tlv->push_button_method().reserved, 0, "Trigger reserved bits");
+    errors += check_field<int>(int(tlv->state()), int(state), "Trigger State");
+    errors += check_field<int>(tlv->bssid_list_length(), 2, "Trigger Num_BSSID");
+    errors +=
+        check_field<sMacAddr>(std::get<1>(tlv->bssid_list(0)), g_pb_bssid_1, "Trigger BSSID 1");
+    errors +=
+        check_field<sMacAddr>(std::get<1>(tlv->bssid_list(1)), g_pb_bssid_2, "Trigger BSSID 2");
+    return errors;
+}
+
+int test_push_button_trigger()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    errors += push_button_trigger_case(false, true, tlvMultiApPushButtonTrigger::eState::START);
+    errors += push_button_trigger_case(true, false, tlvMultiApPushButtonTrigger::eState::START);
+    errors += push_button_trigger_case(true, true, tlvMultiApPushButtonTrigger::eState::STOP);
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
+int test_push_button_status()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    using eResult = tlvMultiApPushButtonStatus::eResult;
+    struct sCase {
+        eResult result;
+        uint16_t failure_reason;
+        sMacAddr enrollee_mac;
+    };
+    const std::vector<sCase> cases = {
+        {eResult::STARTED, 0, g_pb_zero_mac},
+        {eResult::FAILURE_ABORTED, 12, g_pb_zero_mac},
+        {eResult::NOT_STARTED, 0, g_pb_zero_mac},
+        {eResult::SUCCESS, 0, g_pb_enrollee_mac},
+    };
+    auto has_failure_reason = [](eResult result) {
+        return result == eResult::FAILURE_ABORTED || result == eResult::NOT_STARTED;
+    };
+
+    uint8_t buf[512] = {};
+    {
+        ieee1905_1::CmduMessageTx cmdu_tx(buf, sizeof(buf));
+        if (!cmdu_tx.create(0x0104, eMessageType::MULTI_AP_PUSH_BUTTON_STATUS_MESSAGE)) {
+            MAPF_ERR("Multi-AP Push-Button Status creation failed");
+            return 1;
+        }
+        for (const auto &c : cases) {
+            auto tlv = cmdu_tx.addClass<tlvMultiApPushButtonStatus>();
+            if (!tlv) {
+                MAPF_ERR("addClass tlvMultiApPushButtonStatus failed");
+                return 1;
+            }
+            tlv->pbc_session_id().al_mac = g_pb_al_mac;
+            tlv->pbc_session_id().mid    = 0x1234;
+            tlv->bssid()                 = g_pb_bssid_2;
+            tlv->result()                = c.result;
+            if (has_failure_reason(c.result) && !tlv->set_failure_reason(c.failure_reason)) {
+                MAPF_ERR("set_failure_reason failed");
+                return 1;
+            }
+            tlv->enrollee_mac() = c.enrollee_mac;
+        }
+        if (!cmdu_tx.finalize()) {
+            MAPF_ERR("Multi-AP Push-Button Status finalize failed");
+            return 1;
+        }
+    }
+
+    size_t offset = 8;
+    for (const auto &c : cases) {
+        const bool with_reason        = has_failure_reason(c.result);
+        std::vector<uint8_t> expected = {0xF1, 0x00, uint8_t(with_reason ? 0x17 : 0x15)};
+        expected.insert(expected.end(), g_pb_session_id_octets.begin(),
+                        g_pb_session_id_octets.end());
+        expected.insert(expected.end(), {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x02, uint8_t(c.result)});
+        if (with_reason) {
+            expected.insert(expected.end(),
+                            {uint8_t(c.failure_reason >> 8), uint8_t(c.failure_reason & 0xFF)});
+        }
+        expected.insert(expected.end(), c.enrollee_mac.oct, c.enrollee_mac.oct + 6);
+        errors += check_push_button_bytes(std::string("Status TLV ") +
+                                              tlvMultiApPushButtonStatus::eResult_str(c.result),
+                                          buf + offset, expected);
+        offset += expected.size();
+    }
+    errors +=
+        check_push_button_bytes("Status End of Message", buf + offset, g_end_of_message_octets);
+
+    CmduMessageRx cmdu_rx(buf, sizeof(buf));
+    if (!cmdu_rx.parse()) {
+        MAPF_ERR("Multi-AP Push-Button Status parsing failed");
+        return errors + 1;
+    }
+    errors += check_no_unknown_tlv(cmdu_rx, "Status");
+    auto tlvs = cmdu_rx.getClassList<tlvMultiApPushButtonStatus>();
+    errors += check_field<size_t>(tlvs.size(), cases.size(), "Status TLV count");
+    auto case_it = cases.begin();
+    for (const auto &tlv : tlvs) {
+        if (case_it == cases.end()) {
+            break;
+        }
+        const auto &c          = *case_it++;
+        const bool with_reason = has_failure_reason(c.result);
+        const std::string name =
+            std::string("Status ") + tlvMultiApPushButtonStatus::eResult_str(c.result);
+        errors += check_field<uint16_t>(tlv->length(), with_reason ? 0x17 : 0x15, name + " length");
+        errors +=
+            check_field<sMacAddr>(tlv->pbc_session_id().al_mac, g_pb_al_mac, name + " AL MAC");
+        errors += check_field<uint16_t>(tlv->pbc_session_id().mid, 0x1234, name + " MID");
+        errors += check_field<sMacAddr>(tlv->bssid(), g_pb_bssid_2, name + " BSSID");
+        errors += check_field<int>(int(tlv->result()), int(c.result), name + " Result");
+        auto failure_reason = tlv->failure_reason();
+        errors +=
+            check_field<bool>(failure_reason != nullptr, with_reason, name + " Failure Reason");
+        if (with_reason && failure_reason) {
+            errors += check_field<uint16_t>(*failure_reason, c.failure_reason,
+                                            name + " Failure Reason value");
+        }
+        errors += check_field<sMacAddr>(tlv->enrollee_mac(), c.enrollee_mac, name + " Enrollee");
+    }
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
+static int push_button_config_case(const std::string &device_password)
+{
+    int errors         = 0;
+    uint8_t buf[256]   = {};
+    uint8_t uuid_e[16] = {};
+    for (int i = 0; i < 16; i++) {
+        uuid_e[i] = uint8_t(0xA0 + i);
+    }
+    const uint16_t device_password_id = device_password.empty() ? 0x0004 : 0x0000;
+    {
+        ieee1905_1::CmduMessageTx cmdu_tx(buf, sizeof(buf));
+        if (!cmdu_tx.create(0x0103, eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE)) {
+            MAPF_ERR("AP-Autoconfiguration WSC creation failed");
+            return 1;
+        }
+        auto tlv = cmdu_tx.addClass<tlvPushButtonConfig>();
+        if (!tlv) {
+            MAPF_ERR("addClass tlvPushButtonConfig failed");
+            return 1;
+        }
+        tlv->bssid()              = g_pb_bssid_1;
+        tlv->bss_index()          = 3;
+        tlv->listen_duration()    = 120;
+        tlv->device_password_id() = device_password_id;
+        if (!tlv->set_uuid_e(uuid_e, sizeof(uuid_e))) {
+            MAPF_ERR("set_uuid_e failed");
+            return 1;
+        }
+        if (!device_password.empty() &&
+            !tlv->set_device_password(device_password.data(), device_password.size())) {
+            MAPF_ERR("set_device_password failed");
+            return 1;
+        }
+        if (!cmdu_tx.finalize()) {
+            MAPF_ERR("AP-Autoconfiguration WSC finalize failed");
+            return 1;
+        }
+    }
+
+    const uint16_t tlv_length     = 27 + device_password.size();
+    std::vector<uint8_t> expected = {0xF4,
+                                     uint8_t(tlv_length >> 8),
+                                     uint8_t(tlv_length & 0xFF),
+                                     0xAA,
+                                     0xBB,
+                                     0xCC,
+                                     0x00,
+                                     0x00,
+                                     0x01,
+                                     0x03,
+                                     0x00,
+                                     0x78};
+    expected.insert(expected.end(), uuid_e, uuid_e + sizeof(uuid_e));
+    expected.insert(expected.end(), {0x00, uint8_t(device_password_id)});
+    expected.insert(expected.end(), device_password.begin(), device_password.end());
+    expected.insert(expected.end(), g_end_of_message_octets.begin(), g_end_of_message_octets.end());
+    const std::string name = "Push-Button Config (" + std::to_string(device_password.size()) +
+                             " octets of Device Password)";
+    errors += check_push_button_bytes(name, buf + 8, expected);
+
+    CmduMessageRx cmdu_rx(buf, sizeof(buf));
+    if (!cmdu_rx.parse()) {
+        MAPF_ERR(name << " parsing failed");
+        return errors + 1;
+    }
+    errors += check_no_unknown_tlv(cmdu_rx, name);
+    auto tlv = cmdu_rx.getClass<tlvPushButtonConfig>();
+    if (!tlv) {
+        MAPF_ERR("getClass tlvPushButtonConfig failed");
+        return errors + 1;
+    }
+    errors += check_field<uint16_t>(tlv->length(), tlv_length, name + " length");
+    errors += check_field<sMacAddr>(tlv->bssid(), g_pb_bssid_1, name + " BSSID");
+    errors += check_field<int>(tlv->bss_index(), 3, name + " BSS_Index");
+    errors += check_field<uint16_t>(tlv->listen_duration(), 120, name + " Listen Duration");
+    errors += check_field<int>(memcmp(tlv->uuid_e(), uuid_e, sizeof(uuid_e)), 0, name + " UUID-E");
+    errors += check_field<uint16_t>(tlv->device_password_id(), device_password_id,
+                                    name + " Device Password ID");
+    errors += check_field<size_t>(tlv->device_password_length(), device_password.size(),
+                                  name + " Device Password length");
+    if (!device_password.empty()) {
+        errors += check_field<int>(
+            memcmp(tlv->device_password(), device_password.data(), device_password.size()), 0,
+            name + " Device Password");
+    }
+    return errors;
+}
+
+int test_push_button_config()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    errors += push_button_config_case("");
+    errors += push_button_config_case("12345670");
+    errors += push_button_config_case("0123456789abcdef0123456789abcdef");
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
+int test_push_button_capability_bits()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    uint8_t buf[256] = {};
+    {
+        ieee1905_1::CmduMessageTx cmdu_tx(buf, sizeof(buf));
+        if (!cmdu_tx.create(0x0105, eMessageType::AP_CAPABILITY_REPORT_MESSAGE)) {
+            MAPF_ERR("AP Capability Report creation failed");
+            return 1;
+        }
+        auto ap_capability = cmdu_tx.addClass<tlvProfile2ApCapability>();
+        if (!ap_capability) {
+            MAPF_ERR("addClass tlvProfile2ApCapability failed");
+            return 1;
+        }
+        ap_capability->capabilities_bit_field().multi_ap_push_button_onboarding_remote_trigger = 1;
+        auto controller_capability = cmdu_tx.addClass<tlvControllerCapability>();
+        if (!controller_capability) {
+            MAPF_ERR("addClass tlvControllerCapability failed");
+            return 1;
+        }
+        controller_capability->flags().multi_ap_push_button_onboarding_support = 1;
+        if (!cmdu_tx.finalize()) {
+            MAPF_ERR("AP Capability Report finalize failed");
+            return 1;
+        }
+    }
+
+    std::vector<uint8_t> expected = {0xB4, 0x00, 0x04, 0x00, 0x00, 0x04,
+                                     0x00, 0xDD, 0x00, 0x01, 0x20};
+    expected.insert(expected.end(), g_end_of_message_octets.begin(), g_end_of_message_octets.end());
+    errors += check_push_button_bytes("Capability TLVs", buf + 8, expected);
+
+    CmduMessageRx cmdu_rx(buf, sizeof(buf));
+    if (!cmdu_rx.parse()) {
+        MAPF_ERR("AP Capability Report parsing failed");
+        return errors + 1;
+    }
+    errors += check_no_unknown_tlv(cmdu_rx, "AP Capability Report");
+    auto ap_capability = cmdu_rx.getClass<tlvProfile2ApCapability>();
+    if (!ap_capability) {
+        MAPF_ERR("getClass tlvProfile2ApCapability failed");
+        return errors + 1;
+    }
+    const auto &bits = ap_capability->capabilities_bit_field();
+    errors += check_field<int>(bits.multi_ap_push_button_onboarding_remote_trigger, 1,
+                               "Profile-2 AP Capability push-button bit");
+    errors += check_field<int>(bits.traffic_separation, 0, "Profile-2 AP Capability bit 3");
+    errors += check_field<int>(bits.reserved, 0, "Profile-2 AP Capability bits 1-0");
+    auto controller_capability = cmdu_rx.getClass<tlvControllerCapability>();
+    if (!controller_capability) {
+        MAPF_ERR("getClass tlvControllerCapability failed");
+        return errors + 1;
+    }
+    const auto &flags = controller_capability->flags();
+    errors += check_field<int>(flags.multi_ap_push_button_onboarding_support, 1,
+                               "Controller Capability push-button bit");
+    errors += check_field<int>(flags.early_ap_capability, 0, "Controller Capability bit 6");
+    errors += check_field<int>(flags.reserved, 0, "Controller Capability bits 4-0");
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
+static int wifi_credentials_push_button_case(bool armed)
+{
+    int errors             = 0;
+    uint8_t buf[512]       = {};
+    const std::string name = std::string("Wi-Fi credentials ") +
+                             (armed ? "with push-button settings" : "without push-button settings");
+    const std::string uuid_e   = "12345678-9abc-def0-1234-56789abcdef0";
+    const std::string password = "12345670";
+    size_t length              = 0;
+    {
+        WSC::cEncryptedSettingsPayload credentials(buf, sizeof(buf));
+        if (!credentials.isInitialized()) {
+            MAPF_ERR(name << " creation failed");
+            return 1;
+        }
+        credentials.bssid_attr().data = g_pb_bssid_1;
+        credentials.bss_type()        = WSC::eWscVendorExtSubelementBssType::FRONTHAUL_BSS;
+        credentials.bss_index()       = 3;
+        if (!credentials.set_ssid("pbc_ssid") || !credentials.set_network_key("test1234")) {
+            MAPF_ERR(name << ": set_ssid or set_network_key failed");
+            return 1;
+        }
+        if (armed) {
+            credentials.pbc_armed() = 1;
+            if (!credentials.set_pbc_uuid_e(uuid_e)) {
+                MAPF_ERR(name << ": set_pbc_uuid_e failed");
+                return 1;
+            }
+            credentials.pbc_device_password_id() = 0x0000;
+            if (!credentials.set_pbc_device_password(password)) {
+                MAPF_ERR(name << ": set_pbc_device_password failed");
+                return 1;
+            }
+        }
+        if (!credentials.finalize()) {
+            MAPF_ERR(name << " finalize failed");
+            return 1;
+        }
+        length = credentials.getLen();
+    }
+
+    WSC::cEncryptedSettingsPayload credentials(buf, length, true);
+    if (!credentials.isInitialized()) {
+        MAPF_ERR(name << " parsing failed");
+        return errors + 1;
+    }
+    errors += check_field<size_t>(credentials.getLen(), length, name + " length");
+    errors += check_field<sMacAddr>(credentials.bssid_attr().data, g_pb_bssid_1, name + " BSSID");
+    errors += check_field<int>(credentials.bss_index(), 3, name + " BSS_Index");
+    errors += check_field<std::string>(credentials.ssid_str(), "pbc_ssid", name + " SSID");
+    errors += check_field<int>(credentials.pbc_armed(), armed ? 1 : 0, name + " armed");
+    errors += check_field<std::string>(credentials.pbc_uuid_e_str(), armed ? uuid_e : "",
+                                       name + " UUID-E");
+    errors += check_field<uint16_t>(credentials.pbc_device_password_id(), 0,
+                                    name + " Device Password ID");
+    errors += check_field<std::string>(credentials.pbc_device_password_str(), armed ? password : "",
+                                       name + " Device Password");
+    return errors;
+}
+
+static int wifi_credentials_push_button_too_long_case()
+{
+    int errors       = 0;
+    uint8_t buf[512] = {};
+    WSC::cEncryptedSettingsPayload credentials(buf, sizeof(buf));
+    if (credentials.set_pbc_uuid_e(std::string(37, 'a'))) {
+        MAPF_ERR("set_pbc_uuid_e accepted 37 characters");
+        errors++;
+    }
+    if (!credentials.set_pbc_uuid_e(std::string(36, 'a'))) {
+        MAPF_ERR("set_pbc_uuid_e refused 36 characters");
+        errors++;
+    }
+    if (credentials.set_pbc_device_password(std::string(64, 'b'))) {
+        MAPF_ERR("set_pbc_device_password accepted 64 characters");
+        errors++;
+    }
+    if (!credentials.set_pbc_device_password(std::string(63, 'b'))) {
+        MAPF_ERR("set_pbc_device_password refused 63 characters");
+        errors++;
+    }
+    return errors;
+}
+
+int test_wifi_credentials_push_button()
+{
+    int errors = 0;
+    MAPF_INFO(__FUNCTION__ << " start");
+
+    errors += wifi_credentials_push_button_case(true);
+    errors += wifi_credentials_push_button_case(false);
+    errors += wifi_credentials_push_button_too_long_case();
+
+    MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
+    return errors;
+}
+
 int main(int argc, char *argv[])
 {
     int errors = 0;
@@ -2266,6 +2786,12 @@ int main(int argc, char *argv[])
     errors += test_virtual_bss_creation();
     errors += test_topology_response_including_vbss_configuration_report();
     errors += test_spatial_reuse_request_srg_bss_color_bitmap();
+    errors += test_push_button_request();
+    errors += test_push_button_trigger();
+    errors += test_push_button_status();
+    errors += test_push_button_config();
+    errors += test_push_button_capability_bits();
+    errors += test_wifi_credentials_push_button();
     MAPF_INFO(__FUNCTION__ << " Finished, errors = " << errors << std::endl);
     return errors;
 }
