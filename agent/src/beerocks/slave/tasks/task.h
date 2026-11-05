@@ -40,6 +40,7 @@ enum eTaskType : uint8_t {
     VBSS,
     SPECTRUM_INQUIRY,
     HIGHER_LAYER_COLLECTION_TASK,
+    MESH_PBC_ONBOARDING,
 };
 
 class Task {

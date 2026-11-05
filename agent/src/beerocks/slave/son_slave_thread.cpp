@@ -17,6 +17,7 @@
 #include "tasks/capability_reporting_task.h"
 #include "tasks/controller_connectivity_task.h"
 #include "tasks/link_metrics_collection_task.h"
+#include "tasks/pbc_onboarding_task.h"
 #include "tasks/proxy_agent_dpp_task.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/spectrum_inquiry_task.h"
@@ -148,6 +149,29 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::AP_CAPABILITY_QUERY_MESSAGE,
     ieee1905_1::eMessageType::BACKHAUL_STA_CAPABILITY_QUERY_MESSAGE,
     ieee1905_1::eMessageType::MULTI_AP_PUSH_BUTTON_TRIGGER_MESSAGE,
+};
+
+class SlaveThreadPBCOnboardingSender : public PBCOnboardingTask::MessageSender {
+public:
+    explicit SlaveThreadPBCOnboardingSender(slave_thread &btl_ctx) : m_btl_ctx(btl_ctx) {}
+
+    bool send_cmdu_to_controller(ieee1905_1::CmduMessageTx &cmdu_tx) override
+    {
+        return m_btl_ctx.send_cmdu_to_controller({}, cmdu_tx);
+    }
+
+    int get_ap_manager_fd(const std::string &radio_iface) override
+    {
+        return m_btl_ctx.get_ap_manager_fd(radio_iface);
+    }
+
+    bool send_cmdu(int fd, ieee1905_1::CmduMessageTx &cmdu_tx) override
+    {
+        return m_btl_ctx.send_cmdu(fd, cmdu_tx);
+    }
+
+private:
+    slave_thread &m_btl_ctx;
 };
 
 } // namespace
@@ -437,6 +461,10 @@ bool slave_thread::thread_init()
                                                                *this, cmdu_tx, m_timer_manager);
     m_task_pool.add_task_check_mode<VbssTask>("VbssTask", db->device_conf.management_mode, *this,
                                               cmdu_tx);
+
+    m_pbc_onboarding_task = m_task_pool.add_task_check_mode<PBCOnboardingTask>(
+        "PBCOnboardingTask", db->device_conf.management_mode,
+        std::make_unique<SlaveThreadPBCOnboardingSender>(*this), cmdu_tx);
 
     m_agent_state = STATE_INIT;
     LOG(DEBUG) << "Agent Started";
@@ -961,6 +989,9 @@ void slave_thread::handle_client_disconnected(int fd)
         if (fd == radio_manager.ap_manager_fd) {
             LOG(DEBUG) << "AP Manager " << fronthaul_iface << " disconnected";
             radio_manager.ap_manager_fd = net::FileDescriptor::invalid_descriptor;
+            if (m_pbc_onboarding_task) {
+                m_pbc_onboarding_task->handle_ap_manager_disconnected(fronthaul_iface);
+            }
             if (radio_manager.monitor_fd != net::FileDescriptor::invalid_descriptor) {
                 m_cmdu_server->disconnect(radio_manager.monitor_fd);
             }
@@ -3206,6 +3237,21 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
     }
 
     switch (beerocks_header->action_op()) {
+    case beerocks_message::ACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION: {
+        auto notification =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION>();
+        if (!notification) {
+            LOG(ERROR) << "addClass cACTION_APMANAGER_MESHPBC_STATUS_NOTIFICATION failed";
+            return false;
+        }
+        if (m_pbc_onboarding_task) {
+            m_pbc_onboarding_task->handle_status_notification(
+                notification->bssid(), notification->status(), notification->reason_str(),
+                notification->enrollee_mac());
+        }
+        return true;
+    }
     case beerocks_message::ACTION_APMANAGER_JOINED_NOTIFICATION: {
         LOG(INFO) << "received ACTION_APMANAGER_JOINED_NOTIFICATION " << fronthaul_iface;
         auto notification =

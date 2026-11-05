@@ -11,6 +11,7 @@
 
 #include "agent_db.h"
 #include "helpers/fronthaul_bss_teardown.h"
+#include "tasks/pbc_onboarding_task.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
 
@@ -540,6 +541,8 @@ public:
     std::shared_ptr<btl::BrokerClient> m_broker_client;
 
     std::shared_ptr<ServicePrioritizationTask> m_service_prioritization_task_configurator;
+
+    std::shared_ptr<PBCOnboardingTask> m_pbc_onboarding_task;
 
 private:
     /**
