@@ -8,6 +8,7 @@
 #include "son_slave_thread.h"
 
 #include "agent_db.h"
+#include "agent_dm.h"
 #include "tlvf_utils.h"
 
 #include "cac_status_database.h"
@@ -179,9 +180,18 @@ enum slave_thread::eSlaveState : int {
 
 auto slave_thread::sSlaveState::operator=(eSlaveState state) -> eSlaveState
 {
-    cur = state;
-    max = std::min(STATE_OPERATIONAL, std::max(max, cur));
+    cur     = state;
+    max     = std::min(STATE_OPERATIONAL, std::max(max, cur));
+    changed = true;
 
+    return state;
+}
+
+void slave_thread::sSlaveState::publish()
+{
+    if (!changed) {
+        return;
+    }
     auto to_string = [](eSlaveState e) {
         const char *arr[] = {
 #define eSlaveState_to_string(x) #x " (",
@@ -192,49 +202,66 @@ auto slave_thread::sSlaveState::operator=(eSlaveState state) -> eSlaveState
         return arr[e] + (sizeof("STATE_") - 1) + std::to_string(e) + ')';
     };
 
-    AgentDB::get()->dm_set_agent_state(to_string(cur), to_string(max));
-
-    return state;
+    changed = !AgentDM::get()->dm_set_agent_state(to_string(cur), to_string(max));
 }
 #undef EACH_SLAVESTATE
+
+void slave_thread::publish_agent_info()
+{
+    bool controller_connected;
+    {
+        auto db              = AgentDB::get();
+        controller_connected = db->statuses.controller_connected;
+    }
+
+    auto dm = AgentDM::get();
+    m_agent_state.publish();
+    if (m_published_controller_connected != int(controller_connected) &&
+        dm->dm_set_controller_connected(controller_connected)) {
+        m_published_controller_connected = controller_connected;
+    }
+}
 
 slave_thread::slave_thread(sAgentConfig conf, beerocks::logging &logger_)
     : cmdu_tx(m_tx_buffer, sizeof(m_tx_buffer)), config(conf), logger(logger_)
 {
     thread_name = BEEROCKS_AGENT;
 
-    // Set configuration on Agent database.
-    auto db                                  = AgentDB::get();
-    db->bridge.iface_name                    = conf.bridge_iface;
-    db->backhaul.preferred_bssid             = tlvf::mac_from_string(conf.backhaul_preferred_bssid);
-    db->device_conf.stop_on_failure_attempts = conf.stop_on_failure_attempts;
-
     std::string interfaces;
-    for (const auto &radio_map_element : config.radios) {
+    {
+        // Set configuration on Agent database.
+        auto db                      = AgentDB::get();
+        db->bridge.iface_name        = conf.bridge_iface;
+        db->backhaul.preferred_bssid = tlvf::mac_from_string(conf.backhaul_preferred_bssid);
+        db->device_conf.stop_on_failure_attempts = conf.stop_on_failure_attempts;
 
-        const auto &fronthaul_iface = radio_map_element.first;
-        const auto &radio_conf      = radio_map_element.second;
+        for (const auto &radio_map_element : config.radios) {
 
-        auto &radio_manager                    = m_radio_managers[fronthaul_iface];
-        radio_manager.stop_on_failure_attempts = db->device_conf.stop_on_failure_attempts;
+            const auto &fronthaul_iface = radio_map_element.first;
+            const auto &radio_conf      = radio_map_element.second;
 
-        auto radio = db->add_radio(fronthaul_iface, radio_conf.backhaul_wireless_iface);
-        if (!radio) {
-            m_constructor_failed = true;
-            // No need to print here anything, 'add_radio()' does it internally
-            return;
+            auto &radio_manager                    = m_radio_managers[fronthaul_iface];
+            radio_manager.stop_on_failure_attempts = db->device_conf.stop_on_failure_attempts;
+
+            auto radio = db->add_radio(fronthaul_iface, radio_conf.backhaul_wireless_iface);
+            if (!radio) {
+                m_constructor_failed = true;
+                // No need to print here anything, 'add_radio()' does it internally
+                return;
+            }
+
+            radio->sta_iface_filter_low = radio_conf.backhaul_wireless_iface_filter_low;
+
+            interfaces += fronthaul_iface;
+            interfaces += ',';
         }
-
-        radio->sta_iface_filter_low = radio_conf.backhaul_wireless_iface_filter_low;
-
-        interfaces += fronthaul_iface;
-        interfaces += ',';
     }
     if (interfaces.length()) {
         interfaces.pop_back();
     }
 
-    AgentDB::get()->dm_set_fronthaul_interfaces(interfaces);
+    // AgentDM takes AMX, so it is used only after AgentDB is released.
+    AgentDM::get()->dm_set_fronthaul_interfaces(interfaces);
 }
 
 slave_thread::~slave_thread()
@@ -384,6 +411,7 @@ bool slave_thread::thread_init()
     m_fsm_timer = m_timer_manager->add_timer("Agent FSM", fsm_timer_period, fsm_timer_period,
                                              [&](int fd, beerocks::EventLoop &loop) {
                                                  fsm_all();
+                                                 publish_agent_info();
                                                  return true;
                                              });
     LOG_IF(m_fsm_timer == beerocks::net::FileDescriptor::invalid_descriptor, FATAL)
@@ -800,7 +828,7 @@ bool slave_thread::read_platform_configuration()
 
     std::string mgmt_mode;
     bpl::cfg_get_management_mode(mgmt_mode);
-    AgentDB::get()->dm_set_management_mode(mgmt_mode);
+    AgentDM::get()->dm_set_management_mode(mgmt_mode);
 
     if ((temp_int = bpl::cfg_get_certification_mode()) < 0) {
         LOG(ERROR) << "Failed reading 'certification_mode'";
@@ -1008,7 +1036,7 @@ void slave_thread::handle_client_disconnected(int fd)
         } else if (fd == radio_manager.monitor_fd) {
             LOG(DEBUG) << "Monitor " << fronthaul_iface << " disconnected";
             radio_manager.monitor_fd = net::FileDescriptor::invalid_descriptor;
-            AgentDB::get()->dm_fronthaul_disconnected(radio_manager.dm_instance);
+            AgentDM::get()->dm_fronthaul_disconnected(radio_manager.dm_instance);
             if (radio_manager.ap_manager_fd != net::FileDescriptor::invalid_descriptor) {
                 fronthaul_reset(radio_manager);
             }
@@ -3518,7 +3546,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
                                       beerocks::message::IFACE_NAME_LENGTH);
         }
 
-        radio_manager.dm_instance = AgentDB::get()->dm_create_fronthaul_object(iface);
+        radio_manager.dm_instance = AgentDM::get()->dm_create_fronthaul_object(iface);
 
         if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
             return false;
@@ -3542,7 +3570,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             return false;
         }
 
-        AgentDB::get()->dm_set_fronthaul_state(
+        AgentDM::get()->dm_set_fronthaul_state(
             radio_manager.dm_instance, notification->curstate_str(), notification->maxstate_str());
 
         return true;
