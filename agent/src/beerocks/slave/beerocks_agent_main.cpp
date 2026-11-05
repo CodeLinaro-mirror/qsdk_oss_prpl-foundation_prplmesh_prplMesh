@@ -18,6 +18,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif
 
 #include "agent_db.h"
+#include "agent_dm.h"
 #include "backhaul_manager/backhaul_manager.h"
 #include "platform_manager/platform_manager.h"
 #include "son_slave_thread.h"
@@ -442,7 +443,10 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 #endif //ENABLE_NBAPI
 
     beerocks::bpl::set_nbapi_dm(amb_dm_obj);
-    beerocks::AgentDB::get()->init_data_model(amb_dm_obj);
+    if (!beerocks::AgentDM::get()->init_data_model(amb_dm_obj)) {
+        LOG(ERROR) << "Failed initializing the Agent datamodel";
+        return 1;
+    }
 
     // Resolve WBAPI-backed configuration before taking the application DB lock.
     const auto management_mode = beerocks::bpl::cfg_get_management_mode();
