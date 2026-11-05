@@ -12,6 +12,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <map>
 #include <memory>
 
 #include "../db.h"
@@ -1559,6 +1560,223 @@ TEST_F(DbTestInterface1, test_interface_1_creation)
 
     EXPECT_FALSE(m_db->get_interface_on_agent(tlvf::mac_from_string(g_bridge_mac),
                                               tlvf::mac_from_string(g_interface_mac_1)));
+}
+
+TEST_F(DbTest, dm_set_device_mesh_wide_pbc_onboarding_support)
+{
+    auto agent = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+    ASSERT_TRUE(agent);
+    ASSERT_EQ(std::string(g_device_path) + ".1", agent->dm_path);
+
+    agent->mesh_wide_pbc_onboarding_support = true;
+    EXPECT_CALL(*m_ambiorix, set(agent->dm_path, "X_PRPLWARE-COM_MeshWidePBCOnboardingSupport",
+                                 Matcher<const bool &>(true)))
+        .WillOnce(Return(true));
+    EXPECT_TRUE(m_db->dm_set_device_mesh_wide_pbc_onboarding_support(*agent));
+
+    agent->mesh_wide_pbc_onboarding_support = false;
+    EXPECT_CALL(*m_ambiorix, set(agent->dm_path, "X_PRPLWARE-COM_MeshWidePBCOnboardingSupport",
+                                 Matcher<const bool &>(false)))
+        .WillOnce(Return(false));
+    EXPECT_FALSE(m_db->dm_set_device_mesh_wide_pbc_onboarding_support(*agent));
+
+    prplmesh::controller::db::Agent agent_without_path(tlvf::mac_from_string(g_agent_mac));
+    agent_without_path.mesh_wide_pbc_onboarding_support = true;
+    EXPECT_TRUE(m_db->dm_set_device_mesh_wide_pbc_onboarding_support(agent_without_path));
+}
+
+son::wireless_utils::sBssInfoConf make_configured_bss(uint8_t bss_index, const std::string &ssid,
+                                                      const std::string &mesh_pbc_template_ref)
+{
+    son::wireless_utils::sBssInfoConf bss_info_conf{};
+    bss_info_conf.bss_index             = bss_index;
+    bss_info_conf.ssid                  = ssid;
+    bss_info_conf.fronthaul             = true;
+    bss_info_conf.mesh_pbc_template_ref = mesh_pbc_template_ref;
+    return bss_info_conf;
+}
+
+std::map<std::string, sMacAddr> mesh_pbc_link_bssids(const son::db &db)
+{
+    std::map<std::string, sMacAddr> bssids;
+    for (const auto &link : db.get_mesh_pbc_bss_links()) {
+        bssids[link.mesh_pbc_template] = link.bssid;
+    }
+    return bssids;
+}
+
+TEST_F(DbTestRadio1Bss1, mesh_pbc_bss_links_of_the_configured_bsss)
+{
+    const auto al_mac  = tlvf::mac_from_string(g_bridge_mac);
+    const auto ruid_1  = tlvf::mac_from_string(g_radio_mac_1);
+    const auto bssid_1 = tlvf::mac_from_string(g_bssid_1);
+    const auto zero    = tlvf::mac_from_string(g_zero_mac);
+
+    m_db->add_configured_bss_info(ruid_1, make_configured_bss(1, g_ssid_1, "t.1"));
+    m_db->add_configured_bss_info(ruid_1, make_configured_bss(2, "other-ssid", "t.2"));
+    m_db->add_configured_bss_info(ruid_1, make_configured_bss(3, g_ssid_1, ""));
+    m_db->add_configured_bss_info(tlvf::mac_from_string(g_radio_mac_2),
+                                  make_configured_bss(1, g_ssid_1, "unknown-radio"));
+
+    auto links = m_db->get_mesh_pbc_bss_links();
+    ASSERT_EQ(2U, links.size());
+    for (const auto &link : links) {
+        EXPECT_EQ(al_mac, link.al_mac);
+        EXPECT_EQ(ruid_1, link.ruid);
+        if (link.mesh_pbc_template == "t.1") {
+            EXPECT_EQ(1, link.bss_index);
+            EXPECT_EQ(g_ssid_1, link.ssid);
+            EXPECT_EQ(bssid_1, link.bssid);
+        } else {
+            EXPECT_EQ("t.2", link.mesh_pbc_template);
+            EXPECT_EQ(zero, link.bssid);
+        }
+    }
+
+    m_db->clear_configured_bss_info(ruid_1);
+    m_db->add_configured_bss_info(ruid_1, make_configured_bss(g_vap_id_1, "other-ssid", "t.3"));
+    auto bssids = mesh_pbc_link_bssids(*m_db);
+    ASSERT_EQ(1U, bssids.size());
+    EXPECT_EQ(zero, bssids["t.3"]);
+
+    m_db->clear_configured_bss_info(ruid_1);
+    EXPECT_TRUE(m_db->get_mesh_pbc_bss_links().empty());
+}
+
+TEST_F(DbTestRadio1Bss1, mesh_pbc_bss_link_of_an_ssid_of_two_bsss_has_no_bssid)
+{
+    const auto al_mac = tlvf::mac_from_string(g_bridge_mac);
+    const auto ruid_1 = tlvf::mac_from_string(g_radio_mac_1);
+    const auto zero   = tlvf::mac_from_string(g_zero_mac);
+    m_db->add_configured_bss_info(ruid_1, make_configured_bss(1, g_ssid_1, "t.1"));
+    EXPECT_EQ(tlvf::mac_from_string(g_bssid_1), mesh_pbc_link_bssids(*m_db)["t.1"]);
+
+    const std::string bss_path = std::string(g_radio_path_1) + ".BSS";
+    const auto bssid_2         = tlvf::mac_from_string("46:55:66:77:00:04");
+    EXPECT_CALL(*m_ambiorix, add_instance(bss_path)).WillOnce(Return(bss_path + ".2"));
+    EXPECT_CALL(*m_ambiorix, set(bss_path + ".2", _, Matcher<const sMacAddr &>(_)))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(bss_path + ".2", _, Matcher<const std::string &>(_)))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(bss_path + ".2", _, Matcher<const bool &>(_)))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_ambiorix, set(bss_path + ".2", _, Matcher<const uint32_t &>(_)))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_ambiorix, set_current_time(_, _)).WillRepeatedly(Return(true));
+    auto radio = m_db->get_radio(al_mac, ruid_1);
+    ASSERT_TRUE(radio);
+    ASSERT_TRUE(m_db->add_bss(*radio, bssid_2, g_ssid_1, 2));
+
+    EXPECT_EQ(zero, mesh_pbc_link_bssids(*m_db)["t.1"]);
+}
+
+TEST_F(DbTestRadio1Bss1, mesh_pbc_bss_links_are_removed_with_the_agent)
+{
+    const auto al_mac = tlvf::mac_from_string(g_bridge_mac);
+    const auto ruid_1 = tlvf::mac_from_string(g_radio_mac_1);
+    m_db->add_configured_bss_info(ruid_1, make_configured_bss(1, g_ssid_1, "t.1"));
+    ASSERT_EQ(1U, m_db->get_mesh_pbc_bss_links().size());
+
+    EXPECT_CALL(*m_ambiorix, remove_instance(g_device_path, 1)).WillOnce(Return(true));
+    EXPECT_TRUE(m_db->remove_agent(al_mac));
+    EXPECT_TRUE(m_db->get_mesh_pbc_bss_links().empty());
+}
+
+const std::string g_wps_device = std::string(g_device_path) + ".1";
+
+class DbTestMeshPbcWps : public ::DbTestRadio1 {
+protected:
+    void expect_status(const std::string &status, const std::string &device_path = g_wps_device)
+    {
+        EXPECT_CALL(*m_ambiorix,
+                    set(device_path + ".WPS", "Status", Matcher<const std::string &>(status)))
+            .WillOnce(Return(true));
+    }
+
+    const sMacAddr m_al_mac = tlvf::mac_from_string(g_bridge_mac);
+};
+
+TEST_F(DbTestMeshPbcWps, dm_update_mesh_pbc_wps_gives_the_first_matching_status)
+{
+    auto agent = m_db->get_agent(m_al_mac);
+    ASSERT_TRUE(agent);
+
+    expect_status("Error");
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+
+    agent->mesh_wide_pbc_onboarding_support = true;
+    expect_status("Unconfigured");
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+
+    m_db->add_configured_bss_info(tlvf::mac_from_string(g_radio_mac_1),
+                                  make_configured_bss(1, g_ssid_1, "t.1"));
+    expect_status("Configured");
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+
+    {
+        InSequence sequence;
+        expect_status("InProgress");
+        expect_status("Error");
+        expect_status("Configured");
+    }
+    m_db->set_mesh_pbc_wps_armed(m_al_mac, true);
+    m_db->set_mesh_pbc_wps_armed(m_al_mac, true);
+    m_db->set_mesh_pbc_wps_last_session_not_started(m_al_mac, true);
+    m_db->set_mesh_pbc_wps_armed(m_al_mac, false);
+    m_db->set_mesh_pbc_wps_last_session_not_started(m_al_mac, false);
+    m_db->set_mesh_pbc_wps_last_session_not_started(m_al_mac, false);
+}
+
+TEST_F(DbTestMeshPbcWps, dm_update_mesh_pbc_wps_writes_again_for_a_new_device_instance)
+{
+    auto agent = m_db->get_agent(m_al_mac);
+    ASSERT_TRUE(agent);
+    agent->mesh_wide_pbc_onboarding_support = true;
+    expect_status("Unconfigured");
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+
+    const std::string new_path = std::string(g_device_path) + ".7";
+    agent->dm_path             = new_path;
+    expect_status("Unconfigured", new_path);
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+
+    agent->mesh_wide_pbc_onboarding_support = false;
+    EXPECT_CALL(*m_ambiorix,
+                set(new_path + ".WPS", "Status", Matcher<const std::string &>("Error")))
+        .WillOnce(Return(false))
+        .WillOnce(Return(true));
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+
+    agent->dm_path.clear();
+    agent->mesh_wide_pbc_onboarding_support = true;
+    m_db->dm_update_mesh_pbc_wps(m_al_mac);
+    m_db->dm_update_mesh_pbc_wps(tlvf::mac_from_string(g_agent_mac));
+}
+
+TEST_F(DbTestMeshPbcWps, dm_update_mesh_pbc_wps_pending_updates_each_marked_agent_once)
+{
+    auto agent = m_db->get_agent(m_al_mac);
+    ASSERT_TRUE(agent);
+    agent->mesh_wide_pbc_onboarding_support = true;
+
+    m_db->dm_update_mesh_pbc_wps_pending();
+
+    m_db->mark_mesh_pbc_wps_pending(m_al_mac);
+    m_db->mark_mesh_pbc_wps_pending(m_al_mac);
+    expect_status("Unconfigured");
+    m_db->dm_update_mesh_pbc_wps_pending();
+    m_db->dm_update_mesh_pbc_wps_pending();
+
+    agent->mesh_wide_pbc_onboarding_support = false;
+    EXPECT_CALL(*m_ambiorix, set(g_wps_device, "X_PRPLWARE-COM_MeshWidePBCOnboardingSupport",
+                                 Matcher<const bool &>(false)))
+        .WillOnce(Return(true));
+    EXPECT_TRUE(m_db->dm_set_device_mesh_wide_pbc_onboarding_support(*agent));
+    expect_status("Error");
+    m_db->dm_update_mesh_pbc_wps_pending();
 }
 
 } // namespace

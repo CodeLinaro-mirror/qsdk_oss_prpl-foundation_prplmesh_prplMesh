@@ -57,3 +57,5 @@ install(DIRECTORY ${ODL_OUTPUT_DIR}/odl DESTINATION config/controller)
 if(IS_DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d)
     install(DIRECTORY ${ODL_OUTPUT_DIR}/odl/defaults.d DESTINATION config/controller/odl)
 endif()
+
+add_subdirectory("unit_tests")
