@@ -88,4 +88,46 @@ if (BUILD_TESTS)
 
     install(TARGETS ${ifaddrs_impl_test_name} DESTINATION tests)
     add_test(NAME ${ifaddrs_impl_test_name} COMMAND $<TARGET_FILE:${ifaddrs_impl_test_name}>)
+
+    set(pbc_onboarding_test_name pbc_onboarding_task_test)
+    set(pbc_onboarding_test_sources
+        ${CMAKE_CURRENT_LIST_DIR}/pbc_onboarding_task_test.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../pbc_onboarding_task.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../agent_db.cpp
+    )
+
+    add_executable(${pbc_onboarding_test_name}
+        ${pbc_onboarding_test_sources}
+    )
+
+    if (COVERAGE)
+        set_target_properties(${pbc_onboarding_test_name}
+            PROPERTIES COMPILE_FLAGS "--coverage -fPIC -O0")
+        set_target_properties(${pbc_onboarding_test_name}
+            PROPERTIES LINK_FLAGS "--coverage")
+    endif()
+
+    target_link_libraries(${pbc_onboarding_test_name}
+        PRIVATE
+        bcl
+        bpl
+        btlvf
+        tlvf
+        nbapi
+        gtest_main
+    )
+
+    target_include_directories(${pbc_onboarding_test_name}
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/agent/src/beerocks/slave
+            ${CMAKE_CURRENT_LIST_DIR}/..
+
+            ${CMAKE_SOURCE_DIR}/common/beerocks/bcl/include
+            ${CMAKE_SOURCE_DIR}/common/beerocks/bwl/include
+
+            ${CMAKE_BINARY_DIR}/common/beerocks/tlvf/include
+    )
+
+    install(TARGETS ${pbc_onboarding_test_name} DESTINATION tests)
+    add_test(NAME ${pbc_onboarding_test_name} COMMAND $<TARGET_FILE:${pbc_onboarding_test_name}>)
 endif()
