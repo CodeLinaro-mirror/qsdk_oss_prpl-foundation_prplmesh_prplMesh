@@ -1263,6 +1263,8 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
             wfa_map::tlvProfile2ApCapability::eByteCounterUnits::KIBIBYTES;
         profile2_ap_capability_tlv->capabilities_bit_field().byte_counter_units =
             db->device_conf.byte_counter_units;
+        profile2_ap_capability_tlv->capabilities_bit_field()
+            .multi_ap_push_button_onboarding_remote_trigger = 1;
 
         // Calculate max total number of VLANs which can be configured on the Agent, and
         // save it on on the AgentDB.
