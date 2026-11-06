@@ -74,7 +74,7 @@ sleep 3
 #iw dev wlan2 iwlwav sCoCPower 0 1 1
 
 # Copy generated host keys
-# cp /etc/config/dropbear/*_host_key /etc/dropbear/
+# cp /etc/config/ssh_server/*_key /etc/dropbear/
 
 # Add command to start dropbear to rc.local to allow SSH access after reboot
 BOOTSCRIPT="/etc/rc.local"
