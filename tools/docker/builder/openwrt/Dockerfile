@@ -119,10 +119,6 @@ RUN cd openwrt \
     && git fetch \
     && git checkout "$OPENWRT_VERSION"
 
-# optional: whether to include PWHM in the build or not.
-ARG WHM_ENABLE
-ENV WHM_ENABLE=$WHM_ENABLE
-
 WORKDIR /home/openwrt/openwrt
 
 COPY --chown=openwrt:openwrt scripts/build-openwrt.sh /home/openwrt/openwrt/scripts/build-openwrt.sh

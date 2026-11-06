@@ -40,7 +40,7 @@
   timeout: 5h
   script:
     - mkdir -p "build/$TARGET_DEVICE"
-    - tools/docker/builder/openwrt/build.sh --verbose -d "$TARGET_DEVICE" -t "prplmesh-builder-whm-$TARGET_DEVICE:$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID" --whm 2>&1
+    - tools/docker/builder/openwrt/build.sh --verbose -d "$TARGET_DEVICE" -t "prplmesh-builder-$TARGET_DEVICE:$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID" 2>&1
   artifacts:
     paths:
       - "build/*"
