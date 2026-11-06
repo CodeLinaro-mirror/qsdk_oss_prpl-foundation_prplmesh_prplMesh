@@ -119,10 +119,6 @@ RUN cd openwrt \
     && git fetch \
     && git checkout "$OPENWRT_VERSION"
 
-# The variant to build (nl80211 or dwpal)
-ARG PRPLMESH_VARIANT
-ENV PRPLMESH_VARIANT=$PRPLMESH_VARIANT
-
 # optional: whether to include PWHM in the build or not.
 ARG WHM_ENABLE
 ENV WHM_ENABLE=$WHM_ENABLE

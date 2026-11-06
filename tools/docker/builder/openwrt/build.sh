@@ -43,7 +43,6 @@ build_image() {
            --build-arg OPENWRT_TOOLCHAIN_VERSION="$OPENWRT_TOOLCHAIN_VERSION" \
            --build-arg TARGET_SYSTEM="$TARGET_SYSTEM" \
            --build-arg WHM_ENABLE="$WHM_ENABLE" \
-           --build-arg PRPLMESH_VARIANT="$PRPLMESH_VARIANT" \
            --target="$DOCKER_TARGET_STAGE" \
            "$scriptdir/" \
       | awk -v LOGFILE="$build_dir/openwrt-build.log" '
@@ -175,7 +174,6 @@ main() {
     dbg "IMAGE_ONLY=$IMAGE_ONLY"
     dbg "TAG=$TAG"
     dbg "TARGET_SYSTEM=$TARGET_SYSTEM"
-    dbg "PRPLMESH_VARIANT=$PRPLMESH_VARIANT"
 
     if [ -n "$TAG" ] ; then
         image_tag="$TAG"
@@ -190,7 +188,6 @@ main() {
     PRPLMESH_VERSION="$(git describe --always --dirty)"
     export PRPLMESH_VERSION
     export WHM_ENABLE
-    export PRPLMESH_VARIANT
 
     build_directory="$rootdir/build"
 
