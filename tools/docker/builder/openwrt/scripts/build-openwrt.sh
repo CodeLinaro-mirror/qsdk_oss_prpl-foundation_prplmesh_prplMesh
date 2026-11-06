@@ -39,14 +39,8 @@ fi
 
 # args+=("webui")
 
-# feed-prpl is in the prpl profile:
-if [ -n "$WHM_ENABLE" ] ; then
-    args+=("prpl")
-else
-    sed -e '/- pwhm/d' -e '/- libswlc/d' -e '/- libswla/d'  -e '/CONFIG_USE_PRPLMESH_WHM=y/d' -e '/CONFIG_SAH_WLD_INIT_SCRIPT="prplmesh_whm"/d' profiles/prpl.yml > profiles/prpl-no-whm.yml
-    echo "          CONFIG_USE_PRPLMESH_WHM=n" >> profiles/prpl-no-whm.yml
-    args+=("prpl-no-whm")
-fi
+# feed-prpl (including pWHM) is in the prpl profile:
+args+=("prpl")
 
 git config --global url."https://git.w1.fi/hostap.git".insteadOf "https://w1.fi/hostap.git"
 sed -i -E 's;git.openwrt.org/(feed|project);github.com/openwrt;' feeds.conf.default
