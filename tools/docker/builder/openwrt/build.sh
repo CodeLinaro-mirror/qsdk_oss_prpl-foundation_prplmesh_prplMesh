@@ -43,7 +43,6 @@ build_image() {
            --build-arg OPENWRT_TOOLCHAIN_VERSION="$OPENWRT_TOOLCHAIN_VERSION" \
            --build-arg TARGET_SYSTEM="$TARGET_SYSTEM" \
            --build-arg WHM_ENABLE="$WHM_ENABLE" \
-           --build-arg PRPLMESH_VARIANT="$PRPLMESH_VARIANT" \
            --target="$DOCKER_TARGET_STAGE" \
            "$scriptdir/" \
       | awk -v LOGFILE="$build_dir/openwrt-build.log" '
@@ -175,7 +174,6 @@ main() {
     dbg "IMAGE_ONLY=$IMAGE_ONLY"
     dbg "TAG=$TAG"
     dbg "TARGET_SYSTEM=$TARGET_SYSTEM"
-    dbg "PRPLMESH_VARIANT=$PRPLMESH_VARIANT"
 
     if [ -n "$TAG" ] ; then
         image_tag="$TAG"
@@ -190,7 +188,6 @@ main() {
     PRPLMESH_VERSION="$(git describe --always --dirty)"
     export PRPLMESH_VERSION
     export WHM_ENABLE
-    export PRPLMESH_VARIANT
 
     build_directory="$rootdir/build"
 
@@ -207,7 +204,6 @@ OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos latest-24.10_2026-10-22
 OPENWRT_TOOLCHAIN_VERSION='1386e2dc20a6347f091a19e696b7ce2b2a7ee3a9'
 OPENWRT_VERSION='1386e2dc20a6347f091a19e696b7ce2b2a7ee3a9'
-PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
 
