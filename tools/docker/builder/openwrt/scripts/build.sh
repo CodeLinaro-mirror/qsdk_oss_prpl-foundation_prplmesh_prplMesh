@@ -7,23 +7,33 @@ cp -r /home/openwrt/prplMesh_source /home/openwrt/prplMesh
 (cd /home/openwrt/prplMesh && \
     rm -rf build ipkg-* .built* .configured* .pkgdir .prepared .quilt_checked .source_dir)
 
-make package/prplmesh/prepare USE_SOURCE_DIR="/home/openwrt/prplMesh" V=s
-# Rebuild the full image:
+# Remove the prplMesh package built from the feed in the built docker image
+make package/prplmesh/clean
 
-if ! make -j"$(nproc)" ; then
-    # Building failed. Rebuild with V=sc, but exit immediately even if
-    # the second build succeeds (to let the user/CI know that the
-    # parallel build failed).
-    echo "Build failed. Rebuilding with -j1."
-    make V=sc
-    exit 1
-fi
+make package/prplmesh/prepare USE_SOURCE_DIR="/home/openwrt/prplMesh" V=s
+
+# Run a make target in parallel. If it fails, rebuild it with V=sc to get
+# a readable log, but exit immediately even if the second build succeeds
+# (to let the user/CI know that the parallel build failed).
+run_make() {
+    if ! make -j"$(nproc)" "$@" ; then
+        echo "Build of '$*' failed. Rebuilding with -j1."
+        make V=sc "$@"
+        exit 1
+    fi
+}
+
+# Rebuild prplMesh without rebuilding dependencies
+# Repackage the image with the new prplMesh ipk
+run_make package/prplmesh/compile NO_DEPS=1
+run_make package/install
+run_make target/install
+run_make checksum
 
 mkdir -p artifacts
 cat << EOT >> artifacts/prplmesh.buildinfo
 TARGET_SYSTEM=${TARGET_SYSTEM}
-OPENWRT_VERSION=${OPENWRT_VERSION}
-OPENWRT_TOOLCHAIN_VERSION=${OPENWRT_TOOLCHAIN_VERSION}
+PRPLOS_VERSION=${PRPLOS_VERSION}
 PRPLMESH_VERSION=${PRPLMESH_VERSION}
 EOT
 
