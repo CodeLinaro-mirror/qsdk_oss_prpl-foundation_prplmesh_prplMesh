@@ -1,5 +1,4 @@
 #!/bin/bash -e
-# shellcheck disable=SC2076
 # shellcheck disable=SC2016
 ###############################################################
 # SPDX-License-Identifier: BSD-2-Clause-Patent
@@ -24,9 +23,8 @@ usage() {
     echo "      -d|--target-device the device to build for"
     echo "      --docker-target-stage docker target build stage (implies -i)"
     echo "      -i|--image - build the docker image only"
-    echo "      -o|--openwrt-version - the openwrt version to use"
-    echo "      -u|--openwrt-toolchain-version - the openwrt version to use for toolchain"
-    echo "      -r|--openwrt-repository - the openwrt repository to use"
+    echo "      -o|--prplos-version - the prplOS version (commit hash) to use"
+    echo "      -r|--prplos-repository - the prplOS repository to use"
     echo "      -s|--shell-only - don't build prplMesh, drop into a shell instead"
     echo "      -t|--tag - the tag to use for the builder image"
     echo " -d is always required."
@@ -37,18 +35,17 @@ build_image() {
     build_dir="$1"
     mkdir -p "$build_dir"
     DOCKER_BUILDKIT=0 docker build --tag "$image_tag" \
-           --build-arg OPENWRT_REPOSITORY="$OPENWRT_REPOSITORY" \
-           --build-arg OPENWRT_VERSION="$OPENWRT_VERSION" \
-           --build-arg OPENWRT_TOOLCHAIN_VERSION="$OPENWRT_TOOLCHAIN_VERSION" \
+           --build-arg PRPLOS_REPOSITORY="$PRPLOS_REPOSITORY" \
+           --build-arg PRPLOS_VERSION="$PRPLOS_VERSION" \
            --build-arg TARGET_SYSTEM="$TARGET_SYSTEM" \
            --target="$DOCKER_TARGET_STAGE" \
            "$scriptdir/" \
       | awk -v LOGFILE="$build_dir/openwrt-build.log" '
           BEGIN { p = 1; }
-          /Cleaning prplMesh/ { p = 1; }
+          /Finished building prplOS/ { p = 1; }
           p || /^make\[[0-3]\]|time:/ { print; }
           !p { print >> LOGFILE; }
-          /Building prplWrt/ { p = 0; }'
+          /Building prplOS/ { p = 0; }'
 }
 
 build_prplmesh() {
@@ -70,8 +67,7 @@ build_prplmesh() {
     docker run "$interactive" \
            --name "$container_name" \
            -e TARGET_SYSTEM \
-           -e OPENWRT_VERSION \
-           -e OPENWRT_TOOLCHAIN_VERSION \
+           -e PRPLOS_VERSION \
            -e PRPLMESH_VERSION \
            -v "$scriptdir/scripts:/home/openwrt/openwrt/build_scripts/:ro" \
            -v "${rootdir}:/home/openwrt/prplMesh_source:ro" \
@@ -91,7 +87,7 @@ main() {
         exit 1
     fi
 
-    if ! OPTS=$(getopt -o 'hvd:io:r:st:' --long help,verbose,target-device:,docker-target-stage:,image,openwrt-version:,openwrt-repository:,shell,tag: -n 'parse-options' -- "$@"); then
+    if ! OPTS=$(getopt -o 'hvd:io:r:st:' --long help,verbose,target-device:,docker-target-stage:,image,prplos-version:,prplos-repository:,shell,tag: -n 'parse-options' -- "$@"); then
         err "Failed parsing options." >&2
         usage
         exit 1
@@ -108,9 +104,8 @@ main() {
             -d | --target-device)             TARGET_DEVICE="$2"; shift ; shift ;;
             --docker-target-stage)            DOCKER_TARGET_STAGE="$2"; IMAGE_ONLY=true; shift 2 ;;
             -i | --image)                     IMAGE_ONLY=true; shift ;;
-            -o | --openwrt-version)           OPENWRT_VERSION="$2"; shift; shift ;;
-            -u | --openwrt-toolchain-version) OPENWRT_TOOLCHAIN_VERSION="$2"; shift; shift ;;
-            -r | --openwrt-repository)        OPENWRT_REPOSITORY="$2"; shift; shift ;;
+            -o | --prplos-version)            PRPLOS_VERSION="$2"; shift; shift ;;
+            -r | --prplos-repository)         PRPLOS_REPOSITORY="$2"; shift; shift ;;
             -s | --shell)                     SHELL_ONLY=true; shift ;;
             -t | --tag)                       TAG="$2"; shift ; shift ;;
             -- ) shift; break ;;
@@ -153,20 +148,8 @@ main() {
             ;;
     esac
 
-    legacy_platforms=("glinet-b1300" "axepoint" "intel_mips" "nec-wx3000hp")
-    if [[ " ${legacy_platforms[*]} " =~ " $TARGET_DEVICE " ]] ; then
-        dbg "Legacy platform, building on prplOS(-old)"
-        OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
-        OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
-    else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-11-11"
-        OPENWRT_TOOLCHAIN_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
-        OPENWRT_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
-    fi
-
-    dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
-    dbg "OPENWRT_TOOLCHAIN_VERSION=$OPENWRT_TOOLCHAIN_VERSION"
-    dbg "OPENWRT_VERSION=$OPENWRT_VERSION"
+    dbg "PRPLOS_REPOSITORY=$PRPLOS_REPOSITORY"
+    dbg "PRPLOS_VERSION=$PRPLOS_VERSION"
     dbg "IMAGE_ONLY=$IMAGE_ONLY"
     dbg "TAG=$TAG"
     dbg "TARGET_SYSTEM=$TARGET_SYSTEM"
@@ -174,12 +157,12 @@ main() {
     if [ -n "$TAG" ] ; then
         image_tag="$TAG"
     else
-        image_tag="${DOCKER_TARGET_STAGE}-${TARGET_DEVICE}:${OPENWRT_VERSION}"
+        image_tag="${DOCKER_TARGET_STAGE}-${TARGET_DEVICE}:${PRPLOS_VERSION}"
         dbg "image tag not set, using default value $image_tag"
     fi
 
-    export OPENWRT_REPOSITORY
-    export OPENWRT_VERSION
+    export PRPLOS_REPOSITORY
+    export PRPLOS_VERSION
     export TARGET_SYSTEM
     PRPLMESH_VERSION="$(git describe --always --dirty)"
     export PRPLMESH_VERSION
@@ -195,11 +178,9 @@ main() {
 
 VERBOSE=false
 IMAGE_ONLY=false
-OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
+PRPLOS_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos latest-24.10_2026-11-11
-OPENWRT_TOOLCHAIN_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
-OPENWRT_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
-PRPLMESH_VARIANT="-nl80211"
+PRPLOS_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
 
