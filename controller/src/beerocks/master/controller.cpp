@@ -3309,10 +3309,12 @@ bool Controller::handle_intel_slave_join(
     }
 
     // Check Slave BeeRocks version //
-    auto slave_version_s  = beerocks::version::version_from_string(slave_version);
-    auto master_version_s = beerocks::version::version_from_string(BEEROCKS_VERSION);
+    auto slave_version_s = beerocks::version::version_from_string(slave_version);
+    auto master_version_s =
+        beerocks::version::version_from_string(beerocks::version::get_module_version());
 
-    beerocks::string_utils::copy_string(join_response->master_version(), BEEROCKS_VERSION,
+    beerocks::string_utils::copy_string(join_response->master_version(),
+                                        beerocks::version::get_module_version(),
                                         beerocks::message::VERSION_LENGTH);
 
     // check if mismatch
@@ -3320,7 +3322,7 @@ bool Controller::handle_intel_slave_join(
         slave_version_s.minor != master_version_s.minor) {
         LOG(WARNING) << "IRE Slave joined, Mismatch version! slave_version="
                      << std::string(slave_version)
-                     << " master_version=" << std::string(BEEROCKS_VERSION);
+                     << " master_version=" << beerocks::version::get_module_version();
         LOG(WARNING) << " bridge_mac=" << bridge_mac << " bridge_ipv4=" << bridge_ipv4;
     }
 
@@ -3410,8 +3412,8 @@ bool Controller::handle_intel_slave_join(
     {
 
         beerocks::string_utils::copy_string(
-            join_response->master_version(beerocks::message::VERSION_LENGTH), BEEROCKS_VERSION,
-            beerocks::message::VERSION_LENGTH);
+            join_response->master_version(beerocks::message::VERSION_LENGTH),
+            beerocks::version::get_module_version(), beerocks::message::VERSION_LENGTH);
         join_response->config().monitor_total_ch_load_notification_hi_th_percent =
             database.config.monitor_total_ch_load_notification_hi_th_percent;
         join_response->config().monitor_total_ch_load_notification_lo_th_percent =

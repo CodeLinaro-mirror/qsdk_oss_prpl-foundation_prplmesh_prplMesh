@@ -1099,7 +1099,7 @@ bool ApAutoConfigurationTask::send_ap_autoconfiguration_wsc_m1_message(
 
     // Version
     string_utils::copy_string(notification->slave_version(message::VERSION_LENGTH),
-                              BEEROCKS_VERSION, message::VERSION_LENGTH);
+                              beerocks::version::get_module_version(), message::VERSION_LENGTH);
 
     // Platform Configuration
     auto &config = m_btl_ctx.get_agent_conf();
@@ -3746,8 +3746,9 @@ bool ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_vs_extension_tlv(
 
     std::string controller_version(joined_response->master_version(message::VERSION_LENGTH));
 
-    LOG(DEBUG) << "Version (Controller/Agent): " << controller_version << "/" << BEEROCKS_VERSION;
-    auto agent_version_s      = version::version_from_string(BEEROCKS_VERSION);
+    LOG(DEBUG) << "Version (Controller/Agent): " << controller_version << "/"
+               << beerocks::version::get_module_version();
+    auto agent_version_s = version::version_from_string(beerocks::version::get_module_version());
     auto controller_version_s = version::version_from_string(controller_version);
 
     // check for mismatch
@@ -3756,12 +3757,12 @@ bool ApAutoConfigurationTask::handle_ap_autoconfiguration_wsc_vs_extension_tlv(
         controller_version_s.build_number != agent_version_s.build_number) {
         LOG(WARNING) << "controller_version != agent_version";
         LOG(WARNING) << "Version (Controller/Agent): " << controller_version << "/"
-                     << BEEROCKS_VERSION;
+                     << beerocks::version::get_module_version();
     }
 
     // check if fatal mismatch
     if (joined_response->err_code() == beerocks::JOIN_RESP_VERSION_MISMATCH) {
-        LOG(ERROR) << "Mismatch version! slave_version=" << std::string(BEEROCKS_VERSION)
+        LOG(ERROR) << "Mismatch version! slave_version=" << beerocks::version::get_module_version()
                    << " controller_version=" << controller_version;
         LOG(DEBUG) << "goto STATE_STOPPED";
         m_btl_ctx.fsm_stop();
@@ -3799,7 +3800,8 @@ bool ApAutoConfigurationTask::send_platform_version_notification(
     }
     string_utils::copy_string(notification->versions().master_version, controller_version.c_str(),
                               sizeof(beerocks_message::sVersions::master_version));
-    string_utils::copy_string(notification->versions().slave_version, BEEROCKS_VERSION,
+    string_utils::copy_string(notification->versions().slave_version,
+                              beerocks::version::get_module_version(),
                               sizeof(beerocks_message::sVersions::slave_version));
 
     auto platform_manager_cmdu_client = m_btl_ctx.get_platform_manager_cmdu_client();

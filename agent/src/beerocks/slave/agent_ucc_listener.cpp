@@ -9,6 +9,7 @@
 #include "agent_ucc_listener.h"
 #include "agent_db.h"
 
+#include <bcl/beerocks_version.h>
 #include <bcl/network/network_utils.h>
 #include <beerocks/tlvf/beerocks_message.h>
 
@@ -36,7 +37,8 @@ std::string agent_ucc_listener::fill_version_reply_string()
 {
     auto db = AgentDB::get();
     return std::string("vendor,") + db->device_conf.vendor + std::string(",model,") +
-           db->device_conf.model + std::string(",version,") + BEEROCKS_VERSION;
+           db->device_conf.model + std::string(",version,") +
+           beerocks::version::get_module_version();
 }
 
 /**

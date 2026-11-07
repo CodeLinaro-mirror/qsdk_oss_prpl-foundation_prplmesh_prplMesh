@@ -9,6 +9,7 @@
 #include "controller_ucc_listener.h"
 #include "son_actions.h"
 
+#include <bcl/beerocks_version.h>
 #include <tlvf/ieee_1905_1/tlvAlMacAddress.h>
 #include <tlvf/ieee_1905_1/tlvMacAddress.h>
 #include <tlvf/wfa_map/tlvProfile2Default802dotQSettings.h>
@@ -45,7 +46,8 @@ controller_ucc_listener::~controller_ucc_listener() { clear_handlers(); }
 std::string controller_ucc_listener::fill_version_reply_string()
 {
     return std::string("vendor,") + m_database.settings_vendor() + std::string(",model,") +
-           m_database.settings_model() + std::string(",version,") + BEEROCKS_VERSION;
+           m_database.settings_model() + std::string(",version,") +
+           beerocks::version::get_module_version();
 }
 
 /**

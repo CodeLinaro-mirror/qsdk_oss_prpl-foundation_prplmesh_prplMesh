@@ -39,7 +39,13 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME}/
 
 install(EXPORT bclConfig NAMESPACE beerocks:: DESTINATION lib/cmake/beerocks/${PROJECT_NAME})
 
-add_definitions(-DBEEROCKS_VERSION="${prplmesh_VERSION}")
+# Only this file gets the version and build info, through beerocks::version: BUILD_DATE changes on
+# every configure and REVISION on every commit, which would otherwise rebuild all their users.
+set_property(SOURCE ${MODULE_PATH}/source/beerocks_version.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+    "BEEROCKS_VERSION=\"${prplmesh_VERSION}\""
+    "BEEROCKS_BUILD_DATE=\"${BUILD_DATE}\""
+    "BEEROCKS_REVISION=\"${PRPLMESH_REVISION}\""
+)
 
 if(BUILD_TESTS)
     set(TEST_PROJECT_NAME ${PROJECT_NAME}_unit_tests)

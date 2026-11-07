@@ -17,38 +17,12 @@ using namespace beerocks;
 constexpr char version::INVALID_VERSION_STRING[];
 constexpr char version::INVALID_TIMESTAMP_STRING[];
 
-const beerocks::version *beerocks::version::s_version = nullptr;
+// BEEROCKS_VERSION, BEEROCKS_BUILD_DATE and BEEROCKS_REVISION are defined by CMake for this file only
+const char *beerocks::version::get_module_version() { return BEEROCKS_VERSION; }
 
-beerocks::version::version(const std::string &ver, const std::string &build_date,
-                           const std::string &build_rev)
-    : m_ver(ver), m_build_date(build_date), m_build_rev(build_rev)
-{
-    s_version = this;
-}
+const char *beerocks::version::get_module_timestamp() { return BEEROCKS_BUILD_DATE; }
 
-std::string beerocks::version::get_module_version()
-{
-    if (s_version)
-        return s_version->m_ver;
-    else
-        return INVALID_VERSION_STRING;
-}
-
-std::string beerocks::version::get_module_timestamp()
-{
-    if (s_version)
-        return s_version->m_build_date;
-    else
-        return INVALID_TIMESTAMP_STRING;
-}
-
-std::string beerocks::version::get_module_revision()
-{
-    if (s_version)
-        return s_version->m_build_rev;
-    else
-        return "";
-}
+const char *beerocks::version::get_module_revision() { return BEEROCKS_REVISION; }
 
 std::string beerocks::version::version_to_string(const sBinaryVersion &version)
 {
