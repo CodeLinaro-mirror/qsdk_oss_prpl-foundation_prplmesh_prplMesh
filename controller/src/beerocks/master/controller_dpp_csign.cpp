@@ -17,8 +17,10 @@
 
 #include <cerrno>
 #include <cstdio>
-#include <fstream>
+#include <fcntl.h>
 #include <sstream>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace son {
 namespace controller_dpp {
@@ -36,31 +38,31 @@ void remove_tmp_file(const std::string &tmp_path, std::string &error)
     }
 }
 
-// Reads the whole file; a missing file reads as empty.
-bool read_store_file(const std::string &path, std::string &content)
-{
-    content.clear();
-    if (!beerocks::os_utils::file_exists(path)) {
-        return true;
-    }
-    std::ifstream file(path, std::ios::in | std::ios::binary);
-    if (!file.is_open()) {
-        return false;
-    }
-    std::ostringstream buffer;
-    buffer << file.rdbuf();
-    content = buffer.str();
-    return !file.bad();
-}
-
 // Same pattern as base_wlan_hal_dummy.cpp: write "<path>.tmp", close, then rename over path.
+// The temp file is owner-only, never a followed symlink, and fsync'ed before the rename.
 bool write_store_file(const std::string &path, const std::string &content, std::string &error)
 {
     const std::string tmp_path = path + ".tmp";
-    std::ofstream file(tmp_path, std::ios::out | std::ios::binary | std::ios::trunc);
-    file << content;
-    file.close();
-    if (!file) {
+    const int fd = open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                        S_IRUSR | S_IWUSR);
+    bool ok = fd >= 0 && fchmod(fd, S_IRUSR | S_IWUSR) == 0;
+    size_t written = 0;
+    while (ok && written < content.size()) {
+        auto count = write(fd, content.data() + written, content.size() - written);
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count <= 0) {
+            ok = false;
+            break;
+        }
+        written += static_cast<size_t>(count);
+    }
+    ok = ok && fsync(fd) == 0;
+    if (fd >= 0) {
+        ok = close(fd) == 0 && ok;
+    }
+    if (!ok) {
         error = "failed writing " + tmp_path;
         remove_tmp_file(tmp_path, error);
         return false;
@@ -157,7 +159,8 @@ bool generate_dpp_configurator_csign_key(const db &database, bool &generated, st
 
     const auto path = db::get_dpp_store_path();
     std::string content;
-    if (!read_store_file(path, content)) {
+    // A missing keystore reads as empty and is created below.
+    if (beerocks::os_utils::file_exists(path) && !db::read_dpp_store_file(path, content)) {
         error = "cannot read DPP keystore " + path;
         return false;
     }
