@@ -129,7 +129,7 @@ void fill_psk_or_passphrase(const wireless_utils::sBssInfoConf &selected, const 
     }
 }
 
-void load_optional_controller_key_params(db &database, std::string &pp_key_hex,
+void load_optional_controller_key_params(const db &database, std::string &pp_key_hex,
                                          std::string &group_id)
 {
     pp_key_hex.clear();
@@ -215,7 +215,6 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
             break;
         }
     }
-
     if (!selected) {
         if (!select_from_list(database.get_bss_info_configuration(agent->al_mac)) &&
             !select_from_list(database.get_bss_info_configuration())) {
@@ -313,8 +312,8 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
         }
     }
     if (!selected) {
-	    error = "Failed to select fronthaul BSS";
-	    return false;
+        error = "Failed to select fronthaul BSS";
+        return false;
     }
     configuration.ssid = !selected->ssid.empty() ? selected->ssid : requested_ssid;
     if (configuration.ssid.empty()) {
