@@ -49,24 +49,35 @@ std::string plain_string_to_hex(const std::string &plain)
 
 std::string dpp_akm_from_bss_info(const wireless_utils::sBssInfoConf &bss_info)
 {
-    switch (bss_info.authentication_type) {
-    case WSC::eWscAuth::WSC_AUTH_OPEN:
-        return "open";
-    case WSC::eWscAuth::WSC_AUTH_WPA2PSK:
-    case WSC::eWscAuth::WSC_AUTH_WPAPSK:
-        return "psk";
-    case WSC::eWscAuth::WSC_AUTH_SAE:
-    case WSC::eWscAuth::WSC_AUTH_SAE_AKM24:
-        return "sae";
-    case WSC::eWscAuth::WSC_AUTH_RSN:
-        if (bss_info.additional_auth ==
-            wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
-            return "psk+sae";
-        }
-        break;
-    default:
-        break;
+    // WSC auth is a bitmask (e.g. WPA3-Personal-Transition = WPA2PSK|SAE). Do not
+    // switch on the combined value — that misses transition and falls through empty.
+    const auto auth          = static_cast<uint16_t>(bss_info.authentication_type);
+    constexpr uint16_t k_psk = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_WPA2PSK) |
+                               static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_WPAPSK);
+    constexpr uint16_t k_sae = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_SAE) |
+                               static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_SAE_AKM24);
+    constexpr uint16_t k_open = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_OPEN);
+    constexpr uint16_t k_rsn  = static_cast<uint16_t>(WSC::eWscAuth::WSC_AUTH_RSN);
+
+    const bool has_psk = (auth & k_psk) != 0;
+    const bool has_sae = (auth & k_sae) != 0;
+    const bool wpa3_compat =
+        (auth & k_rsn) != 0 &&
+        bss_info.additional_auth == wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+
+    if ((has_psk && has_sae) || wpa3_compat) {
+        return "psk+sae";
     }
+    if (has_sae) {
+        return "sae";
+    }
+    if (has_psk) {
+        return "psk";
+    }
+    if ((auth & k_open) != 0 && (auth & ~(k_open)) == 0) {
+        return "open";
+    }
+    // Pure DPP / unknown — leave empty; callers must not invent "dpp" over a PSK key.
     return {};
 }
 
@@ -180,9 +191,10 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
         return false;
     }
 
-    const wireless_utils::sBssInfoConf *selected = nullptr;
-
-    auto select_from_list = [&](const std::list<wireless_utils::sBssInfoConf> &candidates) {
+    // Return a pointer (no out-parameter side effects) so static analysis can see
+    // that selected is non-null after the failure returns below.
+    auto pick_backhaul_bss = [&](const std::list<wireless_utils::sBssInfoConf> &candidates)
+        -> const wireless_utils::sBssInfoConf * {
         const wireless_utils::sBssInfoConf *fallback = nullptr;
         for (const auto &candidate : candidates) {
             if (!candidate.backhaul) {
@@ -196,42 +208,39 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
                 fallback = &candidate;
             }
             if (!candidate.ssid.empty()) {
-                selected = &candidate;
-                return true;
+                return &candidate;
             }
         }
-        if (!selected && fallback) {
-            selected = fallback;
-            return true;
-        }
-        return false;
+        return fallback;
     };
 
+    const wireless_utils::sBssInfoConf *selected = nullptr;
     for (const auto &radio_entry : agent->radios) {
         if (!radio_entry.second) {
             continue;
         }
-        if (select_from_list(database.get_configured_bss_info(radio_entry.second->radio_uid))) {
+        selected =
+            pick_backhaul_bss(database.get_configured_bss_info(radio_entry.second->radio_uid));
+        if (selected) {
             break;
         }
     }
     if (!selected) {
-        if (!select_from_list(database.get_bss_info_configuration(agent->al_mac)) &&
-            !select_from_list(database.get_bss_info_configuration())) {
-            if (requested_ssid.empty() && requested_backhaul_akm.empty()) {
-                error = "No configured backhaul BSS available for DPP mapBackhaulSta object";
-                return false;
-            }
-            configuration.ssid = requested_ssid;
-            configuration.akm  = requested_backhaul_akm;
-            return true;
+        selected = pick_backhaul_bss(database.get_bss_info_configuration(agent->al_mac));
+    }
+    if (!selected) {
+        selected = pick_backhaul_bss(database.get_bss_info_configuration());
+    }
+    if (!selected) {
+        if (requested_ssid.empty() && requested_backhaul_akm.empty()) {
+            error = "No configured backhaul BSS available for DPP mapBackhaulSta object";
+            return false;
         }
+        configuration.ssid = requested_ssid;
+        configuration.akm  = requested_backhaul_akm;
+        return true;
     }
 
-    if(!selected) {
-	    error = "Failed to select backhaul BSS";
-	    return false;
-    }
     if (!selected->ssid.empty()) {
         configuration.ssid = selected->ssid;
     } else {
@@ -244,6 +253,15 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
     }
     if (configuration.akm.empty()) {
         configuration.akm = requested_backhaul_akm;
+    }
+    if (configuration.akm.empty()) {
+        // BSS has a passphrase but no mappable WSC AKM — do not publish akm "dpp".
+        if (!selected->network_key.empty()) {
+            error = "Configured backhaul BSS authentication cannot be mapped for DPP "
+                    "mapBackhaulSta (expected PSK, SAE, or PSK+SAE)";
+            return false;
+        }
+        configuration.akm = "dpp";
     }
 
     fill_psk_or_passphrase(*selected, configuration.akm, configuration.passphrase,
@@ -271,10 +289,10 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
         return false;
     }
 
-    const wireless_utils::sBssInfoConf *selected = nullptr;
-
     // M-9: netRole=sta must use fronthaul BSS only (never backhaul credentials).
-    auto select_from_list = [&](const std::list<wireless_utils::sBssInfoConf> &candidates) {
+    // Return a pointer so selected is clearly non-null after the failure return below.
+    auto pick_fronthaul_bss = [&](const std::list<wireless_utils::sBssInfoConf> &candidates)
+        -> const wireless_utils::sBssInfoConf * {
         const wireless_utils::sBssInfoConf *fallback = nullptr;
         for (const auto &candidate : candidates) {
             if (!candidate.fronthaul) {
@@ -282,37 +300,34 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
             }
             if (!candidate.ssid.empty() && !requested_ssid.empty() &&
                 candidate.ssid == requested_ssid) {
-                selected = &candidate;
-                return true;
+                return &candidate;
             }
             if (!fallback) {
                 fallback = &candidate;
             }
         }
-        if (!selected && fallback) {
-            selected = fallback;
-            return true;
-        }
-        return false;
+        return fallback;
     };
 
+    const wireless_utils::sBssInfoConf *selected = nullptr;
     for (const auto &radio_entry : agent->radios) {
         if (!radio_entry.second) {
             continue;
         }
-        if (select_from_list(database.get_configured_bss_info(radio_entry.second->radio_uid))) {
+        selected =
+            pick_fronthaul_bss(database.get_configured_bss_info(radio_entry.second->radio_uid));
+        if (selected) {
             break;
         }
     }
     if (!selected) {
-        if (!select_from_list(database.get_bss_info_configuration(agent->al_mac)) &&
-            !select_from_list(database.get_bss_info_configuration())) {
-            error = "No configured fronthaul BSS available for DPP sta object";
-            return false;
-        }
+        selected = pick_fronthaul_bss(database.get_bss_info_configuration(agent->al_mac));
     }
     if (!selected) {
-        error = "Failed to select fronthaul BSS";
+        selected = pick_fronthaul_bss(database.get_bss_info_configuration());
+    }
+    if (!selected) {
+        error = "No configured fronthaul BSS available for DPP sta object";
         return false;
     }
     configuration.ssid = !selected->ssid.empty() ? selected->ssid : requested_ssid;
@@ -328,6 +343,13 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
         return false;
     }
     if (configuration.akm.empty()) {
+        // Transition / unknown enums used to fall through here and become "dpp" while
+        // the AP still had a PSK/SAE passphrase — Enrollee then never associated.
+        if (!selected->network_key.empty()) {
+            error = "Configured fronthaul BSS authentication cannot be mapped for DPP sta "
+                    "(expected PSK, SAE, or PSK+SAE)";
+            return false;
+        }
         configuration.akm = "dpp";
     }
 
@@ -360,6 +382,16 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
     (void)bsta_max_links;
     (void)bsta_ruids;
 
+    std::ostringstream parsed_roles;
+    for (size_t i = 0; i < requested_roles.size(); ++i) {
+        if (i != 0) {
+            parsed_roles << ',';
+        }
+        parsed_roles << requested_roles[i];
+    }
+    LOG(INFO) << "DPP Configuration Request parsed roles=" << parsed_roles.str()
+              << " bSTAList akm=" << requested_backhaul_akm;
+
     if (requested_roles.empty()) {
         // Fallback when the request JSON is a single object already unwrapped to netRole.
         if (!configuration_request_json.empty()) {
@@ -371,7 +403,7 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
     }
 
     DppKeyPtr csign_key;
-    if (!load_controller_csign_key(database, csign_key, error)) {
+    if (!load_dpp_configurator_csign_key(database, csign_key, error)) {
         return false;
     }
 
@@ -435,8 +467,8 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         return false;
     }
 
-    if (role_requested(requested_roles, "mapAgent") ||
-        role_requested(requested_roles, "mapBackhaulSta")) {
+    // Emit mapAgent only when the Enrollee requested it (not for bSTAList-only).
+    if (role_requested(requested_roles, "mapAgent")) {
         DppConfigurationObjectOptions map_agent_options;
         map_agent_options.include_discovery            = false;
         map_agent_options.include_net_role             = true;
@@ -468,6 +500,10 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         bsta_options.include_discovery = true;
         bsta_options.include_net_role  = true;
         bsta_options.net_role          = "mapBackhaulSta";
+        // Wi-Fi bSTA enrollee (no mapAgent): wpa_supplicant expects wi-fi_tech=infra.
+        if (!role_requested(requested_roles, "mapAgent")) {
+            bsta_options.wifi_tech = "infra";
+        }
         bsta_options.akm =
             !backhaul_config.akm.empty() ? backhaul_config.akm : requested_backhaul_akm;
         bsta_options.passphrase               = backhaul_config.passphrase;

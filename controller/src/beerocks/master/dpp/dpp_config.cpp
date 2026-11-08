@@ -133,8 +133,11 @@ bool build_dpp_configuration_object(DppKey *csign_key, const std::string &pp_key
     json_object *root = json_object_new_object();
     json_object *cred = json_object_new_object();
 
-    const bool map_role = normalized_role.rfind("map", 0) == 0;
-    json_object_object_add(root, "wi-fi_tech", json_object_new_string(map_role ? "map" : "infra"));
+    const std::string wifi_tech =
+        !options.wifi_tech.empty()
+            ? options.wifi_tech
+            : ((normalized_role.rfind("map", 0) == 0) ? "map" : "infra");
+    json_object_object_add(root, "wi-fi_tech", json_object_new_string(wifi_tech.c_str()));
     if (options.include_net_role) {
         const auto &role = options.net_role.empty() ? normalized_role : options.net_role;
         json_object_object_add(root, "netRole", json_object_new_string(role.c_str()));

@@ -381,5 +381,39 @@ bool parse_ec_private_key_hex(const std::string &hex, DppKeyPtr &out)
     return true;
 }
 
+bool encode_ec_private_key_hex(DppKey *key, std::string &out_hex)
+{
+    out_hex.clear();
+    if (!key || EVP_PKEY_base_id(key) != EVP_PKEY_EC) {
+        return false;
+    }
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(key);
+    if (!ec_key) {
+        return false;
+    }
+    const int der_len = i2d_ECPrivateKey(ec_key, nullptr);
+#else
+    const int der_len = i2d_PrivateKey(key, nullptr);
+#endif
+    if (der_len <= 0) {
+        return false;
+    }
+
+    std::vector<uint8_t> der(static_cast<size_t>(der_len));
+    unsigned char *ptr = der.data();
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    const int written = i2d_ECPrivateKey(ec_key, &ptr);
+#else
+    const int written = i2d_PrivateKey(key, &ptr);
+#endif
+    if (written == der_len) {
+        out_hex = bytes_to_hex_string(der.data(), der.size());
+    }
+    OPENSSL_cleanse(der.data(), der.size());
+    return !out_hex.empty();
+}
+
 } // namespace controller_dpp
 } // namespace son

@@ -180,6 +180,12 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
 
         std::vector<uint8_t> auth_confirm;
         if (!m_configurator.handle_authentication_response(frame, auth_confirm, error)) {
+            // Duplicate Auth Response after success is expected on TCP relay; do not fail session.
+            if (m_configurator.authentication_success() &&
+                error.find("already complete") != std::string::npos) {
+                LOG(INFO) << "Ignoring duplicate DPP Authentication Response after success";
+                return true;
+            }
             LOG(WARNING) << "Failed processing DPP Authentication Response: " << error;
             push_dpp_onboarding_task_event(dpp_onboarding_task::AUTH_INIT_FAILED, error);
             return false;
@@ -358,6 +364,11 @@ bool dpp_protocol_task::handle_cmdu_1905_direct_encap_dpp(const sMacAddr &src_ma
 
         std::vector<uint8_t> auth_confirm;
         if (!m_configurator.handle_authentication_response(frame, auth_confirm, error)) {
+            if (m_configurator.authentication_success() &&
+                error.find("already complete") != std::string::npos) {
+                LOG(INFO) << "Ignoring duplicate direct DPP Authentication Response after success";
+                return true;
+            }
             LOG(WARNING) << "Failed processing direct DPP Authentication Response: " << error;
             push_dpp_onboarding_task_event(dpp_onboarding_task::AUTH_INIT_FAILED, error);
             return false;
@@ -528,8 +539,8 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         if (!matched_info) {
             LOG(WARNING) << "DPP chirp hash mismatch from agent " << src_mac
                          << " hash_len=" << static_cast<unsigned>(hash_len)
-                         << " hash=" << received_hex
-                         << " bootstrap_entries=" << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
+                         << " hash=" << received_hex << " bootstrap_entries="
+                         << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
             m_database.print_dpp_bootstrap_info();
             continue;
         }
@@ -538,8 +549,8 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         m_matched_bootstrap        = matched_info;
         m_session.proxy_agent      = src_mac;
         m_session.use_direct_encap = false;
-        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex << ") alias="
-                  << matched_info->alias << " proxy=" << src_mac
+        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex
+                  << ") alias=" << matched_info->alias << " proxy=" << src_mac
                   << " pkhash=" << matched_info->pkhash_hex
                   << " chirp_hash=" << matched_info->chirp_hash_hex;
 
@@ -551,6 +562,10 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         } else {
             m_session.last_chirp_enrollee_valid = false;
             LOG(INFO) << "DPP chirp has no Enrollee MAC in TLV";
+            if (!m_matched_bootstrap ||
+                m_matched_bootstrap->mac == beerocks::net::network_utils::ZERO_MAC) {
+                LOG(INFO) << "DPP URI has no M: Enrollee MAC";
+            }
         }
     }
 
