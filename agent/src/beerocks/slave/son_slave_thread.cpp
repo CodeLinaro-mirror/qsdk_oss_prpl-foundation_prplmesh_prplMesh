@@ -153,59 +153,6 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
 
 } // namespace
 
-#define EACH_SLAVESTATE(DO)                                                                        \
-    DO(STATE_WAIT_BEFORE_INIT)                                                                     \
-    DO(STATE_INIT)                                                                                 \
-    DO(STATE_LOAD_PLATFORM_CONFIGURATION)                                                          \
-    DO(STATE_CONNECT_TO_PLATFORM_MANAGER)                                                          \
-    DO(STATE_WAIT_FOR_PLATFORM_MANAGER_REGISTER_RESPONSE)                                          \
-    DO(STATE_CONNECT_TO_BACKHAUL_MANAGER)                                                          \
-    DO(STATE_WAIT_RETRY_CONNECT_TO_BACKHAUL_MANAGER)                                               \
-    DO(STATE_WAIT_FOR_BACKHAUL_MANAGER_REGISTER_RESPONSE)                                          \
-    DO(STATE_JOIN_INIT)                                                                            \
-    DO(STATE_WAIT_FOR_FRONTHAUL_THREADS_JOINED)                                                    \
-    DO(STATE_BACKHAUL_ENABLE)                                                                      \
-    DO(STATE_SEND_BACKHAUL_MANAGER_ENABLE)                                                         \
-    DO(STATE_WAIT_FOR_BACKHAUL_MANAGER_CONNECTED_NOTIFICATION)                                     \
-    DO(STATE_BACKHAUL_MANAGER_CONNECTED)                                                           \
-    DO(STATE_WAIT_FOR_AUTO_CONFIGURATION_COMPLETE)                                                 \
-    DO(STATE_OPERATIONAL)                                                                          \
-    DO(STATE_STOPPED)
-
-enum slave_thread::eSlaveState : int {
-#define DEFINE_eSlaveState(X) X,
-    EACH_SLAVESTATE(DEFINE_eSlaveState)
-#undef DEFINE_eSlaveState
-};
-
-auto slave_thread::sSlaveState::operator=(eSlaveState state) -> eSlaveState
-{
-    cur     = state;
-    max     = std::min(STATE_OPERATIONAL, std::max(max, cur));
-    changed = true;
-
-    return state;
-}
-
-void slave_thread::sSlaveState::publish()
-{
-    if (!changed) {
-        return;
-    }
-    auto to_string = [](eSlaveState e) {
-        const char *arr[] = {
-#define eSlaveState_to_string(x) #x " (",
-            EACH_SLAVESTATE(eSlaveState_to_string)
-#undef eSlaveState_to_string
-        };
-
-        return arr[e] + (sizeof("STATE_") - 1) + std::to_string(e) + ')';
-    };
-
-    changed = !AgentDM::get()->dm_set_agent_state(to_string(cur), to_string(max));
-}
-#undef EACH_SLAVESTATE
-
 void slave_thread::publish_agent_info()
 {
     bool controller_connected;
@@ -214,12 +161,7 @@ void slave_thread::publish_agent_info()
         controller_connected = db->statuses.controller_connected;
     }
 
-    auto dm = AgentDM::get();
-    m_agent_state.publish();
-    if (m_published_controller_connected != int(controller_connected) &&
-        dm->dm_set_controller_connected(controller_connected)) {
-        m_published_controller_connected = controller_connected;
-    }
+    m_agent_state.publish(controller_connected);
 }
 
 slave_thread::slave_thread(sAgentConfig conf, beerocks::logging &logger_)
