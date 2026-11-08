@@ -11,6 +11,8 @@
 
 #include "task.h"
 
+#include <tlvf/common/sMacAddr.h>
+
 #include <chrono>
 #include <memory>
 #include <string>
@@ -43,16 +45,32 @@ public:
         CONN_STATUS_OK,
         CONN_STATUS_FAILED,
         FAIL,
-        BOOTSTRAP_TRIGGERED
+        BOOTSTRAP_TRIGGERED,
+        // dpp_protocol_task sent a (first or restarted) DPP Authentication Request.
+        AUTH_STARTED
     };
 
-private:
-    enum class State { IDLE, WAIT_AUTH, WAIT_CONF, WAIT_CONN_STATUS };
+    /**
+     * @brief Desired CCE state (STEP-06): true while an un-onboarded bootstrap URI is stored.
+     *
+     * Independent of the 30 s session timeout: a failed session keeps CCE desired and the
+     * session retry/backoff continues. Cleared only on success or URI removal.
+     */
+    bool is_cce_desired() const { return cce_advertised; }
 
+    /**
+     * @brief Send DPP CCE Indication ENABLE to one agent if CCE is currently desired (AC-07).
+     */
+    void send_cce_to_agent(const sMacAddr &al_mac);
+
+protected:
     void work() override;
     void handle_event(int event_type, void *obj) override;
     void handle_events_timeout(std::multiset<int> pending_events) override;
     void handle_task_end() override;
+
+private:
+    enum class State { IDLE, WAIT_AUTH, WAIT_CONF, WAIT_CONN_STATUS };
 
     bool sync_bootstrap_uri();
     void enable_cce();
@@ -69,7 +87,7 @@ private:
     std::shared_ptr<dpp_protocol_task> m_protocol_task;
     State state = State::IDLE;
     std::string last_bootstrap_fingerprint;
-    std::string last_completed_fingerprint;
+    // Desired CCE state; true from URI provisioning until success or URI removal.
     bool cce_advertised     = false;
     bool expect_conn_status = false;
     int failure_count       = 0;

@@ -413,7 +413,7 @@ bool build_signed_connector(DppKey *csign_key, const std::string &netaccess_key_
 }
 
 bool validate_signed_connector(const std::string &connector, DppKey *csign_key,
-                               std::string &group_id, std::string &net_role, uint32_t &expiry,
+                               std::string &group_id, std::string &net_role, std::time_t &expiry,
                                std::string &error)
 {
     group_id.clear();
@@ -521,7 +521,7 @@ bool validate_signed_connector(const std::string &connector, DppKey *csign_key,
     expiry = payload.expiry;
 
     if (expiry != 0) {
-        const auto now = static_cast<uint32_t>(std::time(nullptr));
+        const std::time_t now = std::time(nullptr);
         if (now >= expiry) {
             error = "Connector has expired";
             return false;

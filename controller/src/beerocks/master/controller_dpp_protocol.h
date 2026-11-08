@@ -12,6 +12,7 @@
 #include <openssl/evp.h>
 
 #include <cstdint>
+#include <ctime>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -147,7 +148,7 @@ private:
 };
 
 bool validate_signed_connector(const std::string &connector, DppKey *csign_key,
-                               std::string &group_id, std::string &net_role, uint32_t &expiry,
+                               std::string &group_id, std::string &net_role, std::time_t &expiry,
                                std::string &error);
 
 bool parse_dpp_config_request_objects(const std::string &json_blob,

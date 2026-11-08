@@ -88,7 +88,7 @@ std::string base64url_encode(const uint8_t *data, size_t len)
     return out;
 }
 
-bool parse_rfc3339_utc(const std::string &value, uint32_t &epoch)
+bool parse_rfc3339_utc(const std::string &value, std::time_t &epoch)
 {
     epoch = 0;
     if (value.empty()) {
@@ -104,7 +104,7 @@ bool parse_rfc3339_utc(const std::string &value, uint32_t &epoch)
     if (when < 0) {
         return false;
     }
-    epoch = static_cast<uint32_t>(when);
+    epoch = when;
     return true;
 }
 

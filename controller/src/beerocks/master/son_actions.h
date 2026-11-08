@@ -77,8 +77,10 @@ public:
     *
     * @param advertise_cce_enable true to enable CCE in beacons/probe responses, false to disable.
     */
-    static void start_dpp_cce_indication_task(db &database, ieee1905_1::CmduMessageTx &cmdu_tx,
-                                              task_pool &tasks, bool advertise_cce_enable);
+    static void start_dpp_cce_indication_task(
+        db &database, ieee1905_1::CmduMessageTx &cmdu_tx, task_pool &tasks,
+        bool advertise_cce_enable,
+        const sMacAddr &target_al_mac = beerocks::net::network_utils::ZERO_MAC);
 
     static bool send_client_association_control(
         db &database, ieee1905_1::CmduMessageTx &cmdu_tx, const sMacAddr &agent_mac,

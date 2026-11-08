@@ -24,7 +24,10 @@ namespace son {
 namespace controller_dpp {
 namespace {
 
-constexpr char k_dpp_controller_keys_section[] = "dpp_controller_keys";
+// std::string (not char[]) so map lookups do not build a temporary key on every call.
+const std::string k_dpp_controller_keys_section = "dpp_controller_keys";
+const std::string k_dpp_pp_key                  = "pp_key";
+const std::string k_dpp_group_id                = "group_id";
 
 bool hex_string_to_plain_string(const std::string &hex, std::string &plain)
 {
@@ -154,11 +157,11 @@ void load_optional_controller_key_params(const db &database, std::string &pp_key
     if (sec_it == sections.end()) {
         return;
     }
-    auto pp_it = sec_it->second.find("pp_key");
+    auto pp_it = sec_it->second.find(k_dpp_pp_key);
     if (pp_it != sec_it->second.end()) {
         pp_key_hex = pp_it->second;
     }
-    auto group_it = sec_it->second.find("group_id");
+    auto group_it = sec_it->second.find(k_dpp_group_id);
     if (group_it != sec_it->second.end()) {
         group_id = group_it->second;
     }
@@ -236,7 +239,7 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
             error = "No configured backhaul BSS available for DPP mapBackhaulSta object";
             return false;
         }
-        configuration.ssid = requested_ssid;
+        configuration.ssid = std::move(requested_ssid);
         configuration.akm  = requested_backhaul_akm;
         return true;
     }
@@ -244,7 +247,7 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
     if (!selected->ssid.empty()) {
         configuration.ssid = selected->ssid;
     } else {
-        configuration.ssid = requested_ssid;
+        configuration.ssid = std::move(requested_ssid);
     }
     configuration.akm = dpp_akm_from_bss_info(*selected);
     if (!dpp_akm_is_compatible(configuration.akm, requested_backhaul_akm)) {
@@ -255,7 +258,7 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
         configuration.akm = requested_backhaul_akm;
     }
     if (configuration.akm.empty()) {
-        // BSS has a passphrase but no mappable WSC AKM — do not publish akm "dpp".
+        // BSS has a passphrase but no mappable WSC AKM - do not publish akm "dpp".
         if (!selected->network_key.empty()) {
             error = "Configured backhaul BSS authentication cannot be mapped for DPP "
                     "mapBackhaulSta (expected PSK, SAE, or PSK+SAE)";

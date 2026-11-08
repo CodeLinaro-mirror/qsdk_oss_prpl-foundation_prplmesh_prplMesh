@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <memory>
 #include <string>
 #include <vector>
@@ -27,7 +28,7 @@ struct DppConnectorPayload {
     std::string group_id;
     std::string net_role;
     std::string netaccess_jwk_der_hex;
-    uint32_t expiry = 0;
+    std::time_t expiry = 0;
 };
 
 constexpr uint8_t k_dpp_public_action_category   = 0x04;
@@ -132,7 +133,7 @@ bool is_hex_string(const std::string &value);
 
 std::string base64url_encode(const uint8_t *data, size_t len);
 
-bool parse_rfc3339_utc(const std::string &value, uint32_t &epoch);
+bool parse_rfc3339_utc(const std::string &value, std::time_t &epoch);
 
 bool split_jws(const std::string &jws, std::string &header_b64, std::string &payload_b64,
                std::string &sig_b64, std::string &error);
