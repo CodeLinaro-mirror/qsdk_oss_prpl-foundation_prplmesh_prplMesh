@@ -2936,6 +2936,12 @@ public:
     static std::string get_dpp_store_path();
 
     /**
+     * @brief Read the DPP keystore safely (no symlinks, regular file, mode 0600, <= 64 KiB).
+     * @return false if missing, unsafe or unreadable; @a content is then empty.
+     */
+    static bool read_dpp_store_file(const std::string &path, std::string &content);
+
+    /**
      * @brief Whether @a path is the non-persistent /tmp fallback keystore path.
      */
     static bool is_dpp_store_fallback_path(const std::string &path);

@@ -29,6 +29,11 @@
 #include <cerrno>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <utility>
 
@@ -77,10 +82,11 @@ bool is_dpp_keystore_hex_string(const std::string &value)
 
 bool parse_dpp_store_file(const std::string &path, db::DppStoreSections &sections)
 {
-    std::ifstream file(path);
-    if (!file.is_open()) {
+    std::string content;
+    if (!db::read_dpp_store_file(path, content)) {
         return false;
     }
+    std::istringstream file(content);
 
     std::string line;
     std::string section;
@@ -8693,6 +8699,45 @@ bool db::get_dpp_store_sections(DppStoreSections &sections) const
 
 std::string db::get_dpp_store_path() { return dpp_store_path(); }
 
+bool db::read_dpp_store_file(const std::string &path, std::string &content)
+{
+    // Same rules as the Agent enrollee keystore: no symlinks, regular file, 0600, bounded.
+    constexpr size_t max_size = 64 * 1024;
+    content.clear();
+    const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) {
+        return false;
+    }
+    struct stat st {
+    };
+    bool ok = fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
+              ((st.st_mode & (S_IRWXG | S_IRWXO)) == 0 || fchmod(fd, S_IRUSR | S_IWUSR) == 0);
+    char buf[512];
+    while (ok) {
+        const ssize_t n = read(fd, buf, sizeof(buf));
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n == 0) {
+            break;
+        }
+        if (n < 0 || content.size() + static_cast<size_t>(n) > max_size) {
+            ok = false;
+            break;
+        }
+        content.append(buf, static_cast<size_t>(n));
+    }
+    OPENSSL_cleanse(buf, sizeof(buf));
+    close(fd);
+    if (!ok) {
+        if (!content.empty()) {
+            OPENSSL_cleanse(&content[0], content.size());
+        }
+        content.clear();
+    }
+    return ok;
+}
+
 bool db::is_dpp_store_fallback_path(const std::string &path)
 {
     return path == k_dpp_store_fallback_file;
@@ -10494,27 +10539,54 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
             }
             seen_c = true;
 
-            auto pairs = beerocks::string_utils::str_split(value, ',');
-            for (const auto &pair : pairs) {
-                auto parts = beerocks::string_utils::str_split(pair, '/');
-                if (parts.size() != 2) {
+            // Easy Connect URI channel list: a token with '/' starts a new
+            // operating class and a bare token is another channel of the
+            // current class, e.g. "115/36,40,44,48,124/149,153". This
+            // matches hostapd dpp_parse_uri_chan_list().
+            auto parse_uri_number = [](const std::string &str, long &out) {
+                if (str.empty() || (str.size() > 3) ||
+                    !std::all_of(str.begin(), str.end(),
+                                 [](unsigned char c) { return std::isdigit(c); })) {
+                    return false;
+                }
+                out = std::stol(str);
+                return (out >= 1) && (out <= 255);
+            };
+
+            long op_class = -1;
+            size_t pos    = 0;
+            while (pos <= value.size()) {
+                size_t comma = value.find(',', pos);
+                if (comma == std::string::npos) {
+                    comma = value.size();
+                }
+                const std::string token = value.substr(pos, comma - pos);
+                pos                     = comma + 1;
+                if (token.empty()) {
                     error = "invalid channel list";
                     return false;
                 }
 
-                char *end     = nullptr;
-                errno         = 0;
-                long op_class = strtol(parts[0].c_str(), &end, 10);
-                if ((errno != 0) || (end == parts[0].c_str()) || (*end != '\0') || (op_class < 0) ||
-                    (op_class > 255)) {
-                    error = "invalid operating class";
+                std::string channel_str = token;
+                const size_t slash      = token.find('/');
+                if (slash != std::string::npos) {
+                    if (token.find('/', slash + 1) != std::string::npos) {
+                        error = "invalid channel list";
+                        return false;
+                    }
+                    if (!parse_uri_number(token.substr(0, slash), op_class)) {
+                        error = "invalid operating class";
+                        return false;
+                    }
+                    channel_str = token.substr(slash + 1);
+                } else if (op_class < 0) {
+                    // A bare channel needs a preceding operating class.
+                    error = "invalid channel list";
                     return false;
                 }
 
-                errno        = 0;
-                long channel = strtol(parts[1].c_str(), &end, 10);
-                if ((errno != 0) || (end == parts[1].c_str()) || (*end != '\0') || (channel < 0) ||
-                    (channel > 255)) {
+                long channel = 0;
+                if (!parse_uri_number(channel_str, channel)) {
                     error = "invalid channel";
                     return false;
                 }

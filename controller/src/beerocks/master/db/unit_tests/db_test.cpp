@@ -1705,4 +1705,92 @@ TEST_F(DbTestInterface1, test_interface_1_creation)
                                               tlvf::mac_from_string(g_interface_mac_1)));
 }
 
+// DPP URI channel list (Easy Connect "C:<class>/<chan>[,<chan>]...[,<class>/<chan>...]")
+const std::string g_dpp_uri_k_field =
+    "K:MDkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDIgADesMV9KvHJ+ih374aYRoZlNHUdSjV1uZx2mHhRgotxmI=;;";
+
+std::string make_dpp_uri(const std::string &channel_list)
+{
+    return "DPP:C:" + channel_list + ";V:3;" + g_dpp_uri_k_field;
+}
+
+bool has_dpp_channel(const son::db::sDppBootstrappingInfo &info, uint8_t op_class,
+                     uint8_t channel)
+{
+    auto range = info.operating_class_channel.equal_range(op_class);
+    for (auto it = range.first; it != range.second; ++it) {
+        if (it->second == channel) {
+            return true;
+        }
+    }
+    return false;
+}
+
+TEST_F(DbTest, parse_dpp_uri_multi_class_channel_list)
+{
+    son::db::sDppBootstrappingInfo info;
+    std::string error;
+    // URI of an Enrollee chirping on all non-DFS 5 GHz channels.
+    ASSERT_TRUE(m_db->parse_dpp_bootstrap_info(
+        make_dpp_uri("115/36,40,44,48,124/149,153,157,161,125/165"), info, error))
+        << error;
+    EXPECT_EQ(info.operating_class_channel.size(), 9U);
+    EXPECT_EQ(info.operating_class_channel.count(115), 4U);
+    EXPECT_EQ(info.operating_class_channel.count(124), 4U);
+    EXPECT_EQ(info.operating_class_channel.count(125), 1U);
+    EXPECT_TRUE(has_dpp_channel(info, 115, 48));
+    EXPECT_TRUE(has_dpp_channel(info, 124, 161));
+    EXPECT_TRUE(has_dpp_channel(info, 125, 165));
+    EXPECT_FALSE(has_dpp_channel(info, 115, 149));
+    EXPECT_EQ(info.version, 3);
+    EXPECT_TRUE(info.pkhash_valid);
+    EXPECT_EQ(info.pkhash_hex,
+              "c58181788f2fd5017a29edbcc1cd6284ebdf8cf11428f953065e210cb9b2efe3");
+    EXPECT_TRUE(info.chirp_hash_valid);
+    EXPECT_EQ(info.chirp_hash_hex,
+              "f7299e2bef60d5b1b4b802d4ef52667ca9511bb34a4375da4c9c0600c0bb91f0");
+}
+
+TEST_F(DbTest, parse_dpp_uri_channel_list_variants)
+{
+    const std::vector<std::pair<std::string, size_t>> valid = {
+        {"81/6", 1},
+        {"81/1,2,3,4,5,6,7,8,9,10,11", 11},
+        {"81/1,115/36", 2},
+        {"81/1,6,11,115/36,124/149", 5},
+    };
+    for (const auto &entry : valid) {
+        son::db::sDppBootstrappingInfo info;
+        std::string error;
+        EXPECT_TRUE(m_db->parse_dpp_bootstrap_info(make_dpp_uri(entry.first), info, error))
+            << entry.first << ": " << error;
+        EXPECT_EQ(info.operating_class_channel.size(), entry.second) << entry.first;
+    }
+}
+
+TEST_F(DbTest, parse_dpp_uri_rejects_invalid_channel_list)
+{
+    const std::vector<std::pair<std::string, std::string>> invalid = {
+        {"6,81/1", "invalid channel list"},
+        {"81/1,,6", "invalid channel list"},
+        {"81/1,", "invalid channel list"},
+        {",81/1", "invalid channel list"},
+        {"81/1/2", "invalid channel list"},
+        {"x/1", "invalid operating class"},
+        {"0/1", "invalid operating class"},
+        {"1155/36", "invalid operating class"},
+        {"81/x", "invalid channel"},
+        {"81/0", "invalid channel"},
+        {"115/1000", "invalid channel"},
+        {"81/6,6", "duplicate operating class/channel pair"},
+    };
+    for (const auto &entry : invalid) {
+        son::db::sDppBootstrappingInfo info;
+        std::string error;
+        EXPECT_FALSE(m_db->parse_dpp_bootstrap_info(make_dpp_uri(entry.first), info, error))
+            << entry.first;
+        EXPECT_EQ(error, entry.second) << entry.first;
+    }
+}
+
 } // namespace
