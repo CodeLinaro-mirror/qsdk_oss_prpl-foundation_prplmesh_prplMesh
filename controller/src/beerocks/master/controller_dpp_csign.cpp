@@ -13,7 +13,7 @@
 namespace son {
 namespace controller_dpp {
 
-bool load_controller_csign_key(db &database, DppKeyPtr &out, std::string &error)
+bool load_controller_csign_key(const db &database, DppKeyPtr &out, std::string &error)
 {
     out.reset(nullptr);
     error.clear();

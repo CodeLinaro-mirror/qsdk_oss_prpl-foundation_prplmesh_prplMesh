@@ -30,7 +30,7 @@ namespace controller_dpp {
  * @param[out] error    Human-readable failure reason
  * @return true on success
  */
-bool load_controller_csign_key(db &database, DppKeyPtr &out, std::string &error);
+bool load_controller_csign_key(const db &database, DppKeyPtr &out, std::string &error);
 
 } // namespace controller_dpp
 } // namespace son
