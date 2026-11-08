@@ -65,7 +65,9 @@ if (BUILD_TESTS)
     set(TEST_PROJECT_NAME ${PROJECT_NAME}_unit_tests)
     set(unit_tests_sources
         unit_tests/agent_dm_test.cpp
+        unit_tests/agent_info_publisher_test.cpp
         ${MODULE_PATH}/agent_dm.cpp
+        ${MODULE_PATH}/agent_info_publisher.cpp
         helpers/unit_tests/fronthaul_bss_teardown_test.cpp
         gate/unit_tests/gate_test.cpp
         traffic_separation/unit_tests/traffic_separation_utils_test.cpp
