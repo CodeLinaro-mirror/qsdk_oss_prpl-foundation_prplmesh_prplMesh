@@ -22,6 +22,14 @@ constexpr uint8_t k_adv_proto_element_id = 0x6C; // Advertisement Protocol
 // WFA DPP Advertisement Protocol Tuple body (Query Response Info length + OUI + type).
 constexpr uint8_t k_dpp_adv_proto_body[] = {0x7f, 0xdd, 0x05, 0x50, 0x6f, 0x9a, 0x1a, 0x01};
 
+// GAS Comeback action codes; like 0x0B they are never an uplink Configuration Request.
+constexpr uint8_t k_gas_comeback_request  = 0x0C;
+constexpr uint8_t k_gas_comeback_response = 0x0D;
+
+// DPP attribute IDs are 0x10xx (little-endian on the wire); header = ID(2) + Length(2).
+constexpr uint8_t k_dpp_attr_id_msb = 0x10;
+constexpr size_t k_dpp_attr_hdr_len = 4;
+
 bool parse_gas_initial_request(const std::vector<uint8_t> &encap, uint8_t &dialog_token,
                                size_t &query_offset, size_t &query_len)
 {
@@ -81,8 +89,16 @@ bool extract_dpp_query_from_gas_encap(const std::vector<uint8_t> &encap,
 
     // Legacy / malformed fallback: optional Action byte, then treat the rest as attrs.
     // Do not invent a query-length from Dialog Token + Element ID (previous bug).
+    // Never accept a GAS Response / Comeback frame as a request: on a Controller+Agent
+    // device the Controller's own downlink GAS Initial Response (0x0B) can loop back here,
+    // and parsing it as raw attributes only yields a misleading "missing Wrapped Data".
+    if (encap[0] == k_gas_initial_response || encap[0] == k_gas_comeback_request ||
+        encap[0] == k_gas_comeback_response) {
+        return false;
+    }
     size_t start = (encap[0] == k_gas_initial_request) ? 1 : 0;
-    if (start >= encap.size()) {
+    // The remainder must start with a DPP attribute header (LE16 ID 0x10xx + LE16 length).
+    if (start + k_dpp_attr_hdr_len > encap.size() || encap[start + 1] != k_dpp_attr_id_msb) {
         return false;
     }
     if (dialog_token) {

@@ -15,6 +15,7 @@
 #include <bcl/beerocks_string_utils.h>
 #include <openssl/obj_mac.h>
 
+#include <cerrno>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -23,6 +24,17 @@ namespace son {
 namespace controller_dpp {
 
 namespace {
+
+const std::string k_dpp_controller_keys_section = "dpp_controller_keys";
+const std::string k_dpp_csign_key               = "csign_key";
+
+// Best-effort cleanup of the temp file; ENOENT means there is nothing to clean up.
+void remove_tmp_file(const std::string &tmp_path, std::string &error)
+{
+    if (std::remove(tmp_path.c_str()) != 0 && errno != ENOENT) {
+        error += "; also failed to remove " + tmp_path;
+    }
+}
 
 // Reads the whole file; a missing file reads as empty.
 bool read_store_file(const std::string &path, std::string &content)
@@ -50,12 +62,12 @@ bool write_store_file(const std::string &path, const std::string &content, std::
     file.close();
     if (!file) {
         error = "failed writing " + tmp_path;
-        std::remove(tmp_path.c_str());
+        remove_tmp_file(tmp_path, error);
         return false;
     }
     if (std::rename(tmp_path.c_str(), path.c_str()) != 0) {
         error = "failed to rename " + tmp_path + " to " + path;
-        std::remove(tmp_path.c_str());
+        remove_tmp_file(tmp_path, error);
         return false;
     }
     return true;
@@ -110,12 +122,12 @@ bool load_dpp_configurator_csign_key(const db &database, DppKeyPtr &out, std::st
             error = "Failed reading DPP keystore";
             return false;
         }
-        auto sec_it = sections.find("dpp_controller_keys");
+        auto sec_it = sections.find(k_dpp_controller_keys_section);
         if (sec_it == sections.end()) {
             error = "Missing [dpp_controller_keys] in DPP keystore";
             return false;
         }
-        auto key_it = sec_it->second.find("csign_key");
+        auto key_it = sec_it->second.find(k_dpp_csign_key);
         if (key_it == sec_it->second.end() || key_it->second.empty()) {
             error = "Missing csign_key in DPP keystore";
             return false;

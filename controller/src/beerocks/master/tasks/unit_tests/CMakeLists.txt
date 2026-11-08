@@ -72,4 +72,31 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     install(TARGETS traffic_separation_event_test DESTINATION tests)
     add_test(NAME traffic_separation_event_test
         COMMAND $<TARGET_FILE:traffic_separation_event_test>)
+
+    # VAL-04 (STEP-06): Controller desired CCE state.
+    add_executable(dpp_onboarding_task_test
+        ${CMAKE_CURRENT_LIST_DIR}/dpp_onboarding_task_test.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/db.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../task.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../dpp_onboarding_task.cpp
+    )
+    target_compile_definitions(dpp_onboarding_task_test
+        PRIVATE
+            IEEE1905_ODL_PATH="${CMAKE_BINARY_DIR}/controller/nbapi/controller/odl/ieee1905.odl"
+    )
+    target_link_libraries(dpp_onboarding_task_test
+        mapfcommon bpl bcl btl btlvf nbapi amxc amxd amxp libamxrt gtest_main gmock)
+    target_link_options(dpp_onboarding_task_test
+        PRIVATE
+            -Wl,--unresolved-symbols=ignore-all
+    )
+    target_include_directories(dpp_onboarding_task_test
+        PRIVATE
+            ${PLATFORM_INCLUDE_DIR}
+            ${CMAKE_SOURCE_DIR}/common/beerocks/btl/include
+            ${CMAKE_SOURCE_DIR}/controller/nbapi
+            ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db
+    )
+    install(TARGETS dpp_onboarding_task_test DESTINATION tests)
+    add_test(NAME dpp_onboarding_task_test COMMAND $<TARGET_FILE:dpp_onboarding_task_test>)
 endif()
