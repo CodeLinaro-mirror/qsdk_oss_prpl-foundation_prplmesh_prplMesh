@@ -33,6 +33,8 @@ struct DppConfigurationObjectOptions {
     bool include_discovery = true;
     bool include_net_role  = false;
     std::string net_role;
+    // Empty = derive from netRole prefix (map* → "map", else "infra").
+    std::string wifi_tech;
     bool include_df_counter_threshold = false;
     uint16_t df_counter_threshold     = 0;
     std::string passphrase;
@@ -43,6 +45,9 @@ struct DppConfigurationObjectOptions {
 };
 
 bool parse_ec_private_key_hex(const std::string &hex, DppKeyPtr &out);
+
+// Inverse of parse_ec_private_key_hex(): EC private key DER (SEC1) as hex.
+bool encode_ec_private_key_hex(DppKey *key, std::string &out_hex);
 
 bool build_signed_connector(DppKey *csign_key, const std::string &netaccess_key_hex,
                             const std::string &net_role, const std::string &group_id,
@@ -138,6 +143,7 @@ private:
     uint8_t m_version             = 2;
     bool m_authentication_started = false;
     bool m_authentication_success = false;
+    uint8_t m_gas_dialog_token    = 0;
 };
 
 bool validate_signed_connector(const std::string &connector, DppKey *csign_key,
