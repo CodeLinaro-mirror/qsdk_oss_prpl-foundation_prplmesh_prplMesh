@@ -8689,9 +8689,16 @@ bool db::get_dpp_store_sections(DppStoreSections &sections) const
     return parse_dpp_store_file(dpp_store_path(), sections);
 }
 
-bool db::load_dpp_controller_csign_key_from_store()
+std::string db::get_dpp_store_path() { return dpp_store_path(); }
+
+bool db::is_dpp_store_fallback_path(const std::string &path)
 {
-    m_dpp_controller_csign_key_hex.clear();
+    return path == k_dpp_store_fallback_file;
+}
+
+bool db::load_dpp_configurator_csign_key_from_store()
+{
+    m_dpp_configurator_csign_key_hex.clear();
 
     DppStoreSections sections;
     const auto store_path = dpp_store_path();
@@ -8717,21 +8724,24 @@ bool db::load_dpp_controller_csign_key_from_store()
         return false;
     }
 
-    m_dpp_controller_csign_key_hex = key_it->second;
-    LOG(INFO) << "Loaded Controller C-sign key material from " << store_path << " (["
+    m_dpp_configurator_csign_key_hex = key_it->second;
+    LOG(INFO) << "Loaded DPP Configurator C-sign key material from " << store_path << " (["
               << k_dpp_section_controller << "]/csign_key)";
     return true;
 }
 
-bool db::has_dpp_controller_csign_key() const { return !m_dpp_controller_csign_key_hex.empty(); }
+bool db::has_dpp_configurator_csign_key() const
+{
+    return !m_dpp_configurator_csign_key_hex.empty();
+}
 
-bool db::get_dpp_controller_csign_key_hex(std::string &out) const
+bool db::get_dpp_configurator_csign_key_hex(std::string &out) const
 {
     out.clear();
-    if (m_dpp_controller_csign_key_hex.empty()) {
+    if (m_dpp_configurator_csign_key_hex.empty()) {
         return false;
     }
-    out = m_dpp_controller_csign_key_hex;
+    out = m_dpp_configurator_csign_key_hex;
     return true;
 }
 
@@ -10676,8 +10686,8 @@ bool db::parse_dpp_bootstrap_info(const std::string &dpp_uri, sDppBootstrappingI
                 return false;
             }
             info.pkhash_valid = true;
-            info.pkhash_hex = beerocks::string_utils::bytes_to_hex_string(
-                info.pkhash.data(), info.pkhash.size());
+            info.pkhash_hex =
+                beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
 
             // wpa_supplicant Presence Announcement uses SHA-256("chirp" || SubjectPublicKeyInfo).
             static constexpr uint8_t k_dpp_chirp_prefix[] = {'c', 'h', 'i', 'r', 'p'};
@@ -10828,7 +10838,7 @@ void db::print_dpp_bootstrap_info() const
         LOG(INFO) << "      ChirpHash: "
                   << (info.chirp_hash_hex.empty()
                           ? beerocks::string_utils::bytes_to_hex_string(info.chirp_hash.data(),
-                                                                         info.chirp_hash.size())
+                                                                        info.chirp_hash.size())
                           : info.chirp_hash_hex);
 
         idx++;
@@ -10895,7 +10905,8 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
     for (const auto &entry : dpp_bootstrap_info_map) {
         std::string candidate_hex;
         if (entry.second.chirp_hash_valid &&
-            dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.chirp_hash, candidate_hex)) {
+            dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.chirp_hash,
+                                           candidate_hex)) {
             received_hex = candidate_hex;
             return &entry.second;
         }

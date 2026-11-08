@@ -362,12 +362,12 @@ public:
         std::string public_key;
         std::array<uint8_t, 32> pkhash = {};
         std::string pkhash_hex;
-        bool pkhash_valid  = false;
+        bool pkhash_valid = false;
         // Presence / EasyMesh Chirp TLV: SHA-256("chirp" || bootstrap DER), not SHA-256(DER).
         std::array<uint8_t, 32> chirp_hash = {};
         std::string chirp_hash_hex;
         bool chirp_hash_valid = false;
-        bool chirp_matched = false;
+        bool chirp_matched    = false;
         sMacAddr ruid{};
         sMacAddr bssid{};
     };
@@ -2917,29 +2917,39 @@ public:
     bool get_dpp_store_sections(DppStoreSections &sections) const;
 
     /**
-     * @brief Load Controller C-sign private key hex from the DPP keystore file.
+     * @brief Path of the DPP keystore file read by get_dpp_store_sections().
+     */
+    static std::string get_dpp_store_path();
+
+    /**
+     * @brief Whether @a path is the non-persistent /tmp fallback keystore path.
+     */
+    static bool is_dpp_store_fallback_path(const std::string &path);
+
+    /**
+     * @brief Load DPP Configurator C-sign private key hex from the DPP keystore file.
      *
      * Expects section [dpp_controller_keys] with field:
      *   csign_key=<EC private key DER encoded as hex>
      *
-     * On success the hex is cached for get_dpp_controller_csign_key_hex().
+     * On success the hex is cached for get_dpp_configurator_csign_key_hex().
      *
      * @return true if csign_key was found and accepted as non-empty hex
      */
-    bool load_dpp_controller_csign_key_from_store();
+    bool load_dpp_configurator_csign_key_from_store();
 
     /**
-     * @brief Whether a Controller C-sign private key hex is currently cached.
+     * @brief Whether a DPP Configurator C-sign private key hex is currently cached.
      */
-    bool has_dpp_controller_csign_key() const;
+    bool has_dpp_configurator_csign_key() const;
 
     /**
-     * @brief Copy cached Controller C-sign private key hex (DER as hex).
+     * @brief Copy cached DPP Configurator C-sign private key hex (DER as hex).
      *
      * @param[out] out Hex string on success
      * @return true if a key was previously loaded
      */
-    bool get_dpp_controller_csign_key_hex(std::string &out) const;
+    bool get_dpp_configurator_csign_key_hex(std::string &out) const;
 
     /**
      * @brief Compare a received Presence/Chirp hash against stored chirp hashes
@@ -4122,10 +4132,10 @@ private:
     std::unordered_map<std::string, sDppBootstrappingInfo> dpp_bootstrap_info_map;
 
     /**
-     * Cached Controller C-sign private key (EC private key DER as hex) loaded from the
-     * DPP keystore file via load_dpp_controller_csign_key_from_store().
+     * Cached DPP Configurator C-sign private key (EC private key DER as hex) loaded from the
+     * DPP keystore file via load_dpp_configurator_csign_key_from_store().
      */
-    std::string m_dpp_controller_csign_key_hex;
+    std::string m_dpp_configurator_csign_key_hex;
 };
 
 } // namespace son

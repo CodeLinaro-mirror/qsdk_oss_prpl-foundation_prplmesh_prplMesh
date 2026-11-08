@@ -64,7 +64,7 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
  *   - mapBackhaulSta: when requested in the Config Request (or nested bSTAList)
  *   - sta: infrastructure STA path using fronthaul BSS only
  *
- * Signing uses Controller C-sign from the DPP keystore (0016) and
+ * Signing uses DPP Configurator C-sign from the DPP keystore (0016) and
  * build_dpp_configuration_object / build_connector_payload (0004).
  * Optional keystore fields pp_key / group_id from [dpp_controller_keys] are used when present.
  */
