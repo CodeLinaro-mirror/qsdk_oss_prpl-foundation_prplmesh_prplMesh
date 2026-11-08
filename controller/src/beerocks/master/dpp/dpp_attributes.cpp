@@ -177,10 +177,7 @@ bool find_dpp_public_action_attributes(const uint8_t *frame, size_t len, uint8_t
         pos = 1;
     }
 
-    if (len < pos + 6) {
-        return false;
-    }
-
+    // No extra length check needed: every branch above guarantees len >= pos + 6.
     if (frame[pos] != 0x50 || frame[pos + 1] != 0x6f || frame[pos + 2] != 0x9a ||
         frame[pos + 3] != 0x1a) {
         return false;

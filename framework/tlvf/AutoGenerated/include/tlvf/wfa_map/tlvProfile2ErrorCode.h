@@ -42,6 +42,7 @@ class tlvProfile2ErrorCode : public BaseClass
             TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED = 0x7,
             TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED = 0x8,
             SERVICE_PRIORITIZATION_RULE_NOT_SUPPORTED = 0x9,
+            DPP_CCE_NOT_SUPPORTED = 0xd,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off
@@ -54,6 +55,7 @@ class tlvProfile2ErrorCode : public BaseClass
             case TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED:         return "TRAFFIC_SEPARATION_ON_COMBINED_FRONTHAUL_AND_PROFILE1_BACKHAUL_UNSUPPORTED";
             case TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED: return "TRAFFIC_SEPARATION_ON_COMBINED_PROFILE1_BACKHAUL_AND_PROFILE2_BACKHAUL_UNSUPPORTED";
             case SERVICE_PRIORITIZATION_RULE_NOT_SUPPORTED:                                          return "SERVICE_PRIORITIZATION_RULE_NOT_SUPPORTED";
+            case DPP_CCE_NOT_SUPPORTED:                                                              return "DPP_CCE_NOT_SUPPORTED";
             }
             static std::string out_str = std::to_string(int(enum_value));
             return out_str.c_str();

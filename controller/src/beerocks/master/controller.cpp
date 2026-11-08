@@ -88,6 +88,7 @@
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvErrorCode.h>
+#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvHigherLayerData.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
@@ -165,10 +166,13 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::TRIGGER_CHANNEL_SWITCH_ANNOUNCEMENT_RESPONSE_MESSAGE,
     ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
     ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
+    ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE,
     // DPP / EasyConnect (FEAT-68 Path B): Agent → Controller chirp and encap frames
     ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE,
     ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
     ieee1905_1::eMessageType::DIRECT_ENCAP_DPP_MESSAGE,
+    // EasyMesh 5.3.6 / 17.1.50: Proxy Agent forwards an Enrollee DPP URI received in PBC M7
+    ieee1905_1::eMessageType::DPP_BOOTSTRAPPING_URI_NOTIFICATION_MESSAGE,
 };
 
 } // namespace
@@ -424,6 +428,7 @@ void Controller::start_mandatory_tasks()
     auto dpp_onboarding = std::make_shared<dpp_onboarding_task>(database, m_dpp_protocol_task);
     LOG_IF(!m_task_pool.add_task(dpp_onboarding), FATAL) << "Failed adding dpp_onboarding_task!";
     m_dpp_onboarding_task_id = dpp_onboarding->id;
+    m_dpp_onboarding_task    = dpp_onboarding;
     m_dpp_protocol_task->configure_onboarding_notifier(m_task_pool, m_dpp_onboarding_task_id);
 }
 
@@ -626,6 +631,8 @@ bool Controller::handle_cmdu_1905_1_message(uint32_t iface_index, const sMacAddr
     switch (cmdu_rx.getMessageType()) {
     case ieee1905_1::eMessageType::ACK_MESSAGE:
         return handle_cmdu_1905_ack_message(src_mac, cmdu_rx);
+    case ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE:
+        return handle_cmdu_1905_error_response_message(src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_SEARCH_MESSAGE:
         return handle_cmdu_1905_autoconfiguration_search(iface_index, src_mac, cmdu_rx);
     case ieee1905_1::eMessageType::AP_AUTOCONFIGURATION_WSC_MESSAGE:
@@ -1984,6 +1991,34 @@ bool Controller::handle_cmdu_1905_ack_message(const sMacAddr &src_mac,
     return true;
 }
 
+bool Controller::handle_cmdu_1905_error_response_message(const sMacAddr &src_mac,
+                                                         ieee1905_1::CmduMessageRx &cmdu_rx)
+{
+    const auto mid        = cmdu_rx.getMessageId();
+    const auto error_tlvs = cmdu_rx.getClassList<wfa_map::tlvProfile2ErrorCode>();
+    if (error_tlvs.empty()) {
+        LOG(WARNING) << "ERROR_RESPONSE_MESSAGE from " << src_mac << " mid=0x" << std::hex << mid
+                     << std::dec << " has no Profile-2 Error Code TLV";
+        return true;
+    }
+
+    for (const auto &error_tlv : error_tlvs) {
+        const auto reason = error_tlv->reason_code();
+        if (reason == wfa_map::tlvProfile2ErrorCode::eReasonCode::DPP_CCE_NOT_SUPPORTED) {
+            // EasyMesh 5.3.4: the Agent does not support DPP Onboarding (or could not advertise
+            // the CCE). Only logged; the Controller does not retry or change its CCE state.
+            LOG(WARNING) << "Agent " << src_mac
+                         << " rejected DPP CCE Indication: Error Response mid=0x" << std::hex << mid
+                         << std::dec << ", Reason Code 0x0D (DPP onboarding not supported)";
+            continue;
+        }
+        LOG(INFO) << "ERROR_RESPONSE_MESSAGE from " << src_mac << " mid=0x" << std::hex << mid
+                  << ", Reason Code 0x" << int(reason) << std::dec << " ("
+                  << wfa_map::tlvProfile2ErrorCode::eReasonCode_str(reason) << ")";
+    }
+    return true;
+}
+
 bool Controller::handle_cmdu_1905_steering_completed_message(const sMacAddr &src_mac,
                                                              ieee1905_1::CmduMessageRx &cmdu_rx)
 {
@@ -2542,6 +2577,8 @@ bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(
         beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
     info.alias = "auto-" + mac_str + "-" + hash_hex.substr(0, 12);
 
+    const std::string alias            = info.alias;
+    const std::string prev_fingerprint = database.calculate_dpp_bootstrap_map_fingerprint();
     if (!database.add_dpp_bootstrap_info(std::move(info), error)) {
         LOG(ERROR) << "Failed to add DPP Bootstrap info: " << error;
         return false;
@@ -2550,6 +2587,13 @@ bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(
     // Diagram 5.3.1 steps 6-7: enable CCE advertisement on agents when DPP URI is received.
     LOG(DEBUG) << "DPP Bootstrapping URI stored; sending DPP CCE Indication enable";
     send_dpp_cce_indication(true);
+
+    // Sync dpp_onboarding_task now, as for ProvisionedDPP: work() does not run while it waits
+    // for events. A retransmitted notification of the same URI does not abort the session.
+    if (database.calculate_dpp_bootstrap_map_fingerprint() != prev_fingerprint) {
+        notify_dpp_bootstrapping_trigger("DPP Bootstrapping URI Notification alias=" + alias +
+                                         " from agent " + tlvf::mac_to_string(src_mac));
+    }
 
     return true;
 }
@@ -5147,6 +5191,14 @@ void Controller::send_dpp_cce_indication(bool advertise_cce)
     son_actions::start_dpp_cce_indication_task(database, cmdu_tx, m_task_pool, advertise_cce);
 }
 
+void Controller::send_dpp_cce_indication_to_agent(const sMacAddr &al_mac, bool advertise_cce)
+{
+    LOG(DEBUG) << "Queue DPP CCE Indication task, advertise_cce=" << advertise_cce
+               << " agent=" << al_mac;
+    son_actions::start_dpp_cce_indication_task(database, cmdu_tx, m_task_pool, advertise_cce,
+                                               al_mac);
+}
+
 void Controller::notify_dpp_bootstrapping_trigger(const std::string &reason)
 {
     if (m_dpp_onboarding_task_id < 0) {
@@ -5923,6 +5975,16 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
     if (!handle_tlv_profile2_ap_capability(agent, cmdu_rx)) {
         LOG(ERROR) << "Profile2 AP Capability is not supplied for Agent " << src_mac
                    << " with profile enum " << agent->profile;
+    }
+
+    // AC-07 / EM 5.3.4: while the Controller wants the CCE advertised (un-onboarded URI pending),
+    // every AP Capability Report with the DPP Onboarding bit re-sends ENABLE to that agent. This
+    // covers new joins, rejoins, agent restarts and runtime EnableDPPOnboarding changes.
+    if (agent->dpp_onboarding_support && m_dpp_onboarding_task &&
+        m_dpp_onboarding_task->is_cce_desired()) {
+        LOG(INFO) << "CCE desired; AP Capability Report from " << src_mac
+                  << " has DPP Onboarding bit, sending DPP CCE Indication ENABLE";
+        m_dpp_onboarding_task->send_cce_to_agent(agent->al_mac);
     }
 
     if (!handle_tlv_profile2_ap_radio_advanced_capabilities(*agent, cmdu_rx)) {

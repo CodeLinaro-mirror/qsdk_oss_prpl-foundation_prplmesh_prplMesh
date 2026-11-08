@@ -336,7 +336,10 @@ bool DppConfiguratorSession::handle_authentication_response(
     }
 
     std::vector<uint8_t> i_auth;
-    if (!hash_vector(m_md, {m_r_nonce, m_i_nonce, pr_x, pi_x, br_x, std::vector<uint8_t>{1}},
+    // Last use of pi_x/pr_x/br_x: move them into the hash input list.
+    if (!hash_vector(m_md,
+                     {m_r_nonce, m_i_nonce, std::move(pr_x), std::move(pi_x), std::move(br_x),
+                      std::vector<uint8_t>{1}},
                      i_auth)) {
         error = "Failed computing DPP initiator authentication tag";
         return false;
@@ -435,7 +438,7 @@ bool DppConfiguratorSession::unwrap_configuration_request(const std::vector<uint
         return false;
     }
     json_object_put(root);
-    net_role = normalized;
+    net_role = std::move(normalized);
     return true;
 }
 

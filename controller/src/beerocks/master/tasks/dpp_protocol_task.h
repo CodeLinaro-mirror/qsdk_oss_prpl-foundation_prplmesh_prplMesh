@@ -95,15 +95,70 @@ private:
                                          const db::sProxiedEncapDppMessage &message);
     bool send_direct_encap_dpp_to_agent(const sMacAddr &agent_mac,
                                         const db::sDirectEncapDppMessage &message);
+    /**
+     * @brief Send a 1905 ACK_MESSAGE (EasyMesh v6.1 section 17.1.32) with @a mid to @a dest_mac.
+     */
+    bool send_1905_ack(const sMacAddr &dest_mac, uint16_t mid);
+
+    /**
+     * @brief Chirp guard: one DPP session at a time, first Proxy Agent wins.
+     *
+     * An Enrollee chirp is usually heard by several Agents (for example the Controller's
+     * co-located Agent and a daisy-chained Agent), so the same URI arrives in several
+     * Chirp Notifications within milliseconds. Restarting the session for each of them
+     * sends a second Authentication Request with a new nonce through another Proxy Agent;
+     * the Enrollee answers only the first one and the exchange fails.
+     *
+     * @return true if the chirp must be ignored because a session is in progress. A
+     * session that got no Authentication Response within five seconds (Wi-Fi Easy Connect
+     * v3.0 section 6.3.1.2) is taken over by the next chirp (returns false).
+     */
+    bool chirp_blocked_by_active_session(const sMacAddr &src_mac,
+                                         const db::sDppBootstrappingInfo &info) const;
+    /**
+     * @brief Bootstrapping entry of the current session, looked up by alias.
+     * @return nullptr when no session is active or the URI was removed or replaced.
+     */
+    const db::sDppBootstrappingInfo *matched_bootstrap() const;
+    /** @brief URI M: (Enrollee MAC) of the current session entry, ZERO_MAC when unknown. */
+    sMacAddr matched_bootstrap_mac() const;
+    /** @brief Remember the session entry by alias and public key (no pointer into the db). */
+    void set_matched_bootstrap(const db::sDppBootstrappingInfo &info);
+    /**
+     * @brief Replay the cached Configuration Response for a retransmitted GAS Configuration
+     * Request (same Enrollee, identical request bytes) of the current session.
+     * @return true if the request was a retransmission and was handled.
+     */
+    bool replay_cached_configuration_response(const sMacAddr &enrollee_mac,
+                                              const std::vector<uint8_t> &request);
+    /**
+     * @brief D-15: decide whether an already onboarded bootstrapping entry is onboarded again.
+     *
+     * The Enrollee MAC is taken from the Chirp Notification, else from the URI M: field,
+     * else from the onboarding session. The entry is onboarded again only when that MAC is
+     * not a connected station in the current topology (backhaul lost, re-chirping).
+     *
+     * @param[out] enrollee_mac MAC that was checked (ZERO_MAC when none is known).
+     * @return true if a new session must be started.
+     */
+    bool onboarded_enrollee_absent(const db::sDppBootstrappingInfo &info,
+                                   const sMacAddr &chirp_enrollee, sMacAddr &enrollee_mac);
+    /** @brief Enrollee MAC of the current session (ZERO_MAC when unknown). */
+    sMacAddr session_enrollee_mac() const;
+    /** @brief Mark the matched bootstrapping entry onboarded and record its Enrollee MAC. */
+    void mark_matched_bootstrap_onboarded();
     void push_dpp_onboarding_task_event(int event_type, const std::string &reason = {});
     db &m_database;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
     controller_dpp::DppConfiguratorSession m_configurator;
     controller_dpp::SessionState m_session;
-    const db::sDppBootstrappingInfo *m_matched_bootstrap = nullptr;
-    task_pool *m_task_pool                               = nullptr;
-    int m_dpp_onboarding_task_id                         = -1;
-    bool m_active_request_conn_status                    = false;
+    // Session URI by alias + public key: a pointer into the bootstrap store would dangle when
+    // the entry is removed or replaced during the session.
+    std::string m_matched_alias;
+    std::string m_matched_public_key;
+    task_pool *m_task_pool            = nullptr;
+    int m_dpp_onboarding_task_id      = -1;
+    bool m_active_request_conn_status = false;
 };
 
 } // namespace son
