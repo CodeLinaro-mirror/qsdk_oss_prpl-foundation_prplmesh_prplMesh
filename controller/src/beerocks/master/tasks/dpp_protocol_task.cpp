@@ -14,6 +14,8 @@
 #include "../db/db.h"
 #include "../son_actions.h"
 
+#include <algorithm>
+#include <bcl/beerocks_string_utils.h>
 #include <bcl/network/network_utils.h>
 #include <easylogging++.h>
 #include <tlvf/wfa_map/tlv1905EncapDpp.h>
@@ -23,12 +25,21 @@
 namespace son {
 
 namespace {
-constexpr uint8_t k_dpp_protocol_version = 2;
-constexpr uint8_t k_dpp_status_ok        = 0;
+// Wi-Fi Alliance EasyConnect DPP STATUS_OK.
+constexpr uint8_t k_dpp_status_ok = 0;
 // DPP Public Action Connection Status Result. Same value as 0004 dpp_internal
 // k_dpp_connection_status_result. Not present in 0001 eFrameType, so dispatch
 // uses uint8_t (see switch below) to avoid -Wswitch on the TLV enum.
 constexpr uint8_t k_dpp_connection_status_result = 12;
+
+std::string dpp_prefix_hex(const uint8_t *p, size_t len)
+{
+    if (!p || len == 0) {
+        return "<empty>";
+    }
+    constexpr size_t k_prefix = 12;
+    return beerocks::string_utils::bytes_to_hex_string(p, std::min(k_prefix, len));
+}
 } // namespace
 
 dpp_protocol_task::dpp_protocol_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_)
@@ -130,15 +141,34 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
             return false;
         }
         enrollee_mac = *received_enrollee;
+        if (!m_session.last_chirp_enrollee_valid) {
+            m_session.last_chirp_enrollee       = enrollee_mac;
+            m_session.last_chirp_enrollee_valid = true;
+        }
     } else if (!m_session.last_chirp_enrollee_valid) {
-        LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE has no Enrollee MAC for the active session";
-        return false;
+        // Chirp TLV and uplink often omit STA MAC (TCP Presence has no SA).
+        // Fall back to URI M: from the matched bootstrap, same as Auth Request TX.
+        if (m_matched_bootstrap &&
+            m_matched_bootstrap->mac != beerocks::net::network_utils::ZERO_MAC) {
+            enrollee_mac                        = m_matched_bootstrap->mac;
+            m_session.last_chirp_enrollee       = enrollee_mac;
+            m_session.last_chirp_enrollee_valid = true;
+            LOG(INFO) << "DPP: uplink PROXIED_ENCAP has no Enrollee MAC; using URI M: "
+                      << tlvf::mac_to_string(enrollee_mac);
+        } else {
+            LOG(ERROR) << "PROXIED_ENCAP_DPP_MESSAGE has no Enrollee MAC for the active session";
+            return false;
+        }
     }
 
     // Cast to uint8_t: Connection Status Result (12) is a DPP Public Action
     // type used by 0004 unwrap APIs but is not a named 0001 eFrameType value.
     const auto frame_type = static_cast<uint8_t>(encap->frame_type());
     const bool is_gas     = encap->frame_flags().dpp_frame_indicator != 0;
+    LOG(INFO) << "DPP: uplink PROXIED_ENCAP from " << src_mac
+              << " tlv_frame_type=" << static_cast<unsigned>(frame_type) << " gas=" << is_gas
+              << " len=" << frame_len << " prefix=" << dpp_prefix_hex(frame_data, frame_len)
+              << " enrollee=" << tlvf::mac_to_string(enrollee_mac);
     std::string error;
 
     switch (frame_type) {
@@ -497,7 +527,10 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
             m_database.dpp_chirp_hash_matches(chirp_tlv->hash(), hash_len, received_hex);
         if (!matched_info) {
             LOG(WARNING) << "DPP chirp hash mismatch from agent " << src_mac
-                         << " hash=" << received_hex;
+                         << " hash_len=" << static_cast<unsigned>(hash_len)
+                         << " hash=" << received_hex
+                         << " bootstrap_entries=" << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
+            m_database.print_dpp_bootstrap_info();
             continue;
         }
 
@@ -505,16 +538,19 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         m_matched_bootstrap        = matched_info;
         m_session.proxy_agent      = src_mac;
         m_session.use_direct_encap = false;
-        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex
-                  << ") alias=" << matched_info->alias;
+        LOG(INFO) << "DPP chirp hash matched bootstrapping URI (" << received_hex << ") alias="
+                  << matched_info->alias << " proxy=" << src_mac
+                  << " pkhash=" << matched_info->pkhash_hex
+                  << " chirp_hash=" << matched_info->chirp_hash_hex;
 
         if (chirp_tlv->flags().enrollee_mac_address_present && chirp_tlv->dest_sta_mac()) {
             m_session.last_chirp_enrollee       = *chirp_tlv->dest_sta_mac();
             m_session.last_chirp_enrollee_valid = true;
-            LOG(DEBUG) << "DPP chirp dest STA "
-                       << tlvf::mac_to_string(m_session.last_chirp_enrollee);
+            LOG(INFO) << "DPP chirp dest STA "
+                      << tlvf::mac_to_string(m_session.last_chirp_enrollee);
         } else {
             m_session.last_chirp_enrollee_valid = false;
+            LOG(INFO) << "DPP chirp has no Enrollee MAC in TLV";
         }
     }
 
@@ -584,8 +620,10 @@ bool dpp_protocol_task::send_dpp_authentication_request()
 
     std::vector<uint8_t> auth_request_frame;
     std::string error;
-    if (!m_configurator.start(m_matched_bootstrap->public_key, k_dpp_protocol_version,
-                              auth_request_frame, error)) {
+    // URI V: when present; start() falls back to DPP default (2) if V is missing/0.
+    const uint8_t uri_version = m_matched_bootstrap->version;
+    if (!m_configurator.start(m_matched_bootstrap->public_key, uri_version, auth_request_frame,
+                              error)) {
         LOG(WARNING) << "Failed building DPP Authentication Request: " << error;
         push_dpp_onboarding_task_event(dpp_onboarding_task::AUTH_INIT_FAILED, error);
         return false;
@@ -633,7 +671,9 @@ bool dpp_protocol_task::send_dpp_authentication_request()
     if (m_session.last_chirp_enrollee_valid) {
         enrollee_mac = m_session.last_chirp_enrollee;
     } else if (m_matched_bootstrap->mac != beerocks::net::network_utils::ZERO_MAC) {
-        enrollee_mac = m_matched_bootstrap->mac;
+        enrollee_mac                        = m_matched_bootstrap->mac;
+        m_session.last_chirp_enrollee       = enrollee_mac;
+        m_session.last_chirp_enrollee_valid = true;
     }
 
     db::sProxiedEncapDppMessage message;
@@ -643,11 +683,23 @@ bool dpp_protocol_task::send_dpp_authentication_request()
     message.dpp_frame_indicator = false;
     message.dest_sta_mac        = enrollee_mac;
 
-    if (m_matched_bootstrap->pkhash_valid) {
+    if (m_matched_bootstrap->chirp_hash_valid) {
+        message.chirp_hash.assign(m_matched_bootstrap->chirp_hash.begin(),
+                                  m_matched_bootstrap->chirp_hash.end());
+        message.chirp_hash_valid = true;
+    } else if (m_matched_bootstrap->pkhash_valid) {
         message.chirp_hash.assign(m_matched_bootstrap->pkhash.begin(),
                                   m_matched_bootstrap->pkhash.end());
         message.chirp_hash_valid = true;
     }
+
+    LOG(INFO) << "DPP: sending Auth Request PROXIED_ENCAP to proxy " << m_session.proxy_agent
+              << " dest_sta=" << tlvf::mac_to_string(enrollee_mac)
+              << " tlv_frame_type=" << static_cast<unsigned>(message.frame_type)
+              << " frame_len=" << message.frame.size()
+              << " prefix=" << dpp_prefix_hex(message.frame.data(), message.frame.size())
+              << " chirp_tlv=" << (message.chirp_hash_valid ? "yes" : "no")
+              << " uri_version=" << static_cast<unsigned>(uri_version);
 
     if (!send_proxied_encap_dpp_to_agent(m_session.proxy_agent, message)) {
         LOG(WARNING) << "Chirp-selected Proxy Agent rejected the DPP Authentication Request";
@@ -658,7 +710,7 @@ bool dpp_protocol_task::send_dpp_authentication_request()
     }
 
     LOG(INFO) << "Controller DPP Authentication Request sent through Proxy Agent "
-              << m_session.proxy_agent;
+              << m_session.proxy_agent << " dest_sta=" << tlvf::mac_to_string(enrollee_mac);
     return true;
 }
 void dpp_protocol_task::set_pending_configuration_objects(
