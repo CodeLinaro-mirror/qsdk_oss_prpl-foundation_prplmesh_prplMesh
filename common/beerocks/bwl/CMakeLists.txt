@@ -226,6 +226,12 @@ if (BUILD_TESTS)
         ${MODULE_PATH}/unit_tests/assoc_frame_body_extract_test.cpp
         ${MODULE_PATH}/unit_tests/csv_bitmask_filtering.cpp
     )
+    # The fake Ambiorix bus overrides symbols of the shared wbapi library.
+    if(BWL_TYPE STREQUAL "WHM" AND BUILD_SHARED_LIBS)
+        list(APPEND unit_tests_sources
+             ${MODULE_PATH}/unit_tests/whm_vap_refresh_test.cpp
+        )
+    endif()
     if(NOT BWL_TYPE STREQUAL "WHM")
         list(APPEND unit_tests_sources
              ${MODULE_PATH}/unit_tests/nl80211_client_impl_test.cpp
@@ -245,6 +251,11 @@ if (BUILD_TESTS)
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
+    if(BWL_TYPE STREQUAL "WHM" AND BUILD_SHARED_LIBS)
+        # Detects use-after-free of VAP cache entries in whm_vap_refresh_test.
+        target_compile_options(${TEST_PROJECT_NAME} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(${TEST_PROJECT_NAME} PRIVATE -fsanitize=address)
+    endif()
     target_link_libraries(${TEST_PROJECT_NAME} prplmesh_hostapd bcl elpp ${BWL_LIBS})
     target_link_libraries(${TEST_PROJECT_NAME} gtest_main)
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)
