@@ -435,8 +435,8 @@
                     }
                 }
 
-                %read-only object AgentConnectedEvent[];
-                %read-only object AgentDisconnectedEvent[];
+                %read-only object AgentConnectedEvent;
+                %read-only object AgentDisconnectedEvent;
 
     @CONTROLLER_ROOT_DM_Footer@
 
