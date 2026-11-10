@@ -93,6 +93,7 @@
 //////////////////////////////////////////////////////////////////////////////
 
 constexpr int SLAVE_INIT_DELAY_SEC                                    = 4;
+constexpr int RADIO_ENABLE_SETTLE_DELAY_SEC                           = 10;
 constexpr int WAIT_FOR_PLATFORM_MANAGER_REGISTER_RESPONSE_TIMEOUT_SEC = 600;
 constexpr int MONITOR_HEARTBEAT_TIMEOUT_SEC                           = 10;
 constexpr int MONITOR_HEARTBEAT_RETRIES                               = 10;
@@ -2599,7 +2600,22 @@ bool slave_thread::handle_cmdu_platform_manager_message(
         if (db->device_conf.front_radio.config.at(fronthaul_iface).band_enabled !=
             notification->wlan_settings().band_enabled) {
             LOG(DEBUG) << "band_enabled changed - performing agent_reset";
+            // If a reset is already in progress, keep the current WSC delay; do not extend it.
+            const bool reset_pending =
+                m_agent_state < eSlaveState::STATE_LOAD_PLATFORM_CONFIGURATION;
             agent_reset();
+
+            // Let the controller see the radio as enabled before the M1.
+            if (!reset_pending && notification->wlan_settings().band_enabled &&
+                (m_agent_state == STATE_INIT || m_agent_state == STATE_WAIT_BEFORE_INIT)) {
+                m_task_pool.send_event(eTaskType::AP_AUTOCONFIGURATION,
+                                       ApAutoConfigurationTask::eEvent::INIT_TASK);
+                m_agent_state_timer_sec = std::chrono::steady_clock::now() +
+                                          std::chrono::seconds(RADIO_ENABLE_SETTLE_DELAY_SEC);
+                LOG(DEBUG) << "radio enabled, delaying WSC by " << RADIO_ENABLE_SETTLE_DELAY_SEC
+                           << " sec - goto STATE_WAIT_BEFORE_INIT";
+                m_agent_state = STATE_WAIT_BEFORE_INIT;
+            }
         }
         break;
     }
