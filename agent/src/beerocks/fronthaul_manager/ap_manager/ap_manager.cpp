@@ -2031,6 +2031,11 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
                 LOG(DEBUG) << "Radio is in enabled state, performing vap credentials update";
                 break;
             }
+#ifdef USE_PRPLMESH_WHM
+            // radio_state mirrors WiFi.Radio.*.Enable on pWHM: a disabled radio cannot become
+            // enabled while we wait, and blocking here starves the heartbeat.
+            break;
+#endif
             UTILS_SLEEP_MSEC(500);
         }
 
