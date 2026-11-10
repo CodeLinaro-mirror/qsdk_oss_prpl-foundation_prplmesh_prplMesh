@@ -11,7 +11,7 @@ Initial targets include prplWrt and RDK-B with support for WiFi chipsets from al
 
 This project is part of a wider collaboration between Prpl Foundation and Broadband Forum, and is based on a proven full mesh solution contributed by Intel Corp (Controller and Agent running on actual HW).
 
-Architecture documentation can be found in the [documentation](documentation/) folder.
+Full documentation (architecture, build/deployment, configuration, onboarding, features, data model reference, debugging) is maintained on the [GitLab Wiki](https://gitlab.com/prpl-foundation/prplmesh/prplMesh/-/wikis/Home).
 
 The latest build artifacts are [always accessible](https://ftp.essensium.com/owncloud/index.php/s/xidrhY3JKEYS9dK?path=%2Fartifacts%2Flatest%2Fbuild).
 
