@@ -32,9 +32,27 @@
   stage: Orbit-OSPv2
   variables:
     TARGET_DEVICE: urx_ospv2
+  parallel:
+    matrix:
+      - CI_ORBIT_OSPV2_ACS_ENABLE: ["acsDisable", "acsEnable"]
   before_script:
     - tools/deploy_firmware.py --device "$TARGET_DEVICE" --target-name "$TARGET_DEVICE" --image "$URX_OSPV2_B_FULLIMAGE" --ipaddr "192.168.1.99" --serverip "192.168.1.178" --whm --configuration ci/configuration/orbit/urx_ospv2.sh
     - tools/deploy_ipk.sh "$TARGET_DEVICE" "build/$TARGET_DEVICE/prplmesh.ipk"
+    - |
+      case "${CI_ORBIT_OSPV2_ACS_ENABLE:-acsDisable}" in
+        acsEnable)   ACS_VALUE=1 ;;
+        acsDisable) ACS_VALUE=0 ;;
+        *) echo "Invalid CI_ORBIT_OSPV2_ACS_ENABLE='$CI_ORBIT_OSPV2_ACS_ENABLE' (expected 'acsEnable' or 'acsDisable')"; exit 1 ;;
+      esac
+      echo "Setting enable_auto_chansel_handling=$ACS_VALUE on $TARGET_DEVICE"
+      ssh "$TARGET_DEVICE" "sed -i 's/^\(enable_auto_chansel_handling=\)[01]/\1$ACS_VALUE/' /opt/prplmesh/config/beerocks_agent.conf"
+      echo "Restarting PrplMesh on $TARGET_DEVICE"
+      ssh "$TARGET_DEVICE" "ba-cli 'X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=0'"
+      ssh "$TARGET_DEVICE" "ba-cli 'X_PRPLWARE-COM_ProcessManager.PWHM.Enable=0'"
+      sleep 5
+      ssh "$TARGET_DEVICE" "ba-cli 'X_PRPLWARE-COM_ProcessManager.PWHM.Enable=1'"
+      sleep 5
+      ssh "$TARGET_DEVICE" "ba-cli 'X_PRPLWARE-COM_ProcessManager.PrplMesh.Enable=1'"
   needs:
     - job: build-for-ospv2
   tags:
