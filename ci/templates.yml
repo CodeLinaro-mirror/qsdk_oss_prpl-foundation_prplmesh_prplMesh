@@ -39,8 +39,12 @@
   stage: build
   timeout: 5h
   script:
+    # LOCAL_RUNNER_CACHE_DIR is an environment variable that can be set by a GitLab runner
+    # to specify a custom persistent folder for caching files between builds. If not defined,
+    # the home folder of the current user is used.
+    - export PRPLOS_CACHE_DIR=${LOCAL_RUNNER_CACHE_DIR:-~}/prplos
     - mkdir -p "build/$TARGET_DEVICE"
-    - tools/docker/builder/openwrt/build.sh --verbose -d "$TARGET_DEVICE" -t "prplmesh-builder-$TARGET_DEVICE:$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID" 2>&1
+    - tools/docker/builder/openwrt/build.sh --verbose -d "$TARGET_DEVICE" -t "prplmesh-builder-$TARGET_DEVICE:$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_ID" --cache "$PRPLOS_CACHE_DIR" 2>&1
   artifacts:
     paths:
       - "build/*"
