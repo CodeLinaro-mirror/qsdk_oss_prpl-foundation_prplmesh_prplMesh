@@ -143,6 +143,9 @@ bool EventLoopImpl::remove_handlers(int fd)
     // Erase the file descriptor from the map
     m_fd_to_event_handlers.erase(fd);
 
+    // Skip the remaining events of this file descriptor returned by the last poll
+    m_removed_fds.insert(fd);
+
     return !error;
 }
 
@@ -187,8 +190,18 @@ int EventLoopImpl::run()
     }
 
     // Trigger event handlers
+    m_removed_fds.clear();
     for (int i = 0; i < num_events; i++) {
         int fd = events[i].data.fd;
+
+        // An event handler has removed this file descriptor after the poll. The event belongs to
+        // the removed handlers, even if a new file descriptor got the same number and has been
+        // registered since then. The poll is level-triggered, so an event of the new file
+        // descriptor is reported again by the next poll.
+        if (m_removed_fds.find(fd) != m_removed_fds.end()) {
+            LOG(DEBUG) << "Skipping event on removed FD (" << fd << ")";
+            continue;
+        }
 
         const auto &it = m_fd_to_event_handlers.find(fd);
         if (it == m_fd_to_event_handlers.end()) {

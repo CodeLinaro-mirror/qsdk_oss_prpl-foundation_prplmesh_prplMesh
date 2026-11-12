@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace beerocks {
 
@@ -79,6 +80,13 @@ private:
      * event handlers to deal with events occurred on that file descriptor.
      */
     std::unordered_map<int, EventHandlers> m_fd_to_event_handlers;
+
+    /**
+     * File descriptors whose event handlers have been removed while the events returned by the
+     * last poll are processed. Their remaining events belong to the removed handlers, even if a
+     * new file descriptor with the same number has been registered in the meantime.
+     */
+    std::unordered_set<int> m_removed_fds;
 };
 
 } // namespace beerocks
