@@ -618,8 +618,8 @@
                 }
                 %read-only bool IsbSTA = false;
                 %read-only uint32 LastConnectTime = 0;
-                %read-only uint32 BytesSent = 0;
-                %read-only uint32 BytesReceived = 0;
+                %read-only uint64 BytesSent = 0;
+                %read-only uint64 BytesReceived = 0;
                 %read-only uint32 PacketsSent = 0;
                 %read-only uint32 PacketsReceived = 0;
                 %read-only uint32 ErrorsSent = 0;
@@ -693,8 +693,8 @@
                     %read-only %unique string MACAddress = "";
 
                     %read-only string BSSID = "";
-                    %read-only uint32 BytesSent = 0;
-                    %read-only uint32 BytesReceived = 0;
+                    %read-only uint64 BytesSent = 0;
+                    %read-only uint64 BytesReceived = 0;
                     %read-only uint32 PacketsSent = 0;
                     %read-only uint32 PacketsReceived = 0;
                     %read-only uint32 ErrorsSent = 0;
