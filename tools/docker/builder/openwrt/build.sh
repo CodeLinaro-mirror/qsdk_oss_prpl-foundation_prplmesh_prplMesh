@@ -203,7 +203,7 @@ main() {
     export PRPLOS_REPOSITORY
     export PRPLOS_VERSION
     export TARGET_SYSTEM
-    
+
     if ! TOOLCHAIN_VERSION="$(last_toolchain_commit)" || [ -z "$TOOLCHAIN_VERSION" ] ; then
         err "Failed to find the prplOS toolchain version for $PRPLOS_VERSION."
         exit 1
@@ -235,8 +235,8 @@ TOOLCHAIN_PROFILES=(
 )
 CACHE_DIR="${rootdir}/build"
 PRPLOS_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos latest-24.10_2026-11-11
-PRPLOS_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
+# prplos latest-24.10_2026-11-15 - MKT ethtool fix
+PRPLOS_VERSION='2299e7ab62c3a4c29e5b564dae77be7d055ec3d9'
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
 
