@@ -80,22 +80,56 @@ WORKDIR /home/openwrt
 RUN printf '\033[1;35mCloning prplOS\n\033[0m' \
     && git clone --depth 1 --no-checkout "$PRPLOS_REPOSITORY" openwrt
 
-# Which prplOS version (commit hash) to build:
-ARG PRPLOS_VERSION
-ENV PRPLOS_VERSION=$PRPLOS_VERSION
-
-# Only checkout this version
-RUN printf '\033[1;35mChecking out prplOS %s\n\033[0m' "$PRPLOS_VERSION" \
-    && cd openwrt \
-    && git fetch --depth 1 origin "$PRPLOS_VERSION" \
-    && git checkout "$PRPLOS_VERSION"
+WORKDIR /home/openwrt/openwrt
 
 # Target system to build for (used for prplOS gen_config.py script):
 # Example: TARGET_SYSTEM=qca_ipq95xx
 ARG TARGET_SYSTEM
 ENV TARGET_SYSTEM=$TARGET_SYSTEM
 
-WORKDIR /home/openwrt/openwrt
+# prplOS version (commit hash) to build the toolchain and host tools from
+ARG TOOLCHAIN_VERSION
+ENV TOOLCHAIN_VERSION=$TOOLCHAIN_VERSION
+
+# Build the toolchain, the host tools and the slowest host packages.
+# Docker truncates file modification times to whole seconds when it
+# commits a layer. Set them to the (whole second) commit time before
+# building. Otherwise those packages are rebuilt in the next stage.
+# gen_config.py deletes and re-clones ./feeds, so the files of every feed
+# are set to the time of that feed's commit as well
+RUN printf '\033[1;35mBuilding prplOS toolchain %s\n\033[0m' "$TOOLCHAIN_VERSION" \
+    && git fetch --depth 1 origin "$TOOLCHAIN_VERSION" \
+    && git checkout "$TOOLCHAIN_VERSION" \
+    && git ls-files -z | xargs -0 touch -h -d "@$(git log -1 --format=%ct)" \
+    && sed -i -E 's;git.openwrt.org/(feed|project);github.com/openwrt;' feeds.conf.default \
+    && ./scripts/gen_config.py "$TARGET_SYSTEM" \
+    && for feed in feeds/*/ ; do \
+        [ -d "${feed}.git" ] || continue ; \
+        ( cd "$feed" && git ls-files -z | xargs -0r touch -h -d "@$(git log -1 --format=%ct)" ) || exit 1 ; \
+       done \
+    && ./scripts/feeds install -p packages python3 protobuf \
+    && make -j"$(nproc)" V=sc \
+        toolchain/install \
+        package/libs/gettext-full/host/compile \
+        package/libs/ncurses/host/compile \
+        package/libs/readline/host/compile \
+        package/utils/bzip2/host/compile \
+        package/system/opkg/host/compile \
+        package/system/ucert/host/compile \
+        package/system/fwtool/host/compile \
+        package/feeds/packages/python3/host/compile \
+        package/feeds/packages/protobuf/host/compile \
+    && printf '\033[1;35mFinished building prplOS toolchain\n\033[0m'
+
+# Which prplOS version (commit hash) to build:
+ARG PRPLOS_VERSION
+ENV PRPLOS_VERSION=$PRPLOS_VERSION
+
+# Checkout the PRPLOS_VERSION. Restore the feeds.conf.default change made above
+RUN printf '\033[1;35mChecking out prplOS %s\n\033[0m' "$PRPLOS_VERSION" \
+    && git fetch --depth 1 origin "$PRPLOS_VERSION" \
+    && git checkout -- feeds.conf.default \
+    && git checkout "$PRPLOS_VERSION"
 
 ####
 ## Prebuilt prplOS and prplMesh dependencies, but not the prplMesh ipk itself
@@ -112,6 +146,8 @@ FROM prplos-builder as prplmesh-builder
 #   which clashes with iw-full from the debug profile.
 # - mxl_x86_osp_tb341(_v2) add the open source hostap introduced in the
 #   MXL 9.1.15 code base.
+# - Set the feed file modification times as in the toolchain stage, so
+#   host packages prebuilt there from unchanged feeds are not rebuilt.
 RUN printf '\033[1;35mConfiguring prplOS\n\033[0m' \
     && mkdir -p files/etc \
     && printf '%s=%s\n' \
@@ -130,6 +166,10 @@ RUN printf '\033[1;35mConfiguring prplOS\n\033[0m' \
     && git config --global url."https://git.w1.fi/hostap.git".insteadOf "https://w1.fi/hostap.git" \
     && sed -i -E 's;git.openwrt.org/(feed|project);github.com/openwrt;' feeds.conf.default \
     && ./scripts/gen_config.py $profiles \
+    && for feed in feeds/*/ ; do \
+        [ -d "${feed}.git" ] || continue ; \
+        ( cd "$feed" && git ls-files -z | xargs -0r touch -h -d "@$(git log -1 --format=%ct)" ) || exit 1 ; \
+       done \
     && for profile in $profiles ; do \
         printf '\nProfile %s:\n' "$profile" >> files/etc/prplwrt-version \
         && cat "profiles/$profile.yml" >> files/etc/prplwrt-version || exit 1 ; \

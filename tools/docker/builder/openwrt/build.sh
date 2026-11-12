@@ -16,10 +16,12 @@ rootdir="${scriptdir%/*/*/*/*}"
 set -o pipefail
 
 usage() {
-    echo "usage: $(basename "$0") -d <target_device> [-hfiortv]"
+    echo "usage: $(basename "$0") -d <target_device> [-c <cache_dir>] [-hiorstv]"
     echo "  options:"
     echo "      -h|--help - show this help menu"
     echo "      -v|--verbose - increase the script's verbosity"
+    echo "      -c|--cache - directory to keep the prplOS git clone in, used to find"
+    echo "                   the toolchain commit (default: <prplMesh>/build)"
     echo "      -d|--target-device the device to build for"
     echo "      --docker-target-stage docker target build stage (implies -i)"
     echo "      -i|--image - build the docker image only"
@@ -37,6 +39,7 @@ build_image() {
     DOCKER_BUILDKIT=0 docker build --tag "$image_tag" \
            --build-arg PRPLOS_REPOSITORY="$PRPLOS_REPOSITORY" \
            --build-arg PRPLOS_VERSION="$PRPLOS_VERSION" \
+           --build-arg TOOLCHAIN_VERSION="$TOOLCHAIN_VERSION" \
            --build-arg TARGET_SYSTEM="$TARGET_SYSTEM" \
            --target="$DOCKER_TARGET_STAGE" \
            "$scriptdir/" \
@@ -80,6 +83,37 @@ build_prplmesh() {
     rm -r "$build_dir/artifacts/"
 }
 
+# Find the closest commit since PRPLOS_VERSION that changed the toolchain or host tools
+# This commit will provide a docker layer with these tools (cached)
+# The clone is kept in CACHE_DIR, which can be shared by concurrent builds
+# (e.g. CI jobs on the same runner), so it is only accessed under a lock.
+last_toolchain_commit() {
+    local repo="$CACHE_DIR/prplos_toolchain_commit"
+
+    mkdir -p "$CACHE_DIR" || return 1
+    (
+        flock 9 || exit 1
+        # A clone that was interrupted (e.g. a cancelled job) leaves a
+        # broken repository behind: start over.
+        if [ -d "$repo" ] && ! git -C "$repo" rev-parse --is-bare-repository > /dev/null 2>&1 ; then
+            dbg "Removing broken clone $repo" >&2
+            rm -rf "$repo"
+        fi
+        if [ ! -d "$repo" ] ; then
+            dbg "Cloning $PRPLOS_REPOSITORY into $repo" >&2
+            git clone --quiet --bare --filter=blob:none \
+                --config gc.auto=0 --config maintenance.auto=false \
+                "$PRPLOS_REPOSITORY" "$repo" >&2 || exit 1
+        fi
+        if ! GIT_NO_LAZY_FETCH=1 git -C "$repo" cat-file -e "${PRPLOS_VERSION}^{commit}" 2>/dev/null ; then
+            dbg "Fetching prplOS $PRPLOS_VERSION into $repo" >&2
+            git -C "$repo" remote set-url origin "$PRPLOS_REPOSITORY"
+            git -C "$repo" fetch --quiet --filter=blob:none origin "$PRPLOS_VERSION" >&2 || exit 1
+        fi
+        GIT_NO_LAZY_FETCH=1 git -C "$repo" log -1 --format=%H "$PRPLOS_VERSION" -- toolchain/ tools/
+    ) 9> "$repo.lock"
+}
+
 main() {
 
     if ! command -v uuidgen > /dev/null ; then
@@ -87,7 +121,7 @@ main() {
         exit 1
     fi
 
-    if ! OPTS=$(getopt -o 'hvd:io:r:st:' --long help,verbose,target-device:,docker-target-stage:,image,prplos-version:,prplos-repository:,shell,tag: -n 'parse-options' -- "$@"); then
+    if ! OPTS=$(getopt -o 'hvc:d:io:r:st:' --long help,verbose,cache:,target-device:,docker-target-stage:,image,prplos-version:,prplos-repository:,shell,tag: -n 'parse-options' -- "$@"); then
         err "Failed parsing options." >&2
         usage
         exit 1
@@ -101,6 +135,7 @@ main() {
         case "$1" in
             -h | --help)                      usage; exit 0; shift ;;
             -v | --verbose)                   VERBOSE=true; shift ;;
+            -c | --cache)                     CACHE_DIR="$2"; shift ; shift ;;
             -d | --target-device)             TARGET_DEVICE="$2"; shift ; shift ;;
             --docker-target-stage)            DOCKER_TARGET_STAGE="$2"; IMAGE_ONLY=true; shift 2 ;;
             -i | --image)                     IMAGE_ONLY=true; shift ;;
@@ -148,6 +183,7 @@ main() {
             ;;
     esac
 
+    dbg "CACHE_DIR=$CACHE_DIR"
     dbg "PRPLOS_REPOSITORY=$PRPLOS_REPOSITORY"
     dbg "PRPLOS_VERSION=$PRPLOS_VERSION"
     dbg "IMAGE_ONLY=$IMAGE_ONLY"
@@ -164,6 +200,12 @@ main() {
     export PRPLOS_REPOSITORY
     export PRPLOS_VERSION
     export TARGET_SYSTEM
+    
+    if ! TOOLCHAIN_VERSION="$(last_toolchain_commit)" || [ -z "$TOOLCHAIN_VERSION" ] ; then
+        err "Failed to find the prplOS toolchain version for $PRPLOS_VERSION."
+        exit 1
+    fi
+    dbg "TOOLCHAIN_VERSION=$TOOLCHAIN_VERSION"
     PRPLMESH_VERSION="$(git describe --always --dirty)"
     export PRPLMESH_VERSION
 
@@ -173,11 +215,11 @@ main() {
     [ $IMAGE_ONLY = true ] && exit $?
 
     build_prplmesh "$build_directory/$TARGET_DEVICE"
-
 }
 
 VERBOSE=false
 IMAGE_ONLY=false
+CACHE_DIR="${rootdir}/build"
 PRPLOS_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
 # prplos latest-24.10_2026-11-11
 PRPLOS_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
