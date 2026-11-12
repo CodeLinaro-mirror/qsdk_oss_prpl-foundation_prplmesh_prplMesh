@@ -500,14 +500,14 @@ bool print_mlo_backhaul(prplmesh_cli &cli, const conn_map_device_t &child,
     }
 
     for (size_t index = 0; index < associated_bstas.size(); ++index) {
-        const auto &bsta_mac       = associated_bstas[index];
-        const auto bssid_it        = bssid_by_bsta.find(bsta_mac);
-        const std::string bssid    = bssid_it == bssid_by_bsta.end() ? "" : bssid_it->second;
-        const bool primary         = is_valid_mlo_mac(primary_bssid) && bssid == primary_bssid;
-        const auto ap_link_it      = ap_links.find(bssid);
-        const auto display_link_id = ap_link_it == ap_links.end()
-                                         ? static_cast<uint32_t>(index)
-                                         : ap_link_it->second.second.link_id;
+        const auto &bsta_mac    = associated_bstas[index];
+        const auto bssid_it     = bssid_by_bsta.find(bsta_mac);
+        const std::string bssid = bssid_it == bssid_by_bsta.end() ? "" : bssid_it->second;
+        const bool primary      = is_valid_mlo_mac(primary_bssid) && bssid == primary_bssid;
+        const auto ap_link_it   = ap_links.find(bssid);
+        const std::string display_link_id = ap_link_it == ap_links.end()
+                                                ? "unknown"
+                                                : std::to_string(ap_link_it->second.second.link_id);
 
         std::cout << indent << "  " << (primary ? "* " : "  ") << "LINK[" << display_link_id << "]";
         std::cout << ": bSTA: " << bsta_mac

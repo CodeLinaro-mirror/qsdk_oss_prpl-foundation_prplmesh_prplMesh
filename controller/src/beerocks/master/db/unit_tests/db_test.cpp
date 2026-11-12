@@ -43,6 +43,7 @@ constexpr auto g_agent_mac                  = "46:55:66:77:00:51";
 constexpr auto g_ap_mld_mac                 = "46:55:66:77:00:61";
 constexpr auto g_vap_id_1                   = 1;
 constexpr auto g_bssid_1                    = "46:55:66:77:00:03";
+constexpr auto g_bssid_2                    = "46:55:66:77:00:04";
 constexpr auto g_ssid_1                     = "dummy_ssid";
 constexpr auto g_interface_mac_1            = "46:55:66:77:00:41";
 constexpr auto g_interface_mac_2            = "46:55:66:77:00:42";
@@ -256,6 +257,98 @@ protected:
             .WillRepeatedly(Return(true));
     }
 };
+
+class DbTestBackhaul : public ::DbTest {
+protected:
+    prplmesh::controller::db::Agent m_agent{tlvf::mac_from_string(g_agent_mac)};
+
+    void SetUp() override
+    {
+        DbTest::SetUp();
+        m_agent.dm_path                     = g_agent_path;
+        m_agent.backhaul                    = {};
+        m_agent.backhaul.parent_agent       = m_db->get_agent(tlvf::mac_from_string(g_bridge_mac));
+        m_agent.backhaul.backhaul_interface = tlvf::mac_from_string(g_interface_mac_1);
+    }
+
+    void expect_backhaul_update(const std::string &link_type, const sMacAddr &primary_bssid,
+                                bool primary_set_succeeds = true)
+    {
+        const auto path = m_agent.dm_path + ".MultiAPDevice.Backhaul";
+        EXPECT_CALL(*m_ambiorix, set(m_agent.dm_path + ".bSTAMLD", "X_PRPLWARE-COM_PrimaryBSSID",
+                                     Matcher<const sMacAddr &>(primary_bssid)))
+            .WillOnce(Return(primary_set_succeeds));
+        EXPECT_CALL(*m_ambiorix, set(path, "LinkType", Matcher<const std::string &>(link_type)))
+            .WillOnce(Return(true));
+        EXPECT_CALL(
+            *m_ambiorix,
+            set(path, "MACAddress", Matcher<const sMacAddr &>(m_agent.backhaul.backhaul_interface)))
+            .WillOnce(Return(true));
+        EXPECT_CALL(*m_ambiorix, set(path, "BackhaulMACAddress",
+                                     Matcher<const sMacAddr &>(m_agent.backhaul.parent_interface)))
+            .WillOnce(Return(true));
+        const auto parent = m_agent.backhaul.parent_agent.lock();
+        if (parent) {
+            EXPECT_CALL(*m_ambiorix,
+                        set(path, "BackhaulDeviceID", Matcher<const sMacAddr &>(parent->al_mac)))
+                .WillOnce(Return(true));
+        } else {
+            EXPECT_CALL(*m_ambiorix,
+                        set(path, "BackhaulDeviceID", Matcher<const std::string &>("")))
+                .WillOnce(Return(true));
+        }
+    }
+};
+
+TEST_F(DbTestBackhaul, topology_updates_primary_bssid_without_mlo_configuration)
+{
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1));
+    EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+
+    m_agent.backhaul.parent_interface = tlvf::mac_from_string(g_bssid_2);
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_2));
+    EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+}
+
+TEST_F(DbTestBackhaul, ethernet_transition_clears_primary_bssid_without_mlo_configuration)
+{
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1));
+    EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_ETHERNET;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_interface_mac_2);
+    expect_backhaul_update("Ethernet", tlvf::mac_from_string(g_zero_mac));
+    EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+}
+
+TEST_F(DbTestBackhaul, update_primary_bssid_even_when_parent_agent_is_unresolved)
+{
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    m_agent.backhaul.parent_agent.reset();
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1));
+    EXPECT_FALSE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+}
+
+TEST_F(DbTestBackhaul, report_primary_bssid_write_failure)
+{
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1), false);
+    EXPECT_FALSE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+}
+
+TEST_F(DbTestBackhaul, clear_primary_bssid_when_wireless_membership_is_unknown)
+{
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_zero_mac);
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_zero_mac));
+    EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+}
 
 class DbTestRadio1 : public ::DbTest {
 

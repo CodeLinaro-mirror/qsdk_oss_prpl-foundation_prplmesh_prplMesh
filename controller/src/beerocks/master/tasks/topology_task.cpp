@@ -8,6 +8,7 @@
  */
 
 #include "topology_task.h"
+#include "../db/backhaul_utils.h"
 #include "../db/db_algo.h"
 #include "../son_actions.h"
 #include "bml_task.h"
@@ -670,12 +671,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                 continue;
             }
 
-            child_agent->backhaul.parent_agent            = parent_agent;
-            child_agent->backhaul.backhaul_iface_type     = beerocks::IFACE_TYPE_ETHERNET;
-            child_agent->backhaul.backhaul_interface      = child_agent->al_mac;
-            child_agent->backhaul.parent_interface        = beerocks::net::network_utils::ZERO_MAC;
-            child_agent->backhaul.wireless_backhaul_radio = nullptr;
-
+            auto parent_interface = beerocks::net::network_utils::ZERO_MAC;
             for (const auto &parent_iface_pair : parent_agent->interfaces) {
                 const auto &parent_iface = parent_iface_pair.second;
                 if (!parent_iface) {
@@ -688,10 +684,24 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                 }
 
                 if (parent_iface->m_neighbors.get(child_al_mac)) {
-                    child_agent->backhaul.parent_interface = parent_iface_pair.first;
+                    parent_interface = parent_iface_pair.first;
                     break;
                 }
             }
+
+            // The reporting Agent was reset above; other inferred children still have their
+            // previous relationship. Preserve a known Ethernet port for every affected child
+            // before publishing the inferred backhaul to the Data Model.
+            const auto &previous_child_backhaul =
+                child_al_mac == al_mac ? previous_backhaul : child_agent->backhaul;
+            parent_interface = prplmesh::controller::db::resolve_ethernet_parent_interface(
+                previous_child_backhaul, parent_al_mac, parent_interface);
+
+            child_agent->backhaul.parent_agent            = parent_agent;
+            child_agent->backhaul.backhaul_iface_type     = beerocks::IFACE_TYPE_ETHERNET;
+            child_agent->backhaul.backhaul_interface      = child_agent->al_mac;
+            child_agent->backhaul.parent_interface        = parent_interface;
+            child_agent->backhaul.wireless_backhaul_radio = nullptr;
 
             if (!database.dm_set_device_multi_ap_backhaul(*child_agent)) {
                 LOG(ERROR) << "Failed to set Multi-AP backhaul after graph inference for "
@@ -728,14 +738,6 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                        << (same_unresolved_wireless_backhaul ? "wireless" : "wired")
                        << " backhaul relationship";
             agent->backhaul = previous_backhaul;
-        } else if (current_parent && previous_parent &&
-                   current_parent->al_mac == previous_parent->al_mac &&
-                   agent->backhaul.backhaul_iface_type == beerocks::IFACE_TYPE_ETHERNET &&
-                   agent->backhaul.parent_interface == beerocks::net::network_utils::ZERO_MAC &&
-                   previous_backhaul.parent_interface != beerocks::net::network_utils::ZERO_MAC) {
-            // One side of the Ethernet neighbor relationship may be refreshed before the other.
-            // Keep the known parent port while the parent Agent is unchanged.
-            agent->backhaul.parent_interface = previous_backhaul.parent_interface;
         }
 
         if (!database.dm_set_device_multi_ap_backhaul(*agent) &&

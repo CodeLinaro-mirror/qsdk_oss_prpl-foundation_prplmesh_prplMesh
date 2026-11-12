@@ -10,6 +10,7 @@ if (BUILD_TESTS)
 
     set(unit_tests_sources
         ${db_unit_tests}
+        ${CMAKE_CURRENT_LIST_DIR}/backhaul_utils_test.cpp
         ${CMAKE_CURRENT_LIST_DIR}/db_test.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../db.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../station.cpp
