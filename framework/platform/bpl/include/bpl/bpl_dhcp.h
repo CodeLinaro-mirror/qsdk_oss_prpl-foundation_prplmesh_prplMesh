@@ -56,7 +56,8 @@ struct sIPv6Lease {
     }
 };
 
-// Key for IPv6 leases are DUID.
+// IPv6 keys are platform-specific: DUIDs for DHCP backends, canonical MAC strings
+// for the DM and Linux backends. Consumers use sIPv6Lease::mac to identify a station.
 typedef std::unordered_map<std::string, sIPv6Lease> ipv6_lease_map_t;
 typedef std::pair<ipv4_lease_map_t, ipv6_lease_map_t> leases_pair_t;
 

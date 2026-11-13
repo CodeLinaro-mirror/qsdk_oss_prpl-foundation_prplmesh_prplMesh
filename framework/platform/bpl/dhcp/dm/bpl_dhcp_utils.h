@@ -26,6 +26,20 @@ ipv4_lease_map_t parse_ipv4_leases(const wbapi::AmbiorixVariantMap &clients,
                                    const wbapi::AmbiorixVariantMap &hosts,
                                    std::chrono::system_clock::time_point now);
 
+/**
+ * Join DHCPv6 clients to MACs using Hosts.DHCPClient references, and supplement with
+ * Hosts IPv6 discovery. Never infer a MAC from a DUID or an IPv6 interface identifier.
+ * Prefer non-deprecated addresses, then global over ULA over link-local, then DHCP
+ * over discovery, latest validity, and finally the lowest numeric IPv6 address.
+ * Reject conflicting ownership and known unusable discovery status. Missing status
+ * is accepted because Hosts declares Status protected and normally omits it.
+ * The returned map is keyed by canonical MAC, with one address per station.
+ */
+ipv6_lease_map_t parse_ipv6_leases(const wbapi::AmbiorixVariantMap &clients,
+                                   const wbapi::AmbiorixVariantMap &hosts,
+                                   const wbapi::AmbiorixVariantMap &addresses,
+                                   std::chrono::system_clock::time_point now);
+
 } // namespace dhcp
 } // namespace bpl
 } // namespace beerocks

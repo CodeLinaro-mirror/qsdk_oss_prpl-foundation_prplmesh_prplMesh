@@ -40,25 +40,43 @@ bool dhcp_get_leases(leases_pair_t &leases_map)
         return false;
     }
 
-    // Two bulk reads, independent of station count. Depth 2 includes address instances.
+    // Bulk reads are independent of station count. Depth 2 includes address instances.
     auto clients = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>(
         "DHCPv4Server.Pool.*.Client.*.", 2);
     if (!clients) {
-        LOG(ERROR) << "Failed to read DHCPv4Server clients";
-        return false;
+        LOG(DEBUG) << "DHCPv4 leases unavailable; attempting IPv6 discovery";
     }
 
     auto hosts = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>("Hosts.Host.*.", 0);
     if (!hosts) {
-        LOG(WARNING) << "Failed to read Hosts hostnames; updating DHCP IPv4 addresses only";
+        LOG(WARNING) << "Failed to read Hosts; IPv6 MAC association and hostnames unavailable";
     }
 
-    // Publish a complete snapshot only after the required DHCP read succeeds.
-    const wbapi::AmbiorixVariantMap empty_hosts;
+    // IPv6 reads are optional: an unavailable IPv6 service must not block IPv4 updates.
+    // Read only the IPv6 children, avoiding the potentially large Hosts IPv4 tables.
+    wbapi::AmbiorixVariantMapSmartPtr ipv6_clients, ipv6_addresses;
+    if (hosts) {
+        ipv6_clients = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>(
+            "DHCPv6Server.Pool.*.Client.*.", 2);
+        ipv6_addresses = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>(
+            "Hosts.Host.*.IPv6Address.*.", 0);
+        LOG_IF(!ipv6_clients, DEBUG) << "DHCPv6 leases unavailable; using Hosts IPv6 discovery";
+        LOG_IF(!ipv6_addresses, DEBUG) << "Hosts IPv6 discovery unavailable";
+    }
+
+    // Preserve the caller's snapshot if neither address family could be read.
+    // Either family can update independently; omitted entries leave cached STA values intact.
+    if (!clients && (!hosts || (!ipv6_clients && !ipv6_addresses))) {
+        return false;
+    }
+    const wbapi::AmbiorixVariantMap empty;
+    const auto now = std::chrono::system_clock::now();
     leases_pair_t leases;
-    leases.first = dhcp::parse_ipv4_leases(*clients, hosts ? *hosts : empty_hosts,
-                                           std::chrono::system_clock::now());
-    leases_map   = std::move(leases);
+    leases.first = dhcp::parse_ipv4_leases(clients ? *clients : empty, hosts ? *hosts : empty, now);
+    leases.second =
+        dhcp::parse_ipv6_leases(ipv6_clients ? *ipv6_clients : empty, hosts ? *hosts : empty,
+                                ipv6_addresses ? *ipv6_addresses : empty, now);
+    leases_map = std::move(leases);
     return true;
 }
 
