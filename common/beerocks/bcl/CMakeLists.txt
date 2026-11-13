@@ -61,6 +61,7 @@ if(BUILD_TESTS)
         ${MODULE_PATH}/unit_tests/network_utils_test.cpp
         ${MODULE_PATH}/unit_tests/event_loop_impl_test.cpp
         ${MODULE_PATH}/unit_tests/interface_state_manager_impl_test.cpp
+        ${MODULE_PATH}/unit_tests/netlink_event_listener_impl_test.cpp
         ${MODULE_PATH}/unit_tests/timer_impl_test.cpp
         ${MODULE_PATH}/unit_tests/timer_manager_impl_test.cpp
         ${MODULE_PATH}/unit_tests/transaction_test.cpp
