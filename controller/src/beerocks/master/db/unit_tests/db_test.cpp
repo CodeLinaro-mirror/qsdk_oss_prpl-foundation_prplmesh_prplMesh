@@ -304,10 +304,12 @@ TEST_F(DbTestBackhaul, topology_updates_primary_bssid_without_mlo_configuration)
 {
     m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
     m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    m_agent.backhaul.connection_bssid    = tlvf::mac_from_string(g_bssid_1);
     expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1));
     EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
 
     m_agent.backhaul.parent_interface = tlvf::mac_from_string(g_bssid_2);
+    m_agent.backhaul.connection_bssid = tlvf::mac_from_string(g_bssid_2);
     expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_2));
     EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
 }
@@ -316,6 +318,7 @@ TEST_F(DbTestBackhaul, ethernet_transition_clears_primary_bssid_without_mlo_conf
 {
     m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
     m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    m_agent.backhaul.connection_bssid    = tlvf::mac_from_string(g_bssid_1);
     expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1));
     EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
 
@@ -329,6 +332,7 @@ TEST_F(DbTestBackhaul, update_primary_bssid_even_when_parent_agent_is_unresolved
 {
     m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
     m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    m_agent.backhaul.connection_bssid    = tlvf::mac_from_string(g_bssid_1);
     m_agent.backhaul.parent_agent.reset();
     expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1));
     EXPECT_FALSE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
@@ -338,6 +342,7 @@ TEST_F(DbTestBackhaul, report_primary_bssid_write_failure)
 {
     m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
     m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_bssid_1);
+    m_agent.backhaul.connection_bssid    = tlvf::mac_from_string(g_bssid_1);
     expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1), false);
     EXPECT_FALSE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
 }
@@ -347,6 +352,23 @@ TEST_F(DbTestBackhaul, clear_primary_bssid_when_wireless_membership_is_unknown)
     m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
     m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_zero_mac);
     expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_zero_mac));
+    EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+}
+
+TEST_F(DbTestBackhaul, mld_endpoint_without_selected_link_does_not_become_primary_bssid)
+{
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_ap_mld_mac);
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_zero_mac));
+    EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
+}
+
+TEST_F(DbTestBackhaul, publish_selected_link_bssid_separately_from_mld_endpoint)
+{
+    m_agent.backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+    m_agent.backhaul.parent_interface    = tlvf::mac_from_string(g_ap_mld_mac);
+    m_agent.backhaul.connection_bssid    = tlvf::mac_from_string(g_bssid_1);
+    expect_backhaul_update("Wi-Fi", tlvf::mac_from_string(g_bssid_1));
     EXPECT_TRUE(m_db->dm_set_device_multi_ap_backhaul(m_agent));
 }
 

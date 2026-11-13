@@ -138,10 +138,12 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         agent->backhaul.backhaul_interface = al_mac;
         agent->backhaul.parent_agent.reset();
         agent->backhaul.parent_interface        = beerocks::net::network_utils::ZERO_MAC;
+        agent->backhaul.connection_bssid        = beerocks::net::network_utils::ZERO_MAC;
         agent->backhaul.wireless_backhaul_radio = nullptr;
     }
 
     std::vector<sMacAddr> interface_macs{};
+    size_t reported_wireless_interfaces = 0;
 
     for (uint8_t i = 0; i < tlvDeviceInformation->local_interface_list_length(); i++) {
         const auto iface_info_tuple = tlvDeviceInformation->local_interface_list(i);
@@ -216,6 +218,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
             // wireless connection is considered active. (PPM-2043)
             if (iface_role == ieee1905_1::eRole::NON_AP_NON_PCP_STA &&
                 media_info->network_membership != beerocks::net::network_utils::ZERO_MAC) {
+                ++reported_wireless_interfaces;
 
                 // These values come directly from the reporting Agent. Store them before resolving
                 // the Controller-side Station and BSS objects, which may still be rebuilt after an
@@ -224,16 +227,15 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                 agent->backhaul.backhaul_interface  = iface_mac;
                 agent->backhaul.parent_interface    = media_info->network_membership;
 
-                // Search parent/connected agent
-                auto parent_agent = database.get_agent_by_bssid(media_info->network_membership);
+                // Accept either a BSSID or a logical AP MLD endpoint, independently of Station
+                // objects that may not have been rebuilt yet after reconnect.
+                auto parent_agent = prplmesh::controller::db::resolve_wireless_backhaul_parent(
+                    database.m_agents, al_mac, media_info->network_membership);
+                agent->backhaul.parent_agent = parent_agent;
                 if (!parent_agent) {
                     LOG(ERROR) << "Parent agent is not found on database";
                     continue;
                 }
-
-                // network_membership identifies the parent BSS directly. Do not delay linking the
-                // Agent to its parent until the corresponding bSTA object is rebuilt.
-                agent->backhaul.parent_agent = parent_agent;
 
                 auto backhaul_sta = database.get_station(iface_mac);
                 if (!backhaul_sta) {
@@ -248,10 +250,12 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                     continue;
                 }
 
-                // Network Membership verification from database
+                // Compare link-level membership with the Station's BSSID. An AP MLD endpoint
+                // identifies the logical association and cannot be compared directly to a BSSID.
                 // This case could occur, if we can topology response before topology notification
                 // with JOIN notification for that station.
-                if (media_info->network_membership != parent_bss->bssid) {
+                if (!parent_agent->ap_mlds.count(media_info->network_membership) &&
+                    media_info->network_membership != parent_bss->bssid) {
                     LOG(INFO) << "Network membership does not align with database, parent_bssid="
                               << parent_bss->bssid
                               << ", network_membership=" << media_info->network_membership;
@@ -662,10 +666,9 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
             }
 
             // Keep wireless backhaul hierarchy determined from Device Information.
-            const bool has_wireless_backhaul_parent =
-                (child_agent->backhaul.backhaul_iface_type != beerocks::IFACE_TYPE_ETHERNET) &&
-                !child_agent->backhaul.parent_agent.expired();
-            if (has_wireless_backhaul_parent) {
+            // A reported wireless endpoint remains wireless even if its parent is not known yet.
+            // Stale Ethernet neighbors must not override that explicit information.
+            if (beerocks::utils::is_device_wireless(child_agent->backhaul.backhaul_iface_type)) {
                 continue;
             }
 
@@ -699,6 +702,7 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
             child_agent->backhaul.backhaul_iface_type     = beerocks::IFACE_TYPE_ETHERNET;
             child_agent->backhaul.backhaul_interface      = child_agent->al_mac;
             child_agent->backhaul.parent_interface        = parent_interface;
+            child_agent->backhaul.connection_bssid        = beerocks::net::network_utils::ZERO_MAC;
             child_agent->backhaul.wireless_backhaul_radio = nullptr;
 
             if (!database.dm_set_device_multi_ap_backhaul(*child_agent)) {
@@ -746,6 +750,10 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
 
         // Resolve the local radio after this response's affiliated-bSTA/RUID data is processed.
         // A missing radio does not invalidate an independently resolved wireless parent.
+        // Multiple reported wireless interfaces do not establish which link is platform-selected.
+        agent->backhaul.connection_bssid =
+            prplmesh::controller::db::resolve_wireless_backhaul_connection_bssid(
+                *agent, reported_wireless_interfaces);
         agent->backhaul.wireless_backhaul_radio =
             prplmesh::controller::db::resolve_wireless_backhaul_radio(*agent, previous_backhaul);
 

@@ -555,9 +555,13 @@ public:
         // backhaul_iface_type determines whether the backhaul is wireless.
         std::shared_ptr<Agent::sRadio> wireless_backhaul_radio;
 
-        // In case of a wireless connection, the BSSID to which the backhaul station is connected.
+        // Wireless: reported upstream BSSID or AP MLD MAC address.
         // In case of a wired connection, the LAN port that the interface is connected to.
         sMacAddr parent_interface;
+
+        // BSSID of the upstream affiliated AP for the selected bSTA connection, if known.
+        // An AP MLD address alone does not identify this link.
+        sMacAddr connection_bssid = beerocks::net::network_utils::ZERO_MAC;
 
         // The Agent node that the backhaul station is connected to.
         std::weak_ptr<Agent> parent_agent;

@@ -442,7 +442,10 @@
             %read-only string BSSID = "";
             /* Comma-separated list of affiliated bSTA MACs (Backhaul STA MLD Configuration TLV). */
             %read-only string AffiliatedbSTAList = "";
-            /* Physical BSSID of the primary connection-management link. */
+            /* BSSID of the upstream affiliated AP for the platform-selected bSTA connection.
+             * This is not the local bSTA MAC or the upstream AP MLD MAC. It does not indicate
+             * an EasyMesh-preferred traffic link. Zero when unknown or the backhaul is not Wi-Fi.
+             */
             %read-only string X_PRPLWARE-COM_PrimaryBSSID = "";
 
             object bSTAMLDConfig {

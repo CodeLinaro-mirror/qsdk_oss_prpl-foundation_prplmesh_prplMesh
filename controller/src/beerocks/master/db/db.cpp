@@ -9029,7 +9029,7 @@ bool db::dm_set_device_multi_ap_backhaul(const Agent &agent)
     // Keep this derived value synchronized even when the topology update has no bSTA MLD TLV.
     const auto primary_bssid =
         !agent.is_gateway && beerocks::utils::is_device_wireless(agent.backhaul.backhaul_iface_type)
-            ? agent.backhaul.parent_interface
+            ? agent.backhaul.connection_bssid
             : beerocks::net::network_utils::ZERO_MAC;
     ret_val &= m_ambiorix_datamodel->set(agent.dm_path + ".bSTAMLD", "X_PRPLWARE-COM_PrimaryBSSID",
                                          primary_bssid);
