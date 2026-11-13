@@ -716,6 +716,12 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
         LOG(DEBUG) << "Skipping wired parent inference: root agent not found";
     }
 
+    // Finalize the reporting Agent's backhaul after wireless resolution and wired inference.
+    // Reconnect reports can arrive before parent BSSes or Ethernet neighbor data are rebuilt.
+    // If the parent remains unresolved, retain the previous wired relationship; for wireless,
+    // retain it only when the bSTA and reported upstream address are unchanged. These comparisons
+    // prevent assigning the old parent to a newly reported wireless connection. Apply this
+    // fallback before writing the Data Model so temporary ordering gaps do not clear a known parent.
     if (!agent->is_gateway) {
         auto previous_parent = previous_backhaul.parent_agent.lock();
         auto current_parent  = agent->backhaul.parent_agent.lock();
