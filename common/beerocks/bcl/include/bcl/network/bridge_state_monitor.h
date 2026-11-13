@@ -29,6 +29,11 @@ public:
         const std::string &bridge_name, const std::string &iface_name, bool iface_in_bridge)>;
 
     /**
+     * Events-lost handler function.
+     */
+    using EventsLostHandler = std::function<void()>;
+
+    /**
      * @brief Class destructor
      */
     virtual ~BridgeStateMonitor() = default;
@@ -54,6 +59,20 @@ public:
      */
     void clear_handler() { m_handler = nullptr; }
 
+    /**
+     * @brief Sets the events-lost handler function.
+     *
+     * The handler is called back when state-changed events may have been lost (e.g. on a Netlink
+     * socket receive buffer overrun). The bridge state must then be read again.
+     * Use nullptr to remove previously installed callback function.
+     *
+     * @param handler Events-lost handler function (or nullptr).
+     */
+    void set_events_lost_handler(const EventsLostHandler &handler)
+    {
+        m_events_lost_handler = handler;
+    }
+
 protected:
     /**
      * @brief Notifies a network bridge state-changed event.
@@ -71,12 +90,27 @@ protected:
         }
     }
 
+    /**
+     * @brief Notifies that state-changed events may have been lost.
+     */
+    void notify_events_lost() const
+    {
+        if (m_events_lost_handler) {
+            m_events_lost_handler();
+        }
+    }
+
 private:
     /**
      * Network bridge state-changed handler function that is called back whenever a bridge state
      * changes.
      */
     StateChangedHandler m_handler;
+
+    /**
+     * Events-lost handler function.
+     */
+    EventsLostHandler m_events_lost_handler;
 };
 
 } // namespace net

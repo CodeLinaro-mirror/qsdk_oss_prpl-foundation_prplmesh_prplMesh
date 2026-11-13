@@ -31,6 +31,12 @@ InterfaceStateMonitorImpl::~InterfaceStateMonitorImpl()
 
 void InterfaceStateMonitorImpl::handle_netlink_event(const nlmsghdr *msg_hdr)
 {
+    // The Netlink event listener has lost events, so the state must be read again
+    if (msg_hdr->nlmsg_type == NLMSG_OVERRUN) {
+        notify_events_lost();
+        return;
+    }
+
     switch (msg_hdr->nlmsg_type) {
     case RTM_NEWLINK:
     case RTM_DELLINK:

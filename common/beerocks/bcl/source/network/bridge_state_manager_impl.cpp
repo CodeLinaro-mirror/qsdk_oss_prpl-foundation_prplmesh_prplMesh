@@ -9,6 +9,8 @@
 #include <bcl/network/bridge_state_manager_impl.h>
 
 #include <algorithm>
+#include <tuple>
+#include <vector>
 
 #include <easylogging++.h>
 
@@ -84,9 +86,14 @@ BridgeStateManagerImpl::BridgeStateManagerImpl(
             notify_state_changed(bridge_name, iface_name, iface_in_bridge);
         }
     });
+    m_bridge_state_monitor->set_events_lost_handler([&]() { resync(); });
 }
 
-BridgeStateManagerImpl::~BridgeStateManagerImpl() { m_bridge_state_monitor->clear_handler(); }
+BridgeStateManagerImpl::~BridgeStateManagerImpl()
+{
+    m_bridge_state_monitor->set_events_lost_handler(nullptr);
+    m_bridge_state_monitor->clear_handler();
+}
 
 bool BridgeStateManagerImpl::read_state(const std::string &bridge_name,
                                         std::set<std::string> &iface_names)
@@ -125,6 +132,45 @@ void BridgeStateManagerImpl::set_state(const std::string &bridge_name,
                                        const std::set<std::string> &iface_names)
 {
     m_bridge_states[bridge_name] = iface_names;
+}
+
+void BridgeStateManagerImpl::resync()
+{
+    LOG(INFO) << "Reading the state of " << m_bridge_states.size() << " bridges again";
+
+    // Update the cache first and notify afterwards: handlers may call read_state(), which can
+    // insert into the map while it is being iterated
+    std::vector<std::tuple<std::string, std::string, bool>> changes;
+    for (auto &entry : m_bridge_states) {
+        const auto &bridge_name = entry.first;
+        auto &iface_names       = entry.second;
+
+        std::set<std::string> actual_iface_names;
+        if (!m_bridge_state_reader->read_state(bridge_name, actual_iface_names)) {
+            LOG(ERROR) << "Unable to read the state of bridge " << bridge_name;
+            continue;
+        }
+
+        for (const auto &iface_name : iface_names) {
+            if (actual_iface_names.find(iface_name) == actual_iface_names.end()) {
+                changes.emplace_back(bridge_name, iface_name, false);
+            }
+        }
+        for (const auto &iface_name : actual_iface_names) {
+            if (iface_names.find(iface_name) == iface_names.end()) {
+                changes.emplace_back(bridge_name, iface_name, true);
+            }
+        }
+
+        iface_names = std::move(actual_iface_names);
+    }
+
+    for (const auto &change : changes) {
+        LOG(INFO) << "Interface " << std::get<1>(change) << " "
+                  << (std::get<2>(change) ? "added to" : "removed from") << " bridge "
+                  << std::get<0>(change) << " while events were lost";
+        notify_state_changed(std::get<0>(change), std::get<1>(change), std::get<2>(change));
+    }
 }
 
 } // namespace net

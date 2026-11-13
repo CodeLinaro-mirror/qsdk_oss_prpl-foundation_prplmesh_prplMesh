@@ -100,6 +100,17 @@ private:
      * @param[in] iface_state Interface state (true if it is up and running).
      */
     void set_state(const std::string &iface_name, bool iface_state);
+
+    /**
+     * @brief Reads the state of all known interfaces again and notifies it.
+     *
+     * Called when state-changed events have been lost. The state of every known interface is
+     * notified, changed or not, because the handler may have dropped an interface in the meantime
+     * (e.g. on a socket error) and is waiting for a state-changed event to use it again. An
+     * interface that is up is notified down and then up, because it may have been deleted and
+     * created again in the meantime.
+     */
+    void resync();
 };
 
 } // namespace net

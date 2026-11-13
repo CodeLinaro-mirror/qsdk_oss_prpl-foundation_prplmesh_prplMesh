@@ -35,12 +35,14 @@ NetlinkEventListenerImpl::NetlinkEventListenerImpl(std::shared_ptr<Socket::Conne
             parse(buffer);
         } else if ((result < 0) && (errno == ENOBUFS)) {
             LOG(ERROR) << "Netlink socket receive buffer overrun, events have been lost";
+            handle_overrun();
         }
 
         return true;
     };
     // The event loop removes the socket from the poll on error. A receive buffer overrun
-    // (ENOBUFS) is reported as an error, so register the socket again to keep receiving events.
+    // (ENOBUFS) is reported as an error, so register the socket again to keep receiving events,
+    // and recover from the events lost in the overrun.
     m_handlers.on_error = [&](int fd, EventLoop &loop) -> bool {
         // Reading SO_ERROR also clears it, so the error is not reported again
         int error        = 0;
@@ -55,7 +57,10 @@ NetlinkEventListenerImpl::NetlinkEventListenerImpl(std::shared_ptr<Socket::Conne
 
         if (!loop.register_handlers(fd, m_handlers)) {
             LOG(ERROR) << "Unable to register Netlink socket again, events are no longer received";
+            return true;
         }
+
+        handle_overrun();
 
         return true;
     };
@@ -68,6 +73,30 @@ NetlinkEventListenerImpl::NetlinkEventListenerImpl(std::shared_ptr<Socket::Conne
 NetlinkEventListenerImpl::~NetlinkEventListenerImpl()
 {
     m_event_loop->remove_handlers(m_connection->socket()->fd());
+}
+
+void NetlinkEventListenerImpl::handle_overrun()
+{
+    // After an overrun, the kernel queues no new events until the receive queue is empty, so
+    // empty it right away. A read does not wait, so the loop ends when the queue is empty
+    while (true) {
+        BufferImpl<netlink_buffer_size> buffer;
+        int result = m_connection->receive(buffer);
+        if (result > 0) {
+            parse(buffer);
+        } else if ((result == 0) || (errno != ENOBUFS)) {
+            break;
+        }
+    }
+
+    // The handlers must read the current state again. NLMSG_OVERRUN is the Netlink message type
+    // reserved for lost data
+    LOG(INFO) << "Notifying Netlink event handlers that events have been lost";
+
+    nlmsghdr msg_hdr{};
+    msg_hdr.nlmsg_len  = NLMSG_LENGTH(0);
+    msg_hdr.nlmsg_type = NLMSG_OVERRUN;
+    notify_netlink_event(&msg_hdr);
 }
 
 void NetlinkEventListenerImpl::parse(const Buffer &buffer) const
