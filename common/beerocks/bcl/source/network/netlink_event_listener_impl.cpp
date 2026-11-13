@@ -10,6 +10,12 @@
 #include <bcl/network/buffer_impl.h>
 #include <bcl/network/netlink_event_listener_impl.h>
 
+#include <easylogging++.h>
+
+#include <cerrno>
+#include <cstring>
+#include <sys/socket.h>
+
 using namespace beerocks;
 
 namespace beerocks {
@@ -21,18 +27,42 @@ NetlinkEventListenerImpl::NetlinkEventListenerImpl(std::shared_ptr<Socket::Conne
                                                    std::shared_ptr<EventLoop> event_loop)
     : m_connection(connection), m_event_loop(event_loop)
 {
-    EventLoop::EventHandlers handlers;
-    handlers.name    = "Netlink Event Listener";
-    handlers.on_read = [&](int fd, EventLoop &loop) -> bool {
+    m_handlers.name    = "Netlink Event Listener";
+    m_handlers.on_read = [&](int fd, EventLoop &loop) -> bool {
         BufferImpl<netlink_buffer_size> buffer;
-        if (m_connection->receive(buffer) > 0) {
+        int result = m_connection->receive(buffer);
+        if (result > 0) {
             parse(buffer);
+        } else if ((result < 0) && (errno == ENOBUFS)) {
+            LOG(ERROR) << "Netlink socket receive buffer overrun, events have been lost";
+        }
+
+        return true;
+    };
+    // The event loop removes the socket from the poll on error. A receive buffer overrun
+    // (ENOBUFS) is reported as an error, so register the socket again to keep receiving events.
+    m_handlers.on_error = [&](int fd, EventLoop &loop) -> bool {
+        // Reading SO_ERROR also clears it, so the error is not reported again
+        int error        = 0;
+        socklen_t length = sizeof(error);
+        if ((getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &length) != 0) || (error == 0)) {
+            LOG(ERROR) << "Netlink socket failed, events are no longer received";
+            return true;
+        }
+
+        LOG(ERROR) << "Netlink socket error: " << strerror(error) << " (" << error
+                   << "), events have been lost";
+
+        if (!loop.register_handlers(fd, m_handlers)) {
+            LOG(ERROR) << "Unable to register Netlink socket again, events are no longer received";
         }
 
         return true;
     };
 
-    m_event_loop->register_handlers(m_connection->socket()->fd(), handlers);
+    if (!m_event_loop->register_handlers(m_connection->socket()->fd(), m_handlers)) {
+        LOG(ERROR) << "Unable to register Netlink socket, events are not received";
+    }
 }
 
 NetlinkEventListenerImpl::~NetlinkEventListenerImpl()
