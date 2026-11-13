@@ -12,12 +12,11 @@
 #include "netlink_event_listener.h"
 #include "sockets_impl.h"
 
+#include <bcl/beerocks_event_loop.h>
+
 #include <memory>
 
 namespace beerocks {
-
-class EventLoop;
-
 namespace net {
 
 class NetlinkEventListenerImpl : public NetlinkEventListener {
@@ -46,6 +45,11 @@ private:
      * Application event loop used by the monitor to wait for I/O events.
      */
     std::shared_ptr<EventLoop> m_event_loop;
+
+    /**
+     * Event handlers of the Netlink socket, kept to register them again after a socket error.
+     */
+    EventLoop::EventHandlers m_handlers;
 
     /**
      * @brief Parses data received through the Netlink socket connection.
