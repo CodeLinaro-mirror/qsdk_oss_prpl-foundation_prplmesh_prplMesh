@@ -112,6 +112,13 @@ private:
      * @param[out] iface_names Names of the interfaces in the network bridge.
      */
     void set_state(const std::string &bridge_name, const std::set<std::string> &iface_names);
+
+    /**
+     * @brief Reads the state of all known bridges again and notifies the differences.
+     *
+     * Called when state-changed events have been lost.
+     */
+    void resync();
 };
 
 } // namespace net

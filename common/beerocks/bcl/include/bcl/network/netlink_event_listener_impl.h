@@ -52,6 +52,15 @@ private:
     EventLoop::EventHandlers m_handlers;
 
     /**
+     * @brief Recovers from the events lost in a receive buffer overrun.
+     *
+     * Empties the receive queue: the queued messages are older than the lost ones, so they are
+     * processed first. The handlers then get a message of type NLMSG_OVERRUN and recover from the
+     * lost events by reading the current state again.
+     */
+    void handle_overrun();
+
+    /**
      * @brief Parses data received through the Netlink socket connection.
      *
      * The array of bytes contains a list of Netlink messages. This method notifies a Netlink event

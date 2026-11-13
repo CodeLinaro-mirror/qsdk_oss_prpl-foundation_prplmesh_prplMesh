@@ -27,6 +27,11 @@ public:
         std::function<void(const std::string &iface_name, bool iface_state)>;
 
     /**
+     * Events-lost handler function.
+     */
+    using EventsLostHandler = std::function<void()>;
+
+    /**
      * @brief Class destructor
      */
     virtual ~InterfaceStateMonitor() = default;
@@ -52,6 +57,20 @@ public:
      */
     void clear_handler() { m_handler = nullptr; }
 
+    /**
+     * @brief Sets the events-lost handler function.
+     *
+     * The handler is called back when state-changed events may have been lost (e.g. on a Netlink
+     * socket receive buffer overrun). The network interface state must then be read again.
+     * Use nullptr to remove previously installed callback function.
+     *
+     * @param handler Events-lost handler function (or nullptr).
+     */
+    void set_events_lost_handler(const EventsLostHandler &handler)
+    {
+        m_events_lost_handler = handler;
+    }
+
 protected:
     /**
      * @brief Notifies a network interface state-changed event.
@@ -66,12 +85,27 @@ protected:
         }
     }
 
+    /**
+     * @brief Notifies that state-changed events may have been lost.
+     */
+    void notify_events_lost() const
+    {
+        if (m_events_lost_handler) {
+            m_events_lost_handler();
+        }
+    }
+
 private:
     /**
      * Network interface state-changed handler function that is called back whenever any network
      * interface changes its state.
      */
     StateChangedHandler m_handler;
+
+    /**
+     * Events-lost handler function.
+     */
+    EventsLostHandler m_events_lost_handler;
 };
 
 } // namespace net
