@@ -49,14 +49,30 @@ void DhcpTask::handle_timer_timeout()
     }
 
     for (const auto &ipv6 : leases.second) {
-        m_database.set_sta_dhcp_v6_lease(ipv6.second.mac, ipv6.second.host_name,
-                                         ipv6.second.ip_address);
+        if (!m_database.has_station(ipv6.second.mac)) {
+            continue;
+        }
+        const auto station = m_database.get_station(ipv6.second.mac);
+        if (!station) {
+            continue;
+        }
+        const auto &name = ipv6.second.host_name.empty() ? station->name : ipv6.second.host_name;
+        m_database.set_sta_dhcp_v6_lease(ipv6.second.mac, name, ipv6.second.ip_address);
     }
 
     // To give precedence ipv4 hostname in database in case of host name conflict,
     // ipv4 leases are proccessed later.
     for (const auto &ipv4 : leases.first) {
-        m_database.set_sta_dhcp_v4_lease(ipv4.first, ipv4.second.host_name, ipv4.second.ip_address);
+        // The platform lease table also includes wired clients and other non-STA hosts.
+        if (!m_database.has_station(ipv4.first)) {
+            continue;
+        }
+        const auto station = m_database.get_station(ipv4.first);
+        if (!station) {
+            continue;
+        }
+        const auto &name = ipv4.second.host_name.empty() ? station->name : ipv4.second.host_name;
+        m_database.set_sta_dhcp_v4_lease(ipv4.first, name, ipv4.second.ip_address);
     }
 }
 

@@ -429,7 +429,7 @@ void db::set_log_level_state(const beerocks::eLogLevel &log_level, const bool &n
 }
 
 // General set/get
-bool db::has_station(const sMacAddr &mac) { return (get_station(mac) != nullptr); }
+bool db::has_station(const sMacAddr &mac) { return m_stations.get(mac) != nullptr; }
 
 std::string db::get_sta_data_model_path(const std::string &mac)
 {

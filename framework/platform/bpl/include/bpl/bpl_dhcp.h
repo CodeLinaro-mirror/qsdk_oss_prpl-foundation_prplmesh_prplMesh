@@ -125,7 +125,7 @@ bool dhcp_manual_procedure_init();
 bool dhcp_manual_procedure_destroy();
 
 /**
- * @brief Get dhcp leases from lucy-rpc via ubus.
+ * @brief Get DHCP leases from the platform's lease provider.
  *
  * @param [out] leases_map dhcp lease map which is pair of ipv4 and ipv6.
  * @return Returns true in case of success.
