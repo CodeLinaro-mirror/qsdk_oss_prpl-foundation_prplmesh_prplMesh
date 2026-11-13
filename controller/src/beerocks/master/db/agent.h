@@ -181,7 +181,7 @@ public:
         std::string dm_path; /**< data model path */
 
         /** MAC of the Backhaul STA */
-        sMacAddr backhaul_station_mac;
+        sMacAddr backhaul_station_mac = beerocks::net::network_utils::ZERO_MAC;
 
         beerocks::eNodeState state = beerocks::STATE_CONNECTED;
         std::chrono::steady_clock::time_point last_state_change;
@@ -551,7 +551,8 @@ public:
         //TODO: Implement diffrent iface types (PPM-1656)
         beerocks::eIfaceType backhaul_iface_type;
 
-        // Local radio the backhaul station use. If `nullptr` the backhaul is wired.
+        // Local radio used by the backhaul station. Null for wired backhaul or when unresolved;
+        // backhaul_iface_type determines whether the backhaul is wireless.
         std::shared_ptr<Agent::sRadio> wireless_backhaul_radio;
 
         // In case of a wireless connection, the BSSID to which the backhaul station is connected.

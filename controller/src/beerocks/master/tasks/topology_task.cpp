@@ -223,8 +223,6 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                 agent->backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
                 agent->backhaul.backhaul_interface  = iface_mac;
                 agent->backhaul.parent_interface    = media_info->network_membership;
-                agent->backhaul.wireless_backhaul_radio =
-                    database.get_radio_by_backhaul_cap(iface_mac);
 
                 // Search parent/connected agent
                 auto parent_agent = database.get_agent_by_bssid(media_info->network_membership);
@@ -745,6 +743,11 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
                        << " backhaul relationship";
             agent->backhaul = previous_backhaul;
         }
+
+        // Resolve the local radio after this response's affiliated-bSTA/RUID data is processed.
+        // A missing radio does not invalidate an independently resolved wireless parent.
+        agent->backhaul.wireless_backhaul_radio =
+            prplmesh::controller::db::resolve_wireless_backhaul_radio(*agent, previous_backhaul);
 
         if (!database.dm_set_device_multi_ap_backhaul(*agent) &&
             !agent->backhaul.parent_agent.expired()) {
