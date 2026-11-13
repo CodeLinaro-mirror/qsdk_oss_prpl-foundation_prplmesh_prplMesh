@@ -10,8 +10,13 @@
 
 #include <amxb/amxb_register.h>
 #include <amxd/amxd_action.h>
+#include <amxd/amxd_dm_functions.h>
+#include <amxd/amxd_function.h>
 #include <amxd/amxd_object.h>
 #include <amxd/amxd_object_event.h>
+#include <amxd/amxd_object_function.h>
+#include <amxd/amxd_object_hierarchy.h>
+#include <amxd/amxd_path.h>
 #include <amxd/amxd_transaction.h>
 
 #include <bcl/network/network_utils.h>
@@ -23,12 +28,188 @@
 namespace beerocks {
 namespace nbapi {
 
+namespace {
+
+constexpr char get_supported_name[] = "_get_supported";
+
+/**
+ * @brief Path to find an object of the supported data model, e.g. "A.B.C." for "A.B.{i}.C.".
+ */
+std::string lookup_path(const std::string &path)
+{
+    amxd_path_t amxd_path;
+    amxd_path_init(&amxd_path, path.c_str());
+    char *supported = amxd_path_get_supported_path(&amxd_path);
+    std::string result(supported ? supported : "");
+    free(supported);
+    amxd_path_clean(&amxd_path);
+    if (!result.empty() && result.back() != '.') {
+        result += '.';
+    }
+    return result;
+}
+
+/**
+ * @brief Path of an object in the supported data model, e.g. "A.B.{i}.C.".
+ */
+std::string supported_path(const amxd_object_t *object)
+{
+    char *path = amxd_object_get_path(object, AMXD_OBJECT_TERMINATE | AMXD_OBJECT_SUPPORTED);
+    std::string result(path ? path : "");
+    free(path);
+    return result;
+}
+
+void set_bool_arg(amxc_var_t *args, const char *name, bool value)
+{
+    amxc_var_t *arg = GET_ARG(args, name);
+    if (arg) {
+        amxc_var_set(bool, arg, value);
+    } else {
+        amxc_var_add_key(bool, args, name, value);
+    }
+}
+
+/**
+ * @brief Add the supported data model of an object in a mib to a _get_supported result.
+ *
+ * Calls the libamxd implementation of _get_supported on the mib and adds its entries to the
+ * result, with the mib path in each key replaced by the path of the object that the mib extends.
+ *
+ * @param mib_object The object in the mib.
+ * @param rel_path Path in the mib, e.g. "WiFi6APRole.MCSNSS.".
+ * @param request The arguments of the _get_supported call.
+ * @param object_only Add only the entry of the object, without parameters, commands and events.
+ * @param ret The result to add the entries to.
+ * @return The status of the libamxd implementation.
+ */
+amxd_status_t add_mib_entries(const sSupportedMibObject &mib_object, const std::string &rel_path,
+                              const amxc_var_t *request, bool object_only, amxc_var_t *ret)
+{
+    amxc_var_t args;
+    amxc_var_t entries;
+    amxc_var_init(&args);
+    amxc_var_init(&entries);
+    amxc_var_copy(&args, request);
+    amxc_var_t *arg = GET_ARG(&args, "rel_path");
+    amxc_var_delete(&arg);
+    amxc_var_add_key(cstring_t, &args, "rel_path", rel_path.c_str());
+    if (object_only) {
+        set_bool_arg(&args, "first_level_only", true);
+        set_bool_arg(&args, "parameters", false);
+        set_bool_arg(&args, "functions", false);
+        set_bool_arg(&args, "events", false);
+    }
+
+    const auto status = amxd_object_func_get_supported(mib_object.mib, nullptr, &args, &entries);
+    if (status == amxd_status_ok) {
+        amxc_var_for_each(entry, &entries)
+        {
+            const std::string key = amxc_var_key(entry);
+            if (key.compare(0, mib_object.mib_path.size(), mib_object.mib_path) != 0 ||
+                (object_only && key != mib_object.object_path)) {
+                continue;
+            }
+            const auto path = mib_object.extended_path + key.substr(mib_object.mib_path.size());
+            amxc_var_set_key(ret, path.c_str(), entry, AMXC_VAR_FLAG_COPY | AMXC_VAR_FLAG_UPDATE);
+        }
+    }
+
+    amxc_var_clean(&entries);
+    amxc_var_clean(&args);
+    return status;
+}
+
+/**
+ * @brief _get_supported that also lists the objects of the mibs in func->priv.
+ *
+ * Calls the base implementation. Then:
+ * - for a request that includes an object that a mib extends, adds the objects of the mib at
+ *   that object;
+ * - for a request for a path in a mib object, which the base implementation does not find,
+ *   returns the entries of the mib for that path.
+ */
+amxd_status_t get_supported_with_mibs(amxd_object_t *object, amxd_function_t *func,
+                                      amxc_var_t *args, amxc_var_t *ret)
+{
+    // Copy the arguments; the base call changes them.
+    amxc_var_t request;
+    amxc_var_init(&request);
+    amxc_var_copy(&request, args);
+    const char *rel_path        = GET_CHAR(args, "rel_path");
+    const auto requested        = lookup_path(supported_path(object) + (rel_path ? rel_path : ""));
+    const bool first_level_only = GET_BOOL(args, "first_level_only");
+
+    auto status             = amxd_function_call_base(func, object, args, ret);
+    auto *dm                = amxd_object_get_dm(object);
+    const auto *mib_objects = static_cast<const std::vector<sSupportedMibObject> *>(func->priv);
+    if (!dm || !mib_objects) {
+        amxc_var_clean(&request);
+        return status;
+    }
+
+    for (const auto &mib_object : *mib_objects) {
+        if (status != amxd_status_ok) {
+            // A request for a path in the mib object.
+            if (requested.compare(0, mib_object.object_lookup.size(), mib_object.object_lookup) !=
+                    0 ||
+                !amxd_dm_findf(dm, "%s", mib_object.extended_lookup.c_str())) {
+                continue;
+            }
+            amxc_var_set_type(ret, AMXC_VAR_ID_HTABLE);
+            status =
+                add_mib_entries(mib_object, requested.substr(mib_object.extended_lookup.size()),
+                                &request, false, ret);
+            amxc_var_clean(&request);
+            return status;
+        }
+
+        // A request that includes the extended object. With first_level_only, only for a
+        // request for the extended object itself.
+        if (!GET_ARG(ret, mib_object.extended_path.c_str()) ||
+            (first_level_only && requested != mib_object.extended_lookup)) {
+            continue;
+        }
+        if (add_mib_entries(mib_object, mib_object.name + ".", &request, first_level_only, ret) !=
+            amxd_status_ok) {
+            LOG(ERROR) << "Failed to add " << mib_object.name << " at " << mib_object.extended_path;
+        }
+    }
+
+    amxc_var_clean(&request);
+    return status;
+}
+
+/**
+ * @brief Replace _get_supported of an object with get_supported_with_mibs().
+ */
+bool override_get_supported(amxd_object_t *object,
+                            const std::vector<sSupportedMibObject> *mib_objects)
+{
+    auto *func = amxd_object_get_function(object, get_supported_name);
+    if (func && func->impl == get_supported_with_mibs && amxd_function_get_owner(func) == object) {
+        return true;
+    }
+    if (amxd_object_change_function(object, get_supported_name, get_supported_with_mibs) !=
+        amxd_status_ok) {
+        return false;
+    }
+    func = amxd_object_get_function(object, get_supported_name);
+    if (!func) {
+        return false;
+    }
+    func->priv = const_cast<std::vector<sSupportedMibObject> *>(mib_objects);
+    return true;
+}
+} // namespace
+
 AmbiorixImpl::AmbiorixImpl(std::shared_ptr<EventLoop> event_loop,
                            const std::vector<sActionsCallback> &on_action,
                            const std::vector<sEvents> &events,
-                           const std::vector<sFunctions> &funcs_list)
+                           const std::vector<sFunctions> &funcs_list,
+                           const std::vector<sOptionalSubobject> &optional_subobjects)
     : m_event_loop(event_loop), m_on_action_handlers(on_action), m_events_list(events),
-      m_func_list(funcs_list)
+      m_func_list(funcs_list), m_optional_subobjects(optional_subobjects)
 {
     LOG_IF(!m_event_loop, FATAL) << "Event loop is a null pointer!";
     // amxrt_new must have been called before
@@ -128,8 +309,55 @@ bool AmbiorixImpl::load_datamodel(const std::string &datamodel_path)
 
     Amxrt::EnableSyssigs();
 
+    if (!add_optional_subobjects_to_supported_dm()) {
+        LOG(ERROR) << "Failed to list the optional sub-objects in the supported data model.";
+    }
+
     LOG(DEBUG) << "The data model loaded successfully.";
     return true;
+}
+
+bool AmbiorixImpl::add_optional_subobjects_to_supported_dm()
+{
+    auto *dm = Amxrt::getDatamodel();
+    bool ok  = true;
+    std::vector<amxd_object_t *> extended_objects;
+    for (const auto &optional : m_optional_subobjects) {
+        auto *object = amxd_dm_findf(dm, "%s", lookup_path(optional.path).c_str());
+        auto *mib    = amxd_dm_get_mib(dm, optional.mib_name.c_str());
+        if (!object || !mib) {
+            LOG(ERROR) << "Object " << optional.path << " or mib " << optional.mib_name
+                       << " not found.";
+            ok = false;
+            continue;
+        }
+
+        const auto extended_path = supported_path(object);
+        const auto mib_path      = supported_path(mib);
+        amxd_object_for_each(child, it, mib)
+        {
+            const auto *mib_child  = amxc_container_of(it, amxd_object_t, it);
+            const std::string name = amxd_object_get_name(mib_child, AMXD_OBJECT_NAMED);
+            m_mib_objects.push_back({mib, name, extended_path, lookup_path(extended_path),
+                                     lookup_path(extended_path) + name + ".", mib_path,
+                                     supported_path(mib_child)});
+        }
+        extended_objects.push_back(object);
+    }
+
+    // Override _get_supported on each defined object from the top-level object down to the
+    // object that a mib extends.
+    for (auto *object : extended_objects) {
+        for (; object && amxd_object_get_type(object) != amxd_object_root;
+             object = amxd_object_get_parent(object)) {
+            if (!override_get_supported(object, &m_mib_objects)) {
+                LOG(ERROR) << "Failed to override " << get_supported_name << " of "
+                           << supported_path(object);
+                ok = false;
+            }
+        }
+    }
+    return ok;
 }
 
 bool AmbiorixImpl::connect_and_register()

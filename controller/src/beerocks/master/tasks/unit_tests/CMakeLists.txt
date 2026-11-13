@@ -80,6 +80,26 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     add_test(NAME bsta_mld_configuration_test
         COMMAND $<TARGET_FILE:bsta_mld_configuration_test>)
 
+    add_executable(supported_data_model_test
+        ${CMAKE_CURRENT_LIST_DIR}/supported_data_model_test.cpp
+        ${CMAKE_SOURCE_DIR}/controller/nbapi/optional_subobjects.cpp
+    )
+    target_compile_definitions(supported_data_model_test
+        PRIVATE
+            CONTROLLER_ODL_PATH="${CMAKE_BINARY_DIR}/controller/nbapi/controller/odl/controller.odl"
+    )
+    target_link_libraries(supported_data_model_test
+        mapfcommon bcl nbapi amxc amxd amxo amxp libamxrt gtest_main)
+    target_include_directories(supported_data_model_test
+        PRIVATE
+            ${PLATFORM_INCLUDE_DIR}
+            ${CMAKE_SOURCE_DIR}/controller/nbapi
+    )
+
+    install(TARGETS supported_data_model_test DESTINATION tests)
+    add_test(NAME supported_data_model_test
+        COMMAND $<TARGET_FILE:supported_data_model_test>)
+
     add_executable(traffic_separation_event_test
         ${CMAKE_CURRENT_LIST_DIR}/traffic_separation_event_test.cpp
     )

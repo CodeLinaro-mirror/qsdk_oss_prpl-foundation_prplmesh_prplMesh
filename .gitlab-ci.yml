@@ -253,6 +253,9 @@ monitor_db_test:
 nbapi_unit_tests:
   extends: .run-test-in-docker
 
+supported_data_model_test:
+  extends: .run-test-in-docker
+
 db_unit_tests:
   extends: .run-test-in-docker
 

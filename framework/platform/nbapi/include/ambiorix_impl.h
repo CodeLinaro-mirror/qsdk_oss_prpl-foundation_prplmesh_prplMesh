@@ -52,6 +52,29 @@ typedef struct sFunctions {
 } sFunctions;
 
 /**
+ * @brief A mib that is attached to the instances of an object with add_optional_subobject().
+ *
+ * AmbiorixImpl lists the objects of the mib in the supported data model at the given path.
+ */
+typedef struct sOptionalSubobject {
+    std::string path; // Supported path of the object the mib extends, e.g. "A.B.{i}.".
+    std::string mib_name;
+} sOptionalSubobject;
+
+/**
+ * @brief A top-level object of a mib of an sOptionalSubobject, resolved in the data model.
+ */
+typedef struct sSupportedMibObject {
+    amxd_object_t *mib;
+    std::string name;            // Name of the object in the mib, e.g. "C".
+    std::string extended_path;   // Supported path of the object the mib extends, e.g. "A.B.{i}.".
+    std::string extended_lookup; // The same path without instance placeholders, e.g. "A.B.".
+    std::string object_lookup;   // Path of the object without placeholders, e.g. "A.B.C.".
+    std::string mib_path;        // Path of the mib, e.g. "M.".
+    std::string object_path;     // Supported path of the object in the mib, e.g. "M.C.".
+} sSupportedMibObject;
+
+/**
  * @class AmbiorixImpl
  * @brief This class manages the ambiorixImpl instance.
  */
@@ -61,7 +84,8 @@ public:
     explicit AmbiorixImpl(std::shared_ptr<EventLoop> event_loop,
                           const std::vector<sActionsCallback> &on_action,
                           const std::vector<sEvents> &events,
-                          const std::vector<sFunctions> &funcs_list);
+                          const std::vector<sFunctions> &funcs_list,
+                          const std::vector<sOptionalSubobject> &optional_subobjects = {});
 
     /**
      * @brief AmbiorixImpl destructor removes: bus connection, data model, parser and all data
@@ -248,6 +272,16 @@ private:
     bool connect_and_register();
 
     /**
+     * @brief List the optional sub-objects in the supported data model.
+     *
+     * Fills m_mib_objects and overrides _get_supported on the defined objects from the
+     * top-level object down to each object that a mib of m_optional_subobjects extends.
+     *
+     * @return True on success and false otherwise.
+     */
+    bool add_optional_subobjects_to_supported_dm();
+
+    /**
      * @brief Find object by relative path.
      *
      * @param relative_path Path to the object in datamodel (ex: "Device.WiFi.DataElements.Network.ID").
@@ -262,6 +296,10 @@ private:
     std::vector<sActionsCallback> m_on_action_handlers;
     std::vector<sEvents> m_events_list;
     std::vector<sFunctions> m_func_list;
+    const std::vector<sOptionalSubobject> m_optional_subobjects;
+    // The overridden _get_supported functions point to this list: it must stay valid while the
+    // data model exists.
+    std::vector<sSupportedMibObject> m_mib_objects;
 };
 
 } // namespace nbapi

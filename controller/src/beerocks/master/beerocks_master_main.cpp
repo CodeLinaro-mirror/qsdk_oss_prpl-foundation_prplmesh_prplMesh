@@ -44,6 +44,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #ifdef ENABLE_NBAPI
 #include "ambiorix_impl.h"
 #include "on_action.h"
+#include "optional_subobjects.h"
 
 #ifndef CONTROLLER_DATAMODEL_PATH
 #define CONTROLLER_DATAMODEL_PATH "config/controller/odl/master_config.odl"
@@ -742,7 +743,8 @@ int main(int argc, char *argv[])
     auto funcs_list         = prplmesh::controller::actions::get_func_list();
     auto controller_dm_path = mapf::utils::get_install_path() + CONTROLLER_DATAMODEL_PATH;
     auto amb_dm_obj         = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
-        event_loop, on_action_handlers, events_list, funcs_list);
+        event_loop, on_action_handlers, events_list, funcs_list,
+        prplmesh::controller::actions::get_optional_subobject_list());
     LOG_IF(!amb_dm_obj, FATAL) << "Unable to create Ambiorix!";
 
     LOG_IF(!amb_dm_obj->init(controller_dm_path), FATAL) << "Unable to init ambiorix object!";
