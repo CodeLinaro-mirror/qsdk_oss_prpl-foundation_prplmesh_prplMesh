@@ -15,8 +15,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <map>
+#include <vector>
+
 using ::testing::_;
 using ::testing::Invoke;
+using ::testing::Return;
 using ::testing::StrictMock;
 
 /**
@@ -126,4 +130,63 @@ TEST(InterfaceStateManagerImpl, notify_state_changed_should_succeed)
 
     monitor_raw_ptr->notify_state_changed(iface_name, expected_iface_state);
     ASSERT_EQ(actual_iface_state, expected_iface_state);
+}
+
+/**
+ * In this test, state-changed events have been lost. The state of every known interface is read
+ * again and notified, even if it has not changed. An interface that is up is notified down and
+ * then up, since it may have been created again. An interface that cannot be read any more is
+ * notified as down.
+ */
+TEST(InterfaceStateManagerImpl, events_lost_should_notify_state_of_all_interfaces)
+{
+    auto monitor = std::make_unique<StrictMock<beerocks::net::InterfaceStateMonitorMock>>();
+    auto reader  = std::make_unique<StrictMock<beerocks::net::InterfaceStateReaderMock>>();
+
+    const char *iface_name_0 = "test_iface_0";
+    const char *iface_name_1 = "test_iface_1";
+
+    auto read_up = [](const std::string &iface_name, bool &iface_state) -> bool {
+        iface_state = true;
+        return true;
+    };
+
+    // Expectations for the initial read and for the read after the events have been lost.
+    // Interfaces are read again in any order.
+    EXPECT_CALL(*reader, read_state(iface_name_0, _))
+        .WillOnce(Invoke(read_up))
+        .WillOnce(Invoke(read_up));
+    EXPECT_CALL(*reader, read_state(iface_name_1, _))
+        .WillOnce(Invoke(read_up))
+        .WillOnce(Return(false));
+
+    // The monitor mock is needed to emulate that events have been lost.
+    // Since the unique_ptr to the monitor mock is moved into the interface state manager, it
+    // is not available later. To overcome this problem, we use the raw pointer instead.
+    auto monitor_raw_ptr = monitor.get();
+
+    beerocks::net::InterfaceStateManagerImpl interface_state_manager(std::move(monitor),
+                                                                     std::move(reader));
+
+    // Interfaces are notified in any order, so the sequence is recorded per interface
+    std::map<std::string, std::vector<bool>> notified_iface_states;
+    interface_state_manager.set_handler([&](const std::string &iface_name, bool iface_state) {
+        notified_iface_states[iface_name].push_back(iface_state);
+    });
+
+    bool iface_state;
+    ASSERT_TRUE(interface_state_manager.read_state(iface_name_0, iface_state));
+    ASSERT_TRUE(interface_state_manager.read_state(iface_name_1, iface_state));
+    ASSERT_TRUE(notified_iface_states.empty());
+
+    // Emulate that events have been lost
+    monitor_raw_ptr->notify_events_lost();
+
+    std::map<std::string, std::vector<bool>> expected_iface_states{{iface_name_0, {false, true}},
+                                                                   {iface_name_1, {false}}};
+    ASSERT_EQ(notified_iface_states, expected_iface_states);
+
+    // The cached state has been updated
+    ASSERT_TRUE(interface_state_manager.read_state(iface_name_1, iface_state));
+    ASSERT_FALSE(iface_state);
 }

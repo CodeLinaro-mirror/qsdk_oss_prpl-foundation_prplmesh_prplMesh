@@ -24,6 +24,11 @@ public:
      * occurred.
      */
     using BridgeStateMonitor::notify_state_changed;
+
+    /**
+     * Made public for the same reason, to emulate that events have been lost.
+     */
+    using BridgeStateMonitor::notify_events_lost;
 };
 
 } // namespace net

@@ -16,6 +16,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <utility>
+#include <vector>
 
 using ::testing::_;
 using ::testing::InSequence;
@@ -222,4 +224,66 @@ TEST(BridgeStateManagerImpl, notify_state_changed_should_succeed_with_misplaced_
     // ignored
     monitor_raw_ptr->notify_state_changed(bridge_name, iface_name, true);
     ASSERT_EQ(std::find(iface_names.begin(), iface_names.end(), iface_name), iface_names.end());
+}
+
+/**
+ * In this test, state-changed events have been lost while an interface was removed from the bridge
+ * and another one was added. The bridge state is read again and both changes are notified.
+ */
+TEST(BridgeStateManagerImpl, events_lost_should_notify_differences)
+{
+    auto monitor = std::make_unique<StrictMock<beerocks::net::BridgeStateMonitorMock>>();
+    auto reader  = std::make_unique<StrictMock<beerocks::net::BridgeStateReaderMock>>();
+
+    const char *bridge_name = "test_bridge";
+    std::set<std::string> initial_iface_names{"test_iface_0", "test_iface_1"};
+    std::set<std::string> updated_iface_names{"test_iface_1", "test_iface_2"};
+    std::set<std::string> iface_names;
+    std::vector<std::pair<std::string, bool>> notified_changes;
+
+    {
+        InSequence sequence;
+
+        // Expectation for the initial read
+        EXPECT_CALL(*reader, read_state(bridge_name, _))
+            .WillOnce(Invoke(
+                [&](const std::string &bridge_name, std::set<std::string> &iface_names) -> bool {
+                    iface_names = initial_iface_names;
+                    return true;
+                }));
+        // Expectation for the read after the events have been lost
+        EXPECT_CALL(*reader, read_state(bridge_name, _))
+            .WillOnce(Invoke(
+                [&](const std::string &bridge_name, std::set<std::string> &iface_names) -> bool {
+                    iface_names = updated_iface_names;
+                    return true;
+                }));
+    }
+
+    // The monitor mock is needed to emulate that events have been lost.
+    // Since the unique_ptr to the monitor mock is moved into the bridge state manager, it
+    // is not available later. To overcome this problem, we use the raw pointer instead.
+    auto monitor_raw_ptr = monitor.get();
+
+    beerocks::net::BridgeStateManagerImpl bridge_state_manager(std::move(monitor),
+                                                               std::move(reader));
+
+    bridge_state_manager.set_handler(
+        [&](const std::string &bridge_name, const std::string &iface_name, bool iface_in_bridge) {
+            notified_changes.emplace_back(iface_name, iface_in_bridge);
+        });
+
+    ASSERT_TRUE(bridge_state_manager.read_state(bridge_name, iface_names));
+    ASSERT_EQ(iface_names, initial_iface_names);
+
+    // Emulate that events have been lost
+    monitor_raw_ptr->notify_events_lost();
+
+    std::vector<std::pair<std::string, bool>> expected_changes{{"test_iface_0", false},
+                                                               {"test_iface_2", true}};
+    ASSERT_EQ(notified_changes, expected_changes);
+
+    // The cached state has been updated
+    ASSERT_TRUE(bridge_state_manager.read_state(bridge_name, iface_names));
+    ASSERT_EQ(iface_names, updated_iface_names);
 }
