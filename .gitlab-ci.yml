@@ -70,6 +70,8 @@ platform:
   stage: platform
   needs:
     - build-in-docker
+    # boardfarm jobs in ci/platform.yml fetch its artifacts via needs:pipeline
+    - build-in-docker-legacy
     - image-build-boardfarm-ci
   rules:
     - if: $CI_MERGE_REQUEST_LABELS =~ /.*test-upgrade-image.*/
