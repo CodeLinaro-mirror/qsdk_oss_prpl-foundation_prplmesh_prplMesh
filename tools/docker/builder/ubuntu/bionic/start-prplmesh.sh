@@ -76,6 +76,14 @@ run ip link set      dev br-lan   up
 
 cd "${INSTALL_DIR}" || exit 1
 
+# The odl configs point to the prplOS install location for the data model defaults
+# (/opt/prplmesh/config/<name>/odl/defaults.d). Without it amxrt fails to load the
+# defaults on an empty storage and amxrt_register_or_wait() returns -14.
+# Only config is linked: the storage in /opt/prplmesh/share must stay local to the
+# container, while INSTALL_DIR is shared by all of them.
+run mkdir -p /opt/prplmesh
+run ln -sfn "${INSTALL_DIR}/config" /opt/prplmesh/config
+
 type="$1"; shift
 
 if [ "$type" = "start-agent" ]; then
