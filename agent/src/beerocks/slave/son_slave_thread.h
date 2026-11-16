@@ -10,6 +10,7 @@
 #define _SON_SLAVE_THREAD_H
 
 #include "agent_db.h"
+#include "agent_info_publisher.h"
 #include "helpers/fronthaul_bss_teardown.h"
 #include "tasks/service_prioritization_task.h"
 #include "tasks/task_pool.h"
@@ -70,8 +71,6 @@ public:
         // key: fronthaul interface name
         std::unordered_map<std::string, sRadioConfig> radios;
     };
-
-    enum eSlaveState : int;
 
     slave_thread(sAgentConfig conf, logging &logger_);
     virtual ~slave_thread();
@@ -421,14 +420,17 @@ private:
     TaskPool m_task_pool;
 
     // Global FSM members:
-    class sSlaveState {
-        eSlaveState cur = {};
-        eSlaveState max = {};
+    AgentInfoPublisher m_agent_state;
 
-    public:
-        eSlaveState operator=(eSlaveState state);
-        operator eSlaveState() const { return cur; }
-    } m_agent_state;
+    /**
+     * @brief Publish the Agent.Info state from the FSM timer.
+     *
+     * The FSM and the tasks change the Agent state and the Controller connectivity while holding
+     * AgentDB, where AgentDM must not be used. Publish the latest values once these scopes have
+     * been released. Values changed within one FSM period are published once. A failed write is
+     * retried on the next tick.
+     */
+    void publish_agent_info();
 
     std::chrono::steady_clock::time_point m_agent_state_timer_sec =
         std::chrono::steady_clock::time_point::min();

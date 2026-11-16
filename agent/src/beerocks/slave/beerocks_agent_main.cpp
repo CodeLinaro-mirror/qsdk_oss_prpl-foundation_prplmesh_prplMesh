@@ -18,6 +18,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif
 
 #include "agent_db.h"
+#include "agent_dm.h"
 #include "backhaul_manager/backhaul_manager.h"
 #include "platform_manager/platform_manager.h"
 #include "son_slave_thread.h"
@@ -54,6 +55,7 @@ static std::shared_ptr<beerocks::nbapi::Amxrt> guarantee = nullptr;
 #endif
 
 #include "ambiorix_dummy.h"
+#include <mapf/common/amx_mutex.h>
 
 constexpr std::chrono::seconds INTERFACE_RETRY_INTERVAL = std::chrono::seconds(3);
 constexpr std::chrono::seconds INTERFACE_RETRY_TIMEOUT  = std::chrono::seconds(150);
@@ -90,11 +92,13 @@ static void handle_signal()
     }
 #ifdef ENABLE_NBAPI
     // Handle SIGALRM signal indicating that one of amxp's timers is expired.
-    case SIGALRM:
+    case SIGALRM: {
+        beerocks::AmxGuard guard;
         LOG(INFO) << "LOG amxp Tik tak!";
         amxp_timers_calculate();
         amxp_timers_check();
         break;
+    }
 #endif //ENABLE_NBAPI
     default:
         LOG(WARNING) << "Unhandled Signal: '" << strsignal(s_signal) << "' Ignoring...";
@@ -251,25 +255,29 @@ static void fill_son_slave_config(const beerocks::config_file::sConfigSlave &bee
                 : 0;
     }
 
-    auto db = beerocks::AgentDB::get();
-
-    db->device_conf.operating_system = beerocks::os_utils::get_os_name();
-    db->em_handle_third_party        = beerocks_slave_conf.em_handle_third_party;
-
-    if (!beerocks::bpl::get_friendly_name(db->device_conf.device_friendly_name)) {
-        db->device_conf.device_friendly_name.clear();
+    // DeviceInfo getters enter WBAPI; collect their results before taking AgentDB.
+    std::string friendly_name, manufacturer, model_name, software_version, serial_number;
+    if (!beerocks::bpl::get_friendly_name(friendly_name)) {
+        friendly_name.clear();
     }
-    if (!beerocks::bpl::get_manufacturer(db->device_conf.device_manufacturer)) {
-        db->device_conf.device_manufacturer.clear();
+    if (!beerocks::bpl::get_manufacturer(manufacturer)) {
+        manufacturer.clear();
     }
-    if (!beerocks::bpl::get_model_name(db->device_conf.device_model_name)) {
-        db->device_conf.device_model_name.clear();
+    if (!beerocks::bpl::get_model_name(model_name)) {
+        model_name.clear();
     }
+    beerocks::bpl::get_software_version(software_version);
+    beerocks::bpl::get_serial_number(serial_number);
+    auto operating_system = beerocks::os_utils::get_os_name();
 
-    //Get the Serial number of the device and current running software version
-    //using Ambiorix dm.
-    beerocks::bpl::get_software_version(db->device_conf.software_version);
-    beerocks::bpl::get_serial_number(db->device_conf.device_serial_number);
+    auto db                              = beerocks::AgentDB::get();
+    db->device_conf.operating_system     = std::move(operating_system);
+    db->em_handle_third_party            = beerocks_slave_conf.em_handle_third_party;
+    db->device_conf.device_friendly_name = std::move(friendly_name);
+    db->device_conf.device_manufacturer  = std::move(manufacturer);
+    db->device_conf.device_model_name    = std::move(model_name);
+    db->device_conf.software_version     = std::move(software_version);
+    db->device_conf.device_serial_number = std::move(serial_number);
 }
 
 static std::shared_ptr<beerocks::logging>
@@ -447,6 +455,33 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 #endif //ENABLE_NBAPI
 
     beerocks::bpl::set_nbapi_dm(amb_dm_obj);
+    if (!beerocks::AgentDM::get()->init_data_model(amb_dm_obj)) {
+        LOG(ERROR) << "Failed initializing the Agent datamodel";
+        return 1;
+    }
+
+    // Resolve WBAPI-backed configuration before taking the application DB lock.
+    const auto management_mode = beerocks::bpl::cfg_get_management_mode();
+    if (management_mode < 0) {
+        LOG(ERROR) << "Failed reading 'management_mode'";
+        return false;
+    }
+    uint32_t m_ap_profile;
+    if (!beerocks::bpl::bpl_cfg_get_agent_multi_ap_profile(m_ap_profile)) {
+        LOG(ERROR) << "Failed reading 'multi_ap_profile'";
+        m_ap_profile = beerocks::bpl::DEFAULT_MULTI_AP_PROFILE;
+    }
+    std::string backhaul_wire_discovery_mode;
+    if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_discovery_mode(backhaul_wire_discovery_mode)) {
+        LOG(WARNING) << "Failed reading 'backhaul_wire_discovery_mode'";
+        backhaul_wire_discovery_mode = "StaticList";
+    }
+    std::string backhaul_wire_iface_list;
+    if (backhaul_wire_discovery_mode == "StaticList" &&
+        !beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(backhaul_wire_iface_list)) {
+        LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
+        return false;
+    }
 
     {
         auto db = beerocks::AgentDB::get();
@@ -485,22 +520,8 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 
         db->device_conf.enable_auto_chansel_handling =
             beerocks_slave_conf.enable_auto_chansel_handling == "1";
-        db->init_data_model(amb_dm_obj);
 
-        auto management_mode = beerocks::bpl::cfg_get_management_mode();
-
-        if (management_mode >= 0) {
-            db->device_conf.management_mode = management_mode;
-        } else {
-            LOG(ERROR) << "Failed reading 'management_mode'";
-            return false;
-        }
-
-        uint32_t m_ap_profile;
-        if (!beerocks::bpl::bpl_cfg_get_agent_multi_ap_profile(m_ap_profile)) {
-            LOG(ERROR) << "Failed reading 'multi_ap_profile'";
-            m_ap_profile = beerocks::bpl::DEFAULT_MULTI_AP_PROFILE;
-        }
+        db->device_conf.management_mode = management_mode;
 
         // MULTIAP_PROFILE_1_AS_OF_R4 enum value is not in standard, but it is acted as Profile1
         if (static_cast<wfa_map::tlvProfile2MultiApProfile::eMultiApProfile>(m_ap_profile) ==
@@ -519,24 +540,9 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
          * StaticList: use ifaces from BackhaulWireInterface parameter.
          * Auto: automatic wired candidate discovery. BackhaulWireInterface will be ignored
          */
-        std::string backhaul_wire_discovery_mode;
-        if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_discovery_mode(
-                backhaul_wire_discovery_mode)) {
-            // Probably we don't need it with current getter implementation.
-            // This is mostly a defensive check.
-            LOG(WARNING) << "Failed reading 'backhaul_wire_discovery_mode'";
-            backhaul_wire_discovery_mode = "StaticList";
-        }
-
         if (backhaul_wire_discovery_mode == "StaticList") {
             db->device_conf.backhaul_wire_discovery_mode =
                 beerocks::AgentDB::sDeviceConf::eBackhaulWireDiscoveryMode::StaticList;
-            std::string backhaul_wire_iface_list;
-            if (!beerocks::bpl::bpl_cfg_get_backhaul_wire_iface(backhaul_wire_iface_list)) {
-                LOG(ERROR) << "Failed reading 'backhaul_wire_iface'";
-                return false;
-            }
-
             auto wan_iface_names = beerocks::string_utils::str_split(backhaul_wire_iface_list, ',');
 
             db->ethernet.wan_candidates.clear();
@@ -615,12 +621,16 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
 #ifdef ENABLE_NBAPI
     // Provide the auto WPS callback (decides AP vs bSTA internally)
     prplmesh::agent::actions::set_wps_callback(
-        [&backhaul_manager]() -> bool { return backhaul_manager.initiate_wps_pbc_auto(); });
+        [&backhaul_manager]() -> bool { return backhaul_manager.enqueue_wps_request(); });
 #endif //ENABLE_NBAPI
 
     auto agent = start_agent_thread(interfaces_map, beerocks_slave_conf, argc, argv);
     if (!agent) {
         LOG(ERROR) << "Failed to start Agent thread";
+#ifdef ENABLE_NBAPI
+        prplmesh::agent::actions::set_wps_callback(nullptr);
+#endif
+        backhaul_manager.stop();
         return 1;
     }
 
@@ -650,6 +660,9 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
             break;
         }
     }
+#ifdef ENABLE_NBAPI
+    prplmesh::agent::actions::set_wps_callback(nullptr);
+#endif
     agent->stop();
 
     LOG(DEBUG) << "backhaul_manager.stop()";

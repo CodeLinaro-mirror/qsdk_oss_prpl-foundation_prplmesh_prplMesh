@@ -11,6 +11,7 @@
 #include "ambiorix.h"
 #include "bpl_cfg_status.h"
 #include <bpl/bpl_cfg.h>
+#include <mapf/common/amx_mutex.h>
 #include <mapf/common/logger.h>
 
 #include <algorithm>
@@ -29,12 +30,27 @@ namespace bpl {
 
 namespace {
 
-constexpr const char *AGENT_INFO_PATH   = AGENT_ROOT_DM ".Info.";
+constexpr const char *AGENT_INFO_PATH   = AGENT_ROOT_DM ".Info";
 constexpr const char *AGENT_CONFIG_PATH = AGENT_ROOT_DM ".Configuration";
 
 template <typename T> bool read_agent_info_param(const std::string &name, T &value)
 {
-    return read_param_via_common_socket(AGENT_INFO_PATH, name, value);
+    {
+        AmxGuard guard;
+        auto dm = BplConfigService::instance().nbapi_dm();
+        // Only the Agent owns this root. The Controller has a different local model.
+        if (dm && dm->has_object(AGENT_ROOT_DM)) {
+            if (dm->read_param(AGENT_INFO_PATH, name, &value)) {
+                return true;
+            }
+
+            // A failed local read must not become a synchronous WBAPI self-request.
+            MAPF_ERR("read_agent_info_param: " + name + " | local NBAPI DM read failed");
+            return false;
+        }
+    }
+
+    return read_param_via_common_socket(std::string(AGENT_INFO_PATH) + ".", name, value);
 }
 
 /*

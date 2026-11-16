@@ -19,6 +19,7 @@
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 
 #include <bcl/son/son_wireless_utils.h>
+#include <bpl/bpl_board.h>
 
 namespace beerocks {
 
@@ -463,7 +464,7 @@ private:
     bool airties_vs_ap_autoconfiguration_wsc_parse_radio_operational_mode_config(
         const std::string &radio_iface, const WSC::m2 &m2);
 
-    bool add_wsc_m1_tlv(const std::string &radio_iface);
+    bool add_wsc_m1_tlv(const std::string &radio_iface, const bpl::sBoardInfo &board_info);
 
     /**
      * @brief Find an available MLD unit ID for AP MLD.

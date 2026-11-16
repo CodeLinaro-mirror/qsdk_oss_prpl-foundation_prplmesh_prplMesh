@@ -11,6 +11,7 @@
 
 #include "tlvf/common/sMacAddr.h"
 #include <easylogging++.h>
+#include <map>
 
 namespace beerocks {
 namespace nbapi {
@@ -25,6 +26,13 @@ public:
     Ambiorix(const Ambiorix &) = delete;
     Ambiorix &operator=(const Ambiorix &) = delete;
     virtual ~Ambiorix()                   = 0;
+
+    /**
+     * @brief Check whether the local data model contains an object, without logging absence.
+     *
+     * Implementations without a local data model return false.
+     */
+    virtual bool has_object(const std::string &) { return false; }
 
     /**
      * @brief Set the value to the object variable.
@@ -58,6 +66,23 @@ public:
                      const double &value)      = 0;
     virtual bool set(const std::string &relative_path, const std::string &parameter,
                      const sMacAddr &value)    = 0;
+
+    /**
+     * @brief Set multiple string parameters in one data model operation.
+     *
+     * AmbiorixImpl applies all values in one transaction. The fallback preserves
+     * compatibility with implementations that only provide individual setters.
+     */
+    virtual bool set_strings(const std::string &relative_path,
+                             const std::map<std::string, std::string> &values)
+    {
+        for (const auto &value : values) {
+            if (!set(relative_path, value.first, value.second)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * @brief Reads and returns the value of the paramater from the given object.
