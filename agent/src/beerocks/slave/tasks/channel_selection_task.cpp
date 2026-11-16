@@ -415,6 +415,13 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
                 DECLINE_VIOLATES_MOST_RECENTLY_REPORTED_PREFERENCES;
             continue;
         }
+
+        if (check_if_radio_used_by_backhaul(radio_mac)) {
+            radio_request.response_code = wfa_map::tlvChannelSelectionResponse::eResponseCode::
+                DECLINE_PREVENT_OPERATION_OF_BACKHAUL_LINK;
+            continue;
+        }
+
         if (!check_received_preferences_contain_violation(radio_mac)) {
             LOG(ERROR) << "Failed checking if received preferences contain violation!";
             radio_request.response_code = wfa_map::tlvChannelSelectionResponse::eResponseCode::
@@ -500,7 +507,8 @@ void ChannelSelectionTask::handle_channel_selection_request(ieee1905_1::CmduMess
         channel_selection_response_tlv->radio_uid()     = radio_mac;
         channel_selection_response_tlv->response_code() = response_code;
 
-        LOG(DEBUG) << "Radio " << radio_mac << " is returning " << response_code
+        LOG(DEBUG) << "Radio " << radio_mac << " is returning "
+                   << wfa_map::tlvChannelSelectionResponse::eResponseCode_str(response_code)
                    << " as a response!";
 
         if (request_iter == m_pending_selection.requests.end()) {
@@ -1614,6 +1622,25 @@ bool ChannelSelectionTask::store_controller_preference(
     }
 
     LOG(DEBUG) << ss.str();
+    return true;
+}
+
+bool ChannelSelectionTask::check_if_radio_used_by_backhaul(const sMacAddr &radio_mac)
+{
+    auto db = AgentDB::get();
+    if (!(db->backhaul.connection_type == AgentDB::sBackhaul::eConnectionType::Wireless)) {
+        return false;
+    }
+    auto bh_radio = db->radio(db->backhaul.selected_iface_name);
+    if (bh_radio == nullptr) {
+        LOG(INFO) << "database reports wireless backhaul but backhaul radio not found";
+        return false;
+    }
+    auto bh_ruid = bh_radio->front.iface_mac;
+    if (bh_ruid != radio_mac) {
+        return false;
+    }
+    LOG(DEBUG) << "Radio " << radio_mac << " used by Backhaul STA";
     return true;
 }
 
