@@ -96,7 +96,9 @@ enum class WiFiSec {
     WPA2_ENTERPRISE,
     WPA_WPA2_ENTERPRISE,
     OWE,
-    WPA3_PCM
+    WPA3_PCM,
+    WPA3_PCM_8,
+    WPA3_PCM_24
 };
 
 inline std::ostream &operator<<(std::ostream &out, const bwl::WiFiSec &sec)
@@ -143,6 +145,12 @@ inline std::ostream &operator<<(std::ostream &out, const bwl::WiFiSec &sec)
         break;
     case bwl::WiFiSec::WPA3_PCM:
         out << "WPA3-Personal-Compatibility";
+        break;
+    case bwl::WiFiSec::WPA3_PCM_8:
+        out << "WPA3-Personal-Compatibility-8";
+        break;
+    case bwl::WiFiSec::WPA3_PCM_24:
+        out << "WPA3-Personal-Compatibility-24";
         break;
     }
     return out;

@@ -2824,25 +2824,28 @@ bool ApAutoConfigurationTask::handle_rsn_parameters_configuration_tlv(
                     info.m2_config.bss_index != 0) {
                     LOG(DEBUG) << "Handling RSN for BSS with index " << info.m2_config.bss_index;
 
-                    // Only handle WPA3-PCM as EHT enabled for now
-                    if ((freq_type == beerocks::eFreqType::FREQ_24G ||
-                         freq_type == beerocks::eFreqType::FREQ_5G) &&
-                        rsn_parameters_bss.security_ies_length() == wpa3_pcm_2g_5g_eht.size() &&
-                        std::memcmp(rsn_parameters_bss.security_ies(), wpa3_pcm_2g_5g_eht.data(),
-                                    wpa3_pcm_2g_5g_eht.size()) == 0) {
-                        LOG(DEBUG) << "2G_5G WPA3_PERSONAL_COMPATIBILITY detected";
-                        info.payload_config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
-                        info.additional_auth =
-                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
-                    } else if (freq_type == beerocks::eFreqType::FREQ_6G &&
-                               rsn_parameters_bss.security_ies_length() == wpa3_pcm_6g_eht.size() &&
-                               std::memcmp(rsn_parameters_bss.security_ies(),
-                                           wpa3_pcm_6g_eht.data(), wpa3_pcm_6g_eht.size()) == 0) {
-                        LOG(DEBUG) << "6G WPA3_PERSONAL_COMPATIBILITY detected";
-                        info.payload_config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
-                        info.additional_auth =
-                            son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                    auto additional_auth = son::wireless_utils::parse_rsn_security_ies(
+                        rsn_parameters_bss.security_ies(),
+                        rsn_parameters_bss.security_ies_length(), freq_type);
+                    if (additional_auth == son::wireless_utils::eAdditionalAuth::NONE) {
+                        // The Agent may select another security mode (EasyMesh 6.1 5.3.10.1),
+                        // the BSS Configuration Extended Report tells the Controller about it.
+                        // Never leave RSN without override mode, as that results in an open BSS.
+                        info.payload_config.auth_type =
+                            freq_type == beerocks::eFreqType::FREQ_6G
+                                ? WSC::eWscAuth::WSC_AUTH_SAE
+                                : WSC::eWscAuth(WSC::eWscAuth::WSC_AUTH_SAE |
+                                                WSC::eWscAuth::WSC_AUTH_WPA2PSK);
+                        info.additional_auth = son::wireless_utils::eAdditionalAuth::NONE;
+                        LOG(WARNING) << "Unrecognized security IEs for BSS index "
+                                     << info.m2_config.bss_index << ", falling back to auth type "
+                                     << int(info.payload_config.auth_type);
+                        continue;
                     }
+                    LOG(DEBUG) << "RSN mode " << int(additional_auth) << " detected on band "
+                               << freq_type;
+                    info.payload_config.auth_type = WSC::eWscAuth::WSC_AUTH_RSN;
+                    info.additional_auth          = additional_auth;
                 }
             }
         }
