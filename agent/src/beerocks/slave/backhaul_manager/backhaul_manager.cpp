@@ -3453,12 +3453,15 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
 
             m_teardown_fronthaul_on_disconnect = false;
 
-            // IRE running controller
-            if (db->device_conf.local_controller && !db->device_conf.local_gw) {
+            // Finish an interrupted CONNECTED state before becoming operational. Otherwise a
+            // quick reconnect can skip the notification that starts Agent AP autoconfiguration.
+            if (m_reconnect_pending_connection ||
+                (db->device_conf.local_controller && !db->device_conf.local_gw)) {
                 FSM_MOVE_STATE(CONNECTED);
             } else {
                 FSM_MOVE_STATE(OPERATIONAL);
             }
+            m_reconnect_pending_connection = false;
         }
     } break;
 
@@ -3478,6 +3481,8 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         }
         if (iface == db->backhaul.selected_iface_name) {
             if (FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED)) {
+                m_reconnect_pending_connection = FSM_IS_IN_STATE(CONNECTED);
+
                 // If this event comes as a result of a steering request, then do not consider it
                 // as an error.
                 if (m_backhaul_steering_bssid == beerocks::net::network_utils::ZERO_MAC) {

@@ -464,6 +464,9 @@ private:
     // Set only when an established backhaul is confirmed lost. Other RESTART users must not cause
     // the Agent to tear down its fronthaul BSSs.
     bool m_teardown_fronthaul_on_disconnect = false;
+    // A disconnect can interrupt CONNECTED before it notifies the Agent. Resume that state on
+    // reconnect so the Agent can start AP autoconfiguration.
+    bool m_reconnect_pending_connection = false;
     std::string m_preferred_wired_candidate_iface;
     std::chrono::steady_clock::time_point m_next_wired_controller_probe_time =
         std::chrono::steady_clock::time_point::min();
