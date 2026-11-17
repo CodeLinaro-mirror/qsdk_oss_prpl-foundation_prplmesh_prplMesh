@@ -405,4 +405,117 @@ TEST_F(DhcpDmTest, Ipv6LifetimeSupportsTypedTimestampsAndTimezoneOffsets)
     ASSERT_EQ(1U, leases.size());
     EXPECT_EQ(std::chrono::hours(1), leases.begin()->second.validity);
 }
+
+TEST_F(DhcpDmTest, SnapshotFailurePreservesPreviousLeasesAndResetsCompleteness)
+{
+    bpl::leases_pair_t leases;
+    const auto mac = tlvf::mac_from_string("04:11:19:20:d4:02");
+    leases.first.emplace(mac, bpl::sIPv4Lease{"192.168.1.2", "known"});
+    bpl::sLeaseReadStatus status{true, true, false};
+    EXPECT_FALSE(
+        bpl::dhcp::assemble_leases(nullptr, nullptr, nullptr, nullptr, leases, status, now));
+    EXPECT_EQ("192.168.1.2", leases.first.at(mac).ip_address);
+    EXPECT_FALSE(status.ipv4_complete);
+    EXPECT_FALSE(status.ipv6_complete);
+}
+
+TEST_F(DhcpDmTest, SuccessfulEmptySourcesAuthorizeRemoval)
+{
+    bpl::leases_pair_t leases;
+    bpl::sLeaseReadStatus status;
+    EXPECT_TRUE(bpl::dhcp::assemble_leases(&clients, &hosts, &ipv6_clients, &ipv6_addresses, leases,
+                                           status, now));
+    EXPECT_TRUE(leases.first.empty());
+    EXPECT_TRUE(leases.second.empty());
+    EXPECT_TRUE(status.ipv4_complete);
+    EXPECT_TRUE(status.ipv6_complete);
+    EXPECT_FALSE(status.retry);
+}
+
+TEST_F(DhcpDmTest, PartialSnapshotNeverAuthorizesRemovalFromFailedFamily)
+{
+    add_address(add_client(1, "04:11:19:20:d4:02"), "192.168.1.2");
+    bpl::leases_pair_t leases;
+    bpl::sLeaseReadStatus status;
+    ASSERT_TRUE(
+        bpl::dhcp::assemble_leases(&clients, nullptr, nullptr, nullptr, leases, status, now));
+    EXPECT_EQ(1U, leases.first.size());
+    EXPECT_TRUE(status.ipv4_complete);
+    EXPECT_FALSE(status.ipv6_complete);
+    EXPECT_TRUE(status.retry);
+
+    add_host(1, "04:11:19:20:d4:02", "one");
+    add_host_ipv6(1, "fe80::1");
+    ASSERT_TRUE(
+        bpl::dhcp::assemble_leases(nullptr, &hosts, nullptr, &ipv6_addresses, leases, status, now));
+    EXPECT_EQ(1U, leases.second.size());
+    EXPECT_FALSE(status.ipv4_complete);
+    EXPECT_TRUE(status.ipv6_complete); // No host references a DHCPv6 client.
+}
+
+TEST_F(DhcpDmTest, ReferencedDhcpv6FailurePreventsIpv6RemovalUntilRecovery)
+{
+    add_host(1, "04:11:19:20:d4:02", "one");
+    set_dhcp_ref(1, "Device.DHCPv6.Server.Pool.1.Client.1");
+    add_host_ipv6(1, "fe80::1");
+    bpl::leases_pair_t leases;
+    bpl::sLeaseReadStatus status;
+    ASSERT_TRUE(bpl::dhcp::assemble_leases(&clients, &hosts, nullptr, &ipv6_addresses, leases,
+                                           status, now));
+    EXPECT_EQ(1U, leases.second.size());
+    EXPECT_FALSE(status.ipv6_complete);
+    EXPECT_TRUE(status.retry);
+    ASSERT_TRUE(bpl::dhcp::assemble_leases(&clients, &hosts, &ipv6_clients, &ipv6_addresses, leases,
+                                           status, now));
+    EXPECT_TRUE(status.ipv6_complete);
+    EXPECT_FALSE(status.retry);
+}
+
+TEST_F(DhcpDmTest, ExpiredAndRemovedLeasesDisappearFromCompleteSnapshots)
+{
+    const auto path = add_client(1, "04:11:19:20:d4:02");
+    add_address(path, "192.168.1.2");
+    add_host(1, "04:11:19:20:d4:02", "one");
+    const auto v6 = add_ipv6_client(1);
+    set_dhcp_ref(1, v6);
+    add_dhcp_ipv6(v6, "2001:db8::1");
+    bpl::leases_pair_t leases;
+    bpl::sLeaseReadStatus status;
+    ASSERT_TRUE(bpl::dhcp::assemble_leases(&clients, &hosts, &ipv6_clients, &ipv6_addresses, leases,
+                                           status, now));
+    ASSERT_EQ(1U, leases.first.size());
+    ASSERT_EQ(1U, leases.second.size());
+    EXPECT_TRUE(bpl::dhcp::assemble_leases(&clients, &hosts, &ipv6_clients, &ipv6_addresses, leases,
+                                           status, now + std::chrono::hours(2)));
+    EXPECT_TRUE(leases.first.empty());
+    EXPECT_TRUE(leases.second.empty());
+    EXPECT_TRUE(status.ipv4_complete);
+    EXPECT_TRUE(status.ipv6_complete);
+}
+
+TEST_F(DhcpDmTest, TwoHundredStationsRetainDistinctAddressOwnership)
+{
+    for (unsigned i = 1; i <= 200; ++i) {
+        const auto mac =
+            tlvf::mac_to_string(sMacAddr{{0x04, 0x11, 0x19, 0x20, 0xd4, static_cast<uint8_t>(i)}});
+        add_address(add_client(i, mac), "192.168.1." + std::to_string(i));
+        add_host(300 - i, mac, "sta-" + std::to_string(i));
+        const auto ref = add_ipv6_client(i);
+        set_dhcp_ref(300 - i, ref);
+        add_dhcp_ipv6(ref, "2001:db8::" + std::to_string(i));
+    }
+    bpl::leases_pair_t leases;
+    bpl::sLeaseReadStatus status;
+    ASSERT_TRUE(bpl::dhcp::assemble_leases(&clients, &hosts, &ipv6_clients, &ipv6_addresses, leases,
+                                           status, now));
+    ASSERT_EQ(200U, leases.first.size());
+    ASSERT_EQ(200U, leases.second.size());
+    for (unsigned i = 1; i <= 200; ++i) {
+        const sMacAddr mac{{0x04, 0x11, 0x19, 0x20, 0xd4, static_cast<uint8_t>(i)}};
+        EXPECT_EQ("192.168.1." + std::to_string(i), leases.first.at(mac).ip_address);
+        EXPECT_EQ("2001:db8::" + std::to_string(i),
+                  leases.second.at(tlvf::mac_to_string(mac)).ip_address);
+        EXPECT_EQ("sta-" + std::to_string(i), leases.first.at(mac).host_name);
+    }
+}
 } // namespace

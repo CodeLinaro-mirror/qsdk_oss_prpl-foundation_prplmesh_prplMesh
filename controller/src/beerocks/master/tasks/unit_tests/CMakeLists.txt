@@ -5,6 +5,12 @@
 # This code is subject to the terms of the BSD+Patent license.
 # See LICENSE file for more details.
 
+if(BUILD_TESTS)
+    add_executable(dhcp_task_state_test dhcp_task_state_test.cpp)
+    target_link_libraries(dhcp_task_state_test PRIVATE bpl bcl tlvf gtest_main)
+    add_test(NAME dhcp_task_state_test COMMAND $<TARGET_FILE:dhcp_task_state_test>)
+endif()
+
 if (BUILD_TESTS AND ENABLE_NBAPI)
     project(ieee1905_task_test VERSION ${prplmesh_VERSION})
 

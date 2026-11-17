@@ -32,22 +32,27 @@ bool dhcp_manual_procedure_init()
 // The shared bus client belongs to BplConfigService.
 bool dhcp_manual_procedure_destroy() { return true; }
 
-bool dhcp_get_leases(leases_pair_t &leases_map)
+bool dhcp_get_leases(leases_pair_t &leases_map, sLeaseReadStatus *status)
 {
+    if (status) {
+        *status = {};
+    }
     auto *client = BplConfigService::instance().common_client();
     if (!client) {
         LOG(ERROR) << "BPL common Ambiorix client is not initialized";
         return false;
     }
 
-    // Bulk reads are independent of station count. Depth 2 includes address instances.
-    auto clients = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>(
-        "DHCPv4Server.Pool.*.Client.*.", 2);
+    // Query tables so zero instances is a successful empty snapshot. Depth 5 includes
+    // Pool instance -> Client table -> client instance -> address table -> address instance.
+    // Four bulk reads remain independent of station count.
+    auto clients =
+        client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>("DHCPv4Server.Pool.", 5);
     if (!clients) {
         LOG(DEBUG) << "DHCPv4 leases unavailable; attempting IPv6 discovery";
     }
 
-    auto hosts = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>("Hosts.Host.*.", 0);
+    auto hosts = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>("Hosts.Host.", 1);
     if (!hosts) {
         LOG(WARNING) << "Failed to read Hosts; IPv6 MAC association and hostnames unavailable";
     }
@@ -56,28 +61,29 @@ bool dhcp_get_leases(leases_pair_t &leases_map)
     // Read only the IPv6 children, avoiding the potentially large Hosts IPv4 tables.
     wbapi::AmbiorixVariantMapSmartPtr ipv6_clients, ipv6_addresses;
     if (hosts) {
-        ipv6_clients = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>(
-            "DHCPv6Server.Pool.*.Client.*.", 2);
+        ipv6_clients =
+            client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>("DHCPv6Server.Pool.", 5);
         ipv6_addresses = client->get_object_multi<wbapi::AmbiorixVariantMapSmartPtr>(
-            "Hosts.Host.*.IPv6Address.*.", 0);
+            "Hosts.Host.*.IPv6Address.", 1);
+        // With no Host instances there are no address tables to match. The successful
+        // base read still authoritatively establishes an empty discovery snapshot.
+        if (!ipv6_addresses &&
+            (hosts->empty() || (hosts->size() == 1 && (hosts->count("Hosts.Host.") ||
+                                                       hosts->count("Device.Hosts.Host."))))) {
+            ipv6_addresses = std::make_unique<wbapi::AmbiorixVariantMap>();
+        }
         LOG_IF(!ipv6_clients, DEBUG) << "DHCPv6 leases unavailable; using Hosts IPv6 discovery";
         LOG_IF(!ipv6_addresses, DEBUG) << "Hosts IPv6 discovery unavailable";
     }
 
-    // Preserve the caller's snapshot if neither address family could be read.
-    // Either family can update independently; omitted entries leave cached STA values intact.
-    if (!clients && (!hosts || (!ipv6_clients && !ipv6_addresses))) {
-        return false;
+    sLeaseReadStatus result;
+    const auto success =
+        dhcp::assemble_leases(clients.get(), hosts.get(), ipv6_clients.get(), ipv6_addresses.get(),
+                              leases_map, result, std::chrono::system_clock::now());
+    if (status) {
+        *status = result;
     }
-    const wbapi::AmbiorixVariantMap empty;
-    const auto now = std::chrono::system_clock::now();
-    leases_pair_t leases;
-    leases.first = dhcp::parse_ipv4_leases(clients ? *clients : empty, hosts ? *hosts : empty, now);
-    leases.second =
-        dhcp::parse_ipv6_leases(ipv6_clients ? *ipv6_clients : empty, hosts ? *hosts : empty,
-                                ipv6_addresses ? *ipv6_addresses : empty, now);
-    leases_map = std::move(leases);
-    return true;
+    return success;
 }
 
 } // namespace bpl

@@ -40,6 +40,17 @@ ipv6_lease_map_t parse_ipv6_leases(const wbapi::AmbiorixVariantMap &clients,
                                    const wbapi::AmbiorixVariantMap &addresses,
                                    std::chrono::system_clock::time_point now);
 
+/**
+ * Assemble independently read sources. A null pointer denotes failure; an empty map
+ * denotes a successful empty read. IPv6 removal requires Hosts discovery plus DHCPv6
+ * when Hosts contains DHCPv6 references. Failed reads must never authorize removal.
+ * On total failure, leave leases unchanged and reset status.
+ */
+bool assemble_leases(const wbapi::AmbiorixVariantMap *ipv4, const wbapi::AmbiorixVariantMap *hosts,
+                     const wbapi::AmbiorixVariantMap *ipv6,
+                     const wbapi::AmbiorixVariantMap *addresses, leases_pair_t &leases,
+                     sLeaseReadStatus &status, std::chrono::system_clock::time_point now);
+
 } // namespace dhcp
 } // namespace bpl
 } // namespace beerocks

@@ -384,8 +384,11 @@ static void lease_data_handler(ubus_request *req, int type, blob_attr *msg)
     return;
 }
 
-bool dhcp_get_leases(leases_pair_t &leases_map)
+bool dhcp_get_leases(leases_pair_t &leases_map, sLeaseReadStatus *status)
 {
+    if (status) {
+        *status = {};
+    }
     int ret_val;
     uint32_t id;
 

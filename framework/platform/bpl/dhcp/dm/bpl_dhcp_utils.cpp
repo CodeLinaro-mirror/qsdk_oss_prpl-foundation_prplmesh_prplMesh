@@ -366,6 +366,43 @@ ipv6_lease_map_t parse_ipv6_leases(const wbapi::AmbiorixVariantMap &clients,
     return leases;
 }
 
+bool assemble_leases(const wbapi::AmbiorixVariantMap *ipv4, const wbapi::AmbiorixVariantMap *hosts,
+                     const wbapi::AmbiorixVariantMap *ipv6,
+                     const wbapi::AmbiorixVariantMap *addresses, leases_pair_t &leases,
+                     sLeaseReadStatus &status, std::chrono::system_clock::time_point now)
+{
+    status = {};
+    if (!ipv4 && (!hosts || (!ipv6 && !addresses))) {
+        return false;
+    }
+    bool needs_dhcpv6 = false;
+    if (hosts) {
+        for (const auto &host : *hosts) {
+            std::string refs, ref;
+            if (!host.second.read_child(refs, "DHCPClient")) {
+                continue;
+            }
+            std::istringstream stream(refs);
+            while (std::getline(stream, ref, ',')) {
+                if (normalize_ipv6_client(ref).rfind("DHCPv6Server.Pool.", 0) == 0) {
+                    needs_dhcpv6 = true;
+                }
+            }
+        }
+    }
+    status.ipv4_complete = ipv4 != nullptr;
+    status.ipv6_complete = hosts && addresses && (!needs_dhcpv6 || ipv6);
+    status.retry         = !ipv4 || !hosts || !addresses || (needs_dhcpv6 && !ipv6);
+
+    const wbapi::AmbiorixVariantMap empty;
+    leases_pair_t snapshot;
+    snapshot.first  = parse_ipv4_leases(ipv4 ? *ipv4 : empty, hosts ? *hosts : empty, now);
+    snapshot.second = parse_ipv6_leases(ipv6 ? *ipv6 : empty, hosts ? *hosts : empty,
+                                        addresses ? *addresses : empty, now);
+    leases          = std::move(snapshot);
+    return true;
+}
+
 } // namespace dhcp
 } // namespace bpl
 } // namespace beerocks

@@ -61,6 +61,14 @@ struct sIPv6Lease {
 typedef std::unordered_map<std::string, sIPv6Lease> ipv6_lease_map_t;
 typedef std::pair<ipv4_lease_map_t, ipv6_lease_map_t> leases_pair_t;
 
+// Only a complete family snapshot permits removal of a previously reported address.
+// Backends without completeness guarantees leave these flags false.
+struct sLeaseReadStatus {
+    bool ipv4_complete = false;
+    bool ipv6_complete = false;
+    bool retry         = false;
+};
+
 /*
 Example for sending an event using the "ubus" shell command ubus call:
   dhcp_event notify '{ "id": 1234, "op": "add", "mac": "11:22:33:44:55:66",
@@ -129,9 +137,10 @@ bool dhcp_manual_procedure_destroy();
  * @brief Get DHCP leases from the platform's lease provider.
  *
  * @param [out] leases_map dhcp lease map which is pair of ipv4 and ipv6.
+ * @param [out] status Optional completeness and retry information, reset on each call.
  * @return Returns true in case of success.
  */
-bool dhcp_get_leases(leases_pair_t &leases_map);
+bool dhcp_get_leases(leases_pair_t &leases_map, sLeaseReadStatus *status = nullptr);
 
 } // namespace bpl
 } // namespace beerocks

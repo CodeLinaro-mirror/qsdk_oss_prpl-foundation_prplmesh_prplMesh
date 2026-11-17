@@ -167,7 +167,13 @@ bool dhcp_manual_procedure_init() { return false; }
 
 bool dhcp_manual_procedure_destroy() { return true; }
 
-bool dhcp_get_leases(leases_pair_t &leases_map) { return false; }
+bool dhcp_get_leases(leases_pair_t &leases_map, sLeaseReadStatus *status)
+{
+    if (status) {
+        *status = {};
+    }
+    return false;
+}
 
 } // namespace bpl
 } // namespace beerocks

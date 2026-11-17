@@ -10,6 +10,7 @@
 #define _DHCP_TASK_H_
 
 #include "../db/db.h"
+#include "dhcp_task_state.h"
 #include "task.h"
 #include "task_pool.h"
 #include <bcl/beerocks_timer_manager.h>
@@ -36,26 +37,15 @@ private:
 
     //! File descriptor of the timer to get DHCP IPv4/IPv6 leases periodically.
     int m_periodic_timer{beerocks::net::FileDescriptor::invalid_descriptor};
-    bool m_successful_init; //!< Flag for successful initialized ubus context.
-
-    const std::chrono::milliseconds DELAY_AFTER_STA_CONNECTED_MS{5000};
+    bool m_successful_init = false;
+    DhcpPollSchedule m_schedule;
+    DhcpLeaseTracker m_ipv4_tracker, m_ipv6_tracker;
 
     /**
-     * @brief Start periodical DHCP IPv4/IPv6 lease poll with timer.
-     *
-     * Periodic lease polls are triggered with timer.
-     * Leases are read from bpl::dhcp_get_leases() within timer handler.
-     * After reading leases, database objects are filled.
-     *
-     * Period of this timer is config.dhcp_monitor_interval_seconds.
-     * Timer delay is passed as argument to control timers delay.
-     *
-     * If periodical timer is already started, removes and adds again.
-     * Timer restarted with new delay_ms.
-     *
-     * @param delay_ms delay timeout time in miliseconds.
+     * @brief Start a single timer driving the shared poll schedule.
+     * Fast refresh after connections and failure backoff do not create per-STA timers.
      */
-    void start_periodic_lease_poll(const std::chrono::milliseconds &delay_ms);
+    void start_periodic_lease_poll();
 
     /**
      * @brief Handles periodic lease poll timer timeout.
