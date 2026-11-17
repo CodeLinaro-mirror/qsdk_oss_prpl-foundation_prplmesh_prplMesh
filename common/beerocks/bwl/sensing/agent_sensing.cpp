@@ -73,7 +73,7 @@ agent_sensing::agent_sensing()
 {
     // Native DM path on wifi-sensing USP socket (see wsn_main.c / wifi-sensing_definition.odl).
     // Device.WiFi.Sensing. only works if wifi-sensing loads wifi-sensing_usp.odl (USP translate).
-    m_sensing_path = "Device.WiFi.X_PRPLWARE-COM_WiFiSensing";
+    m_sensing_path = "Device.WiFi.Sensing";
     if (!m_ambiorix_sensing_cl.connect(AMBIORIX_WBAPI_BACKEND_PATH, AMBIORIX_WBAPI_BUS_URI)) {
         LOG(ERROR) << "agent_sensing: failed to connect AmbiorixClient to sensing USP";
     }
