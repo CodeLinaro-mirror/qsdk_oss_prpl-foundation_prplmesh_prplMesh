@@ -163,9 +163,9 @@ main() {
         OPENWRT_TOOLCHAIN_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
         OPENWRT_VERSION='21169344e223c5e02e8afedc3cc5648acd42f6cc'
     else
-        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS latest-24.10_2026-11-11"
-        OPENWRT_TOOLCHAIN_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
-        OPENWRT_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
+        dbg "$TARGET_DEVICE non-legacy platform, building on prplOS test/pcf-2845-et-stats-on-4addr"
+        OPENWRT_TOOLCHAIN_VERSION='c1cb21e074a82ed74adda76675519fddf14bd534'
+        OPENWRT_VERSION='c1cb21e074a82ed74adda76675519fddf14bd534'
     fi
 
     dbg "OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY"
@@ -204,9 +204,9 @@ main() {
 VERBOSE=false
 IMAGE_ONLY=false
 OPENWRT_REPOSITORY='https://gitlab.com/prpl-foundation/prplos/prplos.git'
-# prplos latest-24.10_2026-11-11
-OPENWRT_TOOLCHAIN_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
-OPENWRT_VERSION='2028939a4ebb744dd056095592de8c946b44601e'
+# prplos test/pcf-2845-et-stats-on-4addr (latest-24.10 b18ab0de + PCF-2845 mt76 fix)
+OPENWRT_TOOLCHAIN_VERSION='c1cb21e074a82ed74adda76675519fddf14bd534'
+OPENWRT_VERSION='c1cb21e074a82ed74adda76675519fddf14bd534'
 PRPLMESH_VARIANT="-nl80211"
 DOCKER_TARGET_STAGE="prplmesh-builder"
 SHELL_ONLY=false
