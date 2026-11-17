@@ -70,6 +70,7 @@ if (BUILD_TESTS)
         ${MODULE_PATH}/agent_info_publisher.cpp
         helpers/unit_tests/fronthaul_bss_teardown_test.cpp
         gate/unit_tests/gate_test.cpp
+        tasks/unit_tests/mld_unit_utils_test.cpp
         traffic_separation/unit_tests/traffic_separation_utils_test.cpp
         ${MODULE_PATH}/gate/1905_beacon_query_to_vs.cpp
         ${MODULE_PATH}/gate/vs_beacon_response_to_1905.cpp
