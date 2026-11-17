@@ -8,8 +8,12 @@
 
 #ifndef AMBIORIX_RT_H
 #define AMBIORIX_RT_H
+#include <bcl/beerocks_event_loop.h>
+#include <easylogging++.h>
 #include <map>
 #include <mapf/common/amx_mutex.h>
+#include <memory>
+#include <set>
 #include <string>
 
 // Ambiorix
@@ -23,15 +27,35 @@ static int index = 0;
 class Amxrt {
 
 public:
-    Amxrt()
+    explicit Amxrt(std::shared_ptr<EventLoop> event_loop) : m_event_loop(std::move(event_loop))
     {
         AmxGuard guard;
         amxrt_new();
+        LOG_IF(amxp_slot_connect(nullptr, "connection-wait-write", nullptr, connection_wait_write,
+                                 this) != 0,
+               FATAL)
+            << "Failed to connect connection-wait-write";
+        for (const auto *signal : {"connection-added", "listen-added"}) {
+            LOG_IF(amxp_slot_connect(nullptr, signal, nullptr, connection_added, this) != 0, FATAL)
+                << "Failed to connect " << signal;
+        }
+        for (const auto *signal : {"connection-deleted", "listen-deleted"}) {
+            LOG_IF(amxp_slot_connect(nullptr, signal, nullptr, connection_deleted, this) != 0,
+                   FATAL)
+                << "Failed to connect " << signal;
+        }
     }
+
     ~Amxrt()
     {
         AmxGuard guard;
         amxrt_stop();
+        amxp_slot_disconnect_with_priv(nullptr, connection_added, this);
+        amxp_slot_disconnect_with_priv(nullptr, connection_deleted, this);
+        amxp_slot_disconnect_with_priv(nullptr, connection_wait_write, this);
+        for (auto fd : m_registered_fds) {
+            m_event_loop->remove_handlers(fd);
+        }
         amxrt_delete();
     }
 
@@ -80,22 +104,22 @@ public:
 
     /**
     * @brief  Adds an entry point function.
-    * 
+    *
     * The parser itself will not call entry points, but will add entry-points if
     * defined in the odl.
-    * 
+    *
     * Any application or library can add extra entry points to the parser.
-    * 
+    *
     * It is up to the application or library that initiates the odl parsing to
     * invoke the entry points.
     * Entry point functions must comply with the following signature:
-    * 
+    *
     * typedef int (*amxo_entry_point_t) (int reason,
     *                                    amxd_dm_t *dm,
     *                                    amxo_parser_t *parser);
-    * 
+    *
     * @param callback a valid function pointer (can not be NULL)
-    * 
+    *
     * @return 0 when success, any other value indicates failure.
     */
     static int AddAutoSave(amxo_entry_point_t callback)
@@ -106,18 +130,18 @@ public:
 
     /**
     * @brief Connects to all bus sockets.
-    * 
+    *
     * When auto-detect is enabled the ambiorix runtime will check if the well known
     * linux domain bus sockets exists and they will be added to the "uris" config.
-    * 
+    *
     * Using command line option "-u" extra sockets can be added. It is also possible
     * to define the sockets that needs to be opened in the config section of an odl file.
-    * 
+    *
     * The supported config options are:
     * - "uris" - used to connect on and register the data model of the application
     * - "data-uris" - used to connect on, but the data model is not registered on these sockets.
     * " "listen" - creates a listening socket, other applications can connect on these.
-    * 
+    *
     * @return
     * Non zero indicates an error
     */
@@ -146,15 +170,15 @@ public:
 
     /**
     * @brief Enables system signals that should be monitored by the eventloop.
-    * 
+    *
     * The default implementation of the event loop will only monitor
     * - SIGINT
     * - SIGTERM
     * - SIGALRM
-    * 
+    *
     * If other signals needs to be monitored, a list variant must be created, containing
     * the identifiers of the signals and passed to this function.
-    * 
+    *
     * syssigs is a list variant containing the signal identifiers.
     */
     static void EnableSyssigs()
@@ -169,19 +193,19 @@ public:
 
     /**
     * @brief Register the data model or wait for required data model objects.
-    * 
+    *
     * When the application has a data model available, it can be registered using this function.
     * As soon as the data model is registered, the application becomes a data model provider.
-    * 
+    *
     * If required objects are defined (using odl files with "requires" or using command line option -R),
     * then this function will wait until these objects become available on the used bus systems before
     * registering the data model.
-    * 
+    *
     * The wait can only be fulfilled when an eventloop is running, as it needs event handling.
-    * 
+    *
     * When registering of the data model succeeded, the entry-points of the loaded modules/plugins
     * are called with reason AMXO_START (0).
-    * 
+    *
     * @return Non zero indicates an error
     */
     static int RegisterOrWait()
@@ -191,18 +215,18 @@ public:
         // Add error handling if needed
     }
 
-    /** 
+    /**
     * @brief Starts the event loop.
-    * 
+    *
     * This function will start the event loop. The event loop will be "waiting" for
     * events and if one is received, it will be dispatched (correct callback functions
     * are called).
-    * 
+    *
     * The event loop will keep running until @ref amxrt_el_stop is called, that is:
     * this function will not return until the event loop is stopped.
-    * 
+    *
     * IF the event loop fails to start the function returns immediately.
-    * 
+    *
     * @return Non 0 will indicate that starting the event loop failed.
     * 0 will indicate that the event loop was stopped.
     */
@@ -210,7 +234,7 @@ public:
 
     /**
     * @brief Gets the runtime data model storage.
-    * 
+    *
     * The caller must hold AmxGuard while obtaining and using the borrowed pointer.
     * @return The amxd_dm_t pointer where the data model is stored.
     */
@@ -218,18 +242,18 @@ public:
 
     /**
     * @brief Gets runtime odl parser.
-    * 
+    *
     * To manually read the odl files using the parser use any of the libamxo functions.
-    * 
+    *
     * Example:
     * @code
     * amxo_parser_t* odl_parser = amxrt_get_parser();
     * amxd_dm_t* dm = amxrt_get_dm();
     * amxd_object_t* root = amxd_dm_get_root(dm);
-    * 
+    *
     * amxo_parser_parse_file(parser, "/tmp/my_definition.odl", root);
     * @endcode
-    * 
+    *
     * The caller must hold AmxGuard while obtaining and using the borrowed pointer.
     * @return The runtime odl parser.
     */
@@ -237,11 +261,102 @@ public:
 
     /**
     * @brief Gets the htable variant containing the configuration options
-    * 
+    *
     * The caller must hold AmxGuard while obtaining and using the borrowed pointer.
     * @return The htable variant containing the configuration options.
     */
     static amxc_var_t *getConfig() { return amxrt_get_config(); }
+
+private:
+    static void connection_added(const char *, const amxc_var_t *data, void *priv)
+    {
+        auto *connection = amxp_connection_get(amxc_var_constcast(fd_t, data));
+        if (connection) {
+            static_cast<Amxrt *>(priv)->add_connection(connection->fd);
+        }
+    }
+
+    static void connection_deleted(const char *, const amxc_var_t *data, void *priv)
+    {
+        auto *runtime = static_cast<Amxrt *>(priv);
+        const auto fd = amxc_var_constcast(fd_t, data);
+        if (runtime->m_registered_fds.erase(fd)) {
+            runtime->m_event_loop->remove_handlers(fd);
+        }
+    }
+
+    static void connection_wait_write(const char *, const amxc_var_t *data, void *priv)
+    {
+        const auto fd = amxc_var_constcast(fd_t, data);
+        if (amxp_connection_get(fd)) {
+            // amxp emits this signal before assigning connection->can_write.
+            static_cast<Amxrt *>(priv)->add_connection(fd, true);
+        }
+    }
+
+    void add_connection(int fd, bool wait_write = false)
+    {
+        EventLoop::EventHandlers handlers = {
+            .name          = "amxrt_connection",
+            .on_read       = [this](int fd, EventLoop &) { return read_connection(fd, false); },
+            .on_write      = nullptr,
+            .on_disconnect = [this](int fd, EventLoop &) { return read_connection(fd, true); },
+            .on_error      = [this](int fd, EventLoop &) { return read_connection(fd, true); },
+        };
+        if (wait_write) {
+            handlers.on_write = [this](int fd, EventLoop &) { return write_connection(fd); };
+        }
+        // EventLoop has no modify operation; replace the handlers to update EPOLLOUT.
+        if (m_registered_fds.erase(fd)) {
+            LOG_IF(!m_event_loop->remove_handlers(fd), FATAL)
+                << "Failed to remove Ambiorix connection " << fd;
+        }
+        LOG_IF(!m_event_loop->register_handlers(fd, handlers), FATAL)
+            << "Failed to register Ambiorix connection " << fd;
+        m_registered_fds.insert(fd);
+    }
+
+    bool write_connection(int fd)
+    {
+        AmxGuard guard;
+        auto *connection = amxp_connection_get(fd);
+        if (!connection) {
+            return true;
+        }
+        auto callback = connection->can_write;
+        auto *priv    = connection->priv;
+        // Disarm before calling out: the callback may rearm or remove the connection.
+        connection->can_write = nullptr;
+        add_connection(fd);
+        if (callback) {
+            callback(fd, priv);
+        }
+        return true;
+    }
+
+    bool read_connection(int fd, bool disconnected)
+    {
+        AmxGuard guard;
+        // EventLoopImpl removes HUP/ERR handlers before calling us.
+        if (disconnected) {
+            m_registered_fds.erase(fd);
+        }
+        if (auto *connection = amxp_connection_get(fd)) {
+            // The runtime reader owns disconnect handling and configured retries.
+            connection->reader(fd, connection->priv);
+        }
+        amxp_timers_calculate();
+        amxp_timers_check();
+        if (disconnected && !m_registered_fds.count(fd)) {
+            if (auto *connection = amxp_connection_get(fd)) {
+                add_connection(fd, connection->can_write != nullptr);
+            }
+        }
+        return true;
+    }
+
+    std::shared_ptr<EventLoop> m_event_loop;
+    std::set<int> m_registered_fds;
 };
 } // namespace nbapi
 } // namespace beerocks

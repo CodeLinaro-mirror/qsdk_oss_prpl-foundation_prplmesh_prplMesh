@@ -85,9 +85,6 @@ RUN apt-get update && apt-get install -y $PACKAGES && \
     rm -rf /var/lib/apt/lists/* && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 
-RUN curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/bin/repo && \
-    chmod +x /usr/bin/repo
-
 WORKDIR ambiorix
 
 # Fetch, checkout on fixed commit which works and install libubox
@@ -106,29 +103,28 @@ RUN \
     cmake -H"$(pwd)"/. -B"$(pwd)"/build/. -DCMAKE_INSTALL_PREFIX=/usr && \
     make install -C build
 
-# Fetch and intall Bus Agnostic API libs, applications.
-# As they have some internal dependencies - we should build & install
-# them in specific order.
+# Fetch and install the Ambiorix libraries, applications, bus backend
+# and mod-dmext. They depend on each other, so the order matters.
 RUN \
-    repo init -u https://gitlab.com/prpl-foundation/components/ambiorix/ambiorix.git \
-    -b refs/tags/v7.1.0 < /dev/null && \
-    repo sync && \
-    make install -C libraries/libamxc && \
-    make install -C libraries/libamxp && \
-    make install -C libraries/libamxd && \
-    make install -C libraries/libamxb && \
-    make install -C libraries/libamxs && \
-    make install -C libraries/libamxo && \
-    make install -C libraries/libamxj && \
-    make install -C libraries/libamxrt && \
-    make install -C applications/amxb-inspect && \
-    make install -C applications/amxo-cg && \
-    make install -C applications/amxo-xml-to && \
-    make -C bus_adaptors/amxb_ubus && \
-    make install -C bus_adaptors/amxb_ubus
-
-RUN \
-    git clone --branch v0.11.12 https://gitlab.com/prpl-foundation/components/core/modules/mod-dmext.git && \
-    cd mod-dmext && make && make install
+    for component in \
+        ambiorix/libraries/libamxc:v2.7.1 \
+        ambiorix/libraries/libamxp:v2.12.1 \
+        ambiorix/libraries/libamxd:v6.11.2 \
+        ambiorix/libraries/libamxb:v4.17.2 \
+        ambiorix/libraries/libamxs:v0.9.0 \
+        ambiorix/libraries/libamxo:v5.7.1 \
+        ambiorix/libraries/libamxj:v1.2.1 \
+        ambiorix/libraries/libamxrt:v0.10.0 \
+        ambiorix/applications/amxb-inspect:v1.2.1 \
+        ambiorix/applications/amxo-cg:v1.11.1 \
+        ambiorix/applications/amxo-xml-to:v0.2.7 \
+        ambiorix/modules/amxb_backends/amxb_ubus:v3.11.1 \
+        core/modules/mod-dmext:v0.15.2 \
+    ; do \
+        dir="${component%%:*}" && tag="${component##*:}" && \
+        git clone --depth 1 --branch "$tag" \
+            "https://gitlab.com/prpl-foundation/components/$dir.git" "$dir" && \
+        make -C "$dir" install || exit 1; \
+    done
 
 ADD start-prplmesh.sh /root/
