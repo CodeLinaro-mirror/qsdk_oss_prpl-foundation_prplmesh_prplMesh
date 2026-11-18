@@ -33,6 +33,23 @@ using WpsAutoCb = std::function<bool()>;
 void set_wps_callback(WpsAutoCb auto_cb);
 
 /**
+ * @brief Callback type used by the EnableDPPOnboarding change handler.
+ * Receives the new value. It runs in the NBAPI (main) thread, so it must only hand the
+ * value over to the Agent thread (no direct Agent state access).
+ */
+using DppOnboardingCb = std::function<void(bool enable)>;
+
+/**
+ * @brief Install the EnableDPPOnboarding change callback (nullptr to remove it).
+ */
+void set_dpp_onboarding_callback(DppOnboardingCb cb);
+
+/**
+ * @brief Register the NBAPI event handlers used by the Agent ODL (%populate section).
+ */
+std::vector<beerocks::nbapi::sEvents> get_events_list(void);
+
+/**
  * @brief Register the NBAPI functions exposed by the Agent.
  */
 std::vector<beerocks::nbapi::sFunctions> get_func_list(void);

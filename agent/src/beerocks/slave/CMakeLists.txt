@@ -71,6 +71,16 @@ if (BUILD_TESTS)
         helpers/unit_tests/fronthaul_bss_teardown_test.cpp
         gate/unit_tests/gate_test.cpp
         traffic_separation/unit_tests/traffic_separation_utils_test.cpp
+        backhaul_manager/unit_tests/dpp_enrollee_keystore_test.cpp
+        ${MODULE_PATH}/backhaul_manager/dpp_enrollee_keystore.cpp
+        backhaul_manager/unit_tests/dpp_enrollee_channel_pair_test.cpp
+        ${MODULE_PATH}/backhaul_manager/dpp_enrollee_channel_pair.cpp
+        backhaul_manager/unit_tests/dpp_cce_targets_test.cpp
+        ${MODULE_PATH}/backhaul_manager/dpp_cce_targets.cpp
+        tasks/unit_tests/dpp_relay_frames_test.cpp
+        ${MODULE_PATH}/tasks/dpp_relay_frames.cpp
+        tasks/unit_tests/dpp_agent_task_test.cpp
+        ${MODULE_PATH}/tasks/dpp_agent_task.cpp
         ${MODULE_PATH}/gate/1905_beacon_query_to_vs.cpp
         ${MODULE_PATH}/gate/vs_beacon_response_to_1905.cpp
     )
@@ -90,6 +100,10 @@ if (BUILD_TESTS)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
     target_link_libraries(${TEST_PROJECT_NAME} btlvf tlvf mapfcommon bwl bpl nbapi)
+    # Deterministic key-store I/O faults, including when tests run as root.
+    # Keep wrappers in the test executable only; preserve coverage LINK_FLAGS.
+    set_property(TARGET ${TEST_PROJECT_NAME} APPEND_STRING PROPERTY LINK_FLAGS
+        " -Wl,--wrap=fchmod -Wl,--wrap=fsync")
     target_link_libraries(${TEST_PROJECT_NAME} gtest_main)
     install(TARGETS ${TEST_PROJECT_NAME} DESTINATION tests)
     add_test(NAME ${TEST_PROJECT_NAME} COMMAND $<TARGET_FILE:${TEST_PROJECT_NAME}>)

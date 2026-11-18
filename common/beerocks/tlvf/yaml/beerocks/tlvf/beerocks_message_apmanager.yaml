@@ -427,3 +427,7 @@ cACTION_APMANAGER_BSS_SET_QOS_MANAGEMENT_REQUEST:
   bssid: sMacAddr
   mscs_enable: uint8_t
   scs_enable: uint8_t
+
+cACTION_APMANAGER_SET_DPP_ONBOARDING_REQUEST:
+  _type: class
+  enable: uint8_t #bool

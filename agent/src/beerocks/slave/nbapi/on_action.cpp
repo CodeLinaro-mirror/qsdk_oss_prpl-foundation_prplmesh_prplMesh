@@ -22,6 +22,36 @@ void set_wps_callback(WpsAutoCb auto_cb)
     g_wps_auto_cb = std::move(auto_cb);
 }
 
+static DppOnboardingCb g_dpp_onboarding_cb = nullptr;
+
+void set_dpp_onboarding_callback(DppOnboardingCb cb) { g_dpp_onboarding_cb = std::move(cb); }
+
+// Events
+
+/**
+ * @brief Handler of "dm:object-changed" on Configuration when EnableDPPOnboarding changed.
+ *
+ * Example:
+ *   ubus-cli "X_PRPLWARE-COM_Agent.Configuration.EnableDPPOnboarding=0"
+ */
+static void event_dpp_onboarding_changed(const char *const sig_name, const amxc_var_t *const data,
+                                         void *const priv)
+{
+    const amxc_var_t *new_value =
+        amxc_var_get_path(data, "parameters.EnableDPPOnboarding.to", AMXC_VAR_FLAG_DEFAULT);
+    if (!new_value) {
+        LOG(WARNING) << "DPP: EnableDPPOnboarding change event without new value";
+        return;
+    }
+    const bool enable = amxc_var_dyncast(bool, new_value);
+    LOG(INFO) << "DPP: Configuration.EnableDPPOnboarding set to " << enable;
+    if (!g_dpp_onboarding_cb) {
+        LOG(WARNING) << "DPP: EnableDPPOnboarding callback not set; applied at next Agent start";
+        return;
+    }
+    g_dpp_onboarding_cb(enable);
+}
+
 // Actions
 
 /**
@@ -40,6 +70,13 @@ amxd_status_t initiate_wps_pbc(amxd_object_t *object, amxd_function_t *func, amx
     }
     const bool ok = g_wps_auto_cb();
     return ok ? amxd_status_ok : amxd_status_unknown_error;
+}
+
+std::vector<beerocks::nbapi::sEvents> get_events_list(void)
+{
+    const std::vector<beerocks::nbapi::sEvents> events_list = {
+        {"event_dpp_onboarding_changed", event_dpp_onboarding_changed}};
+    return events_list;
 }
 
 std::vector<beerocks::nbapi::sFunctions> get_func_list(void)

@@ -312,7 +312,7 @@ bool slave_thread::thread_init()
     beerocks::CmduServer::EventHandlers cmdu_server_handlers{
         .on_client_connected    = nullptr,
         .on_client_disconnected = [&](int fd) { handle_client_disconnected(fd); },
-        .on_cmdu_received       = [&](int fd, uint32_t iface_index, const sMacAddr &dst_mac,
+        .on_cmdu_received = [&](int fd, uint32_t iface_index, const sMacAddr &dst_mac,
                                 const sMacAddr &src_mac,
                                 ieee1905_1::CmduMessageRx &cmdu_rx) { handle_cmdu(fd, cmdu_rx); },
     };
@@ -374,6 +374,7 @@ bool slave_thread::thread_init()
             if (m_fronthaul_bss_teardown.active()) {
                 return true;
             }
+            maintain_dpp_tcp_relay();
             // Allow tasks to execute up to 80% of the timer period
             m_task_pool.run_tasks(int(double(tasks_timer_period.count()) * 0.8));
             return true;
@@ -429,12 +430,9 @@ void slave_thread::stop_slave_thread()
     m_current_fronthaul_bss_teardown_retries.clear();
     m_reset_after_fronthaul_bss_teardown = false;
     clear_event_handlers();
+    stop_dpp_tcp_relay_server("Agent thread stop");
     if (m_slave_wlan_hal) {
-        m_slave_wlan_hal->stop_dpp_relay();
         m_slave_wlan_hal.reset();
-    }
-    if (m_dpp_agent_task) {
-        m_dpp_agent_task->on_relay_stopped();
     }
     agent_reset();
     should_stop = true;
@@ -442,6 +440,10 @@ void slave_thread::stop_slave_thread()
 
 void slave_thread::agent_reset()
 {
+    // Stop the DPP relay before any early return: it is restarted at the next
+    // STATE_OPERATIONAL entry (start_dpp_tcp_relay_server()).
+    stop_dpp_tcp_relay_server("Agent reset");
+
     // Socket-disconnect and platform callbacks may also request a reset while AP managers
     // are applying teardown. Only the completion/timeout path may stop them in that phase.
     if (m_fronthaul_bss_teardown.active()) {
@@ -1031,6 +1033,8 @@ void slave_thread::handle_client_disconnected(int fd)
 
 bool slave_thread::fsm_all()
 {
+    apply_pending_dpp_onboarding_change();
+
     if (m_fronthaul_bss_teardown.active()) {
         if (m_fronthaul_bss_teardown.ready(std::chrono::steady_clock::now())) {
             for (const auto &pending : m_fronthaul_bss_teardown.pending()) {
@@ -1110,6 +1114,14 @@ bool slave_thread::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_p
         }
         break;
     }
+    case Event::Dpp_Presence_Rx: {
+        auto presence =
+            std::static_pointer_cast<bwl::slave_wlan_hal::sDppPresenceRxEvent>(event_ptr->second);
+        if (m_dpp_agent_task && presence) {
+            m_dpp_agent_task->on_presence_rx(presence->enrollee_mac, presence->ifname);
+        }
+        break;
+    }
     case Event::Dpp_Client_Connected: {
         if (m_dpp_agent_task) {
             m_dpp_agent_task->on_relay_status(true);
@@ -1138,8 +1150,10 @@ bool slave_thread::register_ext_events_handlers(int fd)
         .on_read =
             [this](int fd, beerocks::EventLoop &loop) {
                 if (!m_slave_wlan_hal || !m_slave_wlan_hal->process_ext_events(fd)) {
+                    // Returning false would stop the Agent event loop; recover the relay instead.
                     LOG(ERROR) << "on_read process_ext_events(" << fd << ") failed!";
-                    return false;
+                    schedule_dpp_relay_recovery();
+                    return true;
                 }
                 return true;
             },
@@ -1147,26 +1161,14 @@ bool slave_thread::register_ext_events_handlers(int fd)
         .on_disconnect =
             [this](int fd, beerocks::EventLoop &loop) {
                 LOG(ERROR) << "slave_wlan_hal ext events disconnected! on fd " << fd;
-                if (m_slave_wlan_hal) {
-                    m_slave_wlan_hal->process_ext_events(fd);
-                }
-                auto it = std::find(slave_hal_ext_events.begin(), slave_hal_ext_events.end(), fd);
-                if (it != slave_hal_ext_events.end()) {
-                    slave_hal_ext_events.erase(it);
-                }
-                return false;
+                schedule_dpp_relay_recovery();
+                return true;
             },
         .on_error =
             [this](int fd, beerocks::EventLoop &loop) {
                 LOG(ERROR) << "slave_wlan_hal ext events error! on fd " << fd;
-                if (m_slave_wlan_hal) {
-                    m_slave_wlan_hal->process_ext_events(fd);
-                }
-                auto it = std::find(slave_hal_ext_events.begin(), slave_hal_ext_events.end(), fd);
-                if (it != slave_hal_ext_events.end()) {
-                    slave_hal_ext_events.erase(it);
-                }
-                return false;
+                schedule_dpp_relay_recovery();
+                return true;
             },
     };
 
@@ -1180,23 +1182,28 @@ bool slave_thread::register_ext_events_handlers(int fd)
 
 bool slave_thread::register_event_handlers()
 {
-    // External events are optional: a backend without event sockets (e.g. the NL80211 or
-    // DWPAL stubs) only uses the internal event queue.
-    bool ext_event_registered = false;
-    slave_hal_ext_events      = m_slave_wlan_hal->get_ext_events_fds();
-    for (auto &ext_event_fd : slave_hal_ext_events) {
-        if (ext_event_fd < 0) {
-            ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
-            continue;
+    // External events
+    int ext_event_fd_max = -1;
+    slave_hal_ext_events = m_slave_wlan_hal->get_ext_events_fds();
+    if (slave_hal_ext_events.empty()) {
+        ext_event_fd_max = 0;
+    } else {
+        for (auto &ext_event_fd : slave_hal_ext_events) {
+            if (ext_event_fd < 0) {
+                ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+                continue;
+            }
+            if (!register_ext_events_handlers(ext_event_fd)) {
+                return false;
+            }
+            LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
+            ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
         }
-        if (!register_ext_events_handlers(ext_event_fd)) {
-            return false;
-        }
-        LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
-        ext_event_registered = true;
     }
-    if (!ext_event_registered) {
-        LOG(DEBUG) << "No slave_wlan_hal external event fd to register";
+    if (ext_event_fd_max <= 0) {
+        // The relay HAL has no polling fallback: without the bus fds no event is received.
+        LOG(ERROR) << "No valid slave_wlan_hal external event fd: " << ext_event_fd_max;
+        return false;
     }
 
     slave_hal_int_events = m_slave_wlan_hal->get_int_events_fd();
@@ -1211,7 +1218,8 @@ bool slave_thread::register_event_handlers()
             [this](int fd, beerocks::EventLoop &loop) {
                 if (!m_slave_wlan_hal || !m_slave_wlan_hal->process_int_events()) {
                     LOG(ERROR) << "on_read process_int_events(" << fd << ") failed!";
-                    return false;
+                    schedule_dpp_relay_recovery();
+                    return true;
                 }
                 return true;
             },
@@ -1219,14 +1227,14 @@ bool slave_thread::register_event_handlers()
         .on_disconnect =
             [this](int fd, beerocks::EventLoop &loop) {
                 LOG(ERROR) << "slave_wlan_hal events disconnected! on fd " << fd;
-                slave_hal_int_events = beerocks::net::FileDescriptor::invalid_descriptor;
-                return false;
+                schedule_dpp_relay_recovery();
+                return true;
             },
         .on_error =
             [this](int fd, beerocks::EventLoop &loop) {
                 LOG(ERROR) << "slave_wlan_hal events error! on fd " << fd;
-                slave_hal_int_events = beerocks::net::FileDescriptor::invalid_descriptor;
-                return false;
+                schedule_dpp_relay_recovery();
+                return true;
             },
     };
 
@@ -1255,66 +1263,159 @@ void slave_thread::clear_event_handlers()
     }
 }
 
-bool slave_thread::create_slave_wlan_hal()
+bool slave_thread::start_dpp_tcp_relay_server()
 {
-    if (m_slave_wlan_hal) {
+#ifndef USE_PRPLMESH_WHM
+    // nl80211 has no Slave relay HAL. Keep its established OTA path unchanged.
+    return false;
+#else
+    if (!m_dpp_agent_task || m_agent_state != STATE_OPERATIONAL ||
+        !AgentDB::get()->device_conf.enable_dpp_onboarding) {
+        return false;
+    }
+    if (!m_dpp_relay_recovery_pending && m_slave_wlan_hal &&
+        m_dpp_agent_task->is_relay_active() && m_slave_wlan_hal->refresh_dpp_relay()) {
         return true;
     }
+    const auto now = std::chrono::steady_clock::now();
+    if (now < m_dpp_relay_check_at) {
+        return false;
+    }
+    m_dpp_relay_check_at = now + std::chrono::seconds(2);
+    clear_event_handlers();
+    if (m_dpp_agent_task->is_relay_active()) {
+        m_dpp_agent_task->on_relay_stopped();
+    }
+    m_slave_wlan_hal.reset();
+    m_dpp_relay_recovery_pending = false;
 
-    using namespace std::placeholders; // for `_1`
+    const std::string role = AgentDB::get()->device_conf.local_controller
+                                 ? "co-located Agent (Controller on this device)"
+                                 : "Proxy Agent";
+    LOG(INFO) << "DPP: role=" << role
+              << ", starting TCP relay listener for downstream enrollee proxying";
+
+    using namespace std::placeholders;
     bwl::hal_conf_t hal_conf;
     m_slave_wlan_hal = bwl::slave_wlan_hal_create(
         "slave", std::bind(&slave_thread::hal_event_handler, this, _1), hal_conf);
-    if (!m_slave_wlan_hal) {
-        LOG(ERROR) << "DPP: failed creating slave_wlan_hal instance";
-        return false;
-    }
-
-    if (!register_event_handlers()) {
-        LOG(ERROR) << "DPP: failed to register slave_wlan_hal event handlers";
+    if (!m_slave_wlan_hal || !m_slave_wlan_hal->init_dpp_relay() ||
+        !register_event_handlers()) {
         clear_event_handlers();
         m_slave_wlan_hal.reset();
+        LOG(ERROR) << "DPP: failed to start TCP relay listener (role=" << role
+                   << "); retrying in 2s";
         return false;
     }
 
-    return true;
-}
-
-void slave_thread::start_dpp_tcp_relay_server()
-{
-    if (!m_dpp_agent_task) {
-        return;
-    }
-
-    auto db = AgentDB::get();
-    if (!db->device_conf.enable_dpp_onboarding) {
-        LOG(INFO) << "DPP: TCP relay disabled (Configuration.EnableDPPOnboarding=false)";
-        return;
-    }
-
-    // The slave HAL only serves the relay, so it is created once the platform configuration
-    // is read and onboarding is enabled. A failure only disables the relay.
-    if (!create_slave_wlan_hal()) {
-        LOG(ERROR) << "DPP: slave_wlan_hal not available, TCP relay not started";
-        return;
-    }
-
-    if (m_dpp_agent_task->is_relay_active()) {
-        LOG(DEBUG) << "DPP: TCP relay server already active";
-        return;
-    }
-
-    LOG(INFO) << "DPP: starting TCP relay listener for downstream enrollee proxying";
-
-    if (!m_slave_wlan_hal || !m_slave_wlan_hal->init_dpp_relay()) {
-        LOG(ERROR) << "DPP: failed to start TCP relay listener";
-        return;
-    }
-
-    LOG(INFO) << "DPP: TCP relay listener started (RelayEnable); "
-                 "expect hostapd dpp_controller=127.0.0.1 and ClientConnected on :8908";
+    LOG(INFO) << "DPP: TCP relay listener started";
 
     m_dpp_agent_task->on_relay_status(m_slave_wlan_hal->is_dpp_client_connected());
+    return true;
+#endif
+}
+
+void slave_thread::schedule_dpp_relay_recovery()
+{
+    // Called from HAL callbacks. Remove watches now, but keep the object alive
+    // until its read/callback stack has unwound and the periodic timer runs.
+    clear_event_handlers();
+    m_dpp_relay_recovery_pending = true;
+    m_dpp_relay_check_at = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    if (m_dpp_agent_task && m_dpp_agent_task->is_relay_active()) {
+        m_dpp_agent_task->on_relay_stopped();
+    }
+}
+
+void slave_thread::maintain_dpp_tcp_relay()
+{
+    // 2s relay health check/retry; start_dpp_tcp_relay_server() applies the WHM/config gates.
+    if (m_agent_state == STATE_OPERATIONAL &&
+        std::chrono::steady_clock::now() >= m_dpp_relay_check_at) {
+        start_dpp_tcp_relay_server();
+        m_dpp_relay_check_at = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    }
+}
+
+void slave_thread::stop_dpp_tcp_relay_server(const std::string &reason)
+{
+    const bool relay_active = m_dpp_agent_task && m_dpp_agent_task->is_relay_active();
+    clear_event_handlers();
+    m_dpp_relay_recovery_pending = false;
+    m_dpp_relay_check_at = {};
+    if (m_slave_wlan_hal) {
+        // No-op in the HAL when the relay was not armed by this process.
+        m_slave_wlan_hal->stop_dpp_relay();
+    }
+    if (relay_active) {
+        LOG(INFO) << "DPP: stopping TCP relay (" << reason << ")";
+        m_dpp_agent_task->on_relay_stopped();
+    }
+}
+
+void slave_thread::request_dpp_onboarding_change(bool enable)
+{
+    m_pending_dpp_onboarding.store(enable ? eDppOnboardingRequest::ENABLE
+                                          : eDppOnboardingRequest::DISABLE);
+}
+
+void slave_thread::apply_pending_dpp_onboarding_change()
+{
+    const auto pending = m_pending_dpp_onboarding.exchange(eDppOnboardingRequest::NONE);
+    if (pending == eDppOnboardingRequest::NONE) {
+        return;
+    }
+    const bool enable = (pending == eDppOnboardingRequest::ENABLE);
+
+    bool announce_capability = false;
+    {
+        auto db = AgentDB::get();
+        if (db->device_conf.enable_dpp_onboarding == enable) {
+            LOG(DEBUG) << "DPP: EnableDPPOnboarding unchanged (" << enable << ")";
+            return;
+        }
+        db->device_conf.enable_dpp_onboarding = enable;
+        announce_capability                   = db->statuses.ap_autoconfiguration_completed;
+    }
+    LOG(INFO) << "DPP: applying Configuration.EnableDPPOnboarding=" << enable
+              << " without Agent reset";
+
+    if (!enable) {
+        stop_dpp_tcp_relay_server("Configuration.EnableDPPOnboarding=false");
+    } else if (m_agent_state == STATE_OPERATIONAL) {
+        start_dpp_tcp_relay_server();
+    } else {
+        LOG(INFO) << "DPP: Agent not operational; TCP relay starts at STATE_OPERATIONAL";
+    }
+
+    // The AP managers only read the setting at ACTION_APMANAGER_CONFIGURE. Push the new value
+    // so the fronthaul BSSs get the DPP relay role (or lose it) now instead of after a restart.
+    // AP managers that are not configured yet pick up the new value from CONFIGURE.
+    for (const auto &radio_manager_element : m_radio_managers.get()) {
+        const auto &radio_iface   = radio_manager_element.first;
+        const auto &radio_manager = radio_manager_element.second;
+        if (radio_manager.ap_manager_fd == net::FileDescriptor::invalid_descriptor) {
+            continue;
+        }
+        auto request = message_com::create_vs_message<
+            beerocks_message::cACTION_APMANAGER_SET_DPP_ONBOARDING_REQUEST>(cmdu_tx);
+        if (!request) {
+            LOG(ERROR) << "DPP: failed building onboarding update for " << radio_iface;
+            continue;
+        }
+        request->enable() = enable ? 1 : 0;
+        if (!send_cmdu(radio_manager.ap_manager_fd, cmdu_tx)) {
+            LOG(ERROR) << "DPP: failed sending onboarding update to AP manager of " << radio_iface;
+        }
+    }
+
+    // prplMesh extension: announce the new DPP Onboarding capability bit without waiting for
+    // a Controller query. Queried reports keep the EasyMesh 9.1 behaviour.
+    if (announce_capability) {
+        LOG(INFO) << "DPP: onboarding capability changed, sending AP_CAPABILITY_REPORT_MESSAGE";
+        m_task_pool.send_event(eTaskType::CAPABILITY_REPORTING,
+                               CapabilityReportingTask::eEvent::AP_CAPABILITY);
+    }
 }
 
 bool slave_thread::handle_cmdu(int fd, ieee1905_1::CmduMessageRx &cmdu_rx)
@@ -1465,12 +1566,6 @@ bool slave_thread::handle_cmdu_ap_manager_ieee1905_1_message(const std::string &
     auto cmdu_message_type = cmdu_rx.getMessageType();
     switch (cmdu_message_type) {
     // Forward unhandled messages to the backhaul manager (probably headed to the controller)
-    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
-        if (!m_task_pool.handle_cmdu(cmdu_rx, 0, {}, {}, fd)) {
-            LOG(ERROR) << "Failed to handle PROXIED_ENCAP_DPP_MESSAGE in task pool";
-            return false;
-        }
-        return true;
     case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
         // TCP FEAT-68: DppAgentTask already wraps Presence Announcement from WiFi.DPPRelay.
         // Drop the superseded ap_manager OTA chirp so the Controller does not see duplicates.
@@ -3865,15 +3960,15 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         if (radio->eht_supported) {
             radio->ap_modes_support.str_support    = (notification->params().ap_modes_support &
-                                                   beerocks_message::eMLOModes::eMLOModes_str);
+                                                      beerocks_message::eMLOModes::eMLOModes_str);
             radio->ap_modes_support.nstr_support   = (notification->params().ap_modes_support &
-                                                    beerocks_message::eMLOModes::eMLOModes_nstr);
+                                                      beerocks_message::eMLOModes::eMLOModes_nstr);
             radio->ap_modes_support.emlsr_support  = (notification->params().ap_modes_support &
-                                                     beerocks_message::eMLOModes::eMLOModes_emlsr);
+                                                      beerocks_message::eMLOModes::eMLOModes_emlsr);
             radio->ap_modes_support.emlmr_support  = (notification->params().ap_modes_support &
-                                                     beerocks_message::eMLOModes::eMLOModes_emlmr);
+                                                      beerocks_message::eMLOModes::eMLOModes_emlmr);
             radio->bsta_modes_support.str_support  = (notification->params().bsta_modes_support &
-                                                     beerocks_message::eMLOModes::eMLOModes_str);
+                                                      beerocks_message::eMLOModes::eMLOModes_str);
             radio->bsta_modes_support.nstr_support = (notification->params().bsta_modes_support &
                                                       beerocks_message::eMLOModes::eMLOModes_nstr);
             radio->bsta_modes_support.emlsr_support =
@@ -6496,6 +6591,26 @@ bool slave_thread::link_to_controller()
     }
 
     return db->statuses.controller_connected;
+}
+
+bool slave_thread::send_dpp_cmdu_to_controller(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    return send_cmdu_to_controller({}, cmdu_tx);
+}
+
+bool slave_thread::send_dpp_frame_to_hostapd(uint8_t tcp_type, const uint8_t *frame,
+                                             size_t frame_len)
+{
+    if (!m_slave_wlan_hal) {
+        LOG(ERROR) << "DPP: relay HAL is not started";
+        return false;
+    }
+    return m_slave_wlan_hal->dpp_send_frame(tcp_type, frame, frame_len);
+}
+
+sMacAddr slave_thread::get_dpp_controller_mac() const
+{
+    return AgentDB::get()->controller_info.bridge_mac;
 }
 
 bool slave_thread::send_cmdu_to_mac(const sMacAddr &dst_mac, ieee1905_1::CmduMessageTx &cmdu_tx)
