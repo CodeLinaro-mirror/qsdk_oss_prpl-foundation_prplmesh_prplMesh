@@ -4,46 +4,59 @@ set -euo pipefail
 
 readonly tftp_server_ip=192.168.1.199
 readonly agent_endpoint=ep5g0
+readonly testbed_devices="${CI_PROJECT_DIR:-$PWD}/tests/cram/testbed_devices.toml"
+
+# Print one value of one board from tests/cram/testbed_devices.toml.
+# Inputs: $1 is the board (TOML table) name; $2 is the key.
+# Output: prints the value; fails if the board or key is not defined.
+testbed_value() {
+    python3 -I -c '
+import sys, tomllib
+path, board, key = sys.argv[1:]
+with open(path, "rb") as f:
+    value = tomllib.load(f).get(board, {}).get(key)
+if not isinstance(value, str):
+    sys.exit(f"{key} of {board} is not defined in {path}")
+print(value)
+' "$testbed_devices" "$1" "$2"
+}
 
 # Load the firmware, addressing, and interface configuration for one pair role.
-# Inputs: $1 is CONTROLLER or AGENT; $2 is a supported CRAM target name.
+# Inputs: $1 is CONTROLLER or AGENT; $2 is a board in testbed_devices.toml.
 # Output: exports PAIR_<role>_* and TS_<role>_* variables for later stages.
 load_target() {
-    local role="$1" target="$2" config
-    local device ip guest_ip boot_ip model platform wired image rootfs
+    local role="$1" board="$2"
+    local device serial ip guest_ip wired boot_ip model platform image rootfs
 
-    case "$target" in
-        freedom)
-            config='freedom|192.168.1.1|192.168.2.1|192.168.1.150|prpl Foundation Freedom|freedom|lan4'
-            ;;
-        freedom2)
-            config='freedom|192.168.1.20|192.168.2.20|192.168.1.150|prpl Foundation Freedom|freedom|lan4'
-            ;;
-        urx_ospv2)
-            config='urx_ospv2|192.168.1.160|192.168.2.160|192.168.1.160|mxl,osp-tb341-v2|ospv2|eth0_2'
-            ;;
-        urx_ospv22)
-            config='urx_ospv2|192.168.1.167|192.168.2.167|192.168.1.167|OSPv2|ospv2|eth0_2'
-            ;;
-        *)
-            echo "Unknown CRAM pair target: $target" >&2
-            return 2
-            ;;
-    esac
-    IFS='|' read -r device ip guest_ip boot_ip model platform wired <<<"$config"
+    device=$(testbed_value "$board" DEVICE)
+    serial=$(testbed_value "$board" SERIAL)
+    ip=$(testbed_value "$board" IP)
+    guest_ip=$(testbed_value "$board" IP_GUEST)
+    wired=$(testbed_value "$board" BH_IFACE)
 
-    case "$platform" in
+    # Settings shared by every board of one platform.
+    case "$device" in
         freedom)
+            platform=freedom
+            model='prpl Foundation Freedom'
+            boot_ip=192.168.1.150
             image=${FREEDOM_FULLIMAGE:?FREEDOM_FULLIMAGE is not set}
             rootfs=${FREEDOM_ROOTFS:?FREEDOM_ROOTFS is not set}
             ;;
-        ospv2)
+        urx_ospv2)
+            platform=ospv2
+            model=OSPv2
+            boot_ip=192.168.1.160
             image=${URX_OSPV2_FULLIMAGE:?URX_OSPV2_FULLIMAGE is not set}
             rootfs=
             ;;
+        *)
+            echo "Unsupported CRAM pair device $device of board $board" >&2
+            return 2
+            ;;
     esac
 
-    export "PAIR_${role}_TARGET=$target"
+    export "PAIR_${role}_TARGET=$serial"
     export "PAIR_${role}_DEVICE=$device"
     export "PAIR_${role}_IP=$ip"
     export "PAIR_${role}_MODEL=$model"
@@ -56,17 +69,18 @@ load_target() {
 }
 
 # Validate job inputs and assemble the controller-agent pair configuration.
-# Input: CI, image, and PAIR_* target variables from the job environment.
+# Input: CI and image variables, plus TARGET_DEVICE_1 (controller) and
+# TARGET_DEVICE_2 (agent), which name boards in testbed_devices.toml.
 # Output: exports both role configurations plus the pair SSID names.
 load_pair() {
     : "${CI_PROJECT_DIR:?CI_PROJECT_DIR is not set}"
     : "${CI_REGISTRY_IMAGE:?CI_REGISTRY_IMAGE is not set}"
     : "${PARENT_PIPELINE_ID:?PARENT_PIPELINE_ID is not set}"
-    : "${PAIR_CONTROLLER_TARGET:?PAIR_CONTROLLER_TARGET is not set}"
-    : "${PAIR_AGENT_TARGET:?PAIR_AGENT_TARGET is not set}"
+    : "${TARGET_DEVICE_1:?TARGET_DEVICE_1 (controller board) is not set}"
+    : "${TARGET_DEVICE_2:?TARGET_DEVICE_2 (agent board) is not set}"
 
-    load_target CONTROLLER "$PAIR_CONTROLLER_TARGET"
-    load_target AGENT "$PAIR_AGENT_TARGET"
+    load_target CONTROLLER "$TARGET_DEVICE_1"
+    load_target AGENT "$TARGET_DEVICE_2"
     export PAIR_AGENT_ENDPOINT=$agent_endpoint
 
     case "$PAIR_CONTROLLER_PLATFORM" in

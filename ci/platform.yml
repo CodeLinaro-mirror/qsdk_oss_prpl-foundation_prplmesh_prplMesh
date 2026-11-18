@@ -232,36 +232,15 @@ cram-WPS-Freedom-Freedom:
     - when: manual
       allow_failure: true
 
-.cram-on-pair-freedom-freedom:
-  extends: .cram-on-pair
-  variables:
-    PAIR_CONTROLLER_TARGET: "freedom"
-    PAIR_AGENT_TARGET: "freedom2"
-  needs:
-    - job: build-for-freedom
-  tags:
-    - cram
-    - freedom-SMD
-
 .cram-on-pair-ospv2-freedom:
   extends: .cram-on-pair
   variables:
-    PAIR_CONTROLLER_TARGET: "urx_ospv2"
-    PAIR_AGENT_TARGET: "freedom"
+    # Boards in tests/cram/testbed_devices.toml: 1 is the controller, 2 the agent.
+    TARGET_DEVICE_1: "ospv2"
+    TARGET_DEVICE_2: "freedom"
   needs:
     - job: build-for-ospv2
     - job: build-for-freedom
-  tags:
-    - cram
-    - ospv2-SMD
-
-.cram-on-pair-ospv2-ospv2:
-  extends: .cram-on-pair
-  variables:
-    PAIR_CONTROLLER_TARGET: "urx_ospv2"
-    PAIR_AGENT_TARGET: "urx_ospv22"
-  needs:
-    - job: build-for-ospv2
   tags:
     - cram
     - ospv2-SMD
@@ -270,19 +249,9 @@ cram-WPS-Freedom-Freedom:
   script:
     - ci/run-pair-cram.sh ieee1905-eth ieee1905-wifi
 
-cram-ieee1905-on-pair-freedom-freedom:
-  extends:
-    - .cram-on-pair-freedom-freedom
-    - .cram-ieee1905-on-pair
-
 cram-ieee1905-on-pair-ospv2-freedom:
   extends:
     - .cram-on-pair-ospv2-freedom
-    - .cram-ieee1905-on-pair
-
-cram-ieee1905-on-pair-ospv2-ospv2:
-  extends:
-    - .cram-on-pair-ospv2-ospv2
     - .cram-ieee1905-on-pair
 
 run-certification-tests-R1-platform-essensium:
