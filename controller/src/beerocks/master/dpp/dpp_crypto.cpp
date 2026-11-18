@@ -8,6 +8,7 @@
 
 #include "controller_dpp_protocol.h"
 #include "dpp_internal.h"
+#include "dpp_secure_clear.h"
 
 #include <bcl/beerocks_string_utils.h>
 #include <mapf/common/encryption.h>
@@ -325,6 +326,7 @@ bool ecdh_secret(EVP_PKEY *own, EVP_PKEY *peer, size_t coord_len, std::vector<ui
     }
 
     std::vector<uint8_t> raw(len);
+    SecureClearGuard raw_guard(raw);
     if (EVP_PKEY_derive(ctx.get(), raw.data(), &len) != 1 || len == 0) {
         return false;
     }
@@ -372,6 +374,7 @@ bool hkdf_expand_one_block(const EVP_MD *md, const std::vector<uint8_t> &prk, co
                                reinterpret_cast<const uint8_t *>(info) + std::strlen(info));
     input.push_back(1);
     std::vector<uint8_t> digest;
+    SecureClearGuard digest_guard(digest);
     if (!hmac_digest(md, prk.data(), prk.size(), input.data(), input.size(), digest) ||
         digest.size() < out_len) {
         return false;
@@ -390,6 +393,7 @@ bool derive_intermediate_key(const EVP_MD *md, const std::vector<uint8_t> &secre
 
     std::vector<uint8_t> salt(hash_len, 0);
     std::vector<uint8_t> prk;
+    SecureClearGuard prk_guard(prk);
     if (!hmac_digest(md, salt.data(), salt.size(), secret.data(), secret.size(), prk)) {
         return false;
     }
@@ -413,6 +417,7 @@ bool derive_bk_ke(const EVP_MD *md, const std::vector<uint8_t> &i_nonce,
     salt.insert(salt.end(), r_nonce.begin(), r_nonce.end());
 
     std::vector<uint8_t> ikm;
+    SecureClearGuard ikm_guard(ikm);
     ikm.reserve(mx.size() + nx.size());
     ikm.insert(ikm.end(), mx.begin(), mx.end());
     ikm.insert(ikm.end(), nx.begin(), nx.end());
