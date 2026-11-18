@@ -26,6 +26,19 @@ bool AmbiorixClient::connect(const std::string &amxb_backend, const std::string 
     return true;
 }
 
+bool AmbiorixClient::connect_private(const std::string &amxb_backend, const std::string &bus_uri)
+{
+    if (m_connection || !m_subscriptions.empty()) {
+        return false;
+    }
+    auto connection = std::make_shared<AmbiorixConnection>(amxb_backend, bus_uri);
+    if (!connection->init()) {
+        return false;
+    }
+    m_connection = std::move(connection);
+    return true;
+}
+
 AmbiorixVariantSmartPtr AmbiorixClient::get_object(const std::string &object_path,
                                                    const int32_t depth)
 {

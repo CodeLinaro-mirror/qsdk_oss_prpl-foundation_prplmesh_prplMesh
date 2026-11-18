@@ -10,6 +10,11 @@
 #define _BACKHAUL_MANAGER_H
 
 #include "../tasks/task_pool.h"
+#if defined(USE_PRPLMESH_WHM)
+#include "dpp_cce_targets.h"
+#include "dpp_enrollee_channel_pair.h"
+#include "dpp_enrollee_keystore.h"
+#endif
 #include "fdb_monitor.h"
 #include "wan_monitor.h"
 
@@ -35,9 +40,12 @@
 #include "../agent_db.h"
 #include "../agent_ucc_listener.h"
 
+#include <chrono>
 #include <future>
 #include <list>
+#include <map>
 #include <mutex>
+#include <random>
 
 namespace beerocks {
 
@@ -252,6 +260,115 @@ private:
     bool handle_cmdu_from_broker(uint32_t iface_index, const sMacAddr &dst_mac,
                                  const sMacAddr &src_mac, ieee1905_1::CmduMessageRx &cmdu_rx);
 
+    void prepare_dpp_enrollee();
+    /** Start or advance the bounded first-boot DPP chirp campaign. Called in WAIT_WPS only. */
+    void run_dpp_auto_chirp();
+    /**
+     * True while the DPP auto-chirp campaign defers the expired WAIT_WPS timeout: during a chirp
+     * pass, the pause before the next pass of the cycle and a WATCH round that requested a CCE
+     * scan (all three only while the Agent is an unconfigured Enrollee) and during a
+     * chirp-triggered exchange. Never for more than DPP_CHIRP_HOLD_MAX_SECONDS after expired_at.
+     * @param expired_at Time the WAIT_WPS timeout expired (state_time_stamp_timeout).
+     */
+    bool dpp_chirp_holds_wait_wps(std::chrono::steady_clock::time_point expired_at);
+    /**
+     * @brief Stop the chirp the campaign owns (see owned_dpp_chirp_iface()) through the HAL
+     * of its bSTA. Call it before that HAL is reset or when the DPP intent ends.
+     * Best effort and idempotent: without an owned chirp nothing is sent. No pass is counted;
+     * the stopped bSTA counts for the EC 6.2.3 pause and chirps first again once allowed.
+     * Events of the stopped pass are ignored because no pass runs.
+     * @param reason Logged.
+     */
+    void stop_owned_dpp_chirp(const char *reason);
+#if defined(USE_PRPLMESH_WHM)
+    /** bSTA whose supplicant chirp the campaign owns, "" when none. */
+    std::string owned_dpp_chirp_iface() const;
+    uint64_t m_dpp_attachment_generation = 0;
+    struct DppBootstrapCache : bwl::sta_dpp::sBootstrapRegistration {
+        std::chrono::steady_clock::time_point retry_after{};
+        std::chrono::steady_clock::time_point next_validate{};
+    };
+    dpp_enrollee::DppEnrolleeKeyStore m_dpp_key_store{
+        dpp_enrollee::DppEnrolleeKeyStore::default_path()};
+    std::map<std::string, DppBootstrapCache> m_dpp_bootstraps;
+    bool m_dpp_key_io_disabled = false;
+    std::chrono::steady_clock::time_point m_dpp_next_check{};
+    // Set by prepare_dpp_enrollee(): every bSTA is operational and has no enabled profile.
+    bool m_dpp_agent_unconfigured = false;
+
+    // Auto chirp: one bounded campaign per Agent process, kept in memory (survives RESTART).
+    // WATCH first (D14): a ready CCE target or a due fallback starts one cycle of passes, and
+    // every cycle ends back in WATCH (D16, D17).
+    enum class eDppChirpState { IDLE, PASS, PAUSE, EXCHANGE, WATCH, DONE };
+    struct sDppChirpCampaign {
+        eDppChirpState state = eDppChirpState::IDLE;
+        std::string iface; // bSTA of the running pass or exchange
+        int passes = 0; // completed passes in the current cycle
+        // The running cycle (D23: the existing chirp): a fallback on the URI channels (D14,
+        // trigger=schedule) or a CCE target on the bSTA target_iface (D13, trigger=cce).
+        bool fallback_cycle = false;
+        std::string target_iface;
+        dpp_enrollee::sWatchCadence cadence;   // D16: fast watch rounds until fast_until
+        dpp_enrollee::sFallbackTimer fallback; // D14: armed at the first eligible bSTA
+        int chirps = 0; // chirps sent (DPP-TX type=13) in the running pass
+        // EC 6.2.3 iteration over the bSTAs (G10): picks the bSTA, enforces the pause.
+        dpp_enrollee::sChirpIteration iteration;
+        // Candidate bSTAs in chirp order at the last pass start; refused starts on one bSTA.
+        std::vector<std::string> iteration_ifaces;
+        int start_failures = 0;
+        // Answered or stopped bSTA: chirps first once the iteration allows it.
+        std::string retry_iface;
+        std::chrono::steady_clock::time_point deadline{};
+        std::chrono::steady_clock::time_point pass_start{};
+        // End of the WAIT_WPS hold in PAUSE: set for the pause between two passes of a cycle,
+        // cleared in WATCH.
+        std::chrono::steady_clock::time_point hold_until{};
+        // The last WATCH round requested a CCE scan on at least one bSTA: WATCH holds the
+        // WAIT_WPS restart, which would drop the bSTA and its scan results, until the next round.
+        bool watch_scanning = false;
+        // DPP-CONF-RECEIVED seen in the running exchange.
+        bool conf_received = false;
+        // Set when a received configuration never led to Connected: WAIT_WPS restarts the bSTA.
+        bool restart_bsta = false;
+        // Auth Request seen (DPP-RX type=0), no AUTH-SUCCESS yet. wpa_supplicant reports it
+        // before its own key check: the campaign is kept here and restored when the request
+        // is dropped as not for this Enrollee (AUTH_REQUEST_IGNORED).
+        bool auth_pending              = false;
+        eDppChirpState auth_prev_state = eDppChirpState::IDLE;
+        std::string auth_prev_iface;
+        std::chrono::steady_clock::time_point auth_prev_deadline{};
+    } m_dpp_chirp;
+    // WAIT_WPS expiry whose deferral was logged; each WAIT_WPS entry arms a new expiry.
+    std::chrono::steady_clock::time_point m_dpp_hold_logged_for{};
+    /**
+     * @brief End the current chirp pass and schedule the next one (or end the cycle).
+     * @param end Why the pass ended; selects the gap before the next pass and is logged.
+     * @param stop_supplicant_chirp Send DPP StopChirp to the pass iface first; false when the
+     *        supplicant already reported DPP-CHIRP-STOPPED.
+     */
+    void end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd end, bool stop_supplicant_chirp);
+    /**
+     * @brief Apply a DPP Enrollee event of iface to the campaign. Only the bSTA of the running
+     * pass or exchange changes it (G08); freq is the DPP-TX frequency in MHz, 0 when absent.
+     */
+    void handle_dpp_enrollee_event(const std::string &iface, bwl::sta_dpp::eEnrolleeEvent type,
+                                   uint32_t freq);
+    static const char *dpp_chirp_state_name(eDppChirpState state);
+    /** Chirp-safe check of a chirp sent on freq (MHz) by sta_iface; unknown radio is unsafe. */
+    bool dpp_chirp_freq_safe(const std::string &sta_iface, uint32_t freq);
+    // WATCH round counters for the round log (Review F5); kept across RESTART.
+    dpp_enrollee::sWatchRoundStats m_dpp_watch_stats;
+    // Chirp-safe channels last logged per sta_iface; the log shows on target which channels
+    // (6 GHz included) the AgentDB map lists as chirp-safe.
+    std::map<std::string, std::string> m_dpp_chirp_safe_logged;
+    // Draws the fallback jitter (D14).
+    std::mt19937 m_dpp_jitter_rng{std::random_device{}()};
+    /** End the running cycle: back off its CCE target (D17) or step the fallback timer
+     *  (D14), boost the watch cadence (D16) and return to WATCH at once. */
+    void end_dpp_retry_cycle(const char *reason);
+    /** D17: CCE target state per bSTA, updated by each WATCH read. */
+    std::map<std::string, dpp_enrollee::sCceTargetState> m_dpp_cce_targets;
+#endif
     bool backhaul_fsm_main(bool &skip_select);
     bool backhaul_fsm_wired(bool &skip_select);
     bool backhaul_fsm_wireless(bool &skip_select);
@@ -464,6 +581,12 @@ private:
     // Set only when an established backhaul is confirmed lost. Other RESTART users must not cause
     // the Agent to tear down its fronthaul BSSs.
     bool m_teardown_fronthaul_on_disconnect = false;
+    // Set when the Agent sends ACTION_BACKHAUL_ENABLE and then waits, without a timeout, for
+    // ACTION_BACKHAUL_CONNECTED_NOTIFICATION. Cleared only after handle_backhaul_connect() sends
+    // it. A wireless reconnect checks this flag so that a pending initial connection is completed
+    // through CONNECTED instead of resuming OPERATIONAL directly.
+    bool m_backhaul_connected_notification_pending = false;
+    std::chrono::steady_clock::time_point m_backhaul_connect_retry_at{};
     std::string m_preferred_wired_candidate_iface;
     std::chrono::steady_clock::time_point m_next_wired_controller_probe_time =
         std::chrono::steady_clock::time_point::min();
@@ -494,6 +617,41 @@ private:
     const int RSSI_POLL_INTERVAL_MS                   = 1000;
     const int STATE_WAIT_ENABLE_TIMEOUT_SECONDS       = 600;
     const int STATE_WAIT_WPS_TIMEOUT_SECONDS          = 120;
+#if defined(USE_PRPLMESH_WHM)
+    // DPP auto chirp. No data model switch: enabled whenever the bootstrap is READY.
+    const bool DPP_AUTO_CHIRP_ENABLED         = true;
+    const int DPP_CHIRP_PAUSE_SECONDS         = 30; // after each band iteration (EC 6.2.3)
+    const int DPP_CHIRP_BAND_SWITCH_SECONDS   = 2;  // between the bands of one iteration
+    const int DPP_CHIRP_PASSES_PER_CYCLE      = 4;
+    const int DPP_CHIRP_PASS_WATCHDOG_SECONDS = 60; // pass start guard (lost DPP-CHIRP-STOPPED)
+    const int DPP_CHIRP_SECS_PER_URI_CHANNEL  = 6;  // added to the start guard per URI channel
+    const int DPP_CHIRP_TX_PROGRESS_SECONDS   = 15; // guard after each chirp sent (DPP-TX)
+    const int DPP_CHIRP_PASS_MAX_SECONDS      = 300;
+    const int DPP_CHIRP_AUTH_WAIT_SECONDS     = 10; // DPP-RX type=0 -> AUTH-SUCCESS
+    const int DPP_CHIRP_EXCHANGE_WAIT_SECONDS = 60; // AUTH/CONF -> Connected
+    const int DPP_CHIRP_RETRY_SECONDS         = 10; // chirp RPC refused
+    const int DPP_CHIRP_RECHECK_SECONDS       = 2;  // not eligible yet
+    const int DPP_CHIRP_EP_SETTLE_SECONDS     = 20; // HAL attach -> first chirp
+    const int DPP_CHIRP_HOLD_GRACE_SECONDS    = 12; // WAIT_WPS hold slack: RETRY + RECHECK
+    // WAIT_WPS hold cap after the timeout expired; one cycle holds at most about 1340 s, WATCH
+    // holds round after round until this cap.
+    const int DPP_CHIRP_HOLD_MAX_SECONDS = 1800;
+    // Refused chirp starts before the next bSTA in band order gets the pass.
+    const int DPP_CHIRP_START_FAILURES_BEFORE_SKIP = 2;
+    // CCE watch first (D13, D14, D16, D17): every cycle is a CCE target or a fallback cycle.
+    const int DPP_CHIRP_WATCH_INTERVAL_SECONDS      = 60;  // fast rounds, one scan per radio
+    const int DPP_CHIRP_WATCH_FIRST_READ_SECONDS    = 10;  // scan time: first scan read early
+    const int DPP_CHIRP_WATCH_SLOW_INTERVAL_SECONDS = 120; // outside the fast window
+    const int DPP_CHIRP_WATCH_FAST_WINDOW_SECONDS   = 600; // after READY, a rise or a failed cycle
+    const int DPP_CHIRP_CCE_FRESH_SECONDS           = 120; // CCE seen at most this long ago
+    const size_t DPP_CHIRP_TARGET_MAX_FREQS         = 8;   // D13, logged (D23: chirp unscoped)
+    const int DPP_CHIRP_FALLBACK_FIRST_SECONDS      = 180; // READY to the first fallback
+    const int DPP_CHIRP_COOLDOWN_JITTER_SECONDS     = 60;  // 0..60 s added to a fallback step
+    // Fallback timer after each failed fallback; the last step repeats.
+    const std::vector<int> DPP_CHIRP_RETRY_COOLDOWN_SECONDS = {600, 1200, 1800};
+    // D17: backoff of a CCE target after each failed target cycle; the last step repeats.
+    const std::vector<int> DPP_CHIRP_TARGET_BACKOFF_SECONDS = {120, 240, 480};
+#endif
     const int AP_BLACK_LIST_TIMEOUT_SECONDS           = 120;
     const int AP_BLACK_LIST_FAILED_ATTEMPTS_THRESHOLD = 2;
     const int INTERFACE_BRING_UP_TIMEOUT_SECONDS      = 600;
@@ -572,12 +730,38 @@ public:
         sMacAddr radio_mac;       /**< Radio ID (= radio MAC address) */
         std::string hostap_iface; /**< Name of the radio interface */
         std::string sta_iface;    /**< Name of the bSTA interface on the radio (if any) */
-        uint8_t primary_channel;  /**< Primary Channel of the radio */
+#if defined(USE_PRPLMESH_WHM)
+        uint64_t dpp_attachment_generation = 0;
+        // No DPP chirp before this time (HAL attach + DPP_CHIRP_EP_SETTLE_SECONDS). The attach
+        // writes the EndPoint (Enable, MultiAPProfile); a pWHM commit during the chirp
+        // reconfigures wpa_supplicant, which drops the runtime DPP settings. Nov-11 Box C:
+        // chirp 5 s after the writes got a fronthaul object, 31 s and 65 s worked.
+        std::chrono::steady_clock::time_point dpp_chirp_not_before{};
+#endif
+        uint8_t primary_channel; /**< Primary Channel of the radio */
         std::shared_ptr<bwl::sta_wlan_hal> sta_wlan_hal;
         std::vector<int> sta_hal_ext_events = {beerocks::net::FileDescriptor::invalid_descriptor};
         int sta_hal_int_events              = beerocks::net::FileDescriptor::invalid_descriptor;
     };
 
+#if defined(USE_PRPLMESH_WHM)
+    // A bSTA that may chirp now: HAL operational, bootstrap ID registered in the current HAL
+    // attachment and validated, settle time over.
+    struct sDppChirpCandidate {
+        std::shared_ptr<sRadioInfo> info;
+        const DppBootstrapCache *bootstrap = nullptr;
+        eFreqType band                     = eFreqType::FREQ_UNKNOWN;
+        dpp_enrollee::ChannelDfsMap channels;
+    };
+    /** Candidates in chirp order: preferred backhaul band first, then 5, 2.4 and 6 GHz. */
+    std::vector<sDppChirpCandidate> dpp_chirp_candidates(std::chrono::steady_clock::time_point now);
+    /** Read the scan results of a candidate (starts no scan) and return its D13 CCE target. */
+    dpp_enrollee::sCceTarget read_dpp_cce_target(const sDppChirpCandidate &candidate,
+                                                 std::chrono::steady_clock::time_point now);
+    /** One WATCH round: a ready CCE target starts a cycle, else a due fallback, else scan. */
+    void run_dpp_watch_round(const std::vector<sDppChirpCandidate> &candidates,
+                             std::chrono::steady_clock::time_point now);
+#endif
 private:
     /**
      * The BSSID of the target BSS in an ongoing backhaul steering operation.

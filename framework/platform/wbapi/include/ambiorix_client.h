@@ -43,6 +43,10 @@ public:
     bool connect(const std::string &amxb_backend = {AMBIORIX_WBAPI_BACKEND_PATH},
                  const std::string &bus_uri      = {AMBIORIX_WBAPI_BUS_URI});
 
+    // Dedicated connection: caller owns its FD loop and must remove handlers before
+    // destroying this client. Never replaces the manager's shared connection.
+    bool connect_private(const std::string &amxb_backend, const std::string &bus_uri);
+
     /**
      * @brief read and return content tree of first object matching requested path.
      *

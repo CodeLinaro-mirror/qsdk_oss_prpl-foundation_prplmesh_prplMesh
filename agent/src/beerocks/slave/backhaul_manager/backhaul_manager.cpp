@@ -53,8 +53,11 @@
 
 #include <algorithm>
 #include <cerrno>
+#if defined(USE_PRPLMESH_WHM)
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#endif
 #include <set>
-#include <tuple>
 #include <utility>
 
 #include <net/if.h> // if_nametoindex
@@ -489,6 +492,9 @@ void BackhaulManager::on_thread_stop()
     if (m_agent_fd != beerocks::net::FileDescriptor::invalid_descriptor) {
         m_cmdu_server->disconnect(m_agent_fd);
     }
+
+    // Before the bSTA HALs are reset below.
+    stop_owned_dpp_chirp("shutdown");
 
     while (m_radios_info.size() > 0) {
         auto radio_info = m_radios_info.back();
@@ -1394,6 +1400,11 @@ void BackhaulManager::handle_disconnected(int fd)
 
     LOG(INFO) << "Agent socket disconnected";
 
+    if (!(FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED))) {
+        // Before the bSTA HALs are reset below.
+        stop_owned_dpp_chirp("agent-disconnected");
+    }
+
     for (auto radio_info : m_radios_info) {
 
         if (!(FSM_IS_IN_STATE(OPERATIONAL) || FSM_IS_IN_STATE(CONNECTED))) {
@@ -1555,9 +1566,10 @@ bool BackhaulManager::handle_backhaul_connect()
 
                 // External events
                 int ext_event_fd_max           = -1;
-                radio_info->sta_hal_ext_events = radio_info->sta_wlan_hal->get_ext_events_fds();
+                auto candidate_fds = radio_info->sta_wlan_hal->get_ext_events_fds();
+                std::vector<int> registered_fds;
                 LOG(INFO) << "sta_hal_ext_events " << &(radio_info->sta_hal_ext_events);
-                if (radio_info->sta_hal_ext_events.empty()) {
+                if (candidate_fds.empty()) {
                     LOG(WARNING) << "This instance [" << radio_info->sta_iface
                                  << "] of sta_wlan_hal should expose FDs";
                     ext_event_fd_max = 0;
@@ -1594,16 +1606,20 @@ bool BackhaulManager::handle_backhaul_connect()
                                 return false;
                             },
                     };
-                    for (auto &ext_event_fd : radio_info->sta_hal_ext_events) {
-                        if (ext_event_fd > 0) {
+                    for (auto &ext_event_fd : candidate_fds) {
+                        if (ext_event_fd >= 0) {
                             if (!m_event_loop->register_handlers(ext_event_fd,
                                                                  ext_events_handlers)) {
                                 LOG(ERROR) << "Unable to register handlers for external event fd "
                                            << ext_event_fd;
+                                for (auto registered_fd : registered_fds) {
+                                    m_event_loop->remove_handlers(registered_fd);
+                                }
                                 return false;
                             } else if (ext_event_fd < 0) {
                                 ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
                             }
+                            registered_fds.push_back(ext_event_fd);
                             LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
                         }
                         ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
@@ -1614,12 +1630,18 @@ bool BackhaulManager::handle_backhaul_connect()
                     return false;
                     // beerocks_agent will not receive ACTION_BACKHAUL_CONNECTED_NOTIFICATION
                 }
+                radio_info->sta_hal_ext_events = std::move(candidate_fds);
             }
         }
     }
 
-    // Send the message
-    send_cmdu(m_agent_fd, cmdu_tx);
+    // Send the message. If delivery fails, keep the notification pending so that a later
+    // reconnect still completes the connection for the waiting Agent.
+    if (!send_cmdu(m_agent_fd, cmdu_tx)) {
+        LOG(ERROR) << "Failed sending ACTION_BACKHAUL_CONNECTED_NOTIFICATION";
+        return false;
+    }
+    m_backhaul_connected_notification_pending = false;
 
     return true;
 }
@@ -1645,6 +1667,799 @@ bool BackhaulManager::handle_backhaul_disconnect()
     m_teardown_fronthaul_on_disconnect = false;
     return true;
 }
+
+#if defined(USE_PRPLMESH_WHM)
+namespace {
+struct PrivateKeyCopy {
+    std::string value;
+    ~PrivateKeyCopy()
+    {
+        if (!value.empty())
+            OPENSSL_cleanse(&value[0], value.size());
+    }
+};
+} // namespace
+#endif // USE_PRPLMESH_WHM
+
+void BackhaulManager::prepare_dpp_enrollee()
+{
+#if defined(USE_PRPLMESH_WHM)
+    auto db = AgentDB::get();
+    // No Agent policy switch: only a wireless Agent (not the gateway) prepares, and only for a
+    // bSTA whose operator-owned EndPoint DPP intent is Enable=1 and Role=Enrollee (see below).
+    const bool onboarding_off =
+        db->device_conf.local_gw || m_is_in_reset_state ||
+        db->backhaul.connection_type != AgentDB::sBackhaul::eConnectionType::Wireless;
+    if (onboarding_off || m_dpp_key_io_disabled) {
+        if (onboarding_off) {
+            stop_owned_dpp_chirp("onboarding-off");
+        }
+        m_dpp_agent_unconfigured = false;
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now < m_dpp_next_check)
+        return;
+    // WAIT_WPS runs every 500ms; avoid hammering the DM on every FSM tick.
+    m_dpp_next_check             = now + std::chrono::seconds(2);
+    m_dpp_agent_unconfigured     = false;
+    std::set<std::string> ifaces = slave_sta_ifaces;
+    for (const auto &info : m_radios_info) {
+        if (!info->sta_iface.empty())
+            ifaces.insert(info->sta_iface);
+    }
+    if (ifaces.empty())
+        return;
+
+    std::map<std::string, std::shared_ptr<sRadioInfo>> radios;
+    for (const auto &iface : ifaces) {
+        for (const auto &info : m_radios_info) {
+            if (info->sta_iface == iface) {
+                // Duplicate or missing bSTA cannot prove the agent is clean.
+                if (radios.count(iface))
+                    return;
+                radios.emplace(iface, info);
+            }
+        }
+        if (!radios.count(iface) || !radios[iface]->sta_wlan_hal ||
+            radios[iface]->sta_wlan_hal->get_state() != bwl::HALState::Operational)
+            return;
+    }
+    auto unconfigured = [&]() {
+        for (const auto &radio : radios) {
+            bool configured = false;
+            if (!radio.second->sta_wlan_hal->dpp_has_enabled_profile(configured) || configured)
+                return false;
+        }
+        return true;
+    };
+    if (!unconfigured())
+        return;
+    m_dpp_agent_unconfigured = true;
+    for (const auto &radio_info : radios) {
+        const auto &iface = radio_info.first;
+        const auto &info  = radio_info.second;
+        auto radio        = db->radio(iface);
+        if (!radio || radio->back.iface_name != iface || !info->dpp_attachment_generation)
+            continue;
+        const auto channels = dpp_enrollee::select_bootstrap_channel_list(
+            radio->wifi_channel.get_freq_type(),
+            dpp_enrollee::make_channel_dfs_map(radio->channels_list));
+        auto &cache             = m_dpp_bootstraps[iface];
+        const bool reattached   = cache.generation != info->dpp_attachment_generation;
+        const auto previous_id  = cache.id;
+        const bool list_changed = cache.observe_attachment(info->dpp_attachment_generation,
+                                                           channels.chan_list);
+        if (reattached || list_changed) {
+            cache.next_validate = now;
+        }
+        if (list_changed) {
+            cache.retry_after = {};
+            LOG(INFO) << "DPP bootstrap channel list iface=" << iface << " chan="
+                      << (channels.chan_list.empty() ? "none" : channels.chan_list)
+                      << " count=" << channels.channel_count << " reason=" << channels.reason;
+            if (previous_id) {
+                LOG(INFO) << "DPP bootstrap STALE iface=" << iface << " id=" << previous_id
+                          << " reason=channel-policy-changed";
+            }
+        }
+        bwl::sta_dpp::sPreparationState state;
+        auto read_state = [&]() { return info->sta_wlan_hal->dpp_read_preparation_state(state); };
+        auto enrollee   = [&]() {
+            return state.endpoint_enabled && state.dpp_enabled && state.role == "Enrollee";
+        };
+        auto ready = [&]() { return read_state() && enrollee(); };
+        if (cache.id) {
+            // Unknown readiness is not proof of loss. Revoked intent pauses preparation;
+            // on restore validate the owned handle rather than allocating unconditionally.
+            if (!read_state())
+                continue;
+            if (!enrollee()) {
+                // Read, not an RPC failure: the operator revoked the intent.
+                if (owned_dpp_chirp_iface() == iface) {
+                    stop_owned_dpp_chirp("intent-revoked");
+                }
+                cache.validation_required = true;
+                cache.next_validate       = now;
+                continue;
+            }
+            if (now < cache.next_validate)
+                continue;
+            std::string reason;
+            const auto status =
+                info->sta_wlan_hal->dpp_validate_bootstrap(cache.id, cache.uri, reason);
+            if (status == bwl::sta_dpp::eBootstrapValidation::UNAVAILABLE) {
+                cache.validation_required = true;
+                cache.next_validate       = now + std::chrono::seconds(10);
+                LOG(WARNING) << "DPP bootstrap validation deferred iface=" << iface
+                             << " id=" << cache.id << " reason=" << reason;
+                continue; // Retain ownership; never generate because a query failed.
+            }
+            cache.next_validate = now + std::chrono::seconds(30);
+            if (status == bwl::sta_dpp::eBootstrapValidation::INVALID) {
+                LOG(INFO) << "DPP bootstrap STALE iface=" << iface << " id=" << cache.id
+                          << " reason=" << reason;
+                cache.id = 0;
+                cache.uri.clear();
+            } else if (cache.validation_required) {
+                LOG(INFO) << "DPP bootstrap REUSE iface=" << iface << " id=" << cache.id
+                          << " reason=id-still-registered";
+            }
+            cache.validation_required = status != bwl::sta_dpp::eBootstrapValidation::VALID;
+            continue;
+        }
+        if (now < cache.retry_after || !ready())
+            continue; // The Agent never writes Role or Enable.
+        std::string message;
+        auto key_result = m_dpp_key_store.load_or_create(message);
+        if (!message.empty())
+            LOG(WARNING) << "DPP key store: " << message;
+        if (!dpp_enrollee::is_success(key_result)) {
+            if (key_result == dpp_enrollee::eKeyStoreResult::WRITE_ERROR ||
+                key_result == dpp_enrollee::eKeyStoreResult::INVALID_PATH) {
+                m_dpp_key_io_disabled = true;
+                LOG(ERROR)
+                    << "DPP preparation disabled for this process: persistent key I/O failure";
+                return;
+            }
+            cache.retry_after = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            continue;
+        }
+        // Recheck every bSTA after disk I/O and before each registration RPC.
+        if (!unconfigured()) {
+            m_dpp_agent_unconfigured = false;
+            return;
+        }
+        if (!ready())
+            continue;
+        PrivateKeyCopy key;
+        if (!m_dpp_key_store.get_private_key_hex(key.value)) {
+            cache.retry_after = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            continue;
+        }
+        bwl::sta_dpp::sBootstrapResult result;
+        const bool registered = info->sta_wlan_hal->dpp_bootstrap_gen(
+            key.value, channels.chan_list, result);
+        if (!key.value.empty())
+            OPENSSL_cleanse(&key.value[0], key.value.size());
+        key.value.clear();
+        if (!registered || !result.ok || !result.id ||
+            !dpp_enrollee::uri_matches_key(result.uri, m_dpp_key_store)) {
+            LOG(WARNING) << "DPP bootstrap registration rejected iface=" << iface;
+            cache.retry_after = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            continue;
+        }
+        cache.id                  = result.id;
+        cache.uri                 = result.uri;
+        cache.validation_required = false;
+        cache.next_validate       = now + std::chrono::seconds(30);
+        LOG(INFO) << "DPP bootstrap READY iface=" << iface << " id=" << result.id
+                  << " pkhash=" << m_dpp_key_store.pkhash_hex() << " uri=" << result.uri;
+    }
+#endif // USE_PRPLMESH_WHM
+}
+
+bool BackhaulManager::dpp_chirp_holds_wait_wps(std::chrono::steady_clock::time_point expired_at)
+{
+#if defined(USE_PRPLMESH_WHM)
+    using dpp_enrollee::eChirpHoldPhase;
+    const auto &campaign = m_dpp_chirp;
+    auto phase           = eChirpHoldPhase::NONE;
+    auto until           = campaign.deadline;
+    switch (campaign.state) {
+    case eDppChirpState::PASS:
+        // The grace covers the tick in which run_dpp_auto_chirp() ends an expired pass.
+        phase = eChirpHoldPhase::PASS;
+        until = campaign.deadline + std::chrono::seconds(DPP_CHIRP_HOLD_GRACE_SECONDS);
+        break;
+    case eDppChirpState::PAUSE:
+        // Set for the pause between two passes of a cycle only, not for the cycle backoff.
+        phase = eChirpHoldPhase::GAP;
+        until = campaign.hold_until;
+        break;
+    case eDppChirpState::EXCHANGE:
+        // Bounded here too, independent of when run_dpp_auto_chirp() closes the exchange.
+        phase = eChirpHoldPhase::EXCHANGE;
+        break;
+    case eDppChirpState::WATCH:
+        // A restart drops the bSTA and the CCE scan results of the round; hold until the next
+        // round reads them. No scan requested (no bSTA): the restart is the recovery.
+        if (campaign.watch_scanning) {
+            phase = eChirpHoldPhase::WATCH;
+            until = campaign.deadline + std::chrono::seconds(DPP_CHIRP_HOLD_GRACE_SECONDS);
+        }
+        break;
+    default:
+        break;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (!dpp_enrollee::chirp_holds_restart(phase, m_dpp_agent_unconfigured, now, until)) {
+        return false;
+    }
+    if (dpp_enrollee::chirp_hold_limit_reached(now, expired_at,
+                                               std::chrono::seconds(DPP_CHIRP_HOLD_MAX_SECONDS))) {
+        LOG(WARNING) << "DPP auto-chirp held the WAIT_WPS timeout for more than "
+                     << DPP_CHIRP_HOLD_MAX_SECONDS << " s; restart anyway";
+        return false;
+    }
+    if (m_dpp_hold_logged_for != expired_at) {
+        m_dpp_hold_logged_for = expired_at;
+        LOG(INFO) << "WAIT_WPS timeout deferred by DPP auto-chirp phase="
+                  << dpp_enrollee::to_string(phase)
+                  << " iface=" << (campaign.iface.empty() ? "-" : campaign.iface);
+    }
+    return true;
+#else
+    (void)expired_at;
+    return false;
+#endif
+}
+
+void BackhaulManager::run_dpp_auto_chirp()
+{
+#if defined(USE_PRPLMESH_WHM)
+    auto &campaign = m_dpp_chirp;
+    if (!DPP_AUTO_CHIRP_ENABLED || campaign.state == eDppChirpState::DONE) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now < campaign.deadline) {
+        return;
+    }
+    if (campaign.state == eDppChirpState::PASS) {
+        end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::WATCHDOG, true);
+        return;
+    }
+    if (campaign.state == eDppChirpState::EXCHANGE) {
+        // A received configuration that never led to Connected is not usable (e.g. a fronthaul
+        // 'sta' object). The supplicant keeps retrying that network, so restart the bSTA: the
+        // re-attach drops it and the next pass retries this band after the settle time.
+        const bool conf_unusable = campaign.conf_received;
+        // Log before end_dpp_chirp_pass(): it clears campaign.iface.
+        if (conf_unusable) {
+            LOG(WARNING) << "DPP auto-chirp configuration not usable iface=" << campaign.iface
+                         << ": no connection within " << DPP_CHIRP_EXCHANGE_WAIT_SECONDS
+                         << " s, restart bSTA and re-chirp";
+        }
+        end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::EXCHANGE_TIMEOUT, true);
+        if (conf_unusable) {
+            campaign.restart_bsta = true;
+        }
+        return;
+    }
+    // IDLE, PAUSE or WATCH: act while the Agent is still an unconfigured Enrollee.
+    // Waiting for eligibility does not use the budget.
+    campaign.deadline = now + std::chrono::seconds(DPP_CHIRP_RECHECK_SECONDS);
+    auto db           = AgentDB::get();
+    if (db->device_conf.local_gw || m_is_in_reset_state || !m_dpp_agent_unconfigured ||
+        db->backhaul.connection_type != AgentDB::sBackhaul::eConnectionType::Wireless) {
+        campaign.watch_scanning = false;
+        return;
+    }
+    const auto candidates = dpp_chirp_candidates(now);
+    if (campaign.state == eDppChirpState::IDLE) {
+        if (candidates.empty()) {
+            return;
+        }
+        // READY (D14): watch first; the first fallback on the URI channels is due later.
+        dpp_enrollee::fallback_timer_arm(campaign.fallback, now,
+                                         std::chrono::seconds(DPP_CHIRP_FALLBACK_FIRST_SECONDS));
+        dpp_enrollee::watch_cadence_boost(
+            campaign.cadence, now, std::chrono::seconds(DPP_CHIRP_WATCH_FAST_WINDOW_SECONDS));
+        campaign.state = eDppChirpState::WATCH;
+        LOG(INFO) << "DPP auto-chirp WATCH first, fallback in " << DPP_CHIRP_FALLBACK_FIRST_SECONDS
+                  << " s";
+    }
+    if (campaign.state == eDppChirpState::WATCH) {
+        run_dpp_watch_round(candidates, now);
+        return;
+    }
+    // Candidates are band ordered. A refused start retries the same bSTA; each bSTA chirps
+    // once per iteration, then the Enrollee pauses (EC 6.2.3).
+    std::vector<std::string> ifaces;
+    for (const auto &candidate : candidates) {
+        ifaces.push_back(candidate.info->sta_iface);
+    }
+    const auto pick =
+        dpp_enrollee::chirp_iteration_pick(campaign.iteration, ifaces, campaign.retry_iface, now,
+                                           std::chrono::seconds(DPP_CHIRP_PAUSE_SECONDS));
+    if (!pick.ready) {
+        campaign.deadline = pick.not_before;
+        // Keep the WAIT_WPS hold of a pause inside a cycle up to the deferred start.
+        if (campaign.hold_until != std::chrono::steady_clock::time_point{}) {
+            campaign.hold_until =
+                std::max(campaign.hold_until,
+                         pick.not_before + std::chrono::seconds(DPP_CHIRP_HOLD_GRACE_SECONDS));
+        }
+        return;
+    }
+    const auto &candidate = candidates[pick.index];
+    const auto &iface     = candidate.info->sta_iface;
+    const auto id         = candidate.bootstrap->id;
+    if (!candidate.info->sta_wlan_hal->dpp_chirp(id)) {
+        // Do not starve the other bands behind a bSTA that keeps refusing.
+        if (++campaign.start_failures >= DPP_CHIRP_START_FAILURES_BEFORE_SKIP) {
+            campaign.start_failures = 0;
+            dpp_enrollee::chirp_iteration_skip(campaign.iteration, iface);
+        }
+        campaign.deadline = now + std::chrono::seconds(DPP_CHIRP_RETRY_SECONDS);
+        return;
+    }
+    campaign.start_failures   = 0;
+    campaign.iteration_ifaces = std::move(ifaces);
+    campaign.retry_iface.clear();
+    // wpa_supplicant scans, then chirps and listens about 2 s per channel: URI channels, its
+    // default channels and the channels of scanned APs with a CCE. The start guard covers the
+    // URI channels; each chirp sent (DPP-TX type=13) extends it, see handle_dpp_enrollee_event().
+    const auto uri_channels =
+        static_cast<int>(dpp_enrollee::count_chan_list_channels(candidate.bootstrap->chan_list));
+    campaign.state      = eDppChirpState::PASS;
+    campaign.iface      = iface;
+    campaign.pass_start = now;
+    campaign.deadline   = now + std::chrono::seconds(DPP_CHIRP_PASS_WATCHDOG_SECONDS +
+                                                     DPP_CHIRP_SECS_PER_URI_CHANNEL * uri_channels);
+    const std::string trigger =
+        campaign.fallback_cycle
+            ? "schedule fallback=" + std::to_string(campaign.fallback.failed + 1)
+            : "cce target=" + campaign.target_iface;
+    LOG(INFO) << "DPP auto-chirp START iface=" << iface << " id=" << id
+              << " uri_channels=" << uri_channels << " pass=" << campaign.passes + 1 << "/"
+              << DPP_CHIRP_PASSES_PER_CYCLE << " trigger=" << trigger;
+#endif // USE_PRPLMESH_WHM
+}
+
+void BackhaulManager::stop_owned_dpp_chirp(const char *reason)
+{
+#if defined(USE_PRPLMESH_WHM)
+    const auto iface = owned_dpp_chirp_iface();
+    if (iface.empty()) {
+        return;
+    }
+    const char *result = "no-hal";
+    for (const auto &radio_info : m_radios_info) {
+        if (radio_info->sta_iface == iface && radio_info->sta_wlan_hal) {
+            result = radio_info->sta_wlan_hal->dpp_chirp_stop() ? "ok" : "failed";
+            break;
+        }
+    }
+    LOG(DEBUG) << "DPP auto-chirp owned stop iface=" << iface << " reason=" << reason
+               << " result=" << result;
+    auto &campaign = m_dpp_chirp;
+    // No pass is counted, but the bSTA chirped: it counts for the EC 6.2.3 pause and chirps
+    // first again once allowed.
+    dpp_enrollee::chirp_iteration_pass_end(campaign.iteration, iface,
+                                           std::chrono::steady_clock::now());
+    campaign.retry_iface     = iface;
+    campaign.state           = eDppChirpState::PAUSE;
+    campaign.deadline        = std::chrono::steady_clock::now();
+    campaign.hold_until      = {};
+    campaign.chirps          = 0;
+    campaign.conf_received   = false;
+    campaign.auth_pending    = false;
+    campaign.auth_prev_state = eDppChirpState::IDLE;
+    campaign.iface.clear();
+    campaign.auth_prev_iface.clear();
+#else
+    (void)reason;
+#endif
+}
+
+#if defined(USE_PRPLMESH_WHM)
+std::string BackhaulManager::owned_dpp_chirp_iface() const
+{
+    const auto &campaign = m_dpp_chirp;
+    return dpp_enrollee::owned_chirp_iface(campaign.state == eDppChirpState::PASS, campaign.iface,
+                                           campaign.state == eDppChirpState::EXCHANGE &&
+                                               campaign.auth_pending &&
+                                               campaign.auth_prev_state == eDppChirpState::PASS,
+                                           campaign.auth_prev_iface);
+}
+
+void BackhaulManager::end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd end,
+                                         bool stop_supplicant_chirp)
+{
+    auto &campaign = m_dpp_chirp;
+    const auto now = std::chrono::steady_clock::now();
+    // A chirp-triggered exchange shows that the configurator hears this band.
+    const bool answered = campaign.state == eDppChirpState::EXCHANGE;
+    LOG(INFO) << "DPP auto-chirp pass end iface=" << campaign.iface
+              << " reason=" << dpp_enrollee::to_string(end) << " chirps=" << campaign.chirps;
+    // The Agent gave up on this pass (timeout/failure): stop the supplicant too, otherwise it
+    // keeps chirping through the pause/backoff. DPP_STOP_CHIRP is idempotent, and the late
+    // DPP-CHIRP-STOPPED it may trigger is ignored because the state is no longer PASS.
+    if (stop_supplicant_chirp && !campaign.iface.empty()) {
+        for (const auto &radio_info : m_radios_info) {
+            if (!radio_info || radio_info->sta_iface != campaign.iface ||
+                !radio_info->sta_wlan_hal) {
+                continue;
+            }
+            const bool stopped = radio_info->sta_wlan_hal->dpp_chirp_stop();
+            LOG(DEBUG) << "DPP auto-chirp supplicant stop iface=" << campaign.iface
+                       << " result=" << (stopped ? "ok" : "failed");
+            break;
+        }
+    }
+    auto ended_iface = std::move(campaign.iface);
+    if (!ended_iface.empty()) {
+        dpp_enrollee::chirp_iteration_pass_end(campaign.iteration, ended_iface, now);
+    }
+    campaign.chirps        = 0;
+    campaign.conf_received = false;
+    campaign.auth_pending  = false;
+    if (++campaign.passes < DPP_CHIRP_PASSES_PER_CYCLE) {
+        // Band switch inside an iteration, full pause after its last band or a failed pass.
+        const auto gap = dpp_enrollee::chirp_gap_after_pass(
+            end,
+            dpp_enrollee::chirp_iteration_exhausted(campaign.iteration, campaign.iteration_ifaces),
+            std::chrono::seconds(DPP_CHIRP_BAND_SWITCH_SECONDS),
+            std::chrono::seconds(DPP_CHIRP_PAUSE_SECONDS));
+        if (answered) {
+            campaign.retry_iface = ended_iface; // the next iteration starts on this band
+        }
+        // The WAIT_WPS restart waits for the next pass; the grace fits one refused chirp start.
+        const auto grace    = std::chrono::seconds(DPP_CHIRP_HOLD_GRACE_SECONDS);
+        campaign.state      = eDppChirpState::PAUSE;
+        campaign.deadline   = now + gap;
+        campaign.hold_until = campaign.deadline + grace;
+        return;
+    }
+    // The cycle is spent; the next one starts again with the first band in order.
+    end_dpp_retry_cycle("cycle spent");
+}
+
+void BackhaulManager::handle_dpp_enrollee_event(const std::string &iface,
+                                                bwl::sta_dpp::eEnrolleeEvent type, uint32_t freq)
+{
+    using eEvent   = bwl::sta_dpp::eEnrolleeEvent;
+    auto &campaign = m_dpp_chirp;
+    if (type == eEvent::NONE) {
+        return;
+    }
+    // G08: only the bSTA of the running pass or exchange changes the campaign. Late or foreign
+    // events (IDLE, PAUSE, WATCH, DONE, another bSTA) change nothing, so a request on
+    // another bSTA cannot take the exchange over or end the pass.
+    const bool active =
+        (campaign.state == eDppChirpState::PASS || campaign.state == eDppChirpState::EXCHANGE) &&
+        !campaign.iface.empty();
+    if (!active || campaign.iface != iface) {
+        LOG(DEBUG) << "DPP auto-chirp event ignored iface=" << iface
+                   << " event=" << static_cast<int>(type)
+                   << " state=" << dpp_chirp_state_name(campaign.state)
+                   << " campaign_iface=" << campaign.iface;
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    switch (type) {
+    case eEvent::AUTH_REQUEST_RX:
+        // The supplicant stops the chirp on any Auth Request; wait briefly for AUTH-SUCCESS.
+        // Reported before its own key check: keep the pass in case of an ignore.
+        if (campaign.state == eDppChirpState::PASS) {
+            campaign.auth_pending       = true;
+            campaign.auth_prev_state    = campaign.state;
+            campaign.auth_prev_iface    = campaign.iface;
+            campaign.auth_prev_deadline = campaign.deadline;
+
+            campaign.state    = eDppChirpState::EXCHANGE;
+            campaign.deadline = now + std::chrono::seconds(DPP_CHIRP_AUTH_WAIT_SECONDS);
+            LOG(INFO) << "DPP auto-chirp EXCHANGE iface=" << iface;
+        } else {
+            // No ignore came for the first request: a real exchange. A later one is about this.
+            campaign.auth_pending = false;
+        }
+        break;
+    case eEvent::AUTH_REQUEST_IGNORED:
+        // Not for this Enrollee (another bootstrapping key or PKEX peer): back to the saved
+        // state, its deadline kept running.
+        if (campaign.state == eDppChirpState::EXCHANGE && campaign.auth_pending) {
+            campaign.auth_pending = false;
+            campaign.state        = campaign.auth_prev_state;
+            campaign.iface        = campaign.auth_prev_iface;
+            campaign.deadline     = campaign.auth_prev_deadline;
+            LOG(INFO) << "DPP auto-chirp Auth Request not for this Enrollee iface=" << iface;
+            if (campaign.state == eDppChirpState::PASS) {
+                // The request stopped the chirp, but the pass did not fail: no band retry.
+                end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::COMPLETED, true);
+            }
+        }
+        break;
+    case eEvent::AUTH_SUCCESS:
+        campaign.auth_pending = false;
+        campaign.state        = eDppChirpState::EXCHANGE;
+        campaign.deadline     = now + std::chrono::seconds(DPP_CHIRP_EXCHANGE_WAIT_SECONDS);
+        break;
+    case eEvent::CONF_RECEIVED:
+        // Connected ends the campaign; otherwise the EXCHANGE timeout restarts the bSTA.
+        campaign.state         = eDppChirpState::EXCHANGE;
+        campaign.deadline      = now + std::chrono::seconds(DPP_CHIRP_EXCHANGE_WAIT_SECONDS);
+        campaign.conf_received = true;
+        campaign.auth_pending  = false;
+        break;
+    case eEvent::CHIRP_TX:
+        // One per chirp channel. Progress keeps the pass alive while the supplicant goes
+        // through channels the start guard does not count (scanned APs with a CCE).
+        if (campaign.state != eDppChirpState::PASS) {
+            LOG(DEBUG) << "DPP auto-chirp chirp during the exchange iface=" << iface;
+            break;
+        }
+        ++campaign.chirps;
+        campaign.deadline = dpp_enrollee::extend_chirp_pass_deadline(
+            campaign.deadline, campaign.pass_start, now,
+            std::chrono::seconds(DPP_CHIRP_TX_PROGRESS_SECONDS),
+            std::chrono::seconds(DPP_CHIRP_PASS_MAX_SECONDS));
+        if (freq == 0) {
+            LOG(DEBUG) << "DPP auto-chirp chirp without frequency iface=" << iface
+                       << ": not checked";
+            break;
+        }
+        // The supplicant drops disabled, no-IR and radar channels from its chirp list (hostap
+        // feed patch z00); a chirp on a channel the classifier rejects is only logged.
+        if (!dpp_chirp_freq_safe(iface, freq)) {
+            LOG(WARNING) << "DPP auto-chirp chirp on a channel that is not chirp-safe iface="
+                         << iface << " freq=" << freq;
+        }
+        break;
+    case eEvent::CHIRP_STOPPED:
+        if (campaign.state == eDppChirpState::PASS) {
+            end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::COMPLETED, false);
+        }
+        break;
+    case eEvent::FAILED:
+        end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::FAILED, true);
+        break;
+    default:
+        // NONE is filtered in the HAL before queueing; never reaches here.
+        break;
+    }
+}
+
+const char *BackhaulManager::dpp_chirp_state_name(eDppChirpState state)
+{
+    switch (state) {
+    case eDppChirpState::IDLE:
+        return "IDLE";
+    case eDppChirpState::PASS:
+        return "PASS";
+    case eDppChirpState::PAUSE:
+        return "PAUSE";
+    case eDppChirpState::EXCHANGE:
+        return "EXCHANGE";
+    case eDppChirpState::WATCH:
+        return "WATCH";
+    case eDppChirpState::DONE:
+        return "DONE";
+    }
+    return "UNKNOWN";
+}
+
+bool BackhaulManager::dpp_chirp_freq_safe(const std::string &sta_iface, uint32_t freq)
+{
+    auto db          = AgentDB::get();
+    const auto radio = db->radio(sta_iface);
+    if (!radio) {
+        return false;
+    }
+    return dpp_enrollee::chirp_channel_safe(
+        freq, radio->wifi_channel.get_freq_type(),
+        dpp_enrollee::make_channel_dfs_map(radio->channels_list));
+}
+
+void BackhaulManager::end_dpp_retry_cycle(const char *reason)
+{
+    auto &campaign = m_dpp_chirp;
+    const auto now = std::chrono::steady_clock::now();
+    const auto in  = [now](std::chrono::steady_clock::time_point t) {
+        return std::chrono::duration_cast<std::chrono::seconds>(t - now).count();
+    };
+    std::string next;
+    if (campaign.fallback_cycle) {
+        // D14: the next fallback after the next step plus jitter (jitter only lengthens it).
+        std::uniform_int_distribution<int> jitter_dist(0, DPP_CHIRP_COOLDOWN_JITTER_SECONDS);
+        dpp_enrollee::fallback_timer_pass_failed(
+            campaign.fallback, now, DPP_CHIRP_RETRY_COOLDOWN_SECONDS,
+            std::chrono::seconds(jitter_dist(m_dpp_jitter_rng)));
+        next = "schedule";
+    } else if (!campaign.target_iface.empty()) {
+        // D17: back off this target only; a rising edge clears the backoff.
+        auto &target = m_dpp_cce_targets[campaign.target_iface];
+        dpp_enrollee::cce_target_failed(target, now, DPP_CHIRP_TARGET_BACKOFF_SECONDS);
+        next = "cce target backoff " + std::to_string(in(target.next_allowed)) + " s";
+    }
+    // D16: fast rounds again; scans resume at once.
+    dpp_enrollee::watch_cadence_boost(campaign.cadence, now,
+                                      std::chrono::seconds(DPP_CHIRP_WATCH_FAST_WINDOW_SECONDS));
+    LOG(INFO) << "DPP auto-chirp WATCH reason=" << reason << " ended=" << next
+              << ", next fallback in " << in(campaign.fallback.due) << " s";
+    campaign.state          = eDppChirpState::WATCH;
+    campaign.deadline       = now;
+    campaign.passes         = 0;
+    campaign.fallback_cycle = false;
+    campaign.target_iface.clear();
+    campaign.hold_until     = {};
+    campaign.start_failures = 0;
+    campaign.retry_iface.clear();
+    campaign.iteration_ifaces.clear();
+}
+
+std::vector<BackhaulManager::sDppChirpCandidate>
+BackhaulManager::dpp_chirp_candidates(std::chrono::steady_clock::time_point now)
+{
+    auto db = AgentDB::get();
+    // Only IDs registered in the current HAL attachment and not awaiting validation.
+    std::vector<sDppChirpCandidate> candidates;
+    std::vector<eFreqType> bands;
+    for (const auto &info : m_radios_info) {
+        if (!info || info->sta_iface.empty() || !info->sta_wlan_hal ||
+            info->sta_wlan_hal->get_state() != bwl::HALState::Operational) {
+            continue;
+        }
+        const auto it = m_dpp_bootstraps.find(info->sta_iface);
+        if (it == m_dpp_bootstraps.end() || !it->second.id || it->second.validation_required ||
+            it->second.generation != info->dpp_attachment_generation) {
+            continue;
+        }
+        // The EndPoint writes of the HAL attach are still settling in pWHM.
+        if (now < info->dpp_chirp_not_before) {
+            continue;
+        }
+        sDppChirpCandidate candidate;
+        candidate.info      = info;
+        candidate.bootstrap = &it->second;
+        const auto radio    = db->radio(info->sta_iface);
+        if (radio) {
+            candidate.band     = radio->wifi_channel.get_freq_type();
+            candidate.channels = dpp_enrollee::make_channel_dfs_map(radio->channels_list);
+            auto safe    = dpp_enrollee::chirp_safe_channels_string(candidate.channels);
+            auto &logged = m_dpp_chirp_safe_logged[info->sta_iface];
+            if (logged != safe) {
+                LOG(INFO) << "DPP chirp-safe channels iface=" << info->sta_iface << " band="
+                          << beerocks::utils::convert_frequency_type_to_string(candidate.band)
+                          << " chan=" << safe;
+                logged = std::move(safe);
+            }
+        }
+        bands.push_back(candidate.band);
+        candidates.push_back(std::move(candidate));
+    }
+    // Preferred backhaul band first, then 5 GHz, 2.4 GHz, 6 GHz.
+    const auto order = dpp_enrollee::chirp_band_order(
+        bands, db->device_conf.back_radio.backhaul_preferred_radio_band);
+    std::vector<sDppChirpCandidate> ordered;
+    for (const auto index : order) {
+        ordered.push_back(candidates[index]);
+    }
+    return ordered;
+}
+
+dpp_enrollee::sCceTarget
+BackhaulManager::read_dpp_cce_target(const sDppChirpCandidate &candidate,
+                                     std::chrono::steady_clock::time_point now)
+{
+    // Reads the results pWHM already holds; starts no scan.
+    std::vector<bwl::sScanResult> results;
+    candidate.info->sta_wlan_hal->get_scan_results(std::string(), results);
+    std::vector<dpp_enrollee::sCceScanEntry> entries;
+    for (const auto &result : results) {
+        if (!result.dpp_cce_known) {
+            continue; // no CCE metadata (D2)
+        }
+        dpp_enrollee::sCceScanEntry entry;
+        entry.bssid       = tlvf::mac_to_string(result.bssid);
+        entry.channel     = result.channel;
+        entry.band        = result.freq_type;
+        entry.cce_known   = true;
+        entry.cce_present = result.dpp_cce_present;
+        entry.seen_ms_ago = result.seen_ms_ago;
+        entries.push_back(std::move(entry));
+    }
+    return dpp_enrollee::cce_target_update(
+        m_dpp_cce_targets[candidate.info->sta_iface], entries, candidate.band, candidate.channels,
+        now, std::chrono::seconds(DPP_CHIRP_CCE_FRESH_SECONDS), DPP_CHIRP_TARGET_MAX_FREQS);
+}
+
+void BackhaulManager::run_dpp_watch_round(const std::vector<sDppChirpCandidate> &candidates,
+                                          std::chrono::steady_clock::time_point now)
+{
+    auto &campaign         = m_dpp_chirp;
+    const auto fast_window = std::chrono::seconds(DPP_CHIRP_WATCH_FAST_WINDOW_SECONDS);
+    std::vector<const sDppChirpCandidate *> eligible;
+    const sDppChirpCandidate *target_candidate = nullptr;
+    dpp_enrollee::sCceTarget target;
+    bool any_cce = false; // a usable CCE, ready or backed off: no fallback (D14)
+    for (const auto &candidate : candidates) {
+        const auto read_target = read_dpp_cce_target(candidate, now);
+        if (read_target.reason == dpp_enrollee::eCceTargetReason::RISING) {
+            dpp_enrollee::watch_cadence_boost(campaign.cadence, now, fast_window); // D16
+        }
+        eligible.push_back(&candidate);
+        any_cce = any_cce || read_target.reason != dpp_enrollee::eCceTargetReason::NONE;
+        // Candidates are band ordered: the first ready target wins.
+        if (read_target.ready && !target_candidate) {
+            target_candidate = &candidate;
+            target           = read_target;
+        }
+    }
+    const bool fallback_due = !target_candidate && !any_cce && !eligible.empty() &&
+                              dpp_enrollee::fallback_timer_due(campaign.fallback, now);
+    dpp_enrollee::watch_round_record(m_dpp_watch_stats, eligible.size());
+    LOG(DEBUG) << "DPP auto-chirp WATCH round radios=" << candidates.size()
+               << " eligible=" << eligible.size() << " fresh=" << (any_cce ? 1 : 0)
+               << " rounds=" << m_dpp_watch_stats.rounds
+               << " no_eligible=" << m_dpp_watch_stats.no_eligible;
+    if (target_candidate || fallback_due) {
+        // One cycle of the existing chirp (D23): a CCE target starts on its bSTA (D13), a
+        // fallback on the band order (D14).
+        campaign.fallback_cycle = !target_candidate;
+        campaign.target_iface   = target_candidate ? target_candidate->info->sta_iface : "";
+        if (target_candidate) {
+            LOG(INFO) << "DPP auto-chirp RETRY trigger=cce iface=" << campaign.target_iface
+                      << " reason=" << dpp_enrollee::to_string(target.reason)
+                      << " freqs=" << dpp_enrollee::freqs_string(target.freqs)
+                      << " dropped=" << target.dropped << " bssids=" << target.bssids
+                      << " unsafe=" << target.unsafe;
+        } else {
+            LOG(INFO) << "DPP auto-chirp RETRY trigger=schedule fallback="
+                      << campaign.fallback.failed + 1;
+        }
+        campaign.state          = eDppChirpState::PAUSE;
+        campaign.passes         = 0;
+        campaign.retry_iface    = campaign.target_iface;
+        campaign.start_failures = 0;
+        campaign.iteration_ifaces.clear();
+        campaign.deadline   = now;
+        campaign.hold_until = now + std::chrono::seconds(DPP_CHIRP_HOLD_GRACE_SECONDS);
+        return;
+    }
+    // No cycle: ask for a scan on each eligible bSTA, read next round.
+    const bool scan_pending = campaign.watch_scanning; // this round read a scan of the last one
+    campaign.watch_scanning = false;
+    for (const auto candidate : eligible) {
+        const bool started = candidate->info->sta_wlan_hal->request_dpp_cce_scan();
+        campaign.watch_scanning = campaign.watch_scanning || started;
+        dpp_enrollee::watch_round_record_request(m_dpp_watch_stats, candidate->info->sta_iface,
+                                                 started);
+        if (!started) {
+            LOG(DEBUG) << "DPP auto-chirp WATCH scan not started iface="
+                       << candidate->info->sta_iface;
+        }
+    }
+    // D16: fast or slow rounds, a first scan read after the scan time; wake up for a due
+    // fallback.
+    const auto next_read = dpp_enrollee::watch_next_read(
+        scan_pending, campaign.watch_scanning,
+        dpp_enrollee::watch_interval(campaign.cadence, now,
+                                     std::chrono::seconds(DPP_CHIRP_WATCH_INTERVAL_SECONDS),
+                                     std::chrono::seconds(DPP_CHIRP_WATCH_SLOW_INTERVAL_SECONDS)),
+        std::chrono::seconds(DPP_CHIRP_WATCH_FIRST_READ_SECONDS));
+    campaign.deadline = now + next_read;
+    if (campaign.fallback.armed && campaign.fallback.due > now) {
+        campaign.deadline = std::min(campaign.deadline, campaign.fallback.due);
+    }
+    // Cumulative CCE scan requests per bSTA as iface:started/sent (Review F5).
+    LOG(DEBUG) << "DPP auto-chirp WATCH scan requests "
+               << dpp_enrollee::watch_round_requests_string(m_dpp_watch_stats)
+               << " next_read=" << next_read.count() << " s";
+}
+#endif // USE_PRPLMESH_WHM
 
 bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
 {
@@ -1922,7 +2737,17 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             }
         }
 
-        handle_backhaul_connect();
+        // Retry finalization without reassociating an otherwise healthy backhaul.
+        const auto now = std::chrono::steady_clock::now();
+        if (now < m_backhaul_connect_retry_at) {
+            break;
+        }
+        if (!handle_backhaul_connect()) {
+            m_backhaul_connected_notification_pending = true;
+            m_backhaul_connect_retry_at = now + std::chrono::seconds(1);
+            break;
+        }
+        m_backhaul_connect_retry_at = {};
         stop_on_failure_attempts = configuration_stop_on_failure_attempts;
 
         LOG(DEBUG) << "clearing blacklist";
@@ -2010,6 +2835,9 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
             m_platform_manager_client.reset();
             m_remove_platform_manager_client = false;
         }
+        // Before clear_radio_handlers() and the bSTA HAL reset below.
+        stop_owned_dpp_chirp("restart");
+
         for (auto &radio_info : m_radios_info) {
             {
                 auto db    = AgentDB::get();
@@ -2120,6 +2948,14 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
             // Attach in BLOCKING mode
             auto attach_state = radio_info->sta_wlan_hal->attach(true);
             if (attach_state == bwl::HALState::Operational) {
+#if defined(USE_PRPLMESH_WHM)
+                // A known reattach invalidates the old supplicant bootstrap ID.
+                radio_info->dpp_attachment_generation = ++m_dpp_attachment_generation;
+                // The HAL constructor just wrote the EndPoint (Enable, MultiAPProfile).
+                radio_info->dpp_chirp_not_before =
+                    std::chrono::steady_clock::now() +
+                    std::chrono::seconds(DPP_CHIRP_EP_SETTLE_SECONDS);
+#endif
                 // Internal Events
                 int int_events_fd = radio_info->sta_wlan_hal->get_int_events_fd();
                 if (int_events_fd >= 0) {
@@ -2285,8 +3121,12 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
     }
     // Wait for WPS command
     case EState::WAIT_WPS: {
-        const bool local_gw = AgentDB::get()->device_conf.local_gw;
-        if (!local_gw && std::chrono::steady_clock::now() > state_time_stamp_timeout) {
+        auto db = AgentDB::get();
+        // A DPP chirp pass, the pause before the next pass and a chirp-triggered exchange have
+        // bounded deadlines; the restart waits for them, see dpp_chirp_holds_wait_wps().
+        if (!db->device_conf.local_gw &&
+            std::chrono::steady_clock::now() > state_time_stamp_timeout &&
+            !dpp_chirp_holds_wait_wps(state_time_stamp_timeout)) {
             LOG(ERROR) << STATE_WAIT_WPS_TIMEOUT_SECONDS
                        << " seconds has passed on state WAIT_WPS, move state to RESTART!";
             FSM_MOVE_STATE(RESTART);
@@ -2320,6 +3160,18 @@ bool BackhaulManager::backhaul_fsm_wireless(bool &skip_select)
             }
         }
 
+        // Timeout handling above may already have moved the FSM to RESTART.
+        if (FSM_IS_IN_STATE(WAIT_WPS)) {
+            prepare_dpp_enrollee();
+            run_dpp_auto_chirp();
+#if defined(USE_PRPLMESH_WHM)
+            if (m_dpp_chirp.restart_bsta) {
+                // Unusable DPP configuration: re-attach the bSTA, see run_dpp_auto_chirp().
+                m_dpp_chirp.restart_bsta = false;
+                FSM_MOVE_STATE(RESTART);
+            }
+#endif
+        }
         break;
     }
     case EState::INITIATE_SCAN: {
@@ -2717,6 +3569,10 @@ bool BackhaulManager::handle_slave_backhaul_message(int fd, ieee1905_1::CmduMess
     case beerocks_message::ACTION_BACKHAUL_ENABLE: {
 
         LOG(DEBUG) << "Received ACTION_BACKHAUL_ENABLE";
+
+        // The Agent now waits for ACTION_BACKHAUL_CONNECTED_NOTIFICATION without a timeout. Keep
+        // the notification pending until handle_backhaul_connect() actually sends it.
+        m_backhaul_connected_notification_pending = true;
 
         auto db = AgentDB::get();
 
@@ -3280,6 +4136,14 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         break;
     }
     case Event::Connected: {
+#if defined(USE_PRPLMESH_WHM)
+        // Any backhaul connection ends the first-boot DPP chirp campaign for this process.
+        if (m_dpp_chirp.state != eDppChirpState::DONE) {
+            LOG(INFO) << "DPP auto-chirp DONE: backhaul connected on iface=" << iface;
+            m_dpp_chirp.state = eDppChirpState::DONE;
+        }
+        m_dpp_chirp.restart_bsta = false;
+#endif
 
         auto iface_hal = get_wireless_hal(iface);
         if (!iface_hal) {
@@ -3456,7 +4320,14 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
             // IRE running controller
             if (db->device_conf.local_controller && !db->device_conf.local_gw) {
                 FSM_MOVE_STATE(CONNECTED);
+            } else if (m_backhaul_connected_notification_pending) {
+                // The link dropped before the CONNECTED state notified the Agent, e.g. when a
+                // Connected/Disconnected pair was drained in one pass. Complete that initial
+                // connection now, since the Agent waits for the notification without a timeout.
+                LOG(INFO) << "Completing pending initial backhaul connection after reconnect";
+                FSM_MOVE_STATE(CONNECTED);
             } else {
+                // Established link recovered; the Agent already received the notification.
                 FSM_MOVE_STATE(OPERATIONAL);
             }
         }
@@ -3688,6 +4559,14 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
         } else {
             LOG(ERROR) << "Affiliated_Link_Connected empty message or bSTA configuration";
         }
+    } break;
+    case Event::Dpp_Enrollee_Event: {
+#if defined(USE_PRPLMESH_WHM)
+        auto msg = static_cast<bwl::sta_dpp::sEnrolleeEvent *>(data);
+        if (msg) {
+            handle_dpp_enrollee_event(iface, msg->type, msg->freq);
+        }
+#endif
     } break;
     // Unhandled events
     default: {

@@ -32,6 +32,7 @@
 #include <tlvf/wfa_map/tlvClientSecurityContext.h>
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
 #include <tlvf/wfa_map/tlvDppChirpValue.h>
+#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
 #include <tlvf/wfa_map/tlvQoSManagementDescriptor.h>
@@ -817,7 +818,28 @@ void ApManager::handle_dpp_cce_indication_message(ieee1905_1::CmduMessageRx &cmd
                    << " does not contain CCE Indication TLV";
         return;
     }
-    ap_wlan_hal->set_cce_indication(dpp_cce_indication_tlv->advertise_cee());
+    const auto advertise_cce = dpp_cce_indication_tlv->advertise_cee();
+    if (ap_wlan_hal->set_cce_indication(advertise_cce) || !advertise_cce) {
+        return;
+    }
+
+    // EasyMesh 5.3.4: if the CCE cannot be included on all fronthaul BSSs, respond with an
+    // Error Response carrying a Profile-2 Error Code TLV with Reason Code 0x0D.
+    LOG(WARNING) << "DPP CCE Indication mid=" << std::hex << mid << std::dec
+                 << ": CCE ENABLE not applied on all fronthaul BSSs of " << m_iface
+                 << ", sending Error Response (Reason Code 0x0D)";
+    if (!cmdu_tx.create(0, ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type ERROR_RESPONSE_MESSAGE failed";
+        return;
+    }
+    auto error_code_tlv = cmdu_tx.addClass<wfa_map::tlvProfile2ErrorCode>();
+    if (!error_code_tlv) {
+        LOG(ERROR) << "addClass wfa_map::tlvProfile2ErrorCode failed";
+        return;
+    }
+    error_code_tlv->reason_code() =
+        wfa_map::tlvProfile2ErrorCode::eReasonCode::DPP_ONBOARDING_NOT_SUPPORTED;
+    send_cmdu(cmdu_tx);
 }
 
 void ApManager::handle_direct_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_rx)
@@ -2337,6 +2359,22 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
             return;
         }
         ap_wlan_hal->set_primary_vlan_id(request->primary_vlan_id());
+        break;
+    }
+    case beerocks_message::ACTION_APMANAGER_SET_DPP_ONBOARDING_REQUEST: {
+        auto request =
+            beerocks_header
+                ->addClass<beerocks_message::cACTION_APMANAGER_SET_DPP_ONBOARDING_REQUEST>();
+        if (!request) {
+            LOG(ERROR) << "addClass has failed";
+            return;
+        }
+        const bool enable = (request->enable() != 0);
+        LOG(INFO) << "ACTION_APMANAGER_SET_DPP_ONBOARDING_REQUEST enable=" << enable;
+        if (!ap_wlan_hal->set_dpp_onboarding(enable)) {
+            LOG(ERROR) << "Failed to apply DPP onboarding=" << enable << " on "
+                       << ap_wlan_hal->get_iface_name();
+        }
         break;
     }
     case beerocks_message::ACTION_APMANAGER_SET_MAP_CONTROLLER_PROFILE: {

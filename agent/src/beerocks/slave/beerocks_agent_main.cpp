@@ -445,9 +445,9 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     (void)guarantee.use_count();
     auto agent_dm_path = mapf::utils::get_install_path() + AGENT_DATAMODEL_PATH;
     auto funcs_list    = prplmesh::agent::actions::get_func_list();
+    auto events_list   = prplmesh::agent::actions::get_events_list();
     auto amb_dm_obj    = std::make_shared<beerocks::nbapi::AmbiorixImpl>(
-        event_loop, std::vector<beerocks::nbapi::sActionsCallback>(),
-        std::vector<beerocks::nbapi::sEvents>(), funcs_list);
+        event_loop, std::vector<beerocks::nbapi::sActionsCallback>(), events_list, funcs_list);
     LOG_IF(!amb_dm_obj, FATAL) << "Unable to create Ambiorix!";
     LOG_IF(!amb_dm_obj->init(agent_dm_path), FATAL) << "Unable to init ambiorix object!";
 #else
@@ -634,6 +634,17 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
         return 1;
     }
 
+#ifdef ENABLE_NBAPI
+    // Runtime EnableDPPOnboarding changes: the NBAPI event runs in this (main) thread, the
+    // Agent thread picks the value up in its FSM loop.
+    std::weak_ptr<beerocks::slave_thread> weak_agent = agent;
+    prplmesh::agent::actions::set_dpp_onboarding_callback([weak_agent](bool enable) {
+        if (auto agent_thread = weak_agent.lock()) {
+            agent_thread->request_dpp_onboarding_change(enable);
+        }
+    });
+#endif //ENABLE_NBAPI
+
     auto touch_time_stamp_timeout = std::chrono::steady_clock::now();
     while (g_running) {
 
@@ -662,7 +673,8 @@ static int run_beerocks_slave(beerocks::config_file::sConfigSlave &beerocks_slav
     }
 #ifdef ENABLE_NBAPI
     prplmesh::agent::actions::set_wps_callback(nullptr);
-#endif
+    prplmesh::agent::actions::set_dpp_onboarding_callback(nullptr);
+#endif //ENABLE_NBAPI
     agent->stop();
 
     LOG(DEBUG) << "backhaul_manager.stop()";
