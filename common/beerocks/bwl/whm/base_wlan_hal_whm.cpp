@@ -1746,6 +1746,7 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
     std::string operating_standards;
     radio->read_child(op_std_format, "OperatingStandardsFormat");
     radio->read_child(operating_standards, "OperatingStandards");
+    const bool is_6ghz = (m_radio_info.frequency_band == beerocks::eFreqType::FREQ_6G);
     if (op_std_format == "Legacy") {
         // Legacy - maximum supported operating standard
         uint8_t rank = 0;
@@ -1757,17 +1758,23 @@ bool base_wlan_hal_whm::refresh_radio_capabilities()
             rank = 3;
         if (operating_standards == "be")
             rank = 4;
+        if (operating_standards == "bn")
+            rank = 5;
 
-        m_radio_info.ht_supported  = (rank >= 1);
-        m_radio_info.vht_supported = (rank >= 2);
+        m_radio_info.ht_supported  = !is_6ghz && (rank >= 1);
+        m_radio_info.vht_supported = !is_6ghz && (rank >= 2);
         m_radio_info.he_supported  = (rank >= 3);
         m_radio_info.eht_supported = (rank >= 4);
     } else {
         // Standard - comma separated list
-        m_radio_info.ht_supported  = operating_standards.find("n") != std::string::npos ? 1 : 0;
-        m_radio_info.vht_supported = operating_standards.find("ac") != std::string::npos ? 1 : 0;
-        m_radio_info.he_supported  = operating_standards.find("ax") != std::string::npos ? 1 : 0;
-        m_radio_info.eht_supported = operating_standards.find("be") != std::string::npos ? 1 : 0;
+        const auto standards = beerocks::string_utils::str_split(operating_standards, ',');
+        const auto has_std = [&](const char *std_name) {
+            return std::find(standards.begin(), standards.end(), std_name) != standards.end();
+        };
+        m_radio_info.ht_supported  = has_std("n");
+        m_radio_info.vht_supported = has_std("ac");
+        m_radio_info.he_supported  = has_std("ax");
+        m_radio_info.eht_supported = has_std("be");
     }
 
     //HT capabilities
