@@ -10,6 +10,7 @@
 #define _BWL_STA_WLAN_HAL_H_
 
 #include "base_wlan_hal.h"
+#include "sta_dpp_enrollee.h"
 #include "sta_wlan_hal_types.h"
 
 namespace bwl {
@@ -38,7 +39,10 @@ public:
         Interface_Connected_OK,
         Interface_Reconnected_OK,
         Interface_Disconnected,
-        Primary_VLAN_ID_Changed
+        Primary_VLAN_ID_Changed,
+
+        // Payload: sta_dpp::sEnrolleeEvent. Appended so existing values keep their numbers.
+        Dpp_Enrollee_Event
     };
 
     using ChannelFreqPair = std::pair<uint8_t, beerocks::eFreqType>;
@@ -82,6 +86,80 @@ public:
      * @return true when all profiles were cleared, otherwise false.
      */
     virtual bool clear_persistent_profiles() { return true; }
+
+    /** Complete persistent profile query; false means unsupported/unreadable, not empty. */
+    virtual bool dpp_has_enabled_profile(bool &configured)
+    {
+        configured = false;
+        return false;
+    }
+    virtual bool dpp_read_preparation_state(sta_dpp::sPreparationState &state)
+    {
+        state = {};
+        return false;
+    }
+    /** EndPoint DPP.GeneratedQR rows; ID 0 = not registered in the running supplicant. */
+    virtual bool dpp_read_generated_qr(std::vector<sta_dpp::sGeneratedQr> &entries)
+    {
+        entries.clear();
+        return false;
+    }
+
+    /** Read-only check of a registered ID; unsupported/unreadable is not proof of loss. */
+    virtual sta_dpp::eBootstrapValidation
+    dpp_validate_bootstrap(uint32_t /*id*/, const std::string & /*uri*/, std::string &reason)
+    {
+        reason = "not supported";
+        return sta_dpp::eBootstrapValidation::UNAVAILABLE;
+    }
+
+    /**
+     * @brief Register the enrollee bootstrap key and read its bootstrap ID.
+     *
+     * @param [in] private_key_hex Enrollee private key. Never logged.
+     * @param [in] chan_list URI channel list ("115/36,40,124/149"), empty for none.
+     * @param [out] result ID and URI on success, reason on failure.
+     * @return true on success. Backends without endpoint DPP return false.
+     */
+    virtual bool dpp_bootstrap_gen(const std::string & /*private_key_hex*/,
+                                   const std::string & /*chan_list*/,
+                                   sta_dpp::sBootstrapResult &result)
+    {
+        result       = sta_dpp::sBootstrapResult();
+        result.error = "not supported";
+        return false;
+    }
+
+    /**
+     * @brief Start one DPP Presence Announcement pass for a registered bootstrap ID.
+     *
+     * The pass ends by itself; progress is reported with Event::Dpp_Enrollee_Event.
+     *
+     * @param [in] id Bootstrap ID returned by dpp_bootstrap_gen().
+     * @return true if the pass was started. Backends without endpoint DPP return false.
+     */
+    virtual bool dpp_chirp(uint32_t /*id*/) { return false; }
+
+    /**
+     * @brief Stop an ongoing DPP Presence Announcement pass.
+     *
+     * Safe to call when nothing is chirping. Used when the Agent gives up on a
+     * pass (watchdog/timeout) so the supplicant does not keep chirping.
+     *
+     * @return true if the stop request was accepted. Backends without endpoint DPP return false.
+     */
+    virtual bool dpp_chirp_stop() { return false; }
+
+    /**
+     * @brief Request one radio scan for the DPP CCE watcher, without preempting any scan.
+     *
+     * Refused, with no side effect, while a scan of this HAL or of the platform runs or when
+     * that cannot be read. Never stops a scan. The request is not tracked: results are read
+     * later with get_scan_results(), and a completion does not change the regular-scan state.
+     *
+     * @return true if a scan was started. Backends without CCE scan metadata return false.
+     */
+    virtual bool request_dpp_cce_scan() { return false; }
 
     virtual bool roam(const sMacAddr &bssid, ChannelFreqPair channel) = 0;
 

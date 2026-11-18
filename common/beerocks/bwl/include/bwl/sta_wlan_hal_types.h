@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 
+#include <bcl/beerocks_defines.h>
 #include <bcl/network/net_struct.h>
 
 namespace bwl {
@@ -26,6 +27,10 @@ struct sScanResult {
     uint8_t channel;
     beerocks::eFreqType freq_type;
     int8_t rssi;
+    // DPP CCE metadata (WHM only; other backends leave it unknown). Not sent on the wire.
+    bool dpp_cce_known   = false; ///< The entry's elements were checked for a CCE element.
+    bool dpp_cce_present = false; ///< CCE element found; false whenever dpp_cce_known is false.
+    int32_t seen_ms_ago  = -1;    ///< Age of the observation at the read, ms; -1 unknown.
 };
 
 constexpr int invalid_network_id = -1;

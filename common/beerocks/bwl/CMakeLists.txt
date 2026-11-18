@@ -226,6 +226,7 @@ if (BUILD_TESTS)
         ${MODULE_PATH}/unit_tests/action_frame_parsing_test.cpp
         ${MODULE_PATH}/unit_tests/assoc_frame_body_extract_test.cpp
         ${MODULE_PATH}/unit_tests/csv_bitmask_filtering.cpp
+        ${MODULE_PATH}/unit_tests/sta_dpp_enrollee_test.cpp
     )
     # The fake Ambiorix bus overrides symbols of the shared wbapi library.
     if(BWL_TYPE STREQUAL "WHM" AND BUILD_SHARED_LIBS)
