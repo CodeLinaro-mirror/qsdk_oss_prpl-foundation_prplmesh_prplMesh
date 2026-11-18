@@ -16,6 +16,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <deque>
+#include <string>
 #include <vector>
 
 namespace beerocks {
@@ -84,6 +86,12 @@ public:
     void on_chirp_received(const sMacAddr &enrollee_mac, const uint8_t hash[32]);
 
     /**
+     * @brief Record the 802.11 source of an AccessPoint DPP-RX type=13 (Presence
+     * Announcement). Fallback Enrollee MAC source when no DPP-CHIRP-RX matches the hash.
+     */
+    void on_presence_rx(const sMacAddr &enrollee_mac, const std::string &ifname);
+
+    /**
      * @brief Notify the task that hostapd's connection state to the relay changed, as
      * reported by slave_thread's bwl::slave_wlan_hal Dpp_Client_Connected/
      * Dpp_Client_Disconnected events (routed through hal_event_handler()). The listener itself
@@ -139,9 +147,27 @@ private:
 
     /** Send a Chirp Notification. mac == nullptr leaves Enrollee MAC Address present clear. */
     void send_chirp_notification(const uint8_t hash[32], const sMacAddr *enrollee_mac);
+    /**
+     * Log a sent Chirp Notification. An Enrollee chirps every few seconds until it is
+     * onboarded, so the first notification per hash is logged at INFO, repeats at DEBUG and
+     * a summary with the count once per minute. Logging only: nothing is suppressed.
+     */
+    void log_chirp_notification_sent(const uint8_t hash[32], const sMacAddr *enrollee_mac);
 
     /** @return cached Enrollee MAC for this hash, or nullptr. */
     const sMacAddr *find_chirp_mac(const uint8_t hash[32]) const;
+
+    /**
+     * @return the only Presence Announcement source seen by an AccessPoint within
+     * k_presence_mac_window of ref, or nullptr when none or several were seen.
+     */
+    const sMacAddr *find_unique_presence_mac(std::chrono::steady_clock::time_point ref) const;
+
+    /**
+     * @return true if the same uplink frame (Enrollee MAC, frame type, payload hash) was
+     * forwarded within k_uplink_dedup_window on the current relay connection.
+     */
+    bool is_duplicate_uplink(uint8_t tcp_type, const uint8_t *frame, size_t frame_len);
 
     /**
      * @brief Handle a DPP Authentication Response frame (subtype 0x01).
@@ -181,6 +207,9 @@ private:
     /**
      * @brief Handle a Proxied Encap DPP message received from the Controller.
      * Extracts the encapsulated DPP frame and sends it to hostapd via TCP.
+     * If hostapd is not connected to the relay (or earlier frames are still
+     * pending), the frame is queued in m_pending_downlink and flushed in order
+     * on the next hostapd connect.
      */
     void handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMessageRx &cmdu_rx);
 
@@ -214,6 +243,59 @@ private:
     bool m_pending_chirp = false;
     uint8_t m_pending_hash[32]{};
     std::chrono::steady_clock::time_point m_pending_deadline{};
+    std::chrono::steady_clock::time_point m_pending_since{};
+
+    struct PresenceRx {
+        sMacAddr mac;
+        std::string ifname;
+        std::chrono::steady_clock::time_point seen;
+    };
+    std::vector<PresenceRx> m_presence_rx;
+
+    struct UplinkSeen {
+        sMacAddr mac;
+        uint16_t type;
+        size_t payload_hash;
+        std::chrono::steady_clock::time_point seen;
+    };
+    /** Reset on every relay connection change. */
+    std::vector<UplinkSeen> m_uplink_seen;
+
+    /** Log state of one relayed chirp hash (see log_chirp_notification_sent()). */
+    struct ChirpLog {
+        uint8_t hash[32] = {};
+        uint32_t repeats = 0; ///< Notifications since the last report.
+        std::chrono::steady_clock::time_point last_report;
+        std::chrono::steady_clock::time_point last_seen;
+    };
+    /** Reset when the relay stops. */
+    std::vector<ChirpLog> m_chirp_log;
+
+    /**
+     * @brief Queue a Controller->hostapd frame while the relay client is down.
+     * Bounded (k_downlink_queue_max frames, oldest dropped first).
+     */
+    void queue_downlink_frame(uint8_t tcp_type, const uint8_t *frame, size_t frame_len,
+                              uint16_t mid);
+
+    /** @brief Send queued frames in order while hostapd is connected. */
+    void flush_pending_downlink();
+
+    /** @brief Drop queued frames older than k_downlink_queue_max_age. */
+    void drop_stale_downlink();
+
+    struct PendingDownlink {
+        uint8_t tcp_type;
+        uint16_t mid;
+        std::vector<uint8_t> frame;
+        std::chrono::steady_clock::time_point queued;
+    };
+    /**
+     * Downlink frames that arrived while hostapd was not connected to the relay.
+     * Kept across relay restarts; the age bound discards them if hostapd does
+     * not reconnect in time.
+     */
+    std::deque<PendingDownlink> m_pending_downlink;
 };
 
 } // namespace beerocks

@@ -31,6 +31,7 @@
 #include <beerocks/tlvf/beerocks_header.h>
 #include <tlvf/wfa_map/tlvChannelPreference.h>
 
+#include <atomic>
 #include <set>
 
 // Forward decleration
@@ -78,6 +79,16 @@ public:
     virtual ~slave_thread();
 
     /**
+     * @brief Request a runtime change of Configuration.EnableDPPOnboarding.
+     *
+     * Thread safe: may be called from the NBAPI (main) thread. The Agent thread applies the
+     * value at its next FSM iteration (see apply_pending_dpp_onboarding_change()).
+     *
+     * @param enable New EnableDPPOnboarding value.
+     */
+    void request_dpp_onboarding_change(bool enable);
+
+    /**
      * @brief Initialize the Agent.
      *
      * @return true on success and false otherwise.
@@ -110,16 +121,6 @@ public:
      * @return true on success and false otherwise.
      */
     bool forward_cmdu_to_controller(ieee1905_1::CmduMessageRx &cmdu_rx);
-
-    /**
-     * @brief Check whether the DPP TCP relay (WiFi.DPPRelay) is active.
-     *
-     * @return true when DppAgentTask owns the DPP relay path, otherwise false.
-     */
-    bool is_dpp_relay_active() const
-    {
-        return m_dpp_agent_task && m_dpp_agent_task->is_relay_active();
-    }
 
     /**
      * @brief Sends ACK CMDU to controller
@@ -278,16 +279,31 @@ private:
     bool register_event_handlers();
     bool register_ext_events_handlers(int fd);
     void clear_event_handlers();
+    /**
+     * @brief Start the DPP-over-TCP relay. The caller guarantees STATE_OPERATIONAL.
+     * @return true if the relay is active after the call, false if disabled or failed.
+     */
+    bool start_dpp_tcp_relay_server();
+    void maintain_dpp_tcp_relay();
+    void schedule_dpp_relay_recovery();
+    bool m_dpp_relay_recovery_pending = false;
+    std::chrono::steady_clock::time_point m_dpp_relay_check_at{};
 
     /**
-     * @brief Create the slave_wlan_hal (DPP-over-TCP relay HAL) and register its events.
-     *
-     * Does nothing if it already exists. On failure no slave_wlan_hal is left behind.
-     *
-     * @return true if the slave_wlan_hal is available, otherwise false.
+     * @brief Stop the DPP-over-TCP relay (no-op when it is not armed).
+     * @param reason Logged reason of the stop.
      */
-    bool create_slave_wlan_hal();
-    void start_dpp_tcp_relay_server();
+    void stop_dpp_tcp_relay_server(const std::string &reason);
+
+    /**
+     * @brief Apply a pending EnableDPPOnboarding change in the Agent thread: update
+     * device_conf, start (OPERATIONAL only) or stop the relay, and announce the new
+     * capability bit once auto-configuration has completed.
+     */
+    void apply_pending_dpp_onboarding_change();
+
+    /** Pending EnableDPPOnboarding value set by the NBAPI thread: -1 none, 0 false, 1 true. */
+    std::atomic<int> m_pending_dpp_onboarding{-1};
 
 public:
     /**

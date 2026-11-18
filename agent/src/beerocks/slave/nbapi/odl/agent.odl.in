@@ -123,8 +123,13 @@
                 default "br-guest";
             }
 
-            /* When true, Agent starts the DPP-over-TCP relay (WiFi.DPPRelay) at
-             * STATE_OPERATIONAL for Proxied Encap enrollee onboarding. */
+            /* Gates DPP onboarding support of this Agent (default must stay true):
+             *  - the DPP-over-TCP relay (WiFi.DPPRelay RelayEnable) for Proxied Encap
+             *    enrollee onboarding, started at STATE_OPERATIONAL;
+             *  - the "DPP Onboarding" bit announced in the AP Capability report.
+             * Runtime changes apply without an Agent reset: false stops the relay,
+             * true starts it when the Agent is operational, and an AP Capability
+             * report announces the new bit once auto-configuration has completed. */
             %persistent bool EnableDPPOnboarding {
                 default true;
             }
@@ -164,4 +169,9 @@
         }
 
     @AGENT_ROOT_DM_Footer@
+}
+
+%populate {
+    on event "dm:object-changed" call event_dpp_onboarding_changed
+        filter 'object matches "^@AGENT_ROOT_DM_literal@\.Configuration\.$" && contains("parameters.EnableDPPOnboarding")';
 }
