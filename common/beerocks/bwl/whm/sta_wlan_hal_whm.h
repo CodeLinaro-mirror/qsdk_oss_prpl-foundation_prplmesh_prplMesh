@@ -46,6 +46,16 @@ public:
 
     virtual bool disconnect() override;
     bool clear_persistent_profiles() override;
+    bool dpp_has_enabled_profile(bool &configured) override;
+    bool dpp_read_preparation_state(sta_dpp::sPreparationState &state) override;
+    bool dpp_read_generated_qr(std::vector<sta_dpp::sGeneratedQr> &entries) override;
+    sta_dpp::eBootstrapValidation dpp_validate_bootstrap(uint32_t id, const std::string &uri,
+                                                         std::string &reason) override;
+    bool dpp_bootstrap_gen(const std::string &private_key_hex, const std::string &chan_list,
+                           sta_dpp::sBootstrapResult &result) override;
+    bool dpp_chirp(uint32_t id) override;
+    bool dpp_chirp_stop() override;
+    bool request_dpp_cce_scan() override;
 
     virtual bool reassociate() override;
 
@@ -133,6 +143,11 @@ private:
      * @brief subscribe to WiFi.EndPoint.*.WPS. pairingDone dm notification
      */
     void subscribe_to_ep_wps_events();
+
+    /**
+     * @brief Subscribe to EndPoint wpaCtrlEvents and push DPP Enrollee progress events.
+     */
+    void subscribe_to_ep_dpp_events();
 
     /**
      * *@brief Process the event "pairingDone" when received from the dm

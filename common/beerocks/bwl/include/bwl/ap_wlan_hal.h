@@ -495,9 +495,25 @@ public:
      * Set 0 for nothing.
      * 
      * @param advertise_cce Advertise CCE.
-     * @return true on success, false otherwise.
+     * @return true when the value was applied to every fronthaul BSS of the radio
+     *         (vacuously true without fronthaul BSSs), false otherwise.
      */
     virtual bool set_cce_indication(uint16_t advertise_cce) = 0;
+
+    /**
+     * @brief Apply a runtime change of Configuration.EnableDPPOnboarding.
+     * Stores the new value in the HAL configuration so later VAP updates use it.
+     * Backends that set the DPP role on fronthaul BSSs override this to also
+     * update the BSSs that already exist.
+     *
+     * @param enable true when DPP onboarding is enabled.
+     * @return true on success, false otherwise.
+     */
+    virtual bool set_dpp_onboarding(bool enable)
+    {
+        m_hal_conf.enable_dpp_onboarding = enable;
+        return true;
+    }
 
     /**
      * @brief Dynamically add a new BSS for the radio.

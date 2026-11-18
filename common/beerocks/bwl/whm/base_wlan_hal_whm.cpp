@@ -129,6 +129,11 @@ base_wlan_hal_whm::base_wlan_hal_whm(HALType type, const std::string &iface_name
       m_iso_nl80211_client(nl80211_client_factory::create_instance())
 {
 
+    // Slave (global DPP relay): no Radio; its bus is connected lazily in init_dpp_relay().
+    if (type == HALType::Slave) {
+        return;
+    }
+
     LOG_IF(!m_ambiorix_cl.connect(AMBIORIX_USP_BACKEND_PATH, AMBIORIX_PWHM_USP_BACKEND_URI), FATAL)
         << "Unable to connect to the ambiorix backend!";
 
@@ -1204,11 +1209,9 @@ bool base_wlan_hal_whm::refresh_possible_channels_info(
         uint32_t chanNum   = beerocks::string_utils::stoi(chan_str);
         auto &channel_info = m_radio_info.channels_list[chanNum];
 
-        if (applicable_bandwidths_per_channel.find(chanNum) ==
-            applicable_bandwidths_per_channel.end()) {
-            continue;
-        }
-
+        // Set the DFS state of every possible channel, also one without applicable bandwidths:
+        // the DPP chirp-channel check reads it, and the default (USABLE) marks a non-DFS channel
+        // as DFS.
         if (son::wireless_utils::is_dfs_channel(chanNum, m_radio_info.frequency_band)) {
             if (cleared_channels_set.find(chanNum) != cleared_channels_set.end()) {
                 channel_info.dfs_state = beerocks::eDfsState::AVAILABLE;
@@ -1220,6 +1223,11 @@ bool base_wlan_hal_whm::refresh_possible_channels_info(
             }
         } else {
             channel_info.dfs_state = beerocks::eDfsState::DFS_STATE_MAX;
+        }
+
+        if (applicable_bandwidths_per_channel.find(chanNum) ==
+            applicable_bandwidths_per_channel.end()) {
+            continue;
         }
 
         auto &applicable_bandwidths = applicable_bandwidths_per_channel[chanNum];

@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace bwl {
@@ -35,6 +36,8 @@ public:
         Dpp_Frame_Received,
         /** hostapd DPP-CHIRP-RX: 802.11 source of a Presence Announcement. */
         Dpp_Chirp_Received,
+        /** hostapd AccessPoint DPP-RX type=13: 802.11 source of a Presence Announcement. */
+        Dpp_Presence_Rx,
     };
 
     /** Payload pushed via event_queue_push() for Event::Dpp_Frame_Received. */
@@ -47,6 +50,12 @@ public:
     struct sDppChirpEvent {
         sMacAddr enrollee_mac;
         uint8_t hash[32];
+    };
+
+    /** Payload pushed via event_queue_push() for Event::Dpp_Presence_Rx. */
+    struct sDppPresenceRxEvent {
+        sMacAddr enrollee_mac;
+        std::string ifname;
     };
 
     // Public methods:
@@ -63,6 +72,9 @@ public:
      * @brief Stop the DPP-over-TCP relay listener, if it was started.
      */
     virtual void stop_dpp_relay() {}
+
+    // Refresh actual listener/client state; false requests deferred HAL recovery.
+    virtual bool refresh_dpp_relay() { return false; }
 
     /**
      * @brief Send a raw DPP frame to hostapd on the active relay connection.

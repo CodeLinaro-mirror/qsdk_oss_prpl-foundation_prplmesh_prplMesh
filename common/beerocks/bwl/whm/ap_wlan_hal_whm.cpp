@@ -793,16 +793,21 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         }
 
         // Fronthaul VAPs only: point hostapd at WiFi.DPPRelay (dpp_controller=).
-        // Backhaul/bSTA must not be Role=Relay. Skipped when DPP onboarding is
-        // disabled: the relay is never started then, and the VAP DPP settings
-        // are left as they are.
-        if (bss_info_conf.fronthaul && get_hal_conf().enable_dpp_onboarding) {
+        // Backhaul/bSTA must not be Role=Relay. DPP.Enable is persistent, so it is
+        // written in both cases: with DPP onboarding disabled a value left from an
+        // earlier boot would keep the relay (and the CCE) on air with no Agent
+        // relay listener. Same rule as set_dpp_onboarding().
+        if (bss_info_conf.fronthaul) {
+            const bool dpp_onboarding = get_hal_conf().enable_dpp_onboarding;
             std::string wifi_ap_dpp_path = wifi_vap_path + "DPP.";
             new_obj.set_type(AMXC_VAR_ID_HTABLE);
-            new_obj.add_child<bool>(dpp_enable_key, true);
-            new_obj.add_child(dpp_role_key, dpp_role_relay);
+            new_obj.add_child<bool>(dpp_enable_key, dpp_onboarding);
+            if (dpp_onboarding) {
+                new_obj.add_child(dpp_role_key, dpp_role_relay);
+            }
             if (!m_ambiorix_cl.update_object(wifi_ap_dpp_path, new_obj)) {
-                LOG(ERROR) << "Failed to set DPP relay role for " << wifi_ap_dpp_path;
+                LOG(ERROR) << "Failed to set DPP Enable=" << dpp_onboarding << " on "
+                           << wifi_ap_dpp_path;
             }
         }
 
@@ -1468,12 +1473,53 @@ bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
 
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
-    // Fronthaul VAPs run DPP Role=Relay, which configures dpp_controller in
-    //  hostapd and then advertises the CCE on every BSS of its process by
-    //  itself. A per-BSS CCE switch would have no effect on air.
-    LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce
-               << " (CCE follows the DPP relay role, nothing to set)";
+    // pWHM has no separate CCE switch: hostapd advertises the CCE whenever the
+    // DPP relay is armed (fronthaul AccessPoint.{i}.DPP Enable=true,
+    // Role=Relay), which follows EnableDPPOnboarding (see
+    // update_vap_credentials() and set_dpp_onboarding()). The indication is
+    // only logged. An ENABLE while onboarding is disabled is already answered
+    // once with Error Response 0x0D by ProxyAgentDppTask.
+    LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication advertise_cce=" << advertise_cce
+               << " (not applied, CCE follows the DPP relay) on " << get_iface_name();
     return true;
+}
+
+bool ap_wlan_hal_whm::set_dpp_onboarding(bool enable)
+{
+    m_hal_conf.enable_dpp_onboarding = enable;
+    LOG(DEBUG) << "ap_wlan_hal_whm: set_dpp_onboarding enable=" << enable << " on "
+               << get_iface_name();
+
+    const std::string dpp_enable_key("Enable");
+    const std::string dpp_role_key("Role");
+    const std::string dpp_role_relay("Relay");
+
+    bool ok = true;
+    for (const auto &vap_it : m_radio_info.available_vaps) {
+        const auto &vap = vap_it.second;
+        // Same rule as update_vap_credentials(): the DPP relay role is for fronthaul BSSs only.
+        if (!vap.fronthaul) {
+            continue;
+        }
+        auto vap_ext = m_vapsExtInfo.find(vap.bss);
+        if (vap_ext == m_vapsExtInfo.end() || vap_ext->second.teardown) {
+            continue;
+        }
+        AmbiorixVariant new_obj(AMXC_VAR_ID_HTABLE);
+        new_obj.add_child<bool>(dpp_enable_key, enable);
+        if (enable) {
+            new_obj.add_child(dpp_role_key, dpp_role_relay);
+        }
+        const std::string dpp_path = vap_ext->second.path + "DPP.";
+        if (!m_ambiorix_cl.update_object(dpp_path, new_obj)) {
+            LOG(ERROR) << "Failed to update DPP settings on " << dpp_path;
+            ok = false;
+        } else {
+            LOG(DEBUG) << "DPP Enable=" << enable << (enable ? " Role=Relay" : "") << " set on "
+                       << dpp_path;
+        }
+    }
+    return ok;
 }
 
 AmbiorixVariantSmartPtr ap_wlan_hal_whm::get_last_assoc_frame(const std::string &vap_iface,
