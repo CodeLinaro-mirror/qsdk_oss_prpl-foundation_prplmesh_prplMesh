@@ -2,16 +2,31 @@
 
 # Pass the targets that must remain active to "isolate"; every other configured
 # CRAM target is disabled until "restore" returns it to its saved state.
-# With the default freedom/freedom2/urx_ospv2/urx_ospv22 testbed, for example:
-#   cram-testbed-isolation.sh isolate freedom freedom2  # keep two, disable two
-#   cram-testbed-isolation.sh isolate freedom           # keep one, disable three
-#   cram-testbed-isolation.sh isolate freedom urx_ospv2 urx_ospv22
-#                                                       # disable only freedom2
+# Targets are the serial names (SERIAL) of the boards in
+# tests/cram/testbed_devices.toml; CRAM_TESTBED_DEVICES overrides that list.
+# With a freedom/freedom2/urx_ospv2 testbed, for example:
+#   cram-testbed-isolation.sh isolate urx_ospv2 freedom  # disable only freedom2
+#   cram-testbed-isolation.sh isolate freedom            # keep one, disable two
 # Run "enforce" after deployment to disable the same non-participants again.
 set -euo pipefail
 
 readonly state_dir="${CI_PROJECT_DIR:-$PWD}/.cram-testbed-isolation-${CI_JOB_ID:-local}"
-read -r -a devices <<<"${CRAM_TESTBED_DEVICES:-freedom freedom2 urx_ospv2 urx_ospv22}"
+readonly testbed_devices="${CI_PROJECT_DIR:-$PWD}/tests/cram/testbed_devices.toml"
+
+# Print the serial names of all boards in testbed_devices.toml.
+testbed_serials() {
+    python3 -I -c '
+import sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    boards = tomllib.load(f)
+print(" ".join(b["SERIAL"] for b in boards.values() if isinstance(b, dict)))
+' "$testbed_devices"
+}
+
+if [ -z "${CRAM_TESTBED_DEVICES:-}" ]; then
+    CRAM_TESTBED_DEVICES="$(testbed_serials)"
+fi
+read -r -a devices <<<"${CRAM_TESTBED_DEVICES}"
 readonly devices
 
 # Run a command script on a CRAM target over serial, retrying transient failures.
