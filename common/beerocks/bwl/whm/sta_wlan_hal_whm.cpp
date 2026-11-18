@@ -68,6 +68,7 @@ sta_wlan_hal_whm::sta_wlan_hal_whm(const std::string &iface_name, hal_event_cb_t
     subscribe_to_ep_events();
     subscribe_to_ep_wps_events();
     subscribe_to_scan_complete_events();
+    subscribe_to_ep_dpp_events();
 }
 
 const std::vector<int> &sta_wlan_hal_whm::get_ext_events_fds() const
@@ -202,6 +203,48 @@ void sta_wlan_hal_whm::subscribe_to_ep_wps_events()
 
     std::string filter = "path matches '" + wifi_wps_path + "'";
     m_ambiorix_cl.subscribe_to_object_event(wifi_wps_path, event_handler, filter);
+}
+
+void sta_wlan_hal_whm::subscribe_to_ep_dpp_events()
+{
+    // pWHM forwards only DPP progress lines here; DPP-CONFOBJ-* (credentials) is never forwarded.
+    std::string wifi_ep_path   = wbapi_utils::search_path_ep();
+    auto event_handler         = std::make_shared<sAmbiorixEventHandler>();
+    event_handler->event_type  = AMX_CL_WPA_CTRL_EVT;
+    event_handler->callback_fn = [this](AmbiorixVariant &event_data) -> void {
+        std::string line, path, if_name;
+        if (!event_data.read_child(line, "eventData") || line.empty()) {
+            return;
+        }
+        // Keep only this EndPoint: match the resolved path, else the interface name.
+        event_data.read_child(path, "path");
+        event_data.read_child(if_name, "ifName");
+        if ((m_ep_path.empty() || path != m_ep_path) && if_name != get_iface_name()) {
+            return;
+        }
+        uint32_t freq   = 0;
+        const auto type = sta_dpp::parse_enrollee_event(line, &freq);
+        if (type == sta_dpp::eEnrolleeEvent::NONE) {
+            return;
+        }
+        // DPP-TX comes once per chirp channel: DEBUG only, the pass end log counts the chirps.
+        if (type == sta_dpp::eEnrolleeEvent::CHIRP_TX) {
+            LOG(DEBUG) << "DPP enrollee event iface=" << get_iface_name() << ": " << line;
+        } else {
+            LOG(INFO) << "DPP enrollee event iface=" << get_iface_name() << ": " << line;
+        }
+        auto event  = std::make_shared<sta_dpp::sEnrolleeEvent>();
+        event->type = type;
+        event->freq = freq;
+        event_queue_push(Event::Dpp_Enrollee_Event, std::move(event));
+    };
+
+    std::string filter = "(path matches '" + wifi_ep_path + "[0-9]+.$') && (notification == '" +
+                         AMX_CL_WPA_CTRL_EVT + "')";
+    if (!m_ambiorix_cl.subscribe_to_object_event(wifi_ep_path, event_handler, filter)) {
+        LOG(ERROR) << "Failed to subscribe to EndPoint " << AMX_CL_WPA_CTRL_EVT << " for "
+                   << get_iface_name();
+    }
 }
 
 bool sta_wlan_hal_whm::process_scan_complete_event(const std::string &result)
@@ -359,6 +402,11 @@ int sta_wlan_hal_whm::get_scan_results(const std::string &ssid, std::vector<sSca
     auto ssid_results_as_list =
         results_as_wrapped_list.read_children<AmbiorixVariantListSmartPtr>();
 
+    // Named std::string keys avoid a temporary key on every map.find() (Coverity CWE-1176).
+    const std::string k_dpp_cce       = "DPPCCE";
+    const std::string k_dpp_cce_known = "DPPCCEKnown";
+    const std::string k_seen_ms_ago   = "SeenMsAgo";
+
     for (auto &ssid_results_map : *ssid_results_as_list) {
         auto data_map = ssid_results_map.read_children<AmbiorixVariantMapSmartPtr>();
         auto &map     = *data_map;
@@ -398,6 +446,16 @@ int sta_wlan_hal_whm::get_scan_results(const std::string &ssid, std::vector<sSca
             map["RSSI"].get(rssi);
             ap.rssi = (int8_t)rssi;
         }
+
+        // DPP CCE metadata; keys missing on an older pWHM leave the entry unknown.
+        sta_dpp::sCceScanKeys cce_keys;
+        auto key               = map.find(k_dpp_cce);
+        cce_keys.has_cce       = key != map.end() && key->second.get(cce_keys.cce);
+        key                    = map.find(k_dpp_cce_known);
+        cce_keys.has_cce_known = key != map.end() && key->second.get(cce_keys.cce_known);
+        key                    = map.find(k_seen_ms_ago);
+        cce_keys.has_seen      = key != map.end() && key->second.get(cce_keys.seen_ms_ago);
+        sta_dpp::apply_cce_scan_keys(cce_keys, ap);
 
         list.push_back(ap);
     }
@@ -673,6 +731,304 @@ bool sta_wlan_hal_whm::get_mld_link_local_mac(std::string &out_mac_str)
         return true;
     }
     return false;
+}
+
+namespace {
+
+// Endpoint DPP access over Ambiorix. Never logs the key; never writes DPP Enable or Role.
+class WhmEndpointDppBus : public sta_dpp::EndpointDppBus {
+public:
+    WhmEndpointDppBus(AmbiorixClient &cl, const std::string &ep_path)
+        : m_cl(cl), m_ep_path(ep_path), m_dpp_path(ep_path + "DPP.")
+    {
+    }
+
+    bool read_dpp_intent(bool &enable, std::string &role) override
+    {
+        auto obj = m_cl.get_object(m_dpp_path);
+        return obj && obj->read_child(enable, "Enable") && obj->read_child(role, "Role");
+    }
+
+    bool call_bootstrap_gen(const std::string &curve, const std::string &chan_list,
+                            const std::string &key_hex, uint32_t &id) override
+    {
+        id = 0;
+        AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
+        args.add_child("curve", curve);
+        if (!chan_list.empty()) {
+            args.add_child("chanlist", chan_list);
+        }
+        args.add_child("key", key_hex);
+        // The call logs only path and method on failure, never args.
+        if (!m_cl.call(m_dpp_path, "GenerateBootstrapURI", args, result)) {
+            return false;
+        }
+        // The call returns the GeneratedQR instance index; that row holds the
+        // wpa_supplicant bootstrap ID (and the URI).
+        uint32_t index = 0;
+        auto values    = result.read_children<AmbiorixVariantListSmartPtr>();
+        if (!values || values->empty() || !values->front().get(index) || !index) {
+            return false;
+        }
+        auto row = m_cl.get_object(m_dpp_path + "GeneratedQR." + std::to_string(index) + ".");
+        return row && row->read_child(id, "ID");
+    }
+
+    bool read_generated_qr(std::vector<sta_dpp::sGeneratedQr> &entries) override
+    {
+        entries.clear();
+        auto qrs =
+            m_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(m_dpp_path + "GeneratedQR.*.");
+        if (!qrs) {
+            return false;
+        }
+        for (auto const &it : *qrs) {
+            sta_dpp::sGeneratedQr entry;
+            if (!it.second.read_child(entry.id, "ID") || !it.second.read_child(entry.uri, "URI")) {
+                // Incomplete enumeration is not proof that a URI is missing.
+                entries.clear();
+                return false;
+            }
+            entries.push_back(std::move(entry));
+        }
+        return true;
+    }
+
+    // Object path of the one GeneratedQR row that holds the bootstrap ID (for Chirp()).
+    bool find_generated_qr_path(uint32_t id, std::string &path, const char *&reason)
+    {
+        path.clear();
+        reason   = "GeneratedQR unreadable";
+        auto qrs = m_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(m_dpp_path + "GeneratedQR.*.");
+        if (!qrs) {
+            return false;
+        }
+        for (auto const &it : *qrs) {
+            uint32_t row_id  = 0;
+            const auto index = wbapi_utils::get_object_id(it.first);
+            if (index <= 0 || !it.second.read_child(row_id, "ID")) {
+                path.clear();
+                return false;
+            }
+            if (row_id != id) {
+                continue;
+            }
+            if (!path.empty()) {
+                path.clear();
+                reason = "several GeneratedQR rows have the ID";
+                return false;
+            }
+            path = m_dpp_path + "GeneratedQR." + std::to_string(index) + ".";
+        }
+        reason = path.empty() ? "no GeneratedQR row has the ID" : "";
+        return !path.empty();
+    }
+
+private:
+    AmbiorixClient &m_cl;
+    std::string m_ep_path;
+    std::string m_dpp_path;
+};
+
+// EndPoint Profile table over Ambiorix. pWHM has no ProfileNumberOfEntries: enumerate instances.
+class WhmProfileTableBus : public sta_dpp::ProfileTableBus {
+public:
+    WhmProfileTableBus(AmbiorixClient &cl, const std::string &ep_path)
+        : m_cl(cl), m_ep_path(ep_path)
+    {
+    }
+
+    bool read_profiles(std::vector<sta_dpp::sProfileEntry> &entries) override
+    {
+        entries.clear();
+        // No profile is an empty map; only a failed read is null.
+        auto profiles = m_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(m_ep_path + "Profile.*.");
+        if (!profiles) {
+            return false;
+        }
+        for (const auto &it : *profiles) {
+            sta_dpp::sProfileEntry entry;
+            entry.path = it.first;
+            if (wbapi_utils::get_object_id(it.first) <= 0 ||
+                !it.second.read_child(entry.enable, "Enable") ||
+                !it.second.read_child(entry.ssid, "SSID")) {
+                entries.clear();
+                return false;
+            }
+            entries.push_back(std::move(entry));
+        }
+        return true;
+    }
+
+private:
+    AmbiorixClient &m_cl;
+    std::string m_ep_path;
+};
+
+// Radio scan access for the CCE watcher. Has no stopScan on purpose.
+class WhmCceScanBus : public sta_dpp::CceScanBus {
+public:
+    WhmCceScanBus(AmbiorixClient &cl, const std::string &radio_path)
+        : m_cl(cl), m_radio_path(radio_path)
+    {
+    }
+
+    bool read_scan_in_progress(bool &in_progress) override
+    {
+        auto obj = m_cl.get_object(m_radio_path + "ScanResults.");
+        return obj && obj->read_child(in_progress, "ScanInProgress");
+    }
+
+    bool start_scan(const std::string &reason) override
+    {
+        AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
+        args.add_child("scanReason", reason);
+        return m_cl.call(m_radio_path, "startScan", args, result);
+    }
+
+private:
+    AmbiorixClient &m_cl;
+    std::string m_radio_path;
+};
+
+} // namespace
+
+bool sta_wlan_hal_whm::dpp_has_enabled_profile(bool &configured)
+{
+    configured = false;
+    if (m_ep_path.empty()) {
+        return false;
+    }
+    WhmProfileTableBus bus(m_ambiorix_cl, m_ep_path);
+    return sta_dpp::evaluate_profiles(bus, configured);
+}
+
+bool sta_wlan_hal_whm::dpp_read_preparation_state(sta_dpp::sPreparationState &state)
+{
+    state = {};
+    if (m_ep_path.empty()) {
+        return false;
+    }
+    auto ep = m_ambiorix_cl.get_object(m_ep_path);
+    WhmEndpointDppBus bus(m_ambiorix_cl, m_ep_path);
+    if (!ep || !ep->read_child(state.endpoint_enabled, "Enable") ||
+        !bus.read_dpp_intent(state.dpp_enabled, state.role)) {
+        return false;
+    }
+    return true;
+}
+
+bool sta_wlan_hal_whm::dpp_read_generated_qr(std::vector<sta_dpp::sGeneratedQr> &entries)
+{
+    entries.clear();
+    if (m_ep_path.empty()) {
+        return false;
+    }
+    WhmEndpointDppBus bus(m_ambiorix_cl, m_ep_path);
+    return bus.read_generated_qr(entries);
+}
+
+sta_dpp::eBootstrapValidation
+sta_wlan_hal_whm::dpp_validate_bootstrap(uint32_t id, const std::string &uri, std::string &reason)
+{
+    if (m_ep_path.empty()) {
+        reason = "endpoint path unknown";
+        return sta_dpp::eBootstrapValidation::UNAVAILABLE;
+    }
+    WhmEndpointDppBus bus(m_ambiorix_cl, m_ep_path);
+    return sta_dpp::validate_bootstrap(bus, id, uri, reason);
+}
+
+bool sta_wlan_hal_whm::dpp_bootstrap_gen(const std::string &private_key_hex,
+                                         const std::string &chan_list,
+                                         sta_dpp::sBootstrapResult &result)
+{
+    if (m_ep_path.empty()) {
+        result       = sta_dpp::sBootstrapResult();
+        result.error = "endpoint path unknown";
+        LOG(ERROR) << "dpp_bootstrap_gen: " << result.error;
+        return false;
+    }
+    WhmEndpointDppBus bus(m_ambiorix_cl, m_ep_path);
+    if (!sta_dpp::register_bootstrap(bus, private_key_hex, chan_list, result)) {
+        LOG(ERROR) << "dpp_bootstrap_gen " << m_ep_path << " failed: " << result.error;
+        return false;
+    }
+    LOG(DEBUG) << "dpp_bootstrap_gen " << m_ep_path << ": id=" << result.id
+               << " uri=" << result.uri;
+    return true;
+}
+
+bool sta_wlan_hal_whm::dpp_chirp(uint32_t id)
+{
+    if (m_ep_path.empty() || !id) {
+        return false;
+    }
+    // Do not disturb an association or WPS run on this EndPoint.
+    std::string status;
+    if (m_ambiorix_cl.get_param(status, m_ep_path, "ConnectionStatus") &&
+        (status == "Connected" || status == "Connecting" || status == "WPS_Pairing")) {
+        LOG(DEBUG) << "DPP chirp skipped: " << m_ep_path << " is busy (ConnectionStatus=" << status
+                   << ")";
+        return false;
+    }
+    // Chirp() is a method of the GeneratedQR row; it chirps with the row's ID.
+    WhmEndpointDppBus bus(m_ambiorix_cl, m_ep_path);
+    std::string qr_path;
+    const char *reason = "";
+    if (!bus.find_generated_qr_path(id, qr_path, reason)) {
+        LOG(WARNING) << "DPP chirp id=" << id << " on " << m_ep_path << ": " << reason;
+        return false;
+    }
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
+    if (!m_ambiorix_cl.call(qr_path, "Chirp", args, result)) {
+        LOG(WARNING) << "DPP Chirp id=" << id << " rejected by " << qr_path;
+        return false;
+    }
+    bool started = false;
+    auto values  = result.read_children<AmbiorixVariantListSmartPtr>();
+    if (!values || values->empty() || !values->front().get(started) || !started) {
+        LOG(WARNING) << "DPP Chirp id=" << id << " not started by " << qr_path;
+        return false;
+    }
+    return true;
+}
+
+bool sta_wlan_hal_whm::dpp_chirp_stop()
+{
+    if (m_ep_path.empty()) {
+        return false;
+    }
+    AmbiorixVariant args(AMXC_VAR_ID_HTABLE), result;
+    if (!m_ambiorix_cl.call(m_ep_path + "DPP.", "StopChirp", args, result)) {
+        LOG(WARNING) << "DPP StopChirp rejected by " << m_ep_path;
+        return false;
+    }
+    bool stopped = false;
+    auto values  = result.read_children<AmbiorixVariantListSmartPtr>();
+    if (!values || values->empty() || !values->front().get(stopped) || !stopped) {
+        LOG(WARNING) << "DPP StopChirp failed on " << m_ep_path;
+        return false;
+    }
+    return true;
+}
+
+bool sta_wlan_hal_whm::request_dpp_cce_scan()
+{
+    if (m_radio_path.empty()) {
+        return false;
+    }
+    // m_scan_active is only read, never set: the regular scan flow keeps its own state.
+    WhmCceScanBus bus(m_ambiorix_cl, m_radio_path);
+    auto outcome = sta_dpp::request_cce_scan(bus, m_scan_active);
+    if (outcome == sta_dpp::eCceScanRequest::START_FAILED) {
+        LOG(WARNING) << "DPP CCE scan request on " << m_radio_path << ": "
+                     << sta_dpp::cce_scan_request_name(outcome);
+    } else {
+        LOG(DEBUG) << "DPP CCE scan request on " << m_radio_path << ": "
+                   << sta_dpp::cce_scan_request_name(outcome);
+    }
+    return outcome == sta_dpp::eCceScanRequest::STARTED;
 }
 
 bool sta_wlan_hal_whm::enable_disable_ep(bool enable)

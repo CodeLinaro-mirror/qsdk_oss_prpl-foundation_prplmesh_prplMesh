@@ -28,6 +28,7 @@ public:
     // DPP-over-TCP relay
     bool init_dpp_relay() override;
     void stop_dpp_relay() override;
+    bool refresh_dpp_relay() override;
     bool dpp_send_frame(uint8_t tcp_type, const uint8_t *frame, size_t frame_len) override;
     bool is_dpp_client_connected() const override;
 
@@ -41,9 +42,10 @@ private:
     bool subscribe_to_dpp_events();
     void on_dpp_ambiorix_event(beerocks::wbapi::AmbiorixVariant &event_data);
     void on_ap_wpa_ctrl_event(beerocks::wbapi::AmbiorixVariant &event_data);
+    void on_ap_dpp_rx_event(beerocks::wbapi::AmbiorixVariant &event_data,
+                            const parsed_line_t &parsed);
 
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_dpp_event_handler;
-    std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_dpp_state_event_handler;
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_ap_wpa_ctrl_handler;
     std::string m_dpp_path;
     // Written from bus callbacks, read by the Agent; see is_dpp_client_connected().
