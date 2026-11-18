@@ -88,6 +88,7 @@
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvErrorCode.h>
+#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvHigherLayerData.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
@@ -95,7 +96,6 @@
 #include <tlvf/wfa_map/tlvProfile2CacCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2CacStatusReport.h>
 #include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
-#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvProfile2RadioMetrics.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
@@ -428,7 +428,7 @@ void Controller::start_mandatory_tasks()
     auto dpp_onboarding = std::make_shared<dpp_onboarding_task>(database, m_dpp_protocol_task);
     LOG_IF(!m_task_pool.add_task(dpp_onboarding), FATAL) << "Failed adding dpp_onboarding_task!";
     m_dpp_onboarding_task_id = dpp_onboarding->id;
-    m_dpp_onboarding_task    = std::move(dpp_onboarding);
+    m_dpp_onboarding_task    = dpp_onboarding;
     m_dpp_protocol_task->configure_onboarding_notifier(m_task_pool, m_dpp_onboarding_task_id);
 }
 
@@ -2576,10 +2576,6 @@ bool Controller::handle_cmdu_1905_dpp_bootstrapping_uri_notification(
         LOG(ERROR) << "Failed to add DPP Bootstrap info: " << error;
         return false;
     }
-
-    // Diagram 5.3.1 steps 6-7: enable CCE advertisement on agents when DPP URI is received.
-    LOG(DEBUG) << "DPP Bootstrapping URI stored; sending DPP CCE Indication enable";
-    send_dpp_cce_indication(true);
 
     // Sync dpp_onboarding_task now, as for ProvisionedDPP: work() does not run while it waits
     // for events. A retransmitted notification of the same URI does not abort the session.
@@ -5176,6 +5172,14 @@ void Controller::send_dpp_cce_indication_to_agent(const sMacAddr &al_mac, bool a
                                                al_mac);
 }
 
+void Controller::notify_dpp_wifi_backhaul_observed()
+{
+    if (m_dpp_onboarding_task_id >= 0) {
+        m_task_pool.push_event(m_dpp_onboarding_task_id,
+                               dpp_onboarding_task::WIFI_BACKHAUL_OBSERVED);
+    }
+}
+
 void Controller::notify_dpp_bootstrapping_trigger(const std::string &reason)
 {
     if (m_dpp_onboarding_task_id < 0) {
@@ -5954,13 +5958,9 @@ bool Controller::handle_ap_capability_report(const sMacAddr &src_mac,
                    << " with profile enum " << agent->profile;
     }
 
-    // AC-07 / EM 5.3.4: while the Controller wants the CCE advertised (un-onboarded URI pending),
-    // every AP Capability Report with the DPP Onboarding bit re-sends ENABLE to that agent. This
-    // covers new joins, rejoins, agent restarts and runtime EnableDPPOnboarding changes.
-    if (agent->dpp_onboarding_support && m_dpp_onboarding_task &&
-        m_dpp_onboarding_task->is_cce_desired()) {
-        LOG(INFO) << "CCE desired; AP Capability Report from " << src_mac
-                  << " has DPP Onboarding bit, sending DPP CCE Indication ENABLE";
+    // Reconcile requirements before targeted resend. Wired proxies are eligible too;
+    // an AP Capability Report must not reset an active onboarding session.
+    if (agent->dpp_onboarding_support && m_dpp_onboarding_task) {
         m_dpp_onboarding_task->send_cce_to_agent(agent->al_mac);
     }
 

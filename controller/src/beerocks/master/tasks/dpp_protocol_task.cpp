@@ -42,6 +42,13 @@ constexpr uint8_t k_dpp_connection_status_result = 12;
 // slightly shorter than five seconds.
 constexpr auto k_dpp_auth_response_timeout = std::chrono::seconds(5);
 
+/** Repeated Chirp Notifications with an unmatched hash are summarised once per interval. */
+constexpr auto k_unmatched_chirp_report_interval = std::chrono::seconds(60);
+/** An unmatched hash not seen for this long is reported as new again. */
+constexpr auto k_unmatched_chirp_forget = std::chrono::minutes(10);
+/** Unmatched hashes tracked for logging; the least recently seen one is dropped. */
+constexpr size_t k_unmatched_chirp_max = 16;
+
 std::string dpp_prefix_hex(const uint8_t *p, size_t len)
 {
     if (!p || len == 0) {
@@ -366,7 +373,7 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
         }
 
         m_session.config_request_enrollee = enrollee_mac;
-        m_session.config_request_frame    = std::move(frame);
+        m_session.config_request_frame    = frame;
         m_session.config_response_cached  = !m_session.config_response_frame.empty();
         return true;
     }
@@ -494,9 +501,12 @@ bool dpp_protocol_task::handle_cmdu_1905_direct_encap_dpp(const sMacAddr &src_ma
             return false;
         }
 
-        const sMacAddr enrollee_mac = m_session.last_chirp_enrollee_valid
-                                          ? m_session.last_chirp_enrollee
-                                          : matched_bootstrap_mac();
+        sMacAddr enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
+        if (m_session.last_chirp_enrollee_valid) {
+            enrollee_mac = m_session.last_chirp_enrollee;
+        } else {
+            enrollee_mac = matched_bootstrap_mac();
+        }
 
         if (!send_dpp_authentication_confirm(enrollee_mac, std::move(auth_confirm))) {
             LOG(ERROR) << "Failed sending direct DPP Authentication Confirm to Agent " << src_mac;
@@ -655,12 +665,13 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
         const auto *matched_info =
             m_database.dpp_chirp_hash_matches(chirp_tlv->hash(), hash_len, received_hex);
         if (!matched_info) {
-            LOG(WARNING) << "DPP chirp hash mismatch from agent " << src_mac
-                         << " hash_len=" << static_cast<unsigned>(hash_len)
-                         << " hash=" << received_hex << " bootstrap_entries="
-                         << (m_database.has_dpp_bootstrap_info() ? "yes" : "no");
-            m_database.print_dpp_bootstrap_info();
+            log_unmatched_chirp(src_mac, received_hex, hash_len);
             continue;
+        }
+        if (!m_unmatched_chirps.empty()) {
+            // A URI matches now: report a later mismatch of this hash as new.
+            m_unmatched_chirps.erase(
+                beerocks::string_utils::bytes_to_hex_string(chirp_tlv->hash(), hash_len));
         }
 
         bool onboard_again    = false;
@@ -727,6 +738,66 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
     }
 
     return send_dpp_authentication_request();
+}
+
+void dpp_protocol_task::log_unmatched_chirp(const sMacAddr &src_mac, const std::string &hash_hex,
+                                            size_t hash_len)
+{
+    const auto now     = std::chrono::steady_clock::now();
+    const auto entries = m_database.get_dpp_bootstrap_info_count();
+
+    auto it = m_unmatched_chirps.find(hash_hex);
+    if (it != m_unmatched_chirps.end() && now - it->second.last_seen > k_unmatched_chirp_forget) {
+        m_unmatched_chirps.erase(it);
+        it = m_unmatched_chirps.end();
+    }
+
+    if (it == m_unmatched_chirps.end()) {
+        if (m_unmatched_chirps.size() >= k_unmatched_chirp_max) {
+            m_unmatched_chirps.erase(
+                std::min_element(m_unmatched_chirps.begin(), m_unmatched_chirps.end(),
+                                 [](const auto &a, const auto &b) {
+                                     return a.second.last_seen < b.second.last_seen;
+                                 }));
+        }
+        sUnmatchedChirp state;
+        state.last_report       = now;
+        state.last_seen         = now;
+        state.bootstrap_entries = entries;
+        m_unmatched_chirps.emplace(hash_hex, state);
+
+        LOG(WARNING) << "DPP chirp hash mismatch from agent " << src_mac << " hash_len=" << hash_len
+                     << " hash=" << hash_hex << " bootstrap_entries=" << entries
+                     << " (repeats summarised every "
+                     << std::chrono::duration_cast<std::chrono::seconds>(
+                            k_unmatched_chirp_report_interval)
+                            .count()
+                     << " s)";
+        m_database.print_dpp_bootstrap_info();
+        return;
+    }
+
+    auto &state     = it->second;
+    state.last_seen = now;
+    ++state.repeats;
+    if (now - state.last_report < k_unmatched_chirp_report_interval) {
+        LOG(DEBUG) << "DPP chirp hash mismatch from agent " << src_mac << " hash=" << hash_hex
+                   << " (repeat " << state.repeats << ")";
+        return;
+    }
+
+    LOG(INFO) << "DPP chirp hash " << hash_hex
+              << " still matches no bootstrapping URI: " << state.repeats
+              << " Chirp Notification(s) in "
+              << std::chrono::duration_cast<std::chrono::seconds>(now - state.last_report).count()
+              << " s, last from agent " << src_mac << " bootstrap_entries=" << entries;
+    if (entries != state.bootstrap_entries) {
+        // The URI set changed since the last dump.
+        m_database.print_dpp_bootstrap_info();
+        state.bootstrap_entries = entries;
+    }
+    state.repeats     = 0;
+    state.last_report = now;
 }
 
 bool dpp_protocol_task::set_direct_encap_onboarding_agent(const sMacAddr &agent_mac)
@@ -987,9 +1058,12 @@ bool dpp_protocol_task::send_dpp_configuration_response(
         send_conn_status = false;
     }
 
-    const sMacAddr enrollee_mac = m_session.last_chirp_enrollee_valid
-                                      ? m_session.last_chirp_enrollee
-                                      : matched_bootstrap_mac();
+    sMacAddr enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
+    if (m_session.last_chirp_enrollee_valid) {
+        enrollee_mac = m_session.last_chirp_enrollee;
+    } else {
+        enrollee_mac = matched_bootstrap_mac();
+    }
 
     std::vector<uint8_t> gas_frame;
     std::string error;

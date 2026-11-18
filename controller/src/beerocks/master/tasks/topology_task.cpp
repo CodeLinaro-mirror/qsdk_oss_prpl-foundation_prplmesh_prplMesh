@@ -8,6 +8,7 @@
  */
 
 #include "topology_task.h"
+#include "../controller.h"
 #include "../db/db_algo.h"
 #include "../son_actions.h"
 #include "bml_task.h"
@@ -247,6 +248,10 @@ bool topology_task::handle_topology_response(const sMacAddr &src_mac,
 
                 // Set backhaul link type as wireless
                 agent->backhaul.backhaul_iface_type = beerocks::IFACE_TYPE_WIFI_UNSPECIFIED;
+
+                if (auto *controller_ctx = database.get_controller_ctx()) {
+                    controller_ctx->notify_dpp_wifi_backhaul_observed();
+                }
 
                 // Set backhaul interface
                 agent->backhaul.backhaul_interface = iface_mac;

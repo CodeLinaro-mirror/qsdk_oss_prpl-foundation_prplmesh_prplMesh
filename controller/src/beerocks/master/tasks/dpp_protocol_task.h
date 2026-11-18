@@ -13,7 +13,9 @@
 #include "../controller_dpp_session.h"
 #include "../db/db.h"
 #include "task.h"
+#include <chrono>
 #include <string>
+#include <unordered_map>
 
 namespace son {
 
@@ -148,6 +150,16 @@ private:
     /** @brief Mark the matched bootstrapping entry onboarded and record its Enrollee MAC. */
     void mark_matched_bootstrap_onboarded();
     void push_dpp_onboarding_task_event(int event_type, const std::string &reason = {});
+    /**
+     * @brief Log a Chirp Notification whose hash matches no bootstrapping URI.
+     *
+     * An Enrollee chirps every few seconds until it is onboarded and every Proxy Agent that
+     * hears it sends a Chirp Notification (EasyMesh v6.1 section 5.3.4), so the same unknown
+     * hash arrives many times a minute. The first one per hash is logged as a warning with
+     * the bootstrapping table, repeats at debug level, and a summary with the repeat count
+     * once per minute. Logging only: every notification is still processed.
+     */
+    void log_unmatched_chirp(const sMacAddr &src_mac, const std::string &hash_hex, size_t hash_len);
     db &m_database;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
     controller_dpp::DppConfiguratorSession m_configurator;
@@ -159,6 +171,16 @@ private:
     task_pool *m_task_pool            = nullptr;
     int m_dpp_onboarding_task_id      = -1;
     bool m_active_request_conn_status = false;
+
+    /** Log state of one unmatched chirp hash (see log_unmatched_chirp()). */
+    struct sUnmatchedChirp {
+        uint32_t repeats = 0; ///< Notifications since the last report.
+        std::chrono::steady_clock::time_point last_report;
+        std::chrono::steady_clock::time_point last_seen;
+        size_t bootstrap_entries = 0; ///< URI count at the last table dump.
+    };
+    /** Unmatched chirp hashes by hex string; kept across DPP sessions. */
+    std::unordered_map<std::string, sUnmatchedChirp> m_unmatched_chirps;
 };
 
 } // namespace son

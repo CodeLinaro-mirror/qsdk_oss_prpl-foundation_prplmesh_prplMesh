@@ -25,7 +25,7 @@ class dpp_protocol_task;
 /**
  * @brief FEAT-68 Controller-as-Configurator onboarding orchestration.
  *
- * Owns URI sync against the bootstrap store, CCE ENABLE/DISABLE, wait states
+ * Owns URI sync against the bootstrap store, CCE ENABLE, wait states
  * for Authentication / Configuration / Connection Status, and success/failure
  * cleanup. URI replace (M-13) resets the protocol session and re-enters Auth
  * wait; cleanup after success/clear (M-15) allows a second onboarding.
@@ -47,19 +47,23 @@ public:
         FAIL,
         BOOTSTRAP_TRIGGERED,
         // dpp_protocol_task sent a (first or restarted) DPP Authentication Request.
-        AUTH_STARTED
+        AUTH_STARTED,
+        // Validated Wi-Fi backhaul evidence; does not restart onboarding.
+        WIFI_BACKHAUL_OBSERVED
     };
 
     /**
-     * @brief Desired CCE state (STEP-06): true while an un-onboarded bootstrap URI is stored.
+     * @brief Desired CCE state: enabled from the first work() for the Controller lifetime.
      *
-     * Independent of the 30 s session timeout: a failed session keeps CCE desired and the
-     * session retry/backoff continues. Cleared only on success or URI removal.
+     * Stays set after a failed or timed-out session and after onboarding (EasyMesh 5.3.1
+     * recommends keeping the CCE advertised). URI clear does not disable it.
+     * This is not on-air confirmation.
      */
     bool is_cce_desired() const { return cce_advertised; }
 
     /**
-     * @brief Send DPP CCE Indication ENABLE to one agent if CCE is currently desired (AC-07).
+     * @brief Reconcile CCE policy, then send ENABLE to one agent if CCE was already advertised
+     * (AC-07). A fresh enable broadcasts to all eligible agents, so no targeted copy is sent.
      */
     void send_cce_to_agent(const sMacAddr &al_mac);
 
@@ -73,8 +77,9 @@ private:
     enum class State { IDLE, WAIT_AUTH, WAIT_CONF, WAIT_CONN_STATUS };
 
     bool sync_bootstrap_uri();
+    // Enables the CCE once; it is never withdrawn.
+    void reconcile_cce_policy();
     void enable_cce();
-    void disable_cce();
     void reset_active_session();
     void restart_for_bootstrap_trigger(const std::string &reason);
     void enter_wait_auth();
@@ -87,7 +92,9 @@ private:
     std::shared_ptr<dpp_protocol_task> m_protocol_task;
     State state = State::IDLE;
     std::string last_bootstrap_fingerprint;
-    // Desired CCE state; true from URI provisioning until success or URI removal.
+    // Only used to log the first observation; the CCE is desired regardless.
+    bool wifi_backhaul_observed = false;
+    // Desired state, not confirmation that any agent is advertising on air.
     bool cce_advertised     = false;
     bool expect_conn_status = false;
     int failure_count       = 0;

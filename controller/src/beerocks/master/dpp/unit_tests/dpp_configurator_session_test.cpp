@@ -79,6 +79,7 @@ protected:
 };
 
 // Characterises the bug: clear() hands the secret back to the heap intact.
+// cppcheck-suppress syntaxError
 TEST_F(SecureClearTest, PlainClearLeavesSecretInFreedMemory)
 {
     {

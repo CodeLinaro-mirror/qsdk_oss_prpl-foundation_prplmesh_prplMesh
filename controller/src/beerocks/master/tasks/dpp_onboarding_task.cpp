@@ -64,22 +64,22 @@ void dpp_onboarding_task::enable_cce()
     controller_ctx->send_dpp_cce_indication(true);
 }
 
-void dpp_onboarding_task::disable_cce()
+void dpp_onboarding_task::reconcile_cce_policy()
 {
-    cce_advertised       = false;
-    auto *controller_ctx = database.get_controller_ctx();
-    if (!controller_ctx) {
-        TASK_LOG(ERROR) << "No controller context for DPP CCE Indication disable";
-        return;
+    // The CCE is desired for the whole Controller lifetime, independent of pending URIs and
+    // of the backhaul type: an Enrollee can find a CCE BSS before its URI is stored, and
+    // EasyMesh 5.3.1 recommends keeping it advertised. It is never withdrawn.
+    if (!cce_advertised) {
+        enable_cce();
     }
-
-    TASK_LOG(INFO) << "Sending DPP CCE Indication DISABLE";
-    controller_ctx->send_dpp_cce_indication(false);
 }
 
 void dpp_onboarding_task::send_cce_to_agent(const sMacAddr &al_mac)
 {
-    if (!cce_advertised) {
+    const bool was_advertised = cce_advertised;
+    reconcile_cce_policy();
+    // A fresh enable already queued an all-agent ENABLE that includes this agent.
+    if (!was_advertised) {
         return;
     }
     auto *controller_ctx = database.get_controller_ctx();
@@ -130,13 +130,8 @@ void dpp_onboarding_task::finish_success()
     // Allow the next pending URI or a later URI clear/replace (M-15) to start immediately.
     next_retry_time = std::chrono::steady_clock::now();
     clear_pending_events();
-    // C-8 / M-5: withdraw CCE advertisement once no stored URI waits for onboarding.
-    // dpp_protocol_task marks the onboarded entry before CONF_RECEIVED.
-    if (database.has_pending_dpp_bootstrap_info()) {
-        TASK_LOG(INFO) << "Another stored DPP URI is not onboarded yet; CCE stays enabled";
-    } else {
-        disable_cce();
-    }
+    // The CCE stays enabled after onboarding: EasyMesh 5.3.1 recommends keeping it advertised
+    // so bSTAs and DPP STAs can (re)configure. It is never withdrawn.
     wait_for(k_poll_interval_ms);
 }
 
@@ -149,9 +144,8 @@ void dpp_onboarding_task::finish_failure(const std::string &reason, bool retry)
     reset_active_session();
     state = State::IDLE;
     clear_pending_events();
-    // STEP-06: CCE stays desired while the URI is still un-onboarded; only success or URI
-    // removal sends DISABLE. Agents that rejoin meanwhile get ENABLE from their AP Capability
-    // Report (controller.cpp).
+    // CCE stays desired after failure;
+    // agents that rejoin get ENABLE from their AP Capability Report (controller.cpp).
     if (retry) {
         schedule_retry(std::chrono::steady_clock::now());
     } else {
@@ -191,7 +185,7 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
         last_failure_reason.clear();
         next_retry_time = std::chrono::steady_clock::now();
         clear_pending_events();
-        disable_cce();
+        reconcile_cce_policy();
         state = State::IDLE;
         return true;
     }
@@ -212,12 +206,8 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
     last_failure_reason.clear();
     next_retry_time = std::chrono::steady_clock::now();
     clear_pending_events();
-    // STEP-06: CCE is desired while a stored URI is not onboarded yet.
-    if (database.has_pending_dpp_bootstrap_info()) {
-        enable_cce();
-    } else {
-        disable_cce();
-    }
+    // URI changes and Wi-Fi-backhaul observations share one CCE policy owner.
+    reconcile_cce_policy();
     state = State::IDLE;
     return true;
 }
@@ -225,6 +215,7 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
 void dpp_onboarding_task::work()
 {
     auto now = std::chrono::steady_clock::now();
+    reconcile_cce_policy();
 
     // URI replace / clear must abort wait states (M-13) and reset protocol session.
     if (state != State::IDLE) {
@@ -271,9 +262,6 @@ void dpp_onboarding_task::work()
         }
 
         // Protocol task starts Auth on chirp match; onboarding only waits.
-        if (!cce_advertised) {
-            enable_cce();
-        }
         enter_wait_auth();
         return;
     }
@@ -289,6 +277,15 @@ void dpp_onboarding_task::handle_event(int event_type, void *obj)
 {
     auto reason = consume_reason(obj);
     switch (event_type) {
+    case WIFI_BACKHAUL_OBSERVED:
+        if (!wifi_backhaul_observed) {
+            TASK_LOG(INFO)
+                << "Wi-Fi backhaul observed; CCE stays enabled for the Controller lifetime";
+            wifi_backhaul_observed = true;
+        }
+        // Do not reset the protocol session, pending events, retry or authentication deadline.
+        reconcile_cce_policy();
+        break;
     case AUTH_SUCCESS:
         TASK_LOG(INFO) << "DPP authentication success";
         failure_count = 0;

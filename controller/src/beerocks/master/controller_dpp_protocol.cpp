@@ -9,6 +9,7 @@
 #include "controller_dpp_protocol.h"
 #include "dpp/dpp_gas.h"
 #include "dpp/dpp_internal.h"
+#include "dpp/dpp_secure_clear.h"
 #include <bcl/beerocks_string_utils.h>
 #include <mapf/common/encryption.h>
 
@@ -35,23 +36,22 @@
 namespace son {
 namespace controller_dpp {
 
+DppConfiguratorSession::~DppConfiguratorSession() { reset(); }
+
 void DppConfiguratorSession::reset()
 {
+    // EVP_PKEY_free() clear-frees the EC private scalars.
     m_peer_bootstrap_key.reset(nullptr);
     m_own_bootstrap_key.reset(nullptr);
     m_own_protocol_key.reset(nullptr);
     m_peer_protocol_key.reset(nullptr);
     m_peer_bootstrap_hash.clear();
     m_own_bootstrap_hash.clear();
-    m_i_nonce.clear();
-    m_r_nonce.clear();
-    m_e_nonce.clear();
-    m_mx.clear();
-    m_nx.clear();
-    m_k1.clear();
-    m_k2.clear();
-    m_bk.clear();
-    m_ke.clear();
+    secure_clear(m_i_nonce);
+    secure_clear(m_r_nonce);
+    secure_clear(m_e_nonce);
+    erase_authentication_intermediates();
+    secure_clear(m_ke);
     m_md                     = nullptr;
     m_curve_nid              = 0;
     m_hash_len               = 0;
@@ -61,6 +61,20 @@ void DppConfiguratorSession::reset()
     m_authentication_started = false;
     m_authentication_success = false;
     m_gas_dialog_token       = 0;
+}
+
+void DppConfiguratorSession::erase_authentication_intermediates()
+{
+    secure_clear(m_mx);
+    secure_clear(m_nx);
+    secure_clear(m_k1);
+    secure_clear(m_k2);
+    secure_clear(m_bk);
+}
+
+bool DppConfiguratorSession::has_authentication_intermediates() const
+{
+    return !m_mx.empty() || !m_nx.empty() || !m_k1.empty() || !m_k2.empty() || !m_bk.empty();
 }
 
 bool DppConfiguratorSession::start(const std::string &peer_bootstrap_public_key, uint8_t version,
@@ -192,6 +206,26 @@ bool DppConfiguratorSession::handle_authentication_response(
         error = "DPP Authentication Response ignored; authentication already complete";
         return false;
     }
+    if (m_k1.empty() || m_mx.empty()) {
+        error = "DPP Authentication Response after session secrets were erased";
+        return false;
+    }
+    // Wi-Fi Easy Connect v3.0 section 6.3.4: k1 is deleted upon processing the
+    // Authentication Response, and M, N, k1 and k2 on protocol completion.
+    // Callers abort the session on any failure, so erase them (and bk) on
+    // every exit; a failed exchange also drops ke. A future
+    // STATUS_RESPONSE_PENDING path would have to keep k1 for the follow-up
+    // Authentication Response.
+    struct IntermediatesEraser {
+        DppConfiguratorSession &session;
+        ~IntermediatesEraser()
+        {
+            session.erase_authentication_intermediates();
+            if (!session.m_authentication_success) {
+                secure_clear(session.m_ke);
+            }
+        }
+    } eraser{*this};
 
     const uint8_t *dpp_header = nullptr;
     const uint8_t *attrs      = nullptr;
