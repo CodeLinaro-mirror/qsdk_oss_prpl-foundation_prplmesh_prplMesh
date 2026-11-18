@@ -242,8 +242,7 @@ bool controller_ucc_listener::handle_dev_exec_action(
             LOG(ERROR) << "Failed to get controller context for DPP CCE Indication";
             return false;
         }
-        LOG(DEBUG) << "DPP URI stored via UCC; sending DPP CCE Indication enable";
-        controller_ctx->send_dpp_cce_indication(true);
+        LOG(DEBUG) << "DPP URI stored via UCC; reconciling onboarding and CCE policy";
         controller_ctx->notify_dpp_bootstrapping_trigger("DPP URI stored via UCC");
 
         return true;

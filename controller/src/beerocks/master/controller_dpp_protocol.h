@@ -79,6 +79,17 @@ bool build_dpp_configuration_object(DppKey *csign_key, const std::string &pp_key
  */
 class DppConfiguratorSession {
 public:
+    DppConfiguratorSession() = default;
+    /** @brief Irretrievably deletes every secret still held (see reset()). */
+    ~DppConfiguratorSession();
+    // Holds DPP key material; a copy would leave secrets behind.
+    DppConfiguratorSession(const DppConfiguratorSession &) = delete;
+    DppConfiguratorSession &operator=(const DppConfiguratorSession &) = delete;
+
+    /**
+     * @brief Abort the session and irretrievably delete every secret it
+     * holds (protocol keys, M, N, k1, k2, bk, ke and nonces).
+     */
     void reset();
 
     bool start(const std::string &peer_bootstrap_public_key, uint8_t version,
@@ -119,8 +130,18 @@ public:
 
     bool authentication_started() const { return m_authentication_started; }
     bool authentication_success() const { return m_authentication_success; }
+    /**
+     * @brief True while M, N, k1, k2 or bk are held. Set by start(); erased
+     * once a DPP Authentication Response has been processed, whatever the
+     * outcome (Wi-Fi Easy Connect v3.0 section 6.3.4).
+     */
+    bool has_authentication_intermediates() const;
+    /** @brief True while the session key ke is held (successful authentication). */
+    bool has_session_key() const { return !m_ke.empty(); }
 
 private:
+    void erase_authentication_intermediates();
+
     DppKeyPtr m_peer_bootstrap_key;
     DppKeyPtr m_own_bootstrap_key;
     DppKeyPtr m_own_protocol_key;

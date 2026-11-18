@@ -24,6 +24,7 @@ if (BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/../../controller_dpp_protocol.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../../controller_dpp_configuration.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../../controller_dpp_csign.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../dpp/dpp_akm.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../../dpp/dpp_attributes.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../../dpp/dpp_config.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../../dpp/dpp_connector.cpp

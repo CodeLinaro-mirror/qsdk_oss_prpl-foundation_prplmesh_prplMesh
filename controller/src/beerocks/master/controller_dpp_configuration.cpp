@@ -10,6 +10,7 @@
 
 #include "controller_dpp_csign.h"
 #include "db/agent.h"
+#include "dpp/dpp_akm.h"
 
 #include <bcl/beerocks_string_utils.h>
 #include <bcl/son/son_wireless_utils.h>
@@ -52,10 +53,6 @@ std::string plain_string_to_hex(const std::string &plain)
 
 std::string dpp_akm_from_bss_info(const wireless_utils::sBssInfoConf &bss_info)
 {
-    // INVALID is 0xffff, not a supported combination of PSK and SAE bits.
-    if (bss_info.authentication_type == WSC::eWscAuth::WSC_AUTH_INVALID) {
-        return {};
-    }
     // WSC auth is a bitmask (e.g. WPA3-Personal-Transition = WPA2PSK|SAE). Do not
     // switch on the combined value — that misses transition and falls through empty.
     const auto auth          = static_cast<uint16_t>(bss_info.authentication_type);
@@ -88,42 +85,13 @@ std::string dpp_akm_from_bss_info(const wireless_utils::sBssInfoConf &bss_info)
     return {};
 }
 
-std::vector<std::string> split_dpp_akm_tokens(const std::string &akm)
+// bSTAList akm may be an AKM suite selector list (Wi-Fi Easy Connect v3.0
+// section 4.3.5). Publish the symbolic form that fill_psk_or_passphrase()
+// and protocol version 1 Enrollees understand.
+std::string config_object_akm_from_request(const std::string &requested_akm)
 {
-    std::vector<std::string> tokens;
-    if (akm.empty()) {
-        return tokens;
-    }
-    std::stringstream ss(akm);
-    std::string token;
-    while (std::getline(ss, token, '+')) {
-        if (token.empty()) {
-            continue;
-        }
-        std::transform(token.begin(), token.end(), token.begin(),
-                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-        tokens.push_back(token);
-    }
-    return tokens;
-}
-
-bool dpp_akm_is_compatible(const std::string &configured_akm, const std::string &requested_akm)
-{
-    if (configured_akm.empty() || requested_akm.empty()) {
-        return true;
-    }
-    const auto configured_tokens = split_dpp_akm_tokens(configured_akm);
-    const auto requested_tokens  = split_dpp_akm_tokens(requested_akm);
-    if (configured_tokens.empty() || requested_tokens.empty()) {
-        return beerocks::string_utils::case_insensitive_compare(configured_akm, requested_akm);
-    }
-    for (const auto &configured : configured_tokens) {
-        if (std::find(requested_tokens.begin(), requested_tokens.end(), configured) !=
-            requested_tokens.end()) {
-            return true;
-        }
-    }
-    return false;
+    auto symbolic = son::controller_dpp::dpp_akm_to_symbolic(requested_akm);
+    return symbolic.empty() ? requested_akm : symbolic;
 }
 
 bool ssid_is_advertised(const wireless_utils::sBssInfoConf &bss_info)
@@ -244,7 +212,7 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
             return false;
         }
         configuration.ssid = std::move(requested_ssid);
-        configuration.akm  = requested_backhaul_akm;
+        configuration.akm  = config_object_akm_from_request(requested_backhaul_akm);
         return true;
     }
 
@@ -254,12 +222,14 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
         configuration.ssid = std::move(requested_ssid);
     }
     configuration.akm = dpp_akm_from_bss_info(*selected);
-    if (!dpp_akm_is_compatible(configuration.akm, requested_backhaul_akm)) {
-        error = "Configured backhaul AKM is not compatible with DPP Configuration Request";
+    if (!son::controller_dpp::dpp_akm_is_compatible(configuration.akm, requested_backhaul_akm)) {
+        error = "Configured backhaul AKM '" + configuration.akm +
+                "' is not compatible with DPP Configuration Request AKM '" +
+                requested_backhaul_akm + "'";
         return false;
     }
     if (configuration.akm.empty()) {
-        configuration.akm = requested_backhaul_akm;
+        configuration.akm = config_object_akm_from_request(requested_backhaul_akm);
     }
     if (configuration.akm.empty()) {
         // BSS has a passphrase but no mappable WSC AKM - do not publish akm "dpp".

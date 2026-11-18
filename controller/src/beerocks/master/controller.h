@@ -145,6 +145,11 @@ public:
     void notify_dpp_bootstrapping_trigger(const std::string &reason = {});
 
     /**
+     * @brief Retain a validated Wi-Fi-backhaul CCE requirement without resetting onboarding.
+     */
+    void notify_dpp_wifi_backhaul_observed();
+
+    /**
      * @brief Trigger channel scan initiated by NBAPI.
      *
      * @param ruid ruid of radio for wich scan requested.

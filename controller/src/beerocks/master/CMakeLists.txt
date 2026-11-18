@@ -92,3 +92,4 @@ install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory("db/unit_tests")
 add_subdirectory("tasks/unit_tests")
+add_subdirectory("dpp/unit_tests")

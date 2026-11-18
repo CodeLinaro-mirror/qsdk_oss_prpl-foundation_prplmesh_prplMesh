@@ -31,6 +31,7 @@ TEST(DppAkmTokenFamily, SymbolicNamesAreCaseAndWhitespaceInsensitive)
     EXPECT_EQ(dpp_akm_token_family("dot1x"), "dot1x");
 }
 
+// cppcheck-suppress syntaxError
 TEST(DppAkmTokenFamily, SuiteSelectorsMapToFamilies)
 {
     EXPECT_EQ(dpp_akm_token_family("506F9A02"), "dpp");

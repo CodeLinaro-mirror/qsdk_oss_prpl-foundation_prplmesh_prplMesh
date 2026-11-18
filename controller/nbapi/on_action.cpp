@@ -1929,7 +1929,7 @@ static void event_provisioned_dpp_changed(const char *const sig_name, const amxc
             LOG(ERROR) << "Failed to get controller context after DPPURI clear";
             return;
         }
-        // Resets the active session; CCE DISABLE is applied by dpp_onboarding_task (M-3).
+        // Reset onboarding; dpp_onboarding_task retains CCE if Wi-Fi backhaul needs it.
         controller_ctx->notify_dpp_bootstrapping_trigger(
             std::string("ProvisionedDPP DPPURI cleared alias=") + alias);
         return;
@@ -1955,8 +1955,7 @@ static void event_provisioned_dpp_changed(const char *const sig_name, const amxc
         LOG(ERROR) << "Failed to get controller context for DPP CCE Indication";
         return;
     }
-    LOG(DEBUG) << "DPPURI stored for alias=" << alias << "; sending DPP CCE Indication enable";
-    controller_ctx->send_dpp_cce_indication(true);
+    LOG(DEBUG) << "DPPURI stored for alias=" << alias << "; reconciling onboarding and CCE policy";
     controller_ctx->notify_dpp_bootstrapping_trigger(std::string("ProvisionedDPP changed alias=") +
                                                      alias);
 }
@@ -1978,7 +1977,7 @@ static void event_provisioned_dpp_removed(const char *const sig_name, const amxc
         LOG(ERROR) << "Failed to get controller context after ProvisionedDPP remove";
         return;
     }
-    // CCE DISABLE is applied by dpp_onboarding_task on URI CLEARED (M-3).
+    // URI CLEARED does not withdraw the CCE; dpp_onboarding_task keeps it enabled.
     controller_ctx->notify_dpp_bootstrapping_trigger(std::string("ProvisionedDPP removed alias=") +
                                                      alias);
 }

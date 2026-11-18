@@ -8,7 +8,7 @@
 
 // VAL-04 (STEP-06): Controller desired CCE state. Signalling only; the over-the-air state is
 // covered by VAL-05. No Controller context is set, so indications are not sent; the test checks
-// the desired state that drives ENABLE/DISABLE and the AP Capability Report re-send.
+// the desired state that drives ENABLE and the AP Capability Report re-send.
 
 #include "../dpp_onboarding_task.h"
 #include "db.h"
@@ -29,8 +29,23 @@ class TestableDppOnboardingTask : public son::dpp_onboarding_task {
 public:
     using son::dpp_onboarding_task::dpp_onboarding_task;
     using son::dpp_onboarding_task::handle_event;
-    using son::dpp_onboarding_task::handle_events_timeout;
     using son::dpp_onboarding_task::work;
+
+    void expire_event_wait()
+    {
+        set_events_timeout(0);
+        wait_for(0);
+    }
+
+    void handle_events_timeout(std::multiset<int> pending_events) override
+    {
+        timed_out_events = pending_events;
+        ++timeout_count;
+        son::dpp_onboarding_task::handle_events_timeout(std::move(pending_events));
+    }
+
+    std::multiset<int> timed_out_events;
+    int timeout_count = 0;
 };
 
 class DppOnboardingTaskTest : public ::testing::Test {
@@ -99,10 +114,11 @@ protected:
 };
 
 // cppcheck-suppress syntaxError
-TEST_F(DppOnboardingTaskTest, no_uri_cce_not_desired)
+TEST_F(DppOnboardingTaskTest, no_uri_cce_desired)
 {
-    m_task->work();
     EXPECT_FALSE(m_task->is_cce_desired());
+    m_task->work();
+    EXPECT_TRUE(m_task->is_cce_desired());
 }
 
 TEST_F(DppOnboardingTaskTest, uri_provisioned_cce_desired)
@@ -130,32 +146,44 @@ TEST_F(DppOnboardingTaskTest, session_timeout_keeps_cce_desired)
     EXPECT_TRUE(m_task->is_cce_desired());
 }
 
-TEST_F(DppOnboardingTaskTest, success_clears_cce_desired)
+TEST_F(DppOnboardingTaskTest, success_keeps_cce_desired)
 {
     add_uri("enrollee1", "KEY1");
     m_task->work();
     onboard("enrollee1");
-    EXPECT_FALSE(m_task->is_cce_desired());
-    // Same (onboarded) URI still stored: no re-enable.
+    EXPECT_TRUE(m_task->is_cce_desired());
+    // Same (onboarded) URI still stored: no DISABLE.
     m_task->work();
-    EXPECT_FALSE(m_task->is_cce_desired());
+    EXPECT_TRUE(m_task->is_cce_desired());
 }
 
-TEST_F(DppOnboardingTaskTest, uri_removal_clears_cce_desired)
+TEST_F(DppOnboardingTaskTest, uri_removal_keeps_cce_desired)
 {
     add_uri("enrollee1", "KEY1");
     m_task->work();
     ASSERT_TRUE(m_database->remove_dpp_bootstrap_info("enrollee1"));
     m_task->work();
-    EXPECT_FALSE(m_task->is_cce_desired());
+    EXPECT_TRUE(m_task->is_cce_desired());
 }
 
-TEST_F(DppOnboardingTaskTest, new_uri_after_success_reenables_cce)
+// Whole-store clear never withdraws the CCE, also after success.
+TEST_F(DppOnboardingTaskTest, uri_clear_after_success_keeps_cce_desired)
 {
     add_uri("enrollee1", "KEY1");
     m_task->work();
     onboard("enrollee1");
-    ASSERT_FALSE(m_task->is_cce_desired());
+    ASSERT_TRUE(m_task->is_cce_desired());
+    ASSERT_TRUE(m_database->remove_dpp_bootstrap_info("enrollee1"));
+    m_task->work();
+    EXPECT_TRUE(m_task->is_cce_desired());
+}
+
+TEST_F(DppOnboardingTaskTest, new_uri_after_success_keeps_cce_desired)
+{
+    add_uri("enrollee1", "KEY1");
+    m_task->work();
+    onboard("enrollee1");
+    ASSERT_TRUE(m_task->is_cce_desired());
     add_uri("enrollee2", "KEY2");
     m_task->work();
     EXPECT_TRUE(m_task->is_cce_desired());
@@ -163,7 +191,7 @@ TEST_F(DppOnboardingTaskTest, new_uri_after_success_reenables_cce)
 }
 
 // Review point 5: completion is tracked per URI, not for the whole store.
-TEST_F(DppOnboardingTaskTest, second_uri_keeps_cce_until_onboarded)
+TEST_F(DppOnboardingTaskTest, second_uri_onboarding_keeps_cce_desired)
 {
     add_uri("enrollee1", "KEY1");
     add_uri("enrollee2", "KEY2");
@@ -171,16 +199,18 @@ TEST_F(DppOnboardingTaskTest, second_uri_keeps_cce_until_onboarded)
     ASSERT_TRUE(m_task->is_cce_desired());
     onboard("enrollee1");
     EXPECT_TRUE(m_task->is_cce_desired());
+    EXPECT_TRUE(m_database->has_pending_dpp_bootstrap_info());
     // URI store unchanged: the task must still wait for enrollee2.
     m_task->work();
     EXPECT_TRUE(m_task->is_cce_desired());
     onboard("enrollee2");
-    EXPECT_FALSE(m_task->is_cce_desired());
+    EXPECT_FALSE(m_database->has_pending_dpp_bootstrap_info());
+    EXPECT_TRUE(m_task->is_cce_desired());
     m_task->work();
-    EXPECT_FALSE(m_task->is_cce_desired());
+    EXPECT_TRUE(m_task->is_cce_desired());
 }
 
-TEST_F(DppOnboardingTaskTest, removing_pending_uri_clears_cce_when_rest_onboarded)
+TEST_F(DppOnboardingTaskTest, removing_pending_uri_keeps_cce_when_rest_onboarded)
 {
     add_uri("enrollee1", "KEY1");
     m_task->work();
@@ -190,19 +220,26 @@ TEST_F(DppOnboardingTaskTest, removing_pending_uri_clears_cce_when_rest_onboarde
     ASSERT_TRUE(m_task->is_cce_desired());
     ASSERT_TRUE(m_database->remove_dpp_bootstrap_info("enrollee2"));
     m_task->work();
-    EXPECT_FALSE(m_task->is_cce_desired());
+    EXPECT_TRUE(m_task->is_cce_desired());
 }
 
 // A URI change is synced when it is notified, not deferred to a later work() that would reset
-// a session started by a chirp in between.
+// a session started by a chirp in between (M-13 / M-15). Observable: clearing the store
+// while waiting for Authentication drops the pending Auth events on the trigger alone, so
+// the expired wait never times out. Deferred to work(), the wait would time out once.
 TEST_F(DppOnboardingTaskTest, bootstrap_trigger_syncs_store_immediately)
 {
     add_uri("enrollee1", "KEY1");
-    m_task->handle_event(son::dpp_onboarding_task::BOOTSTRAP_TRIGGERED, nullptr);
-    EXPECT_TRUE(m_task->is_cce_desired());
+    m_task->work();
+    m_task->handle_event(son::dpp_onboarding_task::AUTH_STARTED, nullptr);
     ASSERT_TRUE(m_database->remove_dpp_bootstrap_info("enrollee1"));
     m_task->handle_event(son::dpp_onboarding_task::BOOTSTRAP_TRIGGERED, nullptr);
-    EXPECT_FALSE(m_task->is_cce_desired());
+    // No Auth events are left pending, so this pass ends the event wait.
+    m_task->execute();
+    m_task->expire_event_wait();
+    m_task->execute();
+    EXPECT_EQ(0, m_task->timeout_count);
+    EXPECT_TRUE(m_task->is_cce_desired());
 }
 
 // A (restarted) Authentication Request re-arms the wait; the URI stays pending.
@@ -214,7 +251,7 @@ TEST_F(DppOnboardingTaskTest, auth_started_keeps_onboarding_pending)
     m_task->handle_event(son::dpp_onboarding_task::AUTH_STARTED, nullptr);
     EXPECT_TRUE(m_task->is_cce_desired());
     onboard("enrollee1");
-    EXPECT_FALSE(m_task->is_cce_desired());
+    EXPECT_TRUE(m_task->is_cce_desired());
 }
 
 TEST_F(DppOnboardingTaskTest, send_cce_to_agent_without_controller_is_safe)
@@ -222,6 +259,76 @@ TEST_F(DppOnboardingTaskTest, send_cce_to_agent_without_controller_is_safe)
     m_task->send_cce_to_agent(tlvf::mac_from_string("02:00:00:00:00:01"));
     add_uri("enrollee1", "KEY1");
     m_task->work();
+    m_task->send_cce_to_agent(tlvf::mac_from_string("02:00:00:00:00:01"));
+    EXPECT_TRUE(m_task->is_cce_desired());
+}
+
+TEST_F(DppOnboardingTaskTest, uri_clear_never_disables_cce)
+{
+    add_uri("enrollee1", "KEY1");
+    m_task->work();
+    ASSERT_TRUE(m_database->remove_dpp_bootstrap_info("enrollee1"));
+    m_task->event_received(son::dpp_onboarding_task::BOOTSTRAP_TRIGGERED);
+    EXPECT_TRUE(m_task->is_cce_desired());
+    m_task->event_received(son::dpp_onboarding_task::WIFI_BACKHAUL_OBSERVED);
+    EXPECT_TRUE(m_task->is_cce_desired());
+}
+
+TEST_F(DppOnboardingTaskTest, wifi_observation_preserves_auth_events_and_deadline)
+{
+    add_uri("enrollee1", "KEY1");
+    m_task->work();
+    // The first work() can defer to next_retry_time; enter WAIT_AUTH deterministically.
+    m_task->event_received(son::dpp_onboarding_task::AUTH_STARTED);
+    m_task->expire_event_wait();
+    m_task->event_received(son::dpp_onboarding_task::WIFI_BACKHAUL_OBSERVED);
+    m_task->event_received(son::dpp_onboarding_task::WIFI_BACKHAUL_OBSERVED);
+    m_task->execute();
+    // An expired deadline must not be rearmed by a repeated topology observation.
+    EXPECT_EQ(1, m_task->timeout_count);
+    using Task = son::dpp_onboarding_task;
+    const std::multiset<int> expected{Task::AUTH_SUCCESS,       Task::AUTH_INIT_FAILED,
+                                      Task::CONF_SENT,          Task::CONF_RECEIVED,
+                                      Task::CONF_FAILED,        Task::FAIL,
+                                      Task::BOOTSTRAP_TRIGGERED};
+    EXPECT_EQ(expected, m_task->timed_out_events);
+    EXPECT_TRUE(m_task->is_cce_desired());
+}
+
+TEST_F(DppOnboardingTaskTest, wifi_observation_and_resend_preserve_configuration_wait)
+{
+    add_uri("enrollee1", "KEY1");
+    m_task->work();
+    m_task->event_received(son::dpp_onboarding_task::AUTH_STARTED);
+    m_task->event_received(son::dpp_onboarding_task::AUTH_SUCCESS);
+    m_task->expire_event_wait();
+    m_task->event_received(son::dpp_onboarding_task::WIFI_BACKHAUL_OBSERVED);
+    m_task->send_cce_to_agent(tlvf::mac_from_string("02:00:00:00:00:01"));
+    m_task->execute();
+    EXPECT_EQ(1, m_task->timeout_count);
+    using Task = son::dpp_onboarding_task;
+    const std::multiset<int> expected{Task::CONF_SENT, Task::CONF_RECEIVED, Task::CONF_FAILED,
+                                      Task::FAIL, Task::BOOTSTRAP_TRIGGERED};
+    EXPECT_EQ(expected, m_task->timed_out_events);
+    EXPECT_TRUE(m_task->is_cce_desired());
+}
+
+TEST_F(DppOnboardingTaskTest, repeated_wifi_observation_keeps_empty_store_idle)
+{
+    for (int i = 0; i < 3; ++i) {
+        m_task->event_received(son::dpp_onboarding_task::WIFI_BACKHAUL_OBSERVED);
+        m_task->work();
+    }
+    EXPECT_TRUE(m_task->is_cce_desired());
+    m_task->expire_event_wait();
+    m_task->execute();
+    EXPECT_EQ(0, m_task->timeout_count);
+    EXPECT_EQ(0U, m_database->get_dpp_bootstrap_info_count());
+}
+
+TEST_F(DppOnboardingTaskTest, targeted_resend_reconciles_pending_uri_before_work)
+{
+    add_uri("enrollee1", "KEY1");
     m_task->send_cce_to_agent(tlvf::mac_from_string("02:00:00:00:00:01"));
     EXPECT_TRUE(m_task->is_cce_desired());
 }
