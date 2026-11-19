@@ -6,9 +6,9 @@
 ###############################################################
 
 ####
-## OpenWrt pre-requisites and "openwrt" user
+## prplOS pre-requisites and "openwrt" user
 ####
-FROM debian:bookworm-slim as openwrt-prerequisites
+FROM debian:bookworm-slim as prplos-prerequisites
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -61,79 +61,127 @@ ENV LANG=en_US.utf8
 RUN useradd -ms /bin/bash openwrt
 
 ####
-## OpenWrt tree and scripts to build it.
+## prplOS tree
 ####
-FROM openwrt-prerequisites as openwrt-builder
+FROM prplos-prerequisites as prplos-builder
+
+# Fail a RUN on errors anywhere in a pipe, not only in its last command
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 USER openwrt
 
 # The following args are mandatory, do not expect the build to
 # succeed without specifying them on the command line.
 #
-# OpenWrt repository to use. Can also be a prplWrt repository:
-ARG OPENWRT_REPOSITORY
-ENV OPENWRT_REPOSITORY=$OPENWRT_REPOSITORY
-
-# Which OpenWrt version (commit hash) to use as a version for toolchain:
-ARG OPENWRT_TOOLCHAIN_VERSION
-ENV OPENWRT_TOOLCHAIN_VERSION=$OPENWRT_TOOLCHAIN_VERSION
-
-# Target system to build for (used for prplwrt gen_config.py script):
-# Example: TARGET_SYSTEM=mvebu
-ARG TARGET_SYSTEM
-ENV TARGET_SYSTEM=$TARGET_SYSTEM
+# prplOS repository to use:
+ARG PRPLOS_REPOSITORY
+ENV PRPLOS_REPOSITORY=$PRPLOS_REPOSITORY
 
 WORKDIR /home/openwrt
 
-# Checkout and build a fixed revision as a base. It's used to get a
-# compiled toolchain for the target, and it's not meant to change
-# often (it will be updated as required when OPENWRT_VERSION changes
-# to a new release).
-# Remove bin/ to make sure any artifact we save is regenerated with the version from the next steps.
-# Remove some of the build directories because they are used with wildcard in the feed_intel
-# Makefiles, and it might match two or the wrong directories
-# TODO: remove the second make deconfig invocation once PPM-2279 is solved.
-RUN printf '\033[1;35m%s Cloning prplWrt\n\033[0m' "$(date --iso-8601=seconds --universal)" \
-    && git clone "$OPENWRT_REPOSITORY" openwrt \
-    && printf '\033[1;35m%s Building base prplWrt tree\n\033[0m' "$(date --iso-8601=seconds --universal)" \
-    && cd openwrt \
-    && git checkout "$OPENWRT_TOOLCHAIN_VERSION" \
-    && ./scripts/gen_config.py "$TARGET_SYSTEM" prpl \
-    && make defconfig \
-    && make -j"$(nproc)" tools/tar/compile \
-    && make -j"$(nproc)" download check FIXUP=1 \
-    && make -j"$(nproc)" \
-    && rm -rf bin \
-    && rm -rf build_dir/target*/libnl-3* \
-    && rm -rf build_dir/target*/openssl* \
-    && rm -rf build_dir/target*/iwlwav*
-
-# The following args are mandatory, do not expect the build to
-# succeed without specifying them on the command line.
-#
-# Which OpenWrt version (commit hash) to use:
-ARG OPENWRT_VERSION
-ENV OPENWRT_VERSION=$OPENWRT_VERSION
-
-RUN cd openwrt \
-    && git fetch \
-    && git checkout "$OPENWRT_VERSION"
-
-# The variant to build (nl80211 or dwpal)
-ARG PRPLMESH_VARIANT
-ENV PRPLMESH_VARIANT=$PRPLMESH_VARIANT
-
-# optional: whether to include PWHM in the build or not.
-ARG WHM_ENABLE
-ENV WHM_ENABLE=$WHM_ENABLE
+# Shallow clone prplOS
+RUN printf '\033[1;35mCloning prplOS\n\033[0m' \
+    && git clone --depth 1 --no-checkout "$PRPLOS_REPOSITORY" openwrt
 
 WORKDIR /home/openwrt/openwrt
 
-COPY --chown=openwrt:openwrt scripts/build-openwrt.sh /home/openwrt/openwrt/scripts/build-openwrt.sh
+# Target system to build for (used for prplOS gen_config.py script):
+# Example: TARGET_SYSTEM=qca_ipq95xx
+ARG TARGET_SYSTEM
+ENV TARGET_SYSTEM=$TARGET_SYSTEM
+
+# prplOS version (commit hash) to build the toolchain and host tools from
+ARG TOOLCHAIN_VERSION
+ENV TOOLCHAIN_VERSION=$TOOLCHAIN_VERSION
+
+# Build the toolchain, the host tools and the slowest host packages.
+# Docker truncates file modification times to whole seconds when it
+# commits a layer. Set them to the (whole second) commit time before
+# building. Otherwise those packages are rebuilt in the next stage.
+# gen_config.py deletes and re-clones ./feeds, so the files of every feed
+# are set to the time of that feed's commit as well
+RUN printf '\033[1;35mBuilding prplOS toolchain %s\n\033[0m' "$TOOLCHAIN_VERSION" \
+    && git fetch --depth 1 origin "$TOOLCHAIN_VERSION" \
+    && git checkout "$TOOLCHAIN_VERSION" \
+    && git ls-files -z | xargs -0 touch -h -d "@$(git log -1 --format=%ct)" \
+    && sed -i -E 's;git.openwrt.org/(feed|project);github.com/openwrt;' feeds.conf.default \
+    && ./scripts/gen_config.py "$TARGET_SYSTEM" \
+    && for feed in feeds/*/ ; do \
+        [ -d "${feed}.git" ] || continue ; \
+        ( cd "$feed" && git ls-files -z | xargs -0r touch -h -d "@$(git log -1 --format=%ct)" ) || exit 1 ; \
+       done \
+    && ./scripts/feeds install -p packages python3 protobuf \
+    && make -j"$(nproc)" V=sc \
+        toolchain/install \
+        package/libs/gettext-full/host/compile \
+        package/libs/ncurses/host/compile \
+        package/libs/readline/host/compile \
+        package/utils/bzip2/host/compile \
+        package/system/opkg/host/compile \
+        package/system/ucert/host/compile \
+        package/system/fwtool/host/compile \
+        package/feeds/packages/python3/host/compile \
+        package/feeds/packages/protobuf/host/compile \
+    && printf '\033[1;35mFinished building prplOS toolchain\n\033[0m'
+
+# Which prplOS version (commit hash) to build:
+ARG PRPLOS_VERSION
+ENV PRPLOS_VERSION=$PRPLOS_VERSION
+
+# Checkout the PRPLOS_VERSION. Restore the feeds.conf.default change made above
+RUN printf '\033[1;35mChecking out prplOS %s\n\033[0m' "$PRPLOS_VERSION" \
+    && git fetch --depth 1 origin "$PRPLOS_VERSION" \
+    && git checkout -- feeds.conf.default \
+    && git checkout "$PRPLOS_VERSION"
 
 ####
-## Prebuilt OpenWrt and prplMesh dependencies, but not the prplMesh ipk itself
+## Prebuilt prplOS and prplMesh dependencies, but not the prplMesh ipk itself
 ####
-FROM openwrt-builder as prplmesh-builder
+FROM prplos-builder as prplmesh-builder
 
-RUN scripts/build-openwrt.sh
+# Configure prplOS:
+# - Keep the hashes in the firmware (files/etc/prplwrt-version), to later
+#   know if an upgrade is needed. The profiles used are appended to it too.
+# - Profiles: the target system, 'debug' (additional packages that are
+#   useful when developing), target-specific extras, and 'prpl' (feed-prpl,
+#   including pWHM).
+# - intel_mips, mxl_x86_osp_tb341 and qca_ipq95xx depend on iwlwav-iw,
+#   which clashes with iw-full from the debug profile.
+# - mxl_x86_osp_tb341(_v2) add the open source hostap introduced in the
+#   MXL 9.1.15 code base.
+# - Set the feed file modification times as in the toolchain stage, so
+#   host packages prebuilt there from unchanged feeds are not rebuilt.
+RUN printf '\033[1;35mConfiguring prplOS\n\033[0m' \
+    && mkdir -p files/etc \
+    && printf '%s=%s\n' \
+        "PRPLOS_REPOSITORY" "$PRPLOS_REPOSITORY" \
+        "PRPLOS_VERSION" "$PRPLOS_VERSION" \
+        >> files/etc/prplwrt-version \
+    && profiles="$TARGET_SYSTEM debug" \
+    && case "$TARGET_SYSTEM" in \
+        intel_mips|mxl_x86_osp_tb341|qca_ipq95xx) sed -i '/iw-full$/d' profiles/debug.yml ;; \
+       esac \
+    && case "$TARGET_SYSTEM" in \
+        mxl_x86_osp_tb341) profiles="$profiles mxl_wlan_hostap_ng" ;; \
+        mxl_x86_osp_tb341_v2) profiles="$profiles mxl_wlan_hostap_ng_wav700" ;; \
+       esac \
+    && profiles="$profiles prpl" \
+    && git config --global url."https://git.w1.fi/hostap.git".insteadOf "https://w1.fi/hostap.git" \
+    && sed -i -E 's;git.openwrt.org/(feed|project);github.com/openwrt;' feeds.conf.default \
+    && ./scripts/gen_config.py $profiles \
+    && for feed in feeds/*/ ; do \
+        [ -d "${feed}.git" ] || continue ; \
+        ( cd "$feed" && git ls-files -z | xargs -0r touch -h -d "@$(git log -1 --format=%ct)" ) || exit 1 ; \
+       done \
+    && for profile in $profiles ; do \
+        printf '\nProfile %s:\n' "$profile" >> files/etc/prplwrt-version \
+        && cat "profiles/$profile.yml" >> files/etc/prplwrt-version || exit 1 ; \
+       done
+
+# Note: build.sh uses the "Building prplOS" and "Finished building prplOS"
+# markers to decide which part of the output goes to the log file.
+# The prplMesh package built here (from the feed) is cleaned by
+# scripts/build.sh before building prplMesh from the local source.
+RUN printf '\033[1;35mBuilding prplOS\n\033[0m' \
+    && make -j"$(nproc)" V=sc \
+    && printf '\033[1;35m%s Finished building prplOS\n\033[0m'
