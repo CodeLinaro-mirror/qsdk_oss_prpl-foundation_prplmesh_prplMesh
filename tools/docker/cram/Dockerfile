@@ -11,6 +11,9 @@ RUN git clone https://github.com/aiiie/cram.git \
     && pip install -r requirements.txt \
     && make install
 
+# Needed by the prplOS process-privileges post-check
+RUN pip install pyyaml
+
 WORKDIR /home/cram/
 USER cram
 
