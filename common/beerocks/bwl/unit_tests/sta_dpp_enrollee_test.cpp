@@ -19,7 +19,8 @@ using namespace bwl::sta_dpp;
 
 namespace {
 
-const char *const kKey = "30770201010420aabbccddeeff00112233445566778899aabbccddeeff0011223344556677";
+const char *const kKey =
+    "30770201010420aabbccddeeff00112233445566778899aabbccddeeff0011223344556677";
 const char *const kUri = "DPP:C:124/149;K:MDkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDIgAC;;";
 
 class MockBus : public EndpointDppBus {
@@ -27,7 +28,7 @@ public:
     // Bootstrap state
     bool call_ok = true;
     std::string uri_to_return{kUri};
-    int calls             = 0;
+    int calls = 0;
     std::string got_curve;
     std::string got_key;
     std::string got_chan_list{"unset"};
@@ -136,8 +137,7 @@ TEST(StaDppBootstrap, RepeatCallsReadIdAfterEachCall)
     EXPECT_EQ(res.id, 7u);
     ASSERT_TRUE(register_bootstrap(bus, kKey, "", res));
     EXPECT_EQ(res.id, 9u);
-    EXPECT_EQ(bus.sequence,
-              std::vector<std::string>({"call", "read_qr", "call", "read_qr"}));
+    EXPECT_EQ(bus.sequence, std::vector<std::string>({"call", "read_qr", "call", "read_qr"}));
 }
 
 static void expect_failed(const sBootstrapResult &res)

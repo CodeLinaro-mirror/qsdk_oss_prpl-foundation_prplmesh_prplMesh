@@ -203,7 +203,7 @@ eEnrolleeEvent parse_enrollee_event(const std::string &line, uint32_t *freq_mhz)
     }
     if (opcode == "DPP-TX") {
         // Only a Presence Announcement (frame type 13): one per chirp channel. freq= is the
-        // channel it was sent on (G07 backstop input).
+        // channel it was sent on.
         bool announcement = false;
         uint32_t freq     = 0;
         std::string token;

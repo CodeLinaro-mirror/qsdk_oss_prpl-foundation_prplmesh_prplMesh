@@ -777,8 +777,7 @@ public:
     bool read_generated_qr(std::vector<sta_dpp::sGeneratedQr> &entries) override
     {
         entries.clear();
-        auto qrs =
-            m_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(m_dpp_path + "GeneratedQR.*.");
+        auto qrs = m_cl.get_object_multi<AmbiorixVariantMapSmartPtr>(m_dpp_path + "GeneratedQR.*.");
         if (!qrs) {
             return false;
         }

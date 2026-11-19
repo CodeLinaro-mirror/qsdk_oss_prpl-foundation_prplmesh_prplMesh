@@ -29,9 +29,9 @@ enum class eKeyStoreResult {
     LOADED,           ///< Valid stored key loaded (or already loaded in this process).
     CREATED,          ///< No store file: a new key was generated and stored.
     REPLACED_CORRUPT, ///< Store content was invalid and was replaced: reprovision the URI on the Controller.
-    READ_ERROR,       ///< Store exists but could not be read: nothing replaced; retry on a later WAIT_WPS pass.
-    WRITE_ERROR,      ///< New key could not be stored: disable DPP for this agent process (WPS stays usable).
-    INVALID_PATH,     ///< No usable store path (install path unknown). There is no /tmp fallback.
+    READ_ERROR, ///< Store exists but could not be read: nothing replaced; retry on a later WAIT_WPS pass.
+    WRITE_ERROR, ///< New key could not be stored: disable DPP for this agent process (WPS stays usable).
+    INVALID_PATH, ///< No usable store path (install path unknown). There is no /tmp fallback.
 };
 
 const char *to_string(eKeyStoreResult result);

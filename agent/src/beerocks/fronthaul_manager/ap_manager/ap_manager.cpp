@@ -31,7 +31,6 @@
 #include <tlvf/wfa_map/tlvClientInfo.h>
 #include <tlvf/wfa_map/tlvClientSecurityContext.h>
 #include <tlvf/wfa_map/tlvDppCceIndication.h>
-#include <tlvf/wfa_map/tlvDppChirpValue.h>
 #include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
 #include <tlvf/wfa_map/tlvProfile2StatusCode.h>
@@ -853,7 +852,8 @@ void ApManager::handle_direct_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_
         return;
     }
 
-    // forwarding of dpp authentication response message to BWL layer to be implemented.
+    // TODO: FEAT-268 - Agent side of Direct Encap DPP: forward the tlvDppMessage frame to BWL
+    // and send DIRECT_ENCAP_DPP_MESSAGE replies back to the Controller.
     // Ethernet Direct Encap is not the TCP last-hop (hostapd↔pWHM :8908).
 }
 
@@ -3819,82 +3819,8 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
         // Send the mismatched message
         send_cmdu(cmdu_tx);
     } break;
-    case Event::DPP_PRESENCE_ANNOUNCEMENT: {
-        LOG(DEBUG) << "DPP Presence Announcement";
-        auto dpp_presence = static_cast<bwl::sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT *>(data);
-
-        auto cmdu_tx_header =
-            cmdu_tx.create(0, ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE);
-        if (!cmdu_tx_header) {
-            LOG(ERROR) << "cmdu creation of type CHIRP_NOTIFICATION_MESSAGE failed!";
-            return false;
-        }
-
-        auto chirp_value_tlv = cmdu_tx.addClass<wfa_map::tlvDppChirpValue>();
-        if (!chirp_value_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlvDppChirpValue!";
-            return false;
-        }
-
-        chirp_value_tlv->set_hash(dpp_presence->hash, sizeof(dpp_presence->hash));
-        chirp_value_tlv->hash_length() = sizeof(dpp_presence->hash);
-        // establish
-        chirp_value_tlv->flags().hash_validity                = true;
-        chirp_value_tlv->flags().enrollee_mac_address_present = true;
-        chirp_value_tlv->set_dest_sta_mac(dpp_presence->enrollee_mac);
-        send_cmdu(cmdu_tx);
-    } break;
-    case Event::DPP_AUTHENTICATION_RESPONSE: {
-        LOG(DEBUG) << "DPP Authentication Response";
-        auto dpp_authentication_response =
-            static_cast<bwl::sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE *>(data);
-
-        auto cmdu_tx_header =
-            cmdu_tx.create(0, ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE);
-        if (!cmdu_tx_header) {
-            LOG(ERROR) << "cmdu creation of type PROXIED_ENCAP_DPP_MESSAGE failed!";
-            return false;
-        }
-
-        auto encap_1905_dpp_tlv = cmdu_tx.addClass<wfa_map::tlv1905EncapDpp>();
-        if (!encap_1905_dpp_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlv1905EncapDpp!";
-            return false;
-        }
-
-        // After tlv1905EncapDpp YAML split: eFrameType is Auth/Confirm/GAS opcode;
-        // public-action vs GAS is the dpp_frame_indicator bit (eDppFrameIndicatorType).
-        encap_1905_dpp_tlv->frame_type() =
-            wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_RESPONSE;
-        encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = false;
-        encap_1905_dpp_tlv->frame_flags().enrollee_mac_address_present = true;
-        encap_1905_dpp_tlv->set_dest_sta_mac(dpp_authentication_response->enrollee_mac);
-        send_cmdu(cmdu_tx);
-    } break;
-    case Event::DPP_CONFIGURATION_REQUEST: {
-        LOG(DEBUG) << "DPP Configuration Request";
-        auto dpp_configuration_request =
-            static_cast<bwl::sACTION_APMANAGER_DPP_CONFIGURATION_REQUEST *>(data);
-
-        auto cmdu_tx_header =
-            cmdu_tx.create(0, ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE);
-        if (!cmdu_tx_header) {
-            LOG(ERROR) << "cmdu creation of type PROXIED_ENCAP_DPP_MESSAGE failed!";
-            return false;
-        }
-
-        auto encap_1905_dpp_tlv = cmdu_tx.addClass<wfa_map::tlv1905EncapDpp>();
-        if (!encap_1905_dpp_tlv) {
-            LOG(ERROR) << "addClass wfa_map::tlv1905EncapDpp!";
-            return false;
-        }
-
-        encap_1905_dpp_tlv->frame_type() = wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME;
-        encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = true;
-        encap_1905_dpp_tlv->frame_flags().enrollee_mac_address_present = true;
-        encap_1905_dpp_tlv->set_dest_sta_mac(dpp_configuration_request->enrollee_mac);
-        send_cmdu(cmdu_tx);
-    } break;
+    // DPP Presence Announcement / Auth Response / Config Request are not BWL events: the
+    // agent builds Chirp Notification and Proxied Encap DPP messages in dpp_agent_task.cpp.
     // Unhandled events
     default:
         LOG(ERROR) << "Unhandled event: " << int(event);

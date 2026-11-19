@@ -297,21 +297,21 @@ private:
     bool m_dpp_agent_unconfigured = false;
 
     // Auto chirp: one bounded campaign per Agent process, kept in memory (survives RESTART).
-    // WATCH first (D14): a ready CCE target or a due fallback starts one cycle of passes, and
-    // every cycle ends back in WATCH (D16, D17).
+    // WATCH first: a ready CCE target or a due fallback starts one cycle of passes, and
+    // every cycle ends back in WATCH.
     enum class eDppChirpState { IDLE, PASS, PAUSE, EXCHANGE, WATCH, DONE };
     struct sDppChirpCampaign {
         eDppChirpState state = eDppChirpState::IDLE;
         std::string iface; // bSTA of the running pass or exchange
-        int passes = 0; // completed passes in the current cycle
-        // The running cycle (D23: the existing chirp): a fallback on the URI channels (D14,
-        // trigger=schedule) or a CCE target on the bSTA target_iface (D13, trigger=cce).
+        int passes = 0;    // completed passes in the current cycle
+        // The running cycle (the existing chirp): a fallback on the URI channels
+        // (trigger=schedule) or a CCE target on the bSTA target_iface (trigger=cce).
         bool fallback_cycle = false;
         std::string target_iface;
-        dpp_enrollee::sWatchCadence cadence;   // D16: fast watch rounds until fast_until
-        dpp_enrollee::sFallbackTimer fallback; // D14: armed at the first eligible bSTA
-        int chirps = 0; // chirps sent (DPP-TX type=13) in the running pass
-        // EC 6.2.3 iteration over the bSTAs (G10): picks the bSTA, enforces the pause.
+        dpp_enrollee::sWatchCadence cadence;   // fast watch rounds until fast_until
+        dpp_enrollee::sFallbackTimer fallback; // armed at the first eligible bSTA
+        int chirps = 0;                        // chirps sent (DPP-TX type=13) in the running pass
+        // EC 6.2.3 iteration over the bSTAs: picks the bSTA, enforces the pause.
         dpp_enrollee::sChirpIteration iteration;
         // Candidate bSTAs in chirp order at the last pass start; refused starts on one bSTA.
         std::vector<std::string> iteration_ifaces;
@@ -349,24 +349,24 @@ private:
     void end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd end, bool stop_supplicant_chirp);
     /**
      * @brief Apply a DPP Enrollee event of iface to the campaign. Only the bSTA of the running
-     * pass or exchange changes it (G08); freq is the DPP-TX frequency in MHz, 0 when absent.
+     * pass or exchange changes it; freq is the DPP-TX frequency in MHz, 0 when absent.
      */
     void handle_dpp_enrollee_event(const std::string &iface, bwl::sta_dpp::eEnrolleeEvent type,
                                    uint32_t freq);
     static const char *dpp_chirp_state_name(eDppChirpState state);
     /** Chirp-safe check of a chirp sent on freq (MHz) by sta_iface; unknown radio is unsafe. */
     bool dpp_chirp_freq_safe(const std::string &sta_iface, uint32_t freq);
-    // WATCH round counters for the round log (Review F5); kept across RESTART.
+    // WATCH round counters for the round log; kept across RESTART.
     dpp_enrollee::sWatchRoundStats m_dpp_watch_stats;
     // Chirp-safe channels last logged per sta_iface; the log shows on target which channels
     // (6 GHz included) the AgentDB map lists as chirp-safe.
     std::map<std::string, std::string> m_dpp_chirp_safe_logged;
-    // Draws the fallback jitter (D14).
+    // Draws the fallback jitter.
     std::mt19937 m_dpp_jitter_rng{std::random_device{}()};
-    /** End the running cycle: back off its CCE target (D17) or step the fallback timer
-     *  (D14), boost the watch cadence (D16) and return to WATCH at once. */
+    /** End the running cycle: back off its CCE target or step the fallback timer,
+     *  boost the watch cadence and return to WATCH at once. */
     void end_dpp_retry_cycle(const char *reason);
-    /** D17: CCE target state per bSTA, updated by each WATCH read. */
+    /** CCE target state per bSTA, updated by each WATCH read. */
     std::map<std::string, dpp_enrollee::sCceTargetState> m_dpp_cce_targets;
 #endif
     bool backhaul_fsm_main(bool &skip_select);
@@ -601,22 +601,22 @@ private:
     bool m_topology_task_initialized = false; ///< Topology task is ready to receive FDB events.
 
     // state switch mechanism
-    const int SELECT_TIMEOUT_MSC                      = 500;
-    const int DEVICE_QUERY_RESPONSE_TIMEOUT_SECONDS   = 3;
-    const int WAIT_FOR_SCAN_RESULTS_TIMEOUT_SECONDS   = 20;
-    const int WPA_ATTACH_TIMEOUT_SECONDS              = 5;
-    const int CONNECTING_TO_MASTER_TIMEOUT_SECONDS    = 30;
-    const int MAX_FAILED_SCAN_ATTEMPTS                = 3;
-    const int MAX_FAILED_ROAM_SCAN_ATTEMPTS           = 4;
-    const int MAX_FAILED_DHCP_ATTEMPTS                = 2;
-    const int MAX_WIRELESS_ASSOCIATE_TIMEOUT_SECONDS  = 10;
-    const int MAX_WIRELESS_ASSOCIATE_3ADDR_ATTEMPTS   = 2;
-    const int MAX_ETH_FAILED_ATTEMPTS                 = 14;
-    const int POLL_TIMER_TIMEOUT_MS                   = 1000;
-    const int WIRELESS_WAIT_FOR_RECONNECT_TIMEOUT     = 30;
-    const int RSSI_POLL_INTERVAL_MS                   = 1000;
-    const int STATE_WAIT_ENABLE_TIMEOUT_SECONDS       = 600;
-    const int STATE_WAIT_WPS_TIMEOUT_SECONDS          = 120;
+    const int SELECT_TIMEOUT_MSC                     = 500;
+    const int DEVICE_QUERY_RESPONSE_TIMEOUT_SECONDS  = 3;
+    const int WAIT_FOR_SCAN_RESULTS_TIMEOUT_SECONDS  = 20;
+    const int WPA_ATTACH_TIMEOUT_SECONDS             = 5;
+    const int CONNECTING_TO_MASTER_TIMEOUT_SECONDS   = 30;
+    const int MAX_FAILED_SCAN_ATTEMPTS               = 3;
+    const int MAX_FAILED_ROAM_SCAN_ATTEMPTS          = 4;
+    const int MAX_FAILED_DHCP_ATTEMPTS               = 2;
+    const int MAX_WIRELESS_ASSOCIATE_TIMEOUT_SECONDS = 10;
+    const int MAX_WIRELESS_ASSOCIATE_3ADDR_ATTEMPTS  = 2;
+    const int MAX_ETH_FAILED_ATTEMPTS                = 14;
+    const int POLL_TIMER_TIMEOUT_MS                  = 1000;
+    const int WIRELESS_WAIT_FOR_RECONNECT_TIMEOUT    = 30;
+    const int RSSI_POLL_INTERVAL_MS                  = 1000;
+    const int STATE_WAIT_ENABLE_TIMEOUT_SECONDS      = 600;
+    const int STATE_WAIT_WPS_TIMEOUT_SECONDS         = 120;
 #if defined(USE_PRPLMESH_WHM)
     // DPP auto chirp. No data model switch: enabled whenever the bootstrap is READY.
     const bool DPP_AUTO_CHIRP_ENABLED         = true;
@@ -638,18 +638,18 @@ private:
     const int DPP_CHIRP_HOLD_MAX_SECONDS = 1800;
     // Refused chirp starts before the next bSTA in band order gets the pass.
     const int DPP_CHIRP_START_FAILURES_BEFORE_SKIP = 2;
-    // CCE watch first (D13, D14, D16, D17): every cycle is a CCE target or a fallback cycle.
+    // CCE watch first: every cycle is a CCE target or a fallback cycle.
     const int DPP_CHIRP_WATCH_INTERVAL_SECONDS      = 60;  // fast rounds, one scan per radio
     const int DPP_CHIRP_WATCH_FIRST_READ_SECONDS    = 10;  // scan time: first scan read early
     const int DPP_CHIRP_WATCH_SLOW_INTERVAL_SECONDS = 120; // outside the fast window
     const int DPP_CHIRP_WATCH_FAST_WINDOW_SECONDS   = 600; // after READY, a rise or a failed cycle
     const int DPP_CHIRP_CCE_FRESH_SECONDS           = 120; // CCE seen at most this long ago
-    const size_t DPP_CHIRP_TARGET_MAX_FREQS         = 8;   // D13, logged (D23: chirp unscoped)
+    const size_t DPP_CHIRP_TARGET_MAX_FREQS         = 8;   // logged only; the chirp is unscoped
     const int DPP_CHIRP_FALLBACK_FIRST_SECONDS      = 180; // READY to the first fallback
     const int DPP_CHIRP_COOLDOWN_JITTER_SECONDS     = 60;  // 0..60 s added to a fallback step
     // Fallback timer after each failed fallback; the last step repeats.
     const std::vector<int> DPP_CHIRP_RETRY_COOLDOWN_SECONDS = {600, 1200, 1800};
-    // D17: backoff of a CCE target after each failed target cycle; the last step repeats.
+    // Backoff of a CCE target after each failed target cycle; the last step repeats.
     const std::vector<int> DPP_CHIRP_TARGET_BACKOFF_SECONDS = {120, 240, 480};
 #endif
     const int AP_BLACK_LIST_TIMEOUT_SECONDS           = 120;
@@ -734,8 +734,8 @@ public:
         uint64_t dpp_attachment_generation = 0;
         // No DPP chirp before this time (HAL attach + DPP_CHIRP_EP_SETTLE_SECONDS). The attach
         // writes the EndPoint (Enable, MultiAPProfile); a pWHM commit during the chirp
-        // reconfigures wpa_supplicant, which drops the runtime DPP settings. Nov-11 Box C:
-        // chirp 5 s after the writes got a fronthaul object, 31 s and 65 s worked.
+        // reconfigures wpa_supplicant, which drops the runtime DPP settings. Too soon after
+        // those writes can leave a broken fronthaul object; the settle delay avoids that.
         std::chrono::steady_clock::time_point dpp_chirp_not_before{};
 #endif
         uint8_t primary_channel; /**< Primary Channel of the radio */
@@ -755,7 +755,7 @@ public:
     };
     /** Candidates in chirp order: preferred backhaul band first, then 5, 2.4 and 6 GHz. */
     std::vector<sDppChirpCandidate> dpp_chirp_candidates(std::chrono::steady_clock::time_point now);
-    /** Read the scan results of a candidate (starts no scan) and return its D13 CCE target. */
+    /** Read the scan results of a candidate (starts no scan) and return its CCE target. */
     dpp_enrollee::sCceTarget read_dpp_cce_target(const sDppChirpCandidate &candidate,
                                                  std::chrono::steady_clock::time_point now);
     /** One WATCH round: a ready CCE target starts a cycle, else a due fallback, else scan. */

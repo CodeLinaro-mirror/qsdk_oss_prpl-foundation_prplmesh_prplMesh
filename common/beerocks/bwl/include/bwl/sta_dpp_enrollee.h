@@ -38,7 +38,7 @@ enum class eBootstrapValidation { VALID, INVALID, UNAVAILABLE };
 struct sBootstrapRegistration {
     uint64_t generation = 0;
     std::string chan_list; // URI channel list ("115/36,40,124/149"); empty = none
-    uint32_t id         = 0;
+    uint32_t id = 0;
     std::string uri;
     bool validation_required = true;
 

@@ -29,7 +29,8 @@ static constexpr auto k_presence_mac_window = std::chrono::milliseconds(500);
 static constexpr auto k_presence_rx_keep    = std::chrono::seconds(2);
 static constexpr size_t k_presence_rx_max   = 16;
 
-/** Identical uplink frames within this window are forwarded once. */
+/** Identical uplink frames within this window are forwarded once. DPP retries are seconds
+ *  apart, so 200 ms should only collapse duplicate events. */
 static constexpr auto k_uplink_dedup_window = std::chrono::milliseconds(200);
 static constexpr size_t k_uplink_seen_max   = 16;
 
@@ -205,9 +206,10 @@ void DppAgentTask::flush_pending_downlink()
         }
         auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - entry.queued);
-        LOG(INFO) << "DPP: relayed queued " << entry.frame.size() << " bytes to hostapd (type="
-                  << std::hex << static_cast<int>(entry.tcp_type) << std::dec << ", mid="
-                  << std::hex << entry.mid << std::dec << ", waited=" << waited.count() << "ms)";
+        LOG(DEBUG) << "DPP: relayed queued " << entry.frame.size()
+                   << " bytes to hostapd (type=" << std::hex << static_cast<int>(entry.tcp_type)
+                   << std::dec << ", mid=" << std::hex << entry.mid << std::dec
+                   << ", waited=" << waited.count() << "ms)";
         m_pending_downlink.pop_front();
     }
 }
@@ -379,10 +381,10 @@ void DppAgentTask::dispatch_dpp_frame(uint8_t tcp_type, const uint8_t *frame, si
                                 << " prefix=" << dpp_prefix_hex(frame, frame_len);
 
     if (is_duplicate_uplink(tcp_type, frame, frame_len)) {
-        LOG(INFO) << "DPP: duplicate uplink frame within "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(k_uplink_dedup_window)
-                         .count()
-                  << " ms - not forwarded again";
+        LOG(DEBUG)
+            << "DPP: duplicate uplink frame within "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(k_uplink_dedup_window).count()
+            << " ms - not forwarded again";
         return;
     }
 
@@ -620,7 +622,6 @@ void DppAgentTask::send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len
     }
     encap_tlv->encapsulated_frame()[0] = tcp_prefix;
     std::copy(frame, frame + frame_len, encap_tlv->encapsulated_frame() + 1);
-    encap_tlv->encapsulated_frame_length() = static_cast<uint16_t>(1 + frame_len);
 
     if (!m_ctx.send_dpp_cmdu_to_controller(m_cmdu_tx)) {
         LOG(ERROR) << "DPP: failed to send PROXIED_ENCAP_DPP_MESSAGE to controller";
@@ -662,7 +663,7 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
     uint8_t tcp_type = WLAN_PA_VENDOR_SPECIFIC;
     if (encap_tlv->frame_type() == wfa_map::tlv1905EncapDpp::eFrameType::DPP_GAS_FRAME ||
         encap_tlv->frame_flags().dpp_frame_indicator) {
-        // Prefer Action from encap payload; Controller Phase 1 sends Initial (0x0B).
+        // Prefer Action from encap payload; the Controller sends Initial (0x0B).
         if (frame[0] == WLAN_PA_GAS_INITIAL_RESP || frame[0] == WLAN_PA_GAS_COMEBACK_RESP) {
             tcp_type = frame[0];
         } else {
