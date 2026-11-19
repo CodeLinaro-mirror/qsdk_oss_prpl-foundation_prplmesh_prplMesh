@@ -832,6 +832,7 @@ void ApManager::handle_direct_encap_dpp_message(ieee1905_1::CmduMessageRx &cmdu_
     }
 
     // forwarding of dpp authentication response message to BWL layer to be implemented.
+    // Ethernet Direct Encap is not the TCP last-hop (hostapd↔pWHM :8908).
 }
 
 void ApManager::handle_virtual_bss_request(ieee1905_1::CmduMessageRx &cmdu_rx)
@@ -1233,12 +1234,13 @@ void ApManager::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx)
         }
 
         bwl::hal_conf_t hal_conf;
-        hal_conf.ap_acs_enabled     = config->channel() == 0;
-        hal_conf.certification_mode = config->certification_mode();
-        hal_conf.multi_ap_profile   = config->multi_ap_profile();
-        hal_conf.wpa_ctrl_path      = config->hostapd_ctrl_path_str();
-        m_clients_measurement_mode  = config->clients_measurement_mode();
-        m_bridge_iface              = config->bridge_iface().iface_name;
+        hal_conf.ap_acs_enabled        = config->channel() == 0;
+        hal_conf.certification_mode    = config->certification_mode();
+        hal_conf.multi_ap_profile      = config->multi_ap_profile();
+        hal_conf.enable_dpp_onboarding = config->enable_dpp_onboarding();
+        hal_conf.wpa_ctrl_path         = config->hostapd_ctrl_path_str();
+        m_clients_measurement_mode     = config->clients_measurement_mode();
+        m_bridge_iface                 = config->bridge_iface().iface_name;
 
         for (size_t index = 0; index < config->monitored_vap_ifaces_size(); ++index) {
             auto monitored_vap = config->monitored_vap_ifaces(index);
@@ -3822,6 +3824,8 @@ bool ApManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_ptr)
             return false;
         }
 
+        // After tlv1905EncapDpp YAML split: eFrameType is Auth/Confirm/GAS opcode;
+        // public-action vs GAS is the dpp_frame_indicator bit (eDppFrameIndicatorType).
         encap_1905_dpp_tlv->frame_type() =
             wfa_map::tlv1905EncapDpp::eFrameType::DPP_AUTHENTICATION_RESPONSE;
         encap_1905_dpp_tlv->frame_flags().dpp_frame_indicator          = false;

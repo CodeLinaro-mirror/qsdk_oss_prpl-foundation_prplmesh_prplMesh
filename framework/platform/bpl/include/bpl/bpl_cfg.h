@@ -856,6 +856,14 @@ bool cfg_get_zwdfs_flag(int &flag);
 bool cfg_get_best_channel_rank_threshold(uint32_t &threshold);
 
 /**
+ * @brief Returns whether Agent DPP-over-TCP relay onboarding is enabled.
+ *
+ * @param [out] enable true if the TCP relay should start at STATE_OPERATIONAL.
+ * @return true on success, otherwise false.
+ */
+bool cfg_get_enable_dpp_onboarding(bool &enable);
+
+/**
  * @brief Returns the per-channel beacon measurement request duration for multi-channel 11k queries.
  *
  * @param [out] duration Duration in TUs for each beacon measurement request.

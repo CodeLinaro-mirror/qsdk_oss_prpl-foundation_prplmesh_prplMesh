@@ -570,6 +570,11 @@ bool ap_wlan_hal_whm::update_vap_credentials(
     bool teardown_success = true;
     int new_vap_index     = m_radio_info.available_vaps.size();
 
+    // Hoist Ambiorix keys/values used in the VAP loop (Coverity CWE-1176).
+    const std::string dpp_enable_key("Enable");
+    const std::string dpp_role_key("Role");
+    const std::string dpp_role_relay("Relay");
+
     for (const auto &bss_info_conf : bss_info_conf_list) {
         std::string wifi_vap_path, wifi_ssid_path;
         std::string ifname = "new_interface";
@@ -787,14 +792,18 @@ bool ap_wlan_hal_whm::update_vap_credentials(
             continue;
         }
 
-        // Point this VAP's hostapd at the device-wide WiFi.DPPRelay TCP listener so
-        // incoming over-the-air DPP frames get forwarded to it (dpp_controller=).
-        std::string wifi_ap_dpp_path = wifi_vap_path + "DPP.";
-        new_obj.set_type(AMXC_VAR_ID_HTABLE);
-        new_obj.add_child<bool>("Enable", true);
-        new_obj.add_child("Role", "Relay");
-        if (!m_ambiorix_cl.update_object(wifi_ap_dpp_path, new_obj)) {
-            LOG(ERROR) << "Failed to set DPP relay role for " << wifi_ap_dpp_path;
+        // Fronthaul VAPs only: point hostapd at WiFi.DPPRelay (dpp_controller=).
+        // Backhaul/bSTA must not be Role=Relay. Skipped when DPP onboarding is
+        // disabled: the relay is never started then, and the VAP DPP settings
+        // are left as they are.
+        if (bss_info_conf.fronthaul && get_hal_conf().enable_dpp_onboarding) {
+            std::string wifi_ap_dpp_path = wifi_vap_path + "DPP.";
+            new_obj.set_type(AMXC_VAR_ID_HTABLE);
+            new_obj.add_child<bool>(dpp_enable_key, true);
+            new_obj.add_child(dpp_role_key, dpp_role_relay);
+            if (!m_ambiorix_cl.update_object(wifi_ap_dpp_path, new_obj)) {
+                LOG(ERROR) << "Failed to set DPP relay role for " << wifi_ap_dpp_path;
+            }
         }
 
         if (ifname == "new_interface") {
@@ -1459,7 +1468,11 @@ bool ap_wlan_hal_whm::set_disabled_subchannels(uint16_t bitmap)
 
 bool ap_wlan_hal_whm::set_cce_indication(uint16_t advertise_cce)
 {
-    LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce;
+    // Fronthaul VAPs run DPP Role=Relay, which configures dpp_controller in
+    //  hostapd and then advertises the CCE on every BSS of its process by
+    //  itself. A per-BSS CCE switch would have no effect on air.
+    LOG(DEBUG) << "ap_wlan_hal_whm: set_cce_indication, advertise_cce=" << advertise_cce
+               << " (CCE follows the DPP relay role, nothing to set)";
     return true;
 }
 

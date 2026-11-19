@@ -135,6 +135,9 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::DPP_CCE_INDICATION_MESSAGE,
+    // DPP / EasyConnect (FEAT-68 Path B): Controller → Agent Auth/Conf Proxied Encap
+    ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
+    ieee1905_1::eMessageType::DIRECT_ENCAP_DPP_MESSAGE,
     ieee1905_1::eMessageType::VIRTUAL_BSS_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_PREPARATION_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::VIRTUAL_BSS_MOVE_CANCEL_REQUEST_MESSAGE,
@@ -381,20 +384,6 @@ bool slave_thread::thread_init()
         return false;
     }
 
-    // Create and attach the slave_wlan_hal HAL, used for the DPP-over-TCP relay to hostapd.
-    if (!m_slave_wlan_hal) {
-        using namespace std::placeholders; // for `_1`
-        bwl::hal_conf_t hal_conf;
-        m_slave_wlan_hal = bwl::slave_wlan_hal_create(
-            "slave", std::bind(&slave_thread::hal_event_handler, this, _1), hal_conf);
-
-        LOG_IF(!m_slave_wlan_hal, FATAL) << "Failed creating HAL instance!";
-    }
-
-    if (!register_event_handlers()) {
-        LOG(ERROR) << "Failed to register slave_wlan_hal event handlers";
-    }
-
     auto db = AgentDB::get();
     m_task_pool.add_task_check_mode<ApAutoConfigurationTask>(
         "ApAutoConfigurationTask", db->device_conf.management_mode, *this, cmdu_tx);
@@ -443,6 +432,9 @@ void slave_thread::stop_slave_thread()
     if (m_slave_wlan_hal) {
         m_slave_wlan_hal->stop_dpp_relay();
         m_slave_wlan_hal.reset();
+    }
+    if (m_dpp_agent_task) {
+        m_dpp_agent_task->on_relay_stopped();
     }
     agent_reset();
     should_stop = true;
@@ -843,6 +835,11 @@ bool slave_thread::read_platform_configuration()
                      << " using default configuration ";
     }
 
+    if (!bpl::cfg_get_enable_dpp_onboarding(device_conf.enable_dpp_onboarding)) {
+        LOG(WARNING) << "cfg_get_enable_dpp_onboarding() failed!"
+                     << " using default configuration ";
+    }
+
     if (!bpl::cfg_get_multi_chan_bcn_req_duration(device_conf.multi_chan_bcn_req_duration)) {
         LOG(WARNING) << "cfg_get_multi_chan_bcn_req_duration() failed!"
                      << " using default configuration ";
@@ -1105,6 +1102,14 @@ bool slave_thread::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t event_p
         }
         break;
     }
+    case Event::Dpp_Chirp_Received: {
+        auto chirp =
+            std::static_pointer_cast<bwl::slave_wlan_hal::sDppChirpEvent>(event_ptr->second);
+        if (m_dpp_agent_task && chirp) {
+            m_dpp_agent_task->on_chirp_received(chirp->enrollee_mac, chirp->hash);
+        }
+        break;
+    }
     case Event::Dpp_Client_Connected: {
         if (m_dpp_agent_task) {
             m_dpp_agent_task->on_relay_status(true);
@@ -1175,34 +1180,28 @@ bool slave_thread::register_ext_events_handlers(int fd)
 
 bool slave_thread::register_event_handlers()
 {
-    // External events
-    int ext_event_fd_max = -1;
-    slave_hal_ext_events = m_slave_wlan_hal->get_ext_events_fds();
-    if (slave_hal_ext_events.empty()) {
-        ext_event_fd_max = 0;
-    } else {
-        for (auto &ext_event_fd : slave_hal_ext_events) {
-            if (ext_event_fd < 0) {
-                ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
-                continue;
-            }
-            if (!register_ext_events_handlers(ext_event_fd)) {
-                return false;
-            }
-            LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
-            ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
+    // External events are optional: a backend without event sockets (e.g. the NL80211 or
+    // DWPAL stubs) only uses the internal event queue.
+    bool ext_event_registered = false;
+    slave_hal_ext_events      = m_slave_wlan_hal->get_ext_events_fds();
+    for (auto &ext_event_fd : slave_hal_ext_events) {
+        if (ext_event_fd < 0) {
+            ext_event_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+            continue;
         }
+        if (!register_ext_events_handlers(ext_event_fd)) {
+            return false;
+        }
+        LOG(DEBUG) << "External events queue with fd = " << ext_event_fd;
+        ext_event_registered = true;
     }
-    if (ext_event_fd_max == 0) {
-        LOG(DEBUG) << "No external event FD is available, periodic polling will be done instead.";
-    } else if (ext_event_fd_max < 0) {
-        LOG(ERROR) << "Invalid external event file descriptors: " << ext_event_fd_max;
-        return false;
+    if (!ext_event_registered) {
+        LOG(DEBUG) << "No slave_wlan_hal external event fd to register";
     }
 
     slave_hal_int_events = m_slave_wlan_hal->get_int_events_fd();
     if (slave_hal_int_events == beerocks::net::FileDescriptor::invalid_descriptor) {
-        LOG(DEBUG) << "No slave_wlan_hal internal events fd to register";
+        LOG(ERROR) << "No slave_wlan_hal internal events fd to register";
         return false;
     }
 
@@ -1256,11 +1255,50 @@ void slave_thread::clear_event_handlers()
     }
 }
 
+bool slave_thread::create_slave_wlan_hal()
+{
+    if (m_slave_wlan_hal) {
+        return true;
+    }
+
+    using namespace std::placeholders; // for `_1`
+    bwl::hal_conf_t hal_conf;
+    m_slave_wlan_hal = bwl::slave_wlan_hal_create(
+        "slave", std::bind(&slave_thread::hal_event_handler, this, _1), hal_conf);
+    if (!m_slave_wlan_hal) {
+        LOG(ERROR) << "DPP: failed creating slave_wlan_hal instance";
+        return false;
+    }
+
+    if (!register_event_handlers()) {
+        LOG(ERROR) << "DPP: failed to register slave_wlan_hal event handlers";
+        clear_event_handlers();
+        m_slave_wlan_hal.reset();
+        return false;
+    }
+
+    return true;
+}
+
 void slave_thread::start_dpp_tcp_relay_server()
 {
     if (!m_dpp_agent_task) {
         return;
     }
+
+    auto db = AgentDB::get();
+    if (!db->device_conf.enable_dpp_onboarding) {
+        LOG(INFO) << "DPP: TCP relay disabled (Configuration.EnableDPPOnboarding=false)";
+        return;
+    }
+
+    // The slave HAL only serves the relay, so it is created once the platform configuration
+    // is read and onboarding is enabled. A failure only disables the relay.
+    if (!create_slave_wlan_hal()) {
+        LOG(ERROR) << "DPP: slave_wlan_hal not available, TCP relay not started";
+        return;
+    }
+
     if (m_dpp_agent_task->is_relay_active()) {
         LOG(DEBUG) << "DPP: TCP relay server already active";
         return;
@@ -1272,6 +1310,9 @@ void slave_thread::start_dpp_tcp_relay_server()
         LOG(ERROR) << "DPP: failed to start TCP relay listener";
         return;
     }
+
+    LOG(INFO) << "DPP: TCP relay listener started (RelayEnable); "
+                 "expect hostapd dpp_controller=127.0.0.1 and ClientConnected on :8908";
 
     m_dpp_agent_task->on_relay_status(m_slave_wlan_hal->is_dpp_client_connected());
 }
@@ -1424,6 +1465,20 @@ bool slave_thread::handle_cmdu_ap_manager_ieee1905_1_message(const std::string &
     auto cmdu_message_type = cmdu_rx.getMessageType();
     switch (cmdu_message_type) {
     // Forward unhandled messages to the backhaul manager (probably headed to the controller)
+    case ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE:
+        if (!m_task_pool.handle_cmdu(cmdu_rx, 0, {}, {}, fd)) {
+            LOG(ERROR) << "Failed to handle PROXIED_ENCAP_DPP_MESSAGE in task pool";
+            return false;
+        }
+        return true;
+    case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
+        // TCP FEAT-68: DppAgentTask already wraps Presence Announcement from WiFi.DPPRelay.
+        // Drop the superseded ap_manager OTA chirp so the Controller does not see duplicates.
+        if (m_dpp_agent_task && m_dpp_agent_task->is_relay_active()) {
+            LOG(DEBUG) << "Dropping ap_manager OTA CHIRP_NOTIFICATION; TCP DppAgentTask owns chirp";
+            return true;
+        }
+        [[fallthrough]];
     default:
         const auto mid = cmdu_rx.getMessageId();
         LOG(DEBUG) << "Forwarding ieee1905 message " << int(cmdu_message_type)
@@ -3656,7 +3711,8 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             config_msg->channel() = db->device_conf.front_radio.config.at(iface).configured_channel;
             config_msg->certification_mode() = db->device_conf.certification_mode;
             config_msg->multi_ap_profile() = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
-            bridge_iface                   = db->bridge.iface_name;
+            config_msg->enable_dpp_onboarding() = db->device_conf.enable_dpp_onboarding;
+            bridge_iface                       = db->bridge.iface_name;
         }
 
         std::string hostapd_ctrl_path;

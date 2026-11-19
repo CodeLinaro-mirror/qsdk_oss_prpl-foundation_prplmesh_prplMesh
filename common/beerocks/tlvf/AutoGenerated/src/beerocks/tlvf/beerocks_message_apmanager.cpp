@@ -172,6 +172,10 @@ uint8_t& cACTION_APMANAGER_CONFIGURE::multi_ap_profile() {
     return (uint8_t&)(*m_multi_ap_profile);
 }
 
+uint8_t& cACTION_APMANAGER_CONFIGURE::enable_dpp_onboarding() {
+    return (uint8_t&)(*m_enable_dpp_onboarding);
+}
+
 uint8_t& cACTION_APMANAGER_CONFIGURE::clients_measurement_mode() {
     return (uint8_t&)(*m_clients_measurement_mode);
 }
@@ -330,6 +334,7 @@ size_t cACTION_APMANAGER_CONFIGURE::get_initial_size()
     class_size += sizeof(uint8_t); // channel
     class_size += sizeof(uint8_t); // certification_mode
     class_size += sizeof(uint8_t); // multi_ap_profile
+    class_size += sizeof(uint8_t); // enable_dpp_onboarding
     class_size += sizeof(uint8_t); // clients_measurement_mode
     class_size += sizeof(sFronthaulIface); // bridge_iface
     class_size += sizeof(uint16_t); // hostapd_ctrl_path_length
@@ -354,6 +359,11 @@ bool cACTION_APMANAGER_CONFIGURE::init()
         return false;
     }
     m_multi_ap_profile = reinterpret_cast<uint8_t*>(m_buff_ptr__);
+    if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
+        LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
+        return false;
+    }
+    m_enable_dpp_onboarding = reinterpret_cast<uint8_t*>(m_buff_ptr__);
     if (!buffPtrIncrementSafe(sizeof(uint8_t))) {
         LOG(ERROR) << "buffPtrIncrementSafe(" << std::dec << sizeof(uint8_t) << ") Failed!";
         return false;
