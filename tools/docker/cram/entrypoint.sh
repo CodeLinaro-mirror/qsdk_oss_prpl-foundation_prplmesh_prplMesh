@@ -23,29 +23,35 @@ create_test_folders(){
 }
 
 copy_tests_single_target(){
+    # Test folders and prplOS_tests.toml are keyed on the device type (DEVICE
+    # in testbed_devices.toml, exported as DEVICE_1), not the testbed target name
+    local device="$DEVICE_1"
+
     # Copy initialisation used in prplMesh CRAM
     cp -r prplMesh/init/* tests/init/ || :
 
     # Copy CRAM tests defined in the prplMesh repo
     cp -r prplMesh/generic/* "$TARGET_FOLDER/prplMesh/" || :
-    cp -r prplMesh/"$TARGET_DEVICE_1"/* "$TARGET_FOLDER/prplMesh/" || :
+    cp -r prplMesh/"$device"/* "$TARGET_FOLDER/prplMesh/" || :
 
     # Copy scripts used in prplOS CRAM
     cp -r prplos/.gitlab/tests/cram/scripts "$TARGET_FOLDER"
 
     # Copy CRAM tests defined in prplOS_tests.toml in the prplMesh repo (generic and platform specific)
     if [ -f "prplMesh/prplOS_tests.toml" ]; then
-        TARGET_NAME=$(tomlq -r ".$TARGET_DEVICE_1.name_in_prplOS" prplMesh/prplOS_tests.toml)
+        TARGET_NAME=$(tomlq -r ".$device.name_in_prplOS" prplMesh/prplOS_tests.toml)
         while read -r testfile; do
             cp "prplos/.gitlab/tests/cram/generic/$testfile" "$TARGET_FOLDER/prplOS/"
         done < <(tomlq -r ".generic.tests[]" prplMesh/prplOS_tests.toml)
 
         while read -r testfile; do
             cp "prplos/.gitlab/tests/cram/$TARGET_NAME/$testfile" "$TARGET_FOLDER/prplOS/"
-        done < <(tomlq -r ".$TARGET_DEVICE_1.tests[]" prplMesh/prplOS_tests.toml)
+        done < <(tomlq -r ".$device.tests[]" prplMesh/prplOS_tests.toml)
     fi
 
     # Copy post-checks used in prplOS/prplMesh CRAM
+    # prplOS post-checks live in post/generic/ and use ../../scripts
+    cp -r prplos/.gitlab/tests/cram/scripts tests/
     cp -r prplos/.gitlab/tests/cram/post/* tests/post/ || :
     cp -r prplMesh/post/* tests/post/ || :
 }
@@ -61,6 +67,8 @@ copy_tests_multi_target(){
     cp -r prplMesh/wps/* "$TARGET_FOLDER/prplMesh/" || :
 
     # Copy post-checks used in prplOS/prplMesh CRAM
+    # prplOS post-checks live in post/generic/ and use ../../scripts
+    cp -r prplos/.gitlab/tests/cram/scripts tests/
     cp -r prplos/.gitlab/tests/cram/post/* tests/post/ || :
     cp -r prplMesh/post/* tests/post/ || :
 }
