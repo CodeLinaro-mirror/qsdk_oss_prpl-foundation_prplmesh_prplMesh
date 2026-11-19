@@ -1,5 +1,9 @@
-/* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
- * SPDX-License-Identifier: ISC
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * SPDX-FileCopyrightText: 2026 the prplMesh contributors (see AUTHORS.md)
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
  */
 
 #ifndef _BWL_SLAVE_WLAN_HAL_WHM_H_
@@ -7,6 +11,7 @@
 
 #include "base_wlan_hal_whm.h"
 #include <bwl/slave_wlan_hal.h>
+#include <utility>
 #include <vector>
 
 namespace bwl {
@@ -27,14 +32,17 @@ public:
 protected:
     bool event_queue_push(slave_wlan_hal::Event event, std::shared_ptr<void> data = {})
     {
-        return base_wlan_hal::event_queue_push(int(event), data);
+        return base_wlan_hal::event_queue_push(int(event), std::move(data));
     }
 
 private:
-    void subscribe_to_dpp_events();
+    bool subscribe_to_dpp_events();
     void on_dpp_ambiorix_event(beerocks::wbapi::AmbiorixVariant &event_data);
+    void on_ap_wpa_ctrl_event(beerocks::wbapi::AmbiorixVariant &event_data);
 
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_dpp_event_handler;
+    std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_dpp_state_event_handler;
+    std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_ap_wpa_ctrl_handler;
     std::string m_dpp_path;
     bool m_dpp_client_connected = false;
 };

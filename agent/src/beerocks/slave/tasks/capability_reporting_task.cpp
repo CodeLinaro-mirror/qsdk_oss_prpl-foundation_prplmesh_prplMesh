@@ -1234,6 +1234,9 @@ bool CapabilityReportingTask::add_profile2_ap_capability_tlv(ieee1905_1::CmduMes
         db->device_conf.max_prioritization_rules;
     profile2_ap_capability_tlv->capabilities_bit_field().prioritization =
         (db->device_conf.max_prioritization_rules > 0) ? 1 : 0;
+    // Advertise DPP Onboarding procedure support to the Controller.
+    profile2_ap_capability_tlv->capabilities_bit_field().dpp_onboarding =
+        db->device_conf.enable_dpp_onboarding ? 1 : 0;
     return true;
 }
 

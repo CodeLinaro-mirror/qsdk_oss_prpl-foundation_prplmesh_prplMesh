@@ -112,6 +112,16 @@ public:
     bool forward_cmdu_to_controller(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
+     * @brief Check whether the DPP TCP relay (WiFi.DPPRelay) is active.
+     *
+     * @return true when DppAgentTask owns the DPP relay path, otherwise false.
+     */
+    bool is_dpp_relay_active() const
+    {
+        return m_dpp_agent_task && m_dpp_agent_task->is_relay_active();
+    }
+
+    /**
      * @brief Sends ACK CMDU to controller
      *
      * @param cmdu CMDU message to send.
@@ -268,7 +278,15 @@ private:
     bool register_event_handlers();
     bool register_ext_events_handlers(int fd);
     void clear_event_handlers();
-    void slave_wlan_hal_fsm();
+
+    /**
+     * @brief Create the slave_wlan_hal (DPP-over-TCP relay HAL) and register its events.
+     *
+     * Does nothing if it already exists. On failure no slave_wlan_hal is left behind.
+     *
+     * @return true if the slave_wlan_hal is available, otherwise false.
+     */
+    bool create_slave_wlan_hal();
     void start_dpp_tcp_relay_server();
 
 public:

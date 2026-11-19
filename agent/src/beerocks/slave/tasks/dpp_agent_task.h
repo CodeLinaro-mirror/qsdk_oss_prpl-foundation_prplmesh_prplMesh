@@ -14,7 +14,9 @@
 #include <tlvf/CmduMessageTx.h>
 #include <tlvf/common/sMacAddr.h>
 
+#include <chrono>
 #include <cstdint>
+#include <vector>
 
 namespace beerocks {
 
@@ -61,6 +63,12 @@ public:
                      std::shared_ptr<beerocks_header> beerocks_header) override;
 
     /**
+     * @brief Send a held Chirp Notification once DPP-CHIRP-RX arrives, or without a MAC
+     * after a short deadline.
+     */
+    void work() override;
+
+    /**
      * @brief Notify the task that a DPP frame was received from hostapd via the relay HAL.
      *
      * @param tcp_type  TCP type byte (first byte of payload after length header).
@@ -68,6 +76,12 @@ public:
      * @param frame_len Length of the frame body in bytes.
      */
     void on_dpp_frame_received(uint8_t tcp_type, const uint8_t *frame, size_t frame_len);
+
+    /**
+     * @brief Cache the Enrollee MAC from hostapd DPP-CHIRP-RX, keyed by the chirp hash.
+     * The TCP Presence Announcement carries the hash only.
+     */
+    void on_chirp_received(const sMacAddr &enrollee_mac, const uint8_t hash[32]);
 
     /**
      * @brief Notify the task that hostapd's connection state to the relay changed, as
@@ -79,6 +93,11 @@ public:
      * @param client_connected true if hostapd is currently connected to the relay.
      */
     void on_relay_status(bool client_connected);
+
+    /**
+     * @brief Clear relay-active state after stop_dpp_relay() so OPERATIONAL/re-init can re-arm.
+     */
+    void on_relay_stopped();
 
     /**
      * @brief Returns true if slave_thread has started the relay HAL's TCP listener.
@@ -118,6 +137,12 @@ private:
      */
     void handle_presence_announcement(const uint8_t *frame, size_t frame_len);
 
+    /** Send a Chirp Notification. mac == nullptr leaves Enrollee MAC Address present clear. */
+    void send_chirp_notification(const uint8_t hash[32], const sMacAddr *enrollee_mac);
+
+    /** @return cached Enrollee MAC for this hash, or nullptr. */
+    const sMacAddr *find_chirp_mac(const uint8_t hash[32]) const;
+
     /**
      * @brief Handle a DPP Authentication Response frame (subtype 0x01).
      * Sends a Proxied Encap DPP CMDU (Public Action) to the Controller.
@@ -133,17 +158,21 @@ private:
     /**
      * @brief Handle a GAS Initial/Comeback Request frame.
      * Sends a Proxied Encap DPP CMDU (GAS frame) to the Controller.
+     *
+     * @param gas_action 802.11 GAS Action (0x0A Initial Req / 0x0C Comeback Req).
      */
-    void handle_gas_request(const uint8_t *frame, size_t frame_len);
+    void handle_gas_request(const uint8_t *frame, size_t frame_len, uint8_t gas_action);
 
     /**
      * @brief Send a Proxied Encap DPP CMDU to the Controller.
      *
-     * @param frame      Raw DPP frame body.
+     * @param frame      Raw DPP frame body (OUI at byte 0 for Public Action).
      * @param frame_len  Length of the frame body.
      * @param is_gas     true for GAS frames, false for Public Action frames.
+     * @param gas_action When is_gas, Action byte prepended to the encap payload.
      */
-    void send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len, bool is_gas);
+    void send_proxied_encap_dpp(const uint8_t *frame, size_t frame_len, bool is_gas,
+                                uint8_t gas_action = 0x0A);
 
     // -------------------------------------------------------------------------
     // Downlink frame dispatch (Controller → hostapd)
@@ -167,6 +196,24 @@ private:
 
     /** True if hostapd is currently connected to the relay. */
     bool m_hostapd_connected = false;
+
+    /**
+     * Last Enrollee STA MAC from downlink Proxied Encap (Controller dest_sta).
+     * TCP Presence/Auth Response from hostapd carry no STA MAC; reuse this on uplink.
+     */
+    sMacAddr m_last_enrollee_mac{};
+    bool m_last_enrollee_mac_valid = false;
+
+    struct ChirpMac {
+        uint8_t hash[32];
+        sMacAddr mac;
+        std::chrono::steady_clock::time_point seen;
+    };
+    std::vector<ChirpMac> m_chirp_macs;
+
+    bool m_pending_chirp = false;
+    uint8_t m_pending_hash[32]{};
+    std::chrono::steady_clock::time_point m_pending_deadline{};
 };
 
 } // namespace beerocks
