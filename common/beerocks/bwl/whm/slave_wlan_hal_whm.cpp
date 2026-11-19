@@ -53,11 +53,10 @@ bool slave_wlan_hal_whm::init_dpp_relay()
     // One dedicated client per HAL instance. The Agent removes old FD handlers
     // and destroys the previous instance before attempting a fresh connection.
     if (m_ambiorix_cl.get_fd() < 0 &&
-        !m_ambiorix_cl.connect_private(AMBIORIX_USP_BACKEND_PATH,
-                                      AMBIORIX_PWHM_USP_BACKEND_URI)) {
+        !m_ambiorix_cl.connect_private(AMBIORIX_USP_BACKEND_PATH, AMBIORIX_PWHM_USP_BACKEND_URI)) {
         return false;
     }
-    const auto bus_fd = m_ambiorix_cl.get_fd();
+    const auto bus_fd    = m_ambiorix_cl.get_fd();
     const auto signal_fd = m_ambiorix_cl.get_signal_fd();
     if (bus_fd < 0 || signal_fd < 0) {
         return false;
@@ -146,7 +145,7 @@ bool slave_wlan_hal_whm::refresh_dpp_relay()
     if (m_dpp_path.empty() || !m_dpp_event_handler || !m_ap_wpa_ctrl_handler) {
         return false;
     }
-    auto relay = m_ambiorix_cl.get_object(m_dpp_path);
+    auto relay   = m_ambiorix_cl.get_object(m_dpp_path);
     bool enabled = false, connected = false;
     if (!relay || !relay->read_child(enabled, "RelayEnable") || !enabled ||
         !relay->read_child(connected, "ClientConnected")) {

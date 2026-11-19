@@ -23,7 +23,8 @@ struct sClassRange {
     uint8_t step; ///< Members are first, first + step, ... up to last.
 };
 
-constexpr sClassRange k_24g_range    = {81, 1, 13, 1};
+constexpr sClassRange k_24g_range = {81, 1, 13, 1};
+// Non-DFS 5 GHz classes only; DFS classes 118/121 are left out on purpose (DFS chirp guard).
 constexpr sClassRange k_5g_ranges[]  = {{115, 36, 48, 4}, {124, 149, 161, 4}, {125, 165, 177, 4}};
 constexpr const char *k_24g_fallback = "81/6";
 
@@ -104,7 +105,8 @@ sChannelListSelection select_bootstrap_channel_list(eFreqType band, const Channe
         }
         return finish(out, "5 GHz, listed non-DFS channels", "5 GHz, no non-DFS channel listed");
     default:
-        return finish(out, "", "6 GHz or unknown band: no list (D-07)");
+        // 6 GHz chirp is out of scope, so no channel list is advertised.
+        return finish(out, "", "6 GHz or unknown band: no list");
     }
 }
 

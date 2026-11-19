@@ -137,11 +137,11 @@ bool is_p256(EVP_PKEY *key)
         return false;
     }
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    const EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(key);
+    const EC_KEY *ec_key  = EVP_PKEY_get0_EC_KEY(key);
     const EC_GROUP *group = ec_key ? EC_KEY_get0_group(ec_key) : nullptr;
     return group && EC_GROUP_get_curve_name(group) == NID_X9_62_prime256v1;
 #else
-    char name[64] = {};
+    char name[64]   = {};
     size_t name_len = 0;
     if (EVP_PKEY_get_utf8_string_param(key, OSSL_PKEY_PARAM_GROUP_NAME, name, sizeof(name),
                                        &name_len) != 1) {
@@ -159,7 +159,7 @@ bool public_xy(EVP_PKEY *key, std::vector<uint8_t> &xy)
 {
     xy.clear();
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    const EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(key);
+    const EC_KEY *ec_key  = EVP_PKEY_get0_EC_KEY(key);
     const EC_GROUP *group = ec_key ? EC_KEY_get0_group(ec_key) : nullptr;
     const EC_POINT *point = ec_key ? EC_KEY_get0_public_key(ec_key) : nullptr;
     if (!group || !point) {
@@ -172,8 +172,8 @@ bool public_xy(EVP_PKEY *key, std::vector<uint8_t> &xy)
         return false;
     }
 #else
-    BIGNUM *x_raw = nullptr;
-    BIGNUM *y_raw = nullptr;
+    BIGNUM *x_raw     = nullptr;
+    BIGNUM *y_raw     = nullptr;
     const bool have_x = EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &x_raw) == 1;
     const bool have_y = EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &y_raw) == 1;
     std::unique_ptr<BIGNUM, decltype(&BN_free)> x(x_raw, BN_free);
@@ -235,7 +235,7 @@ eReadResult read_store_file(const std::string &path, std::string &content, std::
     if ((st.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
         if (fchmod(fd, S_IRUSR | S_IWUSR) != 0) {
             const int err = errno;
-            message = errno_text("cannot set 0600 on", path, err);
+            message       = errno_text("cannot set 0600 on", path, err);
             close(fd);
             return eReadResult::FAILED;
         }
@@ -296,7 +296,7 @@ bool write_store_file(const std::string &path, const std::string &content, std::
         message = errno_text("cannot create", tmp_path, errno);
         return false;
     }
-    bool ok = fchmod(fd, S_IRUSR | S_IWUSR) == 0;
+    bool ok     = fchmod(fd, S_IRUSR | S_IWUSR) == 0;
     size_t done = 0;
     while (ok && done < content.size()) {
         const ssize_t n = write(fd, content.data() + done, content.size() - done);
@@ -308,9 +308,9 @@ bool write_store_file(const std::string &path, const std::string &content, std::
             done += static_cast<size_t>(n);
         }
     }
-    ok = ok && fsync(fd) == 0;
+    ok                    = ok && fsync(fd) == 0;
     const int write_errno = errno;
-    ok = (close(fd) == 0) && ok;
+    ok                    = (close(fd) == 0) && ok;
     if (!ok) {
         message = errno_text("cannot write", tmp_path, write_errno);
         unlink(tmp_path.c_str());
@@ -385,8 +385,8 @@ bool generate_p256_key(EvpPkeyPtr &out)
     }
     char group[] = SN_X9_62_prime256v1;
     OSSL_PARAM params[2];
-    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, group, 0);
-    params[1] = OSSL_PARAM_construct_end();
+    params[0]     = OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, group, 0);
+    params[1]     = OSSL_PARAM_construct_end();
     EVP_PKEY *raw = nullptr;
     if (EVP_PKEY_CTX_set_params(ctx.get(), params) != 1 ||
         EVP_PKEY_generate(ctx.get(), &raw) != 1) {
@@ -432,7 +432,7 @@ bool encode_private_key_hex(EVP_PKEY *key, std::string &out_hex)
         return false;
     }
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(key);
+    EC_KEY *ec_key    = EVP_PKEY_get0_EC_KEY(key);
     const int der_len = ec_key ? i2d_ECPrivateKey(ec_key, nullptr) : 0;
 #else
     const int der_len = i2d_PrivateKey(key, nullptr);

@@ -1565,8 +1565,8 @@ bool BackhaulManager::handle_backhaul_connect()
                 // Internal Events FD is unique and registered during WPA_ATTACH state
 
                 // External events
-                int ext_event_fd_max           = -1;
-                auto candidate_fds = radio_info->sta_wlan_hal->get_ext_events_fds();
+                int ext_event_fd_max = -1;
+                auto candidate_fds   = radio_info->sta_wlan_hal->get_ext_events_fds();
                 std::vector<int> registered_fds;
                 LOG(INFO) << "sta_hal_ext_events " << &(radio_info->sta_hal_ext_events);
                 if (candidate_fds.empty()) {
@@ -1745,18 +1745,18 @@ void BackhaulManager::prepare_dpp_enrollee()
         const auto channels = dpp_enrollee::select_bootstrap_channel_list(
             radio->wifi_channel.get_freq_type(),
             dpp_enrollee::make_channel_dfs_map(radio->channels_list));
-        auto &cache             = m_dpp_bootstraps[iface];
-        const bool reattached   = cache.generation != info->dpp_attachment_generation;
-        const auto previous_id  = cache.id;
-        const bool list_changed = cache.observe_attachment(info->dpp_attachment_generation,
-                                                           channels.chan_list);
+        auto &cache            = m_dpp_bootstraps[iface];
+        const bool reattached  = cache.generation != info->dpp_attachment_generation;
+        const auto previous_id = cache.id;
+        const bool list_changed =
+            cache.observe_attachment(info->dpp_attachment_generation, channels.chan_list);
         if (reattached || list_changed) {
             cache.next_validate = now;
         }
         if (list_changed) {
             cache.retry_after = {};
-            LOG(INFO) << "DPP bootstrap channel list iface=" << iface << " chan="
-                      << (channels.chan_list.empty() ? "none" : channels.chan_list)
+            LOG(INFO) << "DPP bootstrap channel list iface=" << iface
+                      << " chan=" << (channels.chan_list.empty() ? "none" : channels.chan_list)
                       << " count=" << channels.channel_count << " reason=" << channels.reason;
             if (previous_id) {
                 LOG(INFO) << "DPP bootstrap STALE iface=" << iface << " id=" << previous_id
@@ -1838,8 +1838,8 @@ void BackhaulManager::prepare_dpp_enrollee()
             continue;
         }
         bwl::sta_dpp::sBootstrapResult result;
-        const bool registered = info->sta_wlan_hal->dpp_bootstrap_gen(
-            key.value, channels.chan_list, result);
+        const bool registered =
+            info->sta_wlan_hal->dpp_bootstrap_gen(key.value, channels.chan_list, result);
         if (!key.value.empty())
             OPENSSL_cleanse(&key.value[0], key.value.size());
         key.value.clear();
@@ -1959,7 +1959,7 @@ void BackhaulManager::run_dpp_auto_chirp()
         if (candidates.empty()) {
             return;
         }
-        // READY (D14): watch first; the first fallback on the URI channels is due later.
+        // READY: watch first; the first fallback on the URI channels is due later.
         dpp_enrollee::fallback_timer_arm(campaign.fallback, now,
                                          std::chrono::seconds(DPP_CHIRP_FALLBACK_FIRST_SECONDS));
         dpp_enrollee::watch_cadence_boost(
@@ -2015,7 +2015,7 @@ void BackhaulManager::run_dpp_auto_chirp()
     campaign.iface      = iface;
     campaign.pass_start = now;
     campaign.deadline   = now + std::chrono::seconds(DPP_CHIRP_PASS_WATCHDOG_SECONDS +
-                                                     DPP_CHIRP_SECS_PER_URI_CHANNEL * uri_channels);
+                                                   DPP_CHIRP_SECS_PER_URI_CHANNEL * uri_channels);
     const std::string trigger =
         campaign.fallback_cycle
             ? "schedule fallback=" + std::to_string(campaign.fallback.failed + 1)
@@ -2134,7 +2134,7 @@ void BackhaulManager::handle_dpp_enrollee_event(const std::string &iface,
     if (type == eEvent::NONE) {
         return;
     }
-    // G08: only the bSTA of the running pass or exchange changes the campaign. Late or foreign
+    // Only the bSTA of the running pass or exchange changes the campaign. Late or foreign
     // events (IDLE, PAUSE, WATCH, DONE, another bSTA) change nothing, so a request on
     // another bSTA cannot take the exchange over or end the pass.
     const bool active =
@@ -2270,19 +2270,19 @@ void BackhaulManager::end_dpp_retry_cycle(const char *reason)
     };
     std::string next;
     if (campaign.fallback_cycle) {
-        // D14: the next fallback after the next step plus jitter (jitter only lengthens it).
+        // The next fallback after the next step plus jitter (jitter only lengthens it).
         std::uniform_int_distribution<int> jitter_dist(0, DPP_CHIRP_COOLDOWN_JITTER_SECONDS);
         dpp_enrollee::fallback_timer_pass_failed(
             campaign.fallback, now, DPP_CHIRP_RETRY_COOLDOWN_SECONDS,
             std::chrono::seconds(jitter_dist(m_dpp_jitter_rng)));
         next = "schedule";
     } else if (!campaign.target_iface.empty()) {
-        // D17: back off this target only; a rising edge clears the backoff.
+        // Back off this target only; a rising edge clears the backoff.
         auto &target = m_dpp_cce_targets[campaign.target_iface];
         dpp_enrollee::cce_target_failed(target, now, DPP_CHIRP_TARGET_BACKOFF_SECONDS);
         next = "cce target backoff " + std::to_string(in(target.next_allowed)) + " s";
     }
-    // D16: fast rounds again; scans resume at once.
+    // Fast rounds again; scans resume at once.
     dpp_enrollee::watch_cadence_boost(campaign.cadence, now,
                                       std::chrono::seconds(DPP_CHIRP_WATCH_FAST_WINDOW_SECONDS));
     LOG(INFO) << "DPP auto-chirp WATCH reason=" << reason << " ended=" << next
@@ -2326,8 +2326,8 @@ BackhaulManager::dpp_chirp_candidates(std::chrono::steady_clock::time_point now)
         if (radio) {
             candidate.band     = radio->wifi_channel.get_freq_type();
             candidate.channels = dpp_enrollee::make_channel_dfs_map(radio->channels_list);
-            auto safe    = dpp_enrollee::chirp_safe_channels_string(candidate.channels);
-            auto &logged = m_dpp_chirp_safe_logged[info->sta_iface];
+            auto safe          = dpp_enrollee::chirp_safe_channels_string(candidate.channels);
+            auto &logged       = m_dpp_chirp_safe_logged[info->sta_iface];
             if (logged != safe) {
                 LOG(INFO) << "DPP chirp-safe channels iface=" << info->sta_iface << " band="
                           << beerocks::utils::convert_frequency_type_to_string(candidate.band)
@@ -2358,7 +2358,7 @@ BackhaulManager::read_dpp_cce_target(const sDppChirpCandidate &candidate,
     std::vector<dpp_enrollee::sCceScanEntry> entries;
     for (const auto &result : results) {
         if (!result.dpp_cce_known) {
-            continue; // no CCE metadata (D2)
+            continue; // no CCE metadata
         }
         dpp_enrollee::sCceScanEntry entry;
         entry.bssid       = tlvf::mac_to_string(result.bssid);
@@ -2382,11 +2382,11 @@ void BackhaulManager::run_dpp_watch_round(const std::vector<sDppChirpCandidate> 
     std::vector<const sDppChirpCandidate *> eligible;
     const sDppChirpCandidate *target_candidate = nullptr;
     dpp_enrollee::sCceTarget target;
-    bool any_cce = false; // a usable CCE, ready or backed off: no fallback (D14)
+    bool any_cce = false; // a usable CCE, ready or backed off: no fallback
     for (const auto &candidate : candidates) {
         const auto read_target = read_dpp_cce_target(candidate, now);
         if (read_target.reason == dpp_enrollee::eCceTargetReason::RISING) {
-            dpp_enrollee::watch_cadence_boost(campaign.cadence, now, fast_window); // D16
+            dpp_enrollee::watch_cadence_boost(campaign.cadence, now, fast_window);
         }
         eligible.push_back(&candidate);
         any_cce = any_cce || read_target.reason != dpp_enrollee::eCceTargetReason::NONE;
@@ -2404,8 +2404,8 @@ void BackhaulManager::run_dpp_watch_round(const std::vector<sDppChirpCandidate> 
               << " rounds=" << m_dpp_watch_stats.rounds
               << " no_eligible=" << m_dpp_watch_stats.no_eligible;
     if (target_candidate || fallback_due) {
-        // One cycle of the existing chirp (D23): a CCE target starts on its bSTA (D13), a
-        // fallback on the band order (D14).
+        // One cycle of the existing chirp: a CCE target starts on its bSTA, a
+        // fallback on the band order.
         campaign.fallback_cycle = !target_candidate;
         campaign.target_iface   = target_candidate ? target_candidate->info->sta_iface : "";
         if (target_candidate) {
@@ -2431,7 +2431,7 @@ void BackhaulManager::run_dpp_watch_round(const std::vector<sDppChirpCandidate> 
     const bool scan_pending = campaign.watch_scanning; // this round read a scan of the last one
     campaign.watch_scanning = false;
     for (const auto candidate : eligible) {
-        const bool started = candidate->info->sta_wlan_hal->request_dpp_cce_scan();
+        const bool started      = candidate->info->sta_wlan_hal->request_dpp_cce_scan();
         campaign.watch_scanning = campaign.watch_scanning || started;
         dpp_enrollee::watch_round_record_request(m_dpp_watch_stats, candidate->info->sta_iface,
                                                  started);
@@ -2440,7 +2440,7 @@ void BackhaulManager::run_dpp_watch_round(const std::vector<sDppChirpCandidate> 
                        << candidate->info->sta_iface;
         }
     }
-    // D16: fast or slow rounds, a first scan read after the scan time; wake up for a due
+    // Fast or slow rounds, a first scan read after the scan time; wake up for a due
     // fallback.
     const auto next_read = dpp_enrollee::watch_next_read(
         scan_pending, campaign.watch_scanning,
@@ -2452,7 +2452,7 @@ void BackhaulManager::run_dpp_watch_round(const std::vector<sDppChirpCandidate> 
     if (campaign.fallback.armed && campaign.fallback.due > now) {
         campaign.deadline = std::min(campaign.deadline, campaign.fallback.due);
     }
-    // Cumulative CCE scan requests per bSTA as iface:started/sent (Review F5).
+    // Cumulative CCE scan requests per bSTA as iface:started/sent.
     LOG(INFO) << "DPP auto-chirp WATCH scan requests "
               << dpp_enrollee::watch_round_requests_string(m_dpp_watch_stats)
               << " next_read=" << next_read.count() << " s";
@@ -2742,11 +2742,11 @@ bool BackhaulManager::backhaul_fsm_main(bool &skip_select)
         }
         if (!handle_backhaul_connect()) {
             m_backhaul_connected_notification_pending = true;
-            m_backhaul_connect_retry_at = now + std::chrono::seconds(1);
+            m_backhaul_connect_retry_at               = now + std::chrono::seconds(1);
             break;
         }
         m_backhaul_connect_retry_at = {};
-        stop_on_failure_attempts = configuration_stop_on_failure_attempts;
+        stop_on_failure_attempts    = configuration_stop_on_failure_attempts;
 
         LOG(DEBUG) << "clearing blacklist";
         ap_blacklist.clear();

@@ -29,12 +29,12 @@ struct sCase {
 };
 
 const ChannelDfsMap k_24g_full = {{1, Dfs::NOT_DFS}, {6, Dfs::NOT_DFS}, {11, Dfs::NOT_DFS}};
-const ChannelDfsMap k_5g_full  = {
-    {36, Dfs::NOT_DFS},  {40, Dfs::NOT_DFS},    {44, Dfs::NOT_DFS},  {48, Dfs::NOT_DFS},
-    {52, Dfs::USABLE},   {100, Dfs::AVAILABLE}, {144, Dfs::USABLE},  {149, Dfs::NOT_DFS},
-    {153, Dfs::NOT_DFS}, {157, Dfs::NOT_DFS},   {161, Dfs::NOT_DFS}, {165, Dfs::NOT_DFS},
-    {169, Dfs::NOT_DFS}, {173, Dfs::NOT_DFS},   {177, Dfs::NOT_DFS}};
-const char *k_5g_full_list = "115/36,40,44,48,124/149,153,157,161,125/165,169,173,177";
+const ChannelDfsMap k_5g_full  = {{36, Dfs::NOT_DFS},  {40, Dfs::NOT_DFS},  {44, Dfs::NOT_DFS},
+                                 {48, Dfs::NOT_DFS},  {52, Dfs::USABLE},   {100, Dfs::AVAILABLE},
+                                 {144, Dfs::USABLE},  {149, Dfs::NOT_DFS}, {153, Dfs::NOT_DFS},
+                                 {157, Dfs::NOT_DFS}, {161, Dfs::NOT_DFS}, {165, Dfs::NOT_DFS},
+                                 {169, Dfs::NOT_DFS}, {173, Dfs::NOT_DFS}, {177, Dfs::NOT_DFS}};
+const char *k_5g_full_list     = "115/36,40,44,48,124/149,153,157,161,125/165,169,173,177";
 
 } // namespace
 TEST(DppEnrolleeChannelList, SelectionTable)
@@ -47,14 +47,34 @@ TEST(DppEnrolleeChannelList, SelectionTable)
         {"5 empty", eFreqType::FREQ_5G, {}, "", 0},
         {"5 full", eFreqType::FREQ_5G, k_5g_full, k_5g_full_list, 12},
         {"5 low", eFreqType::FREQ_5G, {{36, Dfs::NOT_DFS}, {44, Dfs::NOT_DFS}}, "115/36,44", 2},
-        {"5 high", eFreqType::FREQ_5G, {{157, Dfs::NOT_DFS}, {149, Dfs::NOT_DFS}}, "124/149,157", 2},
+        {"5 high",
+         eFreqType::FREQ_5G,
+         {{157, Dfs::NOT_DFS}, {149, Dfs::NOT_DFS}},
+         "124/149,157",
+         2},
         {"5 165 only", eFreqType::FREQ_5G, {{165, Dfs::NOT_DFS}}, "125/165", 1},
         {"5 DFS on 149", eFreqType::FREQ_5G, {{149, Dfs::USABLE}, {44, Dfs::NOT_DFS}}, "115/44", 1},
-        {"5 radar 44", eFreqType::FREQ_5G, {{44, Dfs::UNAVAILABLE}, {153, Dfs::NOT_DFS}}, "124/153", 1},
+        {"5 radar 44",
+         eFreqType::FREQ_5G,
+         {{44, Dfs::UNAVAILABLE}, {153, Dfs::NOT_DFS}},
+         "124/153",
+         1},
         {"5 DFS only", eFreqType::FREQ_5G, {{52, Dfs::USABLE}, {100, Dfs::AVAILABLE}}, "", 0},
-        {"5 UNII-4 only", eFreqType::FREQ_5G, {{169, Dfs::NOT_DFS}, {173, Dfs::NOT_DFS}}, "125/169,173", 2},
-        {"5.8", eFreqType::FREQ_58G, {{149, Dfs::NOT_DFS}, {165, Dfs::NOT_DFS}}, "124/149,125/165", 2},
-        {"6 uses 5 GHz numbers", eFreqType::FREQ_6G, {{5, Dfs::NOT_DFS}, {149, Dfs::NOT_DFS}}, "", 0},
+        {"5 UNII-4 only",
+         eFreqType::FREQ_5G,
+         {{169, Dfs::NOT_DFS}, {173, Dfs::NOT_DFS}},
+         "125/169,173",
+         2},
+        {"5.8",
+         eFreqType::FREQ_58G,
+         {{149, Dfs::NOT_DFS}, {165, Dfs::NOT_DFS}},
+         "124/149,125/165",
+         2},
+        {"6 uses 5 GHz numbers",
+         eFreqType::FREQ_6G,
+         {{5, Dfs::NOT_DFS}, {149, Dfs::NOT_DFS}},
+         "",
+         0},
         {"6 empty", eFreqType::FREQ_6G, {}, "", 0},
         {"dual band", eFreqType::FREQ_24G_5G, k_5g_full, "", 0},
         {"unknown", eFreqType::FREQ_UNKNOWN, k_24g_full, "", 0},
@@ -74,7 +94,7 @@ TEST(DppEnrolleeChannelList, SelectionTable)
 }
 TEST(DppEnrolleeChannelList, EachEndPointUsesOnlyItsOwnRadio)
 {
-    // Box layout: wlan2 = 2.4 GHz, wlan1 = 5 GHz, wlan0 = 6 GHz.
+    // Typical multi-radio layout: 2.4 GHz, 5 GHz, and 6 GHz EndPoints.
     const ChannelDfsMap radio_24 = {{1, Dfs::NOT_DFS}, {11, Dfs::NOT_DFS}};
     const ChannelDfsMap radio_6  = {{1, Dfs::NOT_DFS}, {5, Dfs::NOT_DFS}, {149, Dfs::NOT_DFS}};
 
@@ -218,8 +238,8 @@ TEST(DppEnrolleeChirpGuard, LateChirpExtendsGuard)
 }
 TEST(DppEnrolleeChirpGuard, CceChannelsAfterUriChannelsKeepPassAlive)
 {
-    // Box C pass: scan, 9 URI/default channels every 7 s, then 7 DFS channels of APs with a CCE
-    // every 10 s. The last chirp (128 s) comes after the start guard (114 s).
+    // Pass with 9 URI/default channels every 7 s, then 7 CCE AP channels every 10 s.
+    // The last chirp (128 s) comes after the start guard (114 s).
     std::vector<int> chirps;
     for (int t = 5; t <= 61; t += 7) {
         chirps.push_back(t);
@@ -289,8 +309,8 @@ TEST(DppEnrolleeChirpHold, UnsetUntilNeverHolds)
 
 TEST(DppEnrolleeChirpHold, WatchHoldEndsAfterRoundPlusGrace)
 {
-    // Nov-18 lab: WAIT_WPS expired in WATCH between two 60 s rounds and the restart dropped
-    // the scan results of the round. The hold covers the next round plus the grace.
+    // WAIT_WPS can expire in WATCH between two 60 s rounds; a restart would drop that
+    // round's scan results. The hold covers the next round plus the grace.
     const auto round_deadline = at(60);
     EXPECT_TRUE(
         chirp_holds_restart(eChirpHoldPhase::WATCH, true, at(60), round_deadline + kHoldGrace));
@@ -311,7 +331,7 @@ TEST(DppEnrolleeChirpHold, LimitAfterMaxHold)
 
 TEST(DppEnrolleeChirpHold, RestartWaitsForRunningPass)
 {
-    // Box B 2.4 GHz pass: 11 URI channels and one chirp every 7 s. The WAIT_WPS timeout
+    // 2.4 GHz pass: 11 URI channels and one chirp every 7 s. The WAIT_WPS timeout
     // expires mid pass; the pass guard plus grace holds the restart until the pass ends.
     auto guard = kStart + seconds(60 + 6 * 11);
     for (int t = 5; t <= 215; t += 7) {
@@ -351,7 +371,7 @@ TEST(DppEnrolleeChirpOrder, AutoRanksFiveThenTwoFourThenSix)
 
 TEST(DppEnrolleeChirpOrder, PreferredBandChirpsFirst)
 {
-    // Registration order of Box B: the 2.4 GHz bSTA first.
+    // Registration order: the 2.4 GHz bSTA first.
     const Bands bands = {eFreqType::FREQ_24G, eFreqType::FREQ_5G, eFreqType::FREQ_6G};
     EXPECT_EQ(chirp_band_order(bands, eFreqType::FREQ_AUTO), (Order{1, 0, 2}));
     EXPECT_EQ(chirp_band_order(bands, eFreqType::FREQ_24G), (Order{0, 1, 2}));
@@ -374,7 +394,7 @@ const std::vector<std::string> kAB = {"wlA", "wlB"};
 
 TEST(DppEnrolleeChirpIteration, RefusedStartsWaitForThePause)
 {
-    // G10: A ends at t=0, B refuses at t=2 and t=12: A chirps again at t=30, not t=22.
+    // A ends at t=0, B refuses at t=2 and t=12: A chirps again at t=30, not t=22.
     sChirpIteration it;
     chirp_iteration_pass_end(it, "wlA", at(0));
     auto pick = chirp_iteration_pick(it, kAB, "", at(2), kPause);
@@ -497,7 +517,7 @@ TEST(DppEnrolleeChirpOrder, GapAfterPass)
 
 TEST(DppEnrolleeChirpOrder, TwoBandCycleSwitchesBandThenPauses)
 {
-    // Box B: the 2.4 GHz bSTA registers first, the configurator listens on 5 GHz only.
+    // The 2.4 GHz bSTA registers first; the configurator listens on 5 GHz only.
     const Bands bands                    = {eFreqType::FREQ_24G, eFreqType::FREQ_5G};
     const std::vector<std::string> names = {"wl24", "wl5"};
     const auto order                     = chirp_band_order(bands, eFreqType::FREQ_AUTO);
@@ -565,9 +585,11 @@ TEST(DppEnrolleeChirpChannel, CceSixGhzChannelsAreSafeOnlyWhenListedNotDfs)
 {
     // 6 GHz CCE chirp channels: 6055, 6135, 6375, 6775, 6855 MHz = ch 21, 37, 85, 165, 181.
     const uint32_t k_cce_freqs[] = {6055, 6135, 6375, 6775, 6855};
-    const ChannelDfsMap k_listed = {
-        {21, Dfs::NOT_DFS}, {37, Dfs::NOT_DFS}, {85, Dfs::NOT_DFS}, {165, Dfs::NOT_DFS},
-        {181, Dfs::NOT_DFS}};
+    const ChannelDfsMap k_listed = {{21, Dfs::NOT_DFS},
+                                    {37, Dfs::NOT_DFS},
+                                    {85, Dfs::NOT_DFS},
+                                    {165, Dfs::NOT_DFS},
+                                    {181, Dfs::NOT_DFS}};
     // A default AgentDB entry (USABLE): the state before the BWL set it for every channel.
     const ChannelDfsMap k_default = {
         {21, Dfs::USABLE}, {37, Dfs::USABLE}, {85, Dfs::USABLE}, {165, Dfs::USABLE}};
@@ -580,8 +602,11 @@ TEST(DppEnrolleeChirpChannel, CceSixGhzChannelsAreSafeOnlyWhenListedNotDfs)
 
 TEST(DppEnrolleeChirpChannel, SafeChannelsStringListsNotDfsChannelsInOrder)
 {
-    const ChannelDfsMap k_mixed = {{149, Dfs::NOT_DFS}, {37, Dfs::NOT_DFS}, {52, Dfs::USABLE},
-                                   {100, Dfs::AVAILABLE}, {5, Dfs::NOT_DFS}};
+    const ChannelDfsMap k_mixed = {{149, Dfs::NOT_DFS},
+                                   {37, Dfs::NOT_DFS},
+                                   {52, Dfs::USABLE},
+                                   {100, Dfs::AVAILABLE},
+                                   {5, Dfs::NOT_DFS}};
     EXPECT_EQ(chirp_safe_channels_string(k_mixed), "5,37,149");
     EXPECT_EQ(chirp_safe_channels_string(ChannelDfsMap{{36, Dfs::NOT_DFS}}), "36");
     EXPECT_EQ(chirp_safe_channels_string(ChannelDfsMap{}), "none");
@@ -637,7 +662,6 @@ TEST(DppEnrolleeCceScan, RetryCooldownLastStepRepeats)
 
 TEST(DppEnrolleeCceScan, WatchRoundCountersPerRoundAndBsta)
 {
-    // Review F5.
     sWatchRoundStats stats;
     EXPECT_EQ(watch_round_requests_string(stats), "-");
 

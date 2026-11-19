@@ -120,11 +120,11 @@ sCceTarget cce_target_update(sCceTargetState &state, const std::vector<sCceScanE
     std::map<uint32_t, int32_t> youngest; // fresh safe frequency -> youngest age (ms)
     for (const auto &entry : entries) {
         if (!entry.cce_known || !entry.cce_present) {
-            continue; // no CCE, or no CCE metadata (D2)
+            continue; // no CCE, or no CCE metadata
         }
         const bool same_band = entry.band == eFreqType::FREQ_UNKNOWN ||
                                band_group_of(entry.band) == band_group_of(band);
-        const uint32_t freq  = same_band ? channel_to_freq(entry.channel, band) : 0;
+        const uint32_t freq = same_band ? channel_to_freq(entry.channel, band) : 0;
         if (freq == 0 || !chirp_channel_safe(freq, band, channels)) {
             ++target.unsafe; // never scoped in: DFS, unlisted or other band
             continue;
@@ -155,7 +155,7 @@ sCceTarget cce_target_update(sCceTargetState &state, const std::vector<sCceScanE
     state.baseline    = true;
     state.fresh_freqs = fresh;
     if (rising) {
-        state.backoff_step = 0; // D17: a rising edge retries at once
+        state.backoff_step = 0; // a rising edge retries at once
         state.next_allowed = now;
     }
 
@@ -174,9 +174,8 @@ sCceTarget cce_target_update(sCceTargetState &state, const std::vector<sCceScanE
     }
     std::sort(target.freqs.begin(), target.freqs.end());
 
-    target.reason       = fresh.empty() ? eCceTargetReason::NONE
-                          : rising      ? eCceTargetReason::RISING
-                                        : eCceTargetReason::FRESH;
+    target.reason = fresh.empty() ? eCceTargetReason::NONE
+                                  : rising ? eCceTargetReason::RISING : eCceTargetReason::FRESH;
     target.next_allowed = state.next_allowed;
     target.ready        = !target.freqs.empty() && now >= state.next_allowed;
     return target;

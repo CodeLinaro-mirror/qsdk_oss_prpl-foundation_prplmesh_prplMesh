@@ -38,7 +38,7 @@ enum class eBootstrapValidation { VALID, INVALID, UNAVAILABLE };
 struct sBootstrapRegistration {
     uint64_t generation = 0;
     std::string chan_list; // URI channel list ("115/36,40,124/149"); empty = none
-    uint32_t id         = 0;
+    uint32_t id = 0;
     std::string uri;
     bool validation_required = true;
 
@@ -91,10 +91,10 @@ eEnrolleeEvent parse_enrollee_event(const std::string &line, uint32_t *freq_mhz 
 class EndpointDppBus {
 public:
     virtual ~EndpointDppBus() {}
-    virtual bool read_dpp_intent(bool &enable, std::string &role) = 0;
+    virtual bool read_dpp_intent(bool &enable, std::string &role)                 = 0;
     virtual bool call_bootstrap_gen(const std::string &curve, const std::string &chan_list,
                                     const std::string &key_hex, std::string &uri) = 0;
-    virtual bool read_generated_qr(std::vector<sGeneratedQr> &entries) = 0;
+    virtual bool read_generated_qr(std::vector<sGeneratedQr> &entries)            = 0;
 };
 
 /**

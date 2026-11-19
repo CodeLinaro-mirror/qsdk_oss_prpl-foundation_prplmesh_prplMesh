@@ -24,8 +24,8 @@ namespace {
 
 const Clock::time_point k_t0 = Clock::time_point() + std::chrono::hours(1);
 
-const std::vector<int> k_cooldown = {600, 1200, 1800}; // D14 fallback steps
-const std::vector<int> k_backoff  = {120, 240, 480};   // D17 target backoff steps
+const std::vector<int> k_cooldown = {600, 1200, 1800}; // fallback steps
+const std::vector<int> k_backoff  = {120, 240, 480};   // target backoff steps
 const seconds k_fresh(120);
 const size_t k_max_freqs = 8;
 
@@ -174,7 +174,7 @@ TEST(DppCceTarget, NoCceIsNone)
     auto absent        = cce(36, 1000);
     absent.cce_present = false;
     auto unknown       = cce(40, 1000);
-    unknown.cce_known  = false; // D2: no metadata, not counted
+    unknown.cce_known  = false; // no metadata, not counted
     const auto target  = update(state, {absent, unknown}, k_t0);
     EXPECT_EQ(target.reason, eCceTargetReason::NONE);
     EXPECT_FALSE(target.ready);

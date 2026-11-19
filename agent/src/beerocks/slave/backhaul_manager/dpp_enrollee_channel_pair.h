@@ -32,8 +32,8 @@ const char *to_string(eListDecision decision);
 
 struct sChannelListSelection {
     eListDecision decision = eListDecision::NO_LIST;
-    std::string chan_list;     ///< wpa_supplicant "chan=" form, e.g. "115/36,40,124/149". LIST only.
-    size_t channel_count = 0;  ///< Number of channels in chan_list.
+    std::string chan_list;    ///< wpa_supplicant "chan=" form, e.g. "115/36,40,124/149". LIST only.
+    size_t channel_count = 0; ///< Number of channels in chan_list.
     const char *reason   = ""; ///< Short text for logs.
 };
 
@@ -53,7 +53,7 @@ using ChannelDfsMap = std::map<uint8_t, beerocks_message::eDfsState>;
  * - 5 GHz (FREQ_5G or FREQ_58G): listed NOT_DFS channels in 115 (36,40,44,48),
  *   124 (149,153,157,161) and 125 (165,169,173,177). pWHM drops non-DFS no-IR channels, so a
  *   listed UNII-4 channel is usable. 52-144 are in no class. None: NO_LIST.
- * - 6 GHz, multi-band or unknown: NO_LIST (D-07).
+ * - 6 GHz, multi-band or unknown: NO_LIST.
  * Only exact 20 MHz class members are listed (37 or 151 are skipped). Channels are in
  * ascending order; a class is written once before its first channel.
  */
@@ -63,7 +63,7 @@ sChannelListSelection select_bootstrap_channel_list(eFreqType band, const Channe
 size_t count_chan_list_channels(const std::string &chan_list);
 
 /**
- * Whether a chirp sent on freq_mhz (DPP-TX freq=) is allowed on the EndPoint's radio (G07).
+ * Whether a chirp sent on freq_mhz (DPP-TX freq=) is allowed on the EndPoint's radio.
  * Safe only when freq_mhz is a 20 MHz channel center of band and channels lists that channel
  * as NOT_DFS. Unsafe: freq 0 or not a channel of band, a channel the radio does not list, any
  * DFS state (USABLE, AVAILABLE, UNAVAILABLE), or band not FREQ_24G/5G/58G/6G. channels has no
@@ -159,7 +159,7 @@ struct sChirpIteration {
 
 /** Next pass start: index into the bSTAs, or not before not_before. */
 struct sChirpPick {
-    bool ready = false;
+    bool ready   = false;
     size_t index = 0;
     std::chrono::steady_clock::time_point not_before{};
 };
@@ -221,7 +221,7 @@ struct sWatchScanRequests {
 };
 
 /**
- * WATCH round counters for the round log (Review F5). Diagnostics only: no decision reads them.
+ * WATCH round counters for the round log. Diagnostics only: no decision reads them.
  * The Agent keeps them for its lifetime, across RESTART and cooldowns.
  */
 struct sWatchRoundStats {
