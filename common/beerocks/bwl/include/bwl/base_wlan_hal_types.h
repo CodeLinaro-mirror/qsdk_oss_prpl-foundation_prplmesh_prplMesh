@@ -415,19 +415,6 @@ typedef struct {
 } sACTION_APMANAGER_AFFILIATED_LINK_CHANGED_NOTIFICATION;
 
 typedef struct {
-    char hash[65];
-    sMacAddr enrollee_mac;
-} sACTION_APMANAGER_DPP_PRESENCE_ANNOUNCEMENT;
-
-typedef struct {
-    sMacAddr enrollee_mac;
-} sACTION_APMANAGER_DPP_AUTHENTICATION_RESPONSE;
-
-typedef struct {
-    sMacAddr enrollee_mac;
-} sACTION_APMANAGER_DPP_CONFIGURATION_REQUEST;
-
-typedef struct {
     sClientAssociationParams params;
 } sACTION_APMANAGER_CLIENT_ASSOCIATED_NOTIFICATION;
 

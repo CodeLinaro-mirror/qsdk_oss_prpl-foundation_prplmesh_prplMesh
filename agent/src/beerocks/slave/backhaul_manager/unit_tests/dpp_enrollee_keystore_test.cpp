@@ -34,7 +34,7 @@ class ScopedIoFault {
 public:
     explicit ScopedIoFault(IoFault fault) : previous(io_fault) { io_fault = fault; }
     ~ScopedIoFault() { io_fault = previous; }
-    ScopedIoFault(const ScopedIoFault &)            = delete;
+    ScopedIoFault(const ScopedIoFault &) = delete;
     ScopedIoFault &operator=(const ScopedIoFault &) = delete;
 
 private:
@@ -54,7 +54,8 @@ extern "C" int __wrap_fchmod(int fd, mode_t mode)
 }
 extern "C" int __wrap_fsync(int fd)
 {
-    struct stat st{};
+    struct stat st {
+    };
     if (io_fault != IoFault::NONE && fstat(fd, &st) == 0) {
         if ((io_fault == IoFault::FILE_SYNC && S_ISREG(st.st_mode)) ||
             (io_fault == IoFault::DIRECTORY_SYNC && S_ISDIR(st.st_mode))) {
@@ -99,7 +100,8 @@ protected:
     }
     mode_t file_mode() const
     {
-        struct stat st{};
+        struct stat st {
+        };
         return stat(m_path.c_str(), &st) == 0 ? (st.st_mode & 07777) : 0;
     }
     bool exists(const std::string &path) const { return access(path.c_str(), F_OK) == 0; }
@@ -212,7 +214,8 @@ TEST_F(DppEnrolleeKeyStoreTest, ReadErrorKeepsExistingEntry)
     EXPECT_EQ(store.load_or_create(msg), eKeyStoreResult::READ_ERROR);
     EXPECT_FALSE(msg.empty());
     EXPECT_FALSE(store.is_loaded());
-    struct stat st{};
+    struct stat st {
+    };
     ASSERT_EQ(stat(m_path.c_str(), &st), 0);
     EXPECT_TRUE(S_ISDIR(st.st_mode)); // not replaced
 }
@@ -500,12 +503,12 @@ TEST(DppEnrolleeUriKey, RejectsMalformedUris)
     std::vector<uint8_t> der;
     EXPECT_TRUE(decode_uri_public_key(uri_with_key(k), der));
 
-    EXPECT_FALSE(decode_uri_public_key("DPP:V:3;;", der));                       // no K:
-    EXPECT_FALSE(decode_uri_public_key(uri_with_key(""), der));                  // empty K:
-    EXPECT_FALSE(decode_uri_public_key("DPP:K:" + k + ";K:" + k + ";;", der));   // repeated K:
-    EXPECT_FALSE(decode_uri_public_key("K:" + k + ";;", der));                   // no DPP: prefix
-    EXPECT_FALSE(decode_uri_public_key("DPP:K:" + k + ";", der));                // no ;; end
-    EXPECT_FALSE(decode_uri_public_key(uri_with_key(k + "=="), der));            // three '='
+    EXPECT_FALSE(decode_uri_public_key("DPP:V:3;;", der));                     // no K:
+    EXPECT_FALSE(decode_uri_public_key(uri_with_key(""), der));                // empty K:
+    EXPECT_FALSE(decode_uri_public_key("DPP:K:" + k + ";K:" + k + ";;", der)); // repeated K:
+    EXPECT_FALSE(decode_uri_public_key("K:" + k + ";;", der));                 // no DPP: prefix
+    EXPECT_FALSE(decode_uri_public_key("DPP:K:" + k + ";", der));              // no ;; end
+    EXPECT_FALSE(decode_uri_public_key(uri_with_key(k + "=="), der));          // three '='
     EXPECT_FALSE(decode_uri_public_key(uri_with_key(k.substr(0, 8) + "=" + k.substr(9)), der));
     EXPECT_FALSE(decode_uri_public_key(uri_with_key(k.substr(0, 8) + "*" + k.substr(9)), der));
     EXPECT_TRUE(der.empty());

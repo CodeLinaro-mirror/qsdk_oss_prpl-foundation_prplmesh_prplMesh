@@ -25,8 +25,8 @@ private:
     /**
      * @brief Forward DPP CCE Indication to all local AP managers.
      *
-     * Still required for FEAT-68: Controller decides CCE advertise/withdraw;
-     * Agent applies it on fronthaul beacons via ap_manager / HAL.
+     * Controller decides CCE advertise/withdraw; the Agent applies it on
+     * fronthaul beacons via ap_manager / HAL.
      */
     void handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmdu_rx);
 

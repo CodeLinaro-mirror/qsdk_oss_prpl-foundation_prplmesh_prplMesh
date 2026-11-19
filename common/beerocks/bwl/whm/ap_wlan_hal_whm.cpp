@@ -798,7 +798,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         // earlier boot would keep the relay (and the CCE) on air with no Agent
         // relay listener. Same rule as set_dpp_onboarding().
         if (bss_info_conf.fronthaul) {
-            const bool dpp_onboarding = get_hal_conf().enable_dpp_onboarding;
+            const bool dpp_onboarding    = get_hal_conf().enable_dpp_onboarding;
             std::string wifi_ap_dpp_path = wifi_vap_path + "DPP.";
             new_obj.set_type(AMXC_VAR_ID_HTABLE);
             new_obj.add_child<bool>(dpp_enable_key, dpp_onboarding);

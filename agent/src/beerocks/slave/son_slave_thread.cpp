@@ -135,7 +135,7 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::MULTI_AP_POLICY_CONFIG_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::SERVICE_PRIORITIZATION_REQUEST_MESSAGE,
     ieee1905_1::eMessageType::DPP_CCE_INDICATION_MESSAGE,
-    // DPP / EasyConnect (FEAT-68 Path B): Controller → Agent Auth/Conf Proxied Encap
+    // DPP: Controller → Agent Auth/Conf Proxied Encap (and Direct Encap)
     ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
     ieee1905_1::eMessageType::DIRECT_ENCAP_DPP_MESSAGE,
     ieee1905_1::eMessageType::VIRTUAL_BSS_REQUEST_MESSAGE,
@@ -312,7 +312,7 @@ bool slave_thread::thread_init()
     beerocks::CmduServer::EventHandlers cmdu_server_handlers{
         .on_client_connected    = nullptr,
         .on_client_disconnected = [&](int fd) { handle_client_disconnected(fd); },
-        .on_cmdu_received = [&](int fd, uint32_t iface_index, const sMacAddr &dst_mac,
+        .on_cmdu_received       = [&](int fd, uint32_t iface_index, const sMacAddr &dst_mac,
                                 const sMacAddr &src_mac,
                                 ieee1905_1::CmduMessageRx &cmdu_rx) { handle_cmdu(fd, cmdu_rx); },
     };
@@ -1273,8 +1273,8 @@ bool slave_thread::start_dpp_tcp_relay_server()
         !AgentDB::get()->device_conf.enable_dpp_onboarding) {
         return false;
     }
-    if (!m_dpp_relay_recovery_pending && m_slave_wlan_hal &&
-        m_dpp_agent_task->is_relay_active() && m_slave_wlan_hal->refresh_dpp_relay()) {
+    if (!m_dpp_relay_recovery_pending && m_slave_wlan_hal && m_dpp_agent_task->is_relay_active() &&
+        m_slave_wlan_hal->refresh_dpp_relay()) {
         return true;
     }
     const auto now = std::chrono::steady_clock::now();
@@ -1299,8 +1299,7 @@ bool slave_thread::start_dpp_tcp_relay_server()
     bwl::hal_conf_t hal_conf;
     m_slave_wlan_hal = bwl::slave_wlan_hal_create(
         "slave", std::bind(&slave_thread::hal_event_handler, this, _1), hal_conf);
-    if (!m_slave_wlan_hal || !m_slave_wlan_hal->init_dpp_relay() ||
-        !register_event_handlers()) {
+    if (!m_slave_wlan_hal || !m_slave_wlan_hal->init_dpp_relay() || !register_event_handlers()) {
         clear_event_handlers();
         m_slave_wlan_hal.reset();
         LOG(ERROR) << "DPP: failed to start TCP relay listener (role=" << role
@@ -1321,7 +1320,7 @@ void slave_thread::schedule_dpp_relay_recovery()
     // until its read/callback stack has unwound and the periodic timer runs.
     clear_event_handlers();
     m_dpp_relay_recovery_pending = true;
-    m_dpp_relay_check_at = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    m_dpp_relay_check_at         = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     if (m_dpp_agent_task && m_dpp_agent_task->is_relay_active()) {
         m_dpp_agent_task->on_relay_stopped();
     }
@@ -1342,7 +1341,7 @@ void slave_thread::stop_dpp_tcp_relay_server(const std::string &reason)
     const bool relay_active = m_dpp_agent_task && m_dpp_agent_task->is_relay_active();
     clear_event_handlers();
     m_dpp_relay_recovery_pending = false;
-    m_dpp_relay_check_at = {};
+    m_dpp_relay_check_at         = {};
     if (m_slave_wlan_hal) {
         // No-op in the HAL when the relay was not armed by this process.
         m_slave_wlan_hal->stop_dpp_relay();
@@ -1567,7 +1566,7 @@ bool slave_thread::handle_cmdu_ap_manager_ieee1905_1_message(const std::string &
     switch (cmdu_message_type) {
     // Forward unhandled messages to the backhaul manager (probably headed to the controller)
     case ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE:
-        // TCP FEAT-68: DppAgentTask already wraps Presence Announcement from WiFi.DPPRelay.
+        // TCP relay: DppAgentTask already wraps Presence Announcement from WiFi.DPPRelay.
         // Drop the superseded ap_manager OTA chirp so the Controller does not see duplicates.
         if (m_dpp_agent_task && m_dpp_agent_task->is_relay_active()) {
             LOG(DEBUG) << "Dropping ap_manager OTA CHIRP_NOTIFICATION; TCP DppAgentTask owns chirp";
@@ -3807,7 +3806,7 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
             config_msg->certification_mode() = db->device_conf.certification_mode;
             config_msg->multi_ap_profile() = static_cast<uint8_t>(db->device_conf.multi_ap_profile);
             config_msg->enable_dpp_onboarding() = db->device_conf.enable_dpp_onboarding;
-            bridge_iface                       = db->bridge.iface_name;
+            bridge_iface                        = db->bridge.iface_name;
         }
 
         std::string hostapd_ctrl_path;
@@ -3960,15 +3959,15 @@ bool slave_thread::handle_cmdu_ap_manager_message(const std::string &fronthaul_i
 
         if (radio->eht_supported) {
             radio->ap_modes_support.str_support    = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_str);
+                                                   beerocks_message::eMLOModes::eMLOModes_str);
             radio->ap_modes_support.nstr_support   = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_nstr);
+                                                    beerocks_message::eMLOModes::eMLOModes_nstr);
             radio->ap_modes_support.emlsr_support  = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_emlsr);
+                                                     beerocks_message::eMLOModes::eMLOModes_emlsr);
             radio->ap_modes_support.emlmr_support  = (notification->params().ap_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_emlmr);
+                                                     beerocks_message::eMLOModes::eMLOModes_emlmr);
             radio->bsta_modes_support.str_support  = (notification->params().bsta_modes_support &
-                                                      beerocks_message::eMLOModes::eMLOModes_str);
+                                                     beerocks_message::eMLOModes::eMLOModes_str);
             radio->bsta_modes_support.nstr_support = (notification->params().bsta_modes_support &
                                                       beerocks_message::eMLOModes::eMLOModes_nstr);
             radio->bsta_modes_support.emlsr_support =
