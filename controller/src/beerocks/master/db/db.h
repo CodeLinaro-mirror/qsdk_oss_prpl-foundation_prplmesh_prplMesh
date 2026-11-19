@@ -385,7 +385,6 @@ public:
     const sDppBootstrappingInfo *
     get_dpp_bootstrap_info_by_pkhash(const std::array<uint8_t, 32> &pkhash) const;
     const sDppBootstrappingInfo *get_dpp_bootstrap_info_by_mac(const sMacAddr &mac) const;
-    void print_dpp_bootstrap_info() const;
 
     /**
      * @brief True when at least one ProvisionedDPP / bootstrap URI entry is stored.

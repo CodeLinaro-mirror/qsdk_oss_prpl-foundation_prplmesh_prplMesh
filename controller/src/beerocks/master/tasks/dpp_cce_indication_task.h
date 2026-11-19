@@ -36,7 +36,7 @@ class dpp_cce_indication_task : public task {
 public:
     dpp_cce_indication_task(db &database_, ieee1905_1::CmduMessageTx &cmdu_tx_,
                             wfa_map::tlvDppCceIndication::eAdvertiseCee advertise_cee_,
-                            const std::string &task_name = std::string("dpp_cce_indication_task"),
+                            const std::string &task_name  = std::string("dpp_cce_indication_task"),
                             const sMacAddr &target_al_mac = beerocks::net::network_utils::ZERO_MAC);
     ~dpp_cce_indication_task() override = default;
 

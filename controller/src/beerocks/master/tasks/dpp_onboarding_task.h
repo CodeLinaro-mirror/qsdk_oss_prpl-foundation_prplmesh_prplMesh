@@ -27,8 +27,8 @@ class dpp_protocol_task;
  *
  * Owns URI sync against the bootstrap store, CCE ENABLE, wait states
  * for Authentication / Configuration / Connection Status, and success/failure
- * cleanup. URI replace (M-13) resets the protocol session and re-enters Auth
- * wait; cleanup after success/clear (M-15) allows a second onboarding.
+ * cleanup. URI replace resets the protocol session and re-enters Auth
+ * wait; cleanup after success/clear allows a second onboarding.
  * Does not drive Agent-side DPP_CONFIGURATOR_ADD; Auth/Config run in
  * dpp_protocol_task over Proxied/Direct Encap.
  */
@@ -62,8 +62,8 @@ public:
     bool is_cce_desired() const { return cce_advertised; }
 
     /**
-     * @brief Reconcile CCE policy, then send ENABLE to one agent if CCE was already advertised
-     * (AC-07). A fresh enable broadcasts to all eligible agents, so no targeted copy is sent.
+     * @brief Reconcile CCE policy, then send ENABLE to one agent if CCE was already advertised.
+     * A fresh enable broadcasts to all eligible agents, so no targeted copy is sent.
      */
     void send_cce_to_agent(const sMacAddr &al_mac);
 

@@ -60,7 +60,7 @@ void dpp_onboarding_task::enable_cce()
         return;
     }
 
-    TASK_LOG(INFO) << "Sending DPP CCE Indication ENABLE";
+    TASK_LOG(DEBUG) << "Sending DPP CCE Indication ENABLE";
     controller_ctx->send_dpp_cce_indication(true);
 }
 
@@ -87,7 +87,7 @@ void dpp_onboarding_task::send_cce_to_agent(const sMacAddr &al_mac)
         TASK_LOG(ERROR) << "No controller context for DPP CCE Indication to agent " << al_mac;
         return;
     }
-    TASK_LOG(INFO) << "Sending DPP CCE Indication ENABLE to agent " << al_mac;
+    TASK_LOG(DEBUG) << "Sending DPP CCE Indication ENABLE to agent " << al_mac;
     controller_ctx->send_dpp_cce_indication_to_agent(al_mac, true);
 }
 
@@ -113,7 +113,7 @@ void dpp_onboarding_task::restart_for_bootstrap_trigger(const std::string &reaso
         TASK_LOG(INFO) << reason;
     }
 
-    // M-13 / M-15: drop active Configurator state and sync the URI store now. A resync deferred
+    // Drop active Configurator state and sync the URI store now. A resync deferred
     // to the next work() would reset again a session started by a chirp received in between.
     last_bootstrap_fingerprint = std::string(1, '\0');
     sync_bootstrap_uri();
@@ -127,7 +127,7 @@ void dpp_onboarding_task::finish_success()
     state         = State::IDLE;
     failure_count = 0;
     last_failure_reason.clear();
-    // Allow the next pending URI or a later URI clear/replace (M-15) to start immediately.
+    // Allow the next pending URI or a later URI clear/replace to start immediately.
     next_retry_time = std::chrono::steady_clock::now();
     clear_pending_events();
     // The CCE stays enabled after onboarding: EasyMesh 5.3.1 recommends keeping it advertised
@@ -190,15 +190,15 @@ bool dpp_onboarding_task::sync_bootstrap_uri()
         return true;
     }
 
-    // G3-19: one onboarding session at a time; stored URIs are onboarded one after another.
+    // One onboarding session at a time; stored URIs are onboarded one after another.
     const size_t uri_count = database.get_dpp_bootstrap_info_count();
     if (uri_count > 1) {
         TASK_LOG(INFO) << "DPP bootstrap store holds " << uri_count
-                       << " URIs; onboarding one Enrollee at a time (G3-19)";
+                       << " URIs; onboarding one Enrollee at a time";
     }
 
-    // M-13: URI replace / update abandons the prior Configurator session so a new Enrollee
-    // (or replaced URI, stored as not onboarded) can onboard (M-15).
+    // URI replace / update abandons the prior Configurator session so a new Enrollee
+    // (or replaced URI, stored as not onboarded) can onboard.
     TASK_LOG(INFO) << "DPP bootstrap URI store updated (fingerprint changed); resetting session";
     reset_active_session();
     last_bootstrap_fingerprint = fingerprint;
@@ -217,7 +217,7 @@ void dpp_onboarding_task::work()
     auto now = std::chrono::steady_clock::now();
     reconcile_cce_policy();
 
-    // URI replace / clear must abort wait states (M-13) and reset protocol session.
+    // URI replace / clear must abort wait states and reset protocol session.
     if (state != State::IDLE) {
         const std::string fingerprint = database.calculate_dpp_bootstrap_map_fingerprint();
         if (fingerprint != last_bootstrap_fingerprint) {
@@ -250,7 +250,7 @@ void dpp_onboarding_task::work()
         last_bootstrap_fingerprint = fingerprint;
 
         // Per entry: idle while every stored URI is onboarded. dpp_protocol_task sets the flag
-        // on Configuration Result OK and clears it when an absent Enrollee chirps again (D-15).
+        // on Configuration Result OK and clears it when an absent Enrollee chirps again.
         if (!database.has_pending_dpp_bootstrap_info()) {
             wait_for(k_poll_interval_ms);
             return;
@@ -303,11 +303,10 @@ void dpp_onboarding_task::handle_event(int event_type, void *obj)
         break;
     case CONF_SENT:
         if (reason.find("wait_conn_status=1") != std::string::npos) {
-            TASK_LOG(INFO) << "DPP configuration sent; will wait for connection status result";
             expect_conn_status = true;
-        } else {
-            TASK_LOG(INFO) << "DPP configuration response sent";
         }
+        TASK_LOG(INFO) << "DPP configuration response sent wait_conn_status="
+                       << (expect_conn_status ? 1 : 0);
         break;
     case CONF_RECEIVED:
         // EasyMesh 5.3.4: Configuration Result with STATUS_OK means the Enrollee was

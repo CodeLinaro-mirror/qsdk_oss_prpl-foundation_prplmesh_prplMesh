@@ -224,12 +224,8 @@ bool controller_ucc_listener::handle_dev_exec_action(
 
         enrollee_bootstrapping_info.alias = alias;
 
-        LOG(DEBUG) << "alias=" << alias;
-        LOG(DEBUG) << "mac=" << tlvf::mac_to_string(enrollee_bootstrapping_info.mac);
-        LOG(DEBUG) << "info=" << enrollee_bootstrapping_info.info;
-        LOG(DEBUG) << "version=" << static_cast<int>(enrollee_bootstrapping_info.version);
-        LOG(DEBUG) << "host=" << enrollee_bootstrapping_info.host;
-        LOG(DEBUG) << "public_key=" << enrollee_bootstrapping_info.public_key;
+        LOG(DEBUG) << "UCC DPP URI alias=" << alias
+                   << " mac=" << tlvf::mac_to_string(enrollee_bootstrapping_info.mac);
 
         if (!m_database.add_dpp_bootstrap_info(std::move(enrollee_bootstrapping_info),
                                                err_string)) {

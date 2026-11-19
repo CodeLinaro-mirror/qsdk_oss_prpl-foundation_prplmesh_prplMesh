@@ -16,6 +16,7 @@
 namespace {
 
 using son::controller_dpp::dpp_akm_families;
+using son::controller_dpp::dpp_akm_has_easymesh_decimal_alias;
 using son::controller_dpp::dpp_akm_is_compatible;
 using son::controller_dpp::dpp_akm_to_symbolic;
 using son::controller_dpp::dpp_akm_token_family;
@@ -52,6 +53,16 @@ TEST(DppAkmTokenFamily, SuiteSelectorsMapToFamilies)
 TEST(DppAkmTokenFamily, EasyMeshDecimalSaeExtKeySelectorMapsToSae)
 {
     EXPECT_EQ(dpp_akm_token_family("000FAC24"), "sae");
+}
+
+TEST(DppAkmEasyMeshAlias, DetectsDecimalSaeExtKeySelector)
+{
+    EXPECT_TRUE(dpp_akm_has_easymesh_decimal_alias("506F9A02+000FAC08+000FAC24"));
+    EXPECT_TRUE(dpp_akm_has_easymesh_decimal_alias(" 000fac24 "));
+    EXPECT_FALSE(dpp_akm_has_easymesh_decimal_alias("506F9A02+000FAC18"));
+    EXPECT_FALSE(dpp_akm_has_easymesh_decimal_alias("000FAC240"));
+    EXPECT_FALSE(dpp_akm_has_easymesh_decimal_alias("psk+sae"));
+    EXPECT_FALSE(dpp_akm_has_easymesh_decimal_alias(""));
 }
 
 TEST(DppAkmTokenFamily, UnknownTokensAreKeptLowerCase)
@@ -102,6 +113,13 @@ TEST(DppAkmIsCompatible, MissingSideIsNotAConstraint)
     EXPECT_TRUE(dpp_akm_is_compatible("", "psk+sae"));
     EXPECT_TRUE(dpp_akm_is_compatible("psk", ""));
     EXPECT_TRUE(dpp_akm_is_compatible("", ""));
+}
+
+TEST(DppAkmIsCompatible, SeparatorOnlyRequestIsIncompatible)
+{
+    EXPECT_FALSE(dpp_akm_is_compatible("psk", "++"));
+    EXPECT_FALSE(dpp_akm_is_compatible("psk+sae", "+++"));
+    EXPECT_TRUE(dpp_akm_is_compatible("psk", "+psk++sae"));
 }
 
 // Same precedence as hostapd dpp_akm_from_str() for selector lists.

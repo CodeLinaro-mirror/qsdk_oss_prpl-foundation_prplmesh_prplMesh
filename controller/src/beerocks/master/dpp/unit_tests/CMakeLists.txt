@@ -28,6 +28,7 @@ if (BUILD_TESTS)
     )
     target_link_libraries(dpp_configurator_session_test
         mapfcommon bcl json-c ${OPENSSL_LIBRARIES} gtest_main)
+    # Config/csign symbols (they pull in db.cpp + NBAPI) stay unresolved; tests must not reach them.
     target_link_options(dpp_configurator_session_test
         PRIVATE
             -Wl,--unresolved-symbols=ignore-all

@@ -271,12 +271,13 @@ TEST_F(DppExchangeTest, InvalidBootstrapRestartAndReset)
 /** Authenticated encryption alone does not validate a nonce, role or R-auth mismatch. */
 TEST_F(DppExchangeTest, RejectsEncryptedSemanticMismatches)
 {
-    initialize();
-    ASSERT_FALSE(HasFatalFailure());
     const std::vector<std::string> errors{"DPP Authentication Response nonce mismatch",
                                           "DPP peer did not select Enrollee role",
                                           "DPP responder authentication tag mismatch"};
     for (size_t variant = 0; variant < errors.size(); ++variant) {
+        // Each failed response erases k1/mx; rebuild a fresh exchange per variant.
+        initialize();
+        ASSERT_FALSE(HasFatalFailure());
         std::vector<uint8_t> response, confirm{0xff};
         make_response(response, variant == 0,
                       variant == 1 ? dpp::k_dpp_capab_configurator : dpp::k_dpp_capab_enrollee,
@@ -570,10 +571,11 @@ TEST_F(DppExchangeTest, ConfigurationStateGuardsClearOutputs)
 /** Valid outer encryption cannot hide missing nonce, capabilities, nested data or R-auth. */
 TEST_F(DppExchangeTest, RejectsIncompleteEncryptedAuthenticationAttributes)
 {
-    initialize();
-    ASSERT_FALSE(HasFatalFailure());
     for (size_t variant = 0; variant < 8; ++variant) {
         SCOPED_TRACE(variant);
+        // Each failed response erases k1/mx; rebuild a fresh exchange per variant.
+        initialize();
+        ASSERT_FALSE(HasFatalFailure());
         std::vector<uint8_t> clear, secondary, nested, response, confirm{0xff};
         if (variant != 0) {
             dpp::append_dpp_attr(clear, dpp::k_dpp_attr_r_nonce, r_nonce.data(), r_nonce.size());

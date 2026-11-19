@@ -73,7 +73,7 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     add_test(NAME traffic_separation_event_test
         COMMAND $<TARGET_FILE:traffic_separation_event_test>)
 
-    # VAL-04 (STEP-06): Controller desired CCE state.
+    # Controller desired CCE state.
     add_executable(dpp_onboarding_task_test
         ${CMAKE_CURRENT_LIST_DIR}/dpp_onboarding_task_test.cpp
         ${CMAKE_CURRENT_LIST_DIR}/../../db/db.cpp
@@ -86,6 +86,7 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     )
     target_link_libraries(dpp_onboarding_task_test
         mapfcommon bpl bcl btl btlvf nbapi amxc amxd amxp libamxrt gtest_main gmock)
+    # Like ieee1905_task_test: db.cpp's controller/son symbols stay unresolved; tests avoid them.
     target_link_options(dpp_onboarding_task_test
         PRIVATE
             -Wl,--unresolved-symbols=ignore-all
@@ -99,4 +100,31 @@ if (BUILD_TESTS AND ENABLE_NBAPI)
     )
     install(TARGETS dpp_onboarding_task_test DESTINATION tests)
     add_test(NAME dpp_onboarding_task_test COMMAND $<TARGET_FILE:dpp_onboarding_task_test>)
+
+    # ProvisionedDPP URI import from the controller data model.
+    add_executable(provisioned_dpp_event_test
+        ${CMAKE_CURRENT_LIST_DIR}/provisioned_dpp_event_test.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../db/db.cpp
+        ${CMAKE_SOURCE_DIR}/controller/nbapi/on_action.cpp
+    )
+    target_compile_definitions(provisioned_dpp_event_test
+        PRIVATE
+            CONTROLLER_ODL_PATH="${CMAKE_BINARY_DIR}/controller/nbapi/controller/odl/controller.odl"
+    )
+    target_link_libraries(provisioned_dpp_event_test
+        mapfcommon bpl bcl btl btlvf nbapi amxc amxd amxp libamxrt gtest_main gmock)
+    # Like ieee1905_task_test: db.cpp's controller/son symbols stay unresolved; tests avoid them.
+    target_link_options(provisioned_dpp_event_test
+        PRIVATE
+            -Wl,--unresolved-symbols=ignore-all
+    )
+    target_include_directories(provisioned_dpp_event_test
+        PRIVATE
+            ${PLATFORM_INCLUDE_DIR}
+            ${CMAKE_SOURCE_DIR}/common/beerocks/btl/include
+            ${CMAKE_SOURCE_DIR}/controller/nbapi
+            ${CMAKE_SOURCE_DIR}/controller/src/beerocks/master/db
+    )
+    install(TARGETS provisioned_dpp_event_test DESTINATION tests)
+    add_test(NAME provisioned_dpp_event_test COMMAND $<TARGET_FILE:provisioned_dpp_event_test>)
 endif()

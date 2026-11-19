@@ -53,6 +53,10 @@ std::string plain_string_to_hex(const std::string &plain)
 
 std::string dpp_akm_from_bss_info(const wireless_utils::sBssInfoConf &bss_info)
 {
+    // INVALID is 0xffff, not a supported combination of PSK and SAE bits.
+    if (bss_info.authentication_type == WSC::eWscAuth::WSC_AUTH_INVALID) {
+        return {};
+    }
     // WSC auth is a bitmask (e.g. WPA3-Personal-Transition = WPA2PSK|SAE). Do not
     // switch on the combined value — that misses transition and falls through empty.
     const auto auth          = static_cast<uint16_t>(bss_info.authentication_type);
@@ -99,20 +103,53 @@ bool ssid_is_advertised(const wireless_utils::sBssInfoConf &bss_info)
     return bss_info.hidden_ssid != WSC::eWscVendorExtHiddenSsid::ENABLED;
 }
 
-void fill_psk_or_passphrase(const wireless_utils::sBssInfoConf &selected, const std::string &akm,
-                            std::string &passphrase, std::string &psk_hex)
+std::string drop_akm_token(const std::string &akm, const std::string &token)
+{
+    std::string out;
+    std::string part;
+    std::istringstream in(akm);
+    while (std::getline(in, part, '+')) {
+        if (part.empty() || part == token) {
+            continue;
+        }
+        if (!out.empty()) {
+            out += '+';
+        }
+        out += part;
+    }
+    return out;
+}
+
+// Raw 64-hex PSK goes out only as psk_hex, but hostapd needs "pass" for SAE: PSK+SAE drops
+// "sae" from the AKM; SAE without PSK is rejected (the hex is not a known SAE password).
+bool fill_psk_or_passphrase(const wireless_utils::sBssInfoConf &selected, std::string &akm,
+                            std::string &passphrase, std::string &psk_hex, std::string &error)
 {
     if (selected.network_key.empty()) {
-        return;
+        return true;
     }
     const bool is_hex_psk = (selected.network_key.size() == 64) &&
                             std::all_of(selected.network_key.begin(), selected.network_key.end(),
                                         [](unsigned char c) { return std::isxdigit(c) != 0; });
-    if (is_hex_psk && (akm.find("psk") != std::string::npos)) {
+    const bool has_psk = akm.find("psk") != std::string::npos;
+    const bool has_sae = akm.find("sae") != std::string::npos;
+    if (is_hex_psk && has_sae) {
+        if (!has_psk) {
+            error = "Configured BSS key is a raw 64-hex PSK but AKM '" + akm +
+                    "' requires an SAE passphrase";
+            return false;
+        }
+        const auto downgraded = drop_akm_token(akm, "sae");
+        LOG(WARNING) << "DPP: raw 64-hex PSK cannot be used for SAE; publishing akm '" << downgraded
+                     << "' instead of '" << akm << "'";
+        akm = downgraded;
+    }
+    if (is_hex_psk && has_psk) {
         psk_hex = selected.network_key;
-    } else if (akm.find("psk") != std::string::npos || akm.find("sae") != std::string::npos) {
+    } else if (has_psk || has_sae) {
         passphrase = selected.network_key;
     }
+    return true;
 }
 
 void load_optional_controller_key_params(const db &database, std::string &pp_key_hex,
@@ -223,9 +260,7 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
     }
     configuration.akm = dpp_akm_from_bss_info(*selected);
     if (!son::controller_dpp::dpp_akm_is_compatible(configuration.akm, requested_backhaul_akm)) {
-        error = "Configured backhaul AKM '" + configuration.akm +
-                "' is not compatible with DPP Configuration Request AKM '" +
-                requested_backhaul_akm + "'";
+        error = "Configured backhaul AKM is not compatible with DPP Configuration Request";
         return false;
     }
     if (configuration.akm.empty()) {
@@ -241,8 +276,17 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
         configuration.akm = "dpp";
     }
 
-    fill_psk_or_passphrase(*selected, configuration.akm, configuration.passphrase,
-                           configuration.psk_hex);
+    const auto configured_akm = configuration.akm;
+    if (!fill_psk_or_passphrase(*selected, configuration.akm, configuration.passphrase,
+                                configuration.psk_hex, error)) {
+        return false;
+    }
+    // Credential filling can narrow the AKM (e.g. a raw PSK drops SAE); recheck what is published.
+    if (!son::controller_dpp::dpp_akm_is_compatible(configuration.akm, requested_backhaul_akm)) {
+        error = "Effective backhaul AKM '" + configuration.akm + "' (configured '" +
+                configured_akm + "') is not compatible with DPP Configuration Request";
+        return false;
+    }
     configuration.ssid_advertisement_valid = true;
     configuration.ssid_advertisement       = ssid_is_advertised(*selected);
     return true;
@@ -266,7 +310,7 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
         return false;
     }
 
-    // M-9: netRole=sta must use fronthaul BSS only (never backhaul credentials).
+    // netRole=sta must use fronthaul BSS only (never backhaul credentials).
     // Return a pointer so selected is clearly non-null after the failure return below.
     auto pick_fronthaul_bss = [&](const std::list<wireless_utils::sBssInfoConf> &candidates)
         -> const wireless_utils::sBssInfoConf * {
@@ -330,8 +374,10 @@ bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent
         configuration.akm = "dpp";
     }
 
-    fill_psk_or_passphrase(*selected, configuration.akm, configuration.passphrase,
-                           configuration.psk_hex);
+    if (!fill_psk_or_passphrase(*selected, configuration.akm, configuration.passphrase,
+                                configuration.psk_hex, error)) {
+        return false;
+    }
     configuration.ssid_advertisement_valid = true;
     configuration.ssid_advertisement       = ssid_is_advertised(*selected);
     return true;
@@ -368,6 +414,10 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
     }
     LOG(INFO) << "DPP Configuration Request parsed roles=" << parsed_roles.str()
               << " bSTAList akm=" << requested_backhaul_akm;
+    if (son::controller_dpp::dpp_akm_has_easymesh_decimal_alias(requested_backhaul_akm)) {
+        LOG(WARNING) << "DPP: bSTAList akm uses unassigned selector 000FAC24, treated as "
+                        "SAE-EXT-KEY (000FAC18) as in Wi-Fi EasyMesh v6.1 Figure 9";
+    }
 
     if (requested_roles.empty()) {
         // Fallback when the request JSON is a single object already unwrapped to netRole.
@@ -436,7 +486,7 @@ bool build_dpp_configuration_objects_from_policy(db &database, DppConfiguratorSe
         return true;
     }
 
-    // Multi-AP Agent path (M-5): mapAgent (+ mapBackhaulSta when requested).
+    // Multi-AP Agent path: mapAgent (+ mapBackhaulSta when requested).
     if (!role_requested(requested_roles, "mapAgent") &&
         !role_requested(requested_roles, "mapBackhaulSta") &&
         !role_requested(requested_roles, "sta")) {

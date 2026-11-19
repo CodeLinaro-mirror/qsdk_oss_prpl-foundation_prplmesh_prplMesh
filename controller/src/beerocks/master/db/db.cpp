@@ -425,7 +425,7 @@ bool db::set_sta_association_frame(const sMacAddr &sta_mac, std::vector<uint8_t>
         LOG(ERROR) << "Station " << sta_mac << " is not known";
         return false;
     }
-    sta->m_assoc_frame = assoc_frame;
+    sta->m_assoc_frame = std::move(assoc_frame);
     return true;
 }
 
@@ -10981,7 +10981,6 @@ bool db::add_dpp_bootstrap_info(sDppBootstrappingInfo &&info, std::string &error
 
     LOG(INFO) << "Stored DPP bootstrap info alias=" << safe_alias
               << " entries=" << dpp_bootstrap_info_map.size();
-    print_dpp_bootstrap_info();
     return true;
 }
 
@@ -11032,55 +11031,6 @@ void db::clear_dpp_bootstrap_info_db()
 {
     dpp_bootstrap_info_map.clear();
     LOG(DEBUG) << "Cleared all DPP bootstrapping entries";
-}
-
-void db::print_dpp_bootstrap_info() const
-{
-    LOG(INFO) << "JUST FOR DEBUGGING";
-
-    if (dpp_bootstrap_info_map.empty()) {
-        LOG(INFO) << "DPP Bootstrap Info: [empty]";
-        return;
-    }
-
-    LOG(INFO) << "=== DPP Bootstrap Info [" << dpp_bootstrap_info_map.size() << " entries] ===";
-
-    uint32_t idx = 1;
-    for (const auto &entry : dpp_bootstrap_info_map) {
-        const sDppBootstrappingInfo &info = entry.second;
-
-        std::string channels_str;
-        for (const auto &ch : info.operating_class_channel) {
-            if (!channels_str.empty()) {
-                channels_str += ", ";
-            }
-            channels_str += std::to_string(ch.first) + "/" + std::to_string(ch.second);
-        }
-
-        LOG(INFO) << "  [" << idx << "] Alias    : " << entry.first;
-        LOG(INFO) << "      MAC      : " << info.mac;
-        LOG(INFO) << "      RUID     : " << info.ruid;
-        LOG(INFO) << "      BSSID    : " << info.bssid;
-        LOG(INFO) << "      Version  : " << static_cast<int>(info.version);
-        LOG(INFO) << "      Channels : " << (channels_str.empty() ? "<not set>" : channels_str);
-        LOG(INFO) << "      Info     : " << (info.info.empty() ? "<not set>" : info.info);
-        LOG(INFO) << "      Host     : " << (info.host.empty() ? "<not set>" : info.host);
-        LOG(INFO) << "      PubKey   : " << info.public_key;
-
-        // Convert pkhash vector to hex string for easy visual debugging against Chirp CMDUs
-        std::string pkhash_hex =
-            beerocks::string_utils::bytes_to_hex_string(info.pkhash.data(), info.pkhash.size());
-        LOG(INFO) << "      PKHash   : " << pkhash_hex;
-        LOG(INFO) << "      ChirpHash: "
-                  << (info.chirp_hash_hex.empty()
-                          ? beerocks::string_utils::bytes_to_hex_string(info.chirp_hash.data(),
-                                                                        info.chirp_hash.size())
-                          : info.chirp_hash_hex);
-
-        idx++;
-    }
-
-    LOG(INFO) << "=== End DPP Bootstrap Info ===";
 }
 
 namespace {
@@ -11148,6 +11098,8 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
         }
         if (entry.second.pkhash_valid &&
             dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.pkhash, candidate_hex)) {
+            // Interop: accepted on purpose for Enrollees that send the raw bootstrap key hash.
+            LOG(DEBUG) << "DPP: chirp hash matched the raw bootstrap key hash, not the chirp form";
             received_hex = std::move(candidate_hex);
             return &entry.second;
         }

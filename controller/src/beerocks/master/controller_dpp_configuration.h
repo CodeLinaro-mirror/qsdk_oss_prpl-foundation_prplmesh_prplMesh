@@ -50,16 +50,16 @@ bool get_dpp_backhaul_sta_configuration(db &database, const std::shared_ptr<Agen
                                         std::string &error);
 
 /**
- * @brief Select fronthaul BSS credentials for netRole=sta (M-9: no backhaul creds).
+ * @brief Select fronthaul BSS credentials for netRole=sta (no backhaul creds).
  */
 bool get_dpp_sta_configuration(db &database, const std::shared_ptr<Agent> &agent,
                                const std::string &ssid_hex, DppStaConfiguration &configuration,
                                std::string &error);
 
 /**
- * @brief FEAT-68 C-4: build Configuration Object JSON list from Controller BSS policy.
+ * @brief Build Configuration Object JSON list from Controller BSS policy.
  *
- * Roles (Architecture / M-5 / M-9):
+ * Roles:
  *   - mapAgent: always for Multi-AP Enrollee Config Request
  *   - mapBackhaulSta: when requested in the Config Request (or nested bSTAList)
  *   - sta: infrastructure STA path using fronthaul BSS only

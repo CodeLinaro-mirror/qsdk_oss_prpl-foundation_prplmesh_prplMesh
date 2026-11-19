@@ -131,7 +131,7 @@ public:
     void send_dpp_cce_indication(bool advertise_cce);
 
     /**
-     * @brief Send DPP CCE Indication to a single agent (AC-07: (re)join, restart, capability change).
+     * @brief Send DPP CCE Indication to a single agent ((re)join, restart, capability change).
      *
      * @param al_mac AL MAC of the target agent.
      * @param advertise_cce true for ENABLE, false for DISABLE.
@@ -140,7 +140,7 @@ public:
 
     /**
      * @brief Notify dpp_onboarding_task that bootstrap URI store changed (add/update/remove).
-     * Used for mid-session URI replace reset (M-13) and CLEARED cleanup (M-3).
+     * Used for mid-session URI replace reset and CLEARED cleanup.
      */
     void notify_dpp_bootstrapping_trigger(const std::string &reason = {});
 

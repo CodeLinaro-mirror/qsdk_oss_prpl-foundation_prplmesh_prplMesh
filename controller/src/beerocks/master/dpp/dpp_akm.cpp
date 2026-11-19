@@ -35,9 +35,12 @@ const AkmSelector k_akm_selectors[] = {
     {"000fac09", "sae"},   // FT-SAE
     {"000fac18", "sae"},   // SAE-EXT-KEY (AKM 24)
     {"000fac19", "sae"},   // FT-SAE-EXT-KEY (AKM 25)
-    // Wi-Fi EasyMesh v6.1 Figure 9 writes SAE-EXT-KEY (AKM 24) in decimal.
+    // Not an assigned suite type: Wi-Fi EasyMesh v6.1 Figure 9 writes SAE-EXT-KEY
+    // (AKM 24) in decimal. Accepted for interop; see dpp_akm_has_easymesh_decimal_alias().
     {"000fac24", "sae"},
 };
+
+const char k_easymesh_decimal_sae_ext_key[] = "000fac24";
 
 std::string trim_lower(const std::string &value)
 {
@@ -69,6 +72,18 @@ std::string dpp_akm_token_family(const std::string &token)
     return lowered;
 }
 
+bool dpp_akm_has_easymesh_decimal_alias(const std::string &akm)
+{
+    std::stringstream ss(akm);
+    std::string token;
+    while (std::getline(ss, token, '+')) {
+        if (trim_lower(token) == k_easymesh_decimal_sae_ext_key) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::vector<std::string> dpp_akm_families(const std::string &akm)
 {
     std::vector<std::string> families;
@@ -87,9 +102,18 @@ std::vector<std::string> dpp_akm_families(const std::string &akm)
 
 bool dpp_akm_is_compatible(const std::string &configured_akm, const std::string &requested_akm)
 {
+    // Empty request = no Enrollee preference (not a constraint).
+    if (requested_akm.empty()) {
+        return true;
+    }
     const auto configured = dpp_akm_families(configured_akm);
     const auto requested  = dpp_akm_families(requested_akm);
-    if (configured.empty() || requested.empty()) {
+    // Non-empty request that yields no tokens (e.g. "++") is incompatible.
+    if (requested.empty()) {
+        return false;
+    }
+    // Empty configured AKM is not a constraint (caller may fall back to "dpp").
+    if (configured.empty()) {
         return true;
     }
     return std::any_of(configured.begin(), configured.end(),
