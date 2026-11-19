@@ -3022,11 +3022,17 @@ bool Controller::handle_cmdu_1905_failed_connection_message(const sMacAddr &src_
 bool Controller::handle_cmdu_1905_beacon_response(const sMacAddr &src_mac,
                                                   ieee1905_1::CmduMessageRx &cmdu_rx)
 {
-    // here we need to extract and keep the data received from the STA
-    // but currently we'll just print that we are here
-    auto mid = cmdu_rx.getMessageId();
+    // TODO: Extract and store the measurements received from the STA.
+    const auto mid = cmdu_rx.getMessageId();
     LOG(DEBUG) << "got beacon response from STA. mid: 0x" << std::hex << mid;
-    return true;
+
+    if (!cmdu_tx.create(mid, ieee1905_1::eMessageType::ACK_MESSAGE)) {
+        LOG(ERROR) << "cmdu creation of type ACK_MESSAGE, has failed";
+        return false;
+    }
+
+    LOG(DEBUG) << "sending ACK message back to agent, mid=" << std::hex << mid;
+    return son_actions::send_cmdu_to_agent(src_mac, cmdu_tx, database);
 }
 
 bool Controller::handle_intel_slave_join(

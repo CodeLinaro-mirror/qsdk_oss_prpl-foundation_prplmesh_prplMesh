@@ -22,6 +22,7 @@
 #include <atomic>
 #include <list>
 #include <set>
+#include <vector>
 
 namespace son {
 class ApManager {
@@ -378,13 +379,15 @@ private:
 
     bool radio_disabled_by_service = false;
 
+    struct sBeaconReport {
+        uint8_t length;
+        beerocks_message::sBeaconResponse11k params;
+    };
+
     struct sBeaconMetricsResponse {
         sMacAddr sta_mac;
-        struct sBeaconReport {
-            uint8_t length;
-            beerocks_message::sBeaconResponse11k params;
-        };
-        std::vector<sBeaconReport> beacon_report;
+        // Keep reports from each received Radio Measurement Report frame together.
+        std::vector<std::vector<sBeaconReport>> beacon_report_frames;
         int resp_timer = beerocks::net::FileDescriptor::invalid_descriptor;
     };
 
