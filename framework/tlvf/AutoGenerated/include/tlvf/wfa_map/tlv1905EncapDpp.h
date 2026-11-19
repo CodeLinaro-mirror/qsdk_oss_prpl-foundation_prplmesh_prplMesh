@@ -56,16 +56,40 @@ class tlv1905EncapDpp : public BaseClass
             }
         } __attribute__((packed)) sFlags;
         
-        enum eFrameType: uint8_t {
+        enum eDppFrameIndicatorType: uint8_t {
             DPP_PUBLIC_ACTION_FRAME = 0x0,
             GAS_FRAME = 0x1,
         };
         // Enum AutoPrint generated code snippet begining- DON'T EDIT!
         // clang-format off
-        static const char *eFrameType_str(eFrameType enum_value) {
+        static const char *eDppFrameIndicatorType_str(eDppFrameIndicatorType enum_value) {
             switch (enum_value) {
             case DPP_PUBLIC_ACTION_FRAME: return "DPP_PUBLIC_ACTION_FRAME";
             case GAS_FRAME:               return "GAS_FRAME";
+            }
+            static std::string out_str = std::to_string(int(enum_value));
+            return out_str.c_str();
+        }
+        friend inline std::ostream &operator<<(std::ostream &out, eDppFrameIndicatorType value) { return out << eDppFrameIndicatorType_str(value); }
+        // clang-format on
+        // Enum AutoPrint generated code snippet end
+        
+        enum eFrameType: uint8_t {
+            DPP_AUTHENTICATION_REQUEST = 0x0,
+            DPP_AUTHENTICATION_RESPONSE = 0x1,
+            DPP_AUTHENTICATION_CONFIRM = 0x2,
+            DPP_CONFIGURATION_RESULT = 0xb,
+            DPP_GAS_FRAME = 0xff,
+        };
+        // Enum AutoPrint generated code snippet begining- DON'T EDIT!
+        // clang-format off
+        static const char *eFrameType_str(eFrameType enum_value) {
+            switch (enum_value) {
+            case DPP_AUTHENTICATION_REQUEST:  return "DPP_AUTHENTICATION_REQUEST";
+            case DPP_AUTHENTICATION_RESPONSE: return "DPP_AUTHENTICATION_RESPONSE";
+            case DPP_AUTHENTICATION_CONFIRM:  return "DPP_AUTHENTICATION_CONFIRM";
+            case DPP_CONFIGURATION_RESULT:    return "DPP_CONFIGURATION_RESULT";
+            case DPP_GAS_FRAME:               return "DPP_GAS_FRAME";
             }
             static std::string out_str = std::to_string(int(enum_value));
             return out_str.c_str();

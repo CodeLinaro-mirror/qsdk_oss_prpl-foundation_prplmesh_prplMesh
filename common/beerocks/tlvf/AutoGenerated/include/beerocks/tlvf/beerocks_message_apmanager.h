@@ -84,6 +84,7 @@ class cACTION_APMANAGER_CONFIGURE : public BaseClass
         uint8_t& channel();
         uint8_t& certification_mode();
         uint8_t& multi_ap_profile();
+        uint8_t& enable_dpp_onboarding();
         uint8_t& clients_measurement_mode();
         sFronthaulIface& bridge_iface();
         uint16_t& hostapd_ctrl_path_length();
@@ -105,6 +106,7 @@ class cACTION_APMANAGER_CONFIGURE : public BaseClass
         uint8_t* m_channel = nullptr;
         uint8_t* m_certification_mode = nullptr;
         uint8_t* m_multi_ap_profile = nullptr;
+        uint8_t* m_enable_dpp_onboarding = nullptr;
         uint8_t* m_clients_measurement_mode = nullptr;
         sFronthaulIface* m_bridge_iface = nullptr;
         uint16_t* m_hostapd_ctrl_path_length = nullptr;

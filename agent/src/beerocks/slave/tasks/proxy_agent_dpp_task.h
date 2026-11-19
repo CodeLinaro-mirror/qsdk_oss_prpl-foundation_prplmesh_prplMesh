@@ -22,31 +22,39 @@ public:
 private:
     slave_thread &m_btl_ctx;
     ieee1905_1::CmduMessageTx &m_cmdu_tx;
-    int active_onboarding_ap_manager_fd = beerocks::net::FileDescriptor::invalid_descriptor;
+
+    /** ap_manager which sent the last OTA DPP Authentication Response. */
+    int m_active_onboarding_ap_manager_fd = beerocks::net::FileDescriptor::invalid_descriptor;
 
     /**
-     * @brief Parse DPP CCE Indication message.
+     * @brief Forward DPP CCE Indication to all local AP managers.
      *
-     * @param cmdu_rx Received CMDU.
-     * @return true on success, otherwise false.
+     * When DPP onboarding is disabled the message is not forwarded, and an ENABLE
+     * is answered with an Error Response (reason 0x0D, EasyMesh 6.1 section 5.3.4).
      */
     void handle_dpp_cce_indication(ieee1905_1::CmduMessageRx &cmdu_rx);
 
     /**
-     * @brief Parse Chirp Notification Message.
-     *
-     * @param cmdu_rx Received CMDU.
-     * @return true on success, otherwise false.
+     * @brief Send an Error Response with a Profile-2 Error Code TLV, reason
+     * DPP_ONBOARDING_NOT_SUPPORTED (0x0D), to the Controller.
      */
-    void handle_chirp_notification(ieee1905_1::CmduMessageRx &cmdu_rx);
+    void send_dpp_onboarding_not_supported_error();
 
     /**
-     * @brief Parse Proxied Encap DPP Message.
+     * @brief Route a Proxied Encap DPP message on the OTA (ap_manager) path.
      *
+     * - From an ap_manager (fd valid): forward to the Controller, or drop it while the
+     *   TCP relay is active (DppAgentTask forwards the copy received from hostapd).
+     * - From the Controller while the TCP relay is not active: Authentication Request to
+     *   every ap_manager, other frames to the ap_manager serving the Enrollee.
+     * Controller downlink while the TCP relay is active is left to DppAgentTask.
+     *
+     * @param fd ap_manager socket, or invalid for a message received from the broker.
+     * @param src_mac 1905 source AL MAC (broker messages only).
      * @param cmdu_rx Received CMDU.
-     * @return true on success, otherwise false.
+     * @return true if handled here, false to leave the message to another task.
      */
-    void handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac,
+    bool handle_proxied_encap_dpp(int fd, const sMacAddr &src_mac,
                                   ieee1905_1::CmduMessageRx &cmdu_rx);
 };
 } // namespace beerocks

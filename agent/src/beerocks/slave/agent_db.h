@@ -163,6 +163,8 @@ public:
         int zwdfs_flag;
         uint32_t best_channel_rank_threshold;
         uint16_t multi_chan_bcn_req_duration;
+        /** Start DPP-over-TCP relay at STATE_OPERATIONAL (Agent Configuration.EnableDPPOnboarding). */
+        bool enable_dpp_onboarding = true;
 
         std::string vendor;
         std::string model;
