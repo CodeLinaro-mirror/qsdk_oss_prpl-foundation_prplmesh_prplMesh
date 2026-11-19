@@ -1899,24 +1899,20 @@ static void event_ieee1905_network_enable_changed(const char *const sig_name,
     }
 }
 
-static void event_provisioned_dpp_changed(const char *const sig_name, const amxc_var_t *const data,
-                                          void *const priv)
+// Imports or replaces the URI stored for alias; an empty URI withdraws it.
+static void sync_provisioned_dpp(const char *alias, const char *dpp_uri,
+                                 const std::string &event_name)
 {
-    amxd_object_t *dpp_obj =
-        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
-
-    if (!dpp_obj) {
-        LOG(WARNING) << "Failed to get ProvisionedDPP object";
+    if (!g_database) {
+        LOG(WARNING) << "Database is not initialized yet";
         return;
     }
 
-    const char *alias = amxd_object_get_cstring_t(dpp_obj, "Alias", nullptr);
     if (!alias || alias[0] == '\0') {
         LOG(ERROR) << "ProvisionedDPP Alias is empty. Need to set DPP Alias first.";
         return;
     }
 
-    const char *dpp_uri = amxd_object_get_cstring_t(dpp_obj, "DPPURI", nullptr);
     if (!dpp_uri || dpp_uri[0] == '\0') {
         // Clearing DPPURI withdraws the URI, same as removing the ProvisionedDPP instance.
         if (!g_database->remove_dpp_bootstrap_info(std::string(alias))) {
@@ -1956,8 +1952,39 @@ static void event_provisioned_dpp_changed(const char *const sig_name, const amxc
         return;
     }
     LOG(DEBUG) << "DPPURI stored for alias=" << alias << "; reconciling onboarding and CCE policy";
-    controller_ctx->notify_dpp_bootstrapping_trigger(std::string("ProvisionedDPP changed alias=") +
-                                                     alias);
+    controller_ctx->notify_dpp_bootstrapping_trigger("ProvisionedDPP " + event_name +
+                                                     " alias=" + alias);
+}
+
+static void event_provisioned_dpp_changed(const char *const sig_name, const amxc_var_t *const data,
+                                          void *const priv)
+{
+    amxd_object_t *dpp_obj =
+        amxd_dm_signal_get_object(beerocks::nbapi::Amxrt::getDatamodel(), data);
+
+    if (!dpp_obj) {
+        LOG(WARNING) << "Failed to get ProvisionedDPP object";
+        return;
+    }
+
+    char *alias   = amxd_object_get_cstring_t(dpp_obj, "Alias", nullptr);
+    char *dpp_uri = amxd_object_get_cstring_t(dpp_obj, "DPPURI", nullptr);
+    sync_provisioned_dpp(alias, dpp_uri, "changed");
+    free(alias);
+    free(dpp_uri);
+}
+
+// Values given at creation raise only dm:instance-added, never dm:object-changed.
+static void event_provisioned_dpp_added(const char *const sig_name, const amxc_var_t *const data,
+                                        void *const priv)
+{
+    const char *dpp_uri = GETP_CHAR(data, "parameters.DPPURI");
+    if (!dpp_uri || dpp_uri[0] == '\0') {
+        // Nothing to import yet; a later DPPURI set is handled by event_provisioned_dpp_changed.
+        return;
+    }
+
+    sync_provisioned_dpp(GETP_CHAR(data, "parameters.Alias"), dpp_uri, "added");
 }
 
 static void event_provisioned_dpp_removed(const char *const sig_name, const amxc_var_t *const data,
@@ -2002,6 +2029,7 @@ std::vector<beerocks::nbapi::sEvents> get_events_list(void)
         {"event_traffic_separation_override_changed", event_traffic_separation_override_changed},
         {"event_network_group_changed", event_network_group_changed},
         {"event_network_enable_changed", event_network_enable_changed},
+        {"event_provisioned_dpp_added", event_provisioned_dpp_added},
         {"event_provisioned_dpp_changed", event_provisioned_dpp_changed},
         {"event_provisioned_dpp_removed", event_provisioned_dpp_removed}};
     return events_list;

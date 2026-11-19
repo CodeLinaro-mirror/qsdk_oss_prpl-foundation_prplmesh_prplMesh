@@ -267,6 +267,15 @@ higher_layer_collection_task_test:
 dpp_unit_tests:
   extends: .run-test-in-docker
 
+dpp_akm_test:
+  extends: .run-test-in-docker
+
+dpp_configurator_session_test:
+  extends: .run-test-in-docker
+
+dpp_onboarding_task_test:
+  extends: .run-test-in-docker
+
 ieee1905_task_test:
   extends: .run-test-in-docker
 

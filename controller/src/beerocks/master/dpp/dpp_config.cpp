@@ -133,10 +133,9 @@ bool build_dpp_configuration_object(DppKey *csign_key, const std::string &pp_key
     json_object *root = json_object_new_object();
     json_object *cred = json_object_new_object();
 
-    const std::string wifi_tech =
-        !options.wifi_tech.empty()
-            ? options.wifi_tech
-            : ((normalized_role.rfind("map", 0) == 0) ? "map" : "infra");
+    const std::string wifi_tech = !options.wifi_tech.empty()
+                                      ? options.wifi_tech
+                                      : ((normalized_role.rfind("map", 0) == 0) ? "map" : "infra");
     json_object_object_add(root, "wi-fi_tech", json_object_new_string(wifi_tech.c_str()));
     if (options.include_net_role) {
         const auto &role = options.net_role.empty() ? normalized_role : options.net_role;
@@ -257,11 +256,6 @@ bool parse_dpp_config_request_objects(const std::string &json_blob,
             net_roles.emplace_back(json_object_get_string(net_role_obj));
         }
 
-        json_object *bsta_list = nullptr;
-        if (!json_object_object_get_ex(obj, "bSTAList", &bsta_list)) {
-            return;
-        }
-
         auto parse_bsta = [&](json_object *bsta_obj) {
             if (!bsta_obj || json_object_get_type(bsta_obj) != json_type_object) {
                 return;
@@ -305,6 +299,17 @@ bool parse_dpp_config_request_objects(const std::string &json_blob,
                 }
             }
         };
+
+        // A request may carry the backhaul STA object directly, without bSTAList.
+        if (net_role_obj && json_object_get_type(net_role_obj) == json_type_string &&
+            std::string(json_object_get_string(net_role_obj)) == "mapBackhaulSta") {
+            parse_bsta(obj);
+        }
+
+        json_object *bsta_list = nullptr;
+        if (!json_object_object_get_ex(obj, "bSTAList", &bsta_list)) {
+            return;
+        }
 
         if (json_object_get_type(bsta_list) == json_type_array) {
             const int len = json_object_array_length(bsta_list);

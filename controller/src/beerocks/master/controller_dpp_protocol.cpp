@@ -597,7 +597,7 @@ bool DppConfiguratorSession::unwrap_gas_configuration_request(const std::vector<
     }
     m_gas_dialog_token = dialog_token;
 
-    // Reuse existing C-3 implementation from 0004.
+    // Reuse the existing Configuration Request parser.
     return unwrap_configuration_request(dpp_attrs, request_object_json, net_role, error);
 }
 
@@ -614,7 +614,7 @@ bool DppConfiguratorSession::build_gas_configuration_response(
         return false;
     }
 
-    // Reuse existing C-4 DPP attribute blob, then add GAS Initial Response framing.
+    // Reuse the existing DPP attribute blob, then add GAS Initial Response framing.
     gas_encap = wrap_dpp_response_in_gas(response_frame, m_gas_dialog_token);
     return true;
 }

@@ -31,10 +31,16 @@ protected:
         bootstrap_hash.resize(SHA256_DIGEST_LENGTH);
         ASSERT_NE(nullptr, SHA256(der.data(), der.size(), bootstrap_hash.data()));
         ASSERT_TRUE(dpp::ec_public_xy(bootstrap_key.get(), 32, protocol_xy));
+        bootstrap_uri = dpp::base64url_encode(der.data(), der.size());
+        ASSERT_NO_FATAL_FAILURE(restart_session());
+    }
+
+    /** Re-issue Auth Request after a failed response clears k1/mx (Easy Connect 6.3.4). */
+    void restart_session()
+    {
         std::vector<uint8_t> request;
         std::string error;
-        ASSERT_TRUE(session.start(dpp::base64url_encode(der.data(), der.size()), 2, request, error))
-            << error;
+        ASSERT_TRUE(session.start(bootstrap_uri, 2, request, error)) << error;
         const uint8_t *header = nullptr, *attrs = nullptr;
         size_t attrs_len = 0;
         ASSERT_TRUE(dpp::split_dpp_public_action_frame(request, dpp::k_dpp_authentication_request,
@@ -77,10 +83,13 @@ protected:
         EXPECT_TRUE(confirm.empty());
         EXPECT_TRUE(session.authentication_started());
         EXPECT_FALSE(session.authentication_success());
+        // Failed response processing erases intermediates; refresh for the next check.
+        ASSERT_NO_FATAL_FAILURE(restart_session());
     }
 
     dpp::DppConfiguratorSession session;
     dpp::DppKeyPtr bootstrap_key;
+    std::string bootstrap_uri;
     std::vector<uint8_t> bootstrap_hash, initiator_hash, protocol_xy;
 };
 

@@ -41,6 +41,9 @@ public:
      *
      * Does not send Authentication Request; call start_direct_encap_onboarding()
      * or send_dpp_authentication_request() after bootstrap is matched.
+     *
+     * @note Direct Encap production trigger is out of scope for PPM-4079 / FEAT-68
+     * Phase 1 (proxied chirp path only). APIs are retained for a later FEAT.
      */
     bool set_direct_encap_onboarding_agent(const sMacAddr &agent_mac);
 
@@ -51,6 +54,9 @@ public:
      * Bootstrap resolution (existing db APIs):
      *   1. get_dpp_bootstrap_info_by_mac(agent_mac)
      *   2. else get_sole_dpp_bootstrap_info() when exactly one URI is provisioned
+     *
+     * @note Not wired to a controller production trigger in this MR (see
+     * set_direct_encap_onboarding_agent()).
      */
     bool start_direct_encap_onboarding(const sMacAddr &agent_mac);
 
@@ -72,7 +78,7 @@ public:
      * @brief Optionally stage Config Object JSON blobs for the next GAS Configuration Request. 
      *
      * If empty on Config Request RX, objects are built automatically from Controller BSS
-     * policy (C-4: mapAgent / mapBackhaulSta / sta) using C-sign from the DPP keystore (C-6).
+     * policy (mapAgent / mapBackhaulSta / sta) using C-sign from the DPP keystore.
      * Staged objects override the policy builder when present.
      */
     void set_pending_configuration_objects(std::vector<std::string> config_object_jsons,
@@ -134,7 +140,7 @@ private:
     bool replay_cached_configuration_response(const sMacAddr &enrollee_mac,
                                               const std::vector<uint8_t> &request);
     /**
-     * @brief D-15: decide whether an already onboarded bootstrapping entry is onboarded again.
+     * @brief Decide whether an already onboarded bootstrapping entry is onboarded again.
      *
      * The Enrollee MAC is taken from the Chirp Notification, else from the URI M: field,
      * else from the onboarding session. The entry is onboarded again only when that MAC is

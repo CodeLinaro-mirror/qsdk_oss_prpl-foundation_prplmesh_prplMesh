@@ -6,9 +6,8 @@
  * See LICENSE file for more details.
  */
 
-// VAL-04 (STEP-06): Controller desired CCE state. Signalling only; the over-the-air state is
-// covered by VAL-05. No Controller context is set, so indications are not sent; the test checks
-// the desired state that drives ENABLE and the AP Capability Report re-send.
+// Controller desired CCE state only: no Controller context is set, so no indication is sent.
+// Checks the desired state that drives ENABLE and the AP Capability Report re-send.
 
 #include "../dpp_onboarding_task.h"
 #include "db.h"
@@ -224,7 +223,7 @@ TEST_F(DppOnboardingTaskTest, removing_pending_uri_keeps_cce_when_rest_onboarded
 }
 
 // A URI change is synced when it is notified, not deferred to a later work() that would reset
-// a session started by a chirp in between (M-13 / M-15). Observable: clearing the store
+// a session started by a chirp in between. Observable: clearing the store
 // while waiting for Authentication drops the pending Auth events on the trigger alone, so
 // the expired wait never times out. Deferred to work(), the wait would time out once.
 TEST_F(DppOnboardingTaskTest, bootstrap_trigger_syncs_store_immediately)

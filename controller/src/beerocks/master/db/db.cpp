@@ -425,7 +425,7 @@ bool db::set_sta_association_frame(const sMacAddr &sta_mac, std::vector<uint8_t>
         LOG(ERROR) << "Station " << sta_mac << " is not known";
         return false;
     }
-    sta->m_assoc_frame = assoc_frame;
+    sta->m_assoc_frame = std::move(assoc_frame);
     return true;
 }
 
@@ -11148,6 +11148,8 @@ const db::sDppBootstrappingInfo *db::dpp_chirp_hash_matches(const uint8_t *hash,
         }
         if (entry.second.pkhash_valid &&
             dpp_hash_buffer_matches_pkhash(hash, hash_len, entry.second.pkhash, candidate_hex)) {
+            // Interop: accepted on purpose for Enrollees that send the raw bootstrap key hash.
+            LOG(DEBUG) << "DPP: chirp hash matched the raw bootstrap key hash, not the chirp form";
             received_hex = std::move(candidate_hex);
             return &entry.second;
         }

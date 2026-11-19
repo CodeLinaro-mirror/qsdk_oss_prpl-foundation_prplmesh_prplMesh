@@ -33,7 +33,7 @@ struct SessionState {
     std::vector<std::string> pending_configuration_objects;
     bool pending_send_conn_status    = false;
     bool configuration_response_sent = false;
-    /** True when this session uses DIRECT_ENCAP_DPP_MESSAGE (logical Ethernet / M-8). */
+    /** True when this session uses DIRECT_ENCAP_DPP_MESSAGE (logical Ethernet). */
     bool use_direct_encap = false;
     /** When this session's Authentication Request was sent (chirp guard stale check). */
     std::chrono::steady_clock::time_point auth_request_sent_at{};

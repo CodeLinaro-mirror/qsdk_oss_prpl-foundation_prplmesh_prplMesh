@@ -17,7 +17,6 @@
 #include "tasks/client_association_task.h"
 #include "tasks/client_steering_task.h"
 #include "tasks/dhcp_task.h"
-#include "tasks/dpp_chirp_notification_task.h"
 #include "tasks/dpp_onboarding_task.h"
 #include "tasks/dpp_protocol_task.h"
 #include "tasks/ieee1905_query_sender_impl.h"
@@ -88,7 +87,6 @@
 #include <tlvf/wfa_map/tlvDscpMappingTable.h>
 #include <tlvf/wfa_map/tlvEHTOperations.h>
 #include <tlvf/wfa_map/tlvErrorCode.h>
-#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvHigherLayerData.h>
 #include <tlvf/wfa_map/tlvOperatingChannelReport.h>
 #include <tlvf/wfa_map/tlvProfile2ApCapability.h>
@@ -96,6 +94,7 @@
 #include <tlvf/wfa_map/tlvProfile2CacCapabilities.h>
 #include <tlvf/wfa_map/tlvProfile2CacStatusReport.h>
 #include <tlvf/wfa_map/tlvProfile2ChannelScanResult.h>
+#include <tlvf/wfa_map/tlvProfile2ErrorCode.h>
 #include <tlvf/wfa_map/tlvProfile2MultiApProfile.h>
 #include <tlvf/wfa_map/tlvProfile2RadioMetrics.h>
 #include <tlvf/wfa_map/tlvProfile2ReasonCode.h>
@@ -167,7 +166,7 @@ const std::set<ieee1905_1::eMessageType> easymesh_message_types = {
     ieee1905_1::eMessageType::EARLY_AP_CAPABILITY_REPORT_MESSAGE,
     ieee1905_1::eMessageType::AVAILABLE_SPECTRUM_INQUIRY_MESSAGE,
     ieee1905_1::eMessageType::ERROR_RESPONSE_MESSAGE,
-    // DPP / EasyConnect (FEAT-68 Path B): Agent → Controller chirp and encap frames
+    // DPP: Agent → Controller chirp and Proxied/Direct Encap frames
     ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE,
     ieee1905_1::eMessageType::PROXIED_ENCAP_DPP_MESSAGE,
     ieee1905_1::eMessageType::DIRECT_ENCAP_DPP_MESSAGE,
@@ -428,7 +427,7 @@ void Controller::start_mandatory_tasks()
     auto dpp_onboarding = std::make_shared<dpp_onboarding_task>(database, m_dpp_protocol_task);
     LOG_IF(!m_task_pool.add_task(dpp_onboarding), FATAL) << "Failed adding dpp_onboarding_task!";
     m_dpp_onboarding_task_id = dpp_onboarding->id;
-    m_dpp_onboarding_task    = dpp_onboarding;
+    m_dpp_onboarding_task    = std::move(dpp_onboarding);
     m_dpp_protocol_task->configure_onboarding_notifier(m_task_pool, m_dpp_onboarding_task_id);
 }
 

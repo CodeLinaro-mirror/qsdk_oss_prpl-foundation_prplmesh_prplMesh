@@ -354,7 +354,7 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
                 return false;
             }
         } else {
-            // FEAT-68 C-4: build Config Objects from Controller BSS policy.
+            // Build Config Objects from Controller BSS policy.
             std::vector<std::string> policy_objects;
             bool send_conn_status = false;
             if (!controller_dpp::build_dpp_configuration_objects_from_policy(
@@ -373,7 +373,7 @@ bool dpp_protocol_task::handle_cmdu_1905_proxied_encap_dpp(const sMacAddr &src_m
         }
 
         m_session.config_request_enrollee = enrollee_mac;
-        m_session.config_request_frame    = frame;
+        m_session.config_request_frame    = std::move(frame);
         m_session.config_response_cached  = !m_session.config_response_frame.empty();
         return true;
     }
@@ -501,12 +501,9 @@ bool dpp_protocol_task::handle_cmdu_1905_direct_encap_dpp(const sMacAddr &src_ma
             return false;
         }
 
-        sMacAddr enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
-        if (m_session.last_chirp_enrollee_valid) {
-            enrollee_mac = m_session.last_chirp_enrollee;
-        } else {
-            enrollee_mac = matched_bootstrap_mac();
-        }
+        const sMacAddr enrollee_mac = m_session.last_chirp_enrollee_valid
+                                          ? m_session.last_chirp_enrollee
+                                          : matched_bootstrap_mac();
 
         if (!send_dpp_authentication_confirm(enrollee_mac, std::move(auth_confirm))) {
             LOG(ERROR) << "Failed sending direct DPP Authentication Confirm to Agent " << src_mac;
@@ -697,7 +694,7 @@ bool dpp_protocol_task::handle_cmdu_1905_chirp_notification(const sMacAddr &src_
             continue;
         }
         if (onboard_again) {
-            // D-15: the Enrollee lost its backhaul (e.g. supplicant restart) and chirps again.
+            // The Enrollee lost its backhaul (e.g. supplicant restart) and chirps again.
             // Cleared only for a chirp that starts a session (after the guard above).
             LOG(INFO) << "DPP chirp from agent " << src_mac
                       << ": onboarded URI alias=" << matched_info->alias << " Enrollee "
@@ -894,7 +891,7 @@ bool dpp_protocol_task::send_dpp_authentication_request()
     }
 
     if (m_session.use_direct_encap) {
-        // M-8: DIRECT_ENCAP_DPP_MESSAGE carries tlvDppMessage only (no Chirp Value TLV).
+        // DIRECT_ENCAP_DPP_MESSAGE carries tlvDppMessage only (no Chirp Value TLV).
         db::sDirectEncapDppMessage direct_message;
         direct_message.frame = std::move(auth_request_frame);
         if (!send_direct_encap_dpp_to_agent(m_session.proxy_agent, direct_message)) {
@@ -1058,12 +1055,9 @@ bool dpp_protocol_task::send_dpp_configuration_response(
         send_conn_status = false;
     }
 
-    sMacAddr enrollee_mac = beerocks::net::network_utils::ZERO_MAC;
-    if (m_session.last_chirp_enrollee_valid) {
-        enrollee_mac = m_session.last_chirp_enrollee;
-    } else {
-        enrollee_mac = matched_bootstrap_mac();
-    }
+    const sMacAddr enrollee_mac = m_session.last_chirp_enrollee_valid
+                                      ? m_session.last_chirp_enrollee
+                                      : matched_bootstrap_mac();
 
     std::vector<uint8_t> gas_frame;
     std::string error;

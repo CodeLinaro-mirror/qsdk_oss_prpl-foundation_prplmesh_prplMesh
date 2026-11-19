@@ -669,6 +669,73 @@ TEST_F(DppDatabaseTest, PskSaeBitmaskMappingRegression)
 }
 
 // PUBLIC_INTERFACE
+/** A raw 64-hex key is never published as an SAE password. PSK+SAE is
+ *  downgraded to psk with psk_hex unless SAE-only was requested; SAE without PSK is rejected. */
+TEST_F(DppDatabaseTest, RawHexPskWithSaeAkmHybridPolicy)
+{
+    using Auth         = WSC::eWscAuth;
+    const auto hex_key = std::string(64, 'a');
+    const auto ruid    = tlvf::mac_from_string("02:00:00:00:01:01");
+    auto agent         = std::make_shared<Agent>(tlvf::mac_from_string("02:00:00:00:00:02"));
+    const auto psk_sae = static_cast<Auth>(static_cast<uint16_t>(Auth::WSC_AUTH_WPA2PSK) |
+                                           static_cast<uint16_t>(Auth::WSC_AUTH_SAE));
+    ASSERT_NE(nullptr, agent->radios.add(ruid));
+    auto configure = [&](Auth auth, const std::string &key) {
+        database->clear_configured_bss_info(ruid);
+        son::wireless_utils::sBssInfoConf bss{};
+        bss.ssid      = "Hex";
+        bss.fronthaul = bss.backhaul = true;
+        bss.authentication_type      = auth;
+        bss.network_key              = key;
+        database->add_configured_bss_info(ruid, bss);
+    };
+    configure(psk_sae, hex_key);
+    dpp::DppBackhaulStaConfiguration backhaul;
+    ASSERT_TRUE(dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", "", backhaul, error))
+        << error;
+    EXPECT_EQ("psk", backhaul.akm);
+    EXPECT_EQ(hex_key, backhaul.psk_hex);
+    EXPECT_TRUE(backhaul.passphrase.empty());
+    dpp::DppStaConfiguration sta;
+    ASSERT_TRUE(dpp::get_dpp_sta_configuration(*database, agent, "", sta, error)) << error;
+    EXPECT_EQ("psk", sta.akm);
+    EXPECT_EQ(hex_key, sta.psk_hex);
+    EXPECT_TRUE(sta.passphrase.empty());
+    // SAE-only request: the published AKM must not silently become psk.
+    for (const char *requested : {"sae", "000FAC08"}) {
+        EXPECT_FALSE(dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", requested,
+                                                             backhaul, error))
+            << requested;
+        EXPECT_NE(std::string::npos, error.find("Effective backhaul AKM 'psk'")) << requested;
+    }
+    ASSERT_TRUE(
+        dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", "psk+sae", backhaul, error))
+        << error;
+    EXPECT_EQ("psk", backhaul.akm);
+    EXPECT_EQ(hex_key, backhaul.psk_hex);
+
+    configure(Auth::WSC_AUTH_SAE, hex_key);
+    EXPECT_FALSE(
+        dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", "", backhaul, error));
+    EXPECT_NE(std::string::npos, error.find("64-hex"));
+    EXPECT_FALSE(dpp::get_dpp_sta_configuration(*database, agent, "", sta, error));
+    EXPECT_NE(std::string::npos, error.find("64-hex"));
+    configure(Auth::WSC_AUTH_WPA2PSK, hex_key);
+    ASSERT_TRUE(dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", "", backhaul, error))
+        << error;
+    EXPECT_EQ("psk", backhaul.akm);
+    EXPECT_EQ(hex_key, backhaul.psk_hex);
+
+    // 63 hex chars is a passphrase, not a raw PSK: SAE keeps it as "pass".
+    configure(psk_sae, std::string(63, 'a'));
+    ASSERT_TRUE(dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", "", backhaul, error))
+        << error;
+    EXPECT_EQ("psk+sae", backhaul.akm);
+    EXPECT_EQ(std::string(63, 'a'), backhaul.passphrase);
+    EXPECT_TRUE(backhaul.psk_hex.empty());
+}
+
+// PUBLIC_INTERFACE
 /** Radio policy takes precedence over per-agent policy, which takes precedence over global policy. */
 TEST_F(DppDatabaseTest, PolicySelectionPrecedenceAndFronthaulSsidMatch)
 {
@@ -739,7 +806,8 @@ TEST_F(DppDatabaseTest, BackhaulSsidFilteringAndEmptySsidFallback)
 }
 
 // PUBLIC_INTERFACE
-/** Hex PSKs require exactly 64 hexadecimal characters and a PSK-capable authentication type. */
+/** Hex PSKs require exactly 64 hexadecimal characters and a PSK-capable authentication type;
+ *  SAE-only BSSs reject a raw 64-hex key. */
 TEST_F(DppDatabaseTest, PolicyCredentialFormatsAndHiddenSsid)
 {
     auto agent      = std::make_shared<Agent>(tlvf::mac_from_string("02:00:00:00:00:02"));
@@ -763,6 +831,13 @@ TEST_F(DppDatabaseTest, PolicyCredentialFormatsAndHiddenSsid)
                 database->add_configured_bss_info(ruid, bss);
                 dpp::DppStaConfiguration sta;
                 dpp::DppBackhaulStaConfiguration backhaul;
+                if (auth == WSC::eWscAuth::WSC_AUTH_SAE && key == std::string(64, 'A')) {
+                    // A raw 64-hex PSK is never published as an SAE password.
+                    EXPECT_FALSE(dpp::get_dpp_sta_configuration(*database, agent, "", sta, error));
+                    EXPECT_FALSE(dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", "",
+                                                                         backhaul, error));
+                    continue;
+                }
                 ASSERT_TRUE(dpp::get_dpp_sta_configuration(*database, agent, "", sta, error));
                 ASSERT_TRUE(dpp::get_dpp_backhaul_sta_configuration(*database, agent, "", "",
                                                                     backhaul, error));

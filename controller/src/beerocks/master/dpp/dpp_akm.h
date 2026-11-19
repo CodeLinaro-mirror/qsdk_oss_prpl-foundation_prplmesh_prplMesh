@@ -41,7 +41,9 @@ std::vector<std::string> dpp_akm_families(const std::string &akm);
 
 /**
  * @brief True when the configured BSS AKM shares at least one AKM family with
- * the AKM requested by the Enrollee. An empty side is not a constraint.
+ * the AKM requested by the Enrollee. An empty requested string (or empty
+ * configured AKM) is not a constraint; a non-empty request with no tokens
+ * (e.g. "++") is incompatible.
  */
 bool dpp_akm_is_compatible(const std::string &configured_akm, const std::string &requested_akm);
 
@@ -52,6 +54,10 @@ bool dpp_akm_is_compatible(const std::string &configured_akm, const std::string 
  * @return Empty string when no known AKM family is present.
  */
 std::string dpp_akm_to_symbolic(const std::string &akm);
+
+/** True if the AKM string has 000FAC24, the EasyMesh v6.1 decimal form of SAE-EXT-KEY
+ *  (000FAC18) that dpp_akm_token_family() maps to "sae". Used to log the alias. */
+bool dpp_akm_has_easymesh_decimal_alias(const std::string &akm);
 
 } // namespace controller_dpp
 } // namespace son

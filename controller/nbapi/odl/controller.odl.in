@@ -567,6 +567,9 @@
     on event "*" call event_network_group_changed
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.X_PRPLWARE-COM_Group\."';
 
+    on event "dm:instance-added" call event_provisioned_dpp_added
+        filter 'path == "@DATAELEMENTS_ROOT_DM@.Network.ProvisionedDPP."';
+
     on event "dm:object-changed" call event_provisioned_dpp_changed
         filter 'object matches "@DATAELEMENTS_ROOT_DM_literal@\.Network\.ProvisionedDPP\." && contains("parameters.DPPURI")';
 

@@ -43,9 +43,9 @@ void remove_tmp_file(const std::string &tmp_path, std::string &error)
 bool write_store_file(const std::string &path, const std::string &content, std::string &error)
 {
     const std::string tmp_path = path + ".tmp";
-    const int fd = open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+    const int fd   = open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
                         S_IRUSR | S_IWUSR);
-    bool ok = fd >= 0 && fchmod(fd, S_IRUSR | S_IWUSR) == 0;
+    bool ok        = fd >= 0 && fchmod(fd, S_IRUSR | S_IWUSR) == 0;
     size_t written = 0;
     while (ok && written < content.size()) {
         auto count = write(fd, content.data() + written, content.size() - written);
