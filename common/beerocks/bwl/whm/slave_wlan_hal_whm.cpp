@@ -151,8 +151,7 @@ bool slave_wlan_hal_whm::refresh_dpp_relay()
         !relay->read_child(connected, "ClientConnected")) {
         return false;
     }
-    if (connected != m_dpp_client_connected) {
-        m_dpp_client_connected = connected;
+    if (m_dpp_client_connected.exchange(connected) != connected) {
         event_queue_push(connected ? Event::Dpp_Client_Connected : Event::Dpp_Client_Disconnected);
     }
     return true;
@@ -178,6 +177,12 @@ void slave_wlan_hal_whm::on_dpp_ambiorix_event(AmbiorixVariant &event_data)
         return;
     }
 
+    // hex_to_bytes() silently truncates an odd trailing nibble; never relay a corrupt frame.
+    if (frame_hex.empty() || frame_hex.size() % 2 != 0) {
+        LOG(WARNING) << "DPP: dropping DppFrameReceived with bad frame hex length "
+                     << frame_hex.size() << " (tcpType=" << int(tcp_type) << ")";
+        return;
+    }
     auto frame = string_utils::hex_to_bytes<std::vector<uint8_t>>(frame_hex);
     event_queue_push(Event::Dpp_Frame_Received,
                      std::make_shared<sDppFrameEvent>(sDppFrameEvent{tcp_type, std::move(frame)}));
@@ -216,12 +221,13 @@ void slave_wlan_hal_whm::on_ap_wpa_ctrl_event(AmbiorixVariant &event_data)
         return;
     }
 
-    auto hash_bytes = string_utils::hex_to_bytes<std::vector<uint8_t>>(hash_it->second);
-    if (hash_bytes.size() != sizeof(chirp.hash)) {
-        LOG(WARNING) << "DPP-CHIRP-RX hash length " << hash_bytes.size() << " from "
+    // Check the hex length: hex_to_bytes() maps 63 digits to 32 bytes too.
+    if (hash_it->second.size() != 2 * sizeof(chirp.hash)) {
+        LOG(WARNING) << "DPP-CHIRP-RX hash hex length " << hash_it->second.size() << " from "
                      << hash_it->second;
         return;
     }
+    auto hash_bytes = string_utils::hex_to_bytes<std::vector<uint8_t>>(hash_it->second);
     std::memcpy(chirp.hash, hash_bytes.data(), sizeof(chirp.hash));
 
     LOG(DEBUG) << "DPP-CHIRP-RX src=" << tlvf::mac_to_string(chirp.enrollee_mac)

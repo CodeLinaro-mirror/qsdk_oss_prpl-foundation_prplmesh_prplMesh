@@ -77,6 +77,8 @@ if (BUILD_TESTS)
         ${MODULE_PATH}/backhaul_manager/dpp_enrollee_channel_pair.cpp
         backhaul_manager/unit_tests/dpp_cce_targets_test.cpp
         ${MODULE_PATH}/backhaul_manager/dpp_cce_targets.cpp
+        tasks/unit_tests/dpp_relay_frames_test.cpp
+        ${MODULE_PATH}/tasks/dpp_relay_frames.cpp
         ${MODULE_PATH}/gate/1905_beacon_query_to_vs.cpp
         ${MODULE_PATH}/gate/vs_beacon_response_to_1905.cpp
     )

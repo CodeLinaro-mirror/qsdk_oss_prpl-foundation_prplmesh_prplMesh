@@ -10,6 +10,7 @@
 #define _BWL_SLAVE_WLAN_HAL_WHM_H_
 
 #include "base_wlan_hal_whm.h"
+#include <atomic>
 #include <bwl/slave_wlan_hal.h>
 #include <utility>
 #include <vector>
@@ -46,7 +47,8 @@ private:
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_dpp_event_handler;
     std::shared_ptr<beerocks::wbapi::sAmbiorixEventHandler> m_ap_wpa_ctrl_handler;
     std::string m_dpp_path;
-    bool m_dpp_client_connected = false;
+    // Written from bus callbacks, read by the Agent; see is_dpp_client_connected().
+    std::atomic<bool> m_dpp_client_connected{false};
 };
 
 } // namespace whm

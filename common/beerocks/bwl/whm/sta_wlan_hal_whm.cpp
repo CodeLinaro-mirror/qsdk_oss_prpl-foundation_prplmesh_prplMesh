@@ -402,6 +402,11 @@ int sta_wlan_hal_whm::get_scan_results(const std::string &ssid, std::vector<sSca
     auto ssid_results_as_list =
         results_as_wrapped_list.read_children<AmbiorixVariantListSmartPtr>();
 
+    // Named std::string keys avoid a temporary key on every map.find() (Coverity CWE-1176).
+    const std::string k_dpp_cce       = "DPPCCE";
+    const std::string k_dpp_cce_known = "DPPCCEKnown";
+    const std::string k_seen_ms_ago   = "SeenMsAgo";
+
     for (auto &ssid_results_map : *ssid_results_as_list) {
         auto data_map = ssid_results_map.read_children<AmbiorixVariantMapSmartPtr>();
         auto &map     = *data_map;
@@ -444,11 +449,11 @@ int sta_wlan_hal_whm::get_scan_results(const std::string &ssid, std::vector<sSca
 
         // DPP CCE metadata; keys missing on an older pWHM leave the entry unknown.
         sta_dpp::sCceScanKeys cce_keys;
-        auto key               = map.find("DPPCCE");
+        auto key               = map.find(k_dpp_cce);
         cce_keys.has_cce       = key != map.end() && key->second.get(cce_keys.cce);
-        key                    = map.find("DPPCCEKnown");
+        key                    = map.find(k_dpp_cce_known);
         cce_keys.has_cce_known = key != map.end() && key->second.get(cce_keys.cce_known);
-        key                    = map.find("SeenMsAgo");
+        key                    = map.find(k_seen_ms_ago);
         cce_keys.has_seen      = key != map.end() && key->second.get(cce_keys.seen_ms_ago);
         sta_dpp::apply_cce_scan_keys(cce_keys, ap);
 
@@ -775,7 +780,7 @@ public:
                 entries.clear();
                 return false;
             }
-            entries.push_back(entry);
+            entries.push_back(std::move(entry));
         }
         return true;
     }

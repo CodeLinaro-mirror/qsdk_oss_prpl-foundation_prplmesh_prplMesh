@@ -9,6 +9,7 @@
 #include "dpp_enrollee_channel_pair.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace beerocks {
 namespace dpp_enrollee {
@@ -94,19 +95,21 @@ sChannelListSelection select_bootstrap_channel_list(eFreqType band, const Channe
         if (channels.empty()) {
             out.chan_list     = k_24g_fallback;
             out.channel_count = 1;
-            return finish(out, "2.4 GHz, empty list: 81/6", "");
+            return finish(std::move(out), "2.4 GHz, empty list: 81/6", "");
         }
         append_class(out, k_24g_range, channels, false);
-        return finish(out, "2.4 GHz, listed channels", "2.4 GHz, no channel 1-13 listed");
+        return finish(std::move(out), "2.4 GHz, listed channels",
+                      "2.4 GHz, no channel 1-13 listed");
     case eFreqType::FREQ_5G:
     case eFreqType::FREQ_58G:
         for (const auto &range : k_5g_ranges) {
             append_class(out, range, channels, true);
         }
-        return finish(out, "5 GHz, listed non-DFS channels", "5 GHz, no non-DFS channel listed");
+        return finish(std::move(out), "5 GHz, listed non-DFS channels",
+                      "5 GHz, no non-DFS channel listed");
     default:
         // 6 GHz chirp is out of scope, so no channel list is advertised.
-        return finish(out, "", "6 GHz or unknown band: no list");
+        return finish(std::move(out), "", "6 GHz or unknown band: no list");
     }
 }
 
@@ -386,7 +389,10 @@ std::string chirp_safe_channels_string(const ChannelDfsMap &channels)
         }
         out += std::to_string(entry.first);
     }
-    return out.empty() ? "none" : out;
+    if (out.empty()) {
+        return "none";
+    }
+    return std::move(out);
 }
 
 int chirp_retry_cooldown_seconds(const std::vector<int> &steps, size_t failed_cycles)

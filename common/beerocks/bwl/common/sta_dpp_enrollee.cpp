@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <limits>
 #include <sstream>
+#include <utility>
 
 namespace bwl {
 namespace sta_dpp {
@@ -138,7 +139,7 @@ bool register_bootstrap(EndpointDppBus &bus, const std::string &private_key_hex,
 
     result.ok  = true;
     result.id  = id;
-    result.uri = uri;
+    result.uri = std::move(uri);
     return true;
 }
 

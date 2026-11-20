@@ -562,7 +562,7 @@ eKeyStoreResult DppEnrolleeKeyStore::load_or_create(std::string &message)
         cleanse(hex);
         cleanse(content);
         if (ok) {
-            message = warning;
+            message = std::move(warning);
             return eKeyStoreResult::LOADED;
         }
     }

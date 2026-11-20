@@ -9,6 +9,7 @@
 #include "dpp_agent_task.h"
 #include "../agent_db.h"
 #include "../son_slave_thread.h"
+#include "dpp_relay_frames.h"
 
 #include <bcl/beerocks_logging.h>
 #include <bcl/beerocks_string_utils.h>
@@ -22,50 +23,7 @@
 
 namespace beerocks {
 
-// ---------------------------------------------------------------------------
-// DPP TCP wire format constants (from hostapd dpp_tcp.c)
-// ---------------------------------------------------------------------------
-
-/** 802.11 Public Action frame type byte (DPP Public Action frames) */
-static constexpr uint8_t WLAN_PA_VENDOR_SPECIFIC = 0x09;
-
-/** GAS Initial Request type byte */
-static constexpr uint8_t WLAN_PA_GAS_INITIAL_REQ = 0x0A;
-
-/** GAS Initial Response type byte (IEEE 802.11 / Easy Connect Table 61) */
-static constexpr uint8_t WLAN_PA_GAS_INITIAL_RESP = 0x0B;
-
-/** GAS Comeback Request type byte (Easy Connect Table 60) */
-static constexpr uint8_t WLAN_PA_GAS_COMEBACK_REQ = 0x0C;
-
-/** GAS Comeback Response type byte (Easy Connect Table 63) */
-static constexpr uint8_t WLAN_PA_GAS_COMEBACK_RESP = 0x0D;
-
-// ---------------------------------------------------------------------------
-// DPP Public Action frame layout (after TCP header strip)
-// Offset 0-2: OUI = 50:6F:9A
-// Offset 3:   OUI Type = 0x1A (DPP)
-// Offset 4:   Crypto Suite = 0x01
-// Offset 5:   DPP Frame Type (subtype)
-// Offset 6+:  DPP Attributes (TLV-encoded)
-// ---------------------------------------------------------------------------
-
-static constexpr size_t DPP_HDR_LEN        = 6; ///< OUI(3)+OUIType(1)+CryptoSuite(1)+FrameType(1)
-static constexpr size_t DPP_SUBTYPE_OFFSET = 5; ///< Byte index of DPP Frame Type in frame body
-
-/** DPP Public Action frame subtypes (from hostapd dpp.h enum dpp_public_action_frame_type) */
-static constexpr uint8_t DPP_PA_AUTHENTICATION_REQ    = 0x00;
-static constexpr uint8_t DPP_PA_AUTHENTICATION_RESP   = 0x01; ///< NOT 0x02 - 0x02 is Auth Confirm
-static constexpr uint8_t DPP_PA_AUTHENTICATION_CONF   = 0x02;
-static constexpr uint8_t DPP_PA_CONFIGURATION_RESULT  = 0x0B; ///< 11
-static constexpr uint8_t DPP_PA_PRESENCE_ANNOUNCEMENT = 0x0D; ///< 13
-
-// ---------------------------------------------------------------------------
-// DPP Attribute TLV format (little-endian IDs and lengths)
-// [2 bytes ID LE][2 bytes Length LE][N bytes Value]
-// ---------------------------------------------------------------------------
-
-static constexpr uint16_t DPP_ATTR_R_BOOTSTRAP_KEY_HASH = 0x1002;
+using namespace dpp_relay;
 
 /** AccessPoint DPP-RX type=13 accepted as Enrollee MAC within this window of the chirp. */
 static constexpr auto k_presence_mac_window = std::chrono::milliseconds(500);
@@ -149,60 +107,15 @@ bool DppAgentTask::handle_cmdu(ieee1905_1::CmduMessageRx &cmdu_rx, uint32_t /*if
             return true;
         }
 
-        // Second line of defence: drop frame types that only travel Enrollee -> Controller
-        // (Auth Response 0x01, Configuration Result 0x0B, GAS Initial/Comeback Request
-        // 0x0A/0x0C). The Controller never sends them to a Proxy Agent.
-        {
-            auto encap_tlv_drop = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
-            if (encap_tlv_drop) {
-                const uint8_t *enc_frame = encap_tlv_drop->encapsulated_frame();
-                size_t enc_frame_len     = encap_tlv_drop->encapsulated_frame_length();
-                if (enc_frame && enc_frame_len > 0) {
-                    uint8_t type_byte = enc_frame[0];
-
-                    // GAS Initial Request (0x0A) and GAS Comeback Request (0x0C)
-                    // are uplink-only - drop them.
-                    if (type_byte == WLAN_PA_GAS_INITIAL_REQ ||
-                        type_byte == WLAN_PA_GAS_COMEBACK_REQ) {
-                        LOG(WARNING)
-                            << "DPP: handle_cmdu: dropping uplink-only GAS request (type="
-                            << std::hex << static_cast<int>(type_byte) << std::dec
-                            << ") - GAS requests are uplink-only"
-                            << " (mid=" << std::hex << cmdu_rx.getMessageId() << std::dec << ")";
-                        return true;
-                    }
-
-                    // Auth Response (subtype 0x01) and Configuration Result (0x0B)
-                    // are uplink-only. Controller frames may start at 0x09 or at 04 09.
-                    size_t pa_off = 0;
-                    if (type_byte == 0x04 && enc_frame_len > 1 &&
-                        enc_frame[1] == WLAN_PA_VENDOR_SPECIFIC) {
-                        pa_off = 2;
-                    } else if (type_byte == WLAN_PA_VENDOR_SPECIFIC) {
-                        pa_off = 1;
-                    }
-                    if (pa_off != 0 && enc_frame_len > pa_off + DPP_SUBTYPE_OFFSET) {
-                        uint8_t subtype = enc_frame[pa_off + DPP_SUBTYPE_OFFSET];
-                        if (subtype == DPP_PA_AUTHENTICATION_RESP) {
-                            LOG(WARNING) << "DPP: handle_cmdu: dropping uplink-only Auth Response"
-                                         << " (subtype=0x01) - Auth Response is uplink-only"
-                                         << " (mid=" << std::hex << cmdu_rx.getMessageId()
-                                         << std::dec << ")";
-                            return true;
-                        }
-                        if (subtype == DPP_PA_CONFIGURATION_RESULT) {
-                            LOG(WARNING)
-                                << "DPP: handle_cmdu: dropping uplink-only Configuration Result"
-                                << " (subtype=0x0B) - Configuration Result is uplink-only"
-                                << " (mid=" << std::hex << cmdu_rx.getMessageId() << std::dec
-                                << ")";
-                            return true;
-                        }
-                    }
-                }
-            }
+        // Second line of defence: drop frames that only travel Enrollee -> Controller.
+        auto encap_tlv = cmdu_rx.getClass<wfa_map::tlv1905EncapDpp>();
+        if (encap_tlv && is_uplink_only_frame(encap_tlv->encapsulated_frame(),
+                                              encap_tlv->encapsulated_frame_length())) {
+            LOG(WARNING) << "DPP: dropping uplink-only frame from the Controller (type=" << std::hex
+                         << int(encap_tlv->encapsulated_frame()[0])
+                         << ", mid=" << cmdu_rx.getMessageId() << std::dec << ")";
+            return true;
         }
-
         handle_proxied_encap_dpp_from_controller(cmdu_rx);
         return true;
     }
@@ -541,51 +454,21 @@ void DppAgentTask::handle_presence_announcement(const uint8_t *frame, size_t fra
     LOG(DEBUG) << "DPP: Presence Announcement received len=" << frame_len
                << " prefix=" << dpp_prefix_hex(frame, frame_len);
 
-    constexpr size_t HASH_LEN = 32;
-    uint8_t hash[HASH_LEN]    = {};
-    bool hash_found           = false;
-
-    if (frame_len > DPP_HDR_LEN) {
-        const uint8_t *attrs     = frame + DPP_HDR_LEN;
-        size_t attrs_len         = frame_len - DPP_HDR_LEN;
-        const uint8_t *pos       = attrs;
-        const uint8_t *attrs_end = attrs + attrs_len;
-
-        while (pos + 4 <= attrs_end) {
-            uint16_t attr_id = static_cast<uint16_t>(pos[0]) | (static_cast<uint16_t>(pos[1]) << 8);
-            uint16_t attr_len =
-                static_cast<uint16_t>(pos[2]) | (static_cast<uint16_t>(pos[3]) << 8);
-            pos += 4;
-
-            if (pos + attr_len > attrs_end) {
-                LOG(WARNING) << "DPP: attribute length exceeds frame boundary";
-                break;
-            }
-
-            if (attr_id == DPP_ATTR_R_BOOTSTRAP_KEY_HASH && attr_len == HASH_LEN) {
-                std::memcpy(hash, pos, HASH_LEN);
-                hash_found = true;
-                LOG(DEBUG) << "DPP: found R_BOOTSTRAP_KEY_HASH "
-                           << string_utils::bytes_to_hex_string(hash, HASH_LEN);
-                break;
-            }
-
-            pos += attr_len;
-        }
-    }
-
-    if (!hash_found) {
-        LOG(WARNING) << "DPP: Presence Announcement missing R_BOOTSTRAP_KEY_HASH attribute";
+    uint8_t hash[DPP_BOOTSTRAP_KEY_HASH_LEN] = {};
+    if (frame_len <= DPP_HDR_LEN ||
+        !find_bootstrap_key_hash(frame + DPP_HDR_LEN, frame_len - DPP_HDR_LEN, hash)) {
+        LOG(WARNING) << "DPP: Presence Announcement missing or malformed R_BOOTSTRAP_KEY_HASH";
         return;
     }
-
+    LOG(DEBUG) << "DPP: found R_BOOTSTRAP_KEY_HASH "
+               << string_utils::bytes_to_hex_string(hash, sizeof(hash));
     if (const auto *mac = find_chirp_mac(hash)) {
         m_pending_chirp = false;
         send_chirp_notification(hash, mac);
         return;
     }
 
-    std::memcpy(m_pending_hash, hash, HASH_LEN);
+    std::memcpy(m_pending_hash, hash, sizeof(hash));
     m_pending_chirp    = true;
     m_pending_since    = std::chrono::steady_clock::now();
     m_pending_deadline = m_pending_since + std::chrono::seconds(1);
@@ -594,7 +477,7 @@ void DppAgentTask::handle_presence_announcement(const uint8_t *frame, size_t fra
 
 void DppAgentTask::send_chirp_notification(const uint8_t hash[32], const sMacAddr *enrollee_mac)
 {
-    constexpr size_t HASH_LEN = 32;
+    constexpr size_t HASH_LEN = DPP_BOOTSTRAP_KEY_HASH_LEN;
 
     if (!m_cmdu_tx.create(0, ieee1905_1::eMessageType::CHIRP_NOTIFICATION_MESSAGE)) {
         LOG(ERROR) << "DPP: failed to create CHIRP_NOTIFICATION_MESSAGE CMDU";
@@ -820,9 +703,8 @@ void DppAgentTask::handle_proxied_encap_dpp_from_controller(ieee1905_1::CmduMess
     // Category (0x04) + Action (0x09); EasyMesh "from the Action field" is 0x09
     // only. Strip either prefix. Leaving 0x04 in place makes hostapd close TCP
     // with no DPP-TX.
-    const uint8_t *send_frame                   = frame;
-    size_t send_frame_len                       = frame_len;
-    static constexpr uint8_t WLAN_ACTION_PUBLIC = 0x04;
+    const uint8_t *send_frame = frame;
+    size_t send_frame_len     = frame_len;
     if (tcp_type == WLAN_PA_VENDOR_SPECIFIC && send_frame_len >= 2 &&
         send_frame[0] == WLAN_ACTION_PUBLIC && send_frame[1] == WLAN_PA_VENDOR_SPECIFIC) {
         LOG(DEBUG) << "DPP: stripping Category+Action (0x04 0x09) from encapsulated frame"

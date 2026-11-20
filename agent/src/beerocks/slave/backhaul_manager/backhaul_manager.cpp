@@ -1935,12 +1935,14 @@ void BackhaulManager::run_dpp_auto_chirp()
         // 'sta' object). The supplicant keeps retrying that network, so restart the bSTA: the
         // re-attach drops it and the next pass retries this band after the settle time.
         const bool conf_unusable = campaign.conf_received;
-        const auto iface         = campaign.iface;
-        end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::EXCHANGE_TIMEOUT, true);
+        // Log before end_dpp_chirp_pass(): it clears campaign.iface.
         if (conf_unusable) {
-            LOG(WARNING) << "DPP auto-chirp configuration not usable iface=" << iface
+            LOG(WARNING) << "DPP auto-chirp configuration not usable iface=" << campaign.iface
                          << ": no connection within " << DPP_CHIRP_EXCHANGE_WAIT_SECONDS
                          << " s, restart bSTA and re-chirp";
+        }
+        end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::EXCHANGE_TIMEOUT, true);
+        if (conf_unusable) {
             campaign.restart_bsta = true;
         }
         return;
@@ -2004,7 +2006,7 @@ void BackhaulManager::run_dpp_auto_chirp()
         return;
     }
     campaign.start_failures   = 0;
-    campaign.iteration_ifaces = ifaces;
+    campaign.iteration_ifaces = std::move(ifaces);
     campaign.retry_iface.clear();
     // wpa_supplicant scans, then chirps and listens about 2 s per channel: URI channels, its
     // default channels and the channels of scanned APs with a CCE. The start guard covers the
@@ -2097,11 +2099,10 @@ void BackhaulManager::end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd end,
             break;
         }
     }
-    const auto ended_iface = campaign.iface;
+    auto ended_iface = std::move(campaign.iface);
     if (!ended_iface.empty()) {
         dpp_enrollee::chirp_iteration_pass_end(campaign.iteration, ended_iface, now);
     }
-    campaign.iface.clear();
     campaign.chirps        = 0;
     campaign.conf_received = false;
     campaign.auth_pending  = false;
@@ -2225,7 +2226,8 @@ void BackhaulManager::handle_dpp_enrollee_event(const std::string &iface,
     case eEvent::FAILED:
         end_dpp_chirp_pass(dpp_enrollee::eChirpPassEnd::FAILED, true);
         break;
-    case eEvent::NONE:
+    default:
+        // NONE is filtered in the HAL before queueing; never reaches here.
         break;
     }
 }
@@ -2367,7 +2369,7 @@ BackhaulManager::read_dpp_cce_target(const sDppChirpCandidate &candidate,
         entry.cce_known   = true;
         entry.cce_present = result.dpp_cce_present;
         entry.seen_ms_ago = result.seen_ms_ago;
-        entries.push_back(entry);
+        entries.push_back(std::move(entry));
     }
     return dpp_enrollee::cce_target_update(
         m_dpp_cce_targets[candidate.info->sta_iface], entries, candidate.band, candidate.channels,

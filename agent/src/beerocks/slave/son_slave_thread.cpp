@@ -1150,8 +1150,10 @@ bool slave_thread::register_ext_events_handlers(int fd)
         .on_read =
             [this](int fd, beerocks::EventLoop &loop) {
                 if (!m_slave_wlan_hal || !m_slave_wlan_hal->process_ext_events(fd)) {
+                    // Returning false would stop the Agent event loop; recover the relay instead.
                     LOG(ERROR) << "on_read process_ext_events(" << fd << ") failed!";
-                    return false;
+                    schedule_dpp_relay_recovery();
+                    return true;
                 }
                 return true;
             },
@@ -1198,16 +1200,15 @@ bool slave_thread::register_event_handlers()
             ext_event_fd_max = std::max(ext_event_fd_max, ext_event_fd);
         }
     }
-    if (ext_event_fd_max == 0) {
-        LOG(DEBUG) << "No external event FD is available, periodic polling will be done instead.";
-    } else if (ext_event_fd_max < 0) {
-        LOG(ERROR) << "Invalid external event file descriptors: " << ext_event_fd_max;
+    if (ext_event_fd_max <= 0) {
+        // The relay HAL has no polling fallback: without the bus fds no event is received.
+        LOG(ERROR) << "No valid slave_wlan_hal external event fd: " << ext_event_fd_max;
         return false;
     }
 
     slave_hal_int_events = m_slave_wlan_hal->get_int_events_fd();
     if (slave_hal_int_events == beerocks::net::FileDescriptor::invalid_descriptor) {
-        LOG(DEBUG) << "No slave_wlan_hal internal events fd to register";
+        LOG(ERROR) << "No slave_wlan_hal internal events fd to register";
         return false;
     }
 
