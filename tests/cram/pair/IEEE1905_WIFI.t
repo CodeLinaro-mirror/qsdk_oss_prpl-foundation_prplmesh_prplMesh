@@ -61,6 +61,12 @@ Restart the agent so it consumes the backhaul configuration:
   $ pair_restart_prplmesh agent Multi-AP-Agent
   $ pair_wait_wps_ready
 
+Open both firewalls, then let the agent take its wired link down by itself as soon as its endpoint connects. While both links are up, the boards form a loop through the testbed switch and SSH to the agent stops working, so nothing may depend on SSH until the wired link is down:
+
+  $ pair_open_network controller
+  $ pair_open_network agent
+  $ pair_arm_wifi_backhaul
+
 Subscribe before invoking WPS PBC on both boards:
 
   $ pair_start_wps_subscriptions
@@ -68,13 +74,11 @@ Subscribe before invoking WPS PBC on both boards:
   $ controller_wps_ok=0; for attempt in 1 2 3; do controller_wps=$(C "ba-cli -l 'X_PRPLWARE-COM_Agent.WPS.InitiateWPSPBC()'") && ! grep -Eqi '^ERROR:|failed with status|unknown error|not found' <<<"$controller_wps" && pair_wait_wps_activity controller "$PAIR_FH_AP" && { controller_wps_ok=1; break; }; sleep 3; done; test "$controller_wps_ok" = 1
   $ agent_wps_ok=0; for attempt in 1 2 3; do agent_wps=$(A "ba-cli -l 'X_PRPLWARE-COM_Agent.WPS.InitiateWPSPBC()'") && ! grep -Eqi '^ERROR:|failed with status|unknown error|not found' <<<"$agent_wps" && pair_wait_wps_activity agent "$PAIR_AGENT_ENDPOINT" && { agent_wps_ok=1; break; }; sleep 3; done; test "$agent_wps_ok" = 1
 
-Wait for the Wi-Fi association, then remove the wired fallback:
+Wait until the agent has associated and switched from the wired link to the Wi-Fi backhaul:
 
-  $ pair_wait_agent_endpoint_connected
-  $ pair_open_network controller
-  $ pair_open_network agent
-  $ pair_use_wifi_backhaul
+  $ pair_wait_wifi_backhaul
   wifi-backhaul-active
+  $ pair_wait_agent_endpoint_connected
 
 Verify that WPS completed and the agent is operational on Wi-Fi backhaul:
 

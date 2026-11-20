@@ -244,6 +244,8 @@ pair_cleanup() {
         pair_remote_script agent "$TS_AGENT_WIRED" \
             <<'RESTORE_WIRED' >/dev/null 2>&1 || true
 set -eu
+pid=$(cat /tmp/cram_pair_wifi_switch.pid 2>/dev/null || true)
+[ -z "$pid" ] || kill "$pid" 2>/dev/null || true
 ip link set dev "$1" up
 RESTORE_WIRED
     fi

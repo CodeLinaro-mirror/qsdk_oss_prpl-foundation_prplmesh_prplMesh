@@ -328,19 +328,30 @@ pair_wait_wifi_onboarding() {
         pair_wifi_onboarding_complete
 }
 
-pair_wifi_switch_ready() {
-    local status
-
-    status=$(pair_remote agent \
-        'cat /tmp/cram_pair_wifi_switch.status 2>/dev/null' 2>/dev/null || true)
-    [[ "$status" == SUCCESS ]]
+# Print the state of the agent's wired-to-Wi-Fi switch: SUCCESS, FAILED:<status>,
+# or nothing while it is still running or the agent is unreachable.
+pair_wifi_switch_status() {
+    pair_remote agent \
+        'cat /tmp/cram_pair_wifi_switch.status 2>/dev/null' 2>/dev/null || true
 }
 
-# Switch the agent from wired to Wi-Fi backhaul without dropping the SSH caller.
-# Input: TS_AGENT_WIRED and PAIR_CONTROLLER_IP from the pair environment.
-# Output: starts an asynchronous remote switch, records restoration state, and waits
-# for the private Wi-Fi path before printing the completion marker.
-pair_use_wifi_backhaul() {
+# Succeed once the switch has finished, whether it succeeded or failed.
+pair_wifi_switch_finished() {
+    [[ -n "$(pair_wifi_switch_status)" ]]
+}
+
+pair_wifi_switch_ready() {
+    [[ "$(pair_wifi_switch_status)" == SUCCESS ]]
+}
+
+# Start the agent-side switch from wired to Wi-Fi backhaul; it does not wait.
+# The agent waits for its endpoint to connect and takes the wired link down
+# itself. On a real testbed both boards share a switch, so wired and Wi-Fi
+# links form a loop as soon as the endpoint associates, and SSH to the agent
+# stops working until the loop is gone; the agent must not depend on SSH here.
+# Inputs: TS_AGENT_WIRED, PAIR_CONTROLLER_IP, and PAIR_AGENT_ENDPOINT.
+# Output: records restoration state and starts the switch in the background.
+pair_arm_wifi_backhaul() {
     local initial_state launch_command
 
     initial_state=$(pair_remote_script agent "$TS_AGENT_WIRED" <<'WIRED_STATE'
@@ -363,6 +374,7 @@ WIRED_STATE
 set -eu
 interface=$1
 controller_ip=$2
+endpoint=$3
 status_file=/tmp/cram_pair_wifi_switch.status
 restore() {
     status=$?
@@ -371,8 +383,21 @@ restore() {
     printf 'FAILED:%s\n' "$status" >"$status_file"
     exit "$status"
 }
+endpoint_connected() {
+    [ "$(ba-cli -l "WiFi.EndPoint.${endpoint}.ConnectionStatus?" 2>/dev/null | sed '/^$/d')" = Connected ]
+}
 trap restore EXIT
 rm -f "$status_file"
+printf '%s\n' "$$" >/tmp/cram_pair_wifi_switch.pid
+connected=0
+for _ in $(seq 1 360); do
+    if endpoint_connected; then
+        connected=1
+        break
+    fi
+    sleep 1
+done
+[ "$connected" -eq 1 ]
 ip link set dev "$interface" down
 for _ in $(seq 1 90); do
     if ping -I br-lan -c 1 -W 1 "$controller_ip" >/dev/null 2>&1; then
@@ -384,8 +409,28 @@ for _ in $(seq 1 90); do
 done
 exit 1
 WIFI_SWITCH
-    launch_command="chmod +x /tmp/cram_pair_wifi_switch.sh; rm -f /tmp/cram_pair_wifi_switch.status; setsid /tmp/cram_pair_wifi_switch.sh $(pair_quote_argument "$TS_AGENT_WIRED") $(pair_quote_argument "$PAIR_CONTROLLER_IP") >/tmp/cram_pair_wifi_switch.log 2>&1 </dev/null &"
-    pair_remote agent "$launch_command" || return
-    pair_wait 120 'agent Wi-Fi private data path' pair_wifi_switch_ready || return
+    launch_command="chmod +x /tmp/cram_pair_wifi_switch.sh; rm -f /tmp/cram_pair_wifi_switch.status /tmp/cram_pair_wifi_switch.pid; setsid /tmp/cram_pair_wifi_switch.sh $(pair_quote_argument "$TS_AGENT_WIRED") $(pair_quote_argument "$PAIR_CONTROLLER_IP") $(pair_quote_argument "$PAIR_AGENT_ENDPOINT") >/tmp/cram_pair_wifi_switch.log 2>&1 </dev/null &"
+    pair_remote agent "$launch_command"
+}
+
+# Wait for the switch started by pair_arm_wifi_backhaul to finish.
+# Output: prints the completion marker; fails if the switch failed or timed out.
+pair_wait_wifi_backhaul() {
+    # The agent waits up to 360 s for the association and 90 s for the data path.
+    pair_wait 480 'agent Wi-Fi backhaul switch' pair_wifi_switch_finished || return
+    pair_wifi_switch_ready || {
+        printf 'Agent Wi-Fi backhaul switch failed: %s\n' "$(pair_wifi_switch_status)" >&2
+        pair_remote agent 'cat /tmp/cram_pair_wifi_switch.log' >&2 2>/dev/null || true
+        return 1
+    }
     printf 'wifi-backhaul-active\n'
+}
+
+# Switch the agent from wired to Wi-Fi backhaul without dropping the SSH caller.
+# Input: TS_AGENT_WIRED, PAIR_CONTROLLER_IP, and PAIR_AGENT_ENDPOINT.
+# Output: starts the agent-side switch and waits for the private Wi-Fi path before
+# printing the completion marker.
+pair_use_wifi_backhaul() {
+    pair_arm_wifi_backhaul || return
+    pair_wait_wifi_backhaul
 }
