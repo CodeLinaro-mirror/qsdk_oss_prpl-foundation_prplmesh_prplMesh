@@ -14,6 +14,8 @@
 
 #include <easylogging++.h>
 
+#include "amx_dbg_log.h"
+
 static std::string get_fd_name_print(std::string name)
 {
 
@@ -229,10 +231,20 @@ int EventLoopImpl::run()
 
             // Handle incoming data
         } else if (events[i].events & EPOLLIN) {
+            long t0 = amx_dbg_now_us();
+            AMX_DBG("event=epoll_handler_start fd=%d handler=%s", fd,
+                    handlers.name.empty() ? "(none)" : handlers.name.c_str());
             if (handlers.on_read && (!handlers.on_read(fd, *this))) {
                 LOG(ERROR) << "Read handler on FD (" << fd << ")"
                            << get_fd_name_print(handlers.name) << " failed";
                 return -1;
+            }
+            {
+                long dur = amx_dbg_now_us() - t0;
+                if (dur >= 1000) {
+                    AMX_DBG("event=epoll_handler_end fd=%d handler=%s duration_us=%ld", fd,
+                            handlers.name.empty() ? "(none)" : handlers.name.c_str(), dur);
+                }
             }
 
             // Handle write operations
