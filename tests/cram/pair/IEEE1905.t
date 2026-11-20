@@ -21,12 +21,14 @@ Read the AL MAC addresses, which are the br-lan MAC addresses of both devices:
   $ PAIR_CONTROLLER_MAC=$(pair_bridge_mac controller)
   $ PAIR_AGENT_MAC=$(pair_bridge_mac agent)
 
-TODO: update the expected MAC addresses for the target devices.
+Each device is expected to have one of the known br-lan MAC addresses; add new
+devices to the alternatives. Controller: QEMU VM or the CRAM OSPv2 board.
+Agent: QEMU VM or the CRAM Freedom board.
 
   $ echo "$PAIR_CONTROLLER_MAC"
-  52:54:27:52:00:01
+  (52:54:27:52:00:01|4c:ba:7d:e9:f8:15) (re)
   $ echo "$PAIR_AGENT_MAC"
-  52:54:de:8e:00:01
+  (52:54:de:8e:00:01|ac:91:9b:ff:f0:0f) (re)
 
 Wait until the controller IEEE1905 model contains both devices, and each AL has exactly one neighbor interface with the backhaul MediaType:
 
@@ -47,12 +49,12 @@ Check the IEEE1905 network defaults (test plan cases Default 1, Default 2, 19, 2
 
 Check that both devices are registered with their br-lan MAC addresses (test plan cases 1, 19, 40):
 
-TODO: update the expected MAC addresses for the target devices.
+The expected MAC addresses are the known device addresses listed above.
 
   $ pair_lower "$(pair_dm_value "$PAIR_CONTROLLER_AL.IEEE1905Id")"
-  52:54:27:52:00:01
+  (52:54:27:52:00:01|4c:ba:7d:e9:f8:15) (re)
   $ pair_lower "$(pair_dm_value "$PAIR_AGENT_AL.IEEE1905Id")"
-  52:54:de:8e:00:01
+  (52:54:de:8e:00:01|ac:91:9b:ff:f0:0f) (re)
   $ test "$PAIR_CONTROLLER_AL" != "$PAIR_AGENT_AL" && echo ok
   ok
 
@@ -77,10 +79,10 @@ Check that the agent AL refers to the agent's DataElements device (test plan cas
   $ echo "$agent_device_ref"
   WiFi\.DataElements\.Network\.Device\.[0-9]+ (re)
 
-TODO: update the expected MAC addresses for the target devices.
+The expected MAC addresses are the known device addresses listed above.
 
   $ pair_lower "$(pair_remote_value controller "Device.${agent_device_ref}.ID")"
-  52:54:de:8e:00:01
+  (52:54:de:8e:00:01|ac:91:9b:ff:f0:0f) (re)
   $ pair_remote_value controller Device.WiFi.DataElements.Network.DeviceNumberOfEntries
   2
 
@@ -210,10 +212,10 @@ Stop the agent and check that the controller removes its AL and neighbor entries
   $ pair_dm_value IEEE1905.Network.ALNumberOfEntries
   1
 
-TODO: update the expected MAC addresses for the target devices.
+The expected MAC addresses are the known device addresses listed above.
 
   $ pair_lower "$(pair_dm_value "$PAIR_CONTROLLER_AL.IEEE1905Id")"
-  52:54:27:52:00:01
+  (52:54:27:52:00:01|4c:ba:7d:e9:f8:15) (re)
   $ pair_ieee1905_al_count "$PAIR_AGENT_MAC"
   0
   $ pair_ieee1905_neighbor_iface_count "$PAIR_CONTROLLER_AL"
