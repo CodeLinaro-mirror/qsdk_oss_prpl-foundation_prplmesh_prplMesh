@@ -1277,22 +1277,18 @@ static bool add_rsn_parameters_configuration_tlv(
             rsn_parameters_bss->bssid()     = beerocks::net::network_utils::ZERO_MAC;
             rsn_parameters_bss->bss_index() = bss_info_conf.bss_index;
 
-            // TODO: Add future modes (PPM-3450)
-            if (bss_info_conf.additional_auth ==
-                son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
-                LOG(DEBUG) << "Setting WPA3 compatibility for BSS " << bss_info_conf.bss_index;
-                if (band == beerocks::eFreqType::FREQ_6G) {
-                    rsn_parameters_bss->set_security_ies(wpa3_pcm_6g_eht.data(),
-                                                         wpa3_pcm_6g_eht.size());
-                } else if (band == beerocks::eFreqType::FREQ_5G ||
-                           band == beerocks::eFreqType::FREQ_24G) {
-                    rsn_parameters_bss->set_security_ies(wpa3_pcm_2g_5g_eht.data(),
-                                                         wpa3_pcm_2g_5g_eht.size());
-                } else {
-                    LOG(ERROR) << "Unhandled Radio band " << band;
-                }
-            } else {
-                LOG(ERROR) << "Unhandled RSN type";
+            auto security_ies = son::wireless_utils::get_rsn_security_ies(
+                bss_info_conf.additional_auth, band);
+            if (security_ies.empty()) {
+                LOG(ERROR) << "Unhandled RSN mode " << int(bss_info_conf.additional_auth)
+                           << " on band " << band << " for BSS " << bss_info_conf.bss_index;
+                return false;
+            }
+            LOG(DEBUG) << "Setting RSN mode " << int(bss_info_conf.additional_auth)
+                       << " for BSS " << bss_info_conf.bss_index;
+            if (!rsn_parameters_bss->set_security_ies(security_ies.data(), security_ies.size())) {
+                LOG(ERROR) << "set_security_ies failed";
+                return false;
             }
 
             if (!rsn_parameters_radio->add_bsss(rsn_parameters_bss)) {

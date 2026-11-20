@@ -170,6 +170,17 @@ static amxd_status_t action_read_last_change(amxd_object_t *object, amxd_param_t
     return amxd_status_ok;
 }
 
+// Security.ModeEnabled values configured through RSN overriding
+static const std::unordered_map<std::string, son::wireless_utils::eAdditionalAuth>
+    rsn_mode_table = {
+        {"WPA3-Personal-Compatibility",
+         son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY},
+        {"WPA3-Personal-Compatibility-8",
+         son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_8},
+        {"WPA3-Personal-Compatibility-24",
+         son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_24},
+};
+
 static std::string get_param_string(amxd_object_t *object, const char *param_name)
 {
     amxc_var_t param;
@@ -392,15 +403,14 @@ amxd_status_t access_point_commit(amxd_object_t *object, amxd_function_t *func, 
                 }
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_WPA2PSK;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
-            } else if (mode_enabled == "WPA3-Personal-Compatibility") {
+            } else if (rsn_mode_table.count(mode_enabled)) {
                 bss_info.network_key = get_param_string(security_inst, "KeyPassphrase");
                 if (bss_info.network_key.empty()) {
                     bss_info.network_key = get_param_string(security_inst, "SAEPassphrase");
                 }
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_RSN;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_AES;
-                bss_info.additional_auth =
-                    son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY;
+                bss_info.additional_auth     = rsn_mode_table.at(mode_enabled);
             } else {
                 bss_info.authentication_type = WSC::eWscAuth::WSC_AUTH_OPEN;
                 bss_info.encryption_type     = WSC::eWscEncr::WSC_ENCR_NONE;

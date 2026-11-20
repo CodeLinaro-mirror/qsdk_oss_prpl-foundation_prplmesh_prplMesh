@@ -94,6 +94,8 @@ const std::map<std::string, std::vector<WSC::eWscAuth>> wbapi_utils::security_mo
      {WSC::eWscAuth::WSC_AUTH_SAE, WSC::eWscAuth::WSC_AUTH_SAE_AKM24,
       WSC::eWscAuth(WSC::WSC_AUTH_SAE | WSC::WSC_AUTH_SAE_AKM24)}},
     {"WPA3-Personal-Compatibility", {WSC::eWscAuth::WSC_AUTH_RSN}},
+    {"WPA3-Personal-Compatibility-8", {WSC::eWscAuth::WSC_AUTH_RSN}},
+    {"WPA3-Personal-Compatibility-24", {WSC::eWscAuth::WSC_AUTH_RSN}},
 };
 
 const std::map<std::string, std::vector<son::wireless_utils::eAdditionalAuth>>
@@ -101,6 +103,10 @@ const std::map<std::string, std::vector<son::wireless_utils::eAdditionalAuth>>
         {"None", {son::wireless_utils::eAdditionalAuth::NONE}},
         {"WPA3-Personal-Compatibility",
          {son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY}},
+        {"WPA3-Personal-Compatibility-8",
+         {son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_8}},
+        {"WPA3-Personal-Compatibility-24",
+         {son::wireless_utils::eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_24}},
 };
 
 std::string

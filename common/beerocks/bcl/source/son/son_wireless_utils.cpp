@@ -15,6 +15,7 @@
 
 #include <easylogging++.h>
 
+#include <algorithm>
 #include <cmath>
 
 using namespace son;
@@ -1767,15 +1768,69 @@ std::string wireless_utils::wsc_to_bwl_authentication(WSC::eWscAuth authtype,
         authtype_str += "SAE-EXT ";
     }
 
-    if (authtype & WSC::eWscAuth::WSC_AUTH_RSN &&
-        additional_auth == eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
-        authtype_str += "WPA3-PCM ";
+    if (authtype & WSC::eWscAuth::WSC_AUTH_RSN) {
+        if (additional_auth == eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+            authtype_str += "WPA3-PCM ";
+        } else if (additional_auth == eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_8) {
+            authtype_str += "WPA3-PCM-8 ";
+        } else if (additional_auth == eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_24) {
+            authtype_str += "WPA3-PCM-24 ";
+        }
     }
 
     if (authtype == WSC::eWscAuth::WSC_AUTH_INVALID || authtype_str.empty()) {
         return "INVALID";
     }
     return authtype_str;
+}
+
+std::vector<uint8_t> wireless_utils::get_rsn_security_ies(eAdditionalAuth additional_auth,
+                                                          beerocks::eFreqType band)
+{
+    const bool is_6g    = band == beerocks::eFreqType::FREQ_6G;
+    const bool is_2g_5g = band == beerocks::eFreqType::FREQ_24G ||
+                          band == beerocks::eFreqType::FREQ_5G;
+    if (!is_6g && !is_2g_5g) {
+        LOG(ERROR) << "Unhandled radio band " << band;
+        return {};
+    }
+
+    switch (additional_auth) {
+    case eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY:
+    case eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_24:
+        if (is_6g) {
+            return {wpa3_pcm_6g_eht.begin(), wpa3_pcm_6g_eht.end()};
+        }
+        if (additional_auth == eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY) {
+            return {wpa3_pcm_2g_5g_eht.begin(), wpa3_pcm_2g_5g_eht.end()};
+        }
+        return {wpa3_pcm24_2g_5g.begin(), wpa3_pcm24_2g_5g.end()};
+    case eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_8:
+        if (is_6g) {
+            return {wpa3_pcm8_6g.begin(), wpa3_pcm8_6g.end()};
+        }
+        return {wpa3_pcm8_2g_5g.begin(), wpa3_pcm8_2g_5g.end()};
+    case eAdditionalAuth::NONE:
+        break;
+    }
+    LOG(ERROR) << "No security IEs for RSN mode " << int(additional_auth);
+    return {};
+}
+
+wireless_utils::eAdditionalAuth wireless_utils::parse_rsn_security_ies(const uint8_t *security_ies,
+                                                                      size_t length,
+                                                                      beerocks::eFreqType band)
+{
+    for (auto mode : {eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY,
+                      eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_8,
+                      eAdditionalAuth::WPA3_PERSONAL_COMPATIBILITY_24}) {
+        auto ies = get_rsn_security_ies(mode, band);
+        if (!ies.empty() && ies.size() == length &&
+            std::equal(ies.begin(), ies.end(), security_ies)) {
+            return mode;
+        }
+    }
+    return eAdditionalAuth::NONE;
 }
 
 std::string wireless_utils::wsc_to_bwl_encryption(WSC::eWscEncr enctype)

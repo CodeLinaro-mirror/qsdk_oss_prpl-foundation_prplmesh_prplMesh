@@ -249,13 +249,184 @@ constexpr std::array<uint8_t, 70> wpa3_pcm_6g_eht = {
     // Extended RSN Capabilities
     0x20};
 
+constexpr std::array<uint8_t, 67> wpa3_pcm8_2g_5g = {
+    /****
+     RSNE
+     ****/
+    // Element ID
+    0x30,
+    // Length
+    0x1A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x04,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x02,
+    // RSN Capabilities
+    0x08, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNOE
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x1E, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x29,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x04,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x08,
+    // RSN Capabilities
+    0x0C, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNXOE
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x05, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x2B,
+    // Extended RSN Capabilities
+    0x20};
+
+constexpr std::array<uint8_t, 67> wpa3_pcm24_2g_5g = {
+    /****
+     RSNE
+     ****/
+    // Element ID
+    0x30,
+    // Length
+    0x1A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x04,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x02,
+    // RSN Capabilities
+    0x08, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNO2E
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x1E, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x2A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x09,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x18,
+    // RSN Capabilities
+    0x0C, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNXOE
+     ****/
+    // Vendor Spec Header
+    0xDD, 0x05, 0x50, 0x6F, 0x9A,
+    // VS OUI Type
+    0x2B,
+    // Extended RSN Capabilities
+    0x20};
+
+// PSK is not allowed on 6GHz, so the RSNE carries SAE and no override is needed.
+// The 6GHz WPA3-Personal-Compatibility-24 IEs are identical to wpa3_pcm_6g_eht.
+constexpr std::array<uint8_t, 31> wpa3_pcm8_6g = {
+    /****
+     RSNE
+     ****/
+    // Element ID
+    0x30,
+    // Length
+    0x1A,
+    // Version
+    0x01, 0x00,
+    // Group Data Cipher Suite
+    0x00, 0x0F, 0xAC, 0x04,
+    // Pairwise Cipher Suite Count
+    0x01, 0x00,
+    // Pairwise Cipher Suite List
+    0x00, 0x0F, 0xAC, 0x04,
+    // AKM Suite Count
+    0x01, 0x00,
+    // AKM Suite List
+    0x00, 0x0F, 0xAC, 0x08,
+    // RSN Capabilities
+    0x0C, 0x00,
+    // PMKID Count
+    0x00, 0x00,
+    // PMKID List
+    // Group Management Cipher Suite
+    0x00, 0x0F, 0xAC, 0x06,
+
+    /****
+     RSNXE
+     ****/
+    // Element ID
+    0xF4,
+    // Length
+    0x01,
+    // Extended RSN Capabilities
+    0x20};
+
 namespace son {
 class wireless_utils {
 public:
     enum eAdditionalAuth {
-        NONE = 0,
-        // TODO: add future modes (PPM-3450)
-        WPA3_PERSONAL_COMPATIBILITY = 1
+        NONE                           = 0,
+        WPA3_PERSONAL_COMPATIBILITY    = 1,
+        WPA3_PERSONAL_COMPATIBILITY_8  = 2,
+        WPA3_PERSONAL_COMPATIBILITY_24 = 3
     };
 
     enum eEstimationStatus {
@@ -301,6 +472,7 @@ public:
         bool profile1_backhaul_sta_association_disallowed = false;
         bool profile2_backhaul_sta_association_disallowed = false;
         WSC::eWscVendorExtHiddenSsid hidden_ssid          = WSC::eWscVendorExtHiddenSsid::UNSET;
+        bool ssid_advertisement                           = true;
         eVapType vap_type                                 = eVapType::OTHER;
         std::string vap_label;
         std::string mld_id              = "";
@@ -471,6 +643,31 @@ public:
     static const beerocks::eWiFiBandwidth &operating_class_to_bandwidth(uint8_t operating_class);
     static std::string wsc_to_bwl_authentication(WSC::eWscAuth authtype,
                                                  eAdditionalAuth additional_auth = NONE);
+
+    /**
+     * @brief Get the Security IEs (RSNE/RSNOE/RSNO2E/RSNXE/RSNXOE) advertised for an RSN mode.
+     *
+     * @param additional_auth RSN mode.
+     * @param band Frequency band of the BSS.
+     * @return Security IEs, empty if the mode/band combination is not supported.
+     */
+    static std::vector<uint8_t> get_rsn_security_ies(eAdditionalAuth additional_auth,
+                                                     beerocks::eFreqType band);
+
+    /**
+     * @brief Get the RSN mode matching Security IEs as carried in the RSN Parameters
+     * Configuration TLV.
+     *
+     * On 6GHz WPA3-Personal-Compatibility and -24 use the same IEs, they are reported as
+     * WPA3_PERSONAL_COMPATIBILITY.
+     *
+     * @param security_ies Security IEs buffer.
+     * @param length Length of security_ies.
+     * @param band Frequency band of the BSS.
+     * @return The matching RSN mode, NONE if the IEs are not recognized.
+     */
+    static eAdditionalAuth parse_rsn_security_ies(const uint8_t *security_ies, size_t length,
+                                                  beerocks::eFreqType band);
     static std::string wsc_to_bwl_encryption(WSC::eWscEncr enctype);
     static beerocks::eBssType wsc_to_bwl_bss_type(WSC::eWscVendorExtSubelementBssType bss_type);
     static std::list<uint8_t> string_to_wsc_oper_class(const std::string &operating_class);
