@@ -25,6 +25,7 @@ enum class eWscEncr : uint16_t {
     WSC_ENCR_WEP = 0x2,
     WSC_ENCR_TKIP = 0x4,
     WSC_ENCR_AES = 0x8,
+    WSC_ENCR_TKIP_AES = 0xc,
     WSC_ENCR_INVALID = 0xffff,
 };
 // Enum AutoPrint generated code snippet begining- DON'T EDIT!
@@ -35,6 +36,7 @@ static const char *eWscEncr_str(eWscEncr enum_value) {
     case eWscEncr::WSC_ENCR_WEP:     return "eWscEncr::WSC_ENCR_WEP";
     case eWscEncr::WSC_ENCR_TKIP:    return "eWscEncr::WSC_ENCR_TKIP";
     case eWscEncr::WSC_ENCR_AES:     return "eWscEncr::WSC_ENCR_AES";
+    case eWscEncr::WSC_ENCR_TKIP_AES: return "eWscEncr::WSC_ENCR_TKIP_AES";
     case eWscEncr::WSC_ENCR_INVALID: return "eWscEncr::WSC_ENCR_INVALID";
     }
     static std::string out_str = std::to_string(int(enum_value));
@@ -52,6 +54,7 @@ public:
         case 0x2:
         case 0x4:
         case 0x8:
+        case 0xc:
         case 0xffff:
                 ret = true;
                 break;

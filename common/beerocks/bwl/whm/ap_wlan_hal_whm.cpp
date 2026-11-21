@@ -767,10 +767,7 @@ bool ap_wlan_hal_whm::update_vap_credentials(
         if (security_mode == "None") {
             new_obj.add_child("EncryptionMode", "Default");
         } else {
-            std::string current_encryption_mode;
-            m_ambiorix_cl.get_param(current_encryption_mode, wifi_vap_path + "Security.",
-                                    "EncryptionMode");
-            if (current_encryption_mode != "Default") {
+            if (encryption_mode != "Default") {
                 // In Default pWHM handles automatically, leave it as is
                 new_obj.add_child("EncryptionMode", encryption_mode);
             }

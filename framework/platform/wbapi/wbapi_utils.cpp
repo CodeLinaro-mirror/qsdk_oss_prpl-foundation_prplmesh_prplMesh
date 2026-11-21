@@ -157,9 +157,7 @@ wbapi_utils::security_rsn_mode_from_string(const std::string &security_mode)
 const std::map<std::string, std::vector<WSC::eWscEncr>> wbapi_utils::encryption_type_table = {
     {"AES", {WSC::eWscEncr::WSC_ENCR_AES}},
     {"TKIP", {WSC::eWscEncr::WSC_ENCR_TKIP}},
-    {"TKIP-AES",
-     {WSC::eWscEncr(uint16_t(WSC::eWscEncr::WSC_ENCR_AES) |
-                    uint16_t(WSC::eWscEncr::WSC_ENCR_TKIP))}},
+    {"TKIP-AES", {WSC::eWscEncr::WSC_ENCR_TKIP_AES}},
 };
 
 std::string wbapi_utils::encryption_type_to_string(const WSC::eWscEncr &encryption_type)

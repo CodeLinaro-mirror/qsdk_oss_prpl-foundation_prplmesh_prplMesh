@@ -1796,6 +1796,8 @@ std::string wireless_utils::wsc_to_bwl_encryption(WSC::eWscEncr enctype)
         return "TKIP";
     case WSC::eWscEncr::WSC_ENCR_AES:
         return "AES";
+    case WSC::eWscEncr::WSC_ENCR_TKIP_AES:
+        return "TKIP-AES";
     default:
         return "INVALID";
     }
