@@ -56,10 +56,12 @@ deploy() {
       ! -path "/opt/prplmesh/share/agent" \
       ! -path "/opt/prplmesh/share/agent/*" \
       -exec rm -rf {} + || return 0
-EOF
 
-    # wait silly some seconds for the hardware disk resource to be really released
-    sleep 5
+    if pgrep -lf '^/opt/prplmesh/bin/'; then
+        echo "^ prplmesh processes still running after opkg remove, killing them"
+        pkill -9 -f '^/opt/prplmesh/bin/'
+    fi
+EOF
 
 # The rm -rf of /opt/prplmesh on the target might fail, and break the existing SSH connection.
 # Therefore, set up a new connection just to install the prplMesh ipk
