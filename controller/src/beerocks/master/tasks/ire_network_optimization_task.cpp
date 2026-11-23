@@ -55,6 +55,7 @@ void ire_network_optimization_task::work()
     case ITERATION: {
         while (current_ire_it != ires.end() &&
                database.get_sta_state(*current_ire_it) != beerocks::STATE_CONNECTED) {
+                LOG(INFO) << "Skipping non connected clients";
             ++current_ire_it;
         }
 

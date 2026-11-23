@@ -1301,19 +1301,37 @@ std::vector<std::shared_ptr<Agent>> db::get_all_connected_agents()
 
 std::set<std::string> db::get_backhauls_from_hierarchy(int hierarchy)
 {
-    std::set<std::string> result;
+    LOG(INFO) << "=== AGENT RELATIONSHIPS DEBUG ===";
 
+    for (const auto &agent_pair : m_agents) {
+        auto &agent = agent_pair.second;
+        auto parent = agent->backhaul.parent_agent.lock();
+
+        LOG(INFO) << "Agent: " << agent->al_mac
+                  << " | Is Gateway: " << agent->is_gateway
+                  << " | Parent: " << (parent ? parent->al_mac : network_utils::ZERO_MAC)
+                  << " | Parent MAC string: " << agent->parent_mac;
+    }
+
+    LOG(INFO) << "=== END DEBUG ===";
+
+    std::set<std::string> result;
+    LOG(INFO) << "get_backhauls_from_hierarchy: " << hierarchy;
     if (hierarchy < 0 || hierarchy >= HIERARCHY_MAX) {
         LOG(ERROR) << "invalid hierarchy";
         return result;
     }
 
     for (const auto &agent : m_agents) {
-        if (get_agent_hierarchy(agent.first) == hierarchy) {
+        int agent_hierarchy = get_agent_hierarchy(agent.first);
+        LOG(DEBUG) << "Agent " << agent.first << " hierarchy: " << agent_hierarchy;
+        if (agent_hierarchy == hierarchy) {
+            LOG(INFO) << "Adding agnet " << agent.first << " parent: " << agent.second->parent_mac;
             result.insert(tlvf::mac_to_string(agent.second->parent_mac));
+            LOG(INFO) << "result has been inserted";
         }
     }
-
+    LOG(DEBUG) << "Found " << result.size() << " backhauls for hierarchy " << hierarchy;
     return result;
 }
 
@@ -6409,16 +6427,26 @@ bool db::dm_set_sta_link_metrics(const sMacAddr &agent_mac, const sMacAddr &sta_
 // PRIVATE FUNCTIONS
 //   must be used from a thread safe context
 //
-int db::get_agent_hierarchy(const sMacAddr &al_mac)
+int db::get_agent_hierarchy(const sMacAddr &al_mac, int depth)
 {
+    if(depth >= HIERARCHY_MAX){
+        LOG(ERROR) << "Loop exceeding, terminating recursive call";
+        return -1;
+    }
+
+    LOG(INFO) << "get_agent_hierarchy: " << "al_mac: " << tlvf::mac_to_string(al_mac);
     std::shared_ptr<Agent> agent = get_agent(al_mac);
     if (!agent) {
+        LOG(ERROR) << "Agent not found for MAC: " << tlvf::mac_to_string(al_mac);
         return -1;
     } else {
         std::shared_ptr<Agent> parent_agent = agent->backhaul.parent_agent.lock();
         if (parent_agent) {
-            return get_agent_hierarchy(parent_agent->al_mac) + 1;
+            std::string parent_mac_str = tlvf::mac_to_string(parent_agent->al_mac);
+            LOG(INFO) << "Parent agent found: " << parent_mac_str;
+            return get_agent_hierarchy(parent_agent->al_mac, depth + 1) + 1;
         } else {
+            LOG(INFO) << "No parent agent for MAC: " << tlvf::mac_to_string(al_mac);
             return 0;
         }
     }

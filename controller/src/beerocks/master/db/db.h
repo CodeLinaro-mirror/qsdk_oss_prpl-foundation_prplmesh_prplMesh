@@ -1556,7 +1556,7 @@ public:
     //
     // DB node functions (get only)
     //
-    int get_agent_hierarchy(const sMacAddr &al_mac);
+    int get_agent_hierarchy(const sMacAddr &al_mac, int depth = 0);
     std::set<std::string> get_stations();
     std::set<std::string> get_active_radios();
     std::vector<std::shared_ptr<Agent>> get_all_connected_agents();
