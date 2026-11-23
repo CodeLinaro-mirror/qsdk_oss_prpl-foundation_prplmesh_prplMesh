@@ -2307,11 +2307,6 @@ void ap_wlan_hal_whm::send_unassoc_sta_link_metric_query(
         return;
     }
 
-    if (m_unassoc_link_metrics_measurement_start) {
-        LOG(DEBUG) << "Unassociated STA link metrics measurement already running";
-        return;
-    }
-
     const auto opclass       = query->operating_class_of_channel_list();
     const auto chan_list_len = query->channel_list_length();
 
@@ -2328,12 +2323,10 @@ void ap_wlan_hal_whm::send_unassoc_sta_link_metric_query(
         return;
     }
 
-    m_unassoc_link_metrics_measurement_start = true;
-    m_unassoc_link_metrics_opclass           = opclass;
-    m_unassoc_sta_map.clear();
+    sUnassocLinkMetricsResult measurement;
+    measurement.opclass = opclass;
 
     const std::string nasta_monitor_path = m_radio_path + "NaStaMonitor";
-    bool measurement_req_sent            = false;
     auto measurement_start_time          = std::chrono::steady_clock::now();
 
     for (uint8_t i = 0; i < chan_list_len; ++i) {
@@ -2361,15 +2354,13 @@ void ap_wlan_hal_whm::send_unassoc_sta_link_metric_query(
             unassoc_sta.channel                     = channel;
             unassoc_sta.rcpi                        = 0;
             unassoc_sta.m_unassoc_sta_metrics_start = measurement_start_time;
-            m_unassoc_sta_map[mac]                  = unassoc_sta;
-            measurement_req_sent                    = true;
+            measurement.stations[mac]               = unassoc_sta;
         }
     }
 
-    if (!measurement_req_sent) {
-        LOG(DEBUG) << "No unassoc STA measurement requests sent for " << m_radio_path;
-        m_unassoc_link_metrics_measurement_start = false;
-        m_unassoc_sta_map.clear();
+    if (measurement.stations.empty()) {
+        LOG(DEBUG) << "No unassoc STA measurement requests sent for " << m_radio_path
+                   << " opclass=" << +opclass;
         return;
     }
 
@@ -2391,8 +2382,8 @@ void ap_wlan_hal_whm::send_unassoc_sta_link_metric_query(
                 continue;
             }
 
-            auto sta_it = m_unassoc_sta_map.find(mac_address_amx);
-            if (sta_it == m_unassoc_sta_map.end()) {
+            auto sta_it = measurement.stations.find(mac_address_amx);
+            if (sta_it == measurement.stations.end()) {
                 continue;
             }
 
@@ -2409,8 +2400,8 @@ void ap_wlan_hal_whm::send_unassoc_sta_link_metric_query(
                      << non_associated_device_path;
     }
 
-    // Cleanup NaStaMonitor entries created for this query
-    for (const auto &sta_entry : m_unassoc_sta_map) {
+    // Cleanup NaStaMonitor entries created for this query before the next opclass query.
+    for (const auto &sta_entry : measurement.stations) {
         AmbiorixVariant del_result;
         AmbiorixVariant del_args(AMXC_VAR_ID_HTABLE);
         del_args.add_child("macaddress", sta_entry.first);
@@ -2420,9 +2411,13 @@ void ap_wlan_hal_whm::send_unassoc_sta_link_metric_query(
         }
     }
 
-    LOG(DEBUG) << "Pushing STA_Unassoc_Link_Metrics for " << m_unassoc_sta_map.size()
-               << " station(s) on " << m_radio_path;
-    event_queue_push(Event::STA_Unassoc_Link_Metrics);
+    LOG(DEBUG) << "Pushing STA_Unassoc_Link_Metrics for " << measurement.stations.size()
+               << " station(s) on " << m_radio_path << " opclass=" << +opclass;
+    m_unassoc_link_metrics_results.push_back(std::move(measurement));
+    if (!event_queue_push(Event::STA_Unassoc_Link_Metrics)) {
+        LOG(ERROR) << "Failed to queue STA_Unassoc_Link_Metrics for opclass=" << +opclass;
+        m_unassoc_link_metrics_results.pop_back();
+    }
 }
 
 bool ap_wlan_hal_whm::prepare_unassoc_sta_link_metrics_response(
@@ -2433,18 +2428,26 @@ bool ap_wlan_hal_whm::prepare_unassoc_sta_link_metrics_response(
         return false;
     }
 
-    response->operating_class_of_channel_list() = m_unassoc_link_metrics_opclass;
+    if (m_unassoc_link_metrics_results.empty()) {
+        LOG(ERROR) << "prepare_unassoc_sta_link_metrics_response: no measurement result queued";
+        return false;
+    }
+
+    // One STA_Unassoc_Link_Metrics event is queued per result, in the same order.
+    const auto measurement = std::move(m_unassoc_link_metrics_results.front());
+    m_unassoc_link_metrics_results.pop_front();
+
+    response->operating_class_of_channel_list() = measurement.opclass;
     const auto now                              = std::chrono::steady_clock::now();
 
-    if (!response->alloc_sta_list(m_unassoc_sta_map.size())) {
-        LOG(ERROR) << "Failed alloc_sta_list for " << m_unassoc_sta_map.size() << " stations";
-        m_unassoc_sta_map.clear();
-        m_unassoc_link_metrics_measurement_start = false;
+    if (!response->alloc_sta_list(measurement.stations.size())) {
+        LOG(ERROR) << "Failed alloc_sta_list for " << measurement.stations.size()
+                   << " stations, opclass=" << +measurement.opclass;
         return false;
     }
 
     size_t idx = 0;
-    for (const auto &sta_entry : m_unassoc_sta_map) {
+    for (const auto &sta_entry : measurement.stations) {
         auto &unassoc_sta               = std::get<1>(response->sta_list(idx++));
         unassoc_sta.channel_number      = sta_entry.second.channel;
         unassoc_sta.uplink_rcpi_dbm_enc = sta_entry.second.rcpi;
@@ -2455,8 +2458,6 @@ bool ap_wlan_hal_whm::prepare_unassoc_sta_link_metrics_response(
                 .count();
     }
 
-    m_unassoc_sta_map.clear();
-    m_unassoc_link_metrics_measurement_start = false;
     return true;
 }
 
