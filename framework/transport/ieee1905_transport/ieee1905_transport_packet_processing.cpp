@@ -9,6 +9,7 @@
 #include "ieee1905_transport.h"
 #include <tlvf/ieee_1905_1/eMessageType.h>
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <chrono>
 
@@ -22,7 +23,6 @@ using namespace beerocks::transport::messages;
 
 static const uint8_t ieee1905_max_message_version = 0x00;
 constexpr sMacAddr Ieee1905Transport::ieee1905_multicast_addr;
-const int Ieee1905Transport::kIeee1905FragmentationThreashold;
 const std::set<uint16_t> Ieee1905Transport::Packet::reliable_multicast_msg_types = {
     static_cast<uint16_t>(ieee1905_1::eMessageType::TOPOLOGY_NOTIFICATION_MESSAGE),
     static_cast<uint16_t>(ieee1905_1::eMessageType::ASSOCIATION_STATUS_NOTIFICATION_MESSAGE)};
@@ -288,16 +288,7 @@ bool Ieee1905Transport::de_duplicate_packet(Packet &packet)
     return !is_duplicate;
 }
 
-// De-fragmentation (reassembly) of received packets will be done before publishing a CMDU to the broker (defragmentation is
-// not required for tunneling and relayed packets).
-//
-// De-fragmentation could fail if one or more fragments are never received - thus the fragments of a CMDU should be
-// collected and buffered until either the complete CMDU is available or a certain timeout has elapsed
-// (IEEE1905 does not specify the duration of this timeout).
-//
-// The current implementation does not support out-of-order arrival of fragments.
-//
-// see paragraph 7.1.2 of IEEE1905.1-2013
+// see Ieee1905Defragmenter::defragment()
 bool Ieee1905Transport::de_fragment_packet(Packet &packet)
 {
     // only try to de-fragment IEEE1905 packets
@@ -305,130 +296,18 @@ bool Ieee1905Transport::de_fragment_packet(Packet &packet)
         return true;
     }
 
-    Ieee1905CmduHeader *ch = reinterpret_cast<Ieee1905CmduHeader *>(packet.payload.iov_base);
-    if (ch->fragmentId == 0 && ch->GetLastFragmentIndicator() == 1) {
-        return true; // not a fragmented CMDU.
-    }
-
-    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-
-    // de-fragmentation map cleanup - go over all entries and remove old ones or complete ones
-    for (auto it = de_fragmentation_map_.begin(); it != de_fragmentation_map_.end();) {
-        auto &val = it->second;
-
-        if (val.complete) {
-            it = de_fragmentation_map_.erase(it);
-        } else if (now > val.time + kMaximumDeFragmentationAge) {
-            // Note: this is not necessarily related to the current fragment referenced by the argument to this method
-            MAPF_DBG("defragmentation timeout - dropping a packet from defragmentation buffer");
-            it = de_fragmentation_map_.erase(it);
-            counters_[CounterId::DEFRAGMENTATION_FAILURE]++;
-        } else {
-            ++it;
-        }
-    }
-
-    // build the key to the de-fragmentation map
-    DeFragmentationKey key;
-    key.src         = packet.src;
-    key.messageType = ch->messageType;
-    key.messageId   = ch->messageId;
-
-    auto &val = de_fragmentation_map_[key]; // find a match (or create a new entry)
-
-    // limit the map size (to prevent a possible memory exhaustion attack)
-    // Note: at this stage there could be one extra entry in the map (this is still effective and the code is simple)
-    if (int(de_fragmentation_map_.size()) > kMaximumDeFragmentationThreads) {
-        de_fragmentation_map_.erase(key);
-        MAPF_WARN("too many de-fragmentation threads - dropping packet");
+    uint8_t *cmdu = reinterpret_cast<uint8_t *>(packet.payload.iov_base);
+    size_t length = packet.payload.iov_len;
+    if (!de_fragmenter_.defragment(packet.src, cmdu, length)) {
         return false;
     }
 
-    val.time = now;
-
-    // only accept fragments in order - check if this is the expected fragment
-    if (val.numFragments != ch->fragmentId) {
-        MAPF_DBG("dropping an out-of-order fragment");
-        return false;
-    }
-
-    // copy the IEEE1905 header from the first fragment
-    if (ch->fragmentId == 0) {
-        std::copy_n((uint8_t *)packet.payload.iov_base, sizeof(Ieee1905CmduHeader),
-                    (uint8_t *)val.buf);
-        val.bufIndex = sizeof(Ieee1905CmduHeader);
-
-        // set the last fragment indicator flag as this will be the header of a complete CMDU
-        Ieee1905CmduHeader *hdr = reinterpret_cast<Ieee1905CmduHeader *>(val.buf);
-        hdr->SetLastFragmentIndicator(1);
-    }
-
-    // concat the fragment body (excluding the IEEE1905 header)
-    size_t fragmentTlvsLength = packet.payload.iov_len - sizeof(Ieee1905CmduHeader);
-    if (val.bufIndex + fragmentTlvsLength >= kMaximumDeFragmentionSize) {
-        MAPF_WARN("defragmentation buffer overflow - dropping fragment");
-        return false;
-    }
-
-    // Only count end of message TLV for the last fragment
-    if (ch->GetLastFragmentIndicator() == 0) {
-        Tlv *tlv          = reinterpret_cast<Tlv *>((uint8_t *)packet.payload.iov_base +
-                                           sizeof(Ieee1905CmduHeader));
-        size_t tlvsLength = fragmentTlvsLength;
-
-        // Find EOM TLV in the fragment
-        while (tlv->type() != 0) {
-            if (tlv->size() > tlvsLength) {
-                // This can only happen if one of the TLVs is corrupt
-                MAPF_ERR("Found corrupt TLV! Dropping the fragment.");
-                return false;
-            }
-
-            tlvsLength -= tlv->size();
-
-            if (tlvsLength < sizeof(Tlv)) {
-                // No EOM TLV or some padding. Good.
-                break;
-            }
-
-            tlv = tlv->next();
-        }
-
-        // Remove any leftover at the end of the buffer.
-        // It might be as a result of padding or EOM TLV.
-        fragmentTlvsLength -= tlvsLength;
-    }
-
-    std::copy_n((uint8_t *)packet.payload.iov_base + sizeof(Ieee1905CmduHeader), fragmentTlvsLength,
-                val.buf + val.bufIndex);
-    val.bufIndex += fragmentTlvsLength;
-    val.numFragments++;
-
-    // detect defragmentation completion and update Packet object
-    if (ch->GetLastFragmentIndicator()) {
-        val.complete =
-            true; // mark as complete - the map entry will be deleted on the next invocation
-        packet.payload.iov_base = val.buf; // buffer is valid until next invocation of this method
-        packet.payload.iov_len  = val.bufIndex;
-
-        return true;
-    }
-
-    MAPF_DBG("buffering a fragment of an incomplete CMDU");
-    return false;
+    packet.payload.iov_base = cmdu;
+    packet.payload.iov_len  = length;
+    return true;
 }
 
-// When an IEEE1905 packet (CMDU) is larger than a standard defined threshold (1500 bytes) it should be
-// fragmented into smaller than 1500 bytes fragments.
-//
-// Fragmentation should be done on TLV boundaries.
-//
-// The CMDU length is considered starting from the IEEE1905 header (it does not include the Ethernet header)
-//
-// Fragmentation will only be done when transmitting a packet to the network (and not for the tunneled
-// alternative transport interface).
-//
-// see paragraph 7.1.1 of IEEE1905.1-2013
+// see ieee1905_fragment_cmdu()
 bool Ieee1905Transport::fragment_and_send_packet_to_network_interface(unsigned int if_index,
                                                                       Packet &packet)
 {
@@ -443,101 +322,15 @@ bool Ieee1905Transport::fragment_and_send_packet_to_network_interface(unsigned i
     }
 
     // reuse most of the original packet metadata for all fragments (except for the payload iov)
-    Packet fragment_packet                                                     = packet;
-    uint8_t buf[kIeee1905FragmentationThreashold + sizeof(Ieee1905CmduHeader)] = {
-        0}; // fragment size + TLV end of message size
+    Packet fragment_packet = packet;
 
-    // copy the IEEE1905 header (will be reused by all fragments)
-    std::copy_n((uint8_t *)packet.payload.iov_base, sizeof(Ieee1905CmduHeader), buf);
-    int remainingPacketLength = packet.payload.iov_len - sizeof(Ieee1905CmduHeader);
-
-    // points to the first TLV in the currently built fragment
-    Tlv *firstTlvInFragment =
-        (Tlv *)((uint8_t *)packet.payload.iov_base + sizeof(Ieee1905CmduHeader));
-
-    for (int fragmentId = 0; fragmentId < 256 && remainingPacketLength > 0; fragmentId++) {
-        // search for the optimal TLV boundary for fragmentation
-        // include as many TLVs as can fit into the maximum fragment size (threashold).
-        int fragmentTlvsLength = 0;
-        Tlv *nextTlv           = firstTlvInFragment;
-        while (1) {
-            if (remainingPacketLength == 0) {
-                // we are all done
-                break;
-            }
-            if (remainingPacketLength < int(sizeof(Tlv))) {
-                // packet has a few padding bytes
-                MAPF_WARN("bad packet format - extra bytes at end of message.");
-                return false;
-            }
-            if (nextTlv->type() == 0 && remainingPacketLength > int(nextTlv->size())) {
-                MAPF_WARN("bad packet format - extra bytes after end of message TLV. "
-                          << remainingPacketLength);
-                return false;
-            }
-            if (nextTlv->size() > kIeee1905FragmentationThreashold) {
-                // this TLV is too large to fit in any fragment
-                const auto *cmdu_header =
-                    reinterpret_cast<const Ieee1905CmduHeader *>(packet.payload.iov_base);
-                const auto tlv_offset = reinterpret_cast<const uint8_t *>(nextTlv) -
-                                        reinterpret_cast<const uint8_t *>(packet.payload.iov_base);
-                const auto tlv_size = nextTlv->size();
-                MAPF_WARN("bad packet format - oversized TLV found: CMDU type=0x"
-                          << std::hex << ntohs(cmdu_header->messageType) << ", MID=0x"
-                          << ntohs(cmdu_header->messageId) << std::dec
-                          << ", TLV type=" << int(nextTlv->type())
-                          << ", TLV payload length=" << tlv_size - sizeof(Tlv)
-                          << ", TLV total size=" << tlv_size << ", TLV offset=" << tlv_offset
-                          << ", remaining CMDU bytes=" << remainingPacketLength
-                          << ", current fragment bytes=" << fragmentTlvsLength
-                          << ", fragmentation threshold=" << kIeee1905FragmentationThreashold);
-                return false;
-            }
-            if (int(nextTlv->size()) > remainingPacketLength) {
-                MAPF_WARN("bad packet format - TLV exceeds packet bounds.");
-                return false;
-            }
-            if (fragmentTlvsLength + nextTlv->size() >= kIeee1905FragmentationThreashold) {
-                // including the next TLV will go over the threashold - let's fragment at this TLV's boundary
-                break;
-            }
-            fragmentTlvsLength += nextTlv->size();
-            remainingPacketLength -= nextTlv->size();
-            nextTlv = nextTlv->next();
-        }
-        if (fragmentId == 256) {
-            MAPF_WARN("bad packet format - packet is too long.");
-            return false;
-        }
-
-        // copy the TLVs into the fragment packet buffer
-        std::copy_n((uint8_t *)firstTlvInFragment, fragmentTlvsLength,
-                    buf + sizeof(Ieee1905CmduHeader));
-
-        // update IEEE1905 header (fragmentId and lastFragmentIndicator)
-        Ieee1905CmduHeader *hdr = reinterpret_cast<Ieee1905CmduHeader *>(buf);
-        hdr->fragmentId         = fragmentId;
-        hdr->SetLastFragmentIndicator(remainingPacketLength == 0 ? 1 : 0);
-
-        fragment_packet.payload.iov_base = buf;
-        fragment_packet.payload.iov_len  = sizeof(Ieee1905CmduHeader) + fragmentTlvsLength;
-
-        if (remainingPacketLength > 0 &&
-            fragment_packet.payload.iov_len < kIeee1905FragmentationMinimum) {
-            MAPF_WARN("Fragment is too small - possibly padded EOM!");
-        }
-
-        // send the fragment
-        MAPF_DBG("sending fragment " << (int)fragmentId
-                                     << " (length=" << fragment_packet.payload.iov_len << ").");
-        if (!send_packet_to_network_interface(if_index, fragment_packet)) {
-            return false;
-        }
-
-        firstTlvInFragment = nextTlv;
-    }
-
-    return true;
+    return ieee1905_fragment_cmdu(
+        reinterpret_cast<const uint8_t *>(packet.payload.iov_base), packet.payload.iov_len,
+        [&](uint8_t *fragment, size_t fragment_length) {
+            fragment_packet.payload.iov_base = fragment;
+            fragment_packet.payload.iov_len  = fragment_length;
+            return send_packet_to_network_interface(if_index, fragment_packet);
+        });
 }
 
 // IEEE1905 or Multi-AP Packet Forwarding Rules (if no interface is specified):
@@ -800,7 +593,7 @@ std::ostream &Ieee1905Transport::Packet::print(std::ostream &os) const
        << std::endl;
 
     if (ether_type == ETH_P_1905_1) {
-        Ieee1905CmduHeader *ch = (Ieee1905CmduHeader *)payload.iov_base;
+        Ieee1905CmduHeader *ch = static_cast<Ieee1905CmduHeader *>(payload.iov_base);
         ss << "  IEEE1905 header:" << std::endl;
         ss << "    messageVersion        : " << std::hex << std::setfill('0') << std::setw(2)
            << (unsigned)ch->messageVersion << std::endl;

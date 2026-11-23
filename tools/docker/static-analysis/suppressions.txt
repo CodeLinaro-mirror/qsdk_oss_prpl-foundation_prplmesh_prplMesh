@@ -13,3 +13,4 @@ selfAssignment:agent/src/beerocks/slave/platform_manager/platform_manager.cpp
 
 // Suppress error: syntax error.
 syntaxError:agent/src/beerocks/slave/gate/unit_tests/gate_test.cpp
+syntaxError:framework/transport/ieee1905_transport/test/ieee1905_transport_fragmentation_tests.cpp
