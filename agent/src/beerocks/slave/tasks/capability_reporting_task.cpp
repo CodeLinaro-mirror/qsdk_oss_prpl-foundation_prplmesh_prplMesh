@@ -34,6 +34,7 @@
 #include "multi_vendor.h"
 
 #include <tlvf/wfa_map/tlvAkmSuiteCapabilities.h>
+#include <tlvf/wfa_map/tlvSupportedCipherSuites.h>
 #include <tlvf/wfa_map/tlvApCapability.h>
 #include <tlvf/wfa_map/tlvApHeCapabilities.h>
 #include <tlvf/wfa_map/tlvApHtCapabilities.h>
@@ -264,9 +265,80 @@ bool CapabilityReportingTask::add_akm_suites_capabilities_tlv(ieee1905_1::CmduMe
         return false;
     }
 
-    // TODO: Fill correct values for TLV (PPM-3618)
+    // Report the IEEE 802.11 AKM suites supported by the prplMesh Agent for
+    // both fronthaul and backhaul BSSs. The OUI is 00-0F-AC (IEEE 802.11,
+    // represented by eAkmSuiteOUI::IEEE80211). Suite type 2 is PSK and suite
+    // type 8 is SAE (IEEE 802.11-2020 subclause 9.4.2.23.3, Table 9-190).
+    // TODO: Source the advertised AKM suites from the radios' actual
+    // capabilities / WPA configuration instead of hard-coding (PPM-3618).
+    static const uint8_t akm_suite_types[] = {
+        0x02, // PSK
+        0x08, // SAE
+    };
+    constexpr size_t akm_count = sizeof(akm_suite_types) / sizeof(akm_suite_types[0]);
+
+    if (!akm_suites_capabilities_tlv->alloc_backhaul_bss_akm_suite_selectors(akm_count) ||
+        !akm_suites_capabilities_tlv->alloc_fronthaul_bss_akm_suite_selectors(akm_count)) {
+        LOG(ERROR) << "Failed allocating " << akm_count << " AKM suite selectors";
+        return false;
+    }
+
+    for (size_t idx = 0; idx < akm_count; ++idx) {
+        auto bh_selector = akm_suites_capabilities_tlv->backhaul_bss_akm_suite_selectors(idx);
+        auto fh_selector = akm_suites_capabilities_tlv->fronthaul_bss_akm_suite_selectors(idx);
+        if (!std::get<0>(bh_selector) || !std::get<0>(fh_selector)) {
+            LOG(ERROR) << "Failed accessing AKM suite selector at index " << idx;
+            return false;
+        }
+        auto &bh_suite = std::get<1>(bh_selector);
+        auto &fh_suite = std::get<1>(fh_selector);
+
+        bh_suite.oui = sVendorOUI(wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI::IEEE80211);
+        fh_suite.oui = sVendorOUI(wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI::IEEE80211);
+        bh_suite.akm_suite_type = akm_suite_types[idx];
+        fh_suite.akm_suite_type = akm_suite_types[idx];
+    }
 
     LOG(INFO) << "Add AKM Suites capabilities TLV";
+    return true;
+}
+
+bool CapabilityReportingTask::add_supported_cipher_suites_tlv(ieee1905_1::CmduMessageTx &cmdu_tx)
+{
+    auto supported_cipher_suites_tlv = cmdu_tx.addClass<wfa_map::tlvSupportedCipherSuites>();
+    if (!supported_cipher_suites_tlv) {
+        LOG(ERROR) << "Error creating tlvSupportedCipherSuites";
+        return false;
+    }
+
+    // Report the cipher suites supported by the prplMesh Agent. The OUI is
+    // 00-0F-AC (IEEE 802.11, shared with the AKM selectors). CCMP-128 (suite
+    // type 4) is the mandatory baseline cipher per IEEE 802.11-2020 Table
+    // 9-188.
+    // TODO: Source the advertised cipher suites from the radios' actual
+    // capabilities / WPA configuration instead of hard-coding (PPM-3618).
+    static const uint8_t cipher_suite_types[] = {
+        static_cast<uint8_t>(wfa_map::tlvSupportedCipherSuites::eCipherSuiteType::CCMP_128),
+    };
+    constexpr size_t cipher_count = sizeof(cipher_suite_types) / sizeof(cipher_suite_types[0]);
+
+    if (!supported_cipher_suites_tlv->alloc_cipher_suite_selectors(cipher_count)) {
+        LOG(ERROR) << "Failed allocating " << cipher_count << " cipher suite selectors";
+        return false;
+    }
+
+    for (size_t idx = 0; idx < cipher_count; ++idx) {
+        auto selector = supported_cipher_suites_tlv->cipher_suite_selectors(idx);
+        if (!std::get<0>(selector)) {
+            LOG(ERROR) << "Failed accessing cipher suite selector at index " << idx;
+            return false;
+        }
+        auto &cipher_suite = std::get<1>(selector);
+        cipher_suite.oui = sVendorOUI(wfa_map::tlvAkmSuiteCapabilities::eAkmSuiteOUI::IEEE80211);
+        cipher_suite.cipher_suite_type = cipher_suite_types[idx];
+    }
+
+    LOG(INFO) << "Add Supported Cipher Suites TLV (" << cipher_count << " selectors)";
     return true;
 }
 
@@ -627,6 +699,15 @@ bool CapabilityReportingTask::prepare_ap_capability_message(bool early)
     if (!add_akm_suites_capabilities_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling tlvAkmSuiteCapabilities";
         return false;
+    }
+    // The Supported Cipher Suites TLV is required only in the Early AP
+    // Capability Report message (EasyMesh R6 section 17.1.62). The regular AP
+    // Capability Report message (section 17.1.7) does not carry it.
+    if (early) {
+        if (!add_supported_cipher_suites_tlv(m_cmdu_tx)) {
+            LOG(ERROR) << "Error filling tlvSupportedCipherSuites";
+            return false;
+        }
     }
     if (!add_wifi7_agent_capabilities_tlv(m_cmdu_tx)) {
         LOG(ERROR) << "Error filling TLV_WIFI7_AGENT_CAPABILITIES";
